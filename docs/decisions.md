@@ -26,7 +26,7 @@ Each entry records what was decided and why. When a decision changes, replace th
 
 ## Compiler: clang-cl + lld-link, MSVC ABI
 
-**Decided.** Target `i386-pc-windows-msvc`. The same compiler on Windows, Linux and macOS (xwin supplies the Windows SDK/CRT off Windows), so every machine produces the same binary. The NAM DLL's Makefile already proves this cross-build works.
+**Decided.** Target `i386-pc-windows-msvc`. The same compiler on Windows and Linux (xwin supplies the Windows SDK/CRT on Linux), so every build machine produces the same binary. The NAM DLL's Makefile already proves this cross-build works.
 
 - **Rejected:** MinGW, whose C++ ABI (vtable thunks, destructors, RTTI, exceptions) differs from MSVC's.
 - **Rule:** no MSVC-only constructs such as `__declspec(naked)` inline asm without a portable macro (the NAM DLL's `NAKED_FUN` pattern).
@@ -49,7 +49,7 @@ Each entry records what was decided and why. When a decision changes, replace th
 
 ## Platform roles
 
-**Decided.** Windows is the primary development and parity-testing machine. CachyOS is the Wine/Proton target you'll play on. macOS is for reverse engineering, docs and cross-compiling. See [dev-environment.md](dev-environment.md).
+**Decided.** Windows is the primary development, reverse-engineering and parity-testing machine. CachyOS is the Wine/Proton target you'll play on. macOS gets no dev tools; it's used only for docs and source analysis that need just git. See [dev-environment.md](dev-environment.md).
 
 ## AI use and community etiquette
 
