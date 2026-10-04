@@ -17,7 +17,7 @@ Output is a toolkit, not a game change. Everything later depends on it.
 - [ ] `core.dll`: hook library (entry-only detours), GZCOM director, logging, crash dumps
 - [ ] Replacement registry with per-subsystem toggles and compare mode
 - [ ] Coverage meter: which original functions still execute
-- [ ] Ecosystem patch census: what each popular DLL (NAM DLL, sc4fix, graphics-options, submenus, 0xC0000054 plugins) patches and where
+- [~] Ecosystem patch census: what each popular DLL (NAM DLL, sc4fix, graphics-options, submenus, 0xC0000054 plugins) patches and where. Source-only pass done ([docs/patch-census.md](docs/patch-census.md)); still to do: confirm entry vs mid-function placement and function boundaries in Ghidra against the 641 exe
 - [ ] Contact Null 45 (0xC0000054), memo33 and the NAM team before patching anything they patch
 
 ## P1: Renderer (first usable milestone)
