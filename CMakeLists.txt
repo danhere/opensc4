@@ -31,6 +31,7 @@ target_compile_definitions(opensc4_options INTERFACE
   OPENSC4_VERSION="${PROJECT_VERSION}")
 target_include_directories(opensc4_options INTERFACE ${PROJECT_SOURCE_DIR}/src)
 
+add_subdirectory(third_party)
 add_subdirectory(src/core)
 add_subdirectory(src/launcher)
 

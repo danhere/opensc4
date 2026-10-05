@@ -21,6 +21,12 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 - Started outside Steam, the stub hands off to Steam and exits, and Steam starts a fresh copy without `core.dll`. The launcher sets `SteamAppId`/`SteamGameId` (24780) when they aren't already set, which is what Steam itself does, so the game keeps running in the injected process. Steam still checks ownership.
 - Never modify or strip the exe (see [architecture.md](architecture.md), "Loader").
 
+## Running in the game
+
+- `scripts/deploy-plugin.sh <build dir>` installs `core.dll` as `OpenSC4.dll` in a Plugins folder (default: the user's; `SC4_PLUGINS` overrides it) so the game calls its GZCOM director; `--remove` uninstalls. Launch with `opensc4.exe --core <that OpenSC4.dll>` so the injected and plugin-loaded copies are the same module.
+- `scripts/run-autotest.sh <build dir> [VAR=value...]` runs the game unattended: it loads a city, runs the simulation, quits without saving and prints `core.dll`'s log. It uses an isolated `-UserDir` (`%LOCALAPPDATA%\opensc4\testenv\userdir`, seeded with a copy of one region) whose Plugins folder holds only `OpenSC4.dll`, so the user's own plugins and saves are never involved. Variables are documented in `src/core/autotest.h` and the script header.
+- Build the plugin from a clone with submodules: `git submodule update --init` fetches gzcom-dll into `third_party/`.
+
 ## Ghidra
 
 - `scoop install ghidra` (extras bucket). Ghidra needs JDK 21 or newer. If an older `java` comes first on `PATH`, let Ghidra pick a JDK and remember it per Ghidra version (saved in `%APPDATA%\ghidra\ghidra_<version>_PUBLIC\java_home.save`):

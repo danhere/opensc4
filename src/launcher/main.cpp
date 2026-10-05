@@ -30,11 +30,14 @@ void SetSteamLaunchEnvironment()
 void Usage()
 {
     std::fwprintf(stderr,
-        L"usage: opensc4 [--game <path to SimCity 4.exe>] [--wait] [-- <game arguments>]\n"
+        L"usage: opensc4 [--game <path to SimCity 4.exe>] [--core <path to core.dll>] [--wait]\n"
+        L"               [-- <game arguments>]\n"
         L"       opensc4 --version\n"
         L"       opensc4 --check-core\n"
         L"\n"
-        L"Without --game, SimCity 4.exe is looked for next to opensc4.exe.\n");
+        L"Without --game, SimCity 4.exe is looked for next to opensc4.exe.\n"
+        L"Without --core, core.dll next to opensc4.exe is injected. When core.dll is also\n"
+        L"installed in a Plugins folder, pass that copy so the game sees one module.\n");
 }
 
 std::wstring ModuleDirectory()
@@ -87,6 +90,7 @@ int CheckCore()
 int wmain(int argc, wchar_t** argv)
 {
     std::wstring game;
+    std::wstring core;
     std::wstring gameArgs;
     bool wait = false;
 
@@ -99,6 +103,8 @@ int wmain(int argc, wchar_t** argv)
             return CheckCore();
         } else if (arg == L"--game" && i + 1 < argc) {
             game = argv[++i];
+        } else if (arg == L"--core" && i + 1 < argc) {
+            core = argv[++i];
         } else if (arg == L"--wait") {
             wait = true;
         } else if (arg == L"--") {
@@ -112,7 +118,7 @@ int wmain(int argc, wchar_t** argv)
 
     const std::wstring launcherDir = ModuleDirectory();
     game = FullPath(game.empty() ? launcherDir + L"\\SimCity 4.exe" : game);
-    const std::wstring core = launcherDir + L"\\core.dll";
+    core = FullPath(core.empty() ? launcherDir + L"\\core.dll" : core);
 
     if (!FileExists(game)) {
         std::fwprintf(stderr, L"SimCity 4.exe not found at %ls\n\n", game.c_str());

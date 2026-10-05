@@ -12,9 +12,10 @@ Output is a toolkit, not a game change. Everything later depends on it.
 - [~] Toolchain: clang-cl + lld-link, CMake + Ninja, Windows reference build in CI. Skeleton builds and passes smoke tests on Windows (scoop + xwin); CI workflow exists but is paused (manual trigger only, never run green); still to do: re-enable and confirm CI, Linux/CachyOS cross-build
 - [~] Ghidra project for Windows build 1.1.641, with Mac debug-symbol types ported (sc4-ghidra-symbols, version tracking / BinDiff). Exe imported and auto-analysed locally (Steam 641 exe, `.text` unencrypted); still to do: port the Mac types
 - [ ] Address database: names, addresses, signatures and calling conventions in one versioned source; `addresses.h` and hooks generated from it
-- [x] **Answer the class-creation question:** which game classes are created through GZCOM by class ID (can be swapped with no patching) and which with `new` (need detours)? This ratio decides how fragile option B is. **Answered** in [docs/class-creation.md](docs/class-creation.md): about 44% of instantiated classes (462 of ~1060) have GZCOM factories, including all 23 simulators; the rest need vtable swaps or detours. Next: check which code reaches into a simulator's fields or non-virtual methods.
+- [x] **Answer the class-creation question:** which game classes are created through GZCOM by class ID (can be swapped with no patching) and which with `new` (need detours)? This ratio decides how fragile option B is. **Answered** in [docs/class-creation.md](docs/class-creation.md): about 44% of instantiated classes (462 of ~1060) have GZCOM factories, including all 23 simulators; the rest need vtable swaps or detours. No outside code bypasses the simulators' vtables, and a pass-through pollution simulator registered by a plugin runs the city ([docs/experiments/pollution-proxy.md](docs/experiments/pollution-proxy.md)).
 - [x] Launcher exe: start SC4 suspended, inject `core.dll`, resume. Verified with the Steam build (handles its DRM stub relaunch); Steam's Play button does not go through the launcher yet
-- [ ] `core.dll`: hook library (entry-only detours), GZCOM director, logging, crash dumps
+- [~] `core.dll`: hook library (entry-only detours), GZCOM director, logging, crash dumps. GZCOM director (gzcom-dll) and basic logging done; detours and crash dumps still to do
+- [x] Unattended in-game test runs: `core.dll` loads a city in an isolated `-UserDir`, runs the simulation, quits without saving ([scripts/run-autotest.sh](scripts/run-autotest.sh))
 - [ ] Replacement registry with per-subsystem toggles and compare mode
 - [ ] Coverage meter: which original functions still execute
 - [~] Ecosystem patch census: what each popular DLL (NAM DLL, sc4fix, graphics-options, submenus, 0xC0000054 plugins) patches and where. Source-only pass done ([docs/patch-census.md](docs/patch-census.md)); still to do: confirm entry vs mid-function placement and function boundaries in Ghidra against the 641 exe
@@ -43,14 +44,14 @@ Output is a toolkit, not a game change. Everything later depends on it.
 
 ## P4: Save format and determinism (gate before any simulator work)
 
-- [ ] **Prove the original game replays deterministically** (hook time sources, capture RNG, fixed sim-tick stepping). If it doesn't, parity becomes statistical, and that changes the second half of the plan.
+- [ ] **Prove the original game replays deterministically** (hook time sources, capture RNG, fixed sim-tick stepping). If it doesn't, parity becomes statistical, and that changes the second half of the plan. First data point: under real-time stepping, two identical runs of the same city diverge within two game months ([docs/experiments/pollution-proxy.md](docs/experiments/pollution-proxy.md)).
 - [ ] Save parser / differ (offline tooling)
 - [ ] In-memory state dumpers from Ghidra layouts
 - [ ] Publish documented subfile schemas to the community
 
 ## P5: Isolated simulators
 
-- [ ] Pollution
+- [~] Pollution. A pass-through replacement registered through GZCOM already runs the city (experiment, `OPENSC4_PROXY_POLLUTION=1`)
 - [ ] Crime
 - [ ] Coverage sims (health, education, fire, police)
 - [ ] Land value
