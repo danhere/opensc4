@@ -29,7 +29,8 @@ No Visual Studio install is needed to build. The static release CRT (`/MT`) is u
 
 ### Windows
 
-- [Scoop](https://scoop.sh): `scoop install llvm cmake ninja tools/scoop/xwin.json` (the xwin manifest lives in this repo; it is not in a public bucket).
+- [Scoop](https://scoop.sh): `scoop install llvm cmake ninja ./tools/scoop/xwin.json`, run from the repo root.
+  - The xwin manifest lives in this repo because xwin is not in a public bucket. Keep the `./`: without it scoop reads `tools` as a bucket name.
   - Scoop's `llvm` adds its `bin` folder to `PATH` instead of creating shims, so open a new terminal after installing it.
 - x64dbg (32-bit) or the Visual Studio debugger for attaching to `SimCity 4.exe`.
 

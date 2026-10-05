@@ -1,8 +1,9 @@
 name: build
 
+# Paused: manual runs only until there is code worth guarding (see ROADMAP.md, P0).
+# Never run green yet; to re-enable, restore the push and pull_request triggers.
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   windows:
@@ -21,7 +22,9 @@ jobs:
         run: |
           iex "& {$(irm get.scoop.sh)} -RunAsAdmin"
           $shims = "$env:USERPROFILE\scoop\shims"
-          & "$shims\scoop.cmd" install llvm cmake ninja tools/scoop/xwin.json
+          # The ./ prefix matters: without it scoop reads "tools" as a bucket name.
+          & "$shims\scoop.cmd" install llvm cmake ninja ./tools/scoop/xwin.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "$shims" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
           "$env:USERPROFILE\scoop\apps\llvm\current\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
 
