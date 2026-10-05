@@ -7,7 +7,8 @@
 //     many slots as that interface, or at most two more where one of the
 //     extras is an MSVC scalar deleting destructor (the class's own virtuals
 //     follow the interface's);
-//   - the game's operator new and delete (0x005E55E0, 0x005E5620).
+//   - the game's operator new and delete (0x005E55E0, 0x005E5620);
+//   - the system service base constructor (0x0091DE0F).
 // Only functions with default names are renamed, so Function ID's library
 // names are kept. A function that would get two different names (identical
 // code folded across classes by the linker) is left alone.
@@ -76,6 +77,9 @@ public class ApplyKnownNames extends GhidraScript {
         // Precedes 752 constructor calls; scalar deleting destructors free with 0x005E5620.
         propose(toAddr(0x005E55E0), "SC4", "operator_new");
         propose(toAddr(0x005E5620), "SC4", "operator_delete");
+        // Same fields as gzcom-dll's cRZBaseSystemService(serviceID, priority); called by
+        // 40 service constructors (cSC4Simulator, cSC424HourClock, ...).
+        propose(toAddr(0x0091DE0F), "cRZBaseSystemService", "cRZBaseSystemService");
 
         int classes = 0;
         for (Map.Entry<Long, Address> e : factories.entrySet()) {

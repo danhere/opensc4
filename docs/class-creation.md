@@ -30,7 +30,9 @@ Method: static analysis of the Steam `SimCity 4.exe` 1.1.641 in Ghidra 12.1.4, a
    | 0x0090E133 (`AddCls`, factory type 1, inferred) | 455 | 454 | 23 (directors) |
    | 0x0090E160 (`AddCls`, factory type 2, inferred) | 4 | 4 | 1 |
 
-   458 distinct class IDs in all; the name table names 197 of them. A third function, 0x0091DE0F, takes 7 more (class ID, function) pairs from 7 different places; its role is not identified yet.
+   458 distinct class IDs in all; the name table names 197 of them.
+
+   The census also matches 7 calls to 0x0091DE0F, but that is not a registration function. It is the constructor of the game's system service base class: its stores match gzcom-dll's `cRZBaseSystemService(serviceID, servicePriority)` (service ID, priority, tick priority set to the same value, running flag cleared). 40 service constructors call it, such as `cSC4Simulator` (`kSC4SimulatorSysServiceId`), `cSC424HourClock` and the Lua script server, file system and canvas services; 37 of the calls are inside Ghidra functions and 3 are in code outside any function. The census picks up the 7 whose priority (5,000,000, 8,999,999, 9,000,000, 10,000,000 or 10,000,010) happens to be an address inside `.text`, so it looks like a factory pointer.
 4. **The city creates its simulators through `cIGZCOM::GetClassObject`.** Around 0x45AD40-0x45AFA0, for each simulator member: `if (!m) com->GetClassObject(clsid, iid, &m)` (vtable slot 0xC). For example, class 0x0990C005 (`cSC4PowerSimulator`) is requested with IID 0xE9E7BFF5, which gzcom-dll names `GZIID_cISC4PowerSimulator`.
 5. **Classes by how they are created.** A class is identified by its vtable, and every call to its constructor is classified by its caller:
 
@@ -111,7 +113,7 @@ Not yet checked: outside code that reads or writes simulator fields directly by 
 - A `new` site is recognised only in the MSVC shape `CALL allocator … MOV ECX,EAX … CALL ctor`. Constructors inlined at `new` sites (outside factories) are not seen.
 - Registrations are recognised only when the class ID is an immediate or comes from a `MOV EAX, imm32; RET` getter called right before the push.
 - Classes are counted by primary vtable; a class with multiple inheritance writes several vtables, and only the last one written at offset 0 identifies it.
-- The 7 pairs passed to 0x0091DE0F are not counted as GZCOM.
+- The 7 calls to 0x0091DE0F (system service constructor, see finding 3) are not registrations and are not counted.
 
 ## Reproducing
 
