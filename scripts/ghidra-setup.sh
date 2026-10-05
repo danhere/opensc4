@@ -14,7 +14,10 @@
 #   3. the exe's ID-to-name table and gzcom-dll's interface slot table;
 #   4. sc4-ghidra-symbols: Function ID databases and data type archives;
 #   5. names for classes, vtables and interface methods;
-#   6. the function list for the coverage meter (functions.csv).
+#   6. functions for code that auto-analysis left outside every function
+#      (virtual methods, callbacks and exception funclets reached only
+#      through pointers);
+#   7. the function list for the coverage meter (functions.csv).
 #
 # Environment:
 #   SC4_GAME              path to SimCity 4.exe (default: Steam install)
@@ -98,7 +101,10 @@ step "5. names"
 run_script --write ApplyKnownNames.java "$(win "$out/class-registrations.csv")" "$(win "$out/name-table.csv")" \
     "$(win "$out/interface-slots.csv")"
 
-step "6. function list (coverage meter, reports)"
+step "6. functions for code reached only through pointers"
+run_script --write DefineOrphanFunctions.java | tail -1
+
+step "7. function list (coverage meter, reports)"
 run_script -readOnly ExportFunctions.java "$(win "$out/functions.csv")"
 
 echo

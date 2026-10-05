@@ -117,7 +117,7 @@ The NAM-style helpers that memo33's DLLs reuse behave the same way. NAM adds ver
 | Address | Kind | Entry/mid | Purpose | Verifies | Uninstall | Source |
 |---|---|---|---|---|---|---|
 | 0x637F80 | B, 1 byte (Jcc to JMP short) | mid (Ghidra, section 9) | draggable diagonal streets | no | no | src/NAMDllDirector.cpp |
-| 0x63AFF2 | B, 1 byte (Jcc to JMP short) | not an entry: code outside function bodies (Ghidra, section 9) | draggable diagonal streets | no | no | src/NAMDllDirector.cpp |
+| 0x63AFF2 | B, 1 byte (Jcc to JMP short) | mid (Ghidra, section 9) | draggable diagonal streets | no | no | src/NAMDllDirector.cpp |
 | 0x729FFF | B, 1 byte | mid (Ghidra, section 9) | disable auto-connect for RHW and streets | no | no | src/NAMDllDirector.cpp |
 | 0x6459BC | B, 4 bytes (absolute operand replaced with a pointer to a DLL float) | mid (inferred) | lower minimum ferry/bridge height | no | no | src/NAMDllDirector.cpp |
 | 0x6099C4 | B, 4 bytes (immediate) | mid (inferred) | fallback network type = Road | no | no | src/FlexPieces.cpp |
@@ -661,16 +661,16 @@ Functions and areas we must not replace early (each contains third-party patch s
 
 ## 9. Placement check against Ghidra (2026-10-05)
 
-Every address in the section 3 tables was classified against the function boundaries of the Ghidra project ([`tools/re/census_placement.py`](../tools/re/census_placement.py), function list from `scripts/ghidra-setup.sh`), and the patched functions were matched against a coverage run (Making Money Tutorial, three game years; [dev-environment.md](dev-environment.md), "Coverage").
+Every address in the section 3 tables was classified against the function boundaries of the Ghidra project ([`tools/re/census_placement.py`](../tools/re/census_placement.py), function list from `scripts/ghidra-setup.sh`), and the patched functions were matched against a coverage run (Making Money Tutorial, 120 s at speed 2, about six game years; [dev-environment.md](dev-environment.md), "Coverage"). Rechecked the same day after [`DefineOrphanFunctions.java`](../tools/ghidra/DefineOrphanFunctions.java) defined functions for the code Ghidra had left outside function bodies.
 
 | | Sites | Entry | Mid | Data | Code outside function bodies |
 |---|---|---|---|---|---|
-| All section 3 tables | 293 | 3 | 202 | 61 | 27 |
+| All section 3 tables | 293 | 3 | 229 | 61 | 0 |
 
-- **Only 3 of 232 code sites are at a function entry**: sc4fix's prop-pox rewrite at 0x5D3DE0 and two sc4-dbpf-loading hooks. Every other code patch is inside a function, or in code Ghidra did not attribute to a function. This confirms risk 1 in [architecture.md](architecture.md): replacing almost any patched function silently drops someone's patch, so the per-DLL compatibility manifest is required before replacing anything in these areas.
+- **Only 3 of 232 code sites are at a function entry**: sc4fix's prop-pox rewrite at 0x5D3DE0 and two sc4-dbpf-loading hooks. Every other code patch is inside a function. This confirms risk 1 in [architecture.md](architecture.md): replacing almost any patched function silently drops someone's patch, so the per-DLL compatibility manifest is required before replacing anything in these areas.
 - **Every placement the census marked inferred is confirmed**, and none of the source-derived placements disagrees with Ghidra.
-- **The previously unknown sites:** NAM 0x637F80 and 0x729FFF are mid-function; NAM 0x63AFF2 lies in code outside any function body (after FUN_0063A640); lot-network-scoring-test 0x7050E0 is mid-function (FUN_00705040); the "unaligned" Detours target 0x9192A9 is a function entry.
-- **Submenus 0x79A984 and UI Modernization 0x79A0E0 are not in the same function** (0x79A984 is in FUN_0079A940; 0x79A0E0 is in unattributed code after FUN_0079A020).
+- **The previously unknown sites:** NAM 0x637F80 and 0x729FFF are mid-function; NAM 0x63AFF2 is mid-function too (FUN_0063AF40); lot-network-scoring-test 0x7050E0 is mid-function (FUN_00705040); the "unaligned" Detours target 0x9192A9 is a function entry.
+- **Submenus 0x79A984 and UI Modernization 0x79A0E0 are not in the same function** (0x79A984 is in FUN_0079A940; 0x79A0E0 is the entry of FUN_0079A0E0). All 11 UI Modernization entry detours listed in section 7 are function entries in Ghidra.
 - **No function is patched by more than one DLL** among the tabulated sites (UI Modernization's ~187 untranscribed immediates are not included).
-- **31 of the 81 patched functions ran** in the three-year coverage run, so those patches sit on code that a quiet city executes.
-- **27 sites lie in code outside every Ghidra function body**, for example kilobytes between FUN_006D90F0 (190 bytes) and the next function at 0x6DA060. That code is typically reached only through jump tables or exception handlers. It is also invisible to the coverage meter, which instruments function entries only. Defining those functions in Ghidra is follow-up work.
+- **35 of the 91 patched functions ran** in the coverage run, so those patches sit on code that a quiet city executes.
+- **27 sites were first found in code outside every Ghidra function body**, for example kilobytes between FUN_006D90F0 (190 bytes) and the next function at 0x6DA060. Ghidra had left about 950 KB of code undefined: virtual methods, callbacks and exception funclets reached only through pointers, which auto-analysis does not treat as function starts without RTTI. `scripts/ghidra-setup.sh` now defines about 10,400 functions there, and all 27 sites are mid-function.
