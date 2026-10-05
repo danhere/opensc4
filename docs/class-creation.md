@@ -78,10 +78,30 @@ Method: static analysis of the Steam `SimCity 4.exe` 1.1.641 in Ghidra 12.1.4, a
 
 cSC43DPlaceableObject, cSC4AdvisorPopupTracker, cSC4App, cSC4AudioAmbienceLayer, cSC4AutomataController, cSC4AutomataManager, cSC4CellTextureModel, cSC4DBSegmentTester1-5, cSC4DebugConsole, cSC4DisasterInstanceEffect, cSC4DisasterInstanceToxic, cSC4FoundationModel, cSC4LightingManager, cSC4LotConfiguration, cSC4LotManager, cSC4LotRetainingWallModel, cSC4MultiTypeNetworkOccupant, cSC4Nation, cSC4PathFinder, cSC4PortDeveloper, cSC4ScriptServiceResourceFactory, cSC4SimGrid, cSC4ToxicOccupant, cSC4TutorialTask, cSC4UndergroundOccupant, cSC4View3DWin, cSC4WaterPathFinder, cSC4WinIntroVideoScreen, cSC4WinProcSpy, cSC4WinRegionScreen, cSC4WinRegionView, cSC4WinSplashScreen.
 
+## Do other parts of the game bypass the simulators' vtables?
+
+A GZCOM replacement only receives calls that go through its vtable. Code that calls an original method directly (devirtualised, or non-virtual) would keep running the original. [`VtableBypassCensus.java`](../tools/ghidra/VtableBypassCensus.java) checks this for all 23 simulators:
+
+1. From each simulator's registered factory, find its constructor and the vtables it installs (the last one stored at each offset), then each vtable's function slots.
+2. List every direct `CALL` to a slot function from a function that is not one of the class's slots, its constructor or its factory.
+3. Discard callers inside the address range of the class's own (non-shared) slot functions. MSVC keeps each object file's functions together, so these are the class's own non-virtual methods.
+4. Classify what is left by the called function.
+
+Result: **no simulator has an outside caller into a substantial virtual method.** All 120 remaining outside calls are:
+
+| Called function | Outside callers | Why it is harmless (or not yet cleared) |
+|---|---|---|
+| Class-ID getter (`MOV EAX, imm32; RET`, `cIGZSerializable::GetGZCLSID` at slot 5 of the vtable at offset 8) | 26 | Returns a constant. 14 of these come from one director function at 0x00460090. |
+| Tiny function, at most 16 bytes (`AddRef`, one-field getters) | 94 | The linker folds identical functions, so these are shared with unrelated classes, and most callers are not calling simulators. **Not fully cleared:** a caller that does call one on a simulator reads a field at a fixed offset, which pins that field's position in a replacement. |
+
+`cSC4PollutionSimulator`, `cSC4PoliceSimulator` and `cSC4PlumbingSimulator` have no outside callers at all, even counting getters and tiny functions.
+
+Not yet checked: outside code that reads or writes simulator fields directly by offset (without calling any method). That is the remaining risk for a GZCOM-level swap.
+
 ## What this means for option B
 
 - **The simulators can be replaced at the GZCOM level**, the same way scvk replaces the renderer, as long as a plugin-registered class ID takes precedence when the city asks for it. scvk shows that works for the renderer's ID; it still has to be confirmed for a simulator.
-- **Before replacing a simulator, check who reaches into it.** Other simulators or UI code may read its fields by offset or call non-virtual methods directly. Those accesses decide whether the replacement must keep the original's layout (the ABI rule in [architecture.md](architecture.md)) or whether the access sites need detours too.
+- **Before replacing a simulator, check who reaches into its fields.** No outside code calls the simulators' substantial methods directly (previous section), but code may still read fields by offset. Those accesses decide whether the replacement must keep the original's layout (the ABI rule in [architecture.md](architecture.md)) or whether the access sites need detours too.
 - **The rest is reached through vtables and detours, as the architecture expected.** A vtable lives once in `.rdata`, so a vtable swap affects every instance however it was created. Detours are needed only for non-virtual methods, free functions and inlined code.
 - Vtable swaps collide with ecosystem DLLs that patch vtable slots (kind V in the [patch census](patch-census.md)), so the per-DLL compatibility manifest applies to them too.
 
@@ -105,4 +125,7 @@ ghidra="$HOME/scoop/apps/ghidra/current/support/analyzeHeadless.bat"
 "$ghidra" "$proj" SC4_1.1.641 -process "SimCity 4.exe" -noanalysis -readOnly -scriptPath tools/ghidra \
   -postScript ClassCreationCensus.java "$out/class-registrations.csv" "$out/class-creation.csv"
 python3 tools/re/extract_name_table.py "<path to SimCity 4.exe>" > "$out/name-table.csv"
+# simulators.csv: "clsid,name" rows for the cSC4*Simulator entries of name-table.csv
+"$ghidra" "$proj" SC4_1.1.641 -process "SimCity 4.exe" -noanalysis -readOnly -scriptPath tools/ghidra \
+  -postScript VtableBypassCensus.java "$out/class-registrations.csv" "$out/simulators.csv" "$out/simulator-bypass.csv"
 ```
