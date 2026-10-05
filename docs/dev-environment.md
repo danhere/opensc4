@@ -15,6 +15,25 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 - SimCity 4 Deluxe, **build 1.1.641** (Steam, GOG or EA app).
 - A test plugin set pinned to known versions: NAM 50 (NAM DLL), sc4fix, sc4-graphics-options, submenus.
 
+### The Steam build
+
+- The Steam `SimCity 4.exe` (file version 1.1.641.0) is wrapped in Steam's DRM stub: an extra `.bind` section holds the entry point (0x7C82ED). `.text` is **not** encrypted, so the file on disk can be analysed directly.
+- Started outside Steam, the stub hands off to Steam and exits, and Steam starts a fresh copy without `core.dll`. The launcher sets `SteamAppId`/`SteamGameId` (24780) when they aren't already set, which is what Steam itself does, so the game keeps running in the injected process. Steam still checks ownership.
+- Never modify or strip the exe (see [architecture.md](architecture.md), "Loader").
+
+## Ghidra
+
+- `scoop install ghidra` (extras bucket). Ghidra needs JDK 21 or newer. If an older `java` comes first on `PATH`, let Ghidra pick a JDK and remember it per Ghidra version (saved in `%APPDATA%\ghidra\ghidra_<version>_PUBLIC\java_home.save`):
+
+  ```bash
+  g="$HOME/scoop/apps/ghidra/current"
+  java -cp "$(cygpath -w "$g/support/LaunchSupport.jar")" LaunchSupport "$(cygpath -w "$g")" -jdk_home -save
+  ```
+
+- Keep Ghidra projects **outside the repo** (for example `%LOCALAPPDATA%\opensc4\ghidra`). They contain the game's code and must never be committed.
+- `analyzeHeadless.bat` fails on paths containing parentheses, such as `Program Files (x86)`. Import a copy of the exe from a path without them.
+- Headless import with full auto-analysis of the 641 exe takes about 3 minutes.
+
 ## Toolchain (same on Windows and CachyOS)
 
 | Tool | Purpose |
