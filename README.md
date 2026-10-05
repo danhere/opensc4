@@ -17,6 +17,7 @@ Planning. Nothing is built yet. See [ROADMAP.md](ROADMAP.md) for progress.
 | [ROADMAP.md](ROADMAP.md) | Phases P0-P9 with progress checklists |
 | [docs/architecture.md](docs/architecture.md) | Loader, hooking layer, replacement registry, ABI rules, subsystem map |
 | [docs/decisions.md](docs/decisions.md) | Decision log: approach, language, license, name, platform |
+| [docs/class-creation.md](docs/class-creation.md) | Which classes GZCOM creates by class ID vs. direct construction |
 | [docs/research.md](docs/research.md) | Feasibility research, existing projects, legal context, community etiquette |
 | [docs/dev-environment.md](docs/dev-environment.md) | Windows / CachyOS / macOS roles and toolchain |
 
