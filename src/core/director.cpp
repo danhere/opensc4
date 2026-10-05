@@ -3,6 +3,7 @@
 // folder; the director then serves class IDs registered with AddCls.
 #include "core/address_check.h"
 #include "core/autotest.h"
+#include "core/crash.h"
 #include "core/game.h"
 #include "core/log.h"
 #include "core/pollution_proxy.h"
@@ -56,6 +57,7 @@ public:
         opensc4::log::Write("director: PostAppInit");
         if (!opensc4::game::IsBuild641())
             return true;
+        opensc4::crash::InstallHandler(); // after the game's own filter, which it chains to
         opensc4::addr_check::LogManifest();
         if (opensc4::trace::Enabled())
             opensc4::trace::Install();

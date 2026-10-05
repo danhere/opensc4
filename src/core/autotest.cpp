@@ -1,5 +1,6 @@
 #include "core/autotest.h"
 
+#include "core/crash.h"
 #include "core/log.h"
 #include "core/pollution_proxy.h"
 
@@ -40,6 +41,20 @@ int EnvInt(const char* name, int fallback)
 {
     const std::string value = Env(name);
     return value.empty() ? fallback : std::atoi(value.c_str());
+}
+
+__declspec(noinline) void WriteThroughNull(volatile int* p)
+{
+    *p = 1;
+}
+
+// A deliberate crash inside a hook-style guard (OPENSC4_TEST_CRASH=1).
+void CrashOnPurpose()
+{
+    __try {
+        WriteThroughNull(nullptr);
+    } __except (crash::HookFilter("autotest::CrashOnPurpose", GetExceptionInformation())) {
+    }
 }
 
 class AutoTestService final : public cRZBaseSystemService {
@@ -187,6 +202,10 @@ private:
         if (now - lastReport_ >= 15000) {
             lastReport_ = now;
             Report(app);
+        }
+        if (now - stateStart_ >= 5000 && Env("OPENSC4_TEST_CRASH") == "1") {
+            log::Write("autotest: crashing on purpose (OPENSC4_TEST_CRASH=1)");
+            CrashOnPurpose();
         }
         if (now - stateStart_ >= static_cast<ULONGLONG>(runSeconds_) * 1000) {
             Report(app);

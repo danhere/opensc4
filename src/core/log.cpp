@@ -14,16 +14,25 @@ SRWLOCK g_lock = SRWLOCK_INIT;
 
 bool LogPath(wchar_t (&path)[MAX_PATH])
 {
-    DWORD length = GetModuleFileNameW(reinterpret_cast<HMODULE>(&__ImageBase), path, MAX_PATH);
-    while (length > 0 && path[length - 1] != L'\\')
-        --length;
-    if (length == 0 || length + 12 >= MAX_PATH)
+    if (!Directory(path))
+        return false;
+    const int length = lstrlenW(path);
+    if (length + 12 >= MAX_PATH)
         return false;
     lstrcpyW(path + length, L"opensc4.log");
     return true;
 }
 
 } // namespace
+
+bool Directory(wchar_t (&path)[MAX_PATH])
+{
+    DWORD length = GetModuleFileNameW(reinterpret_cast<HMODULE>(&__ImageBase), path, MAX_PATH);
+    while (length > 0 && path[length - 1] != L'\\')
+        --length;
+    path[length] = L'\0';
+    return length > 0;
+}
 
 void Write(const char* format, ...)
 {

@@ -35,6 +35,12 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 - Hooks (`src/core/hook.h`) go through MinHook, only at `function` entries from the database, and are refused when the entry's bytes don't match (a different build, or another DLL got there first). Detours for `__thiscall` functions are written as `__fastcall` free functions (`this` in ECX, unused EDX).
 - `OPENSC4_TRACE=1` installs trace hooks (currently `cSC4App::LoadCity`) that log calls and pass them through.
 
+## Crashes
+
+- SimCity 4 catches crashes in its main loop with its own `__except` handler (it installs no top-level filter) and writes `SimCity Exception Report …txt` plus a minidump to the **real** `Documents\SimCity 4\Exception Reports`, even under `-UserDir`.
+- `core.dll` adds (`src/core/crash.h`): a first-chance handler that logs any fatal exception raised in OpenSC4's own code and writes `opensc4-crash-<time>-<pid>.dmp` next to `opensc4.log` before the game's handler runs; a top-level filter for crashes nothing else catches; and a guard for hook entry points that logs which hook an exception passed through. Dumps use the system `dbghelp.dll`, not the XP-era copy in the game folder.
+- `OPENSC4_TEST_CRASH=1` makes an autotest run crash on purpose inside a guarded section, to check the whole chain.
+
 ## Ghidra
 
 - `scoop install ghidra` (extras bucket). Ghidra needs JDK 21 or newer. If an older `java` comes first on `PATH`, let Ghidra pick a JDK and remember it per Ghidra version (saved in `%APPDATA%\ghidra\ghidra_<version>_PUBLIC\java_home.save`):

@@ -13,6 +13,11 @@ target_link_libraries(opensc4_hook_test PRIVATE opensc4_core_support)
 add_test(NAME hook_layer COMMAND opensc4_hook_test)
 set_tests_properties(hook_layer PROPERTIES PASS_REGULAR_EXPRESSION "hook test OK")
 
+add_executable(opensc4_crash_test crash_test.cpp)
+target_link_libraries(opensc4_crash_test PRIVATE opensc4_core_support)
+add_test(NAME crash_handling COMMAND opensc4_crash_test)
+set_tests_properties(crash_handling PROPERTIES PASS_REGULAR_EXPRESSION "crash test OK")
+
 add_test(NAME launcher_version COMMAND opensc4_launcher --version)
 set_tests_properties(launcher_version PROPERTIES
   PASS_REGULAR_EXPRESSION "^opensc4 ${PROJECT_VERSION}")

@@ -6,4 +6,8 @@ namespace opensc4::log {
 
 void Write(const char* format, ...);
 
+// Folder holding opensc4.log (the folder of the module containing this code),
+// with a trailing backslash. Empty on failure.
+bool Directory(wchar_t (&path)[260]);
+
 } // namespace opensc4::log

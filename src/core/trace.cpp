@@ -1,6 +1,7 @@
 #include "core/trace.h"
 
 #include "core/address_check.h"
+#include "core/crash.h"
 #include "core/hook.h"
 #include "core/log.h"
 
@@ -25,7 +26,7 @@ using LoadCityFn = bool(__fastcall*)(cISC4App* self, void* edx, SC4String const&
                                      cRZAutoRefCount<cISC4RegionalCity>* city);
 LoadCityFn g_loadCity = nullptr;
 
-bool __fastcall LoadCity(cISC4App* self, void* edx, SC4String const& path, cRZAutoRefCount<cISC4RegionalCity>* city)
+bool LoadCityBody(cISC4App* self, void* edx, SC4String const& path, cRZAutoRefCount<cISC4RegionalCity>* city)
 {
     log::Write("trace: cSC4App::LoadCity(\"%s\")", path.ToChar());
     const ULONGLONG start = GetTickCount64();
@@ -33,6 +34,16 @@ bool __fastcall LoadCity(cISC4App* self, void* edx, SC4String const& path, cRZAu
     log::Write("trace: cSC4App::LoadCity returned %s after %llu ms", loaded ? "true" : "false",
                GetTickCount64() - start);
     return loaded;
+}
+
+// Hook entry: only the SEH guard lives here (see crash.h).
+bool __fastcall LoadCity(cISC4App* self, void* edx, SC4String const& path, cRZAutoRefCount<cISC4RegionalCity>* city)
+{
+    __try {
+        return LoadCityBody(self, edx, path, city);
+    } __except (crash::HookFilter("cSC4App::LoadCity", GetExceptionInformation())) {
+        return false;
+    }
 }
 
 } // namespace

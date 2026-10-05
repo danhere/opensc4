@@ -10,6 +10,8 @@
 //   OPENSC4_TEST_SPEED    simulation speed as the game numbers it: 0 (slowest)
 //                         to 2 (fastest, default). cSC4Simulator ignores any
 //                         other value (0x00702430).
+//   OPENSC4_TEST_CRASH    "1": once the city is running, crash on purpose inside
+//                         a guarded section, to test the crash handler chain
 #pragma once
 
 namespace opensc4::autotest {

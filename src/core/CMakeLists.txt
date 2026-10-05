@@ -2,6 +2,7 @@
 # the address database check and the hook layer.
 add_library(opensc4_core_support STATIC
   address_check.cpp
+  crash.cpp
   game.cpp
   hook.cpp
   log.cpp)
