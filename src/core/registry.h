@@ -31,6 +31,7 @@ enum class Kind { Gzcom, Detour, Vtable };
 enum class Phase {
     DirectorInit, // core.dll's GZCOM director is created: register class factories here
     PostAppInit,  // all plugins have loaded and patched: install hooks here
+    LateInit,     // after every PostAppInit replacement: instrumentation (coverage)
 };
 
 struct Replacement {

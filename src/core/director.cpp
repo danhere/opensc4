@@ -8,6 +8,7 @@
 #include "core/autotest.h"
 #include "core/compare.h"
 #include "core/crash.h"
+#include "core/diagnostics.h"
 #include "core/game.h"
 #include "core/log.h"
 #include "core/registry.h"
@@ -60,6 +61,7 @@ public:
         opensc4::crash::InstallHandler(); // after the game's own filter, which it chains to
         opensc4::addr_check::LogManifest();
         opensc4::registry::Apply(opensc4::registry::Phase::PostAppInit);
+        opensc4::registry::Apply(opensc4::registry::Phase::LateInit);
         if (opensc4::autotest::Enabled())
             opensc4::autotest::Start();
         return true;
@@ -68,6 +70,7 @@ public:
     bool PreAppShutdown() override
     {
         opensc4::compare::LogStats();
+        opensc4::diagnostics::OnShutdown();
         return true;
     }
 

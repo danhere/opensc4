@@ -48,7 +48,10 @@ if tasklist //FI "IMAGENAME eq SimCity 4.exe" //NH | grep -q "SimCity 4.exe"; th
 fi
 
 SC4_PLUGINS="$testenv/Plugins" "$repo/scripts/deploy-plugin.sh" "$build" >/dev/null
-rm -f "$testenv/Plugins/opensc4.log"
+rm -f "$testenv/Plugins/opensc4.log" "$testenv/Plugins/opensc4-coverage.csv"
+# Function list for diagnostics.coverage (written by scripts/ghidra-setup.sh).
+functions="${OPENSC4_ANALYSIS_DIR:-$(cygpath "$LOCALAPPDATA")/opensc4/analysis}/functions.csv"
+[ -f "$functions" ] && cp "$functions" "$testenv/Plugins/opensc4-functions.csv"
 
 # 8.3 path: no spaces, so no quoting around the trailing backslash SC4 wants.
 userdir="$(cygpath -d "$testenv")\\"

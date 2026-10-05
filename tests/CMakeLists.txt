@@ -23,6 +23,11 @@ target_link_libraries(opensc4_registry_test PRIVATE opensc4_core_support)
 add_test(NAME replacement_registry COMMAND opensc4_registry_test)
 set_tests_properties(replacement_registry PROPERTIES PASS_REGULAR_EXPRESSION "registry test OK")
 
+add_executable(opensc4_coverage_test coverage_test.cpp)
+target_link_libraries(opensc4_coverage_test PRIVATE opensc4_core_support)
+add_test(NAME coverage_meter COMMAND opensc4_coverage_test)
+set_tests_properties(coverage_meter PROPERTIES PASS_REGULAR_EXPRESSION "coverage test OK")
+
 add_test(NAME launcher_version COMMAND opensc4_launcher --version)
 set_tests_properties(launcher_version PROPERTIES
   PASS_REGULAR_EXPRESSION "^opensc4 ${PROJECT_VERSION}")

@@ -49,6 +49,12 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 
   or for one run with `OPENSC4_REPLACE=id=mode,id=mode` (the environment wins). A key ending in `.*` toggles a whole subsystem (`simulators.* = ours`); an exact id wins over a wildcard, and a longer wildcard over a shorter one. `core.dll` logs one line per replacement with the mode it ended up in, and falls back to `original` for unknown modes, unsupported compare, or a replacement that could not be applied (for example because another DLL already patched its target).
 
+## Coverage
+
+- The replacement `diagnostics.coverage` records which game functions run: a one-shot `INT3` at every function entry in `opensc4-functions.csv` (exported by `scripts/ghidra-setup.sh`, copied next to `core.dll` by `scripts/run-autotest.sh`). The first call restores the byte, so each function costs one exception once. Entries whose first byte differs (patched by another DLL or by our hooks) are skipped; it is applied in the last startup phase, after every hook.
+- At shutdown `core.dll` writes `opensc4-coverage.csv` (address, ms until first call) and logs a summary. `python3 tools/re/coverage_report.py functions.csv opensc4-coverage.csv` breaks it down by named class.
+- First measurement (Making Money Tutorial, three game years at speed 2): 8,664 of 24,292 functions ran (35.7%); 135 of 229 named classes ran some code. No audio class ran at all, so sound is probably not started in a background test window.
+
 ## Crashes
 
 - SimCity 4 catches crashes in its main loop with its own `__except` handler (it installs no top-level filter) and writes `SimCity Exception Report …txt` plus a minidump to the **real** `Documents\SimCity 4\Exception Reports`, even under `-UserDir`.

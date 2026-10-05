@@ -13,7 +13,8 @@
 #      class registrations, class creation, simulator vtable bypasses;
 #   3. the exe's ID-to-name table and gzcom-dll's interface slot table;
 #   4. sc4-ghidra-symbols: Function ID databases and data type archives;
-#   5. names for classes, vtables and interface methods.
+#   5. names for classes, vtables and interface methods;
+#   6. the function list for the coverage meter (functions.csv).
 #
 # Environment:
 #   SC4_GAME              path to SimCity 4.exe (default: Steam install)
@@ -96,6 +97,9 @@ run_script --write ImportSc4Symbols.java "$(cygpath -d "$local_symbols")"
 step "5. names"
 run_script --write ApplyKnownNames.java "$(win "$out/class-registrations.csv")" "$(win "$out/name-table.csv")" \
     "$(win "$out/interface-slots.csv")"
+
+step "6. function list (coverage meter, reports)"
+run_script -readOnly ExportFunctions.java "$(win "$out/functions.csv")"
 
 echo
 echo "Done. Project: $project_dir/$project.gpr; outputs: $out"

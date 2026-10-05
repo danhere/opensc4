@@ -3,6 +3,7 @@
 add_library(opensc4_core_support STATIC
   address_check.cpp
   compare.cpp
+  coverage.cpp
   crash.cpp
   game.cpp
   hook.cpp
@@ -14,6 +15,7 @@ target_link_libraries(opensc4_core_support
 
 add_library(opensc4_core SHARED
   autotest.cpp
+  diagnostics.cpp
   dllmain.cpp
   director.cpp
   pollution_proxy.cpp
