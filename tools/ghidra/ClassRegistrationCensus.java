@@ -1,7 +1,9 @@
 // Finds GZCOM-style class registrations: calls whose last two pushed
-// arguments are (class ID immediate, pointer to a function), the shape of
-// cRZCOMDllDirector::AddCls(clsid, factory) in gzcom-dll. Tallies the callees
-// and writes every candidate call site to a CSV for further analysis.
+// arguments are (class ID, pointer to a function), the shape of
+// cRZCOMDllDirector::AddCls(clsid, factory) in gzcom-dll. The class ID is
+// either an immediate or the result of a cFoo::GetClassID() getter
+// (MOV EAX, imm32; RET). Tallies the callees and writes every candidate call
+// site to a CSV for further analysis.
 //
 // Usage (headless, read-only):
 //   analyzeHeadless <projdir> <project> -process "SimCity 4.exe" -noanalysis -readOnly
@@ -55,9 +57,12 @@ public class ClassRegistrationCensus extends GhidraScript {
                     break;
                 if (prev.getMnemonicString().equals("PUSH")) {
                     Scalar s = prev.getScalar(0);
+                    Long value = s != null ? Long.valueOf(s.getUnsignedValue()) : classIdFromGetter(prev);
+                    if (value == null)
+                        break; // other register or memory push: not the pattern
+                    pushes.add(value);
                     if (s == null)
-                        break; // register or memory push: not the pattern
-                    pushes.add(s.getUnsignedValue());
+                        prev = prev.getPrevious(); // skip the getter call itself
                 }
                 prev = prev.getPrevious();
             }
@@ -92,6 +97,26 @@ public class ClassRegistrationCensus extends GhidraScript {
             }
         }
         println("Wrote " + out.getAbsolutePath());
+    }
+
+    // Many classes are registered as AddCls(cFoo::GetClassID(), factory), which
+    // compiles to CALL getter; PUSH EAX where the getter is MOV EAX, imm32; RET.
+    // Returns that immediate for a PUSH EAX right after such a call, else null.
+    private Long classIdFromGetter(Instruction push) {
+        if (!push.toString().equals("PUSH EAX"))
+            return null;
+        Instruction call = push.getPrevious();
+        if (call == null || !call.getFlowType().isCall() || call.getFlows().length != 1)
+            return null;
+        try {
+            Address getter = call.getFlows()[0];
+            byte[] bytes = getBytes(getter, 6);
+            if ((bytes[0] & 0xFF) != 0xB8 || (bytes[5] & 0xFF) != 0xC3)
+                return null;
+            return Integer.toUnsignedLong(getInt(getter.add(1)));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private boolean isInProgram(long value) {
