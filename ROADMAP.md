@@ -9,7 +9,7 @@ Status key: `[ ]` not started, `[~]` in progress, `[x]` done.
 Output is a toolkit, not a game change. Everything later depends on it.
 
 - [ ] Dev environment set up (see [docs/dev-environment.md](docs/dev-environment.md))
-- [ ] Toolchain: clang-cl + lld-link, CMake + Ninja, Windows reference build in CI
+- [~] Toolchain: clang-cl + lld-link, CMake + Ninja, Windows reference build in CI. Skeleton builds and passes smoke tests on Windows (scoop + xwin); still to do: confirm the CI workflow on GitHub, Linux/CachyOS cross-build
 - [ ] Ghidra project for Windows build 1.1.641, with Mac debug-symbol types ported (sc4-ghidra-symbols, version tracking / BinDiff)
 - [ ] Address database: names, addresses, signatures and calling conventions in one versioned source; `addresses.h` and hooks generated from it
 - [ ] **Answer the class-creation question:** which game classes are created through GZCOM by class ID (can be swapped with no patching) and which with `new` (need detours)? This ratio decides how fragile option B is.

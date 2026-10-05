@@ -1,0 +1,47 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        preset: [debug, release]
+    env:
+      OPENSC4_WINSYSROOT: ${{ github.workspace }}/.xwin/sysroot
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same toolchain as local Windows development (docs/dev-environment.md).
+      - name: Install toolchain with scoop
+        shell: pwsh
+        run: |
+          iex "& {$(irm get.scoop.sh)} -RunAsAdmin"
+          $shims = "$env:USERPROFILE\scoop\shims"
+          & "$shims\scoop.cmd" install llvm cmake ninja tools/scoop/xwin.json
+          "$shims" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          "$env:USERPROFILE\scoop\apps\llvm\current\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+
+      - name: Cache Windows SDK/CRT
+        id: sdk-cache
+        uses: actions/cache@v4
+        with:
+          path: .xwin/sysroot
+          key: xwin-${{ hashFiles('tools/scoop/xwin.json', 'scripts/fetch-sdk.sh') }}
+
+      - name: Fetch Windows SDK/CRT
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: scripts/fetch-sdk.sh
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }}

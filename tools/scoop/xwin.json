@@ -1,0 +1,28 @@
+{
+    "version": "0.10.0",
+    "description": "Downloads and splats the MSVC CRT and Windows SDK for cross-compiling",
+    "homepage": "https://github.com/Jake-Shadle/xwin",
+    "license": "MIT|Apache-2.0",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/Jake-Shadle/xwin/releases/download/0.10.0/xwin-0.10.0-x86_64-pc-windows-msvc.tar.gz",
+            "hash": "96e83665ef5c1406aabd0be603a8d08e67e604f36fda630b6807ee948a614e26",
+            "extract_dir": "xwin-0.10.0-x86_64-pc-windows-msvc"
+        }
+    },
+    "bin": "xwin.exe",
+    "checkver": {
+        "github": "https://github.com/Jake-Shadle/xwin"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/Jake-Shadle/xwin/releases/download/$version/xwin-$version-x86_64-pc-windows-msvc.tar.gz",
+                "hash": {
+                    "url": "$url.sha256"
+                },
+                "extract_dir": "xwin-$version-x86_64-pc-windows-msvc"
+            }
+        }
+    }
+}

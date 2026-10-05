@@ -21,19 +21,43 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 |---|---|
 | clang-cl + lld-link (LLVM) | Compiler and linker, target `i386-pc-windows-msvc` |
 | CMake + Ninja | Build system |
-| xwin | Windows SDK/CRT headers and libraries on Linux (not needed on Windows) |
+| xwin | MSVC CRT and Windows SDK, on every host, so all machines build against the same headers and libraries |
 | Ghidra | Reverse engineering, with sc4-ghidra-symbols type archives and Function ID databases |
 | Git | Version control |
 
+No Visual Studio install is needed to build. The static release CRT (`/MT`) is used in every configuration, so the outputs import only `KERNEL32.dll`.
+
 ### Windows
 
-- Visual Studio Build Tools (Windows SDK) plus LLVM. Use clang-cl, not cl.exe, so builds match the other machines.
+- [Scoop](https://scoop.sh): `scoop install llvm cmake ninja tools/scoop/xwin.json` (the xwin manifest lives in this repo; it is not in a public bucket).
+  - Scoop's `llvm` adds its `bin` folder to `PATH` instead of creating shims, so open a new terminal after installing it.
 - x64dbg (32-bit) or the Visual Studio debugger for attaching to `SimCity 4.exe`.
+
+### Building
+
+From Git Bash (or any POSIX shell on Linux):
+
+```bash
+scripts/fetch-sdk.sh            # once; accepts Microsoft's license for the CRT/SDK
+cmake --preset debug
+cmake --build --preset debug
+ctest --preset debug
+```
+
+`scripts/fetch-sdk.sh` and the toolchain file both read `OPENSC4_WINSYSROOT`; it defaults to `.xwin/sysroot` in the repo.
+
+**Sources in WSL, building on Windows.** CMake's link step runs through `cmd.exe`, which can't use a `\\wsl.localhost\...` working directory. Keep the SDK and build directory on a Windows drive:
+
+```bash
+export OPENSC4_WINSYSROOT="$LOCALAPPDATA/opensc4/xwin/sysroot"
+cmake --preset debug -B "$LOCALAPPDATA/opensc4/build/debug"
+cmake --build "$LOCALAPPDATA/opensc4/build/debug"
+```
 
 ### CachyOS
 
 - `pacman`: `clang`, `lld`, `llvm`, `cmake`, `ninja`, `wine` (or Proton via Steam).
-- `xwin` (cargo or AUR) to fetch the Windows SDK/CRT.
+- `xwin` (cargo or AUR) to fetch the Windows SDK/CRT. Run `scripts/fetch-sdk.sh` on Linux itself, not over a Windows-made splat: on a case-sensitive file system xwin adds the case-variant symlinks that the SDK's mixed-case includes need.
 - Reference recipe: the NAM DLL's `Makefile`.
 
 ### macOS

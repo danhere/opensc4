@@ -1,0 +1,4 @@
+/build/
+/.xwin/
+/.cache/
+compile_commands.json
