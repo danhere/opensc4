@@ -17,6 +17,8 @@
 #include "core/game.h"
 #include "core/log.h"
 
+#include <opensc4/addresses.h>
+
 #include <cIGZSerializable.h>
 #include <cISC4PollutionSimulator.h>
 
@@ -31,7 +33,7 @@ namespace {
 // The game's own type-1 factory for cSC4PollutionSimulator (build 641):
 // operator new(0x238), then the constructor at 0x006E56E0.
 using FactoryFn = cIGZUnknown* (*)();
-const auto kOriginalFactory = reinterpret_cast<FactoryFn>(0x006E5F00);
+const auto kOriginalFactory = reinterpret_cast<FactoryFn>(addr::cSC4PollutionSimulator_Create);
 
 // cISC4PollutionSimulator methods in vtable order (gzcom-dll header; checked
 // against the game's 71-slot vtable at 0x00AB2630).

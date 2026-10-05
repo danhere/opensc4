@@ -76,7 +76,8 @@ step "2. censuses"
 run_script -readOnly ClassRegistrationCensus.java "$(win "$out/class-registrations.csv")"
 run_script -readOnly ClassCreationCensus.java "$(win "$out/class-registrations.csv")" "$(win "$out/class-creation.csv")"
 
-step "3. name and slot tables"
+step "3. address database, name and slot tables"
+python3 "$repo/tools/gen_addresses.py" --check "$repo/data/addresses-641.toml" "$project_dir/input/$program"
 python3 "$repo/tools/re/extract_name_table.py" "$project_dir/input/$program" >"$out/name-table.csv"
 python3 "$repo/tools/re/gzcom_vtable_slots.py" "$repo/third_party/gzcom-dll/gzcom-dll/include" >"$out/interface-slots.csv"
 { echo "clsid,name"; grep -E ",cSC4[A-Za-z]*Simulator$" "$out/name-table.csv" | sort -t, -k2 | awk -F, '!seen[$1]++'; } \

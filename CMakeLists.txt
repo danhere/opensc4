@@ -31,6 +31,23 @@ target_compile_definitions(opensc4_options INTERFACE
   OPENSC4_VERSION="${PROJECT_VERSION}")
 target_include_directories(opensc4_options INTERFACE ${PROJECT_SOURCE_DIR}/src)
 
+# Address database -> addresses.h (tools/gen_addresses.py needs tomllib, 3.11+).
+find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
+set(OPENSC4_ADDRESS_DB ${PROJECT_SOURCE_DIR}/data/addresses-641.toml)
+set(OPENSC4_GENERATED_DIR ${CMAKE_BINARY_DIR}/generated)
+add_custom_command(
+  OUTPUT ${OPENSC4_GENERATED_DIR}/opensc4/addresses.h
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${OPENSC4_GENERATED_DIR}/opensc4
+  COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/gen_addresses.py
+          ${OPENSC4_ADDRESS_DB} ${OPENSC4_GENERATED_DIR}/opensc4/addresses.h
+  DEPENDS ${OPENSC4_ADDRESS_DB} ${PROJECT_SOURCE_DIR}/tools/gen_addresses.py
+  COMMENT "Generating addresses.h from the address database"
+  VERBATIM)
+add_custom_target(opensc4_addresses DEPENDS ${OPENSC4_GENERATED_DIR}/opensc4/addresses.h)
+add_library(opensc4_address_db INTERFACE)
+target_include_directories(opensc4_address_db INTERFACE ${OPENSC4_GENERATED_DIR})
+add_dependencies(opensc4_address_db opensc4_addresses)
+
 add_subdirectory(third_party)
 add_subdirectory(src/core)
 add_subdirectory(src/launcher)

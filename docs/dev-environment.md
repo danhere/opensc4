@@ -27,6 +27,14 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 - `scripts/run-autotest.sh <build dir> [VAR=value...]` runs the game unattended: it loads a city, runs the simulation, quits without saving and prints `core.dll`'s log. It uses an isolated `-UserDir` (`%LOCALAPPDATA%\opensc4\testenv\userdir`, seeded with a copy of one region) whose Plugins folder holds only `OpenSC4.dll`, so the user's own plugins and saves are never involved. Variables are documented in `src/core/autotest.h` and the script header.
 - Build the plugin from a clone with submodules: `git submodule update --init` fetches gzcom-dll into `third_party/`.
 
+## Address database and hooks
+
+- Every game address OpenSC4 relies on lives in [`data/addresses-641.toml`](../data/addresses-641.toml): name, address, kind, calling convention, signature, the first bytes, and how it was identified. The build generates `opensc4/addresses.h` from it (`tools/gen_addresses.py`, Python 3.11+); C++ code uses `opensc4::addr::<name>` constants instead of literal addresses.
+- `python3 tools/gen_addresses.py --check data/addresses-641.toml "<SimCity 4.exe>"` checks every entry's bytes against an exe; `scripts/ghidra-setup.sh` runs it too.
+- In the game, `core.dll` logs a manifest after all plugins have loaded: which entries still have their expected bytes, and for patched ones, which module the patch jumps into.
+- Hooks (`src/core/hook.h`) go through MinHook, only at `function` entries from the database, and are refused when the entry's bytes don't match (a different build, or another DLL got there first). Detours for `__thiscall` functions are written as `__fastcall` free functions (`this` in ECX, unused EDX).
+- `OPENSC4_TRACE=1` installs trace hooks (currently `cSC4App::LoadCity`) that log calls and pass them through.
+
 ## Ghidra
 
 - `scoop install ghidra` (extras bucket). Ghidra needs JDK 21 or newer. If an older `java` comes first on `PATH`, let Ghidra pick a JDK and remember it per Ghidra version (saved in `%APPDATA%\ghidra\ghidra_<version>_PUBLIC\java_home.save`):
@@ -50,6 +58,7 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 |---|---|
 | clang-cl + lld-link (LLVM) | Compiler and linker, target `i386-pc-windows-msvc` |
 | CMake + Ninja | Build system |
+| Python 3.11+ | Generates `addresses.h` from the address database; analysis tools in `tools/` |
 | xwin | MSVC CRT and Windows SDK, on every host, so all machines build against the same headers and libraries |
 | Ghidra | Reverse engineering, with sc4-ghidra-symbols type archives and Function ID databases |
 | Git | Version control |
@@ -58,7 +67,7 @@ No Visual Studio install is needed to build. The static release CRT (`/MT`) is u
 
 ### Windows
 
-- [Scoop](https://scoop.sh): `scoop install llvm cmake ninja ./tools/scoop/xwin.json`, run from the repo root.
+- [Scoop](https://scoop.sh): `scoop install llvm cmake ninja python ./tools/scoop/xwin.json`, run from the repo root.
   - The xwin manifest lives in this repo because xwin is not in a public bucket. Keep the `./`: without it scoop reads `tools` as a bucket name.
   - Scoop's `llvm` adds its `bin` folder to `PATH` instead of creating shims, so open a new terminal after installing it.
 - x64dbg (32-bit) or the Visual Studio debugger for attaching to `SimCity 4.exe`.

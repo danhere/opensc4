@@ -1,5 +1,7 @@
 #include "core/game.h"
 
+#include <opensc4/addresses.h>
+
 #include <windows.h>
 
 #include <cstdint>
@@ -7,7 +9,7 @@
 namespace opensc4::game {
 namespace {
 
-constexpr std::uintptr_t kBuildSentinelAddress = 0x6E5000;
+constexpr std::uintptr_t kBuildSentinelAddress = addr::BuildSentinel;
 constexpr unsigned char kBuild641Sentinel = 0x0F;
 
 } // namespace

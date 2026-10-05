@@ -1,10 +1,12 @@
 // core.dll's GZCOM director. The game calls GZDllGetGZCOMDirector (exported by
 // gzcom-dll's cRZCOMDllDirector.cpp) when it loads core.dll from a Plugins
 // folder; the director then serves class IDs registered with AddCls.
+#include "core/address_check.h"
 #include "core/autotest.h"
 #include "core/game.h"
 #include "core/log.h"
 #include "core/pollution_proxy.h"
+#include "core/trace.h"
 
 #include <cIGZFrameWork.h>
 #include <cRZCOMDllDirector.h>
@@ -44,15 +46,21 @@ public:
     bool OnStart(cIGZCOM* com) override
     {
         opensc4::log::Write("director: OnStart (GZCOM %p)", static_cast<void*>(com));
-        if (opensc4::autotest::Enabled())
-            RZGetFrameWork()->AddHook(static_cast<cIGZFrameWorkHooks*>(this));
+        RZGetFrameWork()->AddHook(static_cast<cIGZFrameWorkHooks*>(this));
         return true;
     }
 
+    // Every plugin has loaded and applied its patches by now.
     bool PostAppInit() override
     {
         opensc4::log::Write("director: PostAppInit");
-        opensc4::autotest::Start();
+        if (!opensc4::game::IsBuild641())
+            return true;
+        opensc4::addr_check::LogManifest();
+        if (opensc4::trace::Enabled())
+            opensc4::trace::Install();
+        if (opensc4::autotest::Enabled())
+            opensc4::autotest::Start();
         return true;
     }
 
