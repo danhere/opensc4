@@ -6,7 +6,7 @@
 
 ## Setup
 
-- `core.dll` acts as a GZCOM director ([`src/core/director.cpp`](../../src/core/director.cpp)) and, when `OPENSC4_PROXY_POLLUTION=1`, registers a proxy class under `0x8990C065` (`cSC4PollutionSimulator`).
+- `core.dll` acts as a GZCOM director ([`src/core/director.cpp`](../../src/core/director.cpp)) and, when the replacement `simulators.pollution.proxy` is set to `ours` (these runs used the earlier switch `OPENSC4_PROXY_POLLUTION=1`), registers a proxy class under `0x8990C065` (`cSC4PollutionSimulator`).
 - The proxy ([`src/core/pollution_proxy.cpp`](../../src/core/pollution_proxy.cpp)) creates the original through the game's factory (0x006E5F00) and forwards every call of `cISC4PollutionSimulator` (68 methods) and `cIGZSerializable` (3) to it, counting calls. Other interfaces (`cIGZMessageTarget2`, and `0x89C498BE`, probably a shared simulator interface) are handed out as the original's own pointers.
 - The proxy's object layout is unrelated to the original's (568 bytes, four vtables), so a field read by offset through the proxy pointer would read the wrong memory.
 - Runs are unattended ([`src/core/autotest.cpp`](../../src/core/autotest.cpp), [`scripts/run-autotest.sh`](../../scripts/run-autotest.sh)): load "Making Money Tutorial" (Timbuktu, population 2,039) in an isolated `-UserDir` with no other plugins, run 120 s of real time, quit without saving. Results 1-5 come from runs at speed 0 (2008-11-03 to 2009-01-01 in game); result 6 from a run at speed 2.
@@ -45,5 +45,5 @@
 ```bash
 B="$LOCALAPPDATA/opensc4/build/debug"
 scripts/run-autotest.sh "$B" OPENSC4_TEST_SECONDS=120                              # baseline
-scripts/run-autotest.sh "$B" OPENSC4_TEST_SECONDS=120 OPENSC4_PROXY_POLLUTION=1    # proxy
+scripts/run-autotest.sh "$B" OPENSC4_TEST_SECONDS=120 OPENSC4_REPLACE=simulators.pollution.proxy=ours    # proxy
 ```

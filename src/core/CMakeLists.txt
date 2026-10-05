@@ -2,10 +2,12 @@
 # the address database check and the hook layer.
 add_library(opensc4_core_support STATIC
   address_check.cpp
+  compare.cpp
   crash.cpp
   game.cpp
   hook.cpp
-  log.cpp)
+  log.cpp
+  registry.cpp)
 target_link_libraries(opensc4_core_support
   PUBLIC opensc4_options opensc4_address_db
   PRIVATE opensc4_minhook)

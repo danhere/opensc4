@@ -33,7 +33,21 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 - `python3 tools/gen_addresses.py --check data/addresses-641.toml "<SimCity 4.exe>"` checks every entry's bytes against an exe; `scripts/ghidra-setup.sh` runs it too.
 - In the game, `core.dll` logs a manifest after all plugins have loaded: which entries still have their expected bytes, and for patched ones, which module the patch jumps into.
 - Hooks (`src/core/hook.h`) go through MinHook, only at `function` entries from the database, and are refused when the entry's bytes don't match (a different build, or another DLL got there first). Detours for `__thiscall` functions are written as `__fastcall` free functions (`this` in ECX, unused EDX).
-- `OPENSC4_TRACE=1` installs trace hooks (currently `cSC4App::LoadCity`) that log calls and pass them through.
+- Trace hooks log calls into the game and pass them through; they are replacements named `diagnostics.trace.*` (currently `diagnostics.trace.loadcity` for `cSC4App::LoadCity`).
+
+## Replacement registry
+
+- Every replacement of game behaviour registers itself (`src/core/registry.h`) with an id, subsystem, kind (`gzcom`, `detour`, `vtable`), target and an apply function, and is applied only at fixed startup points: GZCOM classes when the director is created, hooks at `PostAppInit` once every plugin has loaded.
+- Modes: `original` (the default for everything), `ours`, and `compare` (run both, log divergences, keep the original's result; pure functions only, see `src/core/compare.h`).
+- Configure them in `opensc4.ini` next to `core.dll`:
+
+  ```ini
+  [replacements]
+  simulators.pollution.proxy = ours
+  diagnostics.trace.loadcity = ours
+  ```
+
+  or for one run with `OPENSC4_REPLACE=id=mode,id=mode` (the environment wins). A key ending in `.*` toggles a whole subsystem (`simulators.* = ours`); an exact id wins over a wildcard, and a longer wildcard over a shorter one. `core.dll` logs one line per replacement with the mode it ended up in, and falls back to `original` for unknown modes, unsupported compare, or a replacement that could not be applied (for example because another DLL already patched its target).
 
 ## Crashes
 

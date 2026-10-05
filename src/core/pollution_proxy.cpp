@@ -14,8 +14,10 @@
 // like the original's, so such reads would see the wrong data.
 #include "core/pollution_proxy.h"
 
+#include "core/director.h"
 #include "core/game.h"
 #include "core/log.h"
+#include "core/registry.h"
 
 #include <opensc4/addresses.h>
 
@@ -272,5 +274,25 @@ const void* LastCreated()
 {
     return g_lastCreated.load();
 }
+
+namespace {
+
+bool Apply(registry::Mode)
+{
+    return director::AddClass(kClassId, Create);
+}
+
+const bool g_registered = registry::Register({
+    "simulators.pollution.proxy",
+    "simulators/pollution",
+    registry::Kind::Gzcom,
+    registry::Phase::DirectorInit,
+    kClassId,
+    "Pass-through cISC4PollutionSimulator around the original (docs/experiments/pollution-proxy.md)",
+    false,
+    Apply,
+});
+
+} // namespace
 
 } // namespace opensc4::pollution_proxy

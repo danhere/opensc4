@@ -6,7 +6,7 @@
 #
 # Examples:
 #   scripts/run-autotest.sh "$LOCALAPPDATA/opensc4/build/debug"
-#   scripts/run-autotest.sh "$LOCALAPPDATA/opensc4/build/debug" OPENSC4_PROXY_POLLUTION=1 OPENSC4_TEST_SECONDS=120
+#   scripts/run-autotest.sh "$LOCALAPPDATA/opensc4/build/debug" OPENSC4_REPLACE=simulators.pollution.proxy=ours OPENSC4_TEST_SECONDS=120
 #
 # The game runs with -UserDir pointing at an isolated test folder
 # (OPENSC4_TESTENV, default %LOCALAPPDATA%\opensc4\testenv\userdir) whose

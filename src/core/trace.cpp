@@ -1,9 +1,12 @@
-#include "core/trace.h"
-
+// Trace hooks: entry detours that log calls into the game and pass them
+// through unchanged. Registered as replacements (registry.h) under
+// "diagnostics.trace.*"; set one to "ours" to enable it. They exercise the hook
+// layer on real game functions and record what the game does in test runs.
 #include "core/address_check.h"
 #include "core/crash.h"
 #include "core/hook.h"
 #include "core/log.h"
+#include "core/registry.h"
 
 #include <SC4String.h>
 #include <cISC4App.h>
@@ -46,18 +49,22 @@ bool __fastcall LoadCity(cISC4App* self, void* edx, SC4String const& path, cRZAu
     }
 }
 
+bool ApplyLoadCity(registry::Mode)
+{
+    const addr::Entry* entry = addr_check::Find(addr::cSC4App_LoadCity);
+    return entry && hook::Install(*entry, &LoadCity, &g_loadCity);
+}
+
+const bool g_registered = registry::Register({
+    "diagnostics.trace.loadcity",
+    "diagnostics",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4App_LoadCity,
+    "Logs every city load and its duration",
+    false,
+    ApplyLoadCity,
+});
+
 } // namespace
-
-bool Enabled()
-{
-    wchar_t value[4];
-    return GetEnvironmentVariableW(L"OPENSC4_TRACE", value, 4) == 1 && value[0] == L'1';
-}
-
-void Install()
-{
-    if (const addr::Entry* entry = addr_check::Find(addr::cSC4App_LoadCity))
-        hook::Install(*entry, &LoadCity, &g_loadCity);
-}
-
 } // namespace opensc4::trace
