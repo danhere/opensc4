@@ -37,8 +37,12 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
   ```
 
 - Keep Ghidra projects **outside the repo** (for example `%LOCALAPPDATA%\opensc4\ghidra`). They contain the game's code and must never be committed.
-- `analyzeHeadless.bat` fails on paths containing parentheses, such as `Program Files (x86)`. Import a copy of the exe from a path without them.
-- Headless import with full auto-analysis of the 641 exe takes about 3 minutes.
+- **`scripts/ghidra-setup.sh`** builds the project and runs the whole pipeline (about 4 minutes from scratch; `--fresh` starts over): import with auto-analysis, the class censuses (before anything is renamed, so the numbers in [class-creation.md](class-creation.md) are reproducible), the exe's ID-to-name table, gzcom-dll's interface slot table, sc4-ghidra-symbols (Function ID databases and data type archives), and names for 197 classes' factories, constructors, vtables and interface methods (about 1,600 functions). Needs `python3` (`scoop install python`) and a clone of [sc4-ghidra-symbols](https://github.com/0xC0000054/sc4-ghidra-symbols) (`SC4_GHIDRA_SYMBOLS`).
+- Pitfalls the script works around:
+  - `analyzeHeadless.bat` fails on paths containing parentheses, such as `Program Files (x86)`, so it imports a copy of the exe.
+  - From Git Bash, `.bat` arguments reach `cmd.exe` unquoted (breaking on spaces), and `\\wsl.localhost\...` paths don't work, so it uses 8.3 short paths and local copies of the scripts and symbol files.
+  - Attached Function ID databases are remembered in Ghidra's user settings and are then applied by every later auto-analysis.
+- Individual scripts in `tools/ghidra` document their own arguments; `LookupNames.java <address...>` prints what the project knows about addresses.
 
 ## Toolchain (same on Windows and CachyOS)
 

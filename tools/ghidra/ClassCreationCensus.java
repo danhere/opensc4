@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import ghidra.app.script.GhidraScript;
 import ghidra.program.model.address.Address;
@@ -52,7 +53,7 @@ public class ClassCreationCensus extends GhidraScript {
     // Per class (primary vtable): how its instances come into being.
     private static class ClassInfo {
         final Set<Address> ctors = new HashSet<>();
-        final Set<Long> clsids = new HashSet<>();
+        final Set<Long> clsids = new TreeSet<>(); // sorted, so the CSV is reproducible
         int factoryCalls, factoryInline, ctorCalls, newCalls, otherCalls;
         final Set<Address> newCallers = new HashSet<>();
     }

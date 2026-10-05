@@ -115,17 +115,10 @@ Not yet checked: outside code that reads or writes simulator fields directly by 
 
 ## Reproducing
 
-The Ghidra project and all outputs live outside the repo (they describe the game's code):
+The Ghidra project and all outputs live outside the repo (they describe the game's code). One command rebuilds the project from the exe and regenerates every CSV behind this document in `%LOCALAPPDATA%\opensc4\analysis`:
 
 ```bash
-proj="$LOCALAPPDATA/opensc4/ghidra"; out="$LOCALAPPDATA/opensc4/analysis"
-ghidra="$HOME/scoop/apps/ghidra/current/support/analyzeHeadless.bat"
-"$ghidra" "$proj" SC4_1.1.641 -process "SimCity 4.exe" -noanalysis -readOnly -scriptPath tools/ghidra \
-  -postScript ClassRegistrationCensus.java "$out/class-registrations.csv"
-"$ghidra" "$proj" SC4_1.1.641 -process "SimCity 4.exe" -noanalysis -readOnly -scriptPath tools/ghidra \
-  -postScript ClassCreationCensus.java "$out/class-registrations.csv" "$out/class-creation.csv"
-python3 tools/re/extract_name_table.py "<path to SimCity 4.exe>" > "$out/name-table.csv"
-# simulators.csv: "clsid,name" rows for the cSC4*Simulator entries of name-table.csv
-"$ghidra" "$proj" SC4_1.1.641 -process "SimCity 4.exe" -noanalysis -readOnly -scriptPath tools/ghidra \
-  -postScript VtableBypassCensus.java "$out/class-registrations.csv" "$out/simulators.csv" "$out/simulator-bypass.csv"
+scripts/ghidra-setup.sh --fresh
 ```
+
+The censuses run on the auto-analysed program before anything is renamed. Run on a project that already has names, the class count moves slightly (1,152 instead of 1,151), because naming creates functions for vtable targets.
