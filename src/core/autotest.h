@@ -7,7 +7,9 @@
 //                         the game opens on; otherwise a substring of the
 //                         city's save-file path
 //   OPENSC4_TEST_SECONDS  real seconds to run the simulation (default 180)
-//   OPENSC4_TEST_SPEED    simulation speed, 1-3 (default 3)
+//   OPENSC4_TEST_SPEED    simulation speed as the game numbers it: 0 (slowest)
+//                         to 2 (fastest, default). cSC4Simulator ignores any
+//                         other value (0x00702430).
 #pragma once
 
 namespace opensc4::autotest {

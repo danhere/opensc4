@@ -162,13 +162,15 @@ private:
                    proxy, pollution && pollution == proxy ? "CITY USES THE PROXY" : "city uses the original");
 
         cISC4Simulator* sim = city->GetSimulator();
-        const int speed = EnvInt("OPENSC4_TEST_SPEED", 3);
+        const int speed = EnvInt("OPENSC4_TEST_SPEED", 2);
+        bool speedSet = false;
         if (sim) {
-            sim->SetSimSpeed(speed);
+            speedSet = sim->SetSimSpeed(speed);
             sim->Resume();
         }
         runSeconds_ = EnvInt("OPENSC4_TEST_SECONDS", 180);
-        log::Write("autotest: running for %d s at speed %d", runSeconds_, speed);
+        log::Write("autotest: running for %d s at speed %d (SetSimSpeed %s)", runSeconds_, speed,
+                   speedSet ? "ok" : "refused");
         Enter(State::Running, now);
         lastReport_ = 0;
         Report(app);
