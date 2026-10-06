@@ -67,7 +67,7 @@ std::map<std::string, std::string> ReadIni(const std::wstring& iniPath)
         const auto equals = entry.find(L'=');
         if (equals == std::wstring::npos || entry[0] == L';')
             continue;
-        values[Trim(Narrow(entry.substr(0, equals)))] = Narrow(entry.substr(equals + 1));
+        values[Trim(Narrow(entry.substr(0, equals)))] = settings::StripComment(Narrow(entry.substr(equals + 1)));
     }
     return values;
 }

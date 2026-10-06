@@ -26,6 +26,14 @@ std::string Lower(std::string s)
 
 } // namespace
 
+std::string StripComment(const std::string& value)
+{
+    for (size_t i = 0; i < value.size(); ++i)
+        if (value[i] == ';' && (i == 0 || std::isspace(static_cast<unsigned char>(value[i - 1]))))
+            return value.substr(0, i);
+    return value;
+}
+
 std::wstring DefaultIniPath()
 {
     wchar_t path[MAX_PATH];
@@ -57,7 +65,7 @@ std::string Get(const char* section, const char* key, const char* fallback, cons
     std::string value;
     for (DWORD i = 0; i < length; ++i)
         value += static_cast<char>(wide[i] < 0x80 ? wide[i] : '?');
-    return Trim(value);
+    return Trim(StripComment(value));
 }
 
 bool GetBool(const char* section, const char* key, bool fallback, const std::wstring& iniPath)

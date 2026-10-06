@@ -54,9 +54,13 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 
   or for one run with `OPENSC4_REPLACE=id=mode,id=mode` (the environment wins). A key ending in `.*` toggles a whole subsystem (`simulators.* = ours`); an exact id wins over a wildcard, and a longer wildcard over a shorter one. `core.dll` logs one line per replacement with the mode it ended up in, and falls back to `original` for unknown modes, unsupported compare, or a replacement that could not be applied (for example because another DLL already patched its target).
 
+## Playing
+
+`scripts/play.sh` (Git Bash; the "OpenSC4 (test)" desktop shortcut runs it through `C:\Program Files\Git\bin\bash.exe -l`) starts the game with the debug build in its own user folder, `%LOCALAPPDATA%\opensc4\playenv\userdir`, apart from the automated tests' folder so neither disturbs the other. On first use it copies the test folder's region and game settings and writes `Plugins\opensc4.ini` with the D3D11 driver, scale 1.5 and full screen; edit that file to change them. core.dll's log is `Plugins\opensc4.log` there.
+
 ## Settings
 
-Plain settings live in the same `opensc4.ini`, one section per area ([src/core/settings.h](../src/core/settings.h)); an environment variable `OPENSC4_<SECTION>_<KEY>` overrides one for a single run. Booleans take on/off, true/false, yes/no or 1/0.
+Plain settings live in the same `opensc4.ini`, one section per area ([src/core/settings.h](../src/core/settings.h)); an environment variable `OPENSC4_<SECTION>_<KEY>` overrides one for a single run. Booleans take on/off, true/false, yes/no or 1/0. A `;` at the start of a value or after whitespace starts a comment (Windows' ini reader would keep it as part of the value).
 
 ```ini
 [replacements]

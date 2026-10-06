@@ -19,6 +19,10 @@ std::wstring DefaultIniPath();
 // environment nor the file sets it. `iniPath` empty: DefaultIniPath().
 std::string Get(const char* section, const char* key, const char* fallback, const std::wstring& iniPath = {});
 
+// `value` without a trailing comment: from a ';' that starts the value or
+// follows whitespace. Windows' ini reader leaves "ours   ; note" whole.
+std::string StripComment(const std::string& value);
+
 // on/off, true/false, yes/no or 1/0; `fallback` for anything else.
 bool GetBool(const char* section, const char* key, bool fallback, const std::wstring& iniPath = {});
 

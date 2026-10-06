@@ -50,7 +50,7 @@ int main()
     GetTempPathW(MAX_PATH, ini);
     lstrcatW(ini, L"opensc4-registry-test.ini");
     WritePrivateProfileStringW(L"replacements", nullptr, nullptr, ini); // clear
-    WritePrivateProfileStringW(L"replacements", L"test.a", L"ours", ini);
+    WritePrivateProfileStringW(L"replacements", L"test.a", L"ours   ; with a comment", ini);
     WritePrivateProfileStringW(L"replacements", L"test.b", L"compare", ini);
     WritePrivateProfileStringW(L"replacements", L"test.c", L"ours", ini);
     WritePrivateProfileStringW(L"replacements", L"test.d", L"sometimes", ini);

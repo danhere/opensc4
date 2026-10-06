@@ -27,6 +27,8 @@ int main()
     WritePrivateProfileStringW(L"test", L"flag", L"Off", ini);
     WritePrivateProfileStringW(L"test", L"odd", L"sometimes", ini);
     WritePrivateProfileStringW(L"test", L"empty", L"", ini);
+    WritePrivateProfileStringW(L"test", L"commented", L"1.5   ; a note; with more", ini);
+    WritePrivateProfileStringW(L"test", L"semicolon", L"a;b", ini);
     WritePrivateProfileStringW(nullptr, nullptr, nullptr, ini); // flush
 
     if (settings::Get("test", "name", "x", ini) != "value with spaces")
@@ -39,6 +41,10 @@ int main()
         return Fail("an empty value is a value");
     if (settings::GetBool("test", "flag", true, ini))
         return Fail("Off is false");
+    if (settings::Get("test", "commented", "x", ini) != "1.5")
+        return Fail("a trailing ; comment is dropped");
+    if (settings::Get("test", "semicolon", "x", ini) != "a;b")
+        return Fail("a ; inside a value is kept");
     if (!settings::GetBool("test", "odd", true, ini) || settings::GetBool("test", "odd", false, ini))
         return Fail("an unknown boolean gives the fallback");
 
