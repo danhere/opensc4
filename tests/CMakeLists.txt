@@ -51,3 +51,8 @@ set_tests_properties(launcher_loads_core PROPERTIES
 # core.dll was loaded before its entry point ran.
 add_test(NAME launcher_injects_core
   COMMAND opensc4_launcher --game $<TARGET_FILE:opensc4_inject_target> --wait)
+
+add_executable(opensc4_gd_vertex_format_test gd_vertex_format_test.cpp)
+target_link_libraries(opensc4_gd_vertex_format_test PRIVATE opensc4_core_support)
+add_test(NAME gd_vertex_format COMMAND opensc4_gd_vertex_format_test)
+set_tests_properties(gd_vertex_format PROPERTIES PASS_REGULAR_EXPRESSION "gd vertex format test OK")

@@ -6,6 +6,7 @@ add_library(opensc4_core_support STATIC
   coverage.cpp
   crash.cpp
   game.cpp
+  gd/vertex_format.cpp
   hook.cpp
   interface_counter.cpp
   log.cpp
@@ -20,8 +21,10 @@ add_library(opensc4_core SHARED
   dllmain.cpp
   director.cpp
   fixed_seed.cpp
+  gd/d3d11_backend.cpp
+  gd/driver.cpp
   gdriver_proxy.cpp
   pollution_proxy.cpp
   trace.cpp)
-target_link_libraries(opensc4_core PRIVATE opensc4_core_support opensc4_gzcom)
+target_link_libraries(opensc4_core PRIVATE opensc4_core_support opensc4_gzcom user32)
 set_target_properties(opensc4_core PROPERTIES OUTPUT_NAME core)

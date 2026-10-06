@@ -95,7 +95,7 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 | Ghidra | Reverse engineering, with sc4-ghidra-symbols type archives and Function ID databases |
 | Git | Version control |
 
-No Visual Studio install is needed to build. The static release CRT (`/MT`) is used in every configuration, so the outputs import only `KERNEL32.dll`.
+No Visual Studio install is needed to build. The static release CRT (`/MT`) is used in every configuration, so the outputs import only system DLLs (`KERNEL32.dll`, and `USER32.dll` for core.dll's graphics driver window; the driver loads `d3d11.dll` and `d3dcompiler_47.dll` at run time).
 
 ### Windows
 
