@@ -37,7 +37,7 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 
 ## Replacement registry
 
-- Every replacement of game behaviour registers itself (`src/core/registry.h`) with an id, subsystem, kind (`gzcom`, `detour`, `vtable`), target and an apply function, and is applied only at fixed startup points: GZCOM classes when the director is created, hooks at `PostAppInit` once every plugin has loaded.
+- Every replacement of game behaviour registers itself (`src/core/registry.h`) with an id, subsystem, kind (`gzcom`, `detour`, `vtable`, or `api` for a swap through a public game interface), target and an apply function, and is applied only at fixed startup points: GZCOM classes when the director is created, object swaps at `PreAppInit` (services and graphics drivers exist, no video mode or city yet), hooks at `PostAppInit` once every plugin has loaded.
 - Modes: `original` (the default for everything), `ours`, and `compare` (run both, log divergences, keep the original's result; pure functions only, see `src/core/compare.h`).
 - Configure them in `opensc4.ini` next to `core.dll`:
 

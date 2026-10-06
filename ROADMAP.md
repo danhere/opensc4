@@ -23,7 +23,7 @@ Output is a toolkit, not a game change. Everything later depends on it.
 
 ## P1: Renderer (first usable milestone)
 
-- [ ] `cIGZGDriver` replacement registered through GZCOM (higher-version class ID; no code patching)
+- [x] Pass-through `cIGZGDriver` in front of the game's driver, with a call log. Installed with `cIGZGraphicSystem2::SetGDriver` at `PreAppInit`, because the graphics system never instantiates new driver class IDs; no class ID taken, no code patching ([docs/renderer.md](docs/renderer.md))
 - [ ] Backend decision: D3D11 (recommended: best Wine/DXVK path) vs Vulkan
 - [ ] Lift the hardware resolution cap (find the game-side cause of the >2048 px crash)
 - [ ] Windowed / borderless modes, frame pacing

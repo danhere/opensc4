@@ -18,6 +18,7 @@ Planning. Nothing is built yet. See [ROADMAP.md](ROADMAP.md) for progress.
 | [docs/architecture.md](docs/architecture.md) | Loader, hooking layer, replacement registry, ABI rules, subsystem map |
 | [docs/decisions.md](docs/decisions.md) | Decision log: approach, language, license, name, platform |
 | [docs/class-creation.md](docs/class-creation.md) | Which classes GZCOM creates by class ID vs. direct construction |
+| [docs/renderer.md](docs/renderer.md) | P1: how the game gets its graphics driver, how ours is installed, what the game calls |
 | [docs/experiments/pollution-proxy.md](docs/experiments/pollution-proxy.md) | Experiment: a plugin-registered pass-through pollution simulator running a city |
 | [docs/research.md](docs/research.md) | Feasibility research, existing projects, legal context, community etiquette |
 | [docs/dev-environment.md](docs/dev-environment.md) | Windows / CachyOS / macOS roles and toolchain |

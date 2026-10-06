@@ -131,6 +131,7 @@ const char* ToString(Kind kind)
     case Kind::Gzcom: return "gzcom";
     case Kind::Detour: return "detour";
     case Kind::Vtable: return "vtable";
+    case Kind::Api: return "api";
     }
     return "?";
 }

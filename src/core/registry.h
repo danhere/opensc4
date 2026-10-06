@@ -25,11 +25,12 @@
 namespace opensc4::registry {
 
 enum class Mode { Original, Ours, Compare };
-enum class Kind { Gzcom, Detour, Vtable };
+enum class Kind { Gzcom, Detour, Vtable, Api }; // Api: through a public game interface, no patching
 
 // When a replacement is applied.
 enum class Phase {
     DirectorInit, // core.dll's GZCOM director is created: register class factories here
+    PreAppInit,   // services and graphics drivers exist, no video mode or city yet: swap objects here
     PostAppInit,  // all plugins have loaded and patched: install hooks here
     LateInit,     // after every PostAppInit replacement: instrumentation (coverage)
 };

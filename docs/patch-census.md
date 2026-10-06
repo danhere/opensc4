@@ -583,7 +583,7 @@ General findings:
    - lua-sandbox luaL_reg tables
 
    OpenSC4's vtable swaps should read the current pointer and chain to it, not to the stock function.
-6. **Don't take the OpenGL driver class ID.** The OpenSC4 renderer (P1) should not claim 0xC4554841, or it will collide with scvk and SCGL. It should register a new driver class or keep its renderer internal. render-services ImGui needs the DirectX 7 driver (0xBADB6906) and its draw-pass call sites. An OpenSC4 renderer that replaces the 3D render Draw path must keep providing those draw-pass hook points.
+6. **Don't take the OpenGL driver class ID.** The OpenSC4 renderer (P1) should not claim 0xC4554841, or it will collide with scvk and SCGL. It should register a new driver class or keep its renderer internal. (Checked in P1: the graphics system never instantiates a new driver class ID, so OpenSC4 makes its driver current with `cIGZGraphicSystem2::SetGDriver` instead; see [renderer.md](renderer.md).) render-services ImGui needs the DirectX 7 driver (0xBADB6906) and its draw-pass call sites. An OpenSC4 renderer that replaces the 3D render Draw path must keep providing those draw-pass hook points.
 7. **sc4fix leaves the image writable.** It makes most of the image RWX for the whole session. OpenSC4 must not rely on .text being read-only, for example as a tamper check.
 
 Per-DLL compatibility policy:

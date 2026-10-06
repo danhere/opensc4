@@ -10,6 +10,7 @@
 #include "core/crash.h"
 #include "core/diagnostics.h"
 #include "core/game.h"
+#include "core/gdriver_proxy.h"
 #include "core/log.h"
 #include "core/registry.h"
 
@@ -52,6 +53,16 @@ public:
         return true;
     }
 
+    // The graphics system has created its drivers; the game has not set a
+    // video mode or loaded anything yet.
+    bool PreAppInit() override
+    {
+        opensc4::log::Write("director: PreAppInit");
+        if (opensc4::game::IsBuild641())
+            opensc4::registry::Apply(opensc4::registry::Phase::PreAppInit);
+        return true;
+    }
+
     // Every plugin has loaded and applied its patches by now.
     bool PostAppInit() override
     {
@@ -70,6 +81,7 @@ public:
     bool PreAppShutdown() override
     {
         opensc4::compare::LogStats();
+        opensc4::gdriver_proxy::LogCallCounts("PreAppShutdown");
         opensc4::diagnostics::OnShutdown();
         return true;
     }

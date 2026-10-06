@@ -23,7 +23,7 @@ The address and symbol database is the real critical path. The renderer can be s
 
 | Mechanism | Use for | Notes |
 |---|---|---|
-| GZCOM service replacement | Renderer (`cIGZGDriver`) and anything else created by class ID | Register the same class ID at a higher version; GZCOM hands out the highest. Proven by scvk. No code patching. |
+| GZCOM service replacement | Renderer (`cIGZGDriver`) and anything else created by class ID | Register the same class ID at a higher version; GZCOM hands out the highest. Proven by scvk. No code patching. For the renderer, OpenSC4 instead makes its driver current with `cIGZGraphicSystem2::SetGDriver` at `PreAppInit`, which takes no class ID ([renderer.md](renderer.md)). |
 | Vtable swaps | Concrete classes the game creates with `new` | One write per class in .rdata; must keep the exact slot layout from the Ghidra types |
 | Inline detours at function entry | Free functions, non-virtual methods, simulator internals | 5-byte jmp plus trampoline (MinHook or Detours behind our wrapper). **Entry only, never mid-function.** That rule keeps coexistence with other DLLs tractable. |
 

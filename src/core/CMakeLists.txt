@@ -18,6 +18,7 @@ add_library(opensc4_core SHARED
   diagnostics.cpp
   dllmain.cpp
   director.cpp
+  gdriver_proxy.cpp
   pollution_proxy.cpp
   trace.cpp)
 target_link_libraries(opensc4_core PRIVATE opensc4_core_support opensc4_gzcom)
