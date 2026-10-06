@@ -47,8 +47,8 @@ Output is a toolkit, not a game change. Everything later depends on it.
 
 ## P4: Save format and determinism (gate before any simulator work)
 
-- [ ] **Prove the original game replays deterministically** (hook time sources, capture RNG, fixed sim-tick stepping). If it doesn't, parity becomes statistical, and that changes the second half of the plan. First data point: under real-time stepping, two identical runs of the same city diverge within two game months ([docs/experiments/pollution-proxy.md](docs/experiments/pollution-proxy.md)). The game's random seeds can now be fixed from process start (`determinism.fixed_seed`, [docs/renderer.md](docs/renderer.md)); not yet tried on a running simulation.
-- [ ] Save parser / differ (offline tooling)
+- [~] **Prove the original game replays deterministically** (hook time sources, capture RNG, fixed sim-tick stepping). **First answer (2026-10-06, [docs/experiments/determinism.md](docs/experiments/determinism.md)): it does not**, even with fixed random seeds, a virtual clock on the main thread and one CPU: saves of two identical one-year runs differ in lots, buildings and flora; divergence starts in traffic within a day. Left to test: other time sources, the traffic simulator's scheduling, and heap-address ordering (would need a deterministic allocator). If it doesn't, parity becomes statistical, and that changes the second half of the plan. First data point: under real-time stepping, two identical runs of the same city diverge within two game months ([docs/experiments/pollution-proxy.md](docs/experiments/pollution-proxy.md)). The game's random seeds can now be fixed from process start (`determinism.fixed_seed`, [docs/renderer.md](docs/renderer.md)); not yet tried on a running simulation.
+- [~] Save parser / differ (offline tooling): record-level diff (`opensc4-dbpf diff`) and an address-aware diff that separates moved heap addresses from real differences ([tools/re/savediff.py](tools/re/savediff.py)); record types named from the exe's class table. No per-record schemas yet
 - [ ] In-memory state dumpers from Ghidra layouts
 - [ ] Publish documented subfile schemas to the community
 

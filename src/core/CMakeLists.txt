@@ -30,6 +30,7 @@ add_library(opensc4_core SHARED
   dbpf_survey.cpp
   gdriver_proxy.cpp
   pollution_proxy.cpp
+  virtual_clock.cpp
   trace.cpp)
 target_link_libraries(opensc4_core PRIVATE opensc4_core_support opensc4_dbpf opensc4_gzcom user32)
 set_target_properties(opensc4_core PROPERTIES OUTPUT_NAME core)
