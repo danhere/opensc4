@@ -1,6 +1,7 @@
 #include "core/registry.h"
 
 #include "core/log.h"
+#include "core/settings.h"
 
 #include <windows.h>
 
@@ -117,14 +118,6 @@ std::map<std::string, std::string>::const_iterator Lookup(const std::map<std::st
     return best;
 }
 
-std::wstring DefaultIniPath()
-{
-    wchar_t path[MAX_PATH];
-    if (!log::Directory(path))
-        return {};
-    return std::wstring(path) + L"opensc4.ini";
-}
-
 const char* ToString(Kind kind)
 {
     switch (kind) {
@@ -165,7 +158,7 @@ void Apply(Phase phase, const std::wstring& iniPath)
         replacements = state.replacements;
     }
 
-    const std::wstring ini = iniPath.empty() ? DefaultIniPath() : iniPath;
+    const std::wstring ini = iniPath.empty() ? settings::DefaultIniPath() : iniPath;
     std::map<std::string, std::string> configured = ReadIni(ini);
     for (auto& [id, value] : ReadEnvironment())
         configured[id] = value; // the environment wins

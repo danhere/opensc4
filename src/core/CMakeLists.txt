@@ -11,7 +11,8 @@ add_library(opensc4_core_support STATIC
   hook.cpp
   interface_counter.cpp
   log.cpp
-  registry.cpp)
+  registry.cpp
+  settings.cpp)
 target_link_libraries(opensc4_core_support
   PUBLIC opensc4_options opensc4_address_db
   PRIVATE opensc4_minhook)

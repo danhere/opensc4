@@ -54,6 +54,19 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 
   or for one run with `OPENSC4_REPLACE=id=mode,id=mode` (the environment wins). A key ending in `.*` toggles a whole subsystem (`simulators.* = ours`); an exact id wins over a wildcard, and a longer wildcard over a shorter one. `core.dll` logs one line per replacement with the mode it ended up in, and falls back to `original` for unknown modes, unsupported compare, or a replacement that could not be applied (for example because another DLL already patched its target).
 
+## Settings
+
+Plain settings live in the same `opensc4.ini`, one section per area ([src/core/settings.h](../src/core/settings.h)); an environment variable `OPENSC4_<SECTION>_<KEY>` overrides one for a single run. Booleans take on/off, true/false, yes/no or 1/0.
+
+```ini
+[replacements]
+renderer.d3d11 = ours   ; play with OpenSC4's Direct3D 11 driver
+
+[renderer]
+vsync = on              ; off: show every Flush at once, as the stock drivers do
+debug_layer = off       ; on: Direct3D debug layer (needs the Graphics Tools feature)
+```
+
 ## Coverage
 
 - The replacement `diagnostics.coverage` records which game functions run: a one-shot `INT3` at every function entry in `opensc4-functions.csv` (exported by `scripts/ghidra-setup.sh`, copied next to `core.dll` by `scripts/run-autotest.sh`). The first call restores the byte, so each function costs one exception once. Entries whose first byte differs (patched by another DLL or by our hooks) are skipped; it is applied in the last startup phase, after every hook.

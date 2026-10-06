@@ -8,6 +8,7 @@
 #include "core/gd/pixels.h"
 #include "core/gd/vertex_format.h"
 #include "core/log.h"
+#include "core/settings.h"
 
 #include <d3d11.h>
 #include <d3dcompiler.h>
@@ -199,13 +200,12 @@ public:
         }
 
         UINT flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-        char debug[8];
-        if (GetEnvironmentVariableA("OPENSC4_D3D11_DEBUG", debug, sizeof(debug)) && debug[0] == '1')
+        // opensc4.ini [renderer] (or OPENSC4_RENDERER_<KEY>): debug_layer = on turns
+        // on the Direct3D debug layer; vsync = off shows every Flush at once, as
+        // the stock drivers do, instead of at most one frame per refresh.
+        if (settings::GetBool("renderer", "debug_layer", false))
             flags |= D3D11_CREATE_DEVICE_DEBUG;
-        // The window shows at most one frame per vertical blank unless
-        // OPENSC4_D3D11_VSYNC=0 (then every Flush, as the stock drivers do).
-        char vsync[8];
-        syncInterval_ = GetEnvironmentVariableA("OPENSC4_D3D11_VSYNC", vsync, sizeof(vsync)) && vsync[0] == '0' ? 0 : 1;
+        syncInterval_ = settings::GetBool("renderer", "vsync", true) ? 1 : 0;
         const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0};
         D3D_FEATURE_LEVEL level{};
         HRESULT hr = createDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, flags, levels, ARRAYSIZE(levels),
