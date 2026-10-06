@@ -611,6 +611,10 @@ private:
         c.flags[0] = state.lighting | (state.diffuseFromVertex ? 2u : 0u) | (hasColor ? 4u : 0u);
         c.flags[1] = state.vertexColors;
         c.flags[2] = state.enabled[Fog];
+        if (state.enabled[Fog])
+            LogOnce("fog", state.fogMode, "mode %u, colour %.3f %.3f %.3f, density %g, start %g, end %g", state.fogMode,
+                    state.fogColor[0], state.fogColor[1], state.fogColor[2], state.fogDensity, state.fogStart,
+                    state.fogEnd);
         c.alphaTest[0] = state.enabled[AlphaTest];
         c.alphaTest[1] = state.alphaFunc;
         c.alphaTest[2] = static_cast<uint32_t>(std::clamp(state.alphaRef, 0.0f, 1.0f) * 255.0f + 0.5f);
@@ -805,8 +809,11 @@ private:
         // Direct3D 7's D3DCULL_CW, which the DirectX driver sets for Enable(cull).
         desc.CullMode = cull ? D3D11_CULL_FRONT : D3D11_CULL_NONE;
         desc.FrontCounterClockwise = FALSE;
-        // Direct3D 7 z-bias: higher values draw in front. Units to be tuned against the stock driver.
-        desc.DepthBias = -state.polygonOffset * kZBiasUnits;
+        // Direct3D 7 z-bias (0-16): higher values draw in front. Mapped as Wine's
+        // OpenGL backend maps it, glPolygonOffset(-bias, -bias): one depth unit
+        // and one unit of slope per step.
+        desc.DepthBias = -state.polygonOffset;
+        desc.SlopeScaledDepthBias = static_cast<float>(-state.polygonOffset);
         desc.ScissorEnable = TRUE;
         desc.DepthClipEnable = TRUE;
         if (state.polygonOffset)
@@ -1043,7 +1050,6 @@ private:
     int32_t nextRegion_ = 1;
 
     // Drawing
-    static constexpr int32_t kZBiasUnits = 256;
     ComPtr<ID3DBlob> vsCode_;
     ComPtr<ID3D11VertexShader> vsDraw_;
     ComPtr<ID3D11PixelShader> psSmooth_, psFlat_;

@@ -314,9 +314,11 @@ public:
         lighting_ = true;
     }
     // Lit alpha comes from Direct3D's diffuse material source, which the
-    // DirectX driver sets to the vertex colour in EnableVertexColors (whatever
-    // its arguments) and to the material when AlphaMultiplier is below 1
-    // (0x008833E0, 0x00883310).
+    // DirectX driver sets in EnableVertexColors from its second argument
+    // (vertex colour if set, else the material), to the material when
+    // AlphaMultiplier is below 1, and back to the vertex colour at 1 if that
+    // argument was set (0x008833E0, 0x00883310). The decompiler shows a
+    // constant for the first case; the disassembly reads the argument.
     void AlphaMultiplier(float a) override
     {
         colorMultiplier_[3] = a;
@@ -330,7 +332,7 @@ public:
     {
         vertexColors_ = diffuse;
         vertexSpecular_ = specular;
-        diffuseFromVertex_ = true;
+        diffuseFromVertex_ = specular;
     }
 
     void GenTextures(int32_t n, uint32_t* textures) override
