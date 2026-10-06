@@ -181,6 +181,17 @@ So while the simulation runs, the game itself redraws the city about 15 times a 
 
 Waiting for vertical sync in `Flush` starves that loop: in a 60 s run at speed 2, a blocking `Present(1)` showed 7.5 frames per second and the city reached 2010-01-25, where the stock driver reached 2011-12-09. So the driver paces what the window shows, not the game: a flip-model swap chain with a frame-latency waitable object (maximum latency 1); `Flush` copies the back buffer to the front buffer and presents it only if the waitable object is already signalled, else leaves it for the next `Flush` (or a 10 ms window timer, should the game stop flushing). The CPU is kept at most 3 flushes ahead of the GPU with event queries, since nothing else blocks (the GPU is not the limit: about 20 us of waiting per flush). Same 60 s run: the city reaches 2011-12-16, as with the stock driver. `vsync = off` in `opensc4.ini`'s `[renderer]` section (or `OPENSC4_RENDERER_VSYNC=off`) presents every `Flush` at once (tearing allowed where supported); without flip-model support (before Windows 8.1) the driver falls back to a blt-model swap chain presenting every `Flush`.
 
+**The game caps its frame rate by simulation speed** (what sc4-disable-fps-limits patches): `cSC4Simulator`'s speed setter (0x00702430, from `SetSimSpeed` and `Init`) stores 30, 20 or 15 frames per second for turtle, rhino and cheetah in the simulator at + 0x84 (the interface pointer's offset; a cheat, message 0x0AC07E24, also sets it). The only reader (0x00703EDD, found with a hardware read watchpoint; 0x00703E70 reads it as + 0x7C from a base 8 bytes further on) turns it into the simulation's time slice per frame: 1000 / cap ms, or 1000 / 30 under a condition at + 0x28 / + 0x2C, minus the time a timer at + 0x58 measured, at least 15 ms, stored at + 0x70. So the cap splits each loop between simulating and drawing. Measured in the test city at cheetah for 60 s (D3D11 driver, the field set after `SetSimSpeed`):
+
+| Cap | Redraws per second | Simulation reached |
+|---|---|---|
+| 15 (the game's) | 15 | 2011-12-08 |
+| 30 | 29 | 2011-12-01 |
+| 60 | 57 | 2011-11-29 |
+| 255 (sc4-disable-fps-limits) | 57 | 2011-12-02 |
+
+Above about 57 the 15 ms minimum slice is the limit. In this small city the simulation does not use its whole slice, so four times the redraws cost almost nothing; a large city would lose simulation speed (not measured: the test region has only the tutorial cities).
+
 Not changed: the loop never sleeps, so the game keeps a CPU core busy even when paused, as with the stock driver. Lowering that means changing the framework loop (for example waiting when paused), not the driver. Smoother motion while the simulation runs would need the simulation and drawing taken apart, which is far beyond the renderer.
 
 ### What the game asks the driver
