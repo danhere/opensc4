@@ -13,12 +13,14 @@
 // The game sets its video mode after that, through the proxy.
 //
 // The game's drivers also implement four other interfaces (QueryInterface at
-// 0x00882A00 for DirectX, 0x0087D670 for OpenGL): 0x669565FE (the object,
-// 15 methods), 0xE69BFE2A (1 method), 0x87E2B87D (9 methods) and 0x09CD86F9
-// (a separate object). Calls through those bypass the proxy.
+// 0x00882A00 for DirectX, 0x0087D670 for OpenGL): cIGZGBufferRegionExtension
+// 0x669565FE, cIGZGSnapshotExtension 0xE69BFE2A, cIGZGDriverLightingExtension
+// 0x87E2B87D, and an unidentified separate object 0x09CD86F9 (docs/renderer.md). Those are forwarded to the original, wrapped so their
+// calls are counted by slot.
 #include "core/gdriver_proxy.h"
 
 #include "core/game.h"
+#include "core/interface_counter.h"
 #include "core/log.h"
 #include "core/registry.h"
 
@@ -182,6 +184,24 @@ void CountCall(Method m)
         log::Write("gdriver proxy: first call to %s", kMethodNames[static_cast<int>(m)]);
 }
 
+// The driver's other interfaces (docs/renderer.md): calls through them are
+// counted by slot with interface_counter. Slot counts from the DirectX
+// driver's vtables, including cIGZUnknown.
+interface_counter::Counters g_extensions[] = {
+    {"cIGZGBufferRegionExtension", 0x669565FE, 18, {}}, // the driver object; first 11 slots
+    {"cIGZGSnapshotExtension", 0xE69BFE2A, 4, {}},
+    {"cIGZGDriverLightingExtension", 0x87E2B87D, 12, {}},
+    {"unidentified driver part", 0x09CD86F9, 12, {}},
+};
+
+interface_counter::Counters* ExtensionCounters(uint32_t iid)
+{
+    for (auto& c : g_extensions)
+        if (c.iid == iid)
+            return &c;
+    return nullptr;
+}
+
 // QueryInterface calls for other interfaces, by IID: logged once, counted.
 struct ForwardedQuery {
     std::atomic<uint32_t> iid{0};
@@ -216,6 +236,9 @@ public:
         }
         const bool found = inner_->QueryInterface(iid, object);
         CountForwardedQuery(iid, found);
+        if (found)
+            if (interface_counter::Counters* counters = ExtensionCounters(iid))
+                *object = interface_counter::Wrap(*object, *counters);
         return found;
     }
 
@@ -295,6 +318,8 @@ void LogCallCounts(const char* when)
     for (const ForwardedQuery& q : g_queries)
         if (q.iid.load())
             log::Write("  QueryInterface(0x%08X)    %u (forwarded)", q.iid.load(), q.calls.load());
+    for (const auto& c : g_extensions)
+        interface_counter::Log(c);
 }
 
 } // namespace opensc4::gdriver_proxy

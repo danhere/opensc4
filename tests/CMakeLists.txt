@@ -23,6 +23,11 @@ target_link_libraries(opensc4_seh_test PRIVATE opensc4_options)
 add_test(NAME seh_pattern COMMAND opensc4_seh_test)
 set_tests_properties(seh_pattern PROPERTIES PASS_REGULAR_EXPRESSION "seh test OK")
 
+add_executable(opensc4_interface_counter_test interface_counter_test.cpp)
+target_link_libraries(opensc4_interface_counter_test PRIVATE opensc4_core_support)
+add_test(NAME interface_counter COMMAND opensc4_interface_counter_test)
+set_tests_properties(interface_counter PROPERTIES PASS_REGULAR_EXPRESSION "interface counter test OK")
+
 add_executable(opensc4_registry_test registry_test.cpp)
 target_link_libraries(opensc4_registry_test PRIVATE opensc4_core_support)
 add_test(NAME replacement_registry COMMAND opensc4_registry_test)

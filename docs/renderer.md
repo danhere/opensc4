@@ -15,20 +15,22 @@ Notes for replacing the game's graphics driver. Build 641, Steam, 2026-10-05.
 
 `renderer.passthrough` ([gdriver_proxy.cpp](../src/core/gdriver_proxy.cpp), registry kind `api`, phase `PreAppInit`) wraps the current driver this way and forwards every call. With it on, a 120 s autotest runs the city at the same pace as without it (2015-04-03 and 2015-04-05 at the end) and quits cleanly.
 
-Not seen through the proxy: calls made before `PreAppInit` (the driver's `Init`, anything the graphics system does while creating drivers), and calls through other interfaces (below). Code that looks a driver up with `GetGDriverByID` also gets the original.
+Not seen through the proxy: calls made before `PreAppInit` (the driver's `Init`, anything the graphics system does while creating drivers). Code that looks a driver up with `GetGDriverByID` gets the original.
 
 ## Other driver interfaces
 
-The DirectX driver's `QueryInterface` (0x00882A00) also serves the following; the OpenGL driver's (0x0087D670) serves the same set, so they are part of what any driver must provide:
+The DirectX driver's `QueryInterface` (0x00882A00) also serves four other interfaces; the OpenGL driver's (0x0087D670) serves the same set, so a replacement driver has to provide them. Names come from the Mac build's debug symbols (sc4-ghidra-symbols types, where the DirectX driver is `nSGLDX7::cGDriver`), matched by method count, `this` offset and what the Windows code does. The proxy wraps all four with [interface_counter](../src/core/interface_counter.h), which counts calls by vtable slot without needing the signatures.
 
-| IID | Points at | Methods | Queried in the 120 s run |
-|---|---|---|---|
-| 0x669565FE | the driver object (vtable 0x00AC47EC) | 15 | 1 (0x007C3810, stored in 0x00B4E1F0) |
-| 0xE69BFE2A | object + 4 (vtable 0x00AC47DC) | 1 | 2 |
-| 0x87E2B87D | object + 8 (vtable 0x00AC47AC) | 9 | 0 |
-| 0x09CD86F9 | a separate object held at + 0x1C | ? | 37,368 (0x00593E10, 0x007545C0, ...) |
+| IID | Interface | Where | Methods | 60 s run |
+|---|---|---|---|---|
+| 0x669565FE | `cIGZGBufferRegionExtension` | the driver object (vtable 0x00AC47EC) | 8 (then 7 more of the class's own) | queried once (0x007C3810, kept in 0x00B4E1F0); NewBufferRegion 2, ReadBufferRegion 1,408, DrawBufferRegion 70,070 |
+| 0xE69BFE2A | `cIGZGSnapshotExtension` | object + 4 (0x00AC47DC) | 1: `CopyColorBuffer` | queried 2, CopyColorBuffer 1 |
+| 0x87E2B87D | `cIGZGDriverLightingExtension` | object + 8 (0x00AC47AC) | 9 | never queried |
+| 0x09CD86F9 | unidentified | separate object held at + 0x1C (vtable 0x00AC4F10) | 9 | queried 32,890 times (0x00593E10, 0x007545C0); slots 3 and 4 once per query, slot 5 595,514, slot 6 562,628 |
 
-The proxy forwards these to the original, so their calls bypass it. A replacement driver has to implement them; they are not identified yet.
+- **Buffer regions** (slot: method, Windows DirectX implementation): 3 `BufferRegionEnabled` (true), 4 `NewBufferRegion(buffer)` (0 front, 1 back, 2 depth: creates an off-screen DirectDraw surface, returns a handle), 5 `DeleteBufferRegion`, 6 `ReadBufferRegion` (7 arguments), 7 `DrawBufferRegion`, 8 `IsBufferRegion`, 9 `CanDoPartialRegionWrites` and 10 `CanDoOffsetReads` (both true). Saving and restoring screen areas, probably for the UI.
+- **Lighting**: `EnableLighting`, `EnableLight`, `LightModelAmbient`, `LightColor` (two overloads), `LightPosition`, `LightDirection`, `MaterialColor` (two overloads). The Mac order is GCC's; MSVC may order the overloads differently.
+- **0x09CD86F9**: slot 3 always returns 0 in the DirectX driver; slots 4 and 5 read fields of 0x30-byte records by index; slot 6 flushes something. The Mac symbols' interfaces do not match it.
 
 ## What the game calls
 

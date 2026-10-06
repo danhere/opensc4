@@ -7,6 +7,7 @@ add_library(opensc4_core_support STATIC
   crash.cpp
   game.cpp
   hook.cpp
+  interface_counter.cpp
   log.cpp
   registry.cpp)
 target_link_libraries(opensc4_core_support
