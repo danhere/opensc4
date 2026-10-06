@@ -8,6 +8,7 @@
 #include "core/autotest.h"
 #include "core/compare.h"
 #include "core/crash.h"
+#include "core/d3d7_probe.h"
 #include "core/diagnostics.h"
 #include "core/game.h"
 #include "core/gdriver_proxy.h"
@@ -85,6 +86,7 @@ public:
     {
         opensc4::compare::LogStats();
         opensc4::gdriver_proxy::LogCallCounts("PreAppShutdown");
+        opensc4::d3d7_probe::LogCounts();
         opensc4::diagnostics::OnShutdown();
         return true;
     }

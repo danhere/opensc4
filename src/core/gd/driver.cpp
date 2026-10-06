@@ -33,10 +33,12 @@
 #include <opensc4/addresses.h>
 
 #include <atomic>
+#include <cstdio>
 #include <cstring>
 #include <map>
 #include <memory>
 #include <set>
+#include <string>
 #include <vector>
 
 namespace opensc4::gd {
@@ -522,6 +524,14 @@ public:
         }
         DestroyOutput();
         current_ = modes_[index];
+        // The capabilities the DirectX driver reports in its current mode on a
+        // current card (2026-10-06, RTX 3080 Ti): only the current mode has them.
+        current_.stencil = 1;
+        current_.textureStages = kStages;
+        current_.multitexture = current_.envCombine = current_.fogCoordinate = 1;
+        current_.dxt = 1;
+        current_.unknown2F = 1;
+        current_.initialized = 1;
         gameProc_ = windowProc ? reinterpret_cast<WNDPROC>(windowProc) : DefWindowProcA;
         if (!CreateOutput()) {
             DestroyOutput();
@@ -589,7 +599,25 @@ public:
         dimensions[3] = viewport_.y + viewport_.height;
     }
 
-    char const* GetDriverInfo() const override { return "OpenSC4 Direct3D 11 driver"; }
+    // The game parses this (0x007CF780) into Graphics Rules.sgr's sglDriverName,
+    // sglDriverVersion, driverName, driverVersion, cardName and cardVersion,
+    // one per line after the first, in the DirectX driver's format. The rules
+    // match cardName ("Fast card": NVidia*Geforce*, ...), so it must be the real
+    // adapter. sglDriverName stays "DirectX", the driver the rules were tuned on.
+    char const* GetDriverInfo() const override
+    {
+        if (driverInfo_.empty()) {
+            const AdapterInfo a = QueryAdapterInfo();
+            char text[512];
+            std::snprintf(text, sizeof(text),
+                          "Maxis 3D GDriver\nDirectX\n2.0\nOpenSC4 Direct3D 11 driver\n%u.%u.%u.%u\n%s\n"
+                          "Vendor: %04x, Device: %04x, Board: %08x, Chipset: %04x\n",
+                          a.driverVersion[0], a.driverVersion[1], a.driverVersion[2], a.driverVersion[3], a.name.c_str(),
+                          a.vendor, a.device, a.subsystem, a.revision);
+            driverInfo_ = text;
+        }
+        return driverInfo_.c_str();
+    }
     uint32_t GetGZCLSID() const override { return kClassId; }
     bool Init() override { return true; }
     bool Shutdown() override
@@ -828,6 +856,7 @@ private:
     Mode current_{};
     HWND window_ = nullptr;
     bool displayChanged_ = false;
+    mutable std::string driverInfo_;
     WNDPROC gameProc_ = nullptr;
     std::unique_ptr<Backend> backend_;
     BufferRegions regions_;
@@ -1067,14 +1096,12 @@ std::vector<Mode> EnumerateModes()
         m.width = width;
         m.height = height;
         m.depth = deep ? 32 : 16;
-        m.alphaMask = deep ? 0xFF000000 : 0x1;
+        m.alphaMask = 0;
         m.redMask = deep ? 0xFF0000 : 0xF800;
         m.greenMask = deep ? 0xFF00 : 0x7C0;
         m.blueMask = deep ? 0xFF : 0x3E;
         m.fullScreen = fullScreen;
-        m.unknown21 = m.unknown22 = 1;
-        m.unknown24 = 1;
-        m.unknown2C[3] = m.unknown2C[4] = 1;
+        m.unknown22 = 1;
         modes.push_back(m);
     };
     DEVMODEA dm{};

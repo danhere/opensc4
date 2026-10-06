@@ -9,7 +9,10 @@
 namespace opensc4::gd {
 
 // sGDMode: one entry of the driver's video mode list (0x34 bytes; the drivers
-// copy 13 dwords). Masks are the frame buffer's channel masks.
+// copy 13 dwords). Masks are the frame buffer's channel masks. Field names
+// from gzcom-dll's sGDMode.h. The capability fields matter: the game reads the
+// current mode's (GetVideoModeInfo, 0x007CF780) into the configuration that
+// Graphics Rules.sgr is evaluated against (textureStages, DXT, ...).
 struct Mode {
     int32_t index;
     uint32_t width;
@@ -20,12 +23,19 @@ struct Mode {
     uint32_t greenMask;
     uint32_t blueMask;
     uint8_t fullScreen; // 0: windowed mode (the DirectX driver creates an overlapped window)
-    uint8_t unknown21;
-    uint8_t unknown22;
+    uint8_t stencil;
+    uint8_t unknown22; // 1 in every mode the DirectX driver lists
     uint8_t pad23;
-    uint32_t unknown24;
-    uint32_t unknown28;
-    uint8_t unknown2C[8];
+    uint32_t textureStages;   // "textureStages" in Graphics Rules.sgr; 2 or more enables useSecondStage
+    uint8_t multitexture;     // GL_ARB_multitexture
+    uint8_t envCombine;       // GL_EXT_texture_env_combine
+    uint8_t envCombine4;      // GL_NV_texture_env_combine4
+    uint8_t fogCoordinate;    // GL_EXT_fog_coord
+    uint8_t dxt;              // "DXT" in Graphics Rules.sgr
+    uint8_t unknown2D[2];
+    uint8_t unknown2F;        // 1 in the DirectX driver's current mode
+    uint8_t initialized;
+    uint8_t pad31[3];
 };
 static_assert(sizeof(Mode) == 0x34);
 

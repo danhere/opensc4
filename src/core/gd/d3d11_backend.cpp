@@ -1075,4 +1075,30 @@ std::unique_ptr<Backend> CreateD3D11Backend()
     return std::make_unique<D3D11Backend>();
 }
 
+AdapterInfo QueryAdapterInfo()
+{
+    AdapterInfo info;
+    HMODULE dxgi = LoadLibraryW(L"dxgi.dll");
+    using CreateFactoryFn = HRESULT(WINAPI*)(REFIID, void**);
+    auto create = dxgi ? reinterpret_cast<CreateFactoryFn>(GetProcAddress(dxgi, "CreateDXGIFactory1")) : nullptr;
+    ComPtr<IDXGIFactory1> factory;
+    ComPtr<IDXGIAdapter1> adapter;
+    DXGI_ADAPTER_DESC1 desc{};
+    if (!create || FAILED(create(__uuidof(IDXGIFactory1), &factory)) || FAILED(factory->EnumAdapters1(0, &adapter)) ||
+        FAILED(adapter->GetDesc1(&desc)))
+        return info;
+    char name[128] = {};
+    WideCharToMultiByte(CP_ACP, 0, desc.Description, -1, name, sizeof(name) - 1, nullptr, nullptr);
+    info.name = name;
+    info.vendor = desc.VendorId;
+    info.device = desc.DeviceId;
+    info.subsystem = desc.SubSysId;
+    info.revision = desc.Revision;
+    LARGE_INTEGER version{};
+    if (SUCCEEDED(adapter->CheckInterfaceSupport(__uuidof(IDXGIDevice), &version)))
+        for (int i = 0; i < 4; ++i)
+            info.driverVersion[i] = static_cast<uint16_t>(version.QuadPart >> (48 - 16 * i));
+    return info;
+}
+
 } // namespace opensc4::gd

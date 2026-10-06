@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 
 namespace opensc4::gd {
 
@@ -112,5 +113,14 @@ public:
 };
 
 std::unique_ptr<Backend> CreateD3D11Backend();
+
+// The primary display adapter, as GetDriverInfo reports it: name, PCI IDs and
+// user-mode driver version. Empty name if DXGI is unavailable.
+struct AdapterInfo {
+    std::string name;
+    uint32_t vendor = 0, device = 0, subsystem = 0, revision = 0;
+    uint16_t driverVersion[4] = {};
+};
+AdapterInfo QueryAdapterInfo();
 
 } // namespace opensc4::gd
