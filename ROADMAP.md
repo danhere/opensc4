@@ -33,7 +33,7 @@ Output is a toolkit, not a game change. Everything later depends on it.
 
 ## P2: UI scaling and input
 
-- [~] Interim: driver-level render scale (`[renderer] scale`; the game runs at the screen size divided by it and the D3D11 driver draws at full size, everything bigger; [docs/ui-scaling.md](docs/ui-scaling.md)). Done apart from a sharper filter for interface images and a hands-on mouse test
+- [~] Interim: driver-level render scale (`[renderer] scale`; the game runs at the screen size divided by it and the D3D11 driver draws at full size, everything bigger; [docs/ui-scaling.md](docs/ui-scaling.md)). Interface images drawn with sharp bilinear filtering. Still to do: a hands-on mouse test
 - [ ] Proper `cGZWin` layout scaling via detours
 - [ ] Modern input: high-DPI mouse, wheel, rebinding
 

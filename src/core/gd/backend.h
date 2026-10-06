@@ -64,6 +64,10 @@ struct DrawState {
     float fogDensity, fogStart, fogEnd;
     uint32_t stageCount;
     StageDesc stages[kMaxStages];
+    // An interface draw shown enlarged ([renderer] scale): a pixel-exact
+    // projection for its viewport. Nearest-filtered images in it are drawn
+    // sharp but even (D3D11 backend: sharp bilinear).
+    bool interfaceDraw;
 };
 
 // The vertices and indices of a draw. `indices` null: vertices [first, first + count).

@@ -13,7 +13,7 @@ struct Stage {
     uint4 setup;   // enabled, env mode, TexStageCoord value, has matrix
     uint4 rgb;     // combiner op, arg 0, arg 1, arg 2 (low nibble source, high nibble operand)
     uint4 alpha;
-    float4 scale;  // rgb, alpha
+    float4 scale;  // rgb, alpha, sharp bilinear (interface images shown enlarged)
     float4x4 texMatrix;
 };
 
@@ -142,7 +142,24 @@ float4 PSMain(PSIn i) : SV_Target {
         float2 uv = i.tc[k].xy;
         float2 dx = ddx(uv), dy = ddy(uv);
         if (k < flags.w && stages[k].setup.x) {
-            float4 t = textures[k].SampleGrad(samplers[k], uv, dx, dy);
+            float4 t;
+            if (stages[k].scale.z != 0) {
+                // Sharp bilinear: each texel stays a flat square, only a band
+                // of about a pixel at its edges is blended with the neighbour.
+                float w, h;
+                textures[k].GetDimensions(w, h);
+                float2 size = float2(w, h);
+                float2 texel = uv * size;
+                float2 perPixel = max(abs(dx * size) + abs(dy * size), 1e-4); // texels per screen pixel
+                float2 pixelsPerTexel = max(1.0 / perPixel, 1.0);
+                float2 base = floor(texel);
+                float2 centre = texel - base - 0.5;
+                float2 range = 0.5 - 0.5 / pixelsPerTexel;
+                float2 f = (centre - clamp(centre, -range, range)) * pixelsPerTexel + 0.5;
+                t = textures[k].SampleLevel(samplers[k], (base + f) / size, 0);
+            } else {
+                t = textures[k].SampleGrad(samplers[k], uv, dx, dy);
+            }
             uint env = stages[k].setup.y;
             float4 r;
             if (env == 0) r = t;                                               // replace

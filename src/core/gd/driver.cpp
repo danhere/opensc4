@@ -712,6 +712,7 @@ private:
         std::memcpy(s.modelView, modelView_, sizeof(s.modelView));
         std::memcpy(s.projection, projection_, sizeof(s.projection));
         s.viewport = Physical(ViewportRect());
+        s.interfaceDraw = scale_ != 1.0f && PixelExactProjection();
         std::memcpy(s.enabled, enabled_, sizeof(s.enabled));
         s.depthFunc = depthFunc_;
         s.depthMask = depthMask_;
@@ -769,6 +770,19 @@ private:
         Combiner& c = stages_[stage_].combiner;
         uint8_t* arg = type < 4 ? &c.rgbArg[type < 3 ? type : 2] : &c.alphaArg[type - 4 < 3 ? type - 4 : 2];
         *arg = static_cast<uint8_t>((*arg & ~mask) | (value & mask));
+    }
+
+    // A projection mapping one unit to one pixel of the viewport (the
+    // interface's windows draw so, each in its own viewport; the city does not).
+    bool PixelExactProjection() const
+    {
+        if (viewport_.width <= 0 || viewport_.height <= 0)
+            return false;
+        const float* p = projection_;
+        const float x = p[0] * static_cast<float>(viewport_.width) * 0.5f;
+        const float y = p[5] * static_cast<float>(viewport_.height) * 0.5f;
+        return std::fabs(std::fabs(x) - 1.0f) < 1e-3f && std::fabs(std::fabs(y) - 1.0f) < 1e-3f &&
+               std::fabs(p[1]) < 1e-6f && std::fabs(p[4]) < 1e-6f;
     }
 
     Rect ViewportRect() const

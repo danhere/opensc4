@@ -758,7 +758,17 @@ private:
             std::memcpy(sc.matrix, s.matrix, sizeof(sc.matrix));
             if (enabled) {
                 srvs[k] = tex->second.srv.Get();
-                samplers[k] = Sampler(s.params);
+                // Nearest-filtered interface images shown enlarged: filtered
+                // linearly with the coordinates bent to keep texels square
+                // (the shader's sharp bilinear), so strokes stay even at 1.5x.
+                const bool sharp = state.interfaceDraw && s.params[MagFilter] == Nearest;
+                sc.scale[2] = sharp ? 1.0f : 0.0f;
+                if (sharp) {
+                    uint32_t params[4] = {Linear, Linear, s.params[WrapS], s.params[WrapT]};
+                    samplers[k] = Sampler(params);
+                } else {
+                    samplers[k] = Sampler(s.params);
+                }
                 LogOnce("texture env", s.envMode == EnvCombine
                                            ? 0x100u | s.combiner.rgbOp | (s.combiner.alphaOp << 4)
                                            : s.envMode,
