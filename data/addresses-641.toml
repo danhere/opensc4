@@ -126,3 +126,12 @@ convention = "thiscall"
 signature = "void (cRZRandomSuper* this, uint32_t seed)"
 expect = "8B 44 24 04 83 F8 FF 56"
 source = "Seeds a 624-word Mersenne Twister; seed 0xFFFFFFFF means a mix of time() and clock() (0x00913977). Called from 0x00913B74. Name inferred as for cRZRandom::Seed."
+
+[[entry]]
+name = "cSC4App::SelectGraphicsDriver"
+address = 0x0044CE40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4App* this, bool selectDriver)"
+expect = "81 EC 84 00 00 00 53 55"
+source = "Name ours. Reads the requested driver class ID at this+0x65C (from -d:, 0 if none; parsed by 0x0044EED0), falls back to the saved choice at [this+0x3B0]+0xF13 (0 Software, 1 DirectX, 0xFF other), stores an explicit choice back there and calls cIGZGraphicSystem2::SetDefaultDriverClassID. Called through vtables from 0x00451F19 (argument 0) and 0x0045317D (docs/renderer.md, \"D3D11 driver\")."

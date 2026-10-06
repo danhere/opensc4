@@ -4,9 +4,10 @@
 // calls mean".
 //
 // It takes over the stock OpenGL driver's class ID, like scvk and SCGL, and
-// the game selects it with -d:OpenGL. Making it current later (SetGDriver at
-// PreAppInit) is not enough: the game creates 3D textures through a driver
-// pointer it caches before then, so they would land on the stock driver.
+// is selected as if the game had been started with -d:OpenGL unless -d:
+// names another driver. Making it current later (SetGDriver at PreAppInit)
+// is not enough: the game creates 3D textures through a driver pointer it
+// caches before then, so they would land on the stock driver.
 //
 // Like the stock drivers it creates its own (ANSI) window in SetVideoMode and
 // sends the window's messages to the procedure the game passes in.
@@ -14,7 +15,9 @@
 #include "core/gd/gd.h"
 #include "core/gd/vertex_format.h"
 
+#include "core/address_check.h"
 #include "core/director.h"
+#include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
 
@@ -26,6 +29,8 @@
 #include <cIGZGraphicSystem2.h>
 
 #include <windows.h>
+
+#include <opensc4/addresses.h>
 
 #include <atomic>
 #include <cstring>
@@ -1030,8 +1035,37 @@ cIGZUnknown* Create()
     return static_cast<cIGZGDriver*>(driver);
 }
 
+// cSC4App::SelectGraphicsDriver: request this driver when no -d: option
+// asked for one, then put back the saved driver choice the game would
+// otherwise overwrite (so turning the driver off leaves the user's settings
+// as they were).
+using SelectFn = void(__fastcall*)(void* app, void* edx, bool selectDriver);
+SelectFn g_select = nullptr;
+constexpr size_t kRequestedDriver = 0x65C;
+constexpr size_t kSettings = 0x3B0;
+constexpr size_t kSavedDriver = 0xF13;
+
+void __fastcall SelectGraphicsDriver(void* app, void* edx, bool selectDriver)
+{
+    auto* base = static_cast<uint8_t*>(app);
+    auto& requested = *reinterpret_cast<uint32_t*>(base + kRequestedDriver);
+    uint8_t* settings = *reinterpret_cast<uint8_t**>(base + kSettings);
+    if (!selectDriver || requested != 0 || !settings) {
+        g_select(app, edx, selectDriver);
+        return;
+    }
+    const uint8_t saved = settings[kSavedDriver];
+    requested = kClassId;
+    g_select(app, edx, selectDriver);
+    settings[kSavedDriver] = saved;
+    log::Write("d3d11 driver: selected in place of the saved driver choice %u", saved);
+}
+
 bool Register(registry::Mode)
 {
+    const addr::Entry* select = addr_check::Find(addr::cSC4App_SelectGraphicsDriver);
+    if (!select || !hook::Install(*select, &SelectGraphicsDriver, &g_select))
+        log::Write("d3d11 driver: could not hook the driver choice; start the game with -d:OpenGL");
     return director::AddClass(kClassId, Create);
 }
 
@@ -1041,7 +1075,7 @@ const bool g_registered = registry::Register({
     registry::Kind::Gzcom,
     registry::Phase::DirectorInit,
     kClassId,
-    "OpenSC4's Direct3D 11 graphics driver, in place of the OpenGL driver: run with -d:OpenGL (P1 step 3)",
+    "OpenSC4's Direct3D 11 graphics driver, in place of the OpenGL driver (P1 step 3)",
     false,
     Register,
 });
