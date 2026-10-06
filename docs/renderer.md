@@ -158,7 +158,11 @@ Texture stages follow the DirectX driver's Direct3D setup (0x00884320, 0x0088450
 
 ### Resolutions
 
-The game picks a mode from `-r<width>x<height>x<depth>`; sizes outside its own list need `-CustomResolution:enabled` (with either driver, or it quits with exit code -1 at startup), which is how players get widescreen sizes. It also quits with -1 for any size larger than the desktop, windowed modes included, even when the driver lists one (tried 2000x1000 and 2560x1440 on a 1920x1080 desktop with the D3D11 driver). So the >2048 px crash reported with the stock driver can only be reproduced on a desktop wider than 2048 px; not investigated yet, as the development machine's monitor is 1920x1080.
+The game picks a mode from `-r<width>x<height>x<depth>`; sizes outside its own list need `-CustomResolution:enabled` (with either driver, or it quits at startup), which is how players get widescreen sizes.
+
+**The >2048 px crash is in the stock DirectX driver, not the game.** At 3440x1440 full screen (desktop size, 2026-10-06, Alienware AW3423DW) the stock driver crashes at 0x00884FE1 in its `Disable`: the per-stage state array at driver + 0x11C is null, so its device setup failed silently and the first state change writes through a null pointer. The D3D11 driver runs the same city at 3440x1440 with no problem (20 screenshots and a full test run), so with it the cap is gone.
+
+A windowed size larger than the desktop crashes in game code instead (0x0098E9A6, an object at + 0xE4 missing; tried 2000x1000 and 2560x1440 on a 1920x1080 desktop), which matters only for testing: the window cannot be bigger than the screen anyway.
 
 ### Frame pacing
 
