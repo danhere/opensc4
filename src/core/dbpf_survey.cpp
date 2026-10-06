@@ -5,11 +5,16 @@
 // file, which file the resource manager actually serves it from (the listing
 // order is not assumed to be the lookup order). Read-only, through the public
 // interfaces.
+//
+// diagnostics.dbpf_compare: reads every record of every package file both
+// through the game's segment and through OpenSC4's reader (src/dbpf) and
+// compares the bytes.
 #include "core/address_check.h"
 #include "core/crash.h"
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "dbpf/dbpf.h"
 
 #include <GZServPtrs.h>
 #include <cGZPersistResourceKey.h>
@@ -26,6 +31,7 @@
 #include <opensc4/addresses.h>
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -147,6 +153,111 @@ bool Run(registry::Mode)
     }
     return true;
 }
+
+// Calls `leaf` for every package file, in listing order, folders expanded.
+void ForEachLeaf(cIGZPersistDBSegment* segment, const std::function<void(cIGZPersistDBSegment*)>& leaf)
+{
+    cIGZPersistDBSegmentMultiPackedFiles* multi = nullptr;
+    if (segment->QueryInterface(GZIID_cIGZPersistDBSegmentMultiPackedFiles, reinterpret_cast<void**>(&multi)) &&
+        multi) {
+        const uint32_t count = multi->GetSegmentCount();
+        for (uint32_t i = 0; i < count; ++i)
+            if (cIGZPersistDBSegment* child = multi->GetSegmentByIndex(i))
+                ForEachLeaf(child, leaf);
+        multi->Release();
+        return;
+    }
+    leaf(segment);
+}
+
+// One package file: every key the game lists, read both ways.
+void CompareFile(cIGZPersistDBSegment* segment, uint64_t& totalRecords, uint64_t& totalBytes, uint32_t& badFiles)
+{
+    const std::string path = PathOf(segment);
+    std::string error;
+    // Game paths are in the ANSI code page; the reader takes UTF-8. The same
+    // for ASCII paths, which is all a clean install has.
+    auto package = dbpf::Package::OpenFile(path, &error);
+    if (!package) {
+        log::Write("dbpf compare: %s: our reader cannot open it: %s", path.c_str(), error.c_str());
+        ++badFiles;
+        return;
+    }
+    cIGZPersistResourceKeyList* list = NewKeyList();
+    if (!list)
+        return;
+    segment->GetResourceKeyList(list, nullptr);
+    const uint32_t count = list->Size();
+    uint32_t missing = 0, sizeDiffers = 0, bytesDiffer = 0, reported = 0;
+    std::vector<uint8_t> theirs, ours;
+    for (uint32_t i = 0; i < count; ++i) {
+        const cGZPersistResourceKey& key = list->GetKey(i);
+        const dbpf::Entry* entry = package->Find({key.type, key.group, key.instance});
+        uint32_t size = segment->GetRecordSize(key);
+        theirs.assign(size, 0);
+        const uint32_t read = segment->ReadRecord(key, theirs.data(), size);
+        theirs.resize(size);
+        const char* problem = nullptr;
+        if (!entry) {
+            ++missing;
+            problem = "not in our index";
+        } else if (!package->Read(*entry, ours, &error)) {
+            ++bytesDiffer;
+            problem = error.c_str();
+        } else if (ours.size() != theirs.size()) {
+            ++sizeDiffers;
+            problem = "sizes differ";
+        } else if (ours != theirs) {
+            ++bytesDiffer;
+            problem = "bytes differ";
+        } else {
+            totalBytes += ours.size();
+        }
+        if (problem && reported++ < 3)
+            log::Write("dbpf compare:   %08X/%08X/%08X: %s (game %u bytes, read returned %u; ours %zu)", key.type,
+                       key.group, key.instance, problem, size, read, ours.size());
+    }
+    list->Release();
+    totalRecords += count;
+    const uint32_t ourCount = static_cast<uint32_t>(package->Entries().size()) -
+                              (package->Find(dbpf::kDirectoryKey) ? 1u : 0u);
+    const bool ok = !missing && !sizeDiffers && !bytesDiffer && ourCount == count;
+    badFiles += !ok;
+    log::Write("dbpf compare: %s %s: %u records (ours %u): %u missing, %u sizes differ, %u contents differ",
+               ok ? "same" : "DIFFERENT", path.c_str(), count, ourCount, missing, sizeDiffers, bytesDiffer);
+}
+
+bool Compare(registry::Mode)
+{
+    cIGZPersistResourceManagerPtr manager;
+    if (!manager)
+        return false;
+    const ULONGLONG start = GetTickCount64();
+    uint64_t records = 0, bytes = 0;
+    uint32_t files = 0, badFiles = 0;
+    const uint32_t count = manager->GetSegmentCount();
+    for (uint32_t i = 0; i < count; ++i)
+        if (cIGZPersistDBSegment* segment = manager->GetSegmentByIndex(i))
+            ForEachLeaf(segment, [&](cIGZPersistDBSegment* leaf) {
+                ++files;
+                CompareFile(leaf, records, bytes, badFiles);
+            });
+    log::Write("dbpf compare: %u of %u files identical to the game's reading; %llu records, %llu bytes compared in "
+               "%llu ms",
+               files - badFiles, files, records, bytes, GetTickCount64() - start);
+    return true;
+}
+
+const bool g_compareRegistered = registry::Register({
+    "diagnostics.dbpf_compare",
+    "diagnostics",
+    registry::Kind::Api,
+    registry::Phase::LateInit,
+    0,
+    "Reads every record through the game and through OpenSC4's DBPF reader and compares them",
+    false,
+    Compare,
+});
 
 // diagnostics.trace.setup_resources: how long startup spends building the
 // segments (cSC4App::SetupResources).

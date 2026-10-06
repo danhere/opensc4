@@ -66,3 +66,8 @@ add_executable(opensc4_iat_test iat_test.cpp)
 target_link_libraries(opensc4_iat_test PRIVATE opensc4_core_support)
 add_test(NAME iat_patching COMMAND opensc4_iat_test)
 set_tests_properties(iat_patching PROPERTIES PASS_REGULAR_EXPRESSION "iat test OK")
+
+add_executable(opensc4_dbpf_test dbpf_test.cpp)
+target_link_libraries(opensc4_dbpf_test PRIVATE opensc4_dbpf)
+add_test(NAME dbpf_reader COMMAND opensc4_dbpf_test)
+set_tests_properties(dbpf_reader PROPERTIES PASS_REGULAR_EXPRESSION "dbpf test OK")

@@ -49,6 +49,7 @@ target_include_directories(opensc4_address_db INTERFACE ${OPENSC4_GENERATED_DIR}
 add_dependencies(opensc4_address_db opensc4_addresses)
 
 add_subdirectory(third_party)
+add_subdirectory(src/dbpf)
 add_subdirectory(src/core)
 add_subdirectory(src/launcher)
 

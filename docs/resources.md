@@ -36,9 +36,25 @@ Building all segments takes **33-38 ms** on the clean install (`trace: cSC4App::
 
 So **on the vanilla game there is no loading time for P3 to win.** The slow loading players report comes from large plugin folders: sc4-dbpf-loading ([docs/patch-census.md](patch-census.md) 3.12) reports up to 90% shorter startup with many plugins, from skipping the signature scan of files that are not DBPF, filtering by file extension, long paths and large-read buffering, by replacing the folder segment class and detouring file I/O.
 
+## Package format
+
+OpenSC4's reader is [src/dbpf](../src/dbpf) (portable C++20, no game or Windows code), with a command-line tool, `opensc4-dbpf list <package>` and `opensc4-dbpf check <package...>`, and unit tests on hand-built packages ([tests/dbpf_test.cpp](../tests/dbpf_test.cpp)). It reads what SimCity 4 writes: DBPF 1.0 with index version 7.0. Everything little-endian.
+
+- **Header**, 96 bytes: `DBPF`, major version (1), minor (0), user version major and minor, a reserved word, created and modified dates, index major version (7), index entry count, index offset, index size, hole count, hole offset, hole size, then reserved space.
+- **Index**: one 20-byte entry per record: type, group, instance, offset, stored size. Holes are free space left by rewritten records (saved cities have dozens); readers ignore them.
+- **Directory record** (type, group and instance 0xE86B1EEF, 0xE86B1EEF, 0x286B1F03): 16 bytes per compressed record, its key and uncompressed size. A record is compressed exactly when the directory lists it. The game does not list the directory itself as a resource.
+- **Compressed records**: a 4-byte compressed size, the QFS header (flags 0x10, 0xFB, 3-byte big-endian uncompressed size), then a RefPack stream: commands of 1 to 4 bytes, each copying 0 to 3 (or 4 to 112) literal bytes and then up to 1,028 bytes from earlier output (offsets up to 128 KB, overlapping copies allowed), ending with a 0xFC-0xFF command.
+
+Checked against the game on 2026-10-06:
+
+- `opensc4-dbpf check` reads all 11 package files of the clean install (111,848 records, 88,843 of them compressed, 1.79 GB decompressed) in about 8 s, every compressed record decoding to exactly its directory size; and all 91 saved cities of the test region (10,829 records).
+- `diagnostics.dbpf_compare` reads every record of every package the game has open both through the game's own segment (`GetRecordSize`/`ReadRecord`) and through the reader: all 111,838 records, 1.79 GB, are byte-identical, with the same key set per file (10 s, in the running game).
+
+Not checked yet: which entry the game uses when one package lists a key twice (the reader returns the last), and packages written by modding tools, which may differ in details SimCity 4's own writer never produces.
+
 ## What P3 can offer, and to whom
 
-1. **Our own DBPF reader** (format, index, compression), as a library with tests. Needed beyond P3: saved cities (`.sc4`) are DBPF files, so P4 (save format) builds on it, and so would any tool that inspects plugins. Pure file-format work against the game's own files; days.
+1. **Our own DBPF reader** (format, index, compression), as a library with tests. **Done** ("Package format" above). Needed beyond P3: saved cities (`.sc4`) are DBPF files, so P4 (save format) builds on it, and so would any tool that inspects plugins. Pure file-format work against the game's own files; days.
 2. **Load-order and override report** from the running game, extending `diagnostics.dbpf_survey`: for every key served from a plugin, which file wins and what it hides. Useful to modders and for our own debugging once mods are allowed (vanilla first, so later).
 3. **Our own segment classes** in place of 0x086D4A89 and 0x090F8619 (both GZCOM classes, so replaceable without patching): the loading speedups for big plugin folders, absorbing sc4-dbpf-loading. Only pays off with mods.
 4. **Key rebinding** (P2 input): shortcut mods change the game's keyboard shortcuts by overriding a resource in its data files (community practice; not checked here), so an override generated from our own settings is the likely route, after 1.
