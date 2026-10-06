@@ -667,13 +667,14 @@ private:
                                        (static_cast<uint64_t>(k) << 36) ^ (static_cast<uint64_t>(s.texCoord) << 32);
                 LogOnce("stage setup", setup,
                         "stage %u/%u env %u ops %u/%u rgb args %02X %02X %02X alpha args %02X %02X %02X scale %u/%u "
-                        "texcoord 0x%X matrix %d tex %u %ux%u/%u params %u %u %u %u | blend %d %u->%u alphatest %d f%u ref %.3f | lighting %d mul %.2f %.2f "
+                        "texcoord 0x%X matrix %d tex %u %ux%u/%u params %u %u %u %u | depth %d%d f%u offset %d cull %d | blend %d %u->%u alphatest %d f%u ref %.3f | lighting %d mul %.2f %.2f "
                         "%.2f %.2f vcolors %d | factor %.2f %.2f %.2f %.2f",
                         k, state.stageCount, s.envMode, s.combiner.rgbOp, s.combiner.alphaOp, s.combiner.rgbArg[0],
                         s.combiner.rgbArg[1], s.combiner.rgbArg[2], s.combiner.alphaArg[0], s.combiner.alphaArg[1],
                         s.combiner.alphaArg[2], s.combiner.rgbScale, s.combiner.alphaScale, s.texCoord, s.hasMatrix,
                         tex->second.format, tex->second.width, tex->second.height, tex->second.levels, s.params[0],
-                        s.params[1], s.params[2], s.params[3],
+                        s.params[1], s.params[2], s.params[3], state.enabled[DepthTest], state.depthMask,
+                        state.depthFunc, state.polygonOffset, state.enabled[CullFace],
                         state.enabled[Blending], state.blendSrc, state.blendDst, state.enabled[AlphaTest],
                         state.alphaFunc, state.alphaRef, state.lighting, state.colorMultiplier[0],
                         state.colorMultiplier[1], state.colorMultiplier[2], state.colorMultiplier[3],
