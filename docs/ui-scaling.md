@@ -41,7 +41,7 @@ Checked unattended at 3440x1440, scale 1.5 (the game sees 2293x960):
 
 Not covered, or different:
 
-- **The region view** has its own camera and is still drawn as with A (enlarged). Finding its projection is the next step if it should match.
+- **The region view** is still drawn as with A (enlarged). It has no camera to adjust: it draws each city's saved thumbnail (resource type 0x8A2482B9, read at 0x00459B20, 0x005DCA10, 0x005DD480) as an image, and the two other users of the city camera's box setter (0x007FF2E0) are a panel-sized camera (0x004202F0) and the renderer's own setup. Showing it at native size means the region view window (`cSC4WinRegionView`, class 0x2BA6BB97, inside `cSC4WinRegionScreen`, 0xEA659793) laying itself out and taking mouse input in physical pixels while the rest of the interface stays scaled. See "Text and the region view" below.
 - Text and interface images are still the scaled-up 1x art (see "Interface images" below); crisp text needs the fonts drawn at the larger size.
 - Zoning lands where dragged: a residential zone dragged between two screen points starts and ends on the tiles under the cursor, with its street. Not tried yet: the other 3D views in panels, performance in a big city (the screen shows 2.25 times as much city at 1.5), and how scrolling speed feels.
 
@@ -57,3 +57,20 @@ With a scale, the ini decides the size: `resolution` in physical pixels (default
 Checked unattended: 3440x1440 at scale 1.5 (game 2293x960) draws the city, the control panel and the tutorial panel at 1.5 times their size; 1920x1080 windowed at 1.5 (game 1280x720) runs; scale 1 still matches the stock driver in all 20 shots. Mouse input, checked unattended with synthesized input on 2026-10-06 (3440x1440, scale 1.5, full screen): clicks land on the button under the cursor (tutorial, Mayor and Budget panels, region view tiles and city card), tooltips appear by the cursor, the wheel zooms, edge scrolling works on the right and left edges, and right-dragging pans. Edge scrolling first showed the buffer-region bug described in [renderer.md](renderer.md) ("What the driver calls mean"), which was in the driver at every scale, not in the scaling. Still to try by hand: how it feels, and tools that place things (zoning, roads).
 
 **Interface images.** Sampled as the game sets them (mostly nearest), they came out uneven at non-integer scales: some strokes one pixel wide, some two. Interface draws are recognised by their pixel-exact projection (one unit per pixel of the viewport, which the city's projection never is), and their nearest-filtered images are drawn with sharp bilinear filtering: each texel stays a flat square, with a band of about a pixel blended at its edges, the pixels-per-texel worked out from screen-space derivatives so stretched images work too. Strokes now have an even weight with soft edges. The glyphs themselves are thin, anti-aliased 1x images, so text stays light; crisp text means the game drawing its fonts (TrueType outlines, the `.mxf` files XOR-ed with 0x9D) at the larger size, which belongs with option B.
+
+## Text and the region view (survey, 2026-10-06)
+
+Both are drawn on the CPU. A temporary log of the game functions that create and fill textures (in the test city), plus dumps of what they upload, showed three sources:
+
+- 3D textures for the city (created at 0x0080A22D, filled at 0x00809C8D, all mip levels);
+- a few images from 0x006048A8/0x006048FC;
+- **CPU-drawn pictures** kept as textures by one class (vtable around 0x00ADB2F4/0x00ADB308): it wraps a picture in memory, splits it into tiles of 16 to 256 pixels (0x00A6CF00), creates one texture per tile (0x00991440, driver call at 0x0099155B), and uploads either everything (0x00991285) or only the rectangles that changed (0x00991336, from 0x00990FF0).
+
+The changed rectangles are the interface's text windows: a dump showed "Timbuktu", "Region" and "29,156" drawn together with the panel's background gradient, at game-pixel size, plus the arrow sprite. The 256x256 tiles are the region view: one large picture of the region composed from the city thumbnails. The game's text engine is its own TrueType rasterizer (table tags `glyf`, `head`, `loca`, `cmap` at 0x0089C590 to 0x008A1A4A, no GDI font calls), which draws into those pictures.
+
+So crisp text and a native-size region view are the same piece of work: the game's CPU-side 2D drawing (text, image blits, fills into these pictures) would have to happen at the physical resolution, with the pictures scale times larger and the windows that own them still laid out in game pixels. The driver alone cannot do it, because by the time a picture reaches it the text is already pixels. Possible routes, none started:
+
+1. Make the pictures larger and scale every 2D drawing call into them (the game's canvas/blit layer and the text rasterizer's size). Needs that layer reverse engineered; its extent is not known yet.
+2. Leave the pictures alone and, per text draw, render the same string again at the larger size into a shadow picture that the driver uses instead. Only text, but needs the text draw calls (string, font, size, position) and the mapping from picture to texture tiles.
+
+Either is weeks rather than days, with the size uncertain until the 2D layer is mapped.
