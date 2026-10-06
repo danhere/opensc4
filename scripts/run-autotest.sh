@@ -17,6 +17,7 @@
 # See src/core/autotest.h for the OPENSC4_TEST_* variables. Defaults here:
 # OPENSC4_TEST_CITY="Making Money Tutorial", OPENSC4_TEST_SECONDS=60.
 # OPENSC4_GAME_ARGS adds game command-line options, e.g. "-d:DirectX".
+# OPENSC4_GAME_WINDOW replaces the default -w, e.g. "-f -r1024x768x32" for full screen.
 set -euo pipefail
 
 build="${1:?usage: run-autotest.sh <build dir> [VAR=value...]}"
@@ -71,7 +72,7 @@ log="$testenv/Plugins/opensc4.log"
 watchdog=$!
 status=0
 "$build/bin/opensc4.exe" --wait --core "$testenv/Plugins/OpenSC4.dll" --game "$game" \
-    -- -w -intro:off "-UserDir:$userdir" ${OPENSC4_GAME_ARGS:-} || status=$?
+    -- ${OPENSC4_GAME_WINDOW:--w} -intro:off "-UserDir:$userdir" ${OPENSC4_GAME_ARGS:-} || status=$?
 kill "$watchdog" 2>/dev/null || true
 wait "$watchdog" 2>/dev/null || true
 

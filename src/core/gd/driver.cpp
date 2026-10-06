@@ -530,7 +530,7 @@ public:
         }
         viewport_ = {0, 0, static_cast<int32_t>(current_.width), static_cast<int32_t>(current_.height)};
         log::Write("d3d11 driver: video mode %d, %ux%u, %s", index, current_.width, current_.height,
-                   current_.fullScreen ? "full screen (shown in a window for now)" : "windowed");
+                   !current_.fullScreen ? "windowed" : displayChanged_ ? "full screen" : "full screen at desktop size");
     }
 
     void PolygonOffset(int32_t offset) override { polygonOffset_ = offset; }
@@ -707,6 +707,8 @@ private:
         auto* self = reinterpret_cast<Driver*>(GetWindowLongPtrA(window, GWLP_USERDATA));
         if (!self)
             self = creating_;
+        if (self && message == WM_ACTIVATEAPP)
+            self->OnActivateApp(wParam != 0);
         if (self && self->gameProc_)
             return CallWindowProcA(self->gameProc_, window, message, wParam, lParam);
         return DefWindowProcA(window, message, wParam, lParam);
@@ -725,8 +727,12 @@ private:
             if (!RegisterClassA(&wc))
                 return false;
         }
-        // The DirectX driver's windowed style (0x10CF0000), or a popup for full-screen modes.
-        const DWORD style = current_.fullScreen ? (WS_POPUP | WS_VISIBLE) : (WS_OVERLAPPEDWINDOW | WS_VISIBLE);
+        if (current_.fullScreen && !SetDisplayMode())
+            return false;
+        // The DirectX driver's windowed style (0x10CF0000), or the OpenGL
+        // driver's popup (0x87000000) for full-screen modes.
+        const DWORD style = current_.fullScreen ? (WS_POPUP | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN)
+                                                : (WS_OVERLAPPEDWINDOW | WS_VISIBLE);
         RECT rect{0, 0, static_cast<LONG>(current_.width), static_cast<LONG>(current_.height)};
         AdjustWindowRect(&rect, style, FALSE);
         creating_ = this;
@@ -756,6 +762,63 @@ private:
             DestroyWindow(window_);
             window_ = nullptr;
         }
+        RestoreDisplayMode();
+    }
+
+    // Full-screen modes change the display mode as the stock OpenGL driver
+    // does (0x0087FC90): width and height only, CDS_FULLSCREEN so that Windows
+    // undoes it if the game dies, and back to the desktop's settings when the
+    // mode goes. A mode the size of the desktop needs no change: its window
+    // simply covers the screen. Scaling a smaller mode to the desktop instead
+    // would need the game's own cursor calls (GetCursorPos, SetCursorPos)
+    // translated too.
+    bool SetDisplayMode()
+    {
+        DEVMODEA desktop{};
+        desktop.dmSize = sizeof(desktop);
+        if (!EnumDisplaySettingsA(nullptr, ENUM_CURRENT_SETTINGS, &desktop))
+            return false;
+        if (displayChanged_ || (desktop.dmPelsWidth == current_.width && desktop.dmPelsHeight == current_.height))
+            return true;
+        DEVMODEA mode = desktop;
+        mode.dmPelsWidth = current_.width;
+        mode.dmPelsHeight = current_.height;
+        mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
+        const LONG result = ChangeDisplaySettingsA(&mode, CDS_FULLSCREEN);
+        if (result != DISP_CHANGE_SUCCESSFUL) {
+            log::Write("d3d11 driver: changing the display to %ux%u failed (%ld)", current_.width, current_.height,
+                       result);
+            return false;
+        }
+        displayChanged_ = true;
+        return true;
+    }
+
+    void RestoreDisplayMode()
+    {
+        if (!displayChanged_)
+            return;
+        ChangeDisplaySettingsA(nullptr, 0);
+        displayChanged_ = false;
+    }
+
+    // Switching away from a full-screen mode gives the desktop its own
+    // resolution back until the game is active again (DirectDraw's exclusive
+    // mode, which the DirectX driver uses, does the same).
+    void OnActivateApp(bool active)
+    {
+        if (!current_.fullScreen || !window_)
+            return;
+        if (active) {
+            if (SetDisplayMode()) {
+                ShowWindow(window_, SW_RESTORE);
+                SetWindowPos(window_, HWND_TOP, 0, 0, static_cast<int>(current_.width),
+                             static_cast<int>(current_.height), SWP_NOACTIVATE);
+            }
+        } else if (displayChanged_) {
+            ShowWindow(window_, SW_MINIMIZE);
+            RestoreDisplayMode();
+        }
     }
 
     static inline Driver* creating_ = nullptr;
@@ -764,6 +827,7 @@ private:
     std::vector<Mode> modes_;
     Mode current_{};
     HWND window_ = nullptr;
+    bool displayChanged_ = false;
     WNDPROC gameProc_ = nullptr;
     std::unique_ptr<Backend> backend_;
     BufferRegions regions_;

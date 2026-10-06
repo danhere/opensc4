@@ -6,6 +6,8 @@
 #
 # Example: scripts/run-game.sh "$LOCALAPPDATA/opensc4/build/debug" OPENSC4_REPLACE=renderer.d3d11=ours
 # core.dll's log ends up in <test user folder>/Plugins/opensc4.log.
+# OPENSC4_GAME_ARGS adds game options; OPENSC4_GAME_WINDOW replaces the default -w
+# (e.g. "-f" for full screen).
 set -euo pipefail
 
 build="${1:?usage: run-game.sh <build dir> [VAR=value...]}"
@@ -21,4 +23,4 @@ testenv="${OPENSC4_TESTENV:-$(cygpath "$LOCALAPPDATA")/opensc4/testenv/userdir}"
 
 SC4_PLUGINS="$testenv/Plugins" "$repo/scripts/deploy-plugin.sh" "$build" >/dev/null
 "$build/bin/opensc4.exe" --core "$testenv/Plugins/OpenSC4.dll" --game "$game" \
-    -- -w -intro:off "-UserDir:$(cygpath -d "$testenv")\\" ${OPENSC4_GAME_ARGS:-}
+    -- ${OPENSC4_GAME_WINDOW:--w} -intro:off "-UserDir:$(cygpath -d "$testenv")\\" ${OPENSC4_GAME_ARGS:-}
