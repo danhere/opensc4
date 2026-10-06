@@ -320,6 +320,31 @@ public:
         frontPending_ = true;
         ShowFront();
         LimitQueue();
+        LogRates();
+    }
+
+    // Every 10 s: how often the game flushed and how many frames the window
+    // showed. The game flushes some 20,000 times a second on its loading
+    // screens but redraws a running city only about 16 times a second at
+    // speed 2, the simulation taking the rest of its loop.
+    void LogRates()
+    {
+        LARGE_INTEGER now;
+        QueryPerformanceCounter(&now);
+        if (!rateStart_) {
+            LARGE_INTEGER frequency;
+            QueryPerformanceFrequency(&frequency);
+            qpcPerSecond_ = frequency.QuadPart;
+            rateStart_ = now.QuadPart;
+        }
+        ++rateFlushes_;
+        const double seconds = static_cast<double>(now.QuadPart - rateStart_) / static_cast<double>(qpcPerSecond_);
+        if (seconds < 10.0)
+            return;
+        log::Write("d3d11: %.0f flushes/s, %.0f frames shown/s", rateFlushes_ / seconds, (shown_ - rateShown_) / seconds);
+        rateStart_ = now.QuadPart;
+        rateFlushes_ = 0;
+        rateShown_ = shown_;
     }
 
     // Keeps the CPU at most kQueuedFlushes flushes ahead of the GPU. When
@@ -1121,7 +1146,8 @@ private:
     static constexpr uint32_t kQueuedFlushes = 3;
     ComPtr<ID3D11Query> flushQueries_[kQueuedFlushes];
     uint32_t flushQuery_ = 0;
-    uint32_t shown_ = 0;
+    uint32_t shown_ = 0, rateShown_ = 0, rateFlushes_ = 0;
+    LONGLONG rateStart_ = 0, qpcPerSecond_ = 1;
     ComPtr<ID3D11Texture2D> swapBuffer_;
     ComPtr<ID3D11Texture2D> back_, front_, staging_;
     ComPtr<ID3D11RenderTargetView> backRtv_;

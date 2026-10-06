@@ -166,11 +166,18 @@ A windowed size larger than the desktop crashes in game code instead (0x0098E9A6
 
 ### Frame pacing
 
-`Flush` is not a frame boundary: the game redraws the view in pieces and flushes after each, about 800 times a second at speed 2 (the stock driver about 1,000-1,300, presenting every one), and it runs the simulation in the same loop. Waiting for vertical sync in `Flush` therefore starves both: in a 60 s run at speed 2, a blocking `Present(1)` showed 7.5 frames per second and the city reached 2010-01-25, where the stock driver reached 2011-12-09.
+`Flush` is not a frame boundary. The framework's main loop (0x008795BD) never waits while the game runs: it handles window messages, then calls the framework's idle step (0x0087A812), which ticks every tick service (the simulation among them) and every fourth pass the on-idle services, among them the window manager's update (0x0098E5C0), which draws the software cursor and calls `Flush` when the view changed. How often that happens depends on what the loop is doing (2026-10-06, D3D11 driver, logged every 10 s):
 
-So the driver paces what the window shows, not the game: a flip-model swap chain with a frame-latency waitable object (maximum latency 1); `Flush` copies the back buffer to the front buffer and presents it only if the waitable object is already signalled, else leaves it for the next `Flush` (or a 10 ms window timer, should the game stop flushing). The CPU is kept at most 3 flushes ahead of the GPU with event queries, since nothing else blocks. Same 60 s run: the city reaches 2011-12-16, as with the stock driver. `vsync = off` in `opensc4.ini`'s `[renderer]` section (or `OPENSC4_RENDERER_VSYNC=off`) presents every `Flush` at once (tearing allowed where supported); without flip-model support (before Windows 8.1) the driver falls back to a blt-model swap chain presenting every `Flush`. The log names the mode and counts the frames shown.
+| Phase | Flushes per second | Frames shown per second (175 Hz display) |
+|---|---|---|
+| Start-up and loading screens | about 20,000 | 172-174 |
+| City running at speed 2 | about 15 | about 20-30 (front-buffer updates count too) |
 
-Not yet measured at a real refresh rate: during the unattended runs the desktop composed at about 4 Hz (`DwmFlush` every 255 ms, the monitor presumably in power saving), and the paced driver showed frames at that rate. The game still redraws as fast as it can, so CPU and GPU load are as high as with the stock driver; reducing that means changing how often the game redraws, not how the driver presents.
+So while the simulation runs, the game itself redraws the city about 15 times a second; the stock driver's total flush count over the same run is similar. Changing the on-idle interval (`cIGZFrameWork::SetOnIdleInterval`, default 4) to 1 or 16 made no difference to either rate or to the simulation.
+
+Waiting for vertical sync in `Flush` starves that loop: in a 60 s run at speed 2, a blocking `Present(1)` showed 7.5 frames per second and the city reached 2010-01-25, where the stock driver reached 2011-12-09. So the driver paces what the window shows, not the game: a flip-model swap chain with a frame-latency waitable object (maximum latency 1); `Flush` copies the back buffer to the front buffer and presents it only if the waitable object is already signalled, else leaves it for the next `Flush` (or a 10 ms window timer, should the game stop flushing). The CPU is kept at most 3 flushes ahead of the GPU with event queries, since nothing else blocks (the GPU is not the limit: about 20 us of waiting per flush). Same 60 s run: the city reaches 2011-12-16, as with the stock driver. `vsync = off` in `opensc4.ini`'s `[renderer]` section (or `OPENSC4_RENDERER_VSYNC=off`) presents every `Flush` at once (tearing allowed where supported); without flip-model support (before Windows 8.1) the driver falls back to a blt-model swap chain presenting every `Flush`.
+
+Not changed: the loop never sleeps, so the game keeps a CPU core busy even when paused, as with the stock driver. Lowering that means changing the framework loop (for example waiting when paused), not the driver. Smoother motion while the simulation runs would need the simulation and drawing taken apart, which is far beyond the renderer.
 
 ### What the game asks the driver
 
