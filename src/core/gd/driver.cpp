@@ -18,6 +18,7 @@
 #include "core/address_check.h"
 #include "core/director.h"
 #include "core/hook.h"
+#include "core/iat.h"
 #include "core/log.h"
 #include "core/registry.h"
 #include "core/settings.h"
@@ -31,11 +32,13 @@
 #include <SC4Preferences.h>
 
 #include <windows.h>
+#include <windowsx.h>
 
 #include <opensc4/addresses.h>
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -62,6 +65,13 @@ constexpr char kWindowClass[] = "GDriverClass (OpenSC4 D3D11)";
 enum Error : uint32_t { NoError, InvalidEnum, InvalidValue, InvalidOperation };
 
 using StageState = StageDesc;
+
+// A mode's size in physical pixels: with a render scale the game sees the
+// mode's size divided by it ([renderer] scale), the window and back buffer
+// have this size.
+struct PhysicalSize {
+    uint32_t width, height;
+};
 
 class Driver;
 
@@ -138,10 +148,16 @@ void Unimplemented(const char* method)
         log::Write("d3d11 driver: %s is not implemented yet", method);
 }
 
+// The window the game sees at a scale ([renderer] scale), for the import
+// wrappers below; null when the scale is 1.
+HWND g_scaledWindow = nullptr;
+float g_scale = 1.0f;
+
 class Driver final : public cIGZGDriver {
 public:
-    explicit Driver(std::vector<Mode> modes)
-        : modes_(std::move(modes)), regions_(*this), snapshots_(*this), vertexBuffers_(*this)
+    Driver(std::vector<Mode> modes, std::vector<PhysicalSize> physical, float scale)
+        : modes_(std::move(modes)), physical_(std::move(physical)), scale_(scale), regions_(*this), snapshots_(*this),
+          vertexBuffers_(*this)
     {
         for (StageState& s : stages_)
             Identity(s.matrix);
@@ -232,7 +248,7 @@ public:
     void Clear(uint32_t mask) override
     {
         if (backend_)
-            backend_->Clear(ViewportRect(), mask, clearColor_, clearDepth_, clearStencil_);
+            backend_->Clear(Physical(ViewportRect()), mask, clearColor_, clearDepth_, clearStencil_);
     }
     void ClearColor(float r, float g, float b, float a) override
     {
@@ -530,6 +546,8 @@ public:
         }
         DestroyOutput();
         current_ = modes_[index];
+        physicalWidth_ = physical_[index].width;
+        physicalHeight_ = physical_[index].height;
         // The capabilities the DirectX driver reports in its current mode on a
         // current card (2026-10-06, RTX 3080 Ti): only the current mode has them.
         current_.redMask = 0xFF0000; // also in 16-bit modes, as the DirectX driver reports them
@@ -550,6 +568,8 @@ public:
         viewport_ = {0, 0, static_cast<int32_t>(current_.width), static_cast<int32_t>(current_.height)};
         log::Write("d3d11 driver: video mode %d, %ux%u, %s", index, current_.width, current_.height,
                    !current_.fullScreen ? "windowed" : displayChanged_ ? "full screen" : "full screen at desktop size");
+        if (scale_ != 1.0f)
+            log::Write("d3d11 driver: drawn at %ux%u (scale %.2f)", physicalWidth_, physicalHeight_, scale_);
     }
 
     void PolygonOffset(int32_t offset) override { polygonOffset_ = offset; }
@@ -641,6 +661,16 @@ public:
 
     Backend* GetBackend() { return backend_.get(); }
 
+    // Game pixels to physical pixels ([renderer] scale). Rectangles convert
+    // their edges, so neighbouring rectangles stay neighbours.
+    int32_t Physical(int32_t value) const { return static_cast<int32_t>(std::lround(value * scale_)); }
+    Rect Physical(const Rect& r) const
+    {
+        const int32_t x0 = Physical(r.x), y0 = Physical(r.y);
+        return {x0, y0, Physical(r.x + r.width) - x0, Physical(r.y + r.height) - y0};
+    }
+    float Scale() const { return scale_; }
+
     // A frame the display could not take yet is shown from a timer, in case
     // the game stops flushing (Backend::ShowFront).
     void KeepShowingFront()
@@ -681,7 +711,7 @@ private:
         DrawState& s = drawState_;
         std::memcpy(s.modelView, modelView_, sizeof(s.modelView));
         std::memcpy(s.projection, projection_, sizeof(s.projection));
-        s.viewport = ViewportRect();
+        s.viewport = Physical(ViewportRect());
         std::memcpy(s.enabled, enabled_, sizeof(s.enabled));
         s.depthFunc = depthFunc_;
         s.depthMask = depthMask_;
@@ -759,9 +789,30 @@ private:
                 KillTimer(window, kShowFrontTimer);
             return 0; // our timer: the game never sees it
         }
+        // The game asks about the window while it is still being created
+        // (WM_CREATE, the first WM_SIZE), before CreateWindowEx returns.
+        if (self && self->scale_ != 1.0f && g_scaledWindow != window)
+            g_scaledWindow = window;
+        if (self && self->scale_ != 1.0f)
+            lParam = self->ToGameCoordinates(message, lParam);
         if (self && self->gameProc_)
             return CallWindowProcA(self->gameProc_, window, message, wParam, lParam);
         return DefWindowProcA(window, message, wParam, lParam);
+    }
+
+    // Coordinates in messages are physical; the game expects its own: client
+    // coordinates, and screen coordinates in the wheel and move messages (it
+    // sees a scaled desktop, see GameScreenToClient).
+    LPARAM ToGameCoordinates(UINT message, LPARAM lParam) const
+    {
+        const bool client = message == WM_SIZE || message == WM_MOVE || message == WM_MOUSEWHEEL ||
+                            message == WM_MOUSEHWHEEL || (message >= WM_MOUSEMOVE && message <= WM_MBUTTONDBLCLK) ||
+                            (message >= WM_XBUTTONDOWN && message <= WM_XBUTTONDBLCLK) || message == WM_MOUSEHOVER;
+        if (!client)
+            return lParam;
+        const auto x = static_cast<int>(std::floor(GET_X_LPARAM(lParam) / scale_));
+        const auto y = static_cast<int>(std::floor(GET_Y_LPARAM(lParam) / scale_));
+        return MAKELPARAM(x, y);
     }
 
     bool CreateOutput()
@@ -783,7 +834,7 @@ private:
         // driver's popup (0x87000000) for full-screen modes.
         const DWORD style = current_.fullScreen ? (WS_POPUP | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN)
                                                 : (WS_OVERLAPPEDWINDOW | WS_VISIBLE);
-        RECT rect{0, 0, static_cast<LONG>(current_.width), static_cast<LONG>(current_.height)};
+        RECT rect{0, 0, static_cast<LONG>(physicalWidth_), static_cast<LONG>(physicalHeight_)};
         AdjustWindowRect(&rect, style, FALSE);
         creating_ = this;
         window_ = CreateWindowExA(0, kWindowClass, "SimCity 4", style, 0, 0, rect.right - rect.left,
@@ -793,7 +844,9 @@ private:
             return false;
         SetWindowLongPtrA(window_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
         backend_ = CreateD3D11Backend();
-        if (!backend_->Init(window_, current_.width, current_.height)) {
+        g_scaledWindow = scale_ != 1.0f ? window_ : nullptr;
+        g_scale = scale_;
+        if (!backend_->Init(window_, physicalWidth_, physicalHeight_)) {
             backend_.reset();
             return false;
         }
@@ -808,6 +861,8 @@ private:
             LogStats("closing the window");
         backend_.reset();
         if (window_) {
+            if (g_scaledWindow == window_)
+                g_scaledWindow = nullptr;
             SetWindowLongPtrA(window_, GWLP_USERDATA, 0);
             DestroyWindow(window_);
             window_ = nullptr;
@@ -828,15 +883,15 @@ private:
         desktop.dmSize = sizeof(desktop);
         if (!EnumDisplaySettingsA(nullptr, ENUM_CURRENT_SETTINGS, &desktop))
             return false;
-        if (displayChanged_ || (desktop.dmPelsWidth == current_.width && desktop.dmPelsHeight == current_.height))
+        if (displayChanged_ || (desktop.dmPelsWidth == physicalWidth_ && desktop.dmPelsHeight == physicalHeight_))
             return true;
         DEVMODEA mode = desktop;
-        mode.dmPelsWidth = current_.width;
-        mode.dmPelsHeight = current_.height;
+        mode.dmPelsWidth = physicalWidth_;
+        mode.dmPelsHeight = physicalHeight_;
         mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
         const LONG result = ChangeDisplaySettingsA(&mode, CDS_FULLSCREEN);
         if (result != DISP_CHANGE_SUCCESSFUL) {
-            log::Write("d3d11 driver: changing the display to %ux%u failed (%ld)", current_.width, current_.height,
+            log::Write("d3d11 driver: changing the display to %ux%u failed (%ld)", physicalWidth_, physicalHeight_,
                        result);
             return false;
         }
@@ -862,8 +917,8 @@ private:
         if (active) {
             if (SetDisplayMode()) {
                 ShowWindow(window_, SW_RESTORE);
-                SetWindowPos(window_, HWND_TOP, 0, 0, static_cast<int>(current_.width),
-                             static_cast<int>(current_.height), SWP_NOACTIVATE);
+                SetWindowPos(window_, HWND_TOP, 0, 0, static_cast<int>(physicalWidth_),
+                             static_cast<int>(physicalHeight_), SWP_NOACTIVATE);
             }
         } else if (displayChanged_) {
             ShowWindow(window_, SW_MINIMIZE);
@@ -876,6 +931,9 @@ private:
 
     std::atomic<uint32_t> refs_{0};
     std::vector<Mode> modes_;
+    std::vector<PhysicalSize> physical_; // per mode
+    float scale_ = 1.0f;
+    uint32_t physicalWidth_ = 0, physicalHeight_ = 0;
     Mode current_{};
     HWND window_ = nullptr;
     bool displayChanged_ = false;
@@ -952,14 +1010,16 @@ bool BufferRegions::ReadBufferRegion(int32_t region, int32_t x, int32_t y, int32
                                      int32_t regionX, int32_t regionY)
 {
     Backend* backend = driver_.GetBackend();
-    return backend && backend->ReadRegion(region, {x, y, width, height}, regionX, regionY);
+    return backend && backend->ReadRegion(region, driver_.Physical(Rect{x, y, width, height}), driver_.Physical(regionX),
+                                          driver_.Physical(regionY));
 }
 
 bool BufferRegions::DrawBufferRegion(int32_t region, int32_t x, int32_t y, int32_t width, int32_t height,
                                      int32_t regionX, int32_t regionY)
 {
     Backend* backend = driver_.GetBackend();
-    const bool ok = backend && backend->DrawRegion(region, {x, y, width, height}, regionX, regionY);
+    const bool ok = backend && backend->DrawRegion(region, driver_.Physical(Rect{x, y, width, height}),
+                                                   driver_.Physical(regionX), driver_.Physical(regionY));
     driver_.KeepShowingFront();
     return ok;
 }
@@ -996,8 +1056,24 @@ cIGZBuffer* Snapshots::CopyColorBuffer(int32_t x, int32_t y, int32_t width, int3
     const uint32_t pitch = buffer->GetColorSurfaceStride();
     const int32_t w = width < buffer->Width() ? width : buffer->Width();
     const int32_t h = height < buffer->Height() ? height : buffer->Height();
-    if (bits)
+    if (bits && driver_.Scale() == 1.0f) {
         backend->ReadFront({x, y, w, h}, bits, pitch);
+    } else if (bits) {
+        // Read the physical pixels and give the game its own size back (nearest).
+        const Rect physical = driver_.Physical(Rect{x, y, w, h});
+        std::vector<uint8_t> scaled(static_cast<size_t>(physical.width) * physical.height * 4);
+        if (physical.width > 0 && physical.height > 0 &&
+            backend->ReadFront(physical, scaled.data(), static_cast<uint32_t>(physical.width) * 4)) {
+            for (int32_t row = 0; row < h; ++row) {
+                const int32_t sy = std::min(physical.height - 1, static_cast<int32_t>(row * driver_.Scale()));
+                for (int32_t col = 0; col < w; ++col) {
+                    const int32_t sx = std::min(physical.width - 1, static_cast<int32_t>(col * driver_.Scale()));
+                    std::memcpy(bits + static_cast<size_t>(row) * pitch + static_cast<size_t>(col) * 4,
+                                scaled.data() + (static_cast<size_t>(sy) * physical.width + sx) * 4, 4);
+                }
+            }
+        }
+    }
     buffer->Unlock(kLockWrite);
     return buffer;
 }
@@ -1104,6 +1180,261 @@ void DynamicBuffers::Reset()
     }
 }
 
+// [renderer] scale: physical pixels per game pixel, 1 to 4. With 1.5 on a
+// 3440x1440 screen the game runs at 2293x960 and everything it draws is shown
+// 1.5 times as big.
+float RenderScale()
+{
+    static const float scale = [] {
+        const std::string text = settings::Get("renderer", "scale", "1");
+        const float value = static_cast<float>(std::atof(text.c_str()));
+        if (!(value >= 1.0f && value <= 4.0f)) {
+            log::Write("d3d11 driver: [renderer] scale = \"%s\" is not between 1 and 4; using 1", text.c_str());
+            return 1.0f;
+        }
+        return value;
+    }();
+    return scale;
+}
+
+uint32_t GameSize(uint32_t physical, float scale)
+{
+    return static_cast<uint32_t>(std::lround(physical / scale));
+}
+
+// With a render scale the game sees a desktop scaled down by the same factor,
+// the way Windows virtualises coordinates for programs that are not DPI
+// aware: client and screen coordinates, window rectangles, the work area, the
+// cursor position and the screen's size are divided by the scale, and what
+// the game hands back is multiplied. Its window layer mixes them (it keeps the
+// client area as a screen rectangle, 0x0098D9B0; it takes the screen size as
+// its own in full screen, 0x0098ADE0), so all of them have to agree. Patched
+// in the exe's import table only: other modules, this one included, see
+// Windows as it is. Our window's own messages are translated in WindowProc.
+using PointFn = BOOL(WINAPI*)(HWND, LPPOINT);
+using RectFn = BOOL(WINAPI*)(HWND, LPRECT);
+using MapFn = int(WINAPI*)(HWND, HWND, LPPOINT, UINT);
+using MetricsFn = int(WINAPI*)(int);
+using CursorFn = BOOL(WINAPI*)(LPPOINT);
+using SetCursorFn = BOOL(WINAPI*)(int, int);
+using MoveFn = BOOL(WINAPI*)(HWND, int, int, int, int, BOOL);
+using PosFn = BOOL(WINAPI*)(HWND, HWND, int, int, int, int, UINT);
+using ParamsFn = BOOL(WINAPI*)(UINT, UINT, PVOID, UINT);
+using PlacementFn = BOOL(WINAPI*)(HWND, WINDOWPLACEMENT*);
+PointFn g_screenToClient = nullptr, g_clientToScreen = nullptr;
+RectFn g_getClientRect = nullptr, g_getWindowRect = nullptr;
+MapFn g_mapWindowPoints = nullptr;
+MetricsFn g_getSystemMetrics = nullptr;
+CursorFn g_getCursorPos = nullptr;
+SetCursorFn g_setCursorPos = nullptr;
+MoveFn g_moveWindow = nullptr;
+PosFn g_setWindowPos = nullptr;
+ParamsFn g_systemParametersInfo = nullptr;
+PlacementFn g_getWindowPlacement = nullptr;
+
+bool Scaled(HWND window)
+{
+    return window && window == g_scaledWindow;
+}
+
+LONG ToGame(LONG value)
+{
+    return static_cast<LONG>(std::floor(value / g_scale));
+}
+
+LONG ToPhysical(LONG value)
+{
+    return static_cast<LONG>(std::lround(value * g_scale));
+}
+
+void ToGame(POINT& p)
+{
+    p.x = ToGame(p.x);
+    p.y = ToGame(p.y);
+}
+
+void ToPhysical(POINT& p)
+{
+    p.x = ToPhysical(p.x);
+    p.y = ToPhysical(p.y);
+}
+
+void ToGame(RECT& r)
+{
+    r.left = ToGame(r.left);
+    r.top = ToGame(r.top);
+    r.right = ToGame(r.right);
+    r.bottom = ToGame(r.bottom);
+}
+
+BOOL WINAPI GameScreenToClient(HWND window, LPPOINT point)
+{
+    if (!point || !Scaled(window))
+        return g_screenToClient(window, point);
+    ToPhysical(*point);
+    const BOOL ok = g_screenToClient(window, point);
+    ToGame(*point);
+    return ok;
+}
+
+BOOL WINAPI GameClientToScreen(HWND window, LPPOINT point)
+{
+    if (!point || !Scaled(window))
+        return g_clientToScreen(window, point);
+    ToPhysical(*point);
+    const BOOL ok = g_clientToScreen(window, point);
+    ToGame(*point);
+    return ok;
+}
+
+int WINAPI GameMapWindowPoints(HWND from, HWND to, LPPOINT points, UINT count)
+{
+    // Our window's client area and the screen are both in game coordinates.
+    const bool fromScaled = g_scaledWindow && (!from || Scaled(from));
+    const bool toScaled = g_scaledWindow && (!to || Scaled(to));
+    if (points && fromScaled)
+        for (UINT i = 0; i < count; ++i)
+            ToPhysical(points[i]);
+    const int result = g_mapWindowPoints(from, to, points, count);
+    if (points && toScaled)
+        for (UINT i = 0; i < count; ++i)
+            ToGame(points[i]);
+    return result;
+}
+
+BOOL WINAPI GameGetClientRect(HWND window, LPRECT rect)
+{
+    const BOOL ok = g_getClientRect(window, rect);
+    if (ok && rect && Scaled(window))
+        ToGame(*rect);
+    return ok;
+}
+
+BOOL WINAPI GameGetWindowRect(HWND window, LPRECT rect)
+{
+    const BOOL ok = g_getWindowRect(window, rect);
+    if (ok && rect && Scaled(window))
+        ToGame(*rect);
+    return ok;
+}
+
+BOOL WINAPI GameGetWindowPlacement(HWND window, WINDOWPLACEMENT* placement)
+{
+    const BOOL ok = g_getWindowPlacement(window, placement);
+    if (ok && placement && Scaled(window))
+        ToGame(placement->rcNormalPosition);
+    return ok;
+}
+
+BOOL WINAPI GameMoveWindow(HWND window, int x, int y, int width, int height, BOOL repaint)
+{
+    if (Scaled(window))
+        return g_moveWindow(window, ToPhysical(x), ToPhysical(y), ToPhysical(width), ToPhysical(height), repaint);
+    return g_moveWindow(window, x, y, width, height, repaint);
+}
+
+BOOL WINAPI GameSetWindowPos(HWND window, HWND after, int x, int y, int width, int height, UINT flags)
+{
+    if (Scaled(window))
+        return g_setWindowPos(window, after, ToPhysical(x), ToPhysical(y), ToPhysical(width), ToPhysical(height),
+                              flags);
+    return g_setWindowPos(window, after, x, y, width, height, flags);
+}
+
+BOOL WINAPI GameGetCursorPos(LPPOINT point)
+{
+    const BOOL ok = g_getCursorPos(point);
+    if (ok && point && g_scaledWindow)
+        ToGame(*point);
+    return ok;
+}
+
+BOOL WINAPI GameSetCursorPos(int x, int y)
+{
+    if (g_scaledWindow)
+        return g_setCursorPos(ToPhysical(x), ToPhysical(y));
+    return g_setCursorPos(x, y);
+}
+
+BOOL WINAPI GameSystemParametersInfo(UINT action, UINT param, PVOID data, UINT flags)
+{
+    const BOOL ok = g_systemParametersInfo(action, param, data, flags);
+    if (ok && data && action == SPI_GETWORKAREA && g_scale != 1.0f)
+        ToGame(*static_cast<RECT*>(data));
+    return ok;
+}
+
+using DisplayFn = BOOL(WINAPI*)(LPCSTR, DWORD, DEVMODEA*);
+using CapsFn = int(WINAPI*)(HDC, int);
+DisplayFn g_enumDisplaySettings = nullptr;
+CapsFn g_getDeviceCaps = nullptr;
+
+// The screen's size, as metrics, display modes and device capabilities:
+// asked before the window exists, so these apply whenever a scale is set.
+BOOL WINAPI GameEnumDisplaySettings(LPCSTR device, DWORD mode, DEVMODEA* settings)
+{
+    const BOOL ok = g_enumDisplaySettings(device, mode, settings);
+    if (ok && settings && g_scale != 1.0f) {
+        settings->dmPelsWidth = GameSize(settings->dmPelsWidth, g_scale);
+        settings->dmPelsHeight = GameSize(settings->dmPelsHeight, g_scale);
+    }
+    return ok;
+}
+
+int WINAPI GameGetDeviceCaps(HDC dc, int index)
+{
+    const int value = g_getDeviceCaps(dc, index);
+    const bool size = index == HORZRES || index == VERTRES || index == DESKTOPHORZRES || index == DESKTOPVERTRES;
+    return size && g_scale != 1.0f ? static_cast<int>(GameSize(static_cast<uint32_t>(value), g_scale)) : value;
+}
+
+int WINAPI GameGetSystemMetrics(int index)
+{
+    const int value = g_getSystemMetrics(index);
+    const bool size = index == SM_CXSCREEN || index == SM_CYSCREEN || index == SM_CXFULLSCREEN ||
+                      index == SM_CYFULLSCREEN;
+    return size && g_scale != 1.0f ? static_cast<int>(GameSize(static_cast<uint32_t>(value), g_scale)) : value;
+}
+
+void InstallImportWrappers(float scale)
+{
+    static bool installed = false;
+    if (installed)
+        return;
+    installed = true;
+    g_scale = scale;
+    struct Import {
+        const char* name;
+        void* replacement;
+        void** original;
+    };
+    const Import imports[] = {
+        {"ScreenToClient", reinterpret_cast<void*>(&GameScreenToClient), reinterpret_cast<void**>(&g_screenToClient)},
+        {"ClientToScreen", reinterpret_cast<void*>(&GameClientToScreen), reinterpret_cast<void**>(&g_clientToScreen)},
+        {"MapWindowPoints", reinterpret_cast<void*>(&GameMapWindowPoints), reinterpret_cast<void**>(&g_mapWindowPoints)},
+        {"GetClientRect", reinterpret_cast<void*>(&GameGetClientRect), reinterpret_cast<void**>(&g_getClientRect)},
+        {"GetWindowRect", reinterpret_cast<void*>(&GameGetWindowRect), reinterpret_cast<void**>(&g_getWindowRect)},
+        {"GetWindowPlacement", reinterpret_cast<void*>(&GameGetWindowPlacement),
+         reinterpret_cast<void**>(&g_getWindowPlacement)},
+        {"MoveWindow", reinterpret_cast<void*>(&GameMoveWindow), reinterpret_cast<void**>(&g_moveWindow)},
+        {"SetWindowPos", reinterpret_cast<void*>(&GameSetWindowPos), reinterpret_cast<void**>(&g_setWindowPos)},
+        {"GetCursorPos", reinterpret_cast<void*>(&GameGetCursorPos), reinterpret_cast<void**>(&g_getCursorPos)},
+        {"SetCursorPos", reinterpret_cast<void*>(&GameSetCursorPos), reinterpret_cast<void**>(&g_setCursorPos)},
+        {"SystemParametersInfoA", reinterpret_cast<void*>(&GameSystemParametersInfo),
+         reinterpret_cast<void**>(&g_systemParametersInfo)},
+        {"GetSystemMetrics", reinterpret_cast<void*>(&GameGetSystemMetrics),
+         reinterpret_cast<void**>(&g_getSystemMetrics)},
+    };
+    for (const Import& import : imports)
+        if (!iat::Patch(nullptr, "USER32.dll", import.name, import.replacement, import.original))
+            log::Write("d3d11 driver: could not wrap the game's %s; coordinates may be off", import.name);
+    if (!iat::Patch(nullptr, "USER32.dll", "EnumDisplaySettingsA", &GameEnumDisplaySettings, &g_enumDisplaySettings))
+        log::Write("d3d11 driver: could not wrap the game's EnumDisplaySettingsA; coordinates may be off");
+    if (!iat::Patch(nullptr, "GDI32.dll", "GetDeviceCaps", &GameGetDeviceCaps, &g_getDeviceCaps))
+        log::Write("d3d11 driver: could not wrap the game's GetDeviceCaps; coordinates may be off");
+    log::Write("d3d11 driver: the game sees a desktop scaled by 1/%.2f", scale);
+}
+
 // The video modes, laid out as the DirectX driver lists them (seen on
 // 2026-10-06): the desktop's resolution first, then every other resolution
 // the display offers, each as a full-screen and a windowed mode, all at 32
@@ -1112,7 +1443,7 @@ void DynamicBuffers::Reset()
 // none matches. Colour masks are only filled in for the current mode. The
 // driver renders in 32 bits whatever the mode says; changing the display
 // mode changes only its size (current Windows has no 16-bit desktop modes).
-std::vector<Mode> EnumerateModes()
+std::vector<Mode> EnumerateModes(float scale, std::vector<PhysicalSize>& physical)
 {
     std::vector<Mode> modes;
     DEVMODEA desktop{};
@@ -1132,12 +1463,13 @@ std::vector<Mode> EnumerateModes()
             for (const bool fullScreen : {true, false}) {
                 Mode m{};
                 m.index = static_cast<int32_t>(modes.size());
-                m.width = width;
-                m.height = height;
+                m.width = GameSize(width, scale);
+                m.height = GameSize(height, scale);
                 m.depth = depth;
                 m.fullScreen = fullScreen;
                 m.unknown22 = 1;
                 modes.push_back(m);
+                physical.push_back({width, height});
             }
         }
     }
@@ -1146,7 +1478,10 @@ std::vector<Mode> EnumerateModes()
 
 cIGZUnknown* Create()
 {
-    auto* driver = new Driver(EnumerateModes());
+    const float scale = RenderScale();
+    std::vector<PhysicalSize> physical;
+    std::vector<Mode> modes = EnumerateModes(scale, physical);
+    auto* driver = new Driver(std::move(modes), std::move(physical), scale);
     log::Write("d3d11 driver: created as class 0x%08X (%u video modes)", kClassId, driver->CountVideoModes());
     return static_cast<cIGZGDriver*>(driver);
 }
@@ -1161,8 +1496,16 @@ void ApplyVideoSettings(SC4VideoPreferences& video)
 {
     log::Write("d3d11 driver: game video preferences %ux%u, %u bits, %s", video.width, video.height, video.bitDepth,
                video.bFullScreen ? "full screen" : "windowed");
-    const std::string window = settings::Get("renderer", "window", "");
-    const std::string resolution = settings::Get("renderer", "resolution", "");
+    std::string window = settings::Get("renderer", "window", "");
+    std::string resolution = settings::Get("renderer", "resolution", "");
+    // With a render scale the game's saved size (physical pixels) matches no
+    // mode, and the game crashes on that: the ini decides, desktop size full
+    // screen unless it says otherwise.
+    const float scale = RenderScale();
+    if (scale != 1.0f && resolution.empty())
+        resolution = "desktop";
+    if (scale != 1.0f && window.empty())
+        window = "fullscreen";
     if (window.empty() && resolution.empty())
         return;
     DEVMODEA desktop{};
@@ -1185,6 +1528,8 @@ void ApplyVideoSettings(SC4VideoPreferences& video)
     else if (!window.empty())
         log::Write("d3d11 driver: [renderer] window = \"%s\" is not windowed, fullscreen or borderless; ignored",
                    window.c_str());
+    width = GameSize(width, scale);
+    height = GameSize(height, scale);
     log::Write("d3d11 driver: video preferences %ux%u %s -> %ux%u %s (opensc4.ini)", video.width, video.height,
                video.bFullScreen ? "full screen" : "windowed", width, height, fullScreen ? "full screen" : "windowed");
     video.width = width;
@@ -1223,6 +1568,9 @@ void __fastcall SelectGraphicsDriver(void* app, void* edx, bool selectDriver)
 
 bool Register(registry::Mode)
 {
+    // Before the game measures the screen for its window layer.
+    if (RenderScale() != 1.0f)
+        InstallImportWrappers(RenderScale());
     const addr::Entry* select = addr_check::Find(addr::cSC4App_SelectGraphicsDriver);
     if (!select || !hook::Install(*select, &SelectGraphicsDriver, &g_select))
         log::Write("d3d11 driver: could not hook the driver choice; start the game with -d:OpenGL");

@@ -9,6 +9,7 @@ add_library(opensc4_core_support STATIC
   gd/pixels.cpp
   gd/vertex_format.cpp
   hook.cpp
+  iat.cpp
   interface_counter.cpp
   log.cpp
   registry.cpp

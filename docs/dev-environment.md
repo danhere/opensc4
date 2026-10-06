@@ -67,6 +67,7 @@ vsync = on              ; off: show every Flush at once, as the stock drivers do
 debug_layer = off       ; on: Direct3D debug layer (needs the Graphics Tools feature)
 resolution = desktop    ; or WxH, e.g. 2560x1440; unset: the game's own choice
 window = borderless     ; windowed, fullscreen (changes the display mode if needed) or borderless
+scale = 1.5             ; draw everything 1.5 times as big (1-4); the game runs at the screen size / scale
 ```
 
 ## Coverage

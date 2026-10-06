@@ -61,3 +61,8 @@ add_executable(opensc4_settings_test settings_test.cpp)
 target_link_libraries(opensc4_settings_test PRIVATE opensc4_core_support)
 add_test(NAME settings COMMAND opensc4_settings_test)
 set_tests_properties(settings PROPERTIES PASS_REGULAR_EXPRESSION "settings test OK")
+
+add_executable(opensc4_iat_test iat_test.cpp)
+target_link_libraries(opensc4_iat_test PRIVATE opensc4_core_support)
+add_test(NAME iat_patching COMMAND opensc4_iat_test)
+set_tests_properties(iat_patching PROPERTIES PASS_REGULAR_EXPRESSION "iat test OK")
