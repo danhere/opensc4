@@ -25,7 +25,7 @@ Output is a toolkit, not a game change. Everything later depends on it.
 
 - [x] Pass-through `cIGZGDriver` in front of the game's driver, with a call log. Installed with `cIGZGraphicSystem2::SetGDriver` at `PreAppInit`, because the graphics system never instantiates new driver class IDs; no class ID taken, no code patching ([docs/renderer.md](docs/renderer.md))
 - [x] Backend decision: D3D11 first (best Wine/DXVK path), behind an internal render interface so a Vulkan backend can follow (2026-10-05)
-- [~] D3D11 driver (`renderer.d3d11`, selected whenever on; [docs/renderer.md](docs/renderer.md), "D3D11 driver"): renders the city; matches the stock driver pixel for pixel except tree shadow edges (smooth by design, accepted). Still to check: menus, region view, UI interaction. What every driver call means is documented from both stock drivers
+- [~] D3D11 driver (`renderer.d3d11`, selected whenever on; [docs/renderer.md](docs/renderer.md), "D3D11 driver"): renders the city, with clouds too; matches the stock driver pixel for pixel except tree shadow edges (smooth by design, accepted). Full-screen modes change the display mode like the stock drivers (desktop-size full screen is borderless). Still to check: menus, region view, UI interaction. What every driver call means is documented from both stock drivers
 - [ ] Lift the hardware resolution cap (find the game-side cause of the >2048 px crash)
 - [ ] Windowed / borderless modes, frame pacing
 - [~] Screenshot-diff harness: fixed test cities x 5 zooms x 4 rotations. Working for one city (Making Money Tutorial) with fixed random seeds; animation still runs on real time, so comparisons use a small tolerance ([docs/renderer.md](docs/renderer.md), "Screenshot harness"). Still to do: more test cities
