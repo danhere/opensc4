@@ -20,6 +20,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/settings.h"
 
 #include <GZServPtrs.h>
 #include <cIGZBuffer.h>
@@ -27,12 +28,15 @@
 #include <cIGZFrameWork.h>
 #include <cIGZGDriver.h>
 #include <cIGZGraphicSystem2.h>
+#include <SC4Preferences.h>
 
 #include <windows.h>
 
 #include <opensc4/addresses.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <map>
@@ -528,6 +532,9 @@ public:
         current_ = modes_[index];
         // The capabilities the DirectX driver reports in its current mode on a
         // current card (2026-10-06, RTX 3080 Ti): only the current mode has them.
+        current_.redMask = 0xFF0000; // also in 16-bit modes, as the DirectX driver reports them
+        current_.greenMask = 0xFF00;
+        current_.blueMask = 0xFF;
         current_.stencil = 1;
         current_.textureStages = kStages;
         current_.multitexture = current_.envCombine = current_.fogCoordinate = 1;
@@ -1097,44 +1104,42 @@ void DynamicBuffers::Reset()
     }
 }
 
-// The video modes the stock OpenGL driver lists (0x0087F410): every
-// resolution at the desktop's colour depth as a full-screen mode, plus a
-// windowed one for each that is smaller than the desktop.
+// The video modes, laid out as the DirectX driver lists them (seen on
+// 2026-10-06): the desktop's resolution first, then every other resolution
+// the display offers, each as a full-screen and a windowed mode, all at 32
+// bits and then all again at 16 bits. The game picks the one matching its
+// preferences (a saved 16-bit full-screen choice is common) and crashes when
+// none matches. Colour masks are only filled in for the current mode. The
+// driver renders in 32 bits whatever the mode says; changing the display
+// mode changes only its size (current Windows has no 16-bit desktop modes).
 std::vector<Mode> EnumerateModes()
 {
     std::vector<Mode> modes;
     DEVMODEA desktop{};
     desktop.dmSize = sizeof(desktop);
-    if (!EnumDisplaySettingsA(nullptr, ENUM_CURRENT_SETTINGS, &desktop) || desktop.dmBitsPerPel < 15)
+    if (!EnumDisplaySettingsA(nullptr, ENUM_CURRENT_SETTINGS, &desktop))
         return modes;
-    const bool deep = desktop.dmBitsPerPel > 16;
-    auto add = [&](uint32_t width, uint32_t height, bool fullScreen) {
-        Mode m{};
-        m.index = static_cast<int32_t>(modes.size());
-        m.width = width;
-        m.height = height;
-        m.depth = deep ? 32 : 16;
-        m.alphaMask = 0;
-        m.redMask = deep ? 0xFF0000 : 0xF800;
-        m.greenMask = deep ? 0xFF00 : 0x7C0;
-        m.blueMask = deep ? 0xFF : 0x3E;
-        m.fullScreen = fullScreen;
-        m.unknown22 = 1;
-        modes.push_back(m);
-    };
+    std::vector<std::pair<uint32_t, uint32_t>> sizes{{desktop.dmPelsWidth, desktop.dmPelsHeight}};
     DEVMODEA dm{};
     dm.dmSize = sizeof(dm);
     for (DWORD i = 0; EnumDisplaySettingsA(nullptr, i, &dm); ++i) {
-        if (dm.dmBitsPerPel != desktop.dmBitsPerPel)
-            continue;
-        bool known = false;
-        for (const Mode& m : modes)
-            known = known || (m.width == dm.dmPelsWidth && m.height == dm.dmPelsHeight);
-        if (known)
-            continue;
-        add(dm.dmPelsWidth, dm.dmPelsHeight, true);
-        if (dm.dmPelsWidth < desktop.dmPelsWidth && dm.dmPelsHeight < desktop.dmPelsHeight)
-            add(dm.dmPelsWidth, dm.dmPelsHeight, false);
+        const std::pair<uint32_t, uint32_t> size{dm.dmPelsWidth, dm.dmPelsHeight};
+        if (std::find(sizes.begin(), sizes.end(), size) == sizes.end())
+            sizes.push_back(size);
+    }
+    for (const uint32_t depth : {32u, 16u}) {
+        for (const auto& [width, height] : sizes) {
+            for (const bool fullScreen : {true, false}) {
+                Mode m{};
+                m.index = static_cast<int32_t>(modes.size());
+                m.width = width;
+                m.height = height;
+                m.depth = depth;
+                m.fullScreen = fullScreen;
+                m.unknown22 = 1;
+                modes.push_back(m);
+            }
+        }
     }
     return modes;
 }
@@ -1146,6 +1151,48 @@ cIGZUnknown* Create()
     return static_cast<cIGZGDriver*>(driver);
 }
 
+// opensc4.ini [renderer] resolution (WxH or "desktop") and window (windowed,
+// fullscreen, borderless), applied to the game's video preferences in memory
+// just before it picks its driver and mode, as sc4-graphics-options does to
+// the saved ones. Unset, the game's own options (or -r, -w, -f) apply.
+// Borderless is full screen at the desktop's size, which needs no display
+// mode change; a full-screen mode of another size changes the display mode.
+void ApplyVideoSettings(SC4VideoPreferences& video)
+{
+    log::Write("d3d11 driver: game video preferences %ux%u, %u bits, %s", video.width, video.height, video.bitDepth,
+               video.bFullScreen ? "full screen" : "windowed");
+    const std::string window = settings::Get("renderer", "window", "");
+    const std::string resolution = settings::Get("renderer", "resolution", "");
+    if (window.empty() && resolution.empty())
+        return;
+    DEVMODEA desktop{};
+    desktop.dmSize = sizeof(desktop);
+    EnumDisplaySettingsA(nullptr, ENUM_CURRENT_SETTINGS, &desktop);
+    unsigned width = video.width, height = video.height;
+    if (resolution == "desktop" || window == "borderless") {
+        width = desktop.dmPelsWidth;
+        height = desktop.dmPelsHeight;
+    } else if (!resolution.empty() && std::sscanf(resolution.c_str(), "%ux%u", &width, &height) != 2) {
+        log::Write("d3d11 driver: [renderer] resolution = \"%s\" is not WxH or desktop; ignored", resolution.c_str());
+        width = video.width;
+        height = video.height;
+    }
+    bool fullScreen = video.bFullScreen != 0;
+    if (window == "windowed")
+        fullScreen = false;
+    else if (window == "fullscreen" || window == "borderless")
+        fullScreen = true;
+    else if (!window.empty())
+        log::Write("d3d11 driver: [renderer] window = \"%s\" is not windowed, fullscreen or borderless; ignored",
+                   window.c_str());
+    log::Write("d3d11 driver: video preferences %ux%u %s -> %ux%u %s (opensc4.ini)", video.width, video.height,
+               video.bFullScreen ? "full screen" : "windowed", width, height, fullScreen ? "full screen" : "windowed");
+    video.width = width;
+    video.height = height;
+    video.bitDepth = 32;
+    video.bFullScreen = fullScreen ? 1 : 0;
+}
+
 // cSC4App::SelectGraphicsDriver: request this driver when no -d: option
 // asked for one, then put back the saved driver choice the game would
 // otherwise overwrite (so turning the driver off leaves the user's settings
@@ -1155,6 +1202,7 @@ SelectFn g_select = nullptr;
 constexpr size_t kRequestedDriver = 0x65C;
 constexpr size_t kSettings = 0x3B0;
 constexpr size_t kSavedDriver = 0xF13;
+static_assert(offsetof(SC4Preferences, videoPreferences) + offsetof(SC4VideoPreferences, driverType) == kSavedDriver);
 
 void __fastcall SelectGraphicsDriver(void* app, void* edx, bool selectDriver)
 {
@@ -1166,6 +1214,7 @@ void __fastcall SelectGraphicsDriver(void* app, void* edx, bool selectDriver)
         return;
     }
     const uint8_t saved = settings[kSavedDriver];
+    ApplyVideoSettings(reinterpret_cast<SC4Preferences*>(settings)->videoPreferences);
     requested = kClassId;
     g_select(app, edx, selectDriver);
     settings[kSavedDriver] = saved;

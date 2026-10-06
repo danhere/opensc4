@@ -217,11 +217,14 @@ bool Install(registry::Mode)
         const auto* w = reinterpret_cast<const uint32_t*>(&mode);
         log::Write("d3d7 probe: current mode %08X %08X %08X %08X %08X %08X %08X %08X | %08X %08X %08X %08X %08X", w[0],
                    w[1], w[2], w[3], w[4], w[5], w[6], w[7], w[8], w[9], w[10], w[11], w[12]);
-        for (uint32_t i = 0; i < driver->CountVideoModes() && i < 4; ++i) {
+        std::string list;
+        char item[48];
+        for (uint32_t i = 0; i < driver->CountVideoModes(); ++i) {
             driver->GetVideoModeInfo(i, mode);
-            log::Write("d3d7 probe: mode %u     %08X %08X %08X %08X %08X %08X %08X %08X | %08X %08X %08X %08X %08X", i,
-                       w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7], w[8], w[9], w[10], w[11], w[12]);
+            std::snprintf(item, sizeof(item), " %u:%ux%ux%u%s", i, w[1], w[2], w[3], (w[8] & 0xFF) ? "f" : "w");
+            list += item;
         }
+        log::Write("d3d7 probe: %u modes:%s", driver->CountVideoModes(), list.c_str());
     }
     auto* object = reinterpret_cast<uint8_t*>(driver); // the driver's methods use offsets from this pointer
     Device device = *reinterpret_cast<Device*>(object + 0x218);

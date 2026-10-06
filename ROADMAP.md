@@ -29,7 +29,7 @@ Output is a toolkit, not a game change. Everything later depends on it.
 - [x] Lift the hardware resolution cap. The >2048 px crash is in the stock DirectX driver (its device setup fails and it then writes through a null pointer); the D3D11 driver runs 3440x1440 ([docs/renderer.md](docs/renderer.md), "Resolutions")
 - [x] Windowed / borderless modes, frame pacing. Full-screen modes change the display mode, desktop-size full screen is borderless; the window shows at most one frame per refresh without slowing the game's loop or simulation; settings in `opensc4.ini` `[renderer]` ([docs/renderer.md](docs/renderer.md), "Frame pacing"). Measured: the game redraws a running city only about 15 times a second at speed 2, and its loop never sleeps (a CPU core busy even when paused, as with the stock driver); both are game-loop matters, left for later
 - [~] Screenshot-diff harness: fixed test cities x 5 zooms x 4 rotations. Working for one city (Making Money Tutorial) with fixed random seeds; animation still runs on real time, so comparisons use a small tolerance ([docs/renderer.md](docs/renderer.md), "Screenshot harness"). Still to do: more test cities
-- [ ] Coexists with or absorbs sc4-graphics-options
+- [~] Coexists with or absorbs sc4-graphics-options. Absorbed with the D3D11 driver: driver choice, resolution and window mode without the command line (`opensc4.ini` `[renderer]`), borderless full screen, 32-bit colour. Not renderer work: its intro and pause-on-focus-loss switches. Its "force draw on scroll" render properties are untested with the D3D11 driver. Running both together not tried
 
 ## P2: UI scaling and input
 

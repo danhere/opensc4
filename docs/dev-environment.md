@@ -65,6 +65,8 @@ renderer.d3d11 = ours   ; play with OpenSC4's Direct3D 11 driver
 [renderer]
 vsync = on              ; off: show every Flush at once, as the stock drivers do
 debug_layer = off       ; on: Direct3D debug layer (needs the Graphics Tools feature)
+resolution = desktop    ; or WxH, e.g. 2560x1440; unset: the game's own choice
+window = borderless     ; windowed, fullscreen (changes the display mode if needed) or borderless
 ```
 
 ## Coverage
