@@ -24,10 +24,10 @@ Output is a toolkit, not a game change. Everything later depends on it.
 ## P1: Renderer (first usable milestone)
 
 - [x] Pass-through `cIGZGDriver` in front of the game's driver, with a call log. Installed with `cIGZGraphicSystem2::SetGDriver` at `PreAppInit`, because the graphics system never instantiates new driver class IDs; no class ID taken, no code patching ([docs/renderer.md](docs/renderer.md))
-- [ ] Backend decision: D3D11 (recommended: best Wine/DXVK path) vs Vulkan
+- [x] Backend decision: D3D11 first (best Wine/DXVK path), behind an internal render interface so a Vulkan backend can follow (2026-10-05)
 - [ ] Lift the hardware resolution cap (find the game-side cause of the >2048 px crash)
 - [ ] Windowed / borderless modes, frame pacing
-- [ ] Screenshot-diff harness: fixed test cities x 5 zooms x 4 rotations
+- [~] Screenshot-diff harness: fixed test cities x 5 zooms x 4 rotations. Working for one city (Making Money Tutorial) with fixed random seeds; animation still runs on real time, so comparisons use a small tolerance ([docs/renderer.md](docs/renderer.md), "Screenshot harness"). Still to do: more test cities
 - [ ] Coexists with or absorbs sc4-graphics-options
 
 ## P2: UI scaling and input
@@ -44,7 +44,7 @@ Output is a toolkit, not a game change. Everything later depends on it.
 
 ## P4: Save format and determinism (gate before any simulator work)
 
-- [ ] **Prove the original game replays deterministically** (hook time sources, capture RNG, fixed sim-tick stepping). If it doesn't, parity becomes statistical, and that changes the second half of the plan. First data point: under real-time stepping, two identical runs of the same city diverge within two game months ([docs/experiments/pollution-proxy.md](docs/experiments/pollution-proxy.md)).
+- [ ] **Prove the original game replays deterministically** (hook time sources, capture RNG, fixed sim-tick stepping). If it doesn't, parity becomes statistical, and that changes the second half of the plan. First data point: under real-time stepping, two identical runs of the same city diverge within two game months ([docs/experiments/pollution-proxy.md](docs/experiments/pollution-proxy.md)). The game's random seeds can now be fixed from process start (`determinism.fixed_seed`, [docs/renderer.md](docs/renderer.md)); not yet tried on a running simulation.
 - [ ] Save parser / differ (offline tooling)
 - [ ] In-memory state dumpers from Ghidra layouts
 - [ ] Publish documented subfile schemas to the community

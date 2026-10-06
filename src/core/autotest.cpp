@@ -8,12 +8,16 @@
 #include <SC4List.h>
 #include <SC4String.h>
 #include <cIGZFrameWork.h>
+#include <cIGZWin.h>
+#include <cISC43DRender.h>
 #include <cISC4App.h>
 #include <cISC4City.h>
 #include <cISC4PollutionSimulator.h>
 #include <cISC4Region.h>
+#include <cISC4RenderProperties.h>
 #include <cISC4RegionalCity.h>
 #include <cISC4Simulator.h>
+#include <cISC4View3DWin.h>
 #include <cRZAutoRefCount.h>
 #include <cRZBaseString.h>
 #include <cRZBaseSystemService.h>
@@ -21,6 +25,7 @@
 
 #include <windows.h>
 
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 
@@ -41,6 +46,81 @@ int EnvInt(const char* name, int fallback)
 {
     const std::string value = Env(name);
     return value.empty() ? fallback : std::atoi(value.c_str());
+}
+
+// The city view: main window -> cSC4App's window -> the 3D view (as in
+// gzcom-dll's SC4UI::GetView3DWin).
+cRZAutoRefCount<cISC4View3DWin> GetView3D(cISC4App* app)
+{
+    constexpr uint32_t kWinSC4App = 0x6104489A;
+    constexpr uint32_t kWinView3D = 0x9A47B417;
+    cRZAutoRefCount<cISC4View3DWin> view;
+    cIGZWin* main = app->GetMainWindow();
+    cIGZWin* parent = main ? main->GetChildWindowFromID(kWinSC4App) : nullptr;
+    if (parent)
+        parent->GetChildAs(kWinView3D, kGZIID_cISC4View3DWin, view.AsPPVoid());
+    return view;
+}
+
+// OPENSC4_TEST_RENDER: "Name=value,..." for cISC4RenderProperties (the names
+// listed in gzcom-dll's cISC4RenderProperties.h). Each name is looked up as a
+// bool, then an int, then a float property.
+void ApplyRenderProperties(cISC4App* app)
+{
+    const std::string list = Env("OPENSC4_TEST_RENDER");
+    cISC4RenderProperties* props = list.empty() ? nullptr : app->GetRenderProperties();
+    if (!props)
+        return;
+    std::size_t start = 0;
+    while (start < list.size()) {
+        std::size_t end = list.find(',', start);
+        if (end == std::string::npos)
+            end = list.size();
+        const std::string item = list.substr(start, end - start);
+        start = end + 1;
+        const std::size_t eq = item.find('=');
+        if (eq == std::string::npos)
+            continue;
+        const std::string name = item.substr(0, eq);
+        const char* value = item.c_str() + eq + 1;
+        int32_t id = props->BoolPropertyIDFromName(name.c_str());
+        if (id >= 0) {
+            const bool before = props->BoolValue(id);
+            props->SetBoolValue(id, std::atoi(value) != 0);
+            log::Write("autotest: render property %s (bool %d): %d -> %d", name.c_str(), id, before ? 1 : 0,
+                       props->BoolValue(id) ? 1 : 0);
+            continue;
+        }
+        id = props->IntPropertyIDFromName(name.c_str());
+        if (id >= 0) {
+            const int32_t before = props->IntValue(id);
+            props->SetIntValue(id, std::atoi(value));
+            log::Write("autotest: render property %s (int %d): %d -> %d", name.c_str(), id, before, props->IntValue(id));
+            continue;
+        }
+        id = props->FloatPropertyIDFromName(name.c_str());
+        if (id >= 0) {
+            const float before = props->FloatValue(id);
+            props->SetFloatValue(id, static_cast<float>(std::atof(value)));
+            log::Write("autotest: render property %s (float %d): %g -> %g", name.c_str(), id, before,
+                       props->FloatValue(id));
+            continue;
+        }
+        log::Write("autotest: no render property named %s", name.c_str());
+    }
+}
+
+// cISC43DRender::TakeSnapshot(cIGZString&, bool), vtable slot 22 (0x007C2570
+// in 641): writes the current frame to a file. Called by slot because
+// gzcom-dll declares the two TakeSnapshot overloads in the exe's slot order,
+// and MSVC-ABI compilers lay out overloaded virtuals in reverse declaration
+// order, so the header's string overload compiles to slot 23 (the
+// cIGZBuffer** one).
+bool TakeSnapshotToFile(cISC43DRender* renderer, cIGZString& path)
+{
+    using Fn = bool(__thiscall*)(cISC43DRender*, cIGZString&, bool);
+    void** vtable = *reinterpret_cast<void***>(renderer);
+    return reinterpret_cast<Fn>(vtable[22])(renderer, path, false);
 }
 
 __declspec(noinline) void WriteThroughNull(volatile int* p)
@@ -71,7 +151,7 @@ public:
     }
 
 private:
-    enum class State { WaitForRegion, Running, Quitting, Done };
+    enum class State { WaitForRegion, Running, Shots, Quitting, Done };
 
     void Step()
     {
@@ -79,6 +159,7 @@ private:
         switch (state_) {
         case State::WaitForRegion: WaitForRegion(now); break;
         case State::Running: Run(now); break;
+        case State::Shots: Shots(now); break;
         case State::Quitting:
             if (now - stateStart_ > 60000) {
                 log::Write("autotest: still running 60 s after RequestQuit; giving up");
@@ -177,6 +258,17 @@ private:
                    proxy, pollution && pollution == proxy ? "CITY USES THE PROXY" : "city uses the original");
 
         cISC4Simulator* sim = city->GetSimulator();
+        shotDir_ = Env("OPENSC4_TEST_SHOTS");
+        if (!shotDir_.empty()) {
+            // Frames should depend only on the save: no simulation time passes.
+            const bool paused = sim && sim->Pause();
+            settleMs_ = EnvInt("OPENSC4_TEST_SHOT_SETTLE", 3000);
+            log::Write("autotest: shots to %s, settle %d ms (Pause %s)", shotDir_.c_str(), settleMs_,
+                       paused ? "ok" : "refused");
+            shot_ = -1;
+            Enter(State::Shots, now);
+            return;
+        }
         const int speed = EnvInt("OPENSC4_TEST_SPEED", 2);
         bool speedSet = false;
         if (sim) {
@@ -214,6 +306,60 @@ private:
         }
     }
 
+    // Every zoom (1-5) at every rotation (0-3): set the view, wait for it to
+    // settle, then save the frame with the game's own snapshot code.
+    void Shots(ULONGLONG now)
+    {
+        constexpr int kZooms = 5, kRotations = 4;
+        constexpr int kRedrawMs = 1000;
+        cISC4AppPtr app;
+        if (!app || !app->GetCity()) {
+            log::Write("autotest: city went away while taking shots");
+            state_ = State::Done;
+            return;
+        }
+        if (shot_ >= 0 && now - stateStart_ < static_cast<ULONGLONG>(redrawn_ ? kRedrawMs : settleMs_))
+            return;
+        cRZAutoRefCount<cISC4View3DWin> view = GetView3D(app);
+        cISC43DRender* renderer = view ? view->GetRenderer() : nullptr;
+        if (!renderer) {
+            log::Write("autotest: no 3D view or renderer; quitting");
+            Quit(app);
+            return;
+        }
+        // The view redraws only what it thinks changed (backing store), so
+        // parts drawn before textures finished loading would stay that way.
+        if (shot_ >= 0 && !redrawn_) {
+            renderer->ForceFullRedraw();
+            redrawn_ = true;
+            Enter(State::Shots, now);
+            return;
+        }
+        redrawn_ = false;
+        if (shot_ >= 0) {
+            const int zoom = shot_ / kRotations + 1, rotation = shot_ % kRotations;
+            char name[64];
+            std::snprintf(name, sizeof(name), "\\z%d-r%d.png", zoom, rotation);
+            const std::string path = shotDir_ + name;
+            cRZBaseString file(path.c_str());
+            const bool taken = TakeSnapshotToFile(renderer, file);
+            log::Write("autotest: shot zoom %d rotation %d -> %s %s", zoom, rotation, path.c_str(),
+                       taken ? "ok" : "FAILED");
+        }
+        if (++shot_ >= kZooms * kRotations) {
+            log::Write("autotest: shots done; quitting without saving");
+            Quit(app);
+            return;
+        }
+        const int zoom = shot_ / kRotations + 1, rotation = shot_ % kRotations;
+        const int32_t result = view->SetZoomAndRotation(zoom, rotation);
+        uint32_t width = 0, height = 0;
+        renderer->GetViewportSize(width, height);
+        log::Write("autotest: view zoom %d rotation %d (SetZoomAndRotation %d, viewport %ux%u)", zoom, rotation,
+                   result, width, height);
+        Enter(State::Shots, now);
+    }
+
     void Report(cISC4App* app)
     {
         cISC4City* city = app->GetCity();
@@ -245,6 +391,10 @@ private:
     ULONGLONG stateStart_ = GetTickCount64();
     ULONGLONG lastReport_ = 0;
     int runSeconds_ = 180;
+    std::string shotDir_;
+    int settleMs_ = 3000;
+    int shot_ = -1;
+    bool redrawn_ = false;
 };
 
 } // namespace
@@ -280,6 +430,10 @@ void Start()
     cIGZFrameWork* framework = RZGetFrameWork();
     if (!framework)
         return;
+    // As early as the app exists: some render properties are read only when
+    // the view is set up.
+    if (cISC4AppPtr app; app)
+        ApplyRenderProperties(app);
     auto* service = new AutoTestService();
     const bool added = framework->AddSystemService(service) && framework->AddToTick(service);
     log::Write("autotest: tick service %s (OPENSC4_TEST_CITY=\"%s\")", added ? "started" : "FAILED to start",

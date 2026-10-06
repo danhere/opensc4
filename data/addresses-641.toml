@@ -108,3 +108,21 @@ name = "NameTable"
 address = 0x00B07FDC
 kind = "data"
 source = "{uint32 id, const char* name}[648] debug table (tools/re/extract_name_table.py)."
+
+[[entry]]
+name = "cRZRandom::Seed"
+address = 0x00913667
+kind = "function"
+convention = "thiscall"
+signature = "void (cRZRandom* this, uint32_t seed)"
+expect = "56 8B F1 8B 4C 24 08 83"
+source = "Seeds a 32-bit LCG (x * 0x41C64E6D + 0x3039, 0x00913696); seed 0xFFFFFFFF means time() ^ clock(). Called by the constructor 0x00913A5C from about 80 sites, many static initialisers that seed from the local time. Name inferred: the Mac build's types have cRZRandom and cRZRandomSuper (docs/renderer.md, \"Screenshot harness\")."
+
+[[entry]]
+name = "cRZRandomSuper::Seed"
+address = 0x00913A72
+kind = "function"
+convention = "thiscall"
+signature = "void (cRZRandomSuper* this, uint32_t seed)"
+expect = "8B 44 24 04 83 F8 FF 56"
+source = "Seeds a 624-word Mersenne Twister; seed 0xFFFFFFFF means a mix of time() and clock() (0x00913977). Called from 0x00913B74. Name inferred as for cRZRandom::Seed."

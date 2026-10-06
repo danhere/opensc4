@@ -73,3 +73,47 @@ Making Money Tutorial, 120 s at speed 2, autotest window (no menus, no UI intera
 Never called in this run: the blits (`BitBlt`, `StretchBlt` and their alpha variants), the GL-style texture calls (`GenTextures`, `BindTexture`, `TexImage2D`), stencil, fog, `ShadeModel`, `PixelStore`, the `Get*` queries, the vertex format helpers, `GetTexture`, `Punt`. UI screens and menus may use some of them; the call log of a run with UI interaction will tell.
 
 Observations to follow up: `TexParameter` runs about three times per draw call, and `IsDeviceReady`, `GetViewport` and `PolygonOffset` run in lockstep (about 564,000 each), probably once per rendered object.
+
+## Screenshot harness
+
+[scripts/run-shots.sh](../scripts/run-shots.sh) loads the test city with the simulation paused, saves the frame at each of the 5 zooms and 4 rotations, and quits; [tools/shotdiff.py](../tools/shotdiff.py) compares two output folders and writes diff images (differing pixels in magenta). Building block for step 3: every D3D11 change is checked against the stock DirectX driver this way.
+
+```bash
+scripts/run-shots.sh "$B" "$LOCALAPPDATA/opensc4/shots/base"
+scripts/run-shots.sh "$B" "$LOCALAPPDATA/opensc4/shots/ours" OPENSC4_REPLACE=renderer.passthrough=ours
+python3 tools/shotdiff.py "$LOCALAPPDATA/opensc4/shots/base" "$LOCALAPPDATA/opensc4/shots/ours" \
+    --tolerance 32 --max-differing 1.2 --diff-dir "$LOCALAPPDATA/opensc4/shots/diff"
+```
+
+How it works ([autotest.cpp](../src/core/autotest.cpp), `OPENSC4_TEST_SHOTS`):
+
+- **View:** `cISC4View3DWin::SetZoomAndRotation` on the city view (main window → 0x6104489A → 0x9A47B417). The camera starts where the save left it, and the autotest never saves, so every run looks at the same spot. Zooms are 1 (farthest) to 5, rotations 0 to 3. After each change the harness waits 3 s, calls `cISC43DRender::ForceFullRedraw`, waits 1 s more and captures.
+- **Capture:** the game's own `cISC43DRender::TakeSnapshot(cIGZString&, bool)` (0x007C2570), which reads the frame through the driver's `cIGZGSnapshotExtension::CopyColorBuffer` and writes a 1024×768 RGBA PNG of the whole window, UI included. A replacement driver must implement that extension for the harness to see its output. Called by vtable slot, see below.
+- **Render properties** (`OPENSC4_TEST_RENDER`, by name from `cISC4App::GetRenderProperties`): `RenderAutomata`, `RenderCloudsAndFog` and `RenderWaterEffects` are turned off, because they move in real time. They have to be set at PostAppInit: set just before the city loads, `RenderCloudsAndFog=0` had no effect.
+- **Random seeds** (`determinism.fixed_seed`, below).
+
+### Why runs differed, and what is left
+
+| Cause | Effect between two runs | Fix |
+|---|---|---|
+| Random seeds from the clock | terrain texture variation, flora and wildlife placement: 20-50% of pixels at most zooms | `determinism.fixed_seed` |
+| Automata | cars and pedestrians in other places | `RenderAutomata=0` |
+| Clouds, water effects | drifting cloud blobs at zoom 1, shimmering coast | `RenderCloudsAndFog=0`, `RenderWaterEffects=0` at PostAppInit |
+| Wildlife animation | deer at the same spots in different poses, up to 1.1% of pixels (deltas up to 235) at zooms 3-5 | none: animation runs on real time even while paused |
+| Cloud shadows on terrain | a faint drifting patch at zoom 1 (up to 5.7% of pixels, deltas up to 30) | none found; `--tolerance 32` absorbs it |
+
+With all of the above, two runs of the stock driver match each other with `--tolerance 32 --max-differing 1.2`, and so does `renderer.passthrough` against either. As a check that this still catches real changes, a run with `RenderShadows=0` fails 18 of 20 shots (1.1-5.9% of pixels); the two that pass are far zooms where shadows cover about 1% of the frame. So a pass is not proof: look at the diff images when a change is near the limit. A fixed animation clock (P4, fixed stepping) would make the frames exact.
+
+### Fixed random seeds
+
+The game has two random number generators, named from the Mac build's types (`cRZRandom`, `cRZRandomSuper`) by what they do:
+
+- `cRZRandom::Seed` (0x00913667): a 32-bit LCG (`x * 0x41C64E6D + 0x3039`, 0x00913696). Seed 0xFFFFFFFF means `time() ^ clock()`. Its constructor (0x00913A5C) is called from about 80 places, many of them static initialisers that seed from the local time XOR a constant.
+- `cRZRandomSuper::Seed` (0x00913A72): a Mersenne Twister; seed 0xFFFFFFFF mixes `time()` and `clock()` (0x00913977).
+- The CRT's `rand` is seeded only by Lua's `math.randomseed` (0x008C0B20).
+
+`determinism.fixed_seed` ([fixed_seed.cpp](../src/core/fixed_seed.cpp)) detours both seed functions and gives the n-th call `Mix(base + n)` whatever the game asked for (`OPENSC4_SEED` sets the base). It needs the new registry phase `Attach`, applied from `DllMain`: the launcher injects core.dll while the game's main thread is still suspended, so the hooks are in place before the exe's static initialisers run. Steam's stub does not mind the patched code. The first seeds the game asks for are visibly clock-derived (0x6F615500, 0x2F5DEEBE, 0xCF615537, ...). This is the first piece of P4's "capture RNG"; whether the simulation becomes deterministic with it is still open.
+
+### gzcom-dll: overloaded virtuals are in the wrong order
+
+MSVC, and clang-cl with it, puts overloaded virtual functions in the vtable in reverse declaration order. gzcom-dll's `cISC43DRender.h` declares `TakeSnapshot(cIGZString&, bool)` before `TakeSnapshot(cIGZBuffer**, bool)`, the order of the exe's slots 22 and 23, so the compiled call to the string overload goes to slot 23, the buffer overload: it would pass a string where a `cIGZBuffer**` is expected. Checked with clang-cl's assembly (`+0x5C` for the string call) against the exe's vtable at 0x00ABAB60 (slot 22 is 0x007C2570, which itself calls slot 23 with a buffer pointer). The autotest calls slot 22 directly. Other overloads in gzcom-dll headers (`StartScreenShake`, `SetBackgroundPicture`, `PickTerrain`, `Pick` here; others elsewhere) may have the same problem; worth reporting upstream once checked.

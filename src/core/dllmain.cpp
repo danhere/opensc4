@@ -3,6 +3,7 @@
 #include "common/abi.h"
 #include "core/game.h"
 #include "core/log.h"
+#include "core/registry.h"
 
 #include <windows.h>
 
@@ -21,6 +22,10 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID /*reserved*/)
         opensc4::log::Write("core.dll %s attached: pid %lu, host %ls, build %s (sentinel %d)",
             OPENSC4_VERSION, GetCurrentProcessId(), host,
             opensc4::game::IsBuild641() ? "1.1.641" : "unknown", sentinel);
+        // Injected by the launcher, the game's own code has not run yet; loaded
+        // as a plugin, this comes after the game's startup.
+        if (opensc4::game::IsBuild641())
+            opensc4::registry::Apply(opensc4::registry::Phase::Attach);
     }
     return TRUE;
 }

@@ -44,4 +44,7 @@ void RemoveAll();
 // Number of hooks currently installed.
 std::size_t InstalledCount();
 
+// Whether this module has a hook installed at `target`.
+bool IsInstalledAt(std::uintptr_t target);
+
 } // namespace opensc4::hook

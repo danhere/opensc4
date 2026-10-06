@@ -1,5 +1,6 @@
 #include "core/address_check.h"
 
+#include "core/hook.h"
 #include "core/log.h"
 
 #include <windows.h>
@@ -83,11 +84,15 @@ std::string DescribeMismatch(std::uintptr_t address, const unsigned char* expect
 
 int LogManifest()
 {
-    int checked = 0, mismatches = 0;
+    int checked = 0, mismatches = 0, ours = 0;
     for (const addr::Entry& entry : addr::kEntries) {
         if (entry.expectSize == 0)
             continue;
         ++checked;
+        if (hook::IsInstalledAt(entry.address)) {
+            ++ours; // checked before hooking (hook::InstallAt)
+            continue;
+        }
         const std::string problem = DescribeMismatch(entry.address, entry.expect, entry.expectSize);
         if (!problem.empty()) {
             ++mismatches;
@@ -95,7 +100,8 @@ int LogManifest()
                        problem.c_str());
         }
     }
-    log::Write("manifest: %d of %d address database entries intact", checked - mismatches, checked);
+    log::Write("manifest: %d of %d address database entries intact (%d hooked by OpenSC4)", checked - mismatches,
+               checked, ours);
     return mismatches;
 }
 

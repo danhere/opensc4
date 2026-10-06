@@ -170,7 +170,8 @@ void Apply(Phase phase, const std::wstring& iniPath)
     for (auto& [id, value] : ReadEnvironment())
         configured[id] = value; // the environment wins
 
-    // Report typos once, in the first phase.
+    // Report typos once, in the first phase every load reaches (Attach only
+    // happens when the launcher injects core.dll).
     if (phase == Phase::DirectorInit) {
         for (const auto& [id, value] : configured) {
             const std::string prefix = IsWildcard(id) ? id.substr(0, id.size() - 1) : std::string();

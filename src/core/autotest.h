@@ -12,6 +12,14 @@
 //                         other value (0x00702430).
 //   OPENSC4_TEST_CRASH    "1": once the city is running, crash on purpose inside
 //                         a guarded section, to test the crash handler chain
+//   OPENSC4_TEST_SHOTS    a folder (Windows path): instead of running the
+//                         simulation, keep it paused and save the frame at
+//                         every zoom (1-5) and rotation (0-3) there as
+//                         z<zoom>-r<rotation>.png, then quit. The camera
+//                         starts where the save left it, so runs line up.
+//                         Compare runs with tools/shotdiff.py.
+//   OPENSC4_TEST_SHOT_SETTLE  milliseconds to wait after changing the view
+//                         before saving the frame (default 3000)
 //   OPENSC4_TEST_PRELOAD  DLLs to load (full paths, separated by ';') when
 //                         core.dll's director is created, before the game loads
 //                         later plugins. For plugin dependencies that installers

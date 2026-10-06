@@ -29,6 +29,8 @@ enum class Kind { Gzcom, Detour, Vtable, Api }; // Api: through a public game in
 
 // When a replacement is applied.
 enum class Phase {
+    Attach,       // core.dll injected by the launcher, before the game's own code (static initialisers) runs:
+                  // only detours that must see game startup. Applied from DllMain, so keep apply functions simple.
     DirectorInit, // core.dll's GZCOM director is created: register class factories here
     PreAppInit,   // services and graphics drivers exist, no video mode or city yet: swap objects here
     PostAppInit,  // all plugins have loaded and patched: install hooks here

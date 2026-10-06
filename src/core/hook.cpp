@@ -7,6 +7,7 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <cstring>
 #include <mutex>
 #include <vector>
@@ -81,6 +82,12 @@ void RemoveAll()
         MH_RemoveHook(reinterpret_cast<void*>(target));
     }
     g_installed.clear();
+}
+
+bool IsInstalledAt(std::uintptr_t target)
+{
+    std::lock_guard lock(g_mutex);
+    return std::find(g_installed.begin(), g_installed.end(), target) != g_installed.end();
 }
 
 std::size_t InstalledCount()

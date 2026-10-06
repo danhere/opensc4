@@ -19,6 +19,7 @@ add_library(opensc4_core SHARED
   diagnostics.cpp
   dllmain.cpp
   director.cpp
+  fixed_seed.cpp
   gdriver_proxy.cpp
   pollution_proxy.cpp
   trace.cpp)
