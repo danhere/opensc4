@@ -29,7 +29,9 @@
 #include <cIGZGraphicSystem2.h>
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 namespace opensc4::gdriver_proxy {
 namespace {
@@ -178,6 +180,8 @@ constexpr const char* kMethodNames[] = {
 std::atomic<uint32_t> g_calls[static_cast<int>(Method::Count)];
 bool g_installed = false;
 
+constexpr uint32_t kDirectXClassId = 0xBADB6906;
+
 void CountCall(Method m)
 {
     if (g_calls[static_cast<int>(m)].fetch_add(1, std::memory_order_relaxed) == 0)
@@ -259,15 +263,36 @@ public:
     ret name params qualifiers override                           \
     {                                                             \
         CountCall(Method::tag);                                   \
+        if constexpr (Method::tag == Method::GetGZCLSID)          \
+            MirrorFields();                                       \
         return inner_->name args;                                 \
     }
     OPENSC4_GDRIVER_METHODS(OPENSC4_FORWARD)
 #undef OPENSC4_FORWARD
 
+    // Copies the DirectX driver fields that ecosystem DLLs read by offset from
+    // the cIGZGDriver pointer to the same offsets in this object. render-services
+    // checks GetGZCLSID() == DirectX, then reads the driver's Direct3D helper
+    // at 0x24C (docs/renderer.md, "render-services"); refreshing on every
+    // GetGZCLSID keeps the copy current when it reads.
+    void MirrorFields() const
+    {
+        if (inner_->GetGZCLSID() != kDirectXClassId)
+            return;
+        auto* self = reinterpret_cast<unsigned char*>(const_cast<cIGZGDriver*>(static_cast<const cIGZGDriver*>(this)));
+        const auto* original = reinterpret_cast<const unsigned char*>(inner_);
+        std::memcpy(self + kD3DXOffset, original + kD3DXOffset, sizeof(void*));
+    }
+
 private:
+    static constexpr std::size_t kD3DXOffset = 0x24C;
+
     cIGZGDriver* inner_;
     std::atomic<uint32_t> refs_{0};
+    // Storage the mirrored offsets fall into (written only by MirrorFields).
+    [[maybe_unused]] unsigned char fieldMirror_[kD3DXOffset + sizeof(void*)] = {};
 };
+static_assert(sizeof(GDriverProxy) >= 0x24C + sizeof(void*), "the mirrored offsets must be inside the proxy");
 
 bool Install(registry::Mode)
 {
@@ -281,6 +306,7 @@ bool Install(registry::Mode)
     current->AddRef(); // released by the proxy
     auto* proxy = new GDriverProxy(current);
     proxy->AddRef(); // ours: the graphics system's reference counting of SetGDriver is unknown
+    proxy->MirrorFields();
     system->SetGDriver(proxy);
     if (system->GetGDriver() != proxy) {
         log::Write("gdriver proxy: SetGDriver did not take the proxy");
