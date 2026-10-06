@@ -11,7 +11,7 @@
 
 #include <d3d11.h>
 #include <d3dcompiler.h>
-#include <dxgi.h>
+#include <dxgi1_5.h>
 #include <wrl/client.h>
 
 #include <algorithm>
@@ -180,6 +180,9 @@ public:
     {
         if (context_)
             context_->ClearState();
+        if (frameReady_)
+            CloseHandle(frameReady_);
+        log::Write("d3d11: %u frames shown", shown_);
     }
 
     bool Init(HWND window, uint32_t width, uint32_t height) override
@@ -199,6 +202,10 @@ public:
         char debug[8];
         if (GetEnvironmentVariableA("OPENSC4_D3D11_DEBUG", debug, sizeof(debug)) && debug[0] == '1')
             flags |= D3D11_CREATE_DEVICE_DEBUG;
+        // The window shows at most one frame per vertical blank unless
+        // OPENSC4_D3D11_VSYNC=0 (then every Flush, as the stock drivers do).
+        char vsync[8];
+        syncInterval_ = GetEnvironmentVariableA("OPENSC4_D3D11_VSYNC", vsync, sizeof(vsync)) && vsync[0] == '0' ? 0 : 1;
         const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0};
         D3D_FEATURE_LEVEL level{};
         HRESULT hr = createDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, flags, levels, ARRAYSIZE(levels),
@@ -217,21 +224,57 @@ public:
         DXGI_ADAPTER_DESC adapterDesc{};
         adapter->GetDesc(&adapterDesc);
 
-        DXGI_SWAP_CHAIN_DESC desc{};
-        desc.BufferDesc.Width = width;
-        desc.BufferDesc.Height = height;
-        desc.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-        desc.SampleDesc.Count = 1;
-        desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        desc.BufferCount = 1;
-        desc.OutputWindow = window;
-        desc.Windowed = TRUE;
-        desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-        hr = factory->CreateSwapChain(device_.Get(), &desc, &swapChain_);
-        if (FAILED(hr)) {
-            log::Write("d3d11: CreateSwapChain failed (0x%08lX)", hr);
-            return false;
+        // A flip-model swap chain with a waitable object (Windows 8.1 and
+        // later), so presenting can be paced to the display without blocking
+        // the game; else the blt model, presenting on every Flush.
+        ComPtr<IDXGIFactory2> factory2;
+        factory.As(&factory2);
+        ComPtr<IDXGIFactory5> factory5;
+        BOOL tearing = FALSE;
+        if (SUCCEEDED(factory.As(&factory5)))
+            factory5->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &tearing, sizeof(tearing));
+        if (factory2) {
+            DXGI_SWAP_CHAIN_DESC1 desc1{};
+            desc1.Width = width;
+            desc1.Height = height;
+            desc1.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            desc1.SampleDesc.Count = 1;
+            desc1.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+            desc1.BufferCount = 2;
+            desc1.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+            desc1.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT |
+                          (tearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0);
+            ComPtr<IDXGISwapChain1> chain1;
+            if (SUCCEEDED(factory2->CreateSwapChainForHwnd(device_.Get(), window, &desc1, nullptr, nullptr, &chain1))) {
+                ComPtr<IDXGISwapChain2> chain2;
+                if (SUCCEEDED(chain1.As(&chain2))) {
+                    chain2->SetMaximumFrameLatency(1);
+                    frameReady_ = chain2->GetFrameLatencyWaitableObject();
+                }
+                chain1.As(&swapChain_);
+                tearing_ = tearing != FALSE;
+            }
         }
+        if (!swapChain_) {
+            DXGI_SWAP_CHAIN_DESC desc{};
+            desc.BufferDesc.Width = width;
+            desc.BufferDesc.Height = height;
+            desc.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            desc.SampleDesc.Count = 1;
+            desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+            desc.BufferCount = 1;
+            desc.OutputWindow = window;
+            desc.Windowed = TRUE;
+            desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+            hr = factory->CreateSwapChain(device_.Get(), &desc, &swapChain_);
+            if (FAILED(hr)) {
+                log::Write("d3d11: CreateSwapChain failed (0x%08lX)", hr);
+                return false;
+            }
+        }
+        log::Write("d3d11: %s swap chain, %s", frameReady_ ? "flip-model" : "blt-model",
+                   !syncInterval_ ? (tearing_ ? "every Flush shown at once (tearing allowed)" : "every Flush shown")
+                   : frameReady_ ? "paced to the display" : "every Flush shown, waiting for vertical sync");
         factory->MakeWindowAssociation(window, DXGI_MWA_NO_ALT_ENTER);
         swapChain_->GetBuffer(0, IID_PPV_ARGS(&swapBuffer_));
 
@@ -274,8 +317,46 @@ public:
     void Present() override
     {
         context_->CopyResource(front_.Get(), back_.Get());
-        context_->CopyResource(swapBuffer_.Get(), back_.Get());
-        swapChain_->Present(0, 0);
+        frontPending_ = true;
+        ShowFront();
+        LimitQueue();
+    }
+
+    // Keeps the CPU at most kQueuedFlushes flushes ahead of the GPU. When
+    // presenting is paced nothing else blocks, and the game would queue GPU
+    // work (and delay the frames it shows) without bound.
+    void LimitQueue()
+    {
+        ComPtr<ID3D11Query>& query = flushQueries_[flushQuery_];
+        flushQuery_ = (flushQuery_ + 1) % kQueuedFlushes;
+        if (query) {
+            while (context_->GetData(query.Get(), nullptr, 0, 0) == S_FALSE)
+                SwitchToThread();
+        } else {
+            const D3D11_QUERY_DESC desc{D3D11_QUERY_EVENT, 0};
+            if (FAILED(device_->CreateQuery(&desc, &query)))
+                return;
+        }
+        context_->End(query.Get());
+    }
+
+    // The front buffer goes to the window when the display can take a frame:
+    // the game flushes many times per view update (about 800 times a second),
+    // so waiting for vertical sync in Flush would starve its loop and the
+    // simulation with it. A frame that is not shown yet waits for the next
+    // Flush or ShowFront call.
+    bool ShowFront() override
+    {
+        if (!frontPending_)
+            return false;
+        const bool paced = syncInterval_ && frameReady_;
+        if (paced && WaitForSingleObject(frameReady_, 0) != WAIT_OBJECT_0)
+            return true;
+        context_->CopyResource(swapBuffer_.Get(), front_.Get());
+        swapChain_->Present(paced ? 1 : 0, !syncInterval_ && tearing_ ? DXGI_PRESENT_ALLOW_TEARING : 0);
+        frontPending_ = false;
+        ++shown_;
+        return false;
     }
 
     int32_t CreateRegion(Surface surface) override
@@ -316,8 +397,8 @@ public:
         const bool ok = CopyColor(region.color.Get(), SurfaceTexture(region.surface), source, target.x, target.y);
         if (ok && region.surface == FrontBuffer) {
             // The front buffer is what the window shows.
-            context_->CopyResource(swapBuffer_.Get(), front_.Get());
-            swapChain_->Present(0, 0);
+            frontPending_ = true;
+            ShowFront();
         }
         return ok;
     }
@@ -1034,6 +1115,13 @@ private:
     ComPtr<ID3D11Device> device_;
     ComPtr<ID3D11DeviceContext> context_;
     ComPtr<IDXGISwapChain> swapChain_;
+    HANDLE frameReady_ = nullptr; // flip model: signalled when the display can take another frame
+    bool tearing_ = false;
+    bool frontPending_ = false;
+    static constexpr uint32_t kQueuedFlushes = 3;
+    ComPtr<ID3D11Query> flushQueries_[kQueuedFlushes];
+    uint32_t flushQuery_ = 0;
+    uint32_t shown_ = 0;
     ComPtr<ID3D11Texture2D> swapBuffer_;
     ComPtr<ID3D11Texture2D> back_, front_, staging_;
     ComPtr<ID3D11RenderTargetView> backRtv_;
@@ -1050,6 +1138,7 @@ private:
     int32_t nextRegion_ = 1;
 
     // Drawing
+    UINT syncInterval_ = 1;
     ComPtr<ID3DBlob> vsCode_;
     ComPtr<ID3D11VertexShader> vsDraw_;
     ComPtr<ID3D11PixelShader> psSmooth_, psFlat_;

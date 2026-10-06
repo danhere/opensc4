@@ -89,8 +89,12 @@ public:
 
     // Clears `rect` of the buffers named by the kClear* bits in `mask`.
     virtual void Clear(const Rect& rect, uint32_t mask, const float color[4], float depth, uint8_t stencil) = 0;
-    // Back buffer to front buffer and window.
+    // Back buffer to front buffer, shown in the window as soon as the display
+    // can take it.
     virtual void Present() = 0;
+    // Shows a front buffer that Present could not show yet. Returns whether
+    // one is still waiting.
+    virtual bool ShowFront() = 0;
 
     // Buffer regions (BufferRegionExtension): surface-sized saved copies.
     virtual int32_t CreateRegion(Surface surface) = 0; // 0 on failure, else a handle from 1

@@ -380,8 +380,10 @@ public:
 
     void Flush() override
     {
-        if (backend_)
+        if (backend_) {
             backend_->Present();
+            KeepShowingFront();
+        }
         ++frames_;
     }
 
@@ -632,6 +634,14 @@ public:
 
     Backend* GetBackend() { return backend_.get(); }
 
+    // A frame the display could not take yet is shown from a timer, in case
+    // the game stops flushing (Backend::ShowFront).
+    void KeepShowingFront()
+    {
+        if (window_ && backend_ && backend_->ShowFront())
+            SetTimer(window_, kShowFrontTimer, USER_TIMER_MINIMUM, nullptr);
+    }
+
     // Draws vertices the dynamic buffers hold, with the current state.
     void DrawBuffered(uint32_t prim, uint32_t format, uint32_t stride, const uint8_t* vertices, uint32_t count,
                       const uint16_t* indices, uint32_t indexCount)
@@ -737,6 +747,11 @@ private:
             self = creating_;
         if (self && message == WM_ACTIVATEAPP)
             self->OnActivateApp(wParam != 0);
+        if (self && message == WM_TIMER && wParam == kShowFrontTimer) {
+            if (!self->backend_ || !self->backend_->ShowFront())
+                KillTimer(window, kShowFrontTimer);
+            return 0; // our timer: the game never sees it
+        }
         if (self && self->gameProc_)
             return CallWindowProcA(self->gameProc_, window, message, wParam, lParam);
         return DefWindowProcA(window, message, wParam, lParam);
@@ -850,6 +865,7 @@ private:
     }
 
     static inline Driver* creating_ = nullptr;
+    static constexpr UINT_PTR kShowFrontTimer = 0x05C40001;
 
     std::atomic<uint32_t> refs_{0};
     std::vector<Mode> modes_;
@@ -936,7 +952,9 @@ bool BufferRegions::DrawBufferRegion(int32_t region, int32_t x, int32_t y, int32
                                      int32_t regionX, int32_t regionY)
 {
     Backend* backend = driver_.GetBackend();
-    return backend && backend->DrawRegion(region, {x, y, width, height}, regionX, regionY);
+    const bool ok = backend && backend->DrawRegion(region, {x, y, width, height}, regionX, regionY);
+    driver_.KeepShowingFront();
+    return ok;
 }
 
 bool BufferRegions::IsBufferRegion(int32_t region)

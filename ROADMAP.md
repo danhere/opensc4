@@ -27,7 +27,7 @@ Output is a toolkit, not a game change. Everything later depends on it.
 - [x] Backend decision: D3D11 first (best Wine/DXVK path), behind an internal render interface so a Vulkan backend can follow (2026-10-05)
 - [~] D3D11 driver (`renderer.d3d11`, selected whenever on; [docs/renderer.md](docs/renderer.md), "D3D11 driver"): renders the city, with clouds too; matches the stock driver in all 20 screenshots, once it reported the same capabilities the game configures itself from (`Graphics Rules.sgr`). Full-screen modes change the display mode like the stock drivers (desktop-size full screen is borderless). Still to check: menus, region view, UI interaction. What every driver call means is documented from both stock drivers
 - [ ] Lift the hardware resolution cap (find the game-side cause of the >2048 px crash)
-- [ ] Windowed / borderless modes, frame pacing
+- [~] Windowed / borderless modes, frame pacing. Full-screen modes change the display mode, desktop-size full screen is borderless; the window shows at most one frame per refresh without slowing the game's loop or simulation ([docs/renderer.md](docs/renderer.md), "Frame pacing"). Still to do: check pacing at a real refresh rate, a settings switch instead of environment variables, and the game's redraw rate (CPU/GPU load)
 - [~] Screenshot-diff harness: fixed test cities x 5 zooms x 4 rotations. Working for one city (Making Money Tutorial) with fixed random seeds; animation still runs on real time, so comparisons use a small tolerance ([docs/renderer.md](docs/renderer.md), "Screenshot harness"). Still to do: more test cities
 - [ ] Coexists with or absorbs sc4-graphics-options
 
