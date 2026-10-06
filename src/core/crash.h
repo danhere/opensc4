@@ -24,6 +24,12 @@ void InstallHandler();
 //
 // in a function that has no objects with destructors (an SEH requirement); the
 // __except block never runs.
+//
+// SEH rule (clang-cl, 32-bit x86): __try reliably covers faults raised in
+// functions called from the block, not faults raised by instructions directly
+// inside it, even with /EHa. Keep anything that may fault in a separate,
+// non-inlined function (tests/seh_test.cpp). Prefer not faulting at all, for
+// example checking memory with VirtualQuery before reading it.
 int HookFilter(const char* hook, EXCEPTION_POINTERS* exception);
 
 } // namespace opensc4::crash

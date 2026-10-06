@@ -61,6 +61,7 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 - SimCity 4 catches crashes in its main loop with its own `__except` handler (it installs no top-level filter) and writes `SimCity Exception Report …txt` plus a minidump to the **real** `Documents\SimCity 4\Exception Reports`, even under `-UserDir`.
 - `core.dll` adds (`src/core/crash.h`): a first-chance handler that logs any fatal exception raised in OpenSC4's own code and writes `opensc4-crash-<time>-<pid>.dmp` next to `opensc4.log` before the game's handler runs; a top-level filter for crashes nothing else catches; and a guard for hook entry points that logs which hook an exception passed through. Dumps use the system `dbghelp.dll`, not the XP-era copy in the game folder.
 - `OPENSC4_TEST_CRASH=1` makes an autotest run crash on purpose inside a guarded section, to check the whole chain.
+- With clang-cl on 32-bit x86, `__try` reliably catches only faults raised in functions called from the block. A fault raised directly inside the block (a bad pointer read written inline) was not caught with `/EHsc` or `/EHa` at `/O2`, and only sometimes at `/Od`; the process died. The hook guards wrap calls, so they are fine. Keep anything that may fault in a separate non-inlined function, or check memory with `VirtualQuery` first. `tests/seh_test.cpp` checks the supported pattern.
 
 ## Ghidra
 

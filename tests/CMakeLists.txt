@@ -18,6 +18,11 @@ target_link_libraries(opensc4_crash_test PRIVATE opensc4_core_support)
 add_test(NAME crash_handling COMMAND opensc4_crash_test)
 set_tests_properties(crash_handling PROPERTIES PASS_REGULAR_EXPRESSION "crash test OK")
 
+add_executable(opensc4_seh_test seh_test.cpp)
+target_link_libraries(opensc4_seh_test PRIVATE opensc4_options)
+add_test(NAME seh_pattern COMMAND opensc4_seh_test)
+set_tests_properties(seh_pattern PROPERTIES PASS_REGULAR_EXPRESSION "seh test OK")
+
 add_executable(opensc4_registry_test registry_test.cpp)
 target_link_libraries(opensc4_registry_test PRIVATE opensc4_core_support)
 add_test(NAME replacement_registry COMMAND opensc4_registry_test)
