@@ -671,12 +671,19 @@ public:
     }
     float Scale() const { return scale_; }
 
-    // A frame the display could not take yet is shown from a timer, in case
-    // the game stops flushing (Backend::ShowFront).
+    // The front buffer is shown when the game's main loop next handles
+    // window messages, between its passes: a Flush can come in the middle of
+    // a redraw (the 3D view's saved image restored, the changes not drawn
+    // yet), and showing that one for a whole refresh flashes an older picture.
+    // The stock drivers show every Flush at once, so such images last only
+    // microseconds there. A frame the display cannot take yet is retried from
+    // a timer.
     void KeepShowingFront()
     {
-        if (window_ && backend_ && backend_->ShowFront())
-            SetTimer(window_, kShowFrontTimer, USER_TIMER_MINIMUM, nullptr);
+        if (window_ && backend_ && !showPosted_) {
+            showPosted_ = true;
+            PostMessageA(window_, kShowFrontMessage, 0, 0);
+        }
     }
 
     // Draws vertices the dynamic buffers hold, with the current state.
@@ -798,6 +805,12 @@ private:
             self = creating_;
         if (self && message == WM_ACTIVATEAPP)
             self->OnActivateApp(wParam != 0);
+        if (self && message == kShowFrontMessage) {
+            self->showPosted_ = false;
+            if (self->backend_ && self->backend_->ShowFront())
+                SetTimer(window, kShowFrontTimer, USER_TIMER_MINIMUM, nullptr);
+            return 0; // ours: the game never sees it
+        }
         if (self && message == WM_TIMER && wParam == kShowFrontTimer) {
             if (!self->backend_ || !self->backend_->ShowFront())
                 KillTimer(window, kShowFrontTimer);
@@ -942,6 +955,8 @@ private:
 
     static inline Driver* creating_ = nullptr;
     static constexpr UINT_PTR kShowFrontTimer = 0x05C40001;
+    static constexpr UINT kShowFrontMessage = WM_APP + 0x5C4;
+    bool showPosted_ = false;
 
     std::atomic<uint32_t> refs_{0};
     std::vector<Mode> modes_;

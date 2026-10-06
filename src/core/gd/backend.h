@@ -93,11 +93,11 @@ public:
 
     // Clears `rect` of the buffers named by the kClear* bits in `mask`.
     virtual void Clear(const Rect& rect, uint32_t mask, const float color[4], float depth, uint8_t stencil) = 0;
-    // Back buffer to front buffer, shown in the window as soon as the display
-    // can take it.
+    // Back buffer to front buffer. Shown at once when frames are not paced;
+    // else the driver calls ShowFront when the game's frame is complete.
     virtual void Present() = 0;
-    // Shows a front buffer that Present could not show yet. Returns whether
-    // one is still waiting.
+    // Shows the front buffer if one is waiting and the display can take it.
+    // Returns whether one is still waiting.
     virtual bool ShowFront() = 0;
 
     // Buffer regions (BufferRegionExtension): surface-sized saved copies.

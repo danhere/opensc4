@@ -318,7 +318,8 @@ public:
     {
         context_->CopyResource(front_.Get(), back_.Get());
         frontPending_ = true;
-        ShowFront();
+        if (!syncInterval_)
+            ShowFront(); // every Flush at once, as the stock drivers do
         LimitQueue();
         LogRates();
     }
@@ -423,7 +424,8 @@ public:
         if (ok && region.surface == FrontBuffer) {
             // The front buffer is what the window shows.
             frontPending_ = true;
-            ShowFront();
+            if (!syncInterval_)
+                ShowFront();
         }
         return ok;
     }
