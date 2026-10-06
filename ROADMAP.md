@@ -28,7 +28,7 @@ Output is a toolkit, not a game change. Everything later depends on it.
 - [~] D3D11 driver (`renderer.d3d11`, selected whenever on; [docs/renderer.md](docs/renderer.md), "D3D11 driver"): renders the city, with clouds too; matches the stock driver in all 20 screenshots, once it reported the same capabilities the game configures itself from (`Graphics Rules.sgr`). Full-screen modes change the display mode like the stock drivers (desktop-size full screen is borderless). Menus, the region view and UI interaction (clicks, tooltips, wheel, edge scrolling, dragging, zoning) checked unattended with synthesized input; that found and fixed swapped buffer-region arguments, which broke scrolling. What every driver call means is documented from both stock drivers. Still to do: a longer hands-on play session
 - [x] Lift the hardware resolution cap. The >2048 px crash is in the stock DirectX driver (its device setup fails and it then writes through a null pointer); the D3D11 driver runs 3440x1440 ([docs/renderer.md](docs/renderer.md), "Resolutions")
 - [x] Windowed / borderless modes, frame pacing. Full-screen modes change the display mode, desktop-size full screen is borderless; the window shows at most one frame per refresh without slowing the game's loop or simulation; settings in `opensc4.ini` `[renderer]` ([docs/renderer.md](docs/renderer.md), "Frame pacing"). Measured: the game redraws a running city only about 15 times a second at speed 2, and its loop never sleeps (a CPU core busy even when paused, as with the stock driver); both are game-loop matters, left for later
-- [~] Screenshot-diff harness: fixed test cities x 5 zooms x 4 rotations. Working for one city (Making Money Tutorial) with fixed random seeds; animation still runs on real time, so comparisons use a small tolerance ([docs/renderer.md](docs/renderer.md), "Screenshot harness"). Still to do: more test cities
+- [x] Screenshot-diff harness: fixed test cities x 5 zooms x 4 rotations. Three tutorial cities (small town, dense downtown, highways) with fixed random seeds, one command for all ([scripts/run-shots-all.sh](scripts/run-shots-all.sh)); animation still runs on real time, so comparisons use a small tolerance. The D3D11 driver matches stock in all 60 shots ([docs/renderer.md](docs/renderer.md), "Screenshot harness")
 - [~] Coexists with or absorbs sc4-graphics-options. Absorbed with the D3D11 driver: driver choice, resolution and window mode without the command line (`opensc4.ini` `[renderer]`), borderless full screen, 32-bit colour. Not renderer work: its intro and pause-on-focus-loss switches. Its "force draw on scroll" render properties are untested with the D3D11 driver. Running both together not tried
 
 ## P2: UI scaling and input
@@ -39,8 +39,10 @@ Output is a toolkit, not a game change. Everything later depends on it.
 
 ## P3: Resource manager / DBPF
 
-- [ ] Our DBPF loader with exact plugin override precedence
-- [ ] Faster loading, conflict and override diagnostics
+- [x] Survey ([docs/resources.md](docs/resources.md)): segment order and override rules measured in the running game (`diagnostics.dbpf_survey`); on the vanilla game building all segments takes under 40 ms, so loading speed only matters with large plugin folders
+- [ ] Our DBPF reader (format, index, compression) as a tested library; also the base for P4, since saved cities are DBPF files
+- [ ] Our DBPF loader with exact plugin override precedence (top level: first segment wins; inside a folder: last file wins, top-level files before subfolders, alphabetical)
+- [ ] Faster loading, conflict and override diagnostics (pays off with mods; absorbs sc4-dbpf-loading)
 - [ ] Coordinate with existing DBPF-loading DLLs
 
 ## P4: Save format and determinism (gate before any simulator work)
