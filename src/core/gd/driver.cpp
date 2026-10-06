@@ -1595,7 +1595,7 @@ void __fastcall SelectGraphicsDriver(void* app, void* edx, bool selectDriver)
     log::Write("d3d11 driver: selected in place of the saved driver choice %u", saved);
 }
 
-// [renderer] scale_city = no: only the interface is enlarged. The camera
+// [renderer] scale_city = no (the default): only the interface is enlarged. The camera
 // builds its orthographic box from pixels per tile (0x007CBE40), so dividing
 // its fine zoom factor by the scale while it does makes each game pixel cover
 // scale times as much of the city; the driver draws the city at the physical
@@ -1620,7 +1620,7 @@ bool Register(registry::Mode)
     // Before the game measures the screen for its window layer.
     if (RenderScale() != 1.0f)
         InstallImportWrappers(RenderScale());
-    if (RenderScale() != 1.0f && !settings::GetBool("renderer", "scale_city", true)) {
+    if (RenderScale() != 1.0f && !settings::GetBool("renderer", "scale_city", false)) {
         const addr::Entry* projection = addr_check::Find(addr::cSC4CameraControl_UpdateProjection);
         if (projection && hook::Install(*projection, &UpdateProjection, &g_updateProjection))
             log::Write("d3d11 driver: the city keeps its full-resolution size; only the interface is enlarged");

@@ -23,7 +23,7 @@ Work: the driver keeps a full-size back buffer and scales everything the game ex
 
 A is a strict subset of B's work: the driver scaling and the input translation are needed by both. B adds the game-side hooks for the 3D view.
 
-## The city at full size (option B, prototype, 2026-10-06)
+## The city at full size (option B, the default since 2026-10-06)
 
 B turned out much smaller than feared, because it can sit on top of A instead of beside it. With A, the game already lives in a smaller pixel space and the driver draws the city at the physical size; only the camera decides how much of the city a game pixel covers. That is one function, the city camera's projection setup (`cSC4CameraControl::UpdateProjection`, our name, 0x007CBE40):
 
@@ -31,7 +31,7 @@ B turned out much smaller than feared, because it can sit on top of A instead of
 - it stores metres per pixel (this+0x134) and pixels per metre (this+0x138), and sets the orthographic box to the view's size in pixels (this+0x12C, this+0x130) times metres per pixel (0x007FF2E0);
 - the table is read nowhere else, and the function is called from the zoom setters (0x007CD6E0, 0x007CDC50).
 
-`[renderer] scale_city = no` (with a scale above 1) wraps that function: it divides the fine zoom factor by the scale for the duration of the call and puts it back afterwards, so each game pixel covers scale times as much of the city. The city then comes out at the stock game's full-resolution size (a zoom-5 tile is 145 physical pixels wide; stock: 146), while the interface stays enlarged as with A. Everything that goes through what the camera stores follows on its own.
+With a scale above 1, the driver wraps that function (`[renderer] scale_city = yes` turns this off and gives option A's enlarged city): it divides the fine zoom factor by the scale for the duration of the call and puts it back afterwards, so each game pixel covers scale times as much of the city. The city then comes out at the stock game's full-resolution size (a zoom-5 tile is 145 physical pixels wide; stock: 146), while the interface stays enlarged as with A. Everything that goes through what the camera stores follows on its own.
 
 Checked unattended at 3440x1440, scale 1.5 (the game sees 2293x960):
 
@@ -43,7 +43,7 @@ Not covered, or different:
 
 - **The region view** has its own camera and is still drawn as with A (enlarged). Finding its projection is the next step if it should match.
 - Text and interface images are still the scaled-up 1x art (see "Interface images" below); crisp text needs the fonts drawn at the larger size.
-- Not tried yet: placing things (zoning, roads, lots), the other 3D views in panels, performance in a big city (the screen shows 2.25 times as much city at 1.5), and how scrolling speed feels.
+- Zoning lands where dragged: a residential zone dragged between two screen points starts and ends on the tiles under the cursor, with its street. Not tried yet: the other 3D views in panels, performance in a big city (the screen shows 2.25 times as much city at 1.5), and how scrolling speed feels.
 
 
 ## Render scale (option A, implemented 2026-10-06)
