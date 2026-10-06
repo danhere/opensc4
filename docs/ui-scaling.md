@@ -1,0 +1,24 @@
+# UI scaling (P2)
+
+The game draws its interface at its original pixel size, so it gets smaller as screens get bigger: at 3440x1440 the control panel and text are about a third of the size they were designed for on 1024x768. This document records how the game draws and positions its interface and the options for scaling it.
+
+## How the game draws (survey, 2026-10-06)
+
+A draw count by projection, viewport and calling function in the test city (D3D11 driver, 1024x768):
+
+- **Interface panels** all draw through one function (the call returning to 0x00993242). Each window draws with the viewport set to its own screen rectangle (buttons 68x30, the tutorial dialog 768x600) and a pixel-exact orthographic projection for that size, y pointing down. So the driver can tell interface draws apart from the city.
+- **The city** is drawn by other callers (returns to 0x007D29BB, 0x007D29E5, 0x007D2A09, 0x007D4B1C) and the terrain through the dynamic vertex buffers, with the full-screen viewport and the camera's orthographic projection.
+- **Full-screen 2D** from 0x007AA0AF: a pixel projection over the whole screen (about 120,000 draws in 15 s), presumably overlays drawn over the city view.
+- **A second 3D view** inside a panel (508x358, its own projection), presumably a preview or the map.
+
+The window system (gzcom-dll's `cIGZWin`, `cIGZWinMgr`, `cISC4View3DWin`): windows have areas in screen pixels (`GetArea`, `SetArea`, `SetSize`) inside their parent; the window manager owns a canvas, finds windows under a point (`GetWindowFromPoint`), and takes mouse input through one entry point, `GZWinMsgPost_Mouse(message, x, z, flags)`, plus `GetCursorScreenPosition` and `SetCursorPosition`. The 3D view window picks terrain and occupants from screen coordinates (`PickTerrain`, `PickOccupant`). The game also calls `GetCursorPos`/`ScreenToClient` (0x0098AF00) and `SetCursorPos`/`ClientToScreen` (0x005C4480, 0x009DA9A4) itself.
+
+## Options
+
+**A. Render scale** (the roadmap's interim item). The game runs at the screen size divided by a scale factor (3440x1440 / 1.5 = 2293x960) and the D3D11 driver draws it at the full size. Everything gets bigger: interface, text and city. The city is drawn at full resolution (its projections do not depend on pixel size), so edges stay sharp; interface images and text are scaled up and a little soft. The visible part of the city is what a 2293x960 screen shows.
+
+Work: the driver keeps a full-size back buffer and scales everything the game expresses in pixels (viewports, clears, buffer regions, front-buffer reads and snapshots, which go back to the game at its size); the mode list offers the scaled sizes; mouse messages are divided by the factor in the driver's window procedure, and the game's own `GetCursorPos`, `SetCursorPos`, `ClientToScreen` and `ScreenToClient` calls are translated (import hooks). Days, and every piece is plain driver or Win32 work.
+
+**B. Interface-only scaling** (the roadmap's "proper" item). The city view keeps the full resolution and visible area; only the panels grow. The driver side is the same as A, applied only to interface draws (which it can recognise, see above). The game side needs the 3D view to render and pick at the full size while the window system lays panels out at the scaled size: the view window's size as the renderer and camera see it, its picking coordinates, and the mouse coordinates it receives would all be scaled. That means reverse engineering how `cISC4View3DWin` passes its size to the renderer and camera and how the full-screen 2D overlays relate to it. Weeks, with the size uncertain until that is understood.
+
+A is a strict subset of B's work: the driver scaling and the input translation are needed by both. B adds the game-side hooks for the 3D view.
