@@ -3,6 +3,7 @@
 #include "core/crash.h"
 #include "core/log.h"
 #include "core/pollution_proxy.h"
+#include "core/virtual_clock.h"
 
 #include <GZServPtrs.h>
 #include <SC4List.h>
@@ -270,14 +271,25 @@ private:
             return;
         }
         const int speed = EnvInt("OPENSC4_TEST_SPEED", 2);
+        const bool noTime = Env("OPENSC4_TEST_DAYS") == "0";
         bool speedSet = false;
         if (sim) {
             speedSet = sim->SetSimSpeed(speed);
-            sim->Resume();
+            if (noTime)
+                sim->Pause(); // no simulation time at all, not even one tick
+            else
+                sim->Resume();
         }
         runSeconds_ = EnvInt("OPENSC4_TEST_SECONDS", 180);
-        log::Write("autotest: running for %d s at speed %d (SetSimSpeed %s)", runSeconds_, speed,
-                   speedSet ? "ok" : "refused");
+        runDays_ = Env("OPENSC4_TEST_DAYS").empty() ? -1 : EnvInt("OPENSC4_TEST_DAYS", 0);
+        if (runDays_ >= 0 && sim) {
+            endDay_ = sim->GetSimDateNumber() + runDays_;
+            log::Write("autotest: running %d game days, day %d to %d, at speed %d (SetSimSpeed %s)", runDays_,
+                       sim->GetSimDateNumber(), endDay_, speed, speedSet ? "ok" : "refused");
+        } else {
+            log::Write("autotest: running for %d s at speed %d (SetSimSpeed %s)", runSeconds_, speed,
+                       speedSet ? "ok" : "refused");
+        }
         Enter(State::Running, now);
         lastReport_ = 0;
         Report(app);
@@ -299,11 +311,35 @@ private:
             log::Write("autotest: crashing on purpose (OPENSC4_TEST_CRASH=1)");
             CrashOnPurpose();
         }
-        if (now - stateStart_ >= static_cast<ULONGLONG>(runSeconds_) * 1000) {
+        cISC4Simulator* sim = app->GetCity()->GetSimulator();
+        const bool done = runDays_ >= 0 ? sim && sim->GetSimDateNumber() >= endDay_
+                                        : now - stateStart_ >= static_cast<ULONGLONG>(runSeconds_) * 1000;
+        if (done) {
+            if (sim)
+                sim->Pause();
             Report(app);
-            log::Write("autotest: run finished; quitting without saving");
+            if (sim)
+                log::Write("autotest: stopped at day %d, sim time %d, after %llu ms", sim->GetSimDateNumber(),
+                           sim->GetSimTime(), now - stateStart_);
+            if (Env("OPENSC4_TEST_SAVE") == "1")
+                SaveInPlace(app);
+            else
+                log::Write("autotest: run finished; quitting without saving");
             Quit(app);
         }
+    }
+
+    // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,
+    // 0x00455E20) is no way to save a copy elsewhere: given a path outside the
+    // region it still rewrote the city's own file and six neighbours (why is
+    // not understood yet). So save in place, like the game's Save.
+    void SaveInPlace(cISC4App* app)
+    {
+        virtual_clock::ReturnToRealTime();
+        const ULONGLONG start = GetTickCount64();
+        const bool saved = app->SaveCity(false);
+        log::Write("autotest: run finished; SaveCity %s after %llu ms; quitting", saved ? "ok" : "FAILED",
+                   GetTickCount64() - start);
     }
 
     // Every zoom (1-5) at every rotation (0-3): set the view, wait for it to
@@ -391,6 +427,8 @@ private:
     ULONGLONG stateStart_ = GetTickCount64();
     ULONGLONG lastReport_ = 0;
     int runSeconds_ = 180;
+    int runDays_ = -1; // OPENSC4_TEST_DAYS; -1: run for runSeconds_
+    int endDay_ = 0;
     std::string shotDir_;
     int settleMs_ = 3000;
     int shot_ = -1;

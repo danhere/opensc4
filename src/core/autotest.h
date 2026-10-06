@@ -18,6 +18,15 @@
 //                         z<zoom>-r<rotation>.png, then quit. The camera
 //                         starts where the save left it, so runs line up.
 //                         Compare runs with tools/shotdiff.py.
+//   OPENSC4_TEST_DAYS     game days to run instead of real seconds: once the
+//                         simulation's day number reaches the start day plus
+//                         this, pause it (0: right after loading, before any
+//                         simulation time passes)
+//   OPENSC4_TEST_SAVE     "1": when the run ends, save the city in place, as
+//                         the game's own Save does, then quit. This rewrites
+//                         the city's file and its neighbours' in the region,
+//                         so use it only in a disposable user folder
+//                         (scripts/run-save-test.sh). P4 determinism tests.
 //   OPENSC4_TEST_SHOT_SETTLE  milliseconds to wait after changing the view
 //                         before saving the frame (default 3000)
 //   OPENSC4_TEST_PRELOAD  DLLs to load (full paths, separated by ';') when
