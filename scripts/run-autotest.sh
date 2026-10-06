@@ -17,6 +17,8 @@
 # See src/core/autotest.h for the OPENSC4_TEST_* variables. Defaults here:
 # OPENSC4_TEST_CITY="Making Money Tutorial", OPENSC4_TEST_SECONDS=60.
 # OPENSC4_GAME_ARGS adds game command-line options, e.g. "-d:OpenGL".
+# With OPENSC4_REPLACE containing renderer.d3d11=ours, -d:OpenGL is added
+# (OpenSC4's driver takes over the OpenGL driver's class ID).
 set -euo pipefail
 
 build="${1:?usage: run-autotest.sh <build dir> [VAR=value...]}"
@@ -31,6 +33,10 @@ user_sc4="$(cygpath "$USERPROFILE")/Documents/SimCity 4"
 testenv="${OPENSC4_TESTENV:-$(cygpath "$LOCALAPPDATA")/opensc4/testenv/userdir}"
 region="${OPENSC4_TEST_REGION:-Timbuktu}"
 timeout_s="${OPENSC4_TEST_TIMEOUT:-600}"
+
+case "${OPENSC4_REPLACE:-}" in
+    *renderer.d3d11=ours*) case "${OPENSC4_GAME_ARGS:-}" in *-d:*) ;; *) OPENSC4_GAME_ARGS="${OPENSC4_GAME_ARGS:-} -d:OpenGL" ;; esac ;;
+esac
 
 export OPENSC4_TEST_CITY="${OPENSC4_TEST_CITY:-Making Money Tutorial}"
 export OPENSC4_TEST_SECONDS="${OPENSC4_TEST_SECONDS:-60}"

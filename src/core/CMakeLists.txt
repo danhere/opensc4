@@ -6,6 +6,7 @@ add_library(opensc4_core_support STATIC
   coverage.cpp
   crash.cpp
   game.cpp
+  gd/pixels.cpp
   gd/vertex_format.cpp
   hook.cpp
   interface_counter.cpp

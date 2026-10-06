@@ -7,7 +7,7 @@
 // buffer and the window. Rectangles are pixels with a top-left origin.
 #pragma once
 
-#include "core/gd/gd.h"
+#include "core/gd/gd_types.h"
 
 #include <windows.h>
 
@@ -21,6 +21,60 @@ struct Rect {
     int32_t y;
     int32_t width;
     int32_t height;
+};
+
+constexpr uint32_t kMaxStages = 8;
+
+// One texture stage, as the driver hands it to the backend for a draw.
+struct StageDesc {
+    bool enabled = false;
+    uint32_t texture = 0; // backend handle
+    uint32_t envMode = 1; // eGDTextureEnvParam (modulate)
+    Combiner combiner{};
+    uint32_t texCoord = 0; // TexStageCoord: set | generation
+    bool hasMatrix = false;
+    float matrix[16]{}; // GL layout
+    uint32_t params[4] = {Nearest, Nearest, Repeat, Repeat}; // TextureParam -> TextureParamValue
+};
+
+// The fixed-function state a draw uses. Matrices in GL layout; viewport in
+// top-left pixels.
+struct DrawState {
+    float modelView[16];
+    float projection[16];
+    Rect viewport;
+    bool enabled[8]; // eGDCapability (texturing is per stage instead)
+    uint32_t depthFunc;
+    bool depthMask;
+    uint32_t stencilFunc, stencilRef, stencilReadMask, stencilWriteMask;
+    uint32_t stencilOps[3]; // fail, depth fail, pass
+    uint32_t blendSrc, blendDst;
+    uint32_t alphaFunc;
+    float alphaRef;
+    uint32_t shadeModel;
+    int32_t polygonOffset;
+    bool lighting; // ColorMultiplier/AlphaMultiplier have been called
+    float colorMultiplier[4]; // ambient light colour, and the material's diffuse alpha
+    bool vertexColors;        // ambient material from the vertex colour (else white)
+    bool diffuseFromVertex;   // diffuse material, hence alpha, from the vertex colour (else the material)
+    float textureFactor[4];
+    uint32_t fogMode;
+    float fogColor[4];
+    float fogDensity, fogStart, fogEnd;
+    uint32_t stageCount;
+    StageDesc stages[kMaxStages];
+};
+
+// The vertices and indices of a draw. `indices` null: vertices [first, first + count).
+struct DrawCall {
+    uint32_t primitive;
+    uint32_t vertexFormat;
+    uint32_t vertexStride;
+    const uint8_t* vertices;
+    uint32_t first;
+    uint32_t count; // vertices, or indices
+    const void* indices;
+    uint32_t indexType; // DataType: UnsignedByte, UnsignedShort or UnsignedInt
 };
 
 class Backend {
@@ -46,6 +100,15 @@ public:
 
     // Reads `rect` of the front buffer as 32-bit BGRA (A8R8G8B8) rows.
     virtual bool ReadFront(const Rect& rect, uint8_t* pixels, uint32_t pitch) = 0;
+
+    // Textures: handles from 1, 0 on failure.
+    virtual uint32_t CreateTexture(uint32_t format, uint32_t width, uint32_t height, uint32_t levels) = 0;
+    virtual void DeleteTexture(uint32_t texture) = 0;
+    // `rowLength` in pixels, 0 for `width`.
+    virtual void UploadTexture(uint32_t texture, uint32_t level, int32_t x, int32_t y, int32_t width, int32_t height,
+                               uint32_t format, uint32_t type, uint32_t rowLength, const void* pixels) = 0;
+
+    virtual void Draw(const DrawState& state, const DrawCall& call) = 0;
 };
 
 std::unique_ptr<Backend> CreateD3D11Backend();
