@@ -3,6 +3,7 @@
 #include "core/log.h"
 
 #include <windows.h>
+#include <tlhelp32.h>
 
 #include <cstdio>
 #include <cstring>
@@ -96,6 +97,29 @@ int LogManifest()
     }
     log::Write("manifest: %d of %d address database entries intact", checked - mismatches, checked);
     return mismatches;
+}
+
+void LogModules()
+{
+    wchar_t windows[MAX_PATH];
+    const UINT windowsLength = GetSystemWindowsDirectoryW(windows, MAX_PATH);
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId());
+    if (snapshot == INVALID_HANDLE_VALUE) {
+        log::Write("manifest: could not list modules (error %lu)", GetLastError());
+        return;
+    }
+    MODULEENTRY32W module{};
+    module.dwSize = sizeof(module);
+    int listed = 0;
+    for (BOOL more = Module32FirstW(snapshot, &module); more; more = Module32NextW(snapshot, &module)) {
+        if (windowsLength && _wcsnicmp(module.szExePath, windows, windowsLength) == 0)
+            continue; // Windows' own DLLs
+        log::Write("manifest: module %08X %ls", static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(module.modBaseAddr)),
+                   module.szExePath);
+        ++listed;
+    }
+    CloseHandle(snapshot);
+    log::Write("manifest: %d modules outside the Windows folder", listed);
 }
 
 } // namespace opensc4::addr_check

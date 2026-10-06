@@ -33,6 +33,8 @@ public:
             opensc4::log::Write("director: not SimCity 4 1.1.641; no replacements");
             return;
         }
+        if (opensc4::autotest::Enabled())
+            opensc4::autotest::PreloadLibraries();
         g_initializing = this;
         opensc4::registry::Apply(opensc4::registry::Phase::DirectorInit);
         g_initializing = nullptr;
@@ -71,6 +73,7 @@ public:
             return true;
         opensc4::crash::InstallHandler(); // after the game's own filter, which it chains to
         opensc4::addr_check::LogManifest();
+        opensc4::addr_check::LogModules();
         opensc4::registry::Apply(opensc4::registry::Phase::PostAppInit);
         opensc4::registry::Apply(opensc4::registry::Phase::LateInit);
         if (opensc4::autotest::Enabled())

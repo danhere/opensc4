@@ -12,6 +12,12 @@
 //                         other value (0x00702430).
 //   OPENSC4_TEST_CRASH    "1": once the city is running, crash on purpose inside
 //                         a guarded section, to test the crash handler chain
+//   OPENSC4_TEST_PRELOAD  DLLs to load (full paths, separated by ';') when
+//                         core.dll's director is created, before the game loads
+//                         later plugins. For plugin dependencies that installers
+//                         put in the game's Apps folder, such as imgui.dll for
+//                         render-services: Steam's launch rebuilds PATH, so
+//                         PATH cannot supply them.
 #pragma once
 
 namespace opensc4::autotest {
@@ -20,5 +26,8 @@ bool Enabled();
 
 // Call from the director's PostAppInit hook.
 void Start();
+
+// Loads OPENSC4_TEST_PRELOAD. Call when the director is created.
+void PreloadLibraries();
 
 } // namespace opensc4::autotest

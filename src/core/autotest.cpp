@@ -254,6 +254,27 @@ bool Enabled()
     return !Env("OPENSC4_TEST_CITY").empty();
 }
 
+void PreloadLibraries()
+{
+    const std::string list = Env("OPENSC4_TEST_PRELOAD");
+    std::size_t start = 0;
+    while (start < list.size()) {
+        std::size_t end = list.find(';', start);
+        if (end == std::string::npos)
+            end = list.size();
+        const std::string path = list.substr(start, end - start);
+        start = end + 1;
+        if (path.empty())
+            continue;
+        HMODULE module = LoadLibraryA(path.c_str());
+        const DWORD error = module ? 0 : GetLastError();
+        if (module)
+            log::Write("autotest: preloaded %s", path.c_str());
+        else
+            log::Write("autotest: could not preload %s (error %lu)", path.c_str(), error);
+    }
+}
+
 void Start()
 {
     cIGZFrameWork* framework = RZGetFrameWork();

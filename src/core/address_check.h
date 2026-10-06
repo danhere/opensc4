@@ -22,4 +22,8 @@ std::string DescribeMismatch(std::uintptr_t address, const unsigned char* expect
 // loaded (their patches are applied by then).
 int LogManifest();
 
+// Logs every loaded module outside the Windows folder: the game, its own DLLs,
+// plugin DLLs and injectors (ReShade, ...). For bug reports.
+void LogModules();
+
 } // namespace opensc4::addr_check
