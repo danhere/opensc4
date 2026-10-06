@@ -42,10 +42,25 @@ int g_reports = 0;
 std::atomic<bool> g_real{false};
 int64_t g_offset = 0;
 
+// OPENSC4_VCLOCK_ALL_THREADS=1: every other thread gets its own virtual
+// counter too, starting from the real value on its first call.
+bool g_allThreads = false;
+thread_local int64_t t_virtual = 0;
+
 BOOL WINAPI VirtualQpc(LARGE_INTEGER* count)
 {
-    if (GetCurrentThreadId() != g_mainThread)
-        return g_realQpc(count);
+    if (GetCurrentThreadId() != g_mainThread) {
+        if (!g_allThreads)
+            return g_realQpc(count);
+        if (t_virtual == 0) {
+            LARGE_INTEGER now;
+            g_realQpc(&now);
+            t_virtual = now.QuadPart;
+        }
+        t_virtual += g_step;
+        count->QuadPart = t_virtual;
+        return TRUE;
+    }
     if (g_real) {
         const BOOL ok = g_realQpc(count);
         count->QuadPart += g_offset;
@@ -95,11 +110,14 @@ bool Install(registry::Mode)
     g_step = frequency.QuadPart * stepUs / 1000000;
     g_virtual = now.QuadPart;
     g_mainThread = GetCurrentThreadId();
+    const char* all = std::getenv("OPENSC4_VCLOCK_ALL_THREADS");
+    g_allThreads = all && all[0] == '1';
     if (!iat::Patch(nullptr, "KERNEL32.dll", "QueryPerformanceCounter", &VirtualQpc, &g_realQpc)) {
         log::Write("virtual_clock: the exe does not import QueryPerformanceCounter");
         return false;
     }
-    log::Write("virtual_clock: main thread %lu, %lld us per call (%lld counter ticks)", g_mainThread,
+    log::Write("virtual_clock: main thread %lu%s, %lld us per call (%lld counter ticks)", g_mainThread,
+               g_allThreads ? " and all other threads" : "",
                static_cast<long long>(stepUs), static_cast<long long>(g_step));
     return true;
 }

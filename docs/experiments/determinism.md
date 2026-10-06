@@ -32,4 +32,25 @@ ROADMAP P4's first item: if two runs of the same city from the same save do not 
 - **Threads:** `-CPUcount:1` made no difference. Other threads still see real time.
 - **Left to test:** other time sources (`clock()`, `time()`, `GetLocalTime`, `GetSystemTimeAsFileTime`, stopwatches in `rdtsc` mode, which an import hook cannot see; the automata's animation time); the traffic simulator's own scheduling; and heap addresses: if the simulation processes objects in address order (the zero-day saves show address-ordered containers), the outcome can depend on where the heap put things, which differs on every run. Controlling that means a deterministic allocator behind the game's `operator new`.
 
-Tooling from this experiment: `opensc4-dbpf diff`, `tools/re/savediff.py`, `scripts/run-save-test.sh`, `OPENSC4_TEST_DAYS`/`OPENSC4_TEST_SAVE` in the autotest, `determinism.virtual_clock`. Saves are kept in `%LOCALAPPDATA%\opensc4\analysis\p4`.
+## Second round: daily fingerprints (2026-10-06)
+
+The save diff turned out too noisy to bisect with: the address-matching heuristic left 7 to 20 records unexplained for setups that should behave alike. So the autotest got a **daily fingerprint** (`OPENSC4_TEST_FINGERPRINT=1`): every game day it logs population, funds, lot count and checksums of the traffic (congestion, trip length, commercial, air-polluting), land value and pollution grids, read through the game's interfaces. Numbers, so heap layout does not matter. [tools/re/fpdiff.py](../../tools/re/fpdiff.py) compares two logs and names the first differing day. 60-day pairs, fixed seeds and virtual clock throughout:
+
+| Pair | First day population or lot count differs | After 60 days (pop/lots) |
+| --- | --- | --- |
+| main-thread virtual clock | 9 | 2060/430 vs 2060/432 |
+| plus `srand` pinned | 27 | 2060/432 vs 2060/432 |
+| virtual clock on every thread | 29 | 2060/433 vs 2060/432 |
+
+What this round established:
+
+- **Random numbers are not the cause.** Seeding is identical: all ~1,070 generator seeds are set on one thread in the same order, by the same callers, until the runs have already diverged (then the counts differ because different objects get created). The C runtime's `rand()`, which simulation code calls directly (0x006BCFC0 five times, 0x0049CC05 most of all) besides Lua's `math.random`, gives **identical call sequences over 20 days** (8,448 calls, same caller and thread each time, traced with `OPENSC4_RAND_TRACE`). `srand` is never called, so it is not seeded from the clock either.
+- **Threads.** The game starts five threads (`diagnostics.trace.threads`): two before the app initialises, one from its own `CreateThread` (0x0086ABC0, probably audio), and one during city load whose routine (0x0048E8F0 -> 0x0048E460) takes rectangular jobs from a locked queue and works on them under a stopwatch budget, like the main simulator loop. Its owner (vtable 0x00A8ED5C, four slots) is not named in the exe. Giving every thread its own fixed-step clock made the first divergence later but did not remove it; the order in which this worker and the main thread interleave is still up to Windows.
+- **Divergence is sporadic**: the first population difference came on day 9, 27 and 29 in three pairs, and grid checksums sometimes differ for a day and agree again (the pollution update landed on day 4 in some runs and day 5 in others; that may be the fingerprint's sampling point, taken on the first frame after the day changes, rather than the simulation). Every pair so far was **identical for at least the first 8 game days**.
+- Not tested: heap-address ordering (needs a deterministic allocator behind the game's `operator new`, per thread), and serialising the worker thread with the main thread.
+
+## Conclusion of the bounded round
+
+Exact whole-game determinism is not within reach of a few hooks. The remaining sources (thread interleaving, possibly address-ordered processing) need deep control of the game's threads or memory, with no guarantee. What does hold, with `determinism.fixed_seed` and `determinism.virtual_clock`: two runs from the same save agree exactly for at least a week of game time. That suggests short-window parity for P5: start from a save, run a few game days with the original and with a replacement, compare fingerprints (and the replaced simulator's own state) exactly, and repeat from many saves; plus statistical comparison over long runs.
+
+Tooling from this experiment: `opensc4-dbpf diff`, `tools/re/savediff.py`, `scripts/run-save-test.sh`, `OPENSC4_TEST_DAYS`/`OPENSC4_TEST_SAVE`/`OPENSC4_TEST_FINGERPRINT` in the autotest, `tools/re/fpdiff.py`, `determinism.virtual_clock` (`OPENSC4_VCLOCK_ALL_THREADS`), `determinism.fixed_seed` (`OPENSC4_SEED_LOG`, `OPENSC4_RAND_TRACE`, pinned `srand`), `diagnostics.trace.threads`. Saves are kept in `%LOCALAPPDATA%\opensc4\analysis\p4`.

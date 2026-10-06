@@ -27,6 +27,11 @@
 //                         the city's file and its neighbours' in the region,
 //                         so use it only in a disposable user folder
 //                         (scripts/run-save-test.sh). P4 determinism tests.
+//   OPENSC4_TEST_FINGERPRINT  "1": while running, log a fingerprint of the
+//                         simulation every game day (population, funds, lot
+//                         count, checksums of the traffic, land value and
+//                         pollution grids), to find when two runs diverge
+//                         (docs/experiments/determinism.md)
 //   OPENSC4_TEST_SHOT_SETTLE  milliseconds to wait after changing the view
 //                         before saving the frame (default 3000)
 //   OPENSC4_TEST_PRELOAD  DLLs to load (full paths, separated by ';') when

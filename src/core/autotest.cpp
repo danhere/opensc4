@@ -18,6 +18,12 @@
 #include <cISC4RenderProperties.h>
 #include <cISC4RegionalCity.h>
 #include <cISC4Simulator.h>
+#include <cISC4TrafficSimulator.h>
+#include <cISC4SimGrid.h>
+#include <cISC4ResidentialSimulator.h>
+#include <cISC4LotManager.h>
+#include <cISC4LandValueSimulator.h>
+#include <cISC4BudgetSimulator.h>
 #include <cISC4View3DWin.h>
 #include <cRZAutoRefCount.h>
 #include <cRZBaseString.h>
@@ -109,6 +115,24 @@ void ApplyRenderProperties(cISC4App* app)
         }
         log::Write("autotest: no render property named %s", name.c_str());
     }
+}
+
+// FNV-1a over every tract value of a simulation grid; 0 for no grid.
+template <typename T>
+uint32_t GridChecksum(cISC4SimGrid<T>* grid)
+{
+    if (!grid)
+        return 0;
+    uint32_t h = 2166136261u;
+    const int32_t nx = grid->GetTractCountX(), nz = grid->GetTractCountZ();
+    for (int32_t z = 0; z < nz; ++z)
+        for (int32_t x = 0; x < nx; ++x) {
+            const T v = grid->GetTractValue(x, z);
+            const auto* b = reinterpret_cast<const uint8_t*>(&v);
+            for (size_t i = 0; i < sizeof v; ++i)
+                h = (h ^ b[i]) * 16777619u;
+        }
+    return h;
 }
 
 // cISC43DRender::TakeSnapshot(cIGZString&, bool), vtable slot 22 (0x007C2570
@@ -312,6 +336,10 @@ private:
             CrashOnPurpose();
         }
         cISC4Simulator* sim = app->GetCity()->GetSimulator();
+        if (fingerprint_ && sim && sim->GetSimDateNumber() != lastFingerprintDay_) {
+            lastFingerprintDay_ = sim->GetSimDateNumber();
+            Fingerprint(app->GetCity(), lastFingerprintDay_);
+        }
         const bool done = runDays_ >= 0 ? sim && sim->GetSimDateNumber() >= endDay_
                                         : now - stateStart_ >= static_cast<ULONGLONG>(runSeconds_) * 1000;
         if (done) {
@@ -327,6 +355,29 @@ private:
                 log::Write("autotest: run finished; quitting without saving");
             Quit(app);
         }
+    }
+
+    // OPENSC4_TEST_FINGERPRINT=1: one line per game day. Numbers, not
+    // memory, so two runs compare exactly whatever the heap layout.
+    void Fingerprint(cISC4City* city, int32_t day)
+    {
+        cISC4ResidentialSimulator* res = city->GetResidentialSimulator();
+        cISC4BudgetSimulator* budget = city->GetBudgetSimulator();
+        cISC4LotManager* lots = city->GetLotManager();
+        cISC4TrafficSimulator* traffic = city->GetTrafficSimulator();
+        cISC4LandValueSimulator* land = city->GetLandValueSimulator();
+        cISC4PollutionSimulator* pollution = city->GetPollutionSimulator();
+        log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
+                   "%08X | landvalue %08X | pollution %08X %08X %08X",
+                   day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
+                   lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
+                   traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
+                   traffic ? GridChecksum(traffic->GetCommercialTrafficMap()) : 0u,
+                   traffic ? GridChecksum(traffic->GetAirPollutingTrafficMap()) : 0u,
+                   land ? GridChecksum(land->GetTotalLandValueMap()) : 0u,
+                   pollution ? GridChecksum(pollution->GetPollutionGrid(0)) : 0u,
+                   pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
+                   pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,
@@ -428,6 +479,8 @@ private:
     ULONGLONG lastReport_ = 0;
     int runSeconds_ = 180;
     int runDays_ = -1; // OPENSC4_TEST_DAYS; -1: run for runSeconds_
+    bool fingerprint_ = Env("OPENSC4_TEST_FINGERPRINT") == "1";
+    int32_t lastFingerprintDay_ = -1;
     int endDay_ = 0;
     std::string shotDir_;
     int settleMs_ = 3000;

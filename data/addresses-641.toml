@@ -153,3 +153,30 @@ convention = "thiscall"
 signature = "bool (cSC4App* this)"
 expect = "81 EC D4 00 00 00 53 56 8B F1 8B 46 0C"
 source = "Name ours. Builds the resource manager's DB segments at startup: creates packed-file (0x086D4A89) and multi-packed-file (0x090F8619) segments for the game's data files and plugin folders. Called once from 0x0044C97E. sc4-dbpf-loading patches 0x004572CE and times the call at 0x0044C97E (docs/patch-census.md 3.12; docs/resources.md)."
+
+[[entry]]
+name = "CRT::beginthreadex"
+address = 0x009F5306
+kind = "function"
+convention = "cdecl"
+signature = "uintptr_t (void* security, unsigned stack, unsigned (__stdcall* start)(void*), void* arg, unsigned flags, unsigned* id)"
+expect = "55 8B EC 53 57 8B 7D 10 33 DB 85 FF"
+source = "The statically linked C runtime's _beginthreadex (Ghidra's library match). Called from the game's thread class at 0x009208CB and 0x0092093B (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "CRT::srand"
+address = 0x009EFB92
+kind = "function"
+convention = "cdecl"
+signature = "void (unsigned seed)"
+expect = "E8 6D 7A 00 00 8B 4C 24 04 89 48 14 C3"
+source = "The statically linked C runtime's srand: stores the seed in the calling thread's data (+0x14). Its only caller is Lua's math.randomseed (0x008C0B20). The CRT rand next to it (0x009EFB9F) is called by simulation code (0x006BCFC0 and others) as well as Lua's math.random (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "CRT::rand"
+address = 0x009EFB9F
+kind = "function"
+convention = "cdecl"
+signature = "int (void)"
+expect = "E8 60 7A 00 00 8B 48 14 69 C9 FD 43 03 00"
+source = "The statically linked C runtime's rand: per-thread LCG (x * 0x343FD + 0x269EC3, state at thread data + 0x14). Called by Lua's math.random and by simulation code, e.g. 0x006BCFC0 five times (docs/experiments/determinism.md)."
