@@ -85,6 +85,13 @@ python3 tools/shotdiff.py "$LOCALAPPDATA/opensc4/shots/base" "$LOCALAPPDATA/open
     --tolerance 32 --max-differing 1.2 --diff-dir "$LOCALAPPDATA/opensc4/shots/diff"
 ```
 
+[scripts/run-shots-all.sh](../scripts/run-shots-all.sh) does the same for every test city (Making Money, Big City and Rush Hour Tutorials: a small town, a dense downtown, highways) into one folder per city, retries runs that Steam's DRM stub relaunched, and with `--compare <baseline dir>` checks each city against the baseline's folder of the same name. Stock baselines are in `$LOCALAPPDATA/opensc4/shots/stock`. On 2026-10-06 the D3D11 driver matched stock in all 60 shots.
+
+```bash
+scripts/run-shots-all.sh "$B" "$LOCALAPPDATA/opensc4/shots/ours" --compare "$LOCALAPPDATA/opensc4/shots/stock" \
+    OPENSC4_REPLACE=renderer.d3d11=ours
+```
+
 How it works ([autotest.cpp](../src/core/autotest.cpp), `OPENSC4_TEST_SHOTS`):
 
 - **View:** `cISC4View3DWin::SetZoomAndRotation` on the city view (main window → 0x6104489A → 0x9A47B417). The camera starts where the save left it, and the autotest never saves, so every run looks at the same spot. Zooms are 1 (farthest) to 5, rotations 0 to 3. After each change the harness waits 3 s, calls `cISC43DRender::ForceFullRedraw`, waits 1 s more and captures.
