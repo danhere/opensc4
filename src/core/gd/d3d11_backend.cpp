@@ -91,6 +91,8 @@ struct Texture {
     ComPtr<ID3D11ShaderResourceView> srv;
     uint32_t width, height, levels;
     bool compressed;      // BC1-3, uploaded as blocks
+    bool hasAlpha;        // false for RGB5/RGB8: sampled alpha is 1, whatever the uploads hold
+    uint32_t format;      // CreateTexture's
     uint32_t blockFormat; // the DXT PixelFormat when compressed
 };
 
@@ -360,6 +362,8 @@ public:
         t.width = width;
         t.height = height;
         t.levels = levels;
+        t.hasAlpha = format != TexRGB5 && format != TexRGB8;
+        t.format = format;
         DXGI_FORMAT dxgi = DXGI_FORMAT_B8G8R8A8_UNORM;
         // Block-compressed textures need a top level of whole blocks; others are decoded on upload.
         if ((format == TexDXT1A || format == TexDXT3 || format == TexDXT5) && width % 4 == 0 && height % 4 == 0) {
@@ -429,6 +433,9 @@ public:
                     type);
             return;
         }
+        if (!t.hasAlpha)
+            for (size_t i = 3; i < scratch_.size(); i += 4)
+                scratch_[i] = 255;
         context_->UpdateSubresource(t.texture.Get(), level, &box, scratch_.data(), width * 4, 0);
     }
 
@@ -604,20 +611,28 @@ private:
         c.flags[0] = state.lighting | (state.diffuseFromVertex ? 2u : 0u) | (hasColor ? 4u : 0u);
         c.flags[1] = state.vertexColors;
         c.flags[2] = state.enabled[Fog];
-        c.flags[3] = state.stageCount;
         c.alphaTest[0] = state.enabled[AlphaTest];
         c.alphaTest[1] = state.alphaFunc;
         c.alphaTest[2] = static_cast<uint32_t>(std::clamp(state.alphaRef, 0.0f, 1.0f) * 255.0f + 0.5f);
 
         ID3D11ShaderResourceView* srvs[kMaxStages] = {};
         ID3D11SamplerState* samplers[kMaxStages] = {};
-        for (uint32_t k = 0; k < state.stageCount && k < kMaxStages; ++k) {
+        // Direct3D semantics, as in the DirectX driver: the first stage that is
+        // off, has no texture or uses the blend env mode (which that driver
+        // does not implement) ends the cascade (0x00884320, 0x00884500).
+        uint32_t stages = 0;
+        while (stages < state.stageCount && stages < kMaxStages && state.stages[stages].enabled &&
+               state.stages[stages].envMode != EnvBlend && textures_.count(state.stages[stages].texture))
+            ++stages;
+        c.flags[3] = stages;
+        if (stages < state.stageCount && state.stages[stages].enabled && !textures_.count(state.stages[stages].texture))
+            LogOnce("draw with an unknown texture", state.stages[stages].texture, "stage %u, handle 0x%X", stages,
+                    state.stages[stages].texture);
+        for (uint32_t k = 0; k < stages; ++k) {
             const StageDesc& s = state.stages[k];
             StageConstants& sc = c.stages[k];
             auto tex = textures_.find(s.texture);
-            const bool enabled = s.enabled && tex != textures_.end();
-            if (s.enabled && tex == textures_.end())
-                LogOnce("draw with an unknown texture", s.texture, "stage %u, handle 0x%X", k, s.texture);
+            const bool enabled = true;
             sc.setup[0] = enabled;
             sc.setup[1] = s.envMode == EnvCombine4 ? EnvCombine : s.envMode;
             sc.setup[2] = s.texCoord;
@@ -652,11 +667,13 @@ private:
                                        (static_cast<uint64_t>(k) << 36) ^ (static_cast<uint64_t>(s.texCoord) << 32);
                 LogOnce("stage setup", setup,
                         "stage %u/%u env %u ops %u/%u rgb args %02X %02X %02X alpha args %02X %02X %02X scale %u/%u "
-                        "texcoord 0x%X matrix %d | blend %d %u->%u alphatest %d f%u ref %.3f | lighting %d mul %.2f %.2f "
+                        "texcoord 0x%X matrix %d tex %u %ux%u/%u params %u %u %u %u | blend %d %u->%u alphatest %d f%u ref %.3f | lighting %d mul %.2f %.2f "
                         "%.2f %.2f vcolors %d | factor %.2f %.2f %.2f %.2f",
                         k, state.stageCount, s.envMode, s.combiner.rgbOp, s.combiner.alphaOp, s.combiner.rgbArg[0],
                         s.combiner.rgbArg[1], s.combiner.rgbArg[2], s.combiner.alphaArg[0], s.combiner.alphaArg[1],
                         s.combiner.alphaArg[2], s.combiner.rgbScale, s.combiner.alphaScale, s.texCoord, s.hasMatrix,
+                        tex->second.format, tex->second.width, tex->second.height, tex->second.levels, s.params[0],
+                        s.params[1], s.params[2], s.params[3],
                         state.enabled[Blending], state.blendSrc, state.blendDst, state.enabled[AlphaTest],
                         state.alphaFunc, state.alphaRef, state.lighting, state.colorMultiplier[0],
                         state.colorMultiplier[1], state.colorMultiplier[2], state.colorMultiplier[3],
@@ -697,10 +714,13 @@ private:
         auto it = samplers_.find(key);
         if (it != samplers_.end())
             return it->second.Get();
+        // As the DirectX driver maps them (0x00884320). Its LinearMipmapNearest
+        // falls through to NearestMipmapLinear (a missing break); kept, since
+        // the game's look was tuned on it.
         const uint32_t mag = params[MagFilter], min = params[MinFilter];
         const bool magLinear = mag == Linear;
-        const bool minLinear = min == Linear || min == LinearMipmapNearest || min == LinearMipmapLinear;
-        const bool mipLinear = min == NearestMipmapLinear || min == LinearMipmapLinear;
+        const bool minLinear = min == Linear || min == LinearMipmapLinear;
+        const bool mipLinear = min == LinearMipmapNearest || min == NearestMipmapLinear || min == LinearMipmapLinear;
         const bool mipmaps = min >= NearestMipmapNearest;
         D3D11_SAMPLER_DESC desc{};
         desc.Filter = static_cast<D3D11_FILTER>((minLinear ? 0x10 : 0) | (magLinear ? 0x4 : 0) | (mipLinear ? 0x1 : 0));
