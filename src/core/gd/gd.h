@@ -25,12 +25,15 @@ public:
     virtual bool BufferRegionEnabled() = 0;
     virtual int32_t NewBufferRegion(int32_t surface) = 0;
     virtual bool DeleteBufferRegion(int32_t region) = 0;
-    // Copies (x, y, width, height) of the region's surface to (regionX, regionY) in the region.
-    virtual bool ReadBufferRegion(int32_t region, int32_t x, int32_t y, int32_t width, int32_t height,
-                                  int32_t regionX, int32_t regionY) = 0;
-    // Copies (regionX, regionY, width, height) of the region back to (x, y) of its surface.
-    virtual bool DrawBufferRegion(int32_t region, int32_t x, int32_t y, int32_t width, int32_t height,
-                                  int32_t regionX, int32_t regionY) = 0;
+    // Copies (x, y, width, height) of the region's surface to (regionX, regionY) in the region. The
+    // region's position comes first: the DirectX driver (0x008853B0) blits the surface rectangle at
+    // the last two arguments to the region at the first two.
+    virtual bool ReadBufferRegion(int32_t region, int32_t regionX, int32_t regionY, int32_t width, int32_t height,
+                                  int32_t x, int32_t y) = 0;
+    // Copies (regionX, regionY, width, height) of the region back to (x, y) of its surface (0x008855F0).
+    // Different positions move a saved picture: the city view scrolls this way.
+    virtual bool DrawBufferRegion(int32_t region, int32_t regionX, int32_t regionY, int32_t width, int32_t height,
+                                  int32_t x, int32_t y) = 0;
     virtual bool IsBufferRegion(int32_t region) = 0;
     virtual bool CanDoPartialRegionWrites() = 0;
     virtual bool CanDoOffsetReads() = 0;

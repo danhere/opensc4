@@ -84,10 +84,10 @@ public:
     bool BufferRegionEnabled() override { return true; }
     int32_t NewBufferRegion(int32_t surface) override;
     bool DeleteBufferRegion(int32_t region) override;
-    bool ReadBufferRegion(int32_t region, int32_t x, int32_t y, int32_t width, int32_t height, int32_t regionX,
-                          int32_t regionY) override;
-    bool DrawBufferRegion(int32_t region, int32_t x, int32_t y, int32_t width, int32_t height, int32_t regionX,
-                          int32_t regionY) override;
+    bool ReadBufferRegion(int32_t region, int32_t regionX, int32_t regionY, int32_t width, int32_t height, int32_t x,
+                          int32_t y) override;
+    bool DrawBufferRegion(int32_t region, int32_t regionX, int32_t regionY, int32_t width, int32_t height, int32_t x,
+                          int32_t y) override;
     bool IsBufferRegion(int32_t region) override;
     bool CanDoPartialRegionWrites() override { return true; }
     bool CanDoOffsetReads() override { return true; }
@@ -1035,16 +1035,16 @@ bool BufferRegions::DeleteBufferRegion(int32_t region)
     return backend && backend->DeleteRegion(region);
 }
 
-bool BufferRegions::ReadBufferRegion(int32_t region, int32_t x, int32_t y, int32_t width, int32_t height,
-                                     int32_t regionX, int32_t regionY)
+bool BufferRegions::ReadBufferRegion(int32_t region, int32_t regionX, int32_t regionY, int32_t width,
+                                     int32_t height, int32_t x, int32_t y)
 {
     Backend* backend = driver_.GetBackend();
     return backend && backend->ReadRegion(region, driver_.Physical(Rect{x, y, width, height}), driver_.Physical(regionX),
                                           driver_.Physical(regionY));
 }
 
-bool BufferRegions::DrawBufferRegion(int32_t region, int32_t x, int32_t y, int32_t width, int32_t height,
-                                     int32_t regionX, int32_t regionY)
+bool BufferRegions::DrawBufferRegion(int32_t region, int32_t regionX, int32_t regionY, int32_t width,
+                                     int32_t height, int32_t x, int32_t y)
 {
     Backend* backend = driver_.GetBackend();
     const bool ok = backend && backend->DrawRegion(region, driver_.Physical(Rect{x, y, width, height}),
