@@ -23,6 +23,29 @@ Work: the driver keeps a full-size back buffer and scales everything the game ex
 
 A is a strict subset of B's work: the driver scaling and the input translation are needed by both. B adds the game-side hooks for the 3D view.
 
+## The city at full size (option B, prototype, 2026-10-06)
+
+B turned out much smaller than feared, because it can sit on top of A instead of beside it. With A, the game already lives in a smaller pixel space and the driver draws the city at the physical size; only the camera decides how much of the city a game pixel covers. That is one function, the city camera's projection setup (`cSC4CameraControl::UpdateProjection`, our name, 0x007CBE40):
+
+- pixels per 16 m tile for the zoom level (this+0x108) come from a table at 0x00ABACE0 (8, 16, 32, 73, 146 for zoom levels 1 to 5, with camera pitches 30, 35, 40, 45, 45 degrees at 0x00ABACCC) times a fine zoom factor at this+0xF0 (1.0 normally);
+- it stores metres per pixel (this+0x134) and pixels per metre (this+0x138), and sets the orthographic box to the view's size in pixels (this+0x12C, this+0x130) times metres per pixel (0x007FF2E0);
+- the table is read nowhere else, and the function is called from the zoom setters (0x007CD6E0, 0x007CDC50).
+
+`[renderer] scale_city = no` (with a scale above 1) wraps that function: it divides the fine zoom factor by the scale for the duration of the call and puts it back afterwards, so each game pixel covers scale times as much of the city. The city then comes out at the stock game's full-resolution size (a zoom-5 tile is 145 physical pixels wide; stock: 146), while the interface stays enlarged as with A. Everything that goes through what the camera stores follows on its own.
+
+Checked unattended at 3440x1440, scale 1.5 (the game sees 2293x960):
+
+- the whole city fits where A showed it 1.5 times as big; the interface is unchanged;
+- picking: with the query tool, the highlighted tile is under the cursor at the top left, the centre and the bottom right of the screen (a projection mismatch would be off by about three tiles at the edges);
+- the tutorial's camera moves centre the town; the wheel zooms; edge scrolling works and only starts on the last row of pixels; scrolling (which moves the saved picture by a pixel offset the game works out from the camera) leaves no gaps.
+
+Not covered, or different:
+
+- **The region view** has its own camera and is still drawn as with A (enlarged). Finding its projection is the next step if it should match.
+- Text and interface images are still the scaled-up 1x art (see "Interface images" below); crisp text needs the fonts drawn at the larger size.
+- Not tried yet: placing things (zoning, roads, lots), the other 3D views in panels, performance in a big city (the screen shows 2.25 times as much city at 1.5), and how scrolling speed feels.
+
+
 ## Render scale (option A, implemented 2026-10-06)
 
 `opensc4.ini` `[renderer]` `scale = 1.5` (1 to 4, D3D11 driver only). The driver lists every mode at its physical size divided by the scale, and draws the game's frames at the physical size: viewports, scissors, clears and buffer-region copies are converted to physical pixels (edges rounded, so neighbouring rectangles stay neighbours); snapshots (`CopyColorBuffer`) read the physical pixels and return the game's size (nearest). The city's projections do not depend on pixel size, so it is drawn sharp; interface images and text are scaled up.

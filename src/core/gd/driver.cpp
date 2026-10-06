@@ -1595,11 +1595,38 @@ void __fastcall SelectGraphicsDriver(void* app, void* edx, bool selectDriver)
     log::Write("d3d11 driver: selected in place of the saved driver choice %u", saved);
 }
 
+// [renderer] scale_city = no: only the interface is enlarged. The camera
+// builds its orthographic box from pixels per tile (0x007CBE40), so dividing
+// its fine zoom factor by the scale while it does makes each game pixel cover
+// scale times as much of the city; the driver draws the city at the physical
+// size, so it comes out at the size the stock game shows it at full
+// resolution. Picking and scrolling use what this function stores, so they
+// follow. The factor itself is put back for everything else.
+using UpdateProjectionFn = void(__fastcall*)(void* camera, void* edx);
+UpdateProjectionFn g_updateProjection = nullptr;
+constexpr size_t kFineZoom = 0xF0;
+
+void __fastcall UpdateProjection(void* camera, void* edx)
+{
+    float& fineZoom = *reinterpret_cast<float*>(static_cast<uint8_t*>(camera) + kFineZoom);
+    const float saved = fineZoom;
+    fineZoom = saved / RenderScale();
+    g_updateProjection(camera, edx);
+    fineZoom = saved;
+}
+
 bool Register(registry::Mode)
 {
     // Before the game measures the screen for its window layer.
     if (RenderScale() != 1.0f)
         InstallImportWrappers(RenderScale());
+    if (RenderScale() != 1.0f && !settings::GetBool("renderer", "scale_city", true)) {
+        const addr::Entry* projection = addr_check::Find(addr::cSC4CameraControl_UpdateProjection);
+        if (projection && hook::Install(*projection, &UpdateProjection, &g_updateProjection))
+            log::Write("d3d11 driver: the city keeps its full-resolution size; only the interface is enlarged");
+        else
+            log::Write("d3d11 driver: could not hook the camera projection; the city is enlarged too");
+    }
     const addr::Entry* select = addr_check::Find(addr::cSC4App_SelectGraphicsDriver);
     if (!select || !hook::Install(*select, &SelectGraphicsDriver, &g_select))
         log::Write("d3d11 driver: could not hook the driver choice; start the game with -d:OpenGL");

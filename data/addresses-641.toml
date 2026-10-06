@@ -135,3 +135,12 @@ convention = "thiscall"
 signature = "void (cSC4App* this, bool selectDriver)"
 expect = "81 EC 84 00 00 00 53 55"
 source = "Name ours. Reads the requested driver class ID at this+0x65C (from -d:, 0 if none; parsed by 0x0044EED0), falls back to the saved choice at [this+0x3B0]+0xF13 (0 Software, 1 DirectX, 0xFF other), stores an explicit choice back there and calls cIGZGraphicSystem2::SetDefaultDriverClassID. Called through vtables from 0x00451F19 (argument 0) and 0x0045317D (docs/renderer.md, \"D3D11 driver\")."
+
+[[entry]]
+name = "cSC4CameraControl::UpdateProjection"
+address = 0x007CBE40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4CameraControl* this)"
+expect = "83 EC 28 56 8B F1 57 8B BE 08 01 00 00"
+source = "Name ours. Builds the city camera's orthographic box: pixels per 16 m tile for the zoom level at this+0x108 from the table at 0x00ABACE0 (8, 16, 32, 73, 146; read nowhere else) times the fine zoom factor at this+0xF0, stored as metres per pixel (this+0x134) and pixels per metre (this+0x138); half extents = view size in pixels (this+0x12C, this+0x130) x metres per pixel x 0.5, passed to 0x007FF2E0. Called from the zoom setters 0x007CD6E0 and 0x007CDC50 (docs/ui-scaling.md)."
