@@ -81,7 +81,19 @@ Our functions reproduce these; callers can see them.
 - **`GetGarbageSupply`** resets a negative supply to 0 when it is read.
 - **Capacity getters.** `GetWaterTreatmentUsedCapacity` asks `GetMaxCapacity` for property 0x28ECF510; the incinerator and waste-to-energy "current" and "used" getters use different properties (0xA8EBCF0C/0xE8ECF641, 0x48EBD0B1/0x88ECF76C), and `GetIncineratorCount` counts the list at +0x6C, which the garbage simulation reads with the "used" incinerator property.
 
-Floating point: our code is compiled for SSE; the game's uses x87. The replaced slots only copy floats (`GetGarbageScalingFactor`, `GetRecyclingCenterMaxCapacity`'s default) or truncate a double to an integer (`GetGarbageRecycledLastMonth`), which give the same results either way. The slots left out multiply in x87 registers; reproducing them exactly needs the precision the game runs with (the x87 control word, which Direct3D 7 may set to single precision and our D3D11 driver does not touch), which is the next thing to establish before the simulation functions.
+## Floating point
+
+Our code is compiled for SSE; the game's uses x87. **The simulation runs with the x87 control word at 0x027F: 53-bit (double) precision, round to nearest, all exceptions masked**, the Windows default for 32-bit processes. Measured inside the simulator's tick (the autotest's new-day agent logs it the first time and whenever it changes) with the stock DirectX 7 driver windowed and full screen, and with our D3D11 driver: the same word, never changed during a run (2026-10-07). So neither driver changes it, though Direct3D 7 can switch to single precision.
+
+The game expects that it might. 0x00892A0A reads the precision and 0x008929E0 sets it (0 = 24-bit, 1 = 53-bit, 2 = 64-bit), and the Lua glue (hundreds of small functions at 0x008B6C30 to 0x008BF160) and a number parser (0x0067BA40) switch to 53-bit around their work only if the FPU is in single precision. Other `FLDCW` sites save and restore around their own code: the C runtime (`__ftol`, `_control87`, math functions), libpng, and functions at 0x008246C8 and 0x00824F08 that switch to truncation for a conversion.
+
+What this means for reproducing x87 code exactly with SSE:
+- Operations on doubles give the same results (same precision and rounding).
+- Single operations on floats also give the same results: the game computes them at 53-bit precision and rounds to float only when it stores (`FSTP float`), and for one addition, subtraction, multiplication, division or square root that rounding twice equals rounding once.
+- **Chains** do not: the game keeps intermediate results in registers at 53-bit precision. Our code has to compute them as `double` and convert to `float` exactly where the game stores to a float in memory.
+- Integer conversions: `FILD` is exact; `__ftol2` (0x009EEF04) truncates toward zero, like a C++ cast.
+
+The slots replaced so far only copy floats (`GetGarbageScalingFactor`, `GetRecyclingCenterMaxCapacity`'s default) or truncate a double (`GetGarbageRecycledLastMonth`). The slots left out (53, 55-57, 65) and the message handlers compute with x87 chains and follow the rules above.
 
 ## Parity
 
