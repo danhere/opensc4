@@ -108,4 +108,14 @@ constexpr std::size_t kSlotGetCurrentCapacity = 0xD4;
 inline void* NextNode(void* node) { return *static_cast<void**>(node); }
 inline void* NodeObject(void* node) { return static_cast<void**>(node)[2]; }
 
+// Number of nodes in the list whose sentinel is at `offset` of the object.
+inline uint32_t ListCount(void* self, std::size_t offset)
+{
+    void* const sentinel = At<void*>(self, offset);
+    uint32_t count = 0;
+    for (void* node = NextNode(sentinel); node != sentinel; node = NextNode(node))
+        ++count;
+    return count;
+}
+
 } // namespace opensc4::pollution_sim

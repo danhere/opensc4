@@ -532,3 +532,78 @@ name = "SC4::BudgetSimulator"
 address = 0x00B43D64
 kind = "data"
 source = "cISC4BudgetSimulator* of the current city. The pollution simulator creates its department budget through it (Init, slot 25) and keeps its buildings' maintenance line items current (UpdateMaintenanceCosts: slots 51, 57, 53) (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::OnOccupantInsertedOrRemoved"
+address = 0x006E4680
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this, cISC4Occupant* occupant, bool inserted)"
+expect = "83 EC 74 55 56 8B B4 24"
+source = "Name ours. DoMessage's handler for 0x99EF1142 (inserted) and 0x99EF1143 (removed): the building's pollution footprint in the source grids, its place in the four building lists, its capacity properties and budget item (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::UpdateBuildingList"
+address = 0x006E45F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PollutionSimulator* this, SC4List* list, cISC4Occupant* occupant, bool insert)"
+expect = "8A 44 24 0C 84 C0 56 57"
+source = "Name ours. Appends the occupant to the list (AddRef) or removes it (Release); returns whether it did (docs/pollution.md)."
+
+[[entry]]
+name = "SC4SimGrid::SpreadAround"
+address = 0x005E4500
+kind = "function"
+convention = "cdecl"
+signature = "void (void* grid, int32_t tractsX, int32_t tractsZ, int32_t tractX, int32_t tractZ, float radius, float value, float edge)"
+expect = "83 EC 0C D9 44 24 24 53"
+source = "Name ours. Adds a value to the tracts within a radius of a tract (the radius rounded with the float trick). `grid` is what slot 24 of cSC4SimGridSint16 returns (this + 0x38); the occupant handler pushes the other arguments before that call and pops all eight after (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::GetPropertyBool"
+address = 0x005FD390
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, bool& value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. As 0x005FD480 with the variant's slot 10 (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::SetPropertySint32"
+address = 0x005FE330
+kind = "function"
+convention = "cdecl"
+signature = "void (cISCPropertyHolder* holder, uint32_t property, int32_t value)"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. Creates the property if the holder has none, then the variant's slot 29 (SetValSint32) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::SetPropertyUint32"
+address = 0x005FE3C0
+kind = "function"
+convention = "cdecl"
+signature = "void (cISCPropertyHolder* holder, uint32_t property, uint32_t value)"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. As 0x005FE330 with the variant's slot 26 (SetValUint32) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::SetPropertySint64"
+address = 0x005FE450
+kind = "function"
+convention = "cdecl"
+signature = "void (cISCPropertyHolder* holder, uint32_t property, int64_t value)"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. As 0x005FE330 with the variant's slot 35 (SetValSint64) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::City"
+address = 0x00B43CEC
+kind = "data"
+source = "cISC4City* of the current city (the pollution simulator keeps a reference at +0x18). Slots 93 and 94 give its size in cells (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::DefaultSpreadEdge"
+address = 0x00B4A598
+kind = "data"
+source = "int32[4]. The occupant handler's per-type edge values for SpreadAround when the building has no property 0xAA5832F3 (docs/pollution.md)."
