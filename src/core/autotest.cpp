@@ -2,7 +2,9 @@
 
 #include "core/crash.h"
 #include "core/log.h"
+#include "core/fixed_ticks.h"
 #include "core/pollution_proxy.h"
+#include "core/rng_trace.h"
 #include "core/virtual_clock.h"
 
 #include <GZCLSIDDefs.h>
@@ -357,6 +359,9 @@ private:
             if (fingerprint_)
                 Fingerprint(city, sim->GetSimDateNumber());
             lastFingerprintDay_ = sim->GetSimDateNumber();
+            // OPENSC4_TEST_DAYS=0: the simulator is paused and no new day
+            // will come; the run is over before it starts.
+            reachedEndDay_ = runDays_ == 0;
         }
         if (runDays_ < 0) {
             log::Write("autotest: running for %d s at speed %d (SetSimSpeed %s)", runSeconds_, speed,
@@ -420,6 +425,8 @@ private:
         if (!sim || self->reachedEndDay_)
             return;
         const int32_t day = sim->GetSimDateNumber();
+        rng_trace::OnNewDay(day);
+        virtual_clock::OnNewDay(day);
         if (self->fingerprint_ && day != self->lastFingerprintDay_) {
             self->lastFingerprintDay_ = day;
             self->Fingerprint(city, day);
@@ -441,8 +448,12 @@ private:
         cISC4TrafficSimulator* traffic = city->GetTrafficSimulator();
         cISC4LandValueSimulator* land = city->GetLandValueSimulator();
         cISC4PollutionSimulator* pollution = city->GetPollutionSimulator();
+        char rng[256];
+        rng_trace::Describe(rng, sizeof rng);
+        char ticks[64];
+        fixed_ticks::Describe(ticks, sizeof ticks);
         log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X",
+                   "%08X | landvalue %08X | pollution %08X %08X %08X%s%s",
                    day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
                    lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
                    traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
@@ -451,7 +462,7 @@ private:
                    land ? GridChecksum(land->GetTotalLandValueMap()) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(0)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
-                   pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u);
+                   pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, ticks, rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,

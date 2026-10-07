@@ -3,12 +3,12 @@
 # game days twice, once with replacement set A and once with set B, and compare
 # the two runs exactly: daily fingerprints (tools/re/fpdiff.py) and the saved
 # records whose layout is known (tools/re/sc4save.py --compare). Both runs use
-# fixed seeds and the virtual clock, under which two runs of the original
-# usually agree for a week of game time but not always (docs/parity.md), so a
-# pair that differs is run again, up to OPENSC4_PARITY_RETRIES more times
-# (default 3), and the verdict comes from all runs of the save together
-# (tools/re/paritygroups.py): it passes when every outcome of B is also an
-# outcome of A. Git Bash on Windows.
+# fixed seeds, the virtual clock and fixed ticks, under which two runs of the
+# original agree exactly (docs/experiments/determinism.md, third round). In
+# case they do not, a pair that differs is run again, up to
+# OPENSC4_PARITY_RETRIES more times (default 3), and the verdict comes from
+# all runs of the save together (tools/re/paritygroups.py): it passes when
+# every outcome of B is also an outcome of A. Git Bash on Windows.
 #
 #   scripts/run-parity.sh <build dir> <output dir> <days> <saves dir> [env assignments...]
 #
@@ -36,7 +36,7 @@ done
 retries="${OPENSC4_PARITY_RETRIES:-3}"
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-base="determinism.fixed_seed=ours,determinism.virtual_clock=ours"
+base="determinism.fixed_seed=ours,determinism.virtual_clock=ours,determinism.fixed_ticks=ours"
 replace_a="$base${OPENSC4_PARITY_A:+,$OPENSC4_PARITY_A}"
 replace_b="$base${OPENSC4_PARITY_B:+,$OPENSC4_PARITY_B}"
 [ "$replace_a" != "$replace_b" ] || echo "run-parity: A and B are the same (a control run)" >&2

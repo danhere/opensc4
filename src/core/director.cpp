@@ -10,6 +10,7 @@
 #include "core/crash.h"
 #include "core/d3d7_probe.h"
 #include "core/diagnostics.h"
+#include "core/fixed_seed.h"
 #include "core/game.h"
 #include "core/gdriver_proxy.h"
 #include "core/log.h"
@@ -76,6 +77,7 @@ public:
         opensc4::addr_check::LogManifest();
         opensc4::addr_check::LogModules();
         opensc4::registry::Apply(opensc4::registry::Phase::PostAppInit);
+        opensc4::fixed_seed::EndStartup();
         opensc4::registry::Apply(opensc4::registry::Phase::LateInit);
         if (opensc4::autotest::Enabled())
             opensc4::autotest::Start();

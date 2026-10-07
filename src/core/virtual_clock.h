@@ -10,4 +10,8 @@ namespace opensc4::virtual_clock {
 // saving. No effect if the virtual clock is off.
 void ReturnToRealTime();
 
+// Called by the autotest at the start of each simulation day: writes and
+// resets OPENSC4_VCLOCK_CALLERS's per-caller counts.
+void OnNewDay(int day);
+
 } // namespace opensc4::virtual_clock

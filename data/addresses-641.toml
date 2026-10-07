@@ -119,6 +119,51 @@ expect = "56 8B F1 8B 4C 24 08 83"
 source = "Seeds a 32-bit LCG (x * 0x41C64E6D + 0x3039, 0x00913696); seed 0xFFFFFFFF means time() ^ clock(). Called by the constructor 0x00913A5C from about 80 sites, many static initialisers that seed from the local time. Name inferred: the Mac build's types have cRZRandom and cRZRandomSuper (docs/renderer.md, \"Screenshot harness\")."
 
 [[entry]]
+name = "cRZRandom::Advance"
+address = 0x00913696
+kind = "function"
+convention = "fastcall"
+signature = "uint64_t (cRZRandom* this)"
+expect = "8B 01 BA 6D 4E C6 41"
+source = "One LCG step on the state at +0 (x * 0x41C64E6D + 0x3039); returns the 64-bit product shifted right 16 in EDX:EAX. Under the integer range draws 0x009136B1 and 0x009136DF (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "cRZRandom::NextFloat"
+address = 0x0091372E
+kind = "function"
+convention = "fastcall"
+signature = "long double (cRZRandom* this)"
+expect = "55 8B EC 51 56 8D 71 04"
+source = "Ours. Multiplicative step (x * 0x278DDE6D) on the state at +4, which Seed also sets; returns a float in ST0. Seeds itself from clock() if the state is 0. About 25 callers in simulation code (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "cRZRandomSuper::Next"
+address = 0x009139B9
+kind = "function"
+convention = "fastcall"
+signature = "uint32_t (cRZRandomSuper* this)"
+expect = "56 57 8B F9 8D B7 C4 09"
+source = "Ours. Mersenne Twister draw: refills the 624 words (0x009138A9) when +0x9C4 runs out, tempers the next word (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "cSC4Simulator::RunTimeSlice"
+address = 0x00703E70
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Simulator* this_plus_8, uint32_t unused)"
+expect = "55 8B EC 6A FF 68 70 F0"
+source = "Ours. Runs simulation ticks (0x00702A80, 0x007038B0, 0x00702DF0 on this-8) until the stopwatch at +0x190 passes the budget at +0x70: 1000 / fps cap minus the time since the last slice (stopwatch +0x58), at least 15 ms (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "GZStopwatch::ElapsedMilliseconds"
+address = 0x00890198
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (GZStopwatch* this)"
+expect = "55 8B EC 83 EC 14 57 8B"
+source = "Ours. Elapsed time since Start; +0 is the mode: 0 reads rdtsc, 1 QueryPerformanceCounter, 2-6 convert to other units (docs/experiments/determinism.md)."
+
+[[entry]]
 name = "cRZRandomSuper::Seed"
 address = 0x00913A72
 kind = "function"
