@@ -35,6 +35,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/virtual_clock.h"
 
 #include <windows.h>
 
@@ -76,6 +77,13 @@ void __cdecl SurveyStopwatch(int* stopwatch, void* caller)
                caller, GetCurrentThreadId(), stopwatch[0] == 0 ? " RDTSC" : "");
 }
 
+// Slice stopwatch checks go into the clock trace (virtual_clock.h), so
+// traces show where each tick and idle dispatch ends.
+void __cdecl TraceSliceCheck(const void* stack)
+{
+    virtual_clock::TraceEvent('S', stack);
+}
+
 // Leaves registers as the original would for every stopwatch but the slice's
 // (callers may rely on more than the calling convention promises; see
 // rng_trace.cpp). For the slice's: EAX = 0 ("not yet") or 0xFFFFFFFF; for
@@ -104,6 +112,14 @@ __declspec(naked) void ElapsedThunk()
     pass:
         jmp dword ptr [g_elapsed]
     fixed:
+        push ecx
+        push edx
+        lea eax, [esp + 8]
+        push eax
+        call TraceSliceCheck
+        add esp, 4
+        pop edx
+        pop ecx
         inc dword ptr [g_checks]
         mov eax, dword ptr [g_checks]
         cmp eax, dword ptr [g_ticksPerSlice]
@@ -166,6 +182,11 @@ const bool g_registered = registry::Register({
 });
 
 } // namespace
+
+bool InSlice()
+{
+    return g_depth > 0;
+}
 
 void Describe(char* out, std::size_t size)
 {

@@ -164,6 +164,69 @@ expect = "55 8B EC 83 EC 14 57 8B"
 source = "Ours. Elapsed time since Start; +0 is the mode: 0 reads rdtsc, 1 QueryPerformanceCounter, 2-6 convert to other units (docs/experiments/determinism.md)."
 
 [[entry]]
+name = "SC4::stl_allocate"
+address = 0x0090CF54
+kind = "function"
+convention = "cdecl"
+signature = "void* (size_t size)"
+expect = "FF 74 24 04 B9 98 26 B6"
+source = "Ours. The allocator behind the game's STL containers (about 3,350 call sites): the pool allocator 0x005E55B0 on the object at 0x00B62698. Frees go to 0x0090CF63 (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "CRT::malloc"
+address = 0x009F066E
+kind = "function"
+convention = "cdecl"
+signature = "void* (size_t size)"
+expect = "FF 35 40 D9 BA 00 FF 74"
+source = "The exe's statically linked C runtime malloc (Function ID name _malloc): _nh_malloc 0x009F0642 on the CRT heap. The game's pool allocators (operator new 0x005E55E0, the STL allocator 0x0090CF54) take their chunks from it (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::NextTripSource"
+address = 0x007107F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* queue, cIGZUnknown** source, int16_t* x, int16_t* z)"
+expect = "83 EC 08 56 57 8B F9 8B"
+source = "Ours. Hands the trip loops (0x0071D020, 0x0071D440) the next trip source from a two-phase queue (a list behind an iterator object, then a second list), with its cell; the loops set up path queries (0x0070EC40) for the pathfinder 0x006D91B0 (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "TrafficPathfinder::Search"
+address = 0x006D91B0
+kind = "function"
+convention = "fastcall"
+signature = "bool (TrafficPathfinder* this)"
+expect = "A0 3C 9B B4 00 81 EC 90"
+source = "Ours. The traffic simulator's path search (A*-style, binary heap on float cost at node+0xC, 0x006D6380), set up per trip by 0x0070EC40; time-sliced with the deadline helpers 0x0068BF50/0x0068BF80 and an adaptive chunk size (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "cSC4Simulator::AddAgent"
+address = 0x00704360
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Simulator* this, cIGZMessageTarget2* agent, uint32_t type, cIGZString const& name, uint32_t flags)"
+expect = "83 EC 28 53 33 DB 55"
+source = "cISC4Simulator slot 19. Inserts {agent, enabled, name} into the map of agent type `type`, keyed by the agent pointer (0x00704060 compares the pointers as numbers), so agents are dispatched in heap-address order (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "cSC4Simulator::RemoveAgentAllTypes"
+address = 0x00702260
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Simulator* this, cIGZMessageTarget2* agent)"
+expect = "53 55 8B 6C 24 0C 56"
+source = "cISC4Simulator slot 20, RemoveAgent(agent): gzcom-dll declares the two RemoveAgent overloads in the other order (MSVC reverses overloads; RET 4 here, RET 8 at slot 21)."
+
+[[entry]]
+name = "cSC4Simulator::RemoveAgent"
+address = 0x00703AF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Simulator* this, cIGZMessageTarget2* agent, uint32_t type)"
+expect = "53 8B 5C 24 0C 83 FB 0B"
+source = "cISC4Simulator slot 21, RemoveAgent(agent, type) (RET 8; checks type < 11)."
+
+[[entry]]
 name = "cRZRandomSuper::Seed"
 address = 0x00913A72
 kind = "function"

@@ -13,4 +13,8 @@ namespace opensc4::fixed_ticks {
 // varies. Writes nothing if determinism.fixed_ticks is off.
 void Describe(char* out, std::size_t size);
 
+// True while a simulation time slice runs (main thread): code running now is
+// simulation ticks, not rendering or the interface.
+bool InSlice();
+
 } // namespace opensc4::fixed_ticks

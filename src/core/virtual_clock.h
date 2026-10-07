@@ -14,4 +14,9 @@ void ReturnToRealTime();
 // resets OPENSC4_VCLOCK_CALLERS's per-caller counts.
 void OnNewDay(int day);
 
+// Adds a line to OPENSC4_VCLOCK_TRACE (if on, main thread only): `kind`
+// and the first code addresses at or above `stack`. For events that are not
+// clock reads, such as determinism.fixed_ticks' slice stopwatch checks ('S').
+void TraceEvent(char kind, const void* stack);
+
 } // namespace opensc4::virtual_clock

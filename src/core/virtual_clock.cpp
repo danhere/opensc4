@@ -8,11 +8,16 @@
 // Switched on at PostAppInit on the main thread: from then on that thread's
 // counter starts at the real value and moves OPENSC4_VCLOCK_STEP_US
 // microseconds (default 1000) per call, so stopwatches already running stay
-// continuous. Other threads keep the real clock, so their timing cannot change
-// the main thread's sequence. Only the exe's import is wrapped (iat.h): our
-// own code, the drivers and Windows see real time.
+// continuous. Every other thread gets its own virtual counter too, from its
+// first call: the city-load worker (0x0048E460) takes jobs under a stopwatch
+// budget, and with real time on that thread how much it had done when the
+// main thread used its results varied (one run in four differed by a tick on
+// Rush Hour; docs/experiments/determinism.md). OPENSC4_VCLOCK_ALL_THREADS=0
+// leaves other threads on real time. Only the exe's import is wrapped
+// (iat.h): our own code, the drivers and Windows see real time.
 #include "core/virtual_clock.h"
 
+#include "core/fixed_ticks.h"
 #include "core/iat.h"
 #include "core/log.h"
 #include "core/registry.h"
@@ -45,9 +50,9 @@ int g_reports = 0;
 std::atomic<bool> g_real{false};
 int64_t g_offset = 0;
 
-// OPENSC4_VCLOCK_ALL_THREADS=1: every other thread gets its own virtual
-// counter too, starting from the real value on its first call.
-bool g_allThreads = false;
+// Every other thread gets its own virtual counter too, starting from the
+// real value on its first call (OPENSC4_VCLOCK_ALL_THREADS=0: real time).
+bool g_allThreads = true;
 thread_local int64_t t_virtual = 0;
 
 // OPENSC4_VCLOCK_CALLERS=<file>: main-thread calls counted per caller (the
@@ -83,6 +88,28 @@ void CountCaller(void** retSlot)
     }
 }
 
+// OPENSC4_VCLOCK_TRACE=<file>: every main-thread virtual read in order, one
+// line each ("Q" for QueryPerformanceCounter, "T" for a trapped rdtsc, then
+// the first three code addresses up the stack), with a line per simulation
+// day. Under the determinism replacements two runs read the clock in the same
+// order for as long as they take the same path, so the first differing line
+// shows where control flow parts, even in code that draws no random numbers.
+// Needs determinism.fixed_ticks, which says when a simulation slice runs.
+std::FILE* g_traceFile = nullptr;
+
+void TraceRead(char kind, const uint32_t* stack)
+{
+    // Only reads inside simulation time slices: frame-level code (rendering,
+    // the interface) reads the clock in an order that varies between runs.
+    if (!fixed_ticks::InSlice())
+        return;
+    uint32_t found[3] = {};
+    for (int i = 0, n = 0; i < 64 && n < 3; ++i)
+        if (stack[i] >= 0x00401000 && stack[i] < 0x00A80000)
+            found[n++] = stack[i];
+    std::fprintf(g_traceFile, "%c %08X %08X %08X\n", kind, found[0], found[1], found[2]);
+}
+
 BOOL WINAPI VirtualQpc(LARGE_INTEGER* count)
 {
     if (GetCurrentThreadId() != g_mainThread) {
@@ -107,6 +134,8 @@ BOOL WINAPI VirtualQpc(LARGE_INTEGER* count)
     ++g_calls;
     if (g_callersFile)
         CountCaller(static_cast<void**>(_AddressOfReturnAddress()));
+    if (g_traceFile)
+        TraceRead('Q', static_cast<const uint32_t*>(_AddressOfReturnAddress()));
     // Report against real time (our own, unwrapped import).
     LARGE_INTEGER now, frequency;
     QueryPerformanceCounter(&now);
@@ -173,7 +202,10 @@ LONG CALLBACK RdtscTrap(EXCEPTION_POINTERS* info)
     for (const RdtscSite& site : kRdtscSites) {
         if (site.address != address)
             continue;
-        const uint64_t value = GetCurrentThreadId() == g_mainThread ? VirtualTsc() : __rdtsc();
+        const bool main = GetCurrentThreadId() == g_mainThread;
+        const uint64_t value = main ? VirtualTsc() : __rdtsc();
+        if (main && g_traceFile && !g_real)
+            TraceRead('T', reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(info->ContextRecord->Esp)));
         g_tscReads.fetch_add(1, std::memory_order_relaxed);
         info->ContextRecord->Eax = static_cast<DWORD>(value);
         info->ContextRecord->Edx = static_cast<DWORD>(value >> 32);
@@ -237,6 +269,10 @@ bool PatchRdtscSites()
 
 void OnNewDay(int day)
 {
+    if (g_traceFile && GetCurrentThreadId() == g_mainThread) {
+        std::fprintf(g_traceFile, "day %d\n", day);
+        std::fflush(g_traceFile);
+    }
     if (!g_callersFile || GetCurrentThreadId() != g_mainThread)
         return;
     std::fprintf(g_callersFile, "day %d virtual %lld\n", day, static_cast<long long>(g_virtual));
@@ -246,6 +282,12 @@ void OnNewDay(int day)
         slot = CallerCount{};
     }
     std::fflush(g_callersFile);
+}
+
+void TraceEvent(char kind, const void* stack)
+{
+    if (g_traceFile && GetCurrentThreadId() == g_mainThread && !g_real)
+        TraceRead(kind, static_cast<const uint32_t*>(stack));
 }
 
 void ReturnToRealTime()
@@ -274,10 +316,15 @@ bool Install(registry::Mode)
     g_virtual = now.QuadPart;
     g_mainThread = GetCurrentThreadId();
     const char* all = std::getenv("OPENSC4_VCLOCK_ALL_THREADS");
-    g_allThreads = all && all[0] == '1';
+    g_allThreads = !(all && all[0] == '0');
     const char* callers = std::getenv("OPENSC4_VCLOCK_CALLERS");
     if (callers && *callers && fopen_s(&g_callersFile, callers, "w") != 0)
         g_callersFile = nullptr;
+    const char* trace = std::getenv("OPENSC4_VCLOCK_TRACE");
+    if (trace && *trace && fopen_s(&g_traceFile, trace, "w") != 0)
+        g_traceFile = nullptr;
+    if (g_traceFile)
+        std::setvbuf(g_traceFile, nullptr, _IOFBF, 1 << 20);
     if (!iat::Patch(nullptr, "KERNEL32.dll", "QueryPerformanceCounter", &VirtualQpc, &g_realQpc)) {
         log::Write("virtual_clock: the exe does not import QueryPerformanceCounter");
         return false;

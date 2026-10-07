@@ -36,7 +36,7 @@ done
 retries="${OPENSC4_PARITY_RETRIES:-3}"
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-base="determinism.fixed_seed=ours,determinism.virtual_clock=ours,determinism.fixed_ticks=ours"
+base="determinism.fixed_seed=ours,determinism.virtual_clock=ours,determinism.fixed_ticks=ours,determinism.agent_order=ours,determinism.zero_alloc=ours"
 replace_a="$base${OPENSC4_PARITY_A:+,$OPENSC4_PARITY_A}"
 replace_b="$base${OPENSC4_PARITY_B:+,$OPENSC4_PARITY_B}"
 [ "$replace_a" != "$replace_b" ] || echo "run-parity: A and B are the same (a control run)" >&2
