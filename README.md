@@ -8,7 +8,14 @@ OpenSC4 runs inside the original game and replaces its subsystems one at a time,
 
 ## Status
 
-Planning. Nothing is built yet. See [ROADMAP.md](ROADMAP.md) for progress.
+Early development. Working today, inside SC4 Deluxe build 1.1.641:
+
+- **In-process mod:** a launcher injects `core.dll` (hooks, logging, crash dumps, per-subsystem replacement toggles).
+- **D3D11 renderer:** matches the stock driver in all 60 harness screenshots, runs past the old 2048 px cap, windowed and borderless modes.
+- **DBPF reader:** byte-identical to the game's own reading of every record in a clean install.
+- **Determinism and parity harness:** runs from the same save agree for a year; replacement simulators are compared exactly against the original.
+
+Not yet playable as a standalone game. See [ROADMAP.md](ROADMAP.md) for progress.
 
 ## Documents
 
