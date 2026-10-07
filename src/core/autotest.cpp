@@ -3,9 +3,12 @@
 #include "core/crash.h"
 #include "core/log.h"
 #include "core/fixed_ticks.h"
+#include "core/game.h"
 #include "core/pollution_proxy.h"
 #include "core/rng_trace.h"
 #include "core/virtual_clock.h"
+
+#include <opensc4/addresses.h>
 
 #include <GZCLSIDDefs.h>
 #include <GZServPtrs.h>
@@ -136,6 +139,16 @@ uint32_t GridChecksum(cISC4SimGrid<T>* grid)
             for (size_t i = 0; i < sizeof v; ++i)
                 h = (h ^ b[i]) * 16777619u;
         }
+    return h;
+}
+
+// FNV-1a over `size` bytes.
+uint32_t BytesChecksum(const void* data, size_t size)
+{
+    uint32_t h = 2166136261u;
+    const auto* b = static_cast<const uint8_t*>(data);
+    for (size_t i = 0; i < size; ++i)
+        h = (h ^ b[i]) * 16777619u;
     return h;
 }
 
@@ -465,12 +478,25 @@ private:
         cISC4TrafficSimulator* traffic = city->GetTrafficSimulator();
         cISC4LandValueSimulator* land = city->GetLandValueSimulator();
         cISC4PollutionSimulator* pollution = city->GetPollutionSimulator();
+        // The worst tracts and the generator that places pollution effects
+        // (a Mersenne twister: 624 words of state, then a pointer into them
+        // and a countdown): nothing else reads them, so they are
+        // fingerprinted directly.
+        uint32_t worstX[3] = {}, worstZ[3] = {};
+        int32_t worstValue[3] = {};
+        if (pollution) {
+            pollution->GetWorstAirTract(worstX[0], worstZ[0], worstValue[0]);
+            pollution->GetWorstWaterTract(worstX[1], worstZ[1], worstValue[1]);
+            pollution->GetWorstGarbageTract(worstX[2], worstZ[2], worstValue[2]);
+        }
+        const uint32_t effectRandom =
+            game::IsBuild641() ? BytesChecksum(reinterpret_cast<const void*>(addr::PollutionTuning_EffectRandom), 0x9C8) : 0u;
         char rng[256];
         rng_trace::Describe(rng, sizeof rng);
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
         log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X%s%s",
+                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s",
                    day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
                    lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
                    traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
@@ -479,7 +505,8 @@ private:
                    land ? GridChecksum(land->GetTotalLandValueMap()) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(0)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
-                   pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, ticks, rng);
+                   pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
+                   worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, ticks, rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,

@@ -709,3 +709,30 @@ convention = "cdecl"
 signature = "void (void* p)"
 expect = "FF 74 24 04 B9 98 26 B6"
 source = "Name ours. Frees through the allocator object at 0x00B62698; used for the game's vector storage, e.g. a curve's points after 0x005F4700 (docs/pollution.md)."
+
+[[entry]]
+name = "cRZRandom::Range"
+address = 0x00913A46
+kind = "function"
+convention = "thiscall"
+signature = "double (cRZRandom* this, double low, double high)"
+expect = "E8 DE FF FF FF DD 44 24"
+source = "Name ours. (high - low) * the next number in [0, 1) (0x00913A29) + low, in ST0. UpdateWorstTractsAndEffects draws two per new pollution cloud from the generator at 0x00B49BD0 (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::EffectRandom"
+address = 0x00B49BD0
+kind = "data"
+source = "cRZRandom (an object, not a pointer) that places the pollution simulator's kind-1 effects: a Mersenne twister, 624 words of state, a pointer to the next word at +0x9C0 and a countdown at +0x9C4 (next number 0x009139B9) (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::EffectCurves"
+address = 0x00B49BB0
+kind = "data"
+source = "SC4Curve*[4] at 0x00B49BB0, 0x00B49BB4, 0x00B49BB8, 0x00B49BBC: effect strength for a block's water, air, radiation and garbage value (times 1/32767) in UpdateWorstTractsAndEffects (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::Terrain"
+address = 0x00B43CF4
+kind = "data"
+source = "Service pointer, name ours: slot 13 gives the height at a position (x, z); UpdateWorstTractsAndEffects places effects at it (docs/pollution.md)."
