@@ -425,6 +425,7 @@ private:
         if (!sim || self->reachedEndDay_)
             return;
         const int32_t day = sim->GetSimDateNumber();
+        self->LogFpuControlWord(day);
         rng_trace::OnNewDay(day);
         virtual_clock::OnNewDay(day);
         if (self->fingerprint_ && day != self->lastFingerprintDay_) {
@@ -436,6 +437,22 @@ private:
             self->reachedEndDay_ = true;
             log::Write("autotest: day %d reached in the simulator's tick (sim time %d); paused", day, sim->GetSimTime());
         }
+    }
+
+    // The x87 control word the simulation runs with (docs/pollution.md,
+    // "Floating point"), logged the first time and whenever it changes.
+    void LogFpuControlWord(int32_t day)
+    {
+        uint16_t word = 0;
+        __asm fnstcw word ptr [word]
+        if (word == lastFpuControlWord_)
+            return;
+        lastFpuControlWord_ = word;
+        static const char* const kPrecision[] = {"24-bit (single)", "reserved", "53-bit (double)", "64-bit (extended)"};
+        static const char* const kRounding[] = {"nearest", "down", "up", "toward zero"};
+        log::Write("autotest: x87 control word %04X on day %d in the simulator's tick: precision %s, rounding %s, "
+                   "exception masks %02X",
+                   word, day, kPrecision[(word >> 8) & 3], kRounding[(word >> 10) & 3], word & 0x3F);
     }
 
     // OPENSC4_TEST_FINGERPRINT=1: one line per game day. Numbers, not
@@ -566,6 +583,7 @@ private:
     int runDays_ = -1; // OPENSC4_TEST_DAYS; -1: run for runSeconds_
     bool fingerprint_ = Env("OPENSC4_TEST_FINGERPRINT") == "1";
     int32_t lastFingerprintDay_ = -1;
+    uint32_t lastFpuControlWord_ = 0xFFFFFFFF;
     int endDay_ = 0;
     DayAgent agent_{&AutoTestService::OnNewDay, this};
     bool agentAdded_ = false;
