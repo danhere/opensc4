@@ -29,6 +29,7 @@ add_library(opensc4_core SHARED
   d3d7_probe.cpp
   dbpf_survey.cpp
   gdriver_proxy.cpp
+  pollution_buildings.cpp
   pollution_proxy.cpp
   pollution_sim.cpp
   pollution_tracts.cpp

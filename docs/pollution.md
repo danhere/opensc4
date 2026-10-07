@@ -10,7 +10,9 @@ In increments, each on the original object. The game keeps creating, loading, sa
 | --- | --- | --- |
 | `simulators.pollution.interface` | 59 of the 71 `cISC4PollutionSimulator` slots: the getters, setters and queries ([src/core/pollution_sim.cpp](../src/core/pollution_sim.cpp)) | done; parity below |
 | `simulators.pollution.tracts` | `SimulateTracts` (0x006E7FD0), the simulation: the handler of message 0x66956814 ([src/core/pollution_tracts.cpp](../src/core/pollution_tracts.cpp)); the helpers it calls are still the game's | parity below |
-| | Init, Shutdown, the other message handlers, the helpers, the remaining slots | not started |
+| `simulators.pollution.disposal` | `DisposeGarbage` (0x006E3820), which the tract walk calls ([src/core/pollution_tracts.cpp](../src/core/pollution_tracts.cpp)) | parity below |
+| `simulators.pollution.buildings` | `SpreadUsedCapacity` (0x006E3FE0) and `UpdateMaintenanceCosts` (0x006E4100), the tract walk's building-list helpers ([src/core/pollution_buildings.cpp](../src/core/pollution_buildings.cpp)) | parity below |
+| | Init, Shutdown, the other message handlers, `OnTractWalkRestart` (0x006E7930), the remaining slots | not started |
 
 The interface methods are swapped in the primary vtable (0x00AB2630), not detoured at their entries: nothing calls them directly (every reference is the vtable's), and several are compiler-folded with other classes' functions (0x006E3000 sits in nine vtables, the functions of slots 10, 30, 31 and 32 in two to five), so an entry detour would change those classes too. The swap checks that every slot still holds the game's function and changes all of them or none.
 
@@ -87,6 +89,21 @@ The game rounds to the nearest integer with a float trick (add 1.5 × 2^23, stor
 
 Only the case where the tract iterator has nothing left even after a restart (a city with no tracts) is not reproduced: the game would then reuse stale stack values as the next position, ours keeps the old one.
 
+### DisposeGarbage
+
+`DisposeGarbage(amount, incineratorLeft, wasteToEnergyLeft)` (0x006E3820) takes garbage away in this order and returns how much it took:
+
+1. **Export deals**: up to what they accept this month (+0x1B0, set by the tract walk) minus what was exported (+0x150).
+2. **Burning**: first in waste-to-energy plants (the second capacity; counted as converted to energy, +0x168), then in incinerators (the first capacity; counted as incinerated, +0x160). Each time, if the capacity is larger than the amount, all of the amount is taken and the capacity reduced by its whole part; otherwise nothing is taken and the capacity is set to 0. (A first reading counted one stack push too many and took both from the first pointer, which looked like a game bug; the parity harness caught it on Rush Hour d0000, where ours then counted no garbage as converted to energy.)
+3. **Landfills**: room = a curve of the landfill service's tile count (0x00B49BC0, the service at +0x3C) × the capacity scale (+0x228) − the supply, at most the free space the service reports; what goes there is added to the supply.
+4. **Abduction**, up to a monthly limit (0x00B49B70; +0x1B4).
+
+The result is summed in an x87 register until the landfill step, which continues from the sum as stored in a float (the register value is dropped); ours does the same.
+
+### Building lists
+
+After the walk, `SpreadUsedCapacity` (0x006E3FE0) shares out the capacity each list used over its buildings: an equal part each (of the amount used, at most the list's total), as much as each building has room for (current capacity minus its used-capacity property), added to that property. When a building has less room than its part, the part is recomputed from what is left over the buildings still to come. `UpdateMaintenanceCosts` (0x006E4100) then compares each building's maintenance cost (`CalcOccupantMaintenanceCost`, slot 65) with its budget item for purpose 0xCA58EDC7 in the budget simulator (0x00B43D64) and, when they differ, changes the line item by the difference and the item's cost to the new value. The game passes the item's field at +0x18 (gzcom-dll: `index`) as `ChangeBudgetItemCost`'s purpose. Ours zeroes the whole budget item before asking for it, where the game zeroes only its last field and leaves the rest to the call.
+
 ## What the game does that gzcom-dll's header does not say
 
 Our functions reproduce these; callers can see them.
@@ -129,3 +146,7 @@ Results (2026-10-07, 12 saves, 7 game days each; result folders under `%LOCALAPP
 The odd outcomes all being first runs of a pair is a lead for the remaining noise in the harness, not followed up here.
 
 With our tract walk too (2026-10-07, `simulators.pollution.tracts` and `simulators.pollution.interface` together, `parity/tracts1`): **12 of 12 identical, all on the first pair**, ours hooked in every B run and in no A run. The tract walk alone on Making Money d0090 and d0365 (`tracts1-mm2`): identical. Seven days do not reach every branch: the garbage paths for a supply over capacity and for more than 32,767 on one cell are the least likely to have run.
+
+A year from Making Money d0090 and d0365 with the tract walk and the interface (`tracts1-365`): **366 of 366 days identical** on both.
+
+With `DisposeGarbage` and the building-list helpers too (all four replacements, `all2`): **12 of 12 identical on the first pair**, and a year from the same two saves (`all2-365`): 366 of 366 days identical on both. An earlier version of `DisposeGarbage` burned both times against the first capacity (a stack offset misread, see above); the batch found it on Rush Hour d0000, the only save of the twelve where it showed in a week.
