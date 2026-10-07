@@ -101,7 +101,8 @@ source = "Installs vtables 0x00AB2630 (+0), 0x00AB261C (+4), 0x00AB2600 (+8), 0x
 name = "cSC4PollutionSimulator::vftable"
 address = 0x00AB2630
 kind = "vtable"
-source = "Primary vtable: cISC4PollutionSimulator, 71 slots, matching gzcom-dll."
+expect = "D0 2C 6E 00 30 53 69 00"
+source = "Primary vtable: cISC4PollutionSimulator, 71 slots, matching gzcom-dll. simulators.pollution.interface swaps 59 of its slots (docs/pollution.md)."
 
 [[entry]]
 name = "NameTable"
@@ -288,3 +289,99 @@ convention = "cdecl"
 signature = "int (void)"
 expect = "E8 60 7A 00 00 8B 48 14 69 C9 FD 43 03 00"
 source = "The statically linked C runtime's rand: per-thread LCG (x * 0x343FD + 0x269EC3, state at thread data + 0x14). Called by Lua's math.random and by simulation code, e.g. 0x006BCFC0 five times (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "SC4::GetPropertySint32"
+address = 0x005FD450
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, int32_t& value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. holder->GetProperty(id) (slot 9), then the property's variant (slot 5) GetValSint32(int32_t&) (variant slot 28); false if the holder has no such property. Called by cSC4PollutionSimulator::GetBuildingGarbageCapacity (0x006E3160) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::GetPropertyUint32"
+address = 0x005FD480
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, uint32_t& value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. As 0x005FD450 with the variant's GetValUint32(uint32_t&) (slot 25). Called by the pollution simulator's capacity getters (0x006E2DA0, 0x006E2E70, 0x006E2EA0) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::GetPropertyPercentage"
+address = 0x005FDAC0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, float& value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. Reads a property of any integer variant type and stores value * 0.01 (0x00A823A4) as a float. Called by cSC4PollutionSimulator::GetRecyclingCenterMaxCapacity (0x006E2D70) (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::LoadTuning"
+address = 0x006E5B10
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this)"
+expect = "83 EC 2C A1 A8 3C B4 00"
+source = "Name ours. Sets the pollution tuning globals 0x00B49B68-0x00B49BBC to defaults, then reads them from the simulator's exemplar. Called by Init (0x006E7428) and by the message handler for 0xCA1B151C (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::GarbageScalingFactor"
+address = 0x00B49B6C
+kind = "data"
+source = "float. Written by LoadTuning (0x006E5B10), returned by GetGarbageScalingFactor (slot 48) (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::WaterPollutedThreshold"
+address = 0x00B49B78
+kind = "data"
+source = "uint32. Written by LoadTuning; IsWaterPolluted (slot 14) compares GetWaterValue against it, unsigned (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::AirPollutedThreshold"
+address = 0x00B49B7C
+kind = "data"
+source = "uint32. Written by LoadTuning; IsAirPolluted (slot 13) compares against it, unsigned (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::GarbageAccumulatedThreshold"
+address = 0x00B49B80
+kind = "data"
+source = "uint32. Written by LoadTuning; IsGarbageAccumulated (slot 15) compares against it, unsigned (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::MaxRadiationLevelForUI"
+address = 0x00B49B94
+kind = "data"
+source = "int32. Written by LoadTuning, returned by slot 70 (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::MaxGarbageLevelForUI"
+address = 0x00B49B98
+kind = "data"
+source = "int32. Written by LoadTuning, returned by slot 69 (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::MaxWaterLevelForUI"
+address = 0x00B49B9C
+kind = "data"
+source = "int32. Written by LoadTuning, returned by slot 68 (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::MaxAirLevelForUI"
+address = 0x00B49BA0
+kind = "data"
+source = "int32. Written by LoadTuning, returned by slot 67 (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::LandfillTileCapacity"
+address = 0x00B49BA4
+kind = "data"
+source = "int32. Written by LoadTuning, returned by GetLandfillTileCapacity (slot 21) (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::DefaultPercentage"
+address = 0x00B49BC4
+kind = "data"
+source = "float. Never written through its address; read as the starting value of percentage outputs (GetRecyclingCenterMaxCapacity, GetRecyclingCenterCurrentCapacity, GetCurrentOccupantEfficiency) and by the constructor (docs/pollution.md)."

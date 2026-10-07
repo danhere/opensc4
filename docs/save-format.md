@@ -28,7 +28,7 @@ Stream types follow `cIGZIStream`/`cIGZOStream` (little-endian; strings are a 32
 | all | uint16 | | version |
 | all | 4 references | +0x40 | grid objects (class 0x49B9E605 and others) |
 | all | 4 references | +0x50 | grid objects |
-| all | uint32 x2 | +0x60, +0x64 | |
+| all | uint32 x2 | +0x60, +0x64 | the garbage simulation's tract cursor (x, z) |
 | all | 4 reference lists | +0x68 to +0x74 | |
 | all | uint32 | +0xFC | |
 | all | uint32 | **+0x100** | **average air pollution** (air getter; 272 in the test city, as the game reports) |
@@ -37,16 +37,16 @@ Stream types follow `cIGZIStream`/`cIGZOStream` (little-endian; strings are a 32
 | all | uint32 | +0x120 | |
 | 2 | string | | read and dropped |
 | all | uint16 | **+0x128** | **average garbage** (`GetAverageGarbageValue`, 0x006E3020) |
-| all | uint32 x2, float, uint8, uint32 | +0x12C to +0x13C | |
+| all | uint32 x2, float, uint8, uint32 | +0x12C to +0x13C | monthly incinerator and waste-to-energy capacity, recycling center effect (float), garbage uncollected, total uncollected ([pollution.md](pollution.md)) |
 | all | int64 x2 | +0x1C0, +0x1C8 | |
 | 4 | uint32 | +0x1B8 | garbage abducted the previous month (`GetGarbageAbductedPrevMonth`, 0x006E4F20, returned zero-extended to 64 bits) |
 | all | int64 x3, double, int64 x3 | +0x178 to +0x1AC | **last month's garbage**: produced, imported, exported (+0x178, +0x180, +0x188), recycled (double, +0x190), incinerated, converted to energy, landfilled (+0x198, +0x1A0, +0x1A8); the `Get...LastMonth` getters 0x006E4F30 to 0x006E4F90 return these as 64-bit values (the recycled one through `__ftol`) |
-| all | int64 x3, double, int64 x3 | +0x140 to +0x174 | the same seven figures in the same layout; probably the month in progress (not checked) |
-| all | uint32, int32, uint32, uint32 | +0x1B4, +0x1B0, +0x1BC, +0x1D4 | |
+| all | int64 x3, double, int64 x3 | +0x140 to +0x174 | the same seven figures for the month in progress: the MonthPassed handler (0x006E7B60) copies them to +0x178 and clears them; `GarbagePutInLandfill` adds to +0x170 ([pollution.md](pollution.md)) |
+| all | uint32, int32, uint32, uint32 | +0x1B4, +0x1B0, +0x1BC, +0x1D4 | +0x1BC active landfill tiles; +0x1D4 garbage tracts walked per call |
 | all | struct (0x005DAB70) | +0x1D8 | int8, int8, uint8, int32 x5, count + uint16 values, int32 x3 |
-| all | uint8 x4 | +0x208 | flags |
+| all | uint8 x4 | +0x208 | radiation, air, water, garbage changed (set by the setters) |
 | 2 | uint32 | | read and dropped |
-| all | float, int32 x2 | +0x228 to +0x230 | |
+| all | float, int32 x2 | +0x228 to +0x230 | capacity scale, garbage supply, garbage capacity |
 | all | reference | +0xD8 | |
 
 Checked on 2026-10-06: the decoder consumes every pollution record exactly in 531 saves (the test region, the P4 test runs, and the six regions that ship with the game): 28 of version 4, 5 of version 3 and 498 of version 2 (cities the game has never re-saved). The three averages match what the live simulator reported for the same save.

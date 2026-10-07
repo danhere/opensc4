@@ -34,6 +34,8 @@ The autotest fingerprints and stops from a simulator agent (`cISC4Simulator::Add
 | + replacement lists in opensc4.ini (identical environments) | | **12 of 12, all on the first pair** |
 | + agent order, zero-filled allocations, virtual clocks on all threads | **12 of 12, first pair**; with B's heap shifted by 1,072 bytes: 11 of 12, the twelfth an unexplained silent exit during load (not reproduced in 3 repeats) | **12 of 12, all on the first pair** |
 
+Our first reimplementation increment, the pollution simulator's getters and setters (`simulators.pollution.interface`), passes 12 of 12 on the first pair; with B's heap shifted, 10 of 12 and the two others identical when repeated ([pollution.md](pollution.md)).
+
 Along the way the proxy turned up a real bug: eight garbage getters return 64-bit values in EDX:EAX that gzcom-dll declares as `int32_t`, and the game reads all 64 bits; the proxy returned EAX with whatever EDX held (fixed; [experiments/pollution-proxy.md](experiments/pollution-proxy.md)). Its other differences turned out to be the original's own: timing-dependent outcomes that the proxy's small overhead, or the RNG tracer's, made more or less likely, and finally the environment difference above. One crash in a proxy run (0x0096DA20, Rush Hour d0365, during load) was never reproduced.
 
 ## Limits
