@@ -411,16 +411,16 @@ kind = "function"
 convention = "thiscall"
 signature = "void (cSC4PollutionSimulator* this, void* list, uint32_t currentProperty, uint32_t usedProperty, uint32_t total, int32_t* used, int32_t count)"
 expect = "83 EC 08 8B 44 24 18 85"
-source = "Name ours, not checked in detail. Called by SimulateTracts once per building list whose capacity was used, with the list, its two capacity properties, the list's total, the amount used and the building count (docs/pollution.md)."
+source = "Name ours. Called by SimulateTracts once per building list whose capacity was used: shares the amount used out over the list's buildings (an equal part each, as much as each has room for) and adds it to their used-capacity property (docs/pollution.md)."
 
 [[entry]]
-name = "cSC4PollutionSimulator::ProcessBuildingList"
+name = "cSC4PollutionSimulator::UpdateMaintenanceCosts"
 address = 0x006E4100
 kind = "function"
 convention = "thiscall"
 signature = "void (cSC4PollutionSimulator* this, void* list)"
 expect = "83 EC 2C 8B 44 24 30 8B"
-source = "Name ours, not checked. Called by SimulateTracts for the lists at +0x68, +0x6C and +0x74 (docs/pollution.md)."
+source = "Name ours. For each building of the list, CalcOccupantMaintenanceCost (slot 65); when it differs from the budget item for purpose 0xCA58EDC7, the line item changes by the difference and the item gets the new cost (cISC4BudgetSimulator slots 51, 57, 53). Called by SimulateTracts for the lists at +0x68, +0x6C and +0x74 (docs/pollution.md)."
 
 [[entry]]
 name = "cSC4PollutionSimulator::OnTractWalkRestart"
@@ -505,3 +505,30 @@ name = "PollutionTuning::TrafficAirFactor"
 address = 0x00B49B8C
 kind = "data"
 source = "float. Written by LoadTuning; scales a cell's traffic value (from the object at +0x28) into air pollution in SimulateTracts (docs/pollution.md)."
+
+[[entry]]
+name = "SC4Curve::Evaluate"
+address = 0x005F4250
+kind = "function"
+convention = "thiscall"
+signature = "float (SC4Curve const* this, float x)"
+expect = "53 55 8B 69 0C 56 57 8D"
+source = "Name and class ours. Binary search over 20-byte points (x at +0, y at +4, segment start x +8, start y +0xC, slope +0x10; count at curve+0xC); below the first point or past the last it returns that point's y, else start y + (x - start x) * slope. Returns in ST0 without rounding to float. Called by DisposeGarbage for the landfill curve (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::LandfillCapacityCurve"
+address = 0x00B49BC0
+kind = "data"
+source = "SC4Curve*. Set by 0x006E59D0 (called from Init) and 0x006E5150; DisposeGarbage reads the landfill room per the landfill service's tile count from it (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::MonthlyAbductionLimit"
+address = 0x00B49B70
+kind = "data"
+source = "int32. Written by LoadTuning; DisposeGarbage's last step takes garbage up to this much per month (+0x1B4, copied to +0x1B8 at the month's end) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::BudgetSimulator"
+address = 0x00B43D64
+kind = "data"
+source = "cISC4BudgetSimulator* of the current city. The pollution simulator creates its department budget through it (Init, slot 25) and keeps its buildings' maintenance line items current (UpdateMaintenanceCosts: slots 51, 57, 53) (docs/pollution.md)."

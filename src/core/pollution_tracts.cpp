@@ -9,8 +9,8 @@
 // disposal, landfills or the supply, and the air and water values moved
 // toward their targets by at most a tuning step per visit.
 //
-// The helpers it calls (DisposeGarbage, SpreadUsedCapacity, ...) are still
-// the game's. x87 arithmetic follows docs/pollution.md, "Floating point":
+// The helpers it calls go through the game's addresses, so each runs ours
+// or the game's as its own replacement says. x87 arithmetic follows docs/pollution.md, "Floating point":
 // each step as double, rounded to float where the game stores a float.
 #include "core/pollution_sim.h"
 
@@ -44,8 +44,14 @@ constexpr std::size_t kZonedTracts = 0x120;
 constexpr std::size_t kSumRadiationSource = 0x124;
 constexpr std::size_t kProducedThisMonth = 0x140; // int64
 constexpr std::size_t kImportedThisMonth = 0x148; // int64
+constexpr std::size_t kExportedThisMonth = 0x150; // int64
+constexpr std::size_t kIncineratedThisMonth = 0x160; // int64
+constexpr std::size_t kConvertedThisMonth = 0x168;   // int64: converted to energy
+constexpr std::size_t kAbductedThisMonth = 0x1B4;    // uint32
+constexpr std::size_t kLandfills = 0x3C;             // the service at 0x00B43D28: landfill use and size
+constexpr std::size_t kCapacityScale = 0x228;        // float
 constexpr std::size_t kRecycledThisMonth = 0x158; // double
-constexpr std::size_t kExportedThisMonth = 0x1B0; // int32
+constexpr std::size_t kExportDealCapacity = 0x1B0; // int32: what the export deals accept this month
 constexpr std::size_t kTractsPerCall = 0x1D4;
 constexpr std::size_t kTractIterator = 0x1D8;     // its first byte is the state; 2 = finished
 
@@ -75,7 +81,7 @@ using ReleaseRefFn = void(__thiscall*)(void** ref);
 
 const auto DisposeGarbage = reinterpret_cast<DisposeGarbageFn>(addr::cSC4PollutionSimulator_DisposeGarbage);
 const auto SpreadUsedCapacity = reinterpret_cast<SpreadUsedCapacityFn>(addr::cSC4PollutionSimulator_SpreadUsedCapacity);
-const auto ProcessBuildingList = reinterpret_cast<ListFn>(addr::cSC4PollutionSimulator_ProcessBuildingList);
+const auto UpdateMaintenanceCosts = reinterpret_cast<ListFn>(addr::cSC4PollutionSimulator_UpdateMaintenanceCosts);
 const auto OnTractWalkRestart = reinterpret_cast<ThisFn>(addr::cSC4PollutionSimulator_OnTractWalkRestart);
 const auto RestartTracts = reinterpret_cast<RestartFn>(addr::TractIterator_Restart);
 const auto NextTract = reinterpret_cast<NextFn>(addr::TractIterator_Next);
@@ -99,19 +105,15 @@ int32_t MagicRound(double value)
     return static_cast<int32_t>(bits + 0xB4C00000u);
 }
 
+// a - b with 32-bit wraparound, as the game's SUB.
+int32_t Minus(int32_t a, int32_t b)
+{
+    return static_cast<int32_t>(static_cast<uint32_t>(a) - static_cast<uint32_t>(b));
+}
+
 double Unsigned(uint32_t value)
 {
     return static_cast<double>(value);
-}
-
-void* NodeObject(void* node)
-{
-    return static_cast<void**>(node)[2];
-}
-
-void* NextNode(void* node)
-{
-    return *static_cast<void**>(node);
 }
 
 // The list node allocator, fetched from the framework on first use as the
@@ -234,10 +236,10 @@ void SettleGarbage(void* self, uint32_t x, uint32_t z, int32_t garbageTarget, in
         return;
     }
 
-    const int32_t room = At<int32_t>(self, field::kGarbageCapacity) - At<int32_t>(self, field::kGarbageSupply);
+    const int32_t room = Minus(At<int32_t>(self, field::kGarbageCapacity), At<int32_t>(self, field::kGarbageSupply));
     if (room < 0 && static_cast<double>(left) < kMaxCellF) {
         // The supply is over capacity: take some of it back onto the cell.
-        const int32_t excess = -room;
+        const int32_t excess = Minus(0, room);
         int32_t amount = excess;
         if (excess > produced)
             amount = static_cast<int16_t>(garbageTarget) != 0 ? produced : 1;
@@ -293,7 +295,7 @@ void __fastcall SimulateTracts(void* self, void*)
     for (void* node = NextNode(list); node != list; node = NextNode(node)) {
         void* const deal = NodeObject(node);
         const int32_t used = Virtual<int32_t>(deal, 0x50);
-        const int32_t room = Virtual<int32_t>(deal, 0x28) - used;
+        const int32_t room = Minus(Virtual<int32_t>(deal, 0x28), used);
         if (static_cast<double>(room) > 0.0) {
             const int32_t amount =
                 MagicRound(static_cast<double>(Virtual<int32_t>(deal, 0x28)) * static_cast<double>(0.1f));
@@ -306,14 +308,14 @@ void __fastcall SimulateTracts(void* self, void*)
     for (void* node = NextNode(list); node != list; node = NextNode(node)) {
         void* const deal = NodeObject(node);
         const int32_t used = Virtual<int32_t>(deal, 0x50);
-        const int32_t room = Virtual<int32_t>(deal, 0x28) - used;
+        const int32_t room = Minus(Virtual<int32_t>(deal, 0x28), used);
         if (room > 0) {
             int32_t amount =
                 MagicRound(static_cast<double>(Virtual<int32_t>(deal, 0x28)) * static_cast<double>(0.1f));
             if (room < amount)
                 amount = room;
             Virtual<uint32_t>(deal, 0x54, Virtual<int32_t>(deal, 0x50) + amount);
-            At<int32_t>(self, kExportedThisMonth) += amount;
+            At<int32_t>(self, kExportDealCapacity) += amount;
         }
     }
     const float importedF = static_cast<float>(imported);
@@ -468,9 +470,9 @@ void __fastcall SimulateTracts(void* self, void*)
     }
 
     // Supply over capacity is disposed of, or cut by at most a tuning limit.
-    const int32_t room = At<int32_t>(self, field::kGarbageCapacity) - At<int32_t>(self, field::kGarbageSupply);
+    const int32_t room = Minus(At<int32_t>(self, field::kGarbageCapacity), At<int32_t>(self, field::kGarbageSupply));
     if (room < 0) {
-        const uint32_t excess = static_cast<uint32_t>(-room);
+        const uint32_t excess = 0u - static_cast<uint32_t>(room);
         int32_t cut = Ftol(DisposeGarbage(self, static_cast<float>(static_cast<int32_t>(excess)), &incineratorLeft,
                                           &wasteToEnergyLeft));
         const uint32_t limit = Global<uint32_t>(addr::PollutionTuning_GarbageExcessLimit);
@@ -493,13 +495,149 @@ void __fastcall SimulateTracts(void* self, void*)
     if (used != 0)
         SpreadUsedCapacity(self, &At<char>(self, field::kWasteToEnergyList), 0x48EBD0B1, 0x88ECF76C,
                            wasteToEnergy.left, &used, wasteToEnergy.count);
-    ProcessBuildingList(self, &At<char>(self, field::kWaterTreatmentList));
-    ProcessBuildingList(self, &At<char>(self, field::kIncineratorList));
-    ProcessBuildingList(self, &At<char>(self, field::kRecyclingList));
+    UpdateMaintenanceCosts(self, &At<char>(self, field::kWaterTreatmentList));
+    UpdateMaintenanceCosts(self, &At<char>(self, field::kIncineratorList));
+    UpdateMaintenanceCosts(self, &At<char>(self, field::kRecyclingList));
 
     ClearList(&list);
     Virtual<uint32_t>(NodeAllocator(), 0x10, list);
 }
+
+// --- DisposeGarbage (0x006E3820) --------------------------------------------
+
+using EvaluateCurveFn = double(__thiscall*)(const void* curve, float x); // ST0, unrounded
+const auto EvaluateCurve = reinterpret_cast<EvaluateCurveFn>(addr::SC4Curve_Evaluate);
+
+int64_t Ftol64(double value)
+{
+    return static_cast<int64_t>(value);
+}
+
+// Takes up to `amount` of garbage, in order: export deals, waste-to-energy
+// plants (counted as converted to energy), incinerators (counted as
+// incinerated), landfills, abduction. Returns the amount taken, in ST0:
+// until the landfill step the exact sum, from there on continuing from the
+// sum as stored in a float.
+double __fastcall DisposeGarbageOurs(void* self, void*, float amount, uint32_t* incineratorLeft,
+                                     uint32_t* wasteToEnergyLeft)
+{
+    if (!(amount > 0.0f))
+        return 0.0;
+    double result = 0.0;
+    float total = 0.0f;
+
+    const int32_t exportRoom = Minus(At<int32_t>(self, kExportDealCapacity), At<int32_t>(self, kExportedThisMonth));
+    if (exportRoom > 0) {
+        double taken;
+        if (static_cast<double>(amount) > static_cast<double>(exportRoom)) {
+            taken = exportRoom;
+            amount = static_cast<float>(static_cast<double>(amount) - static_cast<double>(exportRoom));
+        } else {
+            taken = amount;
+            amount = 0.0f;
+        }
+        At<int64_t>(self, kExportedThisMonth) =
+            Ftol64(static_cast<double>(At<int64_t>(self, kExportedThisMonth)) + taken);
+        result = taken;
+        total = static_cast<float>(taken);
+    }
+    if (!(amount > 0.0f))
+        return result;
+
+    // Burns all of the amount if the capacity is larger, else nothing, and
+    // the capacity is used up either way.
+    auto burn = [&](uint32_t* capacity, std::size_t counter) {
+        const uint32_t left = *capacity;
+        if (left == 0)
+            return;
+        double taken;
+        if (Unsigned(left) > static_cast<double>(amount)) {
+            int32_t whole = MagicRound(static_cast<double>(amount) - 0.5);
+            if (static_cast<double>(amount) == static_cast<double>(whole + 1))
+                whole += 1;
+            taken = amount;
+            *capacity = left - static_cast<uint32_t>(whole);
+            amount = 0.0f;
+        } else {
+            taken = 0.0;
+            *capacity = 0;
+        }
+        At<int64_t>(self, counter) = Ftol64(static_cast<double>(At<int64_t>(self, counter)) + taken);
+        result = result + taken;
+        total = static_cast<float>(result);
+    };
+    burn(wasteToEnergyLeft, kConvertedThisMonth);
+    if (!(amount > 0.0f))
+        return result;
+    burn(incineratorLeft, kIncineratedThisMonth);
+    if (!(amount > 0.0f))
+        return result;
+
+    // Landfills: room = curve(size) * scale - supply, at most what the
+    // landfill service reports free; what is put there joins the supply.
+    void* const landfills = At<void*>(self, kLandfills);
+    int32_t used = 0;
+    int32_t size = 0;
+    Virtual<uint32_t>(landfills, 0x28, &used, &size);
+    const int32_t free = Minus(size, used);
+    const float scale = At<float>(self, kCapacityScale);
+    const auto tiles = static_cast<float>(Virtual<int32_t>(landfills, 0x2C));
+    const double curve = EvaluateCurve(Global<void*>(addr::PollutionTuning_LandfillCapacityCurve), tiles);
+    const int32_t room = Minus(MagicRound(curve * static_cast<double>(scale)), At<int32_t>(self, field::kGarbageSupply));
+    const int32_t fits = room < free ? room : free;
+    if (fits <= 0) {
+        result = total;
+    } else {
+        const auto fitsF = static_cast<float>(fits);
+        if (static_cast<double>(amount) > static_cast<double>(fitsF)) {
+            AddToSupply(self, fits);
+            amount = static_cast<float>(static_cast<double>(amount) - static_cast<double>(fitsF));
+            result = static_cast<double>(fitsF) + static_cast<double>(total);
+        } else {
+            AddToSupply(self, MagicRound(amount));
+            result = static_cast<double>(amount) + static_cast<double>(total);
+            amount = 0.0f;
+        }
+    }
+    if (!(amount > 0.0f))
+        return result;
+
+    // Abduction, up to a monthly limit.
+    const uint32_t abducted = At<uint32_t>(self, kAbductedThisMonth);
+    const int32_t abductionRoom =
+        Minus(Global<int32_t>(addr::PollutionTuning_MonthlyAbductionLimit), static_cast<int32_t>(abducted));
+    if (abductionRoom <= 0)
+        return result;
+    const double taken = static_cast<double>(amount) > static_cast<double>(abductionRoom)
+                             ? static_cast<double>(abductionRoom)
+                             : static_cast<double>(amount);
+    At<uint32_t>(self, kAbductedThisMonth) = static_cast<uint32_t>(Ftol(Unsigned(abducted) + taken));
+    return result + taken;
+}
+
+using DisposeFn = double(__fastcall*)(void* self, void* edx, float amount, uint32_t* capacity, uint32_t* unused);
+DisposeFn g_originalDispose = nullptr;
+
+bool InstallDispose(registry::Mode)
+{
+    const addr::Entry* entry = addr_check::Find(addr::cSC4PollutionSimulator_DisposeGarbage);
+    if (!game::IsBuild641() || !entry)
+        return false;
+    return hook::Install(*entry, &DisposeGarbageOurs, &g_originalDispose);
+}
+
+const bool g_registeredDispose = registry::Register({
+    "simulators.pollution.disposal",
+    "simulators/pollution",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4PollutionSimulator_DisposeGarbage,
+    "Our DisposeGarbage: export deals, burning, landfills, abduction (docs/pollution.md)",
+    false,
+    InstallDispose,
+});
+
+// --- Installation of SimulateTracts -----------------------------------------
 
 using HandlerFn = void(__fastcall*)(void* self, void* edx);
 HandlerFn g_original = nullptr;

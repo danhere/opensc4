@@ -104,4 +104,8 @@ constexpr std::size_t kSlotIsActiveLandfill = 0xC4;
 constexpr std::size_t kSlotGetMaxCapacity = 0xD0;
 constexpr std::size_t kSlotGetCurrentCapacity = 0xD4;
 
+// The game's lists: circular, a sentinel node; nodes are {next, prev, object}.
+inline void* NextNode(void* node) { return *static_cast<void**>(node); }
+inline void* NodeObject(void* node) { return static_cast<void**>(node)[2]; }
+
 } // namespace opensc4::pollution_sim
