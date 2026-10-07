@@ -30,6 +30,7 @@ add_library(opensc4_core SHARED
   dbpf_survey.cpp
   gdriver_proxy.cpp
   pollution_proxy.cpp
+  pollution_sim.cpp
   virtual_clock.cpp
   thread_trace.cpp
   rng_trace.cpp

@@ -59,7 +59,7 @@ Output is a toolkit, not a game change. Everything later depends on it.
 Parity method (from P4): short-window exact comparison against the original from many saves, plus statistical comparison over long runs.
 
 - [x] Parity harness (docs/parity.md): `scripts/run-parity.sh`, a week from each of 12 saves, compared exactly. With the determinism replacements (docs/experiments/determinism.md, third round) the original agrees with itself on all 12, and runs agree for a year. Limit: the outcome depends on heap layout (both runs get identical environments)
-- [~] Pollution. A pass-through replacement registered through GZCOM already runs the city (experiment, replacement `simulators.pollution.proxy`); under the harness it passes all 12 saves exactly, after fixing a 64-bit return bug
+- [~] Pollution. A pass-through replacement registered through GZCOM already runs the city (experiment, replacement `simulators.pollution.proxy`); under the harness it passes all 12 saves exactly, after fixing a 64-bit return bug. Reimplementation in increments on the original object ([docs/pollution.md](docs/pollution.md)): the getters, setters and queries (59 of 71 interface slots, `simulators.pollution.interface`) are ours; next the message handlers, which are the simulation
 - [ ] Crime
 - [ ] Coverage sims (health, education, fire, police)
 - [ ] Land value
