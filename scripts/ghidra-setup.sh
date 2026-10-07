@@ -13,7 +13,8 @@
 #      class registrations, class creation, simulator vtable bypasses;
 #   3. the exe's ID-to-name table and gzcom-dll's interface slot table;
 #   4. sc4-ghidra-symbols: Function ID databases and data type archives;
-#   5. names for classes, vtables and interface methods;
+#   5. names for classes, vtables and interface methods, then the names in
+#      the address database and data/names-641.txt (step 5b);
 #   6. functions for code that auto-analysis left outside every function
 #      (virtual methods, callbacks and exception funclets reached only
 #      through pointers);
@@ -100,6 +101,10 @@ run_script --write ImportSc4Symbols.java "$(cygpath -d "$local_symbols")"
 step "5. names"
 run_script --write ApplyKnownNames.java "$(win "$out/class-registrations.csv")" "$(win "$out/name-table.csv")" \
     "$(win "$out/interface-slots.csv")"
+
+step "5b. names from OpenSC4's own work (address database, data/names-641.txt)"
+python3 "$repo/tools/re/name_list.py" "$repo/data/addresses-641.toml" "$repo/data/names-641.txt" >"$out/names.csv"
+run_script --write ApplyNameList.java "$(win "$out/names.csv")" | tail -1
 
 step "6. functions for code reached only through pointers"
 run_script --write DefineOrphanFunctions.java | tail -1
