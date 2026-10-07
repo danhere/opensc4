@@ -45,15 +45,6 @@ constexpr uint32_t kPropertyIncineratorUsed = 0xE8ECF641;
 constexpr uint32_t kPropertyWasteToEnergyCurrent = 0x48EBD0B1;
 constexpr uint32_t kPropertyWasteToEnergyUsed = 0x88ECF76C;
 
-uint32_t ListCount(void* self, std::size_t offset)
-{
-    void* const sentinel = At<void*>(self, offset);
-    uint32_t count = 0;
-    for (void* node = *static_cast<void**>(sentinel); node != sentinel; node = *static_cast<void**>(node))
-        ++count;
-    return count;
-}
-
 // --- Slots ------------------------------------------------------------------
 
 // 5 (0x006E3360)
