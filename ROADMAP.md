@@ -47,12 +47,15 @@ Output is a toolkit, not a game change. Everything later depends on it.
 
 ## P4: Save format and determinism (gate before any simulator work)
 
-- [~] **Prove the original game replays deterministically** (hook time sources, capture RNG, fixed sim-tick stepping). **First answer (2026-10-06, [docs/experiments/determinism.md](docs/experiments/determinism.md)): it does not**, even with fixed random seeds, a virtual clock on the main thread and one CPU: saves of two identical one-year runs differ in lots, buildings and flora; divergence starts in traffic within a day. A bounded second round (daily fingerprints) ruled out random numbers (seeding and `rand()` sequences identical) and narrowed it to thread interleaving or address order; runs stay identical for at least the first 8 game days. Proposed instead: short-window exact parity from many saves, plus statistical comparison over long runs. If it doesn't, parity becomes statistical, and that changes the second half of the plan. First data point: under real-time stepping, two identical runs of the same city diverge within two game months ([docs/experiments/pollution-proxy.md](docs/experiments/pollution-proxy.md)). The game's random seeds can now be fixed from process start (`determinism.fixed_seed`, [docs/renderer.md](docs/renderer.md)); not yet tried on a running simulation.
+- [x] **Does the original game replay deterministically?** Answered (2026-10-06, [docs/experiments/determinism.md](docs/experiments/determinism.md)): **no**, not as a whole. Two runs from the same save with fixed random seeds (`determinism.fixed_seed`), a fixed-step clock on every thread (`determinism.virtual_clock`) and one CPU still end in different cities after a year. Random numbers are ruled out (seeding and `rand()` sequences identical); left are thread interleaving (a city-load worker thread with its own time budget) or address-ordered processing. With those controls, runs **stay identical for at least the first 8 game days** (first population difference on day 9, 27 and 29 in three pairs).
+  - **Decision (Dan, 2026-10-06):** parity testing uses short windows: from many saves, a few game days with the original and with a replacement, compared exactly (daily fingerprints, the replaced simulator's own state), plus statistical comparison over long runs. **Tabled, not dropped:** finding the root cause of the divergence (next steps in the experiment doc: serialise or trace the worker thread, a deterministic per-thread allocator for address order).
 - [~] Save parser / differ (offline tooling): record-level diff (`opensc4-dbpf diff`) and an address-aware diff that separates moved heap addresses from real differences ([tools/re/savediff.py](tools/re/savediff.py)); record types named from the exe's class table. No per-record schemas yet
 - [ ] In-memory state dumpers from Ghidra layouts
 - [ ] Publish documented subfile schemas to the community
 
 ## P5: Isolated simulators
+
+Parity method (from P4): short-window exact comparison against the original from many saves, plus statistical comparison over long runs.
 
 - [~] Pollution. A pass-through replacement registered through GZCOM already runs the city (experiment, replacement `simulators.pollution.proxy`)
 - [ ] Crime
