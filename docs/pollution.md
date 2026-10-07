@@ -13,7 +13,8 @@ In increments, each on the original object. The game keeps creating, loading, sa
 | `simulators.pollution.disposal` | `DisposeGarbage` (0x006E3820), which the tract walk calls ([src/core/pollution_tracts.cpp](../src/core/pollution_tracts.cpp)) | parity below |
 | `simulators.pollution.buildings` | `SpreadUsedCapacity` (0x006E3FE0) and `UpdateMaintenanceCosts` (0x006E4100), the tract walk's building-list helpers ([src/core/pollution_buildings.cpp](../src/core/pollution_buildings.cpp)) | parity below |
 | `simulators.pollution.occupants` | `OnOccupantInsertedOrRemoved` (0x006E4680), the handler for buildings added and removed ([src/core/pollution_buildings.cpp](../src/core/pollution_buildings.cpp)) | parity below |
-| | Init, Shutdown, the other message handlers, `OnTractWalkRestart` (0x006E7930), the remaining slots | not started |
+| `simulators.pollution.month` | `OnMonthPassed` (0x006E7B60), the MonthPassed handler; the monthly building helpers it calls are still the game's ([src/core/pollution_tracts.cpp](../src/core/pollution_tracts.cpp)) | parity below |
+| | Init, Shutdown, CityInited (`UpdateWorstTractsAndEffects`), `OnTractWalkRestart` (0x006E7930), the monthly building helpers, the remaining slots | not started |
 
 The interface methods are swapped in the primary vtable (0x00AB2630), not detoured at their entries: nothing calls them directly (every reference is the vtable's), and several are compiler-folded with other classes' functions (0x006E3000 sits in nine vtables, the functions of slots 10, 30, 31 and 32 in two to five), so an entry detour would change those classes too. The swap checks that every slot still holds the game's function and changes all of them or none.
 
@@ -105,6 +106,10 @@ The result is summed in an x87 register until the landfill step, which continues
 
 After the walk, `SpreadUsedCapacity` (0x006E3FE0) shares out the capacity each list used over its buildings: an equal part each (of the amount used, at most the list's total), as much as each building has room for (current capacity minus its used-capacity property), added to that property. When a building has less room than its part, the part is recomputed from what is left over the buildings still to come. `UpdateMaintenanceCosts` (0x006E4100) then compares each building's maintenance cost (`CalcOccupantMaintenanceCost`, slot 65) with its budget item for purpose 0xCA58EDC7 in the budget simulator (0x00B43D64) and, when they differ, changes the line item by the difference and the item's cost to the new value. The game passes the item's field at +0x18 (gzcom-dll: `index`) as `ChangeBudgetItemCost`'s purpose. Ours zeroes the whole budget item before asking for it, where the game zeroes only its last field and leaves the rest to the call.
 
+## The month's end
+
+`OnMonthPassed` (0x006E7B60): the garbage import deals are set to unused; the export deals likewise, their capacity summed. The month's disposal (converted to energy + landfilled + export capacity + incinerated) times a cost per unit (+0x1D0) goes to the department budget's line item 20 (+0xD8) and to +0x1C8. This month's garbage figures (+0x140 to +0x174, +0x1B4) are copied to last month's and published through the service at 0x00B43DC0 (seven IDs 0xEA110158 to 0xEA1101AA; the recycled double truncated), then cleared, with the export deals' capacity (+0x1B0). Then, still the game's: `AgeBuildings` (0x006E3D00) on the treatment, incinerator and recycling lists, `RollUsedCapacity` (0x006E3C80) on the treatment, incinerator and waste-to-energy lists, `UpdateWasteToEnergyOutput` (0x006E3F50), `UpdateWorstTractsAndEffects`, and slot 31 of the service at 0x00B43D8C.
+
 ## Buildings added and removed
 
 `OnOccupantInsertedOrRemoved` (0x006E4680) handles messages 0x99EF1142 (inserted) and 0x99EF1143 (removed). Buildings with property 0x029244DB set are ignored. For a building with pollution amounts (property 0x27812851, four int32: air, water, garbage, radiation):
@@ -162,3 +167,5 @@ A year from Making Money d0090 and d0365 with the tract walk and the interface (
 With `DisposeGarbage` and the building-list helpers too (all four replacements, `all2`): **12 of 12 identical on the first pair**, and a year from the same two saves (`all2-365`): 366 of 366 days identical on both. An earlier version of `DisposeGarbage` burned both times against the first capacity (a stack offset misread, see above); the batch found it on Rush Hour d0000, the only save of the twelve where it showed in a week.
 
 With the occupant handler too (all five replacements, `all3`): **12 of 12 identical on the first pair**, and 366 of 366 days over a year from Making Money d0090 and d0365 (`all3-365`). Our handler saw buildings inserted in 9 of the B runs and removed in 11.
+
+With the MonthPassed handler too (all six, `all4`): **12 of 12 identical on the first pair**, and 366 of 366 days over a year from the same two saves (`all4-365`), which crosses twelve month ends; the saved pollution record, last month's figures included, matched as well.

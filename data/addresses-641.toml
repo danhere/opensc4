@@ -607,3 +607,69 @@ name = "PollutionTuning::DefaultSpreadEdge"
 address = 0x00B4A598
 kind = "data"
 source = "int32[4]. The occupant handler's per-type edge values for SpreadAround when the building has no property 0xAA5832F3 (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::OnMonthPassed"
+address = 0x006E7B60
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this)"
+expect = "83 EC 10 53 55 56 8B F1"
+source = "Name ours. DoMessage's handler for 0x66956816 (MonthPassed): resets the garbage deals, posts the month's disposal cost, moves this month's garbage figures to last month's and publishes them, then the monthly building helpers and UpdateWorstTractsAndEffects (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::AgeBuildings"
+address = 0x006E3D00
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this, SC4List* list, uint32_t usedProperty, uint32_t currentProperty)"
+expect = "83 EC 3C 8B 44 24 40 53"
+source = "Name ours, not checked in detail. Monthly, per building of the list: a condition value (property 0xC910B4CF) moves by curves of its use; past thresholds (properties 0xEA1CF221/0xEA1CF222) the building's state changes through the service at 0x00B43D08 (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::RollUsedCapacity"
+address = 0x006E3C80
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this, SC4List* list, uint32_t usedProperty, uint32_t lastMonthProperty)"
+expect = "8B 44 24 04 53 57 8B 38"
+source = "Name ours. Per building of the list: the used-capacity property's value goes to the last-month property and the used property is set to 0 (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::UpdateWasteToEnergyOutput"
+address = 0x006E3F50
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this)"
+expect = "83 EC 0C 53 8B 59 70 57"
+source = "Name ours. Per building of the list at +0x70: property 0x27812852 = used (0x88ECF76C) * 0x08FD1613 / capacity (0x48EBD0B1), when all three are present (docs/pollution.md)."
+
+[[entry]]
+name = "SC4List::Destroy"
+address = 0x00421760
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "51 56 8B F1 E8 F7 FE FF"
+source = "Name ours. Clears the list (0x00421660) and frees its sentinel node (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::MonthlyFigures"
+address = 0x00B43DC0
+kind = "data"
+source = "Service pointer, name ours: slot 12 stores an int32 under an ID. The pollution simulator's MonthPassed handler publishes last month's garbage figures through it (IDs 0xEA110158 to 0xEA1101AA) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::MonthEndService"
+address = 0x00B43D8C
+kind = "data"
+source = "Service pointer, name ours: the pollution simulator's MonthPassed handler calls its slot 31 last (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::UpdateWorstTractsAndEffects"
+address = 0x006E63C0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this)"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. DoMessage's handler for 0x26D31EC1 (CityInited), also called by OnMonthPassed and AddRadiationToCity: per 8x8 tract block the worst water and garbage tracts, and the pollution visual effects, created or removed by curves of the block's values at random positions (docs/pollution.md)."

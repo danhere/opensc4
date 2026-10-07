@@ -50,6 +50,9 @@ constexpr std::size_t kConvertedThisMonth = 0x168;   // int64: converted to ener
 constexpr std::size_t kAbductedThisMonth = 0x1B4;    // uint32
 constexpr std::size_t kLandfills = 0x3C;             // the service at 0x00B43D28: landfill use and size
 constexpr std::size_t kCapacityScale = 0x228;        // float
+constexpr std::size_t kDepartment = 0xD8;            // cISC4DepartmentBudget*; slot 20 is its line item for disposal
+constexpr std::size_t kDisposalCostPerUnit = 0x1D0;  // float
+constexpr std::size_t kDisposalCostLastMonth = 0x1C8; // int64
 constexpr std::size_t kRecycledThisMonth = 0x158; // double
 constexpr std::size_t kExportDealCapacity = 0x1B0; // int32: what the export deals accept this month
 constexpr std::size_t kTractsPerCall = 0x1D4;
@@ -635,6 +638,130 @@ const bool g_registeredDispose = registry::Register({
     "Our DisposeGarbage: export deals, burning, landfills, abduction (docs/pollution.md)",
     false,
     InstallDispose,
+});
+
+// --- OnMonthPassed (0x006E7B60) ----------------------------------------------
+
+using ListHelperFn = void(__thiscall*)(void* self, void* list, uint32_t property1, uint32_t property2);
+const auto AgeBuildings = reinterpret_cast<ListHelperFn>(addr::cSC4PollutionSimulator_AgeBuildings);
+const auto RollUsedCapacity = reinterpret_cast<ListHelperFn>(addr::cSC4PollutionSimulator_RollUsedCapacity);
+const auto UpdateWasteToEnergyOutput = reinterpret_cast<ThisFn>(addr::cSC4PollutionSimulator_UpdateWasteToEnergyOutput);
+const auto UpdateWorstTractsAndEffects = reinterpret_cast<ThisFn>(addr::cSC4PollutionSimulator_UpdateWorstTractsAndEffects);
+const auto DestroyList = reinterpret_cast<ThisFn>(addr::SC4List_Destroy);
+
+// Takes the first node off the list: unlinks it, releases its object and
+// frees it.
+void PopFront(void* list)
+{
+    void** const node = static_cast<void**>(NextNode(list));
+    void** const next = static_cast<void**>(node[0]);
+    void** const previous = static_cast<void**>(node[1]);
+    previous[0] = next;
+    next[1] = previous;
+    if (void* const object = node[2])
+        Virtual<uint32_t>(object, 0x8); // Release
+    Virtual<uint32_t>(NodeAllocator(), 0x10, static_cast<void*>(node));
+}
+
+void __fastcall OnMonthPassed(void* self, void*)
+{
+    void* list = Virtual<void*>(NodeAllocator(), 0xC, 0xCu);
+    static_cast<void**>(list)[0] = list;
+    static_cast<void**>(list)[1] = list;
+
+    // The garbage deals start the month unused; the export deals' capacity
+    // counts toward the month's disposal.
+    void* const neighbors = At<void*>(self, kNeighbors);
+    Virtual<uint32_t>(neighbors, 0x78, kDealGarbageImport, &list);
+    while (NextNode(list) != list) {
+        Virtual<uint32_t>(NodeObject(NextNode(list)), 0x54, 0);
+        PopFront(list);
+    }
+    ClearList(&list);
+    Virtual<uint32_t>(neighbors, 0x78, kDealGarbageExport, &list);
+    int64_t exports = 0;
+    while (NextNode(list) != list) {
+        void* const deal = NodeObject(NextNode(list));
+        Virtual<uint32_t>(deal, 0x54, 0);
+        exports += Virtual<int32_t>(deal, 0x28);
+        PopFront(list);
+    }
+
+    // The month's disposal cost goes to the department budget.
+    const int64_t disposed = static_cast<int64_t>(
+        static_cast<uint64_t>(At<int64_t>(self, kConvertedThisMonth)) +
+        static_cast<uint64_t>(At<int64_t>(self, field::kLandfilledThisMonth)) + static_cast<uint64_t>(exports) +
+        static_cast<uint64_t>(At<int64_t>(self, kIncineratedThisMonth)));
+    const int64_t cost = Ftol64(static_cast<double>(disposed) * static_cast<double>(At<float>(self, kDisposalCostPerUnit)));
+    void* const lineItem = Virtual<void*>(At<void*>(self, kDepartment), 0x50, 0x14u);
+    Virtual<uint32_t>(lineItem, 0x30, cost);
+
+    // This month's figures become last month's.
+    At<double>(self, field::kRecycledLastMonth) = At<double>(self, kRecycledThisMonth);
+    At<uint32_t>(self, field::kAbductedPrevMonth) = At<uint32_t>(self, kAbductedThisMonth);
+    At<int64_t>(self, field::kProducedLastMonth) = At<int64_t>(self, kProducedThisMonth);
+    At<int64_t>(self, field::kImportedLastMonth) = At<int64_t>(self, kImportedThisMonth);
+    At<int64_t>(self, field::kExportedLastMonth) = At<int64_t>(self, kExportedThisMonth);
+    At<int64_t>(self, field::kIncineratedLastMonth) = At<int64_t>(self, kIncineratedThisMonth);
+    At<int64_t>(self, field::kConvertedLastMonth) = At<int64_t>(self, kConvertedThisMonth);
+    At<int64_t>(self, field::kLandfilledLastMonth) = At<int64_t>(self, field::kLandfilledThisMonth);
+    At<int64_t>(self, kDisposalCostLastMonth) = cost;
+
+    void* const figures = Global<void*>(addr::SC4_MonthlyFigures);
+    auto publish = [figures](uint32_t id, int32_t value) { Virtual<uint32_t>(figures, 0x30, id, value); };
+    publish(0xEA110158, At<int32_t>(self, kProducedThisMonth));
+    publish(0x8AB2F258, At<int32_t>(self, kImportedThisMonth));
+    publish(0x6AB2F260, At<int32_t>(self, kExportedThisMonth));
+    publish(0xEA11016F, static_cast<int32_t>(Ftol64(At<double>(self, kRecycledThisMonth))));
+    publish(0xEA110197, At<int32_t>(self, kIncineratedThisMonth));
+    publish(0xEA1101A1, At<int32_t>(self, kConvertedThisMonth));
+    publish(0xEA1101AA, At<int32_t>(self, field::kLandfilledThisMonth));
+
+    At<double>(self, kRecycledThisMonth) = 0.0;
+    At<int64_t>(self, kProducedThisMonth) = 0;
+    At<int64_t>(self, kImportedThisMonth) = 0;
+    At<int64_t>(self, kExportedThisMonth) = 0;
+    At<int64_t>(self, kIncineratedThisMonth) = 0;
+    At<int64_t>(self, kConvertedThisMonth) = 0;
+    At<int64_t>(self, field::kLandfilledThisMonth) = 0;
+    At<uint32_t>(self, kAbductedThisMonth) = 0;
+    At<int32_t>(self, kExportDealCapacity) = 0;
+
+    // Monthly building upkeep, then the worst tracts and effects.
+    void* const treatment = &At<char>(self, field::kWaterTreatmentList);
+    void* const incinerators = &At<char>(self, field::kIncineratorList);
+    AgeBuildings(self, treatment, 0x28ECF510, 0xC8EBD131);
+    AgeBuildings(self, incinerators, 0xE8ECF641, 0xA8EBCF0C);
+    AgeBuildings(self, &At<char>(self, field::kRecyclingList), 0, 0);
+    RollUsedCapacity(self, treatment, 0x28ECF510, 0x08FCDB69);
+    RollUsedCapacity(self, incinerators, 0xE8ECF641, 0xA8FCDBA8);
+    UpdateWasteToEnergyOutput(self);
+    RollUsedCapacity(self, &At<char>(self, field::kWasteToEnergyList), 0x88ECF76C, 0x28FCDBB0);
+    UpdateWorstTractsAndEffects(self);
+    Virtual<uint32_t>(Global<void*>(addr::SC4_MonthEndService), 0x7C);
+    DestroyList(&list);
+}
+
+using MonthFn = void(__fastcall*)(void* self, void* edx);
+MonthFn g_originalMonth = nullptr;
+
+bool InstallMonth(registry::Mode)
+{
+    const addr::Entry* entry = addr_check::Find(addr::cSC4PollutionSimulator_OnMonthPassed);
+    if (!game::IsBuild641() || !entry)
+        return false;
+    return hook::Install(*entry, &OnMonthPassed, &g_originalMonth);
+}
+
+const bool g_registeredMonth = registry::Register({
+    "simulators.pollution.month",
+    "simulators/pollution",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4PollutionSimulator_OnMonthPassed,
+    "Our MonthPassed handler: monthly garbage figures and disposal cost (docs/pollution.md)",
+    false,
+    InstallMonth,
 });
 
 // --- Installation of SimulateTracts -----------------------------------------
