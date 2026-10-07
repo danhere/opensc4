@@ -736,3 +736,39 @@ name = "SC4::Terrain"
 address = 0x00B43CF4
 kind = "data"
 source = "Service pointer, name ours: slot 13 gives the height at a position (x, z); UpdateWorstTractsAndEffects places effects at it (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::Write"
+address = 0x006E3380
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream& stream)"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "cIGZSerializable slot 3 (vtable 0x00AB25E8; `this` is the object + 0xC); writes version 4 (docs/save-format.md, docs/pollution.md)."
+
+[[entry]]
+name = "SC4Stream::WriteReference"
+address = 0x005D99A0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZOStream& stream, cIGZUnknown* object)"
+expect = "51 8B 4C 24 08 8B 01 8D"
+source = "Name ours. Writes a reference to a serialised object: its address-ID and class ID, 8 bytes (docs/save-format.md)."
+
+[[entry]]
+name = "SC4Stream::WriteReferenceList"
+address = 0x005DAFF0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZOStream& stream, SC4List* list)"
+expect = "53 8B 5C 24 0C 8B 0B 8B"
+source = "Name ours. Writes a count then references (docs/save-format.md)."
+
+[[entry]]
+name = "SC4Stream::WritePollutionStruct"
+address = 0x005DAB70
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZOStream& stream, void* iterator)"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Name ours. Writes the tract iterator at cSC4PollutionSimulator+0x1D8: int8 x2, uint8, int32 x5, counted uint16 array, int32 x3 (docs/save-format.md)."
