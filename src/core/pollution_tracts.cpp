@@ -85,7 +85,7 @@ using ReleaseRefFn = void(__thiscall*)(void** ref);
 const auto DisposeGarbage = reinterpret_cast<DisposeGarbageFn>(addr::cSC4PollutionSimulator_DisposeGarbage);
 const auto SpreadUsedCapacity = reinterpret_cast<SpreadUsedCapacityFn>(addr::cSC4PollutionSimulator_SpreadUsedCapacity);
 const auto UpdateMaintenanceCosts = reinterpret_cast<ListFn>(addr::cSC4PollutionSimulator_UpdateMaintenanceCosts);
-const auto OnTractWalkRestart = reinterpret_cast<ThisFn>(addr::cSC4PollutionSimulator_OnTractWalkRestart);
+const auto CallTractWalkRestart = reinterpret_cast<ThisFn>(addr::cSC4PollutionSimulator_OnTractWalkRestart);
 const auto RestartTracts = reinterpret_cast<RestartFn>(addr::TractIterator_Restart);
 const auto NextTract = reinterpret_cast<NextFn>(addr::TractIterator_Next);
 const auto ClearList = reinterpret_cast<ThisFn>(addr::SC4List_Clear);
@@ -465,7 +465,7 @@ void __fastcall SimulateTracts(void* self, void*)
         void* const iterator = &At<char>(self, kTractIterator);
         if (At<uint8_t>(self, kTractIterator) == 2) {
             RestartTracts(iterator, 1);
-            OnTractWalkRestart(self);
+            CallTractWalkRestart(self);
         }
         NextTract(iterator, &nextX, &nextZ);
         At<int32_t>(self, kCursorX) = nextX * 2;
@@ -638,6 +638,114 @@ const bool g_registeredDispose = registry::Register({
     "Our DisposeGarbage: export deals, burning, landfills, abduction (docs/pollution.md)",
     false,
     InstallDispose,
+});
+
+// --- OnTractWalkRestart (0x006E7930) -----------------------------------------
+
+// The game's curve (16 bytes): a vector of 20-byte points and their count.
+struct Curve {
+    void* points = nullptr;
+    void* end = nullptr;
+    void* capacity = nullptr;
+    int32_t count = 0;
+};
+
+using LoadCurveFn = uint8_t(__thiscall*)(Curve* curve, const uint32_t* key, uint32_t property);
+using PostMessageFn = void(__cdecl*)(uint32_t message, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e);
+using FreeFn = void(__cdecl*)(void* p);
+
+const auto LoadCurve = reinterpret_cast<LoadCurveFn>(addr::SC4Curve_LoadFromExemplar);
+const auto PostMessage = reinterpret_cast<PostMessageFn>(addr::SC4_PostMessage);
+const auto Free = reinterpret_cast<FreeFn>(addr::SC4_Free);
+const auto UpdateRecyclingEffect = reinterpret_cast<ThisFn>(addr::cSC4PollutionSimulator_UpdateRecyclingEffect);
+
+// After each full pass over the city: the averages from the pass's sums,
+// published; a message for each grid that changed; the capacity scale.
+void __fastcall OnTractWalkRestart(void* self, void*)
+{
+    UpdateRecyclingEffect(self);
+    const uint32_t uncollected = At<uint32_t>(self, field::kTotalGarbageUncollected);
+    const uint32_t zonedTracts = At<uint32_t>(self, kZonedTracts);
+    At<uint8_t>(self, field::kGarbageUncollected) = uncollected != 0 ? 1 : 0;
+    uint32_t radiation = 0;
+    if (zonedTracts != 0) {
+        At<uint32_t>(self, field::kAverageAir) = At<uint32_t>(self, kSumAirTarget) / zonedTracts;
+        At<uint32_t>(self, field::kAverageWater) = At<uint32_t>(self, kSumWaterLeft) / zonedTracts;
+        At<uint16_t>(self, field::kAverageGarbage) = static_cast<uint16_t>(uncollected / zonedTracts);
+        radiation = At<uint32_t>(self, kSumRadiationSource) * 100u / zonedTracts;
+    } else {
+        At<uint32_t>(self, field::kAverageAir) = 0;
+        At<uint32_t>(self, field::kAverageWater) = 0;
+        At<uint16_t>(self, field::kAverageGarbage) = 0;
+    }
+    At<int32_t>(self, kTreatmentRatioDivisor) = At<int32_t>(self, kSumWaterTarget);
+    At<int32_t>(self, kTreatmentRatioDividend) = At<int32_t>(self, kSumWaterTreated);
+
+    void* const figures = Global<void*>(addr::SC4_MonthlyFigures);
+    auto publish = [figures](uint32_t id, uint32_t value) { Virtual<uint32_t>(figures, 0x30, id, value); };
+    publish(0x0A1100E8, At<uint32_t>(self, field::kAverageAir));
+    publish(0xEA110130, At<uint32_t>(self, field::kAverageWater));
+    publish(0xEA110134, At<uint16_t>(self, field::kAverageGarbage));
+    publish(0xEA110137, At<uint32_t>(self, kSumRadiationSource));
+    publish(0xEA110138, At<uint32_t>(self, field::kAverageAir) + radiation);
+
+    At<int32_t>(self, kSumRadiationSource) = 0;
+    At<int32_t>(self, kZonedTracts) = 0;
+    At<int32_t>(self, kSumWaterTreated) = 0;
+    At<int32_t>(self, kSumWaterTarget) = 0;
+    At<int32_t>(self, kSumWaterLeft) = 0;
+    At<int32_t>(self, kSumAirTarget) = 0;
+
+    constexpr struct {
+        std::size_t flag;
+        uint32_t message;
+    } kChanged[] = {
+        {field::kRadiationChanged, 0xDA6DD35D},
+        {field::kAirChanged, 0xFA6DD0BB},
+        {field::kWaterChanged, 0x5A6DD1AA},
+        {field::kGarbageChanged, 0xDA6DD2CB},
+    };
+    for (const auto& changed : kChanged) {
+        if (At<uint8_t>(self, changed.flag))
+            PostMessage(changed.message, 0, 0, 0, 0, 0);
+    }
+    for (const auto& changed : kChanged)
+        At<uint8_t>(self, changed.flag) = 0;
+
+    // The capacity scale: a curve from the simulator's tuning exemplar, read
+    // at the department's funding in percent, stored as a fraction.
+    Curve curve;
+    const uint32_t key[3] = {0x6534284A, 0xE7E2C2DB, 0xC911E35B}; // type, group, instance
+    LoadCurve(&curve, key, 0x6911E2DF);
+    const float* funding = Virtual<float*>(At<void*>(self, kDepartment), 0x28);
+    const float x = *funding * 100.0f;
+    const double y = EvaluateCurve(&curve, x);
+    At<float>(self, kCapacityScale) = static_cast<float>(y * static_cast<double>(0.01f));
+    PostMessage(0xEA418D8F, 8, 0, 0, 0, 0);
+    if (curve.points)
+        Free(curve.points);
+}
+
+using RestartFn2 = void(__fastcall*)(void* self, void* edx);
+RestartFn2 g_originalRestart = nullptr;
+
+bool InstallRestart(registry::Mode)
+{
+    const addr::Entry* entry = addr_check::Find(addr::cSC4PollutionSimulator_OnTractWalkRestart);
+    if (!game::IsBuild641() || !entry)
+        return false;
+    return hook::Install(*entry, &OnTractWalkRestart, &g_originalRestart);
+}
+
+const bool g_registeredRestart = registry::Register({
+    "simulators.pollution.averages",
+    "simulators/pollution",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4PollutionSimulator_OnTractWalkRestart,
+    "Our end-of-pass step: city-wide averages, grid-changed messages, capacity scale (docs/pollution.md)",
+    false,
+    InstallRestart,
 });
 
 // --- OnMonthPassed (0x006E7B60) ----------------------------------------------
