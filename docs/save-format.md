@@ -39,8 +39,9 @@ Stream types follow `cIGZIStream`/`cIGZOStream` (little-endian; strings are a 32
 | all | uint16 | **+0x128** | **average garbage** (`GetAverageGarbageValue`, 0x006E3020) |
 | all | uint32 x2, float, uint8, uint32 | +0x12C to +0x13C | |
 | all | int64 x2 | +0x1C0, +0x1C8 | |
-| 4 | uint32 | +0x1B8 | |
-| all | int64 x3, double, int64 x3, int64 x3, double, int64 x3 | +0x178 to +0x1AC, +0x140 to +0x174 | 64-bit values, meaning not known yet |
+| 4 | uint32 | +0x1B8 | garbage abducted the previous month (`GetGarbageAbductedPrevMonth`, 0x006E4F20, returned zero-extended to 64 bits) |
+| all | int64 x3, double, int64 x3 | +0x178 to +0x1AC | **last month's garbage**: produced, imported, exported (+0x178, +0x180, +0x188), recycled (double, +0x190), incinerated, converted to energy, landfilled (+0x198, +0x1A0, +0x1A8); the `Get...LastMonth` getters 0x006E4F30 to 0x006E4F90 return these as 64-bit values (the recycled one through `__ftol`) |
+| all | int64 x3, double, int64 x3 | +0x140 to +0x174 | the same seven figures in the same layout; probably the month in progress (not checked) |
 | all | uint32, int32, uint32, uint32 | +0x1B4, +0x1B0, +0x1BC, +0x1D4 | |
 | all | struct (0x005DAB70) | +0x1D8 | int8, int8, uint8, int32 x5, count + uint16 values, int32 x3 |
 | all | uint8 x4 | +0x208 | flags |

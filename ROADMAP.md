@@ -57,7 +57,8 @@ Output is a toolkit, not a game change. Everything later depends on it.
 
 Parity method (from P4): short-window exact comparison against the original from many saves, plus statistical comparison over long runs.
 
-- [~] Pollution. A pass-through replacement registered through GZCOM already runs the city (experiment, replacement `simulators.pollution.proxy`)
+- [~] Parity harness (docs/parity.md): `scripts/run-parity.sh`, a week from each of 12 saves, verdict over outcome sets. The original itself gives more than one outcome on about a quarter of the saves; exact parity there needs the remaining real-time dependency removed (worker thread). Statistical long runs not built yet
+- [~] Pollution. A pass-through replacement registered through GZCOM already runs the city (experiment, replacement `simulators.pollution.proxy`); under the harness it passes 9 of 12 saves after fixing a 64-bit return bug
 - [ ] Crime
 - [ ] Coverage sims (health, education, fire, police)
 - [ ] Land value

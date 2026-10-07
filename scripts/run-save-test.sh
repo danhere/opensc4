@@ -7,8 +7,11 @@
 #
 #   scripts/run-save-test.sh <build dir> <output .sc4> <days> [env assignments...]
 #
-# OPENSC4_TEST_CITY picks the city (default "Making Money Tutorial"). Compare
-# outputs with: opensc4-dbpf diff <a.sc4> <b.sc4>
+# OPENSC4_TEST_CITY picks the city (default "Making Money Tutorial").
+# OPENSC4_TEST_START=<file.sc4> starts from that save of the same city instead
+# of the region's own copy (it replaces the city's file after the refresh).
+# core.dll's log of the run is copied to <output>.log. Compare outputs with:
+# opensc4-dbpf diff <a.sc4> <b.sc4>
 set -euo pipefail
 
 build="${1:?usage: run-save-test.sh <build dir> <output .sc4> <days> [VAR=value...]}"
@@ -28,6 +31,7 @@ city="${OPENSC4_TEST_CITY:-Making Money Tutorial}"
 export OPENSC4_TEST_CITY="$city"
 
 [ -d "$fixture/Regions/$region" ] || { echo "run-save-test: no $fixture/Regions/$region; run run-autotest.sh once first" >&2; exit 1; }
+[ -z "${OPENSC4_TEST_START:-}" ] || [ -f "$OPENSC4_TEST_START" ] || { echo "run-save-test: no $OPENSC4_TEST_START" >&2; exit 1; }
 
 pause() { timeout "$1" bash -c 'while :; do sleep 1; done' || true; }
 
@@ -37,6 +41,7 @@ for try in 1 2 3; do
     mkdir -p "$env/Plugins" "$env/Regions/$region"
     cp -r "$fixture/Regions/$region/." "$env/Regions/$region/"
     cp "$fixture/SimCity 4.cfg" "$env/"
+    [ -z "${OPENSC4_TEST_START:-}" ] || cp "$OPENSC4_TEST_START" "$env/Regions/$region/City - $city.sc4"
     OPENSC4_TESTENV="$env" "$repo/scripts/run-autotest.sh" "$build" "OPENSC4_TEST_DAYS=$days" OPENSC4_TEST_SAVE=1 \
         >"$env/run.out" 2>&1 || true
     grep -q "director: OnStart" "$log" 2>/dev/null && break
@@ -44,6 +49,7 @@ for try in 1 2 3; do
     tail -3 "$env/run.out" >&2
     pause 30
 done
+cp "$log" "${out%.sc4}.log"
 grep "autotest: running\|autotest: stopped\|SaveCity" "$log" | sed 's/^[^]]*] //'
 if ! grep -q "SaveCity ok" "$log"; then
     echo "run-save-test: no save; see $log" >&2

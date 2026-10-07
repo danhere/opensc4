@@ -26,6 +26,8 @@
 
 #include <windows.h>
 
+#include <intrin.h>
+
 #include <atomic>
 #include <cstdint>
 
@@ -38,7 +40,12 @@ using FactoryFn = cIGZUnknown* (*)();
 const auto kOriginalFactory = reinterpret_cast<FactoryFn>(addr::cSC4PollutionSimulator_Create);
 
 // cISC4PollutionSimulator methods in vtable order (gzcom-dll header; checked
-// against the game's 71-slot vtable at 0x00AB2630).
+// against the game's 71-slot vtable at 0x00AB2630: every slot's argument size
+// matches the RET of the game's function). The eight "...PrevMonth/LastMonth"
+// garbage figures return 64-bit values in EDX:EAX in the game (0x006E4F20 to
+// 0x006E4F90; 0x006E4F60 converts a double with __ftol), and the monthly
+// garbage code (0x006D3015) reads all 64 bits; gzcom-dll declares them
+// int32_t. They are int64_t here.
 #define OPENSC4_POLLUTION_METHODS(X)                                                                         \
     X(bool, Init, (), ())                                                                                    \
     X(bool, Shutdown, (), ())                                                                                \
@@ -71,14 +78,14 @@ const auto kOriginalFactory = reinterpret_cast<FactoryFn>(addr::cSC4PollutionSim
     X(int32_t, GetMonthlyIncineratorCapacity, (), ())                                                        \
     X(int32_t, GetMonthlyWasteToEnergyCapacity, (), ())                                                      \
     X(int32_t, GetRecyclingCenterEffect, (), ())                                                             \
-    X(int32_t, GetGarbageAbductedPrevMonth, (), ())                                                          \
-    X(int32_t, GetGarbageProducedLastMonth, (), ())                                                          \
-    X(int32_t, GetGarbageImportedLastMonth, (), ())                                                          \
-    X(int32_t, GetGarbageExportedLastMonth, (), ())                                                          \
-    X(int32_t, GetGarbageRecycledLastMonth, (), ())                                                          \
-    X(int32_t, GetGarbageIncineratedLastMonth, (), ())                                                       \
-    X(int32_t, GetGarbageConvertedToEnergyLastMonth, (), ())                                                 \
-    X(int32_t, GetGarbageLandfilledLastMonth, (), ())                                                        \
+    X(int64_t, GetGarbageAbductedPrevMonth, (), ())                                                          \
+    X(int64_t, GetGarbageProducedLastMonth, (), ())                                                          \
+    X(int64_t, GetGarbageImportedLastMonth, (), ())                                                          \
+    X(int64_t, GetGarbageExportedLastMonth, (), ())                                                          \
+    X(int64_t, GetGarbageRecycledLastMonth, (), ())                                                          \
+    X(int64_t, GetGarbageIncineratedLastMonth, (), ())                                                       \
+    X(int64_t, GetGarbageConvertedToEnergyLastMonth, (), ())                                                 \
+    X(int64_t, GetGarbageLandfilledLastMonth, (), ())                                                        \
     X(uint32_t, GetIncineratorCount, (), ())                                                                 \
     X(uint32_t, GetWasteToEnergyBuildingCount, (), ())                                                       \
     X(uint32_t, GetRecyclingCenterCount, (), ())                                                             \
@@ -149,10 +156,11 @@ std::atomic<uint32_t> g_calls[static_cast<int>(Method::Count)];
 std::atomic<uint32_t> g_liveProxies{0};
 std::atomic<const void*> g_lastCreated{nullptr};
 
-void CountCall(Method m)
+// `caller` is the return address into the game, logged with the first call.
+void CountCall(Method m, void* caller)
 {
     if (g_calls[static_cast<int>(m)].fetch_add(1, std::memory_order_relaxed) == 0)
-        log::Write("pollution proxy: first call to %s", kMethodNames[static_cast<int>(m)]);
+        log::Write("pollution proxy: first call to %s from %p", kMethodNames[static_cast<int>(m)], caller);
 }
 
 void LogCallCounts(const char* when)
@@ -165,10 +173,19 @@ void LogCallCounts(const char* when)
     }
 }
 
-class PollutionSimulatorProxy final : public cISC4PollutionSimulator, public cIGZSerializable {
+// The game's cISC4PollutionSimulator as the list above declares it: the same
+// slots and interface ID as gzcom-dll's class, with the game's return types.
+class PollutionSimulator641 : public cIGZUnknown {
+public:
+#define OPENSC4_DECLARE(ret, name, params, args) virtual ret name params = 0;
+    OPENSC4_POLLUTION_METHODS(OPENSC4_DECLARE)
+#undef OPENSC4_DECLARE
+};
+
+class PollutionSimulatorProxy final : public PollutionSimulator641, public cIGZSerializable {
 public:
     // Takes over one reference to each of `inner` and `innerSerializable`.
-    PollutionSimulatorProxy(cISC4PollutionSimulator* inner, cIGZSerializable* innerSerializable)
+    PollutionSimulatorProxy(PollutionSimulator641* inner, cIGZSerializable* innerSerializable)
         : inner_(inner), innerSerializable_(innerSerializable)
     {
         g_liveProxies.fetch_add(1);
@@ -177,7 +194,7 @@ public:
     bool QueryInterface(uint32_t iid, void** object) override
     {
         if (iid == kIid || iid == GZIID_cIGZUnknown) {
-            *object = static_cast<cISC4PollutionSimulator*>(this);
+            *object = static_cast<PollutionSimulator641*>(this);
             AddRef();
             return true;
         }
@@ -203,18 +220,18 @@ public:
             innerSerializable_->Release();
             inner_->Release();
             g_liveProxies.fetch_sub(1);
-            const void* self = static_cast<cISC4PollutionSimulator*>(this);
+            const void* self = static_cast<PollutionSimulator641*>(this);
             g_lastCreated.compare_exchange_strong(self, nullptr);
             delete this;
         }
         return refs;
     }
 
-#define OPENSC4_FORWARD(ret, name, params, args) \
-    ret name params override                     \
-    {                                            \
-        CountCall(Method::name);                 \
-        return inner_->name args;                \
+#define OPENSC4_FORWARD(ret, name, params, args)   \
+    ret name params override                       \
+    {                                              \
+        CountCall(Method::name, _ReturnAddress()); \
+        return inner_->name args;                  \
     }
     OPENSC4_POLLUTION_METHODS(OPENSC4_FORWARD)
 #undef OPENSC4_FORWARD
@@ -222,14 +239,14 @@ public:
 #define OPENSC4_FORWARD_SERIALIZABLE(ret, name, params, args) \
     ret name params override                                  \
     {                                                         \
-        CountCall(Method::name);                              \
+        CountCall(Method::name, _ReturnAddress());            \
         return innerSerializable_->name args;                 \
     }
     OPENSC4_SERIALIZABLE_METHODS(OPENSC4_FORWARD_SERIALIZABLE)
 #undef OPENSC4_FORWARD_SERIALIZABLE
 
 private:
-    cISC4PollutionSimulator* inner_;
+    PollutionSimulator641* inner_;
     cIGZSerializable* innerSerializable_;
     std::atomic<uint32_t> refs_{0};
 };
@@ -248,7 +265,7 @@ cIGZUnknown* Create()
         log::Write("pollution proxy: original factory returned null");
         return nullptr;
     }
-    cISC4PollutionSimulator* inner = nullptr;
+    PollutionSimulator641* inner = nullptr;
     cIGZSerializable* innerSerializable = nullptr;
     if (!original->QueryInterface(kIid, reinterpret_cast<void**>(&inner))) {
         log::Write("pollution proxy: original does not implement cISC4PollutionSimulator");
@@ -263,7 +280,7 @@ cIGZUnknown* Create()
     }
 
     auto* proxy = new PollutionSimulatorProxy(inner, innerSerializable);
-    cISC4PollutionSimulator* result = proxy;
+    PollutionSimulator641* result = proxy;
     g_lastCreated = result;
     log::Write("pollution proxy: created proxy %p around original %p (live proxies: %u)",
                static_cast<void*>(result), static_cast<void*>(inner), g_liveProxies.load());

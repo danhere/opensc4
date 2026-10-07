@@ -4,6 +4,8 @@
     sc4save.py <city.sc4> [type ...]       decode records (all known types by default)
     sc4save.py --check <city.sc4|folder...> decode every known record; report any
                                            that do not consume exactly their bytes
+    sc4save.py --compare <a.sc4> <b.sc4>   compare the known records of two saves field
+                                           by field (exit 1 if any differ)
 
 Schemas come from the classes' own cIGZSerializable::Write functions and are
 documented in docs/save-format.md. Every record starts with a header written by
@@ -122,8 +124,63 @@ def decode(data, decoder):
     return fields, r.pos
 
 
+def comparable(value):
+    """What two runs can agree on: references (the only tuples) keep whether
+    they are set and the class, not the heap address they were saved as."""
+    if isinstance(value, tuple):
+        return (value[0] != 0, value[1])
+    if isinstance(value, list):
+        return [comparable(v) for v in value]
+    if isinstance(value, dict):
+        return {k: comparable(v) for k, v in value.items()}
+    return value
+
+
+def differences(a, b, path=''):
+    if isinstance(a, dict) and isinstance(b, dict):
+        for k in list(a) + [k for k in b if k not in a]:
+            yield from differences(a.get(k), b.get(k), path + '.' + k if path else k)
+    elif isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
+        bad = [i for i in range(len(a)) if a[i] != b[i]]
+        if bad:
+            i = bad[0]
+            yield '%s: %d of %d entries differ, first [%d] %r vs %r' % (path, len(bad), len(a), i, a[i], b[i])
+    elif a != b:
+        ta, tb = repr(a), repr(b)
+        yield '%s: %s vs %s' % (path, ta[:100], tb[:100])
+
+
+def compare(path_a, path_b):
+    """One line per known record type; the header's CRC and ID are skipped."""
+    found = 0
+    decoded = []
+    for path in (path_a, path_b):
+        records = {}
+        for key, data in savediff.load(path).items():
+            if key[0] in SCHEMAS:
+                fields, _ = decode(data, SCHEMAS[key[0]][1])
+                del fields['crc'], fields['id']
+                records[key] = comparable(fields)
+        decoded.append(records)
+    a, b = decoded
+    for key in sorted(a.keys() | b.keys()):
+        name = SCHEMAS[key[0]][0]
+        if key not in a or key not in b:
+            print('%s %08X/%08X/%08X: only in %s' % (name, *key, 'a' if key in a else 'b'))
+            found += 1
+            continue
+        diffs = list(differences(a[key], b[key]))
+        print('%s %08X/%08X/%08X: %s' % (name, *key, 'identical' if not diffs else '%d fields differ' % len(diffs)))
+        for line in diffs:
+            print('  ' + line)
+        found += bool(diffs)
+    return 1 if found else 0
+
+
 def main():
     args = sys.argv[1:]
+    if args and args[0] == '--compare':
+        return compare(args[1], args[2])
     if args and args[0] == '--check':
         bad = 0
         paths = []

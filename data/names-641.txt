@@ -17,6 +17,7 @@
 0x005DAB70 SC4Stream::WritePollutionStruct    ours; writes the struct at cSC4PollutionSimulator+0x1D8: int8 x2, uint8, int32 x5, counted uint16 array, int32 x3 (docs/save-format.md)
 0x005DAFF0 SC4Stream::WriteReferenceList      ours; writes a count then references (docs/save-format.md)
 0x006E2CC0 cSC4PollutionSimulator::GetGZCLSID cIGZSerializable slot 5, returns 0x8990C065 (docs/save-format.md)
+0x006E3000 cSC4PollutionSimulator::GetTotalGarbageUncollected cISC4PollutionSimulator slot 24 (gzcom-dll order; the pass-through proxy logged calls to it through that slot); returns +0x13C (docs/experiments/pollution-proxy.md)
 0x006E3380 cSC4PollutionSimulator::Write      cIGZSerializable slot 3; writes version 4 (docs/save-format.md)
 0x006E5270 cSC4PollutionSimulator::Read       cIGZSerializable slot 4; reads versions 2 to 4 (docs/save-format.md)
 0x00703E70 cSC4Simulator::RunTimeSlice     ours; runs simulation ticks until a stopwatch passes the frame budget (1000 / fps cap, minimum 15 ms) (docs/experiments/determinism.md, docs/renderer.md "FPS cap")

@@ -5,10 +5,12 @@
 #include "core/pollution_proxy.h"
 #include "core/virtual_clock.h"
 
+#include <GZCLSIDDefs.h>
 #include <GZServPtrs.h>
 #include <SC4List.h>
 #include <SC4String.h>
 #include <cIGZFrameWork.h>
+#include <cIGZMessageTarget2.h>
 #include <cIGZWin.h>
 #include <cISC43DRender.h>
 #include <cISC4App.h>
@@ -162,6 +164,41 @@ void CrashOnPurpose()
     }
 }
 
+// A simulator agent (cISC4Simulator::AddAgent): the simulator calls it from
+// inside its tick, so whatever it does happens at the same point of simulation
+// time in every run, unlike the framework tick, which comes after however
+// many simulation ticks the frame had room for.
+class DayAgent final : public cIGZMessageTarget2 {
+public:
+    using Callback = void (*)(void* context);
+    DayAgent(Callback callback, void* context) : callback_(callback), context_(context) {}
+
+    bool QueryInterface(uint32_t riid, void** object) override
+    {
+        if (riid == GZCLSID::kcIGZMessageTarget2 || riid == GZIID_cIGZUnknown) {
+            *object = static_cast<cIGZMessageTarget2*>(this);
+            AddRef();
+            return true;
+        }
+        *object = nullptr;
+        return false;
+    }
+    // Owned by the autotest service, which lives for the whole process.
+    uint32_t AddRef() override { return ++refs_; }
+    uint32_t Release() override { return refs_ > 0 ? --refs_ : 0; }
+
+    bool DoMessage(cIGZMessage2*) override
+    {
+        callback_(context_);
+        return true;
+    }
+
+private:
+    Callback callback_;
+    void* context_;
+    uint32_t refs_ = 0;
+};
+
 class AutoTestService final : public cRZBaseSystemService {
 public:
     AutoTestService() : cRZBaseSystemService(kServiceId, 0) {}
@@ -310,7 +347,18 @@ private:
             endDay_ = sim->GetSimDateNumber() + runDays_;
             log::Write("autotest: running %d game days, day %d to %d, at speed %d (SetSimSpeed %s)", runDays_,
                        sim->GetSimDateNumber(), endDay_, speed, speedSet ? "ok" : "refused");
-        } else {
+        }
+        if ((runDays_ >= 0 || fingerprint_) && sim) {
+            agentAdded_ = sim->AddAgent(&agent_, cISC4Simulator::AgentTypeSimNewDay, cRZBaseString("OpenSC4 autotest"),
+                                        static_cast<cISC4Simulator::eAgentFlags>(
+                                            cISC4Simulator::AgentFlagEnabledForUnestablishedCities |
+                                            cISC4Simulator::AgentFlagEnabledForEstablishedCities));
+            log::Write("autotest: new-day agent %s", agentAdded_ ? "added" : "REFUSED; sampling per frame instead");
+            if (fingerprint_)
+                Fingerprint(city, sim->GetSimDateNumber());
+            lastFingerprintDay_ = sim->GetSimDateNumber();
+        }
+        if (runDays_ < 0) {
             log::Write("autotest: running for %d s at speed %d (SetSimSpeed %s)", runSeconds_, speed,
                        speedSet ? "ok" : "refused");
         }
@@ -336,15 +384,18 @@ private:
             CrashOnPurpose();
         }
         cISC4Simulator* sim = app->GetCity()->GetSimulator();
-        if (fingerprint_ && sim && sim->GetSimDateNumber() != lastFingerprintDay_) {
+        if (!agentAdded_ && fingerprint_ && sim && sim->GetSimDateNumber() != lastFingerprintDay_) {
             lastFingerprintDay_ = sim->GetSimDateNumber();
             Fingerprint(app->GetCity(), lastFingerprintDay_);
         }
-        const bool done = runDays_ >= 0 ? sim && sim->GetSimDateNumber() >= endDay_
+        const bool done = runDays_ >= 0 ? (agentAdded_ ? reachedEndDay_ : sim && sim->GetSimDateNumber() >= endDay_)
                                         : now - stateStart_ >= static_cast<ULONGLONG>(runSeconds_) * 1000;
         if (done) {
-            if (sim)
+            if (sim) {
                 sim->Pause();
+                if (agentAdded_)
+                    sim->RemoveAgent(&agent_);
+            }
             Report(app);
             if (sim)
                 log::Write("autotest: stopped at day %d, sim time %d, after %llu ms", sim->GetSimDateNumber(),
@@ -354,6 +405,29 @@ private:
             else
                 log::Write("autotest: run finished; quitting without saving");
             Quit(app);
+        }
+    }
+
+    // The new-day agent: fingerprint, and pause on the last day before the
+    // simulator runs another tick, so the saved city is the same moment of
+    // simulation time in every run.
+    static void OnNewDay(void* context)
+    {
+        auto* self = static_cast<AutoTestService*>(context);
+        cISC4AppPtr app;
+        cISC4City* city = app ? app->GetCity() : nullptr;
+        cISC4Simulator* sim = city ? city->GetSimulator() : nullptr;
+        if (!sim || self->reachedEndDay_)
+            return;
+        const int32_t day = sim->GetSimDateNumber();
+        if (self->fingerprint_ && day != self->lastFingerprintDay_) {
+            self->lastFingerprintDay_ = day;
+            self->Fingerprint(city, day);
+        }
+        if (self->runDays_ >= 0 && day >= self->endDay_) {
+            sim->Pause();
+            self->reachedEndDay_ = true;
+            log::Write("autotest: day %d reached in the simulator's tick (sim time %d); paused", day, sim->GetSimTime());
         }
     }
 
@@ -482,6 +556,9 @@ private:
     bool fingerprint_ = Env("OPENSC4_TEST_FINGERPRINT") == "1";
     int32_t lastFingerprintDay_ = -1;
     int endDay_ = 0;
+    DayAgent agent_{&AutoTestService::OnNewDay, this};
+    bool agentAdded_ = false;
+    bool reachedEndDay_ = false;
     std::string shotDir_;
     int settleMs_ = 3000;
     int shot_ = -1;

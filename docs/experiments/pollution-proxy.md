@@ -34,6 +34,14 @@
 - The proxy forwards to the original, so it shows that callers go through the interface; it does not show that a from-scratch implementation would be accepted by the other two interfaces' users (the message target and `0x89C498BE` still point at the original).
 - Exact equivalence can't be tested until P4 provides deterministic stepping.
 
+## Update 2026-10-06: exact parity found a forwarding bug
+
+The P5 parity harness ([../parity.md](../parity.md)) runs saves for a week of game time with fixed seeds and the virtual clock, with and without the proxy, and compares everything exactly. On two Rush Hour saves the proxy reproducibly reached an outcome the original never did (six of seven proxy runs alike, none of ten original runs), with funds differing from the first month boundary (by 4 on about 9.78 million).
+
+Cause: the eight garbage figures `GetGarbageAbductedPrevMonth` and `GetGarbage{Produced,Imported,Exported,Recycled,Incinerated,ConvertedToEnergy,Landfilled}LastMonth` (slots 34 to 41) return **64-bit values in EDX:EAX** in the game (0x006E4F20 to 0x006E4F90), and the monthly garbage code reads all 64 bits (0x006D3015: stores EAX and EDX, then `FILD qword`). gzcom-dll declares them `int32_t`, so the proxy's forwarders, typed after it, returned EAX with whatever EDX happened to hold. The proxy now declares the interface itself with the game's return types (`PollutionSimulator641` in the source); after the fix the same save gives an outcome the original also gives. Every slot's argument size was checked against its function's `RET` (all 68 match); return types were checked only for the short getters.
+
+The small differences in results 5 and 6 above may have been partly this bug rather than only noise (those runs used real-time stepping, so they cannot tell). Calls through the proxy now log their caller with the first call of each method.
+
 ## Practical notes
 
 - **The user's normal install crashes when loading any city right now**, independently of OpenSC4: NAM 50 is installed without the NAM DLL, the exe is not large-address-aware (Steam restored the original exe), and loading `RuleOverrides` needs a 320 MB block (exception at 0x005B9FEB, allocation size 0x14000000). The isolated `-UserDir` avoids it.
