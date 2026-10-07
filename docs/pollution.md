@@ -9,7 +9,8 @@ In increments, each on the original object. The game keeps creating, loading, sa
 | Replacement | What is ours | State |
 | --- | --- | --- |
 | `simulators.pollution.interface` | 59 of the 71 `cISC4PollutionSimulator` slots: the getters, setters and queries ([src/core/pollution_sim.cpp](../src/core/pollution_sim.cpp)) | done; parity below |
-| | Init, Shutdown, the message handlers (the simulation itself), the remaining slots | not started |
+| `simulators.pollution.tracts` | `SimulateTracts` (0x006E7FD0), the simulation: the handler of message 0x66956814 ([src/core/pollution_tracts.cpp](../src/core/pollution_tracts.cpp)); the helpers it calls are still the game's | parity below |
+| | Init, Shutdown, the other message handlers, the helpers, the remaining slots | not started |
 
 The interface methods are swapped in the primary vtable (0x00AB2630), not detoured at their entries: nothing calls them directly (every reference is the vtable's), and several are compiler-folded with other classes' functions (0x006E3000 sits in nine vtables, the functions of slots 10, 30, 31 and 32 in two to five), so an entry detour would change those classes too. The swap checks that every slot still holds the game's function and changes all of them or none.
 
@@ -32,9 +33,9 @@ Object size 0x238. Constructor 0x006E56E0, factory 0x006E5F00. Four interfaces:
 
 | Message | Handler | What it does |
 | --- | --- | --- |
-| 0x26D31EC1 CityInited | 0x006E63C0 (2.5 KB) | rebuilds the grids; also called by MonthPassed and `AddRadiationToCity` |
-| 0x66956810 | 0x006E44B0 | sets the float at +0x228 from a city value (used by the capacity getters as a scale) |
-| 0x66956814 | 0x006E7FD0 (3.6 KB) | the garbage simulation: supply from the incinerator, waste-to-energy and recycling lists, then a walk over garbage tracts (cursor +0x60/+0x64, +0x1D4 tracts per call) moving garbage into landfills |
+| 0x26D31EC1 CityInited | 0x006E63C0 (2.5 KB) | per 8x8 tract block: the worst water and garbage tracts (+0x218, +0x220; the air one is reset but not set here), and the pollution visual effects, created or removed by curves of the block's values, at random positions (0x00913A46); also called by MonthPassed and `AddRadiationToCity` |
+| 0x66956810 | 0x006E44B0 | +0x228 = curve(value × 100) × 0.01: a curve from exemplar 0x6534284A/0xE7E2C2DB/0xC911E35B (property 0x6911E2DF) read at a float from the object at +0xD8 (slot 0x28); the capacity getters scale by +0x228. Never arrived in 735 game days of the Making Money city, so it cannot be compared under the harness as it stands |
+| 0x66956814 | 0x006E7FD0 (3.6 KB) | **the simulation**: garbage supply from the building lists, then a walk over tracts (cursor +0x60/+0x64, +0x1D4 tracts per call) that reads the source grids at +0x40 to +0x4C and moves each tract's air, water and garbage values toward a target in capped steps, through the object's own `SetAirValue`, `SetWaterValue` and `SetGarbageValue` slots, moving garbage into landfills |
 | 0x66956816 MonthPassed | 0x006E7B60 | copies this month's garbage figures to last month's, publishes them, clears them, refreshes the building lists, then calls the CityInited handler |
 | 0x99EF1142/43 occupant inserted/removed | 0x006E4680 (1.5 KB) | adds or removes a building's pollution footprint in the grids and keeps the four building lists |
 | 0xC6CDBF1A | inline | when its flag differs from +0x208, sets it and calls the CityInited handler |
@@ -49,9 +50,9 @@ What the interface methods use (names ours unless a getter confirms them):
 | Offset | Type | Meaning |
 | --- | --- | --- |
 | +0x24 | `cISC4ZoneManager*` | zone types (landfill = 14) |
-| +0x40 to +0x4C | `cISC4SimGrid<short>*`[4] | read by `GetPollutionValue(type)` |
+| +0x40 to +0x4C | `cISC4SimGrid<short>*`[4] | source grids: buildings' pollution added and removed by the occupant handler; read by `GetPollutionValue(type)` and by the tract walk |
 | +0x4C | grid | radiation (`GetPollutionGrid(3)`) |
-| +0x50, +0x54, +0x58 | grids | air, water, garbage (`GetPollutionGrid(0..2)`); bit 15 of a garbage cell marks an active landfill tile |
+| +0x50, +0x54, +0x58 | grids | air, water, garbage as the city sees them (`GetPollutionGrid(0..2)`), written by the tract walk; bit 15 of a garbage cell marks an active landfill tile |
 | +0x68, +0x6C, +0x70, +0x74 | list sentinels | buildings: water treatment, incinerators, waste-to-energy, recycling (as the count getters read them; the names are gzcom-dll's) |
 | +0x100, +0x104, +0x128 | int32, int32, uint16 | average air, water, garbage |
 | +0x12C, +0x130 | int32 | monthly incinerator and waste-to-energy capacity |
@@ -66,6 +67,25 @@ What the interface methods use (names ours unless a getter confirms them):
 | +0x22C, +0x230 | int32 | garbage supply, garbage capacity |
 
 Tuning globals, all written by `LoadTuning` (0x006E5B10) and listed in the address database: thresholds for `IsAirPolluted`/`IsWaterPolluted`/`IsGarbageAccumulated` (0x00B49B7C, 0x00B49B78, 0x00B49B80), the UI maxima (0x00B49BA0 to 0x00B49B94), landfill tile capacity (0x00B49BA4), garbage scaling factor (0x00B49B6C). 0x00B49BC4 is a float that is never written through its address, the starting value of percentage outputs.
+
+## The tract walk
+
+`SimulateTracts` (0x006E7FD0) runs on every message 0x66956814. In order:
+
+1. **Capacity left** in three building lists: water treatment (+0x68; current capacity property 0xC8EBD131 through `GetCurrentCapacity`, minus used, property 0x28ECF510), incinerators (+0x6C; 0xA8EBCF0C, 0xE8ECF641) and waste-to-energy plants (+0x70; 0x48EBD0B1, 0x88ECF76C). The last two also total their current capacity into +0x12C and +0x130.
+2. **Neighbor deals** (the neighbors simulator at +0x30, slot 30 fills a list by deal type): each garbage import deal (0x4773FFE5) with room brings a tenth of its capacity (rounded), counted as imported (+0x148); each export deal (0x4773FFE4) takes as much, up to its room (+0x1B0). The imported garbage goes to `DisposeGarbage` (0x006E3820) with the incinerator and waste-to-energy capacity left; what it does not take is added to the supply.
+3. **Factors** from the ordinance simulator (+0x20, slot 25 with an ID and an index): one each for the air, water and garbage source grids and for traffic, and air, water and garbage weights per zone type (16 each).
+4. **The next +0x1D4 tracts** (2×2 cells; the cursor at +0x60/+0x64 comes from the iterator at +0x1D8, which restarts after the last tract and calls 0x006E7930):
+   - targets from the source grids (+0x40, +0x44, +0x48; negative values read as 0) times their factors, then times the average zone weight of the tract's four cells (landfill cells left out);
+   - per cell: traffic (a uint8 cell value from the traffic simulator at +0x28) times the traffic factor and a tuning factor (0x00B49B8C) is added to the air target; garbage on a cell outside a landfill is taken off it, part recycled (+0x158, by the recycling effect at +0x134), the rest offered to `DisposeGarbage`, and what is left goes back on the cell (at most 32,767; above that the excess goes to the supply) or, when the supply is over capacity, some of the supply comes back onto the cell;
+   - water treatment takes its share of the water target (a ratio of +0x11C to +0x118, at least 1, at most the capacity left);
+   - air and water move toward their targets by at most a tuning step per visit (0x00B49B88, 0x00B49B84). Water only drains to 0 when no neighbour tract holds more than 1, otherwise it stops at 1.
+5. **Supply over capacity** is offered to `DisposeGarbage`; what remains above a tuning limit (0x00B49B68) is cut from the supply.
+6. The used capacity is spread back over each list's buildings (0x006E3FE0), and 0x006E4100 runs on the lists at +0x68, +0x6C and +0x74.
+
+The game rounds to the nearest integer with a float trick (add 1.5 × 2^23, store as float, subtract the bits of 1.5 × 2^23) and truncates with `__ftol2`; ours does both the same way (`MagicRound`, `Ftol`). It keeps some intermediate values unrounded in x87 registers across several steps (the per-tract share of garbage, the average air weight); ours keeps them as `double`.
+
+Only the case where the tract iterator has nothing left even after a restart (a city with no tracts) is not reproduced: the game would then reuse stale stack values as the next position, ours keeps the old one.
 
 ## What the game does that gzcom-dll's header does not say
 
@@ -107,3 +127,5 @@ Results (2026-10-07, 12 saves, 7 game days each; result folders under `%LOCALAPP
 | original vs ours with B's heap shifted by 1,072 bytes (`iface1-shifted`) | 10 of 12 identical. Making Money d0090 and d0365 "partly": in each, the odd outcome came from a first run (b0, and on d0365 also the original's a0) and every retry matched the original's main outcome; on d0365 the original itself reached two outcomes. Repeated on those two saves (`iface1-shifted-mm2`): both identical on the first pair, as is the shifted control without our code (`shiftctl-mm`). Read as the harness's own noise, which the shifted control showed before (Rush Hour d0000: a day's tick count off by one, [parity.md](parity.md)) |
 
 The odd outcomes all being first runs of a pair is a lead for the remaining noise in the harness, not followed up here.
+
+With our tract walk too (2026-10-07, `simulators.pollution.tracts` and `simulators.pollution.interface` together, `parity/tracts1`): **12 of 12 identical, all on the first pair**, ours hooked in every B run and in no A run. The tract walk alone on Making Money d0090 and d0365 (`tracts1-mm2`): identical. Seven days do not reach every branch: the garbage paths for a supply over capacity and for more than 32,767 on one cell are the least likely to have run.
