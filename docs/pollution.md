@@ -161,6 +161,8 @@ The slots replaced so far only copy floats (`GetGarbageScalingFactor`, `GetRecyc
 
 ## Parity
 
+**Coverage caveat.** The 12-save corpus has almost no garbage or water infrastructure: the four building lists (+0x68 water treatment, +0x6C, +0x70, +0x74 recycling) are empty in every save except one building in Rush Hour's +0x70 list, and the regions that ship with the game have nothing more. So the capacity paths (`SpreadUsedCapacity`, `UpdateMaintenanceCosts`, the burning steps of `DisposeGarbage`, the capacity getters, the monthly helpers) are exercised by that one building only, and adding or removing such buildings not at all. They passed, and the one Rush Hour building did catch a real error in `DisposeGarbage`, but a corpus with these buildings is needed before they count as well tested.
+
 Run with `scripts/run-parity.sh "$B" <out> 7 "$LOCALAPPDATA/opensc4/parity/saves" OPENSC4_PARITY_B=simulators.pollution.interface=ours` ([parity.md](parity.md)).
 
 Results (2026-10-07, 12 saves, 7 game days each; result folders under `%LOCALAPPDATA%\opensc4\parity\`):
