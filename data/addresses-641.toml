@@ -738,6 +738,12 @@ kind = "data"
 source = "Service pointer, name ours: slot 13 gives the height at a position (x, z); UpdateWorstTractsAndEffects places effects at it (docs/pollution.md)."
 
 [[entry]]
+name = "SC4List::NodeAllocator2"
+address = 0x00B207E4
+kind = "data"
+source = "Name ours. A second cached pointer to the list node allocator (framework slot 5, 0x3AE4BEA3/0x3AE4BEAB), used by the list helpers 0x00413DD0 (allocate n nodes) and 0x00413F70 (erase a node); the pollution simulator's building lists go through it (docs/pollution.md)."
+
+[[entry]]
 name = "cSC4PollutionSimulator::Write"
 address = 0x006E3380
 kind = "function"

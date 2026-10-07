@@ -11,6 +11,8 @@
 
 #include <opensc4/addresses.h>
 
+#include <windows.h>
+
 #include <cstdint>
 
 namespace opensc4::pollution_sim {
@@ -118,7 +120,7 @@ const auto SetPropertySint32 = reinterpret_cast<SetPropertyFn>(addr::SC4_SetProp
 const auto SetPropertyUint32 = reinterpret_cast<SetPropertyFn>(addr::SC4_SetPropertyUint32);
 const auto SetPropertySint64 = reinterpret_cast<SetProperty64Fn>(addr::SC4_SetPropertySint64);
 const auto SpreadAround = reinterpret_cast<SpreadFn2>(addr::SC4SimGrid_SpreadAround);
-const auto UpdateBuildingList = reinterpret_cast<UpdateListFn>(addr::cSC4PollutionSimulator_UpdateBuildingList);
+const auto CallUpdateBuildingList = reinterpret_cast<UpdateListFn>(addr::cSC4PollutionSimulator_UpdateBuildingList);
 
 // cISCPropertyHolder::GetProperty, then the value's array (variant slot
 // 105 for int32 arrays, 111 for float arrays), or null.
@@ -215,7 +217,7 @@ void __fastcall OnOccupantInsertedOrRemoved(void* self, void*, void* occupant, u
 
     // The building lists, and the capacity properties of a new building.
     if (Virtual<void*>(holder, 0x24, 0xC8EBD131u)) {
-        UpdateBuildingList(self, &At<char>(self, field::kWaterTreatmentList), occupant, inserted);
+        CallUpdateBuildingList(self, &At<char>(self, field::kWaterTreatmentList), occupant, inserted);
         if (inserted) {
             AddProperty(holder, 0x28ECF510);
             SetPropertySint32(holder, 0x28ECF510, 0);
@@ -224,7 +226,7 @@ void __fastcall OnOccupantInsertedOrRemoved(void* self, void*, void* occupant, u
         }
     }
     if (Virtual<void*>(holder, 0x24, 0xA8EBCF0Cu)) {
-        UpdateBuildingList(self, &At<char>(self, field::kIncineratorList), occupant, inserted);
+        CallUpdateBuildingList(self, &At<char>(self, field::kIncineratorList), occupant, inserted);
         if (inserted) {
             AddProperty(holder, 0xE8ECF641);
             SetPropertySint32(holder, 0xE8ECF641, 0);
@@ -234,7 +236,7 @@ void __fastcall OnOccupantInsertedOrRemoved(void* self, void*, void* occupant, u
     }
     if (void* const found = Virtual<void*>(holder, 0x24, 0x48EBD0B1u)) {
         const int32_t capacity = *Virtual<int32_t*>(Virtual<void*>(found, 0x14), 0x124);
-        UpdateBuildingList(self, &At<char>(self, field::kWasteToEnergyList), occupant, inserted);
+        CallUpdateBuildingList(self, &At<char>(self, field::kWasteToEnergyList), occupant, inserted);
         int32_t& total = At<int32_t>(self, field::kMonthlyWasteToEnergyCapacity);
         if (inserted) {
             AddProperty(holder, 0x88ECF76C);
@@ -255,7 +257,7 @@ void __fastcall OnOccupantInsertedOrRemoved(void* self, void*, void* occupant, u
             total = 0;
     }
     if (Virtual<void*>(holder, 0x24, 0x88ED1059u)) {
-        UpdateBuildingList(self, &At<char>(self, field::kRecyclingList), occupant, inserted);
+        CallUpdateBuildingList(self, &At<char>(self, field::kRecyclingList), occupant, inserted);
         At<uint32_t>(self, 0xFC) = ListCount(self, field::kRecyclingList);
     }
 
@@ -268,12 +270,196 @@ void __fastcall OnOccupantInsertedOrRemoved(void* self, void*, void* occupant, u
     }
 }
 
+// --- Monthly helpers and the building lists ---------------------------------
+
+// The value pointer of a property (cIGZVariant slot 75), as the game reads
+// uint32 properties in place.
+uint32_t* ValuePointer(void* value)
+{
+    return Virtual<uint32_t*>(value, 0x12C);
+}
+
+// RollUsedCapacity (0x006E3C80): each building's used capacity becomes its
+// last month's, and the used capacity starts again at 0.
+void __fastcall RollUsedCapacity(void*, void*, void* list, uint32_t usedProperty, uint32_t lastMonthProperty)
+{
+    void* const sentinel = *static_cast<void**>(list);
+    for (void* node = NextNode(sentinel); node != sentinel; node = NextNode(node)) {
+        void* const holder = PropertyHolder(NodeObject(node));
+        void* const used = Virtual<void*>(holder, 0x24, usedProperty);
+        if (!used)
+            continue;
+        void* const usedValue = Virtual<void*>(used, 0x14);
+        if (void* const last = Virtual<void*>(holder, 0x24, lastMonthProperty)) {
+            void* const lastValue = Virtual<void*>(last, 0x14);
+            Virtual<uint32_t>(lastValue, 0x68, *ValuePointer(usedValue)); // SetValUint32
+        }
+        Virtual<uint32_t>(usedValue, 0x74, 0); // SetValSint32
+    }
+}
+
+// UpdateWasteToEnergyOutput (0x006E3F50): each plant's property 0x27812852
+// = used * 0x08FD1613 / capacity, in 32-bit unsigned arithmetic as the game
+// does (a capacity of 0 divides by zero there too).
+void __fastcall UpdateWasteToEnergyOutput(void* self, void*)
+{
+    void* const sentinel = At<void*>(self, field::kWasteToEnergyList);
+    for (void* node = NextNode(sentinel); node != sentinel; node = NextNode(node)) {
+        void* const holder = PropertyHolder(NodeObject(node));
+        uint32_t factor, capacity, used;
+        if (static_cast<uint8_t>(GetPropertyUint32(holder, 0x08FD1613, &factor)) &&
+            static_cast<uint8_t>(GetPropertyUint32(holder, 0x48EBD0B1, &capacity)) &&
+            static_cast<uint8_t>(GetPropertyUint32(holder, 0x88ECF76C, &used)))
+            Virtual<uint32_t>(holder, 0x34, 0x27812852u, used * factor / capacity, 0u);
+    }
+}
+
+// The building lists' node allocator, fetched from the framework on first
+// use as the game's list helpers (0x00413DD0, 0x00413F70) do.
+void* ListNodeAllocator()
+{
+    using GetFrameworkFn = void*(__cdecl*)();
+    using ReleaseRefFn = void(__thiscall*)(void** ref);
+    void*& allocator = Global<void*>(addr::SC4List_NodeAllocator2);
+    if (!allocator) {
+        void* fetched = nullptr;
+        if (void* framework = reinterpret_cast<GetFrameworkFn>(addr::RZGetFramework)())
+            Virtual<uint8_t>(framework, 0x14, 0x3AE4BEA3u, 0x3AE4BEABu, &fetched);
+        allocator = fetched;
+        reinterpret_cast<ReleaseRefFn>(addr::SC4_ReleaseRef)(&fetched);
+    }
+    return allocator;
+}
+
+// UpdateBuildingList (0x006E45F0): puts the building at the front of the
+// list, taking a reference, or removes its node and releases it. Returns
+// whether it did. (Front, not back: the lists are walked newest first.)
+uint8_t __fastcall UpdateBuildingList(void*, void*, void* list, void* occupant, uint8_t insert)
+{
+    static int calls = 0;
+    if (calls++ < 3)
+        log::Write("pollution buildings: building list %s", insert ? "insert" : "remove");
+    void* const sentinel = *static_cast<void**>(list);
+    if (insert) {
+        Virtual<uint32_t>(occupant, 0x4); // AddRef
+        auto** const node = static_cast<void**>(Virtual<void*>(ListNodeAllocator(), 0xC, 12u));
+        node[2] = occupant;
+        void** const first = static_cast<void**>(NextNode(sentinel));
+        void** const before = static_cast<void**>(first[1]);
+        node[0] = first;
+        node[1] = before;
+        before[0] = node;
+        first[1] = node;
+        return 1;
+    }
+    void* node = NextNode(sentinel);
+    while (node != sentinel && NodeObject(node) != occupant)
+        node = NextNode(node);
+    if (node == sentinel)
+        return 0;
+    void** const unlinked = static_cast<void**>(node);
+    static_cast<void**>(unlinked[1])[0] = unlinked[0];
+    static_cast<void**>(unlinked[0])[1] = unlinked[1];
+    Virtual<uint32_t>(ListNodeAllocator(), 0x10, node);
+    Virtual<uint32_t>(occupant, 0x8); // Release
+    return 1;
+}
+
 // --- Installation -----------------------------------------------------------
 
 using SpreadFn = void(__fastcall*)(void*, void*, void*, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
 using ListFn = void(__fastcall*)(void*, void*, void*);
 SpreadFn g_originalSpread = nullptr;
 ListFn g_originalList = nullptr;
+
+using RollFn = void(__fastcall*)(void*, void*, void*, uint32_t, uint32_t);
+using OutputFn = void(__fastcall*)(void*, void*);
+using ListUpdateFn = uint8_t(__fastcall*)(void*, void*, void*, void*, uint8_t);
+RollFn g_originalRoll = nullptr;
+OutputFn g_originalOutput = nullptr;
+ListUpdateFn g_originalListUpdate = nullptr;
+
+// UpdateBuildingList runs only when a garbage or water building is built or
+// demolished, which the parity corpora do not do. With
+// OPENSC4_POLLUTION_SELFCHECK set, the replacement checks itself against the
+// game's function when it is installed: the same inserts and removals on two
+// scratch lists of fake occupants (it only calls their AddRef and Release),
+// then the same order, results and reference counts. Off by default: its
+// allocations change the heap the game sees.
+struct FakeOccupant {
+    void* const* vtable;
+    int32_t refs = 0;
+};
+
+uint32_t __fastcall FakeAddRef(FakeOccupant* self, void*) { return static_cast<uint32_t>(++self->refs); }
+uint32_t __fastcall FakeRelease(FakeOccupant* self, void*) { return static_cast<uint32_t>(--self->refs); }
+void* const kFakeVtable[3] = {nullptr, reinterpret_cast<void*>(&FakeAddRef), reinterpret_cast<void*>(&FakeRelease)};
+
+bool CheckUpdateBuildingList()
+{
+    FakeOccupant fakes[2][3] = {{{kFakeVtable}, {kFakeVtable}, {kFakeVtable}}, {{kFakeVtable}, {kFakeVtable}, {kFakeVtable}}};
+    FakeOccupant missing[2] = {{kFakeVtable}, {kFakeVtable}};
+    void* lists[2];
+    for (void*& list : lists) {
+        list = Virtual<void*>(ListNodeAllocator(), 0xC, 12u);
+        static_cast<void**>(list)[0] = list;
+        static_cast<void**>(list)[1] = list;
+    }
+    auto run = [&](int side, int which, bool insert) {
+        void* const occupant = which < 0 ? static_cast<void*>(&missing[side]) : static_cast<void*>(&fakes[side][which]);
+        return side == 0 ? g_originalListUpdate(nullptr, nullptr, &lists[0], occupant, insert)
+                         : UpdateBuildingList(nullptr, nullptr, &lists[1], occupant, insert);
+    };
+    const struct {
+        int which;
+        bool insert;
+    } steps[] = {{0, true}, {1, true}, {2, true}, {1, false}, {-1, false}, {1, true}, {0, false}};
+    bool same = true;
+    for (const auto& step : steps)
+        same &= run(0, step.which, step.insert) == run(1, step.which, step.insert);
+    auto order = [&](int side) {
+        int sequence = 0;
+        for (void* node = NextNode(lists[side]); node != lists[side]; node = NextNode(node))
+            sequence = sequence * 10 + 1 + static_cast<int>(static_cast<FakeOccupant*>(NodeObject(node)) - fakes[side]);
+        return sequence;
+    };
+    same &= order(0) == order(1);
+    for (int i = 0; i < 3; ++i)
+        same &= fakes[0][i].refs == fakes[1][i].refs;
+    log::Write("pollution helpers: UpdateBuildingList self-check against the game's: %s (order %d vs %d)",
+               same ? "same" : "DIFFERENT", order(0), order(1));
+    for (int side = 0; side < 2; ++side) {
+        for (int i = 0; i < 3; ++i)
+            while (run(side, i, false)) {
+            }
+        Virtual<uint32_t>(ListNodeAllocator(), 0x10, lists[side]);
+    }
+    return same;
+}
+
+bool InstallHelpers(registry::Mode)
+{
+    const addr::Entry* roll = addr_check::Find(addr::cSC4PollutionSimulator_RollUsedCapacity);
+    const addr::Entry* output = addr_check::Find(addr::cSC4PollutionSimulator_UpdateWasteToEnergyOutput);
+    const addr::Entry* list = addr_check::Find(addr::cSC4PollutionSimulator_UpdateBuildingList);
+    if (!game::IsBuild641() || !roll || !output || !list)
+        return false;
+    return hook::Install(*roll, &RollUsedCapacity, &g_originalRoll) &&
+           hook::Install(*output, &UpdateWasteToEnergyOutput, &g_originalOutput) &&
+           hook::Install(*list, &UpdateBuildingList, &g_originalListUpdate) &&
+           (GetEnvironmentVariableA("OPENSC4_POLLUTION_SELFCHECK", nullptr, 0) == 0 || CheckUpdateBuildingList());
+}
+
+const bool g_registeredHelpers = registry::Register({
+    "simulators.pollution.helpers",
+    "simulators/pollution",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4PollutionSimulator_UpdateBuildingList,
+    "Our building-list and monthly helpers: list insert/remove, used capacity roll-over, waste-to-energy output (docs/pollution.md)",
+    false,
+    InstallHelpers,
+});
 
 using OccupantFn = void(__fastcall*)(void*, void*, void*, uint8_t);
 OccupantFn g_originalOccupant = nullptr;
