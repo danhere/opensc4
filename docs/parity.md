@@ -46,4 +46,6 @@ Along the way the proxy turned up a real bug: eight garbage getters return 64-bi
 
 ## Save corpus
 
+`%LOCALAPPDATA%\opensc4\parity\saves-plopped` adds three saves of a Big City Tutorial with garbage and water buildings, which the main corpus lacks (it has one such building, in Rush Hour): a water treatment plant, a recycling center, a waste-to-energy plant and a landfill zone, placed through the game's own UI by a script (2026-10-07), then the city as built (`p0000`) and 90 and 365 days on. The steps: the tutorial is switched off by clearing the flag in its `cSC4TutorialSystem` record ([save-format.md](save-format.md)); `run-save-test.sh` with `OPENSC4_TEST_START_PAUSED=1` loads the city paused; the buildings are placed (a blocking area first bulldozed and left to clear for a few game days); the game is resumed from its speed buttons and the run saves at its last day. The base game's menus have no plain incinerator, so the list at +0x6C stays empty.
+
 `%LOCALAPPDATA%\opensc4\parity\saves` (game data, never committed): the three tutorial cities of the test region (Making Money: small town; Big City: dense downtown; Rush Hour: highways), each as found (`d0000`) and after 90, 365 and 1095 game days from there (`d0090`...), made with `run-save-test.sh` under fixed seeds and the virtual clock (before determinism round 3; they are only starting points).

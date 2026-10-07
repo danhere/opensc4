@@ -351,10 +351,20 @@ private:
         bool speedSet = false;
         if (sim) {
             speedSet = sim->SetSimSpeed(speed);
-            if (noTime)
+            // OPENSC4_TEST_START_PAUSED=1: the city waits until someone (or a
+            // UI-driving script) resumes it from the game's speed buttons,
+            // e.g. to build something before the counted days run.
+            if (noTime || Env("OPENSC4_TEST_START_PAUSED") == "1") {
                 sim->Pause(); // no simulation time at all, not even one tick
-            else
+            } else {
+                // The pause count is saved with the city (cSC4Simulator +0x30):
+                // a city saved by an earlier run while paused twice (paused
+                // to build, then at its last day) needs two resumes. Saves
+                // made by a single autotest run need one, as before.
                 sim->Resume();
+                for (int i = 0; i < 8 && sim->IsPaused(); ++i)
+                    sim->Resume();
+            }
         }
         runSeconds_ = EnvInt("OPENSC4_TEST_SECONDS", 180);
         runDays_ = Env("OPENSC4_TEST_DAYS").empty() ? -1 : EnvInt("OPENSC4_TEST_DAYS", 0);

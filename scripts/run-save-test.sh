@@ -10,6 +10,8 @@
 # OPENSC4_TEST_CITY picks the city (default "Making Money Tutorial").
 # OPENSC4_TEST_START=<file.sc4> starts from that save of the same city instead
 # of the region's own copy (it replaces the city's file after the refresh).
+# OPENSC4_TEST_START_PAUSED=1 loads the city paused; the counted days start
+# when it is resumed from the game's speed buttons (to build something first).
 # OPENSC4_TEST_INI=<file> becomes the run's Plugins/opensc4.ini (otherwise
 # there is none): a way to pass replacements without changing the
 # environment, which changes the game's heap layout (docs/parity.md).
