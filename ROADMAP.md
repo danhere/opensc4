@@ -49,6 +49,7 @@ Output is a toolkit, not a game change. Everything later depends on it.
 
 - [x] **Does the original game replay deterministically?** Answered (2026-10-06, [docs/experiments/determinism.md](docs/experiments/determinism.md)): **no**, not as a whole. Two runs from the same save with fixed random seeds (`determinism.fixed_seed`), a fixed-step clock on every thread (`determinism.virtual_clock`) and one CPU still end in different cities after a year. Random numbers are ruled out (seeding and `rand()` sequences identical); left are thread interleaving (a city-load worker thread with its own time budget) or address-ordered processing. With those controls, runs **stay identical for at least the first 8 game days** (first population difference on day 9, 27 and 29 in three pairs).
   - **Decision (Dan, 2026-10-06):** parity testing uses short windows: from many saves, a few game days with the original and with a replacement, compared exactly (daily fingerprints, the replaced simulator's own state), plus statistical comparison over long runs. **Tabled, not dropped:** finding the root cause of the divergence (next steps in the experiment doc: serialise or trace the worker thread, a deterministic per-thread allocator for address order).
+  - **Root cause found (2026-10-07, Dan un-tabled it):** real time reached the simulation through six paths (ticks per frame, the simulation clock's pacing, idle-time budgets, rdtsc in simulation code, our own seed replacement, time()-based seeds), not the worker thread. With `determinism.fixed_ticks` added and the other two replacements extended, runs agree in every daily fingerprint for a year. The outcome still depends on heap layout, so compared runs need identical environments.
 - [~] Save parser / differ (offline tooling): record-level diff (`opensc4-dbpf diff`) and an address-aware diff that separates moved heap addresses from real differences ([tools/re/savediff.py](tools/re/savediff.py)); record types named from the exe's class table. First schema: `cSC4PollutionSimulator`, decoded exactly in 531 saves across versions 2-4 ([docs/save-format.md](docs/save-format.md), [tools/re/sc4save.py](tools/re/sc4save.py))
 - [ ] In-memory state dumpers from Ghidra layouts
 - [ ] Publish documented subfile schemas to the community
@@ -57,8 +58,8 @@ Output is a toolkit, not a game change. Everything later depends on it.
 
 Parity method (from P4): short-window exact comparison against the original from many saves, plus statistical comparison over long runs.
 
-- [~] Parity harness (docs/parity.md): `scripts/run-parity.sh`, a week from each of 12 saves, verdict over outcome sets. The original itself gives more than one outcome on about a quarter of the saves; exact parity there needs the remaining real-time dependency removed (worker thread). Statistical long runs not built yet
-- [~] Pollution. A pass-through replacement registered through GZCOM already runs the city (experiment, replacement `simulators.pollution.proxy`); under the harness it passes 9 of 12 saves after fixing a 64-bit return bug
+- [x] Parity harness (docs/parity.md): `scripts/run-parity.sh`, a week from each of 12 saves, compared exactly. With the determinism replacements (docs/experiments/determinism.md, third round) the original agrees with itself on all 12, and runs agree for a year. Limit: the outcome depends on heap layout (both runs get identical environments)
+- [~] Pollution. A pass-through replacement registered through GZCOM already runs the city (experiment, replacement `simulators.pollution.proxy`); under the harness it passes all 12 saves exactly, after fixing a 64-bit return bug
 - [ ] Crime
 - [ ] Coverage sims (health, education, fire, police)
 - [ ] Land value

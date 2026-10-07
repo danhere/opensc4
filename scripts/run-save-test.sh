@@ -10,6 +10,9 @@
 # OPENSC4_TEST_CITY picks the city (default "Making Money Tutorial").
 # OPENSC4_TEST_START=<file.sc4> starts from that save of the same city instead
 # of the region's own copy (it replaces the city's file after the refresh).
+# OPENSC4_TEST_INI=<file> becomes the run's Plugins/opensc4.ini (otherwise
+# there is none): a way to pass replacements without changing the
+# environment, which changes the game's heap layout (docs/parity.md).
 # core.dll's log of the run is copied to <output>.log. Compare outputs with:
 # opensc4-dbpf diff <a.sc4> <b.sc4>
 set -euo pipefail
@@ -32,6 +35,7 @@ export OPENSC4_TEST_CITY="$city"
 
 [ -d "$fixture/Regions/$region" ] || { echo "run-save-test: no $fixture/Regions/$region; run run-autotest.sh once first" >&2; exit 1; }
 [ -z "${OPENSC4_TEST_START:-}" ] || [ -f "$OPENSC4_TEST_START" ] || { echo "run-save-test: no $OPENSC4_TEST_START" >&2; exit 1; }
+[ -z "${OPENSC4_TEST_INI:-}" ] || [ -f "$OPENSC4_TEST_INI" ] || { echo "run-save-test: no $OPENSC4_TEST_INI" >&2; exit 1; }
 
 pause() { timeout "$1" bash -c 'while :; do sleep 1; done' || true; }
 
@@ -42,6 +46,8 @@ for try in 1 2 3; do
     cp -r "$fixture/Regions/$region/." "$env/Regions/$region/"
     cp "$fixture/SimCity 4.cfg" "$env/"
     [ -z "${OPENSC4_TEST_START:-}" ] || cp "$OPENSC4_TEST_START" "$env/Regions/$region/City - $city.sc4"
+    rm -f "$env/Plugins/opensc4.ini"
+    [ -z "${OPENSC4_TEST_INI:-}" ] || cp "$OPENSC4_TEST_INI" "$env/Plugins/opensc4.ini"
     OPENSC4_TESTENV="$env" "$repo/scripts/run-autotest.sh" "$build" "OPENSC4_TEST_DAYS=$days" OPENSC4_TEST_SAVE=1 \
         >"$env/run.out" 2>&1 || true
     grep -q "director: OnStart" "$log" 2>/dev/null && break

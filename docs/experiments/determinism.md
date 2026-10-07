@@ -95,8 +95,11 @@ Results (repeat runs of one save, everything above on):
 - 365 days: 8 records: props and the traffic network map (both in the floor), automata controller and vehicles (cars are animated per frame), advisors (1 to 27 bytes each), and an untyped record 0x8A2482B9 (group 0x4A2482BB, instance 4; 16 bytes longer in one run).
 - 90 days: 23 records, 13 beyond the floor: automata attractor, vehicles and vehicle manager, seven advisor records (1 to 8 bytes), and, not explained, cSC4BuildingOccupant (the last object in the record: one float, 0.6408 vs 0.6220, and two words that look like a saved generator state), cSC4ConstructionOccupant (scattered bytes), cSC4OccupantManager (8 bytes longer) and the untyped 0x8A2482B9.
 
+**Heap layout.** Runs agree when everything about the process is the same, but the outcome depends on the heap layout: one extra environment variable, read by nothing (the C runtime copies each variable to the heap at startup), changed the original game's outcome on Making Money d0090 reproducibly (day 7 began on check 745 instead of 435), while a variable of the same length under another name did not. So something processes objects in address order; the tract developer's varying visiting order (below) is one sign. The parity harness therefore gives both runs identical environments ([../parity.md](../parity.md)).
+
 Open:
 
+- Which code processes objects in heap-address order, so that the outcome no longer depends on the layout.
 - Whether the building, construction and occupant-manager differences at 90 days are simulation state or per-frame animation state. They do not show in any fingerprint, and the 365-day pair does not have them.
 - The tract developer visits tracts in a different order in some runs (same 996 position seeds, in another order); each tract seeds its own generator, so this has not changed results, but processing order could matter where tracts share state. A container ordered by heap address would explain it.
 - Automata (cars, pedestrians) are driven by frame time and differ from run to run; they appear not to feed the simulation, since fingerprints agree for a year.

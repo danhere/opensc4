@@ -40,23 +40,32 @@ base="determinism.fixed_seed=ours,determinism.virtual_clock=ours,determinism.fix
 replace_a="$base${OPENSC4_PARITY_A:+,$OPENSC4_PARITY_A}"
 replace_b="$base${OPENSC4_PARITY_B:+,$OPENSC4_PARITY_B}"
 [ "$replace_a" != "$replace_b" ] || echo "run-parity: A and B are the same (a control run)" >&2
+# The environment changes the heap layout (the C runtime copies each
+# variable to the heap at startup) and the game's outcome depends on heap
+# layout (docs/parity.md), so both runs get the same environment and the
+# replacement lists go in an opensc4.ini each (OPENSC4_TEST_INI).
+unset OPENSC4_REPLACE
+mkdir -p "$out"
+for side in a b; do
+    list="$replace_a"
+    [ "$side" = b ] && list="$replace_b"
+    { echo "[replacements]"; echo "$list" | tr ',' '\n'; } >"$out/$side.ini"
+done
 
 pause() { timeout "$1" bash -c 'while :; do sleep 1; done' || true; }
 
 # One pair of runs from <save> into <dir>; compares the two. Returns 0 when
 # they agree, 1 when they differ, 2 when a run left no save.
 run_pair() {
-    local save="$1" city="$2" dir="$3" side replace
+    local save="$1" city="$2" dir="$3" side
     mkdir -p "$dir"
     for side in a b; do
         [ -f "$dir/$side.sc4" ] && continue
-        replace="$replace_a"
-        [ "$side" = b ] && replace="$replace_b"
         echo "run-parity: ${dir#"$out"/} $side"
         # Steam relaunches the game when it starts too soon after the last run.
         pause 20
         "$repo/scripts/run-save-test.sh" "$build" "$dir/$side.sc4" "$days" \
-            "OPENSC4_TEST_CITY=$city" "OPENSC4_TEST_START=$save" "OPENSC4_REPLACE=$replace" \
+            "OPENSC4_TEST_CITY=$city" "OPENSC4_TEST_START=$save" "OPENSC4_TEST_INI=$out/$side.ini" \
             OPENSC4_TEST_FINGERPRINT=1 >"$dir/$side.out" 2>&1 || true
     done
     [ -f "$dir/a.sc4" ] && [ -f "$dir/b.sc4" ] || return 2
