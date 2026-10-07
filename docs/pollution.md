@@ -16,7 +16,8 @@ In increments, each on the original object. The game keeps creating, loading, sa
 | `simulators.pollution.month` | `OnMonthPassed` (0x006E7B60), the MonthPassed handler; the monthly building helpers it calls are still the game's ([src/core/pollution_tracts.cpp](../src/core/pollution_tracts.cpp)) | parity below |
 | `simulators.pollution.averages` | `OnTractWalkRestart` (0x006E7930), the end of each pass over the city; `UpdateRecyclingEffect` (0x006E6DA0), which it calls first, is still the game's ([src/core/pollution_tracts.cpp](../src/core/pollution_tracts.cpp)) | parity below |
 | `simulators.pollution.effects` | `UpdateWorstTractsAndEffects` (0x006E63C0), the CityInited handler ([src/core/pollution_effects.cpp](../src/core/pollution_effects.cpp)) | parity below |
-| | Init, Shutdown, `UpdateRecyclingEffect`, the monthly building helpers, the remaining slots | not started |
+| `simulators.pollution.save` | `Write` (0x006E3380), the save ([src/core/pollution_save.cpp](../src/core/pollution_save.cpp)) | parity below |
+| | Init, Shutdown, Read, `UpdateRecyclingEffect`, `AgeBuildings`, `UpdateBuildingList`, `RollUsedCapacity`, `UpdateWasteToEnergyOutput`, the remaining slots | not started |
 
 The interface methods are swapped in the primary vtable (0x00AB2630), not detoured at their entries: nothing calls them directly (every reference is the vtable's), and several are compiler-folded with other classes' functions (0x006E3000 sits in nine vtables, the functions of slots 10, 30, 31 and 32 in two to five), so an entry detour would change those classes too. The swap checks that every slot still holds the game's function and changes all of them or none.
 
@@ -187,3 +188,5 @@ With the MonthPassed handler too (all six, `all4`): **12 of 12 identical on the 
 With the end-of-pass step too (all seven, `all5`): 12 of 12 identical on the first pair, and 366 of 366 days over a year from the same two saves (`all5-365`). No pass over the city completes within the seven-day windows (the saved averages stay at their starting values), so the year-long runs are what check this step: there the averages moved (air 275 to 298, water 394 to 421 on Making Money d0090) and matched the original's.
 
 With the worst-tract and effects handler too (all eight, `all8`, `all8-365`): 12 of 12 identical on the first pair and 366 of 366 days over a year from two saves. This handler's results reach nothing the fingerprint covered before (the worst tracts are read only by the UI and Lua, its generator by nothing else), so the fingerprint now includes the three worst tracts and a checksum of the whole effects generator; on load the handler made 59 effects and 86 random draws in Making Money, and the generator's state matched the original's every day, changing at a month's end during the year. (A first version of that checksum covered only the generator's first 16 bytes and could not see draws.)
+
+With our `Write` too (`save1`): 12 of 12 identical on the first pair, and the pollution record each B run saved decoded identical to the original's in all 12.
