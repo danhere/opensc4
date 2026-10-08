@@ -515,6 +515,17 @@ private:
             self->lastFingerprintDay_ = day;
             self->Fingerprint(city, day);
         }
+        // OPENSC4_TEST_POWER_WAKE=<n>: on the n-th day of the run, wake the
+        // power simulator as message 0x6AC284F3 does (the network tools send
+        // it; +0x14 of cSC4PowerSimulator, build 641), so its recompute runs
+        // in a run without network edits (docs/power.md).
+        if (const int wake = EnvInt("OPENSC4_TEST_POWER_WAKE", -1);
+            wake >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + wake && game::IsBuild641()) {
+            if (void* const power = city->GetPowerSimulator()) {
+                static_cast<uint8_t*>(power)[0x14] = 1;
+                log::Write("autotest: power simulator woken on day %d", day);
+            }
+        }
         if (self->runDays_ >= 0 && day >= self->endDay_) {
             sim->Pause();
             self->reachedEndDay_ = true;
