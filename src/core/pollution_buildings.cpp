@@ -14,6 +14,8 @@
 #include <windows.h>
 
 #include <cstdint>
+#include <cstring>
+#include <vector>
 
 namespace opensc4::pollution_sim {
 namespace {
@@ -365,6 +367,163 @@ uint8_t __fastcall UpdateBuildingList(void*, void*, void* list, void* occupant, 
     return 1;
 }
 
+// --- AgeBuildings (0x006E3D00) -----------------------------------------------
+
+using GetPropertyFloatFn = uint8_t(__cdecl*)(void* holder, uint32_t property, float* value);
+using SetPropertyFloatFn = void(__cdecl*)(void* holder, uint32_t property, float value);
+using EvaluateCurveFn = double(__thiscall*)(const void* curve, float x); // ST0, unrounded
+
+const auto GetPropertyFloat = reinterpret_cast<GetPropertyFloatFn>(addr::SC4_GetPropertyFloat);
+const auto SetPropertyFloat = reinterpret_cast<SetPropertyFloatFn>(addr::SC4_SetPropertyFloat);
+const auto EvaluateCurve = reinterpret_cast<EvaluateCurveFn>(addr::SC4Curve_Evaluate);
+
+constexpr uint32_t kPropertyAge = 0xC910B4CF;
+constexpr uint32_t kPropertyAgeRate = 0xEA1CF220;
+constexpr uint32_t kPropertyAgeCondition2 = 0xEA1CF221;
+constexpr uint32_t kPropertyAgeCondition4 = 0xEA1CF222;
+constexpr std::size_t kUseCurve = 0xEC;     // SC4Curve: age by use
+constexpr std::size_t kFundingCurve = 0xDC; // SC4Curve: age by funding
+constexpr std::size_t kDepartment = 0xD8;   // department budget; slot 10 points to its funding
+constexpr std::size_t kRecycledThisMonth = 0x158; // double
+
+// Each month, every building of the list ages by curve(funding) *
+// curve(use) * its age rate; at or past its thresholds its lot's condition
+// becomes 2 or 4. The use is used / current capacity of the two properties,
+// or, for the recycling list (properties 0), recycled this month per center.
+void __fastcall AgeBuildings(void* self, void*, void* list, uint32_t usedProperty, uint32_t currentProperty)
+{
+    static bool logged = false;
+    if (!logged) {
+        logged = true;
+        log::Write("pollution buildings: first AgeBuildings");
+    }
+    void* const sentinel = *static_cast<void**>(list);
+    for (void* node = NextNode(sentinel); node != sentinel; node = NextNode(node)) {
+        void* const occupant = NodeObject(node);
+        void* const holder = PropertyHolder(occupant);
+        uint32_t current = 0;
+        int32_t used = 0;
+        float age = 0.0f;
+        float rate = 0.0f;
+        float condition4 = 99.0f;
+        float condition2 = 99.0f;
+        float use = Global<float>(addr::PollutionTuning_DefaultPercentage);
+        const float* const funding = Virtual<float*>(At<void*>(self, kDepartment), 0x28);
+        if (usedProperty != 0) {
+            GetPropertySint32(holder, usedProperty, &used);
+            Virtual<uint8_t>(self, kSlotGetCurrentCapacity, currentProperty, occupant, &current);
+            if (current != 0 && used > 0)
+                use = static_cast<float>(static_cast<double>(used) / static_cast<double>(current));
+        } else if (const uint32_t centers = At<uint32_t>(self, 0xFC)) {
+            use = static_cast<float>(At<double>(self, kRecycledThisMonth) / static_cast<double>(centers));
+        }
+        GetPropertyFloat(holder, kPropertyAge, &age);
+        GetPropertyFloat(holder, kPropertyAgeRate, &rate);
+        GetPropertyFloat(holder, kPropertyAgeCondition2, &condition2);
+        GetPropertyFloat(holder, kPropertyAgeCondition4, &condition4);
+        const float byUse = static_cast<float>(EvaluateCurve(&At<char>(self, kUseCurve), use));
+        const double byFunding = EvaluateCurve(&At<char>(self, kFundingCurve), *funding);
+        age = static_cast<float>(byFunding * byUse * rate + age);
+        SetPropertyFloat(holder, kPropertyAge, age);
+        if (!(age >= condition4) && !(age >= condition2))
+            continue;
+        Vector3 position;
+        Virtual<uint32_t>(occupant, 0x20, &position); // cISC4Occupant::GetPosition
+        int32_t cellX, cellZ;
+        Virtual<uint32_t>(Global<void*>(addr::SC4_City), 0x17C, position.x, position.z, &cellX, &cellZ);
+        void* const lot = Virtual<void*>(Global<void*>(addr::SC4_LotManager), 0x18, cellX, cellZ, 0u); // GetLot
+        if (!lot)
+            continue;
+        if (age >= condition4)
+            Virtual<uint8_t>(lot, 0x90, 4u); // cISC4Lot::SetCondition
+        else if (age >= condition2)
+            Virtual<uint8_t>(lot, 0x90, 2u);
+    }
+}
+
+// --- UpdateRecyclingEffect (0x006E6DA0) -------------------------------------
+
+using ListAssignFn = void*(__thiscall*)(void* list, const void* other);
+using ListDestroyFn = void(__thiscall*)(void* list);
+const auto AssignList = reinterpret_cast<ListAssignFn>(addr::SC4List_Assign);
+const auto DestroyList2 = reinterpret_cast<ListDestroyFn>(addr::SC4List_Destroy2);
+
+constexpr uint32_t kPropertyRecyclingCapacity = 0x68ED1736;
+constexpr std::size_t kSlotGetOccupantEfficiency = 0xDC;
+constexpr std::size_t kResidents = 0x2C; // slot 16 gives the figure the recycling capacity is measured against
+
+// A node of the building lists' allocator, as the game makes them.
+void** NewNode()
+{
+    return static_cast<void**>(Virtual<void*>(ListNodeAllocator(), 0xC, 12u));
+}
+
+// The recycling centers, sorted by efficiency (highest first; among equals
+// the later one first), and the recycling effect: from the top, capacity is
+// added up while below the residents' figure, with efficiency times
+// capacity; the effect is that sum over the larger of the two.
+void __fastcall UpdateRecyclingEffect(void* self, void*)
+{
+    static bool logged = false;
+    if (!logged) {
+        logged = true;
+        log::Write("pollution buildings: first UpdateRecyclingEffect");
+    }
+    const float residents = static_cast<float>(Virtual<int32_t>(At<void*>(self, kResidents), 0x40));
+    float efficiency = 0.0f;
+    void** const sorted = NewNode();
+    sorted[0] = sorted;
+    sorted[1] = sorted;
+    void* sortedList = sorted;
+    float& effect = At<float>(self, field::kRecyclingCenterEffect);
+    if (At<uint32_t>(self, 0xFC) == 0) {
+        effect = Global<float>(addr::PollutionTuning_DefaultPercentage);
+        DestroyList2(&sortedList);
+        return;
+    }
+    void* const sentinel = At<void*>(self, field::kRecyclingList);
+    for (void* node = NextNode(sentinel); node != sentinel; node = NextNode(node)) {
+        if (!Virtual<uint8_t>(self, kSlotGetOccupantEfficiency, NodeObject(node), &efficiency))
+            continue;
+        void** at = static_cast<void**>(NextNode(sorted));
+        for (; at != sorted; at = static_cast<void**>(NextNode(at))) {
+            float other = 0.0f;
+            if (Virtual<uint8_t>(self, kSlotGetOccupantEfficiency, NodeObject(at), &other) && other <= efficiency)
+                break;
+        }
+        void** const added = NewNode();
+        added[2] = NodeObject(node);
+        void** const before = static_cast<void**>(at[1]);
+        added[0] = at;
+        added[1] = before;
+        before[0] = added;
+        at[1] = added;
+    }
+    AssignList(&At<char>(self, field::kRecyclingList), &sortedList);
+
+    float capacity = 0.0f;
+    float totalCapacity = 0.0f;
+    float weighted = 0.0f;
+    for (void* node = NextNode(sentinel); node != At<void*>(self, field::kRecyclingList); node = NextNode(node)) {
+        if (!(totalCapacity < residents))
+            break;
+        void* const occupant = NodeObject(node);
+        if (!GetPropertyFloat(PropertyHolder(occupant), kPropertyRecyclingCapacity, &capacity))
+            continue;
+        totalCapacity = static_cast<float>(static_cast<double>(capacity) + totalCapacity);
+        float centerEfficiency = 0.0f;
+        if (Virtual<uint8_t>(self, kSlotGetOccupantEfficiency, occupant, &centerEfficiency))
+            weighted = static_cast<float>(static_cast<double>(centerEfficiency) * capacity + weighted);
+    }
+    if (totalCapacity > 0.0f) {
+        const float divisor = totalCapacity < residents ? residents : totalCapacity;
+        effect = static_cast<float>(static_cast<double>(weighted) / divisor);
+    } else {
+        effect = Global<float>(addr::PollutionTuning_DefaultPercentage);
+    }
+    DestroyList2(&sortedList);
+}
+
 // --- Installation -----------------------------------------------------------
 
 using SpreadFn = void(__fastcall*)(void*, void*, void*, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
@@ -459,6 +618,182 @@ const bool g_registeredHelpers = registry::Register({
     "Our building-list and monthly helpers: list insert/remove, used capacity roll-over, waste-to-energy output (docs/pollution.md)",
     false,
     InstallHelpers,
+});
+
+using AgeFn = void(__fastcall*)(void*, void*, void*, uint32_t, uint32_t);
+AgeFn g_originalAge = nullptr;
+
+// With OPENSC4_POLLUTION_SELFCHECK set, every call runs the game's function,
+// puts the ages back, runs ours and compares each building's new age (the
+// lot conditions are set twice, to the same values when the ages agree).
+void __fastcall CheckAgeBuildings(void* self, void* edx, void* list, uint32_t usedProperty, uint32_t currentProperty)
+{
+    static int calls = 0;
+    static int differing = 0;
+    void* const sentinel = *static_cast<void**>(list);
+    std::vector<void*> holders;
+    std::vector<float> before;
+    for (void* node = NextNode(sentinel); node != sentinel; node = NextNode(node)) {
+        holders.push_back(PropertyHolder(NodeObject(node)));
+        float age = 0.0f;
+        GetPropertyFloat(holders.back(), kPropertyAge, &age);
+        before.push_back(age);
+    }
+    g_originalAge(self, edx, list, usedProperty, currentProperty);
+    std::vector<float> theirs(holders.size());
+    for (std::size_t i = 0; i < holders.size(); ++i) {
+        GetPropertyFloat(holders[i], kPropertyAge, &theirs[i]);
+        SetPropertyFloat(holders[i], kPropertyAge, before[i]);
+    }
+    AgeBuildings(self, edx, list, usedProperty, currentProperty);
+    int mismatches = 0;
+    for (std::size_t i = 0; i < holders.size(); ++i) {
+        float ours = 0.0f;
+        GetPropertyFloat(holders[i], kPropertyAge, &ours);
+        if (std::memcmp(&ours, &theirs[i], sizeof ours) != 0 && mismatches++ < 3)
+            log::Write("pollution aging: building %zu: ours %.9g, the game's %.9g (was %.9g)", i, ours, theirs[i],
+                       before[i]);
+    }
+    differing += mismatches != 0;
+    ++calls;
+    if (mismatches || calls <= 3 || calls % 12 == 0)
+        log::Write("pollution aging: call %d (list %08X): %zu buildings, %d differing; %d of %d calls differing so far"
+                   " (first: %.9g -> %.9g)",
+                   calls, usedProperty, holders.size(), mismatches, differing, calls, before.empty() ? 0.0 : before[0],
+                   theirs.empty() ? 0.0 : theirs[0]);
+}
+
+bool InstallAging(registry::Mode)
+{
+    const addr::Entry* entry = addr_check::Find(addr::cSC4PollutionSimulator_AgeBuildings);
+    if (!game::IsBuild641() || !entry)
+        return false;
+    if (GetEnvironmentVariableA("OPENSC4_POLLUTION_SELFCHECK", nullptr, 0) != 0)
+        return hook::Install(*entry, &CheckAgeBuildings, &g_originalAge);
+    return hook::Install(*entry, &AgeBuildings, &g_originalAge);
+}
+
+const bool g_registeredAging = registry::Register({
+    "simulators.pollution.aging",
+    "simulators/pollution",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4PollutionSimulator_AgeBuildings,
+    "Our monthly building aging: age by use and funding, lot condition (docs/pollution.md)",
+    false,
+    InstallAging,
+});
+
+using RecyclingFn = void(__fastcall*)(void*, void*);
+RecyclingFn g_originalRecycling = nullptr;
+
+// The recycling list's objects in order.
+std::vector<void*> RecyclingOrder(void* self)
+{
+    std::vector<void*> order;
+    void* const sentinel = At<void*>(self, field::kRecyclingList);
+    for (void* node = NextNode(sentinel); node != sentinel; node = NextNode(node))
+        order.push_back(NodeObject(node));
+    return order;
+}
+
+// With OPENSC4_POLLUTION_SELFCHECK set, every call runs the game's function,
+// puts the list order and the effect back, runs ours and compares both.
+void __fastcall CheckUpdateRecyclingEffect(void* self, void* edx)
+{
+    static int calls = 0;
+    static int differing = 0;
+    const std::vector<void*> before = RecyclingOrder(self);
+    const float effectBefore = At<float>(self, field::kRecyclingCenterEffect);
+    g_originalRecycling(self, edx);
+    const std::vector<void*> theirs = RecyclingOrder(self);
+    const float theirEffect = At<float>(self, field::kRecyclingCenterEffect);
+    std::size_t i = 0;
+    void* const sentinel = At<void*>(self, field::kRecyclingList);
+    for (void* node = NextNode(sentinel); node != sentinel && i < before.size(); node = NextNode(node))
+        static_cast<void**>(node)[2] = before[i++];
+    At<float>(self, field::kRecyclingCenterEffect) = effectBefore;
+    UpdateRecyclingEffect(self, edx);
+    const float ourEffect = At<float>(self, field::kRecyclingCenterEffect);
+    bool same = theirs == RecyclingOrder(self) && before.size() == theirs.size() &&
+                std::memcmp(&ourEffect, &theirEffect, sizeof ourEffect) == 0;
+
+    // The same on every garbage and water building of the city as if they
+    // were recycling centers, for a sort over more than one: two scratch
+    // lists, one for each function, put in place of the recycling list.
+    std::vector<void*> all;
+    for (std::size_t list = field::kWaterTreatmentList; list <= field::kRecyclingList; list += 4) {
+        void* const sentinel2 = At<void*>(self, list);
+        for (void* node = NextNode(sentinel2); node != sentinel2; node = NextNode(node))
+            all.push_back(NodeObject(node));
+    }
+    if (all.size() >= 2) {
+        void* const realList = At<void*>(self, field::kRecyclingList);
+        const uint32_t realCount = At<uint32_t>(self, 0xFC);
+        auto run = [&](bool ours, std::vector<void*>& order) {
+            void** const scratch = NewNode();
+            scratch[0] = scratch;
+            scratch[1] = scratch;
+            for (void* occupant : all) {
+                void** const added = NewNode();
+                added[2] = occupant;
+                added[0] = scratch;
+                added[1] = scratch[1];
+                static_cast<void**>(scratch[1])[0] = added;
+                scratch[1] = added;
+            }
+            At<void*>(self, field::kRecyclingList) = scratch;
+            At<uint32_t>(self, 0xFC) = static_cast<uint32_t>(all.size());
+            At<float>(self, field::kRecyclingCenterEffect) = effectBefore;
+            if (ours)
+                UpdateRecyclingEffect(self, edx);
+            else
+                g_originalRecycling(self, edx);
+            order = RecyclingOrder(self);
+            const float effect = At<float>(self, field::kRecyclingCenterEffect);
+            void* list = At<void*>(self, field::kRecyclingList);
+            DestroyList2(&list);
+            return effect;
+        };
+        std::vector<void*> theirOrder, ourOrder;
+        const float theirMixed = run(false, theirOrder);
+        const float ourMixed = run(true, ourOrder);
+        At<void*>(self, field::kRecyclingList) = realList;
+        At<uint32_t>(self, 0xFC) = realCount;
+        At<float>(self, field::kRecyclingCenterEffect) = ourEffect;
+        const bool mixedSame = theirOrder == ourOrder && std::memcmp(&theirMixed, &ourMixed, sizeof ourMixed) == 0;
+        if (!mixedSame || calls < 3)
+            log::Write("pollution recycling: mixed list of %zu buildings: %s, %zu kept, effect ours %.9g, the game's %.9g",
+                       all.size(), mixedSame ? "same" : "DIFFERENT", theirOrder.size(), ourMixed, theirMixed);
+        same &= mixedSame;
+    }
+    differing += !same;
+    ++calls;
+    if (!same || calls <= 3 || calls % 50 == 0)
+        log::Write("pollution recycling: call %d: %s, %zu centers, effect ours %.9g, the game's %.9g; %d of %d calls "
+                   "differing so far",
+                   calls, same ? "same" : "DIFFERENT", theirs.size(), ourEffect, theirEffect, differing, calls);
+}
+
+bool InstallRecycling(registry::Mode)
+{
+    const addr::Entry* entry = addr_check::Find(addr::cSC4PollutionSimulator_UpdateRecyclingEffect);
+    if (!game::IsBuild641() || !entry)
+        return false;
+    if (GetEnvironmentVariableA("OPENSC4_POLLUTION_SELFCHECK", nullptr, 0) != 0)
+        return hook::Install(*entry, &CheckUpdateRecyclingEffect, &g_originalRecycling);
+    return hook::Install(*entry, &UpdateRecyclingEffect, &g_originalRecycling);
+}
+
+const bool g_registeredRecycling = registry::Register({
+    "simulators.pollution.recycling",
+    "simulators/pollution",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4PollutionSimulator_UpdateRecyclingEffect,
+    "Our recycling effect: recycling centers sorted by efficiency, capacity against residents (docs/pollution.md)",
+    false,
+    InstallRecycling,
 });
 
 using OccupantFn = void(__fastcall*)(void*, void*, void*, uint8_t);
