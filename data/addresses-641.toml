@@ -342,7 +342,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (cSC4PollutionSimulator* this)"
 expect = "83 EC 2C A1 A8 3C B4 00"
-source = "Name ours. Sets the pollution tuning globals 0x00B49B68-0x00B49BBC to defaults, then reads them from the simulator's exemplar. Called by Init (0x006E7428) and by the message handler for 0xCA1B151C (docs/pollution.md)."
+source = "Name ours. Sets the pollution tuning globals 0x00B49B68-0x00B49BA4 to defaults, the six global curves (0x00B49BAC-0x00B49BC0) to the single point (0, 0) and the simulator's two aging curves (+0xDC, +0xEC) to (0, 1), (1, 1); then, if the simulator's exemplar (0x6534284A/0xE7E2C2DB/0xC911E35B) loads, reads the globals, the disposal cost (+0x1D0) and the eight curves from it. Called by Init (0x006E7428) and by the message handler for 0xCA1B151C. Reimplemented by simulators.pollution.tuning (docs/pollution.md)."
 
 [[entry]]
 name = "PollutionTuning::GarbageScalingFactor"
@@ -397,6 +397,18 @@ name = "PollutionTuning::LandfillTileCapacity"
 address = 0x00B49BA4
 kind = "data"
 source = "int32. Written by LoadTuning, returned by GetLandfillTileCapacity (slot 21) (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::Unused291351B5"
+address = 0x00B49B74
+kind = "data"
+source = "uint32. Set to 1 and then from property 0x291351B5 by LoadTuning; nothing reads it (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::GarbageRectCurve"
+address = 0x00B49BAC
+kind = "data"
+source = "SC4Curve*. Applied by 0x006E3BC0 (the +0x8 interface's slot 3) to the average garbage value over a cell rectangle; loaded from property 0x69A437F6 by LoadTuning (docs/pollution.md)."
 
 [[entry]]
 name = "PollutionTuning::DefaultPercentage"
@@ -619,6 +631,30 @@ name = "SC4::City"
 address = 0x00B43CEC
 kind = "data"
 source = "cISC4City* of the current city (the pollution simulator keeps a reference at +0x18). Slots 93 and 94 give its size in cells (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::ResourceManager"
+address = 0x00B43CA8
+kind = "data"
+source = "cIGZPersistResourceManager* (name ours). Slot 3 gets a resource by key and interface (key*, iid, void** out, 0, 0); LoadTuning gets the pollution simulator's exemplar through it (docs/pollution.md)."
+
+[[entry]]
+name = "SC4PointVector::InsertN"
+address = 0x007C61A0
+kind = "function"
+convention = "thiscall"
+signature = "void (vector<cS3DVector2>* this, cS3DVector2* where, cS3DVector2 const* value, void* allocator, uint32_t count, bool atEnd)"
+expect = "51 53 8B D9 8B 43 04 55"
+source = "Name ours. std::vector of 8-byte float pairs: reallocates to size + max(size, count) (SC4::stl_allocate), copies the points before `where`, `count` copies of the value, and the rest unless `atEnd`; frees the old buffer (SC4::Free). LoadTuning grows its curve-point vector with it (docs/pollution.md)."
+
+[[entry]]
+name = "SC4Curve::SetPoints"
+address = 0x005F4480
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Curve* this, vector<cS3DVector2> const* points)"
+expect = "83 EC 18 53 55 56 57"
+source = "Name ours. Rebuilds the curve's 20-byte segments from (x, y) points (see SC4Curve::Evaluate). LoadTuning sets its curves' defaults with it (docs/pollution.md)."
 
 [[entry]]
 name = "SC4::LotManager"
