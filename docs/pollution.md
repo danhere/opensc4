@@ -26,11 +26,15 @@ In increments, each on the original object. The game keeps creating, loading, sa
 | `simulators.pollution.shutdown` | Shutdown (0x006E5F50), slot 4 ([src/core/pollution_init.cpp](../src/core/pollution_init.cpp)) | parity below |
 | `simulators.pollution.curves` | `CreateCurves` (0x006E59D0), the global tuning curves ([src/core/pollution_tuning.cpp](../src/core/pollution_tuning.cpp)) | parity below |
 | `simulators.pollution.capacity` | `UpdateCapacityScale` (0x006E44B0), the handler of message 0x66956810 ([src/core/pollution_tracts.cpp](../src/core/pollution_tracts.cpp)) | self-check below |
-| | slots 0-2 (QueryInterface, AddRef, Release) | not started |
+| `simulators.pollution.object` | the object itself: our factory under the class ID 0x8990C065, constructor, destructor, QueryInterface, AddRef, Release and the other interfaces' thunks ([src/core/pollution_object.cpp](../src/core/pollution_object.cpp)) | parity below |
 
 The interface methods are swapped in the primary vtable (0x00AB2630), not detoured at their entries: nothing calls them directly (every reference is the vtable's), and several are compiler-folded with other classes' functions (0x006E3000 sits in nine vtables, the functions of slots 10, 30, 31 and 32 in two to five), so an entry detour would change those classes too. The swap checks that every slot still holds the game's function and changes all of them or none.
 
-Not replaced: 0-2 (QueryInterface, AddRef, Release; the object's identity, which goes with replacing the object itself). Slots 3 and 4 (Init, Shutdown) are entry detours of their own (below).
+Slots 0-2 (QueryInterface, AddRef, Release) come with our object (`simulators.pollution.object`); slots 3 and 4 (Init, Shutdown) are entry detours of their own (below).
+
+### Our object
+
+With `simulators.pollution.object`, the city's pollution simulator is ours: the factory registered with our GZCOM director under the game's class ID (as the pass-through proxy's was, [experiments/pollution-proxy.md](experiments/pollution-proxy.md)) makes an object of the game's layout (`SC4::operator_new(0x238)`, the same fields, the game's save format), with our constructor (as 0x006E56E0: only the fields it sets), destructor (as 0x006E4E20), `QueryInterface` (the four interfaces and cIGZUnknown), `AddRef`, `Release` (at the last reference: Shutdown, the destructor, `operator delete`) and the other interfaces' this-adjusting thunks. Its four vtables are copies of the game's, made when the first object is created, after the other replacements have swapped their slots, with our identity functions; so every other method is the game's or ours as configured, and with every `simulators.pollution.*` replacement on (all but the proxy, which registers the same class), what still runs of the game's class is `GetGZCLSID` (returns the class ID), two +0x8 slots shared with other classes (0x00648EF0, 0x0088B410) and `DestroyCurves` at exit. Off (the default), the game's own object is used, patched function by function as configured.
 
 ## The class
 
@@ -227,5 +231,7 @@ Init: 12 of 12 (after one crash during a load at 0x0096DA20, in framework code, 
 The last interface slots: with the self-check (each of 46, 53, 55-57 and 65 also calls the game's function and compares), no differences over 60 days on `saves-plopped` and `saves-recycle`; parity 12 of 12 and 3 of 3 for a week, 3 of 3 on `saves-plopped` for a year. 66 and 46 are not called in a test run: `OPENSC4_TEST_RADIATION=x,z,amount,radius` and `OPENSC4_TEST_GARBAGE_BUILDINGS=1` make autotest call them once after the load, on both sides; the radiation grid's checksum after the call was the same as the original's on all 12 saves (45 tracts changed), and `GetGarbageBuildings` returned the same buildings in the same order.
 
 The helpers: `DoMessage`, `CreateCurves` and the +0x8 slots, parity 12 of 12 and 3 of 3 for a week; the +0x8 slot 3 self-check agreed on every call (all 0, see above). `UpdateCapacityScale` never runs in a test (its message comes from the simulator's scheduler and never came in 735 days); `OPENSC4_TEST_CAPACITY_SCALE=1` calls it once after the load, and with the self-check it wrote the same scale as the game's on both `saves-mm2` saves.
+
+**Our object with every replacement** (`simulators.pollution.object` and all the other `simulators.pollution.*` but the proxy, `objall*`): 12 of 12, 3 of 3 on `saves-plopped` and 2 of 2 on `saves-recycle` for a week; for a year 3 of 3 on `saves-plopped` and 2 of 2 on `saves-mm2`. The city's simulator pointer is the object our factory made, and it is destroyed through our `Release` when the game quits. The object alone with the game's methods matched too (2 of 2 on `saves-mm2`).
 
 `LoadTuning`: with the self-check, the 213 words it writes (globals, disposal cost, the eight curves' segments) were identical to what the game's function wrote, on the two saves tried; parity 12 of 12 and 3 of 3 on `saves-plopped` for a week.
