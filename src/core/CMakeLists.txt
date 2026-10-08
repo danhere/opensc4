@@ -31,6 +31,7 @@ add_library(opensc4_core SHARED
   gdriver_proxy.cpp
   pollution_buildings.cpp
   pollution_effects.cpp
+  pollution_init.cpp
   pollution_proxy.cpp
   pollution_save.cpp
   pollution_tuning.cpp
