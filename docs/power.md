@@ -32,7 +32,7 @@ gzcom-dll's `cISC4PowerSimulator.h` declares overloads (`GetMonthlyConsumption`,
 | Replacement | What is ours | State |
 | --- | --- | --- |
 | `simulators.power.interface` | 44 of the 52 `cISC4PowerSimulator` slots: the getters (fields, the bit arrays, the consumption map), the building queries (`IsOccupantPowered`, `GetOccupantPowerConsumed`/`Produced`/`MaxPowerProduced`), the plant list and `FindPowerPlants`, the plants' efficiency and condition, the budget-item slots ([src/core/power_sim.cpp](../src/core/power_sim.cpp)) | parity below |
-| `simulators.power.helpers` | `PlantOutput` (0x006EB1C0): a plant's capacity times its efficiency; the change-area helpers `CellRectAround` (0x006EAD70), `GrowRect` (0x006EAE20), `AddDirtyRect` (0x006EB230); `UpdateDemandTotal` (0x006EB490); `UpdatePlantUsage` (0x006EBC10) | parity below; `CellRectAround` and `UpdatePlantUsage` unreached |
+| `simulators.power.helpers` | `PlantOutput` (0x006EB1C0): a plant's capacity times its efficiency; the change-area helpers `CellRectAround` (0x006EAD70), `GrowRect` (0x006EAE20), `AddDirtyRect` (0x006EB230); `UpdateDemandTotal` (0x006EB490); `UpdatePlantUsage` (0x006EBC10) | parity below |
 | `simulators.power.month` | `OnMonthPassed` (0x006EC570), `ApplyFunding` (0x006EC3F0) | parity below |
 | | slots 0-4 (identity, Init, Shutdown), 39/41/42 (the shared "return 0", left as is), the handlers, Read, Write | not started |
 
@@ -49,7 +49,7 @@ Notes from the getters:
 
 ### What the test cities reach
 
-The simulation step (0x006EE960) is a state machine (+0x34C). Its network work, the full recompute (0x006EE110), the change-area recompute (0x006ED6E0), the network-change handler (0x006EDDA0) and their helpers (0x006EDB40, 0x006EC8F0, 0x006EBD00, `CellRectAround`, `UpdatePlantUsage`), ran neither in three years of Making Money nor in 30 days of Big City d0090 or Rush Hour d0365 (`diagnostics.coverage`): it runs when the power network changes (lines, plants, the buildings on it). Checking it needs saves where the network changes during the run.
+The simulation step (0x006EE960) is a state machine (+0x34C). Its network work, the full recompute (0x006EE110), the change-area recompute (0x006ED6E0), the network-change handler (0x006EDDA0) and their helpers (0x006EDB40, 0x006EC8F0, 0x006EBD00, `CellRectAround`, `UpdatePlantUsage`), ran neither in three years of Making Money nor in 30 days of Big City d0090 or Rush Hour d0365 (`diagnostics.coverage`): the step does nothing until message 0x6AC284F3 sets +0x14, and that message comes from the network tools (0x004AA6D0 and others): the power network is recomputed only after the player edits it, so in an unedited city power's figures stay as they were loaded, for a year. `OPENSC4_TEST_POWER_WAKE=<n>` sets +0x14 on the n-th day of a run (from the new-day agent, so at the same moment in both runs), as the message would: the step then runs its whole cycle on the city's real network. Two runs of the original agree with it (Making Money: powered buildings 327 to 336, demand 1140 to 1228).
 
 ## Parity
 
@@ -60,4 +60,6 @@ Control (the original against itself) with the power part: 12 of 12, 3 of 3 on `
 The getters (`simulators.power.interface` with `.helpers`): 12 of 12 and 3 of 3 for a week, 2 of 2 for a year. `FindPowerPlants` is also checked call by call with `OPENSC4_POWER_SELFCHECK=1` (`OPENSC4_TEST_FIND_POWER_PLANTS=1` adds a call after the load): the same plants and figures as the game's on every call (the test cities have one plant each).
 
 The helpers and the month (`simulators.power.helpers`, `.month` with the interface): 12 of 12 and 3 of 3 for a week, 2 of 2 for a year (one run hit the rare load crash at 0x0096DA20, [parity.md](parity.md), and passed when run again). First calls in those runs: `UpdateDemandTotal` in nearly every run, `OnMonthPassed` and `ApplyFunding` in every run that reached a month's end, `AddDirtyRect` and `GrowRect` in the two year runs; `CellRectAround` and `UpdatePlantUsage` in none (see above).
+
+With the wake-up (`OPENSC4_TEST_POWER_WAKE=1`, the interface, helpers and month ours): 12 of 12 and 3 of 3 for a week, 2 of 2 for 90 days; `UpdatePlantUsage` now ran in 15 runs and `CellRectAround` in 2.
 
