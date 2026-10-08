@@ -38,6 +38,7 @@ add_library(opensc4_core SHARED
   pollution_tuning.cpp
   power_object.cpp
   power_sim.cpp
+  traffic_sim.cpp
   water_object.cpp
   water_sim.cpp
   pollution_sim.cpp

@@ -742,12 +742,26 @@ private:
                           GridChecksum(watered), slot(12), slot(13), slot(14), slot(15), slot(16), slot(17), slot(18),
                           slot(19), slot(20), slot(21), slot(22), slot(23));
         }
+        // Traffic (build 641 slots): trip scale and the one shown (14, 15),
+        // last month's income (18) and the freight scaling (27), as float bits.
+        char trafficText[96] = "";
+        if (traffic && game::IsBuild641()) {
+            auto slot = [traffic](int index) {
+                using Fn = float(__thiscall*)(void*);
+                const float value = reinterpret_cast<Fn>((*reinterpret_cast<void***>(traffic))[index])(traffic);
+                uint32_t bits;
+                std::memcpy(&bits, &value, sizeof bits);
+                return bits;
+            };
+            std::snprintf(trafficText, sizeof trafficText, " | traffic %08X %08X %08X %08X", slot(14), slot(15),
+                          slot(18), slot(27));
+        }
         char rng[256];
         rng_trace::Describe(rng, sizeof rng);
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
         log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s",
+                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s",
                    day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
                    lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
                    traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
@@ -758,7 +772,7 @@ private:
                    pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
                    worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText,
-                   waterText, ticks, rng);
+                   waterText, trafficText, ticks, rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,

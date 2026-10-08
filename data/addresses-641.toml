@@ -2023,3 +2023,655 @@ kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8A 46 28 3C 02"
 source = "Name ours. The spiral walk's next cell (&x, &z); false when done (docs/water.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::vftable"
+address = 0x00AB33D0
+kind = "vtable"
+expect = "E0 D7 70 00 A0 7B 4F 00"
+source = "Primary vtable: cISC4TrafficSimulator, 43 slots, the scalar deleting destructor in slot 43. simulators.traffic.interface swaps the simple ones (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Random::Unit"
+address = 0x00913A29
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 E8 87 FF FF"
+source = "Name ours. A draw from a generator object (0x009139B9) scaled into [0, 1) as a double in ST0. Called by cSC4TrafficSimulator::CheckRailAccident (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Simulate"
+address = 0x007215C0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. The step (message 0x66956814): on the 1st of a month the budget items, every few days a bucket of lots, then the sub-step 0x00720F00 until the time budget is spent. Reimplemented by simulators.traffic.step (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::SubStep"
+address = 0x00720F00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C 53 56 8B F1 6A"
+source = "Name ours. One piece of the step's work by the phase at +0x814; (SC4Deadline*); false while the phase is not done. Reimplemented by simulators.traffic.substep (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Random::Below"
+address = 0x00913A06
+kind = "function"
+convention = "thiscall"
+expect = "E8 AE FF FF FF F7 64 24"
+source = "Name ours. A draw from a generator object (0x009139B9) scaled into [0, n): (draw * n) >> 32 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::SetPropertyUint8"
+address = 0x005FE2A0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. (cISC4PropertyHolder*, property ID, uint8): sets the property, adding it first if missing (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Multimap::EqualRange"
+address = 0x00474150
+kind = "function"
+convention = "thiscall"
+expect = "8B 09 8B 51 04 53 8B 5C"
+source = "Name ours. equal_range of a tree map with uint32 keys (node +4 parent, +8 left, +0xC right, +0x10 key): (pair* out, uint32 const* key) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::UpdatePendingRect"
+address = 0x0071B9A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 60 53 55 56 57 8B"
+source = "Name ours, not analysed. Called by the sub-step with the rectangle at +0x820 (four int32) when +0x81C is set (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase12"
+address = 0x007183B0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 E8"
+source = "Name ours, not analysed. The sub-step's phase 12 (no time budget; always done) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4LotWalk::Restart"
+address = 0x007107A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 3E 00 57 75"
+source = "Name ours. Restarts the walk over the lots at the traffic simulator's +0x908: a list from the lot manager (slot 15) and the month-end service (slot 16), first node, count 0 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32Vector::Assign"
+address = 0x006D6920
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 83 EC 0C 56"
+source = "Name ours. vector<uint32>::assign(count, uint32 const*) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Vector12::Assign"
+address = 0x005117D0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. operator= of a vector of 12-byte elements (docs/traffic.md)."
+
+[[entry]]
+name = "SC4TrafficZones::Clear"
+address = 0x0071DE80
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 6A 00 8B F1 8B"
+source = "Name ours. Erases every element of the vector of 0x1C-byte elements at the traffic simulator's +0x64 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4TrafficZone::Construct"
+address = 0x00713620
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 6A 18 C7 06 00"
+source = "Name ours. Constructs a 0x1C-byte element: a tree map (0x18-byte header node) and its size; +8 is left as it was (docs/traffic.md)."
+
+[[entry]]
+name = "SC4TrafficZones::Resize"
+address = 0x0071F7C0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 1E 57 8B"
+source = "Name ours. resize(count, element const&) of the vector of 0x1C-byte elements (docs/traffic.md)."
+
+[[entry]]
+name = "SC4TrafficZone::Destroy"
+address = 0x00713660
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Name ours. Destroys a 0x1C-byte element (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Stopwatch::Construct"
+address = 0x0088FEDF
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 89 08"
+source = "Name ours. A 0x18-byte stopwatch: (mode) at +0, the rest zero (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Stopwatch::Start"
+address = 0x008905C4
+kind = "function"
+convention = "thiscall"
+expect = "51 83 39 00 75 1A 53 83"
+source = "Name ours. Reads rdtsc (mode 0) or QueryPerformanceCounter into +8. The traffic sub-step starts one (mode 4) and never reads it (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::FillUint32"
+address = 0x00910003
+kind = "function"
+convention = "cdecl"
+expect = "57 8B 7C 24 08 8B 44 24"
+source = "Name ours. (uint32* to, uint32 value, count): rep stosd (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase0"
+address = 0x00717C90
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 0D 5C 3D B4"
+source = "Name ours, not analysed. The sub-step's phase 0: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase2"
+address = 0x0071A0C0
+kind = "function"
+convention = "thiscall"
+expect = "A0 50 B3 B4 00 83 EC 60"
+source = "Name ours, not analysed. The sub-step's phase 2: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase3"
+address = 0x00713750
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 57 8B F9 8D 44"
+source = "Name ours, not analysed. The sub-step's phase 3: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase4"
+address = 0x0070F460
+kind = "function"
+convention = "thiscall"
+expect = "A0 14 B3 B4 00 83 EC 24"
+source = "Name ours, not analysed. The sub-step's phase 4: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase5"
+address = 0x0070E4F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 F6 05 08 B3 B4"
+source = "Name ours, not analysed. The sub-step's phase 5: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase6"
+address = 0x007110B0
+kind = "function"
+convention = "thiscall"
+expect = "A0 38 B3 B4 00 83 EC 24"
+source = "Name ours, not analysed. The sub-step's phase 6: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase7"
+address = 0x007137D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8D 44 24 08 50"
+source = "Name ours, not analysed. The sub-step's phase 7: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase8"
+address = 0x0070E7D0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 0D 5C 3D"
+source = "Name ours, not analysed. The sub-step's phase 8: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase10"
+address = 0x0070F6E0
+kind = "function"
+convention = "thiscall"
+expect = "A0 20 B3 B4 00 83 EC 1C"
+source = "Name ours, not analysed. The sub-step's phase 10: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase11"
+address = 0x00714BE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 53 33 DB 8D 44"
+source = "Name ours, not analysed. The sub-step's phase 11: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase13"
+address = 0x0071DC50
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 18 08 00"
+source = "Name ours, not analysed. The sub-step's phase 13: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase15"
+address = 0x0070FEF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 5C F6 05 2C B3 B4"
+source = "Name ours, not analysed. The sub-step's phase 15: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase16"
+address = 0x0071E1B0
+kind = "function"
+convention = "thiscall"
+expect = "A0 80 B3 B4 00 83 EC 20"
+source = "Name ours, not analysed. The sub-step's phase 16: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase17"
+address = 0x0071D020
+kind = "function"
+convention = "thiscall"
+expect = "A0 5C B3 B4 00 83 EC 28"
+source = "Name ours, not analysed. The sub-step's phase 17: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase18"
+address = 0x0071D440
+kind = "function"
+convention = "thiscall"
+expect = "A0 68 B3 B4 00 83 EC 30"
+source = "Name ours, not analysed. The sub-step's phase 18: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase19"
+address = 0x0071DC90
+kind = "function"
+convention = "thiscall"
+expect = "A0 74 B3 B4 00 83 EC 18"
+source = "Name ours, not analysed. The sub-step's phase 19: (SC4Deadline*), true when the phase is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::NextPhase"
+address = 0x00AB3480
+kind = "data"
+source = "Name ours. uint32[20]: the phase after each finished phase of the sub-step; 12 becomes 13 unless +0x62 is set (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::RecordDefault"
+address = 0x00B4B2E8
+kind = "data"
+source = "Name ours. A uint32 (float bits) the constructor and phase 2 put in each of the 12 records at +0x57C (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnMonthPassed"
+address = 0x00718AC0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 8E 24 07"
+source = "Name ours. Message 0x66956816: the two funding effects, the strike check, a random event, then last month's figures (IDs 0xEA5BA01D, 0x8A5D4116, 0xABB8FAAC-0xABB8FAB4, 0xEC0BDBF8). Reimplemented by simulators.traffic.month (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::ApplyFirstFunding"
+address = 0x00717D30
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 D9 00 56 D8"
+source = "Name ours. (float const* funding) of the department at +0x724: +0x7B4 grows by the curve at +0xD20 at funding x 100, clamped to [0, 1]; the share of +0x7AC is the new +0x7B0 (and +0x318), the change through 0x00715FB0 (kind 1). Reimplemented by simulators.traffic.month (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::ApplySecondFunding"
+address = 0x00717E00
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 D9 00 56 D8"
+source = "Name ours. As ApplyFirstFunding for the department at +0x728 with the fields at +0x7E0 (kind 2). Reimplemented by simulators.traffic.month (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::CheckStrike"
+address = 0x0070DBA0
+kind = "function"
+convention = "thiscall"
+expect = "51 55 56 8B F1 8B 8E 28"
+source = "Name ours. The strike state at +0x7A4 (0 to 2) from the funding of the department at +0x728; posts messages 0x69247DC3 to 0x69247DC6. Reimplemented by simulators.traffic.month (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::MonthlyEvent"
+address = 0x007184E0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours, not analysed. On a stopwatch timer: a random cell of +0x13C inside the view gets an event (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::ChangeActive"
+address = 0x00715FB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 8B 44 24 30 8B"
+source = "Name ours, not analysed. (list* a, list* b, int32 change, kind 1 or 2): called by the funding helpers when the active count changes (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnCityInited"
+address = 0x00720430
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours, not analysed. Message 0x26D31EC1 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnMessage8A0D15DA"
+address = 0x007153C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 83 EC 10 53"
+source = "Name ours, not analysed. Message 0x8A0D15DA: (message slots 9, 14, 19) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnMessageC53D10AA"
+address = 0x00716AE0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC B8 00 00 00 56 57"
+source = "Name ours, not analysed. Message 0xC53D10AA when its slots 9 and 14 are 0xE7E2C2DB and 0xC9133286 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnPlantDisaster"
+address = 0x00711810
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 53 55 56 57 33"
+source = "Name ours, not analysed. Message 0xC2C09554 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnBuildingOfKind"
+address = 0x007155D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 56 8B F1 8B"
+source = "Name ours, not analysed. (occupant, bool inserted, uint32 kind) for a building of one of the kinds 6, 0, 10, 3, 2, 12 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnKind1Building"
+address = 0x00715790
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 56 8B 74 24"
+source = "Name ours, not analysed. (building, bool inserted) for a building of kind 1 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnKind7Building"
+address = 0x0070EA70
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 08 84 C0 74 15"
+source = "Name ours, not analysed. (occupant, bool inserted) for a building of kind 7 without flag 0x80000000 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnNetworkBuilding"
+address = 0x007140E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 54 53 56 8B 74 24"
+source = "Name ours, not analysed. (interface 0x8A4BD52B, bool inserted). Holds a Network Addon Mod patch site (0x00714222); stays the game's (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnCellsChanged"
+address = 0x0071A860
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 58 8B 44 24 5C 56"
+source = "Name ours, not analysed. (x1, z1, x2, z2). Holds a Network Addon Mod patch site (0x0071AB60); stays the game's (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32Set::Insert"
+address = 0x0045D460
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 56"
+source = "Name ours. Inserts a uint32 key (by pointer) into a set (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnNetworkObjectAdded"
+address = 0x0071E2F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 50 53 8B 5C 24 58"
+source = "Name ours, not analysed. Message 0xE8BDA2E7 with slot 9 = 3: (interface 0xE818FCED) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnNetworkObjectRemoved"
+address = 0x00723AF0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC E8 00 00 00 56 57"
+source = "Name ours, not analysed. Message 0xE8BDA2E7 with slot 14 = 3 (and slot 9 not): (interface 0xE818FCED) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnMessageEA0D163E"
+address = 0x00713AB0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 10 56 57 8B"
+source = "Name ours, not analysed. Message 0xEA0D163E: (message slots 9, 14, 19) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::DoMessage"
+address = 0x007241B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 55 56 8B 74"
+source = "Name ours. cIGZMessageTarget2 slot 3 (vtable 0x00AB33BC): each message to its handler. Reimplemented by simulators.traffic.messages (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::vftable_4"
+address = 0x00AB33BC
+kind = "vtable"
+expect = "30 00 72 00 30 D2 68 00"
+source = "cIGZMessageTarget2 vtable of the traffic simulator (object +0x4); slot 3 DoMessage 0x007241B0 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::NetworkKinds"
+address = 0x00AB3164
+kind = "data"
+source = "Name ours. uint8[13]: the building kinds whose insertion or removal changes the network cells (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::EmptyEdgeDensity"
+address = 0x00AB31D0
+kind = "data"
+source = "Name ours. The record GetTrafficEdgeDensity returns for a cell without one (docs/traffic.md)."
+
+[[entry]]
+name = "SC4WaterRouteFinder::Find"
+address = 0x00725170
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 55 56 57 8B"
+source = "Name ours, not analysed. The object at the traffic simulator's +0x108: (x1, z1, x2, z2, void** scratch, SC4Vector<uint8_t>* route, flag); GetWaterRoute calls it with flag 0 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Property::Allocate"
+address = 0x005FD840
+kind = "function"
+convention = "cdecl"
+expect = "A1 EC A9 B0 00 8B 40 08"
+source = "Name ours. (size): memory for a property from the pool at 0x00B0A9EC (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Property::Construct"
+address = 0x005FDE50
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "Name ours. Constructs a 0x1C-byte property (one argument, 0 from SetMaxTripCapacity) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::GetPropertyUint32Vector"
+address = 0x005FF510
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. (cISC4PropertyHolder*, property ID, SC4Vector<uint32_t>*): the property's uint32 array into the vector; false without the property (docs/traffic.md)."
+
+[[entry]]
+name = "SC4FloatVector::Resize"
+address = 0x007169C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 56 8B 74 24 08"
+source = "Name ours. resize(count, uint32 const* value) of a vector of 4-byte elements (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::TravelTypeEnabled"
+address = 0x00B4B100
+kind = "data"
+source = "Name ours. uint8 by travel type: whether it is in use (written by 0x00716AE0; read by GetTravelTimeRatio and the path finder 0x006D91B0) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::NetworkOfTravelType"
+address = 0x00AB31A8
+kind = "data"
+source = "Name ours. uint32 by travel type: the network type of its edges (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::TravelTimeCurve"
+address = 0x00B4B2F0
+kind = "data"
+source = "Name ours. An SC4Curve: travel time from an edge's traffic x its first float (GetTravelTimeRatio, the path finder) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::StartTripCounts"
+address = 0x00714E60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 53 55 56 8B F1"
+source = "Name ours, not analysed. Called at the end of phase 0 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::WalkCells13"
+address = 0x00716180
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 84 00 00 00 A0 44"
+source = "Name ours, not analysed. Phase 13's work: (SC4Deadline*, cell iterator*); true when the walk is done (docs/traffic.md)."
+
+[[entry]]
+name = "SC4TrafficZones::Finish"
+address = 0x0071CD90
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 56 8B F1"
+source = "Name ours, not analysed. On the traffic simulator's +0x70 with the zones at +0x64, when phase 13 is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::ClearRoadEdges"
+address = 0x0070FCE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 94 01 00 00 57 33"
+source = "Name ours, not analysed. Called first by phase 12 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::SpreadFromEdge"
+address = 0x00717EC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 78 53 55 56 57 33"
+source = "Name ours, not analysed. (x, z, network type 1, direction 0-3): phase 12 calls it for each empty direction of each type-1 edge (docs/traffic.md)."
+
+[[entry]]
+name = "SC4LotWalk::Next"
+address = 0x007107F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 57 8B F9 8B"
+source = "Name ours. The next lot of the walk at the traffic simulator's +0x908: (object** out, int16* x, int16* z), the object AddRef'd; false at the end (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::VisitLot16"
+address = 0x0071D920
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 50 53 8B 5C 24 58"
+source = "Name ours, not analysed. Phase 16's work on one lot (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase16Step"
+address = 0x00B4B378
+kind = "data"
+source = "Name ours. uint32: the deadline step of phase 16 (0x400 at first; flag bit 0 of 0x00B4B380 once set) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::LinkRoutes19"
+address = 0x0071BE50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 48 8B 54 24 4C 53"
+source = "Name ours, not analysed. Phase 19: (entry, other entry) of the list at +0x104 with the same +8 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::RouteToCell19"
+address = 0x0071C0C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 54 53 55 56 57 8D"
+source = "Name ours, not analysed. Phase 19: (entry, x, z) for each cell collected at +0x114 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase19Step"
+address = 0x00B4B36C
+kind = "data"
+source = "Name ours. uint32: the deadline step of phase 19 (0x400 at first; flag bit 0 of 0x00B4B374 once set) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase4Step"
+address = 0x00B4B30C
+kind = "data"
+source = "Name ours. uint32: the deadline step of phase 4 (0x400 at first; flag bit 0 of 0x00B4B314 once set) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase10Step"
+address = 0x00B4B318
+kind = "data"
+source = "Name ours. uint32: the deadline step of phase 10 (0x400 at first; flag bit 0 of 0x00B4B320 once set) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase5Step"
+address = 0x00B4B300
+kind = "data"
+source = "Name ours. uint32: the deadline step of phase 5 (0x400 at first; flag bit 0 of 0x00B4B308 once set) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase6Step"
+address = 0x00B4B330
+kind = "data"
+source = "Name ours. uint32: the deadline step of phase 6 (0x400 at first; flag bit 0 of 0x00B4B338 once set) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32Vector::InsertN"
+address = 0x00423320
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 85 D2 56 8B"
+source = "Name ours. vector<uint32>::insert(where, count, uint32 const* value) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::SetPropertyUint32Vector"
+address = 0x005FE6B0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. (cISC4PropertyHolder*, property ID, SC4Vector<uint32_t> const*): sets the property's uint32 array, adding the property if missing (docs/traffic.md)."
