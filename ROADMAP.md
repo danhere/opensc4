@@ -93,3 +93,15 @@ Parity method (from P4): short-window exact comparison against the original from
 - [ ] Host mode: our exe maps the original exe's sections, then stops needing them
 - [ ] Address shim for ecosystem DLLs that hook fixed addresses
 - [ ] **Exe independence:** the coverage meter shows zero original code executed in the regression suite
+
+## Beyond the original: bigger city tiles
+
+Asked by Dan (2026-10-08). Findings and plan: [docs/city-size.md](docs/city-size.md).
+
+- [x] Research: what limits city size (three sizes in the region layout, the 32-bit address space, simulation time; not the renderer or the save format), and what our simulators assume (they read the size from the city)
+- [ ] Size census: a Ghidra script listing every place the exe assumes 64/128/256 cells, each mapped to the phase that replaces it
+- [ ] Spike: an 8 km (512x512) city in a test region, recording where the 32-bit game fails
+- [ ] Keep every replacement size-agnostic (sizes from the city or the save, never constants); add a check to new simulator work
+- [ ] Region layout and region view with a fourth size, and a save flag so vanilla SC4 refuses bigger cities cleanly
+- [ ] 64-bit build after exe independence (P9), removing the memory ceiling
+- [ ] Measure simulation time at 512 and 1024 cells per side
