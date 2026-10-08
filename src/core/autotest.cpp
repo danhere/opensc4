@@ -528,6 +528,15 @@ private:
                 log::Write("autotest: power simulator woken on day %d", day);
             }
         }
+        // OPENSC4_TEST_WATER_WAKE=<n>: the same for the plumbing simulator
+        // (+0x14 of cSC4PlumbingSimulator, set by the same message; docs/water.md).
+        if (const int wake = EnvInt("OPENSC4_TEST_WATER_WAKE", -1);
+            wake >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + wake && game::IsBuild641()) {
+            if (void* const water = city->GetPlumbingSimulator()) {
+                static_cast<uint8_t*>(water)[0x14] = 1;
+                log::Write("autotest: plumbing simulator woken on day %d", day);
+            }
+        }
         // OPENSC4_TEST_POWER_MESSAGES=<n>: on the n-th day, hand the power
         // simulator (its +0x4 cIGZMessageTarget2, build 641) the two network
         // messages a network edit would bring, over the whole city: a network
@@ -642,12 +651,31 @@ private:
                           GridChecksum(powered), slot(11), slot(12), slot(13), slot(14), slot(15), slot(17), slot(21),
                           slot(22), slot(24), slot(26), slot(27), slot(28), slot(29));
         }
+        // Water (cSC4PlumbingSimulator, build 641 slots): the watered grid
+        // (slot 7), water sources and polluted sources (12, 13), production
+        // capacity, consumption, import and export (14-17), pipes, distressed
+        // and burst pipes (18-20), watered and unwatered buildings (21, 22)
+        // and demand (23) (docs/water.md).
+        void* const water = city->GetPlumbingSimulator();
+        char waterText[192] = " | water none";
+        if (water && game::IsBuild641()) {
+            auto slot = [water](int index) {
+                using Fn = int32_t(__thiscall*)(void*);
+                return reinterpret_cast<Fn>((*static_cast<void***>(water))[index])(water);
+            };
+            using GridFn = cISC4SimGrid<uint8_t>*(__thiscall*)(void*);
+            auto* const watered = reinterpret_cast<GridFn>((*static_cast<void***>(water))[7])(water);
+            std::snprintf(waterText, sizeof waterText,
+                          " | water %08X src %d/%d cap %d con %d imp %d exp %d pipes %d/%d/%d bld %d/%d dem %d",
+                          GridChecksum(watered), slot(12), slot(13), slot(14), slot(15), slot(16), slot(17), slot(18),
+                          slot(19), slot(20), slot(21), slot(22), slot(23));
+        }
         char rng[256];
         rng_trace::Describe(rng, sizeof rng);
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
         log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s",
+                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s",
                    day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
                    lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
                    traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
@@ -657,8 +685,8 @@ private:
                    pollution ? GridChecksum(pollution->GetPollutionGrid(0)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
-                   worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText, ticks,
-                   rng);
+                   worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText,
+                   waterText, ticks, rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,
