@@ -32,6 +32,7 @@ add_library(opensc4_core SHARED
   pollution_buildings.cpp
   pollution_effects.cpp
   pollution_init.cpp
+  pollution_object.cpp
   pollution_proxy.cpp
   pollution_save.cpp
   pollution_tuning.cpp

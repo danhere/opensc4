@@ -105,6 +105,13 @@ expect = "D0 2C 6E 00 30 53 69 00"
 source = "Primary vtable: cISC4PollutionSimulator, 71 slots, matching gzcom-dll. simulators.pollution.interface swaps 66 of its slots (docs/pollution.md)."
 
 [[entry]]
+name = "cSC4PollutionSimulator::vftable_C"
+address = 0x00AB25E8
+kind = "vtable"
+expect = "C0 50 6E 00 10 01 52 00"
+source = "The vtable of the cIGZSerializable interface at +0xC: Write 0x006E3380, Read 0x006E5270, GetGZCLSID 0x006E2CC0 (class ID 0x8990C065). The four vtables are packed: +0xC (6 slots), +0x8 (7), +0x4 (4), primary (71) (docs/pollution.md)."
+
+[[entry]]
 name = "cSC4PollutionSimulator::vftable_4"
 address = 0x00AB261C
 kind = "vtable"
