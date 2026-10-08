@@ -334,6 +334,25 @@ private:
         const void* proxy = pollution_proxy::LastCreated();
         log::Write("autotest: city pollution simulator %p; last proxy %p -> %s", static_cast<void*>(pollution),
                    proxy, pollution && pollution == proxy ? "CITY USES THE PROXY" : "city uses the original");
+        // OPENSC4_TEST_FIND_POWER_PLANTS=1: one cISC4PowerSimulator::
+        // FindPowerPlants call (slot 30; the advisors' query) after the load.
+        if (Env("OPENSC4_TEST_FIND_POWER_PLANTS") == "1" && game::IsBuild641()) {
+            if (void* const power = city->GetPowerSimulator()) {
+                using FindFn = void(__thiscall*)(void*, void**, uint32_t*, void**, int32_t*);
+                void* funded = nullptr;
+                void* oldest = nullptr;
+                uint32_t funding = 0;
+                int32_t age = 0;
+                reinterpret_cast<FindFn>((*static_cast<void***>(power))[30])(power, &funded, &funding, &oldest, &age);
+                log::Write("autotest: FindPowerPlants: lowest funded %s %08X, oldest %s %d%%", funded ? "found" : "none",
+                           funding, oldest ? "found" : "none", age);
+                for (void* plant : {funded, oldest}) {
+                    using ReleaseFn = uint32_t(__thiscall*)(void*);
+                    if (plant)
+                        reinterpret_cast<ReleaseFn>((*static_cast<void***>(plant))[2])(plant);
+                }
+            }
+        }
         // OPENSC4_TEST_CAPACITY_SCALE=1: one call of the handler of message
         // 0x66956810 (the simulator's scheduler never sent it in a test run).
         if (Env("OPENSC4_TEST_CAPACITY_SCALE") == "1" && pollution) {
@@ -542,12 +561,33 @@ private:
         }
         const uint32_t effectRandom =
             game::IsBuild641() ? BytesChecksum(reinterpret_cast<const void*>(addr::PollutionTuning_EffectRandom), 0x9C8) : 0u;
+        // Power (build 641 vtable slots, not gzcom-dll's declarations, whose
+        // overloads compile in another order): the powered grid (slot 35),
+        // the monthly requirement, production, import, export, demand and
+        // consumption (11-15, 17; 16 takes a cell), unpowered and powered consumers (21, 22), power
+        // plants (24) and poles (26), and overworked, aged and distressed
+        // plants (27-29).
+        void* const power = city->GetPowerSimulator();
+        char powerText[192] = " | power none";
+        if (power && game::IsBuild641()) {
+            auto slot = [power](int index) {
+                using Fn = int32_t(__thiscall*)(void*);
+                return reinterpret_cast<Fn>((*static_cast<void***>(power))[index])(power);
+            };
+            using GridFn = cISC4SimGrid<uint8_t>*(__thiscall*)(void*);
+            auto* const powered = reinterpret_cast<GridFn>((*static_cast<void***>(power))[35])(power);
+            std::snprintf(powerText, sizeof powerText,
+                          " | power %08X req %d prod %d imp %d exp %d dem %d con %d | consumers %d/%d plants %d poles "
+                          "%d %d/%d/%d",
+                          GridChecksum(powered), slot(11), slot(12), slot(13), slot(14), slot(15), slot(17), slot(21),
+                          slot(22), slot(24), slot(26), slot(27), slot(28), slot(29));
+        }
         char rng[256];
         rng_trace::Describe(rng, sizeof rng);
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
         log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s",
+                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s",
                    day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
                    lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
                    traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
@@ -557,7 +597,8 @@ private:
                    pollution ? GridChecksum(pollution->GetPollutionGrid(0)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
-                   worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, ticks, rng);
+                   worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText, ticks,
+                   rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,
