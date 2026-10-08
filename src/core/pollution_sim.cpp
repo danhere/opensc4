@@ -655,6 +655,82 @@ void* __fastcall CheckGetGarbageBuildings(void* self, void* edx, void* list)
     return result;
 }
 
+// --- The interface at +0x4: cIGZMessageTarget2 (vtable 0x00AB261C) ----------
+
+// 3 (0x006E8E20) DoMessage: hands each message to its handler (by address,
+// so that each handler is the game's or ours as configured).
+uint8_t __fastcall DoMessage(void* interface4, void*, void* message)
+{
+    void* const self = static_cast<char*>(interface4) - 0x4;
+    auto call = [self](std::uintptr_t handler) { reinterpret_cast<ThisFn>(handler)(self); };
+    switch (const uint32_t type = Virtual<uint32_t>(message, 0x10)) { // GetType
+    case 0x66956816: call(addr::cSC4PollutionSimulator_OnMonthPassed); break;
+    case 0x26D31EC1: call(addr::cSC4PollutionSimulator_UpdateWorstTractsAndEffects); break;
+    case 0x66956810: call(addr::cSC4PollutionSimulator_UpdateCapacityScale); break;
+    case 0x66956814: call(addr::cSC4PollutionSimulator_SimulateTracts); break;
+    case 0x99EF1142:
+    case 0x99EF1143: {
+        using OccupantFn = void(__thiscall*)(void* self, void* occupant, uint8_t inserted);
+        void* const occupant = Virtual<void*>(message, 0x28); // GetVoid1
+        reinterpret_cast<OccupantFn>(addr::cSC4PollutionSimulator_OnOccupantInsertedOrRemoved)(self, occupant,
+                                                                                               type == 0x99EF1142);
+        break;
+    }
+    case 0xC6CDBF1A: {
+        const uint8_t on = *Virtual<int32_t*>(message, 0x3C) == 1;
+        if (At<uint8_t>(self, field::kRadiationChanged) != on) {
+            At<uint8_t>(self, field::kRadiationChanged) = on;
+            call(addr::cSC4PollutionSimulator_UpdateWorstTractsAndEffects);
+        }
+        break;
+    }
+    case 0xCA1B151C: call(addr::cSC4PollutionSimulator_LoadTuning); break;
+    default: break;
+    }
+    return 1;
+}
+
+// --- The interface at +0x8 (vtable 0x00AB2600, 0x89C498BE) ------------------
+
+// 3 (0x006E3BC0): the average garbage value (slot 9) over a cell rectangle
+// {x0, z0, x1, z1}, scaled by 1/32767 and put through a curve, rounded.
+int32_t __fastcall AverageGarbageRating(void* interface8, void*, const int32_t* rect)
+{
+    void* const self = static_cast<char*>(interface8) - 0x8;
+    uint32_t sum = 0;
+    for (int32_t x = rect[0]; x <= rect[2]; ++x) {
+        for (int32_t z = rect[1]; z <= rect[3]; ++z) {
+            int32_t value = 0;
+            Virtual<uint32_t>(self, kSlotGetGarbageValue, x, z, &value);
+            sum += static_cast<uint32_t>(value);
+        }
+    }
+    const auto cells = static_cast<uint32_t>((rect[3] - rect[1] + 1) * (rect[2] - rect[0] + 1));
+    const uint32_t average = sum / cells;
+    constexpr uint32_t kScaleBits = 0x38000100; // about 1/32767
+    float scale;
+    std::memcpy(&scale, &kScaleBits, sizeof(scale));
+    const float x = static_cast<float>(static_cast<double>(average) * scale);
+    return MagicRound(EvaluateCurve(Global<const Curve*>(addr::PollutionTuning_GarbageRectCurve), x));
+}
+
+// 4 (0x006E5030)
+uint32_t __fastcall InterfaceId8(void*, void*) { return 0xE9A4300B; }
+
+int g_ratingChecks = 0;
+
+int32_t __fastcall CheckAverageGarbageRating(void* interface8, void* edx, const int32_t* rect)
+{
+    using Fn = int32_t(__fastcall*)(void*, void*, const int32_t*);
+    const int32_t theirs = reinterpret_cast<Fn>(0x006E3BC0)(interface8, edx, rect);
+    const int32_t ours = AverageGarbageRating(interface8, edx, rect);
+    ++g_ratingChecks;
+    if (ours != theirs || (g_ratingChecks & (g_ratingChecks - 1)) == 0)
+        log::Write("pollution interface: garbage rating call %d (%d,%d-%d,%d): ours %d, the game's %d", g_ratingChecks,
+                   rect[0], rect[1], rect[2], rect[3], ours, theirs);
+    return ours;
+}
+
 // 58, 59 (0x006E2E70, 0x006E2EA0)
 uint32_t __fastcall GetIncineratorUsedCapacity(void*, void*, void* occupant, uint32_t& capacity)
 {
@@ -788,9 +864,20 @@ const Slot kSlots[] = {
     OPENSC4_SLOT(70, 0x006E5090, GetMaxRadiationPollutionLevelForUI),
 };
 
+const Slot kSlots4[] = {
+    OPENSC4_SLOT(3, 0x006E8E20, DoMessage),
+};
+
+const Slot kSlots8[] = {
+    OPENSC4_SLOT(3, 0x006E3BC0, AverageGarbageRating),
+    OPENSC4_SLOT(4, 0x006E5030, InterfaceId8),
+};
+
 #undef OPENSC4_SLOT
 
 constexpr int kVtableSlots = 71;
+constexpr int kVtableSlots8 = 5;
+constexpr int kVtableSlots4 = 4;
 
 // Swaps every slot or none: each must still hold the game's function.
 bool Install(registry::Mode)
@@ -800,10 +887,26 @@ bool Install(registry::Mode)
         return false;
     }
     auto* const vtable = reinterpret_cast<std::uintptr_t*>(addr::cSC4PollutionSimulator_vftable);
+    auto* const vtable8 = reinterpret_cast<std::uintptr_t*>(addr::cSC4PollutionSimulator_vftable_8);
     for (const Slot& slot : kSlots) {
         if (vtable[slot.index] != slot.original) {
             log::Write("pollution interface: slot %d holds %08X, expected %08X; not installing", slot.index,
                        static_cast<unsigned>(vtable[slot.index]), static_cast<unsigned>(slot.original));
+            return false;
+        }
+    }
+    auto* const vtable4 = reinterpret_cast<std::uintptr_t*>(addr::cSC4PollutionSimulator_vftable_4);
+    for (const Slot& slot : kSlots4) {
+        if (vtable4[slot.index] != slot.original) {
+            log::Write("pollution interface: +0x4 slot %d holds %08X, expected %08X; not installing", slot.index,
+                       static_cast<unsigned>(vtable4[slot.index]), static_cast<unsigned>(slot.original));
+            return false;
+        }
+    }
+    for (const Slot& slot : kSlots8) {
+        if (vtable8[slot.index] != slot.original) {
+            log::Write("pollution interface: +0x8 slot %d holds %08X, expected %08X; not installing", slot.index,
+                       static_cast<unsigned>(vtable8[slot.index]), static_cast<unsigned>(slot.original));
             return false;
         }
     }
@@ -830,8 +933,24 @@ bool Install(registry::Mode)
         vtable[slot.index] = reinterpret_cast<std::uintptr_t>(ours);
     }
     VirtualProtect(vtable, kVtableSlots * sizeof(*vtable), old, &old);
-    log::Write("pollution interface: %u of %d cISC4PollutionSimulator slots are ours",
-               static_cast<unsigned>(sizeof(kSlots) / sizeof(kSlots[0])), kVtableSlots);
+    if (!VirtualProtect(vtable8, kVtableSlots8 * sizeof(*vtable8), PAGE_READWRITE, &old)) {
+        log::Write("pollution interface: VirtualProtect failed for +0x8 (%lu)", GetLastError());
+        return false;
+    }
+    for (const Slot& slot : kSlots8)
+        vtable8[slot.index] = reinterpret_cast<std::uintptr_t>(
+            check && slot.index == 3 ? reinterpret_cast<void*>(&CheckAverageGarbageRating) : slot.ours);
+    VirtualProtect(vtable8, kVtableSlots8 * sizeof(*vtable8), old, &old);
+    if (!VirtualProtect(vtable4, kVtableSlots4 * sizeof(*vtable4), PAGE_READWRITE, &old)) {
+        log::Write("pollution interface: VirtualProtect failed for +0x4 (%lu)", GetLastError());
+        return false;
+    }
+    for (const Slot& slot : kSlots4)
+        vtable4[slot.index] = reinterpret_cast<std::uintptr_t>(slot.ours);
+    VirtualProtect(vtable4, kVtableSlots4 * sizeof(*vtable4), old, &old);
+    log::Write("pollution interface: %u of %d cISC4PollutionSimulator slots are ours, DoMessage, and %u of the +0x8 interface's",
+               static_cast<unsigned>(sizeof(kSlots) / sizeof(kSlots[0])), kVtableSlots,
+               static_cast<unsigned>(sizeof(kSlots8) / sizeof(kSlots8[0])));
     return true;
 }
 

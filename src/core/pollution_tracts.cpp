@@ -22,6 +22,8 @@
 
 #include <opensc4/addresses.h>
 
+#include <windows.h>
+
 #include <cstdint>
 #include <cstring>
 
@@ -725,6 +727,57 @@ void __fastcall OnTractWalkRestart(void* self, void*)
     if (curve.points)
         Free(curve.points);
 }
+
+// UpdateCapacityScale (0x006E44B0), the handler of message 0x66956810: the
+// capacity scale alone, as at the end of a pass (no message after it).
+void __fastcall UpdateCapacityScale(void* self, void*)
+{
+    Curve curve;
+    const uint32_t key[3] = {0x6534284A, 0xE7E2C2DB, 0xC911E35B};
+    LoadCurve(&curve, key, 0x6911E2DF);
+    const float* funding = Virtual<float*>(At<void*>(self, kDepartment), 0x28);
+    const float x = *funding * 100.0f;
+    const double y = EvaluateCurve(&curve, x);
+    At<float>(self, kCapacityScale) = static_cast<float>(y * static_cast<double>(0.01f));
+    if (curve.points)
+        Free(curve.points);
+}
+
+using ScaleFn = void(__fastcall*)(void* self, void* edx);
+ScaleFn g_originalScale = nullptr;
+
+// With OPENSC4_POLLUTION_SELFCHECK set: the game's function, then ours,
+// and the scale both wrote compared.
+void __fastcall CheckUpdateCapacityScale(void* self, void* edx)
+{
+    g_originalScale(self, edx);
+    const uint32_t theirs = At<uint32_t>(self, kCapacityScale);
+    UpdateCapacityScale(self, edx);
+    const uint32_t ours = At<uint32_t>(self, kCapacityScale);
+    log::Write("pollution capacity: self-check against the game's: %s (%08X, the game's %08X)",
+               ours == theirs ? "same" : "DIFFERENT", ours, theirs);
+}
+
+bool InstallScale(registry::Mode)
+{
+    const addr::Entry* entry = addr_check::Find(addr::cSC4PollutionSimulator_UpdateCapacityScale);
+    if (!game::IsBuild641() || !entry)
+        return false;
+    if (GetEnvironmentVariableA("OPENSC4_POLLUTION_SELFCHECK", nullptr, 0) != 0)
+        return hook::Install(*entry, &CheckUpdateCapacityScale, &g_originalScale);
+    return hook::Install(*entry, &UpdateCapacityScale, &g_originalScale);
+}
+
+const bool g_registeredScale = registry::Register({
+    "simulators.pollution.capacity",
+    "simulators/pollution",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4PollutionSimulator_UpdateCapacityScale,
+    "Our handler of message 0x66956810: the capacity scale (docs/pollution.md)",
+    false,
+    InstallScale,
+});
 
 using RestartFn2 = void(__fastcall*)(void* self, void* edx);
 RestartFn2 g_originalRestart = nullptr;

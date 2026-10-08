@@ -334,6 +334,13 @@ private:
         const void* proxy = pollution_proxy::LastCreated();
         log::Write("autotest: city pollution simulator %p; last proxy %p -> %s", static_cast<void*>(pollution),
                    proxy, pollution && pollution == proxy ? "CITY USES THE PROXY" : "city uses the original");
+        // OPENSC4_TEST_CAPACITY_SCALE=1: one call of the handler of message
+        // 0x66956810 (the simulator's scheduler never sent it in a test run).
+        if (Env("OPENSC4_TEST_CAPACITY_SCALE") == "1" && pollution) {
+            using HandlerFn = void(__thiscall*)(void* self);
+            reinterpret_cast<HandlerFn>(addr::cSC4PollutionSimulator_UpdateCapacityScale)(pollution);
+            log::Write("autotest: UpdateCapacityScale called");
+        }
         // OPENSC4_TEST_GARBAGE_BUILDINGS=1: one GetGarbageBuildings call after
         // the load (no simulator calls it in a test run).
         if (Env("OPENSC4_TEST_GARBAGE_BUILDINGS") == "1" && pollution) {
