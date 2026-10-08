@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 namespace opensc4::pollution_sim {
 namespace {
@@ -362,6 +363,298 @@ uint32_t __fastcall GetRecyclingCenterMaxCapacity(void*, void*, void* occupant, 
     return GetPropertyPercentage(PropertyHolder(occupant), kPropertyRecyclingCenter, &capacity);
 }
 
+// --- 53, 55-57: capacity, condition and efficiency (x87) --------------------
+
+// The game's curve (16 bytes): points (begin, end, capacity) and a count.
+struct Curve {
+    void* points = nullptr;
+    void* end = nullptr;
+    void* capacity = nullptr;
+    int32_t count = 0;
+};
+
+using LoadCurveFromPropertyFn = uint8_t(__thiscall*)(Curve* curve, void* property);
+using EvaluateCurveFn = double(__thiscall*)(const Curve* curve, float x); // ST0, unrounded
+using GetPropertyFloatFn = uint8_t(__cdecl*)(void* holder, uint32_t property, float* value);
+using FreeFn = void(__cdecl*)(void* p);
+const auto LoadCurveFromProperty = reinterpret_cast<LoadCurveFromPropertyFn>(addr::SC4Curve_LoadFromProperty);
+const auto EvaluateCurve = reinterpret_cast<EvaluateCurveFn>(addr::SC4Curve_Evaluate);
+const auto GetPropertyFloat = reinterpret_cast<GetPropertyFloatFn>(addr::SC4_GetPropertyFloat);
+const auto Free = reinterpret_cast<FreeFn>(addr::SC4_Free);
+
+constexpr uint32_t kPropertyConditionCurve = 0x8A1E07EE; // a curve of condition by age
+constexpr uint32_t kPropertyAge = 0xC910B4CF;
+constexpr std::size_t kCapacityScale = 0x228; // float, from the department's funding
+
+// __ftol2: truncation toward zero; callers keep the low 32 bits.
+int32_t Ftol(double value)
+{
+    return static_cast<int32_t>(static_cast<int64_t>(value));
+}
+
+// The game's rounding idiom: add 1.5 * 2^23, store as float, take the bits
+// minus 0x4B400000.
+int32_t MagicRound(double value)
+{
+    const float f = static_cast<float>(value + 12582912.0);
+    uint32_t bits;
+    std::memcpy(&bits, &f, sizeof(bits));
+    return static_cast<int32_t>(bits + 0xB4C00000u);
+}
+
+// The building's condition curve (property 0x8A1E07EE) at its age, or
+// false without the curve.
+bool ConditionByAge(void* holder, double& factor)
+{
+    void* const property = Virtual<void*>(holder, 0x24, kPropertyConditionCurve);
+    if (!property)
+        return false;
+    Curve curve;
+    LoadCurveFromProperty(&curve, property);
+    float age = 0.0f;
+    GetPropertyFloat(holder, kPropertyAge, &age);
+    factor = EvaluateCurve(&curve, age);
+    if (curve.points)
+        Free(curve.points);
+    return true;
+}
+
+// 53 (0x006E4300): the property, 0 unless the building works (the service
+// at +0x34, slot 31), times the capacity scale, then times its condition.
+uint32_t __fastcall GetCurrentCapacity(void* self, void*, uint32_t property, void* occupant, uint32_t& capacity)
+{
+    if (!static_cast<uint8_t>(GetPropertyUint32(PropertyHolder(occupant), property, &capacity))) {
+        capacity = 0;
+        return 0;
+    }
+    if (!Virtual<uint8_t>(At<void*>(self, 0x34), 0x7C, occupant))
+        capacity = 0;
+    capacity = static_cast<uint32_t>(Ftol(static_cast<double>(capacity) * At<float>(self, kCapacityScale)));
+    void* const holder = PropertyHolder(occupant);
+    void* const curveProperty = Virtual<void*>(holder, 0x24, kPropertyConditionCurve);
+    if (curveProperty) {
+        Curve curve;
+        LoadCurveFromProperty(&curve, curveProperty);
+        float age = 0.0f;
+        GetPropertyFloat(holder, kPropertyAge, &age);
+        const double factor = EvaluateCurve(&curve, age);
+        capacity = static_cast<uint32_t>(MagicRound(factor * static_cast<double>(capacity)));
+        if (curve.points)
+            Free(curve.points);
+    }
+    return 1;
+}
+
+// 55 (0x006E3720): GetCurrentCapacity of property 0x88ED1059 / 100. The
+// game passes its own argument's stack slot as the output.
+uint32_t __fastcall GetRecyclingCenterCurrentCapacity(void* self, void*, void* occupant, float& capacity)
+{
+    uint32_t current = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(occupant));
+    const uint32_t result = Virtual<uint32_t>(self, kSlotGetCurrentCapacity, kPropertyRecyclingCenter, occupant, &current);
+    if (static_cast<uint8_t>(result))
+        capacity = static_cast<float>(static_cast<double>(current) * static_cast<double>(0.01f));
+    else
+        capacity = Global<float>(addr::PollutionTuning_DefaultPercentage);
+    return result;
+}
+
+// 56 (0x006E4410): 1 (0x00B0D408) times the condition curve at the age.
+uint32_t __fastcall GetCurrentOccupantCondition(void*, void*, void* occupant, float& condition)
+{
+    condition = Global<float>(addr::PollutionTuning_DefaultCondition);
+    double factor = 0.0;
+    if (!ConditionByAge(PropertyHolder(occupant), factor))
+        return 0;
+    condition = static_cast<float>(factor * condition);
+    return 1;
+}
+
+// 57 (0x006E3770): the capacity scale times the condition, for a building
+// the service at 0x00B43DA0 (slot 31) accepts.
+uint32_t __fastcall GetCurrentOccupantEfficiency(void* self, void*, void* occupant, float& efficiency)
+{
+    if (Virtual<uint8_t>(Global<void*>(addr::SC4_Service43DA0), 0x7C, occupant)) {
+        efficiency = At<float>(self, kCapacityScale);
+        float condition = 0.0f;
+        if (Virtual<uint8_t>(self, 0xE0, occupant, &condition)) {
+            efficiency = static_cast<float>(static_cast<double>(condition) * efficiency);
+            return 1;
+        }
+    }
+    efficiency = Global<float>(addr::PollutionTuning_DefaultPercentage);
+    return 0;
+}
+
+// --- 65, 66 ------------------------------------------------------------------
+
+using GetPropertySint64Fn = uint8_t(__cdecl*)(void* holder, uint32_t property, int64_t* value);
+using SpreadFn = void(__cdecl*)(void* data, int32_t tractsX, int32_t tractsZ, int32_t tractX, int32_t tractZ,
+                                float radius, float value, float edge);
+using PostMessageFn = void(__cdecl*)(uint32_t message, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e);
+using ThisFn = void(__thiscall*)(void* self);
+const auto GetPropertySint64 = reinterpret_cast<GetPropertySint64Fn>(addr::SC4_GetPropertySint64);
+const auto SpreadAround = reinterpret_cast<SpreadFn>(addr::SC4SimGrid_SpreadAround);
+const auto PostMessage = reinterpret_cast<PostMessageFn>(addr::SC4_PostMessage);
+const auto UpdateWorstTractsAndEffects = reinterpret_cast<ThisFn>(addr::cSC4PollutionSimulator_UpdateWorstTractsAndEffects);
+
+// 65 (0x006E4530): the maintenance cost property (0x2A58D350) times the
+// maintenance curve (0x0911E2E7) at the building's age, truncated; false
+// without any of the three.
+uint32_t __fastcall CalcOccupantMaintenanceCost(void*, void*, void* occupant, int64_t& cost)
+{
+    void* const holder = PropertyHolder(occupant);
+    float age = 0.0f;
+    cost = 0;
+    if (!GetPropertySint64(holder, 0x2A58D350, &cost) || !GetPropertyFloat(holder, kPropertyAge, &age))
+        return 0;
+    void* const curveProperty = Virtual<void*>(holder, 0x24, 0x0911E2E7u);
+    if (!curveProperty)
+        return 0;
+    Curve curve;
+    LoadCurveFromProperty(&curve, curveProperty);
+    const double factor = EvaluateCurve(&curve, age);
+    cost = static_cast<int64_t>(static_cast<double>(cost) * factor);
+    if (curve.points)
+        Free(curve.points);
+    return 1;
+}
+
+struct Vector3 {
+    float x, y, z;
+};
+
+// 66 (0x006E7040): radiation spread around a point, as a building's
+// footprint is (OnOccupantInsertedOrRemoved); then the worst tracts and
+// effects, and the radiation-changed message.
+void __fastcall AddRadiationToCity(void* self, void*, const Vector3& center, float amount, float radius)
+{
+    if (!(radius > 0.0f) || amount == 0.0f)
+        return;
+    void* const grid = Grid(self, field::kRadiationGrid);
+    int32_t tractX, tractZ;
+    Virtual<uint32_t>(grid, 0x4C, center.x, center.z, &tractX, &tractZ); // PositionToTract
+    const int32_t tractsX = Virtual<int32_t>(grid, 0x30);
+    const int32_t tractsZ = Virtual<int32_t>(grid, 0x34);
+    Virtual<uint32_t>(grid, 0x28);
+    SpreadAround(Virtual<void*>(grid, 0x60), tractsX, tractsZ, tractX, tractZ, radius, amount, 0.0f);
+    UpdateWorstTractsAndEffects(self);
+    PostMessage(0xDA6DD35D, 0, 0, 0, 0, 0);
+}
+
+// With OPENSC4_POLLUTION_SELFCHECK set, each of 53, 55-57 also calls the
+// game's function on the same arguments and compares (they change nothing
+// but their output; the condition curve's allocation is freed again).
+int g_checks = 0;
+int g_checkDifferences = 0;
+
+void Checked(const char* name, bool same, uint32_t ours, uint32_t theirs)
+{
+    ++g_checks;
+    if (!same && g_checkDifferences++ < 20)
+        log::Write("pollution interface: %s differs: ours %08X, the game's %08X", name, ours, theirs);
+    if ((g_checks & (g_checks - 1)) == 0)
+        log::Write("pollution interface: %d checked calls, %d differing", g_checks, g_checkDifferences);
+}
+
+template <typename Out>
+uint32_t Bits(const Out& value)
+{
+    uint32_t bits;
+    std::memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+uint32_t __fastcall CheckGetCurrentCapacity(void* self, void* edx, uint32_t property, void* occupant, uint32_t& capacity)
+{
+    using Fn = uint32_t(__fastcall*)(void*, void*, uint32_t, void*, uint32_t&);
+    uint32_t theirs = 0;
+    const uint32_t theirResult = reinterpret_cast<Fn>(0x006E4300)(self, edx, property, occupant, theirs);
+    const uint32_t result = GetCurrentCapacity(self, edx, property, occupant, capacity);
+    Checked("GetCurrentCapacity", capacity == theirs && static_cast<uint8_t>(result) == static_cast<uint8_t>(theirResult),
+            capacity, theirs);
+    return result;
+}
+
+template <uint32_t (__fastcall* Ours)(void*, void*, void*, float&), std::uintptr_t Original>
+uint32_t __fastcall CheckFloat(void* self, void* edx, void* occupant, float& value)
+{
+    using Fn = uint32_t(__fastcall*)(void*, void*, void*, float&);
+    float theirs = 0.0f;
+    const uint32_t theirResult = reinterpret_cast<Fn>(Original)(self, edx, occupant, theirs);
+    const uint32_t result = Ours(self, edx, occupant, value);
+    Checked("a float getter", Bits(value) == Bits(theirs) && static_cast<uint8_t>(result) == static_cast<uint8_t>(theirResult),
+            Bits(value), Bits(theirs));
+    return result;
+}
+
+uint32_t __fastcall CheckCalcOccupantMaintenanceCost(void* self, void* edx, void* occupant, int64_t& cost)
+{
+    using Fn = uint32_t(__fastcall*)(void*, void*, void*, int64_t&);
+    int64_t theirs = 0;
+    const uint32_t theirResult = reinterpret_cast<Fn>(0x006E4530)(self, edx, occupant, theirs);
+    const uint32_t result = CalcOccupantMaintenanceCost(self, edx, occupant, cost);
+    Checked("CalcOccupantMaintenanceCost", cost == theirs && static_cast<uint8_t>(result) == static_cast<uint8_t>(theirResult),
+            static_cast<uint32_t>(cost), static_cast<uint32_t>(theirs));
+    return result;
+}
+
+// 46 (0x006E4C70): appends the incinerators, waste-to-energy plants and
+// recycling centers (not the water treatment plants) to the caller's list,
+// taking a reference to each. The game returns whatever EAX last held.
+void* __fastcall GetGarbageBuildings(void* self, void*, void* list)
+{
+    static bool logged = false;
+    if (!logged) {
+        logged = true;
+        log::Write("pollution interface: first GetGarbageBuildings");
+    }
+    void* last = nullptr;
+    for (const std::size_t offset : {field::kIncineratorList, field::kWasteToEnergyList, field::kRecyclingList}) {
+        void* const sentinel = At<void*>(self, offset);
+        for (void* node = NextNode(sentinel); node != sentinel; node = NextNode(node)) {
+            Virtual<uint32_t>(NodeObject(node), 0x4); // AddRef
+            void** const end = *static_cast<void***>(list);
+            auto** const added = static_cast<void**>(Virtual<void*>(ListNodeAllocator(), 0xC, 12u));
+            added[2] = NodeObject(node);
+            void** const before = static_cast<void**>(end[1]);
+            added[0] = end;
+            added[1] = before;
+            before[0] = added;
+            end[1] = added;
+            last = added;
+        }
+    }
+    return last;
+}
+
+// The self-check for 46: the game's function into a scratch list, ours
+// into the caller's, the same objects in the same order; the scratch
+// list's references released and its nodes freed.
+void* __fastcall CheckGetGarbageBuildings(void* self, void* edx, void* list)
+{
+    using Fn = void*(__fastcall*)(void*, void*, void*);
+    using DestroyFn = void(__thiscall*)(void* list);
+    void** const scratch = static_cast<void**>(Virtual<void*>(ListNodeAllocator(), 0xC, 12u));
+    scratch[0] = scratch;
+    scratch[1] = scratch;
+    void* scratchList = scratch;
+    reinterpret_cast<Fn>(0x006E4C70)(self, edx, &scratchList);
+    void* const before = static_cast<void**>(*static_cast<void**>(list))[1]; // the caller's last node
+    void* const result = GetGarbageBuildings(self, edx, list);
+    void* ours = NextNode(before);
+    bool same = true;
+    int count = 0;
+    for (void* theirs = NextNode(scratch); theirs != scratch; theirs = NextNode(theirs), ours = NextNode(ours)) {
+        same &= ours != *static_cast<void**>(list) && NodeObject(ours) == NodeObject(theirs);
+        Virtual<uint32_t>(NodeObject(theirs), 0x8); // Release
+        ++count;
+    }
+    same &= ours == *static_cast<void**>(list);
+    reinterpret_cast<DestroyFn>(addr::SC4List_Destroy2)(&scratchList);
+    log::Write("pollution interface: GetGarbageBuildings check: %s, %d buildings", same ? "same" : "DIFFERENT", count);
+    return result;
+}
+
 // 58, 59 (0x006E2E70, 0x006E2EA0)
 uint32_t __fastcall GetIncineratorUsedCapacity(void*, void*, void* occupant, uint32_t& capacity)
 {
@@ -424,9 +717,8 @@ struct Slot {
 
 #define OPENSC4_SLOT(index, original, fn) {index, original, reinterpret_cast<void*>(&fn)}
 
-// Not replaced yet: 0-2 (QueryInterface, AddRef, Release), 3 Init, 4 Shutdown,
-// 46 GetGarbageBuildings, 53 GetCurrentCapacity, 55-57 and 65 (x87 arithmetic
-// on properties), 66 AddRadiationToCity.
+// Not replaced: 0-2 (QueryInterface, AddRef, Release; the object's
+// identity); 3 Init and 4 Shutdown are entry detours (pollution_init.cpp).
 const Slot kSlots[] = {
     OPENSC4_SLOT(5, 0x006E3360, GetPollutionGrid),
     OPENSC4_SLOT(6, 0x006E37E0, GetPollutionValue),
@@ -469,13 +761,18 @@ const Slot kSlots[] = {
     OPENSC4_SLOT(43, 0x006E50F0, GetWasteToEnergyBuildingCount),
     OPENSC4_SLOT(44, 0x006E5110, GetRecyclingCenterCount),
     OPENSC4_SLOT(45, 0x006E5130, GetWaterTreatmentPlantCount),
+    OPENSC4_SLOT(46, 0x006E4C70, GetGarbageBuildings),
     OPENSC4_SLOT(47, 0x006E3160, GetBuildingGarbageCapacity),
     OPENSC4_SLOT(48, 0x006E3190, GetGarbageScalingFactor),
     OPENSC4_SLOT(49, 0x006E31A0, IsActiveLandfill),
     OPENSC4_SLOT(50, 0x006E31C0, SetIsActiveLandfill),
     OPENSC4_SLOT(51, 0x006E3250, GarbagePutInLandfill),
     OPENSC4_SLOT(52, 0x006E2DA0, GetMaxCapacity),
+    OPENSC4_SLOT(53, 0x006E4300, GetCurrentCapacity),
     OPENSC4_SLOT(54, 0x006E2D70, GetRecyclingCenterMaxCapacity),
+    OPENSC4_SLOT(55, 0x006E3720, GetRecyclingCenterCurrentCapacity),
+    OPENSC4_SLOT(56, 0x006E4410, GetCurrentOccupantCondition),
+    OPENSC4_SLOT(57, 0x006E3770, GetCurrentOccupantEfficiency),
     OPENSC4_SLOT(58, 0x006E2E70, GetIncineratorUsedCapacity),
     OPENSC4_SLOT(59, 0x006E2EA0, GetWasteToEnergyUsedCapacity),
     OPENSC4_SLOT(60, 0x006E2DD0, GetIncineratorCurrentCapacity),
@@ -483,6 +780,8 @@ const Slot kSlots[] = {
     OPENSC4_SLOT(62, 0x006E2E10, GetWaterTreatmentMaxCapacity),
     OPENSC4_SLOT(63, 0x006E2E30, GetWaterTreatmentCurrentCapacity),
     OPENSC4_SLOT(64, 0x006E2E50, GetWaterTreatmentUsedCapacity),
+    OPENSC4_SLOT(65, 0x006E4530, CalcOccupantMaintenanceCost),
+    OPENSC4_SLOT(66, 0x006E7040, AddRadiationToCity),
     OPENSC4_SLOT(67, 0x006E5060, GetMaxAirPollutionLevelForUI),
     OPENSC4_SLOT(68, 0x006E5070, GetMaxWaterPollutionLevelForUI),
     OPENSC4_SLOT(69, 0x006E5080, GetMaxGarbagePollutionLevelForUI),
@@ -513,8 +812,23 @@ bool Install(registry::Mode)
         log::Write("pollution interface: VirtualProtect failed (%lu)", GetLastError());
         return false;
     }
-    for (const Slot& slot : kSlots)
-        vtable[slot.index] = reinterpret_cast<std::uintptr_t>(slot.ours);
+    const bool check = GetEnvironmentVariableA("OPENSC4_POLLUTION_SELFCHECK", nullptr, 0) != 0;
+    for (const Slot& slot : kSlots) {
+        void* ours = slot.ours;
+        if (check && slot.index == 53)
+            ours = reinterpret_cast<void*>(&CheckGetCurrentCapacity);
+        else if (check && slot.index == 55)
+            ours = reinterpret_cast<void*>(&CheckFloat<&GetRecyclingCenterCurrentCapacity, 0x006E3720>);
+        else if (check && slot.index == 56)
+            ours = reinterpret_cast<void*>(&CheckFloat<&GetCurrentOccupantCondition, 0x006E4410>);
+        else if (check && slot.index == 57)
+            ours = reinterpret_cast<void*>(&CheckFloat<&GetCurrentOccupantEfficiency, 0x006E3770>);
+        else if (check && slot.index == 46)
+            ours = reinterpret_cast<void*>(&CheckGetGarbageBuildings);
+        else if (check && slot.index == 65)
+            ours = reinterpret_cast<void*>(&CheckCalcOccupantMaintenanceCost);
+        vtable[slot.index] = reinterpret_cast<std::uintptr_t>(ours);
+    }
     VirtualProtect(vtable, kVtableSlots * sizeof(*vtable), old, &old);
     log::Write("pollution interface: %u of %d cISC4PollutionSimulator slots are ours",
                static_cast<unsigned>(sizeof(kSlots) / sizeof(kSlots[0])), kVtableSlots);

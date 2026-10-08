@@ -309,6 +309,15 @@ expect = "8B 4C 24 04 8B 54 24 08"
 source = "Name ours. As 0x005FD450 with the variant's GetValUint32(uint32_t&) (slot 25). Called by the pollution simulator's capacity getters (0x006E2DA0, 0x006E2E70, 0x006E2EA0) (docs/pollution.md)."
 
 [[entry]]
+name = "SC4::GetPropertySint64"
+address = 0x005FD4B0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, int64_t& value)"
+expect = "8B 4C 24 04 8B 54 24 08 8B 01 53"
+source = "Name ours. As 0x005FD450 with the variant's GetValSint64 (slot 34). Called by cSC4PollutionSimulator::CalcOccupantMaintenanceCost (docs/pollution.md)."
+
+[[entry]]
 name = "SC4::GetPropertyFloat"
 address = 0x005FD4F0
 kind = "function"
@@ -745,6 +754,27 @@ name = "PollutionSimulator::BlockCells"
 address = 0x00B49B90
 kind = "data"
 source = "uint16, set at run time; Init divides the value grid's tract count by half of it for +0x1D4 (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::Service43DA0"
+address = 0x00B43DA0
+kind = "data"
+source = "Unnamed service; slot 31 (occupant) says whether a building counts for the pollution simulator's GetCurrentOccupantEfficiency (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::DefaultCondition"
+address = 0x00B0D408
+kind = "data"
+source = "float 1.0, the starting value of GetCurrentOccupantCondition's output (docs/pollution.md)."
+
+[[entry]]
+name = "SC4Curve::LoadFromProperty"
+address = 0x005F4620
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Curve* this, cISCProperty* property)"
+expect = "83 EC 18 57 89 4C 24 04"
+source = "Name ours. Builds the curve from a property's float pairs (as SC4Curve::LoadFromExemplar does after finding the property). Used by the pollution simulator's condition getters (docs/pollution.md)."
 
 [[entry]]
 name = "SC4::LotManager"
