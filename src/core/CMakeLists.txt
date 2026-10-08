@@ -36,6 +36,7 @@ add_library(opensc4_core SHARED
   pollution_proxy.cpp
   pollution_save.cpp
   pollution_tuning.cpp
+  power_object.cpp
   power_sim.cpp
   pollution_sim.cpp
   pollution_tracts.cpp

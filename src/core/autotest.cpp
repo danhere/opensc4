@@ -4,6 +4,7 @@
 #include "core/log.h"
 #include "core/fixed_ticks.h"
 #include "core/game.h"
+#include "core/game_access.h"
 #include "core/pollution_proxy.h"
 #include "core/rng_trace.h"
 #include "core/virtual_clock.h"
@@ -15,6 +16,7 @@
 #include <SC4List.h>
 #include <SC4String.h>
 #include <cIGZFrameWork.h>
+#include <cIGZMessage2Standard.h>
 #include <cIGZMessageTarget2.h>
 #include <cIGZWin.h>
 #include <cISC43DRender.h>
@@ -526,11 +528,58 @@ private:
                 log::Write("autotest: power simulator woken on day %d", day);
             }
         }
+        // OPENSC4_TEST_POWER_MESSAGES=<n>: on the n-th day, hand the power
+        // simulator (its +0x4 cIGZMessageTarget2, build 641) the two network
+        // messages a network edit would bring, over the whole city: a network
+        // change (0x278E6003, corners packed in data 1 and 2) and a changed
+        // cell rectangle (0x07699455, the rectangle in void 2), so their
+        // handlers run in runs without edits (docs/power.md).
+        if (const int when = EnvInt("OPENSC4_TEST_POWER_MESSAGES", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641()) {
+            if (void* const power = city->GetPowerSimulator())
+                SendPowerMessages(power, city);
+        }
         if (self->runDays_ >= 0 && day >= self->endDay_) {
             sim->Pause();
             self->reachedEndDay_ = true;
             log::Write("autotest: day %d reached in the simulator's tick (sim time %d); paused", day, sim->GetSimTime());
         }
+    }
+
+    static void SendPowerMessages(void* power, cISC4City* city)
+    {
+        using NewFn = void*(__cdecl*)(std::size_t size);
+        using MessageFn = cIGZMessage2Standard*(__thiscall*)(void* memory);
+        using DoMessageFn = bool(__thiscall*)(void* target, cIGZMessage2* message);
+        static int32_t rect[4];
+        const auto cellsX = Virtual<uint32_t>(city, 0x174); // the cell counts, as the power simulator reads them
+        const auto cellsZ = Virtual<uint32_t>(city, 0x178);
+        rect[0] = 0;
+        rect[1] = 0;
+        rect[2] = static_cast<int32_t>(cellsX) - 1;
+        rect[3] = static_cast<int32_t>(cellsZ) - 1;
+        void* const target = static_cast<char*>(power) + 0x4;
+        const auto doMessage = reinterpret_cast<DoMessageFn>((*static_cast<void***>(target))[3]);
+        for (const uint32_t type : {0x278E6003u, 0x07699455u}) {
+            void* const memory = reinterpret_cast<NewFn>(addr::RZ_operator_new)(0x2C);
+            cIGZMessage2Standard* const message =
+                memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr;
+            if (!message)
+                return;
+            message->AddRef();
+            message->SetType(type);
+            if (type == 0x278E6003u) {
+                message->SetData1(static_cast<intptr_t>((1u << 16) | (cellsX - 1)));
+                message->SetData2(static_cast<intptr_t>((1u << 16) | (cellsZ - 1)));
+                message->SetData4(0);
+            } else {
+                message->SetVoid2(rect);
+                message->SetData3(0);
+            }
+            doMessage(target, message);
+            message->Release();
+        }
+        log::Write("autotest: power messages 0x278E6003 and 0x07699455 delivered over %ux%u cells", cellsX, cellsZ);
     }
 
     // The x87 control word the simulation runs with (docs/pollution.md,
