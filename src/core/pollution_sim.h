@@ -3,6 +3,8 @@
 // replacements of its parts (docs/pollution.md).
 #pragma once
 
+#include "core/game_access.h"
+
 #include <opensc4/addresses.h>
 
 #include <cstddef>
@@ -52,27 +54,6 @@ constexpr std::size_t kGarbageSupply = 0x22C;     // int32
 constexpr std::size_t kGarbageCapacity = 0x230;   // int32
 } // namespace field
 
-template <typename T>
-inline T& At(void* object, std::size_t offset)
-{
-    return *reinterpret_cast<T*>(static_cast<char*>(object) + offset);
-}
-
-template <typename T>
-inline T& Global(std::uintptr_t address)
-{
-    return *reinterpret_cast<T*>(address);
-}
-
-// Calls the virtual function at byte offset `offset` of `object`'s vtable.
-template <typename R, typename... Args>
-inline R Virtual(void* object, std::size_t offset, Args... args)
-{
-    using Fn = R(__thiscall*)(void*, Args...);
-    const auto fn = reinterpret_cast<Fn>((*static_cast<void***>(object))[offset / sizeof(void*)]);
-    return fn(object, args...);
-}
-
 // cISC4SimGrid<short> (gzcom-dll slots), as the game's code calls them.
 // GetCellValue returns the value in AX; the rest of EAX is the callee's.
 inline int16_t GetCellValue(void* grid, uint32_t x, uint32_t z) { return Virtual<int16_t>(grid, 0x1C, x, z); }
@@ -116,23 +97,6 @@ inline uint32_t ListCount(void* self, std::size_t offset)
     for (void* node = NextNode(sentinel); node != sentinel; node = NextNode(node))
         ++count;
     return count;
-}
-
-// The building lists' node allocator, fetched from the framework on first
-// use as the game's list helpers (0x00413DD0, 0x00413F70) do.
-inline void* ListNodeAllocator()
-{
-    using GetFrameworkFn = void*(__cdecl*)();
-    using ReleaseRefFn = void(__thiscall*)(void** ref);
-    void*& allocator = Global<void*>(addr::SC4List_NodeAllocator2);
-    if (!allocator) {
-        void* fetched = nullptr;
-        if (void* framework = reinterpret_cast<GetFrameworkFn>(addr::RZGetFramework)())
-            Virtual<uint8_t>(framework, 0x14, 0x3AE4BEA3u, 0x3AE4BEABu, &fetched);
-        allocator = fetched;
-        reinterpret_cast<ReleaseRefFn>(addr::SC4_ReleaseRef)(&fetched);
-    }
-    return allocator;
 }
 
 } // namespace opensc4::pollution_sim
