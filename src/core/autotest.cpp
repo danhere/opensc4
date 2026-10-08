@@ -537,6 +537,15 @@ private:
                 log::Write("autotest: plumbing simulator woken on day %d", day);
             }
         }
+        // OPENSC4_TEST_OCCUPANT_CYCLE=<n>: on the n-th day, hand the water and
+        // power simulators "removed" then "added" for an existing pipe and
+        // pole (messages 0x99EF1143, 0x99EF1142), and power the plant
+        // disaster message (0xC2C09554 with 0xE0D0722E), so the handlers a
+        // network edit or a disaster runs are reached (docs/parity.md,
+        // "Coverage").
+        if (const int when = EnvInt("OPENSC4_TEST_OCCUPANT_CYCLE", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641())
+            CycleOccupants(city);
         // OPENSC4_TEST_POWER_MESSAGES=<n>: on the n-th day, hand the power
         // simulator (its +0x4 cIGZMessageTarget2, build 641) the two network
         // messages a network edit would bring, over the whole city: a network
@@ -553,6 +562,69 @@ private:
             self->reachedEndDay_ = true;
             log::Write("autotest: day %d reached in the simulator's tick (sim time %d); paused", day, sim->GetSimTime());
         }
+    }
+
+    // A message of the given type with void 1 = object and data 2/3, to a
+    // simulator's cIGZMessageTarget2 at +0x4 (its slot 3).
+    static void Deliver(void* simulator, uint32_t type, void* object, uint32_t data2, uint32_t data3)
+    {
+        using NewFn = void*(__cdecl*)(std::size_t size);
+        using MessageFn = cIGZMessage2Standard*(__thiscall*)(void* memory);
+        using DoMessageFn = bool(__thiscall*)(void* target, cIGZMessage2* message);
+        void* const memory = reinterpret_cast<NewFn>(addr::RZ_operator_new)(0x2C);
+        cIGZMessage2Standard* const message =
+            memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr;
+        if (!message)
+            return;
+        message->AddRef();
+        message->SetType(type);
+        message->SetVoid1(object);
+        message->SetData2(static_cast<intptr_t>(data2));
+        message->SetData3(static_cast<intptr_t>(data3));
+        void* const target = static_cast<char*>(simulator) + 0x4;
+        reinterpret_cast<DoMessageFn>((*static_cast<void***>(target))[3])(target, message);
+        message->Release();
+    }
+
+    // The occupant (interface 0x26BB767E) behind a network piece, referenced.
+    static void* OccupantOf(void* piece)
+    {
+        void* occupant = nullptr;
+        if (!piece || !Virtual<uint8_t>(piece, 0x0, 0x26BB767Eu, &occupant))
+            return nullptr;
+        return occupant;
+    }
+
+    static void CycleOccupants(cISC4City* city)
+    {
+        void* const water = city->GetPlumbingSimulator();
+        void* const power = city->GetPowerSimulator();
+        void* pipe = nullptr;
+        if (water) {
+            void** const pipes = *reinterpret_cast<void***>(static_cast<char*>(water) + 0x170);
+            if (pipes[0] != pipes)
+                pipe = OccupantOf(static_cast<void**>(pipes[0])[2]);
+        }
+        void* pole = nullptr;
+        if (power) {
+            void** const begin = *reinterpret_cast<void***>(static_cast<char*>(power) + 0x29C);
+            void** const end = *reinterpret_cast<void***>(static_cast<char*>(power) + 0x2A0);
+            if (begin != end)
+                pole = OccupantOf(*begin);
+        }
+        for (void* const occupant : {pipe, pole}) {
+            if (!occupant)
+                continue;
+            for (const uint32_t type : {0x99EF1143u, 0x99EF1142u})
+                for (void* const simulator : {water, power})
+                    if (simulator)
+                        Deliver(simulator, type, occupant, 0, 0);
+            Virtual<uint32_t>(occupant, 0x8);
+        }
+        if (power)
+            Deliver(power, 0xC2C09554, nullptr, 0xE0D0722E, 1);
+        log::Write("autotest: occupants cycled (pipe %s, pole %s), plant disaster message sent", pipe ? "yes" : "none",
+                   pole ? "yes" : "none");
     }
 
     static void SendPowerMessages(void* power, cISC4City* city)
