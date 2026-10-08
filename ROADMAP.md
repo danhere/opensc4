@@ -99,8 +99,11 @@ Parity method (from P4): short-window exact comparison against the original from
 Asked by Dan (2026-10-08). Findings and plan: [docs/city-size.md](docs/city-size.md).
 
 - [x] Research: what limits city size (three sizes in the region layout, the 32-bit address space, simulation time; not the renderer or the save format), and what our simulators assume (they read the size from the city)
-- [ ] Size census: a Ghidra script listing every place the exe assumes 64/128/256 cells, each mapped to the phase that replaces it
-- [ ] Spike: an 8 km (512x512) city in a test region, recording where the 32-bit game fails
+- [x] Size census (`tools/ghidra/CitySizeCensus.java`): found the region `config.bmp` decode (three sizes, stored as log2 km), the occupant manager's fixed 192x192 world grid (256-cell margin, max 256-cell city), `cSC4City::GetCitySizeType` and the per-size tables and art it indexes; 169 functions read the size instead
+- [ ] Find where terrain gets its heightmap size (terrain classes unnamed, not seen by the census)
+- [ ] Coverage run that opens the region view (region code never ran under the meter)
+- [ ] Spike: an 8 km (512x512) city in a test region, recording where the 32-bit game fails (expect the occupant manager first)
+- [ ] Size-aware replacements for the census list: occupant manager world grid and size type (P8 lots/buildings), region decode, per-size art and tables (P8 region view), render initial extent (P1)
 - [ ] Keep every replacement size-agnostic (sizes from the city or the save, never constants); add a check to new simulator work
 - [ ] Region layout and region view with a fourth size, and a save flag so vanilla SC4 refuses bigger cities cleanly
 - [ ] 64-bit build after exe independence (P9), removing the memory ceiling

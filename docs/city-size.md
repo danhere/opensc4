@@ -15,7 +15,7 @@ The modding community has never produced a bigger tile: the answer has always be
 | Limit | Kind | Notes |
 |---|---|---|
 | Region layout knows three sizes | Hard, in the exe | The `config.bmp` reader and the region view. Nothing else offers a fourth size. |
-| Code that assumes 64/128/256 | Unknown, in the exe | Not measured yet (see "Size census"). Most of the simulators we have read do not assume it (below). |
+| Code that assumes 64/128/256 | Hard, in the exe | Measured (see "Size census"): the region decode, the occupant manager's fixed world grid, the city's size type and the tables indexed by it. 169 functions read the size instead. |
 | 32-bit address space | Hard, until P9 | At most 4 GB with the large-address flag. Dense large cities with big plugin folders already run out. Every doubling of a city's side is 4x the cells and roughly 4x the memory for grids, lots and props. |
 | Simulation time | Soft | Grid simulators scale with area (4x per doubling). Traffic routing grows faster than area. Fine on a modern CPU for 2x; 4x needs measuring. |
 | Renderer | Not a blocker | The D3D11 driver already runs past the old 2048 px cap. Draw distance and terrain detail are tuning, not limits. |
@@ -28,23 +28,71 @@ The modding community has never produced a bigger tile: the answer has always be
 - The save records we decode store grid dimensions with the data (water's stride and height, power's consumption-map rows and columns). They should load at any size.
 - The renderer's camera works in metres per pixel and 16 m tiles ([ui-scaling.md](ui-scaling.md)); it has no city-size table.
 
-So the simulation side looks size-agnostic. The likely blockers are in the parts we have not read yet: the region, terrain, the lot and network managers, and the city thumbnails.
+So the simulation side looks size-agnostic. The census below confirms that the blockers are in the region, the occupant manager, the size type and per-size art; terrain is still open.
 
-## Size census (next step)
+## Size census
 
-A static scan of `SimCity 4.exe` 1.1.641 in the Ghidra project, ideally as a script under `tools/ghidra` so it can be rerun:
+Run on 2026-10-08 with [tools/ghidra/CitySizeCensus.java](../tools/ghidra/CitySizeCensus.java), a static scan that takes about 30 s, on `SimCity 4.exe` 1.1.641. The "Ran" column comes from a 2-minute coverage run of Making Money (`coverage-makingmoney-2.csv`, 2026-10-05). That run loads the city directly, so region code never shows as run. The script's CSV describes game code and stays local (`analysis/city-size-census.csv`).
 
-1. Immediates 64, 128, 256, 257 (heightmap points per side), 1024, 4096 and the matching shifts (6, 7, 8) and masks (0x3F, 0x7F, 0xFF) near city-size reads (slots 93/94, `this+0x174`-style cached sizes).
-2. Floats 1024.0, 2048.0, 4096.0 (city size in metres) and 16.0 used next to them.
-3. Fixed-size arrays and `new` calls whose size is a multiple of 256x256 or 257x257.
-4. The `config.bmp` reader and region tile code: how it turns colours into sizes and where it stores them.
-5. Every hit gets a class name, and its coverage-meter status (does it run in the test cities).
+```bash
+# Windows Git Bash, after scripts/ghidra-setup.sh; copy the script into the local Ghidra scripts folder first
+analyzeHeadless <projdir> SC4_1.1.641 -process "SimCity 4.exe" -noanalysis -readOnly \
+  -scriptPath <scripts> -postScript CitySizeCensus.java <out.csv> [opensc4-coverage.csv]
+```
 
-The output is a list in this document: which code assumes a size, and which phase (P5 to P8) replaces it.
+| Category | Hits | Functions | Ran | What it is |
+|---|---|---|---|---|
+| size_read | 351 | 169 | 65 | Calls through vtable +0x174/+0x178 (`cISC4City` slots 93/94; other interfaces share the offsets) |
+| near_read | 119 | 24 | 9 | 64/128/256/1024/4096, masks, shifts by 6/7/8 inside those functions |
+| area | 34 | 24 | 10 | n x n x k constants (n = 64, 65, 128, 129, 256, 257) |
+| imm257 | 38 | 31 | 16 | The immediate 257 anywhere |
+| float | 27 | 15 | 8 | 1024.0, 2048.0, 4096.0 |
+| table | 2 | 1 | 0 | Runs of 64,128,256 / 1,2,4 / 1024,2048,4096 in data (bit-mask tables skipped) |
+| config_bmp | 6 | 3 | 0 | References to the `config.bmp` name |
+
+I checked the raw hits by hand, and most are noise:
+
+- 0x4101, 0x3331 and 0x4201 are occupant group IDs, not 129x129.
+- 0x101 in 0x0063DDF0-0x0063EF85 is a tokenizer's number token.
+- 0x2000 to 0x800000 in 0x00511A90 are path-flag bits printed in a debug string.
+- The 0x40000 tests are occupant flags.
+- The 1024.0f in 0x004E7A90 is a curve point (20, 1024).
+
+### What does assume a size
+
+| Where | What it assumes | Ran | Replaced in |
+|---|---|---|---|
+| Region `config.bmp` decode, 0x004A5640 (called by 0x004A6B00; an unnamed region class between `cSC4PropManager` and `cSC4RegionalCity`) | For each pixel, `code = (R==255) + 2*(G==255) + 4*(B==255)`. Only codes 1, 2 and 4 count (a power-of-two test). Each tile is stored as `{x, y, code >> 1}` in a vector at region +0x44, so the size is kept as log2 of the side in km. | no | P8 region view |
+| Region tile matching, 0x004A6330 | Matches saved cities to tiles with `1 << index` km. Any index works here; only the decode limits it to three. | no | P8 region view |
+| `cSC4OccupantManager` (0x0049D990-0x0049E1B0, `Init` 0x004A18E0) | A fixed world grid of 192 x 192 cells of 64 m (12,288 m). A standard cell becomes a world cell as `x / 4 + 64`, and `PositionToWorldCell` adds 4096 m. That leaves a 256-cell margin on each side of a city of at most 256 cells, so a 512-cell city overflows it. `Init` sizes its rows to 0xC0 whatever `SetCitySize` was given. | yes | P8 lots / buildings (one class; callers use its interface) |
+| `cSC4City::GetCitySizeType` 0x00459390 (slot 87, +0x15C) | Size 64 gives 0, 128 gives 1, anything else gives 2. A 512 city reads as large. | yes | P8 (city object) |
+| 0x005DDEC0, next to the lot base texture code | Tables indexed by size type: 0x00AA2BAC = {32, 64, 128} and 0x00AA2BB8 = {128, 256, 512}, half and twice the side. | no | P8 lots / buildings |
+| 0x005DDDC0, 0x007770B0 | Resource instance IDs per size type: two per size, in table 0x00AB52A4 and in a local copy. This is per-size art, likely thumbnails or region images. A fourth size needs new entries, or reuses large. | no | P8 region view |
+| 0x0074FEA0 | A 3-entry table at 0x00B4BCF8, filled at run time and indexed by size type. | yes | not identified yet |
+| `cSC4CameraControl::UpdateProjection` 0x007CBE40, `cSC43DRender::Init` 0x007C6410 | 4096.0 m. The camera uses `max(extent, 4096)`, a lower bound that does no harm. The 3D render sets 4096.0 twice as an initial extent at +0x114 (+0x20, +0x24); still to check whether the city updates it. | yes | P1 renderer (the camera is already hooked) |
+| `cSC4NeighborDeal` area, 0x006CE920 | Finds neighbour positions with `>> 6` and `& 0x3F`, on the 64-cell (1 km) region grid. Bigger tiles on the same grid are fine. | yes | no change |
+
+### What reads the size instead
+
+169 functions call slots 93/94, and 65 of them ran in the test city. They cover:
+
+- power, water and pollution
+- the zone, lot, prop and tract developers
+- the network and lot managers
+- neighbours, demand, flammability and traffic
+- automata and the mini map
+
+These adapt to the size by construction. The only risk is what they allocate next to the read, which the near_read list covers; none of its hits turned out to be a fixed size.
+
+### Still open
+
+- **Terrain.** The terrain classes are unnamed in the Ghidra project. None of them reads slots 93/94, and no 257 constant sits in terrain-looking code. The next thing to find is where the heightmap gets its size, probably from the city through its own interface.
+- **Region view and thumbnails** never ran under the coverage meter. A coverage run that opens the region view is needed before the spike.
+- The class guesses for unnamed functions (`~cSC4Foo` in the CSV) come from named neighbours and are hints only.
 
 ## Spike after the census
 
-Make the region offer an 8 km (512x512) city: patch the `config.bmp` colour decode for one test region, create a new city there, and record where it fails. Each failure is one entry on the list above. This runs inside the 32-bit game, so it also shows how far 512 gets before memory is the problem.
+Make the region offer an 8 km (512x512) city: patch the `config.bmp` colour decode for one test region (for example, accept white, code 7, as index 3; the tile vector already stores log2 of the side), create a new city there, and record where it fails. Expect the occupant manager's world grid to fail first. Each failure is one entry on the list above. This runs inside the 32-bit game, so it also shows how far 512 gets before memory is the problem.
 
 ## Compatibility
 
