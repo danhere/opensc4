@@ -1448,6 +1448,176 @@ uint8_t __fastcall Phase6(void* self, void*, void* parent)
     return 1;
 }
 
+// Phase 2 (0x0071A0C0): the month's per-cell statistics, under a sliced
+// deadline. For each cell: the congestion (+0x34 grid) and load (+0x174
+// grid) restart at 0; every 4th cell in both directions gets the block
+// value (0x00714AA0) x +0xD0C in the byte grid at +0x3C. For each network
+// type 0-5 with an edge at the cell: the congestion is the highest type
+// value (not types 2 and 3), the load the highest value x the edge's
+// capacity; busy edges of types 1 and 2 add an effect (0x00716950); the
+// per-type sums, counts and maxima (+0x440 + 0x14 x type, or +0x544 for
+// edges with bit 0 of +7) grow; the type value decays by +0x97C (type 1
+// adds its background traffic, slot 11). A cell in the grid at +0x704
+// rates its cost table entry, kept in the 12 records at +0x578. When the
+// walk is done the sums become averages and are copied to last month's
+// (0x25C lower).
+uint8_t __fastcall Phase2(void* self, void*, void* parent)
+{
+    using EvaluateFn = double(__thiscall*)(void* curve, float x); // ST0
+    using BlockFn = uint16_t(__thiscall*)(void* self, int32_t x, int32_t z);
+    using EffectFn = void(__thiscall*)(void* self, int32_t x, int32_t z, float value);
+    using AtFn = char*(__thiscall*)(void* table, const uint32_t* key);
+    using ThisFn = void(__thiscall*)(void* self);
+    using RecordsFn = void(__thiscall*)(void* records, void* vector);
+    static bool logged = false;
+    FirstCall("Phase2", logged);
+    const auto evaluate = [self](std::size_t curve, float x) {
+        return reinterpret_cast<EvaluateFn>(addr::SC4Curve_Evaluate)(static_cast<char*>(self) + curve, x);
+    };
+    SlicedDeadline deadline;
+    StartSliced(deadline, parent, addr::cSC4TrafficSimulator_Phase2Step);
+    Virtual<void*>(At<void*>(self, 0x30), 0x60);
+    void* const congestion = Virtual<void*>(At<void*>(self, 0x34), 0x60);
+    void* const blocks = Virtual<void*>(At<void*>(self, 0x3C), 0x60);
+    void* const load = Virtual<void*>(At<void*>(self, 0x174), 0x60);
+    void* byType[6];
+    for (std::size_t type = 0; type < 6; ++type)
+        byType[type] = Virtual<void*>(At<void**>(self, 0x164)[type], 0x60);
+    void* const costCells = Virtual<void*>(At<void*>(self, 0x704), 0x60);
+    Virtual<uint32_t>(At<void*>(self, 0x3C), 0x30);
+    for (;;) {
+        if (SlicedExpired(deadline))
+            return 0;
+        char* const iterator = At<char*>(self, 0x818);
+        if (!NextCell(iterator))
+            break;
+        const int32_t x = At<int32_t>(iterator, 0x4);
+        const int32_t z = At<int32_t>(iterator, 0x8);
+        float& top = GridCell<float>(congestion, x, z);
+        float& busiest = GridCell<float>(load, x, z);
+        top = 0.0f;
+        busiest = 0.0f;
+        if (!(x & 3) && !(z & 3)) {
+            const uint16_t value = reinterpret_cast<BlockFn>(addr::cSC4TrafficSimulator_BlockTraffic)(self, x >> 2, z >> 2);
+            const auto rounded = static_cast<int32_t>(MagicRound(static_cast<double>(value) * At<float>(self, 0xD0C)));
+            GridCell<uint8_t>(blocks, x >> 2, z >> 2) = static_cast<uint8_t>(rounded > 0xFF ? 0xFF : rounded);
+        }
+        bool changed = false;
+        for (uint32_t type = 0; type < 6; ++type) {
+            char* const edge = FindEdge(self, type, x, z);
+            if (!edge)
+                continue;
+            float& cell = GridCell<float>(byType[type], x, z);
+            if (type != 3 && type != 2 && cell > top)
+                top = cell;
+            const double product = static_cast<double>(cell) * At<float>(edge, 0);
+            const auto value = static_cast<float>(product);
+            if (product > busiest)
+                busiest = value;
+            if ((type == 1 || type == 2) && static_cast<uint8_t>(edge[4]) > 3) {
+                const double first = evaluate(0xD30, value);
+                const auto firstValue = static_cast<float>(first);
+                if (first > 0.0f) {
+                    const auto inverse = static_cast<float>(1.0f / static_cast<double>(At<float>(edge, 0)));
+                    const double effect = evaluate(0xD40, inverse) * firstValue;
+                    if (effect > 0.0f)
+                        reinterpret_cast<EffectFn>(addr::cSC4TrafficSimulator_AddCongestionEffect)(
+                            self, x, z, static_cast<float>(effect));
+                }
+            }
+            const uint32_t kind = static_cast<uint8_t>(edge[5]);
+            if (!(edge[7] & 1)) {
+                char* const stats = static_cast<char*>(self) + 0x440 + 0x14 * kind;
+                ++At<uint32_t>(self, 0x6B4 + 4 * kind);
+                At<float>(stats, 0) = static_cast<float>(static_cast<double>(value) + At<float>(stats, 0));
+                float& highest = At<float>(self, 0x67C + 4 * kind);
+                if (highest < value) {
+                    highest = value;
+                    At<int32_t>(stats, 0xC) = z;
+                    At<int32_t>(stats, 0x8) = x;
+                    At<float>(stats, 0x10) = value;
+                }
+                if (value > 1.0f)
+                    ++At<uint32_t>(stats, 0x4);
+                ++At<uint16_t>(self, 0x558 + 2 * kind);
+            } else {
+                At<float>(self, 0x544) = static_cast<float>(static_cast<double>(value) + At<float>(self, 0x544));
+                ++At<uint32_t>(self, 0x6E8);
+                if (At<float>(self, 0x6B0) < value) {
+                    At<float>(self, 0x6B0) = value;
+                    At<int32_t>(self, 0x54C) = x;
+                    At<int32_t>(self, 0x550) = z;
+                    At<float>(self, 0x554) = value;
+                }
+                if (value > 1.0f)
+                    ++At<uint32_t>(self, 0x548);
+                ++At<uint16_t>(self, 0x572);
+            }
+            cell = static_cast<float>(static_cast<double>(At<float>(self, 0x97C)) * cell);
+            if (type == 1) {
+                const double background = Virtual<double>(self, 0x2C, x, z); // slot 11, in ST0
+                cell = static_cast<float>(background + cell);
+            }
+            changed = true;
+        }
+        uint32_t key = GridCell<uint32_t>(costCells, x, z);
+        if (key) {
+            char* const node = reinterpret_cast<AtFn>(addr::SC4CostTable_At)(static_cast<char*>(self) + 0x70C, &key);
+            At<uint32_t>(node, 0x14) = At<uint32_t>(node, 0x4);
+            const double rate = static_cast<double>(At<float>(node, 0x4)) / At<float>(node, 0xC);
+            const auto rateValue = static_cast<float>(rate);
+            if (rate > busiest)
+                busiest = rateValue;
+            const float capped = 1.0f < rateValue ? 1.0f : rateValue;
+            At<float>(node, 0x18) = capped;
+            for (uint32_t record = 0; record < 12; ++record) {
+                if (!(static_cast<uint8_t>(node[0x10]) & static_cast<uint8_t>(1u << record)))
+                    continue;
+                char* const entry = static_cast<char*>(self) + 0x578 + 0x14 * record;
+                At<float>(entry, 0x4) = static_cast<float>(static_cast<double>(capped) + At<float>(entry, 0x4));
+                ++At<uint16_t>(entry, 0);
+                if (capped < At<float>(entry, 0x10)) {
+                    At<float>(entry, 0x10) = capped;
+                    At<int32_t>(entry, 0x8) = x;
+                    At<int32_t>(entry, 0xC) = z;
+                }
+            }
+        } else if (!changed) {
+            continue;
+        }
+        if (top < 1.0f)
+            top = 1.0f;
+    }
+    // Averages, then this month's figures copied to last month's.
+    for (std::size_t kind = 0; kind < 13; ++kind) {
+        char* const stats = static_cast<char*>(self) + 0x440 + 0x14 * kind;
+        if (const uint32_t count = At<uint32_t>(self, 0x6B4 + 4 * kind))
+            At<float>(stats, 0) = static_cast<float>(At<float>(stats, 0) / static_cast<double>(count));
+        std::memcpy(stats - 0x25C, stats, 0x14);
+    }
+    if (const uint32_t count = At<uint32_t>(self, 0x6E8))
+        At<float>(self, 0x544) = static_cast<float>(At<float>(self, 0x544) / static_cast<double>(count));
+    std::memcpy(static_cast<char*>(self) + 0x2E8, static_cast<char*>(self) + 0x544, 0x14);
+    for (std::size_t record = 0; record < 12; ++record) {
+        char* const entry = static_cast<char*>(self) + 0x578 + 0x14 * record;
+        if (const uint16_t count = At<uint16_t>(entry, 0))
+            At<float>(entry, 0x4) = static_cast<float>(At<float>(entry, 0x4) / static_cast<double>(count));
+        std::memcpy(entry - 0x25C, entry, 0x14);
+    }
+    for (std::size_t kind = 0; kind < 13; ++kind) {
+        const uint16_t count = At<uint16_t>(self, 0x558 + 2 * kind);
+        At<uint16_t>(self, 0x558 + 2 * kind - 0x25C) = count;
+        At<uint32_t>(self, 0x740 + 4 * kind) = count;
+    }
+    reinterpret_cast<ThisFn>(addr::cSC4TrafficSimulator_FinishStats1)(self);
+    reinterpret_cast<ThisFn>(addr::cSC4TrafficSimulator_FinishStats2)(self);
+    char* const vector = static_cast<char*>(self) + 0x130;
+    reinterpret_cast<RecordsFn>(addr::SC4TrafficRecords_Update)(static_cast<char*>(self) + 0x13C, vector);
+    At<char*>(vector, 4) = At<char*>(vector, 0);
+    EndSliced(deadline);
+    return 1;
+}
+
 // Phase 7 (0x007137D0): in each node of the hash table at +0x178, the 16
 // counters at +0x2A move to +0x8 and their sum (at most 0xFFFF) goes to
 // +0x28.
@@ -1581,6 +1751,87 @@ uint8_t __fastcall Phase13(void* self, void*, void* deadline)
         return 0;
     reinterpret_cast<FinishFn>(addr::SC4TrafficZones_Finish)(static_cast<char*>(self) + 0x70, static_cast<char*>(self) + 0x64);
     return 1;
+}
+
+// Phase 15 (0x0070FEF0): each occupant of the walk at +0x904 loses flag
+// 0x80 and gives its cell to +0x90C, +0x90E; one of type 8 or 9 (slot 31)
+// that is not marked (slot 28) paints its rectangle (slot 14) in the byte
+// grid at +0x44 with the value at a linked occupant's cell (slot 59), or
+// else at the nearest marked occupant of its type found walking out in
+// the four directions (0 when none).
+uint8_t __fastcall Phase15(void* self, void*, void* parent)
+{
+    static const int32_t kStepX[4] = {-1, 0, 1, 0}; // 0x00AB325C
+    static const int32_t kStepZ[4] = {0, -1, 0, 1}; // 0x00AB326C
+    static bool logged = false;
+    FirstCall("Phase15", logged);
+    SlicedDeadline deadline;
+    StartSliced(deadline, parent, addr::cSC4TrafficSimulator_Phase15Step);
+    void* const grid = Virtual<void*>(At<void*>(self, 0x44), 0x60);
+    void* const lots = Global<void*>(addr::SC4_LotManager);
+    for (;;) {
+        if (SlicedExpired(deadline))
+            return 0;
+        void** const walk = At<void**>(self, 0x904);
+        void* const* const head = static_cast<void* const*>(walk[1]);
+        if (!head || walk[0] == *head) {
+            EndSliced(deadline);
+            return 1;
+        }
+        void** const node = static_cast<void**>(walk[0]);
+        walk[0] = node[0];
+        void* const occupant = node[2];
+        Virtual<void>(occupant, 0x34, Virtual<uint32_t>(occupant, 0x30) & 0xFFFFFF7Fu);
+        int32_t cellX = 0;
+        int32_t cellZ = 0;
+        Virtual<void>(occupant, 0x54, &cellX, &cellZ);
+        At<uint16_t>(self, 0x90E) = static_cast<uint16_t>(cellZ);
+        At<uint16_t>(self, 0x90C) = static_cast<uint16_t>(cellX);
+        const uint32_t type = Virtual<uint32_t>(occupant, 0x7C);
+        if ((type != 9 && type != 8) || Virtual<uint8_t>(occupant, 0x70))
+            continue;
+        uint8_t value = 0;
+        if (void* const linked = Virtual<void*>(occupant, 0xEC)) {
+            int32_t x = 0;
+            int32_t z = 0;
+            Virtual<void>(linked, 0x54, &x, &z);
+            value = GridCell<uint8_t>(grid, x, z);
+        } else {
+            int32_t originX = 0;
+            int32_t originZ = 0;
+            Virtual<void>(occupant, 0x54, &originX, &originZ);
+            uint8_t open = 0xF;
+            uint8_t direction = 3;
+            uint8_t distance = 0;
+            while (open) {
+                do {
+                    if (++direction == 4) {
+                        direction = 0;
+                        ++distance;
+                    }
+                } while (!(open & (1u << direction)));
+                const int32_t x = originX + kStepX[direction] * distance;
+                const int32_t z = originZ + kStepZ[direction] * distance;
+                void* other = nullptr;
+                if (x >= At<int32_t>(self, 0x18C) && z >= At<int32_t>(self, 0x190) && x <= At<int32_t>(self, 0x194) &&
+                    z <= At<int32_t>(self, 0x198))
+                    other = Virtual<void*>(lots, 0x18, x, z, 0u);
+                if (!other || Virtual<uint32_t>(other, 0x7C) != type) {
+                    open = static_cast<uint8_t>(open & ~(1u << direction));
+                    continue;
+                }
+                if (other == occupant || !Virtual<uint8_t>(other, 0x70))
+                    continue;
+                value = GridCell<uint8_t>(grid, x, z);
+                break;
+            }
+        }
+        int32_t rect[4] = {};
+        Virtual<void>(occupant, 0x38, rect);
+        for (int32_t x = rect[0]; x <= rect[2]; ++x)
+            for (int32_t z = rect[1]; z <= rect[3]; ++z)
+                GridCell<uint8_t>(grid, x, z) = value;
+    }
 }
 
 // Phase 16 (0x0071E1B0): each lot of the walk at +0x908 (its cell to
@@ -1718,6 +1969,7 @@ uint8_t __fastcall Phase19(void* self, void*, void* parent)
 
 using PhaseFn = uint8_t(__fastcall*)(void*, void*, void*);
 PhaseFn g_originalPhase0 = nullptr;
+PhaseFn g_originalPhase2 = nullptr;
 PhaseFn g_originalPhase3 = nullptr;
 PhaseFn g_originalPhase4 = nullptr;
 PhaseFn g_originalPhase5 = nullptr;
@@ -1727,6 +1979,7 @@ PhaseFn g_originalPhase8 = nullptr;
 PhaseFn g_originalPhase10 = nullptr;
 PhaseFn g_originalPhase11 = nullptr;
 PhaseFn g_originalPhase13 = nullptr;
+PhaseFn g_originalPhase15 = nullptr;
 PhaseFn g_originalPhase16 = nullptr;
 PhaseFn g_originalPhase19 = nullptr;
 using Phase12Fn = void(__fastcall*)(void*, void*);
@@ -1740,6 +1993,7 @@ bool InstallPhases(registry::Mode)
         PhaseFn* original;
     } phases[] = {
         {addr::cSC4TrafficSimulator_Phase0, &Phase0, &g_originalPhase0},
+        {addr::cSC4TrafficSimulator_Phase2, &Phase2, &g_originalPhase2},
         {addr::cSC4TrafficSimulator_Phase3, &Phase3, &g_originalPhase3},
         {addr::cSC4TrafficSimulator_Phase4, &Phase4, &g_originalPhase4},
         {addr::cSC4TrafficSimulator_Phase5, &Phase5, &g_originalPhase5},
@@ -1749,6 +2003,7 @@ bool InstallPhases(registry::Mode)
         {addr::cSC4TrafficSimulator_Phase10, &Phase10, &g_originalPhase10},
         {addr::cSC4TrafficSimulator_Phase11, &Phase11, &g_originalPhase11},
         {addr::cSC4TrafficSimulator_Phase13, &Phase13, &g_originalPhase13},
+        {addr::cSC4TrafficSimulator_Phase15, &Phase15, &g_originalPhase15},
         {addr::cSC4TrafficSimulator_Phase16, &Phase16, &g_originalPhase16},
         {addr::cSC4TrafficSimulator_Phase19, &Phase19, &g_originalPhase19},
     };
@@ -1771,7 +2026,7 @@ const bool g_registeredPhases = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::cSC4TrafficSimulator_Phase0,
-    "Our traffic sub-step phases 0, 3-8, 10-13, 16 and 19 (docs/traffic.md)",
+    "Our traffic sub-step phases 0, 2-8, 10-13, 15, 16 and 19 (docs/traffic.md)",
     false,
     InstallPhases,
 });

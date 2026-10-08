@@ -2675,3 +2675,63 @@ kind = "function"
 convention = "cdecl"
 expect = "53 8B 5C 24 08 8B 03 55"
 source = "Name ours. (cISC4PropertyHolder*, property ID, SC4Vector<uint32_t> const*): sets the property's uint32 array, adding the property if missing (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::BlockTraffic"
+address = 0x00714AA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 8B 54 24 20 53"
+source = "Name ours, not analysed. (x / 4, z / 4): a uint16 for a 4x4 block; phase 2 scales it by +0xD0C into the byte grid at +0x3C (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::AddCongestionEffect"
+address = 0x00716950
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 8B 44 24 18 8B"
+source = "Name ours, not analysed. (x, z, float): phase 2 calls it for busy edges of types 1 and 2 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4CostTable::At"
+address = 0x006D90F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 70 8B 44 24 74 53"
+source = "Name ours. The node of a uint32 key (by pointer) in the hash table at the traffic simulator's +0x70C (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::FinishStats1"
+address = 0x0070D8A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B F1"
+source = "Name ours, not analysed. Called when phase 2 is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::FinishStats2"
+address = 0x0070DA40
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 86"
+source = "Name ours, not analysed. Called when phase 2 is done, after FinishStats1 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4TrafficRecords::Update"
+address = 0x007AD7A0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 57 8B F9"
+source = "Name ours, not analysed. On the traffic simulator's +0x13C with the vector at +0x130, when phase 2 is done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase2Step"
+address = 0x00B4B348
+kind = "data"
+source = "Name ours. uint32: the deadline step of phase 2 (0x400 at first; flag bit 0 of 0x00B4B350 once set) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase15Step"
+address = 0x00B4B324
+kind = "data"
+source = "Name ours. uint32: the deadline step of phase 15 (0x400 at first; flag bit 0 of 0x00B4B32C once set) (docs/traffic.md)."
