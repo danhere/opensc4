@@ -44,6 +44,21 @@ Along the way the proxy turned up a real bug: eight garbage getters return 64-bi
 - **Schedule.** `determinism.fixed_ticks` ends a day as soon as its work is done; real play on a fast machine spends waiting time on idle work. Parity holds for this schedule.
 - **Whole saves** still differ from run to run in some records (automata, advisors, props, the traffic network map; [experiments/determinism.md](experiments/determinism.md)); the harness compares fingerprints and decoded records, which agree.
 
+## Coverage
+
+The test cities never edit their networks, so parity alone would not reach the code a network edit, a disaster or a rare message runs. Autotest switches bring those events in, identically on both sides of a pair:
+
+| Switch | What it does |
+| --- | --- |
+| `OPENSC4_TEST_POWER_WAKE=<n>`, `OPENSC4_TEST_WATER_WAKE=<n>` | on day n, wake the power or water step (+0x14), as message 0x6AC284F3 from the network tools would |
+| `OPENSC4_TEST_POWER_MESSAGES=<n>` | on day n, a network change (0x278E6003) and a changed cell rectangle (0x07699455) over the whole city, to power's DoMessage |
+| `OPENSC4_TEST_OCCUPANT_CYCLE=<n>` | on day n, "removed" then "added" (0x99EF1143, 0x99EF1142) for an existing pipe and pole, to the water and power simulators; and power's plant disaster message (0xC2C09554 with 0xE0D0722E) |
+| `OPENSC4_TEST_FIND_POWER_PLANTS=1`, `OPENSC4_TEST_CAPACITY_SCALE=1`, `OPENSC4_TEST_GARBAGE_BUILDINGS=1`, `OPENSC4_TEST_RADIATION=x,z,amount,radius` | one call each after the load: power's FindPowerPlants, pollution's capacity scale handler, GetGarbageBuildings, AddRadiationToCity |
+
+Building real network pieces from the harness did not work: the game's network tool (`cISC4NetworkManager::GetNetworkTool`, then `PlaceNetworkOccupants`, or `DrawNetworkLine` and `PlaceAllSegments`) needs an initialised tool of its own (the shared one has no terrain at +0x44 until the player picks it, and placing with it crashes), and even then every drag came out at cost 0 and built nothing, in the tutorial cities and in one with the tutorial off. Making it build would mean working out the network tool, which waits for the NAM team (ROADMAP P7); the messages above reach the simulators' handlers instead.
+
+With all of them (power and water woken on day 1, the network messages on day 2, the occupant cycle on day 3, the three one-off calls) and every pollution, power and water replacement on, our three objects included: 12 of 12, 3 of 3 on `saves-plopped` for a week, 2 of 2 on `saves-mm2` for 90 days, all three save records identical (2026-10-08). Reached now that were not before: water's `OnPipe`, power's plant disaster case, `RecomputeArea` and the network change handler in every run, GetGarbageBuildings. Still not reached: power's `CreateBitArrays` (a new city), `OccupantCell` and `FindConnectedOccupant` (consumer lots short of power), water's `FindOtherSources` (a pump whose source kind searches), `ObjectCell` and `Serve` (consumer lots short of water, lots of type 5).
+
 ## Save corpus
 
 `%LOCALAPPDATA%\opensc4\parity\saves-plopped` adds three saves of a Big City Tutorial with garbage and water buildings, which the main corpus lacks (it has one such building, in Rush Hour): a water treatment plant, a recycling center, a waste-to-energy plant and a landfill zone, placed through the game's own UI by a script (2026-10-07), then the city as built (`p0000`) and 90 and 365 days on. The steps: the tutorial is switched off by clearing the flag in its `cSC4TutorialSystem` record ([save-format.md](save-format.md)); `run-save-test.sh` with `OPENSC4_TEST_START_PAUSED=1` loads the city paused; the buildings are placed (a blocking area first bulldozed and left to clear for a few game days); the game is resumed from its speed buttons and the run saves at its last day. The base game's menus have no plain incinerator, so the list at +0x6C stays empty.
