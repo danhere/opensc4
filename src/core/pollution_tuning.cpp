@@ -147,6 +147,56 @@ void __fastcall LoadTuning(void* self, void*)
         Free(points.begin);
 }
 
+// --- CreateCurves (0x006E59D0) ----------------------------------------------
+
+using AllocateFn = void*(__cdecl*)(std::size_t size);
+const auto OperatorNew = reinterpret_cast<AllocateFn>(addr::SC4_operator_new);
+
+// Once per process: DestroyCurves registered for later, the block size,
+// and the six global curves (empty) where there are none yet. Init calls it
+// first, with the simulator as its argument, which it does not use.
+uint8_t __cdecl CreateCurves(void*)
+{
+    if (Global<uint8_t>(addr::PollutionTuning_CurvesCreated))
+        return 1;
+    Global<uint8_t>(addr::PollutionTuning_CurvesCreated) = 1;
+    Virtual<uint32_t>(Global<void*>(addr::SC4_Service43C94), 0x114,
+                      reinterpret_cast<void*>(addr::PollutionTuning_DestroyCurves), 0u);
+    Global<uint16_t>(addr::PollutionSimulator_BlockCells) = 30;
+    for (const auto& curve : kGlobalCurves) {
+        void*& pointer = Global<void*>(curve.pointer);
+        if (pointer)
+            continue;
+        void* const created = OperatorNew(0x10);
+        if (created)
+            std::memset(created, 0, 0x10);
+        pointer = created;
+    }
+    return 1;
+}
+
+using CreateCurvesFn = uint8_t(__cdecl*)(void*);
+CreateCurvesFn g_originalCreateCurves = nullptr;
+
+bool InstallCurves(registry::Mode)
+{
+    const addr::Entry* entry = addr_check::Find(addr::PollutionTuning_CreateCurves);
+    if (!game::IsBuild641() || !entry)
+        return false;
+    return hook::Install(*entry, &CreateCurves, &g_originalCreateCurves);
+}
+
+const bool g_registeredCurves = registry::Register({
+    "simulators.pollution.curves",
+    "simulators/pollution",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::PollutionTuning_CreateCurves,
+    "Our creation of the pollution tuning curves (CreateCurves) (docs/pollution.md)",
+    false,
+    InstallCurves,
+});
+
 // --- Self-check ---------------------------------------------------------------
 
 using TuningFn = void(__fastcall*)(void*, void*);

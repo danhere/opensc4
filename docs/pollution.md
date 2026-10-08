@@ -8,7 +8,7 @@ In increments, each on the original object. The game keeps creating, loading, sa
 
 | Replacement | What is ours | State |
 | --- | --- | --- |
-| `simulators.pollution.interface` | 66 of the 71 `cISC4PollutionSimulator` slots: the getters, setters and queries ([src/core/pollution_sim.cpp](../src/core/pollution_sim.cpp)) | done; parity below |
+| `simulators.pollution.interface` | 66 of the 71 `cISC4PollutionSimulator` slots: the getters, setters and queries; `DoMessage` (+0x4 interface); slots 3 and 4 of the +0x8 interface ([src/core/pollution_sim.cpp](../src/core/pollution_sim.cpp)) | done; parity below |
 | `simulators.pollution.tracts` | `SimulateTracts` (0x006E7FD0), the simulation: the handler of message 0x66956814 ([src/core/pollution_tracts.cpp](../src/core/pollution_tracts.cpp)); the helpers it calls are still the game's | parity below |
 | `simulators.pollution.disposal` | `DisposeGarbage` (0x006E3820), which the tract walk calls ([src/core/pollution_tracts.cpp](../src/core/pollution_tracts.cpp)) | parity below |
 | `simulators.pollution.buildings` | `SpreadUsedCapacity` (0x006E3FE0) and `UpdateMaintenanceCosts` (0x006E4100), the tract walk's building-list helpers ([src/core/pollution_buildings.cpp](../src/core/pollution_buildings.cpp)) | parity below |
@@ -24,6 +24,8 @@ In increments, each on the original object. The game keeps creating, loading, sa
 | `simulators.pollution.tuning` | `LoadTuning` (0x006E5B10), the tuning globals and curves ([src/core/pollution_tuning.cpp](../src/core/pollution_tuning.cpp)) | parity below |
 | `simulators.pollution.init` | Init (0x006E7130), slot 3 ([src/core/pollution_init.cpp](../src/core/pollution_init.cpp)) | parity below |
 | `simulators.pollution.shutdown` | Shutdown (0x006E5F50), slot 4 ([src/core/pollution_init.cpp](../src/core/pollution_init.cpp)) | parity below |
+| `simulators.pollution.curves` | `CreateCurves` (0x006E59D0), the global tuning curves ([src/core/pollution_tuning.cpp](../src/core/pollution_tuning.cpp)) | parity below |
+| `simulators.pollution.capacity` | `UpdateCapacityScale` (0x006E44B0), the handler of message 0x66956810 ([src/core/pollution_tracts.cpp](../src/core/pollution_tracts.cpp)) | self-check below |
 | | slots 0-2 (QueryInterface, AddRef, Release) | not started |
 
 The interface methods are swapped in the primary vtable (0x00AB2630), not detoured at their entries: nothing calls them directly (every reference is the vtable's), and several are compiler-folded with other classes' functions (0x006E3000 sits in nine vtables, the functions of slots 10, 30, 31 and 32 in two to five), so an entry detour would change those classes too. The swap checks that every slot still holds the game's function and changes all of them or none.
@@ -153,6 +155,8 @@ Init (0x006E7130, slot 3), entry-detoured like the helpers: first `CreateCurves`
 
 The last interface slots: 53 `GetCurrentCapacity` (the property, 0 unless the service at +0x34 accepts the building (slot 31), times the capacity scale +0x228 truncated, then times the building's condition curve (property 0x8A1E07EE) at its age, rounded the game's way); 55 (`GetCurrentCapacity` of the recycling property / 100; the game passes its own argument's stack slot as the output); 56 (1.0 at 0x00B0D408 times the condition curve); 57 (the capacity scale times slot 56, for a building the service at 0x00B43DA0 accepts); 65 `CalcOccupantMaintenanceCost` (property 0x2A58D350, an int64, times the curve 0x0911E2E7 at the age, truncated); 66 `AddRadiationToCity` (`SpreadAround` on the radiation grid, then `UpdateWorstTractsAndEffects` and message 0xDA6DD35D); 46 `GetGarbageBuildings` (the incinerator, waste-to-energy and recycling lists appended to the caller's, with a reference each; it returns whatever EAX last held, the last node, as ours does).
 
+`DoMessage` (0x006E8E20) only dispatches (the table above); ours calls each handler through its address, so that each is the game's or ours as configured. `CreateCurves` (0x006E59D0): once per process (flag 0x00B49BA8), registers `DestroyCurves` (0x006E5150) with the service at 0x00B43C94, sets the block size 0x00B49B90 to 30 and creates the six global curves (16 bytes each, empty). The +0x8 interface's slot 3 (0x006E3BC0): the average `GetGarbageValue` over a cell rectangle, times about 1/32767, through the curve at 0x00B49BAC, rounded; it is asked about 8x8-cell blocks and in the test cities always answered 0.
+
 `Read` (0x006E5270) is `Write` backwards, for versions up to 4: versions below 3 also carry a string and a uint32 that it reads and drops, version 3 lacks +0x1B8; it then drops the department reference (+0xD8) and reads it again, and sets the byte at +0x11.
 
 ## What the game does that gzcom-dll's header does not say
@@ -221,5 +225,7 @@ With our `Write` too (`save1`): 12 of 12 identical on the first pair, and the po
 Init: 12 of 12 (after one crash during a load at 0x0096DA20, in framework code, seen once before in a proxy run ([parity.md](parity.md)); three repeats loaded fine) and 3 of 3 on `saves-plopped` for a week; every test city is loaded, and even the region's empty tiles carry a pollution record, so the new-city part was checked with `diagnostics.pollution_fresh` on both sides, which clears the loaded flag and forgets the grids before Init: 12 of 12 on that path too (the pollution figures and worst tracts start from zero there, so the path does run). Shutdown, which every run calls when it quits: with Init and Shutdown ours, 12 of 12, Shutdown reached in all twelve and every game exited without a crash.
 
 The last interface slots: with the self-check (each of 46, 53, 55-57 and 65 also calls the game's function and compares), no differences over 60 days on `saves-plopped` and `saves-recycle`; parity 12 of 12 and 3 of 3 for a week, 3 of 3 on `saves-plopped` for a year. 66 and 46 are not called in a test run: `OPENSC4_TEST_RADIATION=x,z,amount,radius` and `OPENSC4_TEST_GARBAGE_BUILDINGS=1` make autotest call them once after the load, on both sides; the radiation grid's checksum after the call was the same as the original's on all 12 saves (45 tracts changed), and `GetGarbageBuildings` returned the same buildings in the same order.
+
+The helpers: `DoMessage`, `CreateCurves` and the +0x8 slots, parity 12 of 12 and 3 of 3 for a week; the +0x8 slot 3 self-check agreed on every call (all 0, see above). `UpdateCapacityScale` never runs in a test (its message comes from the simulator's scheduler and never came in 735 days); `OPENSC4_TEST_CAPACITY_SCALE=1` calls it once after the load, and with the self-check it wrote the same scale as the game's on both `saves-mm2` saves.
 
 `LoadTuning`: with the self-check, the 213 words it writes (globals, disposal cost, the eight curves' segments) were identical to what the game's function wrote, on the two saves tried; parity 12 of 12 and 3 of 3 on `saves-plopped` for a week.
