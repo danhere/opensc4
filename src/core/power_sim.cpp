@@ -301,6 +301,8 @@ using FreeFn = void(__cdecl*)(void* p);
 const auto LoadCurveFromProperty = reinterpret_cast<LoadCurveFromPropertyFn>(addr::SC4Curve_LoadFromProperty);
 const auto EvaluateCurve = reinterpret_cast<EvaluateCurveFn>(addr::SC4Curve_Evaluate);
 const auto GetPropertyFloat = reinterpret_cast<GetPropertyFloatFn>(addr::SC4_GetPropertyFloat);
+using SetPropertyFloatFn = void(__cdecl*)(void* holder, uint32_t property, float value);
+const auto SetPropertyFloat = reinterpret_cast<SetPropertyFloatFn>(addr::SC4_SetPropertyFloat);
 const auto Free = reinterpret_cast<FreeFn>(addr::SC4_Free);
 
 constexpr std::size_t kFundingCurve = 0x378; // SC4Curve: efficiency by local funding
@@ -596,6 +598,550 @@ void __fastcall UpdatePlantUsage(void* self, void*, uint32_t used, uint32_t prod
     }
 }
 
+// The bit arrays and the network's cells.
+using BitRectFn = void(__cdecl*)(uint32_t* bits, uint32_t width, const int32_t* rect);
+using BitClearFn = void(__cdecl*)(uint32_t* bits, uint32_t width);
+using AllocateFn = void*(__cdecl*)(std::size_t size);
+const auto SetBitRect = reinterpret_cast<BitRectFn>(addr::BitGrid_SetRect);
+const auto ClearBitRect = reinterpret_cast<BitRectFn>(addr::BitGrid_ClearRect);
+const auto ClearBits = reinterpret_cast<BitClearFn>(addr::BitGrid_Clear);
+const auto OperatorNew = reinterpret_cast<AllocateFn>(addr::SC4_operator_new);
+
+// 0x006EAFD0, 0x006EB020: a rectangle of the wired bits set or cleared.
+void __fastcall FillWiredRect(void* self, void*, const int32_t* rect)
+{
+    static bool logged = false;
+    FirstCall("FillWiredRect", logged);
+    const int32_t copy[4] = {rect[0], rect[1], rect[2], rect[3]};
+    SetBitRect(At<uint32_t*>(self, field::kWiredBits), CityCellsX(self), copy);
+}
+
+void __fastcall ClearWiredRect(void* self, void*, const int32_t* rect)
+{
+    static bool logged = false;
+    FirstCall("ClearWiredRect", logged);
+    const int32_t copy[4] = {rect[0], rect[1], rect[2], rect[3]};
+    ClearBitRect(At<uint32_t*>(self, field::kWiredBits), CityCellsX(self), copy);
+}
+
+// 0x006EB280 (stdcall): the object's cell (its slot 6), clamped to the city.
+void __stdcall OccupantCell(void* object, int32_t* x, int32_t* z)
+{
+    static bool logged = false;
+    FirstCall("OccupantCell", logged);
+    if (!object)
+        return;
+    void* const city = Global<void*>(addr::SC4_City);
+    const int32_t lastX = Virtual<int32_t>(city, 0x174) - 1;
+    const int32_t lastZ = Virtual<int32_t>(city, 0x178) - 1;
+    Virtual<uint32_t>(object, 0x18, x, z);
+    if (*x < 0)
+        *x = 0;
+    if (*z < 0)
+        *z = 0;
+    if (*x > lastX)
+        *x = lastX;
+    if (*z > lastZ)
+        *z = lastZ;
+}
+
+// 0x006EB350: a network change at a cell rectangle.
+uint8_t __fastcall OnNetworkCellChanged(void* self, void*, int32_t x0, int32_t z0, int32_t x1, int32_t z1)
+{
+    static bool logged = false;
+    FirstCall("OnNetworkCellChanged", logged);
+    using RectFn = void(__thiscall*)(void* self, int32_t* rect);
+    int32_t rect[4] = {x0, z0, x1, z1};
+    reinterpret_cast<RectFn>(addr::cSC4PowerSimulator_GrowRect)(self, rect);
+    if (Virtual<uint8_t>(At<void*>(self, 0x2C), 0x30, x0, z0))
+        reinterpret_cast<RectFn>(addr::cSC4PowerSimulator_FillWiredRect)(self, rect);
+    reinterpret_cast<RectFn>(addr::cSC4PowerSimulator_AddDirtyRect)(self, rect);
+    return 1;
+}
+
+// 0x006EAED0: the four bit arrays, cells / 32 words each, cleared.
+void __fastcall CreateBitArrays(void* self, void*)
+{
+    static bool logged = false;
+    FirstCall("CreateBitArrays", logged);
+    const int32_t cellsZ = Virtual<int32_t>(CityHelper(self), 0x178);
+    const int32_t cellsX = Virtual<int32_t>(CityHelper(self), 0x174);
+    const int32_t words = cellsX * cellsZ / 32;
+    At<int32_t>(self, 0x2CC) = words;
+    for (const std::size_t array : {0x2C4, 0x2C8, 0x2D4, 0x2D0}) {
+        At<void*>(self, array) = OperatorNew(static_cast<std::size_t>(At<int32_t>(self, 0x2CC)) * 4);
+        ClearBits(At<uint32_t*>(self, array), CityCellsX(self));
+    }
+}
+
+// 0x006EBD00: the cells whose state changed, published by 8x8 block.
+void __fastcall PublishChanges(void* self, void*)
+{
+    static bool logged = false;
+    FirstCall("PublishChanges", logged);
+    using ChangesFn = void(__cdecl*)(uint32_t* changes, const uint32_t* now, uint32_t width);
+    using AnyFn = uint8_t(__cdecl*)(const uint32_t* bits, uint32_t width, const int32_t* rect);
+    using BitFn = uint32_t(__cdecl*)(const uint32_t* bits, uint32_t width, int32_t x, int32_t z);
+    using NewFn = void*(__cdecl*)(std::size_t size);
+    using MessageFn = void*(__thiscall*)(void* memory);
+    void* const messages = Global<void*>(addr::SC4_MessageServer);
+    const uint32_t width = CityCellsX(self);
+    reinterpret_cast<ChangesFn>(addr::BitGrid_Changes)(At<uint32_t*>(self, 0x2D0), At<uint32_t*>(self, 0x2D4),
+                                                     CityCellsX(self));
+    const auto changes = [self] { return At<const uint32_t*>(self, 0x2D0); };
+    const auto bit = reinterpret_cast<BitFn>(0x00603DD0);
+    int32_t lastBlock = static_cast<int32_t>((width >> 3) - 1);
+    if (lastBlock < 0)
+        lastBlock = 0;
+    for (int32_t blockZ = 0; blockZ <= lastBlock; ++blockZ) {
+        for (int32_t blockX = 0; blockX <= lastBlock; ++blockX) {
+            const int32_t rect[4] = {blockX * 8, blockZ * 8, blockX * 8 + 7, blockZ * 8 + 7};
+            if (!reinterpret_cast<AnyFn>(addr::BitGrid_AnyInRect)(changes(), width, rect))
+                continue;
+            for (int32_t x = rect[0]; x <= rect[2]; ++x) {
+                for (int32_t z = rect[1]; z <= rect[3]; ++z) {
+                    if (!static_cast<uint8_t>(bit(changes(), width, x, z)))
+                        continue;
+                    const uint8_t wired = static_cast<uint8_t>(bit(At<uint32_t*>(self, field::kWiredBits), width, x, z));
+                    const uint8_t powered = static_cast<uint8_t>(bit(At<uint32_t*>(self, field::kPoweredBits), width, x, z));
+                    const uint32_t value = wired ? (powered ? 2u : 1u) : 0u;
+                    Virtual<uint32_t>(At<void*>(self, field::kSupplyGrid), 0x68, x, z, value);
+                }
+            }
+            void* const memory = reinterpret_cast<NewFn>(addr::RZ_operator_new)(0x2C);
+            void* const message = memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr;
+            Virtual<uint32_t>(message, 0x4);
+            Virtual<uint32_t>(message, 0x14, 0x8A07AE00u);
+            Virtual<uint32_t>(message, 0x2C, rect[0]);
+            Virtual<uint32_t>(message, 0x40, rect[1]);
+            Virtual<uint32_t>(message, 0x54, rect[2]);
+            Virtual<uint32_t>(message, 0x68, rect[3]);
+            Virtual<uint32_t>(messages, 0x10, message, 0u);
+            Virtual<uint32_t>(message, 0x8);
+            At<uint8_t>(self, 0x2D9) = 1;
+        }
+    }
+}
+
+// 0x006EDB40: the first of the type-4 occupants for the key (occupant
+// service +0x30, slot 18) whose cell is set in +0x2C4.
+uint8_t __fastcall FindConnectedOccupant(void* self, void*, void* key, uint8_t switchOn, uint8_t mark)
+{
+    static bool logged = false;
+    FirstCall("FindConnectedOccupant", logged);
+    using ClearFn = void(__thiscall*)(void** list);
+    using SetBitFn = void(__cdecl*)(uint32_t* bits, uint32_t width, int32_t x, int32_t z);
+    void** const sentinel = static_cast<void**>(Virtual<void*>(NodeAllocatorAt(addr::SC4List_NodeAllocator3), 0xC, 12u));
+    sentinel[0] = sentinel;
+    sentinel[1] = sentinel;
+    void* list = sentinel;
+    Virtual<uint32_t>(At<void*>(self, 0x30), 0x48, 4u, key, &list);
+    int32_t x = 0;
+    auto z = static_cast<int32_t>(reinterpret_cast<std::uintptr_t>(key)); // the game keeps z in the key's slot
+    bool found = false;
+    void** node = static_cast<void**>(*static_cast<void**>(list));
+    for (; node != list; node = static_cast<void**>(node[0])) {
+        if (void* const occupant = node[2]) {
+            void* const city = Global<void*>(addr::SC4_City);
+            const int32_t lastX = Virtual<int32_t>(city, 0x174) - 1;
+            const int32_t lastZ = Virtual<int32_t>(city, 0x178) - 1;
+            Virtual<uint32_t>(occupant, 0x18, &x, &z);
+            if (x < 0)
+                x = 0;
+            if (z < 0)
+                z = 0;
+            if (x > lastX)
+                x = lastX;
+            if (z > lastZ)
+                z = lastZ;
+        }
+        const int32_t width = Virtual<int32_t>(CityHelper(self), 0x174);
+        const uint32_t word = static_cast<uint32_t>(width / 32 * z) + (static_cast<uint32_t>(x) >> 5);
+        if (At<uint32_t*>(self, 0x2C4)[word] & (1u << (x & 31))) {
+            found = true;
+            break;
+        }
+    }
+    if (found) {
+        if (switchOn)
+            Virtual<uint32_t>(node[2], 0x30, 1u);
+        if (mark)
+            reinterpret_cast<SetBitFn>(addr::BitGrid_Set)(At<uint32_t*>(self, 0x2D0), CityCellsX(self), x, z);
+    }
+    reinterpret_cast<ClearFn>(addr::SC4List_ClearReleasing)(&list);
+    Virtual<uint32_t>(NodeAllocatorAt(addr::SC4List_NodeAllocator3), 0x10, list);
+    return found ? 1 : 0;
+}
+
+// 0x006EC8F0: a plant's month of wear (as the pollution simulator's
+// AgeBuildings), and what happens at the end of its life.
+void __fastcall AgePlant(void* self, void*, void* plant)
+{
+    static bool logged = false;
+    FirstCall("AgePlant", logged);
+    using PostMessageFn = void(__cdecl*)(uint32_t message, uint32_t a, uint32_t b, uint32_t c, uint32_t d, void* e);
+    using RefListFn = void(__thiscall*)(void** list, void* const* object);
+    using RefClearFn = void(__thiscall*)(void** list);
+    using AllocateFn2 = void*(__cdecl*)(std::size_t size);
+    float age = 0.0f;
+    int32_t capacity = 0;
+    int32_t used = 0;
+    float use = 0.0f;
+    float end4 = 99.0f;
+    uint32_t blowUpType = 0;
+    float end2 = 99.0f;
+    float rate = 0.0f;
+    const float* const funding = Virtual<float*>(At<void*>(self, field::kDepartment), 0x28);
+    void* const holder = Virtual<void*>(plant, 0x18);
+    GetPropertyFloat(holder, 0xC910B4CF, &age);
+    GetPropertyFloat(holder, 0xEA1CF220, &rate);
+    GetPropertySint32(holder, 0x27812852, &capacity);
+    GetPropertySint32(holder, 0x08D9763D, &used);
+    GetPropertyFloat(holder, 0xEA1CF221, &end2);
+    GetPropertyFloat(holder, 0xEA1CF222, &end4);
+    GetPropertyUint32(holder, 0x6A43150F, &blowUpType);
+    float efficiency;
+    const float* const percent = Virtual<float*>(self, 0xB4, &efficiency, plant);
+    capacity = Ftol(static_cast<double>(capacity) * *percent);
+    if (capacity > 0 && used > 0)
+        use = static_cast<float>(static_cast<double>(used) / capacity);
+    const float fundingNow = *funding;
+    const float byUse = static_cast<float>(EvaluateCurve(static_cast<char*>(self) + 0x3A8, use));
+    age = static_cast<float>(EvaluateCurve(static_cast<char*>(self) + 0x398, fundingNow) * byUse * rate + age);
+    SetPropertyFloat(holder, 0xC910B4CF, age);
+    if (use > 1.0f)
+        ++At<int32_t>(self, field::kOverworkedPlants);
+    if (age >= 0.8)
+        ++At<int32_t>(self, field::kAgedPlants);
+    if (!(age >= end4) && !(age >= end2))
+        return;
+
+    float position[3];
+    Virtual<uint32_t>(plant, 0x20, position);
+    int32_t cellX, cellZ;
+    Virtual<uint32_t>(Global<void*>(addr::SC4_City), 0x17C, position[0], position[2], &cellX, &cellZ);
+    void* const lot = Virtual<void*>(Global<void*>(addr::SC4_LotManager), 0x18, cellX, cellZ, 0u);
+    if (!lot)
+        return;
+    if (age >= end4 && blowUpType != 0) {
+        // The plant blows up: its lot is demolished, radiation spreads.
+        void* list = nullptr;
+        auto** const sentinel = static_cast<void**>(reinterpret_cast<AllocateFn2>(addr::SC4_stl_allocate)(0xC));
+        sentinel[0] = sentinel;
+        sentinel[1] = sentinel;
+        list = sentinel;
+        void* lotRef = lot;
+        Virtual<uint32_t>(lot, 0x4);
+        reinterpret_cast<RefListFn>(addr::SC4RefList_PushBack)(&list, &lotRef);
+        Virtual<uint32_t>(lot, 0x8);
+        Virtual<uint32_t>(At<void*>(self, 0x34), 0x1C, 1u, &list, 0u, blowUpType | 0x300, 0u, 0u, 0u, 0u);
+        float radius = 0.0f;
+        float amount = 0.0f;
+        GetPropertyFloat(holder, 0xAA5C04C8, &radius);
+        GetPropertyFloat(holder, 0xAA5C04C5, &amount);
+        if (radius > 0.0f)
+            Virtual<uint32_t>(Global<void*>(addr::SC4_PollutionSimulator), 0x108, position, amount, radius);
+        uint32_t powerType = 0;
+        if (static_cast<uint8_t>(GetPropertyUint32(holder, 0x27812853, &powerType)) && powerType == 5)
+            reinterpret_cast<PostMessageFn>(addr::SC4_PostMessage)(0xAA552F77, 0, 0, 0, 0, plant);
+        reinterpret_cast<RefClearFn>(addr::SC4RefList_Clear)(&list);
+        if (list)
+            Free(list);
+        return;
+    }
+    if (age >= end2) {
+        ++At<int32_t>(self, field::kDistressedPlants);
+        Virtual<uint8_t>(lot, 0x90, 2u); // cISC4Lot::SetCondition
+    }
+}
+
+// 0x006ED6E0: a changed cell rectangle recomputed: the wired bits around
+// the network occupants near it (but `removed`) and around every cell the
+// network service (+0x2C, slot 12) says is wired; then the supply grid.
+void __fastcall RecomputeArea(void* self, void*, const uint32_t* rect, void* removed)
+{
+    static bool logged = false;
+    FirstCall("RecomputeArea", logged);
+    using RectFn = void(__thiscall*)(void* self, int32_t* rect);
+    using AroundFn = void(__thiscall*)(void* self, uint32_t x, uint32_t z, int32_t* rect);
+    using ClearFn = void(__thiscall*)(void** list);
+    using BitFn = uint32_t(__cdecl*)(const uint32_t* bits, uint32_t width, uint32_t x, uint32_t z);
+    const auto grow = reinterpret_cast<RectFn>(addr::cSC4PowerSimulator_GrowRect);
+    const auto fill = reinterpret_cast<RectFn>(addr::cSC4PowerSimulator_FillWiredRect);
+    auto** const sentinel = static_cast<void**>(Virtual<void*>(ListNodeAllocator(), 0xC, 12u));
+    sentinel[0] = sentinel;
+    sentinel[1] = sentinel;
+    void* list = sentinel;
+    const uint32_t margin2 = At<uint32_t>(self, kRectMargin) * 2;
+    const uint32_t low[2] = {rect[0] - margin2, rect[1] - margin2};
+    const uint32_t high[2] = {rect[2] + margin2, rect[3] + margin2};
+    if (Virtual<uint8_t>(Global<void*>(addr::SC4_NetworkService), 0xA0, &list, low, high, 0u, 0xFFFFFFFFu)) {
+        void* const end = list;
+        for (void** node = static_cast<void**>(*static_cast<void**>(end)); node != end;
+             node = static_cast<void**>(node[0])) {
+            void* const occupant = node[2];
+            if (occupant != removed) {
+                // The game asks the type until it matches, then once more.
+                bool network = Virtual<uint32_t>(occupant, 0x1C) == 0x278128A0;
+                network = network || Virtual<uint32_t>(occupant, 0x1C) == 0x2890D4DE;
+                network = network || Virtual<uint32_t>(occupant, 0x1C) == 0x0990B2EA;
+                network = network || Virtual<uint32_t>(occupant, 0x1C) == 0xC772BF98;
+                if (network) {
+                    const uint32_t type = Virtual<uint32_t>(occupant, 0x1C);
+                    int32_t cell[4];
+                    void* part = nullptr;
+                    if (type == 0x0990B2EA || type == 0x2890D4DE) {
+                        const bool isA = type == 0x0990B2EA;
+                        if (Virtual<uint8_t>(occupant, 0x0, isA ? 0xC98F3B24u : 0xA8C86142u, &part)) {
+                            int32_t x, z;
+                            Virtual<uint32_t>(part, isA ? 0x14 : 0x20, &x, &z);
+                            cell[0] = x;
+                            cell[1] = z;
+                            cell[2] = x;
+                            cell[3] = z;
+                            grow(self, cell);
+                            fill(self, cell);
+                            Virtual<uint32_t>(part, 0x8);
+                        }
+                    } else if (type == 0xC772BF98) {
+                        if (Virtual<uint8_t>(occupant, 0x0, 0xA821EF94u, &part)) {
+                            if (Virtual<uint32_t>(part, 0x30) & 0x40000) {
+                                int32_t x, z;
+                                Virtual<uint32_t>(part, 0xEC, &x, &z);
+                                cell[0] = x;
+                                cell[1] = z;
+                                cell[2] = x;
+                                cell[3] = z;
+                                fill(self, cell);
+                            }
+                            Virtual<uint32_t>(part, 0x8);
+                        }
+                    } else {
+                        Virtual<uint32_t>(occupant, 0x2C, cell);
+                        grow(self, cell);
+                        fill(self, cell);
+                    }
+                }
+            }
+            Virtual<uint32_t>(occupant, 0x8); // the list's reference
+        }
+    }
+    const uint32_t width = CityCellsX(self);
+    for (uint32_t x = rect[0]; x <= rect[2]; ++x) {
+        for (uint32_t z = rect[1]; z <= rect[3]; ++z) {
+            if (!Virtual<uint8_t>(At<void*>(self, 0x2C), 0x30, x, z))
+                continue;
+            int32_t around[4];
+            reinterpret_cast<AroundFn>(addr::cSC4PowerSimulator_CellRectAround)(self, x, z, around);
+            const int32_t copy[4] = {around[0], around[1], around[2], around[3]};
+            SetBitRect(At<uint32_t*>(self, field::kWiredBits), CityCellsX(self), copy);
+        }
+    }
+    const auto bit = reinterpret_cast<BitFn>(0x00603DD0);
+    for (uint32_t x = rect[0]; x <= rect[2]; ++x) {
+        for (uint32_t z = rect[1]; z <= rect[3]; ++z) {
+            const uint8_t wired = static_cast<uint8_t>(bit(At<uint32_t*>(self, field::kWiredBits), width, x, z));
+            const uint8_t powered = static_cast<uint8_t>(bit(At<uint32_t*>(self, field::kPoweredBits), width, x, z));
+            Virtual<uint32_t>(At<void*>(self, field::kSupplyGrid), 0x68, x, z, wired ? (powered ? 2u : 1u) : 0u);
+        }
+    }
+    reinterpret_cast<ClearFn>(addr::SC4List_Clear2)(&list);
+    Virtual<uint32_t>(ListNodeAllocator(), 0x10, list);
+}
+
+// 0x006EE110: power from the plant at cell (x, z) through the network.
+void __fastcall DistributePower(void* self, void*, int32_t x, int32_t z)
+{
+    static bool logged = false;
+    FirstCall("DistributePower", logged);
+    using FloodFn = void(__cdecl*)(uint32_t* bits, const uint32_t* through, uint32_t width, uint32_t limit,
+                                   int32_t* minZ, int32_t* maxZ);
+    using AnyFn = uint8_t(__cdecl*)(const uint32_t* bits, uint32_t width, const int32_t* rect);
+    using OrRectFn = void(__cdecl*)(uint32_t* bits, const uint32_t* from, uint32_t width, const int32_t* rect);
+    using OutputFn = uint32_t(__thiscall*)(void* self, void* plant);
+    using FindFn = uint8_t(__thiscall*)(void* self, void* key, uint8_t switchOn, uint8_t mark);
+    using UsageFn = void(__thiscall*)(void* self, uint32_t used, uint32_t produced);
+    using RestartFn = void(__thiscall*)(void* iterator, uint32_t flag);
+    using NextFn = uint8_t(__thiscall*)(void* iterator, int32_t* x, int32_t* z);
+    using ClearFn = void(__thiscall*)(void** list);
+    const auto any = reinterpret_cast<AnyFn>(addr::BitGrid_AnyInRect);
+    const auto find = reinterpret_cast<FindFn>(addr::cSC4PowerSimulator_FindConnectedOccupant);
+    uint32_t*& reached = At<uint32_t*>(self, 0x2C4);
+
+    // The cells reached from the plant's cell.
+    ClearBits(reached, CityCellsX(self));
+    {
+        const int32_t width = Virtual<int32_t>(CityHelper(self), 0x174);
+        const uint32_t word = static_cast<uint32_t>(width / 32 * z) + (static_cast<uint32_t>(x) >> 5);
+        reached[word] |= 1u << (x & 31);
+    }
+    int32_t minZ = z;
+    int32_t maxZ = z + 1;
+    reinterpret_cast<FloodFn>(addr::BitGrid_Flood)(reached, At<uint32_t*>(self, field::kWiredBits), CityCellsX(self),
+                                                   600, &minZ, &maxZ);
+    if (minZ > maxZ) {
+        minZ = z;
+        maxZ = z + 1;
+    }
+    if (maxZ >= static_cast<int32_t>(CityCellsZ(self)))
+        maxZ = static_cast<int32_t>(CityCellsZ(self)) - 1;
+
+    // The plants reached for the first time (node state 0 to 1).
+    uint32_t produced = 0;
+    void* const plants = At<void*>(self, 0x298);
+    for (void* node = *static_cast<void**>(plants); node != plants; node = *static_cast<void**>(node)) {
+        auto* const fields = static_cast<uint32_t*>(node);
+        if (fields[2] != 0)
+            continue;
+        void* const plant = reinterpret_cast<void*>(fields[3]);
+        float low[3], high[3];
+        Virtual<uint32_t>(plant, 0x28, low, high);
+        int32_t rect[4];
+        Virtual<uint32_t>(self, 0x14, low[0], low[2], &rect[0], &rect[1]);  // PositionToCell
+        Virtual<uint32_t>(self, 0x14, high[0], high[2], &rect[2], &rect[3]);
+        const int32_t copy[4] = {rect[0], rect[1], rect[2], rect[3]};
+        if (!any(reached, CityCellsX(self), copy))
+            continue;
+        produced += reinterpret_cast<OutputFn>(addr::cSC4PowerSimulator_PlantOutput)(self, plant);
+        fields[2] = 1;
+    }
+    At<uint32_t>(self, 0x3C) += produced;
+
+    // The consumers of type 0x4773FFE0 on the network: what they still need.
+    auto newList = [] {
+        auto** const sentinel = static_cast<void**>(Virtual<void*>(NodeAllocatorAt(addr::SC4List_NodeAllocator), 0xC, 12u));
+        sentinel[0] = sentinel;
+        sentinel[1] = sentinel;
+        return static_cast<void*>(sentinel);
+    };
+    uint32_t needed = 0;
+    void* first = newList();
+    Virtual<uint32_t>(At<void*>(self, 0x30), 0x78, 0x4773FFE0u, &first);
+    for (void* node = *static_cast<void**>(first); node != first; node = *static_cast<void**>(node)) {
+        void* const consumer = static_cast<void**>(node)[2];
+        void* const key = Virtual<void*>(consumer, 0x1C);
+        const int32_t has = Virtual<int32_t>(consumer, 0x50);
+        if (has >= Virtual<int32_t>(consumer, 0x28))
+            continue;
+        if (!find(self, key, 1, 0))
+            continue;
+        const int32_t hasNow = Virtual<int32_t>(consumer, 0x50);
+        needed += static_cast<uint32_t>(Virtual<int32_t>(consumer, 0x28) - hasNow);
+    }
+    const auto reserve = static_cast<int32_t>(needed) - Ftol(static_cast<double>(produced) * -1.1f);
+    uint32_t supply = static_cast<uint32_t>(
+        Ftol(static_cast<double>(static_cast<uint32_t>(reserve)) / At<float>(self, 0x2AC)));
+
+    // The consumers of type 0x4773FFE1, served from the supply.
+    void* second = newList();
+    Virtual<uint32_t>(At<void*>(self, 0x30), 0x78, 0x4773FFE1u, &second);
+    for (void* node = *static_cast<void**>(second); node != second; node = *static_cast<void**>(node)) {
+        void* const consumer = static_cast<void**>(node)[2];
+        void* const key = Virtual<void*>(consumer, 0x1C);
+        const int32_t has = Virtual<int32_t>(consumer, 0x50);
+        if (has >= Virtual<int32_t>(consumer, 0x28))
+            continue;
+        if (!find(self, key, 0, supply > 0 ? 1 : 0))
+            continue;
+        const int32_t hasNow = Virtual<int32_t>(consumer, 0x50);
+        const int32_t missing = Virtual<int32_t>(consumer, 0x28) - hasNow;
+        const auto available = static_cast<int32_t>(supply);
+        const int32_t give = missing < available ? missing : available;
+        if (give > 0) {
+            At<int32_t>(self, 0x48) += give;
+            supply -= static_cast<uint32_t>(give);
+            Virtual<uint32_t>(consumer, 0x54, Virtual<int32_t>(consumer, 0x50) + give);
+        } else {
+            Virtual<uint32_t>(consumer, 0x94, 0x20u, 1u);
+        }
+    }
+
+    // The 8x8 blocks of the network, powered while the supply lasts.
+    alignas(4) uint8_t iterator[0x30] = {};
+    iterator[0] = 1;
+    iterator[1] = 0;
+    auto* const bounds = reinterpret_cast<int32_t*>(iterator + 4);
+    const uint32_t lastBlock = (CityCellsX(self) >> 3) - 1;
+    bounds[0] = 0;
+    bounds[1] = static_cast<int32_t>(static_cast<uint32_t>(minZ) >> 3);
+    bounds[2] = static_cast<int32_t>(lastBlock);
+    bounds[3] = static_cast<int32_t>(static_cast<uint32_t>(maxZ) >> 3);
+    reinterpret_cast<uint32_t*>(iterator)[11] = 1; // +0x2C
+    if (bounds[2] < 0)
+        bounds[2] = 0;
+    if (bounds[3] < bounds[1])
+        bounds[3] = bounds[1];
+    iterator[2] = 1;
+    reinterpret_cast<RestartFn>(addr::TractIterator_Restart)(iterator, 1);
+    bool shortage = false;
+    int32_t blockX, blockZ;
+    const auto next = reinterpret_cast<NextFn>(addr::TractIterator_Next);
+    if (next(iterator, &blockX, &blockZ)) {
+        do {
+            const int32_t rect[4] = {blockX * 8, blockZ * 8, blockX * 8 + 7, blockZ * 8 + 7};
+            if (!any(reached, CityCellsX(self), rect))
+                continue;
+            uint32_t demand = 0;
+            int32_t cells = 0;
+            for (int32_t cx = rect[0]; cx <= rect[2]; ++cx) {
+                const int16_t* const row = At<int16_t* const*>(self, field::kConsumptionMap)[3 * cx];
+                for (int32_t cz = rect[1]; cz <= rect[3]; ++cz) {
+                    const int32_t width = Virtual<int32_t>(CityHelper(self), 0x174);
+                    const uint32_t word = static_cast<uint32_t>(width / 32 * cz) + (static_cast<uint32_t>(cx) >> 5);
+                    if (!(reached[word] & (1u << (cx & 31))))
+                        continue;
+                    const int16_t value = row[cz];
+                    if (value > 0) {
+                        demand += static_cast<uint32_t>(static_cast<int32_t>(value));
+                        ++cells;
+                    }
+                }
+            }
+            const bool fits = supply > 0 && demand <= supply;
+            At<uint32_t>(self, 0x4C) += demand;
+            if (fits) {
+                reinterpret_cast<OrRectFn>(addr::BitGrid_OrRect)(At<uint32_t*>(self, 0x2D0), reached, CityCellsX(self), rect);
+                At<int32_t>(self, field::kPoweredConsumers) += cells;
+                supply -= demand;
+            } else {
+                shortage = true;
+            }
+        } while (next(iterator, &blockX, &blockZ));
+        if (shortage)
+            supply = 0;
+    }
+
+    // What is left over, and the first consumers topped up from it.
+    const int32_t surplus = Ftol(static_cast<double>(supply) * At<float>(self, 0x2AC));
+    At<int32_t>(self, 0x40) += reserve - surplus;
+    int32_t left = reserve - surplus;
+    Virtual<uint32_t>(At<void*>(self, 0x30), 0x78, 0x4773FFE0u, &first); // asked again, into the same list
+    for (void* node = *static_cast<void**>(first); node != first; node = *static_cast<void**>(node)) {
+        void* const consumer = static_cast<void**>(node)[2];
+        void* const key = Virtual<void*>(consumer, 0x1C);
+        const int32_t has = Virtual<int32_t>(consumer, 0x50);
+        if (has >= Virtual<int32_t>(consumer, 0x28))
+            continue;
+        if (!find(self, key, 0, 0))
+            continue;
+        const int32_t hasNow = Virtual<int32_t>(consumer, 0x50);
+        const int32_t missing = Virtual<int32_t>(consumer, 0x28) - hasNow;
+        const int32_t give = missing < left ? missing : left;
+        At<int32_t>(self, 0x44) += give;
+        left -= give;
+        Virtual<uint32_t>(consumer, 0x54, Virtual<int32_t>(consumer, 0x50) + give);
+    }
+    const auto producedNow = static_cast<int32_t>(produced);
+    reinterpret_cast<UsageFn>(addr::cSC4PowerSimulator_UpdatePlantUsage)(
+        self, static_cast<uint32_t>(left), static_cast<uint32_t>(producedNow < left ? left : producedNow));
+    if (void* const buffer = reinterpret_cast<void**>(iterator)[6]) // the iterator's buffer, +0x18
+        Free(buffer);
+    for (void** list : {&second, &first}) {
+        reinterpret_cast<ClearFn>(addr::SC4List_Clear)(list);
+        Virtual<uint32_t>(NodeAllocatorAt(addr::SC4List_NodeAllocator), 0x10, *list);
+    }
+}
+
 // --- OnMonthPassed (0x006EC570) ------------------------------------------------
 
 constexpr std::size_t kAnnualByType = 0x270; // int32[10]: the last 12 months' usage by type
@@ -797,7 +1343,7 @@ bool Install(registry::Mode)
 using PlantOutputFn = uint32_t(__fastcall*)(void*, void*, void*);
 PlantOutputFn g_originalPlantOutput = nullptr;
 
-void* g_originalHelper[5] = {};
+void* g_originalHelper[15] = {};
 
 bool InstallHelpers(registry::Mode)
 {
@@ -812,6 +1358,16 @@ bool InstallHelpers(registry::Mode)
         {addr::cSC4PowerSimulator_AddDirtyRect, reinterpret_cast<void*>(&AddDirtyRect)},
         {addr::cSC4PowerSimulator_UpdateDemandTotal, reinterpret_cast<void*>(&UpdateDemandTotal)},
         {addr::cSC4PowerSimulator_UpdatePlantUsage, reinterpret_cast<void*>(&UpdatePlantUsage)},
+        {addr::cSC4PowerSimulator_FillWiredRect, reinterpret_cast<void*>(&FillWiredRect)},
+        {addr::cSC4PowerSimulator_ClearWiredRect, reinterpret_cast<void*>(&ClearWiredRect)},
+        {addr::cSC4PowerSimulator_OccupantCell, reinterpret_cast<void*>(&OccupantCell)},
+        {addr::cSC4PowerSimulator_OnNetworkCellChanged, reinterpret_cast<void*>(&OnNetworkCellChanged)},
+        {addr::cSC4PowerSimulator_CreateBitArrays, reinterpret_cast<void*>(&CreateBitArrays)},
+        {addr::cSC4PowerSimulator_PublishChanges, reinterpret_cast<void*>(&PublishChanges)},
+        {addr::cSC4PowerSimulator_FindConnectedOccupant, reinterpret_cast<void*>(&FindConnectedOccupant)},
+        {addr::cSC4PowerSimulator_AgePlant, reinterpret_cast<void*>(&AgePlant)},
+        {addr::cSC4PowerSimulator_RecomputeArea, reinterpret_cast<void*>(&RecomputeArea)},
+        {addr::cSC4PowerSimulator_DistributePower, reinterpret_cast<void*>(&DistributePower)},
     };
     const addr::Entry* entry = addr_check::Find(addr::cSC4PowerSimulator_PlantOutput);
     if (!entry || !hook::Install(*entry, &PlantOutput, &g_originalPlantOutput))

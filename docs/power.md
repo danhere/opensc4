@@ -32,7 +32,7 @@ gzcom-dll's `cISC4PowerSimulator.h` declares overloads (`GetMonthlyConsumption`,
 | Replacement | What is ours | State |
 | --- | --- | --- |
 | `simulators.power.interface` | 44 of the 52 `cISC4PowerSimulator` slots: the getters (fields, the bit arrays, the consumption map), the building queries (`IsOccupantPowered`, `GetOccupantPowerConsumed`/`Produced`/`MaxPowerProduced`), the plant list and `FindPowerPlants`, the plants' efficiency and condition, the budget-item slots ([src/core/power_sim.cpp](../src/core/power_sim.cpp)) | parity below |
-| `simulators.power.helpers` | `PlantOutput` (0x006EB1C0): a plant's capacity times its efficiency; the change-area helpers `CellRectAround` (0x006EAD70), `GrowRect` (0x006EAE20), `AddDirtyRect` (0x006EB230); `UpdateDemandTotal` (0x006EB490); `UpdatePlantUsage` (0x006EBC10) | parity below |
+| `simulators.power.helpers` | `PlantOutput` (0x006EB1C0): a plant's capacity times its efficiency; the change-area helpers `CellRectAround` (0x006EAD70), `GrowRect` (0x006EAE20), `AddDirtyRect` (0x006EB230); `UpdateDemandTotal` (0x006EB490); `UpdatePlantUsage` (0x006EBC10); the wired-bit leaves `FillWiredRect` (0x006EAFD0), `ClearWiredRect` (0x006EB020), `OccupantCell` (0x006EB280), `OnNetworkCellChanged` (0x006EB350), `CreateBitArrays` (0x006EAED0); `PublishChanges` (0x006EBD00): the changed cells into the supply grid and a message per 8x8 block; `FindConnectedOccupant` (0x006EDB40); `AgePlant` (0x006EC8F0): a plant's wear and its end (demolished, radiation); `RecomputeArea` (0x006ED6E0): the wired bits of a changed rectangle; `DistributePower` (0x006EE110): the network flooded from a plant's cell, the plants reached, the consumers served, 8x8 blocks powered while the supply lasts | parity below |
 | `simulators.power.month` | `OnMonthPassed` (0x006EC570), `ApplyFunding` (0x006EC3F0) | parity below |
 | | slots 0-4 (identity, Init, Shutdown), 39/41/42 (the shared "return 0", left as is), the handlers, Read, Write | not started |
 
@@ -63,3 +63,4 @@ The helpers and the month (`simulators.power.helpers`, `.month` with the interfa
 
 With the wake-up (`OPENSC4_TEST_POWER_WAKE=1`, the interface, helpers and month ours): 12 of 12 and 3 of 3 for a week, 2 of 2 for 90 days; `UpdatePlantUsage` now ran in 15 runs and `CellRectAround` in 2.
 
+The network helpers (`.helpers` complete, with the interface and month, `OPENSC4_TEST_POWER_WAKE=1`): 12 of 12 and 3 of 3 for a week, 2 of 2 for 90 days. `DistributePower`, `PublishChanges` and `AgePlant` ran in 15 runs, `RecomputeArea` in 2; `CreateBitArrays`, `OccupantCell`, `OnNetworkCellChanged` and `FindConnectedOccupant` in none (they need a building added or a network edit), so their parity is not shown yet.

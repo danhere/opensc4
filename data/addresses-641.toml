@@ -1171,3 +1171,227 @@ convention = "thiscall"
 signature = "vector<void*>* (vector<void*>* this, vector<void*> const* other)"
 expect = "53 8B 5C 24 08 8B 03 56"
 source = "vector<void*> copy constructor (SC4::stl_allocate, then memmove) (docs/power.md)."
+
+[[entry]]
+name = "BitGrid::SetRect"
+address = 0x00604180
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t* bits, uint32_t width, int32_t const* rect)"
+expect = "83 EC 08 53 8B 5C 24 18"
+source = "Name ours. Sets the bits of a cell rectangle {x0, z0, x1, z1} in a per-cell bit array (word (x + z * width) / 32, bit x mod 32). Used by the power simulator (docs/power.md)."
+
+[[entry]]
+name = "BitGrid::ClearRect"
+address = 0x00604260
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t* bits, uint32_t width, int32_t const* rect)"
+expect = "83 EC 08 53 8B 5C 24 18"
+source = "Name ours. Clears the bits of a cell rectangle, as BitGrid::SetRect sets them (docs/power.md)."
+
+[[entry]]
+name = "BitGrid::Clear"
+address = 0x00603E00
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t* bits, uint32_t width)"
+expect = "8B 44 24 08 0F AF C0 C1"
+source = "Name ours. Clears width * width / 32 words (a square city) (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::FillWiredRect"
+address = 0x006EAFD0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 44 24 14 8B"
+source = "Name ours. Sets a cell rectangle in the wired bits (+0x2C8). Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::ClearWiredRect"
+address = 0x006EB020
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 44 24 14 8B"
+source = "Name ours. Clears a cell rectangle in the wired bits (+0x2C8). Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::OccupantCell"
+address = 0x006EB280
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 85 ED 74"
+source = "Name ours. stdcall (object, &x, &z): the object's cell (its slot 6), clamped to the city. Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::OnNetworkCellChanged"
+address = 0x006EB350
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 44 24 1C 53"
+source = "Name ours. A network change at a cell rectangle: grown by the margin, its wired bits set when the network service (+0x2C, slot 12) says the first corner is wired, then added to the dirty area. Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::CreateBitArrays"
+address = 0x006EAED0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8B 46 18"
+source = "Name ours. The four per-cell bit arrays (+0x2C4, +0x2C8 wired, +0x2D4 powered, +0x2D0), cells / 32 words each (+0x2CC), cleared. Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "RZ::operator_new"
+address = 0x009133DA
+kind = "function"
+convention = "cdecl"
+signature = "void* (size_t size)"
+expect = "55 8B EC 51 51 56 68 70"
+source = "Name ours. The framework's allocator, before cGZMessage's constructor in the power simulator's change publisher (docs/power.md)."
+
+[[entry]]
+name = "cGZMessage::cGZMessage"
+address = 0x009134D6
+kind = "function"
+convention = "thiscall"
+signature = "cGZMessage* (cGZMessage* this)"
+expect = "8B C1 33 C9 C7 00 00 EC"
+source = "Name ours. Constructor of the framework's message (vtable 0x00ACEC00, 0x2C bytes) (docs/power.md)."
+
+[[entry]]
+name = "BitGrid::Changes"
+address = 0x00603E20
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t* changes, uint32_t const* now, uint32_t width)"
+expect = "8B 4C 24 0C 0F AF C9 C1"
+source = "Name ours. Over width * width / 32 words: which bits differ from the other array (docs/power.md)."
+
+[[entry]]
+name = "BitGrid::AnyInRect"
+address = 0x00604350
+kind = "function"
+convention = "cdecl"
+signature = "bool (uint32_t const* bits, uint32_t width, int32_t const* rect)"
+expect = "51 53 55 56 8B 74 24 1C"
+source = "Name ours. Whether any bit of a cell rectangle is set (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::PublishChanges"
+address = 0x006EBD00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C A1 CC 3C B4 00"
+source = "Name ours. The cells whose state changed (+0x2D0 against +0x2D4), by 8x8 block: each changed cell's supply value (+0x80, slot 26: 0 unwired, 1 wired, 2 powered) and one message 0x8A07AE00 per block with its rectangle; then +0x2D9. Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "SC4List::NodeAllocator3"
+address = 0x00B207DC
+kind = "data"
+source = "Name ours. A third cached list node allocator (as 0x00B207E4), used by lists that hold references: SC4List::ClearReleasing (0x00411D70) releases each object (docs/power.md)."
+
+[[entry]]
+name = "SC4List::ClearReleasing"
+address = 0x00411D70
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "51 53 8B D9 8B 03 56 8B"
+source = "Name ours. Empties a list of the allocator at 0x00B207DC, releasing each node's object (docs/power.md)."
+
+[[entry]]
+name = "BitGrid::Set"
+address = 0x00603DA0
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t* bits, uint32_t width, int32_t x, int32_t z)"
+expect = "8B 44 24 08 0F AF 44 24"
+source = "Name ours. Sets a cell's bit (word (width * z + x) / 32, bit x mod 32) (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::FindConnectedOccupant"
+address = 0x006EDB40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B D9"
+source = "Name ours. Of the type-4 occupants the occupant service (+0x30, slot 18) gives for the key, the first whose cell has its bit in +0x2C4: switched on (slot 12) if asked, its cell marked in +0x2D0 if asked; true if there was one. Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "SC4RefList::PushBack"
+address = 0x00467A10
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this, cIGZUnknown* const* object)"
+expect = "8B 01 56 57 8B 38 6A 0C"
+source = "Name ours. push_back for a list of references whose nodes come from SC4::stl_allocate (the object is AddRef'd) (docs/power.md)."
+
+[[entry]]
+name = "SC4RefList::Clear"
+address = 0x00473EC0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "53 8B D9 8B 03 56 8B 30"
+source = "Name ours. Empties such a list: each object released, each node freed with SC4::Free (docs/power.md)."
+
+[[entry]]
+name = "SC4::PollutionSimulator"
+address = 0x00B43D9C
+kind = "data"
+source = "cISC4PollutionSimulator* of the current city (slot 66 AddRadiationToCity: the power simulator calls it when a plant blows up) (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::AgePlant"
+address = 0x006EC8F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C 53 55 56 57 33"
+source = "Name ours. Monthly per plant: its age (0xC910B4CF) grows by curve +0x398 (funding) x curve +0x3A8 (used / effective capacity) x rate (0xEA1CF220); the overworked (+0x308, use above 1) and aged (+0x30C, age 0.8 or more) counts; at 0xEA1CF222 a plant with a 0x6A43150F type blows up (its lot demolished through +0x34, radiation through the pollution simulator, message 0xAA552F77 for type-5 plants), otherwise from 0xEA1CF221 its lot's condition is 2 (+0x310). Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "SC4List::Clear2"
+address = 0x00413E60
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "51 53 8B D9 8B 03 56 8B"
+source = "Name ours. Empties a list of the allocator at 0x00B207E4, freeing its nodes (no references released) (docs/power.md)."
+
+[[entry]]
+name = "SC4::NetworkService"
+address = 0x00B43D0C
+kind = "data"
+source = "Name ours. Slot 40 (list*, cell*, cell*, 0, -1): the network occupants in a cell rectangle; the power simulator's area recompute asks it (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::RecomputeArea"
+address = 0x006ED6E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 7C 56 57 8B F1 8B"
+source = "Name ours. A changed cell rectangle: the wired bits around the network occupants of four types in the rectangle grown by twice the margin (all but the occupant given), and around every cell the network service at +0x2C says is wired; then the supply grid over the rectangle. Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "BitGrid::Flood"
+address = 0x00604570
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t* bits, uint32_t const* through, uint32_t width, uint32_t limit, int32_t* minZ, int32_t* maxZ)"
+expect = "83 EC 10 8B 4C 24 28 8B"
+source = "Name ours, not checked in detail. Spreads the set bits across the cells set in `through`, at most `limit` passes, widening the row range [minZ, maxZ] (docs/power.md)."
+
+[[entry]]
+name = "BitGrid::OrRect"
+address = 0x00604440
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t* bits, uint32_t const* from, uint32_t width, int32_t const* rect)"
+expect = "83 EC 0C 53 8B 5C 24 1C"
+source = "Name ours. ORs the bits of a cell rectangle from another array (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::DistributePower"
+address = 0x006EE110
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 94 00 00 00 53 55"
+source = "Name ours. The network reached from a plant's cell (flood over the wired bits): the output of plants newly reached (+0x3C), the consumers of types 0x4773FFE0 and 0x4773FFE1 served from it, then 8x8 blocks powered while the supply lasts (+0x2D0, +0x4C, +0x6C), the remaining demand (+0x40, +0x44, +0x48), and UpdatePlantUsage. Reimplemented by simulators.power.helpers (docs/power.md)."
