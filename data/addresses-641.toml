@@ -309,6 +309,24 @@ expect = "8B 4C 24 04 8B 54 24 08"
 source = "Name ours. As 0x005FD450 with the variant's GetValUint32(uint32_t&) (slot 25). Called by the pollution simulator's capacity getters (0x006E2DA0, 0x006E2E70, 0x006E2EA0) (docs/pollution.md)."
 
 [[entry]]
+name = "SC4::GetPropertyFloat"
+address = 0x005FD4F0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, float& value)"
+expect = "8B 4C 24 04 8B 54 24 08 8B 01 53"
+source = "Name ours. As 0x005FD450 with the variant's GetValFloat32(float&) (slot 37). Called by cSC4PollutionSimulator::AgeBuildings (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::SetPropertyFloat"
+address = 0x005FE4F0
+kind = "function"
+convention = "cdecl"
+signature = "void (cISCPropertyHolder* holder, uint32_t property, float value)"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. holder->GetProperty(id) (slot 9); if missing, a new property (vtable 0x00AA6988) added through slot 15; then its variant's SetValFloat32 (slot 38). Called by cSC4PollutionSimulator::AgeBuildings (docs/pollution.md)."
+
+[[entry]]
 name = "SC4::GetPropertyPercentage"
 address = 0x005FDAC0
 kind = "function"
@@ -603,6 +621,12 @@ kind = "data"
 source = "cISC4City* of the current city (the pollution simulator keeps a reference at +0x18). Slots 93 and 94 give its size in cells (docs/pollution.md)."
 
 [[entry]]
+name = "SC4::LotManager"
+address = 0x00B43D08
+kind = "data"
+source = "cISC4LotManager* of the current city. Slot 6 is GetLot(cell x, cell z, bool); the lot's slot 36 SetCondition. Used by cSC4PollutionSimulator::AgeBuildings (docs/pollution.md)."
+
+[[entry]]
 name = "PollutionTuning::DefaultSpreadEdge"
 address = 0x00B4A598
 kind = "data"
@@ -624,7 +648,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (cSC4PollutionSimulator* this, SC4List* list, uint32_t usedProperty, uint32_t currentProperty)"
 expect = "83 EC 3C 8B 44 24 40 53"
-source = "Name ours, not checked in detail. Monthly, per building of the list: a condition value (property 0xC910B4CF) moves by curves of its use; past thresholds (properties 0xEA1CF221/0xEA1CF222) the building's state changes through the service at 0x00B43D08 (docs/pollution.md)."
+source = "Name ours. Monthly, per building of the list: its use (used property / current capacity, or for the recycling list (properties 0) recycled this month per center) and the department's funding, through two curves (+0xEC, +0xDC) times property 0xEA1CF220, are added to its age (property 0xC910B4CF); at or past property 0xEA1CF222 (default 99) its lot's condition becomes 4, else at or past 0xEA1CF221 (default 99) 2. Reimplemented by simulators.pollution.aging (docs/pollution.md)."
 
 [[entry]]
 name = "cSC4PollutionSimulator::RollUsedCapacity"
@@ -681,7 +705,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (cSC4PollutionSimulator* this)"
 expect = "83 EC 1C 53 55 8B D9 8B"
-source = "Name ours, not checked in detail. Sorts the recycling centers (+0x74) by efficiency and sets the recycling effect (+0x134, float) from their capacity against a residential figure (+0x2C, slot 16); the default percentage when there are none. Called by OnTractWalkRestart (docs/pollution.md)."
+source = "Name ours. Sorts the recycling centers (+0x74) by efficiency (slot 55), highest first, later ones first among equals, into a new list assigned over the old one; then, from the top, adds up their capacity (property 0x68ED1736) while it is below a residential figure (+0x2C, slot 16) and their efficiency times capacity; the recycling effect (+0x134) = that sum / the larger of the two, or the default percentage when there are no centers or no capacity. Called by OnTractWalkRestart. Reimplemented by simulators.pollution.recycling (docs/pollution.md)."
 
 [[entry]]
 name = "SC4::PostMessage"
@@ -738,6 +762,24 @@ kind = "data"
 source = "Service pointer, name ours: slot 13 gives the height at a position (x, z); UpdateWorstTractsAndEffects places effects at it (docs/pollution.md)."
 
 [[entry]]
+name = "SC4List::Assign"
+address = 0x006E5660
+kind = "function"
+convention = "thiscall"
+signature = "SC4List* (SC4List* this, SC4List const* other)"
+expect = "53 55 56 8B F1 8B 4C 24 10"
+source = "Name ours. List assignment for the allocator at 0x00B207E4: copies the other list's object pointers into the existing nodes, then erases the rest (0x006E41F0) or appends the other's remaining nodes (0x006E4270); no reference counting. Called by cSC4PollutionSimulator::UpdateRecyclingEffect (docs/pollution.md)."
+
+[[entry]]
+name = "SC4List::Destroy2"
+address = 0x00413FE0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "51 56 8B F1 E8 77 FE FF FF"
+source = "Name ours. As SC4List::Destroy (0x00421760) for lists of the allocator at 0x00B207E4: frees the nodes (0x00413E60), then the sentinel. Called by cSC4PollutionSimulator::UpdateRecyclingEffect (docs/pollution.md)."
+
+[[entry]]
 name = "SC4List::NodeAllocator2"
 address = 0x00B207E4
 kind = "data"
@@ -751,6 +793,48 @@ convention = "thiscall"
 signature = "bool (cIGZSerializable* this, cIGZOStream& stream)"
 expect = "53 55 56 8B 74 24 10 8B"
 source = "cIGZSerializable slot 3 (vtable 0x00AB25E8; `this` is the object + 0xC); writes version 4 (docs/save-format.md, docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::Read"
+address = 0x006E5270
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream& stream)"
+expect = "83 EC 18 53 56 8B 74 24 24"
+source = "cIGZSerializable slot 4 (vtable 0x00AB25E8; `this` is the object + 0xC); reads versions up to 4, the mirror of Write; versions below 3 carry a string and a uint32 that are read and dropped. Reimplemented by simulators.pollution.load (docs/save-format.md, docs/pollution.md)."
+
+[[entry]]
+name = "SC4Stream::ReadReference"
+address = 0x005D9730
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZIStream& stream, uint32_t iid, void** object, uint32_t flags)"
+expect = "56 8B 74 24 10 85 F6 74"
+source = "Name ours. Reads a reference written by SC4Stream::WriteReference into *object as the interface iid. The pollution simulator's Read passes 0 as the last argument (docs/save-format.md)."
+
+[[entry]]
+name = "SC4Stream::ReadReferenceList"
+address = 0x005DB3C0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZIStream& stream, SC4List* list)"
+expect = "83 EC 08 53 8B 5C 24 14"
+source = "Name ours. The mirror of SC4Stream::WriteReferenceList (docs/save-format.md)."
+
+[[entry]]
+name = "SC4Stream::ReadPollutionStruct"
+address = 0x005DB280
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZIStream& stream, void* iterator)"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Name ours. The mirror of SC4Stream::WritePollutionStruct (docs/save-format.md)."
+
+[[entry]]
+name = "SC4String::Vtable"
+address = 0x00A80810
+kind = "data"
+source = "Name ours. vtable of the game's cIGZString implementation over an STL-style buffer (begin, end, capacity at +4/+8/+0xC; buffer from SC4::stl_allocate, freed with SC4::Free). The pollution simulator's Read builds one on the stack for versions below 3 (docs/pollution.md)."
 
 [[entry]]
 name = "SC4Stream::WriteReference"
