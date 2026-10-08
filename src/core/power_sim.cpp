@@ -470,6 +470,241 @@ void __fastcall CheckFindPowerPlants(void* self, void* edx, void** lowestFunded,
         Virtual<uint32_t>(theirOldest, 0x8);
 }
 
+// --- Helpers the handlers call ------------------------------------------------
+
+// Logs the first call of each helper, to show which ones a run reaches.
+void FirstCall(const char* name, bool& logged)
+{
+    if (!logged) {
+        logged = true;
+        log::Write("power: first %s", name);
+    }
+}
+
+constexpr std::size_t kRectMargin = 0x2B0;   // cells around a change that are recomputed
+constexpr std::size_t kDirty = 0x338;        // bool
+constexpr std::size_t kHasDirtyRect = 0x33A; // bool
+constexpr std::size_t kDirtyRect = 0x33C;    // int32 x0, z0, x1, z1
+constexpr std::size_t kDemandTotal = 0x78;   // int64 (the high half only cleared)
+constexpr std::size_t kMonth = 0x38;
+constexpr std::size_t kUsageByMonth = 0x90;  // int32[12][10]: [month][power type]
+
+using SetPropertyFn = void(__cdecl*)(void* holder, uint32_t property, uint32_t value);
+using GetPropertySint64Fn = uint8_t(__cdecl*)(void* holder, uint32_t property, int64_t* value);
+using GetPropertySint32Fn = uint8_t(__cdecl*)(void* holder, uint32_t property, int32_t* value);
+const auto SetPropertySint32 = reinterpret_cast<SetPropertyFn>(addr::SC4_SetPropertySint32);
+const auto GetPropertySint64 = reinterpret_cast<GetPropertySint64Fn>(addr::SC4_GetPropertySint64);
+const auto GetPropertySint32 = reinterpret_cast<GetPropertySint32Fn>(addr::SC4_GetPropertySint32);
+
+uint32_t CityCellsX(void* self) { return Virtual<uint32_t>(CityHelper(self), 0x174); }
+uint32_t CityCellsZ(void* self) { return Virtual<uint32_t>(CityHelper(self), 0x178); }
+
+// 0x006EAD70: the rectangle around (x, z), clamped (unsigned, as the game).
+void __fastcall CellRectAround(void* self, void*, uint32_t x, uint32_t z, uint32_t* rect)
+{
+    static bool logged = false;
+    FirstCall("CellRectAround", logged);
+    const uint32_t margin = At<uint32_t>(self, kRectMargin);
+    rect[0] = x > margin ? x - margin : 0;
+    rect[1] = z > margin ? z - margin : 0;
+    const uint32_t x1 = x + At<uint32_t>(self, kRectMargin);
+    rect[2] = x1 < CityCellsX(self) ? x1 : CityCellsX(self) - 1;
+    const uint32_t z1 = At<uint32_t>(self, kRectMargin) + z;
+    rect[3] = z1 < CityCellsZ(self) ? z1 : CityCellsZ(self) - 1;
+}
+
+// 0x006EAE20: the same, in place.
+void __fastcall GrowRect(void* self, void*, uint32_t* rect)
+{
+    static bool logged = false;
+    FirstCall("GrowRect", logged);
+    const uint32_t margin = At<uint32_t>(self, kRectMargin);
+    rect[0] = rect[0] > margin ? rect[0] - margin : 0;
+    rect[1] = rect[1] > At<uint32_t>(self, kRectMargin) ? rect[1] - At<uint32_t>(self, kRectMargin) : 0;
+    const uint32_t x1 = At<uint32_t>(self, kRectMargin) + rect[2];
+    rect[2] = x1 < CityCellsX(self) ? x1 : CityCellsX(self) - 1;
+    const uint32_t z1 = At<uint32_t>(self, kRectMargin) + rect[3];
+    rect[3] = z1 < CityCellsZ(self) ? z1 : CityCellsZ(self) - 1;
+}
+
+// 0x006EB230: the dirty area grows to include the rectangle (the union of
+// 0x004665C0: the smaller low corner, the larger high corner).
+void __fastcall AddDirtyRect(void* self, void*, const int32_t* rect)
+{
+    static bool logged = false;
+    FirstCall("AddDirtyRect", logged);
+    auto* const dirty = &At<int32_t>(self, kDirtyRect);
+    if (At<uint8_t>(self, kHasDirtyRect)) {
+        dirty[0] = dirty[0] < rect[0] ? dirty[0] : rect[0];
+        dirty[1] = dirty[1] < rect[1] ? dirty[1] : rect[1];
+        dirty[2] = dirty[2] > rect[2] ? dirty[2] : rect[2];
+        dirty[3] = dirty[3] > rect[3] ? dirty[3] : rect[3];
+        return;
+    }
+    At<uint8_t>(self, kHasDirtyRect) = 1;
+    At<uint8_t>(self, kDirty) = 1;
+    for (int i = 0; i < 4; ++i)
+        dirty[i] = rect[i];
+}
+
+// 0x006EB490: the total of property 0x09132DE8 over the objects of the
+// vector at +0x29C (each object's slot 3, then its property holder).
+uint8_t __fastcall UpdateDemandTotal(void* self, void*)
+{
+    static bool logged = false;
+    FirstCall("UpdateDemandTotal", logged);
+    auto* const* const begin = At<void** const*>(self, 0x29C);
+    auto* const* const end = At<void** const*>(self, 0x2A0);
+    uint32_t total = 0;
+    for (auto* const* item = begin; item != end; ++item) {
+        void* const object = Virtual<void*>(*item, 0xC);
+        int64_t value = 0;
+        GetPropertySint64(Virtual<void*>(object, 0x18), 0x09132DE8, &value);
+        total += static_cast<uint32_t>(value);
+    }
+    const bool same = At<uint32_t>(self, kDemandTotal) == total && At<uint32_t>(self, kDemandTotal + 4) == 0;
+    At<uint32_t>(self, kDemandTotal) = total;
+    At<uint32_t>(self, kDemandTotal + 4) = 0;
+    return same ? 0 : 1;
+}
+
+// 0x006EBC10: for each plant node in state 1 (+0x8), its output times
+// used / produced becomes its used power (property 0x08D9763D) and is added
+// to this month's figure for its power type (property 0x27812853).
+void __fastcall UpdatePlantUsage(void* self, void*, uint32_t used, uint32_t produced)
+{
+    static bool logged = false;
+    FirstCall("UpdatePlantUsage", logged);
+    float share = 0.0f;
+    if (At<int32_t>(self, 0x3C) > 0)
+        share = static_cast<float>(static_cast<double>(used) / static_cast<double>(produced));
+    void* const sentinel = At<void*>(self, 0x298);
+    for (void* node = *static_cast<void**>(sentinel); node != sentinel; node = *static_cast<void**>(node)) {
+        auto* const fields = static_cast<uint32_t*>(node);
+        if (fields[2] != 1)
+            continue;
+        void* const plant = reinterpret_cast<void*>(fields[3]);
+        int32_t type = 0;
+        void* const holder = Virtual<void*>(plant, 0x18);
+        const auto output = static_cast<int32_t>(
+            reinterpret_cast<uint32_t(__thiscall*)(void*, void*)>(addr::cSC4PowerSimulator_PlantOutput)(self, plant));
+        GetPropertySint32(holder, 0x27812853, &type);
+        const int32_t usedHere = Ftol(static_cast<double>(output) * share);
+        SetPropertySint32(holder, 0x08D9763D, static_cast<uint32_t>(usedHere));
+        At<int32_t>(self, kUsageByMonth + 4 * (type + At<int32_t>(self, kMonth) * 10)) += usedHere;
+        fields[2] = 2;
+    }
+}
+
+// --- OnMonthPassed (0x006EC570) ------------------------------------------------
+
+constexpr std::size_t kAnnualByType = 0x270; // int32[10]: the last 12 months' usage by type
+
+void __fastcall OnMonthPassed(void* self, void*)
+{
+    static bool logged = false;
+    if (!logged) {
+        logged = true;
+        log::Write("power: first OnMonthPassed");
+    }
+    At<float>(self, 0x2AC) =
+        static_cast<float>(Virtual<double>(Global<void*>(addr::SC4_Service43D90), 0x64, 0x0911E117u, 0u));
+    int32_t& month = At<int32_t>(self, kMonth);
+    if (++month >= 12)
+        month = 0;
+    // The month 12 months ago leaves the annual totals.
+    for (int type = 0; type < 10; ++type) {
+        int32_t& usage = At<int32_t>(self, kUsageByMonth + 4 * (month * 10 + type));
+        At<int32_t>(self, kAnnualByType + 4 * type) -= usage;
+        usage = 0;
+    }
+    const int32_t produced = At<int32_t>(self, 0x3C);
+    const int32_t needed = At<int32_t>(self, 0x40);
+    if (needed > produced && produced > 0)
+        At<float>(self, 0x64) = static_cast<float>((produced - needed) / produced);
+    else
+        At<uint32_t>(self, 0x64) = Global<uint32_t>(addr::PowerTuning_DefaultPercentage);
+    // The game adds the month's (now cleared) figures back in.
+    for (int type = 0; type < 10; ++type)
+        At<int32_t>(self, kAnnualByType + 4 * type) += At<int32_t>(self, kUsageByMonth + 4 * (month * 10 + type));
+    At<uint8_t>(self, kDirty) = 1;
+    At<uint8_t>(self, 0x339) = 1;
+    using ApplyFn = void(__thiscall*)(void* self, void* funding);
+    reinterpret_cast<ApplyFn>(addr::cSC4PowerSimulator_ApplyFunding)(self, Virtual<void*>(self, 0xC0));
+}
+
+// ApplyFunding (0x006EC3F0): the share of the objects at +0x29C that are on
+// follows the funding (through the curve at +0x3B8); the count (+0x2BC) is
+// brought to it by switching objects of a shuffled copy (the CRT's rand()).
+void __fastcall ApplyFunding(void* self, void*, const float* funding)
+{
+    static bool logged = false;
+    FirstCall("ApplyFunding", logged);
+    using CopyFn = void*(__thiscall*)(void* copy, const void* vector);
+    using ShuffleFn = void(__cdecl*)(void** begin, void** end);
+    const float x = *funding * 100.0f;
+    const double step = EvaluateCurve(static_cast<char*>(self) + 0x3B8, x);
+    float& share = At<float>(self, 0x2C0);
+    const double moved = static_cast<double>(share) - step;
+    share = static_cast<float>(moved);
+    if (moved > 1.0)
+        share = 1.0f;
+    else if (moved < 0.0)
+        At<uint32_t>(self, 0x2C0) = 0;
+    const auto wanted = static_cast<uint32_t>(Ftol(static_cast<double>(At<uint32_t>(self, 0x2B8)) * share));
+    uint32_t& on = At<uint32_t>(self, 0x2BC);
+    if (wanted == on)
+        return;
+    struct {
+        void** begin;
+        void** end;
+        void** capacity;
+    } copy;
+    reinterpret_cast<CopyFn>(addr::SC4PtrVector_Copy)(&copy, static_cast<char*>(self) + 0x29C);
+    reinterpret_cast<ShuffleFn>(addr::SC4_RandomShuffle)(copy.begin, copy.end);
+    for (void** item = copy.begin; item != copy.end && wanted != on; ++item) {
+        void* const object = *item;
+        int32_t cellX, cellZ;
+        Virtual<uint32_t>(object, 0x20, &cellX, &cellZ);
+        const bool isOn = Virtual<uint8_t>(object, 0x2C) != 0;
+        if (isOn) {
+            if (on > wanted) {
+                Virtual<uint32_t>(object, 0x30, 0u);
+                on = on - 1;
+            }
+        } else if (on < wanted) {
+            Virtual<uint32_t>(object, 0x30, 1u);
+            on = on + 1;
+        }
+    }
+    if (copy.begin)
+        Free(copy.begin);
+}
+
+using ThisFn = void(__fastcall*)(void*, void*);
+ThisFn g_originalMonth = nullptr;
+using FundingFn = void(__fastcall*)(void*, void*, const float*);
+FundingFn g_originalFunding = nullptr;
+
+bool InstallMonth(registry::Mode)
+{
+    const addr::Entry* entry = addr_check::Find(addr::cSC4PowerSimulator_OnMonthPassed);
+    const addr::Entry* funding = addr_check::Find(addr::cSC4PowerSimulator_ApplyFunding);
+    return game::IsBuild641() && entry && funding && hook::Install(*entry, &OnMonthPassed, &g_originalMonth) &&
+           hook::Install(*funding, &ApplyFunding, &g_originalFunding);
+}
+
+const bool g_registeredMonth = registry::Register({
+    "simulators.power.month",
+    "simulators/power",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4PowerSimulator_OnMonthPassed,
+    "Our power MonthPassed handler: the month's usage, the shortage ratio (docs/power.md)",
+    false,
+    InstallMonth,
+});
+
 // --- Installation -----------------------------------------------------------
 
 struct Slot {
@@ -562,10 +797,31 @@ bool Install(registry::Mode)
 using PlantOutputFn = uint32_t(__fastcall*)(void*, void*, void*);
 PlantOutputFn g_originalPlantOutput = nullptr;
 
+void* g_originalHelper[5] = {};
+
 bool InstallHelpers(registry::Mode)
 {
+    if (!game::IsBuild641())
+        return false;
+    const struct {
+        std::uintptr_t address;
+        void* ours;
+    } helpers[] = {
+        {addr::cSC4PowerSimulator_CellRectAround, reinterpret_cast<void*>(&CellRectAround)},
+        {addr::cSC4PowerSimulator_GrowRect, reinterpret_cast<void*>(&GrowRect)},
+        {addr::cSC4PowerSimulator_AddDirtyRect, reinterpret_cast<void*>(&AddDirtyRect)},
+        {addr::cSC4PowerSimulator_UpdateDemandTotal, reinterpret_cast<void*>(&UpdateDemandTotal)},
+        {addr::cSC4PowerSimulator_UpdatePlantUsage, reinterpret_cast<void*>(&UpdatePlantUsage)},
+    };
     const addr::Entry* entry = addr_check::Find(addr::cSC4PowerSimulator_PlantOutput);
-    return game::IsBuild641() && entry && hook::Install(*entry, &PlantOutput, &g_originalPlantOutput);
+    if (!entry || !hook::Install(*entry, &PlantOutput, &g_originalPlantOutput))
+        return false;
+    for (std::size_t i = 0; i < sizeof helpers / sizeof helpers[0]; ++i) {
+        const addr::Entry* helper = addr_check::Find(helpers[i].address);
+        if (!helper || !hook::Install(*helper, helpers[i].ours, &g_originalHelper[i]))
+            return false;
+    }
+    return true;
 }
 
 const bool g_registeredHelpers = registry::Register({

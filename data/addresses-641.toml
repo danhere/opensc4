@@ -1091,3 +1091,83 @@ convention = "thiscall"
 signature = "uint32_t (cSC4PowerSimulator* this, cISC4Occupant* plant)"
 expect = "83 EC 08 56 8B 74 24 10"
 source = "Name ours. A plant's capacity (property 0x27812852) times its efficiency (slot 45), truncated; GetOccupantPowerProduced (slot 33) returns it. Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::CellRectAround"
+address = 0x006EAD70
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 55 56 8B"
+source = "Name ours. The cell rectangle around (x, z) by the margin at +0x2B0, clamped to the city (unsigned compares). Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::GrowRect"
+address = 0x006EAE20
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. A cell rectangle grown in place by the margin at +0x2B0, clamped to the city. Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::AddDirtyRect"
+address = 0x006EB230
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 3A 03 00 00 84 C0"
+source = "Name ours. Adds a cell rectangle to the area to recompute (+0x33C; +0x33A set once there is one, +0x338 the dirty flag). Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::UpdateDemandTotal"
+address = 0x006EB490
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B D9"
+source = "Name ours. The sum of property 0x09132DE8 (int64, low half) over the objects of the vector at +0x29C, kept at +0x78 (+0x7C cleared); true when it changed. Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::UpdatePlantUsage"
+address = 0x006EBC10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 57 8B F9 8B"
+source = "Name ours. For each plant node in state 1: its output times used/produced (when +0x3C > 0) is what it is used for (property 0x08D9763D) and is added to this month's figure for its power type (+0x90, [month at +0x38][type]); the node goes to state 2. Reimplemented by simulators.power.helpers (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::OnMonthPassed"
+address = 0x006EC570
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 8B F1 8B 0D 90"
+source = "Name ours. The MonthPassed handler: +0x2AC from the service at 0x00B43D90 (slot 25, 0x0911E117), the month (+0x38) advanced, that month's usage by type (+0x90) taken off the annual totals (+0x270) and cleared, the shortage ratio (+0x64), the dirty flags, then 0x006EC3F0 with the funding. Reimplemented by simulators.power.month (docs/power.md)."
+
+[[entry]]
+name = "cSC4PowerSimulator::ApplyFunding"
+address = 0x006EC3F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 D9 00 83 EC"
+source = "Name ours. At the month's end, with the funding percentage: the ratio at +0x2C0 moves by the curve at +0x3B8 (funding x 100) and is clamped to 0..1; the objects of the vector at +0x29C (a shuffled copy) are switched (slot 12) until the count at +0x2BC is the ratio of +0x2B8. Reimplemented by simulators.power.month (docs/power.md)."
+
+[[entry]]
+name = "SC4::Service43D90"
+address = 0x00B43D90
+kind = "data"
+source = "Unnamed service; slot 25 (id, 0) returns a float (ST0). The power simulator's month handler reads 0x0911E117 from it (docs/power.md)."
+
+[[entry]]
+name = "SC4::RandomShuffle"
+address = 0x006DB010
+kind = "function"
+convention = "cdecl"
+signature = "void (void** begin, void** end)"
+expect = "53 8B 5C 24 08 55 8B 6C"
+source = "std::random_shuffle over pointers with the CRT's rand(). The power simulator's ApplyFunding shuffles its pole objects with it (docs/power.md)."
+
+[[entry]]
+name = "SC4PtrVector::Copy"
+address = 0x004B03E0
+kind = "function"
+convention = "thiscall"
+signature = "vector<void*>* (vector<void*>* this, vector<void*> const* other)"
+expect = "53 8B 5C 24 08 8B 03 56"
+source = "vector<void*> copy constructor (SC4::stl_allocate, then memmove) (docs/power.md)."

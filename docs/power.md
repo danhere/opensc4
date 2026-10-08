@@ -32,7 +32,8 @@ gzcom-dll's `cISC4PowerSimulator.h` declares overloads (`GetMonthlyConsumption`,
 | Replacement | What is ours | State |
 | --- | --- | --- |
 | `simulators.power.interface` | 44 of the 52 `cISC4PowerSimulator` slots: the getters (fields, the bit arrays, the consumption map), the building queries (`IsOccupantPowered`, `GetOccupantPowerConsumed`/`Produced`/`MaxPowerProduced`), the plant list and `FindPowerPlants`, the plants' efficiency and condition, the budget-item slots ([src/core/power_sim.cpp](../src/core/power_sim.cpp)) | parity below |
-| `simulators.power.helpers` | `PlantOutput` (0x006EB1C0): a plant's capacity times its efficiency | parity below |
+| `simulators.power.helpers` | `PlantOutput` (0x006EB1C0): a plant's capacity times its efficiency; the change-area helpers `CellRectAround` (0x006EAD70), `GrowRect` (0x006EAE20), `AddDirtyRect` (0x006EB230); `UpdateDemandTotal` (0x006EB490); `UpdatePlantUsage` (0x006EBC10) | parity below; `CellRectAround` and `UpdatePlantUsage` unreached |
+| `simulators.power.month` | `OnMonthPassed` (0x006EC570), `ApplyFunding` (0x006EC3F0) | parity below |
 | | slots 0-4 (identity, Init, Shutdown), 39/41/42 (the shared "return 0", left as is), the handlers, Read, Write | not started |
 
 Notes from the getters:
@@ -42,6 +43,14 @@ Notes from the getters:
 - Efficiency (45): the curve at +0x378 at the plant's local funding × 100, × 0.01, times its condition (46: the curve in property 0x8A1E07EE at the age, property 0xC910B4CF). The default for both, and the chance of a strike, is the percentage at 0x00B4A5B0 (0).
 - `FindPowerPlants` (30) returns the plant with the lowest local funding (below 2.0, with a line item in the department) and the one furthest through its life (age over the larger of properties 0xEA1CF221/0xEA1CF222, default 99), each with a reference; the game calls it a few times a run (the advisors).
 
+### The month
+
+`OnMonthPassed` (0x006EC570): +0x2AC from the service at 0x00B43D90 (slot 25, 0x0911E117); the month (+0x38) advances (mod 12) and the usage of the month a year ago (+0x90, [month][power type]) leaves the annual totals (+0x270) and is cleared (the game then adds the cleared figures back, a no-op kept as it is); the shortage ratio +0x64 = (production - need) / production as an integer division when need > production > 0, else 0; the dirty flags +0x338, +0x339; then `ApplyFunding` (0x006EC3F0) with the funding: the share at +0x2C0 moves by the curve at +0x3B8 (funding × 100) and is clamped to 0..1, and the objects of the vector at +0x29C (a copy shuffled by `std::random_shuffle` over the CRT's `rand()`, 0x006DB010) are switched (their slot 12) until the count at +0x2BC is that share of +0x2B8.
+
+### What the test cities reach
+
+The simulation step (0x006EE960) is a state machine (+0x34C). Its network work, the full recompute (0x006EE110), the change-area recompute (0x006ED6E0), the network-change handler (0x006EDDA0) and their helpers (0x006EDB40, 0x006EC8F0, 0x006EBD00, `CellRectAround`, `UpdatePlantUsage`), ran neither in three years of Making Money nor in 30 days of Big City d0090 or Rush Hour d0365 (`diagnostics.coverage`): it runs when the power network changes (lines, plants, the buildings on it). Checking it needs saves where the network changes during the run.
+
 ## Parity
 
 The fingerprint's `power` part (2026-10-08): a checksum of the powered grid (slot 35), the monthly requirement, production, import, export, demand and consumption (slots 11-15 and 17; 16 is the per-cell overload), unpowered and powered consumers (21, 22), power plants (24), poles (26) and overworked, aged and distressed plants (27-29).
@@ -49,4 +58,6 @@ The fingerprint's `power` part (2026-10-08): a checksum of the powered grid (slo
 Control (the original against itself) with the power part: 12 of 12, 3 of 3 on `saves-plopped` for a week, 2 of 2 on `saves-mm2` for a year.
 
 The getters (`simulators.power.interface` with `.helpers`): 12 of 12 and 3 of 3 for a week, 2 of 2 for a year. `FindPowerPlants` is also checked call by call with `OPENSC4_POWER_SELFCHECK=1` (`OPENSC4_TEST_FIND_POWER_PLANTS=1` adds a call after the load): the same plants and figures as the game's on every call (the test cities have one plant each).
+
+The helpers and the month (`simulators.power.helpers`, `.month` with the interface): 12 of 12 and 3 of 3 for a week, 2 of 2 for a year (one run hit the rare load crash at 0x0096DA20, [parity.md](parity.md), and passed when run again). First calls in those runs: `UpdateDemandTotal` in nearly every run, `OnMonthPassed` and `ApplyFunding` in every run that reached a month's end, `AddDirtyRect` and `GrowRect` in the two year runs; `CellRectAround` and `UpdatePlantUsage` in none (see above).
 
