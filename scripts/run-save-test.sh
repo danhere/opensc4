@@ -17,6 +17,7 @@
 # environment, which changes the game's heap layout (docs/parity.md).
 # core.dll's log of the run is copied to <output>.log. Compare outputs with:
 # opensc4-dbpf diff <a.sc4> <b.sc4>
+# OPENSC4_SAVE_ENV replaces the disposable user folder (one per parallel job).
 set -euo pipefail
 
 build="${1:?usage: run-save-test.sh <build dir> <output .sc4> <days> [VAR=value...]}"
@@ -30,7 +31,7 @@ done
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 local_data="$(cygpath "$LOCALAPPDATA")/opensc4"
 fixture="$local_data/testenv/userdir"
-env="$local_data/p4env/userdir"
+env="${OPENSC4_SAVE_ENV:-$local_data/p4env/userdir}"
 region="${OPENSC4_TEST_REGION:-Timbuktu}"
 city="${OPENSC4_TEST_CITY:-Making Money Tutorial}"
 export OPENSC4_TEST_CITY="$city"
