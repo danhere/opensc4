@@ -118,4 +118,21 @@ inline uint32_t ListCount(void* self, std::size_t offset)
     return count;
 }
 
+// The building lists' node allocator, fetched from the framework on first
+// use as the game's list helpers (0x00413DD0, 0x00413F70) do.
+inline void* ListNodeAllocator()
+{
+    using GetFrameworkFn = void*(__cdecl*)();
+    using ReleaseRefFn = void(__thiscall*)(void** ref);
+    void*& allocator = Global<void*>(addr::SC4List_NodeAllocator2);
+    if (!allocator) {
+        void* fetched = nullptr;
+        if (void* framework = reinterpret_cast<GetFrameworkFn>(addr::RZGetFramework)())
+            Virtual<uint8_t>(framework, 0x14, 0x3AE4BEA3u, 0x3AE4BEABu, &fetched);
+        allocator = fetched;
+        reinterpret_cast<ReleaseRefFn>(addr::SC4_ReleaseRef)(&fetched);
+    }
+    return allocator;
+}
+
 } // namespace opensc4::pollution_sim
