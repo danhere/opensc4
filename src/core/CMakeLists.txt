@@ -33,6 +33,7 @@ add_library(opensc4_core SHARED
   pollution_effects.cpp
   pollution_proxy.cpp
   pollution_save.cpp
+  pollution_tuning.cpp
   pollution_sim.cpp
   pollution_tracts.cpp
   virtual_clock.cpp
