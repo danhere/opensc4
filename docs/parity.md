@@ -88,6 +88,9 @@ The test cities never edit their networks, so parity alone would not reach the c
 | `OPENSC4_TEST_RESIDENTIAL_QUERIES=1` | each day, the residential queries only the UI makes, into the fingerprint ([residential.md](residential.md)) |
 | `OPENSC4_TEST_DEVELOPMENT_QUERIES=1` | each day, the building development queries no test city makes (type lists, type and family checks, developer wealth, the stage multiplier), into the fingerprint ([development.md](development.md)) |
 | `OPENSC4_TEST_CRIME_QUERIES=1` | each day, the crime queries only the UI and the automata make, into the fingerprint ([crime.md](crime.md)) |
+| `OPENSC4_TEST_MYSIM_QUERIES=1` | each day, what the MySim panel and balloons ask every MySim, into the fingerprint ([mysim-agents.md](mysim-agents.md)) |
+| `OPENSC4_TEST_MYSIM_DRIVE=<day>` | on that day every MySim leaves for work, returns home and hears of building and connection changes ([mysim-agents.md](mysim-agents.md)) |
+| `OPENSC4_TEST_MYSIM_MOVEIN=<day>` | a MySim moves in on that day ([mysim-agents.md](mysim-agents.md)) |
 | `OPENSC4_TEST_FLORA_MONTH=<n>` | every n days, the flora simulator's monthly pass (the date into +0x40, then 0x006B2CB0), as MonthPassed does ([flora.md](flora.md)) |
 | `OPENSC4_TEST_NEIGHBORS_MONTH=<n>` | every n days, the neighbors simulator's monthly pass (0x006D0E50: commodity statistics, then the deals), as MonthPassed does ([neighbors.md](neighbors.md)) |
 | `OPENSC4_TEST_POWER_MESSAGES=<n>` | on day n, a network change (0x278E6003) and a changed cell rectangle (0x07699455) over the whole city, to power's DoMessage |

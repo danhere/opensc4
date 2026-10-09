@@ -14,9 +14,90 @@
 namespace opensc4::autotest {
 namespace {
 
+// The game's string (SC4String; a cIGZString), on our stack.
+struct GameString {
+    std::uintptr_t vtable;
+    char* begin;
+    char* end;
+    char* capacity;
+    uint32_t zero;
+};
+
+void FromText(GameString* text, const char* value)
+{
+    reinterpret_cast<void*(__thiscall*)(GameString*, const char*)>(addr::SC4String_FromText)(text, value);
+}
+
+void FreeText(GameString* text)
+{
+    text->vtable = addr::SC4String_Vtable;
+    if (text->begin)
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(text->begin);
+}
+
+struct Fnv {
+    uint32_t h = 2166136261u;
+    void Bytes(const void* data, std::size_t size)
+    {
+        for (std::size_t i = 0; i < size; ++i)
+            h = (h ^ static_cast<const uint8_t*>(data)[i]) * 16777619u;
+    }
+    template <typename T>
+    void Add(const T& value)
+    {
+        Bytes(&value, sizeof value);
+    }
+    void Text(const void* string) // an SC4String*, or null
+    {
+        if (!string) {
+            Add(uint32_t{0xFFFFFFFF});
+            return;
+        }
+        const auto* text = static_cast<const GameString*>(string);
+        Bytes(text->begin, static_cast<std::size_t>(text->end - text->begin));
+        Add(uint8_t{0});
+    }
+};
+
+// OPENSC4_TEST_MYSIM_QUERIES=1: each day, what the MySim panel and the
+// balloons ask every MySim (cISC4MySim slots; docs/mysim-agents.md), as
+// one hash in the fingerprint.
+uint32_t Queries(void* sim)
+{
+    Fnv h;
+    h.Add(static_cast<uint32_t>(static_cast<char*>(Virtual<void*>(sim, 0xC)) - static_cast<char*>(sim))); // AsAdvisor
+    uint32_t key[3] = {};
+    Virtual<void>(sim, 0x3C, key); // GetVehicleKey
+    h.Add(key);
+    h.Text(Virtual<void*>(sim, 0x64)); // GetHomeName
+    h.Text(Virtual<void*>(sim, 0x68)); // GetJobName
+    h.Text(Virtual<void*>(sim, 0x70)); // GetJobTitle
+    for (std::size_t slot : {std::size_t{0x74}, std::size_t{0x78}}) { // GetEQAsText, GetHQAsText
+        GameString text{};
+        FromText(&text, "");
+        h.Add(Virtual<uint8_t>(sim, slot, &text));
+        h.Text(&text);
+        FreeText(&text);
+    }
+    if (void* const job = Virtual<void*>(sim, 0x30)) { // GetJob, then GetJobTitle(job, text)
+        GameString text{};
+        FromText(&text, "");
+        Virtual<void>(sim, 0x6C, job, &text);
+        h.Text(&text);
+        FreeText(&text);
+    }
+    h.Add(Virtual<uint32_t>(sim, 0xEC, uint32_t{0})); // GetModelButtonBitmapID
+    h.Add(Virtual<uint32_t>(sim, 0xEC, uint32_t{1}));
+    h.Add(Virtual<uint32_t>(sim, 0xF8)); // GetCurrentBalloonAdvice
+    h.Add(Virtual<uint32_t>(sim, 0xFC)); // GetCurrentBalloonEventAdvice
+    h.Add(Virtual<uint8_t>(sim, 0x100)); // CanUDriveIt
+    return h.h;
+}
+
 // A MySim's plain fields as its Write (0x004251A0, and the agent base's
-// 0x0040E2E0) saves them, without references and strings: offsets from the cIGZSerializable part at
-// cISC4MySim - 0xAC, with their sizes. Only for cSC4MySim itself.
+// 0x0040E2E0) saves them, without references and strings: offsets from the
+// cIGZSerializable part at cISC4MySim - 0xAC, with their sizes. Only for
+// cSC4MySim itself.
 std::string MySimState(void* sim)
 {
     constexpr struct {
@@ -67,6 +148,16 @@ void Fingerprint(cISC4City* city, std::string& line)
         for (uint32_t i = 0; i < places && i < 6; ++i)
             if (sims[i])
                 line += MySimState(sims[i]);
+        if (Env("OPENSC4_TEST_MYSIM_QUERIES") == "1") {
+            line += " q";
+            for (uint32_t i = 0; i < places && i < 6; ++i) {
+                if (!sims[i])
+                    continue;
+                char text[12];
+                std::snprintf(text, sizeof text, " %08X", Queries(sims[i]));
+                line += text;
+            }
+        }
         return;
     }
     line += mysimText;
@@ -83,25 +174,13 @@ void MoveIn(const Day& day)
     void* const mysims = Virtual<void*>(day.city, 0x11C);
     if (!mysims)
         return;
-    struct GameString {
-        std::uintptr_t vtable;
-        char* begin;
-        char* end;
-        char* capacity;
-        uint32_t zero;
-    } name{}, bio{}, path{};
-    using FromTextFn = void*(__thiscall*)(GameString* text, const char* value);
-    const auto fromText = reinterpret_cast<FromTextFn>(addr::SC4String_FromText);
-    fromText(&name, "Test Sim");
-    fromText(&bio, "");
-    fromText(&path, "");
+    GameString name{}, bio{}, path{};
+    FromText(&name, "Test Sim");
+    FromText(&bio, "");
+    FromText(&path, "");
     Virtual<void>(mysims, 0x18, &name, uint32_t{1}, uint32_t{0}, &bio, uint32_t{0}, &path, uint32_t{0});
-    using FreeFn = void(__cdecl*)(void* p);
-    for (GameString* text : {&name, &bio, &path}) {
-        text->vtable = addr::SC4String_Vtable;
-        if (text->begin)
-            reinterpret_cast<FreeFn>(addr::SC4_Free)(text->begin);
-    }
+    for (GameString* text : {&name, &bio, &path})
+        FreeText(text);
     // MoveIn only starts the placement tool the player clicks a house
     // with; the MySim in the first place finds a residence itself (its slot
     // 5, FindNewResidence) and the tool is dropped (CancelMoveIn, slot 10).
@@ -113,7 +192,35 @@ void MoveIn(const Day& day)
                sim ? Virtual<void*>(sim, 0x30) : nullptr);
 }
 
+// OPENSC4_TEST_MYSIM_DRIVE=<day>: on that day every MySim leaves for work
+// and returns home, plays its night sound and hears that its home changed
+// and that a neighbour connection went (cISC4MySim slots 38, 39, 54, 43,
+// 49; docs/mysim-agents.md).
+void Drive(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_MYSIM_DRIVE") || !game::IsBuild641())
+        return;
+    void* const mysims = Virtual<void*>(day.city, 0x11C);
+    if (!mysims)
+        return;
+    void** const sims = At<void**>(mysims, 0x14);
+    const uint32_t places = static_cast<uint32_t>(At<void**>(mysims, 0x18) - sims);
+    for (uint32_t i = 0; i < places && i < 6; ++i) {
+        void* const sim = sims[i];
+        if (!sim)
+            continue;
+        Virtual<void>(sim, 0x98); // LeaveForWork
+        const int32_t leaving = At<int32_t>(sim, 0x8);
+        Virtual<void>(sim, 0x9C); // ReturnHome
+        Virtual<void>(sim, 0xD8); // PlayNightSound
+        Virtual<void>(sim, 0xAC, Virtual<void*>(sim, 0x2C)); // DoBuildingChanged(GetResidence)
+        Virtual<void>(sim, 0xC4, int32_t{0}, int32_t{0}); // DoNeighborConnectionRemoved
+        log::Write("autotest: MySim %u driven (state after leaving %d, now %d)", i, leaving, At<int32_t>(sim, 0x8));
+    }
+}
+
 const FingerprintPart kFingerprint{"mysim", 85, &Fingerprint};
+const DayHook kDrive{"mysim.drive", 85, &Drive};
 const DayHook kMoveIn{"mysim.movein", 85, &MoveIn};
 
 } // namespace
