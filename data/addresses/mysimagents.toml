@@ -1872,3 +1872,81 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 3C 53 55 56 57 8B"
 source = "Name ours, not analysed yet. Tried by SetDestination for a place that is not valid; true when a way there was found."
+
+[[entry]]
+name = "cSC4MySimDispatch::AdvanceRoute"
+address = 0x00434230
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 55 56 57 8B"
+source = "Name ours. The next segment of the route: +0x2C moves past the cells of the same kind (byte 2), +0x30 to its start, until ReachedStop or a stop (0xFE)."
+
+[[entry]]
+name = "cSC4MySimDispatch::ReachedStop"
+address = 0x00433200
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 55 8B 2D 54 3D"
+source = "Name ours. Walks +0x30 up to +0x2C; true at the first cell where the network service (0x00B43D54, slot 8) has mask 0x1FCF."
+
+[[entry]]
+name = "cSC4MySimDispatch::HasRouteAhead"
+address = 0x00434DF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 30 3B 46"
+source = "Name ours. AdvanceRoute, then true when a segment is left that is not a stop."
+
+[[entry]]
+name = "cSC4MySimDispatch::CopyRoute"
+address = 0x00434E30
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 08 83 EC 20 84"
+source = "Name ours. (out, append): the current segment's cells pushed onto out (emptied first unless append); true when any."
+
+[[entry]]
+name = "cSC4MySimDispatch::SnapToRoad"
+address = 0x004332F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 8B 5C 24 34"
+source = "Name ours. A place moved to a road cell (mask 0x849) of its lot, the route's next cell preferred; false when the lot has none."
+
+[[entry]]
+name = "SC4CellIterator::Advance"
+address = 0x00431AF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 04 57 8B 39 8B"
+source = "std::deque<3-byte cell> iterator += n (42 cells per block)."
+
+[[entry]]
+name = "SC4CellDeque::At"
+address = 0x00432BA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 8B 01 8B 51 04"
+source = "Pointer to the cell at an index of a deque of 3-byte cells."
+
+[[entry]]
+name = "SC4CellDeque::Size"
+address = 0x00431DB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 0C 56 8B 71 1C 2B"
+source = "The size of a deque of 3-byte cells."
+
+[[entry]]
+name = "SC4RouteDeque::PushBackSlow"
+address = 0x004335F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 56 8B F1"
+source = "push_back of a 3-byte cell when the last block is full (the MySim route deque)."
+
+[[entry]]
+name = "SC4::Service43D54"
+address = 0x00B43D54
+kind = "data"
+source = "Name ours. Slot 8 (cell x, z, mask, 0): the network kinds at a cell; slot 25 (&vector, &rect, 1, 1, mask): the network occupants in a rectangle."
