@@ -1,0 +1,208 @@
+# The residential simulator (cSC4ResidentialSimulator, the education and health simulator; docs/residential.md).
+
+[[entry]]
+name = "cSC4ResidentialSimulator::vftable_4"
+address = 0x00AB2BFC
+kind = "vtable"
+expect = "90 EA 6F 00 30 D2 68 00"
+source = "Name ours. The cIGZMessageTarget2 part at +4: DoMessage (slot 3, 0x00700350). Replaced by simulators.residential.messages (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::CopyGrid"
+address = 0x006F8970
+kind = "function"
+convention = "cdecl"
+signature = "void (cISC4SimGrid<uint8_t>* to, cISC4SimGrid<uint8_t>* from, void (*store)(uint8_t* cell, uint32_t value, uint32_t argument), uint32_t argument)"
+expect = "83 EC 28 53 55 56 8B 74"
+source = "Name ours. Copies one byte grid into another of another resolution (slots 11-13 and 24/25): same shift cell by cell, finer source cells averaged, coarser ones repeated, each through `store`. Also called from 0x0068F63F. Ours in simulators.residential.messages (docs/residential.md)."
+
+[[entry]]
+name = "SC4VectorList::Clear"
+address = 0x006FCBD0
+kind = "function"
+convention = "thiscall"
+signature = "void (std::list<SC4Curve>* this)"
+expect = "53 8B D9 8B 03 56 8B 30"
+source = "Name ours. Empties a list whose 24-byte nodes hold a vector (or curve) at +8: frees each node's buffer, then the node; the head stays. Shared with the traffic simulator (0x00718C4D, 0x0060C6DE). Ours in simulators.residential.messages (docs/residential.md)."
+
+[[entry]]
+name = "SC4::GetPropertyUint16"
+address = 0x005FD3F0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, uint16_t* value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. As 0x005FD3C0 with the variant's slot 22 (docs/residential.md)."
+
+[[entry]]
+name = "SC4SimGridBool8::MarkBuildings"
+address = 0x005E4FA0
+kind = "function"
+convention = "cdecl"
+signature = "void (cISC4SimGrid<uint8_t>* to, void* buildings, uint32_t key)"
+expect = "83 EC 28 57 8B 7C 24 34"
+source = "Name ours. Marks the cells of a building map's buildings of one key in a byte grid (the first half of SC4SimGridBool8::FromBuildings); the residential step uses it for the first two proximity maps (docs/residential.md)."
+
+[[entry]]
+name = "SC4SimGrid8::SpreadPass"
+address = 0x005E4E80
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (std::vector<std::vector<uint8_t>>* rows, int32_t rowCount, int32_t columnCount)"
+expect = "51 8B 4C 24 0C 53 8B 5C"
+source = "Name ours. One pass of a distance spread over a byte grid (each cell at most its neighbour + 1, along rows both ways then columns both ways); nonzero while anything changed. The residential step repeats it within its time budget (docs/residential.md)."
+
+[[entry]]
+name = "SC4::CellsInRadius"
+address = 0x005E5200
+kind = "function"
+convention = "cdecl"
+signature = "void (float x, float z, float radius, float cellSize, int32_t rows, int32_t columns, std::list<std::pair<int32_t, int32_t>>* cells)"
+expect = "83 EC 14 D9 05 28 12 A8"
+source = "Name ours. Appends the cells (x, z) within a radius of a point, as 16-byte list nodes, for a grid of the given cell size and dimensions. Used by the residential simulator's coverage (docs/residential.md)."
+
+[[entry]]
+name = "SC4::SpreadQuality"
+address = 0x005E48F0
+kind = "function"
+convention = "cdecl"
+signature = "void (void* ageGrid, void* qualityGrid, void* distanceCurves, float x, float z, float radius, void* ageCurves, float factor, float cap, uint32_t capacity, void* coverGrid, void* populationGrid, uint32_t* served)"
+expect = "83 EC 3C 53 55 56 8B 74"
+source = "Name ours. The residential simulator's EQ/HQ spread from one school or hospital over its cells (13 arguments, caller pops) (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::PassOnce"
+address = 0x00B4AFB8
+kind = "data"
+source = "Name ours. uint32 guard bits (1, 2, 4, 8) of the step's four time-budget steps below (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::Pass1Step"
+address = 0x00B4AFB0
+kind = "data"
+source = "Name ours. The time-budget step (0x400, then 0) of the step's spread over the first proximity map (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::Pass2Step"
+address = 0x00B4AFA8
+kind = "data"
+source = "Name ours. As Pass1Step for the second proximity map (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::Pass3Step"
+address = 0x00B4AFA0
+kind = "data"
+source = "Name ours. As Pass1Step for the third proximity map (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::Pass4Step"
+address = 0x00B4AF98
+kind = "data"
+source = "Name ours. As Pass1Step for the walk over the cells (EQ, HQ, population, age) (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::HealthStrikeText"
+address = 0x00B0D438
+kind = "data"
+source = "Name ours. const char*, \"striking_health\" (0x00AB2BC8): the news of a strike of a block whose message type is 0x077ACCD2 (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::EducationStrikeText"
+address = 0x00B0D43C
+kind = "data"
+source = "Name ours. const char*, \"striking_education\" (0x00AB2BB4): the news of other strikes (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::SchoolTypes"
+address = 0x00AB2B60
+kind = "data"
+source = "Name ours. uint32 occupant groups, one per school list (+0x1A8): which list a new school goes to (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::HospitalTypes"
+address = 0x00AB2B98
+kind = "data"
+source = "Name ours. uint32 occupant groups, one per hospital list (+0x1B4) (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::vftable_8"
+address = 0x00AB2BE4
+kind = "vtable"
+expect = "A0 EA 6F 00 50 D2 68 00"
+source = "Name ours. The cIGZSerializable part at +8: Write (0x006F8C40), Read (0x007009A0), GetGZCLSID (0x006F6E50) (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::Started"
+address = 0x00B4AF8C
+kind = "data"
+source = "Name ours. uint8 set by the first Init (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::Name"
+address = 0x00A897C4
+kind = "data"
+source = "\"cSC4ResidentialSimulator\", the name it registers under (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::FullFunding"
+address = 0x00B0D440
+kind = "data"
+source = "Name ours. float 1.0, the amount Init hands two budget items (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::DestroyMembers"
+address = 0x006FE840
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ResidentialSimulator* this)"
+expect = "51 56 8B F1 C7 06 10 2C"
+source = "Name ours. The destructor's body: the game's vtables back, every member destroyed (docs/residential.md)."
+
+[[entry]]
+name = "SC4ListVector::Resize"
+address = 0x00700490
+kind = "function"
+convention = "thiscall"
+signature = "void (vector<SC4List>* this, uint32_t count)"
+expect = "83 EC 08 56 8B F1 8B 0D"
+source = "Name ours. Resizes a vector of lists, new ones empty (docs/residential.md)."
+
+[[entry]]
+name = "SC4Curve::Copy"
+address = 0x005F4430
+kind = "function"
+convention = "thiscall"
+signature = "SC4Curve* (SC4Curve* this, SC4Curve const* other)"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours. Copy constructor: zeroes the points vector, copies the other's points (0x005F4300) and count (+0xC). Used to copy the residential simulator's service records (docs/residential.md)."
+
+[[entry]]
+name = "SC4StdList::InsertRangeUint32"
+address = 0x006F1570
+kind = "function"
+convention = "thiscall"
+signature = "void (std::list<uint32_t>* this, ListNode* where, ListNode* first, ListNode* last, void* dummy)"
+expect = "53 8B 5C 24 10 56 8B 74"
+source = "Name ours. Inserts copies of the uint32 values of [first, last) before `where`, 12-byte nodes from SC4::stl_allocate (no size kept). Used to copy the group list of the residential simulator's service records (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::vftable"
+address = 0x00AB2C10
+kind = "vtable"
+expect = "60 6E 6F 00 A0 7B 4F 00"
+source = "Primary vtable: cISC4ResidentialSimulator, 60 slots. simulators.residential.queries swaps its query slots (5-16, 29-38, 42-44, 46, 48, 50-57); 17, 18, 39-41 and 59 are shared stubs (docs/residential.md)."
+
+[[entry]]
+name = "cSC4ResidentialSimulator::DefaultPercentage"
+address = 0x00B4AF90
+kind = "data"
+source = "Name ours. float, set at startup (the file holds other bytes). The starting value of the strike chances, the ratings without buildings, the totals' float and the workforce shares without the tuning exemplar (docs/residential.md)."
+
+[[entry]]
+name = "SC4::SetPropertyBool"
+address = 0x005FE210
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, bool value)"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. Sets a bool property, adding it first if missing (as SC4::SetPropertyUint8). cSC4ResidentialSimulator::SetAutoBudget (0x006F7DA0) sets an occupant's 0x6C05FC4D with it (docs/residential.md)."
