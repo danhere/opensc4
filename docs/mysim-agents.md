@@ -29,6 +29,7 @@ The cISC4MySim methods take the +0xB8 part as `this`; offsets in src/core/mysim_
 | `simulators.mysim_agents.agent` | the advisor and agent side: QueryInterface, the balloon target (check, get, make, follow), the dispatch flag, above water, trip time, the advisor's Run, MonthPassed, the name, Init, Shutdown, ProcessAdviceEvents |
 | `simulators.mysim_agents.ui` | what the panel asks to change: UpdateResidence, the local school and hospital grades, the car and pedestrian models |
 | `simulators.mysim_agents.object` | the factory, constructor (its generator seeded under the original's call site, `fixed_seed::SiteOverride`) and destructors |
+| `simulators.mysim_agents.helpers` | the object's own helpers: CanTravel (a trip to work within the working hours left, or home), ShowAdvice, the balloon queues (PopBalloon, NextBalloon, QueueBalloon, ClearBalloons), ClearResidence, DropAdvice, OnBalloonTimeout, TryGoToWork, LoadLuaContext, AtBalloonPlace, DistanceTo, OccupantCondition, ResetAdvisor |
 
 Replacement code reads the MySim stopwatches through `sim_timers::Claim` first, so `determinism.sim_timers` takes them over as it would for the original code.
 
@@ -47,5 +48,7 @@ With the events and residence groups as well (2026-10-09): `saves-mysim` with th
 With the script and trip groups as well (2026-10-09): `saves-mysim` 4 of 4 for 30 days with the queries, the drive and the delete; the usual 12 with a MySim moving in 12 of 12 (Big City d0000 on a rerun: the first pair's original run crashed in the game's own code while loading, 0x00975CC8). The script's globals are not in the fingerprint; what the script does with them is (the balloons in the queries), and so are the home, job and title texts and education and health.
 
 With the agent, ui and object groups as well (all eleven, 2026-10-09): `saves-mysim` 4 of 4 for 30 days with the queries, the drive and the delete; the usual 12 with a MySim moving in 12 of 12. The drive does not make a balloon target: the original crashes doing it unattended.
+
+With the helpers as well (twelve groups, 2026-10-09): `saves-mysim` 4 of 4, the usual 12 with a MySim moving in 12 of 12. Reached with the drive and delete (coverage run of the original): all helpers but QueueBalloon, OnBalloonTimeout, TryGoToWork and AtBalloonPlace, which need a balloon target.
 
 **A moved-in MySim does not always repeat.** It travels by car, and cars move on frame time ([traffic-map.md](traffic-map.md)), so when it arrives can differ between runs of the original; its state (and the advice it gives) then differs from that day. Judge MySim runs with travel by outcome sets.
