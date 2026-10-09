@@ -1,0 +1,8 @@
+[[entry]]
+name = "cSC43DRender::Draw"
+address = 0x007CB530
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC43DRender* this)"
+expect = "83 EC 08 53 56 8B F1 8B"
+source = "cISC43DRender::Draw: one frame of the city view; diagnostics.trace.frames brackets it (docs/renderer.md, \"Draw-call parity\")."

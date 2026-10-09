@@ -88,6 +88,7 @@ add_library(opensc4_core SHARED
   game_timelapse.cpp
   gd/d3d11_backend.cpp
   gd/driver.cpp
+  gd/frame_trace.cpp
   d3d7_probe.cpp
   dbpf_survey.cpp
   gdriver_proxy.cpp

@@ -12,6 +12,7 @@
 // Like the stock drivers it creates its own (ANSI) window in SetVideoMode and
 // sends the window's messages to the procedure the game passes in.
 #include "core/gd/backend.h"
+#include "core/gd/frame_trace.h"
 #include "core/gd/gd.h"
 #include "core/gd/vertex_format.h"
 
@@ -204,7 +205,7 @@ public:
         ++draws_;
         if (!backend_ || count <= 0 || first < 0 || !vertexData_)
             return;
-        backend_->Draw(State(), {prim, vertexFormat_, vertexStride_, static_cast<const uint8_t*>(vertexData_),
+        Submit({prim, vertexFormat_, vertexStride_, static_cast<const uint8_t*>(vertexData_),
                                  static_cast<uint32_t>(first), static_cast<uint32_t>(count), nullptr, 0});
     }
 
@@ -217,7 +218,7 @@ public:
             error_ = InvalidEnum;
             return;
         }
-        backend_->Draw(State(), {prim, vertexFormat_, vertexStride_, static_cast<const uint8_t*>(vertexData_), 0,
+        Submit({prim, vertexFormat_, vertexStride_, static_cast<const uint8_t*>(vertexData_), 0,
                                  static_cast<uint32_t>(count), indices, type});
     }
 
@@ -497,6 +498,7 @@ public:
             return 0;
         }
         textures_.insert(id);
+        frame_trace::TextureCreated(id, format, width, height, levels);
         return id;
     }
 
@@ -504,6 +506,7 @@ public:
                           uint32_t format, uint32_t type, uint32_t rowLength, void const* pixels) override
     {
         ++textureUploads_;
+        frame_trace::TextureUploaded(texture, level, x, y, width, height, format, type, rowLength, pixels);
         if (backend_ && level >= 0)
             backend_->UploadTexture(texture, static_cast<uint32_t>(level), x, y, width, height, format, type,
                                     rowLength, pixels);
@@ -694,9 +697,9 @@ public:
         if (!backend_ || count == 0)
             return;
         if (indices)
-            backend_->Draw(State(), {prim, format, stride, vertices, 0, indexCount, indices, UnsignedShort});
+            Submit({prim, format, stride, vertices, 0, indexCount, indices, UnsignedShort});
         else
-            backend_->Draw(State(), {prim, format, stride, vertices, 0, count, nullptr, 0});
+            Submit({prim, format, stride, vertices, 0, count, nullptr, 0});
     }
 
     void LogStats(const char* when) const
@@ -710,6 +713,14 @@ private:
     {
         std::memset(m, 0, 16 * sizeof(float));
         m[0] = m[5] = m[10] = m[15] = 1.0f;
+    }
+
+    // A draw to the backend, recorded for draw-call parity when traced.
+    void Submit(const DrawCall& call)
+    {
+        const DrawState& state = State();
+        frame_trace::Record(state, call);
+        backend_->Draw(state, call);
     }
 
     // The state a draw uses, for the backend.
