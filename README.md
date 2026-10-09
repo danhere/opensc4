@@ -28,6 +28,7 @@ Not yet playable as a standalone game. See [ROADMAP.md](ROADMAP.md) for progress
 | [docs/renderer.md](docs/renderer.md) | P1: how the game gets its graphics driver, how ours is installed, what the game calls |
 | [docs/pollution.md](docs/pollution.md) | P5: the pollution simulator's structure and our reimplementation of it |
 | [docs/experiments/pollution-proxy.md](docs/experiments/pollution-proxy.md) | Experiment: a plugin-registered pass-through pollution simulator running a city |
+| [docs/city-size.md](docs/city-size.md) | What limits city tile size and the plan for bigger tiles |
 | [docs/research.md](docs/research.md) | Feasibility research, existing projects, legal context, community etiquette |
 | [docs/dev-environment.md](docs/dev-environment.md) | Windows / CachyOS / macOS roles and toolchain |
 
