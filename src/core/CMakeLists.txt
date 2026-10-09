@@ -80,6 +80,10 @@ add_library(opensc4_core SHARED
   development_object.cpp
   development_occupants.cpp
   development_queries.cpp
+  growth_autotest.cpp
+  growth_messages.cpp
+  growth_object.cpp
+  growth_queries.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp
