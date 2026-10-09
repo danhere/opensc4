@@ -11,7 +11,7 @@ source = "The primary cISC4GrowthDeveloper vtable (32 slots; QueryInterface 0x00
 name = "SC4::Service43D60"
 address = 0x00B43D60
 kind = "data"
-source = "Unnamed service; its slots 13 (+0x34), 14 (+0x38) and 15 (+0x3C) give byte grids that cSC4GrowthDeveloper::EstimateDesirability (0x006B4DF0) reads at a cell (slot 7)."
+source = "Unnamed service; its slots 13 (+0x34), 14 (+0x38) and 15 (+0x3C) give byte grids that cSC4GrowthDeveloper::EstimateDesirability (0x006B4DF0) reads at a cell (slot 7). The MySim code reads it too (slot 12, +0x30; docs/mysim-agents.md)."
 
 [[entry]]
 name = "SC4::Service43D6C"
