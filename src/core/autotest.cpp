@@ -563,6 +563,17 @@ private:
                     log::Write("autotest: crime month restarted on day %d", day);
                 }
         }
+        // OPENSC4_TEST_WEATHER_YEAR=<n>: on the n-th day, run the weather
+        // simulator's month handler as for January (0x00729630 with 1, build
+        // 641; docs/weather.md): the water-body search runs then only.
+        if (const int when = EnvInt("OPENSC4_TEST_WEATHER_YEAR", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641()) {
+            if (void* const weather = city->GetWeatherSimulator()) {
+                using MonthFn = void(__thiscall*)(void* self, int32_t month, int32_t unused);
+                reinterpret_cast<MonthFn>(0x00729630)(weather, 1, 0);
+                log::Write("autotest: weather January handler run on day %d", day);
+            }
+        }
         // OPENSC4_TEST_OCCUPANT_CYCLE=<n>: on the n-th day, hand the water and
         // power simulators "removed" then "added" for an existing pipe and
         // pole (messages 0x99EF1143, 0x99EF1142), and power the plant
@@ -849,6 +860,49 @@ private:
                               set, visuals, sim, prop);
             }
         }
+        // Weather (cSC4WeatherSimulator, build 641 offsets; docs/weather.md):
+        // the moisture maps (+0x74, +0xDC, +0xE8, rows of bytes), the water
+        // cells (+0x80, rows of bits), the water bodies (+0x8C), the cells
+        // left this pass (+0xC8), the season and month, temperature and
+        // humidity, the wind (+0x118 to +0x144) as float bits.
+        void* const weather = city->GetWeatherSimulator();
+        char weatherText[256] = " | weather none";
+        if (weather && game::IsBuild641()) {
+            auto rowsSum = [weather](std::size_t offset) {
+                uint32_t h = 2166136261u;
+                char* const* const begin = At<char* const*>(weather, offset);
+                char* const* const end = At<char* const*>(weather, offset + 4);
+                for (char* const* row = begin; row && row < end; row += 3)
+                    for (const char* b = row[0]; b < row[1]; ++b)
+                        h = (h ^ static_cast<uint8_t>(*b)) * 16777619u;
+                return h;
+            };
+            uint32_t bits = 2166136261u;
+            {
+                const int32_t countX = At<int32_t>(weather, 0x2C), countZ = At<int32_t>(weather, 0x30);
+                const char* const rows = At<const char*>(weather, 0x80);
+                const int32_t rowCount = rows ? static_cast<int32_t>((At<const char*>(weather, 0x84) - rows) / 20) : 0;
+                for (int32_t x = 0; x < countX && x < rowCount; ++x) {
+                    const uint32_t* const data = *reinterpret_cast<uint32_t* const*>(rows + 20 * x);
+                    const int32_t start = *reinterpret_cast<const int32_t*>(rows + 20 * x + 4);
+                    for (int32_t z = 0; z < countZ; ++z) {
+                        const int32_t bit = start + z;
+                        const uint32_t set = (data[bit >> 5] >> (bit & 31)) & 1;
+                        bits = (bits ^ set) * 16777619u;
+                    }
+                }
+            }
+            auto f = [weather](std::size_t offset) { return At<uint32_t>(weather, offset); };
+            const char* const bodies = At<const char*>(weather, 0x8C);
+            std::snprintf(weatherText, sizeof weatherText,
+                          " | weather %08X %08X %08X %08X bodies %d left %d season %d month %d temp %08X hum %08X "
+                          "wind %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X",
+                          rowsSum(0x74), rowsSum(0xDC), rowsSum(0xE8), bits,
+                          bodies ? static_cast<int>((At<const char*>(weather, 0x90) - bodies) / 16) : 0,
+                          At<int32_t>(weather, 0xC8), At<int32_t>(weather, 0x60), At<int32_t>(weather, 0x160), f(0x70),
+                          f(0xF4), f(0x11C), f(0x120), f(0x124), f(0x128), f(0x12C), f(0x130), f(0x134), f(0x138),
+                          f(0x13C), f(0x140), f(0x144));
+        }
         // Traffic (build 641 slots): trip scale and the one shown (14, 15),
         // last month's income (18) and the freight scaling (27), as float bits.
         char trafficText[96] = "";
@@ -882,7 +936,7 @@ private:
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
         log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s",
+                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s%s",
                    day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
                    lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
                    traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
@@ -893,7 +947,7 @@ private:
                    pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
                    worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText,
-                   waterText, auraText, crimeText, trafficText, landText, ticks, rng);
+                   waterText, auraText, crimeText, weatherText, trafficText, landText, ticks, rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,

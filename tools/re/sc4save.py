@@ -227,6 +227,17 @@ def crime_simulator(r):
     return out
 
 
+def weather_simulator(r):
+    """cSC4WeatherSimulator (0x2990C1BC): Write at 0x00725E80 (version 2).
+    The record holds no references, so after the version it is compared
+    byte for byte (docs/weather.md)."""
+    out = header(r)
+    out['version'] = r.u16()
+    out['bytes'] = list(r.data[r.pos:])
+    r.pos = len(r.data)
+    return out
+
+
 def traffic_simulator(r):
     """cSC4TrafficSimulator (0x6990C1AA): Write at 0x00712400 (version 41).
     Field names are ours; offsets in them are from the object's start (the
@@ -355,7 +366,8 @@ SCHEMAS = {0x8990C065: ('cSC4PollutionSimulator', pollution_simulator),
            0x6990C1AA: ('cSC4TrafficSimulator', traffic_simulator),
            0x0990BDD8: ('cSC4AuraSimulator', aura_simulator),
            0xE990C18E: ('cSC4LandValueSimulator', land_value_simulator),
-           0x8990C09A: ('cSC4CrimeSimulator', crime_simulator)}
+           0x8990C09A: ('cSC4CrimeSimulator', crime_simulator),
+           0x2990C1BC: ('cSC4WeatherSimulator', weather_simulator)}
 
 
 def decode(data, decoder):
