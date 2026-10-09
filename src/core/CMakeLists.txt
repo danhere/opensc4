@@ -55,6 +55,11 @@ add_library(opensc4_core SHARED
   aura_init.cpp
   aura_object.cpp
   aura_sim.cpp
+  weather_bodies.cpp
+  weather_init.cpp
+  weather_moisture.cpp
+  weather_object.cpp
+  weather_sim.cpp
   pollution_sim.cpp
   pollution_tracts.cpp
   virtual_clock.cpp
