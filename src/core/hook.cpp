@@ -17,6 +17,7 @@ namespace {
 
 std::mutex g_mutex;
 bool g_initialized = false;
+bool g_batch = false;
 std::vector<std::uintptr_t> g_installed;
 
 bool EnsureInitialized()
@@ -50,7 +51,7 @@ bool InstallAt(const char* name, std::uintptr_t target, const unsigned char* exp
     void* const address = reinterpret_cast<void*>(target);
     MH_STATUS status = MH_CreateHook(address, detour, original);
     if (status == MH_OK)
-        status = MH_EnableHook(address);
+        status = g_batch ? MH_QueueEnableHook(address) : MH_EnableHook(address);
     if (status != MH_OK) {
         log::Write("hook: %s at 0x%08X failed: %s", name, static_cast<unsigned>(target), MH_StatusToString(status));
         MH_RemoveHook(address);
@@ -72,6 +73,23 @@ bool Install(const addr::Entry& entry, void* detour, void** original)
         return false;
     }
     return InstallAt(entry.name, entry.address, entry.expect, entry.expectSize, detour, original);
+}
+
+void BeginBatch()
+{
+    std::lock_guard lock(g_mutex);
+    g_batch = true;
+}
+
+void EndBatch()
+{
+    std::lock_guard lock(g_mutex);
+    g_batch = false;
+    if (!g_initialized)
+        return;
+    const MH_STATUS status = MH_ApplyQueued();
+    if (status != MH_OK)
+        log::Write("hook: enabling the queued hooks failed: %s", MH_StatusToString(status));
 }
 
 void RemoveAll()
