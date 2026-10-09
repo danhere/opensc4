@@ -12,7 +12,10 @@
 //     the city (home, job, buildings, fires, disasters) and the others of
 //     moderate size;
 //   simulators.mysim_agents.residence: MoveIn, FindNewResidence and
-//     SetResidence.
+//     SetResidence;
+//   simulators.mysim_agents.script: UpdateHomeAndJob, the home and job
+//     facts the MySim's script reads;
+//   simulators.mysim_agents.trip: OnCommand, the trip facts.
 //
 // The methods take the cISC4MySim part as `this` (here `self`); offsets
 // below are from it. The object starts at self - 0xB8.
@@ -20,6 +23,7 @@
 #include "core/game.h"
 #include "core/game_access.h"
 #include "core/hook.h"
+#include "core/log.h"
 #include "core/registry.h"
 #include "core/sim_timers.h"
 
@@ -1458,6 +1462,809 @@ uint8_t __fastcall SetResidence(char* self, void*, void* occupant)
     return 1;
 }
 
+// --- The script's facts -----------------------------------------------------------------
+//
+// UpdateHomeAndJob (from the object's start) sets ~40 globals in the
+// MySim's script table (the script context at +0x1F0, the table's
+// reference at +0x164): education and health, the home's condition,
+// services, coverage, pollution, funding and traffic, the job's. The names
+// are the game's strings.
+
+struct ScriptString { // SC4String, 0x14 bytes, referenced
+    std::uintptr_t vtable;
+    char* begin;
+    char* end;
+    char* capacity;
+    uint32_t references;
+};
+
+void* Script(char* mysim)
+{
+    return At<void*>(mysim, 0x1F0);
+}
+
+void SetNumber(char* mysim, std::uintptr_t name, double value)
+{
+    void* const script = Script(mysim);
+    Virtual<void>(script, 0x84, reinterpret_cast<const char*>(name));
+    Virtual<void>(script, 0x7C, value);
+    Virtual<void>(script, 0xB8, -3);
+}
+
+void SetObject(char* mysim, std::uintptr_t name, void* object)
+{
+    void* const script = Script(mysim);
+    Virtual<void>(script, 0x84, reinterpret_cast<const char*>(name));
+    Virtual<uint32_t>(object, 0x4);
+    void* const city = Virtual<void*>(Global<void*>(addr::SC4_City), 0x144);
+    const uint32_t kind = Virtual<uint32_t>(city, 0x58, uint32_t{1});
+    Virtual<void>(script, 0x114, object, kind);
+    Virtual<void>(script, 0xB8, -3);
+}
+
+// An empty SC4String made as UpdateHomeAndJob makes it, held at `at`.
+void NewString(char* mysim, std::size_t at)
+{
+    auto* const text = static_cast<ScriptString*>(
+        reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(sizeof(ScriptString)));
+    if (text) {
+        text->begin = nullptr;
+        text->end = nullptr;
+        text->capacity = nullptr;
+        char* const buffer = static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(8));
+        text->begin = buffer;
+        text->end = buffer;
+        text->capacity = buffer + 8;
+        *buffer = 0;
+        text->vtable = addr::SC4String_Vtable;
+        text->references = 0;
+    }
+    void* const old = At<void*>(mysim, at);
+    if (text != old) {
+        if (text)
+            Virtual<uint32_t>(text, 0x4);
+        At<void*>(mysim, at) = text;
+        Release(old);
+    }
+}
+
+bool Flag(uint8_t value)
+{
+    return value != 0;
+}
+
+// A grid value at the home's cell through a service's slot 5 (with an
+// argument for pollution's grids).
+template <typename... Args>
+void* ServiceGrid(std::uintptr_t service, Args... args)
+{
+    return Virtual<void*>(Global<void*>(service), 0x14, args...);
+}
+
+// The nearest station's funding (police: slot 21, its slot 7; fire: slot
+// 22, its slot 8, by distance from the MySim), starting from the default.
+float Funding(char* mysim, void* service, bool fire, void** head)
+{
+    using ListFn = void(__thiscall*)(void* list);
+    float funding = Global<float>(addr::SC4_DefaultFunding);
+    uint32_t best = 0xFFFFFFFF;
+    reinterpret_cast<ListFn>(addr::SC4List_Clear2)(head);
+    if (Virtual<uint32_t>(service, fire ? 0x58 : 0x54, head)) {
+        char* const list = static_cast<char*>(*head);
+        for (char* node = At<char*>(list, 0); node != *head; node = At<char*>(node, 0)) {
+            void* const station = At<void*>(node, 8);
+            uint32_t distance;
+            if (fire) {
+                float position[3];
+                Virtual<void>(station, 0x20, position);
+                const double dx = static_cast<double>(At<float>(mysim, 0xD0)) - position[0];
+                const double dz = static_cast<double>(At<float>(mysim, 0xD8)) - position[2];
+                distance = static_cast<uint32_t>(Truncate(std::sqrt(dz * dz + dx * dx)));
+            } else {
+                distance = reinterpret_cast<uint32_t(__thiscall*)(void*, void*)>(addr::cSC4MySim_DescribeOccupant)(
+                    mysim, station);
+            }
+            if (distance < best &&
+                Virtual<uint8_t>(service, fire ? 0x20 : 0x1C, station, uint32_t{0}, &funding))
+                best = distance;
+            Virtual<uint32_t>(station, 0x8);
+        }
+        reinterpret_cast<ListFn>(addr::SC4List_Clear2)(head);
+    }
+    return funding;
+}
+
+// The most congested network cell on the border of the home's lot, grown
+// by one cell and kept inside the city.
+uint8_t Congestion(int32_t* rect)
+{
+    void* const city = Global<void*>(addr::SC4_City);
+    --rect[0];
+    --rect[1];
+    ++rect[2];
+    ++rect[3];
+    const int32_t last = Virtual<int32_t>(city, 0x174) - 1;
+    if (rect[0] < 0)
+        rect[0] = 0;
+    if (rect[1] < 0)
+        rect[1] = 0;
+    if (rect[2] > last)
+        rect[2] = last;
+    if (rect[3] > last)
+        rect[3] = last;
+    void* const network = Virtual<void*>(Global<void*>(addr::SC4_City), 0x114);
+    uint8_t most = 0;
+    const auto check = [&](int32_t x, int32_t z) {
+        using AtFn = double(__thiscall*)(void* self, uint32_t kind, int32_t x, int32_t z);
+        const double value = reinterpret_cast<AtFn>(At<void**>(network, 0)[0x5C / 4])(network, 1, x, z);
+        if (value == 0.0)
+            return;
+        const uint8_t congestion = Virtual<uint8_t>(Virtual<void*>(network, 0x28), 0x1C, x, z);
+        if (congestion > most)
+            most = congestion;
+    };
+    for (int32_t x = rect[0]; x <= rect[2]; ++x) {
+        check(x, rect[3]);
+        check(x, rect[1]);
+    }
+    for (int32_t z = rect[1] + 1; z < rect[3]; ++z) {
+        check(rect[0], z);
+        check(rect[2], z);
+    }
+    return most;
+}
+
+// An occupant's location in the script: advice data holding it, or nil.
+void SetLocation(char* mysim, std::uintptr_t name, void* occupant)
+{
+    void* const script = Script(mysim);
+    Virtual<void>(script, 0x84, reinterpret_cast<const char*>(name));
+    if (!occupant) {
+        Virtual<void>(script, 0x114, nullptr, uint32_t{0});
+        Virtual<void>(script, 0xB8, -3);
+        return;
+    }
+    void* data = nullptr;
+    void* const com = reinterpret_cast<void*(__cdecl*)()>(addr::RZGetCOM)();
+    if (Virtual<uint8_t>(com, 0xC, 0x6A26D049u, 0x6A26D050u, &data)) {
+        Virtual<void>(data, 0x1C, occupant);
+        Virtual<uint32_t>(data, 0x4);
+        void* const city = Virtual<void*>(Global<void*>(addr::SC4_City), 0x144);
+        const uint32_t kind = Virtual<uint32_t>(city, 0x58, uint32_t{0});
+        Virtual<void>(script, 0x114, data, kind);
+    }
+    Release(data);
+    Virtual<void>(script, 0xB8, -3);
+}
+
+// The distance map at +0x1E8 (DistanceToClosest's): for each occupant
+// within 20 cells of home that is a building, the uint32 list of its type's
+// resource (service 0x00B43D68's slot 14 gives the key) names keys, and
+// each key keeps the shortest distance from the MySim.
+void __fastcall UpdateDistances(char* mysim, void*)
+{
+    using ListFn = void(__thiscall*)(void* list);
+    void** const head = static_cast<void**>(Virtual<void*>(ListNodeAllocator(), 0xC, 0xCu));
+    head[0] = head;
+    head[1] = head;
+    struct {
+        void* head;
+        uint32_t size;
+    } list{head, 0};
+    if (At<void*>(mysim, 0xC4)) {
+        void* const types = Global<void*>(addr::SC4_Service43D68);
+        struct {
+            uint32_t* begin;
+            uint32_t* end;
+            uint32_t* capacity;
+        } keys{};
+        uint32_t key[3] = {};
+        auto* const filter = static_cast<std::uintptr_t*>(
+            reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x10));
+        if (filter) {
+            reinterpret_cast<ThisFn>(addr::SC4_OccupantFilterBase)(filter);
+            filter[0] = addr::SC4MySim_ResidenceFilterVtable;
+            filter[1] = addr::SC4MySim_ResidenceFilterVtable4;
+            reinterpret_cast<uint8_t*>(filter)[0xC] = 0;
+            Virtual<uint32_t>(filter, 0x4);
+        }
+        char* map = At<char*>(mysim, 0x1E8);
+        if (!map) {
+            void* const memory = reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0xC);
+            map = memory ? static_cast<char*>(
+                               reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4TrafficZone_Construct)(memory)) // a uint32 map's constructor
+                         : nullptr;
+            At<char*>(mysim, 0x1E8) = map;
+        } else if (At<uint32_t>(map, 4)) {
+            char* const root = At<char*>(map, 0);
+            reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4Uint32Map_EraseSubtree)(map, At<void*>(root, 4));
+            At<char*>(At<char*>(map, 0), 8) = At<char*>(map, 0);
+            At<void*>(At<char*>(map, 0), 4) = nullptr;
+            At<char*>(At<char*>(map, 0), 0xC) = At<char*>(map, 0);
+            At<uint32_t>(map, 4) = 0;
+        }
+        const int32_t x = At<int32_t>(mysim, 0xC8);
+        const int32_t z = At<int32_t>(mysim, 0xCC);
+        int32_t low[2] = {x - 20, z - 20};
+        int32_t high[2] = {x + 20, z + 20};
+        void* const occupants = Virtual<void*>(Global<void*>(addr::SC4_City), 0x88);
+        if (Virtual<uint8_t>(occupants, 0xA0, &list, low, high, static_cast<void*>(filter), -1)) {
+            for (char* node = static_cast<char*>(head[0]); node != list.head; node = At<char*>(node, 0)) {
+                void* const occupant = At<void*>(node, 8);
+                void* building = nullptr;
+                if (Virtual<uint8_t>(occupant, 0x0, 0x87DDA3A9u, &building)) {
+                    float position[3];
+                    Virtual<void>(occupant, 0x20, position);
+                    const double dx = static_cast<double>(At<float>(mysim, 0xD0)) - position[0];
+                    const double dz = static_cast<double>(At<float>(mysim, 0xD8)) - position[2];
+                    const uint32_t distance = static_cast<uint32_t>(Truncate(std::sqrt(dz * dz + dx * dx)));
+                    const uint32_t type = Virtual<uint32_t>(building, 0x10);
+                    Virtual<void>(types, 0x38, type, key);
+                    reinterpret_cast<void(__cdecl*)(void*, void*)>(addr::SC4_LoadUint32List)(key, &keys);
+                    const auto count = static_cast<int32_t>(keys.end - keys.begin);
+                    using AtFn = uint32_t*(__thiscall*)(void* map, const uint32_t* key);
+                    const auto at = reinterpret_cast<AtFn>(addr::SC4Uint32Map_At);
+                    for (int32_t i = 0; i < count; ++i) {
+                        const uint32_t id = keys.begin[i];
+                        const uint32_t nearest = *at(At<void*>(mysim, 0x1E8), &id);
+                        if (!nearest || distance < nearest)
+                            *at(At<void*>(mysim, 0x1E8), &id) = distance;
+                    }
+                }
+                Virtual<uint32_t>(occupant, 0x8);
+                Release(building);
+            }
+            reinterpret_cast<ListFn>(addr::SC4List_Clear2)(&list);
+        }
+        Release(filter);
+        if (keys.begin)
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(keys.begin);
+    }
+    reinterpret_cast<ListFn>(addr::SC4List_Destroy2)(&list);
+}
+
+// The MySim's own facts: state, age, wealth, generation, retired, zodiac,
+// sex, the last local disaster, home and job locations, name.
+void __fastcall PublishBasics(char* mysim, void*)
+{
+    if (!At<int32_t>(mysim, 0x164) && Script(mysim)) {
+        Virtual<void>(Script(mysim), 0xB0);
+        At<int32_t>(mysim, 0x164) = Virtual<int32_t>(Script(mysim), 0xC8, uint32_t{1});
+        reinterpret_cast<CommandFn>(addr::cSC4MySim_OnCommand)(mysim, -1, -1, -1, -1, 1);
+    }
+    if (!Script(mysim))
+        return;
+    Virtual<void>(Script(mysim), 0xAC, At<int32_t>(mysim, 0x164));
+    SetNumber(mysim, 0x00A8506C, At<int32_t>(mysim, 0xC0));   // state
+    SetNumber(mysim, 0x00A85068, At<uint8_t>(mysim, 0x128));  // age
+    SetNumber(mysim, 0x00A85060, At<int32_t>(mysim, 0x10C));  // wealth
+    SetNumber(mysim, 0x00A85054, At<uint16_t>(mysim, 0x110)); // generation
+    SetNumber(mysim, 0x00A8504C, At<uint8_t>(mysim, 0x158));  // retired
+    SetNumber(mysim, 0x00A85044, At<uint8_t>(mysim, 0x112));  // zodiac
+    SetNumber(mysim, 0x00A8503C, At<uint8_t>(mysim, 0x113));  // is_male
+    SetNumber(mysim, 0x00A85028, At<uint32_t>(mysim, 0x15C)); // last_local_disaster
+    SetLocation(mysim, 0x00A85018, At<void*>(mysim, 0xC4));   // home_location
+    SetLocation(mysim, 0x00A85008, At<void*>(mysim, 0xE0));   // job_location
+    void* const memory = reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x14);
+    void* name = nullptr;
+    if (memory) {
+        void* const advisorName = Virtual<void*>(mysim + 8, 0x20);
+        name = reinterpret_cast<void*(__thiscall*)(void*, void*)>(addr::SC4String_FromIGZString)(memory, advisorName);
+    }
+    if (name)
+        Virtual<uint32_t>(name, 0x4);
+    SetObject(mysim, 0x00A81380, name); // name
+    Virtual<void>(Script(mysim), 0x2C, uint32_t{1});
+    Virtual<uint32_t>(name, 0x8);
+}
+
+void __fastcall UpdateHomeAndJob(char* mysim, void*)
+{
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_PublishBasics)(mysim);
+    void* const power = Global<void*>(addr::SC4_Service43DA0);
+    void* const water = Global<void*>(addr::SC4_Service43D94);
+    if (!At<int32_t>(mysim, 0x164) && Script(mysim)) {
+        Virtual<void>(Script(mysim), 0xB0);
+        At<int32_t>(mysim, 0x164) = Virtual<int32_t>(Script(mysim), 0xC8, uint32_t{1});
+        reinterpret_cast<CommandFn>(addr::cSC4MySim_OnCommand)(mysim, -1, -1, -1, -1, 1);
+    }
+    if (!Script(mysim) || At<int32_t>(mysim, 0x164) <= 0)
+        return;
+    void* const fire = Global<void*>(addr::SC4_Service43D78);
+    void* const city = Global<void*>(addr::SC4_Service43DA4);
+    void* const police = Global<void*>(addr::SC4_PoliceSimulator);
+    Virtual<void>(Script(mysim), 0xAC, At<int32_t>(mysim, 0x164));
+    const auto x = [&] { return At<int32_t>(mysim, 0xC8); };
+    const auto z = [&] { return At<int32_t>(mysim, 0xCC); };
+
+    if (void* const residence = At<void*>(mysim, 0xC4)) {
+        int32_t rect[4];
+        Virtual<void>(At<void*>(mysim, 0xDC), 0x38, rect);
+        using GradeFn = double(__thiscall*)(void* service, int32_t x, int32_t z, int32_t wealth);
+        const double eq = reinterpret_cast<GradeFn>(At<void**>(city, 0)[0x94 / 4])(city, x(), z(), At<int32_t>(mysim, 0x10C));
+        if (eq > 0.0)
+            At<float>(mysim, 0x17C) = static_cast<float>(eq);
+        SetNumber(mysim, 0x00A85470, Truncate(At<float>(mysim, 0x17C))); // eq
+        const double hq = reinterpret_cast<GradeFn>(At<void**>(city, 0)[0x98 / 4])(city, x(), z(), At<int32_t>(mysim, 0x10C));
+        if (hq > 0.0)
+            At<float>(mysim, 0x180) = static_cast<float>(hq);
+        SetNumber(mysim, 0x00A8546C, Truncate(At<float>(mysim, 0x180))); // hq
+        SetNumber(mysim, 0x00A85460, Truncate(At<float>(mysim, 0x1DC))); // delta_eq
+        SetNumber(mysim, 0x00A85454, Truncate(At<float>(mysim, 0x1E0))); // delta_hq
+        SetNumber(mysim, 0x00A85450, Virtual<uint8_t>(city, 0x74, x(), z())); // le
+        SetNumber(mysim, 0x00A85440,
+                  reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::SC4_OccupantCondition)(residence)); // home_condition
+        if (!At<void*>(mysim, 0x168)) {
+            void* const memory = reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x14);
+            void* const text = memory ? reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4String_SC4String)(memory)
+                                      : nullptr;
+            reinterpret_cast<AssignFn>(addr::SC4RefPtr_Assign)(mysim + 0x168, text);
+            SetObject(mysim, 0x00A85430, At<void*>(mysim, 0x168)); // home_building
+        }
+        Virtual<void>(residence, 0x4C, At<void*>(mysim, 0x168));
+        SetNumber(mysim, 0x00A85420, Flag(Virtual<uint8_t>(At<void*>(mysim, 0xDC), 0x70)) ? 1 : 0); // home_has_road
+        SetNumber(mysim, 0x00A85410, Flag(Virtual<uint8_t>(power, 0x7C, Virtual<void*>(residence, 0xC))) ? 1 : 0);
+        SetNumber(mysim, 0x00A85400, Flag(Virtual<uint8_t>(water, 0x24, Virtual<void*>(residence, 0xC))) ? 1 : 0);
+        SetNumber(mysim, 0x00A853F4, Virtual<uint8_t>(ServiceGrid(addr::SC4_Service43D70), 0x1C, x(), z())); // local_crime
+        const int32_t width = rect[2] - rect[0] + 1;
+        const int32_t height = rect[3] - rect[1] + 1;
+        SetNumber(mysim, 0x00A853DC, Virtual<uint8_t>(Virtual<void*>(police, 0x14), 0x20, rect[0], rect[1], width, height));
+        SetNumber(mysim, 0x00A853C8, Virtual<uint8_t>(Virtual<void*>(fire, 0x14), 0x20, rect[0], rect[1], width, height));
+        const std::uintptr_t pollutionNames[] = {0x00A853B4, 0x00A8539C, 0x00A8538C, 0x00A8537C};
+        for (uint32_t kind = 0; kind < 4; ++kind)
+            SetNumber(mysim, pollutionNames[kind],
+                      Virtual<int16_t>(ServiceGrid(addr::SC4_PollutionSimulator, kind), 0x1C, x(), z()));
+        SetNumber(mysim, 0x00A85364, At<int32_t>(mysim, 0x298)); // last_player_trip_day
+        uint32_t desirability = 0;
+        switch (At<int32_t>(mysim, 0x10C)) {
+        case 1:
+            desirability = 0x1010;
+            break;
+        case 2:
+            desirability = 0x1020;
+            break;
+        case 3:
+            desirability = 0x1030;
+            break;
+        default:
+            break;
+        }
+        if (desirability)
+            if (void* const grids = Virtual<void*>(Global<void*>(addr::SC4_Service43D68), 0x80, desirability))
+                SetNumber(mysim, 0x00A85354, Virtual<int16_t>(Virtual<void*>(grids, 0x34), 0x1C, x(), z()));
+        SetNumber(mysim, 0x00A8533C, Virtual<int32_t>(At<void*>(mysim, 0xDC), 0xA4)); // home_occupant_wealth
+        reinterpret_cast<ThisFn>(addr::cSC4MySim_UpdateDistances)(mysim);
+        void** const list = static_cast<void**>(Virtual<void*>(ListNodeAllocator(), 0xC, 0xCu));
+        list[0] = list;
+        list[1] = list;
+        struct {
+            void* head;
+            uint32_t size;
+        } stations{list, 0};
+        const float policeFunding = Funding(mysim, police, false, &stations.head);
+        SetNumber(mysim, 0x00A85324, Truncate(static_cast<double>(policeFunding) * 100.0f)); // local_police_funding
+        const float fireFunding = Funding(mysim, fire, true, &stations.head);
+        SetNumber(mysim, 0x00A85310, Truncate(static_cast<double>(fireFunding) * 100.0f)); // local_fire_funding
+        SetNumber(mysim, 0x00A852F4, Congestion(rect)); // local_traffic_congestion
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4List_Clear2)(&stations.head);
+        Virtual<void>(ListNodeAllocator(), 0x10, stations.head);
+    }
+
+    if (!At<void*>(mysim, 0x170)) {
+        NewString(mysim, 0x170);
+        SetObject(mysim, 0x00A852E8, At<void*>(mysim, 0x170)); // job_title
+    }
+    if (!At<void*>(mysim, 0x16C)) {
+        NewString(mysim, 0x16C);
+        SetObject(mysim, 0x00A852D8, At<void*>(mysim, 0x16C)); // job_building
+    }
+    if (!At<void*>(mysim, 0x174)) {
+        NewString(mysim, 0x174);
+        SetObject(mysim, 0x00A852CC, At<void*>(mysim, 0x174)); // job_city
+    }
+    SetNumber(mysim, 0x00A852B8, At<int32_t>(mysim, 0x154)); // last_commute_time
+    void* const job = At<void*>(mysim, 0xE0);
+    void* const pending = At<void*>(mysim, 0xE4);
+    if (job || pending) {
+        SetNumber(mysim, 0x00A852AC, 1.0); // employed
+        SetNumber(mysim, 0x00A8529C, 0.0); // unemployed_days
+        if (void* const title = At<void*>(mysim, 0x170)) {
+            if (pending) {
+                uint32_t id = 0;
+                switch (At<int32_t>(mysim, 0x10C)) {
+                case 1:
+                    id = 0x8A538A68;
+                    break;
+                case 2:
+                    id = 0x8A538A69;
+                    break;
+                case 3:
+                    id = 0x8A538A70;
+                    break;
+                default:
+                    break;
+                }
+                if (id)
+                    LoadText(title, 0xEA231E96, id, 0);
+            } else if (job) {
+                Virtual<void>(mysim + 0xB8, 0x6C, job, title); // GetJobTitle(job, title)
+            }
+        }
+    }
+    if (void* const work = At<void*>(mysim, 0xE0)) {
+        Virtual<void*>(work, 0x2C);
+        SetNumber(mysim, 0x00A8528C, 0.0); // job_is_neighbor
+        void* const lot = Virtual<void*>(Global<void*>(addr::SC4_LotManager), 0x38, Virtual<void*>(work, 0xC));
+        SetNumber(mysim, 0x00A8527C, lot ? Virtual<uint8_t>(lot, 0x8C) : 0); // job_condition
+        SetNumber(mysim, 0x00A8526C, Flag(Virtual<uint8_t>(power, 0x7C, Virtual<void*>(At<void*>(mysim, 0xE0), 0xC))) ? 1 : 0);
+        if (At<uint32_t>(fire, 0) == 5)
+            SetNumber(mysim, 0x00A8525C, 1.0); // job_has_water
+        else
+            SetNumber(mysim, 0x00A8525C,
+                      Flag(Virtual<uint8_t>(water, 0x24, Virtual<void*>(At<void*>(mysim, 0xE0), 0xC))) ? 1 : 0);
+        Virtual<void>(At<void*>(mysim, 0xE0), 0x4C, At<void*>(mysim, 0x16C));
+    } else if (At<void*>(mysim, 0xE4)) {
+        SetNumber(mysim, 0x00A8528C, 1.0); // job_is_neighbor
+        SetNumber(mysim, 0x00A8527C, 0.0); // job_condition
+        SetNumber(mysim, 0x00A8526C, 1.0); // job_has_power
+        SetNumber(mysim, 0x00A8525C, 1.0); // job_has_water
+        struct {
+            std::uintptr_t vtable;
+            char* begin;
+            char* end;
+            char* capacity;
+            uint32_t rest[4];
+        } text{};
+        reinterpret_cast<void*(__thiscall*)(void*, uint32_t, uint32_t, uint32_t)>(addr::SC4LocalizedString_SC4LocalizedString)(
+            &text, 0xEA231E96, 0x6A662504, 1);
+        Virtual<void>(At<void*>(mysim, 0x16C), 0x38, &text);
+        Virtual<void>(At<void*>(mysim, 0xE4), 0x84, At<void*>(mysim, 0x174));
+        text.vtable = addr::SC4String_Vtable;
+        if (text.begin)
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(text.begin);
+    } else {
+        SetNumber(mysim, 0x00A852AC, 0.0); // employed
+        SetNumber(mysim, 0x00A8529C, At<int32_t>(mysim, 0xFC)); // unemployed_days
+    }
+
+    // The job building's text through the text service.
+    using SingletonFn = void*(__cdecl*)();
+    const auto singleton = reinterpret_cast<SingletonFn>(addr::SC4_Singleton913C72);
+    void* const formatter = Virtual<void*>(singleton(), 0x14, 0x68963C4Cu);
+    struct {
+        uint32_t a;
+        uint32_t b;
+        uint32_t size;
+        uint32_t font;
+    } style{0, 0, 0xC8, Virtual<uint32_t>(formatter, 0x8C)};
+    ScriptString text{};
+    char* const buffer = static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(8));
+    text.begin = buffer;
+    text.end = buffer;
+    text.capacity = buffer + 8;
+    *buffer = 0;
+    text.vtable = addr::SC4String_Vtable;
+    text.references = 0;
+    const uint32_t face = Virtual<uint32_t>(singleton(), 0x8C, 0x5377BE31u);
+    reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4String_AssignFromIGZString)(&text,
+                                                                                           At<void*>(mysim, 0x16C));
+    Virtual<void>(formatter, 0xC8, &text, face, &style, uint32_t{0});
+    Virtual<void>(At<void*>(mysim, 0x16C), 0x38, &text);
+    Virtual<void>(Script(mysim), 0x2C, uint32_t{1});
+    text.vtable = addr::SC4String_Vtable;
+    if (text.begin)
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(text.begin);
+}
+
+// --- Trips ------------------------------------------------------------------------------
+//
+// OnCommand (from the object's start; arguments: the trip state now and
+// before, the trip flags now and before, forced) sets the trip globals in
+// the MySim's script: in transit or arrived, the destination, the means,
+// congestion, time and waiting, pollution, crime, mayor rating, EQ and HQ
+// along the way, the buildings around (distress and wealth), a landmark
+// and its funding, disasters nearby. The dispatch object is at +0x20C.
+
+// The game's script-subject setter: name in eax, script in esi.
+void SetSubject(char* mysim, std::uintptr_t name, uint32_t subject)
+{
+    void* const script = Script(mysim);
+    const std::uintptr_t fn = addr::cSC4MySim_SetSubject;
+    __asm {
+        push esi
+        mov esi, script
+        mov eax, name
+        push subject
+        call dword ptr [fn]
+        add esp, 4
+        pop esi
+    }
+}
+
+void SetNumberInt(char* mysim, std::uintptr_t name, int32_t value)
+{
+    SetNumber(mysim, name, value);
+}
+
+void __fastcall OnCommand(char* mysim, void*, int32_t trip, int32_t tripBefore, int32_t flags, int32_t flagsBefore,
+                          uint8_t forced)
+{
+    if (!Script(mysim) || At<int32_t>(mysim, 0x164) <= 0)
+        return;
+    char* const iface = mysim + 0xB8;
+    if (!Virtual<uint8_t>(iface, 0x50)) // IsActive
+        return;
+    const int32_t top = Virtual<int32_t>(Script(mysim), 0x18);
+    Virtual<void>(Script(mysim), 0xAC, At<int32_t>(mysim, 0x164));
+    const auto dispatch = [&] { return At<char*>(mysim, 0x20C); };
+    const auto same = reinterpret_cast<SameFn>(addr::SC4MySimPlace_Same);
+    bool changed = trip != tripBefore;
+
+    if (trip != tripBefore || forced) {
+        SetNumberInt(mysim, 0x00A84FE8, trip == 2 ? 1 : 0); // trip_in_transit
+        SetNumberInt(mysim, 0x00A84FD4, trip == 3 ? 1 : 0); // trip_at_location
+        bool destination = false;
+        if (trip == 3) {
+            if (same(dispatch() + 0x5C, dispatch() + 0x84)) {
+                const int32_t before = At<int32_t>(mysim, 0xC0);
+                At<int32_t>(mysim, 0xC0) = 2;
+                if (before == 1)
+                    Virtual<void>(iface, 0xA0); // AnnounceMoveIn
+                else
+                    reinterpret_cast<ThisFn>(addr::cSC4MySim_ArriveHome)(mysim);
+            } else if (same(dispatch() + 0x5C, dispatch() + 0xD4)) {
+                At<int32_t>(mysim, 0xC0) = 3;
+            } else if (At<void*>(mysim, 0x248) && At<uint8_t>(mysim, 0x245) &&
+                       reinterpret_cast<AtPlaceFn>(addr::cSC4MySim_AtBalloonPlace)(mysim, dispatch() + 0xAC)) {
+                reinterpret_cast<PostFn>(addr::SC4_PostMessage)(kBalloonMessage, 0, 0, 0, 0, iface);
+                Virtual<void>(At<void*>(mysim, 0x248), 0x2C, uint32_t{4});
+                sim_timers::Claim(mysim + 0x268);
+                reinterpret_cast<ThisFn>(addr::GZStopwatch_Start)(mysim + 0x268);
+            }
+            reinterpret_cast<ThisFn>(addr::cSC4MySim_PublishBasics)(mysim);
+            destination = true;
+        } else if (trip == 2) {
+            SetSubject(mysim, 0x00A84FC0, At<uint32_t>(dispatch() + 0xAC, 0)); // destination_subject
+        }
+        if (destination) {
+            Place here;
+            reinterpret_cast<PlaceCopyFn>(addr::SC4MySimPlace_Copy)(&here, dispatch() + 0x5C);
+            uint32_t subject = 0;
+            if (!same(&here, dispatch() + 0xD4) && !same(&here, dispatch() + 0x84))
+                subject = At<uint32_t>(dispatch() + 0x5C, 0);
+            SetSubject(mysim, 0x00A84FC0, subject);
+            Release(here.object);
+        }
+    }
+
+    if ((flags != flagsBefore && (flags ^ flagsBefore) != 0x100) || forced) {
+        const auto hasFlag = reinterpret_cast<HasFlagFn>(addr::cSC4MySimDispatch_HasFlag);
+        SetNumberInt(mysim, 0x00A84FA8, hasFlag(dispatch(), 0x10) ? 1 : 0); // trip_at_transit_switch
+        SetNumberInt(mysim, 0x00A84F9C, hasFlag(dispatch(), 0x1) ? 1 : 0);  // trip_idle
+        if (!(flagsBefore & 0x8000) && (flags & 0x8000))
+            Virtual<void>(mysim + 8, 0x48, 0xEC107DF9u, uint32_t{0});
+        const auto means = [&] { return reinterpret_cast<int32_t(__thiscall*)(void*)>(addr::cSC4MySimDispatch_TripType)(dispatch()); };
+        int32_t last = 0xFF;
+        const struct {
+            std::uintptr_t name;
+            int32_t means;
+        } kinds[] = {
+            {0x00A84F90, 2}, // trip_on_bus
+            {0x00A84F80, 0}, // trip_on_foot
+            {0x00A84F70, 6}, // trip_on_subway
+            {0x00A84F64, 1}, // trip_in_car
+            {0x00A84F54, 3}, // trip_on_train
+            {0x00A84F3C, 7}, // trip_on_elevated_train
+            {0x00A84F28, 8}, // trip_on_monorail
+        };
+        for (const auto& kind : kinds) {
+            const bool now = means() == kind.means;
+            if (now)
+                last = kind.means;
+            SetNumberInt(mysim, kind.name, now ? 1 : 0);
+        }
+        SetNumberInt(mysim, 0x00A84F18, last); // last_trip_type
+        changed = false;
+    }
+
+    void* const traffic = Global<void*>(addr::SC4_Service43DA8);
+    struct {
+        void* object;
+        float x;
+        float z;
+        int32_t cellX;
+        int32_t cellZ;
+        uint32_t rest[5];
+    } place;
+    static_assert(sizeof(place) == 0x28);
+    reinterpret_cast<void(__thiscall*)(void*, const void*)>(addr::SC4MySimPlace_Copy)(&place, dispatch() + 0x5C);
+    if (forced)
+        reinterpret_cast<void(__thiscall*)(void*, uint32_t, uint32_t)>(addr::SC4MySimPlace_Clear)(&place, 0, 0);
+    void* const crime = Global<void*>(addr::SC4_Service43D70);
+    void* const pollution = Global<void*>(addr::SC4_PollutionSimulator);
+    void* const grades = Global<void*>(addr::SC4_Service43DA4);
+    const int32_t half = At<int32_t>(mysim, 0x240) / 2;
+    int32_t rect[4] = {place.cellX - half, place.cellZ - half, half + place.cellX, half + place.cellZ};
+    if (!traffic || !pollution || !crime) {
+        Release(place.object);
+        return;
+    }
+    const auto state = [&] { return reinterpret_cast<int32_t(__thiscall*)(void*)>(addr::cSC4MySimDispatch_State)(dispatch()); };
+    const auto hasFlag = reinterpret_cast<HasFlagFn>(addr::cSC4MySimDispatch_HasFlag);
+    // A grid's value at the place: its slot 19 maps the position to a cell,
+    // slot 22 reads it.
+    const auto cell = [&](void* grid, auto read) {
+        int32_t gx = 0;
+        int32_t gz = 0;
+        Virtual<void>(grid, 0x4C, place.x, place.z, &gx, &gz);
+        return read(grid, gx, gz);
+    };
+    if (state() == 2 || forced) {
+        if (!hasFlag(dispatch(), 1) || forced) {
+            SetNumberInt(mysim, 0x00A84F00, cell(Virtual<void*>(traffic, 0x28), [](void* g, int32_t gx, int32_t gz) {
+                             return static_cast<int32_t>(Virtual<uint8_t>(g, 0x58, gx, gz));
+                         })); // trip_traffic_congestion
+            const float one = 1.0f;
+            const int32_t means = reinterpret_cast<int32_t(__thiscall*)(void*)>(addr::cSC4MySimDispatch_TripType)(dispatch());
+            double ratio = one;
+            if (means != 0xFE && means != 0xFF) {
+                using RatioFn = double(__thiscall*)(void*, int32_t, int32_t, int32_t);
+                ratio = reinterpret_cast<RatioFn>(At<void**>(traffic, 0)[0x60 / 4])(traffic, place.cellX, place.cellZ, means);
+            }
+            SetNumberInt(mysim, 0x00A84EF0, Truncate(ratio)); // trip_time_ratio
+            SetNumberInt(mysim, 0x00A84EDC,
+                         reinterpret_cast<int32_t(__thiscall*)(void*)>(addr::cSC4MySimDispatch_WaitLength)(dispatch()));
+        }
+        const std::uintptr_t pollutionNames[] = {0x00A84EC8, 0x00A84EB0, 0x00A84E98};
+        for (uint32_t kind = 0; kind < 3; ++kind)
+            SetNumberInt(mysim, pollutionNames[kind],
+                         cell(Virtual<void*>(pollution, 0x14, kind), [](void* g, int32_t gx, int32_t gz) {
+                             return static_cast<int32_t>(Virtual<int16_t>(g, 0x58, gx, gz));
+                         }));
+        SetNumberInt(mysim, 0x00A84E8C, cell(Virtual<void*>(crime, 0x14), [](void* g, int32_t gx, int32_t gz) {
+                         return static_cast<int32_t>(Virtual<uint8_t>(g, 0x58, gx, gz));
+                     })); // trip_crime
+        SetNumberInt(mysim, 0x00A84E78, cell(Virtual<void*>(Global<void*>(addr::SC4_Service43D60), 0x30),
+                                             [](void* g, int32_t gx, int32_t gz) {
+                         return static_cast<int32_t>(Virtual<int8_t>(g, 0x58, gx, gz));
+                     })); // trip_mayor_rating
+        const auto reset = reinterpret_cast<void**(__thiscall*)(void**)>(addr::SC4RefPtr_Reset);
+        using FloatAtFn = double(__thiscall*)(void*, int32_t, int32_t);
+        void* eq = nullptr;
+        Virtual<void>(grades, 0x54, reset(&eq), uint32_t{0}, uint32_t{0});
+        SetNumberInt(mysim, 0x00A84E70, Truncate(cell(eq, [](void* g, int32_t gx, int32_t gz) {
+                         return reinterpret_cast<FloatAtFn>(At<void**>(g, 0)[0x58 / 4])(g, gx, gz);
+                     }))); // trip_eq
+        void* hq = nullptr;
+        Virtual<void>(grades, 0x58, reset(&hq), uint32_t{0}, uint32_t{0});
+        SetNumberInt(mysim, 0x00A84E68, Truncate(cell(hq, [](void* g, int32_t gx, int32_t gz) {
+                         return reinterpret_cast<FloatAtFn>(At<void**>(g, 0)[0x58 / 4])(g, gx, gz);
+                     }))); // trip_hq
+        Release(hq);
+        Release(eq);
+    }
+
+    void* finder = nullptr;
+    {
+        void* const service = Global<void*>(addr::SC4_Service43DB0);
+        const auto reset = reinterpret_cast<void**(__thiscall*)(void**)>(addr::SC4RefPtr_Reset);
+        Virtual<uint8_t>(service, 0x0, 0x681905BDu, reset(&finder));
+    }
+    int32_t means = 0;
+    if (forced || state() == 3 ||
+        (means = reinterpret_cast<int32_t(__thiscall*)(void*)>(addr::cSC4MySimDispatch_TripType)(dispatch())) == 0 ||
+        reinterpret_cast<int32_t(__thiscall*)(void*)>(addr::cSC4MySimDispatch_TripType)(dispatch()) == 1 ||
+        hasFlag(dispatch(), 1)) {
+        void* list = nullptr;
+        uint8_t allocator = changed ? 1 : 0;
+        reinterpret_cast<void*(__thiscall*)(void**, void*)>(addr::SC4RefList_Construct)(&list, &allocator);
+        Virtual<void>(finder, 0x1C, &list, rect[0], rect[1], rect[2], rect[3], uint32_t{0});
+        int32_t count = 0, distress1 = 0, distress2 = 0, distress3 = 0, low = 0, medium = 0, high = 0;
+        void* landmark = nullptr;
+        char* const head = static_cast<char*>(list);
+        while (At<char*>(head, 0) != head) {
+            char* const last = At<char*>(head, 4);
+            void* const occupant = At<void*>(last, 8);
+            if (void* const building = Virtual<void*>(occupant, 0xC0)) {
+                ++count;
+                const int32_t distress = Virtual<int32_t>(occupant, 0x8C);
+                if (distress >= 4)
+                    ++distress3;
+                else if (distress >= 3)
+                    ++distress2;
+                else if (distress >= 2)
+                    ++distress1;
+                const int32_t wealth = Virtual<int32_t>(occupant, 0xA4);
+                if (wealth >= 3)
+                    ++high;
+                else if (wealth >= 2)
+                    ++medium;
+                else if (wealth >= 1)
+                    ++low;
+                if (Virtual<uint8_t>(Virtual<void*>(building, 0xC), 0x58, uint32_t{0x150A}) && !landmark) {
+                    reinterpret_cast<AssignFn>(addr::SC4RefPtr_Assign)(&landmark, building);
+                }
+            }
+            char* const node = At<char*>(head, 4);
+            char* const previous = At<char*>(node, 4);
+            char* const next = At<char*>(node, 0);
+            At<char*>(previous, 0) = next;
+            At<char*>(next, 4) = previous;
+            Release(At<void*>(node, 8));
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(node);
+        }
+        const double epsilon = Global<double>(addr::SC4MySim_TripShareEpsilon);
+        const float share = static_cast<float>(1.0 / (static_cast<double>(count) + epsilon));
+        const auto percent = [&](int32_t n) { return Truncate(static_cast<double>(n) * share * 100.0f); };
+        SetNumberInt(mysim, 0x00A84E48, percent(distress1)); // trip_distress1_p
+        SetNumberInt(mysim, 0x00A84E34, percent(distress2)); // trip_distress2_p
+        SetNumberInt(mysim, 0x00A84E20, percent(distress3)); // trip_distress3_p
+        SetNumberInt(mysim, 0x00A84E0C, percent(low));       // trip_wealth_low_p
+        SetNumberInt(mysim, 0x00A84DF8, percent(medium));    // trip_wealth_med_p
+        SetNumberInt(mysim, 0x00A84DE4, percent(high));      // trip_wealth_high_p
+        SetNumberInt(mysim, 0x00A84DCC, landmark ? 1 : 0);   // trip_landmark_nearby
+        void* const memory = reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x14);
+        int32_t funding = 0;
+        if (landmark) {
+            void* name = nullptr;
+            if (memory)
+                name = reinterpret_cast<void*(__thiscall*)(void*, void*)>(addr::SC4String_FromIGZString)(
+                    memory, Virtual<void*>(landmark, 0x30));
+            SetObject(mysim, 0x00A84DB8, name); // trip_landmark_name
+            struct {
+                uint32_t words[7];
+                float funding; // +0x1C
+                uint32_t rest[2];
+            } item{};
+            const uint32_t key = Virtual<uint32_t>(Virtual<void*>(landmark, 0xC), 0x18, 0xAA59670Cu, &item);
+            Virtual<void>(Global<void*>(addr::SC4_BudgetSimulator), 0xCC, key);
+            funding = Truncate(static_cast<double>(item.funding) * 100.0f);
+        } else {
+            void* const name = memory ? reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4String_SC4String)(memory)
+                                      : nullptr;
+            SetObject(mysim, 0x00A84DB8, name); // trip_landmark_name
+        }
+        SetNumberInt(mysim, 0x00A84DA0, funding); // trip_landmark_funding_p
+        void* const disasters = Global<void*>(addr::SC4_Service43D3C);
+        const int32_t total = Virtual<int32_t>(disasters, 0x40);
+        bool riot = false;
+        bool fire = false;
+        bool any = false;
+        for (int32_t i = 0; i < total; ++i) {
+            void* disaster = nullptr;
+            int32_t dx = 0;
+            int32_t dz = 0;
+            const auto reset = reinterpret_cast<void**(__thiscall*)(void**)>(addr::SC4RefPtr_Reset);
+            Virtual<void>(disasters, 0x44, i, reset(&disaster), &dx, &dz);
+            const bool inside = dx >= rect[0] && dz >= rect[1] && dx <= rect[2] && dz <= rect[3];
+            if (inside) {
+                any = true;
+                if (!riot)
+                    riot = Virtual<uint32_t>(disaster, 0x14) == 0xCA380B06;
+                if (!fire)
+                    fire = Virtual<uint32_t>(disaster, 0x14) == 0x621CDA33;
+            }
+            const bool done = (inside || any) && fire && riot;
+            Release(disaster);
+            if (done)
+                break;
+        }
+        SetNumberInt(mysim, 0x00A84D8C, fire ? 1 : 0);   // trip_fire_nearby
+        SetNumberInt(mysim, 0x00A84D78, riot ? 1 : 0);   // trip_riot_nearby
+        SetNumberInt(mysim, 0x00A84D5C, any ? 1 : 0);    // trip_any_disaster_nearby
+        Release(landmark);
+        reinterpret_cast<void(__thiscall*)(void**)>(addr::SC4RefList_Clear)(&list);
+        if (list)
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(list);
+    }
+    (void)means;
+    Virtual<void>(Script(mysim), 0x1C, top);
+    if (changed)
+        reinterpret_cast<PostFn>(addr::SC4_PostMessage)(kBalloonMessage, 0, 0, 0, 0, iface);
+    Release(finder);
+    Release(place.object);
+}
+
 // --- Registration ----------------------------------------------------------------------
 
 bool InstallInterface(registry::Mode)
@@ -1640,6 +2447,52 @@ const bool g_residenceRegistered = registry::Register({
     "Our cSC4MySim MoveIn, FindNewResidence and SetResidence (docs/mysim-agents.md)",
     false,
     InstallResidence,
+});
+
+bool InstallScript(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* originals[3] = {};
+    const addr::Entry* update = addr_check::Find(addr::cSC4MySim_UpdateHomeAndJob);
+    const addr::Entry* basics = addr_check::Find(addr::cSC4MySim_PublishBasics);
+    const addr::Entry* distances = addr_check::Find(addr::cSC4MySim_UpdateDistances);
+    return update && basics && distances &&
+           hook::Install(*update, reinterpret_cast<void*>(&UpdateHomeAndJob), &originals[0]) &&
+           hook::Install(*basics, reinterpret_cast<void*>(&PublishBasics), &originals[1]) &&
+           hook::Install(*distances, reinterpret_cast<void*>(&UpdateDistances), &originals[2]);
+}
+
+const bool g_scriptRegistered = registry::Register({
+    "simulators.mysim_agents.script",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySim_UpdateHomeAndJob,
+    "Our cSC4MySim UpdateHomeAndJob, PublishBasics and UpdateDistances: the facts in the MySim's script "
+    "(docs/mysim-agents.md)",
+    false,
+    InstallScript,
+});
+
+bool InstallTrip(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* original = nullptr;
+    const addr::Entry* found = addr_check::Find(addr::cSC4MySim_OnCommand);
+    return found && hook::Install(*found, reinterpret_cast<void*>(&OnCommand), &original);
+}
+
+const bool g_tripRegistered = registry::Register({
+    "simulators.mysim_agents.trip",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySim_OnCommand,
+    "Our cSC4MySim OnCommand: the trip facts in the MySim's script (docs/mysim-agents.md)",
+    false,
+    InstallTrip,
 });
 
 const bool g_interfaceRegistered = registry::Register({

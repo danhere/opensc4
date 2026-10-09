@@ -824,3 +824,219 @@ name = "SC4MySim::ResidenceFilterVtable4"
 address = 0x00A84B2C
 kind = "data"
 source = "Name ours. The filter's second vtable (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::PublishBasics"
+address = 0x00429080
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Sets the MySim's first script globals; UpdateHomeAndJob calls it first (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::UpdateDistances"
+address = 0x0042A420
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 50 A1 68 3D B4 00"
+source = "Name ours. The map at +0x1E8 (DistanceToClosest's): nearest distance by building type within 20 cells of home (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4::OccupantCondition"
+address = 0x00424F00
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 56 8B 35 08 3D B4"
+source = "Name ours. A building's condition (byte), the home_condition script global (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4String::AssignFromIGZString"
+address = 0x0090E20A
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. Assigns the text of a cIGZString (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4::Singleton913C72"
+address = 0x00913C72
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 83 3D C4 28"
+source = "Name ours. A framework singleton; its slots 5 and 35 format the job building's text (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4::DefaultFunding"
+address = 0x00B20E04
+kind = "data"
+source = "Name ours. A float; the police and fire funding before a station is found (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4String::FromIGZString"
+address = 0x0040AE00
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name ours. Constructs an SC4String from a cIGZString's text (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4Uint32Map::EraseSubtree"
+address = 0x00426A60
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of a uint32 map's nodes; UpdateDistances empties the distance map with it (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4::LoadUint32List"
+address = 0x005E9500
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 8B 43 04"
+source = "Name ours. A uint32 list from the resource at a key (type 0xA52160F5 through the resource manager) into a vector (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::SetSubject"
+address = 0x00425A80
+kind = "function"
+convention = "cdecl"
+expect = "51 57 8B F8 8B 06 57 8B"
+source = "Name ours. Registers: eax the name, esi the script; one stack argument (the subject), caller pops; sets a script subject table (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::ArriveHome"
+address = 0x00426EA0
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 13 01 00 00 F6 D8"
+source = "Name ours. OnCommand calls it on arriving home after the first time (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySimDispatch::TripType"
+address = 0x0081F910
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 50 C3 CC CC CC CC"
+source = "Name ours. The current trip's means: 0 foot, 1 car, 2 bus, 3 train, 6 subway, 7 elevated train, 8 monorail, 0xFE/0xFF none (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySimDispatch::State"
+address = 0x0068D1B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 40 C3 CC CC CC CC"
+source = "Name ours. The trip's state (2 travelling, 3 arrived) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySimDispatch::WaitLength"
+address = 0x004312C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 48 C1 E8 04 A8 01"
+source = "Name ours. The trip_wait_length script global (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MySimPlace::Clear"
+address = 0x004311B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. Two arguments; OnCommand clears its copy of the current place with (0, 0) when forced (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4RefPtr::Reset"
+address = 0x004F20A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 0E 85 C9 74"
+source = "Name ours. Releases and clears a reference holder, returning its address (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4::Service43D60"
+address = 0x00B43D60
+kind = "data"
+source = "Name ours. A service OnCommand reads and does not use (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4::Service43DB0"
+address = 0x00B43DB0
+kind = "data"
+source = "Name ours. A service; OnCommand asks it for interface 0x681905BD, whose slot 7 lists buildings in a rectangle (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MySim::TripShareEpsilon"
+address = 0x00A84E60
+kind = "data"
+source = "Name ours. A double, 0.0001: OnCommand's share of the buildings around is 1 / (count + it) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::QueryInterface"
+address = 0x00424B00
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 81 FA 2F A4"
+source = "The +0 interface's slot 0: cISC4MySim (0x0A1DA42F) at +0xB8, 0x8BC01FFE the object itself, else the agent base's (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4AgentBase::QueryInterface"
+address = 0x0040D430
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D AA 94 22"
+source = "Name ours. The agent base class's QueryInterface (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::CheckBalloonTarget"
+address = 0x004264C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 56 8B F1 8A 86"
+source = "Name ours. The +0 interface's slot 10: a balloon target still on the way and not at its place times out (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetBalloonTarget"
+address = 0x00426560
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 48 02 00 00 C3 CC"
+source = "Name ours. The +0 interface's slot 13: +0x248 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::SetDispatchFlag"
+address = 0x00426570
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 0C 02 00 00 8A 4C"
+source = "Name ours. The +0 interface's slot 14: the dispatch object's byte +0x10 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::IsAboveWater"
+address = 0x00426580
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 35 F4 3C B4 00 85"
+source = "Name ours. The +0 interface's slot 15: the terrain at (x, z) above the water level (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetTripTime"
+address = 0x00426950
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 0C 02 00 00 85 C0"
+source = "Name ours. The +0 interface's slot 16: the dispatch object's +0x3C, else +0x150 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::AdvisorRun"
+address = 0x00424DA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 B8 00 00"
+source = "Name ours. The +8 (advisor) interface's slot 19: with the MySim moved in, activates its script and runs the base advisor's slot (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4AdvisorBase::Run"
+address = 0x0040D8A0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B E9 8B BD"
+source = "Name ours. The advisor base class's method behind cSC4MySim's +8 slot 19 (docs/mysim-agents.md)."

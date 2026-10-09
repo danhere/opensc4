@@ -72,6 +72,9 @@ uint32_t Queries(void* sim)
     h.Text(Virtual<void*>(sim, 0x64)); // GetHomeName
     h.Text(Virtual<void*>(sim, 0x68)); // GetJobName
     h.Text(Virtual<void*>(sim, 0x70)); // GetJobTitle
+    h.Text(At<void*>(sim, 0xBC));      // the job's city (UpdateHomeAndJob)
+    h.Add(At<uint32_t>(sim, 0xC4));    // education
+    h.Add(At<uint32_t>(sim, 0xC8));    // health
     for (std::size_t slot : {std::size_t{0x74}, std::size_t{0x78}}) { // GetEQAsText, GetHQAsText
         GameString text{};
         FromText(&text, "");
