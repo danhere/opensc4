@@ -5386,6 +5386,186 @@ address = 0x00A90BBC
 kind = "data"
 source = "float 1/255 (docs/crime.md)."
 
+
+# --- The ordinance simulator (cSC4OrdinanceSimulator, docs/ordinance.md) ---
+
+[[entry]]
+name = "cSC4OrdinanceSimulator::vftable"
+address = 0x00ABEAC0
+kind = "vtable"
+expect = "40 D3 80 00 A0 7B 4F 00"
+source = "Primary vtable: cISC4OrdinanceSimulator, 26 slots in gzcom-dll's order and the scalar deleting destructor (slot 26). simulators.ordinance.interface, .init and .shutdown swap its slots (docs/ordinance.md)."
+
+[[entry]]
+name = "cSC4OrdinanceSimulator::vftable_4"
+address = 0x00ABEAB0
+kind = "vtable"
+expect = "40 E2 80 00 30 D2 68 00"
+source = "The vtable of the cIGZMessageTarget2 interface at +0x4: slot 3 DoMessage 0x0080E000. simulators.ordinance.messages swaps it (docs/ordinance.md)."
+
+[[entry]]
+name = "cSC4OrdinanceSimulator::vftable_8"
+address = 0x00ABEA98
+kind = "vtable"
+expect = "50 E2 80 00 50 D2 68 00"
+source = "The vtable of the cIGZSerializable interface at +0x8: slot 3 Write 0x0080D780, 4 Read 0x0080E8B0, 5 GetGZCLSID 0x0080E230 (docs/ordinance.md)."
+
+[[entry]]
+name = "cSC4OrdinanceSimulator::Recount"
+address = 0x0080D840
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 33 ED 57"
+source = "Name ours. Message 0x66956810: monthly expense and income cleared, then per ordinance (map order) its availability checked (CheckConditions, SetOrdinanceAvailable) and an enacted one's adjusted income counted. Reimplemented by simulators.ordinance.month (docs/ordinance.md)."
+
+[[entry]]
+name = "cSC4OrdinanceSimulator::MonthPassed"
+address = 0x0080D950
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B F1"
+source = "Name ours. Message 0x66956816: last month's enactment and repeal income (+0x28) starts the expense or income, then per ordinance Simulate and the adjusted income, availability as Recount, then message 0xC8EA5018. Reimplemented by simulators.ordinance.month (docs/ordinance.md)."
+
+[[entry]]
+name = "cSC4OrdinanceSimulator::CreateOrdinances"
+address = 0x0080E4A0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 0D A8 3C"
+source = "Name ours. From Init for a new city: the resource manager's keys of type 0x6534284A (slot 18), each handed to OnOrdinanceExemplar (key list slot 7). Reimplemented by simulators.ordinance.init (docs/ordinance.md)."
+
+[[entry]]
+name = "cSC4OrdinanceSimulator::OnOrdinanceExemplar"
+address = 0x0080E430
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D A8 3C B4 00 8B 01"
+source = "Name ours. (key, simulator): an exemplar whose type (property 0x10) is 0xE goes to CreateOrdinance. Reimplemented by simulators.ordinance.init (docs/ordinance.md)."
+
+[[entry]]
+name = "cSC4OrdinanceSimulator::CreateOrdinance"
+address = 0x0080E360
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 55 56 57 8B E9"
+source = "Name ours. (key): GZCOM class object of the key's instance ID with interface 0x8BD4FC74, then SetKey (slot 30), Init and into the map under its ID. Reimplemented by simulators.ordinance.init (docs/ordinance.md)."
+
+[[entry]]
+name = "cSC4OrdinanceSimulator::EraseNodes"
+address = 0x0080DFC0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. The ordinance map's nodes below a node: right subtrees by recursion, left in turn, each ordinance released and the node freed (docs/ordinance.md)."
+
+[[entry]]
+name = "OrdinanceMap::Insert"
+address = 0x0080E070
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Name ours. std::map<uint32_t, cRZAutoRefCount<cISC4Ordinance>>::insert(result, pair): result is the node and whether it was inserted. Generic container code, left the game's (docs/ordinance.md)."
+
+[[entry]]
+name = "OrdinanceMap::Index"
+address = 0x0080E810
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 8B 31 8B"
+source = "Name ours. The ordinance map's operator[](key): the value's address, a null one inserted if missing. Generic container code (docs/ordinance.md)."
+
+[[entry]]
+name = "UintMap::Erase"
+address = 0x00418DB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 57 8D 48"
+source = "Name ours. erase(iterator) of a std::map keyed by uint32, the value destroyed; used by the ordinance simulator. Generic container code (docs/ordinance.md)."
+
+[[entry]]
+name = "cSC4OrdinanceSimulator::ClearCreated"
+address = 0x0080D3C0
+kind = "function"
+convention = "cdecl"
+expect = "A0 38 E7 B4 00 84 C0 B0"
+source = "Name ours. The callback Init registers once with the service at 0x00B43C94 (slot 69): clears the flag at 0x00B4E738 (docs/ordinance.md)."
+
+[[entry]]
+name = "OrdinanceSimulator::Created"
+address = 0x00B4E738
+kind = "data"
+source = "uint8: whether Init registered ClearCreated with the service at 0x00B43C94 (docs/ordinance.md)."
+
+[[entry]]
+name = "OrdinanceSimulator::Name"
+address = 0x00A89484
+kind = "data"
+source = "The C string the ordinance simulator registers under with the simulator service (\"cSC4OrdinanceSimulator\") (docs/ordinance.md)."
+
+[[entry]]
+name = "cRZBaseString::MakeLower"
+address = 0x0090EAC5
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 81 EC 14 02 00"
+source = "Name ours. Lower-cases the string's buffer (begin and end at +4, +8) in place. GetOrdinanceByName compares names lower-cased (docs/ordinance.md)."
+
+[[entry]]
+name = "SC4String::FromRange"
+address = 0x00407FA0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 0C 56 57"
+source = "Name ours. (first, last, allocator): fills an STL-style string (begin, end, capacity) with a copy of the range from the STL allocator (docs/ordinance.md)."
+
+# --- Ordinance classes (cSC4OrdinanceSimple and its 20 derived classes, docs/ordinance.md) ---
+
+[[entry]]
+name = "SC4::Service43DB4"
+address = 0x00B43DB4
+kind = "data"
+source = "Name ours. Global pointer to the service legalised gambling's repeal asks for building group 0x033A0000 (slot 6) and sets it back (slot 7) (docs/ordinance.md)."
+
+[[entry]]
+name = "cRZBaseString::FromTextKey"
+address = 0x00603520
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 33 DB 89 5E"
+source = "Name ours. (key, flag): constructs a string (vtable, buffer) holding the localised text of the key (docs/ordinance.md)."
+
+[[entry]]
+name = "cRZBaseString::Assign"
+address = 0x00424380
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 56 8B"
+source = "Name ours. (const cRZBaseString*): copies another string's text into this one (docs/ordinance.md)."
+
+[[entry]]
+name = "cRZBaseString::Sprintf"
+address = 0x0090F574
+kind = "function"
+convention = "cdecl"
+expect = "55 8D 6C 24 90 81 EC B4"
+source = "Name ours. (string, format, ...): formats into the string (docs/ordinance.md)."
+
+[[entry]]
+name = "cRZBaseString::Strlen"
+address = 0x0090E4B6
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 2B 41 04 C3 55"
+source = "Name ours. The string's length: end - begin (docs/ordinance.md)."
+
+[[entry]]
+name = "cRZBaseString::Data"
+address = 0x009D7E63
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 C3 8B 41 04 8B"
+source = "Name ours. The string's buffer (+4) (docs/ordinance.md)."
+
 [[entry]]
 name = "cSC4City::cSC4City"
 address = 0x00459F30
@@ -5595,7 +5775,67 @@ address = 0x005D9FD0
 kind = "function"
 convention = "cdecl"
 expect = "8B 4C 24 08 56 8B 74 24"
-source = "Name ours. (stream, bool): one byte (stream slot 5); the stream back (docs/fire-police.md)."
+source = "Name ours. (stream, bool): the counterpart of ReadBool; one byte (stream slot 5), the stream back (docs/ordinance.md, docs/fire-police.md)."
+
+[[entry]]
+name = "cSCPropertyHolder::Write"
+address = 0x005FE070
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 56 57 8B 7C"
+source = "Name ours. (stream): a property holder's save record (docs/ordinance.md)."
+
+[[entry]]
+name = "cSCPropertyHolder::Read"
+address = 0x005FF420
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B 74 24 18"
+source = "Name ours. (stream): version 2; its exemplar's key, the exemplar fetched again through the resource manager, then the properties (docs/ordinance.md)."
+
+[[entry]]
+name = "SC4BuildingGroup::Copy"
+address = 0x0069E3A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 C0 04 56"
+source = "Name ours. Copies a 0x18-byte record (a flag byte, then a string at +4) (docs/ordinance.md)."
+
+[[entry]]
+name = "Ordinance::IdFormat"
+address = 0x00A8D784
+kind = "data"
+source = "\"0x%08x\": an ordinance's name or description when its exemplar gives none (docs/ordinance.md)."
+
+[[entry]]
+name = "cSCPropertyHolder::QueryInterface"
+address = 0x005FD310
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D F7 B5 C2"
+source = "Name ours. The property holder's QueryInterface; the ordinances' own (0x0080C920) falls back to it for interfaces they do not answer (docs/ordinance.md)."
+
+[[entry]]
+name = "cSCPropertyHolder::Construct"
+address = 0x005FF1C0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 33 C9 89 48 04 89"
+source = "Name ours. The property holder's constructor (7 dwords: two vtables, the property map, the exemplar reference at +0x18) (docs/ordinance.md)."
+
+[[entry]]
+name = "cSCPropertyHolder::Destroy"
+address = 0x005FF220
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 50 6D AA"
+source = "Name ours. The property holder's destructor: its exemplar released, then the properties (docs/ordinance.md)."
+
+[[entry]]
+name = "Ordinance::DefaultChance"
+address = 0x00B4E734
+kind = "data"
+source = "float: the chance a new cSC4OrdinanceSimple starts with (0) (docs/ordinance.md)."
 
 [[entry]]
 name = "cSC4ProtectionSimulator::OnStationAdded"
@@ -7016,7 +7256,7 @@ kind = "function"
 convention = "cdecl"
 signature = "cIGZCOM* ()"
 expect = "E8 1C D4 F6 FF 8B 10 8B"
-source = "Name ours. The framework's COM object (RZGetFramework, then its slot 12); its slot 3 creates an instance by class and interface (docs/demand.md)."
+source = "Name ours. The framework's COM object (RZGetFramework, then its slot 12); its slot 3 creates an instance by class and interface; the ordinance simulator creates ordinances by class ID with it (docs/demand.md, docs/ordinance.md)."
 
 [[entry]]
 name = "cSC4DemandSimulator::CreateDemand"
