@@ -25,7 +25,14 @@
 //     a segment ends (to and from the car, transit stops and vehicles,
 //     arriving);
 //   simulators.mysim_agents.dispatch_save: Write and Read (the
-//     cIGZSerializable part at +0xC).
+//     cIGZSerializable part at +0xC);
+//   simulators.mysim_agents.dispatch_messages: DoMessage (the message
+//     target at +8);
+//   simulators.mysim_agents.dispatch_object: the constructor, destructors
+//     and QueryInterface;
+//   simulators.mysim_agents.dispatch_connections: SC4MySimPlace's
+//     ValidConnection and the dispatch's FindConnection (places outside the
+//     city).
 //
 // The deque and map helpers it uses stay the game's.
 #include "core/address_check.h"
@@ -2715,6 +2722,432 @@ const bool g_saveRegistered = registry::Register({
     "Our cSC4MySimDispatch Write and Read (docs/mysim-agents.md)",
     false,
     InstallSave,
+});
+
+// --- Messages ---------------------------------------------------------------------------
+
+void StepNow(char* self)
+{
+    reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::cSC4MySimDispatch_Step)(self);
+}
+
+bool FromVehicle(char* self, void* message)
+{
+    void* const vehicle = At<void*>(self, field::kVehicle);
+    return vehicle && Virtual<void*>(Virtual<void*>(message, 0x28), 0x14) == vehicle;
+}
+
+void AutomatonEvent(char* self, void* message)
+{
+    switch (Virtual<int32_t>(message, 0x38)) {
+    case 1: // at the car
+        if (At<uint8_t>(self, field::kFlags) & 1) {
+            ChangeFlags(self, At<uint32_t>(self, field::kFlags) | 0x2000);
+            StepNow(self);
+        }
+        break;
+    case 2: // arrived
+        if (!FromVehicle(self, message))
+            break;
+        if (At<uint8_t>(self, 0x4A) & 1) {
+            Virtual<void>(self, 0x20); // Abort
+            break;
+        }
+        reinterpret_cast<uint8_t(__thiscall*)(void*, const void*)>(addr::cSC4MySimDispatch_GoTo)(self,
+                                                                                                 self + field::kTarget);
+        ChangeFlags(self, At<uint32_t>(self, field::kFlags) | 0x401);
+        break;
+    case 5: { // the path changed
+        if (At<int32_t>(self, field::kState) != 2 || (At<uint8_t>(self, 0x4A) & 1))
+            break;
+        void* path = nullptr;
+        void** const slot = reinterpret_cast<void**(__thiscall*)(void**)>(addr::SC4RefPtr_Reset)(&path);
+        Virtual<uint8_t>(At<void*>(self, field::kVehicle), 0x0, uint32_t{0x8B99EE7C}, slot);
+        void* const route = Virtual<void*>(path, 0x240);
+        if (static_cast<uint32_t>(reinterpret_cast<int32_t(__thiscall*)(void*)>(addr::SC4CellDeque_Size)(route)) > 1) {
+            CellIterator end;
+            CellIterator* const last =
+                reinterpret_cast<CellIterator*(__thiscall*)(void*, CellIterator*)>(addr::SC4CellDeque_End)(route, &end);
+            CellIterator begin;
+            reinterpret_cast<CellIterator*(__thiscall*)(void*, CellIterator*)>(addr::SC4CellDeque_Begin)(route, &begin);
+            CellIterator second;
+            CellIterator* const first = reinterpret_cast<CellIterator*(__thiscall*)(CellIterator*, CellIterator*, int32_t)>(
+                addr::SC4CellIterator_Plus)(&begin, &second, 1);
+            uint32_t local[10];
+            reinterpret_cast<void*(__thiscall*)(void*, CellIterator, CellIterator)>(addr::SC4RouteDeque_ConstructRange)(
+                local, *first, *last);
+            Virtual<uint8_t>(path, 0x244, local, uint32_t{1}, uint32_t{0});
+            reinterpret_cast<ThisFn>(addr::SC4RouteDeque_Destroy)(local);
+        } else {
+            float position[3];
+            Virtual<void>(At<void*>(self, field::kVehicle), 0x20, position);
+            reinterpret_cast<void(__thiscall*)(void*, float, float)>(addr::SC4MySimPlace_SetPosition)(
+                self + field::kHere, position[0], position[2]);
+            ChangeFlags(self, At<uint32_t>(self, field::kFlags) | 0x420);
+            reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_AdvanceRoute)(self);
+            StepNow(self);
+        }
+        Release(path);
+        break;
+    }
+    case 9: { // moved
+        if (!FromVehicle(self, message))
+            break;
+        if (void* const object = At<void*>(self, field::kHere)) {
+            At<void*>(self, field::kHere) = nullptr;
+            Release(object);
+            ++At<int32_t>(self, field::kChanges);
+        }
+        if ((At<uint32_t>(self, field::kFlags) >> 17) & 1) {
+            ChangeFlags(self, At<uint32_t>(self, field::kFlags) & 0xFFFDFFFF);
+            Virtual<void>(self, 0x1C); // NextLeg
+        }
+        float position[3];
+        Virtual<void>(At<void*>(self, field::kVehicle), 0x20, position);
+        Place moved;
+        Construct(&moved, nullptr);
+        reinterpret_cast<void(__thiscall*)(void*, float, float)>(addr::SC4MySimPlace_SetPosition)(&moved, position[0],
+                                                                                                  position[2]);
+        if (reinterpret_cast<uint8_t(__cdecl*)(const int32_t*, const int32_t*)>(addr::SC4_CellPairsDiffer)(
+                &moved.cellX, &At<int32_t>(self, 0x68)) &&
+            !(At<uint8_t>(self, 0x4A) & 1)) {
+            const int32_t dz = moved.cellZ - At<int32_t>(self, field::kTarget + 0x10);
+            const int32_t dx = moved.cellX - At<int32_t>(self, field::kTarget + 0xC);
+            const int32_t reach = At<int32_t>(self, 0x14);
+            reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t, uint32_t)>(addr::cSC4MySimDispatch_SetFlags)(
+                self, 0x8000, dz * dz + dx * dx < reach * reach ? 1 : 0);
+        }
+        reinterpret_cast<void(__thiscall*)(void*, float, float)>(addr::SC4MySimPlace_SetPosition)(
+            self + field::kHere, position[0], position[2]);
+        Release(moved.object);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+uint8_t __fastcall DoMessageDispatch(char* target, void*, void* message)
+{
+    char* const self = target - 8;
+    switch (Virtual<uint32_t>(message, 0x10)) {
+    case 0x86AD10EE: // a frame
+        if (At<void*>(self, field::kRouteView))
+            StepNow(self);
+        break;
+    case 0x44778231: // a tick
+        if (At<void*>(self, field::kRouteView))
+            At<int32_t>(self, field::kNow) += 5;
+        break;
+    case 0x26D31EC1: // after a load
+        if (At<uint8_t>(self, 0x188)) {
+            reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::cSC4MySimDispatch_Reset)(self);
+            At<uint8_t>(self, 0x188) = 0;
+            Virtual<void>(Global<void*>(addr::SC4_MessageServer), 0x18, self ? self + 8 : nullptr, uint32_t{0x26D31EC1});
+            Post(self, kEventFlags, 0, At<uint32_t>(self, field::kFlags));
+            Post(self, kEventState, 0xFFFFFFFE, At<uint32_t>(self, field::kState));
+        }
+        break;
+    case 0x09D92FC3:
+        AutomatonEvent(self, message);
+        break;
+    case 0x0BB324BD:
+        if ((At<uint8_t>(self, 0x4A) & 1) && Virtual<int32_t>(message, 0x38) == 1)
+            Virtual<void>(self, 0x20); // Abort
+        break;
+    case 0x8BBBD22A:
+        Virtual<uint32_t>(message, 0x80);
+        At<uint8_t>(self, 0x10) = Virtual<uint8_t>(message, 0x24) ? 1 : 0;
+        break;
+    case 0xA6B79601:
+    case 0xA6B79611: {
+        void* const transit = Global<void*>(addr::SC4_Service43D44);
+        if (At<uint8_t>(self, 0x10) && !Virtual<uint8_t>(transit, 0x8C) && !Virtual<uint8_t>(transit, 0x34)) {
+            Virtual<void>(transit, 0x88, nullptr);
+            At<uint8_t>(self, 0x10) = 0;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    return 1;
+}
+
+bool InstallMessages(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* original = nullptr;
+    const addr::Entry* found = addr_check::Find(addr::cSC4MySimDispatch_DoMessage);
+    return found && hook::Install(*found, reinterpret_cast<void*>(&DoMessageDispatch), &original);
+}
+
+const bool g_messagesRegistered = registry::Register({
+    "simulators.mysim_agents.dispatch_messages",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySimDispatch_DoMessage,
+    "Our cSC4MySimDispatch DoMessage (docs/mysim-agents.md)",
+    false,
+    InstallMessages,
+});
+
+// --- Object -------------------------------------------------------------------------------
+
+void ConstructPlaceAt(char* self, std::size_t at)
+{
+    Place* const place = reinterpret_cast<Place*>(self + at);
+    place->object = nullptr;
+    place->cellX = -1;
+    place->cellZ = -1;
+    place->connection[0] = -1;
+    place->connection[1] = -1;
+    place->x = static_cast<float>(place->cellX << 4);
+    place->local = 1;
+    place->work = 0;
+    place->extra[0] = 0;
+    place->extra[1] = 0;
+    place->z = static_cast<float>(place->cellZ << 4);
+}
+
+char* __fastcall ConstructDispatch(char* self, void*, void* owner)
+{
+    At<uint32_t>(self, 0x4) = 0;
+    At<std::uintptr_t>(self, 0x0) = addr::cRZBaseUnknown_Vtable;
+    At<std::uintptr_t>(self, 0x8) = addr::cSC4TrafficSimulator_VtableBase4;
+    At<std::uintptr_t>(self, 0xC) = addr::SC4SimGrid_VtableBase;
+    At<std::uintptr_t>(self, 0x0) = addr::cSC4MySimDispatch_Vtable;
+    At<std::uintptr_t>(self, 0x8) = addr::cSC4MySimDispatch_VtableTarget;
+    At<std::uintptr_t>(self, 0xC) = addr::cSC4MySimDispatch_VtableSerializable;
+    At<uint32_t>(self, field::kStatus) = 0xFF;
+    At<int32_t>(self, field::kChanges) = 0;
+    At<int32_t>(self, 0x38) = 0;
+    At<uint32_t>(self, field::kFlags) = 0;
+    At<int32_t>(self, field::kNow) = 0;
+    At<int32_t>(self, field::kWaitStart) = 0;
+    At<int32_t>(self, field::kMarker) = -1;
+    At<int32_t>(self, field::kState) = -1;
+    At<int32_t>(self, field::kPrevious) = -1;
+    At<int32_t>(self, 0x14) = 10;
+    At<int32_t>(self, 0x18) = 10;
+    At<int32_t>(self, 0x1C) = 5;
+    At<int32_t>(self, 0x24) = 5;
+    for (const std::size_t at : {field::kHere, field::kHome, field::kTarget, field::kWork})
+        ConstructPlaceAt(self, at);
+    At<void*>(self, field::kShown) = nullptr;
+    At<uint32_t>(self, 0x100) = 0;
+    At<char*>(self, 0x108) = nullptr;
+    At<char*>(self, 0x10C) = nullptr;
+    At<char*>(self, 0x110) = nullptr;
+    reinterpret_cast<void(__thiscall*)(void*, const char*, const char*, void*)>(addr::SC4String_FromRange)(
+        self + 0x108, reinterpret_cast<const char*>(addr::MySim_ScriptEmpty),
+        reinterpret_cast<const char*>(addr::MySim_ScriptEmpty), &owner);
+    At<std::uintptr_t>(self, 0x104) = addr::SC4String_Vtable;
+    At<uint32_t>(self, 0x114) = 0;
+    At<void*>(self, field::kVehicle) = nullptr;
+    At<void*>(self, field::kOwner) = owner;
+    if (owner)
+        Virtual<uint32_t>(owner, 0x4);
+    At<void*>(self, 0x120) = nullptr;
+    At<void*>(self, field::kRouteView) = nullptr;
+    for (std::size_t at = 0; at < 0x28; at += 4)
+        At<uint32_t>(self, field::kRoute + at) = 0;
+    reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4RouteDeque_Init)(self + field::kRoute, 0);
+    At<void*>(self, field::kModels) = nullptr;
+    auto* const header = static_cast<MapNode*>(
+        reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(0x24));
+    At<MapNode*>(self, field::kModels) = header;
+    At<uint32_t>(self, field::kModels + 4) = 0;
+    header->color = 0;
+    header->parent = nullptr;
+    header->left = header;
+    header->right = header;
+    At<int32_t>(self, 0x15C) = -1;
+    for (std::size_t at = 0; at < 0x28; at += 4)
+        At<uint32_t>(self, field::kPlaces + at) = 0;
+    reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4MySimPlaceDeque_Init)(self + field::kPlaces, 0);
+    At<uint8_t>(self, 0x188) = 0;
+    return self;
+}
+
+void __fastcall DestructDispatch(char* self, void*)
+{
+    At<std::uintptr_t>(self, 0x0) = addr::cSC4MySimDispatch_Vtable;
+    At<std::uintptr_t>(self, 0x8) = addr::cSC4MySimDispatch_VtableTarget;
+    At<std::uintptr_t>(self, 0xC) = addr::cSC4MySimDispatch_VtableSerializable;
+    if (void* const owner = At<void*>(self, field::kOwner)) {
+        At<void*>(self, field::kOwner) = nullptr;
+        Release(owner);
+    }
+    reinterpret_cast<ThisFn>(addr::SC4MySimPlaceDeque_Destroy)(self + field::kPlaces);
+    if (At<uint32_t>(self, field::kModels + 4)) {
+        MapNode* const header = At<MapNode*>(self, field::kModels);
+        reinterpret_cast<void(__thiscall*)(void*, MapNode*)>(addr::SC4MySimModelMap_EraseSubtree)(self + field::kModels,
+                                                                                                   header->parent);
+        At<MapNode*>(self, field::kModels)->left = At<MapNode*>(self, field::kModels);
+        At<MapNode*>(self, field::kModels)->parent = nullptr;
+        At<MapNode*>(self, field::kModels)->right = At<MapNode*>(self, field::kModels);
+        At<uint32_t>(self, field::kModels + 4) = 0;
+    }
+    if (void* const header = At<void*>(self, field::kModels))
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(header);
+    reinterpret_cast<ThisFn>(addr::SC4RouteDeque_Destroy)(self + field::kRoute);
+    for (const std::size_t at : {field::kRouteView, std::size_t{0x120}, field::kOwner, field::kVehicle})
+        Release(At<void*>(self, at));
+    At<std::uintptr_t>(self, 0x104) = addr::SC4String_Vtable;
+    if (void* const buffer = At<void*>(self, 0x108))
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(buffer);
+    for (const std::size_t at : {field::kShown, field::kWork, field::kTarget, field::kHome, field::kHere})
+        Release(At<void*>(self, at));
+    At<std::uintptr_t>(self, 0x0) = addr::cRZBaseUnknown_Vtable;
+}
+
+char* __fastcall DeletingDestructDispatch(char* self, void*, uint32_t flags)
+{
+    reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_Destruct)(self);
+    if (flags & 1)
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(self);
+    return self;
+}
+
+uint8_t __fastcall QueryInterfaceDispatch(char* self, void*, uint32_t iid, void** out)
+{
+    *out = nullptr;
+    switch (iid) {
+    case 0x452294AA:
+        *out = self ? self + 8 : nullptr;
+        break;
+    case 0xE4FDA3D4:
+        *out = self ? self + 0xC : nullptr;
+        break;
+    case 0xEB8B6F9A:
+        *out = self;
+        break;
+    default:
+        break;
+    }
+    if (*out) {
+        Virtual<uint32_t>(self, 0x4);
+        return 1;
+    }
+    return reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t, void**)>(addr::cRZBaseUnknown_QueryInterface1)(
+        self, 1, out);
+}
+
+bool InstallObject(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* originals[4] = {};
+    const struct {
+        std::uintptr_t address;
+        void* ours;
+    } hooks[] = {
+        {addr::cSC4MySimDispatch_cSC4MySimDispatch, reinterpret_cast<void*>(&ConstructDispatch)},
+        {addr::cSC4MySimDispatch_Destruct, reinterpret_cast<void*>(&DestructDispatch)},
+        {addr::cSC4MySimDispatch_DeletingDestructor, reinterpret_cast<void*>(&DeletingDestructDispatch)},
+        {addr::cSC4MySimDispatch_QueryInterface, reinterpret_cast<void*>(&QueryInterfaceDispatch)},
+    };
+    for (std::size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); ++i) {
+        const addr::Entry* found = addr_check::Find(hooks[i].address);
+        if (!found || !hook::Install(*found, hooks[i].ours, &originals[i]))
+            return false;
+    }
+    return true;
+}
+
+const bool g_objectRegistered = registry::Register({
+    "simulators.mysim_agents.dispatch_object",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySimDispatch_cSC4MySimDispatch,
+    "Our cSC4MySimDispatch constructor, destructors and QueryInterface (docs/mysim-agents.md)",
+    false,
+    InstallObject,
+});
+
+// --- Connections ------------------------------------------------------------------------
+
+// The neighbour connection at (x, z), or null.
+void* ConnectionAt(int32_t x, int32_t z)
+{
+    void* const neighbors = Virtual<void*>(Global<void*>(addr::SC4_Service43C94), 0x8C);
+    void** const found = Virtual<void**>(neighbors, 0x2C, x, z);
+    return found ? *found : nullptr;
+}
+
+void* NewConnectionList()
+{
+    void* const node = Virtual<void*>(NodeAllocatorAt(addr::SC4List_NodeAllocator3), 0xC, uint32_t{0xC});
+    At<void*>(node, 0) = node;
+    At<void*>(node, 4) = node;
+    return node;
+}
+
+// Whether the connection has a link of one of the kinds the MySims use.
+uint8_t __fastcall ValidConnection(void*, void*, int32_t x, int32_t z)
+{
+    void* const connection = ConnectionAt(x, z);
+    if (!connection)
+        return 0;
+    void* const links = Global<void*>(addr::SC4_MonthEndService);
+    void* list = NewConnectionList();
+    uint8_t found = 0;
+    for (const int32_t* kind = reinterpret_cast<const int32_t*>(addr::MySim_ConnectionKinds); *kind != 0xD; ++kind) {
+        reinterpret_cast<void(__thiscall*)(void**)>(addr::SC4List_ClearReleasing)(&list);
+        Virtual<void>(links, 0x48, *kind, connection, &list);
+        if (At<void*>(list, 0) != list) {
+            found = 1;
+            break;
+        }
+    }
+    reinterpret_cast<void(__thiscall*)(void**)>(addr::SC4List_Destroy3)(&list);
+    return found;
+}
+
+// The game's version builds an empty list and never fills it, so it never
+// finds one; kept as is.
+uint8_t __fastcall FindConnectionOutside(char*, void*, int32_t, Place* place)
+{
+    if (place->local || !ConnectionAt(place->connection[0], place->connection[1]))
+        return 0;
+    void* list = NewConnectionList();
+    reinterpret_cast<void(__thiscall*)(void**)>(addr::SC4List_Destroy3)(&list);
+    return 0;
+}
+
+bool InstallConnections(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* originals[2] = {};
+    const struct {
+        std::uintptr_t address;
+        void* ours;
+    } hooks[] = {
+        {addr::SC4MySimPlace_ValidConnection, reinterpret_cast<void*>(&ValidConnection)},
+        {addr::cSC4MySimDispatch_FindConnection, reinterpret_cast<void*>(&FindConnectionOutside)},
+    };
+    for (std::size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); ++i) {
+        const addr::Entry* found = addr_check::Find(hooks[i].address);
+        if (!found || !hook::Install(*found, hooks[i].ours, &originals[i]))
+            return false;
+    }
+    return true;
+}
+
+const bool g_connectionsRegistered = registry::Register({
+    "simulators.mysim_agents.dispatch_connections",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySimDispatch_FindConnection,
+    "Our MySim neighbour connection checks (docs/mysim-agents.md)",
+    false,
+    InstallConnections,
 });
 
 bool InstallState(registry::Mode)

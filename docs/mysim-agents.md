@@ -41,6 +41,9 @@ The cISC4MySim methods take the +0xB8 part as `this`; offsets in src/core/mysim_
 | `simulators.mysim_agents.dispatch_step` | Step, the trip state machine: stopped (the next place queued or home, travelling to it), travelling (the route view's search, then segment by segment with the vehicle), none (back home). With flag 0x800, which only a save can set, the game's Step reads a target rectangle from stack slots that call never wrote; ours uses the last one computed |
 | `simulators.mysim_agents.dispatch_segment` | EndSegment, what happens when a segment of the route ends: walking to and from the car (snapped to a road, the walker launched), transit (the stop for the line found near the route, then a vehicle of the line there), arriving at a stop or the target, or on to the next kind of segment; the status, state and flags set at the end |
 | `simulators.mysim_agents.dispatch_save` | Write and Read of the dispatch object (version 1: the fields, the four places, marker, vehicle, owner, clock, route cells, model map and places still to go) |
+| `simulators.mysim_agents.dispatch_messages` | DoMessage: frames step it, 0x44778231 adds 5 to its clock, a reset after a load (0x26D31EC1), automaton events (at the car, arrived, path updated, moved), abort, the transit messages |
+| `simulators.mysim_agents.dispatch_object` | the constructor (the game's allocation order kept), destructors and QueryInterface (any other IID goes to the base's with IID 1, so it also succeeds) |
+| `simulators.mysim_agents.dispatch_connections` | ValidConnection (a neighbour connection with a link of one of nine kinds) and FindConnection (the game's builds an empty list and never fills it, so it never finds one; kept as is) |
 
 Replacement code reads the MySim stopwatches through `sim_timers::Claim` first, so `determinism.sim_timers` takes them over as it would for the original code.
 
@@ -79,5 +82,7 @@ With the dispatch vehicle and legs groups as well (twenty groups, 2026-10-09): `
 With Step as well (twenty-one groups, 2026-10-09): `saves-mysim` 3 of 4 and one partly (the first pair's run of ours one tick short on one day, every record identical), with the script commands 4 of 4, the usual 12 with a MySim moving in 12 of 12.
 
 With EndSegment and the dispatch's Write and Read as well (twenty-three groups, 2026-10-09): `saves-mysim` 4 of 4, with the script commands 4 of 4, the usual 12 with a MySim moving in 12 of 12. With EndSegment alone, one run of ours with the script commands ended in the game's own crash at 0x00975CC8 (a constructor writing through a bad pointer, called from framework code; the same crash the unmodified game had once before); that save on its own then matched.
+
+With the dispatch's DoMessage, object and connection groups as well (twenty-six groups, 2026-10-09): `saves-mysim` 3 of 4 and one partly (the first pair's run of ours one tick short on one day, every record identical), with the script commands 4 of 4, the usual 12 with a MySim moving in 12 of 12. The parity verdict does not decode MySim records, so the saves were compared directly (`tools/re/savediff.py --pointers`): in all four MySim saves the MySim and street sim records (with the dispatch objects inside) differ only by moved addresses.
 
 **A moved-in MySim does not always repeat.** It travels by car, and cars move on frame time ([traffic-map.md](traffic-map.md)), so when it arrives can differ between runs of the original; its state (and the advice it gives) then differs from that day. Judge MySim runs with travel by outcome sets.
