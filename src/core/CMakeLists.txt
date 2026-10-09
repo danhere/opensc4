@@ -89,6 +89,7 @@ add_library(opensc4_core SHARED
   gd/d3d11_backend.cpp
   gd/driver.cpp
   gd/frame_trace.cpp
+  s3d_camera.cpp
   d3d7_probe.cpp
   dbpf_survey.cpp
   gdriver_proxy.cpp

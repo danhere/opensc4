@@ -6,3 +6,163 @@ convention = "thiscall"
 signature = "bool (cSC43DRender* this)"
 expect = "83 EC 08 53 56 8B F1 8B"
 source = "cISC43DRender::Draw: one frame of the city view; diagnostics.trace.frames brackets it (docs/renderer.md, \"Draw-call parity\")."
+
+[[entry]]
+name = "cS3DCamera::SetZoomScale"
+address = 0x007FF070
+kind = "function"
+convention = "thiscall"
+expect = "FF 81 7C 01 00 00 8B 44"
+source = "Name ours. (float) at +0x10; the projection's version (+0x17C) up (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::SetSubViewport"
+address = 0x007FF080
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. (x, y, width, height) at +0x18; +0x14 set (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::ResetSubViewport"
+address = 0x007FF0B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 08 33 C0 89 41 18"
+source = "Name ours. The sub-viewport back to the whole viewport (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::SetDepthOffset"
+address = 0x007FF0F0
+kind = "function"
+convention = "thiscall"
+expect = "FF 81 7C 01 00 00 8B 44"
+source = "Name ours. (float) at +0x1A4, used in the projection's z translation (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::SetViewport"
+address = 0x007FF150
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. (width, height) at +0x8 and the sub-viewport (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::ResetOrientation"
+address = 0x007FF190
+kind = "function"
+convention = "thiscall"
+expect = "53 8A 59 29 33 C0 3A D8"
+source = "Name ours. The orientation (+0x2C) and the view (+0x64) back to identity when flagged (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::GetPosition"
+address = 0x007FF230
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 50 8B 44 24 04 89"
+source = "Name ours. (out vector) from +0x50 (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::SetPosition"
+address = 0x007FF250
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 10 89 51"
+source = "Name ours. (vector) at +0x50 (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::GetTarget"
+address = 0x007FF280
+kind = "function"
+convention = "thiscall"
+expect = "0F B6 41 28 39 81 6C 01"
+source = "Name ours. (out vector) the last LookAt target, +0x160 (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::SetPixelOffset"
+address = 0x007FF2C0
+kind = "function"
+convention = "thiscall"
+expect = "FF 81 7C 01 00 00 8B 44"
+source = "Name ours. (x, y) at +0x19C, a sub-pixel shift of the projection (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::SetFrustum"
+address = 0x007FF2E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 89 91 8C 01"
+source = "Name ours (was Camera::SetOrthographicBox). (left, right, bottom, top, near, far) at +0x18C...; projection mode +0x180 = 1 (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::GetFrustum"
+address = 0x007FF340
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 90 01 00 00 8B 44"
+source = "Name ours. (left, right, top, bottom, near, far outputs) with the pixel offset applied (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::BuildView"
+address = 0x007FF3D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C FE 41 60 8B 41"
+source = "Name ours. The view (+0x64) from the orientation and position (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::BuildProjection"
+address = 0x007FF580
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 33 C0 89 81 AC"
+source = "Name ours. The projection (+0x9C) and its inverse (+0x11C) (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::LookAt"
+address = 0x007FFD60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 8B 54 24 28 D9"
+source = "Name ours. (target, up): the orientation (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::GetView"
+address = 0x007FFED0
+kind = "function"
+convention = "thiscall"
+expect = "0F B6 41 28 39 81 98 00"
+source = "Name ours. The view (+0x60), rebuilt when out of date (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::GetProjection"
+address = 0x007FFEF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 5C 01 00 00 3B 81"
+source = "Name ours. The projection (+0x9C), rebuilt when out of date (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::Project"
+address = 0x007FFF10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 8B 44 24 20 8B"
+source = "Name ours. (world point, out screen point and depth): false behind the camera (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::Unproject"
+address = 0x00800120
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 8B 44 24 24 D9"
+source = "Name ours. (screen point and depth, out world point) (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cS3DCamera::PickRay"
+address = 0x00800340
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 56 8B F1 83 BE"
+source = "Name ours. (screen point, out origin, out direction) (docs/renderer.md, \"The camera\")."
