@@ -370,3 +370,115 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 20 8B 11 8B 44 24"
 source = "Name ours. resize(n) of a vector of 0x20-byte budget items; the new ones are copies of a stack temporary of which only the last word is set. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::LoadTuning"
+address = 0x00692210
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 8B F1"
+source = "Name ours. Defaults, then the budget tuning exemplar 6534284A-E7E2C2DB-0BFF6824: starting funds, bond and loan figures, group factors, the land value curve. Reimplemented by simulators.budget.init. (docs/budget.md)."
+
+[[entry]]
+name = "DepartmentMap::EraseNodes"
+address = 0x006903A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees the department map's nodes below a node (no release). Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "SC4Script::RegisterVariable"
+address = 0x00524970
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 20 85 F6 75"
+source = "Name ours. Registers a script variable (value, name, callback, ...) with service 0xEBE0E860; the budget's total_funds. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::ScriptFunds"
+address = 0x0068FFB0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 83 EC 08 56"
+source = "Name ours. The script callback of budget.total_funds. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::ScriptDeposit"
+address = 0x00690030
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 83 EC 08 56"
+source = "Name ours. The script callback of the budget's deposit function. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::CheatName1"
+address = 0x00B0D1A8
+kind = "data"
+source = "const char*: the name of cheat 0xCBF31943. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::CheatName2"
+address = 0x00B0D1AC
+kind = "data"
+source = "const char*: the name of cheat 0x4AB87766. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::CheatName3"
+address = 0x00B0D1B0
+kind = "data"
+source = "const char*: the name of cheat 0x493F4FE6 (registered only when the service at 0x00B43C94 slot 21 allows). (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Tuning1"
+address = 0x00B0D1B4
+kind = "data"
+source = "float from tuning property 0x89170C6C. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Tuning2"
+address = 0x00B0D1B8
+kind = "data"
+source = "float from tuning property 0x09170C74. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Tuning3"
+address = 0x00B0D1BC
+kind = "data"
+source = "float from tuning property 0xC9170C78. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Tuning4"
+address = 0x00B0D1C0
+kind = "data"
+source = "uint8 from tuning property 0x49170C7C. (docs/budget.md)."
+
+[[entry]]
+name = "BudgetSimulator::Started"
+address = 0x00B47B70
+kind = "data"
+source = "uint8: set by the first Init. (docs/budget.md)."
+
+[[entry]]
+name = "BudgetSimulator::Name"
+address = 0x00A89978
+kind = "data"
+source = "\"cSC4BudgetSimulator\": the name it registers under with the simulator service. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::ScriptTable"
+address = 0x00AB08D8
+kind = "data"
+source = "\"budget\": the script table. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::ScriptFunds"
+address = 0x00AB08CC
+kind = "data"
+source = "\"total_funds\": the script variable. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::ScriptDeposit"
+address = 0x00AB08BC
+kind = "data"
+source = "the script function's name. (docs/budget.md)."
