@@ -20,6 +20,10 @@ target_link_libraries(opensc4_core_support
 
 add_library(opensc4_core SHARED
   autotest.cpp
+  crime_sim.cpp
+  crime_object.cpp
+  crime_step.cpp
+  crime_tuning.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp
