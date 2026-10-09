@@ -1,6 +1,6 @@
 # City size: what limits it and how we lift it
 
-Status: research, 2026-10-08. Nothing here is implemented. Roadmap: "Beyond the original: bigger city tiles" in [ROADMAP.md](../ROADMAP.md).
+Status: research, 2026-10-08. Nothing here is implemented. Roadmap: "Beyond the original: bigger city tiles" in [ROADMAP.md](../ROADMAP.md). Timing (Dan, 2026-10-09): implemented with P8, not waiting for the 64-bit build; 8 km should fit in 32-bit memory.
 
 ## What the game allows
 
