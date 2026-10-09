@@ -5385,3 +5385,12 @@ name = "SC4::FloatInv255"
 address = 0x00A90BBC
 kind = "data"
 source = "float 1/255 (docs/crime.md)."
+
+[[entry]]
+name = "cSC4City::cSC4City"
+address = 0x00459F30
+kind = "function"
+convention = "thiscall"
+signature = "cSC4City* (cSC4City* this)"
+expect = "53 56 8B F1 57 C7 06 C0"
+source = "Constructor, called by the class factory cSC4City::Create 0x0045A560 (operator new(0x20C)) for every city loaded or founded; plain ret. game.seed reseeds the game's generators here: the earliest point of a city load, before the city's objects seed theirs (docs/seeds.md)."
