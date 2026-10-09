@@ -952,12 +952,6 @@ expect = "56 8B F1 8B 0E 85 C9 74"
 source = "Name ours. Releases and clears a reference holder, returning its address (docs/mysim-agents.md)."
 
 [[entry]]
-name = "SC4::Service43D60"
-address = 0x00B43D60
-kind = "data"
-source = "Name ours. A service OnCommand reads and does not use (docs/mysim-agents.md)."
-
-[[entry]]
 name = "SC4::Service43DB0"
 address = 0x00B43DB0
 kind = "data"
