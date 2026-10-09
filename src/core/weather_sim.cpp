@@ -420,7 +420,7 @@ void __fastcall NewMonthWeather(void* self, void*, int32_t month)
         }
     double g;
     do {
-        g = reinterpret_cast<GaussFn>(addr::SC4Random_Gaussian)(random) * At<float>(self, field::kWindSpread);
+        g = reinterpret_cast<GaussFn>(addr::cRZRandom_Gaussian)(random) * At<float>(self, field::kWindSpread);
     } while (std::fabs(g) > 1.0);
     const double s = std::sqrt(1.0 - g * g);
     const double x = edges[3].x;

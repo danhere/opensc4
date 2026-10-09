@@ -15,12 +15,20 @@
 // (docs/experiments/determinism.md). A clock seed after startup gets a
 // counter of its own call site (the first caller outside cRZRandom), so other
 // sites cannot shift it. OPENSC4_SEED sets the base (default 0x5EED).
+//
+// game.seed (game_seed.cpp) shares these hooks: it needs every generator that
+// lives in the exe's own data (37 in build 641, seeded by static
+// initialisers), because their state at city load depends on everything
+// drawn since startup. ReseedForCity seeds each of them from the city's seed
+// and its address, and from then on clock seeds come from the city's seed
+// too.
 #include "core/fixed_seed.h"
 
 #include "core/address_check.h"
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/settings.h"
 
 #include <windows.h>
 
@@ -30,6 +38,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 
 #include <opensc4/addresses.h>
 
@@ -61,6 +70,41 @@ bool g_logAll = false;
 
 std::atomic<bool> g_startupDone{false};
 
+// Which replacements use the hooks: determinism.fixed_seed replaces seeds
+// from the start; game.seed only records generators until the first
+// ReseedForCity, then replaces clock seeds.
+bool g_fixedOn = false;
+bool g_hooksInstalled = false;
+bool g_hooksOk = false;
+std::atomic<bool> g_cityReseeded{false};
+
+// Generators inside the exe's image: never freed, so they can be reseeded
+// at any time. Recorded at their first seed call.
+struct StaticGenerator {
+    void* self;
+    bool mt; // cRZRandomSuper (Mersenne Twister), else cRZRandom (LCG)
+};
+constexpr int kStatics = 256;
+StaticGenerator g_statics[kStatics];
+int g_staticCount = 0;
+uintptr_t g_imageStart = 0;
+uintptr_t g_imageEnd = 0;
+CRITICAL_SECTION g_staticLock;
+
+void RecordStatic(void* self, bool mt)
+{
+    const auto address = reinterpret_cast<uintptr_t>(self);
+    if (address < g_imageStart || address >= g_imageEnd)
+        return;
+    EnterCriticalSection(&g_staticLock);
+    int i = 0;
+    while (i < g_staticCount && g_statics[i].self != self)
+        ++i;
+    if (i == g_staticCount && g_staticCount < kStatics)
+        g_statics[g_staticCount++] = {self, mt};
+    LeaveCriticalSection(&g_staticLock);
+}
+
 // The first code address up the stack from `retSlot` outside the cRZRandom
 // functions (0x00913600-0x00913C40): the code that constructed or seeded the
 // generator, not the shared constructor.
@@ -83,11 +127,24 @@ uint32_t g_siteCounts[kSites];
 int g_siteCount = 0;
 CRITICAL_SECTION g_siteLock;
 
+// Generators the game seeds from the time of day itself, not with 0xFFFFFFFF:
+// the prop developer's (made in cSC4PropDeveloper::Create) and the traffic
+// simulator's (Init, 0x0071F1A5; our own Init calls from core.dll and is not
+// covered). Under the virtual clock their seeds are constant; in play they
+// change every second. After ReseedForCity they count as clock seeds.
+bool IsTimeSeedSite(uint32_t site)
+{
+    return site == 0x006F34B6 || site == 0x0071F1A5;
+}
+
 uint32_t NextSeed(uint32_t requested, const char* which, void** retSlot)
 {
     const uint32_t n = g_calls.fetch_add(1);
-    const bool startup = !g_startupDone.load();
-    if (!startup && requested != 0xFFFFFFFF) {
+    // game.seed alone: the game's own seeds until a city has been reseeded.
+    if (!g_fixedOn && !g_cityReseeded.load())
+        return requested;
+    const bool startup = g_fixedOn && !g_startupDone.load();
+    if (!startup && requested != 0xFFFFFFFF && !(g_cityReseeded.load() && IsTimeSeedSite(CallSite(retSlot)))) {
         if (g_logAll)
             log::Write("fixed_seed: %s seed #%u: 0x%08X kept (thread %lu, site %08X)", which, n, requested,
                        GetCurrentThreadId(), CallSite(retSlot));
@@ -118,11 +175,13 @@ uint32_t NextSeed(uint32_t requested, const char* which, void** retSlot)
 // can fault, so no SEH guard (crash.h).
 void __fastcall SeedLcg(void* self, void* edx, uint32_t seed)
 {
+    RecordStatic(self, false);
     g_seedLcg(self, edx, NextSeed(seed, "cRZRandom", static_cast<void**>(_AddressOfReturnAddress())));
 }
 
 void __fastcall SeedMt(void* self, void* edx, uint32_t seed)
 {
+    RecordStatic(self, true);
     g_seedMt(self, edx, NextSeed(seed, "cRZRandomSuper", static_cast<void**>(_AddressOfReturnAddress())));
 }
 
@@ -162,19 +221,36 @@ int __cdecl Rand()
     return value;
 }
 
+// The seed hooks, for whichever of determinism.fixed_seed and game.seed is
+// applied first (both at Phase::Attach).
+bool InstallHooks()
+{
+    if (g_hooksInstalled)
+        return g_hooksOk;
+    g_hooksInstalled = true;
+    InitializeCriticalSection(&g_siteLock);
+    InitializeCriticalSection(&g_staticLock);
+    const auto* image = reinterpret_cast<const unsigned char*>(GetModuleHandleW(nullptr));
+    const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(image);
+    const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS32*>(image + dos->e_lfanew);
+    g_imageStart = reinterpret_cast<uintptr_t>(image);
+    g_imageEnd = g_imageStart + nt->OptionalHeader.SizeOfImage;
+    const addr::Entry* lcg = addr_check::Find(addr::cRZRandom_Seed);
+    const addr::Entry* mt = addr_check::Find(addr::cRZRandomSuper_Seed);
+    g_hooksOk = lcg && mt && hook::Install(*lcg, &SeedLcg, &g_seedLcg) && hook::Install(*mt, &SeedMt, &g_seedMt);
+    return g_hooksOk;
+}
+
 bool Apply(registry::Mode)
 {
-    InitializeCriticalSection(&g_siteLock);
+    g_fixedOn = true;
     char value[32];
     const DWORD length = GetEnvironmentVariableA("OPENSC4_SEED", value, sizeof(value));
     if (length > 0 && length < sizeof(value))
         g_base = static_cast<uint32_t>(std::strtoul(value, nullptr, 0));
     g_logAll = GetEnvironmentVariableA("OPENSC4_SEED_LOG", value, sizeof(value)) == 1 && value[0] == '1';
-    const addr::Entry* lcg = addr_check::Find(addr::cRZRandom_Seed);
-    const addr::Entry* mt = addr_check::Find(addr::cRZRandomSuper_Seed);
     const addr::Entry* srand = addr_check::Find(addr::CRT_srand);
-    const bool ok = lcg && mt && srand && hook::Install(*lcg, &SeedLcg, &g_seedLcg) &&
-                    hook::Install(*mt, &SeedMt, &g_seedMt) && hook::Install(*srand, &Srand, &g_srand);
+    const bool ok = srand && InstallHooks() && hook::Install(*srand, &Srand, &g_srand);
     char tracePath[MAX_PATH];
     const DWORD traceLength = GetEnvironmentVariableA("OPENSC4_RAND_TRACE", tracePath, sizeof(tracePath));
     if (ok && traceLength > 0 && traceLength < sizeof(tracePath)) {
@@ -200,8 +276,53 @@ const bool g_registered = registry::Register({
 
 } // namespace
 
+bool InstallForGameSeed()
+{
+    return InstallHooks();
+}
+
+namespace {
+
+int ReseedStatics(uint32_t seed)
+{
+    EnterCriticalSection(&g_staticLock);
+    const int count = g_staticCount;
+    for (int i = 0; i < count; ++i) {
+        const StaticGenerator& g = g_statics[i];
+        const uint32_t value = Mix(seed ^ static_cast<uint32_t>(reinterpret_cast<uintptr_t>(g.self)));
+        // The originals, not the detours: these are not the game's requests.
+        (g.mt ? g_seedMt : g_seedLcg)(g.self, nullptr, value);
+    }
+    LeaveCriticalSection(&g_staticLock);
+    return count;
+}
+
+} // namespace
+
+void ReseedForCity(uint32_t seed)
+{
+    if (!g_hooksOk)
+        return;
+    EnterCriticalSection(&g_siteLock);
+    g_base = seed;
+    for (int i = 0; i < g_siteCount; ++i)
+        g_siteCounts[i] = 0;
+    LeaveCriticalSection(&g_siteLock);
+    const int count = ReseedStatics(seed);
+    g_cityReseeded = true;
+    log::Write("fixed_seed: %d static generators reseeded from 0x%08X; clock seeds from it too", count, seed);
+}
+
 void EndStartup()
 {
+    // [game] test_scramble = <n>: every static generator in a state made from
+    // n, as a long session before the first city would leave them (to test
+    // game.seed; docs/seeds.md).
+    const std::string scramble = settings::Get("game", "test_scramble", "");
+    if (g_hooksOk && !scramble.empty()) {
+        const uint32_t value = static_cast<uint32_t>(std::strtoul(scramble.c_str(), nullptr, 0));
+        log::Write("fixed_seed: %d static generators scrambled with 0x%08X (test)", ReseedStatics(value), value);
+    }
     if (registry::ModeOf("determinism.fixed_seed") == registry::Mode::Original || g_startupDone.exchange(true))
         return;
     log::Write("fixed_seed: startup over after %u seed calls; from now on only clock seeds are replaced",
