@@ -251,6 +251,18 @@ def flora_simulator(r):
     return out
 
 
+def neighbors_simulator(r):
+    """cSC4NeighborsSimulator (0xC990C0A4): Write at 0x006CFB60, Read at
+    0x006CFDC0 (version 2): the connections as references
+    (docs/neighbors.md)."""
+    out = header(r)
+    out['version'] = v = r.u16()
+    if v != 2:
+        raise struct.error('version %d not known' % v)
+    out['connections'] = r.ref_list()
+    return out
+
+
 def traffic_simulator(r):
     """cSC4TrafficSimulator (0x6990C1AA): Write at 0x00712400 (version 41).
     Field names are ours; offsets in them are from the object's start (the
@@ -380,7 +392,8 @@ SCHEMAS = {0x8990C065: ('cSC4PollutionSimulator', pollution_simulator),
            0x0990BDD8: ('cSC4AuraSimulator', aura_simulator),
            0xE990C18E: ('cSC4LandValueSimulator', land_value_simulator),
            0x8990C09A: ('cSC4CrimeSimulator', crime_simulator),
-           0xC990C034: ('cSC4FloraSimulator', flora_simulator)}
+           0xC990C034: ('cSC4FloraSimulator', flora_simulator),
+           0xC990C0A4: ('cSC4NeighborsSimulator', neighbors_simulator)}
 
 
 def decode(data, decoder):

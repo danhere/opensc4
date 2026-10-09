@@ -6013,3 +6013,510 @@ convention = "thiscall"
 signature = "void (SC4String* this)"
 expect = "C7 01 10 08 A8 00 8B 49"
 source = "Name ours. The string's destructor: vtable 0x00A80810, the buffer freed (docs/flora.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::vftable"
+address = 0x00AB1EE0
+kind = "data"
+source = "Name ours. cISC4NeighborsSimulator, 39 slots (the deleting destructor in slot 38) (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::OtherSideTile"
+address = 0x006CE820
+kind = "function"
+convention = "cdecl"
+signature = "void (int32_t x, int32_t z, int32_t* tileX, int32_t* tileZ, cISC4RegionViewCity* region)"
+expect = "51 53 8B 5C 24 1C 85 DB"
+source = "Name ours. The region tile across the edge from a city cell past it (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::OtherSideCell"
+address = 0x006CE920
+kind = "function"
+convention = "cdecl"
+signature = "bool (int32_t x, int32_t z, int32_t* tileX, int32_t* tileZ, cISC4RegionalCity** city, int32_t* otherX, int32_t* otherZ)"
+expect = "83 EC 18 8B 44 24 2C 8B"
+source = "Name ours. The city across the edge from a city cell past it, and the cell on its side (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4List::InsertRange"
+address = 0x004A86F0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this, ListNode* where, ListNode* first, ListNode* last, void* dummy)"
+expect = "8B 44 24 0C 53 56 57 8B"
+source = "Name ours. Inserts copies of [first, last) before `where`, referencing each value (nodes from 0x00B207DC) (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4RefList::Assign"
+address = 0x004A9150
+kind = "function"
+convention = "thiscall"
+signature = "SC4List* (SC4List* this, SC4List const* other)"
+expect = "83 EC 0C 8B 44 24 10 53"
+source = "Name ours. Assignment of a list of referenced objects (references swapped node by node, the rest erased or appended) (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4PtrSet::Insert"
+address = 0x0049A050
+kind = "function"
+convention = "thiscall"
+signature = "void* (SC4PtrSet* this, void* result, void* const* key)"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Name ours. std::set<T*>::insert (result: node, inserted); no references taken (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4PtrSet::EraseTree"
+address = 0x004A4660
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4PtrSet* this, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of a pointer set (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4List::AllocateNodes4"
+address = 0x00411B60
+kind = "function"
+convention = "thiscall"
+signature = "ListNode* (SC4List* this, uint32_t count, uint32_t zero)"
+expect = "51 8B 0D E0 07 B2 00 85"
+source = "Name ours. count nodes from the allocator at 0x00B207E0 (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4List::EraseReleasing4"
+address = 0x004A4A50
+kind = "function"
+convention = "thiscall"
+signature = "ListNode** (SC4List* this, ListNode** out, ListNode* node)"
+expect = "56 8B 74 24 0C 8B 46 04"
+source = "Name ours. Unlinks a node, releases its object and frees it (allocator 0x00B207E0); out = the next node (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4List::EraseReleasing3"
+address = 0x0041C000
+kind = "function"
+convention = "thiscall"
+signature = "ListNode** (SC4List* this, ListNode** out, ListNode* node)"
+expect = "56 8B 74 24 0C 8B 46 04"
+source = "Name ours. As 0x004A4A50 for a list of the allocator at 0x00B207DC (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4LocalizedString::SC4LocalizedString"
+address = 0x00603580
+kind = "function"
+convention = "thiscall"
+signature = "void* (SC4LocalizedString* this, uint32_t group, uint32_t instance, uint32_t flag)"
+expect = "53 56 8B F1 33 DB 89 5E"
+source = "Name ours. A 0x20-byte string from the text resources (a string first) (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4String::Format"
+address = 0x0090F574
+kind = "function"
+convention = "cdecl"
+signature = "void (SC4String* out, const char* format, ...)"
+expect = "55 8D 6C 24 90 81 EC B4"
+source = "Name ours. printf into a string (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4UI::QuestionDialog"
+address = 0x0078DFF0
+kind = "function"
+convention = "cdecl"
+signature = "bool (const SC4String* title, const SC4String* text, uint32_t, uint32_t)"
+expect = "83 EC 2C 53 56 57 E8 95"
+source = "Name ours. A yes/no dialog; true for yes (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborConnection::cSC4NeighborConnection"
+address = 0x006D4680
+kind = "function"
+convention = "thiscall"
+signature = "cSC4NeighborConnection* (cSC4NeighborConnection* this)"
+expect = "56 8B F1 57 8D 7E 08 C7"
+source = "Name from Ghidra's symbols. 0x44 bytes (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4List::AllocateNodes3"
+address = 0x00411B00
+kind = "function"
+convention = "thiscall"
+signature = "ListNode* (SC4List* this, uint32_t count, uint32_t zero)"
+expect = "51 8B 0D DC 07 B2 00 85"
+source = "Name ours. count nodes from the allocator at 0x00B207DC (docs/neighbors.md)."
+
+[[entry]]
+name = "NeighborTuning::ElevatedHeight"
+address = 0x00AB1CA8
+kind = "data"
+source = "Name ours. float 15.5: how far above the ground the marker of an elevated connection (highway, light rail, monorail) sits (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::RemoveConnection"
+address = 0x006D17B0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4NeighborsSimulator* this, cISC4NeighborConnection* connection, bool fromList)"
+expect = "83 EC 20 55 8B 6C 24 28"
+source = "Name ours. A connection taken off: the city across, its markers, message 0xEA0D163E, the list if asked (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4List::RemoveValue3"
+address = 0x006CFD30
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this, void* const* value)"
+expect = "53 55 56 8B D9 57 8B 3B"
+source = "Name ours. list::remove(value) for a list of the 0x00B207DC allocator, releasing (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4List::AllocateNodes1"
+address = 0x00420FD0
+kind = "function"
+convention = "thiscall"
+signature = "ListNode* (SC4List* this, uint32_t count, uint32_t zero)"
+expect = "51 8B 0D 58 0D B2 00 85"
+source = "Name ours. count nodes from the allocator at 0x00B20D58 (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4List::Destroy4"
+address = 0x00411FE0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "51 56 8B F1 E8 07 FE FF"
+source = "Name ours. Empties a list of the allocator at 0x00B207E0 (0x00411DF0) and frees its sentinel (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborDeal::cSC4NeighborDeal"
+address = 0x006CF270
+kind = "function"
+convention = "thiscall"
+signature = "cSC4NeighborDeal* (cSC4NeighborDeal* this)"
+expect = "56 8B F1 57 8D 7E 08 C7"
+source = "Name from Ghidra's symbols. 0x80 bytes (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::MakeDeal"
+address = 0x006D0520
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4NeighborsSimulator* this, int32_t type, int32_t amount, cISC4RegionalCity* city, SC4List* list, bool now)"
+expect = "83 EC 24 8B 54 24 30 53"
+source = "Name ours. A proposed deal with an amount and a random length in years, added now if asked, into the list (docs/neighbors.md)."
+
+[[entry]]
+name = "NeighborDeal::Random"
+address = 0x00B49B18
+kind = "data"
+source = "Name ours. The cRZRandom deal lengths are drawn from, made on first use (guard 0x00B49B30 bit 0) (docs/neighbors.md)."
+
+[[entry]]
+name = "NeighborDeal::RandomGuard"
+address = 0x00B49B30
+kind = "data"
+source = "Name ours. Bit 0: NeighborDeal::Random is made (docs/neighbors.md)."
+
+[[entry]]
+name = "NeighborTuning::YearsSlack"
+address = 0x00AA2270
+kind = "data"
+source = "Name ours. double 0.001 added to the longest deal length before the draw (docs/neighbors.md)."
+
+[[entry]]
+name = "NeighborTuning::Tiny"
+address = 0x00AB1F88
+kind = "data"
+source = "Name ours. double 1e-8, the smallest amount and demand the deal price uses (docs/neighbors.md)."
+
+[[entry]]
+name = "NeighborTuning::Months"
+address = 0x00AA209C
+kind = "data"
+source = "Name ours. float 12 (docs/neighbors.md)."
+
+[[entry]]
+name = "NeighborTuning::DefaultRatio"
+address = 0x00AB1F80
+kind = "data"
+source = "Name ours. double 1e-5, a commodity's cost ratio without a budget item (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4::DoubleOne"
+address = 0x00A80AB0
+kind = "data"
+source = "Name ours. double 1.0 (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4::DoubleHalf"
+address = 0x00A92D28
+kind = "data"
+source = "Name ours. double 0.5 (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4::Service43D94"
+address = 0x00B43D94
+kind = "data"
+source = "Name ours. The plumbing (water) simulator's service pointer, as the neighbors simulator reads it (slots 14 and 23) (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4::GetPropertyDouble"
+address = 0x005FD530
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, double* value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. A property's value as a double (variant slot 40) (docs/neighbors.md)."
+
+[[entry]]
+name = "cRZDate::FromDay"
+address = 0x00912DFA
+kind = "function"
+convention = "thiscall"
+signature = "cRZDate* (cRZDate* this, uint32_t day)"
+expect = "56 FF 74 24 08 8B F1 E8"
+source = "Name ours. A 16-byte date (its cIGZDate at +8) from a day number (docs/neighbors.md)."
+
+[[entry]]
+name = "cRZDate::Copy"
+address = 0x00912E24
+kind = "function"
+convention = "thiscall"
+signature = "cRZDate* (cRZDate* this, const cRZDate* other)"
+expect = "56 FF 74 24 08 8B F1 E8"
+source = "Name ours. Copy constructor (docs/neighbors.md)."
+
+[[entry]]
+name = "cRZDate::Day"
+address = 0x0091297E
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (const cIGZDate* this)"
+expect = "8B 41 FC C3"
+source = "Name ours. The day number, from the cIGZDate part (docs/neighbors.md)."
+
+[[entry]]
+name = "cRZDate::cRZDate"
+address = 0x00912E7B
+kind = "function"
+convention = "thiscall"
+signature = "cRZDate* (cRZDate* this, uint32_t day)"
+expect = "8B C1 8B 4C 24 04 89 48"
+source = "Name ours. A date from a day number, directly (docs/neighbors.md)."
+
+[[entry]]
+name = "cRZDate::Destroy"
+address = 0x009128BF
+kind = "function"
+convention = "thiscall"
+signature = "void (cRZDate* this)"
+expect = "C7 01 F0 EA AC 00 C7 41"
+source = "Name ours. The date's destructor (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::vftable_4"
+address = 0x00AB1ED0
+kind = "data"
+source = "Name ours. The cIGZMessageTarget2 part at +4: DoMessage (slot 3, 0x006D42B0) (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::vftable_8"
+address = 0x00AB1EB8
+kind = "data"
+source = "Name ours. The cIGZSerializable part at +8: Write (slot 3, 0x006CFB60), Read (slot 4, 0x006CFDC0), GetGZCLSID (slot 5, 0x006CDEF0) (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::Daily"
+address = 0x006D0A40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4NeighborsSimulator* this, bool share, bool save)"
+expect = "8A 44 24 04 83 EC 08 53"
+source = "Name ours. The deals handed to the adjacent cities and ours, and saved there (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::UpdateMarkers"
+address = 0x006D0BE0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4NeighborsSimulator* this, const SC4Rect<int32_t>* rect)"
+expect = "83 EC 40 53 55 8B E9 8B"
+source = "Name ours. The markers of the connections in a cell rectangle back on the ground (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::Monthly"
+address = 0x006D0E50
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4NeighborsSimulator* this)"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. The month of every deal (state, suspension, renewal, ending), the commodity statistics, the sharing (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::DateNotAfter"
+address = 0x006CE6A0
+kind = "function"
+convention = "cdecl"
+signature = "bool (const cRZDate* a, const cRZDate* b)"
+expect = "8B 44 24 08 85 C0 74 17"
+source = "Name ours. cIGZDate slot 27 of a with b (or none); true when it answers 0 (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4StlList::PushBack"
+address = 0x00427640
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4StlList* this, void* const* value)"
+expect = "56 8B 31 6A 0C E8 0A 59"
+source = "Name ours. push_back of a pointer into a list whose nodes come from the STL allocator (0x0090CF54) (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4StlList::Clear"
+address = 0x0050A2A0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4StlList* this)"
+expect = "56 57 8B F9 8B 07 8B 30"
+source = "Name ours. Frees every node but the sentinel (0x0090CF63) (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4List::EraseReleasing1"
+address = 0x004216E0
+kind = "function"
+convention = "thiscall"
+signature = "ListNode** (SC4List* this, ListNode** out, ListNode* node)"
+expect = "56 8B 74 24 0C 8B 46 04"
+source = "Name ours. As 0x004A4A50 for a list of the allocator at 0x00B20D58 (docs/neighbors.md)."
+
+[[entry]]
+name = "cRZDate::Default"
+address = 0x00913177
+kind = "function"
+convention = "thiscall"
+signature = "cRZDate* (cRZDate* this)"
+expect = "56 8B F1 E8 FD FE FF FF"
+source = "Name ours. The default date constructor (0x0091307C) (docs/neighbors.md)."
+
+[[entry]]
+name = "NeighborTuning::YearsBias"
+address = 0x00AB1F7C
+kind = "data"
+source = "Name ours. float 0.000107, added to the longest deal length (in months) before dividing by it (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::Init"
+address = 0x006D38F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4NeighborsSimulator* this)"
+expect = "81 EC B8 00 00 00 53 55"
+source = "Name ours. Slot 3: tuning and price curve, registration, messages, connections repaired, deals rebuilt from the adjacent cities and shared (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::Started"
+address = 0x00B49B14
+kind = "data"
+source = "Name ours. uint8 set by the first Init, read by nothing else seen (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::Name"
+address = 0x00A89838
+kind = "data"
+source = "The string \"cSC4NeighborsSimulator\", its name with the simulator service (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborDeal::vftable"
+address = 0x00AB1DD8
+kind = "data"
+source = "Name ours. cISC4NeighborDeal, 41 slots; many getters are folded with other classes' (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborDeal::vftable_4"
+address = 0x00AB1DBC
+kind = "data"
+source = "Name ours. The deal's cIGZSerializable part: Write 0x006CE400, Read 0x006CE4E0, GetGZCLSID 0x006CE080 (class 0x2A134F42) (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborDeal::vftable_8"
+address = 0x00AB1D58
+kind = "data"
+source = "Name ours. The deal's property holder part (base 0x005FF100); slot 22 the deleting destructor (0x006CF2F0) (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborConnection::vftable"
+address = 0x00AB2034
+kind = "data"
+source = "Name ours. cISC4NeighborConnection, 15 slots (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborConnection::vftable_4"
+address = 0x00AB201C
+kind = "data"
+source = "Name ours. The connection's cIGZSerializable part: Write 0x006CF080, Read 0x006CF0F0, GetGZCLSID 0x006CDFF0 (class 0x0A134F24) (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborConnection::vftable_8"
+address = 0x00AB1FB8
+kind = "data"
+source = "Name ours. The connection's property holder part; slot 22 the deleting destructor (0x006D4BB0) (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4NeighborConnection::vftable_1C"
+address = 0x00AB1FA0
+kind = "data"
+source = "Name ours. The connection's cISC4TrafficSource part: slot 3 its trips list, slot 4 the trips brought up to date (0x006D4C10), slot 5 (docs/neighbors.md)."
+
+[[entry]]
+name = "cRZDate::SetDay"
+address = 0x009B2C1C
+kind = "function"
+convention = "thiscall"
+signature = "void (cRZDate* this, uint32_t day)"
+expect = "8B 44 24 04 89 41 04 C2"
+source = "Name ours. The day number into +4 (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4PropertyHolder::Write"
+address = 0x005FD990
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSCPropertyHolder* this, cIGZOStream* stream)"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name ours. A property holder's properties into a stream (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4PropertyHolder::Read"
+address = 0x005FF280
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSCPropertyHolder* this, cIGZIStream* stream)"
+expect = "83 EC 0C 53 8B 5C 24 14"
+source = "Name ours. A property holder's properties from a stream (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4TripList::Clear"
+address = 0x006C0FF0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4TripList* this)"
+expect = "53 8B D9 8B 03 56 8B 30"
+source = "Name ours. Frees every 0x34-byte trip record of a list (and their two vectors) (docs/neighbors.md)."
+
+[[entry]]
+name = "SC4PropertyHolder::Destroy"
+address = 0x005FF150
+kind = "function"
+convention = "thiscall"
+signature = "void (cSCPropertyHolder* this)"
+expect = "C7 01 D8 6C AA 00 83 C1"
+source = "Name ours. The property holder base's destructor (docs/neighbors.md)."
+
+[[entry]]
+name = "cRZDate::DefaultBase"
+address = 0x0091307C
+kind = "function"
+convention = "thiscall"
+signature = "cRZDate* (cRZDate* this)"
+expect = "55 8B EC 51 56 8B F1 6A"
+source = "Name ours. An 8-byte date (vtable 0x00A827D8, day) set to today by the clock (time(), localtime) (docs/neighbors.md)."
