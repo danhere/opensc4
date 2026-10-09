@@ -20,6 +20,8 @@
 # <output dir> are reused, so an interrupted run can be resumed.
 # OPENSC4_PARITY_JOBS=<n> runs n saves at a time, each in its own copy of the
 # game and its own user folder (default 1). A copy needs up to 2 GB.
+# OPENSC4_PARITY_ENV=<folder> puts the jobs' user folders there (default
+# %LOCALAPPDATA%\opensc4\p4env), so batches run at the same time keep apart.
 #
 # Example: the pass-through pollution simulator against the original:
 #   scripts/run-parity.sh "$B" "$LOCALAPPDATA/opensc4/parity/proxy" 7 "$LOCALAPPDATA/opensc4/parity/saves" \
@@ -134,7 +136,7 @@ else
     # Starts are staggered so the copies do not all load at once.
     for ((k = 0; k < jobs; k++)); do
         (
-            export OPENSC4_SAVE_ENV="$(cygpath "$LOCALAPPDATA")/opensc4/p4env/job$k"
+            export OPENSC4_SAVE_ENV="${OPENSC4_PARITY_ENV:-$(cygpath "$LOCALAPPDATA")/opensc4/p4env}/job$k"
             [ "$k" = 0 ] || pause $((k * 15))
             for ((i = k; i < ${#all_saves[@]}; i += jobs)); do
                 parity_save "${all_saves[$i]}"
