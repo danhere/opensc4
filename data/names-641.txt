@@ -31,7 +31,7 @@
 0x00704060 cSC4Simulator::AgentMap_Insert ours; red-black tree insert keyed by the agent pointer compared as a number, so agents were ordered by heap address (docs/experiments/determinism.md)
 0x007CD6E0 cSC4CameraControl::SetZoomFactor ours; stores the fine zoom factor (+0xF0) and rebuilds the projection (docs/ui-scaling.md)
 0x007CDC50 cSC4CameraControl::SetZoom      ours; zoom level setter behind cSC43DRender::SetZoom, rebuilds the projection (docs/ui-scaling.md)
-0x007FF2E0 Camera::SetOrthographicBox      ours; stores left, right, bottom, top, near, far and marks the projection dirty (docs/ui-scaling.md)
+0x007FF2E0 cS3DCamera::SetFrustum          ours; stores left, right, bottom, top, near, far and marks the projection dirty (docs/ui-scaling.md, docs/renderer.md)
 0x008853B0 DXDriver::ReadBufferRegion      ours; the stock DirectX driver's cIGZGBufferRegionExtension slot 6; the region position comes first (docs/renderer.md)
 0x008855F0 DXDriver::DrawBufferRegion      ours; the stock DirectX driver's cIGZGBufferRegionExtension slot 7 (docs/renderer.md)
 0x0089058F GZStopwatch::Start              ours; reads the counter (QueryPerformanceCounter, or rdtsc in mode 0) into +8 and clears the total (docs/experiments/determinism.md)
