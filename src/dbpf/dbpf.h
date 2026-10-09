@@ -47,6 +47,10 @@ public:
     virtual uint64_t Size() const = 0;
     // Reads exactly out.size() bytes at offset; false if that runs past the end or fails.
     virtual bool Read(uint64_t offset, std::span<uint8_t> out) = 0;
+    // Gives back any operating-system handle until the next Read, so a
+    // plugin folder of thousands of packages does not hold thousands of
+    // files open.
+    virtual void Release() {}
 };
 
 class MemorySource final : public Source {
@@ -66,10 +70,12 @@ public:
     ~FileSource() override;
     uint64_t Size() const override { return size_; }
     bool Read(uint64_t offset, std::span<uint8_t> out) override;
+    void Release() override;
 
 private:
-    FileSource(std::FILE* file, uint64_t size) : file_(file), size_(size) {}
-    std::FILE* file_;
+    FileSource(std::string path, std::FILE* file, uint64_t size) : path_(std::move(path)), file_(file), size_(size) {}
+    std::string path_;
+    std::FILE* file_; // null while released
     uint64_t size_;
 };
 
@@ -106,6 +112,8 @@ public:
     bool ReadRaw(const Entry& entry, std::vector<uint8_t>& out, std::string* error = nullptr);
     // The record's contents, decompressed if the directory lists it.
     bool Read(const Entry& entry, std::vector<uint8_t>& out, std::string* error = nullptr);
+    // Closes the file until the next read (Source::Release).
+    void Release() { source_->Release(); }
 
 private:
     explicit Package(std::unique_ptr<Source> source) : source_(std::move(source)) {}
