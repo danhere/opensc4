@@ -106,7 +106,7 @@ uint8_t __fastcall Init(void* self, void*)
                                want - n, emptyBits);
             const int32_t rows = static_cast<int32_t>((At<char*>(s, field::kWaterBits + 4) - At<char*>(s, field::kWaterBits)) / 20);
             for (int32_t i = 0; i < rows; ++i)
-                CallThis<void>(addr::SC4BitRow_Resize, At<char*>(s, field::kWaterBits) + 20 * i,
+                CallThis<void>(addr::SC4BitVector_Resize, At<char*>(s, field::kWaterBits) + 20 * i,
                                At<uint32_t>(s, field::kCellsZ), 0u);
         }
         {
