@@ -23,7 +23,8 @@
 //   simulators.mysim_agents.object: the factory, constructor and
 //     destructors;
 //   simulators.mysim_agents.helpers: the object's own helpers (trips,
-//     balloons, advice, distances).
+//     balloons, advice, distances);
+//   simulators.mysim_agents.loading: LoadAdvice and LoadTuning.
 //
 // The methods take the cISC4MySim part as `this` (here `self`); offsets
 // below are from it. The object starts at self - 0xB8.
@@ -3404,6 +3405,316 @@ void __fastcall ResetAdvisor(char* mysim, void*)
         reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(saved.begin);
 }
 
+// --- Loading ----------------------------------------------------------------------------
+//
+// From the object's start. LoadAdvice rebuilds the balloon entries from
+// the advisor's advice (vector +0x84, 16 bytes each) and the map of
+// advice still waiting (+0x6C), and the first time also makes the
+// dispatch object, the balloon and the script tables. LoadTuning reads
+// tuning_constants from the MySim's script.
+
+constexpr uint32_t kIidAdvice = 0x6B70E6D9;
+
+struct TreeNode { // std::map<int, int> node
+    uint8_t color;
+    uint8_t pad[3];
+    TreeNode* parent;
+    TreeNode* left;
+    TreeNode* right;
+    int32_t key;
+    int32_t value;
+};
+
+struct Tree { // header pointer and size
+    TreeNode* header;
+    uint32_t size;
+};
+
+void ClearTree(Tree* tree)
+{
+    if (!tree->size)
+        return;
+    reinterpret_cast<void(__thiscall*)(Tree*, TreeNode*)>(addr::SC4Uint32Map_EraseSubtree2)(tree, tree->header->parent);
+    tree->header->left = tree->header;
+    tree->header->parent = nullptr;
+    tree->header->right = tree->header;
+    tree->size = 0;
+}
+
+TreeNode* Next(TreeNode* node)
+{
+    if (TreeNode* right = node->right) {
+        while (right->left)
+            right = right->left;
+        return right;
+    }
+    TreeNode* parent = node->parent;
+    while (node == parent->right) {
+        node = parent;
+        parent = parent->parent;
+    }
+    return node->right == parent ? node : parent;
+}
+
+void ClearList(char* mysim, std::size_t at)
+{
+    char* const head = At<char*>(mysim, at);
+    for (char* node = At<char*>(head, 0); node != At<char*>(mysim, at);) {
+        char* const next = At<char*>(node, 0);
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(node);
+        node = next;
+    }
+    At<char*>(At<char*>(mysim, at), 0) = At<char*>(mysim, at);
+    At<char*>(At<char*>(mysim, at), 4) = At<char*>(mysim, at);
+}
+
+void GetScriptService(void** holder)
+{
+    *holder = nullptr;
+    if (void* const framework = reinterpret_cast<void*(__cdecl*)()>(addr::RZGetFramework)())
+        Virtual<uint8_t>(framework, 0x14, 0xEBE0E860u, 0xE898ED03u, holder);
+}
+
+void ReleaseHolder(void** holder)
+{
+    reinterpret_cast<void(__thiscall*)(void**)>(addr::SC4_ReleaseRefHolder)(holder);
+}
+
+void AssignHeld(char* mysim, std::size_t at, void* object)
+{
+    void* const old = At<void*>(mysim, at);
+    if (object == old)
+        return;
+    if (object)
+        Virtual<uint32_t>(object, 0x4);
+    At<void*>(mysim, at) = object;
+    Release(old);
+}
+
+void __fastcall LoadAdvice(char* mysim, void*)
+{
+    char* const entries = mysim + 0x214;
+    reinterpret_cast<void(__thiscall*)(void*, char*, char*)>(addr::SC4MySimAdviceVector_EraseRange)(
+        entries, At<char*>(mysim, 0x214), At<char*>(mysim, 0x218));
+    ClearList(mysim, 0x22C);
+    ClearList(mysim, 0x230);
+    ClearTree(reinterpret_cast<Tree*>(mysim + 0x220));
+
+    // The new entry of each advice, by its place in the advisor's vector.
+    Tree indices;
+    indices.header = static_cast<TreeNode*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(0x18));
+    indices.header->color = 0;
+    indices.header->parent = nullptr;
+    indices.header->left = indices.header;
+    indices.header->right = indices.header;
+    indices.size = 0;
+    using AtFn = int32_t*(__thiscall*)(Tree*, const int32_t*);
+    int32_t number = 0;
+    for (char* item = At<char*>(mysim, 0x84); item != At<char*>(mysim, 0x88); item += 0x10, ++number) {
+        void* advice = nullptr;
+        if (!Virtual<uint8_t>(At<void*>(item, 0), 0x0, kIidAdvice, &advice))
+            continue;
+        *reinterpret_cast<AtFn>(addr::SC4Sint32Map_At)(&indices, &number) = AdviceCount(mysim);
+        Virtual<void>(advice, 0x34, uint32_t{7}, uint32_t{0});
+        struct {
+            void* advice;
+            int32_t time;
+            uint32_t stamp;
+        } entry{};
+        if (advice)
+            Virtual<uint32_t>(advice, 0x4);
+        entry.advice = advice;
+        entry.time = At<int32_t>(mysim, 0x5C);
+        entry.stamp = 0;
+        char* const end = At<char*>(mysim, 0x218);
+        if (end != At<char*>(mysim, 0x21C)) {
+            if (end) {
+                At<void*>(end, 0) = entry.advice;
+                if (entry.advice)
+                    Virtual<uint32_t>(entry.advice, 0x4);
+                At<int32_t>(end, 4) = entry.time;
+                At<uint32_t>(end, 8) = 0;
+            }
+            At<char*>(mysim, 0x218) = end + 12;
+        } else {
+            uint8_t allocator;
+            reinterpret_cast<void(__thiscall*)(void*, char*, const void*, uint8_t*, uint32_t, uint32_t)>(
+                addr::SC4MySimAdviceVector_Insert)(entries, end, &entry, &allocator, 1, 1);
+        }
+        Release(entry.advice);
+        Release(advice);
+    }
+
+    // Advice waiting in the advisor's map whose advice still exists: its
+    // entry goes into +0x220 under the map's key, and it leaves the map.
+    struct {
+        TreeNode** begin;
+        TreeNode** end;
+        TreeNode** capacity;
+    } done{};
+    Tree* const waiting = reinterpret_cast<Tree*>(mysim + 0x6C);
+    for (TreeNode* node = waiting->header->left; node != waiting->header;) {
+        const int32_t key = node->key;
+        const int32_t value = node->value;
+        void* advice = nullptr;
+        if (Virtual<uint8_t>(At<void*>(At<char*>(mysim, 0x84), static_cast<std::size_t>(value) * 0x10), 0x0, kIidAdvice,
+                             &advice)) {
+            if (done.end != done.capacity) {
+                if (done.end)
+                    *done.end = node;
+                ++done.end;
+            } else {
+                const uint32_t size = static_cast<uint32_t>(done.end - done.begin);
+                const uint32_t capacity = size + (size < 1 ? 1 : size);
+                auto* const grown = capacity ? static_cast<TreeNode**>(
+                    reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(capacity * 4)) : nullptr;
+                TreeNode** out = grown;
+                for (TreeNode** in = done.begin; in != done.end; ++in, ++out)
+                    if (out)
+                        *out = *in;
+                if (out)
+                    *out = node;
+                if (done.begin)
+                    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(done.begin);
+                done.begin = grown;
+                done.end = out + 1;
+                done.capacity = grown + capacity;
+            }
+            TreeNode* found = indices.header;
+            for (TreeNode* at = indices.header->parent; at;) {
+                if (at->key >= value) {
+                    found = at;
+                    at = at->left;
+                } else {
+                    at = at->right;
+                }
+            }
+            if (found != indices.header && value >= found->key) {
+                int32_t pair[2] = {key, found->value};
+                Tree* const target = reinterpret_cast<Tree*>(mysim + 0x220);
+                TreeNode* parent = target->header;
+                TreeNode* at = target->header->parent;
+                while (at) {
+                    parent = at;
+                    at = key < at->key ? at->left : at->right;
+                }
+                void* result;
+                reinterpret_cast<void(__thiscall*)(Tree*, void**, TreeNode*, TreeNode*, const int32_t*, uint32_t)>(
+                    addr::SC4Sint32Multimap_Insert)(target, &result, at, parent, pair, 0);
+            }
+        }
+        node = Next(node);
+        Release(advice);
+    }
+    for (TreeNode** at = done.end; at != done.begin;) {
+        --at;
+        TreeNode* const header = waiting->header;
+        using RebalanceFn = void*(__cdecl*)(TreeNode*, TreeNode**, TreeNode**, TreeNode**);
+        if (void* const erased = reinterpret_cast<RebalanceFn>(addr::SC4Tree_RebalanceForErase)(
+                *at, &header->parent, &header->left, &header->right))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(erased);
+        --waiting->size;
+    }
+
+    if (!At<uint8_t>(mysim, 0x1E4)) {
+        using NewFn = void*(__cdecl*)(std::size_t);
+        if (!At<void*>(mysim, 0x20C)) {
+            void* const memory = reinterpret_cast<NewFn>(addr::SC4_operator_new)(0x18C);
+            void* const dispatch = memory ? reinterpret_cast<void*(__thiscall*)(void*, void*)>(
+                addr::cSC4MySimDispatch_cSC4MySimDispatch)(memory, mysim) : nullptr;
+            AssignHeld(mysim, 0x20C, dispatch);
+        }
+        void* const memory = reinterpret_cast<NewFn>(addr::SC4_operator_new)(0x58);
+        void* const balloon = memory ? reinterpret_cast<void*(__thiscall*)(void*, void*)>(
+            addr::SC4MySimBalloon_Construct)(memory, mysim + 0xB8) : nullptr;
+        AssignHeld(mysim, 0x238, balloon);
+        reinterpret_cast<ThisFn>(addr::SC4MySimBalloon_Create)(At<void*>(mysim, 0x238));
+        void* const messages = Global<void*>(addr::SC4_MessageServer);
+        for (const uint32_t type : {0x0B6F3E27u, 0xAB6F3E2Du, 0x4B6F3EBFu, 0x0BB04126u, 0x4BC42C48u, 0x26D31EC1u})
+            Virtual<void>(messages, 0x14, mysim + 0x10, type);
+        if (void* const frames = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_GetService86AD10EC)())
+            Virtual<void>(frames, 0x14, mysim + 0x10, uint32_t{0xFF});
+        At<uint8_t>(mysim, 0x1E4) = 1;
+
+        using RegisterTableFn = uint32_t(__cdecl*)(void*, const char*, void*, uint32_t, uint32_t, void*);
+        using RegisterVariableFn = uint32_t(__cdecl*)(void*, const char*, std::uintptr_t, void*, uint32_t, void*, void*);
+        void* const table = Virtual<void*>(Global<void*>(addr::SC4_City), 0x11C);
+        void* script;
+        GetScriptService(&script);
+        void* const service = script;
+        ReleaseHolder(&script);
+        if (!Virtual<uint32_t>(service, 0x24, table)) {
+            GetScriptService(&script);
+            reinterpret_cast<RegisterTableFn>(addr::SC4Script_RegisterTable)(
+                table, reinterpret_cast<const char*>(addr::MySim_ScriptMysims), nullptr, 0, 0, script);
+            ReleaseHolder(&script);
+        }
+        GetScriptService(&script);
+        reinterpret_cast<RegisterTableFn>(addr::SC4Script_RegisterTable)(
+            mysim, reinterpret_cast<const char*>(addr::MySim_ScriptEmpty), table, 0, 0, script);
+        ReleaseHolder(&script);
+        GetScriptService(&script);
+        reinterpret_cast<RegisterVariableFn>(addr::SC4Script_RegisterVariable)(
+            mysim + 0x128, reinterpret_cast<const char*>(addr::MySim_ScriptAge), addr::SC4Script_MySimAge, mysim, 0,
+            nullptr, script);
+        ReleaseHolder(&script);
+        GetScriptService(&script);
+        reinterpret_cast<RegisterVariableFn>(addr::SC4Script_RegisterVariable)(
+            mysim + 0x18, reinterpret_cast<const char*>(addr::MySim_ScriptName), addr::SC4Script_MySimName, mysim, 2,
+            mysim, script);
+        ReleaseHolder(&script);
+    }
+
+    if (done.begin)
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(done.begin);
+    ClearTree(&indices);
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(indices.header);
+}
+
+struct ScriptTable { // SC4ScriptTable, 0x24 bytes
+    int32_t top;
+    uint32_t name;
+    void* script;
+    uint8_t open;
+    uint8_t pad[3];
+    std::uintptr_t textVtable;
+    char* textBegin;
+    char* textEnd;
+    char* textCapacity;
+    uint32_t textReferences;
+};
+static_assert(sizeof(ScriptTable) == 0x24);
+
+uint8_t __fastcall LoadTuning(char* mysim, void*)
+{
+    ScriptTable table;
+    reinterpret_cast<void(__thiscall*)(ScriptTable*, void*, const char*, uint32_t)>(addr::SC4ScriptTable_Open)(
+        &table, Script(mysim), reinterpret_cast<const char*>(addr::MySim_TuningTable), 0);
+    const auto* const keys = reinterpret_cast<const char* const*>(addr::MySim_TuningKeys);
+    // Each value: the script's when it has one, the default otherwise.
+    const auto value = [&](int key, int32_t fallback) {
+        if (!reinterpret_cast<uint8_t(__thiscall*)(ScriptTable*, const char*)>(addr::SC4ScriptTable_Has)(&table, keys[key]))
+            return fallback;
+        return reinterpret_cast<int32_t(__thiscall*)(ScriptTable*, const char*)>(addr::SC4ScriptTable_GetInt)(
+            &table, keys[key]);
+    };
+    Virtual<void>(At<void*>(mysim, 0x238), 0x1C, value(0, 300));  // fade
+    Virtual<void>(At<void*>(mysim, 0x238), 0x18, value(1, 1500)); // shown
+    Virtual<void>(At<void*>(mysim, 0x238), 0x14, value(2, 300));  // hidden
+    At<int32_t>(At<char*>(mysim, 0x20C), 0x20) = value(3, 1);
+    At<int32_t>(At<char*>(mysim, 0x20C), 0x24) = value(4, 1);
+    At<int32_t>(At<char*>(mysim, 0x20C), 0x1C) = value(5, 1);
+    At<int32_t>(At<char*>(mysim, 0x20C), 0x18) = value(7, 10);
+    At<int32_t>(mysim, 0x240) = value(6, 10);
+    At<int32_t>(At<char*>(mysim, 0x20C), 0x14) = value(8, 10);
+    At<int32_t>(mysim, 0x23C) = value(9, 0);
+    if (table.open)
+        Virtual<void>(table.script, 0x1C, table.top);
+    if (table.textBegin)
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(table.textBegin);
+    return 1;
+}
+
 // --- Registration ----------------------------------------------------------------------
 
 bool InstallInterface(registry::Mode)
@@ -3789,6 +4100,37 @@ const bool g_helpersRegistered = registry::Register({
     "Our cSC4MySim helpers: trips, balloons, advice, distances (docs/mysim-agents.md)",
     false,
     InstallHelpers,
+});
+
+bool InstallLoading(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* originals[2] = {};
+    const struct {
+        std::uintptr_t address;
+        void* ours;
+    } hooks[] = {
+        {addr::cSC4MySim_LoadAdvice, reinterpret_cast<void*>(&LoadAdvice)},
+        {addr::cSC4MySim_LoadTuning, reinterpret_cast<void*>(&LoadTuning)},
+    };
+    for (std::size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); ++i) {
+        const addr::Entry* found = addr_check::Find(hooks[i].address);
+        if (!found || !hook::Install(*found, hooks[i].ours, &originals[i]))
+            return false;
+    }
+    return true;
+}
+
+const bool g_loadingRegistered = registry::Register({
+    "simulators.mysim_agents.loading",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySim_LoadAdvice,
+    "Our cSC4MySim LoadAdvice and LoadTuning (docs/mysim-agents.md)",
+    false,
+    InstallLoading,
 });
 
 const bool g_interfaceRegistered = registry::Register({

@@ -30,6 +30,7 @@ The cISC4MySim methods take the +0xB8 part as `this`; offsets in src/core/mysim_
 | `simulators.mysim_agents.ui` | what the panel asks to change: UpdateResidence, the local school and hospital grades, the car and pedestrian models |
 | `simulators.mysim_agents.object` | the factory, constructor (its generator seeded under the original's call site, `fixed_seed::SiteOverride`) and destructors |
 | `simulators.mysim_agents.helpers` | the object's own helpers: CanTravel (a trip to work within the working hours left, or home), ShowAdvice, the balloon queues (PopBalloon, NextBalloon, QueueBalloon, ClearBalloons), ClearResidence, DropAdvice, OnBalloonTimeout, TryGoToWork, LoadLuaContext, AtBalloonPlace, DistanceTo, OccupantCondition, ResetAdvisor |
+| `simulators.mysim_agents.loading` | LoadAdvice (the balloon entries rebuilt from the advisor's advice and the advice still waiting; the first time also the dispatch object, the balloon, the message notifications and the script tables `mysims`, `age` and `name`) and LoadTuning (the `MYSIM_BALLOON_*` and `MYSIM_TRIP_*` tuning constants) |
 
 Replacement code reads the MySim stopwatches through `sim_timers::Claim` first, so `determinism.sim_timers` takes them over as it would for the original code.
 
@@ -50,5 +51,7 @@ With the script and trip groups as well (2026-10-09): `saves-mysim` 4 of 4 for 3
 With the agent, ui and object groups as well (all eleven, 2026-10-09): `saves-mysim` 4 of 4 for 30 days with the queries, the drive and the delete; the usual 12 with a MySim moving in 12 of 12. The drive does not make a balloon target: the original crashes doing it unattended.
 
 With the helpers as well (twelve groups, 2026-10-09): `saves-mysim` 4 of 4, the usual 12 with a MySim moving in 12 of 12. Reached with the drive and delete (coverage run of the original): all helpers but QueueBalloon, OnBalloonTimeout, TryGoToWork and AtBalloonPlace, which need a balloon target.
+
+With LoadAdvice and LoadTuning as well (thirteen groups, 2026-10-09): `saves-mysim` 4 of 4, the usual 12 with a MySim moving in 12 of 12. Both run on every load.
 
 **A moved-in MySim does not always repeat.** It travels by car, and cars move on frame time ([traffic-map.md](traffic-map.md)), so when it arrives can differ between runs of the original; its state (and the advice it gives) then differs from that day. Judge MySim runs with travel by outcome sets.
