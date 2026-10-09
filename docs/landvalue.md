@@ -87,4 +87,12 @@ Version 1 (Write and Read, the cIGZSerializable part at +0x8): the intrinsic, to
 
 ## Parity
 
-Results below; run with `OPENSC4_PARITY_ENV` set so they keep apart from other batches.
+Everything ours (all ten `simulators.landvalue.*` switches, our object included) against the original, 2026-10-09, 2 parallel jobs (`OPENSC4_PARITY_ENV` set so they keep apart from other batches); result folders under `%LOCALAPPDATA%\opensc4\parity\`:
+
+| Run | Result |
+| --- | --- |
+| 12 saves, 90 days (`lv-all90`) | 7 identical; 5 "partly". Control, the original against itself (`lv-ctl90`): 10 of 12, with Rush Hour d0000 and d0090 failing there too (the original reached 3 to 4 outcomes on them). The other three (Big City d0090 and d1095, Rush Hour d0365) were run again (`lv-noisy90`): all three identical on the first pair |
+| `saves-mm2`, 365 days (`lv-mm365`) | 2 of 2 identical, all 366 days; 8 and 6 land value passes (the total grid changed that often) |
+| `saves-plopped`, 90 days (`lv-pl90`) | 3 of 3 identical |
+
+Our object was made in every B run. Every function was reached in every B run of `lv-all90` (first-call log lines), the month's restart in the 365-day runs. Not shown to be reached: the "every land cell" pass of state 3 (a city with nothing built) and which of `ApplyInfluence`'s three cell-size cases ran.
