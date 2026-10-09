@@ -1,6 +1,6 @@
 # Parity testing (P5)
 
-How a replaced simulator is shown to behave like the original. With `determinism.fixed_seed`, `determinism.virtual_clock`, `determinism.fixed_ticks`, `determinism.agent_order` and `determinism.zero_alloc`, two runs of the original from the same save agree exactly, whatever the heap layout: every daily fingerprint for a year, and the whole save apart from a noise floor ([experiments/determinism.md](experiments/determinism.md), third round). So a replacement can be compared with the original exactly, over short windows from many saves; long runs too, within the limits below.
+How a replaced simulator is shown to behave like the original. With `determinism.fixed_seed`, `determinism.virtual_clock`, `determinism.fixed_ticks`, `determinism.agent_order`, `determinism.zero_alloc` and `determinism.sim_timers` (the MySim and advisor timers on simulation time), two runs of the original from the same save agree exactly, whatever the heap layout: every daily fingerprint for a year, and the whole save apart from a noise floor ([experiments/determinism.md](experiments/determinism.md), third round). So a replacement can be compared with the original exactly, over short windows from many saves; long runs too, within the limits below.
 
 ## Running it
 
