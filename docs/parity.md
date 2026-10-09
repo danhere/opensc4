@@ -81,6 +81,8 @@ The test cities never edit their networks, so parity alone would not reach the c
 | --- | --- |
 | `OPENSC4_TEST_POWER_WAKE=<n>`, `OPENSC4_TEST_WATER_WAKE=<n>` | on day n, wake the power or water step (+0x14), as message 0x6AC284F3 from the network tools would |
 | `OPENSC4_TEST_CRIME_MONTH=<n>` | every n days, restart the crime simulator's monthly pass (state +0x90 from 6 to 0), as MonthPassed does ([crime.md](crime.md)) |
+| `OPENSC4_TEST_DEMAND_MONTH=<n>` | every n days, the demand simulator's MonthPassed ([demand.md](demand.md)) |
+| `OPENSC4_TEST_DEMAND_MESSAGES=<n>` | on day n, SimulationBegin, the neighbours message and the passes to the demand simulator |
 | `OPENSC4_TEST_CRIME_QUERIES=1` | each day, the crime queries only the UI and the automata make, into the fingerprint ([crime.md](crime.md)) |
 | `OPENSC4_TEST_POWER_MESSAGES=<n>` | on day n, a network change (0x278E6003) and a changed cell rectangle (0x07699455) over the whole city, to power's DoMessage |
 | `OPENSC4_TEST_OCCUPANT_CYCLE=<n>` | on day n, "removed" then "added" (0x99EF1143, 0x99EF1142) for an existing pipe and pole, to the water and power simulators; and power's plant disaster message (0xC2C09554 with 0xE0D0722E) |
