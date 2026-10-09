@@ -62,6 +62,7 @@ namespace opensc4::fixed_ticks {
 namespace {
 
 void* g_elapsed = nullptr;   // GZStopwatch::ElapsedMilliseconds (original)
+void* g_elapsedPass = nullptr; // where other stopwatches go: g_elapsed, or determinism.sim_timers' wrapper
 void* g_sliceSw = nullptr;   // the running slice's stopwatch, or null
 void* g_gateSw = nullptr;    // the simulation clock's pacing stopwatch while a slice runs
 void* g_frameSw = nullptr;   // time since the last slice, read while a slice runs
@@ -123,7 +124,7 @@ __declspec(naked) void ElapsedThunk()
         pop ecx
         pop eax
     pass:
-        jmp dword ptr [g_elapsed]
+        jmp dword ptr [g_elapsedPass]
     fixed:
         push ecx
         push edx
@@ -276,6 +277,8 @@ bool Install(registry::Mode)
     const addr::Entry* elapsed = addr_check::Find(addr::GZStopwatch_ElapsedMilliseconds);
     const bool ok = slice && elapsed && hook::Install(*elapsed, reinterpret_cast<void*>(&ElapsedThunk), &g_elapsed) &&
                     hook::Install(*slice, &Slice, &g_slice);
+    if (!g_elapsedPass)
+        g_elapsedPass = g_elapsed;
     log::Write("fixed_ticks: %u tick(s) per frame%s%s, %s", g_ticksPerSlice, g_survey ? ", stopwatch survey" : "",
                g_pace ? ", paced to real time" : "", ok ? "installed" : "FAILED");
     g_active = ok;
@@ -298,6 +301,21 @@ const bool g_registered = registry::Register({
 bool InSlice()
 {
     return g_depth > 0;
+}
+
+uint64_t Checks()
+{
+    return g_totalChecks + g_checks;
+}
+
+void* ElapsedOriginal()
+{
+    return g_elapsed;
+}
+
+void SetElapsedPass(void* thunk)
+{
+    g_elapsedPass = thunk;
 }
 
 void Describe(char* out, std::size_t size)

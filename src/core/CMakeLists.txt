@@ -152,6 +152,7 @@ add_library(opensc4_core SHARED
   thread_trace.cpp
   rng_trace.cpp
   fixed_ticks.cpp
+  sim_timers.cpp
   trip_trace.cpp
   agent_order.cpp
   trace.cpp

@@ -1485,3 +1485,27 @@ convention = "thiscall"
 signature = "void (float* this)"
 expect = "83 EC 18 53 55 56 57 8D"
 source = "Name ours. Updates a cycles-per-millisecond estimate (a float at +0, an exponential moving average of rdtsc against QueryPerformanceCounter deltas, updated when enough counter time has passed). cSC4Simulator::RunTimeSlice calls it on this+0x80 at every slice (0x00703E9E) and copies the float to a global for the deadline helpers 0x0068BF50/0x0068BF80 (docs/experiments/determinism.md, docs/seeds.md)."
+
+[[entry]]
+name = "SC4Stopwatch::Elapsed2"
+address = 0x00890279
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. Another unit of the elapsed time (as 0x00890198); reads the clock while running (docs/experiments/determinism.md, Simulation timers)."
+
+[[entry]]
+name = "SC4Stopwatch::Elapsed4"
+address = 0x0089045A
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 56 8B F1 57 8B"
+source = "Name ours. Another unit of the elapsed time; reads the clock while running (docs/experiments/determinism.md, Simulation timers)."
+
+[[entry]]
+name = "SC4Stopwatch::Elapsed5"
+address = 0x00890501
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 56 8B F1 57 8B"
+source = "Name ours. Another unit of the elapsed time; reads the clock while running (docs/experiments/determinism.md, Simulation timers)."
