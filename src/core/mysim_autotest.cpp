@@ -91,6 +91,8 @@ uint32_t Queries(void* sim)
     h.Add(Virtual<uint32_t>(sim, 0xF8)); // GetCurrentBalloonAdvice
     h.Add(Virtual<uint32_t>(sim, 0xFC)); // GetCurrentBalloonEventAdvice
     h.Add(Virtual<uint8_t>(sim, 0x100)); // CanUDriveIt
+    // Not GetLocation: on the road that is the car's position, which moves
+    // on frame time.
     return h.h;
 }
 
@@ -193,9 +195,11 @@ void MoveIn(const Day& day)
 }
 
 // OPENSC4_TEST_MYSIM_DRIVE=<day>: on that day every MySim leaves for work
-// and returns home, plays its night sound and hears that its home changed
-// and that a neighbour connection went (cISC4MySim slots 38, 39, 54, 43,
-// 49; docs/mysim-agents.md).
+// and returns home, plays its night sound, hears that its home changed and
+// that a neighbour connection went, of a fire, a pipe burst, a tornado and
+// disasters near it, of its home added, of its job's building replaced,
+// and changes job to the same one (cISC4MySim slots 38, 39, 54, 43, 49,
+// 45-48, 42, 41, 44, 7, 8; docs/mysim-agents.md).
 void Drive(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_MYSIM_DRIVE") || !game::IsBuild641())
@@ -215,11 +219,48 @@ void Drive(const Day& day)
         Virtual<void>(sim, 0xD8); // PlayNightSound
         Virtual<void>(sim, 0xAC, Virtual<void*>(sim, 0x2C)); // DoBuildingChanged(GetResidence)
         Virtual<void>(sim, 0xC4, int32_t{0}, int32_t{0}); // DoNeighborConnectionRemoved
+        // News near it: a fire, a pipe burst, a tornado and two disasters
+        // where it is, a building added (its home), a script command.
+        float location[3] = {};
+        Virtual<uint8_t>(sim, 0x38, location); // GetLocation
+        Virtual<void>(sim, 0xB4, location[0], location[2]); // DoFireAdded
+        Virtual<void>(sim, 0xB8, location[0] + 64.0f, location[2]); // DoPipeBurst
+        Virtual<void>(sim, 0xBC, location[0], location[2] - 48.0f); // DoTornado
+        const auto cellX = static_cast<int32_t>(location[0] / 16.0f);
+        const auto cellZ = static_cast<int32_t>(location[2] / 16.0f);
+        Virtual<void>(sim, 0xC0, 0xCA380B06u, cellX, cellZ); // DoDisaster
+        Virtual<void>(sim, 0xC0, 0xC4C90997u, cellX + 3, cellZ); // DoDisaster
+        void* const residence = Virtual<void*>(sim, 0x2C);
+        void* const job = Virtual<void*>(sim, 0x30);
+        if (residence) {
+            Virtual<void>(sim, 0xA8, residence); // DoBuildingAdded
+            log::Write("autotest: MySim %u residence test %u", i,
+                       Virtual<uint8_t>(sim, 0x1C, residence, uint32_t{1}, uint32_t{1})); // TestForResidence
+        }
+        Virtual<void>(sim, 0xA4, 0x6A5E6860u); // DoScriptCommand: find a new job
+        if (job) {
+            Virtual<void>(sim, 0xB0, job, job); // DoBuildingRemoved, replaced by itself
+            log::Write("autotest: MySim %u job change %u", i, Virtual<uint8_t>(sim, 0x20, job)); // ChangeJob
+        }
         log::Write("autotest: MySim %u driven (state after leaving %d, now %d)", i, leaving, At<int32_t>(sim, 0x8));
     }
 }
 
+// OPENSC4_TEST_MYSIM_DELETE=<day>: the MySim in the first place leaves
+// the game (cISC4MySim slot 9, DeleteFromGame).
+void Delete(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_MYSIM_DELETE") || !game::IsBuild641())
+        return;
+    void* const mysims = Virtual<void*>(day.city, 0x11C);
+    void* const sim = mysims ? At<void**>(mysims, 0x14)[0] : nullptr;
+    if (!sim)
+        return;
+    log::Write("autotest: MySim deleted (%u)", Virtual<uint8_t>(sim, 0x24));
+}
+
 const FingerprintPart kFingerprint{"mysim", 85, &Fingerprint};
+const DayHook kDelete{"mysim.delete", 85, &Delete};
 const DayHook kDrive{"mysim.drive", 85, &Drive};
 const DayHook kMoveIn{"mysim.movein", 85, &MoveIn};
 
