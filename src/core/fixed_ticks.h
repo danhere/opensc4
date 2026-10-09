@@ -17,4 +17,11 @@ void Describe(char* out, std::size_t size);
 // simulation ticks, not rendering or the interface.
 bool InSlice();
 
+// [determinism] pace = realtime: slices are held back to follow a real-time
+// schedule for the game speed (play with a deterministic simulation).
+bool Paced();
+
+// Logs how many slices pacing ran and held back.
+void LogPace();
+
 } // namespace opensc4::fixed_ticks
