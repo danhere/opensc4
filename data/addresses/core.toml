@@ -1,0 +1,1511 @@
+# Build 641 addresses. Game code shared by several simulators or by the harness: allocators,
+# containers, streams, random numbers, services, the app and the simulator.
+# Format and rules: data/addresses/README.md.
+
+[[entry]]
+name = "BuildSentinel"
+address = 0x006E5000
+kind = "data"
+expect = "0F"
+source = "Ecosystem DLLs' build-641 check (docs/patch-census.md, section 1). The byte is the first opcode byte of an instruction, not data."
+
+[[entry]]
+name = "SC4::operator_new"
+address = 0x005E55E0
+kind = "function"
+convention = "cdecl"
+signature = "void* (size_t size)"
+expect = "A1 E0 30 B2 00 56 B9 E0"
+source = "Allocator before 752 constructor calls (docs/class-creation.md, finding 6)."
+
+[[entry]]
+name = "SC4::operator_delete"
+address = 0x005E5620
+kind = "function"
+convention = "cdecl"
+signature = "void (void* p)"
+expect = "56 8B 74 24 08 85 F6 74"
+source = "Called by every MSVC scalar deleting destructor after the destructor (ApplyKnownNames.java)."
+
+[[entry]]
+name = "cRZCOMDllDirector::AddCls"
+address = 0x0090E133
+kind = "function"
+convention = "thiscall"
+signature = "void (cRZCOMDllDirector* this, uint32_t clsid, cIGZUnknown* (*factory)())"
+expect = "55 8B EC 83 EC 18 8B 45"
+source = "Receives 455 (class ID, factory) registrations from 23 directors (docs/class-creation.md, finding 3)."
+
+[[entry]]
+name = "cRZCOMDllDirector::AddCls_FactoryType2"
+address = 0x0090E160
+kind = "function"
+convention = "thiscall"
+signature = "void (cRZCOMDllDirector* this, uint32_t clsid, bool (*factory)(uint32_t iid, void** object))"
+expect = "55 8B EC 83 EC 18 8B 45"
+source = "Adjacent to AddCls; 4 registrations (docs/class-creation.md, finding 3)."
+
+[[entry]]
+name = "cSC4App::LoadCity"
+address = 0x004555F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4App* this, SC4String const& path, cRZAutoRefCount<cISC4RegionalCity>* city)"
+expect = "83 EC 44 53 55 56 8B F1"
+source = "cISC4App vtable slot 13, read at runtime by the autotest (docs/experiments/pollution-proxy.md). Stores `city` at this+0x4C."
+
+[[entry]]
+name = "cSC4Simulator::SetSimSpeed"
+address = 0x007026D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4Simulator* this, int32_t speed)"
+expect = "8A 41 44 84 C0 75 05 32"
+source = "cISC4Simulator vtable slot 28 of cSC4Simulator (vtable 0x00AB2FB8). Accepts 0-2 only (via 0x00702430)."
+
+[[entry]]
+name = "NameTable"
+address = 0x00B07FDC
+kind = "data"
+source = "{uint32 id, const char* name}[648] debug table (tools/re/extract_name_table.py)."
+
+[[entry]]
+name = "cRZRandom::Seed"
+address = 0x00913667
+kind = "function"
+convention = "thiscall"
+signature = "void (cRZRandom* this, uint32_t seed)"
+expect = "56 8B F1 8B 4C 24 08 83"
+source = "Seeds a 32-bit LCG (x * 0x41C64E6D + 0x3039, 0x00913696); seed 0xFFFFFFFF means time() ^ clock(). Called by the constructor 0x00913A5C from about 80 sites, many static initialisers that seed from the local time. Name inferred: the Mac build's types have cRZRandom and cRZRandomSuper (docs/renderer.md, \"Screenshot harness\")."
+
+[[entry]]
+name = "cRZRandom::Advance"
+address = 0x00913696
+kind = "function"
+convention = "fastcall"
+signature = "uint64_t (cRZRandom* this)"
+expect = "8B 01 BA 6D 4E C6 41"
+source = "One LCG step on the state at +0 (x * 0x41C64E6D + 0x3039); returns the 64-bit product shifted right 16 in EDX:EAX. Under the integer range draws 0x009136B1 and 0x009136DF (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "cRZRandom::NextFloat"
+address = 0x0091372E
+kind = "function"
+convention = "fastcall"
+signature = "long double (cRZRandom* this)"
+expect = "55 8B EC 51 56 8D 71 04"
+source = "Ours. Multiplicative step (x * 0x278DDE6D) on the state at +4, which Seed also sets; returns a float in ST0. Seeds itself from clock() if the state is 0. About 25 callers in simulation code (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "cRZRandomSuper::Next"
+address = 0x009139B9
+kind = "function"
+convention = "fastcall"
+signature = "uint32_t (cRZRandomSuper* this)"
+expect = "56 57 8B F9 8D B7 C4 09"
+source = "Ours. Mersenne Twister draw: refills the 624 words (0x009138A9) when +0x9C4 runs out, tempers the next word (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "cSC4Simulator::RunTimeSlice"
+address = 0x00703E70
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Simulator* this_plus_8, uint32_t unused)"
+expect = "55 8B EC 6A FF 68 70 F0"
+source = "Ours. Runs simulation ticks (0x00702A80, 0x007038B0, 0x00702DF0 on this-8) until the stopwatch at +0x190 passes the budget at +0x70: 1000 / fps cap minus the time since the last slice (stopwatch +0x58), at least 15 ms (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "GZStopwatch::ElapsedMilliseconds"
+address = 0x00890198
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (GZStopwatch* this)"
+expect = "55 8B EC 83 EC 14 57 8B"
+source = "Ours. Elapsed time since Start; +0 is the mode: 0 reads rdtsc, 1 QueryPerformanceCounter, 2-6 convert to other units (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "SC4::stl_allocate"
+address = 0x0090CF54
+kind = "function"
+convention = "cdecl"
+signature = "void* (size_t size)"
+expect = "FF 74 24 04 B9 98 26 B6"
+source = "Ours. The allocator behind the game's STL containers (about 3,350 call sites): the pool allocator 0x005E55B0 on the object at 0x00B62698. Frees go to 0x0090CF63 (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "CRT::malloc"
+address = 0x009F066E
+kind = "function"
+convention = "cdecl"
+signature = "void* (size_t size)"
+expect = "FF 35 40 D9 BA 00 FF 74"
+source = "The exe's statically linked C runtime malloc (Function ID name _malloc): _nh_malloc 0x009F0642 on the CRT heap. The game's pool allocators (operator new 0x005E55E0, the STL allocator 0x0090CF54) take their chunks from it (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "cSC4Simulator::AddAgent"
+address = 0x00704360
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Simulator* this, cIGZMessageTarget2* agent, uint32_t type, cIGZString const& name, uint32_t flags)"
+expect = "83 EC 28 53 33 DB 55"
+source = "cISC4Simulator slot 19. Inserts {agent, enabled, name} into the map of agent type `type`, keyed by the agent pointer (0x00704060 compares the pointers as numbers), so agents are dispatched in heap-address order (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "cSC4Simulator::RemoveAgentAllTypes"
+address = 0x00702260
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Simulator* this, cIGZMessageTarget2* agent)"
+expect = "53 55 8B 6C 24 0C 56"
+source = "cISC4Simulator slot 20, RemoveAgent(agent): gzcom-dll declares the two RemoveAgent overloads in the other order (MSVC reverses overloads; RET 4 here, RET 8 at slot 21)."
+
+[[entry]]
+name = "cSC4Simulator::RemoveAgent"
+address = 0x00703AF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Simulator* this, cIGZMessageTarget2* agent, uint32_t type)"
+expect = "53 8B 5C 24 0C 83 FB 0B"
+source = "cISC4Simulator slot 21, RemoveAgent(agent, type) (RET 8; checks type < 11)."
+
+[[entry]]
+name = "cRZRandomSuper::Seed"
+address = 0x00913A72
+kind = "function"
+convention = "thiscall"
+signature = "void (cRZRandomSuper* this, uint32_t seed)"
+expect = "8B 44 24 04 83 F8 FF 56"
+source = "Seeds a 624-word Mersenne Twister; seed 0xFFFFFFFF means a mix of time() and clock() (0x00913977). Called from 0x00913B74. Name inferred as for cRZRandom::Seed."
+
+[[entry]]
+name = "cSC4App::SelectGraphicsDriver"
+address = 0x0044CE40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4App* this, bool selectDriver)"
+expect = "81 EC 84 00 00 00 53 55"
+source = "Name ours. Reads the requested driver class ID at this+0x65C (from -d:, 0 if none; parsed by 0x0044EED0), falls back to the saved choice at [this+0x3B0]+0xF13 (0 Software, 1 DirectX, 0xFF other), stores an explicit choice back there and calls cIGZGraphicSystem2::SetDefaultDriverClassID. Called through vtables from 0x00451F19 (argument 0) and 0x0045317D (docs/renderer.md, \"D3D11 driver\")."
+
+[[entry]]
+name = "cSC4CameraControl::UpdateProjection"
+address = 0x007CBE40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4CameraControl* this)"
+expect = "83 EC 28 56 8B F1 57 8B BE 08 01 00 00"
+source = "Name ours. Builds the city camera's orthographic box: pixels per 16 m tile for the zoom level at this+0x108 from the table at 0x00ABACE0 (8, 16, 32, 73, 146; read nowhere else) times the fine zoom factor at this+0xF0, stored as metres per pixel (this+0x134) and pixels per metre (this+0x138); half extents = view size in pixels (this+0x12C, this+0x130) x metres per pixel x 0.5, passed to 0x007FF2E0. Called from the zoom setters 0x007CD6E0 and 0x007CDC50 (docs/ui-scaling.md)."
+
+[[entry]]
+name = "cSC4App::SetupResources"
+address = 0x004572B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4App* this)"
+expect = "81 EC D4 00 00 00 53 56 8B F1 8B 46 0C"
+source = "Name ours. Builds the resource manager's DB segments at startup: creates packed-file (0x086D4A89) and multi-packed-file (0x090F8619) segments for the game's data files and plugin folders. Called once from 0x0044C97E. sc4-dbpf-loading patches 0x004572CE and times the call at 0x0044C97E (docs/patch-census.md 3.12; docs/resources.md)."
+
+[[entry]]
+name = "CRT::beginthreadex"
+address = 0x009F5306
+kind = "function"
+convention = "cdecl"
+signature = "uintptr_t (void* security, unsigned stack, unsigned (__stdcall* start)(void*), void* arg, unsigned flags, unsigned* id)"
+expect = "55 8B EC 53 57 8B 7D 10 33 DB 85 FF"
+source = "The statically linked C runtime's _beginthreadex (Ghidra's library match). Called from the game's thread class at 0x009208CB and 0x0092093B (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "CRT::srand"
+address = 0x009EFB92
+kind = "function"
+convention = "cdecl"
+signature = "void (unsigned seed)"
+expect = "E8 6D 7A 00 00 8B 4C 24 04 89 48 14 C3"
+source = "The statically linked C runtime's srand: stores the seed in the calling thread's data (+0x14). Its only caller is Lua's math.randomseed (0x008C0B20). The CRT rand next to it (0x009EFB9F) is called by simulation code (0x006BCFC0 and others) as well as Lua's math.random (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "CRT::rand"
+address = 0x009EFB9F
+kind = "function"
+convention = "cdecl"
+signature = "int (void)"
+expect = "E8 60 7A 00 00 8B 48 14 69 C9 FD 43 03 00"
+source = "The statically linked C runtime's rand: per-thread LCG (x * 0x343FD + 0x269EC3, state at thread data + 0x14). Called by Lua's math.random and by simulation code, e.g. 0x006BCFC0 five times (docs/experiments/determinism.md)."
+
+[[entry]]
+name = "SC4::GetPropertySint32"
+address = 0x005FD450
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, int32_t& value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. holder->GetProperty(id) (slot 9), then the property's variant (slot 5) GetValSint32(int32_t&) (variant slot 28); false if the holder has no such property. Called by cSC4PollutionSimulator::GetBuildingGarbageCapacity (0x006E3160) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::GetPropertyUint32"
+address = 0x005FD480
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, uint32_t& value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. As 0x005FD450 with the variant's GetValUint32(uint32_t&) (slot 25). Called by the pollution simulator's capacity getters (0x006E2DA0, 0x006E2E70, 0x006E2EA0) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::GetPropertySint64"
+address = 0x005FD4B0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, int64_t& value)"
+expect = "8B 4C 24 04 8B 54 24 08 8B 01 53"
+source = "Name ours. As 0x005FD450 with the variant's GetValSint64 (slot 34). Called by cSC4PollutionSimulator::CalcOccupantMaintenanceCost (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::GetPropertyFloat"
+address = 0x005FD4F0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, float& value)"
+expect = "8B 4C 24 04 8B 54 24 08 8B 01 53"
+source = "Name ours. As 0x005FD450 with the variant's GetValFloat32(float&) (slot 37). Called by cSC4PollutionSimulator::AgeBuildings (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::SetPropertyFloat"
+address = 0x005FE4F0
+kind = "function"
+convention = "cdecl"
+signature = "void (cISCPropertyHolder* holder, uint32_t property, float value)"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. holder->GetProperty(id) (slot 9); if missing, a new property (vtable 0x00AA6988) added through slot 15; then its variant's SetValFloat32 (slot 38). Called by cSC4PollutionSimulator::AgeBuildings (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::GetPropertyPercentage"
+address = 0x005FDAC0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, float& value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. Reads a property of any integer variant type and stores value * 0.01 (0x00A823A4) as a float. Called by cSC4PollutionSimulator::GetRecyclingCenterMaxCapacity (0x006E2D70) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::Service43C94"
+address = 0x00B43C94
+kind = "data"
+source = "Unnamed service. Slot 69 (callback, 0) registers a function to call later; CreateCurves registers DestroyCurves with it (docs/pollution.md)."
+
+[[entry]]
+name = "TractIterator::Restart"
+address = 0x0049D1C0
+kind = "function"
+convention = "thiscall"
+signature = "void (TractIterator* this, int32_t mode)"
+expect = "83 EC 0C 53 55 56 8B F1"
+source = "Name and class ours. The pollution simulator's iterator at +0x1D8 (state byte 2 = finished); restarted with 1 by SimulateTracts (docs/pollution.md)."
+
+[[entry]]
+name = "TractIterator::Next"
+address = 0x0049CB10
+kind = "function"
+convention = "thiscall"
+signature = "bool (TractIterator* this, int32_t* x, int32_t* z)"
+expect = "80 39 02 75 05 32 C0 C2"
+source = "Name and class ours. Writes the next tract (in units of 2 cells) and sets the state byte to 2 after the last; returns false without writing when already finished (docs/pollution.md)."
+
+[[entry]]
+name = "SC4List::Clear"
+address = 0x00421660
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "51 53 8B D9 8B 03 56 8B"
+source = "Name ours. Releases each node's object and frees the node through the node allocator (0x00B20D58), leaving the sentinel (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::ReleaseRef"
+address = 0x00411870
+kind = "function"
+convention = "thiscall"
+signature = "void (cIGZUnknown** ref)"
+expect = "55 8B EC 6A FF 68 50 EE"
+source = "Name ours. Calls Release on the pointer held at `ref` if it is not null; used when the list node allocator is fetched (docs/pollution.md)."
+
+[[entry]]
+name = "RZGetFramework"
+address = 0x008793EC
+kind = "function"
+convention = "cdecl"
+signature = "cIGZFrameWork* ()"
+expect = "A1 AC 40 B5 00 C3"
+source = "Returns the framework pointer at 0x00B540AC (gzcom-dll's RZGetFramework)."
+
+[[entry]]
+name = "SC4List::NodeAllocator"
+address = 0x00B20D58
+kind = "data"
+source = "Name ours. Allocator service for list nodes (12 bytes: next, prev, object), fetched from the framework (slot 5, 0x3AE4BEA3/0x3AE4BEAB) on first use; slot 3 allocates, slot 4 frees (docs/pollution.md)."
+
+[[entry]]
+name = "SC4Curve::Evaluate"
+address = 0x005F4250
+kind = "function"
+convention = "thiscall"
+signature = "float (SC4Curve const* this, float x)"
+expect = "53 55 8B 69 0C 56 57 8D"
+source = "Name and class ours. Binary search over 20-byte points (x at +0, y at +4, segment start x +8, start y +0xC, slope +0x10; count at curve+0xC); below the first point or past the last it returns that point's y, else start y + (x - start x) * slope. Returns in ST0 without rounding to float. Called by DisposeGarbage for the landfill curve (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::BudgetSimulator"
+address = 0x00B43D64
+kind = "data"
+source = "cISC4BudgetSimulator* of the current city. The pollution simulator creates its department budget through it (Init, slot 25) and keeps its buildings' maintenance line items current (UpdateMaintenanceCosts: slots 51, 57, 53) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4SimGrid::SpreadAround"
+address = 0x005E4500
+kind = "function"
+convention = "cdecl"
+signature = "void (void* grid, int32_t tractsX, int32_t tractsZ, int32_t tractX, int32_t tractZ, float radius, float value, float edge)"
+expect = "83 EC 0C D9 44 24 24 53"
+source = "Name ours. Adds a value to the tracts within a radius of a tract (the radius rounded with the float trick). `grid` is what slot 24 of cSC4SimGridSint16 returns (this + 0x38); the occupant handler pushes the other arguments before that call and pops all eight after (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::GetPropertyBool"
+address = 0x005FD390
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, bool& value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. As 0x005FD480 with the variant's slot 10 (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::SetPropertySint32"
+address = 0x005FE330
+kind = "function"
+convention = "cdecl"
+signature = "void (cISCPropertyHolder* holder, uint32_t property, int32_t value)"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. Creates the property if the holder has none, then the variant's slot 29 (SetValSint32) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::SetPropertyUint32"
+address = 0x005FE3C0
+kind = "function"
+convention = "cdecl"
+signature = "void (cISCPropertyHolder* holder, uint32_t property, uint32_t value)"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. As 0x005FE330 with the variant's slot 26 (SetValUint32) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::SetPropertySint64"
+address = 0x005FE450
+kind = "function"
+convention = "cdecl"
+signature = "void (cISCPropertyHolder* holder, uint32_t property, int64_t value)"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. As 0x005FE330 with the variant's slot 35 (SetValSint64) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::City"
+address = 0x00B43CEC
+kind = "data"
+source = "cISC4City* of the current city (the pollution simulator keeps a reference at +0x18). Slots 93 and 94 give its size in cells (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::ResourceManager"
+address = 0x00B43CA8
+kind = "data"
+source = "cIGZPersistResourceManager* (name ours). Slot 3 gets a resource by key and interface (key*, iid, void** out, 0, 0); LoadTuning gets the pollution simulator's exemplar through it (docs/pollution.md)."
+
+[[entry]]
+name = "SC4PointVector::InsertN"
+address = 0x007C61A0
+kind = "function"
+convention = "thiscall"
+signature = "void (vector<cS3DVector2>* this, cS3DVector2* where, cS3DVector2 const* value, void* allocator, uint32_t count, bool atEnd)"
+expect = "51 53 8B D9 8B 43 04 55"
+source = "Name ours. std::vector of 8-byte float pairs: reallocates to size + max(size, count) (SC4::stl_allocate), copies the points before `where`, `count` copies of the value, and the rest unless `atEnd`; frees the old buffer (SC4::Free). LoadTuning grows its curve-point vector with it (docs/pollution.md)."
+
+[[entry]]
+name = "SC4Curve::SetPoints"
+address = 0x005F4480
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Curve* this, vector<cS3DVector2> const* points)"
+expect = "83 EC 18 53 55 56 57"
+source = "Name ours. Rebuilds the curve's 20-byte segments from (x, y) points (see SC4Curve::Evaluate). LoadTuning sets its curves' defaults with it (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::SimulatorService"
+address = 0x00B43D5C
+kind = "data"
+source = "Name ours. Slot 19 registers a simulator: (message target, 6 or 4, cIGZString const& name, 2); the pollution simulator's Init calls it twice (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::MessageServer"
+address = 0x00B43CCC
+kind = "data"
+source = "cIGZMessageServer2* (name ours). Slot 5 AddNotification(target, message), slot 6 RemoveNotification (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::Service43DB8"
+address = 0x00B43DB8
+kind = "data"
+source = "Unnamed service. The pollution simulator's Init passes its +0x8 interface to slot 5 (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::Value43D28"
+address = 0x00B43D28
+kind = "data"
+source = "Copied to the pollution simulator's +0x3C at the end of Init (no reference taken) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4SimGridSint16::Vtable"
+address = 0x00A879E0
+kind = "data"
+source = "Primary vtable of cSC4SimGridSint16; its second at +4 is 0x00A879C4 (0x00A80784 written first, the base's). Init builds its grids with SC4::operator_new(0x44) and these (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::Service43DA0"
+address = 0x00B43DA0
+kind = "data"
+source = "Unnamed service; slot 31 (occupant) says whether a building counts for the pollution simulator's GetCurrentOccupantEfficiency (docs/pollution.md)."
+
+[[entry]]
+name = "SC4Curve::LoadFromProperty"
+address = 0x005F4620
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Curve* this, cISCProperty* property)"
+expect = "83 EC 18 57 89 4C 24 04"
+source = "Name ours. Builds the curve from a property's float pairs (as SC4Curve::LoadFromExemplar does after finding the property). Used by the pollution simulator's condition getters (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::LotManager"
+address = 0x00B43D08
+kind = "data"
+source = "cISC4LotManager* of the current city. Slot 6 is GetLot(cell x, cell z, bool); the lot's slot 36 SetCondition. Used by cSC4PollutionSimulator::AgeBuildings (docs/pollution.md)."
+
+[[entry]]
+name = "SC4List::Destroy"
+address = 0x00421760
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "51 56 8B F1 E8 F7 FE FF"
+source = "Name ours. Clears the list (0x00421660) and frees its sentinel node (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::MonthlyFigures"
+address = 0x00B43DC0
+kind = "data"
+source = "Service pointer, name ours: slot 12 stores an int32 under an ID. The pollution simulator's MonthPassed handler publishes last month's garbage figures through it (IDs 0xEA110158 to 0xEA1101AA) (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::MonthEndService"
+address = 0x00B43D8C
+kind = "data"
+source = "Service pointer, name ours: the pollution simulator's MonthPassed handler calls its slot 31 last (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::PostMessage"
+address = 0x005F98C0
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t message, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e)"
+expect = "8B 44 24 18 8B 4C 24 14"
+source = "Name ours. Forwards to 0x005F9800 with 1 first. The pollution simulator posts its grid-changed messages (0xDA6DD35D, 0xFA6DD0BB, 0x5A6DD1AA, 0xDA6DD2CB) and 0xEA418D8F through it (docs/pollution.md)."
+
+[[entry]]
+name = "SC4Curve::LoadFromExemplar"
+address = 0x005F4700
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Curve* this, cGZPersistResourceKey const* key, uint32_t property)"
+expect = "53 56 6A 00 6A 00 8D 54"
+source = "Name and class ours. Gets the exemplar through the resource manager (0x00B43CA8, slot 3, interface 0xA52160F5), reads the property's float pairs and builds the curve's segments (0x005F4620, 0x005F4480). The curve is 16 bytes: point vector (begin, end, capacity) and a point count (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::Free"
+address = 0x0090CF63
+kind = "function"
+convention = "cdecl"
+signature = "void (void* p)"
+expect = "FF 74 24 04 B9 98 26 B6"
+source = "Name ours. Frees through the allocator object at 0x00B62698; used for the game's vector storage, e.g. a curve's points after 0x005F4700 (docs/pollution.md)."
+
+[[entry]]
+name = "cRZRandom::Range"
+address = 0x00913A46
+kind = "function"
+convention = "thiscall"
+signature = "double (cRZRandom* this, double low, double high)"
+expect = "E8 DE FF FF FF DD 44 24"
+source = "Name ours. (high - low) * the next number in [0, 1) (0x00913A29) + low, in ST0. UpdateWorstTractsAndEffects draws two per new pollution cloud from the generator at 0x00B49BD0 (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::Terrain"
+address = 0x00B43CF4
+kind = "data"
+source = "Service pointer, name ours: slot 13 gives the height at a position (x, z); UpdateWorstTractsAndEffects places effects at it (docs/pollution.md)."
+
+[[entry]]
+name = "SC4List::Destroy2"
+address = 0x00413FE0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "51 56 8B F1 E8 77 FE FF FF"
+source = "Name ours. As SC4List::Destroy (0x00421760) for lists of the allocator at 0x00B207E4: frees the nodes (0x00413E60), then the sentinel. Called by cSC4PollutionSimulator::UpdateRecyclingEffect (docs/pollution.md)."
+
+[[entry]]
+name = "SC4List::NodeAllocator2"
+address = 0x00B207E4
+kind = "data"
+source = "Name ours. A second cached pointer to the list node allocator (framework slot 5, 0x3AE4BEA3/0x3AE4BEAB), used by the list helpers 0x00413DD0 (allocate n nodes) and 0x00413F70 (erase a node); the pollution simulator's building lists go through it (docs/pollution.md)."
+
+[[entry]]
+name = "SC4Stream::ReadReference"
+address = 0x005D9730
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZIStream& stream, uint32_t iid, void** object, uint32_t flags)"
+expect = "56 8B 74 24 10 85 F6 74"
+source = "Name ours. Reads a reference written by SC4Stream::WriteReference into *object as the interface iid. The pollution simulator's Read passes 0 as the last argument (docs/save-format.md)."
+
+[[entry]]
+name = "SC4Stream::ReadReferenceList"
+address = 0x005DB3C0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZIStream& stream, SC4List* list)"
+expect = "83 EC 08 53 8B 5C 24 14"
+source = "Name ours. The mirror of SC4Stream::WriteReferenceList (docs/save-format.md)."
+
+[[entry]]
+name = "SC4Stream::ReadPollutionStruct"
+address = 0x005DB280
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZIStream& stream, void* iterator)"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Name ours. The mirror of SC4Stream::WritePollutionStruct (docs/save-format.md)."
+
+[[entry]]
+name = "SC4String::Vtable"
+address = 0x00A80810
+kind = "data"
+source = "Name ours. vtable of the game's cIGZString implementation over an STL-style buffer (begin, end, capacity at +4/+8/+0xC; buffer from SC4::stl_allocate, freed with SC4::Free). The pollution simulator's Read builds one on the stack for versions below 3 (docs/pollution.md)."
+
+[[entry]]
+name = "SC4Stream::WriteReference"
+address = 0x005D99A0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZOStream& stream, cIGZUnknown* object)"
+expect = "51 8B 4C 24 08 8B 01 8D"
+source = "Name ours. Writes a reference to a serialised object: its address-ID and class ID, 8 bytes (docs/save-format.md)."
+
+[[entry]]
+name = "SC4Stream::WriteReferenceList"
+address = 0x005DAFF0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZOStream& stream, SC4List* list)"
+expect = "53 8B 5C 24 0C 8B 0B 8B"
+source = "Name ours. Writes a count then references (docs/save-format.md)."
+
+[[entry]]
+name = "SC4Stream::WritePollutionStruct"
+address = 0x005DAB70
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZOStream& stream, void* iterator)"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Name ours. Writes the tract iterator at cSC4PollutionSimulator+0x1D8: int8 x2, uint8, int32 x5, counted uint16 array, int32 x3 (docs/save-format.md)."
+
+[[entry]]
+name = "SC4::Service43D90"
+address = 0x00B43D90
+kind = "data"
+source = "Unnamed service; slot 25 (id, 0) returns a float (ST0). The power simulator's month handler reads 0x0911E117 from it (docs/power.md)."
+
+[[entry]]
+name = "SC4::RandomShuffle"
+address = 0x006DB010
+kind = "function"
+convention = "cdecl"
+signature = "void (void** begin, void** end)"
+expect = "53 8B 5C 24 08 55 8B 6C"
+source = "std::random_shuffle over pointers with the CRT's rand(). The power simulator's ApplyFunding shuffles its pole objects with it (docs/power.md)."
+
+[[entry]]
+name = "BitGrid::Clear"
+address = 0x00603E00
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t* bits, uint32_t width)"
+expect = "8B 44 24 08 0F AF C0 C1"
+source = "Name ours. Clears width * width / 32 words (a square city) (docs/power.md)."
+
+[[entry]]
+name = "RZ::operator_new"
+address = 0x009133DA
+kind = "function"
+convention = "cdecl"
+signature = "void* (size_t size)"
+expect = "55 8B EC 51 51 56 68 70"
+source = "Name ours. The framework's allocator, before cGZMessage's constructor in the power simulator's change publisher (docs/power.md)."
+
+[[entry]]
+name = "cGZMessage::cGZMessage"
+address = 0x009134D6
+kind = "function"
+convention = "thiscall"
+signature = "cGZMessage* (cGZMessage* this)"
+expect = "8B C1 33 C9 C7 00 00 EC"
+source = "Name ours. Constructor of the framework's message (vtable 0x00ACEC00, 0x2C bytes) (docs/power.md)."
+
+[[entry]]
+name = "SC4List::NodeAllocator3"
+address = 0x00B207DC
+kind = "data"
+source = "Name ours. A third cached list node allocator (as 0x00B207E4), used by lists that hold references: SC4List::ClearReleasing (0x00411D70) releases each object (docs/power.md)."
+
+[[entry]]
+name = "SC4List::ClearReleasing"
+address = 0x00411D70
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "51 53 8B D9 8B 03 56 8B"
+source = "Name ours. Empties a list of the allocator at 0x00B207DC, releasing each node's object (docs/power.md)."
+
+[[entry]]
+name = "BitGrid::Set"
+address = 0x00603DA0
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t* bits, uint32_t width, int32_t x, int32_t z)"
+expect = "8B 44 24 08 0F AF 44 24"
+source = "Name ours. Sets a cell's bit (word (width * z + x) / 32, bit x mod 32) (docs/power.md)."
+
+[[entry]]
+name = "SC4RefList::Clear"
+address = 0x00473EC0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "53 8B D9 8B 03 56 8B 30"
+source = "Name ours. Empties such a list: each object released, each node freed with SC4::Free (docs/power.md)."
+
+[[entry]]
+name = "SC4::PollutionSimulator"
+address = 0x00B43D9C
+kind = "data"
+source = "cISC4PollutionSimulator* of the current city (slot 66 AddRadiationToCity: the power simulator calls it when a plant blows up) (docs/power.md)."
+
+[[entry]]
+name = "SC4List::Clear2"
+address = 0x00413E60
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "51 53 8B D9 8B 03 56 8B"
+source = "Name ours. Empties a list of the allocator at 0x00B207E4, freeing its nodes (no references released) (docs/power.md)."
+
+[[entry]]
+name = "SC4::NetworkService"
+address = 0x00B43D0C
+kind = "data"
+source = "Name ours. Slot 40 (list*, cell*, cell*, 0, -1): the network occupants in a cell rectangle; the power simulator's area recompute asks it (docs/power.md)."
+
+[[entry]]
+name = "SC4PtrVector::PushBack"
+address = 0x007EBD30
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 3B 41 08 74 13"
+source = "Name ours. push_back of a pointer vector (begin, end, capacity), growing through 0x0051CA60; no reference taken (docs/power.md)."
+
+[[entry]]
+name = "SC4::Service43D00"
+address = 0x00B43D00
+kind = "data"
+source = "Unnamed service; slot 7 takes a list of lots (1, &list, 0, 1, 0, 0, 0, 0). The power simulator hands it the lots of its type-5 plants on message 0xC2C09554 (docs/power.md)."
+
+[[entry]]
+name = "SC4::Service43DC4"
+address = 0x00B43DC4
+kind = "data"
+source = "Unnamed service; slot 24 returns an object whose slot 5 may be 0x88F154FB, then slot 26 (0) is called. Seen in the power simulator's message 0xC2C09554 case (docs/power.md)."
+
+[[entry]]
+name = "SC4String::FromText"
+address = 0x00408480
+kind = "function"
+convention = "thiscall"
+expect = "55 56 57 8B 7C 24 10 8B"
+source = "Name ours. A cIGZString (vtable, buffer begin, end, capacity) from a C string. Called by the power simulator's Init (docs/power.md)."
+
+[[entry]]
+name = "SC4SimGridUint8::Vtable"
+address = 0x00A878C0
+kind = "vtable"
+expect = "60 E7 45 00 A0 64 46 00"
+source = "The primary vtable of cSC4SimGridUint8 (grid interface 0x49B9E602), as the power simulator's Init constructs its supply grid (docs/power.md)."
+
+[[entry]]
+name = "SC4PtrVector::FillInsert"
+address = 0x004FBA20
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 10 85 FF"
+source = "Name ours. insert(where, count, value) of a pointer vector. Called by the power simulator's Read (docs/power.md)."
+
+[[entry]]
+name = "SC4Random::Construct"
+address = 0x00913A5C
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 08 8B F1 E8"
+source = "Name ours, not analysed: constructs the 0x18-byte object at the power simulator's +0x318 with a seed (-1) through 0x00913667 (docs/power.md)."
+
+[[entry]]
+name = "SC4PairList::Destroy"
+address = 0x005650A0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 07 8B 30"
+source = "Name ours. Frees a list's nodes (SC4::Free), then its sentinel; nothing is released. The power simulator's destructor uses it for the plant list at +0x298 (docs/power.md)."
+
+[[entry]]
+name = "SC4ShortVectorVector::Destroy"
+address = 0x004638B0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. The destructor of a vector<vector<int16_t>>: each row's buffer, then its own. The power simulator's destructor uses it for the consumption map at +0x84 (docs/power.md)."
+
+[[entry]]
+name = "SC4CellDeque::Clear"
+address = 0x006DB440
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 77 0C 8B"
+source = "Name ours. Empties such a deque (docs/water.md)."
+
+[[entry]]
+name = "SC4CellIterator::Restart"
+address = 0x0060C860
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. Restarts a cell rectangle iterator (two arguments, 0 and 0 from the water step) (docs/water.md)."
+
+[[entry]]
+name = "SC4CellIterator::Next"
+address = 0x0060C8D0
+kind = "function"
+convention = "thiscall"
+expect = "8A 01 3C 02 75 05 32 C0"
+source = "Name ours. The iterator's next cell (&x, &z); false when done (docs/water.md)."
+
+[[entry]]
+name = "SC4List::Destroy3"
+address = 0x00411F80
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 E8 E7 FD FF"
+source = "Name ours. Destroys a list made by SC4List::Construct2 (docs/water.md)."
+
+[[entry]]
+name = "SC4Deadline::Start"
+address = 0x0068BF50
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 0F 31 DB"
+source = "Name ours. A time budget from now (rdtsc; made deterministic by determinism.fixed_ticks) (docs/water.md)."
+
+[[entry]]
+name = "SC4Deadline::Expired"
+address = 0x0068BF80
+kind = "function"
+convention = "thiscall"
+expect = "56 0F 31 8B 31 2B F0 8B"
+source = "Name ours. Whether the time budget is spent (docs/water.md)."
+
+[[entry]]
+name = "SC4Deadline::End"
+address = 0x0068B960
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 C1 E8 0A 33 D2"
+source = "Name ours. The deadline's destructor; updates its step from its count (docs/water.md)."
+
+[[entry]]
+name = "SC4Deadline::StartWith"
+address = 0x0068CC20
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 50 8B F1"
+source = "Name ours. As SC4Deadline::Start with a pointer to its step (docs/water.md)."
+
+[[entry]]
+name = "SC4PtrVector::Fill"
+address = 0x0049FC70
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 56 57 8B F9"
+source = "Name ours. Fills an empty pointer vector with count copies of a value (count, &value). Called by the water simulator's ApplyFunding (docs/water.md)."
+
+[[entry]]
+name = "SC4Random::Range"
+address = 0x009136DF
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 E8 AF FF FF FF"
+source = "Name ours, not analysed: a random number from the generator object, (low, high). Called by the water simulator's ApplyFunding on +0x2C (docs/water.md)."
+
+[[entry]]
+name = "SC4CellIterator::Construct"
+address = 0x0060CE90
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 C7 40 0C 01 00 00"
+source = "Name ours. Constructs a cell rectangle iterator (0x20 bytes; rectangle at +0x10) (docs/water.md)."
+
+[[entry]]
+name = "SC4Stream::WriteCellIterator"
+address = 0x005DA480
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. (stream, iterator): a cell rectangle iterator: a byte, then seven 32-bit fields (docs/water.md)."
+
+[[entry]]
+name = "SC4Stream::ReadCellIterator"
+address = 0x005DA410
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The reverse of SC4Stream::WriteCellIterator (docs/water.md)."
+
+[[entry]]
+name = "SC4Random::Unit"
+address = 0x00913A29
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 E8 87 FF FF"
+source = "Name ours. A draw from a generator object (0x009139B9) scaled into [0, 1) as a double in ST0. Called by cSC4TrafficSimulator::CheckRailAccident (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Random::Below"
+address = 0x00913A06
+kind = "function"
+convention = "thiscall"
+expect = "E8 AE FF FF FF F7 64 24"
+source = "Name ours. A draw from a generator object (0x009139B9) scaled into [0, n): (draw * n) >> 32 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Vector12::Assign"
+address = 0x005117D0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. operator= of a vector of 12-byte elements (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Stopwatch::Construct"
+address = 0x0088FEDF
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 89 08"
+source = "Name ours. A 0x18-byte stopwatch: (mode) at +0, the rest zero (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Stopwatch::Start"
+address = 0x008905C4
+kind = "function"
+convention = "thiscall"
+expect = "51 83 39 00 75 1A 53 83"
+source = "Name ours. Reads rdtsc (mode 0) or QueryPerformanceCounter into +8. The traffic sub-step starts one (mode 4) and never reads it (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32HashSet::Erase"
+address = 0x0045D460
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 56"
+source = "Name ours. Erases a uint32 key (by pointer) from a hash set; returns the count erased (docs/traffic.md, docs/civic.md)."
+
+[[entry]]
+name = "SC4::GetPropertyUint32Vector"
+address = 0x005FF510
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. (cISC4PropertyHolder*, property ID, SC4Vector<uint32_t>*): the property's uint32 array into the vector; false without the property (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32Vector::InsertN"
+address = 0x00423320
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 85 D2 56 8B"
+source = "Name ours. vector<uint32>::insert(where, count, uint32 const* value) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::SetPropertyUint32Vector"
+address = 0x005FE6B0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. (cISC4PropertyHolder*, property ID, SC4Vector<uint32_t> const*): sets the property's uint32 array, adding the property if missing (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Stream::ReadBool"
+address = 0x005D9FA0
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 06 8D"
+source = "Name ours. (stream, bool* out): a byte, stored as 0 or 1 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4RowVector::Resize"
+address = 0x00461120
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 59 04 56 8B 74 24"
+source = "Name ours. resize(count, vector<uint8> const* value) of a vector of byte vectors (docs/traffic.md)."
+
+[[entry]]
+name = "SC4ByteVector::InsertN"
+address = 0x004618E0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 0C 85 ED 56"
+source = "Name ours. insert(where, count, uint8 const* value) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4TrafficObject::Construct"
+address = 0x005FF100
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 33 C9 C7 00 D8 6C"
+source = "Name ours. Constructs the 0x14-byte objects of the traffic simulator's map at +0xB8 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4ByteVector::CopyConstruct"
+address = 0x00459E80
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name ours. vector<uint8> copy constructor (docs/traffic.md)."
+
+[[entry]]
+name = "SC4RowVector::Destroy"
+address = 0x00461190
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Name ours. (begin, end): frees the byte rows of a vector of byte vectors (docs/traffic.md)."
+
+[[entry]]
+name = "SC4SimGridBool8::Vtable"
+address = 0x00A878C0
+kind = "data"
+source = "cSC4SimGridBool8 primary vtable; +4 0x00A878A4, interface 0x49B9E602 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4SimGridFloat32::Vtable"
+address = 0x00A87C20
+kind = "data"
+source = "cSC4SimGridFloat32 primary vtable; +4 0x00A87C04, interface 0x49B9E60A (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::Service43D68"
+address = 0x00B43D68
+kind = "data"
+source = "Service pointer, name ours: slot 32 (id) gives an object for the zone densities 0x1010-0x4400, whose slot 15 grid answers slot 7 (x, z) with an int16 (the traffic simulator's GetBackgroundTraffic; docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32HashSet::Construct"
+address = 0x00829BC0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 56 57 6A"
+source = "Name ours. (bucket hint): hash_set<uint32> constructor; object: +4/+8 buckets begin/end, +0x10 count; node: next, value at +4 (the traffic simulator's GetSubnetworksInRectangle; docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32HashSet::Resize"
+address = 0x004F0940
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 44 24 18 53"
+source = "Name ours. (element count): grows the buckets for that many elements (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32HashSet::Insert"
+address = 0x00624DD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 53 8B 18 55"
+source = "Name ours. (pair<iterator, bool>* result, uint32 const* value) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32HashSet::Clear"
+address = 0x008EBA60
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8B 47 08"
+source = "Name ours. Frees the nodes; the caller frees the bucket array (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::GetPropertyUint8Vector"
+address = 0x005FFB40
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. (holder, property, vector<uint8>*): false without the property (docs/traffic.md)."
+
+[[entry]]
+name = "SC4List::NodeAllocator4"
+address = 0x00B207E0
+kind = "data"
+source = "Name ours. Another cached pointer to the list node allocator (framework slot 5, 0x3AE4BEA3/0x3AE4BEAB), used by 0x00411DF0 and the traffic simulator's StartTripCounts (docs/traffic.md)."
+
+[[entry]]
+name = "SC4List::ClearReleasing4"
+address = 0x00411DF0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B D9 8B 03 56 8B"
+source = "Name ours. Empties a list of the allocator at 0x00B207E0, releasing each element (slot 2) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::Service43D74"
+address = 0x00B43D74
+kind = "data"
+source = "Service pointer, name ours: slot 6 (0x2010/0x2020/0x2030, 0x10000) gives the region's R/C/I population objects whose slot 9 is a float in ST0 (the traffic simulator's StartTripCounts; docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32Map::At"
+address = 0x00497A00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 8B 31 8B"
+source = "Name ours. std::map<uint32, uint32>::operator[](uint32 const*): the value's address, inserting 0 when missing (docs/traffic.md)."
+
+[[entry]]
+name = "SC4List::Construct3"
+address = 0x00414270
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 00 8B F1 6A 01 C7"
+source = "Name ours. SC4List constructor: a sentinel node from the allocator at 0x00B207E4 (0x00413DD0) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::GetPropertyUint8"
+address = 0x005FD3C0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. (holder, property, uint8*): false without the property (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::GetPropertyFloatVector"
+address = 0x005FFCC0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08 8B 01 83 EC 0C"
+source = "Name ours. (holder, property, vector<float>*): the property's array (variant slot 0x1BC) into the vector; false without the property (docs/traffic.md)."
+
+[[entry]]
+name = "SC4PtrVector::InsertN"
+address = 0x0051CA60
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B E9 8B 45 04 56"
+source = "Name ours. std::vector of pointers: (where, value*, allocator*, count, at end), as the other InsertN (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Random::Uniform"
+address = 0x00913761
+kind = "function"
+convention = "thiscall"
+signature = "double (SC4Random* this, double low, double high)"
+expect = "E8 C8 FF FF FF DD 44 24"
+source = "Name ours. low + unit draw (0x0091372E) * (high - low), in ST0 (docs/aura.md)."
+
+[[entry]]
+name = "SC4Random::BelowLcg"
+address = 0x009136B1
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (SC4Random* this, uint32_t n)"
+expect = "83 7C 24 04 00 75 04 33"
+source = "Name ours. (draw * n) >> 32 on the LCG generator (0x00913696); 0 for n = 0 (docs/aura.md)."
+
+[[entry]]
+name = "SC4Uint32Map::Find"
+address = 0x00497520
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map, void** out, const uint32_t* key)"
+expect = "8B 09 8B 41 04 85 C0 56"
+source = "Name ours. std::map<uint32_t, T> find: the node, or the header for none (docs/aura.md)."
+
+[[entry]]
+name = "SC4ListIterator::Release"
+address = 0x0045D5B0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 46 04 85"
+source = "Name ours. Frees a list iterator's list (docs/aura.md)."
+
+[[entry]]
+name = "SC4::Service43D70"
+address = 0x00B43D70
+kind = "data"
+source = "Unnamed service; slot 5 gives a uint8 grid the aura simulator adds (docs/aura.md)."
+
+[[entry]]
+name = "SC4::Service43DA8"
+address = 0x00B43DA8
+kind = "data"
+source = "Unnamed service; slots 10 and 13 give uint8 grids the aura simulator adds (docs/aura.md)."
+
+[[entry]]
+name = "SC4Script::RegisterTable"
+address = 0x0068C180
+kind = "function"
+convention = "cdecl"
+expect = "51 53 8B 5C 24 0C 85 DB"
+source = "Name ours. The aura simulator's Init registers its script table \"aura\" with service 0xEBE0E860 through it (docs/aura.md)."
+
+[[entry]]
+name = "SC4Script::RegisterFunction"
+address = 0x0058DE80
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 20 85 F6 75"
+source = "Name ours. Registers a script function (callback, name, ...) with service 0xEBE0E860 (docs/aura.md)."
+
+[[entry]]
+name = "SC4Script::UnregisterTable"
+address = 0x0058DF10
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 0C 85 F6 74"
+source = "Name ours. Shutdown's counterpart of RegisterTable (docs/aura.md)."
+
+[[entry]]
+name = "SC4::ReleaseRefHolder"
+address = 0x00424E70
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 70 EE"
+source = "Name ours. Releases the interface a holder points to (docs/aura.md)."
+
+[[entry]]
+name = "SC4MapIterator::Next"
+address = 0x005D17C0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 10 8B 4A 0C 85"
+source = "Name ours. ++ on a map iterator (a node pointer; null children) (docs/landvalue.md)."
+
+[[entry]]
+name = "SC4::Service43D14"
+address = 0x00B43D14
+kind = "data"
+source = "Service pointer, name ours: the land value simulator keeps it at +0x20 and asks its slot 12 (x, z) whether a tile has something on it (docs/landvalue.md)."
+
+[[entry]]
+name = "SC4SimGridUint8::Vtable2"
+address = 0x00A878A4
+kind = "data"
+source = "The uint8 sim grid's second vtable, at +4; the water route finder builds one inline for its depths (docs/traffic.md)."
+
+[[entry]]
+name = "SC4SimGrid::VtableBase"
+address = 0x00A80784
+kind = "data"
+source = "The base vtable written at +4 first by inlined constructors (also the traffic simulator's +8) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::OccupantFilterBase"
+address = 0x005EA080
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 C7 40 04 84 07 A8"
+source = "Name ours. Constructor of a 12-byte occupant filter (vtables 0x00AA42C8/0x00AA42B0, reference count +8 = 0); the crime simulator's nearest-prop and nearest-sim queries derive from it (docs/crime.md)."
+
+[[entry]]
+name = "SC4::Service43DA4"
+address = 0x00B43DA4
+kind = "data"
+source = "Name ours. A service whose slot 25 gives three uint16 grids (people by group) and slot 23 three float grids; the crime simulator counts people with them (docs/crime.md)."
+
+[[entry]]
+name = "SC4::PoliceSimulator"
+address = 0x00B43D98
+kind = "data"
+source = "Name ours. The city's cISC4PoliceSimulator (slots 5, 27, 30, 38 used by the crime simulator) (docs/crime.md)."
+
+[[entry]]
+name = "SC4::FloatOneA81228"
+address = 0x00A81228
+kind = "data"
+source = "float 1.0 (docs/crime.md)."
+
+[[entry]]
+name = "SC4::FloatTwoTo32"
+address = 0x00A80AA8
+kind = "data"
+source = "float 4294967296.0, added after an FILD of a negative value to read it as unsigned (docs/crime.md)."
+
+[[entry]]
+name = "SC4::FloatRoundMagic"
+address = 0x00AB0CF8
+kind = "data"
+source = "float 12582912.0 (1.5 x 2^23): added and stored as a float, its bits less 0x4B400000 are the value rounded to nearest (docs/crime.md)."
+
+[[entry]]
+name = "SC4::DoubleZero"
+address = 0x00A80990
+kind = "data"
+source = "double 0.0 (docs/crime.md)."
+
+[[entry]]
+name = "SC4String::AssignRange"
+address = 0x00408A70
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4StringBuffer* this, char const* begin, char const* end, void* tag)"
+expect = "8B 44 24 04 56 57 8B F9"
+source = "std::string _M_assign_dispatch<char*> on a buffer (begin, end, capacity) (docs/crime.md)."
+
+[[entry]]
+name = "SC4::GetPropertyString"
+address = 0x005FD570
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, cIGZString* value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. A string property into a cIGZString; the crime types' names (docs/crime.md)."
+
+[[entry]]
+name = "SC4::GetPropertyResourceKey"
+address = 0x005FD5B0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, cGZPersistResourceKey* value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. Three uint32 of a property as a resource key; the crime types' keys (docs/crime.md)."
+
+[[entry]]
+name = "TractIterator::SetBounds"
+address = 0x0049C820
+kind = "function"
+convention = "thiscall"
+signature = "void (TractIterator* this, int32_t const* rect)"
+expect = "8B 54 24 04 56 57 8B 3A"
+source = "Name ours. The iterator's rectangle (x0, z0, x1, z1); crime Init sets it to the whole grid (docs/crime.md)."
+
+[[entry]]
+name = "SC4Curve::Init"
+address = 0x007D0410
+kind = "function"
+convention = "thiscall"
+signature = "SC4Curve* (SC4Curve* this)"
+expect = "8B C1 33 C9 89 08 89 48"
+source = "Name ours. Zeroes a curve's 16 bytes (docs/crime.md)."
+
+[[entry]]
+name = "SC4::Service43D10"
+address = 0x00B43D10
+kind = "data"
+source = "Unnamed service; slot 13 gives an object whose +0x18 is a crime type, for cSC4CrimeSimulator's candidate pick (docs/crime.md)."
+
+[[entry]]
+name = "SC4::FloatInv255"
+address = 0x00A90BBC
+kind = "data"
+source = "float 1/255 (docs/crime.md)."
+
+[[entry]]
+name = "cRZBaseString::MakeLower"
+address = 0x0090EAC5
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 81 EC 14 02 00"
+source = "Name ours. Lower-cases the string's buffer (begin and end at +4, +8) in place. GetOrdinanceByName compares names lower-cased (docs/ordinance.md)."
+
+[[entry]]
+name = "cRZBaseString::Sprintf"
+address = 0x0090F574
+kind = "function"
+convention = "cdecl"
+expect = "55 8D 6C 24 90 81 EC B4"
+source = "Name ours. (string, format, ...): formats into the string (docs/ordinance.md)."
+
+[[entry]]
+name = "cSC4City::cSC4City"
+address = 0x00459F30
+kind = "function"
+convention = "thiscall"
+signature = "cSC4City* (cSC4City* this)"
+expect = "53 56 8B F1 57 C7 06 C0"
+source = "Constructor, called by the class factory cSC4City::Create 0x0045A560 (operator new(0x20C)) for every city loaded or founded; plain ret. game.seed reseeds the game's generators here: the earliest point of a city load, before the city's objects seed theirs (docs/seeds.md)."
+
+[[entry]]
+name = "SC4Stream::WriteBool"
+address = 0x005D9FD0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. (stream, bool): the counterpart of ReadBool; one byte (stream slot 5), the stream back (docs/ordinance.md, docs/fire-police.md, docs/flora.md)."
+
+[[entry]]
+name = "SC4Stream::WriteRandom"
+address = 0x005DA2E0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZOStream* stream, const cRZRandom* random)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. A cRZRandom's state (docs/flora.md, docs/weather.md)."
+
+[[entry]]
+name = "SC4Stream::ReadRandom"
+address = 0x005DA2A0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZIStream* stream, cRZRandom* random)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. A cRZRandom's state (docs/flora.md, docs/weather.md)."
+
+[[entry]]
+name = "cRZRandom::Gaussian"
+address = 0x00913777
+kind = "function"
+convention = "thiscall"
+signature = "long double (cRZRandom* this)"
+expect = "55 8B EC 83 EC 18 56 8B"
+source = "Name ours. A normal draw (polar method on NextFloat, the second value kept at +0x10, flag +8) (docs/flora.md, docs/weather.md)."
+
+[[entry]]
+name = "SC4List::AllocateNodes"
+address = 0x00413DD0
+kind = "function"
+convention = "thiscall"
+signature = "void** (SC4List* this, uint32_t count, uint32_t zero)"
+expect = "51 8B 0D E4 07 B2 00 85"
+source = "Name ours. New list nodes from the allocator at 0x00B207E4 (docs/flora.md)."
+
+[[entry]]
+name = "SC4::FloatHalf"
+address = 0x00A84D2C
+kind = "data"
+source = "float 0.5 (docs/flora.md)."
+
+[[entry]]
+name = "cRZRandom::Uniform"
+address = 0x00913761
+kind = "function"
+convention = "thiscall"
+signature = "double (cRZRandom* this, double low, double high)"
+expect = "E8 C8 FF FF FF DD 44 24"
+source = "Name ours. NextFloat (0x0091372E) * (high - low) + low, in ST0 (docs/flora.md)."
+
+[[entry]]
+name = "SC4List::Erase"
+address = 0x00413F70
+kind = "function"
+convention = "thiscall"
+signature = "void** (SC4List* this, void** out, void* node)"
+expect = "56 57 8B 7C 24 10 8B 37"
+source = "Name ours. Unlinks and frees a node of a list of the allocator at 0x00B207E4 (docs/flora.md)."
+
+[[entry]]
+name = "SC4BitVector::Resize"
+address = 0x00478140
+kind = "function"
+convention = "thiscall"
+expect = "8B 11 8B 41 08 2B C2 8B"
+source = "Name ours. std::vector<bool>::resize(count, value) (docs/fire-police.md)."
+
+[[entry]]
+name = "cRZDate::cRZDate"
+address = 0x00912E7B
+kind = "function"
+convention = "thiscall"
+signature = "cRZDate* (cRZDate* this, int32_t dayNumber)"
+expect = "8B C1 8B 4C 24 04 89 48"
+source = "Name ours. A 16-byte date object: vtable 0x00ACEAF0, the day number, an interface vtable 0x00ACEA38 at +8 (what is passed on), 0 (docs/demand.md)."
+
+[[entry]]
+name = "cRZDate::Destroy"
+address = 0x009128BF
+kind = "function"
+convention = "thiscall"
+expect = "C7 01 F0 EA AC 00 C7 41"
+source = "Name ours. The date object's destructor: its two vtables reset (docs/demand.md)."
+
+[[entry]]
+name = "SC4List::Destroy4"
+address = 0x00411FE0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "51 56 8B F1 E8 07 FE FF"
+source = "Name ours. SC4List::ClearReleasing4, then the head freed through the allocator at 0x00B207E0 (docs/demand.md)."
+
+[[entry]]
+name = "RZGetCOM"
+address = 0x0090DDF1
+kind = "function"
+convention = "cdecl"
+signature = "cIGZCOM* ()"
+expect = "E8 1C D4 F6 FF 8B 10 8B"
+source = "Name ours. The framework's COM object (RZGetFramework, then its slot 12); its slot 3 creates an instance by class and interface; the ordinance simulator creates ordinances by class ID with it (docs/demand.md, docs/ordinance.md)."
+
+[[entry]]
+name = "cSC4App::SaveCity"
+address = 0x00455E20
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4App* this, cIGZString const& path, bool fastSave)"
+expect = "81 EC 10 01 00 00 53 57"
+source = "cISC4App vtable (0x00A86AF0) slot 15; slot 16 (cSC4App::SaveCity_InPlace 0x00454DA0) calls it with the city's own path. game.timelapse copies the city after it (docs/timelapse.md)."
+
+[[entry]]
+name = "SC4CycleClock::Calibrate"
+address = 0x005D9370
+kind = "function"
+convention = "thiscall"
+signature = "void (float* this)"
+expect = "83 EC 18 53 55 56 57 8D"
+source = "Name ours. Updates a cycles-per-millisecond estimate (a float at +0, an exponential moving average of rdtsc against QueryPerformanceCounter deltas, updated when enough counter time has passed). cSC4Simulator::RunTimeSlice calls it on this+0x80 at every slice (0x00703E9E) and copies the float to a global for the deadline helpers 0x0068BF50/0x0068BF80 (docs/experiments/determinism.md, docs/seeds.md)."
+
+[[entry]]
+name = "SC4Stopwatch::Elapsed2"
+address = 0x00890279
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. Another unit of the elapsed time (as 0x00890198); reads the clock while running (docs/experiments/determinism.md, Simulation timers)."
+
+[[entry]]
+name = "SC4Stopwatch::Elapsed4"
+address = 0x0089045A
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 56 8B F1 57 8B"
+source = "Name ours. Another unit of the elapsed time; reads the clock while running (docs/experiments/determinism.md, Simulation timers)."
+
+[[entry]]
+name = "SC4Stopwatch::Elapsed5"
+address = 0x00890501
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 56 8B F1 57 8B"
+source = "Name ours. Another unit of the elapsed time; reads the clock while running (docs/experiments/determinism.md, Simulation timers)."

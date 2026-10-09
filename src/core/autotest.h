@@ -18,6 +18,12 @@
 //                         z<zoom>-r<rotation>.png, then quit. The camera
 //                         starts where the save left it, so runs line up.
 //                         Compare runs with tools/shotdiff.py.
+//   OPENSC4_TEST_SHOT_VIEWS  with OPENSC4_TEST_SHOTS: only these views,
+//                         "zoom:rotation,..." (e.g. "2:0")
+//   OPENSC4_TEST_SHOT_CENTER "1": with OPENSC4_TEST_SHOTS, centre the view on
+//                         the middle of the city first
+//   OPENSC4_TEST_SHOT_HIDE_UI "1": with OPENSC4_TEST_SHOTS, hide every window
+//                         but the city view
 //   OPENSC4_TEST_DAYS     game days to run instead of real seconds: once the
 //                         simulation's day number reaches the start day plus
 //                         this, pause it (0: right after loading, before any
@@ -27,6 +33,11 @@
 //                         the city's file and its neighbours' in the region,
 //                         so use it only in a disposable user folder
 //                         (scripts/run-save-test.sh). P4 determinism tests.
+//   OPENSC4_TEST_QUICK    "1": skip what a test run does not need: wait 1 s
+//                         instead of 5 on the region view, and save with the
+//                         game's fast save, which leaves out the region
+//                         thumbnails (~1 s instead of ~11). Parity runs
+//                         (scripts/run-parity.sh) use it by default.
 //   OPENSC4_TEST_FINGERPRINT  "1": while running, log a fingerprint of the
 //                         simulation every game day (population, funds, lot
 //                         count, checksums of the traffic, land value and

@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 namespace opensc4::fixed_ticks {
 
@@ -16,5 +17,20 @@ void Describe(char* out, std::size_t size);
 // True while a simulation time slice runs (main thread): code running now is
 // simulation ticks, not rendering or the interface.
 bool InSlice();
+
+// Slice stopwatch checks so far (one per simulation tick), and for
+// determinism.sim_timers: the original
+// GZStopwatch::ElapsedMilliseconds and where the stopwatches it does not
+// own go instead of it.
+uint64_t Checks();
+void* ElapsedOriginal();
+void SetElapsedPass(void* thunk);
+
+// [determinism] pace = realtime: slices are held back to follow a real-time
+// schedule for the game speed (play with a deterministic simulation).
+bool Paced();
+
+// Logs how many slices pacing ran and held back.
+void LogPace();
 
 } // namespace opensc4::fixed_ticks

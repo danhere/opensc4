@@ -1,5 +1,7 @@
 #include "core/autotest.h"
 
+#include "core/autotest_hooks.h"
+
 #include "core/crash.h"
 #include "core/log.h"
 #include "core/fixed_ticks.h"
@@ -31,7 +33,6 @@
 #include <cISC4SimGrid.h>
 #include <cISC4ResidentialSimulator.h>
 #include <cISC4LotManager.h>
-#include <cISC4Occupant.h>
 #include <cISC4LandValueSimulator.h>
 #include <cISC4BudgetSimulator.h>
 #include <cISC4View3DWin.h>
@@ -42,15 +43,14 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <string>
+#include <vector>
 
 namespace opensc4::autotest {
-namespace {
-
-// "OSC4" + 1. System service IDs must be unique.
-constexpr uint32_t kServiceId = 0x4F534335;
 
 std::string Env(const char* name)
 {
@@ -64,6 +64,99 @@ int EnvInt(const char* name, int fallback)
     const std::string value = Env(name);
     return value.empty() ? fallback : std::atoi(value.c_str());
 }
+
+bool OnRunDay(const Day& day, const char* name)
+{
+    const int when = EnvInt(name, -1);
+    return when >= 0 && day.counted && day.day == day.first + when;
+}
+
+bool EveryRunDays(const Day& day, const char* name)
+{
+    const int every = EnvInt(name, -1);
+    if (every <= 0 || !day.counted)
+        return false;
+    const int into = day.day - day.first;
+    return into > 0 && into % every == 0;
+}
+
+// A message of the given type with void 1 = object and data 2/3, to a
+// simulator's cIGZMessageTarget2 at +0x4 (its slot 3).
+void Deliver(void* simulator, uint32_t type, void* object, uint32_t data2, uint32_t data3)
+{
+    using NewFn = void*(__cdecl*)(std::size_t size);
+    using MessageFn = cIGZMessage2Standard*(__thiscall*)(void* memory);
+    using DoMessageFn = bool(__thiscall*)(void* target, cIGZMessage2* message);
+    void* const memory = reinterpret_cast<NewFn>(addr::RZ_operator_new)(0x2C);
+    cIGZMessage2Standard* const message =
+        memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr;
+    if (!message)
+        return;
+    message->AddRef();
+    message->SetType(type);
+    message->SetVoid1(object);
+    message->SetData2(static_cast<intptr_t>(data2));
+    message->SetData3(static_cast<intptr_t>(data3));
+    void* const target = static_cast<char*>(simulator) + 0x4;
+    reinterpret_cast<DoMessageFn>((*static_cast<void***>(target))[3])(target, message);
+    message->Release();
+}
+
+namespace {
+
+// The simulators' hooks (autotest_hooks.h), each kind kept sorted by order,
+// then name. Function-local, so registrations from static initialisers in any
+// order work.
+template <typename Fn>
+struct Hook {
+    const char* name;
+    int order;
+    Fn fn;
+};
+
+struct Hooks {
+    std::vector<Hook<FingerprintFn>> fingerprint;
+    std::vector<Hook<LoadHookFn>> load;
+    std::vector<Hook<DayHookFn>> day;
+};
+
+Hooks& Registry()
+{
+    static Hooks hooks;
+    return hooks;
+}
+
+template <typename Fn>
+void Insert(std::vector<Hook<Fn>>& hooks, const char* name, int order, Fn fn)
+{
+    const auto before = [](const Hook<Fn>& a, const Hook<Fn>& b) {
+        return a.order != b.order ? a.order < b.order : std::strcmp(a.name, b.name) < 0;
+    };
+    const Hook<Fn> hook{name, order, fn};
+    hooks.insert(std::upper_bound(hooks.begin(), hooks.end(), hook, before), hook);
+}
+
+} // namespace
+
+void RegisterFingerprintPart(const char* name, int order, FingerprintFn fn)
+{
+    Insert(Registry().fingerprint, name, order, fn);
+}
+
+void RegisterLoadHook(const char* name, int order, LoadHookFn fn)
+{
+    Insert(Registry().load, name, order, fn);
+}
+
+void RegisterDayHook(const char* name, int order, DayHookFn fn)
+{
+    Insert(Registry().day, name, order, fn);
+}
+
+namespace {
+
+// "OSC4" + 1. System service IDs must be unique.
+constexpr uint32_t kServiceId = 0x4F534335;
 
 // The city view: main window -> cSC4App's window -> the 3D view (as in
 // gzcom-dll's SC4UI::GetView3DWin).
@@ -127,45 +220,17 @@ void ApplyRenderProperties(cISC4App* app)
     }
 }
 
-// FNV-1a over every tract value of a simulation grid; 0 for no grid.
-template <typename T>
-uint32_t GridChecksum(cISC4SimGrid<T>* grid)
-{
-    if (!grid)
-        return 0;
-    uint32_t h = 2166136261u;
-    const int32_t nx = grid->GetTractCountX(), nz = grid->GetTractCountZ();
-    for (int32_t z = 0; z < nz; ++z)
-        for (int32_t x = 0; x < nx; ++x) {
-            const T v = grid->GetTractValue(x, z);
-            const auto* b = reinterpret_cast<const uint8_t*>(&v);
-            for (size_t i = 0; i < sizeof v; ++i)
-                h = (h ^ b[i]) * 16777619u;
-        }
-    return h;
-}
-
-// FNV-1a over `size` bytes.
-uint32_t BytesChecksum(const void* data, size_t size)
-{
-    uint32_t h = 2166136261u;
-    const auto* b = static_cast<const uint8_t*>(data);
-    for (size_t i = 0; i < size; ++i)
-        h = (h ^ b[i]) * 16777619u;
-    return h;
-}
-
 // cISC43DRender::TakeSnapshot(cIGZString&, bool), vtable slot 22 (0x007C2570
 // in 641): writes the current frame to a file. Called by slot because
 // gzcom-dll declares the two TakeSnapshot overloads in the exe's slot order,
 // and MSVC-ABI compilers lay out overloaded virtuals in reverse declaration
 // order, so the header's string overload compiles to slot 23 (the
 // cIGZBuffer** one).
-bool TakeSnapshotToFile(cISC43DRender* renderer, cIGZString& path)
+bool TakeSnapshotToFile(cISC43DRender* renderer, cIGZString& path, bool flag = false)
 {
     using Fn = bool(__thiscall*)(cISC43DRender*, cIGZString&, bool);
     void** vtable = *reinterpret_cast<void***>(renderer);
-    return reinterpret_cast<Fn>(vtable[22])(renderer, path, false);
+    return reinterpret_cast<Fn>(vtable[22])(renderer, path, flag);
 }
 
 __declspec(noinline) void WriteThroughNull(volatile int* p)
@@ -181,6 +246,61 @@ void CrashOnPurpose()
     } __except (crash::HookFilter("autotest::CrashOnPurpose", GetExceptionInformation())) {
     }
 }
+
+// The occupant (interface 0x26BB767E) behind a network piece, referenced.
+void* OccupantOf(void* piece)
+{
+    void* occupant = nullptr;
+    if (!piece || !Virtual<uint8_t>(piece, 0x0, 0x26BB767Eu, &occupant))
+        return nullptr;
+    return occupant;
+}
+
+// OPENSC4_TEST_OCCUPANT_CYCLE=<n>: on the n-th day, hand the water and
+// power simulators "removed" then "added" for an existing pipe and
+// pole (messages 0x99EF1143, 0x99EF1142), and power the plant
+// disaster message (0xC2C09554 with 0xE0D0722E), so the handlers a
+// network edit or a disaster runs are reached (docs/parity.md,
+// "Coverage").
+void CycleOccupants(cISC4City* city)
+{
+    void* const water = city->GetPlumbingSimulator();
+    void* const power = city->GetPowerSimulator();
+    void* pipe = nullptr;
+    if (water) {
+        void** const pipes = *reinterpret_cast<void***>(static_cast<char*>(water) + 0x170);
+        if (pipes[0] != pipes)
+            pipe = OccupantOf(static_cast<void**>(pipes[0])[2]);
+    }
+    void* pole = nullptr;
+    if (power) {
+        void** const begin = *reinterpret_cast<void***>(static_cast<char*>(power) + 0x29C);
+        void** const end = *reinterpret_cast<void***>(static_cast<char*>(power) + 0x2A0);
+        if (begin != end)
+            pole = OccupantOf(*begin);
+    }
+    for (void* const occupant : {pipe, pole}) {
+        if (!occupant)
+            continue;
+        for (const uint32_t type : {0x99EF1143u, 0x99EF1142u})
+            for (void* const simulator : {water, power})
+                if (simulator)
+                    Deliver(simulator, type, occupant, 0, 0);
+        Virtual<uint32_t>(occupant, 0x8);
+    }
+    if (power)
+        Deliver(power, 0xC2C09554, nullptr, 0xE0D0722E, 1);
+    log::Write("autotest: occupants cycled (pipe %s, pole %s), plant disaster message sent", pipe ? "yes" : "none",
+               pole ? "yes" : "none");
+}
+
+void CycleOccupantsHook(const Day& day)
+{
+    if (OnRunDay(day, "OPENSC4_TEST_OCCUPANT_CYCLE") && game::IsBuild641())
+        CycleOccupants(day.city);
+}
+
+const DayHook kCycleOccupants{"occupants.cycle", 100, &CycleOccupantsHook};
 
 // A simulator agent (cISC4Simulator::AddAgent): the simulator calls it from
 // inside its tick, so whatever it does happens at the same point of simulation
@@ -256,8 +376,10 @@ private:
         if (!app)
             return;
         cISC4Region* region = app->GetRegion();
-        // Give the region view a few seconds to settle before loading.
-        if (!region || now - stateStart_ < 5000) {
+        // Give the region view a few seconds to settle before loading (one
+        // with OPENSC4_TEST_QUICK=1).
+        const ULONGLONG settle = Env("OPENSC4_TEST_QUICK") == "1" ? 1000 : 5000;
+        if (!region || now - stateStart_ < settle) {
             if (now - stateStart_ > 180000) {
                 log::Write("autotest: no region after 180 s; quitting");
                 Quit(app);
@@ -336,65 +458,9 @@ private:
         const void* proxy = pollution_proxy::LastCreated();
         log::Write("autotest: city pollution simulator %p; last proxy %p -> %s", static_cast<void*>(pollution),
                    proxy, pollution && pollution == proxy ? "CITY USES THE PROXY" : "city uses the original");
-        // OPENSC4_TEST_FIND_POWER_PLANTS=1: one cISC4PowerSimulator::
-        // FindPowerPlants call (slot 30; the advisors' query) after the load.
-        if (Env("OPENSC4_TEST_FIND_POWER_PLANTS") == "1" && game::IsBuild641()) {
-            if (void* const power = city->GetPowerSimulator()) {
-                using FindFn = void(__thiscall*)(void*, void**, uint32_t*, void**, int32_t*);
-                void* funded = nullptr;
-                void* oldest = nullptr;
-                uint32_t funding = 0;
-                int32_t age = 0;
-                reinterpret_cast<FindFn>((*static_cast<void***>(power))[30])(power, &funded, &funding, &oldest, &age);
-                log::Write("autotest: FindPowerPlants: lowest funded %s %08X, oldest %s %d%%", funded ? "found" : "none",
-                           funding, oldest ? "found" : "none", age);
-                for (void* plant : {funded, oldest}) {
-                    using ReleaseFn = uint32_t(__thiscall*)(void*);
-                    if (plant)
-                        reinterpret_cast<ReleaseFn>((*static_cast<void***>(plant))[2])(plant);
-                }
-            }
-        }
-        // OPENSC4_TEST_CAPACITY_SCALE=1: one call of the handler of message
-        // 0x66956810 (the simulator's scheduler never sent it in a test run).
-        if (Env("OPENSC4_TEST_CAPACITY_SCALE") == "1" && pollution) {
-            using HandlerFn = void(__thiscall*)(void* self);
-            reinterpret_cast<HandlerFn>(addr::cSC4PollutionSimulator_UpdateCapacityScale)(pollution);
-            log::Write("autotest: UpdateCapacityScale called");
-        }
-        // OPENSC4_TEST_GARBAGE_BUILDINGS=1: one GetGarbageBuildings call after
-        // the load (no simulator calls it in a test run).
-        if (Env("OPENSC4_TEST_GARBAGE_BUILDINGS") == "1" && pollution) {
-            SC4List<cISC4Occupant*> buildings;
-            const bool got = pollution->GetGarbageBuildings(buildings);
-            log::Write("autotest: GetGarbageBuildings: %u buildings (returned %d)", static_cast<unsigned>(buildings.size()),
-                       got ? 1 : 0);
-            for (cISC4Occupant* occupant : buildings)
-                occupant->Release();
-        }
-        // OPENSC4_TEST_RADIATION="x,z,amount,radius": one AddRadiationToCity
-        // call after the load (only disasters make one otherwise).
-        if (const std::string radiation = Env("OPENSC4_TEST_RADIATION"); !radiation.empty() && pollution) {
-            cS3DVector3 center;
-            float amount = 0.0f, radius = 0.0f;
-            if (std::sscanf(radiation.c_str(), "%f,%f,%f,%f", &center.fX, &center.fZ, &amount, &radius) == 4) {
-                pollution->AddRadiationToCity(center, amount, radius);
-                // The radiation grid (cSC4PollutionSimulator +0x4C; build 641)
-                // is in no fingerprint: an FNV-1a hash of its tract values.
-                auto* const grid = *reinterpret_cast<cISC4SimGrid<int16_t>**>(reinterpret_cast<char*>(pollution) + 0x4C);
-                uint32_t hash = 2166136261u;
-                int32_t nonzero = 0;
-                for (int32_t x = 0; x < grid->GetTractCountX(); ++x) {
-                    for (int32_t z = 0; z < grid->GetTractCountZ(); ++z) {
-                        const int16_t value = grid->GetTractValue(x, z);
-                        nonzero += value != 0;
-                        hash = (hash ^ static_cast<uint16_t>(value)) * 16777619u;
-                    }
-                }
-                log::Write("autotest: AddRadiationToCity(%g, %g, %g, %g): radiation grid %08X, %d tracts not 0", center.fX,
-                           center.fZ, amount, radius, hash, nonzero);
-            }
-        }
+        // Each simulator's OPENSC4_TEST_* load switches (autotest_hooks.h).
+        for (const auto& hook : Registry().load)
+            hook.fn(city);
 
         cISC4Simulator* sim = city->GetSimulator();
         shotDir_ = Env("OPENSC4_TEST_SHOTS");
@@ -517,150 +583,15 @@ private:
             self->lastFingerprintDay_ = day;
             self->Fingerprint(city, day);
         }
-        // OPENSC4_TEST_POWER_WAKE=<n>: on the n-th day of the run, wake the
-        // power simulator as message 0x6AC284F3 does (the network tools send
-        // it; +0x14 of cSC4PowerSimulator, build 641), so its recompute runs
-        // in a run without network edits (docs/power.md).
-        if (const int wake = EnvInt("OPENSC4_TEST_POWER_WAKE", -1);
-            wake >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + wake && game::IsBuild641()) {
-            if (void* const power = city->GetPowerSimulator()) {
-                static_cast<uint8_t*>(power)[0x14] = 1;
-                log::Write("autotest: power simulator woken on day %d", day);
-            }
-        }
-        // OPENSC4_TEST_WATER_WAKE=<n>: the same for the plumbing simulator
-        // (+0x14 of cSC4PlumbingSimulator, set by the same message; docs/water.md).
-        if (const int wake = EnvInt("OPENSC4_TEST_WATER_WAKE", -1);
-            wake >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + wake && game::IsBuild641()) {
-            if (void* const water = city->GetPlumbingSimulator()) {
-                static_cast<uint8_t*>(water)[0x14] = 1;
-                log::Write("autotest: plumbing simulator woken on day %d", day);
-            }
-        }
-        // OPENSC4_TEST_OCCUPANT_CYCLE=<n>: on the n-th day, hand the water and
-        // power simulators "removed" then "added" for an existing pipe and
-        // pole (messages 0x99EF1143, 0x99EF1142), and power the plant
-        // disaster message (0xC2C09554 with 0xE0D0722E), so the handlers a
-        // network edit or a disaster runs are reached (docs/parity.md,
-        // "Coverage").
-        if (const int when = EnvInt("OPENSC4_TEST_OCCUPANT_CYCLE", -1);
-            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641())
-            CycleOccupants(city);
-        // OPENSC4_TEST_POWER_MESSAGES=<n>: on the n-th day, hand the power
-        // simulator (its +0x4 cIGZMessageTarget2, build 641) the two network
-        // messages a network edit would bring, over the whole city: a network
-        // change (0x278E6003, corners packed in data 1 and 2) and a changed
-        // cell rectangle (0x07699455, the rectangle in void 2), so their
-        // handlers run in runs without edits (docs/power.md).
-        if (const int when = EnvInt("OPENSC4_TEST_POWER_MESSAGES", -1);
-            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641()) {
-            if (void* const power = city->GetPowerSimulator())
-                SendPowerMessages(power, city);
-        }
+        // Each simulator's OPENSC4_TEST_* day switches (autotest_hooks.h).
+        const Day today{city, day, self->endDay_ - self->runDays_, self->runDays_ >= 0};
+        for (const auto& hook : Registry().day)
+            hook.fn(today);
         if (self->runDays_ >= 0 && day >= self->endDay_) {
             sim->Pause();
             self->reachedEndDay_ = true;
             log::Write("autotest: day %d reached in the simulator's tick (sim time %d); paused", day, sim->GetSimTime());
         }
-    }
-
-    // A message of the given type with void 1 = object and data 2/3, to a
-    // simulator's cIGZMessageTarget2 at +0x4 (its slot 3).
-    static void Deliver(void* simulator, uint32_t type, void* object, uint32_t data2, uint32_t data3)
-    {
-        using NewFn = void*(__cdecl*)(std::size_t size);
-        using MessageFn = cIGZMessage2Standard*(__thiscall*)(void* memory);
-        using DoMessageFn = bool(__thiscall*)(void* target, cIGZMessage2* message);
-        void* const memory = reinterpret_cast<NewFn>(addr::RZ_operator_new)(0x2C);
-        cIGZMessage2Standard* const message =
-            memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr;
-        if (!message)
-            return;
-        message->AddRef();
-        message->SetType(type);
-        message->SetVoid1(object);
-        message->SetData2(static_cast<intptr_t>(data2));
-        message->SetData3(static_cast<intptr_t>(data3));
-        void* const target = static_cast<char*>(simulator) + 0x4;
-        reinterpret_cast<DoMessageFn>((*static_cast<void***>(target))[3])(target, message);
-        message->Release();
-    }
-
-    // The occupant (interface 0x26BB767E) behind a network piece, referenced.
-    static void* OccupantOf(void* piece)
-    {
-        void* occupant = nullptr;
-        if (!piece || !Virtual<uint8_t>(piece, 0x0, 0x26BB767Eu, &occupant))
-            return nullptr;
-        return occupant;
-    }
-
-    static void CycleOccupants(cISC4City* city)
-    {
-        void* const water = city->GetPlumbingSimulator();
-        void* const power = city->GetPowerSimulator();
-        void* pipe = nullptr;
-        if (water) {
-            void** const pipes = *reinterpret_cast<void***>(static_cast<char*>(water) + 0x170);
-            if (pipes[0] != pipes)
-                pipe = OccupantOf(static_cast<void**>(pipes[0])[2]);
-        }
-        void* pole = nullptr;
-        if (power) {
-            void** const begin = *reinterpret_cast<void***>(static_cast<char*>(power) + 0x29C);
-            void** const end = *reinterpret_cast<void***>(static_cast<char*>(power) + 0x2A0);
-            if (begin != end)
-                pole = OccupantOf(*begin);
-        }
-        for (void* const occupant : {pipe, pole}) {
-            if (!occupant)
-                continue;
-            for (const uint32_t type : {0x99EF1143u, 0x99EF1142u})
-                for (void* const simulator : {water, power})
-                    if (simulator)
-                        Deliver(simulator, type, occupant, 0, 0);
-            Virtual<uint32_t>(occupant, 0x8);
-        }
-        if (power)
-            Deliver(power, 0xC2C09554, nullptr, 0xE0D0722E, 1);
-        log::Write("autotest: occupants cycled (pipe %s, pole %s), plant disaster message sent", pipe ? "yes" : "none",
-                   pole ? "yes" : "none");
-    }
-
-    static void SendPowerMessages(void* power, cISC4City* city)
-    {
-        using NewFn = void*(__cdecl*)(std::size_t size);
-        using MessageFn = cIGZMessage2Standard*(__thiscall*)(void* memory);
-        using DoMessageFn = bool(__thiscall*)(void* target, cIGZMessage2* message);
-        static int32_t rect[4];
-        const auto cellsX = Virtual<uint32_t>(city, 0x174); // the cell counts, as the power simulator reads them
-        const auto cellsZ = Virtual<uint32_t>(city, 0x178);
-        rect[0] = 0;
-        rect[1] = 0;
-        rect[2] = static_cast<int32_t>(cellsX) - 1;
-        rect[3] = static_cast<int32_t>(cellsZ) - 1;
-        void* const target = static_cast<char*>(power) + 0x4;
-        const auto doMessage = reinterpret_cast<DoMessageFn>((*static_cast<void***>(target))[3]);
-        for (const uint32_t type : {0x278E6003u, 0x07699455u}) {
-            void* const memory = reinterpret_cast<NewFn>(addr::RZ_operator_new)(0x2C);
-            cIGZMessage2Standard* const message =
-                memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr;
-            if (!message)
-                return;
-            message->AddRef();
-            message->SetType(type);
-            if (type == 0x278E6003u) {
-                message->SetData1(static_cast<intptr_t>((1u << 16) | (cellsX - 1)));
-                message->SetData2(static_cast<intptr_t>((1u << 16) | (cellsZ - 1)));
-                message->SetData4(0);
-            } else {
-                message->SetVoid2(rect);
-                message->SetData3(0);
-            }
-            doMessage(target, message);
-            message->Release();
-        }
-        log::Write("autotest: power messages 0x278E6003 and 0x07699455 delivered over %ux%u cells", cellsX, cellsZ);
     }
 
     // The x87 control word the simulation runs with (docs/pollution.md,
@@ -702,91 +633,30 @@ private:
         }
         const uint32_t effectRandom =
             game::IsBuild641() ? BytesChecksum(reinterpret_cast<const void*>(addr::PollutionTuning_EffectRandom), 0x9C8) : 0u;
-        // Power (build 641 vtable slots, not gzcom-dll's declarations, whose
-        // overloads compile in another order): the powered grid (slot 35),
-        // the monthly requirement, production, import, export, demand and
-        // consumption (11-15, 17; 16 takes a cell), unpowered and powered consumers (21, 22), power
-        // plants (24) and poles (26), and overworked, aged and distressed
-        // plants (27-29).
-        void* const power = city->GetPowerSimulator();
-        char powerText[192] = " | power none";
-        if (power && game::IsBuild641()) {
-            auto slot = [power](int index) {
-                using Fn = int32_t(__thiscall*)(void*);
-                return reinterpret_cast<Fn>((*static_cast<void***>(power))[index])(power);
-            };
-            using GridFn = cISC4SimGrid<uint8_t>*(__thiscall*)(void*);
-            auto* const powered = reinterpret_cast<GridFn>((*static_cast<void***>(power))[35])(power);
-            std::snprintf(powerText, sizeof powerText,
-                          " | power %08X req %d prod %d imp %d exp %d dem %d con %d | consumers %d/%d plants %d poles "
-                          "%d %d/%d/%d",
-                          GridChecksum(powered), slot(11), slot(12), slot(13), slot(14), slot(15), slot(17), slot(21),
-                          slot(22), slot(24), slot(26), slot(27), slot(28), slot(29));
-        }
-        // Water (cSC4PlumbingSimulator, build 641 slots): the watered grid
-        // (slot 7), water sources and polluted sources (12, 13), production
-        // capacity, consumption, import and export (14-17), pipes, distressed
-        // and burst pipes (18-20), watered and unwatered buildings (21, 22)
-        // and demand (23) (docs/water.md).
-        void* const water = city->GetPlumbingSimulator();
-        char waterText[192] = " | water none";
-        if (water && game::IsBuild641()) {
-            auto slot = [water](int index) {
-                using Fn = int32_t(__thiscall*)(void*);
-                return reinterpret_cast<Fn>((*static_cast<void***>(water))[index])(water);
-            };
-            using GridFn = cISC4SimGrid<uint8_t>*(__thiscall*)(void*);
-            auto* const watered = reinterpret_cast<GridFn>((*static_cast<void***>(water))[7])(water);
-            std::snprintf(waterText, sizeof waterText,
-                          " | water %08X src %d/%d cap %d con %d imp %d exp %d pipes %d/%d/%d bld %d/%d dem %d",
-                          GridChecksum(watered), slot(12), slot(13), slot(14), slot(15), slot(16), slot(17), slot(18),
-                          slot(19), slot(20), slot(21), slot(22), slot(23));
-        }
-        // Traffic (build 641 slots): trip scale and the one shown (14, 15),
-        // last month's income (18) and the freight scaling (27), as float bits.
-        char trafficText[96] = "";
-        if (traffic && game::IsBuild641()) {
-            auto slot = [traffic](int index) {
-                using Fn = float(__thiscall*)(void*);
-                const float value = reinterpret_cast<Fn>((*reinterpret_cast<void***>(traffic))[index])(traffic);
-                uint32_t bits;
-                std::memcpy(&bits, &value, sizeof bits);
-                return bits;
-            };
-            std::snprintf(trafficText, sizeof trafficText, " | traffic %08X %08X %08X %08X", slot(14), slot(15),
-                          slot(18), slot(27));
-        }
-        // Land value (the total grid is in the main line): the intrinsic and
-        // slope grids, the average land value, the mode and average altitude
-        // (float bits) and the step's state (+0x78, +0x38; docs/landvalue.md).
-        char landText[96] = "";
-        if (land && game::IsBuild641()) {
-            const float mode = land->GetModeAltitude();
-            uint32_t modeBits, altitudeBits;
-            std::memcpy(&modeBits, &mode, sizeof modeBits);
-            std::memcpy(&altitudeBits, reinterpret_cast<const char*>(land) + 0x78, sizeof altitudeBits);
-            std::snprintf(landText, sizeof landText, " | lv %08X %08X avg %u mode %08X alt %08X st %d",
-                          GridChecksum(land->GetIntrinsicLandValueMap()), GridChecksum(land->GetSlopeMap()),
-                          land->GetAverageLandValue(), modeBits, altitudeBits,
-                          *reinterpret_cast<const int32_t*>(reinterpret_cast<const char*>(land) + 0x38));
-        }
+        // Each simulator's own part (autotest_hooks.h), in order, before the
+        // RNG and tick counts, which their queries can move.
+        std::string parts;
+        for (const auto& part : Registry().fingerprint)
+            part.fn(city, parts);
         char rng[256];
         rng_trace::Describe(rng, sizeof rng);
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
-        log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s",
-                   day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
-                   lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
-                   traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
-                   traffic ? GridChecksum(traffic->GetCommercialTrafficMap()) : 0u,
-                   traffic ? GridChecksum(traffic->GetAirPollutingTrafficMap()) : 0u,
-                   land ? GridChecksum(land->GetTotalLandValueMap()) : 0u,
-                   pollution ? GridChecksum(pollution->GetPollutionGrid(0)) : 0u,
-                   pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
-                   pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
-                   worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText,
-                   waterText, trafficText, landText, ticks, rng);
+        char head[512];
+        std::snprintf(head, sizeof head,
+                      "fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
+                      "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X",
+                      day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
+                      lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
+                      traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
+                      traffic ? GridChecksum(traffic->GetCommercialTrafficMap()) : 0u,
+                      traffic ? GridChecksum(traffic->GetAirPollutingTrafficMap()) : 0u,
+                      land ? GridChecksum(land->GetTotalLandValueMap()) : 0u,
+                      pollution ? GridChecksum(pollution->GetPollutionGrid(0)) : 0u,
+                      pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
+                      pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
+                      worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom);
+        log::Write("%s%s%s%s", head, parts.c_str(), ticks, rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,
@@ -797,17 +667,63 @@ private:
     {
         virtual_clock::ReturnToRealTime();
         const ULONGLONG start = GetTickCount64();
-        const bool saved = app->SaveCity(false);
+        // A fast save leaves out the region view's thumbnails of the city
+        // (records 0x8A2482B9 and 0x2026960B) and takes ~1 s instead of ~11.
+        const bool saved = app->SaveCity(Env("OPENSC4_TEST_QUICK") == "1");
         log::Write("autotest: run finished; SaveCity %s after %llu ms; quitting", saved ? "ok" : "FAILED",
                    GetTickCount64() - start);
     }
 
-    // Every zoom (1-5) at every rotation (0-3): set the view, wait for it to
-    // settle, then save the frame with the game's own snapshot code.
+    static void HideInterface(cISC4App* app)
+    {
+        constexpr uint32_t kWinSC4App = 0x6104489A;
+        constexpr uint32_t kWinView3D = 0x9A47B417;
+        int hidden = 0;
+        const auto hide = [](cIGZWin*, uint32_t id, void* child, void* context) -> bool {
+            auto* win = static_cast<cIGZWin*>(child);
+            if (id != kWinSC4App && id != kWinView3D && win->IsVisible()) {
+                win->HideWindow();
+                ++*static_cast<int*>(context);
+            }
+            return true;
+        };
+        cIGZWin* main = app->GetMainWindow();
+        cIGZWin* parent = main ? main->GetChildWindowFromID(kWinSC4App) : nullptr;
+        if (main)
+            main->EnumChildren(GZIID_cIGZWin, hide, &hidden);
+        if (parent)
+            parent->EnumChildren(GZIID_cIGZWin, hide, &hidden);
+        // The city view's own children: the control panel, the pause frame.
+        if (cIGZWin* view = parent ? parent->GetChildWindowFromID(kWinView3D) : nullptr)
+            view->EnumChildren(GZIID_cIGZWin, hide, &hidden);
+        log::Write("autotest: %d interface windows hidden for the shots", hidden);
+    }
+
+    // Every zoom (1-5) at every rotation (0-3), or the views in
+    // OPENSC4_TEST_SHOT_VIEWS ("zoom:rotation,...", e.g. "2:0"): set the view,
+    // wait for it to settle, then save the frame with the game's own snapshot
+    // code.
     void Shots(ULONGLONG now)
     {
         constexpr int kZooms = 5, kRotations = 4;
         constexpr int kRedrawMs = 1000;
+        if (views_.empty()) {
+            const std::string list = Env("OPENSC4_TEST_SHOT_VIEWS");
+            for (size_t i = 0; i < list.size();) {
+                const int zoom = std::atoi(list.c_str() + i);
+                const size_t colon = list.find(':', i);
+                const int rotation = colon == std::string::npos ? 0 : std::atoi(list.c_str() + colon + 1);
+                if (zoom >= 0 && zoom <= kZooms && rotation >= 0 && rotation < kRotations)
+                    views_.push_back(zoom * kRotations + rotation);
+                const size_t comma = list.find(',', i);
+                if (comma == std::string::npos)
+                    break;
+                i = comma + 1;
+            }
+            if (views_.empty())
+                for (int v = kRotations; v < (kZooms + 1) * kRotations; ++v)
+                    views_.push_back(v);
+        }
         cISC4AppPtr app;
         if (!app || !app->GetCity()) {
             log::Write("autotest: city went away while taking shots");
@@ -833,26 +749,41 @@ private:
         }
         redrawn_ = false;
         if (shot_ >= 0) {
-            const int zoom = shot_ / kRotations + 1, rotation = shot_ % kRotations;
+            const int zoom = views_[shot_] / kRotations, rotation = views_[shot_] % kRotations;
             char name[64];
             std::snprintf(name, sizeof(name), "\\z%d-r%d.png", zoom, rotation);
             const std::string path = shotDir_ + name;
             cRZBaseString file(path.c_str());
-            const bool taken = TakeSnapshotToFile(renderer, file);
+            const bool taken = TakeSnapshotToFile(renderer, file, Env("OPENSC4_TEST_SHOT_FLAG") == "1");
             log::Write("autotest: shot zoom %d rotation %d -> %s %s", zoom, rotation, path.c_str(),
                        taken ? "ok" : "FAILED");
         }
-        if (++shot_ >= kZooms * kRotations) {
+        if (++shot_ >= static_cast<int>(views_.size())) {
             log::Write("autotest: shots done; quitting without saving");
             Quit(app);
             return;
         }
-        const int zoom = shot_ / kRotations + 1, rotation = shot_ % kRotations;
+        const int zoom = views_[shot_] / kRotations, rotation = views_[shot_] % kRotations;
+        // OPENSC4_TEST_SHOT_HIDE_UI=1: every window but the city view hidden
+        // (the game's snapshot is of the whole screen).
+        if (shot_ == 0 && Env("OPENSC4_TEST_SHOT_HIDE_UI") == "1")
+            HideInterface(app);
+        // OPENSC4_TEST_SHOT_CENTER=1: the view centred on the middle of the
+        // city (the camera control's view centre, x at +0x44 and z at +0x4C;
+        // docs/timelapse.md), as for a timelapse.
+        if (Env("OPENSC4_TEST_SHOT_CENTER") == "1") {
+            if (auto* centre = reinterpret_cast<float*>(renderer->GetCameraControl())) {
+                cISC4City* city = app->GetCity();
+                centre[0x44 / 4] = city->SizeX() / 2;
+                centre[0x4C / 4] = city->SizeZ() / 2;
+            }
+        }
         const int32_t result = view->SetZoomAndRotation(zoom, rotation);
         uint32_t width = 0, height = 0;
         renderer->GetViewportSize(width, height);
-        log::Write("autotest: view zoom %d rotation %d (SetZoomAndRotation %d, viewport %ux%u)", zoom, rotation,
-                   result, width, height);
+        const auto* control = reinterpret_cast<const int32_t*>(renderer->GetCameraControl());
+        log::Write("autotest: view zoom %d rotation %d (SetZoomAndRotation %d, viewport %ux%u, camera zoom %d)", zoom,
+                   rotation, result, width, height, control ? control[0x108 / 4] : -1);
         Enter(State::Shots, now);
     }
 
@@ -898,6 +829,7 @@ private:
     std::string shotDir_;
     int settleMs_ = 3000;
     int shot_ = -1;
+    std::vector<int> views_; // zoom * 4 + rotation, in shot order
     bool redrawn_ = false;
 };
 

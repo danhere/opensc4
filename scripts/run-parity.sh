@@ -22,6 +22,10 @@
 # game and its own user folder (default 1). A copy needs up to 2 GB.
 # OPENSC4_PARITY_ENV=<folder> puts the jobs' user folders there (default
 # %LOCALAPPDATA%\opensc4\p4env), so batches run at the same time keep apart.
+# Runs use OPENSC4_TEST_QUICK=1 (src/core/autotest.h: short region wait, fast
+# save) unless given OPENSC4_TEST_QUICK=0. OPENSC4_PARITY_PAUSE=<s> waits
+# before each game start (default 20 with one job, against Steam relaunches;
+# 0 with several, where none were seen).
 #
 # Example: the pass-through pollution simulator against the original:
 #   scripts/run-parity.sh "$B" "$LOCALAPPDATA/opensc4/parity/proxy" 7 "$LOCALAPPDATA/opensc4/parity/saves" \
@@ -39,9 +43,11 @@ for assignment in "$@"; do
 done
 retries="${OPENSC4_PARITY_RETRIES:-3}"
 jobs="${OPENSC4_PARITY_JOBS:-1}"
+start_pause="${OPENSC4_PARITY_PAUSE:-$([ "$jobs" = 1 ] && echo 20 || echo 0)}"
+export OPENSC4_TEST_QUICK="${OPENSC4_TEST_QUICK:-1}"
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-base="determinism.fixed_seed=ours,determinism.virtual_clock=ours,determinism.fixed_ticks=ours,determinism.agent_order=ours,determinism.zero_alloc=ours"
+base="determinism.fixed_seed=ours,determinism.virtual_clock=ours,determinism.fixed_ticks=ours,determinism.agent_order=ours,determinism.zero_alloc=ours,determinism.sim_timers=ours"
 # Parallel jobs: several copies of the game at once (harness.multi_instance
 # lets them start; run-autotest.sh then kills only its own on a timeout).
 if [ "$jobs" != 1 ]; then
@@ -63,7 +69,7 @@ for side in a b; do
     { echo "[replacements]"; echo "$list" | tr ',' '\n'; } >"$out/$side.ini"
 done
 
-pause() { timeout "$1" bash -c 'while :; do sleep 1; done' || true; }
+pause() { [ "$1" -gt 0 ] || return 0; timeout "$1" bash -c 'while :; do sleep 1; done' || true; }
 
 # One pair of runs from <save> into <dir>; compares the two. Returns 0 when
 # they agree, 1 when they differ, 2 when a run left no save.
@@ -74,7 +80,7 @@ run_pair() {
         [ -f "$dir/$side.sc4" ] && continue
         echo "run-parity: ${dir#"$out"/} $side"
         # Steam relaunches the game when it starts too soon after the last run.
-        pause 20
+        pause "$start_pause"
         "$repo/scripts/run-save-test.sh" "$build" "$dir/$side.sc4" "$days" \
             "OPENSC4_TEST_CITY=$city" "OPENSC4_TEST_START=$save" "OPENSC4_TEST_INI=$out/$side.ini" \
             OPENSC4_TEST_FINGERPRINT=1 >"$dir/$side.out" 2>&1 || true
@@ -131,23 +137,30 @@ if [ "$jobs" = 1 ]; then
         parity_save "$save"
     done
 else
-    # Job k takes saves k, k + jobs, k + 2 * jobs... in its own user folder;
-    # both runs of a pair stay in one job, so they get the same environment.
-    # Starts are staggered so the copies do not all load at once.
+    # Each job takes the next save nobody has claimed yet (mkdir is atomic),
+    # so a job is never idle while another still has a queue; in its own
+    # user folder, and both runs of a pair stay in one job, so they get the
+    # same environment. Starts are staggered so the copies do not all load
+    # at once.
+    claims="$out/.claims"
+    rm -rf "$claims"
+    mkdir -p "$claims"
     for ((k = 0; k < jobs; k++)); do
         (
             export OPENSC4_SAVE_ENV="${OPENSC4_PARITY_ENV:-$(cygpath "$LOCALAPPDATA")/opensc4/p4env}/job$k"
             [ "$k" = 0 ] || pause $((k * 15))
-            for ((i = k; i < ${#all_saves[@]}; i += jobs)); do
+            for ((i = 0; i < ${#all_saves[@]}; i++)); do
+                mkdir "$claims/$i" 2>/dev/null || continue
                 parity_save "${all_saves[$i]}"
             done
         ) &
     done
     wait
+    rm -rf "$claims"
 fi
 
 summary="$out/summary.txt"
-printf 'days %s, retries %s, jobs %s\nA: %s\nB: %s\n' "$days" "$retries" "$jobs" "$replace_a" "$replace_b" >"$summary"
+printf 'days %s, retries %s, jobs %s, quick %s\nA: %s\nB: %s\n' "$days" "$retries" "$jobs" "$OPENSC4_TEST_QUICK" "$replace_a" "$replace_b" >"$summary"
 same=0
 differ=0
 failed=0

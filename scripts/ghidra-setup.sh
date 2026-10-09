@@ -82,7 +82,7 @@ run_script -readOnly ClassRegistrationCensus.java "$(win "$out/class-registratio
 run_script -readOnly ClassCreationCensus.java "$(win "$out/class-registrations.csv")" "$(win "$out/class-creation.csv")"
 
 step "3. address database, name and slot tables"
-python3 "$repo/tools/gen_addresses.py" --check "$repo/data/addresses-641.toml" "$project_dir/input/$program"
+python3 "$repo/tools/gen_addresses.py" --check "$repo/data/addresses" "$project_dir/input/$program"
 python3 "$repo/tools/re/extract_name_table.py" "$project_dir/input/$program" >"$out/name-table.csv"
 python3 "$repo/tools/re/gzcom_vtable_slots.py" "$repo/third_party/gzcom-dll/gzcom-dll/include" >"$out/interface-slots.csv"
 { echo "clsid,name"; grep -E ",cSC4[A-Za-z]*Simulator$" "$out/name-table.csv" | sort -t, -k2 | awk -F, '!seen[$1]++'; } \
@@ -103,7 +103,7 @@ run_script --write ApplyKnownNames.java "$(win "$out/class-registrations.csv")" 
     "$(win "$out/interface-slots.csv")"
 
 step "5b. names from OpenSC4's own work (address database, data/names-641.txt)"
-python3 "$repo/tools/re/name_list.py" "$repo/data/addresses-641.toml" "$repo/data/names-641.txt" >"$out/names.csv"
+python3 "$repo/tools/re/name_list.py" "$repo/data/addresses" "$repo/data/names-641.txt" >"$out/names.csv"
 run_script --write ApplyNameList.java "$(win "$out/names.csv")" | tail -1
 
 step "6. functions for code reached only through pointers"

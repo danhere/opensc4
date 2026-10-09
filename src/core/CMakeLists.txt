@@ -13,6 +13,7 @@ add_library(opensc4_core_support STATIC
   interface_counter.cpp
   log.cpp
   registry.cpp
+  seed_code.cpp
   settings.cpp)
 target_link_libraries(opensc4_core_support
   PUBLIC opensc4_options opensc4_address_db
@@ -20,17 +21,85 @@ target_link_libraries(opensc4_core_support
 
 add_library(opensc4_core SHARED
   autotest.cpp
+  budget_autotest.cpp
+  budget_department.cpp
+  budget_department_object.cpp
+  budget_departments.cpp
+  budget_init.cpp
+  budget_items.cpp
+  budget_lineitem.cpp
+  budget_object.cpp
+  budget_save.cpp
+  budget_month.cpp
+  budget_sim.cpp
+  crime_autotest.cpp
+  crime_sim.cpp
+  crime_object.cpp
+  crime_step.cpp
+  crime_tuning.cpp
+  demand_autotest.cpp
+  demand_demand.cpp
+  demand_init.cpp
+  demand_month.cpp
+  demand_object.cpp
+  demand_region.cpp
+  demand_sim.cpp
+  demand_step.cpp
+  flora_autotest.cpp
+  flora_growth.cpp
+  flora_messages.cpp
+  flora_object.cpp
+  flora_place.cpp
+  flora_sim.cpp
+  flora_types.cpp
+  neighbors_autotest.cpp
+  neighbors_classes.cpp
+  neighbors_connections.cpp
+  neighbors_deals.cpp
+  neighbors_messages.cpp
+  neighbors_object.cpp
+  neighbors_sim.cpp
+  mysim_autotest.cpp
+  mysim_sim.cpp
+  commercial_autotest.cpp
+  commercial_sim.cpp
+  residential_autotest.cpp
+  residential_messages.cpp
+  residential_object.cpp
+  residential_occupants.cpp
+  residential_queries.cpp
+  trafficmap_autotest.cpp
+  trafficmap_interface.cpp
+  trafficmap_object.cpp
+  trafficmap_occupants.cpp
+  trafficmap_save.cpp
+  trafficmap_signals.cpp
+  trafficmap_sim.cpp
+  development_autotest.cpp
+  development_messages.cpp
+  development_object.cpp
+  development_occupants.cpp
+  development_queries.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp
   fixed_seed.cpp
+  game_seed.cpp
+  game_timelapse.cpp
   gd/d3d11_backend.cpp
   gd/driver.cpp
   d3d7_probe.cpp
   dbpf_survey.cpp
   gdriver_proxy.cpp
+  landvalue_autotest.cpp
   landvalue_object.cpp
   landvalue_sim.cpp
+  ordinance_autotest.cpp
+  ordinance_class.cpp
+  ordinance_object.cpp
+  ordinance_objects.cpp
+  ordinance_sim.cpp
+  pollution_autotest.cpp
   pollution_buildings.cpp
   pollution_effects.cpp
   pollution_init.cpp
@@ -38,22 +107,52 @@ add_library(opensc4_core SHARED
   pollution_proxy.cpp
   pollution_save.cpp
   pollution_tuning.cpp
+  power_autotest.cpp
   power_object.cpp
   power_sim.cpp
+  protection_autotest.cpp
+  flammability_autotest.cpp
+  protection_sim.cpp
+  fire_sim.cpp
+  police_sim.cpp
+  protection_sources.cpp
+  protection_object.cpp
+  flammability_sim.cpp
+  traffic_autotest.cpp
   traffic_object.cpp
   traffic_pathfinder.cpp
   traffic_sim.cpp
   traffic_tuning.cpp
   traffic_water.cpp
   traffic_walks.cpp
+  water_autotest.cpp
   water_object.cpp
   water_sim.cpp
+  aura_autotest.cpp
+  aura_init.cpp
+  aura_object.cpp
+  aura_sim.cpp
+  civic_autotest.cpp
+  civic_init.cpp
+  civic_object.cpp
+  civic_sim.cpp
+  core_init.cpp
+  core_object.cpp
+  core_sim.cpp
+  simulator_autotest.cpp
+  weather_autotest.cpp
+  weather_bodies.cpp
+  weather_init.cpp
+  weather_moisture.cpp
+  weather_object.cpp
+  weather_sim.cpp
   pollution_sim.cpp
   pollution_tracts.cpp
   virtual_clock.cpp
   thread_trace.cpp
   rng_trace.cpp
   fixed_ticks.cpp
+  sim_timers.cpp
   trip_trace.cpp
   agent_order.cpp
   trace.cpp

@@ -1,6 +1,6 @@
 # Parity testing (P5)
 
-How a replaced simulator is shown to behave like the original. With `determinism.fixed_seed`, `determinism.virtual_clock`, `determinism.fixed_ticks`, `determinism.agent_order` and `determinism.zero_alloc`, two runs of the original from the same save agree exactly, whatever the heap layout: every daily fingerprint for a year, and the whole save apart from a noise floor ([experiments/determinism.md](experiments/determinism.md), third round). So a replacement can be compared with the original exactly, over short windows from many saves; long runs too, within the limits below.
+How a replaced simulator is shown to behave like the original. With `determinism.fixed_seed`, `determinism.virtual_clock`, `determinism.fixed_ticks`, `determinism.agent_order`, `determinism.zero_alloc` and `determinism.sim_timers` (the MySim and advisor timers on simulation time), two runs of the original from the same save agree exactly, whatever the heap layout: every daily fingerprint for a year, and the whole save apart from a noise floor ([experiments/determinism.md](experiments/determinism.md), third round). So a replacement can be compared with the original exactly, over short windows from many saves; long runs too, within the limits below.
 
 ## Running it
 
@@ -16,7 +16,7 @@ scripts/run-parity.sh "$B" "$LOCALAPPDATA/opensc4/parity/proxy" 7 "$LOCALAPPDATA
 - **Both runs get the same environment**: the replacement lists go in an `opensc4.ini` per side (`a.ini`, `b.ini` in the output folder, installed by `run-save-test.sh` as `OPENSC4_TEST_INI`), not in `OPENSC4_REPLACE`. The game's outcome depends on its heap layout, and the C runtime copies each environment variable to the heap at startup: one extra variable (`OPENSC4_PARITY_B=...`, read by nothing) changed the original's outcome on Making Money d0090, reproducibly, while a variable of the same length under another name did not; padding the environment to the same total size still left 3 of 12 saves different, because the variables' individual lengths differed.
 - Results go to `<output dir>/<city>/<save>/` (`a.log`, `b.log`, `a.sc4`, `b.sc4`, `fpdiff.txt` and `records.txt` for the first pair, `groups.txt`) and a `summary.txt`. Runs already done are reused, so an interrupted run can be resumed; delete the output folder to start over.
 - A run with A = B is the control: it shows the noise of the method itself on those saves.
-- One run takes about 20 s plus a 20 s pause (Steam relaunches the game when it starts right after the last run).
+- Runs use `OPENSC4_TEST_QUICK=1` unless told otherwise (`OPENSC4_TEST_QUICK=0`): 1 s on the region view instead of 5, and the game's fast save, which leaves out only the region view's thumbnails of the city (records 0x8A2482B9 and 0x2026960B; ~0.4 s instead of ~11). Checked on 2026-10-09: a control with it and one without gave identical fingerprints and identical decoded records on all 12 saves. With one job each start waits `OPENSC4_PARITY_PAUSE` seconds (default 20; Steam once relaunched the game when it started right after the last run); with several jobs the default is 0, and no relaunch was seen in over 100 starts.
 - **Parallel runs** (`OPENSC4_PARITY_JOBS=<n>`): n saves at a time, each job in its own user folder (`%LOCALAPPDATA%\opensc4\p4env\job<k>`, via `OPENSC4_SAVE_ENV`) with both runs of a pair in the same job. Adds `harness.multi_instance` to both sides ([src/core/multi_instance.cpp](../src/core/multi_instance.cpp): per-process names for the exe's named mutexes and events, other processes' windows hidden from FindWindow; it logs every such call, so the log names whatever single-instance check the game makes) and sets `OPENSC4_PARALLEL=1`, so `run-autotest.sh` skips its "already running" check and its watchdog kills its own game by pid. Determinism no longer depends on timing or heap layout, so parallel runs should give the same outcomes; check with a control (A = B) at 1 and at n jobs. The game's only single-instance check is a mutex named "SimCity 4 Mutex" (it calls no FindWindow). Control A = B, 7 days, 12 saves, on 2026-10-09 (20 logical CPUs, 32 GB):
 
   | Jobs | Result | Wall time |
@@ -26,6 +26,26 @@ scripts/run-parity.sh "$B" "$LOCALAPPDATA/opensc4/parity/proxy" 7 "$LOCALAPPDATA
   | 4 | 12 of 12 same | 327 s |
 
   No retries, timeouts or Steam relaunches; each copy used at most about 400 MB. Four jobs fall short of 4x because job starts are staggered by 15 s.
+
+  Jobs take the next unclaimed save from a shared queue (`<output dir>/.claims`), so one slow save (retries) does not leave the other job idle.
+
+### Where the time goes
+
+Measured from the core.dll logs of ~260 runs on 2026-10-09 (2 jobs, other threads' games running at the same time), per game start, before these changes:
+
+| Step | Median | Share |
+|---|---|---|
+| Pause before the start | 20 s | 40-50% |
+| Save (full save, with region thumbnails) | 10.8 s | 20-28% |
+| Fixed wait on the region view | 5.0 s | 10-14% |
+| Boot to the region view | 3-5 s | 8-15% |
+| Load the city | 1 s | 2-4% |
+| 7 game days (90: 2.5 s, 365: 6.6 s) | 1.4 s | 3-17% |
+| Quit | 1 s | 3-10% |
+
+Installing hooks one at a time also cost ~40 ms each (MinHook suspends the process's other threads for each, and finding them is slow on a busy machine): 138 hooks with the whole traffic simulator on added 5 s to every start. The registry now enables each phase's hooks together (`hook::BeginBatch`/`EndBatch`); PostAppInit to the first tick went from 5.35 s to 0.1 s. A control on the three noisiest saves, three rounds with batching and three without, gave the same noise in both.
+
+Control A = B, 7 days, 12 saves, 2 jobs, same afternoon: 858 s before, 171 s with quick runs and no pause. Under heavier load from other threads the same batch took 375 s, mostly in retries: the original itself gave more than one outcome on Big City d0000 and Making Money d0090/d0365 in some batches, before and after these changes (also seen by other threads under load), so read "partly" verdicts on those saves against a repeat.
 
 ## Sampling inside the simulator's tick
 
@@ -60,6 +80,16 @@ The test cities never edit their networks, so parity alone would not reach the c
 | Switch | What it does |
 | --- | --- |
 | `OPENSC4_TEST_POWER_WAKE=<n>`, `OPENSC4_TEST_WATER_WAKE=<n>` | on day n, wake the power or water step (+0x14), as message 0x6AC284F3 from the network tools would |
+| `OPENSC4_TEST_CRIME_MONTH=<n>` | every n days, restart the crime simulator's monthly pass (state +0x90 from 6 to 0), as MonthPassed does ([crime.md](crime.md)) |
+| `OPENSC4_TEST_DEMAND_MONTH=<n>` | every n days, the demand simulator's MonthPassed ([demand.md](demand.md)) |
+| `OPENSC4_TEST_DEMAND_MESSAGES=<n>` | on day n, SimulationBegin, the neighbours message and the passes to the demand simulator |
+| `OPENSC4_TEST_COMMERCIAL=<n>` | on day n, "removed" then "added" (0x99EF1143, 0x99EF1142, kind 0x278128A0) for every building on a lot (at most 400), to the commercial simulator, so its proximity-map cycle runs ([commercial-industrial.md](commercial-industrial.md)) |
+| `OPENSC4_TEST_RESIDENTIAL_MONTH=<n>` | every n days, the month message (0x66956816) to the residential simulator, which restarts its cycle; with 2, a 30-day run covers it about twice ([residential.md](residential.md)) |
+| `OPENSC4_TEST_RESIDENTIAL_QUERIES=1` | each day, the residential queries only the UI makes, into the fingerprint ([residential.md](residential.md)) |
+| `OPENSC4_TEST_DEVELOPMENT_QUERIES=1` | each day, the building development queries no test city makes (type lists, type and family checks, developer wealth, the stage multiplier), into the fingerprint ([development.md](development.md)) |
+| `OPENSC4_TEST_CRIME_QUERIES=1` | each day, the crime queries only the UI and the automata make, into the fingerprint ([crime.md](crime.md)) |
+| `OPENSC4_TEST_FLORA_MONTH=<n>` | every n days, the flora simulator's monthly pass (the date into +0x40, then 0x006B2CB0), as MonthPassed does ([flora.md](flora.md)) |
+| `OPENSC4_TEST_NEIGHBORS_MONTH=<n>` | every n days, the neighbors simulator's monthly pass (0x006D0E50: commodity statistics, then the deals), as MonthPassed does ([neighbors.md](neighbors.md)) |
 | `OPENSC4_TEST_POWER_MESSAGES=<n>` | on day n, a network change (0x278E6003) and a changed cell rectangle (0x07699455) over the whole city, to power's DoMessage |
 | `OPENSC4_TEST_OCCUPANT_CYCLE=<n>` | on day n, "removed" then "added" (0x99EF1143, 0x99EF1142) for an existing pipe and pole, to the water and power simulators; and power's plant disaster message (0xC2C09554 with 0xE0D0722E) |
 | `OPENSC4_TEST_FIND_POWER_PLANTS=1`, `OPENSC4_TEST_CAPACITY_SCALE=1`, `OPENSC4_TEST_GARBAGE_BUILDINGS=1`, `OPENSC4_TEST_RADIATION=x,z,amount,radius` | one call each after the load: power's FindPowerPlants, pollution's capacity scale handler, GetGarbageBuildings, AddRadiationToCity |
