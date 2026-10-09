@@ -437,7 +437,7 @@ void LowerWord(GameString* word, void* words, uint32_t index)
 {
     void* const source = Virtual<void*>(words, 0x40, index);
     reinterpret_cast<SubstringFn>(addr::SC4String_Substring)(word, source, 0, 0xFFFFFFFFu);
-    reinterpret_cast<StringFn>(addr::SC4String_ToLower)(word);
+    reinterpret_cast<StringFn>(addr::cRZBaseString_MakeLower)(word);
 }
 
 bool Is(const GameString& word, const char* text)

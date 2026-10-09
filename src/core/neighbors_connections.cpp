@@ -101,7 +101,7 @@ uint8_t __fastcall RequestCreateConnection(void* self, void*, uint32_t type, int
     void* const city = Virtual<void*>(self, 0x30, x, z);
     if (city && Virtual<uint8_t>(city, 0xAC))
         Virtual<void>(city, 0x84, &name);
-    reinterpret_cast<FormatFn>(addr::SC4String_Format)(&text, format.string.begin, name.string.begin);
+    reinterpret_cast<FormatFn>(addr::cRZBaseString_Sprintf)(&text, format.string.begin, name.string.begin);
     const uint8_t agreed =
         reinterpret_cast<DialogFn>(addr::SC4UI_QuestionDialog)(&title, &text, 0u, 0u);
     Drop(text);
