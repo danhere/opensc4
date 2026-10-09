@@ -142,5 +142,25 @@ Maybe, and stretch goals:
 - [ ] Scenario editor: goals and events in Lua (P6 Lua bindings); a late stretch goal
 - [ ] Steam Deck and controller support (P2 UI); a stretch goal
 
+Content with little or no new art (Dan, 2026-10-09, all wanted). Reuses the game's icons, panels and buildings:
+- [ ] New ordinances: congestion pricing, rent control, height limits, noise rules, a tourism tax, a four-day week (on top of the ordinance simulator rewrite)
+- [ ] Bonds and a credit rating: bonds for big projects, the rating sets the interest (P6 budget)
+- [ ] Events with real effects: heat waves (more water and power demand), droughts, strikes, recessions (P6 demand, water, power)
+- [ ] Economic cycles: booms and busts that shift RCI demand over the years (P6 demand)
+- [ ] More neighbor deals: fire and police mutual aid, shared commuter rail, on the existing deal screens (P8 region)
+- [ ] Finer tax controls: by density as well as wealth (P6 budget)
+- [ ] Elections: a low mayor rating risks losing office, campaign promises become goals
+- [ ] New rewards and challenges: new unlock conditions for existing buildings, achievements (P6 Lua)
+- [ ] Newspaper and petitions: news stories and citizen demands tied to real city statistics (news ticker)
+- [ ] Shareable seeds: events, news and disasters drawn from a seed you can give a friend ("try this one, 2031 is brutal"). Builds on P4's fixed seed (`determinism.fixed_seed`)
+- [ ] Tourism: landmarks, parks and beaches draw visitors whose spending lifts commercial demand (P6 demand)
+- [ ] Jobs that need education: high-tech jobs go unfilled without schools, unemployment on the map (P5 education, P6 demand)
+- [ ] Disaster insurance: a premium, paid out after a fire or quake (P6 budget)
+- [ ] Deeper garbage: landfills fill up, recycling targets, waste exports (P5 pollution)
+- [ ] Region dashboard: the region's population, budget and trade on one screen (P8 region view)
+- [ ] Sandbox panel: sliders for demand, money and disaster frequency
+
 Not now:
 - Building add-ons (SimCity 2013 modules): would need a lot of new art, and Dan does not want AI-generated assets
+- MySim stories: gimmicky
+- City specializations (a declared tourism or industry focus): feels fake; real towns exist for more than one reason
