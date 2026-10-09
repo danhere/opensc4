@@ -18,6 +18,7 @@
 # OPENSC4_TEST_CITY="Making Money Tutorial", OPENSC4_TEST_SECONDS=60.
 # OPENSC4_GAME_ARGS adds game command-line options, e.g. "-d:DirectX".
 # OPENSC4_GAME_WINDOW replaces the default -w, e.g. "-f -r1024x768x32" for full screen.
+# OPENSC4_PARALLEL=1 allows other copies of the game to be running.
 set -euo pipefail
 
 build="${1:?usage: run-autotest.sh <build dir> [VAR=value...]}"
@@ -44,7 +45,10 @@ if [ ! -d "$testenv/Regions/$region" ]; then
     cp "$user_sc4/SimCity 4.cfg" "$testenv/"
 fi
 
-if tasklist //FI "IMAGENAME eq SimCity 4.exe" //NH | grep -q "SimCity 4.exe"; then
+# OPENSC4_PARALLEL=1: other copies may be running (run-parity.sh with
+# OPENSC4_PARITY_JOBS); each needs its own OPENSC4_TESTENV and
+# harness.multi_instance.
+if [ -z "${OPENSC4_PARALLEL:-}" ] && tasklist //FI "IMAGENAME eq SimCity 4.exe" //NH | grep -q "SimCity 4.exe"; then
     echo "SimCity 4 is already running; close it first" >&2
     exit 1
 fi
@@ -60,14 +64,22 @@ userdir="$(cygpath -d "$testenv")\\"
 
 # Watchdog. Its sleep must be stopped together with it: a leftover sleep keeps
 # this script's stdout open (hanging any pipe it feeds) and would later kill
-# whatever SimCity 4 is running when it fires.
+# whatever SimCity 4 is running when it fires. It kills this run's game only,
+# by the pid core.dll logs on attach; by name only when no other copy may run.
 log="$testenv/Plugins/opensc4.log"
 (
     trap 'kill "$timer" 2>/dev/null; exit 0' TERM
     sleep "$timeout_s" &
     timer=$!
     wait "$timer"
-    taskkill //IM "SimCity 4.exe" //F && echo "run-autotest: timed out after ${timeout_s}s; killed the game" >>"$log"
+    pid="$(sed -n 's/.*core\.dll .* attached: pid \([0-9]*\),.*/\1/p' "$log" 2>/dev/null | head -1)"
+    if [ -n "$pid" ]; then
+        taskkill //PID "$pid" //F
+    elif [ -z "${OPENSC4_PARALLEL:-}" ]; then
+        taskkill //IM "SimCity 4.exe" //F
+    else
+        false
+    fi && echo "run-autotest: timed out after ${timeout_s}s; killed the game" >>"$log"
 ) </dev/null >/dev/null 2>&1 &
 watchdog=$!
 status=0

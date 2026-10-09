@@ -18,6 +18,8 @@
 # runs (OPENSC4_REPLACE syntax; A defaults to none, the original game). Other
 # assignments apply to both runs. Runs whose results already exist in
 # <output dir> are reused, so an interrupted run can be resumed.
+# OPENSC4_PARITY_JOBS=<n> runs n saves at a time, each in its own copy of the
+# game and its own user folder (default 1). A copy needs up to 2 GB.
 #
 # Example: the pass-through pollution simulator against the original:
 #   scripts/run-parity.sh "$B" "$LOCALAPPDATA/opensc4/parity/proxy" 7 "$LOCALAPPDATA/opensc4/parity/saves" \
@@ -34,9 +36,16 @@ for assignment in "$@"; do
     export "${assignment?}"
 done
 retries="${OPENSC4_PARITY_RETRIES:-3}"
+jobs="${OPENSC4_PARITY_JOBS:-1}"
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 base="determinism.fixed_seed=ours,determinism.virtual_clock=ours,determinism.fixed_ticks=ours,determinism.agent_order=ours,determinism.zero_alloc=ours"
+# Parallel jobs: several copies of the game at once (harness.multi_instance
+# lets them start; run-autotest.sh then kills only its own on a timeout).
+if [ "$jobs" != 1 ]; then
+    base="$base,harness.multi_instance=ours"
+    export OPENSC4_PARALLEL=1
+fi
 replace_a="$base${OPENSC4_PARITY_A:+,$OPENSC4_PARITY_A}"
 replace_b="$base${OPENSC4_PARITY_B:+,$OPENSC4_PARITY_B}"
 [ "$replace_a" != "$replace_b" ] || echo "run-parity: A and B are the same (a control run)" >&2
@@ -75,14 +84,10 @@ run_pair() {
     [ "$fp_status" = 0 ] && [ "$save_status" = 0 ]
 }
 
-mkdir -p "$out"
-summary="$out/summary.txt"
-printf 'days %s, retries %s\nA: %s\nB: %s\n' "$days" "$retries" "$replace_a" "$replace_b" >"$summary"
-same=0
-differ=0
-failed=0
-for save in "$saves"/*/*.sc4; do
-    [ -f "$save" ] || continue
+# The verdict for one save, into <dir>/verdict.txt (first word: same,
+# DIFFERENT or FAILED).
+parity_save() {
+    local save="$1" city tag dir try tdir status
     city="$(basename "$(dirname "$save")")"
     tag="$(basename "$save" .sc4)"
     dir="$out/$city/$tag"
@@ -101,20 +106,62 @@ for save in "$saves"/*/*.sc4; do
         try=$((try + 1))
     done
     if [ "$status" = 2 ]; then
-        echo "$city/$tag: FAILED (no save; see ${tdir#"$out"/}/*.out)" | tee -a "$summary"
-        failed=$((failed + 1))
+        echo "$city/$tag: FAILED (no save; see ${tdir#"$out"/}/*.out)"
     elif [ "$status" = 0 ] && [ "$try" = 0 ]; then
-        echo "$city/$tag: same ($(head -1 "$dir/fpdiff.txt"))" | tee -a "$summary"
-        same=$((same + 1))
+        echo "$city/$tag: same ($(head -1 "$dir/fpdiff.txt"))"
     elif [ "$status" = 0 ]; then
-        echo "$city/$tag: same after $((try + 1)) pairs ($(tail -1 "$dir/groups.txt")); first pair:" | tee -a "$summary"
-        sed 's/^/    /' "$dir/groups.txt" "$dir/fpdiff.txt" "$dir/records.txt" | tee -a "$summary"
-        same=$((same + 1))
+        echo "$city/$tag: same after $((try + 1)) pairs ($(tail -1 "$dir/groups.txt")); first pair:"
+        sed 's/^/    /' "$dir/groups.txt" "$dir/fpdiff.txt" "$dir/records.txt"
     else
-        echo "$city/$tag: DIFFERENT after $((try + 1)) pairs ($(tail -1 "$dir/groups.txt")); first pair:" | tee -a "$summary"
-        sed 's/^/    /' "$dir/groups.txt" "$dir/fpdiff.txt" "$dir/records.txt" | tee -a "$summary"
-        differ=$((differ + 1))
+        echo "$city/$tag: DIFFERENT after $((try + 1)) pairs ($(tail -1 "$dir/groups.txt")); first pair:"
+        sed 's/^/    /' "$dir/groups.txt" "$dir/fpdiff.txt" "$dir/records.txt"
+    fi >"$dir/verdict.txt"
+    cat "$dir/verdict.txt"
+}
+
+all_saves=()
+for save in "$saves"/*/*.sc4; do
+    [ -f "$save" ] && all_saves+=("$save")
+done
+
+if [ "$jobs" = 1 ]; then
+    for save in "${all_saves[@]}"; do
+        parity_save "$save"
+    done
+else
+    # Job k takes saves k, k + jobs, k + 2 * jobs... in its own user folder;
+    # both runs of a pair stay in one job, so they get the same environment.
+    # Starts are staggered so the copies do not all load at once.
+    for ((k = 0; k < jobs; k++)); do
+        (
+            export OPENSC4_SAVE_ENV="$(cygpath "$LOCALAPPDATA")/opensc4/p4env/job$k"
+            [ "$k" = 0 ] || pause $((k * 15))
+            for ((i = k; i < ${#all_saves[@]}; i += jobs)); do
+                parity_save "${all_saves[$i]}"
+            done
+        ) &
+    done
+    wait
+fi
+
+summary="$out/summary.txt"
+printf 'days %s, retries %s, jobs %s\nA: %s\nB: %s\n' "$days" "$retries" "$jobs" "$replace_a" "$replace_b" >"$summary"
+same=0
+differ=0
+failed=0
+for save in "${all_saves[@]}"; do
+    verdict="$out/$(basename "$(dirname "$save")")/$(basename "$save" .sc4)/verdict.txt"
+    if [ ! -f "$verdict" ]; then
+        echo "$(basename "$(dirname "$save")")/$(basename "$save" .sc4): FAILED (no verdict)" >>"$summary"
+        failed=$((failed + 1))
+        continue
     fi
+    cat "$verdict" >>"$summary"
+    case "$(head -1 "$verdict")" in
+        *": same"*) same=$((same + 1)) ;;
+        *": DIFFERENT"*) differ=$((differ + 1)) ;;
+        *) failed=$((failed + 1)) ;;
+    esac
 done
 echo "run-parity: $same same, $differ different, $failed failed" | tee -a "$summary"
 [ "$differ" = 0 ] && [ "$failed" = 0 ]
