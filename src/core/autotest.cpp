@@ -7,6 +7,7 @@
 #include "core/fixed_ticks.h"
 #include "core/game.h"
 #include "core/game_access.h"
+#include "core/gd/frame_trace.h"
 #include "core/pollution_proxy.h"
 #include "core/rng_trace.h"
 #include "core/virtual_clock.h"
@@ -730,8 +731,14 @@ private:
             state_ = State::Done;
             return;
         }
-        if (shot_ >= 0 && now - stateStart_ < static_cast<ULONGLONG>(redrawn_ ? kRedrawMs : settleMs_))
+        // With the frame trace on, the wait after the redraw is counted in
+        // city frames (60), not real time.
+        if (gd::frame_trace::Active() && redrawn_) {
+            if (shot_ >= 0 && gd::frame_trace::Last().number - frameStart_ < 60)
+                return;
+        } else if (shot_ >= 0 && now - stateStart_ < static_cast<ULONGLONG>(redrawn_ ? kRedrawMs : settleMs_)) {
             return;
+        }
         cRZAutoRefCount<cISC4View3DWin> view = GetView3D(app);
         cISC43DRender* renderer = view ? view->GetRenderer() : nullptr;
         if (!renderer) {
@@ -743,7 +750,9 @@ private:
         // parts drawn before textures finished loading would stay that way.
         if (shot_ >= 0 && !redrawn_) {
             renderer->ForceFullRedraw();
+            gd::frame_trace::Mark();
             redrawn_ = true;
+            frameStart_ = gd::frame_trace::Last().number;
             Enter(State::Shots, now);
             return;
         }
@@ -757,6 +766,11 @@ private:
             const bool taken = TakeSnapshotToFile(renderer, file, Env("OPENSC4_TEST_SHOT_FLAG") == "1");
             log::Write("autotest: shot zoom %d rotation %d -> %s %s", zoom, rotation, path.c_str(),
                        taken ? "ok" : "FAILED");
+            if (gd::frame_trace::Active()) {
+                const gd::frame_trace::Frame frame = gd::frame_trace::FirstSinceMark();
+                log::Write("autotest: frame zoom %d rotation %d: draws %u hash %08X (frame %u)", zoom, rotation,
+                           frame.draws, frame.hash, frame.number);
+            }
         }
         if (++shot_ >= static_cast<int>(views_.size())) {
             log::Write("autotest: shots done; quitting without saving");
@@ -784,6 +798,7 @@ private:
         const auto* control = reinterpret_cast<const int32_t*>(renderer->GetCameraControl());
         log::Write("autotest: view zoom %d rotation %d (SetZoomAndRotation %d, viewport %ux%u, camera zoom %d)", zoom,
                    rotation, result, width, height, control ? control[0x108 / 4] : -1);
+        frameStart_ = gd::frame_trace::Last().number;
         Enter(State::Shots, now);
     }
 
@@ -828,6 +843,7 @@ private:
     bool reachedEndDay_ = false;
     std::string shotDir_;
     int settleMs_ = 3000;
+    uint32_t frameStart_ = 0;
     int shot_ = -1;
     std::vector<int> views_; // zoom * 4 + rotation, in shot order
     bool redrawn_ = false;
