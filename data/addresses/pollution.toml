@@ -1,0 +1,417 @@
+# Build 641 addresses. The pollution simulator (cSC4PollutionSimulator; docs/pollution.md).
+# Format and rules: data/addresses/README.md.
+
+[[entry]]
+name = "cSC4PollutionSimulator::Create"
+address = 0x006E5F00
+kind = "function"
+convention = "cdecl"
+signature = "cIGZUnknown* ()"
+expect = "68 38 02 00 00 E8 D6 F6"
+source = "GZCOM type-1 factory registered for class 0x8990C065: operator new(0x238), then tail jump to the constructor."
+
+[[entry]]
+name = "cSC4PollutionSimulator::cSC4PollutionSimulator"
+address = 0x006E56E0
+kind = "function"
+convention = "thiscall"
+signature = "cSC4PollutionSimulator* (cSC4PollutionSimulator* this)"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "Installs vtables 0x00AB2630 (+0), 0x00AB261C (+4), 0x00AB2600 (+8), 0x00AB25E8 (+0xC)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::vftable"
+address = 0x00AB2630
+kind = "vtable"
+expect = "D0 2C 6E 00 30 53 69 00"
+source = "Primary vtable: cISC4PollutionSimulator, 71 slots, matching gzcom-dll. simulators.pollution.interface swaps 66 of its slots (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::vftable_C"
+address = 0x00AB25E8
+kind = "vtable"
+expect = "C0 50 6E 00 10 01 52 00"
+source = "The vtable of the cIGZSerializable interface at +0xC: Write 0x006E3380, Read 0x006E5270, GetGZCLSID 0x006E2CC0 (class ID 0x8990C065). The four vtables are packed: +0xC (6 slots), +0x8 (7), +0x4 (4), primary (71) (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::vftable_4"
+address = 0x00AB261C
+kind = "vtable"
+expect = "A0 50 6E 00 D0 00 52 00"
+source = "The vtable of the cIGZMessageTarget2 interface at +0x4: slot 3 DoMessage 0x006E8E20. simulators.pollution.interface swaps it (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::vftable_8"
+address = 0x00AB2600
+kind = "vtable"
+expect = "B0 50 6E 00 F0 00 52 00"
+source = "The vtable of the interface at +0x8 (0x89C498BE, unnamed): slot 3 0x006E3BC0 (a rectangle's average garbage value through a curve), slot 4 0x006E5030 (returns 0xE9A4300B). simulators.pollution.interface swaps those two (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::Init"
+address = 0x006E7130
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PollutionSimulator* this)"
+expect = "83 EC 30 53 55 56 8B F1"
+source = "cIGZSystemService slot 3 (vtable 0x00AB2630). Unless loaded from a save (+0x11): the eight grids, the fields, the tract walk's iterator (+0x1D8) and the service at 0x00B43DB8; once (+0x10): LoadTuning, registration with 0x00B43D5C under its name, five message notifications, the per-block vectors (+0xA8 to +0xCC), the block iterator (+0x78), the department budget (+0xD8); then references to the city and its services. Reimplemented by simulators.pollution.init (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::Shutdown"
+address = 0x006E5F50
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PollutionSimulator* this)"
+expect = "51 53 56 8B F1 8A 46 10"
+source = "cIGZSystemService slot 4 (vtable 0x00AB2630). Once Init has run (+0x10): releases the city's services and the department, hands the building lists to the occupant service (city slot 34, slot 48), releases the per-block objects and empties their vectors, shuts down and releases the grids, removes the message notifications, and unregisters from city slots 50 and 41's services. Reimplemented by simulators.pollution.shutdown (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::DestroyCurves"
+address = 0x006E5150
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "A0 A8 9B B4 00 53 33 DB"
+source = "Name ours. Frees the six global curves and clears the created flag; CreateCurves registers it with the service at 0x00B43C94 (slot 69) (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::CurvesCreated"
+address = 0x00B49BA8
+kind = "data"
+source = "bool: set by CreateCurves (0x006E59D0) on its first call, cleared by DestroyCurves (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::CreateCurves"
+address = 0x006E59D0
+kind = "function"
+convention = "cdecl"
+signature = "void (cSC4PollutionSimulator* simulator)"
+expect = "A0 A8 9B B4 00 53 33 DB"
+source = "Name ours. Once (flag 0x00B49BA8): creates the six global tuning curves (0x00B49BAC-0x00B49BC0). Called first by Init (docs/pollution.md)."
+
+[[entry]]
+name = "SC4UintVector::FillInsert"
+address = 0x004FBA20
+kind = "function"
+convention = "thiscall"
+signature = "void (vector<uint32_t>* this, uint32_t* where, uint32_t count, uint32_t const* value)"
+expect = "56 57 8B 7C 24 10 85 FF"
+source = "std::vector<uint32_t>::_M_fill_insert (Ghidra's name). Init grows the pollution simulator's per-block vectors with it (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::LoadTuning"
+address = 0x006E5B10
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this)"
+expect = "83 EC 2C A1 A8 3C B4 00"
+source = "Name ours. Sets the pollution tuning globals 0x00B49B68-0x00B49BA4 to defaults, the six global curves (0x00B49BAC-0x00B49BC0) to the single point (0, 0) and the simulator's two aging curves (+0xDC, +0xEC) to (0, 1), (1, 1); then, if the simulator's exemplar (0x6534284A/0xE7E2C2DB/0xC911E35B) loads, reads the globals, the disposal cost (+0x1D0) and the eight curves from it. Called by Init (0x006E7428) and by the message handler for 0xCA1B151C. Reimplemented by simulators.pollution.tuning (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::GarbageScalingFactor"
+address = 0x00B49B6C
+kind = "data"
+source = "float. Written by LoadTuning (0x006E5B10), returned by GetGarbageScalingFactor (slot 48) (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::WaterPollutedThreshold"
+address = 0x00B49B78
+kind = "data"
+source = "uint32. Written by LoadTuning; IsWaterPolluted (slot 14) compares GetWaterValue against it, unsigned (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::AirPollutedThreshold"
+address = 0x00B49B7C
+kind = "data"
+source = "uint32. Written by LoadTuning; IsAirPolluted (slot 13) compares against it, unsigned (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::GarbageAccumulatedThreshold"
+address = 0x00B49B80
+kind = "data"
+source = "uint32. Written by LoadTuning; IsGarbageAccumulated (slot 15) compares against it, unsigned (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::MaxRadiationLevelForUI"
+address = 0x00B49B94
+kind = "data"
+source = "int32. Written by LoadTuning, returned by slot 70 (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::MaxGarbageLevelForUI"
+address = 0x00B49B98
+kind = "data"
+source = "int32. Written by LoadTuning, returned by slot 69 (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::MaxWaterLevelForUI"
+address = 0x00B49B9C
+kind = "data"
+source = "int32. Written by LoadTuning, returned by slot 68 (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::MaxAirLevelForUI"
+address = 0x00B49BA0
+kind = "data"
+source = "int32. Written by LoadTuning, returned by slot 67 (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::LandfillTileCapacity"
+address = 0x00B49BA4
+kind = "data"
+source = "int32. Written by LoadTuning, returned by GetLandfillTileCapacity (slot 21) (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::Unused291351B5"
+address = 0x00B49B74
+kind = "data"
+source = "uint32. Set to 1 and then from property 0x291351B5 by LoadTuning; nothing reads it (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::GarbageRectCurve"
+address = 0x00B49BAC
+kind = "data"
+source = "SC4Curve*. Applied by 0x006E3BC0 (the +0x8 interface's slot 3) to the average garbage value over a cell rectangle; loaded from property 0x69A437F6 by LoadTuning (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::DefaultPercentage"
+address = 0x00B49BC4
+kind = "data"
+source = "float. Never written through its address; read as the starting value of percentage outputs (GetRecyclingCenterMaxCapacity, GetRecyclingCenterCurrentCapacity, GetCurrentOccupantEfficiency) and by the constructor (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::SimulateTracts"
+address = 0x006E7FD0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this)"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. DoMessage's handler for message 0x66956814 (called only from 0x006E8E5C): garbage supply from the building lists, then +0x1D4 tracts of the walk: air, water and garbage values moved toward targets (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::DisposeGarbage"
+address = 0x006E3820
+kind = "function"
+convention = "thiscall"
+signature = "float (cSC4PollutionSimulator* this, float amount, uint32_t* incineratorLeft, uint32_t* wasteToEnergyLeft)"
+expect = "83 EC 10 D9 05 54 10 A8"
+source = "Name ours. Called by SimulateTracts with an amount of garbage and the remaining incinerator and waste-to-energy capacity; returns the amount it took (0 for amounts <= 0) in ST0, unrounded (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::SpreadUsedCapacity"
+address = 0x006E3FE0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this, void* list, uint32_t currentProperty, uint32_t usedProperty, uint32_t total, int32_t* used, int32_t count)"
+expect = "83 EC 08 8B 44 24 18 85"
+source = "Name ours. Called by SimulateTracts once per building list whose capacity was used: shares the amount used out over the list's buildings (an equal part each, as much as each has room for) and adds it to their used-capacity property (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::UpdateMaintenanceCosts"
+address = 0x006E4100
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this, void* list)"
+expect = "83 EC 2C 8B 44 24 30 8B"
+source = "Name ours. For each building of the list, CalcOccupantMaintenanceCost (slot 65); when it differs from the budget item for purpose 0xCA58EDC7, the line item changes by the difference and the item gets the new cost (cISC4BudgetSimulator slots 51, 57, 53). Called by SimulateTracts for the lists at +0x68, +0x6C and +0x74 (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::OnTractWalkRestart"
+address = 0x006E7930
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this)"
+expect = "83 EC 1C 53 55 56 57 8B"
+source = "Name ours. Called by SimulateTracts after it restarts the tract iterator at +0x1D8, once per pass over the city: the recycling effect, the city-wide averages from the pass's sums, published figures, grid-changed messages, and the capacity scale (+0x228) from a curve of the department's funding (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::GarbageExcessLimit"
+address = 0x00B49B68
+kind = "data"
+source = "uint32. Written by LoadTuning; at the end of SimulateTracts, supply above capacity beyond what DisposeGarbage takes is cut by at most this much (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::MaxWaterStep"
+address = 0x00B49B84
+kind = "data"
+source = "uint32. Written by LoadTuning; the most a tract's water value moves per visit in SimulateTracts (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::MaxAirStep"
+address = 0x00B49B88
+kind = "data"
+source = "uint32. Written by LoadTuning; the most a tract's air value moves per visit in SimulateTracts (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::TrafficAirFactor"
+address = 0x00B49B8C
+kind = "data"
+source = "float. Written by LoadTuning; scales a cell's traffic value (from the object at +0x28) into air pollution in SimulateTracts (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::LandfillCapacityCurve"
+address = 0x00B49BC0
+kind = "data"
+source = "SC4Curve*. Set by 0x006E59D0 (called from Init) and 0x006E5150; DisposeGarbage reads the landfill room per the landfill service's tile count from it (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::MonthlyAbductionLimit"
+address = 0x00B49B70
+kind = "data"
+source = "int32. Written by LoadTuning; DisposeGarbage's last step takes garbage up to this much per month (+0x1B4, copied to +0x1B8 at the month's end) (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::OnOccupantInsertedOrRemoved"
+address = 0x006E4680
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this, cISC4Occupant* occupant, bool inserted)"
+expect = "83 EC 74 55 56 8B B4 24"
+source = "Name ours. DoMessage's handler for 0x99EF1142 (inserted) and 0x99EF1143 (removed): the building's pollution footprint in the source grids, its place in the four building lists, its capacity properties and budget item (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::UpdateBuildingList"
+address = 0x006E45F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PollutionSimulator* this, SC4List* list, cISC4Occupant* occupant, bool insert)"
+expect = "8A 44 24 0C 84 C0 56 57"
+source = "Name ours. Appends the occupant to the list (AddRef) or removes it (Release); returns whether it did (docs/pollution.md)."
+
+[[entry]]
+name = "SC4::Service43D1C"
+address = 0x00B43D1C
+kind = "data"
+source = "Unnamed service; the pollution simulator keeps a reference at +0x38 (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionSimulator::Name"
+address = 0x00A897F4
+kind = "data"
+source = "\"cSC4PollutionSimulator\" (22 characters), the name Init registers under (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionSimulator::DepartmentScale"
+address = 0x00B0D414
+kind = "data"
+source = "float 1.2; passed by address to the department budget's slot 13 in Init (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionSimulator::BlockCells"
+address = 0x00B49B90
+kind = "data"
+source = "uint16, set at run time; Init divides the value grid's tract count by half of it for +0x1D4 (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::DefaultCondition"
+address = 0x00B0D408
+kind = "data"
+source = "float 1.0, the starting value of GetCurrentOccupantCondition's output (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::DefaultSpreadEdge"
+address = 0x00B4A598
+kind = "data"
+source = "int32[4]. The occupant handler's per-type edge values for SpreadAround when the building has no property 0xAA5832F3 (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::OnMonthPassed"
+address = 0x006E7B60
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this)"
+expect = "83 EC 10 53 55 56 8B F1"
+source = "Name ours. DoMessage's handler for 0x66956816 (MonthPassed): resets the garbage deals, posts the month's disposal cost, moves this month's garbage figures to last month's and publishes them, then the monthly building helpers and UpdateWorstTractsAndEffects (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::UpdateCapacityScale"
+address = 0x006E44B0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this)"
+expect = "83 EC 1C 56 8B F1 8D 4C"
+source = "Name ours. The handler of message 0x66956810: the capacity scale (+0x228) = curve 0x6911E2DF of the simulator's exemplar at the department's funding x 100, x 0.01. Reimplemented by simulators.pollution.capacity (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::AgeBuildings"
+address = 0x006E3D00
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this, SC4List* list, uint32_t usedProperty, uint32_t currentProperty)"
+expect = "83 EC 3C 8B 44 24 40 53"
+source = "Name ours. Monthly, per building of the list: its use (used property / current capacity, or for the recycling list (properties 0) recycled this month per center) and the department's funding, through two curves (+0xEC, +0xDC) times property 0xEA1CF220, are added to its age (property 0xC910B4CF); at or past property 0xEA1CF222 (default 99) its lot's condition becomes 4, else at or past 0xEA1CF221 (default 99) 2. Reimplemented by simulators.pollution.aging (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::RollUsedCapacity"
+address = 0x006E3C80
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this, SC4List* list, uint32_t usedProperty, uint32_t lastMonthProperty)"
+expect = "8B 44 24 04 53 57 8B 38"
+source = "Name ours. Per building of the list: the used-capacity property's value goes to the last-month property and the used property is set to 0 (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::UpdateWasteToEnergyOutput"
+address = 0x006E3F50
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this)"
+expect = "83 EC 0C 53 8B 59 70 57"
+source = "Name ours. Per building of the list at +0x70: property 0x27812852 = used (0x88ECF76C) * 0x08FD1613 / capacity (0x48EBD0B1), when all three are present (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::UpdateWorstTractsAndEffects"
+address = 0x006E63C0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this)"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. DoMessage's handler for 0x26D31EC1 (CityInited), also called by OnMonthPassed and AddRadiationToCity: per 8x8 tract block the worst water and garbage tracts, and the pollution visual effects, created or removed by curves of the block's values at random positions (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::UpdateRecyclingEffect"
+address = 0x006E6DA0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PollutionSimulator* this)"
+expect = "83 EC 1C 53 55 8B D9 8B"
+source = "Name ours. Sorts the recycling centers (+0x74) by efficiency (slot 55), highest first, later ones first among equals, into a new list assigned over the old one; then, from the top, adds up their capacity (property 0x68ED1736) while it is below a residential figure (+0x2C, slot 16) and their efficiency times capacity; the recycling effect (+0x134) = that sum / the larger of the two, or the default percentage when there are no centers or no capacity. Called by OnTractWalkRestart. Reimplemented by simulators.pollution.recycling (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::EffectRandom"
+address = 0x00B49BD0
+kind = "data"
+source = "cRZRandom (an object, not a pointer) that places the pollution simulator's kind-1 effects: a Mersenne twister, 624 words of state, a pointer to the next word at +0x9C0 and a countdown at +0x9C4 (next number 0x009139B9) (docs/pollution.md)."
+
+[[entry]]
+name = "PollutionTuning::EffectCurves"
+address = 0x00B49BB0
+kind = "data"
+source = "SC4Curve*[4] at 0x00B49BB0, 0x00B49BB4, 0x00B49BB8, 0x00B49BBC: effect strength for a block's water, air, radiation and garbage value (times 1/32767) in UpdateWorstTractsAndEffects (docs/pollution.md)."
+
+[[entry]]
+name = "SC4List::Assign"
+address = 0x006E5660
+kind = "function"
+convention = "thiscall"
+signature = "SC4List* (SC4List* this, SC4List const* other)"
+expect = "53 55 56 8B F1 8B 4C 24 10"
+source = "Name ours. List assignment for the allocator at 0x00B207E4: copies the other list's object pointers into the existing nodes, then erases the rest (0x006E41F0) or appends the other's remaining nodes (0x006E4270); no reference counting. Called by cSC4PollutionSimulator::UpdateRecyclingEffect (docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::Write"
+address = 0x006E3380
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream& stream)"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "cIGZSerializable slot 3 (vtable 0x00AB25E8; `this` is the object + 0xC); writes version 4 (docs/save-format.md, docs/pollution.md)."
+
+[[entry]]
+name = "cSC4PollutionSimulator::Read"
+address = 0x006E5270
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream& stream)"
+expect = "83 EC 18 53 56 8B 74 24 24"
+source = "cIGZSerializable slot 4 (vtable 0x00AB25E8; `this` is the object + 0xC); reads versions up to 4, the mirror of Write; versions below 3 carry a string and a uint32 that are read and dropped. Reimplemented by simulators.pollution.load (docs/save-format.md, docs/pollution.md)."

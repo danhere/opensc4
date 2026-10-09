@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Generate addresses.h from the address database (data/addresses-*.toml).
+"""Generate addresses.h from the address database (data/addresses/*.toml).
 
-Usage: gen_addresses.py <addresses.toml> <output header>
+Usage: gen_addresses.py <folder or .toml> [...] <output header>
+
+A folder stands for every .toml file in it. Names must be unique across all
+the files read.
 
 Each entry becomes a constant in namespace opensc4::addr (name with "::" and
 other non-identifier characters replaced by "_"), plus one row in kEntries,
 which core.dll walks at startup to check the expected bytes.
 
-Can also check a database against an exe:  gen_addresses.py --check <toml> <exe>
+Can also check a database against an exe:  gen_addresses.py --check <folder or .toml> [...] <exe>
 """
 
+import glob
+import os
 import re
 import struct
 import sys
@@ -19,12 +24,25 @@ KINDS = {"function", "vtable", "data"}
 CONVENTIONS = {"cdecl", "stdcall", "thiscall", "fastcall", "custom"}
 
 
-def load(path):
-    with open(path, "rb") as f:
-        entries = tomllib.load(f).get("entry", [])
-    seen = set()
+def toml_files(paths):
+    files = []
+    for path in paths:
+        files += sorted(glob.glob(os.path.join(path, "*.toml"))) if os.path.isdir(path) else [path]
+    if not files:
+        sys.exit(f"no address files in {' '.join(paths)}")
+    return files
+
+
+def load(paths):
+    entries = []
+    seen = {}
+    for path in toml_files(paths):
+        with open(path, "rb") as f:
+            for e in tomllib.load(f).get("entry", []):
+                e["file"] = path
+                entries.append(e)
     for e in entries:
-        where = f"{path}: entry {e.get('name', '?')}"
+        where = f"{e['file']}: entry {e.get('name', '?')}"
         for field in ("name", "address", "kind", "source"):
             if field not in e:
                 sys.exit(f"{where}: missing {field}")
@@ -34,10 +52,12 @@ def load(path):
             sys.exit(f"{where}: functions need a convention in {sorted(CONVENTIONS)}")
         e["ident"] = re.sub(r"\W+", "_", e["name"].replace("::", "_")).strip("_")
         if e["ident"] in seen:
-            sys.exit(f"{where}: duplicate identifier {e['ident']}")
-        seen.add(e["ident"])
+            sys.exit(f"{where}: duplicate identifier {e['ident']} (also in {seen[e['ident']]})")
+        seen[e["ident"]] = e["file"]
         e["bytes"] = bytes.fromhex(e.get("expect", ""))
-    return sorted(entries, key=lambda e: e["address"])
+    # By name within an address, so the header does not depend on which file
+    # an entry is in.
+    return sorted(entries, key=lambda e: (e["address"], e["name"]))
 
 
 def cpp_string(text):
@@ -107,13 +127,13 @@ def check(entries, exe_path):
 
 
 def main():
-    if len(sys.argv) == 4 and sys.argv[1] == "--check":
-        sys.exit(0 if check(load(sys.argv[2]), sys.argv[3]) else 1)
-    if len(sys.argv) != 3:
+    if len(sys.argv) >= 4 and sys.argv[1] == "--check":
+        sys.exit(0 if check(load(sys.argv[2:-1]), sys.argv[-1]) else 1)
+    if len(sys.argv) < 3:
         sys.exit(__doc__)
-    entries = load(sys.argv[1])
-    header = generate(entries, sys.argv[1].replace("\\", "/").split("/")[-1])
-    with open(sys.argv[2], "w", newline="\n") as f:
+    entries = load(sys.argv[1:-1])
+    header = generate(entries, ", ".join(os.path.basename(p.rstrip("/\\")) for p in sys.argv[1:-1]))
+    with open(sys.argv[-1], "w", newline="\n") as f:
         f.write(header)
 
 

@@ -23,7 +23,7 @@ The modding community has never produced a bigger tile: the answer has always be
 
 ## What our code tells us so far
 
-- The city reports its own size: `cISC4City` slots 93 and 94 give cells in x and z ([data/addresses-641.toml](../data/addresses-641.toml), `SC4::City`). Our power simulator reads it the same way (`CityCellsX`, [src/core/power_sim.cpp](../src/core/power_sim.cpp)).
+- The city reports its own size: `cISC4City` slots 93 and 94 give cells in x and z ([data/addresses/core.toml](../data/addresses/core.toml), `SC4::City`). Our power simulator reads it the same way (`CityCellsX`, [src/core/power_sim.cpp](../src/core/power_sim.cpp)).
 - The simulators we have read build their grids from that size, not from constants: pollution's eight `cSC4SimGridSint16` grids and its per-8x8-block vectors ([pollution.md](pollution.md), Init), power's bit arrays and 8x8 blocks ([power.md](power.md)), water's cell flags with a stride and height saved in the record ([water.md](water.md), version 4). Traffic's grids look the same, but are not checked yet.
 - The save records we decode store grid dimensions with the data (water's stride and height, power's consumption-map rows and columns). They should load at any size.
 - The renderer's camera works in metres per pixel and 16 m tiles ([ui-scaling.md](ui-scaling.md)); it has no city-size table.
