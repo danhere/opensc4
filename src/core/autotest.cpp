@@ -256,8 +256,10 @@ private:
         if (!app)
             return;
         cISC4Region* region = app->GetRegion();
-        // Give the region view a few seconds to settle before loading.
-        if (!region || now - stateStart_ < 5000) {
+        // Give the region view a few seconds to settle before loading (one
+        // with OPENSC4_TEST_QUICK=1).
+        const ULONGLONG settle = Env("OPENSC4_TEST_QUICK") == "1" ? 1000 : 5000;
+        if (!region || now - stateStart_ < settle) {
             if (now - stateStart_ > 180000) {
                 log::Write("autotest: no region after 180 s; quitting");
                 Quit(app);
@@ -904,7 +906,9 @@ private:
     {
         virtual_clock::ReturnToRealTime();
         const ULONGLONG start = GetTickCount64();
-        const bool saved = app->SaveCity(false);
+        // A fast save leaves out the region view's thumbnails of the city
+        // (records 0x8A2482B9 and 0x2026960B) and takes ~1 s instead of ~11.
+        const bool saved = app->SaveCity(Env("OPENSC4_TEST_QUICK") == "1");
         log::Write("autotest: run finished; SaveCity %s after %llu ms; quitting", saved ? "ok" : "FAILED",
                    GetTickCount64() - start);
     }
