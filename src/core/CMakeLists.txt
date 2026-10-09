@@ -32,6 +32,18 @@ add_library(opensc4_core SHARED
   demand_region.cpp
   demand_sim.cpp
   demand_step.cpp
+  flora_growth.cpp
+  flora_messages.cpp
+  flora_object.cpp
+  flora_place.cpp
+  flora_sim.cpp
+  flora_types.cpp
+  neighbors_classes.cpp
+  neighbors_connections.cpp
+  neighbors_deals.cpp
+  neighbors_messages.cpp
+  neighbors_object.cpp
+  neighbors_sim.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp
