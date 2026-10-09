@@ -7,7 +7,10 @@
 //     lookups, the route reset and the vtable's arrived and abort slots;
 //   simulators.mysim_agents.place: SC4MySimPlace, a place a MySim is at or
 //     goes to (0x28 bytes: occupant +0, position +4/+8, cell +0xC/+0x10,
-//     neighbour connection +0x14/+0x18, in the city +0x1C, work +0x1D).
+//     neighbour connection +0x14/+0x18, in the city +0x1C, work +0x1D);
+//   simulators.mysim_agents.dispatch_trip: starting a trip (the places to
+//     go, a deque at +0x160), home, destination, model keys, Clear, Reset
+//     and Shutdown.
 //
 // The deque and map helpers it uses stay the game's.
 #include "core/address_check.h"
@@ -745,6 +748,248 @@ const bool g_placeRegistered = registry::Register({
     "Our SC4MySimPlace: places a MySim is at or goes to (docs/mysim-agents.md)",
     false,
     InstallPlace,
+});
+
+// --- Trips ------------------------------------------------------------------------------
+
+struct PlaceDeque { // std::deque<SC4MySimPlace>, 3 per block
+    char* firstCur;
+    char* firstBegin;
+    char* firstEnd;
+    char** firstNode;
+    char* lastCur;
+    char* lastBegin;
+    char* lastEnd;
+    char** lastNode;
+    char** map;
+    uint32_t mapSize;
+};
+
+void CopyPlace(char* to, const void* from)
+{
+    reinterpret_cast<void*(__thiscall*)(void*, const void*)>(addr::SC4MySimPlace_Copy)(to, from);
+}
+
+// The place to go next (flags 1: first, else last; 4: the others dropped).
+uint8_t __fastcall StartTrip(char* self, void*, const void* place, uint32_t flags)
+{
+    if (flags & 4)
+        reinterpret_cast<ThisFn>(addr::SC4MySimPlaceDeque_Clear)(self + field::kPlaces);
+    auto* const places = reinterpret_cast<PlaceDeque*>(self + field::kPlaces);
+    using PushFn = void(__thiscall*)(void*, const void*);
+    if (flags & 1) {
+        if (places->firstCur != places->firstBegin) {
+            if (char* const at = places->firstCur - 0x28)
+                CopyPlace(at, place);
+            places->firstCur -= 0x28;
+        } else {
+            reinterpret_cast<PushFn>(addr::SC4MySimPlaceDeque_PushFrontSlow)(places, place);
+        }
+    } else if (places->lastCur != places->lastEnd - 0x28) {
+        if (places->lastCur)
+            CopyPlace(places->lastCur, place);
+        places->lastCur += 0x28;
+    } else {
+        reinterpret_cast<PushFn>(addr::SC4MySimPlaceDeque_PushBackSlow)(places, place);
+    }
+    return 1;
+}
+
+uint8_t __fastcall SetModel(char* self, void*, int32_t kind, const uint32_t* key, uint32_t index)
+{
+    const uint32_t k0 = key[0];
+    const uint32_t k1 = key[1];
+    const uint32_t k2 = key[2];
+    auto* const value = reinterpret_cast<uint32_t*(__thiscall*)(void*, const int32_t*)>(addr::SC4MySimModelMap_At)(
+        self + field::kModels, &kind);
+    value[1] = k1;
+    value[0] = k0;
+    value[2] = k2;
+    value[3] = index;
+    return 1;
+}
+
+uint8_t IsValidPlace(const void* place)
+{
+    return reinterpret_cast<uint8_t(__thiscall*)(const void*)>(addr::SC4MySimPlace_IsValid)(place);
+}
+
+uint8_t __fastcall SetHome(char* self, void*, const Place* home)
+{
+    uint8_t result = 0;
+    if (IsValidPlace(home) && home->local && !home->work) {
+        result = 1;
+        if (Same(self, field::kHere, field::kHome)) {
+            if (void* const object = At<void*>(self, field::kHere)) {
+                At<void*>(self, field::kHere) = nullptr;
+                Release(object);
+            }
+        }
+        Assign(self, field::kHome, reinterpret_cast<const char*>(home));
+        ++At<int32_t>(self, field::kChanges);
+    }
+    const uint32_t flags = At<uint32_t>(self, field::kFlags);
+    ChangeFlags(self, result ? flags | 0x80 : flags & 0xFFFFFF7F);
+    return result;
+}
+
+uint8_t __fastcall SetDestination(char* self, void*, const void* place, uint32_t post)
+{
+    Place copy;
+    CopyPlace(reinterpret_cast<char*>(&copy), place);
+    const bool postIt = static_cast<uint8_t>(post) != 0;
+    bool ok = IsValidPlace(&copy) != 0;
+    if (!ok && postIt) {
+        ok = At<int32_t>(self, field::kState) == 2 ||
+             reinterpret_cast<uint8_t(__thiscall*)(void*, Place*)>(addr::cSC4MySimDispatch_PlanOutside)(self, &copy);
+    }
+    if (ok) {
+        Assign(self, field::kWork, reinterpret_cast<const char*>(&copy));
+        if (postIt)
+            Post(self, 0xEBA06BF4, 0, 0);
+    }
+    Release(copy.object);
+    return ok ? 1 : 0;
+}
+
+void AssignEmpty(char* self, std::size_t at)
+{
+    Place empty;
+    Construct(&empty, nullptr);
+    Assign(self, at, reinterpret_cast<const char*>(&empty));
+}
+
+uint8_t __fastcall Clear(char* self, void*)
+{
+    reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_HideLocation)(self);
+    void* automaton = nullptr;
+    if (void* const vehicle = At<void*>(self, field::kVehicle)) {
+        if (Virtual<uint8_t>(vehicle, 0x0, kIidAutomaton, &automaton)) {
+            Virtual<void>(automaton, 0xA0, self + 8);
+            Virtual<void>(automaton, 0x34, uint32_t{0});
+        }
+    }
+    const uint32_t old = At<uint32_t>(self, field::kFlags);
+    At<uint32_t>(self, field::kFlags) = 0;
+    if (old) {
+        Post(self, kEventFlags, old, 0);
+        ++At<int32_t>(self, field::kChanges);
+    }
+    reinterpret_cast<ThisFn>(addr::SC4MySimPlaceDeque_Clear)(self + field::kPlaces);
+    AssignEmpty(self, field::kHere);
+    AssignEmpty(self, field::kTarget);
+    AssignEmpty(self, field::kHome);
+    if (At<uint32_t>(self, field::kStatus) != 0xFF)
+        ++At<int32_t>(self, field::kChanges);
+    const int32_t state = At<int32_t>(self, field::kState);
+    At<uint32_t>(self, field::kStatus) = 0xFF;
+    At<int32_t>(self, field::kPrevious) = state;
+    At<int32_t>(self, field::kState) = -1;
+    if (state != -1) {
+        Post(self, kEventState, static_cast<uint32_t>(state), 0xFFFFFFFF);
+        ++At<int32_t>(self, field::kChanges);
+    }
+    reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_ClearRoute)(self);
+    if (void* const vehicle = At<void*>(self, field::kVehicle)) {
+        At<void*>(self, field::kVehicle) = nullptr;
+        Release(vehicle);
+    }
+    Release(automaton);
+    return 1;
+}
+
+constexpr uint32_t kNotifications[] = {0x44778231, 0x8BBBD22A, 0xA6B79601, 0xA6B79611};
+
+uint8_t __fastcall Shutdown(char* self, void*)
+{
+    if (At<void*>(self, field::kRouteView)) {
+        if (void* const frames = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_GetService86AD10EC)())
+            Virtual<void>(frames, 0x18, self + 8, uint32_t{0xFF});
+        for (const uint32_t type : kNotifications)
+            Virtual<void>(Global<void*>(addr::SC4_MessageServer), 0x18, self + 8, type);
+    }
+    reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_Reshow)(self);
+    reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_Clear)(self);
+    for (const std::size_t at : {std::size_t{0x120}, field::kRouteView})
+        if (void* const held = At<void*>(self, at)) {
+            At<void*>(self, at) = nullptr;
+            Release(held);
+        }
+    return 1;
+}
+
+uint8_t __fastcall ResetDispatch(char* self, void*)
+{
+    if (!At<void*>(self, field::kRouteView)) {
+        for (const uint32_t type : kNotifications)
+            Virtual<void>(Global<void*>(addr::SC4_MessageServer), 0x14, self + 8, type);
+        if (void* const frames = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_GetService86AD10EC)())
+            Virtual<void>(frames, 0x14, self + 8, uint32_t{0xFF});
+        if (void* const old = At<void*>(self, field::kRouteView)) {
+            At<void*>(self, field::kRouteView) = nullptr;
+            Release(old);
+        }
+        Virtual<void>(Global<void*>(addr::SC4_Service43DA8), 0x18, self + field::kRouteView);
+    }
+    if (At<uint8_t>(self, 0x188))
+        return 1;
+    void* const clock = Global<void*>(addr::SC4_Clock43DBC);
+    void* const old = At<void*>(self, 0x120);
+    if (clock != old) {
+        if (clock)
+            Virtual<uint32_t>(clock, 0x4);
+        At<void*>(self, 0x120) = clock;
+        Release(old);
+    }
+    AssignEmpty(self, field::kHome);
+    AssignEmpty(self, field::kWork);
+    Assign(self, field::kHere, self + field::kWork);
+    At<uint8_t>(self, field::kWork + 0x1D) = 1;
+    const uint32_t flags = At<uint32_t>(self, field::kFlags);
+    At<int32_t>(self, field::kPrevious) = At<int32_t>(self, field::kState);
+    At<int32_t>(self, field::kState) = 3;
+    ChangeFlags(self, flags | 2);
+    PostStateChange(self);
+    reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_ClearRoute)(self);
+    At<uint8_t>(self, 0x10) = 0;
+    return 1;
+}
+
+bool InstallTrip(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* originals[8] = {};
+    const struct {
+        std::uintptr_t address;
+        void* ours;
+    } hooks[] = {
+        {addr::cSC4MySimDispatch_StartTrip, reinterpret_cast<void*>(&StartTrip)},
+        {addr::cSC4MySimDispatch_SetModel, reinterpret_cast<void*>(&SetModel)},
+        {addr::cSC4MySimDispatch_SetHome, reinterpret_cast<void*>(&SetHome)},
+        {addr::cSC4MySimDispatch_SetDestination, reinterpret_cast<void*>(&SetDestination)},
+        {addr::cSC4MySimDispatch_Clear, reinterpret_cast<void*>(&Clear)},
+        {addr::cSC4MySimDispatch_Shutdown, reinterpret_cast<void*>(&Shutdown)},
+        {addr::cSC4MySimDispatch_Reset, reinterpret_cast<void*>(&ResetDispatch)},
+    };
+    static_assert(sizeof(hooks) / sizeof(hooks[0]) <= sizeof(originals) / sizeof(originals[0]));
+    for (std::size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); ++i) {
+        const addr::Entry* found = addr_check::Find(hooks[i].address);
+        if (!found || !hook::Install(*found, hooks[i].ours, &originals[i]))
+            return false;
+    }
+    return true;
+}
+
+const bool g_tripRegistered = registry::Register({
+    "simulators.mysim_agents.dispatch_trip",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySimDispatch_StartTrip,
+    "Our cSC4MySimDispatch trip start, home, destination, Clear, Reset and Shutdown (docs/mysim-agents.md)",
+    false,
+    InstallTrip,
 });
 
 bool InstallState(registry::Mode)

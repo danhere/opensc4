@@ -1832,3 +1832,43 @@ kind = "function"
 convention = "cdecl"
 expect = "8B 44 24 04 8B 4C 24 08"
 source = "Name ours. Two int pairs equal (SC4MySimPlace connections)."
+
+[[entry]]
+name = "cSC4MySimDispatch::Clear"
+address = 0x00434080
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 56 8B F1 E8"
+source = "Name ours. Everything dropped: location hidden, vehicle detached and released, flags 0, places emptied, status 0xFF, state -1, route cleared."
+
+[[entry]]
+name = "SC4MySimPlaceDeque::PushFrontSlow"
+address = 0x004339E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 28 56"
+source = "push_front of a place when the first block is full (a new block)."
+
+[[entry]]
+name = "SC4MySimPlaceDeque::PushBackSlow"
+address = 0x00433950
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 28 56"
+source = "push_back of a place when the last block is full (a new block)."
+
+[[entry]]
+name = "SC4MySimModelMap::At"
+address = 0x00434F00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 8B 5C 24 1C"
+source = "operator[] of the map kind -> (model key, index) at cSC4MySimDispatch+0x150; returns the value (node +0x14)."
+
+[[entry]]
+name = "cSC4MySimDispatch::PlanOutside"
+address = 0x00432F50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C 53 55 56 57 8B"
+source = "Name ours, not analysed yet. Tried by SetDestination for a place that is not valid; true when a way there was found."
