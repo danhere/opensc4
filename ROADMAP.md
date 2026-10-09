@@ -148,6 +148,7 @@ Wanted:
 - [ ] Multi-threaded simulation, tabled until P9 and the 64-bit build
 - [ ] Crash-safe autosave: keep the last few saves, restore with one click (P4 save format). Finding why the game crashes, as simulators are replaced, should make it needed less often
 - [ ] Real-world terrain import: build a region from real elevation data (P8 terrain)
+- [ ] A switch to turn off the MySim mode (the player's own Sims who move into a city, `cSC4MySim`): kept in the rewrite for completeness, but Dan sees no use for it (2026-10-09), so a config option to hide and skip it. It is already inactive until a player moves a MySim in
 - [ ] Seasons and weather: snow, autumn trees, rain (P1 renderer)
 - [ ] Hot-reload mods: add or change a plugin without restarting, for mod creators; pairs with the mod manager (P3)
 
