@@ -108,6 +108,7 @@ add_library(opensc4_core SHARED
   fire_sim.cpp
   police_sim.cpp
   protection_sources.cpp
+  protection_object.cpp
   traffic_autotest.cpp
   traffic_object.cpp
   traffic_pathfinder.cpp
