@@ -1,21 +1,23 @@
-// determinism.sim_timers: the stopwatches the MySim agents read run on
-// simulation time (docs/experiments/determinism.md, "Simulation timers").
+// determinism.sim_timers: the stopwatches the MySim agents and the advisor
+// system read run on simulation time (docs/experiments/determinism.md,
+// "Simulation timers").
 //
 // An active MySim (cSC4MySim, cSC4MyStreetSim) acts on real-time timers: its
 // message handler does its work only when a GZStopwatch shows more than a
-// couple of milliseconds since the last time, and its advice balloons expire
-// by another (0x00552BD0, every 500 ms). Under the virtual clock those
-// stopwatches read a counter that advances with every clock read anywhere,
-// so how often a MySim acted depended on frame-level work and two runs of
-// the same save parted on the first day.
+// couple of milliseconds since the last time, its advice balloons expire by
+// another (0x00552BD0, every 500 ms), and the advisor system runs every
+// advisor (a MySim is one) when a third shows 500 ms. Under the virtual
+// clock those stopwatches read a counter that advances with every clock read
+// anywhere, so how often a MySim acted depended on frame-level work and two
+// runs of the same save parted on the first day.
 //
 // Here a stopwatch read by that code (the caller's return address in the
-// MySim, dispatch or street-sim code, or in the balloon timer) is taken
-// over: from then on, every one of its clock reads returns a counter that
-// advances 10 ms per simulation tick (determinism.fixed_ticks' slice checks)
-// and nothing else. It is rebased when taken over if it was running. The
-// counter is read through the virtual clock (virtual_clock.h), from thunks
-// on the stopwatch methods that read the clock.
+// MySim, dispatch, street-sim or advisor-system code, or in the balloon
+// timer) is taken over: from then on, every one of its clock reads returns a
+// counter that advances 10 ms per simulation tick (determinism.fixed_ticks'
+// slice checks) and nothing else. It is rebased when taken over if it was
+// running. The counter is read through the virtual clock (virtual_clock.h),
+// from thunks on the stopwatch methods that read the clock.
 #include "core/address_check.h"
 #include "core/fixed_ticks.h"
 #include "core/hook.h"
@@ -41,6 +43,7 @@ constexpr struct {
     {0x00433000, 0x00434800}, // cSC4MySimDispatch
     {0x0043A050, 0x0043EBA0}, // cSC4MyStreetSim
     {0x00552BD0, 0x00552D00}, // the MySim balloon timer
+    {0x0041A990, 0x0041B240}, // cSC4AdvisorSystem: runs its advisors (MySims among them) every 500 ms
 };
 
 constexpr int kMaxOwned = 64;
@@ -206,7 +209,7 @@ const bool g_registered = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::GZStopwatch_Start, // restarts (data/addresses/simulator.toml)
-    "The MySim agents' stopwatches run on simulation time (10 ms a tick), not on clock reads",
+    "The MySim and advisor-system stopwatches run on simulation time (10 ms a tick), not on clock reads",
     false,
     Install,
 });
