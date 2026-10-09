@@ -21,10 +21,12 @@ target_link_libraries(opensc4_core_support
 
 add_library(opensc4_core SHARED
   autotest.cpp
+  crime_autotest.cpp
   crime_sim.cpp
   crime_object.cpp
   crime_step.cpp
   crime_tuning.cpp
+  demand_autotest.cpp
   demand_demand.cpp
   demand_init.cpp
   demand_month.cpp
@@ -32,12 +34,14 @@ add_library(opensc4_core SHARED
   demand_region.cpp
   demand_sim.cpp
   demand_step.cpp
+  flora_autotest.cpp
   flora_growth.cpp
   flora_messages.cpp
   flora_object.cpp
   flora_place.cpp
   flora_sim.cpp
   flora_types.cpp
+  neighbors_autotest.cpp
   neighbors_classes.cpp
   neighbors_connections.cpp
   neighbors_deals.cpp
@@ -54,12 +58,15 @@ add_library(opensc4_core SHARED
   d3d7_probe.cpp
   dbpf_survey.cpp
   gdriver_proxy.cpp
+  landvalue_autotest.cpp
   landvalue_object.cpp
   landvalue_sim.cpp
+  ordinance_autotest.cpp
   ordinance_class.cpp
   ordinance_object.cpp
   ordinance_objects.cpp
   ordinance_sim.cpp
+  pollution_autotest.cpp
   pollution_buildings.cpp
   pollution_effects.cpp
   pollution_init.cpp
@@ -67,26 +74,33 @@ add_library(opensc4_core SHARED
   pollution_proxy.cpp
   pollution_save.cpp
   pollution_tuning.cpp
+  power_autotest.cpp
   power_object.cpp
   power_sim.cpp
+  protection_autotest.cpp
   protection_sim.cpp
   fire_sim.cpp
   police_sim.cpp
   protection_sources.cpp
+  traffic_autotest.cpp
   traffic_object.cpp
   traffic_pathfinder.cpp
   traffic_sim.cpp
   traffic_tuning.cpp
   traffic_water.cpp
   traffic_walks.cpp
+  water_autotest.cpp
   water_object.cpp
   water_sim.cpp
+  aura_autotest.cpp
   aura_init.cpp
   aura_object.cpp
   aura_sim.cpp
+  civic_autotest.cpp
   civic_init.cpp
   civic_object.cpp
   civic_sim.cpp
+  weather_autotest.cpp
   weather_bodies.cpp
   weather_init.cpp
   weather_moisture.cpp
