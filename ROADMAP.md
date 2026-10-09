@@ -73,7 +73,7 @@ Parity method (from P4): short-window exact comparison against the original from
 
 ## P6: Economy simulators
 
-- [ ] Demand / RCI
+- [x] Demand / RCI ([docs/demand.md](docs/demand.md)): every demand function the game runs is replaceable (`simulators.demand.*`) but container helpers, and `simulators.demand.object` is our own object. Every demand, cap and link between demands is read from the game's exemplars, as the game does, so mods that change them (CAM among them) keep working. Parity with everything on: 11 of 12 and 3 of 3 for a week, 2 of 2 for 90 days, the twelfth differing only in the traffic record where the original also splits
 - [ ] Budget
 - [ ] Population
 - [ ] Lua 5.0 bindings

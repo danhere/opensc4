@@ -58,3 +58,8 @@ Version 6, `Write` 0x0069F600, `Read` 0x006A05E0, the `cIGZSerializable` part at
 ## cSC4TutorialSystem (0xAA3836FB)
 
 23 bytes in the tutorial cities' saves: the record header, uint16 version (2), uint8 active (1), uint32 (0), uint32 tutorial ID (Big City 0xCC02D3A3, Making Money 0x0BFDB71B, Rush Hour 0x2C12D0E9). With the active byte set to 0 the city loads as an ordinary city, without the tutorial's dialogs and locked tools; the loader does not reject the record although its CRC no longer matches.
+
+## cSC4DemandSimulator (0x2990BFF2) and cSC4Demand (0x8990C12D)
+
+Version 2 each, `Write` 0x006A2680 and 0x005D5080. Layouts in [demand.md](demand.md), "Save records"; decoded by `sc4save.py`. All of a city's cSC4Demand objects are in one entry, in an order that differs from run to run, so they are compared in ID order.
+
