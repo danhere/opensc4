@@ -288,7 +288,7 @@ void SumDepartmentGrids(void* self)
                                                           &key);
         bool done = node == header;
         if (!done) {
-            done = *reinterpret_cast<NextFn>(addr::SC4Uint32Map_Next)(&node) == header;
+            done = *reinterpret_cast<NextFn>(addr::SC4MapIterator_Next)(&node) == header;
             if (done) {
                 void* const rows = Virtual<void*>(At<void*>(self, field::kDepartmentSum), 0x60);
                 void* const target = Virtual<void*>(At<void*>(self, field::kLandmarkMap), 0x60);
