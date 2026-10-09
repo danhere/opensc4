@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Merge OpenSC4's function names into one CSV for Ghidra.
 
-    name_list.py <addresses-641.toml> <names-641.txt>  > names.csv
+    name_list.py <data/addresses folder or .toml> <names-641.txt>  > names.csv
 
 Output columns: address,name,note. Address database entries of kind
 "function" come first; a names-641.txt line for the same address must agree
@@ -10,19 +10,25 @@ or the script fails, so the two files cannot drift apart. Ghidra cannot take
 function name.
 """
 import csv
+import glob
+import os
 import re
 import sys
 import tomllib
 
 
 def main():
-    with open(sys.argv[1], 'rb') as f:
-        db = tomllib.load(f)
+    paths = sorted(glob.glob(os.path.join(sys.argv[1], '*.toml'))) if os.path.isdir(sys.argv[1]) else [sys.argv[1]]
+    entries = []
+    for path in paths:
+        with open(path, 'rb') as f:
+            entries += tomllib.load(f).get('entry', [])
     names = {}
-    for entry in db.get('entry', []):
+    # Two names for one address: the first by name, whichever file has it.
+    for entry in sorted(entries, key=lambda e: e['name']):
         if entry.get('kind') != 'function':
             continue
-        names[int(entry['address'])] = (entry['name'], 'address database: ' + entry.get('source', ''))
+        names.setdefault(int(entry['address']), (entry['name'], 'address database: ' + entry.get('source', '')))
     for number, line in enumerate(open(sys.argv[2], encoding='utf-8'), 1):
         line = line.strip()
         if not line or line.startswith('#'):

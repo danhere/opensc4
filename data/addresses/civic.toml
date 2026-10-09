@@ -1,0 +1,169 @@
+# Build 641 addresses. The civic building simulator (cSC4CivicBuildingSimulator; docs/civic.md).
+# Format and rules: data/addresses/README.md.
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::vftable"
+address = 0x00AB0C7C
+kind = "vtable"
+expect = "C0 D6 69 00 A0 64 46 00"
+source = "cISC4CivicBuildingSimulator: QueryInterface, AddRef, Release, Init, Shutdown, slots 5-8, the deleting destructor (slot 9) (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::vftable_4"
+address = 0x00AB0C6C
+kind = "vtable"
+expect = "70 E5 69 00 70 22 6C 00"
+source = "cIGZMessageTarget2 at +0x4: DoMessage 0x0069E1A0 in slot 3 (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::vftable_8"
+address = 0x00AB0C54
+kind = "vtable"
+expect = "80 E5 69 00 90 22 6C 00"
+source = "cIGZSerializable at +0x8: Write 0x0069D920, Read 0x0069E820, GetGZCLSID 0x0069D6B0 (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::Init"
+address = 0x0069DC10
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4CivicBuildingSimulator* this)"
+expect = "83 EC 18 57 8B F9 8A 47"
+source = "Slot 3: the budget departments, messages, simulator registration and the script table (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::Shutdown"
+address = 0x0069D7C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4CivicBuildingSimulator* this)"
+expect = "51 55 8B E9 8A 45 10 84"
+source = "Slot 4 (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::Write"
+address = 0x0069D920
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours. +8 slot 3: version 6 (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::Read"
+address = 0x0069E820
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 55 8B E9 56 8B"
+source = "Name ours. +8 slot 4: version 6 only (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::DoMessage"
+address = 0x0069E1A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 56 8B 74 24"
+source = "Name ours. Slot 3 of the +0x4 vtable (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::OnMonth"
+address = 0x0069E010
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 55 8B E9 8B 45"
+source = "Name ours. MonthPassed: the ape escape draw and the landmarks' funding (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::OnBuildingRemoved"
+address = 0x0069DAA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 55 56 8B 74"
+source = "Name ours. A building (cISC4BuildingOccupant) leaving the city (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::OnLotDeveloped"
+address = 0x0069DE20
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 55 89 4C 24"
+source = "Name ours. Message 0xE8BDA2E7 with state 3: a lot's building (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::Construct"
+address = 0x0069E670
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 C7 46 04 74"
+source = "Name ours. The constructor (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::Destroy"
+address = 0x0069E500
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 4E 44 C7"
+source = "Name ours. The destructor (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::Create"
+address = 0x0069E800
+kind = "function"
+convention = "cdecl"
+expect = "6A 48 E8 D9 6D F4 FF 83"
+source = "Name ours. The factory: SC4::operator_new(0x48), then the constructor (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::ScriptLandmarkCount"
+address = 0x0069D740
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 83 EC 14 56"
+source = "Name ours. The script command get_landmark_count (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::StatusAt"
+address = 0x0069E720
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 53 55 56 8B F1"
+source = "Name ours. The conditional building map's find-or-insert (key by pointer) (docs/civic.md)."
+
+[[entry]]
+name = "cSC4CivicBuildingSimulator::ClearStatuses"
+address = 0x0069E490
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B D9 8B 43 08 56"
+source = "Name ours. The conditional building map's clear (docs/civic.md)."
+
+[[entry]]
+name = "SC4Uint32HashSet::InsertUnique"
+address = 0x0045D650
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 46"
+source = "Name ours. Resize then insert: (out pair*, key*) (docs/civic.md)."
+
+[[entry]]
+name = "SC4Uint32HashSet::Find"
+address = 0x0058EFE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B 30 8B"
+source = "Name ours. The node for a key (by pointer), or null (docs/civic.md)."
+
+[[entry]]
+name = "SC4ScriptNumber::FromUint"
+address = 0x00915D6D
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8B C1 33 C9"
+source = "Name ours. A 0x14-byte script value (type 6) from a number (docs/civic.md)."
+
+[[entry]]
+name = "SC4ScriptNumber::Destroy"
+address = 0x00915EB5
+kind = "function"
+convention = "thiscall"
+expect = "C7 01 D0 EC AC 00 E9 E3"
+source = "Name ours. (docs/civic.md)."
