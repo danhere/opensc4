@@ -278,8 +278,9 @@ uint8_t __fastcall Shutdown(void* self, void*)
 
 // --- The save record (version 6) --------------------------------------------
 
-// cIGZSerializable slot 3 (0x0069F600), on the part at +0xC.
-uint8_t __fastcall Write(void* part, void*, void* stream)
+// cIGZSerializable slot 3 (0x0069F600), on the part at +0xC. Like the
+// game's, the result is a whole word (0 or 1), not only its low byte.
+uint32_t __fastcall Write(void* part, void*, void* stream)
 {
     static bool logged = false;
     FirstCall("Write", logged);
@@ -315,7 +316,7 @@ uint8_t __fastcall Write(void* part, void*, void* stream)
 
 // cIGZSerializable slot 4 (0x006A05E0): the same fields; the incidents are
 // appended; +0x11 set (Init then leaves the tract walk alone).
-uint8_t __fastcall Read(void* part, void*, void* stream)
+uint32_t __fastcall Read(void* part, void*, void* stream)
 {
     static bool logged = false;
     FirstCall("Read", logged);
