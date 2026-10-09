@@ -48,6 +48,15 @@ add_library(opensc4_core SHARED
   neighbors_messages.cpp
   neighbors_object.cpp
   neighbors_sim.cpp
+  mysim_autotest.cpp
+  mysim_sim.cpp
+  commercial_autotest.cpp
+  commercial_sim.cpp
+  residential_autotest.cpp
+  residential_messages.cpp
+  residential_object.cpp
+  residential_occupants.cpp
+  residential_queries.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp

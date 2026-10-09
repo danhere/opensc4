@@ -1,0 +1,151 @@
+# The MySim agent simulator (cSC4MySimAgentSimulator, docs/mysim.md).
+
+[[entry]]
+name = "cSC4MySimAgentSimulator::vftable"
+address = 0x00A85544
+kind = "vtable"
+expect = "10 E3 42 00 A0 7B 4F 00"
+source = "Primary vtable: cISC4MySimAgentSimulator, 13 slots and the scalar deleting destructor (slot 13). Others: cIGZMessageTarget2 at +4 (0x00A85534), cIGZSerializable at +8 (0x00A8551C) (docs/mysim.md)."
+
+[[entry]]
+name = "cSC4MySimAgentSimulator::vftable_4"
+address = 0x00A85534
+kind = "vtable"
+expect = "60 EF 42 00 30 D2 68 00"
+source = "Name ours. The cIGZMessageTarget2 part at +4: DoMessage (slot 3, 0x0042EFA0) (docs/mysim.md)."
+
+[[entry]]
+name = "cSC4MySimAgentSimulator::vftable_8"
+address = 0x00A8551C
+kind = "vtable"
+expect = "70 EF 42 00 50 D2 68 00"
+source = "Name ours. The cIGZSerializable part at +8: Write (0x0042E440, shared), Read (0x006B8A70, shared), GetGZCLSID (0x0042E300) (docs/mysim.md)."
+
+[[entry]]
+name = "cSC4MySimAgentSimulator::ScriptGetCount"
+address = 0x0042E460
+kind = "function"
+convention = "cdecl"
+signature = "bool (void* state, uint32_t, void* result, void* script)"
+expect = "8B 44 24 04 83 EC 14 53"
+source = "Name ours. Script command get_count: the size of the simulator's MySim vector (docs/mysim.md)."
+
+[[entry]]
+name = "cSC4MySimAgentSimulator::ScriptGetSim"
+address = 0x0042EBA0
+kind = "function"
+convention = "cdecl"
+signature = "bool (void* state, void* args, void* result, void* script)"
+expect = "8B 44 24 04 83 EC 14 55"
+source = "Name ours. Script command get_sim: the MySim at the index the argument's slot 27 gives (docs/mysim.md)."
+
+[[entry]]
+name = "SC4RefVector::Erase"
+address = 0x00527180
+kind = "function"
+convention = "thiscall"
+signature = "void** (SC4RefVector* this, void** first, void** last)"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Name ours. Erases [first, last) of a vector of referenced objects, releasing the tail (docs/mysim.md)."
+
+[[entry]]
+name = "SC4RefVector::FillInsert"
+address = 0x004BFF30
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4RefVector* this, void** where, uint32_t count, void* const* value)"
+expect = "51 55 8B 6C 24 10 85 ED"
+source = "Name ours. Inserts `count` referenced copies of a pointer (docs/mysim.md)."
+
+[[entry]]
+name = "SC4RefVector::Destroy"
+address = 0x006C6E90
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4RefVector* this)"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. Releases every element and frees the storage (docs/mysim.md)."
+
+[[entry]]
+name = "SC4RefVector::CopyReferenced"
+address = 0x0042E4C0
+kind = "function"
+convention = "cdecl"
+signature = "void** (void** first, void** last, void** out)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. Copies pointers into raw storage, each referenced (docs/mysim.md)."
+
+[[entry]]
+name = "SC4::TextToInt"
+address = 0x0090FCEF
+kind = "function"
+convention = "cdecl"
+signature = "int32_t (const char* text)"
+expect = "55 8B EC 83 EC 24 56 8B"
+source = "Name ours. Decimal or 0x hexadecimal text to an integer (docs/mysim.md)."
+
+[[entry]]
+name = "SC4Tokenizer::GetOption"
+address = 0x009143CB
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Tokenizer* this, SC4String* name, SC4String* value, bool)"
+expect = "55 8B EC 83 EC 50 53 56"
+source = "Name ours. A named option's value from the cheat text (docs/mysim.md)."
+
+[[entry]]
+name = "SC4Tokenizer::HasOption"
+address = 0x00913EC2
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Tokenizer* this, SC4String* name)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. Whether a named option is in the cheat text (docs/mysim.md)."
+
+[[entry]]
+name = "SC4String::SC4String"
+address = 0x00578390
+kind = "function"
+convention = "thiscall"
+signature = "SC4String* (SC4String* this)"
+expect = "53 56 8B F1 33 DB 89 5E"
+source = "Name ours. An empty string with an 8-byte buffer (docs/mysim.md)."
+
+[[entry]]
+name = "SC4RefHolder::SC4RefHolder"
+address = 0x004F20C0
+kind = "function"
+convention = "thiscall"
+signature = "void** (void** this, cIGZUnknown* object)"
+expect = "56 8B F1 8B 4C 24 08 85"
+source = "Name ours. Holds an object, referenced (docs/mysim.md)."
+
+[[entry]]
+name = "SC4ScriptNumber::FromInt"
+address = 0x00915D94
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, int32_t value)"
+expect = "8B 54 24 04 8B C1 33 C9"
+source = "Name ours. A 0x14-byte script value (type 7) from an integer (docs/mysim.md)."
+
+[[entry]]
+name = "SC4ScriptNumber::FromObject"
+address = 0x0091673D
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* object)"
+expect = "33 C0 56 FF 74 24 08 8B"
+source = "Name ours. A 0x14-byte script value from an object pointer (docs/mysim.md)."
+
+[[entry]]
+name = "cSC4MySimAgentSimulator::KeyDefault"
+address = 0x00B20E10
+kind = "data"
+source = "Name ours. A uint32 the constructor copies into +0x24, +0x28 and +0x2C (docs/mysim.md)."
+
+[[entry]]
+name = "cSC4MySimAgentSimulator::GetSimName"
+address = 0x00A85514
+kind = "data"
+source = "Name ours. \"get_sim\", the script command's name (docs/mysim.md)."
