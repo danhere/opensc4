@@ -2044,3 +2044,43 @@ name = "SC4::Service43D34"
 address = 0x00B43D34
 kind = "data"
 source = "Name ours, not analysed. Slot 7 (0x1D) gives an interface at +8 whose object slot 10 NextLeg calls."
+
+[[entry]]
+name = "cSC4MySimDispatch::EndSegment"
+address = 0x00435840
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 98 00 00 00 53 55"
+source = "Name ours, not analysed yet. Step's work when a segment has ended (flag 0x400): the next segment, the walk to and from the car, events."
+
+[[entry]]
+name = "cSC4MySimDispatch::FindConnection"
+address = 0x00434C40
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 8B 6C 24 14 8A"
+source = "Name ours, not analysed in detail. (n, place): for a place outside the city, the n-th neighbour connection of the right kind becomes its cell; false when none."
+
+[[entry]]
+name = "SC4MySimPlaceDeque::PopFront"
+address = 0x00432C20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 08 8B 06"
+source = "pop_front of a deque of SC4MySimPlace (the place released, an empty block freed)."
+
+[[entry]]
+name = "SC4RouteDeque::PushBack"
+address = 0x00434470
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 18 8B 41 10 83 EA"
+source = "push_back of a 3-byte cell (the slow path 0x004335F0 when the block is full)."
+
+[[entry]]
+name = "SC4RouteDeque::Construct"
+address = 0x00432BF0
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 56 8B F1 89 06 89"
+source = "An empty deque of 3-byte cells (Init with 0); the argument is the allocator."

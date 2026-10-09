@@ -38,6 +38,7 @@ The cISC4MySim methods take the +0xB8 part as `this`; offsets in src/core/mysim_
 | `simulators.mysim_agents.dispatch_route` | the route (a deque of 3-byte cells: x, z, kind; the segment in hand runs from +0x30 to +0x2C): advancing to the next segment, stops, copying a segment, snapping a place to a road cell, a destination outside the city through a neighbour connection |
 | `simulators.mysim_agents.dispatch_vehicle` | making the vehicle (or walker) automaton for a segment's model and launching it on the route, and the location marker over what moves the MySim |
 | `simulators.mysim_agents.dispatch_legs` | GoTo (a new target: the route planned again while travelling, else queued) and the vtable's next-leg slot (a car parked with the traffic simulator on arrival; from home to work and back) |
+| `simulators.mysim_agents.dispatch_step` | Step, the trip state machine: stopped (the next place queued or home, travelling to it), travelling (the route view's search, then segment by segment with the vehicle), none (back home). With flag 0x800, which only a save can set, the game's Step reads a target rectangle from stack slots that call never wrote; ours uses the last one computed |
 
 Replacement code reads the MySim stopwatches through `sim_timers::Claim` first, so `determinism.sim_timers` takes them over as it would for the original code.
 
@@ -72,5 +73,7 @@ With the dispatch route group as well (eighteen groups, 2026-10-09): `saves-mysi
 With the dispatch vehicle and legs groups as well (twenty groups, 2026-10-09): `saves-mysim` 4 of 4, with the script commands 4 of 4, the usual 12 with a MySim moving in 12 of 12.
 
 **Registers the game expects kept.** The game was built with whole-program optimization, and some callers keep using ECX or EDX after calling a small function that the compiler knew would leave them alone: Step (0x0043699A) calls RefreshMarker right after SetStatus without setting ECX again, MakeVehicle (0x00435226) pushes EDX after ModelService. A C++ replacement may change both, so these two are hooked through thunks that keep them. Each new group's call sites are checked for such uses.
+
+With Step as well (twenty-one groups, 2026-10-09): `saves-mysim` 3 of 4 and one partly (the first pair's run of ours one tick short on one day, every record identical), with the script commands 4 of 4, the usual 12 with a MySim moving in 12 of 12.
 
 **A moved-in MySim does not always repeat.** It travels by car, and cars move on frame time ([traffic-map.md](traffic-map.md)), so when it arrives can differ between runs of the original; its state (and the advice it gives) then differs from that day. Judge MySim runs with travel by outcome sets.
