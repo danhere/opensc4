@@ -87,6 +87,7 @@ The test cities never edit their networks, so parity alone would not reach the c
 | `OPENSC4_TEST_RESIDENTIAL_MONTH=<n>` | every n days, the month message (0x66956816) to the residential simulator, which restarts its cycle; with 2, a 30-day run covers it about twice ([residential.md](residential.md)) |
 | `OPENSC4_TEST_RESIDENTIAL_QUERIES=1` | each day, the residential queries only the UI makes, into the fingerprint ([residential.md](residential.md)) |
 | `OPENSC4_TEST_DEVELOPMENT_QUERIES=1` | each day, the building development queries no test city makes (type lists, type and family checks, developer wealth, the stage multiplier), into the fingerprint ([development.md](development.md)) |
+| `OPENSC4_TEST_GROWTH_QUERIES=1` | each day, per growth developer, the queries no test city makes (desirability estimates, subjective thresholds, abandonment thresholds, the desirability threshold), into the fingerprint ([growth.md](growth.md)) |
 | `OPENSC4_TEST_CRIME_QUERIES=1` | each day, the crime queries only the UI and the automata make, into the fingerprint ([crime.md](crime.md)) |
 | `OPENSC4_TEST_MYSIM_QUERIES=1` | each day, what the MySim panel and balloons ask every MySim, into the fingerprint ([mysim-agents.md](mysim-agents.md)) |
 | `OPENSC4_TEST_MYSIM_DRIVE=<day>` | on that day every MySim leaves for work, returns home and hears of building and connection changes, fires and disasters ([mysim-agents.md](mysim-agents.md)) |
