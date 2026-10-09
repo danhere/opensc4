@@ -6520,3 +6520,1305 @@ convention = "thiscall"
 signature = "cRZDate* (cRZDate* this)"
 expect = "55 8B EC 51 56 8B F1 6A"
 source = "Name ours. An 8-byte date (vtable 0x00A827D8, day) set to today by the clock (time(), localtime) (docs/neighbors.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::DoMessage"
+address = 0x006F62C0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours (the class names itself cSC4ProtectionSimulator, 0x00A89624). Base slot 3: the step (slot 5), the month (slot 6), funding (0x006F5C30), occupants in and out and changed (slots 7-9, unless property 0x029244DB), dispatch messages (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::Step"
+address = 0x006F6A70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 55 56 8B F1 8B"
+source = "Name ours. Base slot 5: +0x28 cells of the coverage walk (tract iterator at +0x34), the derived class told per cell (slot 16) and at the walk's end (slot 17); average and share of developed cells covered at +0x90, +0x94 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::Init"
+address = 0x006F6BC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 56 8B F1 8B"
+source = "Name ours. The base's Init: city, budget and service 0x00B43D14 references, the uint8 coverage and int16 power grids (built inline), the walk's rectangle, the simulator service and message registrations, the dispatch service (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::Shutdown"
+address = 0x006F56F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 33 FF 3B"
+source = "Name ours. The base's Shutdown: city services told, messages unregistered, grids shut down and released, references released (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::PaintCoverage"
+address = 0x006F5C30
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 60 01 00 00 53 55"
+source = "Name ours, not analysed in detail. The power grid painted again from the stations (+0x80) and the dispatch sources (0x00B43D04) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::OnDispatch"
+address = 0x006F5A40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 8B F1 8B 0D"
+source = "Name ours, not analysed in detail. (id): message 0x894671F6 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::OnDispatchMove"
+address = 0x006F61F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 56 8B F1 8B 0D"
+source = "Name ours, not analysed in detail. (id, start): messages 0xE94671EC (1) and 0xE94671ED (0) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::CoverageCell"
+address = 0x006F5E40
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8D 14 40 8B"
+source = "Name ours. (x, z, power rows, coverage rows): the power value x +0x98 rounded, 0 to 255, into the coverage grid; returns it (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::BlockDeveloped"
+address = 0x006F6180
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 2C 8B 54 24 04 53"
+source = "Name ours. (x, z, byte rows): whether any byte of the +0x2C-cell block is set (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::DefaultShare"
+address = 0x00B4AF88
+kind = "data"
+source = "float set at startup: the share covered when no cell was counted (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::Name"
+address = 0x00A89624
+kind = "data"
+source = "\"cSC4ProtectionSimulator\": the name the base registers with the simulator service (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4::DispatchService"
+address = 0x00B43D04
+kind = "data"
+source = "Name ours. Dispatch sources: slot 13 registers a protection simulator (+4), slot 10 (id, info*) an entry, slots 11/12 the count and the list (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4SimGridSint16::Vtable2"
+address = 0x00A879C4
+kind = "data"
+source = "The int16 sim grid's second vtable, at +4 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::CopyCoverage"
+address = 0x006F5EB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 44 24 14 53"
+source = "Name ours. (x, z, radius, power rows, coverage rows): the coverage bytes of the square around (x, z) within the grid, as CoverageCell (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::UpdateAround"
+address = 0x006F6110
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8D 54 24 14 52"
+source = "Name ours. (x, z, float radius): (x, z) made a tract (grid slot 19), the power grid painted again (0x006F5C30), the coverage around it copied with radius x the grid's scale (slot 16) truncated (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::ReturnUnit"
+address = 0x006F5620
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 57 8B 7C 24"
+source = "Name ours. (station, slot): a unit back at its station: the slot's bit set in the station's mask (+4 slot 7, slot 10), unless all are home or it already is (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::SendUnit"
+address = 0x006F5570
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 8B 6C 24"
+source = "Name ours. +4 slot 9 (this = base + 4): (station, slot*): a unit leaves: the given slot's bit (or, for 0, the first set bit) cleared in the station's mask (slot 10); the slot number back (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::CanDispatch"
+address = 0x006F5A80
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8B 07 FF"
+source = "Name ours. +4 slot 4: (x, z, bool* busy): false without stations or over water; busy = every unit out (dispatch service slot 11 count against +4 slot 5) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::UnitCount"
+address = 0x006F5B00
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 57 8B F9 8B 47"
+source = "Name ours. +4 slot 5: the stations' units summed (+4 slot 7's count) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::NearestStation"
+address = 0x006F5B40
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. +4 slot 8: (x, z, slot*): the nearest station with a unit home (and an occupant manager entry that allows it), a unit sent from it (+4 slot 9) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::GetStations"
+address = 0x006F6A50
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8D 41 7C 50"
+source = "Name ours. +4 slot 6: (list*): the stations copied in (0x006DFC70); whether there are any (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::ScaleDispatchInfo"
+address = 0x006F56A0
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 08 56 8B 74 24"
+source = "Name ours. (info, factor), this unused: info +8 times the factor, +0xC and +0x10 too (truncated) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::Write"
+address = 0x006F5850
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. cIGZSerializable slot 3 (this = base + 8): version 3 record (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::Read"
+address = 0x006F5920
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Name ours. cIGZSerializable slot 4 (this = base + 8): versions up to 3; before 3 the share was a percentage (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4::CopyOccupantList"
+address = 0x006DFC70
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 4C 24 08 53 55 56"
+source = "Name ours. (list* out, list* in), this unused: out emptied, then each occupant of in held (AddRef) and appended; the count (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::OnStationAdded"
+address = 0x006F6610
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 5C 53 8B 5C 24 64"
+source = "Name ours. Base slot 7: a building that is a station (slot 14) joins the list at +0x80, takes the first free run of dispatch slots after 0 (bit vector of the others'), tells its line item (budget slots 51, 28; item slot 22) and repaints the coverage around it (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::OnStationRemoved"
+address = 0x006F64F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 53 55 56 57 8B"
+source = "Name ours. Base slot 8: a listed station leaves the list, tells its line item (item slot 23), the coverage around it is repainted, it is released (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::OnStationChanged"
+address = 0x006F6250
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 57 8B 7C 24"
+source = "Name ours. Base slot 9: a listed station changed: the coverage around it is repainted (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4BitVector::Resize"
+address = 0x00478140
+kind = "function"
+convention = "thiscall"
+expect = "8B 11 8B 41 08 2B C2 8B"
+source = "Name ours. std::vector<bool>::resize(count, value) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::QueryInterface"
+address = 0x006ACED0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 7B 4C F5"
+source = "Name from the exe's table. cIGZUnknown 1, 0x88F54C7B and 0x452294AA (+8) and the +0xC/+0x10 interfaces 0xC9C00435/0xE4FDA3D4 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::Release"
+address = 0x006AD1B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 C4 00 00"
+source = "Name ours. Slot 2: the count at +0xC4 down; at the last, Shutdown (slot 4) and the deleting destructor through +8 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::Init"
+address = 0x006AE240
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 86 C0 00 00"
+source = "Name from the exe's table. Once (+0xC0): line item kind +0xB0, tuning (0x006ADDA0), the base Init, the department line (+0x7C), +0xCC, grid ids, and the fire plane dispatch source at +0xD0 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::Shutdown"
+address = 0x006AD1E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 86 C0 00"
+source = "Name from the exe's table. The dispatch source shut down and released, the base Shutdown, +0xCC and the department released (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::IsFireStation"
+address = 0x006ACF80
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8B 01 FF 50"
+source = "Name from the exe's table. Whether the occupant's properties have 0x08F55DC2 (this unused) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::SetStationFunding"
+address = 0x006AD530
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 8B 5C 24 28"
+source = "Name ours. Slot 9 (police slot 8): (occupant, float* funding): the station's line item told (slot 24) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::GetStationEfficiency"
+address = 0x006AD430
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 8B 5C 24 2C"
+source = "Name from the exe's table. (float* out, occupant): the efficiency curve (+0xD4) of the line item's funding x 100, x 0.01; x +0x100 for a lot that is not funded (lot slot 28), x +0xE8 on strike; out returned (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::GetChanceOfStrike"
+address = 0x006AD950
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 57 8B F9 8A 87"
+source = "Name from the exe's table. (float* out): 1 on strike, else the stations' chances (curve +0xF0 of the funding x 100, x 0.01) combined as p + q - pq (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::BeginStrike"
+address = 0x006AD060
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8A 87 A4 00 00"
+source = "Name from the exe's table. (occupant): unless on strike, the flag (+0xA4), the day (+0xA8) and message 0x68F54CE1 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::EndStrike"
+address = 0x006AD100
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8A 87 A4 00 00"
+source = "Name from the exe's table. Flag and day cleared, message 0x68F54CE2 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::GetStrikingStations"
+address = 0x006AE170
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B E9"
+source = "Name from the exe's table. (list*): the stations on strike (slot 18) appended, held; how many (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::GetOccupantCoverage"
+address = 0x006AD5E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 8B 74 24 28"
+source = "Name from the exe's table. (occupant, float* distance, float* coverage, float* radius): the station's coverage falling off linearly between its inner and outer distances (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::GetFireStationCount"
+address = 0x006ADA30
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 88 00 00 00 8B 0A"
+source = "Name ours. Slot 23: the stations listed (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::GetTotalDispatchCount"
+address = 0x006AD8F0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 57 8B F9 8B 87"
+source = "Name from the exe's table. The stations' 0x08F55DC5 properties summed (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::DoMessage"
+address = 0x006AE070
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 56 8B"
+source = "Name ours. Base slot 3 (this = +8): the base's handler, then 0xC53D10AA for the simulator tuning exemplar (group 0xE7E2C2DB, instance 0x68F5524A) reloads the tuning (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::Step"
+address = 0x006ACF70
+kind = "function"
+convention = "thiscall"
+expect = "C7 81 98 00 00 00 00 00"
+source = "Name ours. Base slot 5: the grid scale (+0x98 of the base) 1, then the base walk (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::OnMonth"
+address = 0x006AE0C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 56 57 8B F9"
+source = "Name ours. Base slot 6: each station's strike updated (0x006ADBC0); strikes begun or ended; the coverage painted again (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::UpdateStationStrike"
+address = 0x006ADBC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 55 56 57 8B"
+source = "Name ours. (occupant): a strike (property 0xEAA69F83 = its first day) ends after +0x104 days or when funded at +0xEC or more, and starts with the chance curve +0xF0 against a random 0-100; the city told; whether it changed (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::SetUnitMask"
+address = 0x006AD190
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "Name ours. Base slot 10: (occupant, mask): property 0x69B425DE (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::SetFirstUnit"
+address = 0x006AD170
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "Name ours. Base slot 15: (occupant, slot): property 0x69B425DD (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::GetStationFundingValue"
+address = 0x006AD6B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 56 8B 74 24"
+source = "Name ours. Base slot 11: (occupant, out*): the line item's +0x10 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::GetSourceReach"
+address = 0x006AD720
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B E9 8B 4C 24 0C"
+source = "Name ours. Base slot 12: (source, info*): reach from properties 0x29233E9A/9B/9C, scaled by the source's efficiency (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::GetStationInfo"
+address = 0x006AD7C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 8B 6C 24"
+source = "Name ours. Base slot 14: (occupant, info*): position and reach from properties 0x08F55DC0/C1/C2, scaled by the department's funding curve (an 0xE9793A65 occupant) or the station's efficiency (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::OnWalkEnd"
+address = 0x006AD320
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 8B 35 C0"
+source = "Name ours. Base slot 17: monthly figures 0x2A11D203/04 and 0xAAAD4D87, then message 0x68F54CE0 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::IsUnitKind"
+address = 0x006ACFA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 33 C0 83 F9"
+source = "Name ours. +4 slot 3: whether the argument is 1 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::GetUnits"
+address = 0x006ACFB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8B 01 83 EC"
+source = "Name ours. +4 slot 7: (occupant, mask*, first*, count*): properties 0x08F55DC5 (count), 0x69B425DE (mask, cut to count bits), 0x69B425DD (first slot) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::GetUnitAppearance"
+address = 0x006AD5B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 C7 00 02 42"
+source = "Name ours. +4 slot 11: five arguments; 0x4202, three zeros and 0x11882 written (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::Write"
+address = 0x006AD250
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. +0x10 slot 3: version 3, the base record, the dispatch source (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::Read"
+address = 0x006AD2A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. +0x10 slot 4: versions up to 3; the dispatch source from 3 on (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::LoadTuning"
+address = 0x006ADDA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 53 55 56 57 6A"
+source = "Name ours. Defaults (block 2, 50 steps, curves, factors, strike length 60), then the simulator tuning exemplar 0x68F5524A's values (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::Construct"
+address = 0x006ADA50
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 8D 7E 08"
+source = "Name ours. Constructor: the base at +8, vtables 0x00AB1160/1118/10E8/10D0, curves at +0xD4 and +0xF0 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::Destruct"
+address = 0x006ADB20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 08 C7"
+source = "Name ours. Destructor: curve buffers freed, the dispatch source released, the base destructor (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::Create"
+address = 0x006ADB80
+kind = "function"
+convention = "cdecl"
+expect = "68 08 01 00 00 E8 56 7A"
+source = "Name ours. Factory: 0x108 bytes (SC4::operator_new), constructed (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::DeletingDestructor"
+address = 0x006ADBA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 78 FF FF FF"
+source = "Name ours. (flags): destructor, freed if bit 0 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4FireProtectionSimulator::GetGZCLSID"
+address = 0x006ACEC0
+kind = "function"
+convention = "thiscall"
+expect = "B8 5A C0 90 29 C3 CC CC"
+source = "Name ours. +0x10 slot 5: 0x2990C05A (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4FirePlaneSource::Construct"
+address = 0x006ACE00
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 C7 46 04 74"
+source = "Name ours. The fire simulator's dispatch source (0x28 bytes, at +0xD0): vtables 0x00AB1008/0FF8/0FE0, a list at +0x1C, +0x14 = 5, +0x24 = 1 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4DispatchSource::Shutdown"
+address = 0x006AC860
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 0C 84 C0"
+source = "Name ours, not analysed. Called on their dispatch sources by the fire and police Shutdown (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4DispatchSource::Init"
+address = 0x006DF8C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 0C 84 C0"
+source = "Name ours, not analysed. Called on the fire simulator's dispatch source by Init (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4::Service43D7C"
+address = 0x00B43D7C
+kind = "data"
+source = "Name ours. Held by the fire simulator at +0xCC (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4::DefaultText"
+address = 0x00B0D288
+kind = "data"
+source = "Name ours. char* to an empty text; the fire simulator builds a string from it for the city's slot 47 object (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4::One"
+address = 0x00B0D28C
+kind = "data"
+source = "Name ours. float 1.0 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4::Zero"
+address = 0x00B49034
+kind = "data"
+source = "Name ours. float 0.0 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::QueryInterface"
+address = 0x006E0060
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 95 98 65"
+source = "Name from the exe's table. cIGZUnknown 1, 0x67659895, 0x452294AA (+8), 0xC9C00435 (+0xC), 0xE4FDA3D4 (+0x10) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::IsOnStrike"
+address = 0x006E0120
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 A4 00 00 00 C3 CC"
+source = "Name ours. Slot 10 (fire slot 11, same code): the strike flag +0xA4 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetStrikeStartDate"
+address = 0x006E0130
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 A8 00 00 00 C3 CC"
+source = "Name ours. +0xA8 (fire and police) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetStrikeLength"
+address = 0x006E0140
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 A8 00 00"
+source = "Name ours. Days since +0xA8, -1 without a strike (fire and police) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetPoliceStations"
+address = 0x006E0180
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8D 81 88 00"
+source = "Name ours. (list*): the stations (+0x88) copied in (0x006DFC70); fire's GetFireStations too (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetJails"
+address = 0x006E01A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8D 81 D4 00"
+source = "Name ours (Ghidra's IsJail). (list*): the jails (+0xD4) copied in (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::IsPoliceStation"
+address = 0x006E01C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8B 01 FF 50"
+source = "Name from the exe's table. Property 0x48D71ED2 present (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::IsJail"
+address = 0x006E01E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8B 01 FF 50"
+source = "Name ours (Ghidra's GetArrestCount). Property 0x48D71EE0 present (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetAverageCoverage"
+address = 0x006E0200
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 98 00 00 00 C3 CC"
+source = "Name ours. +0x98 in ST0 (fire and police) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::IsUnitKind"
+address = 0x006E0210
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 33 C0 85 C9"
+source = "Name ours. +0xC slot 3: whether the argument is 0 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetUnits"
+address = 0x006E0220
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8B 01 83 EC"
+source = "Name ours. +0xC slot 7: properties 0x48D71ED5 (count), 0x48D71ED8 (mask), 0x48D71ED7 (first slot) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::SetFirstUnit"
+address = 0x006E02D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "Name ours. Base slot 15: property 0x48D71ED7 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::SetUnitMask"
+address = 0x006E02F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "Name ours. Base slot 10: property 0x48D71ED8 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::Shutdown"
+address = 0x006E0310
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 86 C0 00"
+source = "Name from the exe's table (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::Write"
+address = 0x006E03F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. +0x10 slot 3: version 8 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::Read"
+address = 0x006E04E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. +0x10 slot 4: versions up to 8; the helicopter source from 8 on (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::OnWalkEnd"
+address = 0x006E0610
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 57 8B F9 8B 47"
+source = "Name ours. Base slot 17: figures 0x4A11D354/55, message 0xA8DAF510 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetJailEfficiency"
+address = 0x006E06E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 A1 FC D3 B0 00"
+source = "Name ours. (float* out, properties): the jail curve (+0x110) at the jail line item's funding (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::BeginStrike"
+address = 0x006E0780
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8A 87 A4 00 00"
+source = "Name from the exe's table. Message 0xA8DAF511 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::EndStrike"
+address = 0x006E0830
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8A 87 A4 00 00"
+source = "Name from the exe's table. Message 0xA8DAF512 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetJailbreakBuildings"
+address = 0x006E08A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 64 01 00 00 8D 91"
+source = "Name from the exe's table. (list*): +0x164 copied in, 0 when empty (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetStationFunding"
+address = 0x006E08D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 56 8B F1 8B 46"
+source = "Name ours. (occupant, value*, funding*): the line item's +0x10 and +0x1C (fire and police) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetOccupantCoverage"
+address = 0x006E0940
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 83 EC 18 8D 14"
+source = "Name from the exe's table (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::ResetUnjailedCriminals"
+address = 0x006E0A00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 DB 86 D8 00 00"
+source = "Name from the exe's table. Criminals (+0xE0) capped at capacity x +0xFC; +0xF4 cleared (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetJailCurrentUpkeepCost"
+address = 0x006E0A40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 33 C0 8B F1"
+source = "Name from the exe's table. The jail line item's int64 cost (+0x10) x its funding (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetJailCapacityOf"
+address = 0x006E0AC0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 8B F9 8B 4C 24"
+source = "Name ours (slot 28). (occupant): property 0x48D71EE0 x the jail efficiency, rounded (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetJailedPercentage"
+address = 0x006E0B30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 81 E0 00 00"
+source = "Name from the exe's table. (float* out): criminals / capacity, at most 1 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::OnStationChanged"
+address = 0x006E0B80
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 57 56"
+source = "Name ours. Base slot 9: the base's, then message 0xA949569A for a police station (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetUnitAppearance"
+address = 0x006E0C00
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D EC 3C B4 00 8B 01"
+source = "Name ours. +0xC slot 11 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetStationFundingValue"
+address = 0x006E0C50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 56 8B F1 8B 4C"
+source = "Name ours. Base slot 11 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetSourceReach"
+address = 0x006E0CB0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B E9 8B 4C 24 0C"
+source = "Name ours. Base slot 12: properties 0x48D71ED9/DA/DB (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetStationInfo"
+address = 0x006E0D50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 8B 74"
+source = "Name ours. Base slot 14: properties 0x48D71ED0/D1/D2 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetStationEfficiency"
+address = 0x006E0E70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 55 8B 6C 24"
+source = "Name from the exe's table (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetStationDispatchRadius"
+address = 0x006E0F60
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 83 EC 18 8D 14"
+source = "Name ours. (occupant): the reach's strength (base slot 12), 0 without (fire and police) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetChanceOfStrike"
+address = 0x006E0F90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 57 8B F9 8A 87"
+source = "Name from the exe's table (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::IsInJailbreak"
+address = 0x006E1070
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name from the exe's table (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetJailbreakChance"
+address = 0x006E10C0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 0C 85 C0 56"
+source = "Name ours. (float* out, jail): 0 while breaking out; else the curve +0x148 at the jailed share (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::CheckJailbreaks"
+address = 0x006E1190
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 86 D4 00"
+source = "Name ours. Each jail with a chance breaks out on a draw under it (slot 40) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::CheckJailbreakEnds"
+address = 0x006E11F0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 86 64 01"
+source = "Name ours. Breakouts end (slot 41) once the jailed share is under +0x160 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::UpdateJails"
+address = 0x006E1240
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 8B F1"
+source = "Name ours. Capacity (+0xD8) and population (+0xDC, property 0x48D71EE1 per jail) from the jails and criminals (+0xE0) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetTotalDispatchCount"
+address = 0x006E1390
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 57 8B F9 8B 87"
+source = "Name from the exe's table (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::NearestStationTo"
+address = 0x006E13F0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. (x, z): the station nearest the city slot 97 position (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetJailCount"
+address = 0x006E14B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 D4 00 00 00 8B 0A"
+source = "Name ours (Ghidra's GetJailCapacity). Jails listed (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetPoliceStationArrestCount"
+address = 0x006E14D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 8B 4C 24 10 8B"
+source = "Name from the exe's table. Property 0x8A70A0B9 [1] (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetPoliceStationCrimeCount"
+address = 0x006E1520
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 8B 4C 24 10 8B"
+source = "Name from the exe's table. Property 0x8A70A0B9 [0] (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::OnStationRemoved"
+address = 0x006E1570
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 55 56 57 8B"
+source = "Name ours. Base slot 8: funded jails (+0xF8) and jails (+0xD4) forgotten, then the base's, and message 0xA949569A (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::UpdateStationStrike"
+address = 0x006E1830
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 55 56 57 8B"
+source = "Name ours. As fire's 0x006ADBC0 with the police tuning and a 0-1 draw (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetStrikingStations"
+address = 0x006E1A00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B E9"
+source = "Name from the exe's table (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::BeginJailbreak"
+address = 0x006E1AF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 8B 5C 24 20"
+source = "Name from the exe's table (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::EndJailbreak"
+address = 0x006E1C90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 8B 5C 24 1C"
+source = "Name from the exe's table (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::OnStationAdded"
+address = 0x006E1DB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 48 53 55 56 8B 74"
+source = "Name ours. Base slot 7: the base's, message 0xA949569A for a police station, and jails listed (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::LoadTuning"
+address = 0x006E2110
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 55 56 57 6A"
+source = "Name ours. Defaults, then tuning exemplar 0x28DFCF89 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::OnMonthStrikes"
+address = 0x006E2570
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 8B F1 8B"
+source = "Name ours. Each station's strike updated, strikes begun or ended, coverage painted again (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::RecordCrime"
+address = 0x006E2610
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B 74 24 14"
+source = "Name ours. (station, kind): property 0x8A70A0B9's four counts: 0 a crime, 1 a crime and an arrest, 2 rolled over to last month (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::Init"
+address = 0x006E2740
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 86 C0 00 00"
+source = "Name from the exe's table (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::DoMessage"
+address = 0x006E2920
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 57 8B 7C"
+source = "Name ours. Base slot 3: the base's, then 0x08DAC3E7 (jail funding), 0x0A159D95 (a crime: arrest if covered over +0x144) and the tuning exemplar (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::OnMonth"
+address = 0x006E2A80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 57 8B"
+source = "Name ours. Base slot 6: criminals released (+0x124), strikes, jailbreaks (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::ProcessMonthlyCrimeStats"
+address = 0x006E2B50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 8B D9"
+source = "Name from the exe's table (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::GetGZCLSID"
+address = 0x006E0050
+kind = "function"
+convention = "thiscall"
+expect = "B8 4F C0 90 69 C3 CC CC"
+source = "Name ours. +0x10 slot 5: 0x6990C04F (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4List::Find"
+address = 0x004DC710
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 8B 44 24 0C"
+source = "Name ours. (node** out, first, last, value*): the first node from first holding *value, else last (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4List::PushBack"
+address = 0x00467B50
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 31 6A 00 6A 01 E8"
+source = "Name ours. (value*): a node (0x00413DD0) holding *value appended (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4PoliceHelicopterSource::Construct"
+address = 0x006DFF70
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 C7 46 04 74"
+source = "Name ours. The police simulator's dispatch source (0x28 bytes, at +0xC8) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::JailbreakFlag"
+address = 0x00B49B60
+kind = "data"
+source = "Name ours. uint8: Init registers 0x006E0100 (which clears it) with 0x00B43C94 once (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4PoliceSimulator::ClearJailbreakFlag"
+address = 0x006E0100
+kind = "function"
+convention = "cdecl"
+expect = "A0 60 9B B4 00 84 C0 B0"
+source = "Name ours. The callback Init registers (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4::StrikingPoliceText"
+address = 0x00B0D3F8
+kind = "data"
+source = "Name ours. char* to striking_police (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4::JailbreakText"
+address = 0x00B0D3F4
+kind = "data"
+source = "Name ours. char* to jailbreak (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4::One2"
+address = 0x00B0D3FC
+kind = "data"
+source = "Name ours. float 1.0 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4::Zero2"
+address = 0x00B49B64
+kind = "data"
+source = "Name ours. float 0.0 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4DispatchSource::QueryInterface"
+address = 0x006AC550
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 35 04 C0"
+source = "Name ours. A dispatch source (fire planes, police helicopters): 0xC9C00435 itself, 0x452294AA +4, 0xE4FDA3D4 +8 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4DispatchSource::Release"
+address = 0x006DFAF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 83 F8"
+source = "Name ours. The count +0x10 down; at the last, Shutdown (0x006AC860) and the deleting destructor (slot 12) (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4DispatchSource::IsKind"
+address = 0x006DF760
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3B 41 14 0F"
+source = "Name ours. Slot 3: the argument against the kind +0x14 (5 fire, 6 police) (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4DispatchSource::CanDispatch"
+address = 0x006AC9C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 57 FF 50"
+source = "Name ours. Slot 4: (x, z, bool* busy): units and the dispatch service's count for the kind (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4DispatchSource::UnitCount"
+address = 0x006DFB20
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 57 8B F9 8B 47"
+source = "Name ours. Slot 5 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4DispatchSource::GetBuildings"
+address = 0x006E0010
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8D 41 1C 50"
+source = "Name ours. Slot 6: (list*): +0x1C copied in; whether any (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4DispatchSource::NearestBuilding"
+address = 0x006DFB60
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Slot 8: (x, z, slot*): the nearest building with a unit home, a unit sent (slot 9) (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4DispatchSource::DoMessage"
+address = 0x006AC5C0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. +4 slot 3: buildings added/removed, dispatch messages for its kind (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4DispatchSource::Write"
+address = 0x006AC930
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. +8 slot 3: version 1, the buildings, the slot count (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4DispatchSource::OnBuildingRemoved"
+address = 0x006ACB60
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Slot 14 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4DispatchSource::OnDispatchMove"
+address = 0x006ACAC0
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D 04 3D B4 00 83 EC"
+source = "Name ours. Slot 16: (id, flag): the dispatch service's entry read, nothing more (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4FirePlaneSource::GetUnits"
+address = 0x006AC710
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8B 01 83 EC"
+source = "Name ours. Slot 7: properties 0x0C0AFDD7 (count), 0xCC0AFDDB (mask), 0x0C0AFF3F (first slot) (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4FirePlaneSource::ReturnUnit"
+address = 0x006AC7C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 01 56 8B 74"
+source = "Name ours. Slot 10 (thunk 0x006AC850): mask property 0xCC0AFDDB (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4FirePlaneSource::SendUnit"
+address = 0x006ACA00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 01 53 55 56"
+source = "Name ours. Slot 9 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4FirePlaneSource::GetUnitAppearance"
+address = 0x006ACB30
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 C7 00 03 43"
+source = "Name ours. Slot 11: 0x4303 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4FirePlaneSource::OnBuildingAdded"
+address = 0x006ACBB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 55 56 57 8B"
+source = "Name ours. Slot 13: a building with planes (0x0C0AFDD7) joins, takes free dispatch slots (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4FirePlaneSource::OnDispatch"
+address = 0x006ACAF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 8B F1 8B 0D"
+source = "Name ours. Slot 17: a unit back (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4FirePlaneSource::Read"
+address = 0x006AC970
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. +8 slot 4: version 1 only (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4FirePlaneSource::GetGZCLSID"
+address = 0x006AC540
+kind = "function"
+convention = "thiscall"
+expect = "B8 14 E1 0A 4C C3 CC CC"
+source = "Name ours. 0x4C0AE114 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4PoliceHelicopterSource::GetUnits"
+address = 0x006DF770
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8B 01 83 EC"
+source = "Name ours. Slot 7: properties 0xCC0B0705 (count), 0xEC0B0709 (mask), 0xAC0B070E (first slot) (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4PoliceHelicopterSource::ReturnUnit"
+address = 0x006DF820
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 01 56 8B 74"
+source = "Name ours. Slot 10 (thunk 0x006DF8B0) (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4PoliceHelicopterSource::SendUnit"
+address = 0x006DFA00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 01 53 55 56"
+source = "Name ours. Slot 9 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4PoliceHelicopterSource::GetUnitAppearance"
+address = 0x006DFAC0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 C7 00 01 43"
+source = "Name ours. Slot 11: 0x4301 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4PoliceHelicopterSource::OnBuildingAdded"
+address = 0x006DFD20
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 55 56 57 8B"
+source = "Name ours. Slot 13 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4PoliceHelicopterSource::OnDispatch"
+address = 0x006DF9C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 8B F1 8B 0D"
+source = "Name ours. Slot 17 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4PoliceHelicopterSource::Read"
+address = 0x006DF970
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. +8 slot 4: versions up to 1 (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4PoliceHelicopterSource::GetGZCLSID"
+address = 0x006DF750
+kind = "function"
+convention = "thiscall"
+expect = "B8 E8 06 0B 0C C3 CC CC"
+source = "Name ours. 0x0C0B06E8 (docs/fire-police.md)."
