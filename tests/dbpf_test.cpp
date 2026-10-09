@@ -357,19 +357,30 @@ void TestPluginFolder()
     WriteFile(root / "zzz_override.dat", BuildPackage({{key, Str("top level")}}));
     WriteFile(root / "aaa_mods" / "mod.dat", BuildPackage({{key, Str("subfolder")}}));
     WriteFile(root / "notes.txt", Str("hello"));
+    WriteFile(root / "zzz_lot.SC4Lot", BuildPackage({{key, Str("loose")}, {{5, 5, 6}, Str("loose only")}}));
 
     const std::u8string u8 = root.generic_u8string();
     const std::string folder(u8.begin(), u8.end());
     std::vector<std::string> listed;
     Check(ListFolder(folder, listed) &&
-              listed == std::vector<std::string>{"notes.txt", "zzz_override.dat", "aaa_mods/mod.dat"},
+              listed == std::vector<std::string>{"notes.txt", "zzz_lot.SC4Lot", "zzz_override.dat",
+                                                 "aaa_mods/mod.dat"},
           "folder listed in load order");
+    Check(ListFolder(folder, listed, nullptr, false) &&
+              listed == std::vector<std::string>{"notes.txt", "zzz_lot.SC4Lot", "zzz_override.dat"},
+          "folder listed without subfolders");
+    Check(IsDatFile("a/b.DAT") && IsDatFile("x.dat") && !IsDatFile("x.dat.bak") && !IsDatFile("a.dat/x") &&
+              !IsDatFile("noext"),
+          ".dat files told apart without case");
 
     LoadOrder order;
     std::string error;
     Check(order.AddFolder(folder, &error), "folder segment added");
     const PluginFile* w = order.Winner(key);
     Check(w && w->path == "aaa_mods/mod.dat", "a subfolder file beats any top-level file");
+    w = order.Winner({5, 5, 6});
+    Check(w && w->path == "zzz_lot.SC4Lot" && order.SegmentCount() == 2,
+          "other package files are a segment after the .dat files: any .dat wins over them");
     Check(!order.AddFolder(folder + "/missing", &error) && !error.empty(), "missing folder reported");
 
     // More files than the loader keeps open: every one still reads.

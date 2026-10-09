@@ -93,12 +93,13 @@ void SortFolderOrder(std::vector<std::string>& relativePaths)
         relativePaths[i] = std::move(keyed[i].second);
 }
 
-bool ListFolder(const std::string& folder, std::vector<std::string>& out, std::string* error)
+namespace {
+
+template <typename Iterator>
+bool ListWith(const std::string& folder, const fs::path& root, std::vector<std::string>& out, std::string* error)
 {
-    out.clear();
-    const fs::path root = ToPath(folder);
     std::error_code ec;
-    fs::recursive_directory_iterator it(root, fs::directory_options::skip_permission_denied, ec), end;
+    Iterator it(root, fs::directory_options::skip_permission_denied, ec), end;
     if (ec) {
         if (error)
             *error = "cannot list " + folder + ": " + ec.message();
@@ -114,8 +115,29 @@ bool ListFolder(const std::string& folder, std::vector<std::string>& out, std::s
         if (it->is_regular_file(typeError))
             out.push_back(FromPath(it->path().lexically_relative(root)));
     }
+    return true;
+}
+
+} // namespace
+
+bool ListFolder(const std::string& folder, std::vector<std::string>& out, std::string* error, bool recursive)
+{
+    out.clear();
+    const fs::path root = ToPath(folder);
+    const bool ok = recursive ? ListWith<fs::recursive_directory_iterator>(folder, root, out, error)
+                              : ListWith<fs::directory_iterator>(folder, root, out, error);
+    if (!ok)
+        return false;
     SortFolderOrder(out);
     return true;
+}
+
+bool IsDatFile(const std::string& path)
+{
+    const size_t slash = path.find_last_of("/\\");
+    const size_t dot = path.find_last_of('.');
+    return dot != std::string::npos && (slash == std::string::npos || dot > slash) &&
+           CaseFoldEqual(path.substr(dot), ".DAT");
 }
 
 bool ReadPathList(const std::string& file, std::vector<std::string>& out, std::string* error)
@@ -147,6 +169,16 @@ bool ReadPathList(const std::string& file, std::vector<std::string>& out, std::s
     return true;
 }
 
+bool PathListed(const std::string& path, const std::vector<std::string>& list)
+{
+    for (const std::string& p : list) {
+        const bool folder = !p.empty() && p.back() == '/';
+        if (folder ? path.size() > p.size() && CaseFoldEqual(path.substr(0, p.size()), p) : CaseFoldEqual(path, p))
+            return true;
+    }
+    return false;
+}
+
 bool WritePathList(const std::string& file, const std::vector<std::string>& paths, std::string* error)
 {
     std::ofstream out(ToPath(file), std::ios::binary | std::ios::trunc);
@@ -175,14 +207,18 @@ bool LoadOrder::AddFolder(const std::string& folder, std::string* error)
     std::vector<std::string> paths;
     if (!ListFolder(folder, paths, error))
         return false;
-    for (const std::string& rel : paths) {
-        PluginFile file;
-        file.path = rel;
-        file.segment = segments_;
-        file.package = Package::OpenFile(FromPath(ToPath(folder) / ToPath(rel)), &file.error);
-        Add(std::move(file));
+    for (const bool dat : {true, false}) {
+        for (const std::string& rel : paths) {
+            if (IsDatFile(rel) != dat)
+                continue;
+            PluginFile file;
+            file.path = rel;
+            file.segment = segments_;
+            file.package = Package::OpenFile(FromPath(ToPath(folder) / ToPath(rel)), &file.error);
+            Add(std::move(file));
+        }
+        ++segments_;
     }
-    ++segments_;
     return true;
 }
 
@@ -220,17 +256,11 @@ size_t LoadOrder::ApplyDisabled(const std::vector<std::string>& paths)
     std::vector<bool> used(paths.size());
     for (size_t i = 0; i < files_.size(); ++i) {
         bool off = false;
-        for (size_t j = 0; j < paths.size(); ++j) {
-            const std::string& p = paths[j];
-            const bool folder = !p.empty() && p.back() == '/';
-            const std::string& path = files_[i].path;
-            const bool match = folder ? path.size() > p.size() && CaseFoldEqual(path.substr(0, p.size()), p)
-                                      : CaseFoldEqual(path, p);
-            if (match) {
+        for (size_t j = 0; j < paths.size(); ++j)
+            if (PathListed(files_[i].path, {paths[j]})) {
                 off = true;
                 used[j] = true;
             }
-        }
         SetEnabled(i, !off);
     }
     return static_cast<size_t>(std::count(used.begin(), used.end(), true));
