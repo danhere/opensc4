@@ -4657,3 +4657,414 @@ name = "SC4WaterRouteFinder::SideDZ"
 address = 0x00AB34E0
 kind = "data"
 source = "int32[4]: z step by direction (0, -1, 0, 1) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::vftable"
+address = 0x00AB0DC8
+kind = "vtable"
+expect = "B0 F1 69 00 30 53 69 00"
+source = "Primary vtable: cISC4CrimeSimulator, 14 slots, the scalar deleting destructor in slot 14. Others: cIGZMessageTarget2 at +4 (0x00AB0DB8), interface 0x89C498BE at +8 (0x00AB0D9C), cIGZSerializable at +0xC (0x00AB0D84). simulators.crime.interface swaps slots 5-13 (docs/crime.md)."
+
+[[entry]]
+name = "SC4Vector28::Resize"
+address = 0x006A1380
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Vector<cISC4CrimeSimulator::tCrimeEvent>* this, uint32_t count, cISC4CrimeSimulator::tCrimeEvent const* fill)"
+expect = "53 56 8B F1 8B 1E 57 8B"
+source = "Name ours. resize() of a vector of 28-byte elements: erases the tail or inserts copies of `fill` (0x006A02E0). cSC4CrimeSimulator::GetCrimeIncidentArray sizes the caller's vector with it (docs/crime.md)."
+
+[[entry]]
+name = "SC4::OccupantFilterBase"
+address = 0x005EA080
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 C7 40 04 84 07 A8"
+source = "Name ours. Constructor of a 12-byte occupant filter (vtables 0x00AA42C8/0x00AA42B0, reference count +8 = 0); the crime simulator's nearest-prop and nearest-sim queries derive from it (docs/crime.md)."
+
+[[entry]]
+name = "SC4::VectorDefault2"
+address = 0x00B4861C
+kind = "data"
+source = "Name ours. float, in .bss: the start value of a position before an occupant fills it in, for the crime simulator's nearest queries (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::Step"
+address = 0x006A1FD0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4CrimeSimulator* this, uint32_t amount)"
+expect = "83 EC 08 56 8B F1 0F B6"
+source = "Name ours. Messages 0x66956814 (amount 5) and 0x6695681A. One state per call (+0x90, jump table 0x006A21A0): 0 waits for Init, 1 counts people and demand factors, 2 the expected crimes, 3 the month's target, 4 decay and placement, 5 message 0x88EA4DFF, then 6 until MonthPassed. Reimplemented by simulators.crime.step (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::CountPeople"
+address = 0x0069FB00
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4CrimeSimulator* this)"
+expect = "83 EC 2C 53 55 56 57 8D"
+source = "Name ours. State 1: the people of three groups (service 0x00B43DA4 slot 25, uint16 grids) by quarter of a value (slot 23, float grids, x 0.02) into +0x9C. Reimplemented by simulators.crime.helpers (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::ComputeFactors"
+address = 0x0069F780
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4CrimeSimulator* this)"
+expect = "83 EC 10 53 8B 1D 74 3D"
+source = "Name ours. State 1: per group, its demands (table 0x00B0D1F8, service 0x00B43D74 slot 6) summed from slots 12, 14, 15 into a factor in [-1, 1] at +0xCC. Reimplemented by simulators.crime.helpers (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::ExpectedCrimes"
+address = 0x0069F360
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4CrimeSimulator* this)"
+expect = "83 EC 1C 53 55 8D 81 CC"
+source = "Name ours. State 2: the counts through the quarter curves (+0xEC) and the factor curves (+0x11C). Reimplemented by simulators.crime.helpers (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::Decay"
+address = 0x0069FC40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4CrimeSimulator* this)"
+expect = "83 EC 10 53 8B D9 8B 4B"
+source = "Name ours. State 4: the crime grid's cells times +0x16C; the hotspot's value re-read. Reimplemented by simulators.crime.helpers (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::ClearIncidents"
+address = 0x006A1530
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4CrimeSimulator* this)"
+expect = "53 56 57 8B F9 8B 47 74"
+source = "Name ours. State 4 and Shutdown: frees the incidents (+0x70). Reimplemented by simulators.crime.helpers (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::UpdateAverage"
+address = 0x0069FD70
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4CrimeSimulator* this)"
+expect = "83 EC 2C A1 14 3D B4 00"
+source = "Name ours. State 4: the crime grid's average over zoned cells (zone manager slot 12) into +0x6C. Reimplemented by simulators.crime.helpers (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::GenerateCrimes"
+address = 0x006A1DE0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4CrimeSimulator* this, int32_t tries)"
+expect = "83 EC 24 56 8B F1 8B 4E"
+source = "Name ours. State 4: random lots (lot manager slot 13), police less effect through the chance curve (+0x14C) against a draw, incidents, the crime grid and hotspot. Reimplemented by simulators.crime.generate (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::CreateIncident"
+address = 0x006A1A40
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (cSC4CrimeSimulator* this, cISC4Lot* lot)"
+expect = "83 EC 28 53 55 56 57 8D"
+source = "Name ours. A crime type for the lot by weight among those whose masks match (0x0069F850), an incident, message 0x0A159D95; returns the type's strength. Reimplemented by simulators.crime.generate (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::LotMasks"
+address = 0x0069F850
+kind = "function"
+convention = "stdcall"
+signature = "uint8_t (cISC4Lot* lot, uint32_t* zone, uint32_t* building, uint32_t* size, uint32_t* wealth)"
+expect = "8B 44 24 10 53 8B 5C 24"
+source = "Name ours. The four masks of a lot that crime types are matched against (zone kind, building levels, wealth). Reimplemented by simulators.crime.generate (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::Random"
+address = 0x00B48630
+kind = "data"
+source = "Name ours. The crime simulator's cRZRandom (draws in GenerateCrimes and CreateIncident) (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::CrimeTypes"
+address = 0x00B48620
+kind = "data"
+source = "Name ours. vector<CrimeType*> (begin, end, capacity), global, loaded once from the crime exemplars (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::CrimeTypesLoaded"
+address = 0x00B48618
+kind = "data"
+source = "Name ours. uint8: the crime types are loaded (set by the first Init, cleared by the cleanup callback 0x006A13E0) (docs/crime.md)."
+
+[[entry]]
+name = "SC4::Service43DA4"
+address = 0x00B43DA4
+kind = "data"
+source = "Name ours. A service whose slot 25 gives three uint16 grids (people by group) and slot 23 three float grids; the crime simulator counts people with them (docs/crime.md)."
+
+[[entry]]
+name = "SC4::ZoneManager"
+address = 0x00B43D14
+kind = "data"
+source = "Name ours. The city's zone manager; slot 12 is the zone type at a cell (docs/crime.md)."
+
+[[entry]]
+name = "SC4::PoliceSimulator"
+address = 0x00B43D98
+kind = "data"
+source = "Name ours. The city's cISC4PoliceSimulator (slots 5, 27, 30, 38 used by the crime simulator) (docs/crime.md)."
+
+[[entry]]
+name = "SC4::Float0_02"
+address = 0x00A9A414
+kind = "data"
+source = "float 0.02 (docs/crime.md)."
+
+[[entry]]
+name = "SC4::FloatOneA81228"
+address = 0x00A81228
+kind = "data"
+source = "float 1.0 (docs/crime.md)."
+
+[[entry]]
+name = "SC4::FloatTwoTo32"
+address = 0x00A80AA8
+kind = "data"
+source = "float 4294967296.0, added after an FILD of a negative value to read it as unsigned (docs/crime.md)."
+
+[[entry]]
+name = "SC4::FloatRoundMagic"
+address = 0x00AB0CF8
+kind = "data"
+source = "float 12582912.0 (1.5 x 2^23): added and stored as a float, its bits less 0x4B400000 are the value rounded to nearest (docs/crime.md)."
+
+[[entry]]
+name = "SC4::DoubleZero"
+address = 0x00A80990
+kind = "data"
+source = "double 0.0 (docs/crime.md)."
+
+[[entry]]
+name = "CrimeTuning::DemandGroups"
+address = 0x00B0D1F8
+kind = "data"
+source = "Name ours. Three zero-terminated lists of demand IDs, six words each (0x4100 0x4200 0x4300 0x3110 0x3120; 0x4400 0x3320 0x3130; 0x3330), for cSC4CrimeSimulator::ComputeFactors (docs/crime.md)."
+
+[[entry]]
+name = "SC4String::AssignRange"
+address = 0x00408A70
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4StringBuffer* this, char const* begin, char const* end, void* tag)"
+expect = "8B 44 24 04 56 57 8B F9"
+source = "std::string _M_assign_dispatch<char*> on a buffer (begin, end, capacity) (docs/crime.md)."
+
+[[entry]]
+name = "SC4String::CopyBuffer"
+address = 0x004089B0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4StringBuffer* this, SC4StringBuffer const* source, uint32_t position, uint32_t count, void* tag)"
+expect = "8B 54 24 08 33 C0 56 8B"
+source = "Name ours. Constructs a buffer from a substring of another (position, count; -1 = to the end) (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::vftable_4"
+address = 0x00AB0DB8
+kind = "vtable"
+expect = "70 00 6A 00 D0 00 52 00"
+source = "The cIGZMessageTarget2 interface at +0x4: slot 3 DoMessage 0x006A21C0. simulators.crime.messages swaps it (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::vftable_8"
+address = 0x00AB0D9C
+kind = "vtable"
+expect = "80 00 6A 00 F0 00 52 00"
+source = "Interface 0x89C498BE at +0x8, 7 slots: 3 crime over a rectangle (0x0069F710), 4 a type (0x49A1E996), 5 true, 6 a candidate for an incident (0x006A00D0). Registered with the service at 0x00B43DB8 by Init. simulators.crime.targets swaps 3 and 6 (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::vftable_C"
+address = 0x00AB0D84
+kind = "vtable"
+expect = "90 00 6A 00 10 01 52 00"
+source = "cIGZSerializable at +0xC: Write 0x0069F600, Read 0x006A05E0, GetGZCLSID 0x0069F1A0. simulators.crime.save and .load swap slots 3 and 4 (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::Name"
+address = 0x00A8990C
+kind = "data"
+source = "\"cSC4CrimeSimulator\", the name Init registers with the simulator service (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::Init"
+address = 0x006A15B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4CrimeSimulator* this)"
+expect = "83 EC 24 53 56 8B F1 8A"
+source = "Slot 3. Once: crime types, tuning, registration, notifications, references, the two grids; unless loaded the tract walk. Reimplemented by simulators.crime.init (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::Shutdown"
+address = 0x006A1860
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4CrimeSimulator* this)"
+expect = "53 56 8B F1 8A 46 10 33"
+source = "Slot 4. Reimplemented by simulators.crime.shutdown (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::OnOccupant"
+address = 0x0069F260
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4CrimeSimulator* this, cISC4Occupant* occupant, bool inserted)"
+expect = "83 EC 18 56 57 8B 7C 24"
+source = "Name ours. Messages 0x99EF1142/43: a building's crime effect (property 0xCA5B9306: strength, radius) added to or taken off the effect grid (+0x60) around it (0x005E3D80). Reimplemented by simulators.crime.messages (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::LoadTuning"
+address = 0x006A07A0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4CrimeSimulator* this)"
+expect = "83 EC 50 53 55 57 6A 00"
+source = "Name ours. Init and message 0xC53D10AA: defaults, then the tuning exemplar 6534284A-E7E2C2DB-C8E8F6C5 (0x47E2C200, curves 0x49A34301 and 0x8A0CBAA4-AB, floats 0x8A0CBAAC/AD). Reimplemented by simulators.crime.tuning (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::LoadCrimeType"
+address = 0x006A0BA0
+kind = "function"
+convention = "cdecl"
+signature = "void (cGZPersistResourceKey const* key)"
+expect = "8B 0D A8 3C B4 00 8B 01"
+source = "Name ours. One crime type (0x3C bytes) from its exemplar into the global list 0x00B48620; properties 0xAA12FCB0-B8. Its byte lists become masks through 0x0069FCF0 (registers ESI, EDI). Reimplemented by simulators.crime.tuning (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::LoadCrimeTypes"
+address = 0x006A1450
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "83 EC 18 56 57 68 2C F3"
+source = "Name ours. Frees the crime types, then loads one per exemplar of type 0xEA12F32C, group 0x6534284A. Reimplemented by simulators.crime.tuning (docs/crime.md)."
+
+[[entry]]
+name = "cSC4CrimeSimulator::FreeCrimeTypes"
+address = 0x006A13E0
+kind = "function"
+convention = "cdecl"
+signature = "bool ()"
+expect = "A0 18 86 B4 00 84 C0 74"
+source = "Name ours. The cleanup the first Init registers with the service at 0x00B43C94 (slot 69). Reimplemented by simulators.crime.tuning (docs/crime.md)."
+
+[[entry]]
+name = "SC4::GetPropertyString"
+address = 0x005FD570
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, cIGZString* value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. A string property into a cIGZString; the crime types' names (docs/crime.md)."
+
+[[entry]]
+name = "SC4::GetPropertyResourceKey"
+address = 0x005FD5B0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISCPropertyHolder* holder, uint32_t property, cGZPersistResourceKey* value)"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. Three uint32 of a property as a resource key; the crime types' keys (docs/crime.md)."
+
+[[entry]]
+name = "SC4::GetLocalizedString"
+address = 0x00603270
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZString* value, uint32_t group, uint32_t instance, uint32_t type, uint32_t flags)"
+expect = "83 EC 0C 8B 54 24 18 8B"
+source = "Name ours. A localized text by group and instance; the crime types' names (type 0x8A416B2E) (docs/crime.md)."
+
+[[entry]]
+name = "SC4ResourceKeyFilter::ctor"
+address = 0x00682020
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4ResourceKeyFilter* this, uint32_t group, uint32_t type)"
+expect = "56 8B F1 E8 F6 B9 28 00"
+source = "Name ours. A 20-byte filter by group and type; the resource manager (slot 17) takes the interface at +8. LoadCrimeTypes uses it (docs/crime.md)."
+
+[[entry]]
+name = "SC4ResourceKeyFilter::dtor"
+address = 0x00681F60
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4ResourceKeyFilter* this)"
+expect = "C7 01 F0 F4 AA 00 C7 41"
+source = "Name ours. Its destructor (docs/crime.md)."
+
+[[entry]]
+name = "SC4::ApplyRadialEffect"
+address = 0x005E3D80
+kind = "function"
+convention = "cdecl"
+signature = "void (uint8_t** rows, int32_t width, int32_t height, int32_t x, int32_t z, float radius, float value, uint32_t flags)"
+expect = "83 EC 0C D9 44 24 24 53"
+source = "Name ours, not analysed. Adds a value around a cell of a uint8 grid (its rows) within a radius in cells; the crime simulator's building effects (docs/crime.md)."
+
+[[entry]]
+name = "SC4Stream::ReadResourceKey"
+address = 0x005DA070
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZIStream& stream, cGZPersistResourceKey* key)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Three uint32 (docs/crime.md)."
+
+[[entry]]
+name = "SC4Stream::WriteResourceKey"
+address = 0x005DA0A0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZOStream& stream, cGZPersistResourceKey const* key)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Three uint32 (docs/crime.md)."
+
+[[entry]]
+name = "TractIterator::SetBounds"
+address = 0x0049C820
+kind = "function"
+convention = "thiscall"
+signature = "void (TractIterator* this, int32_t const* rect)"
+expect = "8B 54 24 04 56 57 8B 3A"
+source = "Name ours. The iterator's rectangle (x0, z0, x1, z1); crime Init sets it to the whole grid (docs/crime.md)."
+
+[[entry]]
+name = "SC4Curve::Init"
+address = 0x007D0410
+kind = "function"
+convention = "thiscall"
+signature = "SC4Curve* (SC4Curve* this)"
+expect = "8B C1 33 C9 89 08 89 48"
+source = "Name ours. Zeroes a curve's 16 bytes (docs/crime.md)."
+
+[[entry]]
+name = "SC4PtrVector::Reserve"
+address = 0x0050C4C0
+kind = "function"
+convention = "thiscall"
+signature = "void (vector<void*>* this, uint32_t count)"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. reserve() of a vector of pointers (docs/crime.md)."
+
+[[entry]]
+name = "SC4::Service43D10"
+address = 0x00B43D10
+kind = "data"
+source = "Unnamed service; slot 13 gives an object whose +0x18 is a crime type, for cSC4CrimeSimulator's candidate pick (docs/crime.md)."
+
+[[entry]]
+name = "SC4::FloatInv255"
+address = 0x00A90BBC
+kind = "data"
+source = "float 1/255 (docs/crime.md)."
