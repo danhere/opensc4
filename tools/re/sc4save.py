@@ -182,6 +182,28 @@ def water_simulator(r):
     return out
 
 
+def aura_simulator(r):
+    """cSC4AuraSimulator (0x0990BDD8): Write at 0x0068CC50 (version 9), Read
+    at 0x0068E340 (versions 8 and 9). Names give the object offsets; the
+    cIGZSerializable part sits at +0x8 (docs/aura.md)."""
+    out = header(r)
+    out['version'] = v = r.u16()
+    if v not in (8, 9):
+        raise struct.error('version %d not known' % v)
+    for name in ('aura_40', 'park_map_58', 'park_sources_54', 'smoothed_48', 'transient_4c', 'landmark_sources_50',
+                 'landmark_map_68'):
+        out[name] = r.ref()
+    if v < 9:
+        out['old_grid'] = r.ref()
+    else:
+        out['departments_5c'] = [[r.u32(), r.ref()] for _ in range(r.u32())]
+    out['flag_80'], out['rating_84'] = r.u32(), r.s32()
+    out['best_148'] = [r.s32(), r.s32(), r.s16()]
+    out['worst_154'] = [r.s32(), r.s32(), r.s16()]
+    out['clusters_d0'] = [[r.s32(), r.s32(), r.s32()] for _ in range(r.u32())]
+    return out
+
+
 def crime_simulator(r):
     """cSC4CrimeSimulator (0x8990C09A): Write at 0x0069F600, Read at
     0x006A05E0 (version 6 only). Names give the object offsets; the
@@ -331,6 +353,7 @@ SCHEMAS = {0x8990C065: ('cSC4PollutionSimulator', pollution_simulator),
            0x0990C005: ('cSC4PowerSimulator', power_simulator),
            0x0990C075: ('cSC4PlumbingSimulator', water_simulator),
            0x6990C1AA: ('cSC4TrafficSimulator', traffic_simulator),
+           0x0990BDD8: ('cSC4AuraSimulator', aura_simulator),
            0xE990C18E: ('cSC4LandValueSimulator', land_value_simulator),
            0x8990C09A: ('cSC4CrimeSimulator', crime_simulator)}
 
