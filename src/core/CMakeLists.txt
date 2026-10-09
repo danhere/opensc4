@@ -21,6 +21,14 @@ target_link_libraries(opensc4_core_support
 
 add_library(opensc4_core SHARED
   autotest.cpp
+  budget_autotest.cpp
+  budget_departments.cpp
+  budget_init.cpp
+  budget_items.cpp
+  budget_object.cpp
+  budget_save.cpp
+  budget_month.cpp
+  budget_sim.cpp
   crime_autotest.cpp
   crime_sim.cpp
   crime_object.cpp

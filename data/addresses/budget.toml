@@ -1,0 +1,508 @@
+# The budget simulator (cSC4BudgetSimulator), its departments and line items (docs/budget.md).
+
+[[entry]]
+name = "cSC4BudgetSimulator::vftable"
+address = 0x00AB0908
+kind = "vtable"
+expect = "80 FC 68 00 A0 7B 4F 00"
+source = "Primary vtable: cISC4BudgetSimulator, 59 slots in gzcom-dll's order and the scalar deleting destructor (slot 59), then slot 60 (0x0068FD00, the class ID). simulators.budget.* swap its slots (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::vftable_4"
+address = 0x00AB08F8
+kind = "vtable"
+expect = "00 43 69 00 30 D2 68 00"
+source = "The vtable of the cIGZMessageTarget2 interface at +0x4: slot 3 DoMessage 0x00693450 (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::vftable_8"
+address = 0x00AB08E0
+kind = "vtable"
+expect = "10 43 69 00 50 D2 68 00"
+source = "The vtable of the cIGZSerializable interface at +0x8: slot 3 Write 0x00690530, 4 Read 0x00694B00, 5 GetGZCLSID 0x00694240 (docs/budget.md)."
+
+[[entry]]
+name = "CRT::CIpow"
+address = 0x009EFC60
+kind = "function"
+convention = "custom"
+expect = "83 3D 38 9D BB 00 00 74"
+source = "The C runtime's _CIpow: base in ST1, exponent in ST0, result in ST0. The budget simulator's loan payment calls it; ours does too, for the game's result to the bit (docs/budget.md)."
+
+[[entry]]
+name = "BudgetWindow::Small"
+address = 0x007638E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 57 8B"
+source = "Name ours. Constructor of the small budget window (0x28 bytes), from ShowBudgetWindow when +0x850 is set (docs/budget.md)."
+
+[[entry]]
+name = "BudgetWindow::Large"
+address = 0x00764030
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 57 8B"
+source = "Name ours. Constructor of the large budget window (0x60 bytes), from ShowBudgetWindow (docs/budget.md)."
+
+[[entry]]
+name = "Budget::TaxScale"
+address = 0x00AB08B8
+kind = "data"
+source = "float 0.000833 (about 1/1200): a tax group's monthly income per assessed value, share and rate (docs/budget.md)."
+
+[[entry]]
+name = "Budget::OneTwelfth"
+address = 0x00AB08B0
+kind = "data"
+source = "double 1/12: the yearly interest rate to a monthly one (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::NotifyFunds"
+address = 0x0068FE10
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 47 1C 85 C0"
+source = "Name ours. Message 0x0772FAD4 (funds changed, the simulator twice) through the message server at +0x1C, when there is one. Message 0x66956810 calls it too. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::MonthPassed"
+address = 0x00692510
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C 56 8B F1 8B 46"
+source = "Name ours. Message 0x66956816: taxes (CollectTaxes), incomes and expenses (+0x24, the month end service, the departments), the bonds, the funds, the charts, the year's end, the end-game message 0xAA5CF1E3. Reimplemented by simulators.budget.month. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::CollectTaxes"
+address = 0x00691E20
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. The month's taxes over every lot with a paying building: assessed values by tax group (+0xE0) and the month's tax by group (+0xE8); returns the total. Reimplemented by simulators.budget.month. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::PublishTaxRates"
+address = 0x006900F0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 33 F6 8D 79 70"
+source = "Name ours. Message 0x66956814: the 12 tax rates x 10, rounded, to the figures service (ids 0xAABAAA9F + group). Reimplemented by simulators.budget.month. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::SetStartingFunds"
+address = 0x00690450
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 18 8B 01"
+source = "Name ours. Message 0x26D31EC4: the funds from the table at +0x790 by the level (+0x18's slot 24). Reimplemented by simulators.budget.month. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::SetStartingTaxRates"
+address = 0x00690490
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 8D 7E 70"
+source = "Name ours. Message 0x26D31EC4: every group's rate from the table at +0x820 by the level. Reimplemented by simulators.budget.month. (docs/budget.md)."
+
+[[entry]]
+name = "DoubleVector::Assign"
+address = 0x00691500
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. vector<double>::assign(count, value). Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "CRT::atoi64"
+address = 0x0090FC6F
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "The C runtime's _atoi64. The budget's funds cheat parses its argument with it. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::TaxGroupTable"
+address = 0x00AB0840
+kind = "data"
+source = "int16[]: the tax group (0-11, -1 none) by zone + 4 x the building's wealth (docs/budget.md)."
+
+[[entry]]
+name = "Budget::RoundingMagic"
+address = 0x00AB0888
+kind = "data"
+source = "float 12582912 (1.5 x 2^23): added and stored as float to round to the nearest integer (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Ten"
+address = 0x00A94D50
+kind = "data"
+source = "float 10 (docs/budget.md)."
+
+[[entry]]
+name = "Budget::OneTwelfthFloat"
+address = 0x00A949DC
+kind = "data"
+source = "float 1/12: the bonds' monthly interest from the yearly rate (docs/budget.md)."
+
+[[entry]]
+name = "Budget::CheatRandom"
+address = 0x00B47B78
+kind = "data"
+source = "The random generator object the fundraiser cheat draws from (SC4Random::Unit) (docs/budget.md)."
+
+[[entry]]
+name = "SC4::Service43D3C"
+address = 0x00B43D3C
+kind = "data"
+source = "Name ours. Global pointer to the disaster service: slot 7 by disaster ID, then the disaster's slot 6 (x, z) starts it (docs/budget.md)."
+
+[[entry]]
+name = "Budget::FundraiserStep"
+address = 0x00A94D54
+kind = "data"
+source = "float 0.2: the fundraiser cheat's riot chance is 1 - 1 / (0.2 n + 1) (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Quarter"
+address = 0x00AA74E8
+kind = "data"
+source = "double 0.25 (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Eighth"
+address = 0x00A867A8
+kind = "data"
+source = "float 0.125 (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Three"
+address = 0x00A85074
+kind = "data"
+source = "float 3 (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::RecountGroup"
+address = 0x00690E80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 56 89 4C 24"
+source = "Name ours. (group): the group's expense and income totals again from its departments; a change is announced (0x0A3E7624). Reimplemented by simulators.budget.departments. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::GroupRecord"
+address = 0x006950B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 56 8D 71 60 8D"
+source = "Name ours. (group): the group's record in the map at +0x60, made with its localised name (0x6A3FF01C / group) if missing. Reimplemented by simulators.budget.departments. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::NotifyType"
+address = 0x0068FE80
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 47 1C 85 C0"
+source = "Name ours. (type): a message of the type from the simulator through the message server at +0x1C, when there is one. (docs/budget.md)."
+
+[[entry]]
+name = "GroupMap::Insert"
+address = 0x00694A50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 7C 53 8B 9C 24 84"
+source = "Name ours. operator[] of the budget's group map: the value's address. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::cSC4DepartmentBudget"
+address = 0x006AAB90
+kind = "function"
+convention = "thiscall"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "The department budget's constructor (0x68 bytes). (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::Init"
+address = 0x0045E110
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 08 84 C0 B0 01 75"
+source = "Name ours. The department budget's Init (by its first bytes; called right after construction by CreateDepartmentBudget). (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::SetId"
+address = 0x008B6DE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 41 10 C2"
+source = "Name ours. (id): +0x10 = id. A folded one-line setter. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::Shutdown"
+address = 0x006AA300
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8A 41 08 53 33"
+source = "Name ours. The department budget's Shutdown, from RemoveDepartmentBudget. (docs/budget.md)."
+
+[[entry]]
+name = "SC4Uint32Set::EraseKey"
+address = 0x0046FAB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 08 56"
+source = "Name ours. erase(key) of a std::set<uint32>. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "SC4::SearchChars"
+address = 0x004426C0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 56 8B 74 24"
+source = "Name ours. std::search over chars (first1, last1, first2, last2, predicate). Generic. (docs/budget.md)."
+
+[[entry]]
+name = "GroupVector::Move"
+address = 0x00693DF0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. Moves a range of 0x28-byte group records (first, last, to). Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "GroupVector::Destroy"
+address = 0x00693770
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. Destroys a range of 0x28-byte group records. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "GroupVector::Reserve"
+address = 0x00693EC0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4E 08 57"
+source = "Name ours. reserve(n) of the group record vector. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "GroupRecord::Copy"
+address = 0x00692E20
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Name ours. Copy-constructs a 0x28-byte group record (id, name, totals). Generic. (docs/budget.md)."
+
+[[entry]]
+name = "GroupVector::Insert"
+address = 0x00694340
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 06"
+source = "Name ours. Inserts n copies at a position, growing the group record vector. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "PtrVector::Reserve"
+address = 0x0045D4F0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 46 08 8B"
+source = "Name ours. reserve(n) of a vector of pointers. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "BondList::PushBack"
+address = 0x00691410
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 19 56 57 6A 40 E8"
+source = "Name ours. push_back of a 0x38-byte bond record into the budget's bond list (nodes 0x40 bytes). Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "LoanVector::Erase"
+address = 0x00A647F0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 53 8B 5C"
+source = "Name ours. erase(first, last) of a vector of 0x20-byte records. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "LoanVector::Insert"
+address = 0x006915E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B D9 8B 43"
+source = "Name ours. Inserts n copies of a 0x20-byte loan record, growing the vector. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::DefaultFunding"
+address = 0x00B0D1C4
+kind = "data"
+source = "What CreateDepartmentBudget hands a new department's slot 11 (the float 1.0 at this address). (docs/budget.md)."
+
+[[entry]]
+name = "SC4::GetPropertySint64Vector"
+address = 0x005FFD80
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. (holder, id, vector<int64>*): an int64 array property's values. (docs/budget.md)."
+
+[[entry]]
+name = "SC4::SetPropertySint64Vector"
+address = 0x005FE7F0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. (holder, id, const vector<int64>*): sets an int64 array property's values. (docs/budget.md)."
+
+[[entry]]
+name = "SC4::SetPropertyFloatVector"
+address = 0x005FE750
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. (holder, id, const vector<float>*): sets a float array property's values. (docs/budget.md)."
+
+[[entry]]
+name = "ItemVector::Resize"
+address = 0x00693710
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 8B 11 8B 44 24"
+source = "Name ours. resize(n) of a vector of 0x20-byte budget items; the new ones are copies of a stack temporary of which only the last word is set. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::LoadTuning"
+address = 0x00692210
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 8B F1"
+source = "Name ours. Defaults, then the budget tuning exemplar 6534284A-E7E2C2DB-0BFF6824: starting funds, bond and loan figures, group factors, the land value curve. Reimplemented by simulators.budget.init. (docs/budget.md)."
+
+[[entry]]
+name = "DepartmentMap::EraseNodes"
+address = 0x006903A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees the department map's nodes below a node (no release). Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "SC4Script::RegisterVariable"
+address = 0x00524970
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 20 85 F6 75"
+source = "Name ours. Registers a script variable (value, name, callback, ...) with service 0xEBE0E860; the budget's total_funds. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::ScriptFunds"
+address = 0x0068FFB0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 83 EC 08 56"
+source = "Name ours. The script callback of budget.total_funds. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::ScriptDeposit"
+address = 0x00690030
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 83 EC 08 56"
+source = "Name ours. The script callback of the budget's deposit function. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::CheatName1"
+address = 0x00B0D1A8
+kind = "data"
+source = "const char*: the name of cheat 0xCBF31943. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::CheatName2"
+address = 0x00B0D1AC
+kind = "data"
+source = "const char*: the name of cheat 0x4AB87766. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::CheatName3"
+address = 0x00B0D1B0
+kind = "data"
+source = "const char*: the name of cheat 0x493F4FE6 (registered only when the service at 0x00B43C94 slot 21 allows). (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Tuning1"
+address = 0x00B0D1B4
+kind = "data"
+source = "float from tuning property 0x89170C6C. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Tuning2"
+address = 0x00B0D1B8
+kind = "data"
+source = "float from tuning property 0x09170C74. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Tuning3"
+address = 0x00B0D1BC
+kind = "data"
+source = "float from tuning property 0xC9170C78. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Tuning4"
+address = 0x00B0D1C0
+kind = "data"
+source = "uint8 from tuning property 0x49170C7C. (docs/budget.md)."
+
+[[entry]]
+name = "BudgetSimulator::Started"
+address = 0x00B47B70
+kind = "data"
+source = "uint8: set by the first Init. (docs/budget.md)."
+
+[[entry]]
+name = "BudgetSimulator::Name"
+address = 0x00A89978
+kind = "data"
+source = "\"cSC4BudgetSimulator\": the name it registers under with the simulator service. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::ScriptTable"
+address = 0x00AB08D8
+kind = "data"
+source = "\"budget\": the script table. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::ScriptFunds"
+address = 0x00AB08CC
+kind = "data"
+source = "\"total_funds\": the script variable. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::ScriptDeposit"
+address = 0x00AB08BC
+kind = "data"
+source = "the script function's name. (docs/budget.md)."
+
+[[entry]]
+name = "SC4Uint32Set::Assign"
+address = 0x00690B90
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. operator= of a std::set<uint32>. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "SC4Uint32Set::EraseNodes"
+address = 0x0046F820
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a std::set<uint32>'s nodes below a node. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "GroupMap::EraseNodes"
+address = 0x00693D30
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B 6C 24 0C 85 ED"
+source = "Name ours. Frees the budget group map's nodes below a node, each record's name and set. Generic container code. (docs/budget.md)."
