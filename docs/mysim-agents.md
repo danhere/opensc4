@@ -31,6 +31,7 @@ The cISC4MySim methods take the +0xB8 part as `this`; offsets in src/core/mysim_
 | `simulators.mysim_agents.object` | the factory, constructor (its generator seeded under the original's call site, `fixed_seed::SiteOverride`) and destructors |
 | `simulators.mysim_agents.helpers` | the object's own helpers: CanTravel (a trip to work within the working hours left, or home), ShowAdvice, the balloon queues (PopBalloon, NextBalloon, QueueBalloon, ClearBalloons), ClearResidence, DropAdvice, OnBalloonTimeout, TryGoToWork, LoadLuaContext, AtBalloonPlace, DistanceTo, OccupantCondition, ResetAdvisor |
 | `simulators.mysim_agents.loading` | LoadAdvice (the balloon entries rebuilt from the advisor's advice and the advice still waiting; the first time also the dispatch object, the balloon, the message notifications and the script tables `mysims`, `age` and `name`) and LoadTuning (the `MYSIM_BALLOON_*` and `MYSIM_TRIP_*` tuning constants) |
+| `simulators.mysim_agents.misc` | the rest of the object's own methods: FindNewJob, OnStranded, RefreshLocation (a route from home to work asked of the path finder), OnScriptEvent (the script's idle animation offset), ArriveHome, CancelMoveIn, PostChanged, PlaceGhost, DefaultPedestrianKey and the script commands (leave, died, fired, a new generation, richer) |
 
 Replacement code reads the MySim stopwatches through `sim_timers::Claim` first, so `determinism.sim_timers` takes them over as it would for the original code.
 
@@ -38,7 +39,7 @@ Replacement code reads the MySim stopwatches through `sim_timers::Claim` first, 
 
 A MySim acts on real-time stopwatches, so runs with one repeat only with `determinism.sim_timers` ([experiments/determinism.md](experiments/determinism.md), "Simulation timers"). Saves with a MySim: `%LOCALAPPDATA%\opensc4\parity\saves-mysim`. `OPENSC4_TEST_MYSIM_MOVEIN=<day>` (autotest) moves a MySim in on that day: the agent simulator's MoveIn, then FindNewResidence and CancelMoveIn (MoveIn alone only opens the placement tool).
 
-`OPENSC4_TEST_MYSIM_QUERIES=1` puts what the MySim panel and balloons ask every MySim each day (names, titles, education and health text, vehicle key, model buttons, current balloons, U-Drive-It) into the fingerprint. `OPENSC4_TEST_MYSIM_DRIVE=<day>` makes every MySim, on that day, leave for work, return home, play its night sound, hear that its home changed and a neighbour connection went, hear of a fire, a pipe burst, a tornado and two disasters near it and of its home added, test its home, run a script command, see its job's building replaced and change job. `OPENSC4_TEST_MYSIM_DELETE=<day>` makes the first MySim leave the game. GetLocation is not in the queries: for a MySim on the road it is the car's position, which moves on frame time.
+`OPENSC4_TEST_MYSIM_QUERIES=1` puts what the MySim panel and balloons ask every MySim each day (names, titles, education and health text, vehicle key, model buttons, current balloons, U-Drive-It) into the fingerprint. `OPENSC4_TEST_MYSIM_DRIVE=<day>` makes every MySim, on that day, leave for work, return home, play its night sound, hear that its home changed and a neighbour connection went, hear of a fire, a pipe burst, a tornado and two disasters near it and of its home added, test its home, run a script command, see its job's building replaced and change job. `OPENSC4_TEST_MYSIM_DELETE=<day>` makes the first MySim leave the game. `OPENSC4_TEST_MYSIM_COMMANDS=<day>` sends every MySim the script commands for richer, fired and a new generation, and the first one the one for dying. GetLocation is not in the queries: for a MySim on the road it is the car's position, which moves on frame time.
 
 ## Parity
 
@@ -53,5 +54,7 @@ With the agent, ui and object groups as well (all eleven, 2026-10-09): `saves-my
 With the helpers as well (twelve groups, 2026-10-09): `saves-mysim` 4 of 4, the usual 12 with a MySim moving in 12 of 12. Reached with the drive and delete (coverage run of the original): all helpers but QueueBalloon, OnBalloonTimeout, TryGoToWork and AtBalloonPlace, which need a balloon target.
 
 With LoadAdvice and LoadTuning as well (thirteen groups, 2026-10-09): `saves-mysim` 4 of 4, the usual 12 with a MySim moving in 12 of 12. Both run on every load.
+
+With the misc group as well (fourteen groups, 2026-10-09): `saves-mysim` 4 of 4, and 4 of 4 with the script commands on day 5 as well; the usual 12 with a MySim moving in 11 of 12, the twelfth (Rush Hour d0090) partly with one run of ours giving the original's other outcome there (both seen from the original in earlier batches). Not reached: OnStranded (no route), OnScriptEvent.
 
 **A moved-in MySim does not always repeat.** It travels by car, and cars move on frame time ([traffic-map.md](traffic-map.md)), so when it arrives can differ between runs of the original; its state (and the advice it gives) then differs from that day. Judge MySim runs with travel by outcome sets.

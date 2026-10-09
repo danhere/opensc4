@@ -1530,3 +1530,51 @@ name = "MySim::TuningKeys"
 address = 0x00B07D58
 kind = "data"
 source = "Ten pointers to the MySim tuning names (MYSIM_BALLOON_FADE_DURATION ... MYSIM_TRIP_DEFAULT_CAR_MODEL)."
+
+[[entry]]
+name = "cSC4MySim::PostChanged"
+address = 0x00424FE0
+kind = "function"
+convention = "cdecl"
+expect = "56 6A 2C E8 F2 E3 4E 00"
+source = "Posts message 0xAA25827C (a MySim changed) to the message server; callers tail-jump with the MySim in ECX, which it does not read."
+
+[[entry]]
+name = "cSC4MySim::PlaceGhost"
+address = 0x00427030
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 53 8B 1D 1C 3D"
+source = "Replaces the effect at +0x18C with a new MySimGhost (service 0x00B43D1C, slot 7) at the MySim's position."
+
+[[entry]]
+name = "cSC4MySimDispatch::ScriptEvent"
+address = 0x00432860
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 56 57 8B"
+source = "Hands the dispatch object a script result: (2, value, 0). Called by cSC4MySim::OnScriptEvent."
+
+[[entry]]
+name = "MySim::ScriptGame"
+address = 0x00A8299C
+kind = "data"
+source = "'game', the script table OnScriptEvent looks in."
+
+[[entry]]
+name = "MySim::ScriptIdleAnimation"
+address = 0x00A84D30
+kind = "data"
+source = "'mysim_get_idle_animation_offset'."
+
+[[entry]]
+name = "MySim::GhostName"
+address = 0x00A84D50
+kind = "data"
+source = "'MySimGhost', the effect cSC4MySim::PlaceGhost makes."
+
+[[entry]]
+name = "MySim::DiedText"
+address = 0x00A84FFC
+kind = "data"
+source = "'my_sim_died'."

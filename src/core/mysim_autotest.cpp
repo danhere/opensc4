@@ -263,10 +263,37 @@ void Delete(const Day& day)
     log::Write("autotest: MySim deleted (%u)", Virtual<uint8_t>(sim, 0x24));
 }
 
+// OPENSC4_TEST_MYSIM_COMMANDS=<day>: on that day every MySim gets the
+// script commands for richer, fired and a new generation, and the MySim
+// in the first place the one for dying (cISC4MySim slot 41,
+// DoScriptCommand; docs/mysim-agents.md).
+void Commands(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_MYSIM_COMMANDS") || !game::IsBuild641())
+        return;
+    void* const mysims = Virtual<void*>(day.city, 0x11C);
+    if (!mysims)
+        return;
+    void** const sims = At<void**>(mysims, 0x14);
+    const uint32_t places = static_cast<uint32_t>(At<void**>(mysims, 0x18) - sims);
+    for (uint32_t i = 0; i < places && i < 6; ++i) {
+        void* const sim = sims[i];
+        if (!sim)
+            continue;
+        Virtual<void>(sim, 0xA4, 0x6A4A5E9Eu); // richer
+        Virtual<void>(sim, 0xA4, 0xAA4934B4u); // fired
+        Virtual<void>(sim, 0xA4, 0x6A495F7Fu); // a new generation
+        if (i == 0)
+            Virtual<void>(sim, 0xA4, 0xEA4D269Cu); // died
+        log::Write("autotest: MySim %u commands sent (state now %d)", i, At<int32_t>(sim, 0x8));
+    }
+}
+
 const FingerprintPart kFingerprint{"mysim", 85, &Fingerprint};
 const DayHook kDelete{"mysim.delete", 85, &Delete};
 const DayHook kDrive{"mysim.drive", 85, &Drive};
 const DayHook kMoveIn{"mysim.movein", 85, &MoveIn};
+const DayHook kCommands{"mysim.commands", 85, &Commands};
 
 } // namespace
 } // namespace opensc4::autotest
