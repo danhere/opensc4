@@ -56,7 +56,7 @@ void LoadCurve(void* holder, uint32_t property, void*& curve)
     }
     if (!curve) {
         void* const memory = OperatorNew(0x10);
-        curve = memory ? reinterpret_cast<ThisFn>(addr::SC4Curve_Construct)(memory) : nullptr;
+        curve = memory ? reinterpret_cast<ThisFn>(addr::SC4Curve_Init)(memory) : nullptr;
     }
     reinterpret_cast<LoadFn>(addr::SC4Curve_LoadFromProperty)(curve, value);
 }
@@ -134,7 +134,7 @@ void __fastcall LoadTuning(void* self, void*)
     DropCurve(self, field::kRiotCurve);
     if (Virtual<uint8_t>(holder, 0xC, 0xEA0232A1u)) {
         void* const memory = OperatorNew(0x10);
-        void* const curve = memory ? reinterpret_cast<ThisFn>(addr::SC4Curve_Construct)(memory) : nullptr;
+        void* const curve = memory ? reinterpret_cast<ThisFn>(addr::SC4Curve_Init)(memory) : nullptr;
         At<void*>(self, field::kRiotCurve) = curve;
         reinterpret_cast<LoadExemplarFn>(addr::SC4Curve_LoadFromExemplar)(curve, &key, 0xEA0232A1u);
     }
