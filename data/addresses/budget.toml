@@ -180,3 +180,161 @@ name = "Budget::Three"
 address = 0x00A85074
 kind = "data"
 source = "float 3 (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::RecountGroup"
+address = 0x00690E80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 56 89 4C 24"
+source = "Name ours. (group): the group's expense and income totals again from its departments; a change is announced (0x0A3E7624). Reimplemented by simulators.budget.departments. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::GroupRecord"
+address = 0x006950B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 56 8D 71 60 8D"
+source = "Name ours. (group): the group's record in the map at +0x60, made with its localised name (0x6A3FF01C / group) if missing. Reimplemented by simulators.budget.departments. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::NotifyType"
+address = 0x0068FE80
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 47 1C 85 C0"
+source = "Name ours. (type): a message of the type from the simulator through the message server at +0x1C, when there is one. (docs/budget.md)."
+
+[[entry]]
+name = "GroupMap::Insert"
+address = 0x00694A50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 7C 53 8B 9C 24 84"
+source = "Name ours. operator[] of the budget's group map: the value's address. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::cSC4DepartmentBudget"
+address = 0x006AAB90
+kind = "function"
+convention = "thiscall"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "The department budget's constructor (0x68 bytes). (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::Init"
+address = 0x0045E110
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 08 84 C0 B0 01 75"
+source = "Name ours. The department budget's Init (by its first bytes; called right after construction by CreateDepartmentBudget). (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::SetId"
+address = 0x008B6DE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 41 10 C2"
+source = "Name ours. (id): +0x10 = id. A folded one-line setter. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::Shutdown"
+address = 0x006AA300
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8A 41 08 53 33"
+source = "Name ours. The department budget's Shutdown, from RemoveDepartmentBudget. (docs/budget.md)."
+
+[[entry]]
+name = "SC4Uint32Set::EraseKey"
+address = 0x0046FAB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 08 56"
+source = "Name ours. erase(key) of a std::set<uint32>. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "SC4::SearchChars"
+address = 0x004426C0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 56 8B 74 24"
+source = "Name ours. std::search over chars (first1, last1, first2, last2, predicate). Generic. (docs/budget.md)."
+
+[[entry]]
+name = "GroupVector::Move"
+address = 0x00693DF0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. Moves a range of 0x28-byte group records (first, last, to). Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "GroupVector::Destroy"
+address = 0x00693770
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. Destroys a range of 0x28-byte group records. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "GroupVector::Reserve"
+address = 0x00693EC0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4E 08 57"
+source = "Name ours. reserve(n) of the group record vector. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "GroupRecord::Copy"
+address = 0x00692E20
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Name ours. Copy-constructs a 0x28-byte group record (id, name, totals). Generic. (docs/budget.md)."
+
+[[entry]]
+name = "GroupVector::Insert"
+address = 0x00694340
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 06"
+source = "Name ours. Inserts n copies at a position, growing the group record vector. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "PtrVector::Reserve"
+address = 0x0045D4F0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 46 08 8B"
+source = "Name ours. reserve(n) of a vector of pointers. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "BondList::PushBack"
+address = 0x00691410
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 19 56 57 6A 40 E8"
+source = "Name ours. push_back of a 0x38-byte bond record into the budget's bond list (nodes 0x40 bytes). Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "LoanVector::Erase"
+address = 0x00A647F0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 53 8B 5C"
+source = "Name ours. erase(first, last) of a vector of 0x20-byte records. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "LoanVector::Insert"
+address = 0x006915E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B D9 8B 43"
+source = "Name ours. Inserts n copies of a 0x20-byte loan record, growing the vector. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::DefaultFunding"
+address = 0x00B0D1C4
+kind = "data"
+source = "What CreateDepartmentBudget hands a new department's slot 11 (the float 1.0 at this address). (docs/budget.md)."
