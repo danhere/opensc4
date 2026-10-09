@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <system_error>
 #include <unordered_map>
 
@@ -40,6 +41,19 @@ int CompareNames(const std::string& a, const std::string& b)
     if (a.size() != b.size())
         return a.size() < b.size() ? -1 : 1;
     return a.compare(b) < 0 ? -1 : a.compare(b) > 0 ? 1 : 0;
+}
+
+bool CaseFoldEqual(const std::string& a, const std::string& b)
+{
+    if (a.size() != b.size())
+        return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        const char ca = a[i] >= 'a' && a[i] <= 'z' ? static_cast<char>(a[i] - 'a' + 'A') : a[i];
+        const char cb = b[i] >= 'a' && b[i] <= 'z' ? static_cast<char>(b[i] - 'a' + 'A') : b[i];
+        if (ca != cb)
+            return false;
+    }
+    return true;
 }
 
 bool FolderBefore(const std::vector<std::string>& a, const std::vector<std::string>& b)
@@ -104,6 +118,58 @@ bool ListFolder(const std::string& folder, std::vector<std::string>& out, std::s
     return true;
 }
 
+bool ReadPathList(const std::string& file, std::vector<std::string>& out, std::string* error)
+{
+    out.clear();
+    std::error_code ec;
+    const fs::path path = ToPath(file);
+    if (!fs::exists(path, ec))
+        return true;
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        if (error)
+            *error = "cannot read " + file;
+        return false;
+    }
+    std::string line;
+    while (std::getline(in, line)) {
+        while (!line.empty() && (line.back() == '\r' || line.back() == ' ' || line.back() == '\t'))
+            line.pop_back();
+        size_t start = 0;
+        while (start < line.size() && (line[start] == ' ' || line[start] == '\t'))
+            ++start;
+        line.erase(0, start);
+        if (line.empty() || line[0] == '#')
+            continue;
+        std::replace(line.begin(), line.end(), '\\', '/');
+        out.push_back(line);
+    }
+    return true;
+}
+
+bool WritePathList(const std::string& file, const std::vector<std::string>& paths, std::string* error)
+{
+    std::ofstream out(ToPath(file), std::ios::binary | std::ios::trunc);
+    out << "# Plugins OpenSC4 leaves out, relative to the Plugins folder; a path ending in / is a whole folder.\n";
+    for (const std::string& p : paths)
+        out << p << '\n';
+    out.flush();
+    if (!out) {
+        if (error)
+            *error = "cannot write " + file;
+        return false;
+    }
+    return true;
+}
+
+void LoadOrder::Add(PluginFile file)
+{
+    if (file.package)
+        file.package->Release(); // reopened on first read
+    files_.push_back(std::move(file));
+    indexed_ = false;
+}
+
 bool LoadOrder::AddFolder(const std::string& folder, std::string* error)
 {
     std::vector<std::string> paths;
@@ -114,7 +180,7 @@ bool LoadOrder::AddFolder(const std::string& folder, std::string* error)
         file.path = rel;
         file.segment = segments_;
         file.package = Package::OpenFile(FromPath(ToPath(folder) / ToPath(rel)), &file.error);
-        files_.push_back(std::move(file));
+        Add(std::move(file));
     }
     ++segments_;
     return true;
@@ -126,7 +192,7 @@ void LoadOrder::AddFile(const std::string& path)
     file.path = path;
     file.segment = segments_++;
     file.package = Package::OpenFile(path, &file.error);
-    files_.push_back(std::move(file));
+    Add(std::move(file));
 }
 
 void LoadOrder::AddSegment(std::vector<NamedSource> sources)
@@ -136,9 +202,47 @@ void LoadOrder::AddSegment(std::vector<NamedSource> sources)
         file.path = std::move(s.path);
         file.segment = segments_;
         file.package = Package::Open(std::move(s.source), &file.error);
-        files_.push_back(std::move(file));
+        Add(std::move(file));
     }
     ++segments_;
+}
+
+void LoadOrder::SetEnabled(size_t file, bool enabled)
+{
+    if (file < files_.size() && files_[file].enabled != enabled) {
+        files_[file].enabled = enabled;
+        indexed_ = false;
+    }
+}
+
+size_t LoadOrder::ApplyDisabled(const std::vector<std::string>& paths)
+{
+    std::vector<bool> used(paths.size());
+    for (size_t i = 0; i < files_.size(); ++i) {
+        bool off = false;
+        for (size_t j = 0; j < paths.size(); ++j) {
+            const std::string& p = paths[j];
+            const bool folder = !p.empty() && p.back() == '/';
+            const std::string& path = files_[i].path;
+            const bool match = folder ? path.size() > p.size() && CaseFoldEqual(path.substr(0, p.size()), p)
+                                      : CaseFoldEqual(path, p);
+            if (match) {
+                off = true;
+                used[j] = true;
+            }
+        }
+        SetEnabled(i, !off);
+    }
+    return static_cast<size_t>(std::count(used.begin(), used.end(), true));
+}
+
+std::vector<std::string> LoadOrder::DisabledPaths() const
+{
+    std::vector<std::string> paths;
+    for (const PluginFile& f : files_)
+        if (!f.enabled)
+            paths.push_back(f.path);
+    return paths;
 }
 
 std::vector<size_t> LoadOrder::Priority() const
@@ -157,38 +261,99 @@ std::vector<size_t> LoadOrder::Priority() const
     return order;
 }
 
-const PluginFile* LoadOrder::Winner(const Key& key) const
+const std::unordered_map<Key, std::vector<uint32_t>, KeyHash>& LoadOrder::Holders() const
 {
-    if (key == kDirectoryKey)
-        return nullptr;
-    for (size_t i : Priority())
-        if (files_[i].package && files_[i].package->Find(key))
-            return &files_[i];
-    return nullptr;
-}
-
-std::vector<Conflict> LoadOrder::Conflicts(bool compareContents)
-{
-    const std::vector<size_t> priority = Priority();
-    std::unordered_map<Key, std::vector<size_t>, KeyHash> holders;
-    for (size_t i : priority) {
-        if (!files_[i].package)
+    if (indexed_)
+        return holders_;
+    holders_.clear();
+    for (size_t i : Priority()) {
+        if (!files_[i].package || !files_[i].enabled)
             continue;
         for (const Entry& e : files_[i].package->Entries()) {
             if (e.key == kDirectoryKey)
                 continue;
-            std::vector<size_t>& h = holders[e.key];
+            std::vector<uint32_t>& h = holders_[e.key];
             if (h.empty() || h.back() != i) // a package may list a key twice
-                h.push_back(i);
+                h.push_back(static_cast<uint32_t>(i));
         }
     }
+    indexed_ = true;
+    return holders_;
+}
 
+const PluginFile* LoadOrder::Winner(const Key& key) const
+{
+    const auto& holders = Holders();
+    const auto it = holders.find(key);
+    return it == holders.end() ? nullptr : &files_[it->second[0]];
+}
+
+size_t LoadOrder::KeyCount() const
+{
+    return Holders().size();
+}
+
+bool LoadOrder::ReadEntry(size_t file, const Key& key, std::vector<uint8_t>& out, std::string* error)
+{
+    Package& package = *files_[file].package;
+    const bool ok = package.Read(*package.Find(key), out, error);
+    // Keep the most recently read files open, and only those.
+    constexpr size_t kMaxOpen = 64;
+    const auto it = std::find(open_.begin(), open_.end(), file);
+    if (it != open_.end())
+        open_.erase(it);
+    open_.push_back(file);
+    if (open_.size() > kMaxOpen) {
+        files_[open_.front()].package->Release();
+        open_.erase(open_.begin());
+    }
+    return ok;
+}
+
+bool LoadOrder::Read(const Key& key, std::vector<uint8_t>& out, std::string* error)
+{
+    const auto& holders = Holders();
+    const auto it = holders.find(key);
+    if (it == holders.end()) {
+        if (error)
+            *error = "no enabled file has this key";
+        return false;
+    }
+    return ReadEntry(it->second[0], key, out, error);
+}
+
+std::vector<FileSummary> LoadOrder::Summaries() const
+{
+    std::vector<FileSummary> summaries(files_.size());
+    for (const auto& [key, files] : Holders()) {
+        FileSummary& winner = summaries[files[0]];
+        ++winner.served;
+        winner.overrides += files.size() > 1;
+        for (size_t j = 1; j < files.size(); ++j) {
+            ++summaries[files[j]].hidden;
+            winner.beats.push_back(files[j]);
+            summaries[files[j]].beatenBy.push_back(files[0]);
+        }
+    }
+    for (FileSummary& s : summaries) {
+        s.keys = s.served + s.hidden;
+        for (std::vector<size_t>* v : {&s.beats, &s.beatenBy}) {
+            std::sort(v->begin(), v->end());
+            v->erase(std::unique(v->begin(), v->end()), v->end());
+        }
+    }
+    return summaries;
+}
+
+std::vector<Conflict> LoadOrder::Conflicts(bool compareContents)
+{
     std::vector<Conflict> conflicts;
-    for (auto& [key, files] : holders)
+    for (const auto& [key, files] : Holders())
         if (files.size() > 1)
-            conflicts.push_back({key, std::move(files), false});
+            conflicts.push_back({key, std::vector<size_t>(files.begin(), files.end()), false});
 
     std::vector<size_t> rank(files_.size());
+    const std::vector<size_t> priority = Priority();
     for (size_t r = 0; r < priority.size(); ++r)
         rank[priority[r]] = r;
     std::sort(conflicts.begin(), conflicts.end(), [&](const Conflict& a, const Conflict& b) {
@@ -204,12 +369,9 @@ std::vector<Conflict> LoadOrder::Conflicts(bool compareContents)
     if (compareContents) {
         std::vector<uint8_t> first, other;
         for (Conflict& c : conflicts) {
-            Package& winner = *files_[c.files[0]].package;
-            c.identical = winner.Read(*winner.Find(c.key), first);
-            for (size_t j = 1; c.identical && j < c.files.size(); ++j) {
-                Package& p = *files_[c.files[j]].package;
-                c.identical = p.Read(*p.Find(c.key), other) && other == first;
-            }
+            c.identical = ReadEntry(c.files[0], c.key, first, nullptr);
+            for (size_t j = 1; c.identical && j < c.files.size(); ++j)
+                c.identical = ReadEntry(c.files[j], c.key, other, nullptr) && other == first;
         }
     }
     return conflicts;

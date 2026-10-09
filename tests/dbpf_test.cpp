@@ -243,6 +243,13 @@ std::unique_ptr<Source> Mem(Bytes bytes)
     return std::make_unique<MemorySource>(std::move(bytes));
 }
 
+void WriteFile(const std::filesystem::path& path, const Bytes& bytes)
+{
+    std::filesystem::create_directories(path.parent_path());
+    std::ofstream out(path, std::ios::binary);
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+}
+
 void TestLoadOrder()
 {
     const Key shared{1, 1, 1}, same{2, 2, 2}, own{3, 3, 3}, gameOnly{4, 4, 4};
@@ -281,13 +288,63 @@ void TestLoadOrder()
               "same key: identical after decompression");
     }
     Check(order.Conflicts(false).size() == 2, "conflicts without reading contents");
+    Check(order.KeyCount() == 4, "four distinct keys served");
+    Bytes out;
+    Check(order.Read(shared, out) && out == Str("from b"), "read serves the winning copy");
+    Check(order.Read(same, out) && out == Str("abcabcabc"), "read decompresses");
+    Check(!order.Read({9, 9, 9}, out), "read of a missing key fails");
+
+    std::vector<FileSummary> sums = order.Summaries();
+    Check(sums.size() == 4 && sums[2].served == 3 && sums[2].overrides == 2 && sums[2].hidden == 0 &&
+              sums[2].beats == std::vector<size_t>{0, 3},
+          "b serves three keys and overrides two, over a and the game");
+    Check(sums.size() == 4 && sums[0].keys == 2 && sums[0].served == 0 && sums[0].hidden == 2 &&
+              sums[0].beatenBy == std::vector<size_t>{2},
+          "a is fully hidden by b");
+    Check(sums.size() == 4 && sums[1].keys == 0, "non-package has nothing");
+
+    // Turning b off hands its keys back to a and the game.
+    order.SetEnabled(2, false);
+    w = order.Winner(shared);
+    Check(w && w->path == "a.dat", "with b off, a wins");
+    Check(order.Winner(own) == nullptr, "b's own key gone with it");
+    Check(order.Conflicts().size() == 1, "one conflict left (a over the game)");
+    Check(order.DisabledPaths() == std::vector<std::string>{"b.dat"}, "b listed as off");
+    sums = order.Summaries();
+    Check(sums[2].keys == 0 && sums[0].served == 2, "summaries follow the switch");
+    Check(order.ApplyDisabled({"A.DAT", "nothing.dat"}) == 1, "disabled list: one entry matches, without case");
+    w = order.Winner(shared);
+    Check(w && w->path == "b.dat" && !files[0].enabled && files[2].enabled, "list turns a off and b back on");
 }
 
-void WriteFile(const std::filesystem::path& path, const Bytes& bytes)
+void TestPathList()
 {
-    std::filesystem::create_directories(path.parent_path());
-    std::ofstream out(path, std::ios::binary);
-    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    namespace fs = std::filesystem;
+    const fs::path file = fs::temp_directory_path() / "opensc4_disabled_test.txt";
+    const std::u8string u8 = file.generic_u8string();
+    const std::string path(u8.begin(), u8.end());
+    std::error_code ec;
+    fs::remove(file, ec);
+    std::vector<std::string> list{"x"};
+    Check(ReadPathList(path, list) && list.empty(), "missing list reads as empty");
+    Check(WritePathList(path, {"zz_mod.dat", "NAM/"}) && ReadPathList(path, list) &&
+              list == std::vector<std::string>{"zz_mod.dat", "NAM/"},
+          "list round trip");
+    WriteFile(file, Str("# note\r\n\r\n  sub\\old.dat  \r\nnew.dat"));
+    Check(ReadPathList(path, list) && list == std::vector<std::string>{"sub/old.dat", "new.dat"},
+          "comments, blanks, CRLF, backslashes");
+
+    LoadOrder order;
+    std::vector<LoadOrder::NamedSource> plugins;
+    plugins.push_back({"keep.dat", Mem(BuildPackage({{{1, 1, 1}, Str("k")}}))});
+    plugins.push_back({"NAM/a.dat", Mem(BuildPackage({{{1, 1, 1}, Str("a")}}))});
+    plugins.push_back({"NAM/sub/b.dat", Mem(BuildPackage({{{1, 1, 1}, Str("b")}}))});
+    plugins.push_back({"NAMx.dat", Mem(BuildPackage({{{1, 1, 1}, Str("x")}}))});
+    order.AddSegment(std::move(plugins));
+    Check(order.ApplyDisabled({"nam/"}) == 1 &&
+              order.DisabledPaths() == std::vector<std::string>{"NAM/a.dat", "NAM/sub/b.dat"},
+          "a folder entry turns off everything under it, and only that");
+    fs::remove(file, ec);
 }
 
 void TestPluginFolder()
@@ -314,6 +371,23 @@ void TestPluginFolder()
     const PluginFile* w = order.Winner(key);
     Check(w && w->path == "aaa_mods/mod.dat", "a subfolder file beats any top-level file");
     Check(!order.AddFolder(folder + "/missing", &error) && !error.empty(), "missing folder reported");
+
+    // More files than the loader keeps open: every one still reads.
+    for (uint32_t i = 0; i < 100; ++i) {
+        char name[32];
+        std::snprintf(name, sizeof name, "many/%03u.dat", i);
+        WriteFile(root / name, BuildPackage({{{6, 6, i}, Str(name)}}));
+    }
+    LoadOrder many;
+    bool all = many.AddFolder(folder, &error);
+    Bytes out;
+    for (uint32_t pass = 0; pass < 2; ++pass)
+        for (uint32_t i = 0; i < 100; ++i) {
+            char name[32];
+            std::snprintf(name, sizeof name, "many/%03u.dat", i);
+            all = all && many.Read({6, 6, i}, out) && out == Str(name);
+        }
+    Check(all, "reads across more files than stay open");
     fs::remove_all(root, ec);
 }
 
@@ -326,6 +400,7 @@ int main()
     TestFolderOrder();
     TestLoadOrder();
     TestPluginFolder();
+    TestPathList();
     if (g_failures) {
         std::printf("%d failures\n", g_failures);
         return 1;

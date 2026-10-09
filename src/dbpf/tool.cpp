@@ -5,10 +5,12 @@
 //                                      exit 1 if any fails
 //   opensc4-dbpf diff <a> <b>          compares the records' contents by key;
 //                                      exit 1 if anything differs
-//   opensc4-dbpf plugins <folder> [--keys] [--game <package>...]
+//   opensc4-dbpf plugins <folder> [--keys] [--disabled <list>] [--game <package>...]
 //                                      load order of a Plugins folder and the
-//                                      keys its packages fight over; with
-//                                      --game, also the game files it overrides
+//                                      keys its packages fight over; --disabled
+//                                      leaves out the plugins a list names
+//                                      (ReadPathList); with --game, also the
+//                                      game files it overrides
 #include "dbpf/dbpf.h"
 #include "dbpf/plugins.h"
 
@@ -150,7 +152,7 @@ std::string KeyText(const Key& k)
     return text;
 }
 
-int Plugins(const char* folder, bool keys, const std::vector<std::string>& game)
+int Plugins(const char* folder, bool keys, const char* disabledList, const std::vector<std::string>& game)
 {
     LoadOrder order;
     std::string error;
@@ -160,16 +162,38 @@ int Plugins(const char* folder, bool keys, const std::vector<std::string>& game)
     }
     for (const std::string& path : game)
         order.AddFile(path);
+    if (disabledList) {
+        std::vector<std::string> disabled;
+        if (!ReadPathList(disabledList, disabled, &error)) {
+            std::printf("%s\n", error.c_str());
+            return 2;
+        }
+        const size_t matched = order.ApplyDisabled(disabled);
+        if (matched < disabled.size())
+            std::printf("%zu of %zu entries in %s match no file\n", disabled.size() - matched, disabled.size(),
+                        disabledList);
+    }
 
     const auto& files = order.Files();
     std::printf("load order (later files win inside the folder; the folder wins over game files):\n");
+    const std::vector<FileSummary> sums = order.Summaries();
     size_t skipped = 0;
     for (size_t i = 0; i < files.size(); ++i) {
         if (!files[i].package) {
             ++skipped;
             continue;
         }
-        std::printf("  %4zu  %s  %zu records\n", i + 1, files[i].path.c_str(), files[i].package->Entries().size());
+        if (!files[i].enabled) {
+            std::printf("  %4zu  %s  off\n", i + 1, files[i].path.c_str());
+            continue;
+        }
+        const FileSummary& f = sums[i];
+        std::printf("  %4zu  %s  %zu keys", i + 1, files[i].path.c_str(), f.keys);
+        if (f.overrides)
+            std::printf(", overrides %zu", f.overrides);
+        if (f.hidden)
+            std::printf(", %zu hidden%s", f.hidden, f.hidden == f.keys ? " (all)" : "");
+        std::printf("\n");
     }
     if (skipped) {
         std::printf("skipped %zu files that are not packages:\n", skipped);
@@ -231,10 +255,13 @@ int main(int argc, char** argv)
         return Diff(argv[2], argv[3]);
     if (argc >= 3 && std::strcmp(argv[1], "plugins") == 0) {
         bool keys = false;
+        const char* disabled = nullptr;
         std::vector<std::string> game;
         for (int i = 3; i < argc; ++i) {
             if (std::strcmp(argv[i], "--keys") == 0)
                 keys = true;
+            else if (std::strcmp(argv[i], "--disabled") == 0 && i + 1 < argc)
+                disabled = argv[++i];
             else if (std::strcmp(argv[i], "--game") == 0)
                 game.assign(argv + i + 1, argv + argc), i = argc;
             else {
@@ -242,9 +269,9 @@ int main(int argc, char** argv)
                 return 2;
             }
         }
-        return Plugins(argv[2], keys, game);
+        return Plugins(argv[2], keys, disabled, game);
     }
     std::printf("usage: opensc4-dbpf list <package> | check <package...> | diff <a> <b>\n"
-                "       opensc4-dbpf plugins <folder> [--keys] [--game <package>...]\n");
+                "       opensc4-dbpf plugins <folder> [--keys] [--disabled <list>] [--game <package>...]\n");
     return 2;
 }
