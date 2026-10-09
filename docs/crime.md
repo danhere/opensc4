@@ -106,6 +106,7 @@ All runs with `OPENSC4_TEST_CRIME_MONTH=2` (2026-10-09, two games at a time). Re
 | everything on `saves-plopped` (`objpl7`) | 3 of 3, our object made in every B run |
 | everything for 90 days on `saves-mm2` (`objmm90`) | 2 of 2, 91 of 91 days identical |
 | everything with `OPENSC4_TEST_CRIME_QUERIES=1` (`objq7`) | 12 of 12, all on the first pair |
+| the same after rebasing onto main with the land value and traffic objects (`rebased7`, three games) | 11 of 12; Big City d0365 split in the traffic record and a tick count, the split the original reaches by itself on this save; the rerun (`bc365-rebased`) passed with the original showing both outcomes. Crime records identical in all 12 |
 
 `OPENSC4_TEST_CRIME_QUERIES=1` adds the queries only the UI and the automata make to the fingerprint (slots 9 to 13: the incident events, the visuals flag of the first incident, a crime sim and a crime prop near the hotspot); no test city has crime sims or props, so the nearest queries return none on both sides.
 
