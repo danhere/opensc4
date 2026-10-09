@@ -1,0 +1,350 @@
+# Build 641 addresses. The weather simulator (cSC4WeatherSimulator, class ID 0x2990C1BC;
+# docs/weather.md).
+# Format and rules: data/addresses/README.md.
+
+[[entry]]
+name = "cSC4WeatherSimulator::vftable"
+address = 0x00AB3610
+kind = "vtable"
+expect = "20 57 72 00 30 53 69 00"
+source = "Primary vtable: cISC4WeatherSimulator, 24 slots and the scalar deleting destructor (slot 24). simulators.weather.interface swaps slots 5-23 (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::vftable_4"
+address = 0x00AB35FC
+kind = "vtable"
+expect = "70 8E 72 00 D0 00 52 00"
+source = "+0x4 interface (IID 0xE98B2F57): slot 3 is an empty stub 0x004FC900 (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::vftable_8"
+address = 0x00AB35EC
+kind = "vtable"
+expect = "80 8E 72 00 F0 00 52 00"
+source = "cIGZMessageTarget2 at +0x8: DoMessage 0x00729720 (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::vftable_C"
+address = 0x00AB35D4
+kind = "vtable"
+expect = "90 8E 72 00 10 01 52 00"
+source = "cIGZSerializable at +0xC: Write 0x00725E80, Read 0x00728F40, GetGZCLSID 0x007255B0 (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::RebuildMoisture"
+address = 0x00726BF0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC DC 00 00 00 53 55"
+source = "Name ours. The moisture map (+0xDC) over a rectangle of weather cells: heights averaged and blurred, slopes against the wind, the cells' own moisture blurred in (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::PostMessage"
+address = 0x00725A70
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 3D CC 3C B4"
+source = "Name ours. Posts a message (type, void 1, data 2, data 3, this as the unknown) (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::Tick"
+address = 0x00728A40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 55 56 8B F1"
+source = "Name ours. Message 0x66956815: the next cells of the walk (+0x98), then the whole moisture map; true when the walk wrapped (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::OnMonth"
+address = 0x00729630
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 04 01 56 8B F1"
+source = "Name ours. MonthPassed: water bodies in January, the month's weather, the season (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::NewMonthWeather"
+address = 0x00729350
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 44 24 14 53"
+source = "Name ours. Temperature, humidity and the month's target wind (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::FindWaterBodies"
+address = 0x007283D0
+kind = "function"
+convention = "cdecl"
+expect = "B8 54 00 01 00 E8 B6 74"
+source = "Name ours. Rectangles of water cells at least 3 by 5 (a 256 by 256 scratch on the stack) (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::KeepEdgeBodies"
+address = 0x00728220
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 8B D1 8B 4C"
+source = "Name ours. Keeps the water bodies that touch the city's edge (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::MarkWaterCells"
+address = 0x00726510
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 53 55 56 57 8B"
+source = "Name ours. The water bits (+0x80): the bodies grown by +0xCC (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::UpdateCell"
+address = 0x00726890
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 10 56 8B"
+source = "Name ours. One cell's own moisture from the temperature, water, height and wind (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::SpreadCellMoisture"
+address = 0x00726360
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 41 5C 85 C0 7E 7A"
+source = "Name ours. Averages a value into the cells within +0x5C (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::MoistureFromValue"
+address = 0x007259B0
+kind = "function"
+convention = "cdecl"
+expect = "D9 44 24 04 D8 15 C8 35"
+source = "Name ours. -15..45 to 0..255 (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::LoadTuning"
+address = 0x00725AF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 57 6A 00 6A 00"
+source = "Name ours. Exemplar 0x6534284A/0x7A4A8458/0x1A2FDB6B (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::Init"
+address = 0x00729900
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 56 8B F1 8A"
+source = "Slot 3 (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::Shutdown"
+address = 0x00725940
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 10 33"
+source = "Slot 4 (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::Write"
+address = 0x00725E80
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Slot 3 of the +0xC vtable, version 2 (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::Read"
+address = 0x00728F40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 56 8B 74 24 28"
+source = "Slot 4 of the +0xC vtable, versions up to 2 (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::SeedCellMoisture"
+address = 0x00726400
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 57 8B F9 8B"
+source = "Name ours. Init's random manual moisture between the climate's limits (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::cSC4WeatherSimulator"
+address = 0x00728C40
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 56 8B F1 C7 46 04"
+source = "Constructor; the factory 0x00729310 allocates 0x168 bytes (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::DoMessage"
+address = 0x00729720
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B 74 24 18"
+source = "Slot 3 of the +0x8 vtable (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::DoPostCityInit"
+address = 0x007296F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 19 84 C0"
+source = "Slot 5 (docs/weather.md)."
+
+[[entry]]
+name = "SC4Vector2::SetLength"
+address = 0x005D76D0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 D9 41 04 D9"
+source = "Name ours. Scales a 2D vector to a length unless shorter than 0.01 (docs/weather.md)."
+
+[[entry]]
+name = "SC4Date::Month"
+address = 0x0091286F
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 8D 45"
+source = "Name ours. The month of a date object {vtable, day number} (docs/weather.md)."
+
+[[entry]]
+name = "SC4Date::Day"
+address = 0x00912BEB
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 8D 45"
+source = "Name ours. The day of the month (docs/weather.md)."
+
+[[entry]]
+name = "SC4Date::Year"
+address = 0x009128A3
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 8D 45"
+source = "Name ours. The year (docs/weather.md)."
+
+[[entry]]
+name = "SC4Stream::WriteByteRows"
+address = 0x005DADE0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 8B 13 8B"
+source = "Name ours. Writes a vector of byte rows (docs/weather.md)."
+
+[[entry]]
+name = "SC4Stream::WriteBitRows"
+address = 0x005DAC40
+kind = "function"
+convention = "cdecl"
+expect = "51 53 8B 5C 24 0C 56 8B"
+source = "Name ours. Writes a vector of bit rows (docs/weather.md)."
+
+[[entry]]
+name = "SC4Stream::WriteRect"
+address = 0x005DA030
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Writes four int32s (docs/weather.md)."
+
+[[entry]]
+name = "SC4Stream::WriteVector2"
+address = 0x005DA520
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Writes two floats (docs/weather.md)."
+
+[[entry]]
+name = "SC4Stream::ReadByteRows"
+address = 0x005DB9B0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 1C 55 8B 6C 24 24"
+source = "Name ours. Reads a vector of byte rows (docs/weather.md)."
+
+[[entry]]
+name = "SC4Stream::ReadBitRows"
+address = 0x005DBAE0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 20 55 8B 6C 24 28"
+source = "Name ours. Reads a vector of bit rows (docs/weather.md)."
+
+[[entry]]
+name = "SC4Stream::ReadRect"
+address = 0x005D9FF0
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Reads four int32s (docs/weather.md)."
+
+[[entry]]
+name = "SC4Stream::ReadVector2"
+address = 0x005DA4F0
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Reads two floats (docs/weather.md)."
+
+[[entry]]
+name = "SC4RectVector::Resize"
+address = 0x007608D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 10 56"
+source = "Name ours. Resizes a vector of 16-byte elements (docs/weather.md)."
+
+[[entry]]
+name = "SC4RectVector::ResizeZeroed"
+address = 0x00728AE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 44 24 14 56"
+source = "Name ours. Resizes a vector of 16-byte elements, new ones zero (docs/weather.md)."
+
+[[entry]]
+name = "SC4BitRowVector::Erase"
+address = 0x005DB690
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Name ours. Erases a range of bit rows (docs/weather.md)."
+
+[[entry]]
+name = "SC4BitRowVector::InsertN"
+address = 0x005DB800
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 57 8B 7C 24"
+source = "Name ours. Inserts n copies of a bit row (docs/weather.md)."
+
+[[entry]]
+name = "SC4RowVector::InsertN"
+address = 0x00461310
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 55 8B 6C 24 18"
+source = "Name ours. Inserts n copies of a byte row (docs/weather.md)."
+
+[[entry]]
+name = "cSC4WeatherSimulator::AssignBodies"
+address = 0x00727D70
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. Assignment of a vector of 16-byte rectangles (docs/weather.md)."
+
+[[entry]]
+name = "WeatherSimulator::Name"
+address = 0x00A89758
+kind = "data"
+expect = "63 53 43 34 57 65 61 74"
+source = "\"cSC4WeatherSimulator\" (docs/weather.md)."
+
+[[entry]]
+name = "SC4BitRowVector::Destroy"
+address = 0x005DB590
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. Destroys a vector of bit rows (docs/weather.md)."

@@ -1,7 +1,8 @@
 #include "core/autotest.h"
 
+#include "core/autotest_hooks.h"
+
 #include "core/crash.h"
-#include "core/demand_sim.h"
 #include "core/log.h"
 #include "core/fixed_ticks.h"
 #include "core/game.h"
@@ -32,10 +33,7 @@
 #include <cISC4SimGrid.h>
 #include <cISC4ResidentialSimulator.h>
 #include <cISC4LotManager.h>
-#include <cISC4Occupant.h>
 #include <cISC4LandValueSimulator.h>
-#include <cISC4Ordinance.h>
-#include <cISC4OrdinanceSimulator.h>
 #include <cISC4BudgetSimulator.h>
 #include <cISC4View3DWin.h>
 #include <cRZAutoRefCount.h>
@@ -45,16 +43,14 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <cstdio>
-#include <vector>
 #include <cstdlib>
+#include <cstring>
 #include <string>
+#include <vector>
 
 namespace opensc4::autotest {
-namespace {
-
-// "OSC4" + 1. System service IDs must be unique.
-constexpr uint32_t kServiceId = 0x4F534335;
 
 std::string Env(const char* name)
 {
@@ -68,6 +64,99 @@ int EnvInt(const char* name, int fallback)
     const std::string value = Env(name);
     return value.empty() ? fallback : std::atoi(value.c_str());
 }
+
+bool OnRunDay(const Day& day, const char* name)
+{
+    const int when = EnvInt(name, -1);
+    return when >= 0 && day.counted && day.day == day.first + when;
+}
+
+bool EveryRunDays(const Day& day, const char* name)
+{
+    const int every = EnvInt(name, -1);
+    if (every <= 0 || !day.counted)
+        return false;
+    const int into = day.day - day.first;
+    return into > 0 && into % every == 0;
+}
+
+// A message of the given type with void 1 = object and data 2/3, to a
+// simulator's cIGZMessageTarget2 at +0x4 (its slot 3).
+void Deliver(void* simulator, uint32_t type, void* object, uint32_t data2, uint32_t data3)
+{
+    using NewFn = void*(__cdecl*)(std::size_t size);
+    using MessageFn = cIGZMessage2Standard*(__thiscall*)(void* memory);
+    using DoMessageFn = bool(__thiscall*)(void* target, cIGZMessage2* message);
+    void* const memory = reinterpret_cast<NewFn>(addr::RZ_operator_new)(0x2C);
+    cIGZMessage2Standard* const message =
+        memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr;
+    if (!message)
+        return;
+    message->AddRef();
+    message->SetType(type);
+    message->SetVoid1(object);
+    message->SetData2(static_cast<intptr_t>(data2));
+    message->SetData3(static_cast<intptr_t>(data3));
+    void* const target = static_cast<char*>(simulator) + 0x4;
+    reinterpret_cast<DoMessageFn>((*static_cast<void***>(target))[3])(target, message);
+    message->Release();
+}
+
+namespace {
+
+// The simulators' hooks (autotest_hooks.h), each kind kept sorted by order,
+// then name. Function-local, so registrations from static initialisers in any
+// order work.
+template <typename Fn>
+struct Hook {
+    const char* name;
+    int order;
+    Fn fn;
+};
+
+struct Hooks {
+    std::vector<Hook<FingerprintFn>> fingerprint;
+    std::vector<Hook<LoadHookFn>> load;
+    std::vector<Hook<DayHookFn>> day;
+};
+
+Hooks& Registry()
+{
+    static Hooks hooks;
+    return hooks;
+}
+
+template <typename Fn>
+void Insert(std::vector<Hook<Fn>>& hooks, const char* name, int order, Fn fn)
+{
+    const auto before = [](const Hook<Fn>& a, const Hook<Fn>& b) {
+        return a.order != b.order ? a.order < b.order : std::strcmp(a.name, b.name) < 0;
+    };
+    const Hook<Fn> hook{name, order, fn};
+    hooks.insert(std::upper_bound(hooks.begin(), hooks.end(), hook, before), hook);
+}
+
+} // namespace
+
+void RegisterFingerprintPart(const char* name, int order, FingerprintFn fn)
+{
+    Insert(Registry().fingerprint, name, order, fn);
+}
+
+void RegisterLoadHook(const char* name, int order, LoadHookFn fn)
+{
+    Insert(Registry().load, name, order, fn);
+}
+
+void RegisterDayHook(const char* name, int order, DayHookFn fn)
+{
+    Insert(Registry().day, name, order, fn);
+}
+
+namespace {
+
+// "OSC4" + 1. System service IDs must be unique.
+constexpr uint32_t kServiceId = 0x4F534335;
 
 // The city view: main window -> cSC4App's window -> the 3D view (as in
 // gzcom-dll's SC4UI::GetView3DWin).
@@ -131,34 +220,6 @@ void ApplyRenderProperties(cISC4App* app)
     }
 }
 
-// FNV-1a over every tract value of a simulation grid; 0 for no grid.
-template <typename T>
-uint32_t GridChecksum(cISC4SimGrid<T>* grid)
-{
-    if (!grid)
-        return 0;
-    uint32_t h = 2166136261u;
-    const int32_t nx = grid->GetTractCountX(), nz = grid->GetTractCountZ();
-    for (int32_t z = 0; z < nz; ++z)
-        for (int32_t x = 0; x < nx; ++x) {
-            const T v = grid->GetTractValue(x, z);
-            const auto* b = reinterpret_cast<const uint8_t*>(&v);
-            for (size_t i = 0; i < sizeof v; ++i)
-                h = (h ^ b[i]) * 16777619u;
-        }
-    return h;
-}
-
-// FNV-1a over `size` bytes.
-uint32_t BytesChecksum(const void* data, size_t size)
-{
-    uint32_t h = 2166136261u;
-    const auto* b = static_cast<const uint8_t*>(data);
-    for (size_t i = 0; i < size; ++i)
-        h = (h ^ b[i]) * 16777619u;
-    return h;
-}
-
 // cISC43DRender::TakeSnapshot(cIGZString&, bool), vtable slot 22 (0x007C2570
 // in 641): writes the current frame to a file. Called by slot because
 // gzcom-dll declares the two TakeSnapshot overloads in the exe's slot order,
@@ -185,6 +246,61 @@ void CrashOnPurpose()
     } __except (crash::HookFilter("autotest::CrashOnPurpose", GetExceptionInformation())) {
     }
 }
+
+// The occupant (interface 0x26BB767E) behind a network piece, referenced.
+void* OccupantOf(void* piece)
+{
+    void* occupant = nullptr;
+    if (!piece || !Virtual<uint8_t>(piece, 0x0, 0x26BB767Eu, &occupant))
+        return nullptr;
+    return occupant;
+}
+
+// OPENSC4_TEST_OCCUPANT_CYCLE=<n>: on the n-th day, hand the water and
+// power simulators "removed" then "added" for an existing pipe and
+// pole (messages 0x99EF1143, 0x99EF1142), and power the plant
+// disaster message (0xC2C09554 with 0xE0D0722E), so the handlers a
+// network edit or a disaster runs are reached (docs/parity.md,
+// "Coverage").
+void CycleOccupants(cISC4City* city)
+{
+    void* const water = city->GetPlumbingSimulator();
+    void* const power = city->GetPowerSimulator();
+    void* pipe = nullptr;
+    if (water) {
+        void** const pipes = *reinterpret_cast<void***>(static_cast<char*>(water) + 0x170);
+        if (pipes[0] != pipes)
+            pipe = OccupantOf(static_cast<void**>(pipes[0])[2]);
+    }
+    void* pole = nullptr;
+    if (power) {
+        void** const begin = *reinterpret_cast<void***>(static_cast<char*>(power) + 0x29C);
+        void** const end = *reinterpret_cast<void***>(static_cast<char*>(power) + 0x2A0);
+        if (begin != end)
+            pole = OccupantOf(*begin);
+    }
+    for (void* const occupant : {pipe, pole}) {
+        if (!occupant)
+            continue;
+        for (const uint32_t type : {0x99EF1143u, 0x99EF1142u})
+            for (void* const simulator : {water, power})
+                if (simulator)
+                    Deliver(simulator, type, occupant, 0, 0);
+        Virtual<uint32_t>(occupant, 0x8);
+    }
+    if (power)
+        Deliver(power, 0xC2C09554, nullptr, 0xE0D0722E, 1);
+    log::Write("autotest: occupants cycled (pipe %s, pole %s), plant disaster message sent", pipe ? "yes" : "none",
+               pole ? "yes" : "none");
+}
+
+void CycleOccupantsHook(const Day& day)
+{
+    if (OnRunDay(day, "OPENSC4_TEST_OCCUPANT_CYCLE") && game::IsBuild641())
+        CycleOccupants(day.city);
+}
+
+const DayHook kCycleOccupants{"occupants.cycle", 100, &CycleOccupantsHook};
 
 // A simulator agent (cISC4Simulator::AddAgent): the simulator calls it from
 // inside its tick, so whatever it does happens at the same point of simulation
@@ -342,65 +458,9 @@ private:
         const void* proxy = pollution_proxy::LastCreated();
         log::Write("autotest: city pollution simulator %p; last proxy %p -> %s", static_cast<void*>(pollution),
                    proxy, pollution && pollution == proxy ? "CITY USES THE PROXY" : "city uses the original");
-        // OPENSC4_TEST_FIND_POWER_PLANTS=1: one cISC4PowerSimulator::
-        // FindPowerPlants call (slot 30; the advisors' query) after the load.
-        if (Env("OPENSC4_TEST_FIND_POWER_PLANTS") == "1" && game::IsBuild641()) {
-            if (void* const power = city->GetPowerSimulator()) {
-                using FindFn = void(__thiscall*)(void*, void**, uint32_t*, void**, int32_t*);
-                void* funded = nullptr;
-                void* oldest = nullptr;
-                uint32_t funding = 0;
-                int32_t age = 0;
-                reinterpret_cast<FindFn>((*static_cast<void***>(power))[30])(power, &funded, &funding, &oldest, &age);
-                log::Write("autotest: FindPowerPlants: lowest funded %s %08X, oldest %s %d%%", funded ? "found" : "none",
-                           funding, oldest ? "found" : "none", age);
-                for (void* plant : {funded, oldest}) {
-                    using ReleaseFn = uint32_t(__thiscall*)(void*);
-                    if (plant)
-                        reinterpret_cast<ReleaseFn>((*static_cast<void***>(plant))[2])(plant);
-                }
-            }
-        }
-        // OPENSC4_TEST_CAPACITY_SCALE=1: one call of the handler of message
-        // 0x66956810 (the simulator's scheduler never sent it in a test run).
-        if (Env("OPENSC4_TEST_CAPACITY_SCALE") == "1" && pollution) {
-            using HandlerFn = void(__thiscall*)(void* self);
-            reinterpret_cast<HandlerFn>(addr::cSC4PollutionSimulator_UpdateCapacityScale)(pollution);
-            log::Write("autotest: UpdateCapacityScale called");
-        }
-        // OPENSC4_TEST_GARBAGE_BUILDINGS=1: one GetGarbageBuildings call after
-        // the load (no simulator calls it in a test run).
-        if (Env("OPENSC4_TEST_GARBAGE_BUILDINGS") == "1" && pollution) {
-            SC4List<cISC4Occupant*> buildings;
-            const bool got = pollution->GetGarbageBuildings(buildings);
-            log::Write("autotest: GetGarbageBuildings: %u buildings (returned %d)", static_cast<unsigned>(buildings.size()),
-                       got ? 1 : 0);
-            for (cISC4Occupant* occupant : buildings)
-                occupant->Release();
-        }
-        // OPENSC4_TEST_RADIATION="x,z,amount,radius": one AddRadiationToCity
-        // call after the load (only disasters make one otherwise).
-        if (const std::string radiation = Env("OPENSC4_TEST_RADIATION"); !radiation.empty() && pollution) {
-            cS3DVector3 center;
-            float amount = 0.0f, radius = 0.0f;
-            if (std::sscanf(radiation.c_str(), "%f,%f,%f,%f", &center.fX, &center.fZ, &amount, &radius) == 4) {
-                pollution->AddRadiationToCity(center, amount, radius);
-                // The radiation grid (cSC4PollutionSimulator +0x4C; build 641)
-                // is in no fingerprint: an FNV-1a hash of its tract values.
-                auto* const grid = *reinterpret_cast<cISC4SimGrid<int16_t>**>(reinterpret_cast<char*>(pollution) + 0x4C);
-                uint32_t hash = 2166136261u;
-                int32_t nonzero = 0;
-                for (int32_t x = 0; x < grid->GetTractCountX(); ++x) {
-                    for (int32_t z = 0; z < grid->GetTractCountZ(); ++z) {
-                        const int16_t value = grid->GetTractValue(x, z);
-                        nonzero += value != 0;
-                        hash = (hash ^ static_cast<uint16_t>(value)) * 16777619u;
-                    }
-                }
-                log::Write("autotest: AddRadiationToCity(%g, %g, %g, %g): radiation grid %08X, %d tracts not 0", center.fX,
-                           center.fZ, amount, radius, hash, nonzero);
-            }
-        }
+        // Each simulator's OPENSC4_TEST_* load switches (autotest_hooks.h).
+        for (const auto& hook : Registry().load)
+            hook.fn(city);
 
         cISC4Simulator* sim = city->GetSimulator();
         shotDir_ = Env("OPENSC4_TEST_SHOTS");
@@ -523,406 +583,15 @@ private:
             self->lastFingerprintDay_ = day;
             self->Fingerprint(city, day);
         }
-        // OPENSC4_TEST_POWER_WAKE=<n>: on the n-th day of the run, wake the
-        // power simulator as message 0x6AC284F3 does (the network tools send
-        // it; +0x14 of cSC4PowerSimulator, build 641), so its recompute runs
-        // in a run without network edits (docs/power.md).
-        if (const int wake = EnvInt("OPENSC4_TEST_POWER_WAKE", -1);
-            wake >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + wake && game::IsBuild641()) {
-            if (void* const power = city->GetPowerSimulator()) {
-                static_cast<uint8_t*>(power)[0x14] = 1;
-                log::Write("autotest: power simulator woken on day %d", day);
-            }
-        }
-        // OPENSC4_TEST_WATER_WAKE=<n>: the same for the plumbing simulator
-        // (+0x14 of cSC4PlumbingSimulator, set by the same message; docs/water.md).
-        if (const int wake = EnvInt("OPENSC4_TEST_WATER_WAKE", -1);
-            wake >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + wake && game::IsBuild641()) {
-            if (void* const water = city->GetPlumbingSimulator()) {
-                static_cast<uint8_t*>(water)[0x14] = 1;
-                log::Write("autotest: plumbing simulator woken on day %d", day);
-            }
-        }
-        // OPENSC4_TEST_AURA_PASS=<n>: on the n-th day, start the aura
-        // simulator's monthly pass as MonthPassed does when it is idle (state
-        // +0x70 of cSC4AuraSimulator set to 1, build 641; docs/aura.md), so a
-        // pass runs in every test window.
-        if (const int when = EnvInt("OPENSC4_TEST_AURA_PASS", -1);
-            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641()) {
-            if (void* const aura = city->GetAuraSimulator()) {
-                uint32_t& state = At<uint32_t>(aura, 0x70);
-                if (state == 0)
-                    state = 1;
-                log::Write("autotest: aura pass started on day %d (state %u)", day, state);
-            }
-        }
-        // OPENSC4_TEST_CRIME_MONTH=<n>: every n days of the run, restart the
-        // crime simulator's monthly pass as MonthPassed does (state +0x90 from
-        // 6, waiting, to 0; cSC4CrimeSimulator, build 641), so a week's run
-        // goes through it without a month's end (docs/crime.md).
-        if (const int every = EnvInt("OPENSC4_TEST_CRIME_MONTH", -1); every > 0 && self->runDays_ >= 0 &&
-                                                                     game::IsBuild641()) {
-            const int into = day - (self->endDay_ - self->runDays_);
-            if (into > 0 && into % every == 0)
-                if (void* const crime = city->GetCrimeSimulator(); crime && static_cast<uint8_t*>(crime)[0x90] == 6) {
-                    static_cast<uint8_t*>(crime)[0x90] = 0;
-                    log::Write("autotest: crime month restarted on day %d", day);
-                }
-        }
-        // OPENSC4_TEST_WEATHER_YEAR=<n>: on the n-th day, run the weather
-        // simulator's month handler as for January (0x00729630 with 1, build
-        // 641; docs/weather.md): the water-body search runs then only.
-        if (const int when = EnvInt("OPENSC4_TEST_WEATHER_YEAR", -1);
-            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641()) {
-            if (void* const weather = city->GetWeatherSimulator()) {
-                using MonthFn = void(__thiscall*)(void* self, int32_t month, int32_t unused);
-                reinterpret_cast<MonthFn>(0x00729630)(weather, 1, 0);
-                log::Write("autotest: weather January handler run on day %d", day);
-            }
-        }
-
-        // OPENSC4_TEST_FLORA_MONTH=<n>: every n days of the run, the flora
-        // simulator's monthly pass, as MonthPassed does (the date into +0x40,
-        // then 0x006B2CB0; cSC4FloraSimulator, build 641) (docs/flora.md).
-        if (const int every = EnvInt("OPENSC4_TEST_FLORA_MONTH", -1); every > 0 && self->runDays_ >= 0 &&
-                                                                     game::IsBuild641()) {
-            const int into = day - (self->endDay_ - self->runDays_);
-            if (into > 0 && into % every == 0)
-                if (void* const flora = city->GetFloraSimulator()) {
-                    static_cast<int32_t*>(flora)[0x40 / 4] = day;
-                    reinterpret_cast<void(__thiscall*)(void*)>(addr::cSC4FloraSimulator_OnMonth)(flora);
-                    log::Write("autotest: flora month on day %d", day);
-                }
-        }
-        // OPENSC4_TEST_NEIGHBORS_MONTH=<n>: every n days of the run, the
-        // neighbors simulator's monthly pass over its deals (0x006D0E50,
-        // build 641), as MonthPassed does (docs/neighbors.md).
-        if (const int every = EnvInt("OPENSC4_TEST_NEIGHBORS_MONTH", -1); every > 0 && self->runDays_ >= 0 &&
-                                                                         game::IsBuild641()) {
-            const int into = day - (self->endDay_ - self->runDays_);
-            if (into > 0 && into % every == 0)
-                if (void* const neighbors = city->GetNeighborsSimulator()) {
-                    reinterpret_cast<void(__thiscall*)(void*)>(addr::cSC4NeighborsSimulator_Monthly)(neighbors);
-                    log::Write("autotest: neighbors month on day %d", day);
-                }
-        }
-
-        // OPENSC4_TEST_DEMAND_MONTH=<n>: every n days of the run, the demand
-        // simulator's MonthPassed (0x006A9450, build 641): its monthly passes
-        // and a waiting step restarted, so a week's run goes through them
-        // without a month's end (docs/demand.md).
-        if (const int every = EnvInt("OPENSC4_TEST_DEMAND_MONTH", -1); every > 0 && self->runDays_ >= 0 &&
-                                                                      game::IsBuild641()) {
-            const int into = day - (self->endDay_ - self->runDays_);
-            if (into > 0 && into % every == 0)
-                if (void* const demand = city->GetDemandSimulator()) {
-                    reinterpret_cast<void(__thiscall*)(void*)>(addr::cSC4DemandSimulator_MonthPassed)(demand);
-                    log::Write("autotest: demand month passed on day %d", day);
-                }
-        }
-        // OPENSC4_TEST_DEMAND_MESSAGES=<n>: on the n-th day, the messages the
-        // demand simulator gets rarely: SimulationBegin (0x66956810), the
-        // neighbours changed (0x8A0D15DA) and the passes (0x26C63343), to its
-        // DoMessage (docs/demand.md).
-        if (const int when = EnvInt("OPENSC4_TEST_DEMAND_MESSAGES", -1);
-            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641())
-            if (void* const demand = city->GetDemandSimulator()) {
-                for (const uint32_t type : {0x66956810u, 0x8A0D15DAu, 0x26C63343u}) {
-                    void* const message = demand_sim::NewMessage();
-                    Virtual<uint32_t>(message, 0x14, type);
-                    Virtual<uint8_t>(static_cast<char*>(demand) + 4, 0xC, message);
-                    Virtual<uint32_t>(message, 0x8);
-                }
-                log::Write("autotest: demand messages sent on day %d", day);
-            }
-        // OPENSC4_TEST_OCCUPANT_CYCLE=<n>: on the n-th day, hand the water and
-        // power simulators "removed" then "added" for an existing pipe and
-        // pole (messages 0x99EF1143, 0x99EF1142), and power the plant
-        // disaster message (0xC2C09554 with 0xE0D0722E), so the handlers a
-        // network edit or a disaster runs are reached (docs/parity.md,
-        // "Coverage").
-        if (const int when = EnvInt("OPENSC4_TEST_OCCUPANT_CYCLE", -1);
-            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641())
-            CycleOccupants(city);
-        // OPENSC4_TEST_PROTECTION=<n>: on the n-th day, DriveProtection.
-        if (const int when = EnvInt("OPENSC4_TEST_PROTECTION", -1);
-            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641())
-            DriveProtection(city);
-        // OPENSC4_TEST_CIVIC=<n>: on the n-th day, DriveCivic.
-        if (const int when = EnvInt("OPENSC4_TEST_CIVIC", -1);
-            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641())
-            DriveCivic(city);
-        // OPENSC4_TEST_POWER_MESSAGES=<n>: on the n-th day, hand the power
-        // simulator (its +0x4 cIGZMessageTarget2, build 641) the two network
-        // messages a network edit would bring, over the whole city: a network
-        // change (0x278E6003, corners packed in data 1 and 2) and a changed
-        // cell rectangle (0x07699455, the rectangle in void 2), so their
-        // handlers run in runs without edits (docs/power.md).
-        // OPENSC4_TEST_ORDINANCES=<n>: on the n-th day, make every ordinance
-        // available and enact it; OPENSC4_TEST_ORDINANCES_OFF=<n>: repeal
-        // every enacted one. The test cities enact none, so this reaches the
-        // ordinances' costs, effects and repeal paths (docs/ordinance.md).
-        if (const int when = EnvInt("OPENSC4_TEST_ORDINANCES", -1);
-            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when)
-            SetOrdinances(city, true);
-        if (const int when = EnvInt("OPENSC4_TEST_ORDINANCES_OFF", -1);
-            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when)
-            SetOrdinances(city, false);
-        // OPENSC4_TEST_ORDINANCES_CYCLE=<n>: on the n-th day, the paths a
-        // saved city never runs: the new city's ordinance creation from the
-        // exemplars (they are already there, so each new one is released
-        // again), every ordinance looked up by name, removed and added back,
-        // and the recount message 0x66956810 (docs/ordinance.md).
-        if (const int when = EnvInt("OPENSC4_TEST_ORDINANCES_CYCLE", -1);
-            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641())
-            CycleOrdinances(city);
-        if (const int when = EnvInt("OPENSC4_TEST_POWER_MESSAGES", -1);
-            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641()) {
-            if (void* const power = city->GetPowerSimulator())
-                SendPowerMessages(power, city);
-        }
+        // Each simulator's OPENSC4_TEST_* day switches (autotest_hooks.h).
+        const Day today{city, day, self->endDay_ - self->runDays_, self->runDays_ >= 0};
+        for (const auto& hook : Registry().day)
+            hook.fn(today);
         if (self->runDays_ >= 0 && day >= self->endDay_) {
             sim->Pause();
             self->reachedEndDay_ = true;
             log::Write("autotest: day %d reached in the simulator's tick (sim time %d); paused", day, sim->GetSimTime());
         }
-    }
-
-    // A message of the given type with void 1 = object and data 2/3, to a
-    // simulator's cIGZMessageTarget2 at +0x4 (its slot 3).
-    static void Deliver(void* simulator, uint32_t type, void* object, uint32_t data2, uint32_t data3)
-    {
-        using NewFn = void*(__cdecl*)(std::size_t size);
-        using MessageFn = cIGZMessage2Standard*(__thiscall*)(void* memory);
-        using DoMessageFn = bool(__thiscall*)(void* target, cIGZMessage2* message);
-        void* const memory = reinterpret_cast<NewFn>(addr::RZ_operator_new)(0x2C);
-        cIGZMessage2Standard* const message =
-            memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr;
-        if (!message)
-            return;
-        message->AddRef();
-        message->SetType(type);
-        message->SetVoid1(object);
-        message->SetData2(static_cast<intptr_t>(data2));
-        message->SetData3(static_cast<intptr_t>(data3));
-        void* const target = static_cast<char*>(simulator) + 0x4;
-        reinterpret_cast<DoMessageFn>((*static_cast<void***>(target))[3])(target, message);
-        message->Release();
-    }
-
-    // The occupant (interface 0x26BB767E) behind a network piece, referenced.
-    static void* OccupantOf(void* piece)
-    {
-        void* occupant = nullptr;
-        if (!piece || !Virtual<uint8_t>(piece, 0x0, 0x26BB767Eu, &occupant))
-            return nullptr;
-        return occupant;
-    }
-
-    // OPENSC4_TEST_CIVIC: the civic building simulator (docs/civic.md) is
-    // handed MonthPassed, then its first landmark's building leaves and
-    // comes back (occupant removed and inserted, then the lot's
-    // development message 0xE8BDA2E7 with state 3), and its slots 5 to 7
-    // are called: the excluded check for the first status's key, the first
-    // status set to itself and copied to a new key (0x0F0F0F0F).
-    static void DriveCivic(cISC4City* city)
-    {
-        char* const civic = reinterpret_cast<char*>(city->GetCivicBuildingSimulator());
-        if (!civic)
-            return;
-        Deliver(civic, 0x66956816, nullptr, 0, 0);
-        void** const landmarks = *reinterpret_cast<void***>(civic + 0x44);
-        void* const occupant = landmarks[0] != landmarks ? static_cast<void**>(landmarks[0])[2] : nullptr;
-        void* const lot = occupant ? Virtual<void*>(city->GetLotManager(), 0x38, occupant) : nullptr;
-        if (occupant && lot) {
-            Virtual<uint32_t>(occupant, 0x4);
-            Virtual<uint32_t>(lot, 0x4);
-            Deliver(civic, 0x99EF1143, occupant, 0, 0);
-            Deliver(civic, 0x99EF1142, occupant, 0, 0);
-            using NewFn = void*(__cdecl*)(std::size_t size);
-            using MessageFn = cIGZMessage2Standard*(__thiscall*)(void* memory);
-            using DoMessageFn = bool(__thiscall*)(void* target, cIGZMessage2* message);
-            void* const memory = reinterpret_cast<NewFn>(addr::RZ_operator_new)(0x2C);
-            if (cIGZMessage2Standard* const message =
-                    memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr) {
-                message->AddRef();
-                message->SetType(0xE8BDA2E7);
-                message->SetIGZUnknown(static_cast<cIGZUnknown*>(lot));
-                message->SetData2(3);
-                void* const target = civic + 0x4;
-                reinterpret_cast<DoMessageFn>((*static_cast<void***>(target))[3])(target, message);
-                message->Release();
-            }
-            Virtual<uint32_t>(lot, 0x8);
-            Virtual<uint32_t>(occupant, 0x8);
-        }
-        uint8_t excluded = 0;
-        char** const buckets = *reinterpret_cast<char***>(civic + 0x30);
-        const auto count = static_cast<uint32_t>(*reinterpret_cast<char***>(civic + 0x34) - buckets);
-        char* first = nullptr;
-        for (uint32_t i = 0; i < count && !first; ++i)
-            first = buckets[i];
-        if (first) {
-            const uint32_t key = *reinterpret_cast<uint32_t*>(first + 4);
-            excluded = Virtual<uint8_t>(civic, 0x14, key);
-            if (void* const status = Virtual<void*>(civic, 0x18, key)) {
-                Virtual<uint32_t>(civic, 0x1C, key, status);
-                Virtual<uint32_t>(civic, 0x1C, 0x0F0F0F0Fu, status);
-            }
-        }
-        log::Write("autotest: civic driven (landmark %p, lot %p, excluded %u, status %p)", occupant, lot, excluded,
-                   static_cast<void*>(first));
-    }
-
-    static void SetOrdinances(cISC4City* city, bool on)
-    {
-        cISC4OrdinanceSimulator* const ordinances = city->GetOrdinanceSimulator();
-        if (!ordinances)
-            return;
-        uint32_t ids[128];
-        uint32_t count = 128;
-        ordinances->GetOrdinanceIDArray(ids, count);
-        for (uint32_t i = 0; i < count; ++i) {
-            if (on) {
-                ordinances->SetOrdinanceAvailable(ids[i], true);
-                ordinances->SetOrdinanceOn(ids[i], true);
-            } else {
-                ordinances->SetOrdinanceOn(ids[i], false);
-            }
-        }
-        log::Write("autotest: %u ordinances %s", count, on ? "made available and enacted" : "repealed");
-    }
-
-    static void CycleOrdinances(cISC4City* city)
-    {
-        cISC4OrdinanceSimulator* const ordinances = city->GetOrdinanceSimulator();
-        if (!ordinances)
-            return;
-        using ThisFn = void(__thiscall*)(void*);
-        reinterpret_cast<ThisFn>(addr::cSC4OrdinanceSimulator_CreateOrdinances)(ordinances);
-        uint32_t ids[128];
-        uint32_t count = 128;
-        ordinances->GetOrdinanceIDArray(ids, count);
-        uint32_t named = 0;
-        for (uint32_t i = 0; i < count; ++i) {
-            cISC4Ordinance* const ordinance = ordinances->GetOrdinanceByID(ids[i]);
-            if (!ordinance)
-                continue;
-            if (ordinances->GetOrdinanceIDByName(*ordinance->GetName()) == ids[i])
-                ++named;
-            ordinance->AddRef();
-            ordinances->RemoveOrdinance(*ordinance);
-            ordinances->AddOrdinance(*ordinance);
-            ordinance->Release();
-        }
-        using MessageFn = void*(__thiscall*)(void* memory);
-        using AllocateFn = void*(__cdecl*)(std::size_t size);
-        void* const memory = reinterpret_cast<AllocateFn>(addr::RZ_operator_new)(0x2C);
-        if (void* const message = memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr) {
-            Virtual<uint32_t>(message, 0x4);
-            Virtual<uint32_t>(message, 0x14, 0x66956810u);
-            Virtual<uint8_t>(reinterpret_cast<char*>(ordinances) + 0x4, 0xC, message); // DoMessage
-            Virtual<uint32_t>(message, 0x8);
-        }
-        log::Write("autotest: ordinances created again, %u of %u found by name, removed and added back, recounted",
-                   named, count);
-    }
-
-    // OPENSC4_TEST_PROTECTION: every fire and police station's funding set
-    // to 0 (fire slot 9, police slot 8), the month handler of both run (the
-    // base's slot 6, at +8) and the first jail broken out of (police slot
-    // 40), so strikes and jailbreaks happen in short runs
-    // (docs/fire-police.md). Build 641 layouts: stations list at +0x88,
-    // jails at +0xD4.
-    static void DriveProtection(cISC4City* city)
-    {
-        const struct {
-            void* sim;
-            std::size_t fundingSlot;
-        } sims[] = {{city->GetFireProtectionSimulator(), 0x24}, {city->GetPoliceSimulator(), 0x20}};
-        for (const auto& [sim, slot] : sims) {
-            if (!sim)
-                continue;
-            static const float none = 0.0f; // passed by reference
-            char* const head = *reinterpret_cast<char**>(static_cast<char*>(sim) + 0x88);
-            for (char* node = *reinterpret_cast<char**>(head); node != head; node = *reinterpret_cast<char**>(node))
-                Virtual<uint8_t>(sim, slot, *reinterpret_cast<void**>(node + 8), &none);
-            Virtual<void>(static_cast<char*>(sim) + 8, 0x18);
-        }
-        if (void* const police = city->GetPoliceSimulator()) {
-            char* const jails = *reinterpret_cast<char**>(static_cast<char*>(police) + 0xD4);
-            if (char* const first = *reinterpret_cast<char**>(jails); first != jails)
-                Virtual<uint8_t>(police, 0xA0, *reinterpret_cast<void**>(first + 8));
-        }
-        log::Write("autotest: fire and police driven (funding 0, month, jailbreak)");
-    }
-
-    static void CycleOccupants(cISC4City* city)
-    {
-        void* const water = city->GetPlumbingSimulator();
-        void* const power = city->GetPowerSimulator();
-        void* pipe = nullptr;
-        if (water) {
-            void** const pipes = *reinterpret_cast<void***>(static_cast<char*>(water) + 0x170);
-            if (pipes[0] != pipes)
-                pipe = OccupantOf(static_cast<void**>(pipes[0])[2]);
-        }
-        void* pole = nullptr;
-        if (power) {
-            void** const begin = *reinterpret_cast<void***>(static_cast<char*>(power) + 0x29C);
-            void** const end = *reinterpret_cast<void***>(static_cast<char*>(power) + 0x2A0);
-            if (begin != end)
-                pole = OccupantOf(*begin);
-        }
-        for (void* const occupant : {pipe, pole}) {
-            if (!occupant)
-                continue;
-            for (const uint32_t type : {0x99EF1143u, 0x99EF1142u})
-                for (void* const simulator : {water, power})
-                    if (simulator)
-                        Deliver(simulator, type, occupant, 0, 0);
-            Virtual<uint32_t>(occupant, 0x8);
-        }
-        if (power)
-            Deliver(power, 0xC2C09554, nullptr, 0xE0D0722E, 1);
-        log::Write("autotest: occupants cycled (pipe %s, pole %s), plant disaster message sent", pipe ? "yes" : "none",
-                   pole ? "yes" : "none");
-    }
-
-    static void SendPowerMessages(void* power, cISC4City* city)
-    {
-        using NewFn = void*(__cdecl*)(std::size_t size);
-        using MessageFn = cIGZMessage2Standard*(__thiscall*)(void* memory);
-        using DoMessageFn = bool(__thiscall*)(void* target, cIGZMessage2* message);
-        static int32_t rect[4];
-        const auto cellsX = Virtual<uint32_t>(city, 0x174); // the cell counts, as the power simulator reads them
-        const auto cellsZ = Virtual<uint32_t>(city, 0x178);
-        rect[0] = 0;
-        rect[1] = 0;
-        rect[2] = static_cast<int32_t>(cellsX) - 1;
-        rect[3] = static_cast<int32_t>(cellsZ) - 1;
-        void* const target = static_cast<char*>(power) + 0x4;
-        const auto doMessage = reinterpret_cast<DoMessageFn>((*static_cast<void***>(target))[3]);
-        for (const uint32_t type : {0x278E6003u, 0x07699455u}) {
-            void* const memory = reinterpret_cast<NewFn>(addr::RZ_operator_new)(0x2C);
-            cIGZMessage2Standard* const message =
-                memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr;
-            if (!message)
-                return;
-            message->AddRef();
-            message->SetType(type);
-            if (type == 0x278E6003u) {
-                message->SetData1(static_cast<intptr_t>((1u << 16) | (cellsX - 1)));
-                message->SetData2(static_cast<intptr_t>((1u << 16) | (cellsZ - 1)));
-                message->SetData4(0);
-            } else {
-                message->SetVoid2(rect);
-                message->SetData3(0);
-            }
-            doMessage(target, message);
-            message->Release();
-        }
-        log::Write("autotest: power messages 0x278E6003 and 0x07699455 delivered over %ux%u cells", cellsX, cellsZ);
     }
 
     // The x87 control word the simulation runs with (docs/pollution.md,
@@ -964,477 +633,30 @@ private:
         }
         const uint32_t effectRandom =
             game::IsBuild641() ? BytesChecksum(reinterpret_cast<const void*>(addr::PollutionTuning_EffectRandom), 0x9C8) : 0u;
-        // Power (build 641 vtable slots, not gzcom-dll's declarations, whose
-        // overloads compile in another order): the powered grid (slot 35),
-        // the monthly requirement, production, import, export, demand and
-        // consumption (11-15, 17; 16 takes a cell), unpowered and powered consumers (21, 22), power
-        // plants (24) and poles (26), and overworked, aged and distressed
-        // plants (27-29).
-        void* const power = city->GetPowerSimulator();
-        char powerText[192] = " | power none";
-        if (power && game::IsBuild641()) {
-            auto slot = [power](int index) {
-                using Fn = int32_t(__thiscall*)(void*);
-                return reinterpret_cast<Fn>((*static_cast<void***>(power))[index])(power);
-            };
-            using GridFn = cISC4SimGrid<uint8_t>*(__thiscall*)(void*);
-            auto* const powered = reinterpret_cast<GridFn>((*static_cast<void***>(power))[35])(power);
-            std::snprintf(powerText, sizeof powerText,
-                          " | power %08X req %d prod %d imp %d exp %d dem %d con %d | consumers %d/%d plants %d poles "
-                          "%d %d/%d/%d",
-                          GridChecksum(powered), slot(11), slot(12), slot(13), slot(14), slot(15), slot(17), slot(21),
-                          slot(22), slot(24), slot(26), slot(27), slot(28), slot(29));
-        }
-        // Water (cSC4PlumbingSimulator, build 641 slots): the watered grid
-        // (slot 7), water sources and polluted sources (12, 13), production
-        // capacity, consumption, import and export (14-17), pipes, distressed
-        // and burst pipes (18-20), watered and unwatered buildings (21, 22)
-        // and demand (23) (docs/water.md).
-        void* const water = city->GetPlumbingSimulator();
-        char waterText[192] = " | water none";
-        if (water && game::IsBuild641()) {
-            auto slot = [water](int index) {
-                using Fn = int32_t(__thiscall*)(void*);
-                return reinterpret_cast<Fn>((*static_cast<void***>(water))[index])(water);
-            };
-            using GridFn = cISC4SimGrid<uint8_t>*(__thiscall*)(void*);
-            auto* const watered = reinterpret_cast<GridFn>((*static_cast<void***>(water))[7])(water);
-            std::snprintf(waterText, sizeof waterText,
-                          " | water %08X src %d/%d cap %d con %d imp %d exp %d pipes %d/%d/%d bld %d/%d dem %d",
-                          GridChecksum(watered), slot(12), slot(13), slot(14), slot(15), slot(16), slot(17), slot(18),
-                          slot(19), slot(20), slot(21), slot(22), slot(23));
-        }
-        // Aura (cSC4AuraSimulator, build 641 offsets; docs/aura.md): the
-        // aura grid and the grids the monthly pass builds it from, the pass
-        // state, the mayor rating and its best and worst cells. The effect
-        // grid (+0x44) is left out while state 5 fills it: that state is cut
-        // into time slices, so a day can end at any point in it.
-        void* const aura = city->GetAuraSimulator();
-        char auraText[256] = " | aura none";
-        if (aura && game::IsBuild641()) {
-            auto grid8 = [aura](std::size_t offset) {
-                return GridChecksum(At<cISC4SimGrid<int8_t>*>(aura, offset));
-            };
-            auto grid16 = [aura](std::size_t offset) {
-                return GridChecksum(At<cISC4SimGrid<int16_t>*>(aura, offset));
-            };
-            const uint32_t state = At<uint32_t>(aura, 0x70);
-            std::snprintf(auraText, sizeof auraText,
-                          " | aura %08X %08X %08X %08X %08X %08X %08X %08X %08X st %u rating %d %d max %d,%d=%d min "
-                          "%d,%d=%d",
-                          grid8(0x40), state == 5 ? 0u : grid8(0x44), grid8(0x48), grid8(0x4C), grid8(0x50),
-                          grid16(0x54), grid16(0x58), grid16(0x68), grid16(0x6C), state, At<int32_t>(aura, 0x84),
-                          At<int32_t>(aura, 0x88), At<int32_t>(aura, 0x148), At<int32_t>(aura, 0x14C),
-                          At<int16_t>(aura, 0x150), At<int32_t>(aura, 0x154), At<int32_t>(aura, 0x158),
-                          At<int16_t>(aura, 0x15C));
-        }
-        // Crime (cSC4CrimeSimulator, build 641 slots): the crime grid (slot
-        // 5), average and monthly count (6, 7), the hotspot (8), the step's
-        // fields (+0x7C to +0xD8: count, hotspot, ordinance factor, state,
-        // the month's target and its parts) and the incidents (crime type
-        // and name key each) (docs/crime.md).
-        void* const crime = city->GetCrimeSimulator();
-        char crimeText[224] = " | crime none";
-        if (crime && game::IsBuild641()) {
-            void** const vtable = *static_cast<void***>(crime);
-            using GridFn = cISC4SimGrid<uint8_t>*(__thiscall*)(void*);
-            using CountFn = uint32_t(__thiscall*)(void*);
-            using HotspotFn = uint8_t(__thiscall*)(void*, uint8_t*, int32_t*, int32_t*);
-            uint8_t hotValue = 0;
-            int32_t hotX = 0, hotZ = 0;
-            const uint8_t hot = reinterpret_cast<HotspotFn>(vtable[8])(crime, &hotValue, &hotX, &hotZ);
-            char* const base = static_cast<char*>(crime);
-            char* const* const incidents = *reinterpret_cast<char* const* const*>(base + 0x70);
-            const uint32_t incidentCount =
-                static_cast<uint32_t>(*reinterpret_cast<char* const* const*>(base + 0x74) - incidents);
-            uint32_t incidentSum = 0;
-            for (uint32_t i = 0; i < incidentCount; ++i)
-                if (incidents[i])
-                    incidentSum = incidentSum * 31 + BytesChecksum(incidents[i] + 4, 4) * 7 +
-                                  BytesChecksum(incidents[i] + 0x1C, 12);
-            const int written = std::snprintf(
-                crimeText, sizeof crimeText, " | crime %08X avg %u cnt %u hot %u %u,%d,%d st %08X inc %u %08X",
-                GridChecksum(reinterpret_cast<GridFn>(vtable[5])(crime)), reinterpret_cast<CountFn>(vtable[6])(crime),
-                reinterpret_cast<CountFn>(vtable[7])(crime), hot, hotValue, hotX, hotZ,
-                BytesChecksum(base + 0x7C, 0x5C), incidentCount, incidentSum);
-            // OPENSC4_TEST_CRIME_QUERIES=1: the queries only the UI and the
-            // automata make (slots 9-13): the incident events, the visuals
-            // flag of the first incident (set, then read), and whether a
-            // crime sim and a crime prop are within 2 km of the hotspot.
-            if (EnvInt("OPENSC4_TEST_CRIME_QUERIES", 0) > 0 && written > 0) {
-                struct {
-                    char* begin = nullptr;
-                    char* end = nullptr;
-                    char* capacity = nullptr;
-                } events;
-                using EventsFn = uint8_t(__thiscall*)(void*, void*);
-                const uint8_t any = reinterpret_cast<EventsFn>(vtable[11])(crime, &events);
-                const uint32_t eventSum =
-                    events.begin ? BytesChecksum(events.begin, static_cast<size_t>(events.end - events.begin)) : 0u;
-                if (events.begin)
-                    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(events.begin);
-                using SetFn = uint8_t(__thiscall*)(void*, uint32_t, uint8_t);
-                using GetFn = uint8_t(__thiscall*)(void*, uint32_t);
-                const uint8_t set = reinterpret_cast<SetFn>(vtable[12])(crime, 0, 1);
-                const uint8_t visuals = reinterpret_cast<GetFn>(vtable[13])(crime, 0);
-                const float position[3] = {static_cast<float>(hotX * 16 + 8), 0.0f, static_cast<float>(hotZ * 16 + 8)};
-                using NearestFn = void*(__thiscall*)(void*, const float*, float);
-                const bool sim = reinterpret_cast<NearestFn>(vtable[9])(crime, position, 2000.0f) != nullptr;
-                const bool prop = reinterpret_cast<NearestFn>(vtable[10])(crime, position, 2000.0f) != nullptr;
-                std::snprintf(crimeText + written, sizeof crimeText - written, " q %u %08X %u%u %u%u", any, eventSum,
-                              set, visuals, sim, prop);
-            }
-        }
-        // Weather (cSC4WeatherSimulator, build 641 offsets; docs/weather.md):
-        // the moisture maps (+0x74, +0xDC, +0xE8, rows of bytes), the water
-        // cells (+0x80, rows of bits), the water bodies (+0x8C), the cells
-        // left this pass (+0xC8), the season and month, temperature and
-        // humidity, the wind (+0x118 to +0x144) as float bits.
-        void* const weather = city->GetWeatherSimulator();
-        char weatherText[256] = " | weather none";
-        if (weather && game::IsBuild641()) {
-            auto rowsSum = [weather](std::size_t offset) {
-                uint32_t h = 2166136261u;
-                char* const* const begin = At<char* const*>(weather, offset);
-                char* const* const end = At<char* const*>(weather, offset + 4);
-                for (char* const* row = begin; row && row < end; row += 3)
-                    for (const char* b = row[0]; b < row[1]; ++b)
-                        h = (h ^ static_cast<uint8_t>(*b)) * 16777619u;
-                return h;
-            };
-            uint32_t bits = 2166136261u;
-            {
-                const int32_t countX = At<int32_t>(weather, 0x2C), countZ = At<int32_t>(weather, 0x30);
-                const char* const rows = At<const char*>(weather, 0x80);
-                const int32_t rowCount = rows ? static_cast<int32_t>((At<const char*>(weather, 0x84) - rows) / 20) : 0;
-                for (int32_t x = 0; x < countX && x < rowCount; ++x) {
-                    const uint32_t* const data = *reinterpret_cast<uint32_t* const*>(rows + 20 * x);
-                    const int32_t start = *reinterpret_cast<const int32_t*>(rows + 20 * x + 4);
-                    for (int32_t z = 0; z < countZ; ++z) {
-                        const int32_t bit = start + z;
-                        const uint32_t set = (data[bit >> 5] >> (bit & 31)) & 1;
-                        bits = (bits ^ set) * 16777619u;
-                    }
-                }
-            }
-            auto f = [weather](std::size_t offset) { return At<uint32_t>(weather, offset); };
-            const char* const bodies = At<const char*>(weather, 0x8C);
-            std::snprintf(weatherText, sizeof weatherText,
-                          " | weather %08X %08X %08X %08X bodies %d left %d season %d month %d temp %08X hum %08X "
-                          "wind %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X",
-                          rowsSum(0x74), rowsSum(0xDC), rowsSum(0xE8), bits,
-                          bodies ? static_cast<int>((At<const char*>(weather, 0x90) - bodies) / 16) : 0,
-                          At<int32_t>(weather, 0xC8), At<int32_t>(weather, 0x60), At<int32_t>(weather, 0x160), f(0x70),
-                          f(0xF4), f(0x11C), f(0x120), f(0x124), f(0x128), f(0x12C), f(0x130), f(0x134), f(0x138),
-                          f(0x13C), f(0x140), f(0x144));
-        }
-
-        // Flora: every flora occupant (occupant manager slot 39, type
-        // 0x74758926): count, and a checksum of each one's type, birth and
-        // last seeding dates, state, orientation (cISC4FloraOccupant slots
-        // 4, 6, 8, 10, 12) and position (docs/flora.md).
-        char floraText[64] = " | flora none";
-        if (void* const occupants = Virtual<void*>(city, 0x88); occupants && game::IsBuild641()) {
-            void** const sentinel = static_cast<void**>(Virtual<void*>(ListNodeAllocator(), 0xC, 0xCu));
-            sentinel[0] = sentinel;
-            sentinel[1] = sentinel;
-            void* head = sentinel;
-            Virtual<uint8_t>(occupants, 0x9C, &head, 0u, 0u, 0x74758926u, -1);
-            uint32_t count = 0, sum = 0;
-            for (void** node = static_cast<void**>(sentinel[0]); node != sentinel; node = static_cast<void**>(node[0])) {
-                void* const occupant = node[2];
-                void* flora = nullptr;
-                if (!Virtual<uint8_t>(occupant, 0x0, 0xC83DD057u, &flora) || !flora)
-                    continue;
-                float position[3] = {};
-                Virtual<uint32_t>(occupant, 0x20, position);
-                const uint32_t values[5] = {Virtual<uint32_t>(flora, 0x10), Virtual<uint32_t>(flora, 0x18),
-                                            Virtual<uint32_t>(flora, 0x20), Virtual<uint32_t>(flora, 0x28),
-                                            Virtual<uint32_t>(flora, 0x30)};
-                sum = sum * 31 + BytesChecksum(values, sizeof values) * 7 + BytesChecksum(position, sizeof position);
-                ++count;
-                Virtual<uint32_t>(flora, 0x8);
-            }
-            Virtual<uint8_t>(occupants, 0xC0, &head);
-            reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4List_Destroy2)(&head);
-            std::snprintf(floraText, sizeof floraText, " | flora %u %08X", count, sum);
-        }
-        // Neighbors: every connection through slot 16 (count, and a
-        // checksum of each one's type, cells, visited and active flags,
-        // whether it has a city across, and what slots 10-13 answer for
-        // it); the counts slots 17 and 20 give (road connections; adjacent
-        // cities with and without unestablished ones); the deals (slot 28)
-        // and monthly income and expense (32, 33) (docs/neighbors.md).
-        char neighborsText[128] = " | nb none";
-        if (void* const neighbors = city->GetNeighborsSimulator(); neighbors && game::IsBuild641()) {
-            using ClearFn = void(__thiscall*)(void*);
-            const auto newList = [](std::uintptr_t allocator) {
-                void** const sentinel = static_cast<void**>(Virtual<void*>(NodeAllocatorAt(allocator), 0xC, 0xCu));
-                sentinel[0] = sentinel;
-                sentinel[1] = sentinel;
-                return static_cast<void*>(sentinel);
-            };
-            const auto count = [](void* head) {
-                uint32_t n = 0;
-                for (void** node = static_cast<void**>(static_cast<void**>(head)[0]); node != head;
-                     node = static_cast<void**>(node[0]))
-                    ++n;
-                return n;
-            };
-            void* connections = newList(addr::SC4List_NodeAllocator3);
-            Virtual<void>(neighbors, 0x40, &connections);
-            uint32_t sum = 0;
-            for (void** node = static_cast<void**>(static_cast<void**>(connections)[0]); node != connections;
-                 node = static_cast<void**>(node[0])) {
-                void* const connection = node[2];
-                int32_t cell[6] = {};
-                Virtual<void>(connection, 0x18, &cell[0], &cell[1]);
-                Virtual<uint8_t>(connection, 0x1C, &cell[2], &cell[3]);
-                Virtual<void>(connection, 0x20, &cell[4], &cell[5]);
-                const uint32_t type = Virtual<uint32_t>(connection, 0x14);
-                const uint32_t values[8] = {
-                    type,
-                    Virtual<uint8_t>(connection, 0x2C),
-                    Virtual<uint8_t>(connection, 0x34),
-                    Virtual<void*>(connection, 0x24) != nullptr,
-                    Virtual<uint32_t>(neighbors, 0x28, type, cell[0], cell[1]),
-                    Virtual<void*>(neighbors, 0x2C, type, cell[0], cell[1]) == connection,
-                    Virtual<void*>(neighbors, 0x30, cell[0], cell[1]) == Virtual<void*>(connection, 0x24),
-                    Virtual<void*>(neighbors, 0x34, connection) != nullptr};
-                sum = sum * 31 + BytesChecksum(values, sizeof values) * 7 + BytesChecksum(cell, sizeof cell);
-            }
-            const uint32_t total = count(connections);
-            void* roads = newList(addr::SC4List_NodeAllocator3);
-            Virtual<void>(neighbors, 0x44, 2u, &roads);
-            const uint32_t roadCount = count(roads);
-            reinterpret_cast<ClearFn>(addr::SC4List_ClearReleasing)(&roads);
-            Virtual<void>(NodeAllocatorAt(addr::SC4List_NodeAllocator3), 0x10, roads);
-            reinterpret_cast<ClearFn>(addr::SC4List_ClearReleasing)(&connections);
-            Virtual<void>(NodeAllocatorAt(addr::SC4List_NodeAllocator3), 0x10, connections);
-            uint32_t adjacent[2] = {};
-            for (uint32_t all = 0; all < 2; ++all) {
-                void* cities = newList(addr::SC4List_NodeAllocator4);
-                Virtual<void>(neighbors, 0x50, &cities, static_cast<uint8_t>(all));
-                adjacent[all] = count(cities);
-                reinterpret_cast<ClearFn>(addr::SC4List_ClearReleasing4)(&cities);
-                Virtual<void>(NodeAllocatorAt(addr::SC4List_NodeAllocator4), 0x10, cities);
-            }
-            void* deals = newList(addr::SC4List_NodeAllocator);
-            Virtual<void>(neighbors, 0x70, &deals);
-            const uint32_t dealCount = count(deals);
-            reinterpret_cast<ClearFn>(addr::SC4List_Destroy)(&deals);
-            const int64_t income = Virtual<int64_t>(neighbors, 0x80);
-            const int64_t expense = Virtual<int64_t>(neighbors, 0x84);
-            const auto* const flags = static_cast<const uint8_t*>(neighbors);
-            std::snprintf(neighborsText, sizeof neighborsText,
-                          " | nb %u %08X roads %u adj %u %u deals %u %lld %lld fl %02X%02X%02X%02X", total, sum,
-                          roadCount, adjacent[0], adjacent[1], dealCount, static_cast<long long>(income),
-                          static_cast<long long>(expense), flags[0xC], flags[0x3C], flags[0x3D], flags[0x3F]);
-        }
-        // Demand (cSC4DemandSimulator, build 641 offsets; docs/demand.md): the
-        // step's state, the four saved floats, each demand's fields (ID to
-        // region use, +0x10 to +0x48) under its key, the two maps of counted
-        // values (+0x1C, +0x28), the neutral tax rate (slot 10, float bits)
-        // and the jobs of every demand (slot 9). The tax rate is read only
-        // when the three demands it reads exist (the game's lookups insert).
-        void* const demandSim = city->GetDemandSimulator();
-        char demandText[160] = " | demand none";
-        if (demandSim && game::IsBuild641()) {
-            using namespace demand_sim;
-            TreeNode* const demands = Header(demandSim, field::kDemands);
-            uint32_t demandSum = 0;
-            for (TreeNode* node = First(demands); node != demands; node = Next(node)) {
-                const char* const demand = static_cast<const char*>(Value<void*>(node));
-                demandSum = demandSum * 31 + node->key;
-                if (demand)
-                    demandSum = demandSum * 31 + BytesChecksum(demand + demand::kId, demand::kRegionUse + 4 - demand::kId);
-            }
-            auto mapSum = [demandSim](std::size_t offset) {
-                TreeNode* const header = Header(demandSim, offset);
-                uint32_t sum = 0;
-                for (TreeNode* node = First(header); node != header; node = Next(node))
-                    sum = sum * 31 + BytesChecksum(&node->key, 8);
-                return sum;
-            };
-            auto has = [demands](uint32_t id) { return Find(demands, id) != demands; };
-            uint32_t taxBits = 0;
-            if (has(0x1001) && has(0x3001) && has(0x4001) && At<void*>(demandSim, field::kTaxCurve)) {
-                using TaxFn = double(__thiscall*)(void*);
-                const float tax = static_cast<float>(reinterpret_cast<TaxFn>((*static_cast<void***>(demandSim))[10])(demandSim));
-                std::memcpy(&taxBits, &tax, sizeof taxBits);
-            }
-            uint32_t jobsSum = 0;
-            for (TreeNode* node = First(demands); node != demands; node = Next(node)) {
-                using JobsFn = int32_t(__thiscall*)(void*, uint32_t);
-                jobsSum = jobsSum * 31 + static_cast<uint32_t>(reinterpret_cast<JobsFn>(
-                                             (*static_cast<void***>(demandSim))[9])(demandSim, node->key));
-            }
-            // The cell walk of state 1 fills +0x1C in time slices, so a day can
-            // end anywhere in it: only its result (state 2 on) is compared.
-            const uint32_t state = At<uint32_t>(demandSim, field::kState);
-            std::snprintf(demandText, sizeof demandText, " | demand st %u %08X n %u %08X map %08X %08X tax %08X jobs %08X",
-                          state, BytesChecksum(static_cast<char*>(demandSim) + field::kSaved, 16),
-                          Size(demandSim, field::kDemands), demandSum, state == 1 ? 0u : mapSum(field::kPending),
-                          mapSum(field::kCounted),
-                          taxBits, jobsSum);
-        }
-        // Traffic (build 641 slots): trip scale and the one shown (14, 15),
-        // last month's income (18) and the freight scaling (27), as float bits.
-        char trafficText[96] = "";
-        if (traffic && game::IsBuild641()) {
-            auto slot = [traffic](int index) {
-                using Fn = float(__thiscall*)(void*);
-                const float value = reinterpret_cast<Fn>((*reinterpret_cast<void***>(traffic))[index])(traffic);
-                uint32_t bits;
-                std::memcpy(&bits, &value, sizeof bits);
-                return bits;
-            };
-            std::snprintf(trafficText, sizeof trafficText, " | traffic %08X %08X %08X %08X", slot(14), slot(15),
-                          slot(18), slot(27));
-        }
-        // Land value (the total grid is in the main line): the intrinsic and
-        // slope grids, the average land value, the mode and average altitude
-        // (float bits) and the step's state (+0x78, +0x38; docs/landvalue.md).
-        char landText[96] = "";
-        if (land && game::IsBuild641()) {
-            const float mode = land->GetModeAltitude();
-            uint32_t modeBits, altitudeBits;
-            std::memcpy(&modeBits, &mode, sizeof modeBits);
-            std::memcpy(&altitudeBits, reinterpret_cast<const char*>(land) + 0x78, sizeof altitudeBits);
-            std::snprintf(landText, sizeof landText, " | lv %08X %08X avg %u mode %08X alt %08X st %d",
-                          GridChecksum(land->GetIntrinsicLandValueMap()), GridChecksum(land->GetSlopeMap()),
-                          land->GetAverageLandValue(), modeBits, altitudeBits,
-                          *reinterpret_cast<const int32_t*>(reinterpret_cast<const char*>(land) + 0x38));
-        }
-        // Ordinances (build 641): last month's expense and income, the
-        // enactment and repeal income pending (+0x28), how many are available
-        // and enacted, and a checksum of each one's ID, flags and adjusted
-        // income in ID order (docs/ordinance.md).
-        char ordinanceText[128] = "";
-        if (cISC4OrdinanceSimulator* const ordinances = city->GetOrdinanceSimulator(); ordinances && game::IsBuild641()) {
-            uint32_t ids[128];
-            uint32_t count = 128;
-            ordinances->GetOrdinanceIDArray(ids, count);
-            uint32_t h = 2166136261u;
-            for (uint32_t i = 0; i < count; ++i) {
-                void* const ordinance = ordinances->GetOrdinanceByID(ids[i]);
-                if (!ordinance)
-                    continue;
-                struct {
-                    uint32_t id;
-                    uint8_t available, on, enabled, pad;
-                    int64_t adjusted;
-                } state{ids[i], Virtual<uint8_t>(ordinance, 0x44), Virtual<uint8_t>(ordinance, 0x48),
-                        Virtual<uint8_t>(ordinance, 0x4C), 0, Virtual<int64_t>(ordinance, 0x50)};
-                const auto* b = reinterpret_cast<const uint8_t*>(&state);
-                for (size_t k = 0; k < sizeof state; ++k)
-                    h = (h ^ b[k]) * 16777619u;
-            }
-            std::snprintf(ordinanceText, sizeof ordinanceText, " | ord %lld %lld %lld av %u on %u n %u %08X",
-                          static_cast<long long>(ordinances->GetOrdinanceMonthlyExpense()),
-                          static_cast<long long>(ordinances->GetOrdinanceMonthlyIncome()),
-                          *reinterpret_cast<const long long*>(reinterpret_cast<const char*>(ordinances) + 0x28),
-                          ordinances->GetOrdinanceAvailableCount(), ordinances->GetOrdinanceOnCount(), count, h);
-        }
-        // Fire and police (build 641 slots; docs/fire-police.md): the
-        // protection grids (slot 5), average and percent coverage (fire 19,
-        // 20; police 18, 19, float bits), station counts (fire 23, police
-        // 24), dispatch counts (25, 26), strikes (11, 10), and police jail
-        // population and capacity, criminals, arrests and jails (30, 29, 31,
-        // 34, 35: gzcom-dll's two GetJailCapacity overloads sit together at
-        // 28 and 29, which moves the declarations between them down one).
-        char serviceText[224] = "";
-        if (game::IsBuild641()) {
-            auto slotOf = [](void* object, int index) {
-                using Fn = uint32_t(__thiscall*)(void*);
-                return reinterpret_cast<Fn>((*static_cast<void***>(object))[index])(object);
-            };
-            auto floatOf = [](void* object, int index) {
-                using Fn = float(__thiscall*)(void*);
-                const float value = reinterpret_cast<Fn>((*static_cast<void***>(object))[index])(object);
-                uint32_t bits;
-                std::memcpy(&bits, &value, sizeof bits);
-                return bits;
-            };
-            // Percent coverage (fire 20, police 19) returns a pointer to the
-            // float (this + 0x9C), not the float gzcom-dll declares.
-            auto percentOf = [&slotOf](void* object, int index) {
-                return *reinterpret_cast<const uint32_t*>(static_cast<std::uintptr_t>(slotOf(object, index)));
-            };
-            using GridFn = cISC4SimGrid<int16_t>*(__thiscall*)(void*);
-            void* const fire = city->GetFireProtectionSimulator();
-            void* const police = city->GetPoliceSimulator();
-            int at = 0;
-            if (fire)
-                at = std::snprintf(serviceText, sizeof serviceText, " | fire %08X %08X %08X st %u disp %u strike %u",
-                                   GridChecksum(reinterpret_cast<GridFn>((*static_cast<void***>(fire))[5])(fire)),
-                                   floatOf(fire, 19), percentOf(fire, 20), slotOf(fire, 23), slotOf(fire, 25),
-                                   slotOf(fire, 11) & 0xFF);
-            if (police && at >= 0 && at < static_cast<int>(sizeof serviceText))
-                std::snprintf(serviceText + at, sizeof serviceText - at,
-                              " | police %08X %08X %08X st %u disp %u strike %u jail %u/%u crim %u arr %u jails %u",
-                              GridChecksum(reinterpret_cast<GridFn>((*static_cast<void***>(police))[5])(police)),
-                              floatOf(police, 18), percentOf(police, 19), slotOf(police, 24), slotOf(police, 26),
-                              slotOf(police, 10) & 0xFF, slotOf(police, 30), slotOf(police, 29), slotOf(police, 31),
-                              slotOf(police, 34), slotOf(police, 35));
-        }
-        // Civic buildings (cSC4CivicBuildingSimulator, build 641 offsets;
-        // docs/civic.md): the excluded families (+0x18) and the conditional
-        // building statuses (+0x2C), each a count and a checksum in bucket
-        // order, the ape escape candidates and landmarks (list sizes), and
-        // whether the department (+0x14) is set.
-        char civicText[96] = "";
-        if (game::IsBuild641()) {
-            if (char* const civic = reinterpret_cast<char*>(city->GetCivicBuildingSimulator())) {
-                auto tableSum = [](char* table, bool statuses) {
-                    char** const buckets = *reinterpret_cast<char***>(table + 4);
-                    const auto count = static_cast<uint32_t>(*reinterpret_cast<char***>(table + 8) - buckets);
-                    uint32_t sum = 0;
-                    for (uint32_t i = 0; i < count; ++i)
-                        for (char* node = buckets[i]; node; node = *reinterpret_cast<char**>(node)) {
-                            sum = sum * 31 + *reinterpret_cast<uint32_t*>(node + 4);
-                            if (statuses) {
-                                sum = sum * 31 + *reinterpret_cast<uint8_t*>(node + 8);
-                                sum = sum * 31 + *reinterpret_cast<uint16_t*>(node + 0xA);
-                                const char* const begin = *reinterpret_cast<char**>(node + 0x10);
-                                const char* const end = *reinterpret_cast<char**>(node + 0x14);
-                                sum = sum * 31 + (begin ? BytesChecksum(begin, static_cast<size_t>(end - begin)) : 0u);
-                            }
-                        }
-                    return sum;
-                };
-                auto listSize = [](char* list) {
-                    void** const head = *reinterpret_cast<void***>(list);
-                    uint32_t size = 0;
-                    for (void** node = static_cast<void**>(head[0]); node != head; node = static_cast<void**>(node[0]))
-                        ++size;
-                    return size;
-                };
-                std::snprintf(civicText, sizeof civicText, " | civic %u %08X %u %08X z %u l %u d %u",
-                              *reinterpret_cast<uint32_t*>(civic + 0x28), tableSum(civic + 0x18, false),
-                              *reinterpret_cast<uint32_t*>(civic + 0x3C), tableSum(civic + 0x2C, true),
-                              listSize(civic + 0x40), listSize(civic + 0x44),
-                              *reinterpret_cast<void**>(civic + 0x14) != nullptr ? 1u : 0u);
-            }
-        }
+        // Each simulator's own part (autotest_hooks.h), in order, before the
+        // RNG and tick counts, which their queries can move.
+        std::string parts;
+        for (const auto& part : Registry().fingerprint)
+            part.fn(city, parts);
         char rng[256];
         rng_trace::Describe(rng, sizeof rng);
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
-        log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
-                   day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
-                   lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
-                   traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
-                   traffic ? GridChecksum(traffic->GetCommercialTrafficMap()) : 0u,
-                   traffic ? GridChecksum(traffic->GetAirPollutingTrafficMap()) : 0u,
-                   land ? GridChecksum(land->GetTotalLandValueMap()) : 0u,
-                   pollution ? GridChecksum(pollution->GetPollutionGrid(0)) : 0u,
-                   pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
-                   pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
-                   worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText,
-                   waterText, auraText, crimeText, demandText, weatherText, floraText, neighborsText, trafficText, landText,
-                   serviceText, ordinanceText, civicText, ticks, rng);
+        char head[512];
+        std::snprintf(head, sizeof head,
+                      "fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
+                      "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X",
+                      day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
+                      lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
+                      traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
+                      traffic ? GridChecksum(traffic->GetCommercialTrafficMap()) : 0u,
+                      traffic ? GridChecksum(traffic->GetAirPollutingTrafficMap()) : 0u,
+                      land ? GridChecksum(land->GetTotalLandValueMap()) : 0u,
+                      pollution ? GridChecksum(pollution->GetPollutionGrid(0)) : 0u,
+                      pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
+                      pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
+                      worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom);
+        log::Write("%s%s%s%s", head, parts.c_str(), ticks, rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,

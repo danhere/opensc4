@@ -1,0 +1,313 @@
+# Build 641 addresses. The plumbing (water) simulator (cSC4PlumbingSimulator; docs/water.md).
+# Format and rules: data/addresses/README.md.
+
+[[entry]]
+name = "cSC4PlumbingSimulator::vftable"
+address = 0x00AB2228
+kind = "vtable"
+expect = "C0 A3 6D 00 A0 7B 4F 00"
+source = "Primary vtable: cISC4PlumbingSimulator, 29 slots, the scalar deleting destructor in slot 29. simulators.water.interface swaps its getters (docs/water.md)."
+
+[[entry]]
+name = "SC4::VectorDefault"
+address = 0x00B49B48
+kind = "data"
+source = "float, in .bss. Copied into all three components of a position before a building fills it in, by cSC4PlumbingSimulator::IsBuildingWatered (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::Simulate"
+address = 0x006DD380
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 80 00 00 00 56 8B"
+source = "Name ours. Message 0x66956814 (amount 5) and 0x6695681A. The simulation step, one state per call (+0xC0, jump table 0x006DF0A8) while the network is awake (+0x14); the amount is the time budget of states 6 and 7. Reimplemented by simulators.water.step (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::UpdateProducers"
+address = 0x006DC050
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 55 56 57 8B F9"
+source = "Name ours. State 1 of the water step: each producer's output (+0x28) and scale (+0x2C) from the funding curve (+0x1A0), the pollution at its cell, its source kind (property 0x48F23A7E, 0x006DB2B0) and its condition curve; the average pollution (+0xA0), polluted sources (+0x198). Reimplemented by simulators.water.helpers (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::ObjectCell"
+address = 0x006DA480
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 85 ED 57"
+source = "Name ours, not analysed yet: the cell of an object (self, object, &x, &z) (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::Serve"
+address = 0x006DCEE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 57 8B"
+source = "Name ours, not analysed yet: (self, consumer key, 0) -> bool, whether the consumer's lot can be served (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::CellValue"
+address = 0x006DCDA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 44 24 0C 53"
+source = "Name ours, not analysed yet: (self, x, z) -> the water a cell with flag 0x40 takes (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::NotifyBuilding"
+address = 0x006DAE30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 A1 48 9B B4 00"
+source = "Name ours. (self, grid, building, flags): the flags ORed into the grid over the building's lot (or its bounds). Reimplemented by simulators.water.helpers (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::UpdateProducer"
+address = 0x006DA700
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 8B 5C 24 30"
+source = "Name ours. A producer's monthly wear (its age by the curves +0x150 and +0x160) and, past its end-of-life ages, its lot's condition; from state 8 of the water step after a month's end (+0xC5). Reimplemented by simulators.water.helpers (docs/water.md)."
+
+[[entry]]
+name = "SC4Pipe::SetWatered"
+address = 0x00648540
+kind = "function"
+convention = "thiscall"
+expect = "83 B9 70 02 00 00 01 8A"
+source = "Name ours, not analysed: a pipe told whether its cell is watered, from state 5 of the water step (docs/water.md)."
+
+[[entry]]
+name = "SC4CellDeque::PushBack"
+address = 0x006DC970
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 18 8B 41 10 83 EA"
+source = "Name ours. push_back of a deque of (x, z) byte pairs (64 to a block of 0x80 bytes) (docs/water.md)."
+
+[[entry]]
+name = "SC4CellDeque::PushBackSlow"
+address = 0x006DC360
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours. push_back of the same deque when the last block is full; the game inlines the fast path (docs/water.md)."
+
+[[entry]]
+name = "BitGrid::Get"
+address = 0x00603DD0
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 0C 8B CA 83 E1"
+source = "Name ours. A bit of a per-cell bit array (bits, width, x, z); the word is (width * z + x) / 32 but the bit is x mod 32 (docs/power.md)."
+
+[[entry]]
+name = "SC4List::Construct2"
+address = 0x004124F0
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 00 8B F1 6A 01 C7"
+source = "Name ours. Constructs an empty list (docs/water.md)."
+
+[[entry]]
+name = "PlumbingSimulator::PassOnce"
+address = 0x00B49B5C
+kind = "data"
+source = "uint32 flags: bit 0 and bit 1 once the steps of the water step's passes 6 and 7 are set (docs/water.md)."
+
+[[entry]]
+name = "PlumbingSimulator::PassStep6"
+address = 0x00B49B54
+kind = "data"
+source = "uint32 pair: the deadline step of state 6 of the water step (0x400 at first) (docs/water.md)."
+
+[[entry]]
+name = "PlumbingSimulator::PassStep7"
+address = 0x00B49B4C
+kind = "data"
+source = "uint32 pair: the deadline step of state 7 of the water step (0x400 at first) (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::OnMonthPassed"
+address = 0x006DF540
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 8E A4 00 00"
+source = "Name ours. Message 0x66956816: sets +0xC4 and +0xC5, then 0x006DD110 with the department's funding. Reimplemented by simulators.water.month (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::OnOccupantInserted"
+address = 0x006DC870
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Message 0x99EF1142: buildings (0x278128A0) to 0x006DBBC0, network pieces (0xC772BF98, interface 0x49C05B9F) to 0x006DB9A0, with 1. Reimplemented by simulators.water.buildings (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::OnOccupantRemoved"
+address = 0x006DC8F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Message 0x99EF1143: as OnOccupantInserted with 0. Reimplemented by simulators.water.buildings (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::ApplyFunding"
+address = 0x006DD110
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 D9 00 83 EC"
+source = "Name ours. Pipe wear from the funding: the distressed share (+0x180, curve +0x1B0), distressed pipes (+0x178, flag 0x10000) and random bursts (+0x17C, flag 0x20000). Reimplemented by simulators.water.month (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::OnBuilding"
+address = 0x006DBBC0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 80 00 00 00 A1 48"
+source = "Name ours. A building added (1) or removed (0): demand flag 0x40 and total +0x130, its budget line, producers (property 0x88ED3303) in the list +0xBC with their lot's cells flagged 0x20. Reimplemented by simulators.water.buildings (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::OnPipe"
+address = 0x006DB9A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 57 8B"
+source = "Name ours. A network piece added (1) or removed (0): pipe cells (flag 0x10) and their connections, the pipe list +0x170 and count +0x174, the pipes' cost on the department's line 2. Reimplemented by simulators.water.buildings (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::FindOtherSources"
+address = 0x006DB2B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 0C 83 EC 40 83"
+source = "Name ours. (self, x, z, kind, radius): a spiral walk over the city's terrain map for water within the radius; the walk's count where found, or -1 (0 for kind 2). Reimplemented by simulators.water.helpers (docs/water.md)."
+
+[[entry]]
+name = "PlumbingSimulator::DefaultPercentage"
+address = 0x00B49B44
+kind = "data"
+source = "float. A producer's scale when its lot is off or its water is polluted (docs/water.md)."
+
+[[entry]]
+name = "SC4ProducerList::PushBack"
+address = 0x006DB5E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 53 8B 18 56 57 6A"
+source = "Name ours. push_back of a 0x30-byte producer entry onto the water simulator's list at +0xBC (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::LoadTuning"
+address = 0x006DC9E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C 53 55 56 8B 35"
+source = "Name ours. Message 0xCA1B151C. Default curves (+0x150, +0x160 flat at 1; +0x1B0 the distressed share step), then the simulator tuning exemplar: +0xA8 to +0xB8, +0x184, +0x19C, +0x1C0, and the curves +0x1A0, +0x150, +0x160 (flat at 100 when left empty) and +0x1B0. Reimplemented by simulators.water.tuning (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::vftable_4"
+address = 0x00AB2214
+kind = "vtable"
+expect = "D0 C6 6D 00 30 D2 68 00"
+source = "The vtable of the cIGZMessageTarget2 interface at +0x4: slot 3 DoMessage 0x006DF570. simulators.water.messages swaps it (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::Init"
+address = 0x006DF0D0
+kind = "function"
+convention = "thiscall"
+expect = "A0 40 9B B4 00 83 EC 1C"
+source = "Slot 3. References (+0x18 city, +0x20, +0x24, +0x28), the random generator (+0x2C); once (+0xC) the tuning, the simulator service registrations, six messages and the department (+0xA4); once (+0xD) the two grids (+0x30, +0x34), the cell flags (+0x88, cleared), the visited bits (+0x94) and the cell iterator (+0x144), state 0 and dirty. Reimplemented by simulators.water.init (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::Shutdown"
+address = 0x006DA900
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 0C 33"
+source = "Slot 4. The reverse of Init (+0xD stays set). Reimplemented by simulators.water.shutdown (docs/water.md)."
+
+[[entry]]
+name = "PlumbingSimulator::Started"
+address = 0x00B49B40
+kind = "data"
+source = "bool. Set by the water simulator's first Init (docs/water.md)."
+
+[[entry]]
+name = "PlumbingSimulator::Name"
+address = 0x00A89820
+kind = "data"
+source = "The C string the water simulator registers under with the simulator service (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::Write"
+address = 0x006DB090
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 53 55 56 8B 74"
+source = "cIGZSerializable slot 3; this is the serializable part at +0x8. Version 4: the two grids, the cell flags, figures, the producers and the current one (0x006DA4F0), the cell iterator (0x005DA480), the pipes, the department, the monthly totals. Reimplemented by simulators.water.save (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::Read"
+address = 0x006DB620
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 6C 53 55 8B 6C 24"
+source = "cIGZSerializable slot 4; version 4 only. Sets +0xD (Init does not rebuild the grids and cells) and state 0. Reimplemented by simulators.water.load (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::WriteProducer"
+address = 0x006DA4F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. A producer entry: x, z, its lot rectangle, capacity and output, the building (reference) (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::ReadProducer"
+address = 0x006DA570
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The reverse of WriteProducer (the building through interface 0x26BB767E) (docs/water.md)."
+
+[[entry]]
+name = "cSC4PlumbingSimulator::vftable_8"
+address = 0x00AB21FC
+kind = "vtable"
+expect = "E0 C6 6D 00 50 D2 68 00"
+source = "The vtable of the cIGZSerializable interface at +0x8: slot 3 Write 0x006DB090, 4 Read 0x006DB620, 5 GetGZCLSID 0x006DA3B0 (docs/water.md)."
+
+[[entry]]
+name = "SC4CellDeque::Init"
+address = 0x006DAF50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours. Sets up an empty deque of (x, z) byte pairs (its block map) for a count (0 from the water simulator's constructor) (docs/water.md)."
+
+[[entry]]
+name = "SC4CellDeque::Destroy"
+address = 0x006DC2C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 8B F1"
+source = "Name ours. The destructor of such a deque (docs/water.md)."
+
+[[entry]]
+name = "SC4SpiralWalk::Start"
+address = 0x0043FE10
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 8B 44 24 04"
+source = "Name ours. Starts a spiral walk (an object of 0x30 bytes, its bounds at +0x10) at a cell (docs/water.md)."
+
+[[entry]]
+name = "SC4SpiralWalk::Next"
+address = 0x00440850
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 28 3C 02"
+source = "Name ours. The spiral walk's next cell (&x, &z); false when done (docs/water.md)."

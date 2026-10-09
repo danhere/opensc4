@@ -36,7 +36,9 @@ bool Directory(wchar_t (&path)[MAX_PATH])
 
 void Write(const char* format, ...)
 {
-    char line[1024];
+    // Room for the autotest's daily fingerprint line (about 2 KB), which a
+    // 1 KB line cut off after the neighbors part.
+    char line[4096];
     SYSTEMTIME now;
     GetLocalTime(&now);
     int size = std::snprintf(line, sizeof(line), "%04u-%02u-%02u %02u:%02u:%02u.%03u [%lu] ",
