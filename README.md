@@ -41,3 +41,11 @@ Not yet playable as a standalone game. See [ROADMAP.md](ROADMAP.md) for progress
 ## What original assets limit
 
 Buildings are pre-rendered sprites baked at fixed angles (4 rotations x 5 zooms, day and night). With original assets OpenSC4 can deliver modern resolutions, UI scaling, stability, performance, smoother zoom and better terrain and water, but not free camera angles or relit buildings. Those need new art, like OpenTTD's OpenGFX.
+
+## License
+
+OpenSC4 is licensed under the [GNU Lesser General Public License v2.1 or later](LICENSE) (LGPL-2.1-or-later). Why this license: [docs/decisions.md](docs/decisions.md#license-lgpl-21-or-later).
+
+Third-party code in `third_party/` keeps its own license (gzcom-dll: LGPL-2.1; MinHook: BSD-2-Clause).
+
+OpenSC4 requires an owned copy of SimCity 4 Deluxe and ships none of its assets or code. It is a non-commercial fan project, not affiliated with or endorsed by Electronic Arts or Maxis. SimCity is a trademark of Electronic Arts Inc.

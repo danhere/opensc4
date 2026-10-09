@@ -21,6 +21,7 @@
 #include "core/iat.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/settings.h"
 
 #include <windows.h>
 
@@ -45,6 +46,11 @@ int64_t g_step = 0;    // counter ticks per call
 std::atomic<uint64_t> g_calls{0};
 int64_t g_lastReport = 0;
 int g_reports = 0;
+
+// [determinism] pace = realtime (play): the main thread is virtual only
+// inside simulation slices; rendering, the interface and saving see real
+// time, so animation and scrolling run at their normal speed.
+bool g_slicesOnly = false;
 
 // After ReturnToRealTime: real time plus this offset (main thread).
 std::atomic<bool> g_real{false};
@@ -110,6 +116,11 @@ void TraceRead(char kind, const uint32_t* stack)
     std::fprintf(g_traceFile, "%c %08X %08X %08X\n", kind, found[0], found[1], found[2]);
 }
 
+// determinism.sim_timers (sim_timers.cpp): while a stopwatch it owns reads
+// the clock, the main thread's reads return its simulation-time counter.
+int64_t (*g_simTimerCounter)() = nullptr;
+bool g_simTimerRead = false;
+
 BOOL WINAPI VirtualQpc(LARGE_INTEGER* count)
 {
     if (GetCurrentThreadId() != g_mainThread) {
@@ -129,6 +140,12 @@ BOOL WINAPI VirtualQpc(LARGE_INTEGER* count)
         count->QuadPart += g_offset;
         return ok;
     }
+    if (g_simTimerRead && g_simTimerCounter) {
+        count->QuadPart = g_simTimerCounter();
+        return TRUE;
+    }
+    if (g_slicesOnly && !fixed_ticks::InSlice())
+        return g_realQpc(count);
     g_virtual += g_step;
     count->QuadPart = g_virtual;
     ++g_calls;
@@ -203,7 +220,7 @@ LONG CALLBACK RdtscTrap(EXCEPTION_POINTERS* info)
     for (const RdtscSite& site : kRdtscSites) {
         if (site.address != address)
             continue;
-        const bool main = GetCurrentThreadId() == g_mainThread;
+        const bool main = GetCurrentThreadId() == g_mainThread && !(g_slicesOnly && !fixed_ticks::InSlice());
         const uint64_t value = main ? VirtualTsc() : __rdtsc();
         if (main && g_traceFile && !g_real)
             TraceRead('T', reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(info->ContextRecord->Esp)));
@@ -273,7 +290,7 @@ uint64_t ReadTsc(const void* stack)
 {
     if (!g_sitesPatched)
         return __rdtsc();
-    const bool main = GetCurrentThreadId() == g_mainThread;
+    const bool main = GetCurrentThreadId() == g_mainThread && !(g_slicesOnly && !fixed_ticks::InSlice());
     const uint64_t value = main ? VirtualTsc() : __rdtsc();
     if (main && g_traceFile && !g_real)
         TraceRead('T', static_cast<const uint32_t*>(stack));
@@ -304,6 +321,19 @@ void TraceEvent(char kind, const void* stack)
         TraceRead(kind, static_cast<const uint32_t*>(stack));
 }
 
+void OnSliceStart()
+{
+    if (!g_slicesOnly || g_real || !g_realQpc || GetCurrentThreadId() != g_mainThread)
+        return;
+    // Inside slices the clock continues from the time outside: a stopwatch the
+    // interface starts and the simulation reads would otherwise compare two
+    // clocks and never expire.
+    LARGE_INTEGER now;
+    g_realQpc(&now);
+    if (now.QuadPart > g_virtual)
+        g_virtual = now.QuadPart;
+}
+
 void ReturnToRealTime()
 {
     if (!g_realQpc || g_real || GetCurrentThreadId() != g_mainThread)
@@ -329,6 +359,7 @@ bool Install(registry::Mode)
     g_step = frequency.QuadPart * stepUs / 1000000;
     g_virtual = now.QuadPart;
     g_mainThread = GetCurrentThreadId();
+    g_slicesOnly = settings::Get("determinism", "pace", "off") == "realtime";
     const char* all = std::getenv("OPENSC4_VCLOCK_ALL_THREADS");
     g_allThreads = !(all && all[0] == '0');
     const char* callers = std::getenv("OPENSC4_VCLOCK_CALLERS");
@@ -367,8 +398,8 @@ bool Install(registry::Mode)
                "clock() start %s)",
                static_cast<unsigned long long>(g_wallTime), fileTime ? "ok" : "not imported",
                localTime ? "ok" : "not imported", plausible ? "moved" : "NOT FOUND, left alone");
-    log::Write("virtual_clock: main thread %lu%s, %lld us per call (%lld counter ticks)", g_mainThread,
-               g_allThreads ? " and all other threads" : "",
+    log::Write("virtual_clock: main thread %lu%s%s, %lld us per call (%lld counter ticks)", g_mainThread,
+               g_slicesOnly ? " (inside simulation slices only)" : "", g_allThreads ? " and all other threads" : "",
                static_cast<long long>(stepUs), static_cast<long long>(g_step));
     return true;
 }
@@ -385,4 +416,19 @@ const bool g_registered = registry::Register({
 });
 
 } // namespace
+void SetSimTimerCounter(int64_t (*counter)())
+{
+    g_simTimerCounter = counter;
+}
+
+void SetSimTimerRead(bool on)
+{
+    g_simTimerRead = on;
+}
+
+int64_t QpcFrequency()
+{
+    return g_qpcFrequency;
+}
+
 } // namespace opensc4::virtual_clock

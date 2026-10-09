@@ -1644,7 +1644,7 @@ void OnOccupant(void* self, void* message, uint32_t type)
 {
     using OccupantFn = void(__thiscall*)(void* self, void* object, uint8_t inserted);
     using KindFn = void(__thiscall*)(void* self, void* occupant, uint8_t inserted, uint32_t kind);
-    using InsertFn = void(__thiscall*)(void* set, const uint32_t* key);
+    using EraseFn = uint32_t(__thiscall*)(void* set, const uint32_t* key);
     using CellsFn = void(__thiscall*)(void* self, int32_t x1, int32_t z1, int32_t x2, int32_t z2);
     if (Virtual<uint32_t>(message, 0x4C) != 0xC772BF98)
         return;
@@ -1691,12 +1691,12 @@ void OnOccupant(void* self, void* message, uint32_t type)
             Virtual<void>(converter, 0x17C, position[0], position[2], &x, &z);
             if (type == 0x99EF1143) {
                 void* const set = static_cast<char*>(self) + 0x178;
-                const auto insert = reinterpret_cast<InsertFn>(addr::SC4Uint32Set_Insert);
+                const auto erase = reinterpret_cast<EraseFn>(addr::SC4Uint32HashSet_Erase);
                 for (uint32_t i = 0; i < 9; ++i) {
                     uint32_t key = (((i << 8) | static_cast<uint8_t>(x)) << 8) | static_cast<uint8_t>(z);
-                    insert(set, &key);
+                    erase(set, &key);
                     key = ((((i | 0x100) << 8) | static_cast<uint8_t>(x)) << 8) | static_cast<uint8_t>(z);
-                    insert(set, &key);
+                    erase(set, &key);
                 }
             }
             reinterpret_cast<CellsFn>(addr::cSC4TrafficSimulator_OnCellsChanged)(self, x, z, x, z);

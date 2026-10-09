@@ -12,6 +12,10 @@ namespace opensc4::virtual_clock {
 // saving. No effect if the virtual clock is off.
 void ReturnToRealTime();
 
+// [determinism] pace = realtime: a simulation slice starts (main thread);
+// the virtual clock catches up with the time outside slices.
+void OnSliceStart();
+
 // Called by the autotest at the start of each simulation day: writes and
 // resets OPENSC4_VCLOCK_CALLERS's per-caller counts.
 void OnNewDay(int day);
@@ -25,5 +29,12 @@ void TraceEvent(char kind, const void* stack);
 // the same value and side effects (count, trace) as that site's read.
 // The real counter when the sites are not patched.
 uint64_t ReadTsc(const void* stack);
+
+// determinism.sim_timers: the counter the main thread's QueryPerformanceCounter
+// returns while SetSimTimerRead(true) (sim_timers.cpp), and the frequency the
+// game was told.
+void SetSimTimerCounter(int64_t (*counter)());
+void SetSimTimerRead(bool on);
+int64_t QpcFrequency();
 
 } // namespace opensc4::virtual_clock

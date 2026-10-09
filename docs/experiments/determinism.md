@@ -121,3 +121,22 @@ Open:
 The Big City save with garbage and water buildings (`saves-plopped/p0000`, [../parity.md](../parity.md)) does not have one outcome over a year, even with the original code: of 28 year-long runs of the unmodified game under the determinism replacements, 17 ended with one set of daily fingerprints, 10 with a second (first different on day 164, 2458662) and 1 with a third. Runs with a replacement land on the same outcomes.
 
 An earlier version of this section blamed an uninitialised stack read: runs of the original code with a pattern written into unused stack after `RollUsedCapacity` (0x006E3C80), or with one extra call after it, ended differently from a run without. That came from too few repeats per variant. Repeating the same pattern twice gave both outcomes, and so did the runs without any pattern. Tagging the pattern words and searching memory for them found copies only in what looks like picture data. Tracing the random draws showed the draw order differs between two runs of the unmodified game from the first day. Nothing points at a stack read: this save has some residual nondeterminism, not yet located, that the third round and the heap-layout fixes did not remove. For this save a year can only be judged by outcome sets ([../parity.md](../parity.md), `tools/re/paritygroups.py`), and every replacement checked so far gives an outcome the original also gives.
+
+## Simulation timers (2026-10-09)
+
+A city with an active MySim (the player's own Sim, [../mysim-agents.md](../mysim-agents.md)) did not repeat, even with every fix above: two runs of the original from the same save saved different MySim records. The MySim agents (`cSC4MySim`, `cSC4MySimDispatch`, `cSC4MyStreetSim`) act on real-time stopwatches (GZStopwatch): the message handler (0x0042D150) does its work only when the stopwatch at +0x280 shows more than 2 ms since last time, and the advice balloons expire by another (0x00552BD0, every 500 ms). A third is not in MySim code: the advisor system (`cSC4AdvisorSystem`, constructor 0x0041A990) runs every advisor when its stopwatch (+0x8C) shows 500 ms (0x0041B01A), and each MySim is an advisor; its turn (slot 14 of its +8 interface, 0x0040D820, then the MySim's update 0x0042DC90) moves a cursor through the MySim's list (0x0040F460). That cursor differs between two runs in every city, active MySim or not, since every city has MySim places. Under the virtual clock a stopwatch reads a counter that advances with every clock read anywhere, so how often these ran followed frame-level work.
+
+`determinism.sim_timers` (src/core/sim_timers.cpp) gives those stopwatches simulation time. Thunks on the stopwatch methods that read the clock (ElapsedMilliseconds 0x00890198, through `determinism.fixed_ticks`' hook, and 0x00890279, 0x00890377, 0x0089045A, 0x00890501, the restart 0x0089058F, Start 0x008905C4, Stop 0x008905F0) take over a stopwatch the first time code in the MySim or advisor-system ranges (or the balloon timer) calls one of them on the main thread. From then on its clock reads return a counter that advances 10 ms per simulation tick (the slice checks of `determinism.fixed_ticks`) and nothing else. Every other stopwatch is untouched. It is in the parity harness's base list.
+
+The fingerprint's `ms` part has each MySim's plain saved fields (its Write 0x004251A0 and the agent base's 0x0040E2E0, without references and strings), with its two stopwatches as stored.
+
+Control runs (original against itself, `scripts/run-parity.sh`):
+
+| Corpus | Result |
+| --- | --- |
+| `saves-mysim` (Big City and Making Money with a MySim moved in, 10 and 60 days in; 30 days), both sides with it | 4 of 4 same |
+| the same, both sides without it | 0 of 4 |
+| the usual 12 saves (7 days), `saves-plopped` (7 days), `saves-mm2` (90 days), one side with it | every fingerprint part but `ms` identical on every day of every save; `ms` differs, and the side without it has up to 3 outcomes of its own |
+| with it in the harness's base list, both sides: `saves-mysim` (30 days), the usual 12 (7 days), `saves-plopped` (7 days), `saves-mm2` (90 days) | 4 of 4, 12 of 12, 3 of 3, 2 of 2 |
+
+With a MySim, the traffic network map and frame-level random draws (automata, particles) differ from the first day as without one ([../traffic-map.md](../traffic-map.md)); the MySim's car moves on frame time.

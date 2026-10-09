@@ -1,0 +1,593 @@
+# Build 641 addresses. The traffic network map (cSC4TrafficNetworkMap; docs/traffic-map.md).
+# Format and rules: data/addresses/README.md.
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::vftable"
+address = 0x00A8FED8
+kind = "data"
+source = "Ghidra (RTTI-less; set by the constructor 0x004B3EB0). cISC4TrafficNetworkMap, 52 slots (the deleting destructor in slot 45) (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::vftable_0x4"
+address = 0x00A8FEC8
+kind = "data"
+source = "The cIGZUnknown part at +0x4, 3 slots (constructor 0x004B3EB0)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::vftable_0x8"
+address = 0x00A8FEB8
+kind = "data"
+source = "The cIGZMessageTarget2 part at +0x8, 4 slots; DoMessage in slot 3 (constructor 0x004B3EB0)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::vftable_0xC"
+address = 0x00A8FEA0
+kind = "data"
+source = "The cIGZSerializable part at +0xC, 6 slots; Write 3, Read 4, GetGZCLSID 5 (constructor 0x004B3EB0)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::QueryInterface"
+address = 0x004AE350
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4TrafficNetworkMap* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D B9 81 0F"
+source = "Slot 0 of the main vtable 0x00A8FED8: the map (0xCA0F81B9), cIGZUnknown (1, +0x4), the message target (0x452294AA, +0x8) or the serializable (0xE4FDA3D4, +0xC), with a reference (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::Release"
+address = 0x004AFAA0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4TrafficNetworkMap* this)"
+expect = "56 8B F1 8B 46 14 83 F8"
+source = "Slot 2: drops a reference (+0x14); the last one calls slot 4 (Shutdown) and the deleting destructor (slot 45) (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::QueryInterface_0x4"
+address = 0x004B3AE0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 68 A8 FF FF"
+source = "Slot 0 of the +0x4 part's vtable 0x00A8FEC8: this - 4, then QueryInterface 0x004AE350 (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::QueryInterface_0x8"
+address = 0x004B3AF0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 58 A8 FF FF"
+source = "Slot 0 of the +0x8 part's vtable 0x00A8FEB8: this - 8, then QueryInterface 0x004AE350 (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::QueryInterface_0xC"
+address = 0x004B3B00
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 48 A8 FF FF"
+source = "Slot 0 of the +0xC part's vtable 0x00A8FEA0: this - 0xC, then QueryInterface 0x004AE350 (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::Release_0x4"
+address = 0x004B3B10
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 88 BF FF FF"
+source = "Slot 2 of the +0x4 part's vtable 0x00A8FEC8: this - 4, then Release 0x004AFAA0 (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::Release_0x8"
+address = 0x004B3B20
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 78 BF FF FF"
+source = "Slot 2 of the +0x8 part's vtable 0x00A8FEB8: this - 8, then Release 0x004AFAA0 (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::Release_0xC"
+address = 0x004B3B30
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 68 BF FF FF"
+source = "Slot 2 of the +0xC part's vtable 0x00A8FEA0: this - 0xC, then Release 0x004AFAA0 (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::FindLaneEntry"
+address = 0x004AE460
+kind = "function"
+convention = "cdecl"
+signature = "LaneEntry* (LaneEntry* first, LaneEntry* last, const LaneEntry* value, void* tag)"
+expect = "8B 44 24 04 53 56 8B 74"
+source = "Name ours. std::find over the 16-byte lane entries of a cell record, comparing the key (first word); used by slots 19, 21 and 23. Ours reimplements it inline (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::PushAutomaton"
+address = 0x004B0BE0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this, void* const* value)"
+expect = "8B 01 56 8B 30 6A 0C E8"
+source = "Name ours. push_back on a cell record's automata list, the node (0xC bytes) from the STL allocator 0x0090CF54; used by slot 30. Ours reimplements it inline (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4LaneVectors::Resize"
+address = 0x004B46A0
+kind = "function"
+convention = "thiscall"
+signature = "void (GameVector* this, uint32_t count, const GameVector* fill)"
+expect = "53 8B 59 04 56 8B 74 24"
+source = "Name ours. std::vector<std::vector<16-byte lane entry>>::resize (count, fill) on a cell record's +0x4 (slots 19, 21, 23) (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4LaneEntryVector::PushBack"
+address = 0x004B2400
+kind = "function"
+convention = "thiscall"
+signature = "void (GameVector* this, const LaneEntry* value)"
+expect = "8B 41 04 3B 41 08 74 27"
+source = "Name ours. push_back of a 16-byte lane entry (slots 19, 21, 23) (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::NoLaneValue4"
+address = 0x00B217E4
+kind = "data"
+source = "Name ours. uint32 that slot 19 zeroes and returns when the occupant has no record (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::NoLaneValue8"
+address = 0x00B217E8
+kind = "data"
+source = "Name ours. uint32 that slot 21 returns (unchanged) when the occupant has no record (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::NoLaneCount"
+address = 0x00B217EC
+kind = "data"
+source = "Name ours. uint16 that slot 23 zeroes and returns when the occupant has no record (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4::GetService86AD10EC"
+address = 0x00602600
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "51 C7 04 24 00 00 00 00"
+source = "Name ours, not analysed. The framework's system service 0x86AD10EC (slot 5 of the framework, interface 0x86AD10ED), released before it is returned (a borrowed pointer). cSC4TrafficNetworkMap Init/Shutdown register this + 8 with its slot 5/6 under 0xC0 (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4SignalTable::Clear"
+address = 0x004B2E70
+kind = "function"
+convention = "thiscall"
+signature = "void (Hashtable* this)"
+expect = "51 55 8B E9 8B 4D 08 57"
+source = "Name ours. clear() of the traffic map's signal table (+0x28): frees every node (its object vector and waiting list) (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4LaneTable::Clear"
+address = 0x004B32E0
+kind = "function"
+convention = "thiscall"
+signature = "void (Hashtable* this)"
+expect = "83 EC 08 8B 51 08 53 2B"
+source = "Name ours. clear() of the traffic map's lane table (+0x40): frees every node and its four vectors (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4PtrVectorHashMap::Clear"
+address = 0x00584660
+kind = "function"
+convention = "thiscall"
+signature = "void (Hashtable* this)"
+expect = "53 55 8B D9 8B 43 08 56"
+source = "Name ours. clear() of a hash map of uint32 to pointer vector (0x14-byte nodes): frees each node's vector and the node; the traffic map's cell-object table (+0xA70) (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4LaneTable::EraseAt"
+address = 0x004B3180
+kind = "function"
+convention = "thiscall"
+signature = "void (Hashtable* this, iterator* it)"
+expect = "8B 44 24 04 56 57 8B 38"
+source = "Name ours. erase(iterator) of the lane table; the iterator ({node, table}) by pointer (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4PtrVectorHashMap::EraseAt"
+address = 0x004B3150
+kind = "function"
+convention = "thiscall"
+signature = "void (Hashtable* this, void* node, Hashtable* table)"
+expect = "83 EC 08 8B 44 24 0C 8B"
+source = "Name ours. erase(iterator) of the cell-object table; the iterator ({node, table}) by value (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4SignalTable::EraseAt"
+address = 0x004B2DE0
+kind = "function"
+convention = "thiscall"
+signature = "void (Hashtable* this, iterator* it)"
+expect = "8B 44 24 04 57 8B F9 8B"
+source = "Name ours. erase(iterator) of the signal table; the iterator ({node, table}) by pointer (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4::FindPointer"
+address = 0x004696C0
+kind = "function"
+convention = "cdecl"
+signature = "void** (void** first, void** last, void* const* value, void* const* tag)"
+expect = "8B 44 24 04 53 56 8B 74"
+source = "Name ours. std::find over a range of pointers (unrolled by 4); the fourth argument is the iterator-category tag (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4SignalValue::Copy"
+address = 0x004B2450
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void const* other)"
+expect = "53 55 8B 6C 24 0C 8B D9"
+source = "Name ours. Copy constructor of a signal node's value (0x68 bytes: four approaches, a byte, an object vector, a waiting list, a byte) (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4Uint32HashTable::Find"
+address = 0x006F1530
+kind = "function"
+convention = "thiscall"
+signature = "void (Hashtable* this, iterator* out, uint32 const* key)"
+expect = "8B 44 24 08 56 8B 30 8B"
+source = "Name ours. find(key) of a hash table keyed by uint32: out = {node or null, table} (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4LaneTable::EraseKey"
+address = 0x004B3200
+kind = "function"
+convention = "thiscall"
+signature = "uint32 (Hashtable* this, uint32 const* key)"
+expect = "83 EC 10 53 55 56 8B D9"
+source = "Name ours. erase(key) of the lane table (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4LaneValue::Copy"
+address = 0x004B24C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void const* other)"
+expect = "51 53 55 56 8B 74 24 14"
+source = "Name ours. Copy constructor of a lane node's value: four {vector, uint16} ways (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4::DistanceSquared3"
+address = 0x005D6F90
+kind = "function"
+convention = "cdecl"
+signature = "double (float const* a, float const* b)"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "Name ours. Squared distance of two 3-float points, left unrounded in ST0 (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::Init"
+address = 0x004AE4E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4TrafficNetworkMap* this)"
+expect = "56 8B F1 8A 46 10 84 C0"
+source = "Name ours. Slot 3: once: the city's size, the grid, the view and occupant manager globals, the two occupant filters, nine message notifications, the 0x86AD10EC service; re-registers tunnels when +0x25 is set. Reimplemented by simulators.trafficmap.init (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::Shutdown"
+address = 0x004B4000
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4TrafficNetworkMap* this)"
+expect = "53 57 8B F9 8A 47 10 33"
+source = "Name ours. Slot 4: frees the grid and empties the signal, lane and cell-object tables, unregisters, releases the filters and the occupant manager. Reimplemented by simulators.trafficmap.init (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::RegisterTunnels"
+address = 0x004ADF50
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4TrafficNetworkMap* this)"
+expect = "83 EC 0C 55 57 8B 79 20"
+source = "Name ours. Every occupant on the grid with flag 0x80000 and interface 0x8A4BD52B passes itself and that interface's +0x1D0 to its slot 0xC4 object's slot 0x80. Reimplemented by simulators.trafficmap.init (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::FreeGrid"
+address = 0x004B3B40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4TrafficNetworkMap* this)"
+expect = "83 EC 0C 57 8B F9 8B 4F"
+source = "Name ours. Releases and frees every cell record (back to the pool at 0x00B09588), then the grid. Reimplemented by simulators.trafficmap.init (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::ClearSignals"
+address = 0x004B36E0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4TrafficNetworkMap* this)"
+expect = "83 EC 08 53 55 56 8D 69"
+source = "Name ours. Releases each signal's occupant and objects, then clears the table. Reimplemented by simulators.trafficmap.init (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::ClearLanes"
+address = 0x004B3CE0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4TrafficNetworkMap* this)"
+expect = "83 EC 08 53 56 57 8D 59"
+source = "Name ours. Releases each lane node's occupant, then clears the table. Reimplemented by simulators.trafficmap.init (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::ClearCellObjects"
+address = 0x004B3580
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4TrafficNetworkMap* this)"
+expect = "83 EC 08 53 55 56 8D A9"
+source = "Name ours. Releases every object waiting on a cell, then clears the table. Reimplemented by simulators.trafficmap.init (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::AddCellObject"
+address = 0x004B3380
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4TrafficNetworkMap* this, cISC4NetworkOccupant* object)"
+expect = "83 EC 2C 53 56 57 8B 7C"
+source = "Name ours. Slot 47: adds a referenced object to the list of its cell (key x << 16 | z); false if the cell's node could not be inserted. Reimplemented by simulators.trafficmap.occupants (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::AddOccupant"
+address = 0x004B4710
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4TrafficNetworkMap* this, cISC4NetworkOccupant* occupant, bool fromCellObjects)"
+expect = "83 EC 1C 53 55 57 8B 7C"
+source = "Name ours. Slot 48: one cell record (pool 0x00B09588) per covered cell; with the flag, takes the occupant off the cell-object lists; if filter A accepts it, its signal and lanes. Reimplemented by simulators.trafficmap.occupants (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::RemoveOccupant"
+address = 0x004B4120
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4TrafficNetworkMap* this, cISC4NetworkOccupant* occupant)"
+expect = "83 EC 1C 53 8B 5C 24 24"
+source = "Name ours. Slot 49: drops the occupant's signal and lanes, its cell records (back to the pool) and its cell-object entry. Reimplemented by simulators.trafficmap.occupants (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::Rebuild"
+address = 0x004B48B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4TrafficNetworkMap* this)"
+expect = "83 EC 0C 53 55 8B E9 8A"
+source = "Name ours. Slot 50, only with +0x25: re-adds the cell objects as occupants, refreshes every signal's objects, rebuilds the lanes and removes the occupants with flag 0x30. Reimplemented by simulators.trafficmap.occupants (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::AddSignal"
+address = 0x004B4300
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4TrafficNetworkMap* this, cISC4NetworkOccupant* occupant)"
+expect = "81 EC F8 00 00 00 53 55"
+source = "Name ours. A signal node for an occupant whose network object has type 1 or 3 (0x004AFC20), then sets up the signals of the four neighbouring cells again. Reimplemented by simulators.trafficmap.occupants (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::AddLanes"
+address = 0x004B44F0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4TrafficNetworkMap* this, cISC4NetworkOccupant* occupant)"
+expect = "81 EC 98 00 00 00 53 55"
+source = "Name ours. Replaces the occupant's lane node with the ways its network object gives for travel types 3 or 7 by direction (none: no node). Reimplemented by simulators.trafficmap.occupants (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::RemoveCellObject"
+address = 0x004B34A0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4TrafficNetworkMap* this, cISC4NetworkOccupant* object, int32 const* rect)"
+expect = "83 EC 10 53 55 56 8B F1"
+source = "Name ours. Takes an object off its cell's list (cell from rect, or from the object when null), the cell's node too when empty. Reimplemented by simulators.trafficmap.occupants (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::RemoveSignal"
+address = 0x004B3620
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4TrafficNetworkMap* this, cISC4NetworkOccupant* occupant)"
+expect = "83 EC 08 55 56 8B F1 8B"
+source = "Name ours. Releases and erases an occupant's signal node (objects, waiting list). Reimplemented by simulators.trafficmap.occupants (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::RemoveLanes"
+address = 0x004B3C80
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4TrafficNetworkMap* this, cISC4NetworkOccupant* occupant)"
+expect = "8B 51 44 83 EC 08 56 8B"
+source = "Name ours. Releases and erases an occupant's lane node. Reimplemented by simulators.trafficmap.occupants (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::ReleaseRecord"
+address = 0x004AFB10
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4TrafficNetworkMap* this, CellRecord* record)"
+expect = "57 8B 7C 24 08 85 FF 74"
+source = "Name ours. Releases a cell record's occupant and automata and empties its automata list. Reimplemented by simulators.trafficmap.occupants (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::DoMessage"
+address = 0x004B0C10
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZMessageTarget2* this, cIGZMessage2* message)"
+expect = "83 EC 24 53 55 56 57 8B"
+source = "Name ours. Message target slot 3 (this = object + 8): occupants inserted/removed, view moves, pause, traffic map changes. Reimplemented by simulators.trafficmap.messages (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4::CellRecordPool"
+address = 0x00B09588
+kind = "data"
+source = "Name ours. The small-object pool of the traffic map's cell records (0x58 bytes): +4 the current page (8 KB pages: +8 free list, +0xC count); refill 0x0090CF9A, block calls 0x0090D031 (count 0) and 0x0090CFF9 (count 0x40000045) (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::NeighbourOffsets"
+address = 0x00A8FDC4
+kind = "data"
+source = "Name ours. Four int16 (dx, dz) pairs: (-1,0), (0,-1), (1,0), (0,1); AddSignal (0x004B4300) walks them (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::ViewMoveThresholds"
+address = 0x00A8FE8C
+kind = "data"
+source = "Name ours. Floats by zoom (camera +0xC): the squared distance the camera point (+0x3C) must move before message 0xA6B79612 copies it to +0x70 and calls slot 46 (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4::ZeroVector3Value"
+address = 0x00B217F0
+kind = "data"
+source = "Name ours, not analysed. A float (0 in the file) the traffic map's DoMessage fills a 3-float point with before an occupant's slot 8 (+0x20) writes its position (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4Stopwatch::GetElapsed"
+address = 0x00890377
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Stopwatch* this, float* elapsed)"
+expect = "55 8B EC 83 EC 14 57 8B"
+source = "Name ours. The elapsed time since Start in the stopwatch's unit (mode at +0) as a float; reads the clock (QueryPerformanceCounter) while running. The traffic map's cell update (0x004AE6D0) stops at 5 (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4Stopwatch::Stop"
+address = 0x008905F0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Stopwatch* this)"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. Reads the clock once more, adds the running time to +0x10 and clears the start (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4OccupantSet::EraseTree"
+address = 0x004AFAD0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4OccupantSet* this, node* subtree)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. std::set<occupant*>'s recursive _Erase: frees the right subtree, the node (SC4::Free), then walks left. The signal coordination 0x004B1110 empties its three local sets with it (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4AutomataTuning::Signal4998C912"
+address = 0x00B21C74
+kind = "data"
+source = "Name ours. Float from tuning property 0x4998C912 (loader 0x00512F6A): a kind-1 approach's (side street) red time and start timer (0x004AE9E0) (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4AutomataTuning::Signal4998C913"
+address = 0x00B21C78
+kind = "data"
+source = "Name ours. Float from tuning property 0x4998C913: street approach times (0x004AE9E0), the base cycle of a coordinated group that is neither road nor avenue (0x004B1110) (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4AutomataTuning::Signal4998C914"
+address = 0x00B21C7C
+kind = "data"
+source = "Name ours. Float from tuning property 0x4998C914: road signal time; the blink period of the map's timer A (+0xA60, slot 32) (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4AutomataTuning::Signal4998C915"
+address = 0x00B21C80
+kind = "data"
+source = "Name ours. Float from tuning property 0x4998C915: avenue signal time; the blink period of the map's timer B (+0xA68, slot 32) (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4AutomataTuning::TurnShareRange"
+address = 0x00B21C90
+kind = "data"
+source = "Name ours. Two floats (low, high) from tuning property 0x4998C90A: the random range a cell's turn traffic share is scaled by (0x004AFE50, cRZRandom::Range on the map's generator) (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4AutomataTuning::SpreadDepth"
+address = 0x00B21C98
+kind = "data"
+source = "Name ours. uint8 from tuning property 0x4998C91D: how many cells approach traffic is gathered over (0x004AEE70, 0x004AFE50) (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4AutomataTuning::ApproachMaskA"
+address = 0x00B21C9C
+kind = "data"
+source = "Name ours. Bit mask from tuning property 0xA9AF1E54 (bit n-1 per listed byte n, all ones without it), tested against a cell record's +0x20 flags (0x004AEC70) (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4AutomataTuning::ApproachMaskB"
+address = 0x00B21CA0
+kind = "data"
+source = "Name ours. Bit mask from tuning property 0xA9AF1E55, tested against a cell record's +0x28 flags (0x004AEC70) (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4::FloatHalfB09584"
+address = 0x00B09584
+kind = "data"
+source = "Name ours, not analysed. A float (0.5 in the file): the lowest green ratio of a coordinated signal group (0x004B1110) (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::Write"
+address = 0x004B1CE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "83 EC 18 53 55 56 8B 74"
+source = "Name ours. cIGZSerializable slot 3 (vtable 0x00A8FEA0, this = object + 0xC): the save record, version 7. Reimplemented by simulators.trafficmap.save (docs/traffic-map.md)."
+
+[[entry]]
+name = "cSC4TrafficNetworkMap::Read"
+address = 0x004B4DE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "81 EC 6C 01 00 00 53 55"
+source = "Name ours. cIGZSerializable slot 4 (vtable 0x00A8FEA0, this = object + 0xC): rebuilds the grid, signals, cell objects and lanes from a record of version 3 to 7. Reimplemented by simulators.trafficmap.load (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4LaneVectorVector::Erase"
+address = 0x004B37B0
+kind = "function"
+convention = "thiscall"
+signature = "void* (Vector* this, Vector12* first, Vector12* last)"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Name ours. erase(first, last) of a cell record's vector of vectors (+0x04, 12-byte elements); Read 0x004B4DE0 (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4LaneVectorVector::InsertFill"
+address = 0x004B3D60
+kind = "function"
+convention = "thiscall"
+signature = "void (Vector* this, Vector12* where, uint32_t count, const Vector12* value)"
+expect = "83 EC 0C 56 57 8B 7C 24"
+source = "Name ours. insert(where, count, value) of a cell record's vector of vectors (+0x04); Read 0x004B4DE0 grows it to the saved count (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4SignalTable::InsertUnique"
+address = 0x004B3810
+kind = "function"
+convention = "thiscall"
+signature = "void* (Hashtable* this, Result* result, const SignalValue* value)"
+expect = "8B 44 24 08 53 55 56 8B"
+source = "Name ours. insert_unique of the signal table (+0x28; 0x70-byte nodes), no resize; result = {node, table, inserted}. Read 0x004B4DE0 (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4LaneTable::InsertUnique"
+address = 0x004B38B0
+kind = "function"
+convention = "thiscall"
+signature = "void* (Hashtable* this, Result* result, const LaneValue* value)"
+expect = "8B 44 24 08 53 55 56 8B"
+source = "Name ours. insert_unique of the lane table (+0x40; 0x48-byte nodes), no resize. Read 0x004B4DE0 (docs/traffic-map.md)."
+
+[[entry]]
+name = "SC4PtrVectorHashMap::InsertUnique"
+address = 0x004B2510
+kind = "function"
+convention = "thiscall"
+signature = "void* (Hashtable* this, Result* result, const CellObjectsValue* value)"
+expect = "83 EC 08 53 8B 5C 24 14"
+source = "Name ours. insert_unique of the cell-object table (+0xA70; key z << 16 | x, a vector of pointers), no resize. Read 0x004B4DE0 (docs/traffic-map.md)."
