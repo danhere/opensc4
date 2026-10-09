@@ -92,6 +92,7 @@ add_library(opensc4_core SHARED
   s3d_camera.cpp
   d3d7_probe.cpp
   dbpf_survey.cpp
+  plugin_loader.cpp
   gdriver_proxy.cpp
   landvalue_autotest.cpp
   landvalue_object.cpp

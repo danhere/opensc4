@@ -23,9 +23,17 @@ namespace opensc4::dbpf {
 // assumed, not measured.
 void SortFolderOrder(std::vector<std::string>& relativePaths);
 
-// Every regular file under `folder` (UTF-8), relative and in folder order.
-// False (with a reason in `error`) if the folder cannot be listed.
-bool ListFolder(const std::string& folder, std::vector<std::string>& out, std::string* error = nullptr);
+// Every regular file under `folder` (UTF-8), relative and in folder order;
+// with `recursive` false only the folder's own files. False (with a reason
+// in `error`) if the folder cannot be listed.
+bool ListFolder(const std::string& folder, std::vector<std::string>& out, std::string* error = nullptr,
+                bool recursive = true);
+
+// Whether a file name ends in ".dat", without case. The game loads a plugin
+// folder's .dat files as one folder segment and every other package file in
+// it as a segment of its own, registered before the folder (so any .dat
+// wins over them; docs/resources.md, "Which file wins").
+bool IsDatFile(const std::string& path);
 
 // A list of plugin paths, one per line, relative to the Plugins folder with
 // '/', UTF-8. A path ending in '/' means everything under that folder. Blank
@@ -33,6 +41,9 @@ bool ListFolder(const std::string& folder, std::vector<std::string>& out, std::s
 // plugins are kept. A missing file reads as an empty list.
 bool ReadPathList(const std::string& file, std::vector<std::string>& out, std::string* error = nullptr);
 bool WritePathList(const std::string& file, const std::vector<std::string>& paths, std::string* error = nullptr);
+// Whether `path` (relative, '/') is named by `list` (ReadPathList's format),
+// compared without case like Windows paths.
+bool PathListed(const std::string& path, const std::vector<std::string>& list);
 
 struct PluginFile {
     std::string path;                 // as given; relative to its folder for folder segments
@@ -69,8 +80,11 @@ struct FileSummary {
 // the last file listed wins.
 class LoadOrder {
 public:
-    // A folder segment: every file under `folder`, in folder order. Files
-    // that are not packages are kept with an error, as the game skips them.
+    // A plugin folder as the game loads it, as two segments: its .dat files
+    // (the folder segment), then every other file under it (each its own
+    // segment in the game, registered in folder order, so here too the last
+    // one listed wins). Both in folder order. Files that are not packages are
+    // kept with an error, as the game skips them.
     bool AddFolder(const std::string& folder, std::string* error = nullptr);
     // A single-package segment (the game's own .dat files).
     void AddFile(const std::string& path);

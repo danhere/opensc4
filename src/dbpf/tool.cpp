@@ -175,7 +175,8 @@ int Plugins(const char* folder, bool keys, const char* disabledList, const std::
     }
 
     const auto& files = order.Files();
-    std::printf("load order (later files win inside the folder; the folder wins over game files):\n");
+    std::printf("load order (.dat files, then the other plugin files, each group with later files winning; any .dat "
+                "wins over the other files, and plugins over game files):\n");
     const std::vector<FileSummary> sums = order.Summaries();
     size_t skipped = 0;
     for (size_t i = 0; i < files.size(); ++i) {
