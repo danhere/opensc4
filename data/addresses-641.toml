@@ -217,7 +217,7 @@ name = "TrafficPathfinder::Search"
 address = 0x006D91B0
 kind = "function"
 convention = "fastcall"
-signature = "bool (TrafficPathfinder* this)"
+signature = "uint32_t (TrafficPathfinder* this)"
 expect = "A0 3C 9B B4 00 81 EC 90"
 source = "Ours. The traffic simulator's path search (A*-style, binary heap on float cost at node+0xC, 0x006D6380), set up per trip by 0x0070EC40; time-sliced with the deadline helpers 0x0068BF50/0x0068BF80 and an adaptive chunk size (docs/experiments/determinism.md)."
 
@@ -2353,7 +2353,7 @@ address = 0x007184E0
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 E4 F8 83 EC"
-source = "Name ours, not analysed. On a stopwatch timer: a random cell of +0x13C inside the view gets an event (docs/traffic.md)."
+source = "Name ours. On the stopwatch at +0x148 (every +0xD54 ms): a cell of +0x13C in view, picked in a shuffled order against its chance (+8), gets an event and message 0x0C05E4C3. Reimplemented by simulators.traffic.month (docs/traffic.md)."
 
 [[entry]]
 name = "cSC4TrafficSimulator::ChangeActive"
@@ -2369,7 +2369,7 @@ address = 0x00720430
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 E4 F8 83 EC"
-source = "Name ours, not analysed. Message 0x26D31EC1 (docs/traffic.md)."
+source = "Name ours. Message 0x26D31EC1: rebuilds the tables, grids, zones and lot buckets for a loaded city and finishes an interrupted phase. Reimplemented by simulators.traffic.cityinited (docs/traffic.md)."
 
 [[entry]]
 name = "cSC4TrafficSimulator::OnMessage8A0D15DA"
@@ -2380,20 +2380,20 @@ expect = "8B 54 24 08 83 EC 10 53"
 source = "Name ours, not analysed. Message 0x8A0D15DA: (message slots 9, 14, 19) (docs/traffic.md)."
 
 [[entry]]
-name = "cSC4TrafficSimulator::OnMessageC53D10AA"
+name = "cSC4TrafficSimulator::LoadTuning"
 address = 0x00716AE0
 kind = "function"
 convention = "thiscall"
 expect = "81 EC B8 00 00 00 56 57"
-source = "Name ours, not analysed. Message 0xC53D10AA when its slots 9 and 14 are 0xE7E2C2DB and 0xC9133286 (docs/traffic.md)."
+source = "Name ours. Reads the traffic exemplar (0x6534284A, 0xE7E2C2DB, 0xC9133286): link costs by travel type, curves, scales; then LoadTravelStrategies. Called by Init and on message 0xC53D10AA for that exemplar (docs/traffic.md)."
 
 [[entry]]
-name = "cSC4TrafficSimulator::OnPlantDisaster"
+name = "cSC4TrafficSimulator::LoadTravelStrategies"
 address = 0x00711810
 kind = "function"
 convention = "thiscall"
 expect = "83 EC 38 53 55 56 57 33"
-source = "Name ours, not analysed. Message 0xC2C09554 (docs/traffic.md)."
+source = "Name ours. Message 0xC2C09554: the travel strategy percentages (+0xC5C, four groups of three bytes) from exemplar 0x6534284A/0xE7E2C2DB/0xC9133286 (properties 0x4953E8A3-6), then each active ordinance's deltas (property 0x8A612FEE) on the last three groups, clamped to 0-100 (docs/traffic.md)."
 
 [[entry]]
 name = "cSC4TrafficSimulator::OnBuildingOfKind"
@@ -2735,3 +2735,1473 @@ name = "cSC4TrafficSimulator::Phase15Step"
 address = 0x00B4B324
 kind = "data"
 source = "Name ours. uint32: the deadline step of phase 15 (0x400 at first; flag bit 0 of 0x00B4B32C once set) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Write"
+address = 0x00712400
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 8B 74"
+source = "Name ours. cIGZSerializable slot 3 (vtable 0x00AB33A4, object +0x8): the save record, version 41 (schema in tools/re/sc4save.py). Reimplemented by simulators.traffic.save (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Stream::WriteFlaggedIterator"
+address = 0x005DA390
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. (stream, iterator): two bytes (stream slot 4), then seven 32-bit fields; the traffic simulator's iterator at +0x910 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Stream::WriteByteVector"
+address = 0x005DADA0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. (stream, vector<uint8> const*): uint32 count, then the bytes (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Read"
+address = 0x00721990
+kind = "function"
+convention = "thiscall"
+expect = "81 EC DC 00 00 00 53 55"
+source = "Name ours. cIGZSerializable slot 4: the save record, versions 19 to 41. Reimplemented by simulators.traffic.load (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Stream::ReadBool"
+address = 0x005D9FA0
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 06 8D"
+source = "Name ours. (stream, bool* out): a byte, stored as 0 or 1 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Stream::ReadFlaggedIterator"
+address = 0x005DA320
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. (stream, iterator): as SC4Stream::WriteFlaggedIterator (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Stream::ReadByteVector"
+address = 0x005DB520
+kind = "function"
+convention = "cdecl"
+expect = "51 57 8B 7C 24 0C 8B 07"
+source = "Name ours. (stream, vector<uint8>*): uint32 count, then the bytes (docs/traffic.md)."
+
+[[entry]]
+name = "SC4RowVector::Resize"
+address = 0x00461120
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 59 04 56 8B 74 24"
+source = "Name ours. resize(count, vector<uint8> const* value) of a vector of byte vectors (docs/traffic.md)."
+
+[[entry]]
+name = "SC4ByteVector::InsertN"
+address = 0x004618E0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 0C 85 ED 56"
+source = "Name ours. insert(where, count, uint8 const* value) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4DensityTable::At"
+address = 0x006D7820
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. The value (0x42 bytes, zero if new) of a uint32 key in the traffic simulator's table at +0x178 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4PartVector::Reserve"
+address = 0x00711CD0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4E 08 57"
+source = "Name ours. reserve(count) of a vector of 10-byte parts (docs/traffic.md)."
+
+[[entry]]
+name = "SC4PartVector::Assign"
+address = 0x00711BA0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 57 8B F9"
+source = "Name ours. operator= of a vector of 10-byte parts (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint16Set::Reserve"
+address = 0x00710DD0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 44 24 18 53"
+source = "Name ours. Grows the buckets of a uint16 hash set to hold a count (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint16Set::Insert"
+address = 0x0060D270
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 53 66 8B 18"
+source = "Name ours. insert(result*, uint16 const* key) of a uint16 hash set (docs/traffic.md)."
+
+[[entry]]
+name = "SC4LinkTable::At"
+address = 0x00713D60
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 5C 53"
+source = "Name ours. The value (0x2C bytes) of a uint16 key in the traffic simulator's table at +0xC8 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4TrafficObject::Construct"
+address = 0x005FF100
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 33 C9 C7 00 D8 6C"
+source = "Name ours. Constructs the 0x14-byte objects of the traffic simulator's map at +0xB8 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4ObjectMap::At"
+address = 0x00714560
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 8B 31 8B"
+source = "Name ours. The value slot of a uint16 key in the traffic simulator's map at +0xB8 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Route::CopyConstruct"
+address = 0x0071E0E0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 57 8B 7C"
+source = "Name ours. Copies a route (the traffic simulator's list at +0x104): its bytes and two lists (docs/traffic.md)."
+
+[[entry]]
+name = "SC4RouteList::Clear"
+address = 0x00714660
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 03 56 8B 30"
+source = "Name ours. Empties a list of 0x34-byte route entries, freeing their two byte vectors (docs/traffic.md)."
+
+[[entry]]
+name = "SC4ByteVector::CopyConstruct"
+address = 0x00459E80
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name ours. vector<uint8> copy constructor (docs/traffic.md)."
+
+[[entry]]
+name = "SC4RouteIndex::At"
+address = 0x00713DF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 08 56"
+source = "Name ours. The value slot of a uint16 key in the route indexes at the traffic simulator's +0xDC and +0xF0 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Shutdown"
+address = 0x00719290
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8A 46"
+source = "Name ours. cISC4TrafficSimulator slot 4: releases the grids, services and tables, returns the edge nodes to their pool, unregisters the messages. Reimplemented by simulators.traffic.shutdown (docs/traffic.md)."
+
+[[entry]]
+name = "SC4RowVector::Destroy"
+address = 0x00461190
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Name ours. (begin, end): frees the byte rows of a vector of byte vectors (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Pool::ReleaseBlock"
+address = 0x0090D031
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8B 42 04 3B"
+source = "Name ours, not analysed. (block) on the pool at 0x00B0D484 when a block's count reaches 0 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Pool::ReopenBlock"
+address = 0x0090CFF9
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 81 40 0C 00"
+source = "Name ours, not analysed. (block) on the pool at 0x00B0D484 when a block's count reaches 0x4000003F (docs/traffic.md)."
+
+[[entry]]
+name = "SC4EdgeRows::Erase"
+address = 0x004A0350
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Name ours. (begin, end) of the traffic simulator's vector of edge rows at +0x7C (docs/traffic.md)."
+
+[[entry]]
+name = "SC4CostTable::Clear"
+address = 0x00718930
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B D9 8B 43 08 56"
+source = "Name ours. Empties the cost table at the traffic simulator's +0x70C (docs/traffic.md)."
+
+[[entry]]
+name = "SC4ObjectMap::EraseSubtree"
+address = 0x0070EED0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of the map at the traffic simulator's +0xB8 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4WaterRouteFinder::Shutdown"
+address = 0x00724760
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 04 33"
+source = "Name ours, not analysed. The object at the traffic simulator's +0x108, before its release (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::EdgePool"
+address = 0x00B0D484
+kind = "data"
+source = "Name ours. The pool the traffic simulator's edge nodes come from: 2 KB blocks with a free list at +8 and a count at +0xC (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Init"
+address = 0x0071E7E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 6C 53 55 8B E9 8A"
+source = "Name ours. cISC4TrafficSimulator slot 3: agents, messages, grids, tables, departments, iterators and walks. Reimplemented by simulators.traffic.init (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Vector8::Assign"
+address = 0x00711DB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 06"
+source = "Name ours. assign(count, element const*) of a vector of 8-byte elements (the traffic simulator's +0x88 to +0xAC) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4ByteVector::Resize"
+address = 0x00712190
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 55 8B 6C 24 14"
+source = "Name ours. resize(count, uint8 const* value) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4EdgeRows::FillInsert"
+address = 0x00733450
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 57 8B 7C 24"
+source = "Name ours. insert(where, count, vector const* value) of the traffic simulator's edge rows (docs/traffic.md)."
+
+[[entry]]
+name = "CRT::time32"
+address = 0x009EFB59
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 51 8D 45 F8"
+source = "The CRT's _time32 (docs/traffic.md)."
+
+[[entry]]
+name = "CRT::localtime"
+address = 0x009EF9D9
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 56 8B 75 08 83"
+source = "The CRT's localtime (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Date::Construct"
+address = 0x009130BE
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 10 8B F1 FF"
+source = "Name ours. (month, day, year) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4DateTime::Construct"
+address = 0x00470010
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 40 04 85"
+source = "Name ours. (date const*, hour, minute, second); the traffic simulator seeds its generator from it (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Random::ConstructSeeded"
+address = 0x00913B74
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 08 8B F1 83"
+source = "Name ours. A 0x9C8-byte generator from a seed (docs/traffic.md)."
+
+[[entry]]
+name = "SC4WaterRouteFinder::Construct"
+address = 0x007250F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 33 DB 8D 4E"
+source = "Name ours, not analysed. The 0x305C-byte object at the traffic simulator's +0x108 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4WaterRouteFinder::Init"
+address = 0x00725490
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 04 33"
+source = "Name ours, not analysed (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Stopwatch::ConstructMode"
+address = 0x00890181
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 01 33 C0"
+source = "Name ours. A stopwatch's constructor with a mode (5 for the traffic simulator's at +0x148) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Name"
+address = 0x00A89770
+kind = "data"
+source = "The text \"cSC4TrafficSimulator\" (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::InitOnce"
+address = 0x00B4B2E4
+kind = "data"
+source = "Name ours. A byte Init sets to 1 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4SimGridBool8::Vtable"
+address = 0x00A878C0
+kind = "data"
+source = "cSC4SimGridBool8 primary vtable; +4 0x00A878A4, interface 0x49B9E602 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4SimGridFloat32::Vtable"
+address = 0x00A87C20
+kind = "data"
+source = "cSC4SimGridFloat32 primary vtable; +4 0x00A87C04, interface 0x49B9E60A (docs/traffic.md)."
+
+[[entry]]
+name = "SC4SimGridUint32::Vtable"
+address = 0x00A87DD0
+kind = "data"
+source = "cSC4SimGridUint32 primary vtable; +4 0x00A87DB4, interface 0x49B9E606 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::RefreshCost"
+address = 0x00715CB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C 55 56 57 8B 7C"
+source = "Name ours, not analysed. (cost value*): on city load, for each entry of the cost table (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::RebuildNetworks"
+address = 0x007138B0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours, not analysed. Called on city load after the lots are announced (docs/traffic.md)."
+
+[[entry]]
+name = "SC4RectIterator::Next"
+address = 0x0060CEE0
+kind = "function"
+convention = "thiscall"
+expect = "8A 11 83 EC 08 80 FA 02"
+source = "Name ours. (int* x, int* z): the next cell of a rectangle iterator; false when done (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::CellHasTraffic"
+address = 0x0070FA40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 8B 54 24 14 57"
+source = "Name ours, not analysed. (x, z) for every cell of the bordered grid on city load; false clears the cell's byte (docs/traffic.md)."
+
+[[entry]]
+name = "SC4LotMultimap::Insert"
+address = 0x00710EC0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 55 8B 6C"
+source = "Name ours. _M_insert(result*, x, parent, value const*, flag) of the lot multimap at the traffic simulator's +0x1A0 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4LotMultimap::EraseSubtree"
+address = 0x0070EF10
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of the multimap at the traffic simulator's +0x1A0 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4ShuffledIndex::Init"
+address = 0x005CF610
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 46"
+source = "Name ours, not analysed. Prepares an iterator over the indexes below a count in a shuffled order; (1) from the traffic simulator's monthly event (docs/traffic.md)."
+
+[[entry]]
+name = "SC4ShuffledIndex::Next"
+address = 0x005CBD90
+kind = "function"
+convention = "thiscall"
+expect = "80 39 02 75 05 32 C0 C2"
+source = "Name ours. (uint32* index): the next index; false when done (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::ApplyTrafficEvent"
+address = 0x00554400
+kind = "function"
+convention = "thiscall"
+expect = "81 C1 B8 0A 00 00 E9 35"
+source = "Name ours, not analysed. (property holder, 2, strength): a thunk (this + 0xAB8) to 0x00554040 (three arguments); the traffic simulator calls it on the city's slot 43 object with the chosen occupant's slot 48 (its property holder) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::CameraView"
+address = 0x00B43DD8
+kind = "data"
+source = "Name ours, not analysed. +0x3EC: four floats bounding the view in world units (the traffic simulator's monthly event keeps to cells in view) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::CanRouteTrip"
+address = 0x007136B0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 0C 0F BF"
+source = "Name ours, not analysed. Phase 17: (trip*); false drops the trip (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::SetUpTrip"
+address = 0x0070EC40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 8B 74"
+source = "Name ours, not analysed. (lot cell*, trip*): sets the path finder up for a trip (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Deadline::Remaining"
+address = 0x0070E2B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 0F 31 8B 31"
+source = "Name ours. On a deadline: what is left of it (reads the clock; a virtual clock site) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::RouteTrip"
+address = 0x0071C6C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 57 8B"
+source = "Name ours, not analysed. (lot cell*, trip*): runs the path search for a trip; 1 found, 2 out of time, else none (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase17Step"
+address = 0x00B4B354
+kind = "data"
+source = "Name ours. uint32: the deadline step of phase 17 (0x400 at first; flag bit 0 of 0x00B4B35C once set) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::FinishLotTrips"
+address = 0x0070F0A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 8B 5C 24 24"
+source = "Name ours, not analysed. Phase 18: (lot) when all of a lot's trips are routed (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase18Step"
+address = 0x00B4B360
+kind = "data"
+source = "Name ours. uint32: the deadline step of phase 18 (0x400 at first; flag bit 0 of 0x00B4B368 once set) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::RecordRoute"
+address = 0x00719910
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 8C 00 00 00 8B 84"
+source = "Name ours. (trip, count, rect by value (16 bytes), x, z, kind 0-2, flags byte): records a found route on cells, edges and edge connections (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Rect::Contains"
+address = 0x0043FDE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 3B 11 7C 1B"
+source = "Name ours. (x, z) inside the int rectangle (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::NetworkCellAt"
+address = 0x0070F970
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 7D 10"
+source = "Name ours, not analysed. (x, z): a network cell record (word flags at +0) or null (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::NudgeToNetwork"
+address = 0x0070DD30
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 B3 01 E8 3F"
+source = "Name ours, not analysed. (int* x, int* z, bool destination) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::NeighborHolder"
+address = 0x007114E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 FF 56"
+source = "Name ours, not analysed. (kind or -1, x, z): the property holder of a neighbour-connection occupant for a cell outside the city (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::GetTripsSent"
+address = 0x0070DFF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8B 01 57 8B"
+source = "Name ours, not analysed. (holder, kind): the trips of a kind already sent from a building (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Deadline::MsPerTick"
+address = 0x00B0A840
+kind = "data"
+source = "Name ours. float: milliseconds per counter tick, set at startup from the cycles-per-millisecond estimate (0x005D9370); 0x00B0A83C holds the inverse (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::CurrentApp"
+address = 0x00913D7A
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 83 3D DC 28"
+source = "Name ours, not analysed. Returns an object whose slot 38 (0) gives one whose slot 25 the traffic simulator's NudgeToNetwork compares with 1 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4ObjectMap::Find"
+address = 0x0070EFC0
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 8B 48 04 85 C9 57"
+source = "Name ours. find(uint16 const* key) in the map at the traffic simulator's +0xB8; the header when missing (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::NetworkMaskOfType"
+address = 0x00AB322C
+kind = "data"
+source = "Name ours. uint32 by network type: the flag bits of a border cell for that network (NeighborHolder) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4RouteIterator::Init"
+address = 0x006D64B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 01 8B 10"
+source = "Name ours. (trip): starts walking a trip's packed route bytes (vector at trip +0/+4); iterator of 0x16 bytes, current cell record at +0xC (docs/traffic.md)."
+
+[[entry]]
+name = "SC4RouteIterator::Next"
+address = 0x006D6510
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 0B 53 33 DB 3A C3"
+source = "Name ours. (RouteStep* out): copies the current 10-byte cell record out and decodes the next; false (nothing written) when the route is over (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::RouteEnded"
+address = 0x00714740
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 0F BF 44 24 2C"
+source = "Name ours, not analysed in detail. (count, x, z, type byte, flags): called by RecordRoute at the end of a kind 0/2 route; adds the trips to the destination's properties (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::EdgeNetworkObject"
+address = 0x007104A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 8C 01 00 00 53 8B"
+source = "Name ours. (travel type, x, z): outside the city, the first network object of the type's network at an edge cell (0x00B43D8C slot 11 by network 0-12); null inside (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::Service43D68"
+address = 0x00B43D68
+kind = "data"
+source = "Service pointer, name ours: slot 32 (id) gives an object for the zone densities 0x1010-0x4400, whose slot 15 grid answers slot 7 (x, z) with an int16 (the traffic simulator's GetBackgroundTraffic; docs/traffic.md)."
+
+[[entry]]
+name = "SC4::FloatOne"
+address = 0x00B0D478
+kind = "data"
+source = "float 1.0 (copied as a dword by the traffic simulator's GetTransitSwitchQueryData; docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32HashSet::Construct"
+address = 0x00829BC0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 56 57 6A"
+source = "Name ours. (bucket hint): hash_set<uint32> constructor; object: +4/+8 buckets begin/end, +0x10 count; node: next, value at +4 (the traffic simulator's GetSubnetworksInRectangle; docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32HashSet::Resize"
+address = 0x004F0940
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 44 24 18 53"
+source = "Name ours. (element count): grows the buckets for that many elements (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32HashSet::Insert"
+address = 0x00624DD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 53 8B 18 55"
+source = "Name ours. (pair<iterator, bool>* result, uint32 const* value) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32HashSet::Clear"
+address = 0x008EBA60
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8B 47 08"
+source = "Name ours. Frees the nodes; the caller frees the bucket array (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::EdgeSide"
+address = 0x0070DDD0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 85"
+source = "Name ours. (x, z, int* edgeX, int* edgeZ): for a cell just outside one side of the city, that side (0 -x, 1 -z, 2 +x, 3 +z) and the nearest cell on the edge; -1 inside or at a corner (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32x3Vector::Insert"
+address = 0x00626240
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 06"
+source = "Name ours. The growing insert of a vector of 12-byte records (where, value*, unused*, count, 1), used when the traffic simulator's congestion effects (+0x130) are full (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint16Vector::InsertN"
+address = 0x00465760
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 85 DB 56"
+source = "Name ours. vector<uint16>::insert(where, count, uint16 const*) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::CellTrafficPeak"
+address = 0x00714940
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 57 8D"
+source = "Name ours. (x, z, commute): the traffic of the cell's density records (+0x178) summed by network (travel types on networks 1, 4, 5), the largest of the six sums (uint16) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint16Set::Erase"
+address = 0x0060D1F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 57 8B 38"
+source = "Name ours. erase(iterator const*) of a uint16 hash set; the iterator is {node, set} (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint16TreeSet::Insert"
+address = 0x007109B0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Name ours. std::set<uint16>::insert(result*, uint16 const*); set object {head, size}, node: color, parent +4, left +8, right +0xC, key +0x10 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Tree::RebalanceForErase"
+address = 0x0040DAF0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 50 08 85"
+source = "Name ours. (node, root*, leftmost*, rightmost*): unlinks a red-black tree node and rebalances; returns the node to free (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint16TreeSet::EraseSubtree"
+address = 0x0070EF50
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of a std::set<uint16> (docs/traffic.md)."
+
+[[entry]]
+name = "SC4FerryRouteList::PushBack"
+address = 0x00719250
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 39 6A 34 E8 F9"
+source = "Name ours. push_back of a 0x2C-byte ferry route record (cells, cost float at +8, two byte vectors at +0xC and +0x18, words +0x24-0x2A) into a list (docs/traffic.md)."
+
+[[entry]]
+name = "SC4FerryRouteList::Erase"
+address = 0x007145E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 0C 8B 46 04"
+source = "Name ours. erase(iterator* result, iterator by value) of the ferry route list (docs/traffic.md)."
+
+[[entry]]
+name = "SC4ByteVector::Assign"
+address = 0x00461210
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4C 24 0C"
+source = "Name ours. vector<uint8>::operator= (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::FerryCostScale"
+address = 0x00A823A4
+kind = "data"
+source = "float 0.01: the water route finder's cost to a ferry route's float (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::GetPropertyUint8Vector"
+address = 0x005FFB40
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. (holder, property, vector<uint8>*): false without the property (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::GetPropertySint32Vector"
+address = 0x005FFC00
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. (holder, property, vector<int32>*): false without the property (docs/traffic.md)."
+
+[[entry]]
+name = "SC4FerryLink::CopyConstruct"
+address = 0x00713F30
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. Copy constructor of a 0x20-byte ferry link record (key, cells, cost float at +8, byte vector at +0xC, words +0x18-0x1E) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4LinkTable::Erase"
+address = 0x00710910
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 56"
+source = "Name ours. erase(uint16 const* key) of the link table at the traffic simulator's +0xC8 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::LinkFlagsOfType"
+address = 0x00AB3174
+kind = "data"
+source = "Name ours. uint32 by building type (0-12), read by OnNetworkBuilding; its flag tests are `or`s, so every link gets flags 0x1FE (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::LinkCostTables"
+address = 0x00B4B110
+kind = "data"
+source = "Name ours. Nine float tables of 13 (by building type), 0x34 bytes apart: per-tile costs of a link by travel type (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::SideTurns"
+address = 0x00AB3280
+kind = "data"
+source = "Name ours. uint32[4][4] by lot orientation: where the side bits 7-4 of a transit part go (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::RouteStillOpen"
+address = 0x0070E320
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 8B 44 24 2C 55"
+source = "Name ours, not analysed in detail. (route vector*): walks a recorded route and checks each city cell's 46-byte record (+0x58) still allows its sides; false when a cell no longer does (docs/traffic.md)."
+
+[[entry]]
+name = "SC4CellDeque::Construct"
+address = 0x00745980
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours. std::deque<uint32> constructor (count 0 here); first iterator {cur, first, last, node} at +0, last at +0x10, map +0x20; blocks of 0x80 bytes (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32Deque::PushBackSlow"
+address = 0x006266E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours. push_back(uint32 const*) when the last block is full (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32Deque::Destroy"
+address = 0x00713E90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 8B F1"
+source = "Name ours. std::deque<uint32> destructor (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::EdgeOfNetwork"
+address = 0x0070FB30
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 8B 49 7C 8D"
+source = "Name ours, not analysed in detail. (network, x, z): the edge of a network at a cell (chain at +0x7C), or null (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::RecordWordOfNetwork"
+address = 0x00AB3244
+kind = "data"
+source = "Name ours. uint32 by network (0-5): which uint16 of a cell's 46-byte record holds that network's side bits {0, 1, 3, 6, 7, 8} (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::SideDX"
+address = 0x00AB325C
+kind = "data"
+source = "int32[4]: x step by side (-1, 0, 1, 0) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::SideDZ"
+address = 0x00AB326C
+kind = "data"
+source = "int32[4]: z step by side (0, -1, 0, 1) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::OppositeSide"
+address = 0x00AB3394
+kind = "data"
+source = "int32[4]: the opposite side (2, 3, 0, 1) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4CellDeque::ReserveMapAtBack"
+address = 0x006DB4A0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 53 55 56"
+source = "Name ours. (count, at front): grows a std::deque's block map; push_back calls it with (1, 0) when the map has fewer than two free slots at the back (docs/traffic.md)."
+
+[[entry]]
+name = "SC4List::NodeAllocator4"
+address = 0x00B207E0
+kind = "data"
+source = "Name ours. Another cached pointer to the list node allocator (framework slot 5, 0x3AE4BEA3/0x3AE4BEAB), used by 0x00411DF0 and the traffic simulator's StartTripCounts (docs/traffic.md)."
+
+[[entry]]
+name = "SC4List::ClearReleasing4"
+address = 0x00411DF0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B D9 8B 03 56 8B"
+source = "Name ours. Empties a list of the allocator at 0x00B207E0, releasing each element (slot 2) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::Service43D74"
+address = 0x00B43D74
+kind = "data"
+source = "Service pointer, name ours: slot 6 (0x2010/0x2020/0x2030, 0x10000) gives the region's R/C/I population objects whose slot 9 is a float in ST0 (the traffic simulator's StartTripCounts; docs/traffic.md)."
+
+[[entry]]
+name = "SC4Uint32Map::At"
+address = 0x00497A00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 8B 31 8B"
+source = "Name ours. std::map<uint32, uint32>::operator[](uint32 const*): the value's address, inserting 0 when missing (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::Phase13Step"
+address = 0x00B4B33C
+kind = "data"
+source = "Name ours. The sliced-deadline step of the subnetwork census (0x00716180): uint32 step, int32 trend at +4, init flag at +8 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4LotMultimap::Erase"
+address = 0x007108D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 8D 48 0C"
+source = "Name ours. erase(iterator by value) of the lot multimap at the traffic simulator's +0x1A0 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4CostTable::Erase"
+address = 0x007188A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 8B D9 8B"
+source = "Name ours. erase(iterator const*) of the cost table at +0x70C; the iterator is {node, table} (docs/traffic.md)."
+
+[[entry]]
+name = "SC4List::Construct3"
+address = 0x00414270
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 00 8B F1 6A 01 C7"
+source = "Name ours. SC4List constructor: a sentinel node from the allocator at 0x00B207E4 (0x00413DD0) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4CostRecord::CopyConstruct"
+address = 0x006D6C30
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. Copy constructor of a cost-table record (0x34 bytes; parts vector at +0x1C) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4CostTable::Insert"
+address = 0x00718800
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 53 55 56 8B"
+source = "Name ours. insert(result*, pair<uint32, record> const*) of the cost table at +0x70C (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnFerryTerminal"
+address = 0x00723620
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 7C 53 55 56 8B B4"
+source = "Name ours, not analysed. (occupant): called by the transit lot arrival handler for buildings with property 0x0BD86FD3 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::GetPropertyUint8"
+address = 0x005FD3C0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. (holder, property, uint8*): false without the property (docs/traffic.md)."
+
+[[entry]]
+name = "SC4FerryEntry::Construct"
+address = 0x00718A80
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 6A 28 C7 46 10"
+source = "Name ours. A ferry entry's two empty lists: links (+0x10, 0x28-byte nodes) and cell routes (+0x14, 0x34-byte nodes) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4FerryList::PushBack"
+address = 0x00721950
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 39 6A 28 E8 F9"
+source = "Name ours. push_back(entry const*) of the ferry entry list at the traffic simulator's +0x104 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4FerryLinkList::Destroy"
+address = 0x00459EF0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 03 56 8B 30"
+source = "Name ours. Frees a ferry link list's nodes and their byte vectors; the caller frees the sentinel (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::FerryKindOfType"
+address = 0x00AB32C8
+kind = "data"
+source = "Name ours. uint16[3] by ferry type: the word a new ferry entry gets at +0xC (1, 3, 55050) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::RemoveEdge"
+address = 0x0070FC70
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 8B 49 7C 8D"
+source = "Name ours. (network, x, z): unlinks a cell's edge of a network (+0x7C chain) and returns it to the edge pool (0x0070F040) (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::GetOrCreateEdge"
+address = 0x0070FB70
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 8B 54 24 0C"
+source = "Name ours. (network, x, z): a cell's edge of a network, a new one from the edge pool (0x00B0D484) at the chain's end when missing (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::SetWay"
+address = 0x0070EAB0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 55 56 57"
+source = "Name ours. (x, z, from, to, travel type): bit to + 4 x from of the cell's 46-byte record word of the type; for type 1 also the neighbour's side word (+0x24 by opposite side) |= 0x00B0D470[from] (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::MarkPending"
+address = 0x0070EB60
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 1C 08 00 00 84 C0"
+source = "Name ours. (x0, z0, x1, z1): grows the pending rectangle (+0x820-0x82C, flag +0x81C) the sub-step refreshes (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::SideOf"
+address = 0x006D6000
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 0C 8B 4C 24 04"
+source = "Name ours. (x, z, x2, z2): the side of (x, z) that (x2, z2) is on: 0 west, 2 east, else 3 when z2 >= z, 1 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::OnRoadPiece"
+address = 0x00715940
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 50 8B 54 24 60 53"
+source = "Name ours, not analysed. (x, z, piece (network occupant slot 49), from, to): called by OnCellsChanged for each road way of a network occupant (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::NetworkTypeOfIndex"
+address = 0x00AB3214
+kind = "data"
+source = "uint32[6]: the network occupant type asked for each traffic network index (2, 1, 3, 4, 6, 7) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Traffic::RoadSideMask"
+address = 0x00B0D470
+kind = "data"
+source = "uint16[4] by side: 0x1111 << side (SetWay's neighbour mark) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Float3Vector::Reserve"
+address = 0x0053DC50
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. reserve(count) of a vector of 12-byte points (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Float3Vector::Insert"
+address = 0x0050C3B0
+kind = "function"
+convention = "thiscall"
+expect = "51 55 56 8B F1 8B 06 8B"
+source = "Name ours. The growing insert of a vector of 12-byte points (where, value*, unused*, count, 1) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4EdgePool"
+address = 0x00B0D484
+kind = "data"
+source = "Name ours. The small-object pool of traffic edge nodes (0x18 bytes): +4 the current page (2 KB pages: +8 free list, +0xC count) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4EdgePool::Grow"
+address = 0x0090CF9A
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 77 04 3B"
+source = "Name ours. Moves the pool to a page with free items (a new one when needed); returns that page's free head (docs/traffic.md)."
+
+[[entry]]
+name = "SC4TrafficEdge::Free"
+address = 0x0070F040
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 56 8B F1 A8"
+source = "Name ours. (flags): an edge node back to its pool page (bit 0), releasing or relinking the page by its count (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::GetPropertyFloatVector"
+address = 0x005FFCC0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08 8B 01 83 EC 0C"
+source = "Name ours. (holder, property, vector<float>*): the property's array (variant slot 0x1BC) into the vector; false without the property (docs/traffic.md)."
+
+[[entry]]
+name = "SC4::GetPropertyBoolVector"
+address = 0x005FF000
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08 8B 01 83 EC 1C"
+source = "Name ours. (holder, property, vector<bool>*): the property's array (variant slot 0x174) into a bit vector (start word, start bit, end word, end bit, capacity); false without the property (docs/traffic.md)."
+
+[[entry]]
+name = "SC4Curve::GetPoints"
+address = 0x005F4760
+kind = "function"
+convention = "thiscall"
+expect = "55 56 8B F1 8B 46 0C 57"
+source = "Name ours. (vector<cS3DVector2>*): resizes the vector to the curve's point count and copies each point's (x, y) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4FloatVector::InsertN"
+address = 0x004641B0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 85 DB 56"
+source = "Name ours. (where, count, float const* value): inserts count copies (ret 0xC). LoadTuning sizes the float vector at simulator +0xC6C with it (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::AddNode"
+address = 0x006D8FA0
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 0F B6 4C 24 14"
+source = "Name ours. (x, z, side, travel type, cost, parent, cost limit, outside): opens or improves the node keyed by them (0x006D7730); skips a step straight back, types over their limit 64 times are blocked (+0xEC) unless flag 1 (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::IsGoal"
+address = 0x006D7960
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 53 55 56 8B F1"
+source = "Name ours, not analysed. (x, z, travel type, no transit): whether the search ends at the cell; holds a NAM patch site (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::SetUpGoals"
+address = 0x006D7E50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C 53 55 8B D9 0F"
+source = "Name ours, not analysed. Mode 0's goal setup; false ends the search; holds NAM patch sites (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::BuildDistanceTables"
+address = 0x006D6040
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 28 53 8B 59 30 55"
+source = "Name ours. Per column (+0x10C) and row (+0x110), the distance in cells to the goal rectangle at +0x28 (0 inside) (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::Rescore"
+address = 0x006D6780
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 55 56 8B F1"
+source = "Name ours. Every node's f = g + (0 inside the rectangle at +0x38, else the distance tables x +0x14); open nodes move up the heap (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::AddStartNodes"
+address = 0x006D8A90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 5C 53 55 56 8B F1"
+source = "Name ours, not analysed. Opens the start nodes; false ends the search (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::PopMin"
+address = 0x006D6380
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 01 8B 51 0C"
+source = "Name ours. The binary heap at +0x114: removes and returns the node of lowest f (+0xC) (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::HeapPush"
+address = 0x006D88B0
+kind = "function"
+convention = "thiscall"
+expect = "51 55 56 8B F1 8B 56 0C"
+source = "Name ours. The binary heap at +0x114: adds a node (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::FinishRoute"
+address = 0x006D8710
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours, not analysed. Called when the search ends at the node at +0x10 (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::DistanceToRect"
+address = 0x006D5E50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 8B 5C 24 30"
+source = "Name ours, not analysed. (x, z, rectangle by value) -> float in ST0 (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::CostOfRouteId"
+address = 0x0071CB20
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8D 44 24 0C"
+source = "Name ours. (id): the record of the id in the cost table at +0x70C; its +4 / +0xC through the travel time curve x +0x720 x its +8, or the float at 0x00AB1390 when the ratio is NaN; float in ST0 (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::SearchStep"
+address = 0x00B49B34
+kind = "data"
+source = "uint32 step, int32 counter and once flag (0x00B49B3C) of Search's sliced deadline (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::SideDX"
+address = 0x00AB20D8
+kind = "data"
+source = "int32[4]: x step by direction (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::SideDZ"
+address = 0x00AB20E8
+kind = "data"
+source = "int32[4]: z step by direction (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::NetworkOfType"
+address = 0x00AB20F8
+kind = "data"
+source = "uint32[9] by travel type: the network index of its edges and grid (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::NoReverseOfType"
+address = 0x00AB211C
+kind = "data"
+source = "uint8[9] by travel type: the ways back to the entry and the parent's entry side are taken out (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::TransitOfEdgeKind"
+address = 0x00AB2138
+kind = "data"
+source = "uint8 by edge kind (+5): whether the goal check sees transit there (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::FindOrCreateNode"
+address = 0x006D7730
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B C3 69"
+source = "Name ours. On the node hash at path finder +0x128: (key) -> the node, made from 0x24000-byte pages when new (bucket (key x 0x9E3779B1) mod 0xC07) (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::DecodeKey"
+address = 0x006D5DF0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. (key, uint8* type, int16* x, int16* z); an outside key (bit 31) gives the cell beyond its side (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::DecreaseKey"
+address = 0x006D6460
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B 75"
+source = "Name ours. The binary heap at +0x114: moves a node up from its index (node +0x20) after its f went down (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::Estimate"
+address = 0x006D6160
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 38 8B 44 24 04 3B"
+source = "Name ours. (x, z) -> 0 inside the rectangle at +0x38, else the column and row distance tables' sum; float in ST0 (docs/traffic.md)."
+
+[[entry]]
+name = "SC4RouteDeque::ReserveMap"
+address = 0x004321B0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 53 55 56"
+source = "Name ours. (count, at front): grows the block map of a deque of 3-byte cells (blocks of 0x7E bytes); the path finder's route push_front calls it with (1, 1) (docs/traffic.md)."
+
+[[entry]]
+name = "cS3DVector3::Distance"
+address = 0x005D7660
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "Name ours. (a*, b*): sqrt(dz^2 + dy^2 + dx^2) in that order, in ST0 (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::TakesTrips"
+address = 0x006D5D80
+kind = "function"
+convention = "thiscall"
+expect = "53 0F B6 5C 24 0C 55 8B"
+source = "Name ours. (building, kind): whether it has room for trips of the kind (GetMaxTripCapacity less GetTripsSent); then +0x6C = min(room, +0x68), +0x8C = kind (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::InMap"
+address = 0x006D5CF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3B 81 B8 00"
+source = "Name ours. (x, z): whether the cell is in the city (+0xB8, +0xBC) (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::StartSides"
+address = 0x00AB21D8
+kind = "data"
+source = "uint8[5][4]: the sides start nodes may leave by: a source in the city, then outside to the west, north, east, south (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::StartOnLotOfEdgeKind"
+address = 0x00AB2128
+kind = "data"
+source = "uint8 by edge kind (+5): whether a start next to a lot may use an edge of the kind (docs/traffic.md)."
+
+[[entry]]
+name = "SC4CellPairVector::InsertN"
+address = 0x006D6ED0
+kind = "function"
+convention = "thiscall"
+expect = "51 55 56 57 8B F9 8B 37"
+source = "Name ours. std::vector of (int16 x, int16 z): (where, value*, allocator*, count, at end), reallocating to size + max(size, count) as SC4PointVector::InsertN does. The path finder's goal setup grows its cell lists with it (docs/traffic.md)."
+
+[[entry]]
+name = "SC4ByteVector::Grow"
+address = 0x00461A10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 8B E9 8B"
+source = "Name ours. std::vector<uint8>: (where, value*, allocator*, count, at end), as the other InsertN. The path finder's route encoder grows its bytes with it (docs/traffic.md)."
+
+[[entry]]
+name = "SC4ByteVector::InsertRange"
+address = 0x006D6A00
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 83 EC 08 53"
+source = "Name ours. std::vector<uint8>: (where, first, last, allocator*) (docs/traffic.md)."
+
+[[entry]]
+name = "SC4PtrVector::Construct"
+address = 0x0051C950
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. std::vector of pointers: (count, value*, allocator*), count copies (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::EncodeRoute"
+address = 0x006D7070
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 28 01 00 00 55 56"
+source = "Name ours. Slot 32: (vector<uint8>* route, uint32* types): the route from the start node to +0x10 as bytes: the start (type, x, z), runs of 2-bit steps (type | 0x40, count, steps packed four a byte, at most 255 a run), jumps (type | 0x80 from a cell without flag 4, then x, z); cells outside the city as their edge cell (EdgeSide); the types used as bits (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::RouteStillOpen"
+address = 0x006D61E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 56 8B 71 10 85"
+source = "Name ours. Slot 30: whether each step of the route at +0x10 is still a way of the cell's record (a switch for a type change); true without a route (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::Reset"
+address = 0x006D6730
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 48 31 00"
+source = "Name ours. Slot 31: the node pool back to its first page, the 0xC07 buckets cleared, no route (+0x10), the heap empty (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::CreatePathFinder"
+address = 0x0070D860
+kind = "function"
+convention = "thiscall"
+expect = "56 57 68 60 31 00 00 8B"
+source = "Name ours. Slot 6: (TrafficPathfinder** out): a 0x3160-byte path finder (constructor 0x006D89C0), AddRef, Init, its simulator at +0xC; true (docs/traffic.md)."
+
+[[entry]]
+name = "cSC4TrafficSimulator::SetupPathFinderForLot"
+address = 0x00711610
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 8B 74"
+source = "Name ours. Slot 7: (path finder, occupant): the lot's rectangle as the source, mode 0, the trip kind of its first trip entry; kinds 0-2 get masks 0x1CF/3 and the cost limits of the kind with the most trips (+0xC9C, +0xCC0, +0xC78), kind 3 flag 1 and mask 0x30 (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::Construct"
+address = 0x006D89C0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 33 DB 56 8B F1 C7"
+source = "Name ours. The path finder's constructor (fields in docs/traffic.md, the node pool 0x006D7690, the heap reserved for 100) (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::RecordRoute"
+address = 0x006DA060
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 57 8B F9 8B"
+source = "Name ours. Slot 29: (kind): the trips (+0x6C; 0.8 x rounded up for travel type 1 when 0x00B43D90 slot 8 says 0xA2BF1DDC) added along the route at +0x10, as RecordRoute does from a route: route-id costs where the type changes, the traffic grid of the type's network (twice for kind 2), the density records by sides in and out (kind 2 also under its second key), the travel time into simulator +0x790 (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::vftable"
+address = 0x00AB2150
+kind = "data"
+source = "The path finder's vtable, 34 slots (docs/traffic.md, \"The path finder\")."
+
+[[entry]]
+name = "SC4PtrVector::InsertN"
+address = 0x0051CA60
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B E9 8B 45 04 56"
+source = "Name ours. std::vector of pointers: (where, value*, allocator*, count, at end), as the other InsertN (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::ConstructPool"
+address = 0x006D7690
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 57 8B F9"
+source = "Name ours. The node pool at path finder +0x128: one page of 0x24000 bytes, empty buckets, +0 pointing at the page vector (+0x3020) (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::DestroyPool"
+address = 0x006D6BD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 24 30 00"
+source = "Name ours. Frees the node pool's pages (operator delete) and their vector (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::Destruct"
+address = 0x006D6CA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 8E 28 01 00"
+source = "Name ours. The path finder's destructor: the pool, then the heap and the two distance-table vectors freed (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::DeletingDestruct"
+address = 0x006D7050
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 48 FC FF FF"
+source = "Name ours. Slot 33: (flags) the destructor, then operator delete when bit 0 (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::Release"
+address = 0x006D61B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 08 83 F8"
+source = "Name ours. Slot 2: the count at +8 down; at 1, Shutdown when initialised and slot 33 with 1; returns the count left (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::Init"
+address = 0x006D78B0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8A 46 04"
+source = "Name ours. Slot 3: once (+4): the city's size in cells (+0xB8, +0xBC) and the distance-table vectors (size + 2, from index -1 at +0x10C, +0x110) (docs/traffic.md)."
+
+[[entry]]
+name = "TrafficPathfinder::Shutdown"
+address = 0x006D5D50
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 4: when initialised: Reset (slot 31) and the distance tables' pointers cleared (docs/traffic.md)."
