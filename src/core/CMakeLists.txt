@@ -68,6 +68,13 @@ add_library(opensc4_core SHARED
   residential_object.cpp
   residential_occupants.cpp
   residential_queries.cpp
+  trafficmap_autotest.cpp
+  trafficmap_interface.cpp
+  trafficmap_object.cpp
+  trafficmap_occupants.cpp
+  trafficmap_save.cpp
+  trafficmap_signals.cpp
+  trafficmap_sim.cpp
   development_autotest.cpp
   development_messages.cpp
   development_object.cpp
