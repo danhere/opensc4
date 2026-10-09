@@ -1,10 +1,10 @@
 // diagnostics.dbpf_survey: logs the resource manager's DB segments in lookup
 // order once startup is done (P3 survey, docs/resources.md): each segment's
 // path and record count, the package files inside folder segments, how many
-// of a file's keys an earlier-listed file also has, and, for one such key per
-// file, which file the resource manager actually serves it from (the listing
-// order is not assumed to be the lookup order). Read-only, through the public
-// interfaces.
+// of a file's keys an earlier-listed file also has, and, for each such key
+// (up to 2,000), which file the resource manager actually serves it from (the
+// listing order is not assumed to be the lookup order). Read-only, through
+// the public interfaces.
 //
 // diagnostics.dbpf_compare: reads every record of every package file both
 // through the game's segment and through OpenSC4's reader (src/dbpf) and
@@ -76,7 +76,7 @@ struct Totals {
     uint32_t segments = 0;
     uint64_t records = 0;
     uint64_t duplicates = 0; // records whose key an earlier-listed file also has
-    std::vector<std::pair<cGZPersistResourceKey, std::string>> samples; // one duplicate per file
+    std::vector<std::pair<cGZPersistResourceKey, std::string>> samples; // duplicated keys, up to 2,000
 };
 
 // Adds a leaf segment's keys to `seen`, counting the ones already there.
@@ -97,9 +97,13 @@ void Survey(cIGZPersistDBSegment* segment, int depth, KeySet& seen, Totals& tota
     if (cIGZPersistResourceKeyList* list = NewKeyList()) {
         segment->GetResourceKeyList(list, nullptr);
         records = list->Size();
-        for (uint32_t i = 0; i < records; ++i)
-            if (!seen.insert(list->GetKey(i)).second && duplicates++ == 0)
+        for (uint32_t i = 0; i < records; ++i) {
+            if (seen.insert(list->GetKey(i)).second)
+                continue;
+            ++duplicates;
+            if (totals.samples.size() < 2000)
                 totals.samples.emplace_back(list->GetKey(i), PathOf(segment));
+        }
         list->Release();
     }
     ++totals.segments;

@@ -1,0 +1,23 @@
+# Resource setup at startup: what resources.plugin_loader (src/core/plugin_loader.cpp)
+# calls or reads in place of cSC4App::SetupResources (core.toml; docs/resources.md).
+
+[[entry]]
+name = "cSC4App::SetupResources_DebugCallback"
+address = 0x00456BA0
+kind = "function"
+convention = "custom"
+signature = "unknown"
+expect = "81 EC 14 01 00 00"
+source = "Name ours. Passed by SetupResources, with the global at 0x00B07F00 and the app, to slot 7 of service 0x25076B9E (interface 0xA237613C) when the app's GetDebugFunctionalityEnabled is true (0x004572C7-0x00457315). Never called by OpenSC4, only passed on."
+
+[[entry]]
+name = "cSC4App::SetupResources_DebugName"
+address = 0x00B07F00
+kind = "data"
+source = "Name ours. A pointer (0x00A806E8 in the file) SetupResources passes on with the debug callback above (0x00457300)."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::kSignature"
+address = 0x00B6363C
+kind = "data"
+source = "Name ours. The 4-byte package signature the plugin scan compares a file's first bytes with (0x009728D5, which SetupResources calls for every plugin file that is not a .dat). Uninitialised data in the file, set at startup."
