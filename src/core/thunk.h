@@ -1,0 +1,30 @@
+// Register-saving entry thunks for detours on small game functions.
+//
+// Some game callers keep values in ECX (and EDX) across calls into
+// functions that happen to leave them alone (the S3D camera's constructor
+// 0x007FF930 uses ECX after calling ResetOrientation, Project after
+// BuildView). A C++ detour may change both, so each such detour is entered
+// through a thunk that saves them, passes the stack arguments on and
+// restores them. `Target` is a __fastcall function (this in ECX, EDX unused)
+// with `ArgBytes` bytes of stack arguments; EAX (the result) is kept.
+#pragma once
+
+#define OPENSC4_THUNK(Name, Target, ArgBytes)                                                                  \
+    __declspec(naked) void Name()                                                                              \
+    {                                                                                                          \
+        __asm push ecx                                                                                         \
+        __asm push edx                                                                                         \
+        OPENSC4_REPUSH_##ArgBytes                                                                              \
+        __asm call Target                                                                                      \
+        __asm pop edx                                                                                          \
+        __asm pop ecx                                                                                          \
+        __asm ret ArgBytes                                                                                     \
+    }
+
+#define OPENSC4_PUSH(Bytes) __asm push dword ptr [esp + 8 + Bytes]
+#define OPENSC4_REPUSH_0
+#define OPENSC4_REPUSH_4 OPENSC4_PUSH(4)
+#define OPENSC4_REPUSH_8 OPENSC4_PUSH(8) OPENSC4_PUSH(8)
+#define OPENSC4_REPUSH_12 OPENSC4_PUSH(12) OPENSC4_PUSH(12) OPENSC4_PUSH(12)
+#define OPENSC4_REPUSH_16 OPENSC4_PUSH(16) OPENSC4_PUSH(16) OPENSC4_PUSH(16) OPENSC4_PUSH(16)
+#define OPENSC4_REPUSH_24 OPENSC4_PUSH(24) OPENSC4_PUSH(24) OPENSC4_PUSH(24) OPENSC4_PUSH(24) OPENSC4_PUSH(24) OPENSC4_PUSH(24)

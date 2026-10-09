@@ -1,6 +1,8 @@
 #include "core/autotest.h"
 
 #include "core/autotest_hooks.h"
+#include "core/camera_control.h"
+#include "core/photo_mode.h"
 
 #include "core/crash.h"
 #include "core/log.h"
@@ -772,7 +774,14 @@ private:
                            frame.draws, frame.hash, frame.number);
             }
         }
+        // OPENSC4_TEST_PHOTO=1: photo mode over the shots: on before the
+        // first, a capture after each, the fine zoom stepped, off at the end.
+        const bool photo = Env("OPENSC4_TEST_PHOTO") == "1";
+        if (photo && shot_ >= 0)
+            photo_mode::Capture();
         if (++shot_ >= static_cast<int>(views_.size())) {
+            if (photo)
+                photo_mode::Exit();
             log::Write("autotest: shots done; quitting without saving");
             Quit(app);
             return;
@@ -792,7 +801,15 @@ private:
                 centre[0x4C / 4] = city->SizeZ() / 2;
             }
         }
+        if (Env("OPENSC4_TEST_CAMERA_EXERCISE") == "1") {
+            if (void* control = renderer->GetCameraControl())
+                camera_control::Exercise(control, shot_);
+        }
         const int32_t result = view->SetZoomAndRotation(zoom, rotation);
+        if (photo) {
+            photo_mode::Enter();
+            photo_mode::Zoom(shot_ % 3 == 0 ? 1.0f : shot_ % 3 == 1 ? 1.5f : 0.75f);
+        }
         uint32_t width = 0, height = 0;
         renderer->GetViewportSize(width, height);
         const auto* control = reinterpret_cast<const int32_t*>(renderer->GetCameraControl());

@@ -16,6 +16,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/thunk.h"
 
 #include <opensc4/addresses.h>
 
@@ -767,31 +768,8 @@ uint8_t __fastcall DPickRay(char* s, void*, const float* p, float* origin, float
         [&](char* c, void** o) { return PickRay(c, p, static_cast<float*>(o[0]), static_cast<float*>(o[1])); });
 }
 
-// The game's callers keep values in ECX (and EDX) across these calls, which
-// the game's functions leave alone (the constructor 0x007FF930 uses ECX
-// after calling ResetOrientation, Project after BuildView). Each detour is
-// entered through a thunk that saves both, passes the stack arguments on and
-// restores them.
-#define OPENSC4_THUNK(Name, Target, ArgBytes)                                                                  \
-    __declspec(naked) void Name()                                                                              \
-    {                                                                                                          \
-        __asm push ecx                                                                                         \
-        __asm push edx                                                                                         \
-        OPENSC4_REPUSH_##ArgBytes                                                                              \
-        __asm call Target                                                                                      \
-        __asm pop edx                                                                                          \
-        __asm pop ecx                                                                                          \
-        __asm ret ArgBytes                                                                                     \
-    }
-
-#define OPENSC4_PUSH(Bytes) __asm push dword ptr [esp + 8 + Bytes]
-#define OPENSC4_REPUSH_0
-#define OPENSC4_REPUSH_4 OPENSC4_PUSH(4)
-#define OPENSC4_REPUSH_8 OPENSC4_PUSH(8) OPENSC4_PUSH(8)
-#define OPENSC4_REPUSH_12 OPENSC4_PUSH(12) OPENSC4_PUSH(12) OPENSC4_PUSH(12)
-#define OPENSC4_REPUSH_16 OPENSC4_PUSH(16) OPENSC4_PUSH(16) OPENSC4_PUSH(16) OPENSC4_PUSH(16)
-#define OPENSC4_REPUSH_24 OPENSC4_PUSH(24) OPENSC4_PUSH(24) OPENSC4_PUSH(24) OPENSC4_PUSH(24) OPENSC4_PUSH(24) OPENSC4_PUSH(24)
-
+// Entered through register-saving thunks (core/thunk.h): callers keep ECX
+// and EDX across these calls.
 OPENSC4_THUNK(TSetZoomScale, DSetZoomScale, 4)
 OPENSC4_THUNK(TSetSubViewport, DSetSubViewport, 16)
 OPENSC4_THUNK(TResetSubViewport, DResetSubViewport, 0)

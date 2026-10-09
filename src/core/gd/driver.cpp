@@ -21,6 +21,7 @@
 #include "core/hook.h"
 #include "core/iat.h"
 #include "core/log.h"
+#include "core/photo_mode.h"
 #include "core/registry.h"
 #include "core/settings.h"
 
@@ -75,6 +76,7 @@ struct PhysicalSize {
 };
 
 class Driver;
+Driver* g_output = nullptr; // the driver whose window is up
 
 class BufferRegions final : public BufferRegionExtension {
 public:
@@ -403,6 +405,7 @@ public:
     {
         if (backend_) {
             backend_->Present();
+            g_output = this; // the driver whose frames are on screen
             KeepShowingFront();
         }
         ++frames_;
@@ -809,6 +812,27 @@ private:
                 viewport_.height};
     }
 
+public:
+    // Photo mode's presenting timer (see WindowProc).
+    void StartPhotoTimer()
+    {
+        if (window_)
+            SetTimer(window_, kPhotoTimer, 15, nullptr);
+    }
+
+    // The whole front buffer (photo mode).
+    bool ReadWholeFront(std::vector<uint8_t>& pixels, uint32_t& width, uint32_t& height)
+    {
+        if (!backend_)
+            return false;
+        width = backend_->Width();
+        height = backend_->Height();
+        pixels.assign(static_cast<std::size_t>(width) * height * 4, 0);
+        return backend_->ReadFront({0, 0, static_cast<int32_t>(width), static_cast<int32_t>(height)}, pixels.data(),
+                                   width * 4);
+    }
+
+private:
     static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
     {
         auto* self = reinterpret_cast<Driver*>(GetWindowLongPtrA(window, GWLP_USERDATA));
@@ -821,6 +845,20 @@ private:
             if (self->backend_ && self->backend_->ShowFront())
                 SetTimer(window, kShowFrontTimer, USER_TIMER_MINIMUM, nullptr);
             return 0; // ours: the game never sees it
+        }
+        if (self && message >= WM_KEYFIRST && message <= WM_KEYLAST && photo_mode::OnKey(message, wParam))
+            return 0; // photo mode's key: the game never sees it
+        // Photo mode: with every interface window hidden the game stops
+        // calling Flush (its window manager has nothing to update), so the
+        // finished back buffer is shown on a timer instead.
+        if (self && message == WM_TIMER && wParam == kPhotoTimer) {
+            if (photo_mode::Active() && self->backend_) {
+                self->backend_->Present();
+                self->KeepShowingFront();
+            } else {
+                KillTimer(window, kPhotoTimer);
+            }
+            return 0;
         }
         if (self && message == WM_TIMER && wParam == kShowFrontTimer) {
             if (!self->backend_ || !self->backend_->ShowFront())
@@ -881,6 +919,7 @@ private:
         if (!window_)
             return false;
         SetWindowLongPtrA(window_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+        g_output = this;
         backend_ = CreateD3D11Backend();
         g_scaledWindow = scale_ != 1.0f ? window_ : nullptr;
         g_scale = scale_;
@@ -895,6 +934,8 @@ private:
 
     void DestroyOutput()
     {
+        if (g_output == this)
+            g_output = nullptr;
         if (backend_)
             LogStats("closing the window");
         backend_.reset();
@@ -966,6 +1007,7 @@ private:
 
     static inline Driver* creating_ = nullptr;
     static constexpr UINT_PTR kShowFrontTimer = 0x05C40001;
+    static constexpr UINT_PTR kPhotoTimer = 0x05C40002;
     static constexpr UINT kShowFrontMessage = WM_APP + 0x5C4;
     bool showPosted_ = false;
 
@@ -1032,12 +1074,15 @@ bool BufferRegions::QueryInterface(uint32_t iid, void** object) { return driver_
 uint32_t BufferRegions::AddRef() { return driver_.AddRef(); }
 uint32_t BufferRegions::Release() { return driver_.Release(); }
 
+// The game's surface numbers are the DirectX driver's (0x00886750): 0 the
+// render target, the back buffer it draws into (+0x22C, from the device's
+// GetRenderTarget); 1 and 2 depth surfaces (created with DDSCAPS_ZBUFFER).
 int32_t BufferRegions::NewBufferRegion(int32_t surface)
 {
     Backend* backend = driver_.GetBackend();
-    if (!backend || surface < FrontBuffer || surface > DepthBuffer)
+    if (!backend || surface < 0 || surface > 2)
         return 0;
-    return backend->CreateRegion(static_cast<Surface>(surface));
+    return backend->CreateRegion(surface == 0 ? BackBuffer : DepthBuffer);
 }
 
 bool BufferRegions::DeleteBufferRegion(int32_t region)
@@ -1616,6 +1661,7 @@ void __fastcall SelectGraphicsDriver(void* app, void* edx, bool selectDriver)
 using UpdateProjectionFn = void(__fastcall*)(void* camera, void* edx);
 UpdateProjectionFn g_updateProjection = nullptr;
 constexpr size_t kFineZoom = 0xF0;
+float g_cityZoomDivisor = 1.0f;
 
 void __fastcall UpdateProjection(void* camera, void* edx)
 {
@@ -1632,6 +1678,8 @@ bool Register(registry::Mode)
     if (RenderScale() != 1.0f)
         InstallImportWrappers(RenderScale());
     if (RenderScale() != 1.0f && !settings::GetBool("renderer", "scale_city", false)) {
+        // Our camera control (renderer.camera.control) divides by it itself.
+        g_cityZoomDivisor = RenderScale();
         const addr::Entry* projection = addr_check::Find(addr::cSC4CameraControl_UpdateProjection);
         if (projection && hook::Install(*projection, &UpdateProjection, &g_updateProjection))
             log::Write("d3d11 driver: the city keeps its full-resolution size; only the interface is enlarged");
@@ -1656,4 +1704,18 @@ const bool g_registered = registry::Register({
 });
 
 } // namespace
+
+float CityZoomDivisor() { return g_cityZoomDivisor; }
+
+void PresentWhileActive()
+{
+    if (g_output)
+        g_output->StartPhotoTimer();
+}
+
+bool ReadFrame(std::vector<uint8_t>& pixels, uint32_t& width, uint32_t& height)
+{
+    return g_output && g_output->ReadWholeFront(pixels, width, height);
+}
+
 } // namespace opensc4::gd
