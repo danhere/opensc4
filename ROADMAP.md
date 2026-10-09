@@ -132,10 +132,15 @@ Wanted:
 - [ ] Freight that matters: SC4 has one generic freight trip (industry ships to neighbor connections, seaports and rail), not goods types, so this means adding goods and trade routes (P5 traffic, P6 demand)
 - [ ] Colorblind-friendly data views, as a UI add-on (P2)
 - [ ] Multi-threaded simulation, tabled until P9 and the 64-bit build
+- [ ] Crash-safe autosave: keep the last few saves, restore with one click (P4 save format). Finding why the game crashes, as simulators are replaced, should make it needed less often
+- [ ] Real-world terrain import: build a region from real elevation data (P8 terrain)
+- [ ] Seasons and weather: snow, autumn trees, rain (P1 renderer)
+- [ ] Hot-reload mods: add or change a plugin without restarting, for mod creators; pairs with the mod manager (P3)
 
-Maybe:
+Maybe, and stretch goals:
 - [ ] Districts and policies: per-district ordinances, taxes and zoning rules (P6 budget, a save addition). Real cities do this at the neighborhood scale (special zoning, historic and business improvement districts), so it need not wait for bigger maps
 - [ ] Scenario editor: goals and events in Lua (P6 Lua bindings); a late stretch goal
+- [ ] Steam Deck and controller support (P2 UI); a stretch goal
 
 Not now:
 - Building add-ons (SimCity 2013 modules): would need a lot of new art, and Dan does not want AI-generated assets
