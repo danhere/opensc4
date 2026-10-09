@@ -1,6 +1,7 @@
 #include "core/autotest.h"
 
 #include "core/crash.h"
+#include "core/demand_sim.h"
 #include "core/log.h"
 #include "core/fixed_ticks.h"
 #include "core/game.h"
@@ -258,8 +259,10 @@ private:
         if (!app)
             return;
         cISC4Region* region = app->GetRegion();
-        // Give the region view a few seconds to settle before loading.
-        if (!region || now - stateStart_ < 5000) {
+        // Give the region view a few seconds to settle before loading (one
+        // with OPENSC4_TEST_QUICK=1).
+        const ULONGLONG settle = Env("OPENSC4_TEST_QUICK") == "1" ? 1000 : 5000;
+        if (!region || now - stateStart_ < settle) {
             if (now - stateStart_ > 180000) {
                 log::Write("autotest: no region after 180 s; quitting");
                 Quit(app);
@@ -565,6 +568,34 @@ private:
                     log::Write("autotest: crime month restarted on day %d", day);
                 }
         }
+        // OPENSC4_TEST_DEMAND_MONTH=<n>: every n days of the run, the demand
+        // simulator's MonthPassed (0x006A9450, build 641): its monthly passes
+        // and a waiting step restarted, so a week's run goes through them
+        // without a month's end (docs/demand.md).
+        if (const int every = EnvInt("OPENSC4_TEST_DEMAND_MONTH", -1); every > 0 && self->runDays_ >= 0 &&
+                                                                      game::IsBuild641()) {
+            const int into = day - (self->endDay_ - self->runDays_);
+            if (into > 0 && into % every == 0)
+                if (void* const demand = city->GetDemandSimulator()) {
+                    reinterpret_cast<void(__thiscall*)(void*)>(addr::cSC4DemandSimulator_MonthPassed)(demand);
+                    log::Write("autotest: demand month passed on day %d", day);
+                }
+        }
+        // OPENSC4_TEST_DEMAND_MESSAGES=<n>: on the n-th day, the messages the
+        // demand simulator gets rarely: SimulationBegin (0x66956810), the
+        // neighbours changed (0x8A0D15DA) and the passes (0x26C63343), to its
+        // DoMessage (docs/demand.md).
+        if (const int when = EnvInt("OPENSC4_TEST_DEMAND_MESSAGES", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641())
+            if (void* const demand = city->GetDemandSimulator()) {
+                for (const uint32_t type : {0x66956810u, 0x8A0D15DAu, 0x26C63343u}) {
+                    void* const message = demand_sim::NewMessage();
+                    Virtual<uint32_t>(message, 0x14, type);
+                    Virtual<uint8_t>(static_cast<char*>(demand) + 4, 0xC, message);
+                    Virtual<uint32_t>(message, 0x8);
+                }
+                log::Write("autotest: demand messages sent on day %d", day);
+            }
         // OPENSC4_TEST_OCCUPANT_CYCLE=<n>: on the n-th day, hand the water and
         // power simulators "removed" then "added" for an existing pipe and
         // pole (messages 0x99EF1143, 0x99EF1142), and power the plant
@@ -574,6 +605,10 @@ private:
         if (const int when = EnvInt("OPENSC4_TEST_OCCUPANT_CYCLE", -1);
             when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641())
             CycleOccupants(city);
+        // OPENSC4_TEST_PROTECTION=<n>: on the n-th day, DriveProtection.
+        if (const int when = EnvInt("OPENSC4_TEST_PROTECTION", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641())
+            DriveProtection(city);
         // OPENSC4_TEST_POWER_MESSAGES=<n>: on the n-th day, hand the power
         // simulator (its +0x4 cIGZMessageTarget2, build 641) the two network
         // messages a network edit would bring, over the whole city: a network
@@ -693,6 +728,35 @@ private:
         }
         log::Write("autotest: ordinances created again, %u of %u found by name, removed and added back, recounted",
                    named, count);
+    }
+
+    // OPENSC4_TEST_PROTECTION: every fire and police station's funding set
+    // to 0 (fire slot 9, police slot 8), the month handler of both run (the
+    // base's slot 6, at +8) and the first jail broken out of (police slot
+    // 40), so strikes and jailbreaks happen in short runs
+    // (docs/fire-police.md). Build 641 layouts: stations list at +0x88,
+    // jails at +0xD4.
+    static void DriveProtection(cISC4City* city)
+    {
+        const struct {
+            void* sim;
+            std::size_t fundingSlot;
+        } sims[] = {{city->GetFireProtectionSimulator(), 0x24}, {city->GetPoliceSimulator(), 0x20}};
+        for (const auto& [sim, slot] : sims) {
+            if (!sim)
+                continue;
+            static const float none = 0.0f; // passed by reference
+            char* const head = *reinterpret_cast<char**>(static_cast<char*>(sim) + 0x88);
+            for (char* node = *reinterpret_cast<char**>(head); node != head; node = *reinterpret_cast<char**>(node))
+                Virtual<uint8_t>(sim, slot, *reinterpret_cast<void**>(node + 8), &none);
+            Virtual<void>(static_cast<char*>(sim) + 8, 0x18);
+        }
+        if (void* const police = city->GetPoliceSimulator()) {
+            char* const jails = *reinterpret_cast<char**>(static_cast<char*>(police) + 0xD4);
+            if (char* const first = *reinterpret_cast<char**>(jails); first != jails)
+                Virtual<uint8_t>(police, 0xA0, *reinterpret_cast<void**>(first + 8));
+        }
+        log::Write("autotest: fire and police driven (funding 0, month, jailbreak)");
     }
 
     static void CycleOccupants(cISC4City* city)
@@ -923,6 +987,53 @@ private:
                               set, visuals, sim, prop);
             }
         }
+        // Demand (cSC4DemandSimulator, build 641 offsets; docs/demand.md): the
+        // step's state, the four saved floats, each demand's fields (ID to
+        // region use, +0x10 to +0x48) under its key, the two maps of counted
+        // values (+0x1C, +0x28), the neutral tax rate (slot 10, float bits)
+        // and the jobs of every demand (slot 9). The tax rate is read only
+        // when the three demands it reads exist (the game's lookups insert).
+        void* const demandSim = city->GetDemandSimulator();
+        char demandText[160] = " | demand none";
+        if (demandSim && game::IsBuild641()) {
+            using namespace demand_sim;
+            TreeNode* const demands = Header(demandSim, field::kDemands);
+            uint32_t demandSum = 0;
+            for (TreeNode* node = First(demands); node != demands; node = Next(node)) {
+                const char* const demand = static_cast<const char*>(Value<void*>(node));
+                demandSum = demandSum * 31 + node->key;
+                if (demand)
+                    demandSum = demandSum * 31 + BytesChecksum(demand + demand::kId, demand::kRegionUse + 4 - demand::kId);
+            }
+            auto mapSum = [demandSim](std::size_t offset) {
+                TreeNode* const header = Header(demandSim, offset);
+                uint32_t sum = 0;
+                for (TreeNode* node = First(header); node != header; node = Next(node))
+                    sum = sum * 31 + BytesChecksum(&node->key, 8);
+                return sum;
+            };
+            auto has = [demands](uint32_t id) { return Find(demands, id) != demands; };
+            uint32_t taxBits = 0;
+            if (has(0x1001) && has(0x3001) && has(0x4001) && At<void*>(demandSim, field::kTaxCurve)) {
+                using TaxFn = double(__thiscall*)(void*);
+                const float tax = static_cast<float>(reinterpret_cast<TaxFn>((*static_cast<void***>(demandSim))[10])(demandSim));
+                std::memcpy(&taxBits, &tax, sizeof taxBits);
+            }
+            uint32_t jobsSum = 0;
+            for (TreeNode* node = First(demands); node != demands; node = Next(node)) {
+                using JobsFn = int32_t(__thiscall*)(void*, uint32_t);
+                jobsSum = jobsSum * 31 + static_cast<uint32_t>(reinterpret_cast<JobsFn>(
+                                             (*static_cast<void***>(demandSim))[9])(demandSim, node->key));
+            }
+            // The cell walk of state 1 fills +0x1C in time slices, so a day can
+            // end anywhere in it: only its result (state 2 on) is compared.
+            const uint32_t state = At<uint32_t>(demandSim, field::kState);
+            std::snprintf(demandText, sizeof demandText, " | demand st %u %08X n %u %08X map %08X %08X tax %08X jobs %08X",
+                          state, BytesChecksum(static_cast<char*>(demandSim) + field::kSaved, 16),
+                          Size(demandSim, field::kDemands), demandSum, state == 1 ? 0u : mapSum(field::kPending),
+                          mapSum(field::kCounted),
+                          taxBits, jobsSum);
+        }
         // Traffic (build 641 slots): trip scale and the one shown (14, 15),
         // last month's income (18) and the freight scaling (27), as float bits.
         char trafficText[96] = "";
@@ -981,12 +1092,54 @@ private:
                           *reinterpret_cast<const long long*>(reinterpret_cast<const char*>(ordinances) + 0x28),
                           ordinances->GetOrdinanceAvailableCount(), ordinances->GetOrdinanceOnCount(), count, h);
         }
+        // Fire and police (build 641 slots; docs/fire-police.md): the
+        // protection grids (slot 5), average and percent coverage (fire 19,
+        // 20; police 18, 19, float bits), station counts (fire 23, police
+        // 24), dispatch counts (25, 26), strikes (11, 10), and police jail
+        // population and capacity, criminals, arrests and jails (30, 29, 31,
+        // 34, 35: gzcom-dll's two GetJailCapacity overloads sit together at
+        // 28 and 29, which moves the declarations between them down one).
+        char serviceText[224] = "";
+        if (game::IsBuild641()) {
+            auto slotOf = [](void* object, int index) {
+                using Fn = uint32_t(__thiscall*)(void*);
+                return reinterpret_cast<Fn>((*static_cast<void***>(object))[index])(object);
+            };
+            auto floatOf = [](void* object, int index) {
+                using Fn = float(__thiscall*)(void*);
+                const float value = reinterpret_cast<Fn>((*static_cast<void***>(object))[index])(object);
+                uint32_t bits;
+                std::memcpy(&bits, &value, sizeof bits);
+                return bits;
+            };
+            // Percent coverage (fire 20, police 19) returns a pointer to the
+            // float (this + 0x9C), not the float gzcom-dll declares.
+            auto percentOf = [&slotOf](void* object, int index) {
+                return *reinterpret_cast<const uint32_t*>(static_cast<std::uintptr_t>(slotOf(object, index)));
+            };
+            using GridFn = cISC4SimGrid<int16_t>*(__thiscall*)(void*);
+            void* const fire = city->GetFireProtectionSimulator();
+            void* const police = city->GetPoliceSimulator();
+            int at = 0;
+            if (fire)
+                at = std::snprintf(serviceText, sizeof serviceText, " | fire %08X %08X %08X st %u disp %u strike %u",
+                                   GridChecksum(reinterpret_cast<GridFn>((*static_cast<void***>(fire))[5])(fire)),
+                                   floatOf(fire, 19), percentOf(fire, 20), slotOf(fire, 23), slotOf(fire, 25),
+                                   slotOf(fire, 11) & 0xFF);
+            if (police && at >= 0 && at < static_cast<int>(sizeof serviceText))
+                std::snprintf(serviceText + at, sizeof serviceText - at,
+                              " | police %08X %08X %08X st %u disp %u strike %u jail %u/%u crim %u arr %u jails %u",
+                              GridChecksum(reinterpret_cast<GridFn>((*static_cast<void***>(police))[5])(police)),
+                              floatOf(police, 18), percentOf(police, 19), slotOf(police, 24), slotOf(police, 26),
+                              slotOf(police, 10) & 0xFF, slotOf(police, 30), slotOf(police, 29), slotOf(police, 31),
+                              slotOf(police, 34), slotOf(police, 35));
+        }
         char rng[256];
         rng_trace::Describe(rng, sizeof rng);
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
         log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s%s",
+                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s%s%s%s",
                    day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
                    lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
                    traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
@@ -997,7 +1150,8 @@ private:
                    pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
                    worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText,
-                   waterText, auraText, crimeText, trafficText, landText, ordinanceText, ticks, rng);
+                   waterText, auraText, crimeText, demandText, trafficText, landText, serviceText, ordinanceText, ticks,
+                   rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,
@@ -1008,7 +1162,9 @@ private:
     {
         virtual_clock::ReturnToRealTime();
         const ULONGLONG start = GetTickCount64();
-        const bool saved = app->SaveCity(false);
+        // A fast save leaves out the region view's thumbnails of the city
+        // (records 0x8A2482B9 and 0x2026960B) and takes ~1 s instead of ~11.
+        const bool saved = app->SaveCity(Env("OPENSC4_TEST_QUICK") == "1");
         log::Write("autotest: run finished; SaveCity %s after %llu ms; quitting", saved ? "ok" : "FAILED",
                    GetTickCount64() - start);
     }

@@ -24,6 +24,13 @@ add_library(opensc4_core SHARED
   crime_object.cpp
   crime_step.cpp
   crime_tuning.cpp
+  demand_demand.cpp
+  demand_init.cpp
+  demand_month.cpp
+  demand_object.cpp
+  demand_region.cpp
+  demand_sim.cpp
+  demand_step.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp
@@ -48,6 +55,10 @@ add_library(opensc4_core SHARED
   pollution_tuning.cpp
   power_object.cpp
   power_sim.cpp
+  protection_sim.cpp
+  fire_sim.cpp
+  police_sim.cpp
+  protection_sources.cpp
   traffic_object.cpp
   traffic_pathfinder.cpp
   traffic_sim.cpp
