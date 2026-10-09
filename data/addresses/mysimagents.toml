@@ -1,0 +1,520 @@
+
+[[entry]]
+name = "cSC4MySim::AsAdvisor"
+address = 0x00429C90
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 48 FF FF FF 85 C0"
+source = "cISC4MySim slot 3 (gzcom-dll order, overloads grouped) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetVehicleKey"
+address = 0x00424C80
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 48 8B 44 24 04 89"
+source = "cISC4MySim slot 15 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetHomeName"
+address = 0x00425DD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 B0 00 00 00 85 C0"
+source = "cISC4MySim slot 25 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetJobName"
+address = 0x00425DF0
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 A0 00 00 00 84 C0"
+source = "cISC4MySim slot 26 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetJobTitleOf"
+address = 0x00424BD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 85"
+source = "cISC4MySim slot 27, GetJobTitle(occupant, string) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetJobTitle"
+address = 0x00425E30
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 A0 00 00 00 84 C0"
+source = "cISC4MySim slot 28 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetEQAsText"
+address = 0x00424CD0
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 C4 00 00 00 56 8B"
+source = "cISC4MySim slot 29 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetHQAsText"
+address = 0x00424D00
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 85 C0 75 05 32"
+source = "cISC4MySim slot 30 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::HideResidence"
+address = 0x00425E70
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 8E 8C 00 00"
+source = "cISC4MySim slot 33 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::HideLocation"
+address = 0x004288D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 8E 54 01 00"
+source = "cISC4MySim slot 35 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::SetPylonVisibility"
+address = 0x00425F00
+kind = "function"
+convention = "thiscall"
+expect = "8B 89 90 01 00 00 85 C9"
+source = "cISC4MySim slot 36 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::LeaveForWork"
+address = 0x00426EF0
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 47 08 83 F8"
+source = "cISC4MySim slot 38 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::ReturnHome"
+address = 0x00426F60
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 47 08 83 F8"
+source = "cISC4MySim slot 39 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DoBuildingChanged"
+address = 0x0042C020
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 85 C0 74 19 8B"
+source = "cISC4MySim slot 43 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DoNeighborConnectionRemoved"
+address = 0x00426460
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 85 C0 74 0E 8B"
+source = "cISC4MySim slot 49 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DistanceToClosest"
+address = 0x00427600
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 41 08 85 C0 56 74"
+source = "cISC4MySim slot 50 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::PlayNightSound"
+address = 0x00426EC0
+kind = "function"
+convention = "thiscall"
+expect = "83 79 08 02 75 1D 8A 41"
+source = "cISC4MySim slot 54 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetCurrentScreenLocationXY"
+address = 0x00425F20
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 48 FF FF FF 81 C1"
+source = "cISC4MySim slot 55 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::RequestToPlaySound"
+address = 0x00424DE0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 8E E8 01 00"
+source = "cISC4MySim slot 56; a stopwatch at +0x1E8 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetModelButtonBitmapID"
+address = 0x00429CB0
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 74 09"
+source = "cISC4MySim slot 59 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetNextBalloonAdvice"
+address = 0x004275E0
+kind = "function"
+convention = "thiscall"
+expect = "6A 02 81 C1 48 FF FF FF"
+source = "cISC4MySim slot 60 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetNextBalloonEventAdvice"
+address = 0x004275F0
+kind = "function"
+convention = "thiscall"
+expect = "6A 01 81 C1 48 FF FF FF"
+source = "cISC4MySim slot 61 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetCurrentBalloonAdvice"
+address = 0x00427410
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 74 01 00 00 56 8B"
+source = "cISC4MySim slot 62 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetCurrentBalloonEventAdvice"
+address = 0x00427440
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 78 01 00 00 56 8B"
+source = "cISC4MySim slot 63 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::CanUDriveIt"
+address = 0x00426A00
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 85 C0 74 0B 8B"
+source = "cISC4MySim slot 64 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::EnterUDriveIt"
+address = 0x00426A20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 90 00"
+source = "cISC4MySim slot 65 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::ExitUDriveIt"
+address = 0x00426A40
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 85 C0 74 0B 8B"
+source = "cISC4MySim slot 66 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::ActivateLuaContext"
+address = 0x00429830
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 38 01 00"
+source = "cISC4MySim slot 68 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::CanTravel"
+address = 0x00426CE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 50 56 8B F1 8B 86"
+source = "Name ours. Called before leaving for work or home; true lets the trip start (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::ShowAdvice"
+address = 0x00426DF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 57 8B F9 8B 87"
+source = "Name ours. Shows an advice balloon by text ID (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::NextBalloon"
+address = 0x00427540
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 0C 56 57"
+source = "Name ours. The next balloon advice of a kind (1 event, 2 ordinary) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::ClearBalloons"
+address = 0x00427690
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F1 BF E8 03 00"
+source = "Name ours. Drops pending balloons (up to 1000) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::LoadLuaContext"
+address = 0x00429040
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 8E F0 01 00"
+source = "Name ours. Sets up the MySim's script context (+0x1F0 object) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::UpdateHomeAndJob"
+address = 0x0042AA40
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Re-evaluates the MySim after its home or job changed (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySimDispatch::HideLocation"
+address = 0x00431F70
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 48 8B C1"
+source = "Name ours. Called by cSC4MySim::HideLocation on its dispatch object (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4::RectByIndex"
+address = 0x0046BFA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 50"
+source = "Name ours. A rectangle (x0, z0, x1, z1) by index, on the object slot 22 of the service at 0x00B43D04 returns (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4::LoadLocalizedText"
+address = 0x00603040
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 10 53 56 8B 35 A8"
+source = "Name ours. Loads a localized text (group, instance) into a cIGZString (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::Write"
+address = 0x004251A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "cIGZSerializable slot 3 at +0xC; version 0x11 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::Read"
+address = 0x00425490
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B 74 24 14"
+source = "cIGZSerializable slot 4 at +0xC; versions up to 0x11 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4AgentBase::Write"
+address = 0x0040E2E0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B 74 24 14"
+source = "Name ours. The agent base class's Write, called at the end of cSC4MySim::Write (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4AgentBase::Read"
+address = 0x00410AF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 53 55 56 8B 74"
+source = "Name ours. The agent base class's Read, called at the end of cSC4MySim::Read (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4Stream::WriteStopwatch"
+address = 0x005DA240
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 56 57 8B 7C 24"
+source = "Name ours. Mode byte, elapsed time (u64), running byte; read back by SC4Stream::ReadStopwatch (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySimDispatch::Shutdown"
+address = 0x00434670
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 24 01 00"
+source = "Name ours. Unregisters the dispatch object's messages; cSC4MySim::Read calls it before dropping the old one (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DoMessage"
+address = 0x0042D150
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 55 56 57 8B"
+source = "cIGZMessageTarget2 slot 3 at +0x10 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::OnCommand"
+address = 0x00427770
+kind = "function"
+convention = "thiscall"
+expect = "81 EC A4 00 00 00 55 8B"
+source = "Name ours. Five arguments; script commands 0x4BB2CFC0 and 0x4BB2D020 of message 0x2BA06B99 come here (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::OnScriptEvent"
+address = 0x004258F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 8E F0 01"
+source = "Name ours. Message 0x2BA06B99 with 0xEBA06BD0; calls into the script context at +0x1F0 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::AtBalloonPlace"
+address = 0x004259E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 8E 48 02 00"
+source = "Name ours. Whether a place matches the balloon target's (+0x248, +0x245) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::OnStranded"
+address = 0x0042C8E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 56 8B F1 E8 65"
+source = "Name ours. Message 0x2BA06B99 with 0xEBA06C12 when the dispatch place's byte +0x1D is set (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::Think"
+address = 0x00428590
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8A 86 10 02"
+source = "Name ours. The MySim's periodic work (from the frame message 0x86AD10EE every 2 ms of its stopwatch, and from the update) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::CancelMoveIn"
+address = 0x00425150
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D C4 3D B4 00 85 C9"
+source = "Name ours. No this; drops the move-in tool when it is the active one (also the agent simulator's slot 10) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MySimHelper90::Construct"
+address = 0x00439E50
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 C7 14 1C"
+source = "Name ours. Constructor of a 0x90-byte object for a MySim, made on message 0x0BB04126 and handed to service 0x00B43DC4 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4AgentBase::DoMessage"
+address = 0x00410F30
+kind = "function"
+convention = "thiscall"
+expect = "81 EC A0 00 00 00 53 55"
+source = "Name ours. The agent base class's message handler; cSC4MySim::DoMessage passes other messages on (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MySimPlace::Copy"
+address = 0x00425890
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours. Copy-constructs a 0x28-byte place (reference at +0) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MySimPlace::Same"
+address = 0x00431640
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8A 51 1C 3A"
+source = "Name ours. Whether two places are the same (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySimDispatch::HasFlag"
+address = 0x00431260
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 48 23 44 24 04 F7"
+source = "Name ours. Flags at +0x48 AND the argument, as 0 or 1 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4RefPtr::AssignFrom"
+address = 0x0054DB10
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 57 8B F9 3B"
+source = "Name ours. Assigns a reference holder from another (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4RefPtr::Assign"
+address = 0x005447B0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Name ours. Assigns a reference holder from a pointer (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::Update"
+address = 0x0042DC90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 33 DB 56 8B"
+source = "Name ours. The agent's slot 6 (vtable +0); run by the advisor system through 0x0040D820 every 500 ms of its stopwatch (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::IsBusy"
+address = 0x00425A30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 56 8B F1 8D"
+source = "Name ours. Checked by the update before counting a day at home without a job (+0xFC) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::RefreshLocation"
+address = 0x0042D9E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 56 8B F1 8B"
+source = "Name ours. Run by the update when the byte at +0x160 is set (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::OnBalloonTimeout"
+address = 0x00426480
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 8E 48 02 00"
+source = "Name ours. The balloon target's stopwatch (+0x268) passed 5 ms (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::QueueBalloon"
+address = 0x004276E0
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 04 01 57 8D B9"
+source = "Name ours. Queues a balloon advice (kind, index) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4AgentBase::StepItems"
+address = 0x0040F460
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 57 8B F9 8B"
+source = "Name ours. Steps the agent's item cursor (+0x64) through its list, count/30 + 1 a call (docs/experiments/determinism.md, Simulation timers)."
+
+[[entry]]
+name = "GZStopwatch::IsRunning"
+address = 0x0088FEFB
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 0B 41 0C 74 04"
+source = "Name ours. Start (+8, 64 bits) not zero; reads no clock (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4RefPtr::Release"
+address = 0x004177F0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 60 EE"
+source = "Name ours. Releases a reference holder (docs/mysim-agents.md)."

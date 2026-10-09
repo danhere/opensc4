@@ -23,6 +23,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/sim_timers.h"
 #include "core/virtual_clock.h"
 
 #include <opensc4/addresses.h>
@@ -46,7 +47,7 @@ constexpr struct {
     {0x0041A990, 0x0041B240}, // cSC4AdvisorSystem: runs its advisors (MySims among them) every 500 ms
 };
 
-constexpr int kMaxOwned = 64;
+constexpr int kMaxOwned = 256;
 void* g_owned[kMaxOwned];
 int g_ownedCount = 0;
 DWORD g_mainThread = 0;
@@ -71,26 +72,38 @@ bool Owner(uint32_t address)
 // that follow return the simulation counter.
 void* g_Elapsed = nullptr;
 
+// Whether a stopwatch is ours, taking it over if `claim` (the caller is
+// owning code) and it is not yet.
+bool Take(void* stopwatch, bool claim, uint32_t caller)
+{
+    for (int i = 0; i < g_ownedCount; ++i)
+        if (g_owned[i] == stopwatch)
+            return true;
+    if (!claim)
+        return false;
+    if (g_ownedCount == kMaxOwned) {
+        static bool logged = false;
+        if (!logged)
+            log::Write("sim_timers: more than %d stopwatches; %p stays on the clock", kMaxOwned, stopwatch);
+        logged = true;
+        return false;
+    }
+    g_owned[g_ownedCount++] = stopwatch;
+    auto* const start = reinterpret_cast<int64_t*>(static_cast<char*>(stopwatch) + 8);
+    if (*start != 0)
+        *start = Counter();
+    if (g_ownedCount <= 16)
+        log::Write("sim_timers: stopwatch %p (mode %d) on simulation time, first read from %08X", stopwatch,
+                   *static_cast<int*>(stopwatch), caller);
+    return true;
+}
+
 void __cdecl Enter(void* stopwatch, uint32_t caller)
 {
     if (!g_Elapsed)
         g_Elapsed = fixed_ticks::ElapsedOriginal();
-    if (GetCurrentThreadId() != g_mainThread)
+    if (GetCurrentThreadId() != g_mainThread || !Take(stopwatch, Owner(caller), caller))
         return;
-    bool owned = false;
-    for (int i = 0; i < g_ownedCount && !owned; ++i)
-        owned = g_owned[i] == stopwatch;
-    if (!owned) {
-        if (!Owner(caller) || g_ownedCount == kMaxOwned)
-            return;
-        g_owned[g_ownedCount++] = stopwatch;
-        auto* const start = reinterpret_cast<int64_t*>(static_cast<char*>(stopwatch) + 8);
-        if (*start != 0)
-            *start = Counter();
-        if (g_ownedCount <= 16)
-            log::Write("sim_timers: stopwatch %p (mode %d) on simulation time, first read from %08X", stopwatch,
-                       *static_cast<int*>(stopwatch), caller);
-    }
     g_read = true;
     virtual_clock::SetSimTimerRead(true);
 }
@@ -215,4 +228,11 @@ const bool g_registered = registry::Register({
 });
 
 } // namespace
+
+void Claim(void* stopwatch)
+{
+    if (g_mainThread && GetCurrentThreadId() == g_mainThread)
+        Take(stopwatch, true, 0);
+}
+
 } // namespace opensc4::sim_timers
