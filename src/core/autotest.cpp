@@ -226,11 +226,11 @@ void ApplyRenderProperties(cISC4App* app)
 // and MSVC-ABI compilers lay out overloaded virtuals in reverse declaration
 // order, so the header's string overload compiles to slot 23 (the
 // cIGZBuffer** one).
-bool TakeSnapshotToFile(cISC43DRender* renderer, cIGZString& path)
+bool TakeSnapshotToFile(cISC43DRender* renderer, cIGZString& path, bool flag = false)
 {
     using Fn = bool(__thiscall*)(cISC43DRender*, cIGZString&, bool);
     void** vtable = *reinterpret_cast<void***>(renderer);
-    return reinterpret_cast<Fn>(vtable[22])(renderer, path, false);
+    return reinterpret_cast<Fn>(vtable[22])(renderer, path, flag);
 }
 
 __declspec(noinline) void WriteThroughNull(volatile int* p)
@@ -674,12 +674,56 @@ private:
                    GetTickCount64() - start);
     }
 
-    // Every zoom (1-5) at every rotation (0-3): set the view, wait for it to
-    // settle, then save the frame with the game's own snapshot code.
+    static void HideInterface(cISC4App* app)
+    {
+        constexpr uint32_t kWinSC4App = 0x6104489A;
+        constexpr uint32_t kWinView3D = 0x9A47B417;
+        int hidden = 0;
+        const auto hide = [](cIGZWin*, uint32_t id, void* child, void* context) -> bool {
+            auto* win = static_cast<cIGZWin*>(child);
+            if (id != kWinSC4App && id != kWinView3D && win->IsVisible()) {
+                win->HideWindow();
+                ++*static_cast<int*>(context);
+            }
+            return true;
+        };
+        cIGZWin* main = app->GetMainWindow();
+        cIGZWin* parent = main ? main->GetChildWindowFromID(kWinSC4App) : nullptr;
+        if (main)
+            main->EnumChildren(GZIID_cIGZWin, hide, &hidden);
+        if (parent)
+            parent->EnumChildren(GZIID_cIGZWin, hide, &hidden);
+        // The city view's own children: the control panel, the pause frame.
+        if (cIGZWin* view = parent ? parent->GetChildWindowFromID(kWinView3D) : nullptr)
+            view->EnumChildren(GZIID_cIGZWin, hide, &hidden);
+        log::Write("autotest: %d interface windows hidden for the shots", hidden);
+    }
+
+    // Every zoom (1-5) at every rotation (0-3), or the views in
+    // OPENSC4_TEST_SHOT_VIEWS ("zoom:rotation,...", e.g. "2:0"): set the view,
+    // wait for it to settle, then save the frame with the game's own snapshot
+    // code.
     void Shots(ULONGLONG now)
     {
         constexpr int kZooms = 5, kRotations = 4;
         constexpr int kRedrawMs = 1000;
+        if (views_.empty()) {
+            const std::string list = Env("OPENSC4_TEST_SHOT_VIEWS");
+            for (size_t i = 0; i < list.size();) {
+                const int zoom = std::atoi(list.c_str() + i);
+                const size_t colon = list.find(':', i);
+                const int rotation = colon == std::string::npos ? 0 : std::atoi(list.c_str() + colon + 1);
+                if (zoom >= 0 && zoom <= kZooms && rotation >= 0 && rotation < kRotations)
+                    views_.push_back(zoom * kRotations + rotation);
+                const size_t comma = list.find(',', i);
+                if (comma == std::string::npos)
+                    break;
+                i = comma + 1;
+            }
+            if (views_.empty())
+                for (int v = kRotations; v < (kZooms + 1) * kRotations; ++v)
+                    views_.push_back(v);
+        }
         cISC4AppPtr app;
         if (!app || !app->GetCity()) {
             log::Write("autotest: city went away while taking shots");
@@ -705,26 +749,41 @@ private:
         }
         redrawn_ = false;
         if (shot_ >= 0) {
-            const int zoom = shot_ / kRotations + 1, rotation = shot_ % kRotations;
+            const int zoom = views_[shot_] / kRotations, rotation = views_[shot_] % kRotations;
             char name[64];
             std::snprintf(name, sizeof(name), "\\z%d-r%d.png", zoom, rotation);
             const std::string path = shotDir_ + name;
             cRZBaseString file(path.c_str());
-            const bool taken = TakeSnapshotToFile(renderer, file);
+            const bool taken = TakeSnapshotToFile(renderer, file, Env("OPENSC4_TEST_SHOT_FLAG") == "1");
             log::Write("autotest: shot zoom %d rotation %d -> %s %s", zoom, rotation, path.c_str(),
                        taken ? "ok" : "FAILED");
         }
-        if (++shot_ >= kZooms * kRotations) {
+        if (++shot_ >= static_cast<int>(views_.size())) {
             log::Write("autotest: shots done; quitting without saving");
             Quit(app);
             return;
         }
-        const int zoom = shot_ / kRotations + 1, rotation = shot_ % kRotations;
+        const int zoom = views_[shot_] / kRotations, rotation = views_[shot_] % kRotations;
+        // OPENSC4_TEST_SHOT_HIDE_UI=1: every window but the city view hidden
+        // (the game's snapshot is of the whole screen).
+        if (shot_ == 0 && Env("OPENSC4_TEST_SHOT_HIDE_UI") == "1")
+            HideInterface(app);
+        // OPENSC4_TEST_SHOT_CENTER=1: the view centred on the middle of the
+        // city (the camera control's view centre, x at +0x44 and z at +0x4C;
+        // docs/timelapse.md), as for a timelapse.
+        if (Env("OPENSC4_TEST_SHOT_CENTER") == "1") {
+            if (auto* centre = reinterpret_cast<float*>(renderer->GetCameraControl())) {
+                cISC4City* city = app->GetCity();
+                centre[0x44 / 4] = city->SizeX() / 2;
+                centre[0x4C / 4] = city->SizeZ() / 2;
+            }
+        }
         const int32_t result = view->SetZoomAndRotation(zoom, rotation);
         uint32_t width = 0, height = 0;
         renderer->GetViewportSize(width, height);
-        log::Write("autotest: view zoom %d rotation %d (SetZoomAndRotation %d, viewport %ux%u)", zoom, rotation,
-                   result, width, height);
+        const auto* control = reinterpret_cast<const int32_t*>(renderer->GetCameraControl());
+        log::Write("autotest: view zoom %d rotation %d (SetZoomAndRotation %d, viewport %ux%u, camera zoom %d)", zoom,
+                   rotation, result, width, height, control ? control[0x108 / 4] : -1);
         Enter(State::Shots, now);
     }
 
@@ -770,6 +829,7 @@ private:
     std::string shotDir_;
     int settleMs_ = 3000;
     int shot_ = -1;
+    std::vector<int> views_; // zoom * 4 + rotation, in shot order
     bool redrawn_ = false;
 };
 
