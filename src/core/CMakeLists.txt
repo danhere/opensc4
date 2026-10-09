@@ -25,6 +25,8 @@ add_library(opensc4_core SHARED
   budget_departments.cpp
   budget_init.cpp
   budget_items.cpp
+  budget_object.cpp
+  budget_save.cpp
   budget_month.cpp
   budget_sim.cpp
   crime_autotest.cpp

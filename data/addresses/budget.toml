@@ -482,3 +482,27 @@ name = "Budget::ScriptDeposit"
 address = 0x00AB08BC
 kind = "data"
 source = "the script function's name. (docs/budget.md)."
+
+[[entry]]
+name = "SC4Uint32Set::Assign"
+address = 0x00690B90
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. operator= of a std::set<uint32>. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "SC4Uint32Set::EraseNodes"
+address = 0x0046F820
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a std::set<uint32>'s nodes below a node. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "GroupMap::EraseNodes"
+address = 0x00693D30
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B 6C 24 0C 85 ED"
+source = "Name ours. Frees the budget group map's nodes below a node, each record's name and set. Generic container code. (docs/budget.md)."
