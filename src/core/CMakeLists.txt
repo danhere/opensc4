@@ -24,6 +24,13 @@ add_library(opensc4_core SHARED
   crime_object.cpp
   crime_step.cpp
   crime_tuning.cpp
+  demand_demand.cpp
+  demand_init.cpp
+  demand_month.cpp
+  demand_object.cpp
+  demand_region.cpp
+  demand_sim.cpp
+  demand_step.cpp
   flora_growth.cpp
   flora_messages.cpp
   flora_object.cpp

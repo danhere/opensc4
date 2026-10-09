@@ -38,6 +38,14 @@ bool InstallAt(const char* name, std::uintptr_t target, const unsigned char* exp
                      reinterpret_cast<void**>(original));
 }
 
+// Between BeginBatch and EndBatch, InstallAt creates hooks but only queues
+// them, and EndBatch enables them all at once. MinHook suspends every other
+// thread of the process to enable hooks, and finding them costs about 40 ms
+// on a busy machine, so one by one 138 hooks took 5 s of every game start.
+// Nothing may call a hooked function between the two.
+void BeginBatch();
+void EndBatch();
+
 // Disables and removes every hook installed through this module.
 void RemoveAll();
 
