@@ -8962,3 +8962,12 @@ convention = "thiscall"
 signature = "void (multimap* this, node* root)"
 expect = "53 56 8B 74 24 0C 85 F6"
 source = "Name ours. Frees a subtree of the demand simulator's effect multimap (+0x5C) (docs/demand.md)."
+
+[[entry]]
+name = "cSC4App::SaveCity"
+address = 0x00455E20
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4App* this, cIGZString const& path, bool fastSave)"
+expect = "81 EC 10 01 00 00 53 57"
+source = "cISC4App vtable (0x00A86AF0) slot 15; slot 16 (cSC4App::SaveCity_InPlace 0x00454DA0) calls it with the city's own path. game.timelapse copies the city after it (docs/timelapse.md)."

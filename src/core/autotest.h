@@ -18,6 +18,12 @@
 //                         z<zoom>-r<rotation>.png, then quit. The camera
 //                         starts where the save left it, so runs line up.
 //                         Compare runs with tools/shotdiff.py.
+//   OPENSC4_TEST_SHOT_VIEWS  with OPENSC4_TEST_SHOTS: only these views,
+//                         "zoom:rotation,..." (e.g. "2:0")
+//   OPENSC4_TEST_SHOT_CENTER "1": with OPENSC4_TEST_SHOTS, centre the view on
+//                         the middle of the city first
+//   OPENSC4_TEST_SHOT_HIDE_UI "1": with OPENSC4_TEST_SHOTS, hide every window
+//                         but the city view
 //   OPENSC4_TEST_DAYS     game days to run instead of real seconds: once the
 //                         simulation's day number reaches the start day plus
 //                         this, pause it (0: right after loading, before any
