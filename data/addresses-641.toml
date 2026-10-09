@@ -5385,3 +5385,71 @@ name = "SC4::FloatInv255"
 address = 0x00A90BBC
 kind = "data"
 source = "float 1/255 (docs/crime.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::vftable"
+address = 0x00AB0E48
+kind = "vtable"
+expect = "10 23 6A 00 A0 7B 4F 00"
+source = "Primary vtable: cISC4DemandSimulator, 12 slots, the scalar deleting destructor in slot 12 and 13 (0x006A52D0, adds a demand object). Others: cIGZMessageTarget2 at +4 (0x00AB0E38), cIGZSerializable at +8 (0x00AB0E20). simulators.demand.interface swaps slots 5-11 (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::vftable_4"
+address = 0x00AB0E38
+kind = "vtable"
+expect = "50 31 6A 00 30 D2 68 00"
+source = "The cIGZMessageTarget2 interface at +0x4: slot 3 DoMessage 0x006A9470 (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::vftable_8"
+address = 0x00AB0E20
+kind = "vtable"
+expect = "60 31 6A 00 50 D2 68 00"
+source = "cIGZSerializable at +8: Write 0x006A2680, Read 0x006A3C50, GetGZCLSID 0x006A2300. simulators.demand.save and .load swap slots 3 and 4 (docs/demand.md)."
+
+[[entry]]
+name = "cSC4Demand::vftable"
+address = 0x00AA2758
+kind = "vtable"
+expect = "F0 4A 5D 00 A0 64 46 00"
+source = "cISC4Demand, 36 slots: the interface (0-33), the scalar deleting destructor (34) and Update(bool smooth) (35, 0x005D4E60). cIGZSerializable at +4 (0x00AA273C). simulators.demand.demands swaps every slot of both (docs/demand.md)."
+
+[[entry]]
+name = "cSC4Demand::vftable_4"
+address = 0x00AA273C
+kind = "vtable"
+expect = "50 4D 5D 00 70 22 6C 00"
+source = "cIGZSerializable at +4 of cSC4Demand: Write 0x005D5080, Read 0x005D5150, GetGZCLSID 0x005D4AB0 (docs/demand.md)."
+
+[[entry]]
+name = "cSC4Demand::FirstInit"
+address = 0x00B23028
+kind = "data"
+source = "Name ours. A byte cSC4Demand::Init sets on its first call; nothing else is known to read it (docs/demand.md)."
+
+[[entry]]
+name = "SC4FloatMap::At"
+address = 0x006A3170
+kind = "function"
+convention = "thiscall"
+signature = "float* (std::map<uint32_t, float>* this, const uint32_t* key)"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours. operator[] of a map from uint32 to float: the value's address, inserting 0 when missing. The demand simulator's maps at +0x1C and +0x28 (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::OccupantDemand"
+address = 0x006A5920
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this, uint32_t occupantType, bool add, float amount)"
+expect = "51 56 8B F1 8D 44 24 0C"
+source = "Name ours. The demand effects of a type of occupant (the global map at 0x00B49008, from the tuning): each (demand, supply, demand) entry times the amount added to (or, with add false, taken off) that demand's new supply and demand. Called by UpdateOccupantEffects and the occupant message (docs/demand.md)."
+
+[[entry]]
+name = "SC4Uint32IntMap::EraseTree"
+address = 0x004A79A0
+kind = "function"
+convention = "thiscall"
+signature = "void (std::map<uint32_t, uint32_t>* this, node* root)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of a map with 4-byte keys and values (the header is left as it was). GetLocalPopulationSummary clears the caller's map with it (docs/demand.md)."

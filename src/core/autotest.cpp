@@ -1,6 +1,7 @@
 #include "core/autotest.h"
 
 #include "core/crash.h"
+#include "core/demand_sim.h"
 #include "core/log.h"
 #include "core/fixed_ticks.h"
 #include "core/game.h"
@@ -849,6 +850,53 @@ private:
                               set, visuals, sim, prop);
             }
         }
+        // Demand (cSC4DemandSimulator, build 641 offsets; docs/demand.md): the
+        // step's state, the four saved floats, each demand's fields (ID to
+        // region use, +0x10 to +0x48) under its key, the two maps of counted
+        // values (+0x1C, +0x28), the neutral tax rate (slot 10, float bits)
+        // and the jobs of every demand (slot 9). The tax rate is read only
+        // when the three demands it reads exist (the game's lookups insert).
+        void* const demandSim = city->GetDemandSimulator();
+        char demandText[160] = " | demand none";
+        if (demandSim && game::IsBuild641()) {
+            using namespace demand_sim;
+            TreeNode* const demands = Header(demandSim, field::kDemands);
+            uint32_t demandSum = 0;
+            for (TreeNode* node = First(demands); node != demands; node = Next(node)) {
+                const char* const demand = static_cast<const char*>(Value<void*>(node));
+                demandSum = demandSum * 31 + node->key;
+                if (demand)
+                    demandSum = demandSum * 31 + BytesChecksum(demand + demand::kId, demand::kRegionUse + 4 - demand::kId);
+            }
+            auto mapSum = [demandSim](std::size_t offset) {
+                TreeNode* const header = Header(demandSim, offset);
+                uint32_t sum = 0;
+                for (TreeNode* node = First(header); node != header; node = Next(node))
+                    sum = sum * 31 + BytesChecksum(&node->key, 8);
+                return sum;
+            };
+            auto has = [demands](uint32_t id) { return Find(demands, id) != demands; };
+            uint32_t taxBits = 0;
+            if (has(0x1001) && has(0x3001) && has(0x4001) && At<void*>(demandSim, field::kTaxCurve)) {
+                using TaxFn = double(__thiscall*)(void*);
+                const float tax = static_cast<float>(reinterpret_cast<TaxFn>((*static_cast<void***>(demandSim))[10])(demandSim));
+                std::memcpy(&taxBits, &tax, sizeof taxBits);
+            }
+            uint32_t jobsSum = 0;
+            for (TreeNode* node = First(demands); node != demands; node = Next(node)) {
+                using JobsFn = int32_t(__thiscall*)(void*, uint32_t);
+                jobsSum = jobsSum * 31 + static_cast<uint32_t>(reinterpret_cast<JobsFn>(
+                                             (*static_cast<void***>(demandSim))[9])(demandSim, node->key));
+            }
+            // The cell walk of state 1 fills +0x1C in time slices, so a day can
+            // end anywhere in it: only its result (state 2 on) is compared.
+            const uint32_t state = At<uint32_t>(demandSim, field::kState);
+            std::snprintf(demandText, sizeof demandText, " | demand st %u %08X n %u %08X map %08X %08X tax %08X jobs %08X",
+                          state, BytesChecksum(static_cast<char*>(demandSim) + field::kSaved, 16),
+                          Size(demandSim, field::kDemands), demandSum, state == 1 ? 0u : mapSum(field::kPending),
+                          mapSum(field::kCounted),
+                          taxBits, jobsSum);
+        }
         // Traffic (build 641 slots): trip scale and the one shown (14, 15),
         // last month's income (18) and the freight scaling (27), as float bits.
         char trafficText[96] = "";
@@ -882,7 +930,7 @@ private:
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
         log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s",
+                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s%s",
                    day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
                    lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
                    traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
@@ -893,7 +941,7 @@ private:
                    pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
                    worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText,
-                   waterText, auraText, crimeText, trafficText, landText, ticks, rng);
+                   waterText, auraText, crimeText, demandText, trafficText, landText, ticks, rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,

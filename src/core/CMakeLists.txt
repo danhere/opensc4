@@ -24,6 +24,8 @@ add_library(opensc4_core SHARED
   crime_object.cpp
   crime_step.cpp
   crime_tuning.cpp
+  demand_demand.cpp
+  demand_sim.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp

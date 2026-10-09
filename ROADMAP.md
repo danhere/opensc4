@@ -71,7 +71,7 @@ Parity method (from P4): short-window exact comparison against the original from
 
 ## P6: Economy simulators
 
-- [ ] Demand / RCI
+- [~] Demand / RCI ([docs/demand.md](docs/demand.md)): the demand objects (cSC4Demand), the simulator's getters and its save record are ours (`simulators.demand.*`); the step, the monthly passes, the tuning and our own object follow. Every demand, cap and link between demands is read from the game's exemplars, as the game does, so mods that change them (CAM among them) keep working
 - [ ] Budget
 - [ ] Population
 - [ ] Lua 5.0 bindings
