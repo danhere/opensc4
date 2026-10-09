@@ -55,13 +55,15 @@ void Fingerprint(cISC4City* city, std::string& line)
         line += " | tm none";
         return;
     }
-    Fnv cells;
+    Fnv cells, layout;
     uint32_t records = 0;
     const int32_t width = At<int32_t>(map, field::kWidth), height = At<int32_t>(map, field::kHeight);
     for (int32_t z = 0; z < height; ++z)
         for (int32_t x = 0; x < width; ++x)
             for (const CellRecord* r = CellAt(map, x, z); r; r = r->next) {
                 ++records;
+                layout.Add(x);
+                layout.Add(z);
                 cells.Add(x);
                 cells.Add(z);
                 cells.Add(ListCount(r->automata));
@@ -141,7 +143,17 @@ void Fingerprint(cISC4City* city, std::string& line)
     state.Add(At<float>(map, field::kBlinkTimerB));
     state.Add(At<uint8_t>(map, field::kBlinkB));
     state.Bytes(static_cast<char*>(map) + field::kUpdateX, 12);
+    // The map runs on frame time (docs/traffic-map.md), so most of its state
+    // differs from run to run even with the original game. By default the
+    // line has only what does not: the records' cells and the table sizes.
+    // OPENSC4_TEST_TRAFFICMAP=1 adds the rest, for runs of 0 days.
     char text[128];
+    if (Env("OPENSC4_TEST_TRAFFICMAP") != "1") {
+        std::snprintf(text, sizeof text, " | tm %u %08X %u %u %u", records, layout.h, signals.count, lanes.count,
+                      objects.count);
+        line += text;
+        return;
+    }
     std::snprintf(text, sizeof text, " | tm %u %08X %u %08X %u %08X %u %08X %08X", records, cells.h, signals.count,
                   signalSum, lanes.count, laneSum, objects.count, objectSum, state.h);
     line += text;

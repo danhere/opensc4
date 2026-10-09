@@ -1,6 +1,7 @@
 """Save decoders of the traffic network map (tools/re/sc4save.py). SCHEMAS
 maps class IDs to (name, decoder)."""
 import json
+import os
 import struct
 
 from .common import header
@@ -105,7 +106,25 @@ def traffic_network_map(r):
                 lane['ways'].append({'values': values, 'index': index if values else None})
             lanes.append(lane)
     out['lanes'] = _sorted(lanes)  # +0x40
-    return out
+    if os.environ.get('OPENSC4_TRAFFICMAP_FULL') == '1':
+        return out
+    return _frame_free(out)
+
+
+def _frame_free(out):
+    # The map runs on frame time (docs/traffic-map.md): its signal timers,
+    # lane and path entries, automata lists, approach and turn traffic and
+    # blink timers (and so the record's size) differ from run to run even with
+    # the original game. By default only what does not is kept, so parity runs
+    # compare that alone; OPENSC4_TRAFFICMAP_FULL=1 decodes everything (for
+    # runs of 0 days).
+    keep = {k: out[k] for k in ('crc', 'id', 'version', 'cells', 'rect') if k in out}
+    keep['records'] = [{'cell': r['cell'], 'occupant': r['occupant']} for r in out['records']]
+    keep['signals'] = _sorted([{'occupant': s['occupant']} for s in out['signals']])
+    keep['cell_objects'] = out['cell_objects']
+    keep['lanes'] = _sorted([{'occupant': l['occupant'], 'ways': [w['values'] for w in l['ways']]}
+                             for l in out['lanes']])
+    return keep
 
 
 SCHEMAS = {0x6A0F82B2: ('cSC4TrafficNetworkMap', traffic_network_map)}
