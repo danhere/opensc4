@@ -65,6 +65,11 @@ add_library(opensc4_core SHARED
   residential_object.cpp
   residential_occupants.cpp
   residential_queries.cpp
+  development_autotest.cpp
+  development_messages.cpp
+  development_object.cpp
+  development_occupants.cpp
+  development_queries.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp
