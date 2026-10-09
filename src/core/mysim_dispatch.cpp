@@ -17,7 +17,10 @@
 //   simulators.mysim_agents.dispatch_vehicle: making and launching the
 //     vehicle (or walker) for a segment, and the location marker;
 //   simulators.mysim_agents.dispatch_legs: GoTo and the vtable's next-leg
-//     slot (home to work and back).
+//     slot (home to work and back);
+//   simulators.mysim_agents.dispatch_step: Step, the trip state machine
+//     (stopped: the next place; travelling: the route and the vehicle;
+//     none: back home).
 //
 // The deque and map helpers it uses stay the game's.
 #include "core/address_check.h"
@@ -1647,6 +1650,356 @@ const bool g_legsRegistered = registry::Register({
     "Our cSC4MySimDispatch GoTo and next leg (docs/mysim-agents.md)",
     false,
     InstallLegs,
+});
+
+// --- Step -------------------------------------------------------------------------------
+
+void RefreshMarkerNow(char* self)
+{
+    reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::cSC4MySimDispatch_RefreshMarker)(self);
+}
+
+bool PlaceValid(char* self, std::size_t at)
+{
+    return IsValidPlace(self + at) != 0;
+}
+
+bool PlaceDiffers(const void* a, const void* b)
+{
+    return reinterpret_cast<int32_t(__thiscall*)(const void*, const void*)>(addr::SC4MySimPlace_Differ)(a, b) != 0;
+}
+
+void SetStateTo(char* self, int32_t state)
+{
+    const int32_t previous = At<int32_t>(self, field::kState);
+    At<int32_t>(self, field::kPrevious) = previous;
+    At<int32_t>(self, field::kState) = state;
+    if (previous != state) {
+        Post(self, kEventState, static_cast<uint32_t>(previous), static_cast<uint32_t>(state));
+        ++At<int32_t>(self, field::kChanges);
+    }
+}
+
+void* RouteView(char* self)
+{
+    return At<void*>(self, field::kRouteView);
+}
+
+struct Rect4 {
+    int32_t v[4];
+};
+
+Rect4 PlaceRect(char* self, std::size_t at)
+{
+    Rect4 rect;
+    reinterpret_cast<int32_t*(__thiscall*)(void*, int32_t*, const void*)>(addr::SC4MySimPlace_Rect)(self, rect.v,
+                                                                                                     self + at);
+    return rect;
+}
+
+bool FindConnection(char* self, std::size_t at)
+{
+    return reinterpret_cast<uint8_t(__thiscall*)(void*, int32_t, void*)>(addr::cSC4MySimDispatch_FindConnection)(
+               self, At<int32_t>(self, 0x58) + 1, self + at) != 0;
+}
+
+void PushCell(char* self, const uint8_t* cell)
+{
+    reinterpret_cast<void(__thiscall*)(void*, const uint8_t*)>(addr::SC4RouteDeque_PushBack)(self + field::kRoute,
+                                                                                              cell);
+}
+
+// Stopped (state 3): wait out the time at the place, then the next place
+// (queued, or home), travelling to it.
+void StepStopped(char* self)
+{
+    reinterpret_cast<ThisFn>(addr::SC4MySimPlace_Reset)(self + field::kTarget);
+    if (At<void*>(self, field::kHere))
+        reinterpret_cast<uint8_t(__thiscall*)(void*, void*)>(addr::cSC4MySimDispatch_SetVehicle)(self, nullptr);
+    if (At<int32_t>(self, field::kNow) <= At<int32_t>(self, 0x80) && PlaceValid(self, field::kHere) &&
+        reinterpret_cast<void*(__thiscall*)(void*)>(addr::cSC4MySimDispatch_Mover)(self))
+        return;
+    if (!PlaceValid(self, field::kHere)) {
+        bool done = false;
+        if (At<uint8_t>(self, 0x79)) {
+            if (PlaceValid(self, field::kHere) ||
+                reinterpret_cast<uint8_t(__thiscall*)(void*, void*)>(addr::cSC4MySimDispatch_PlanOutside)(
+                    self, self + field::kHere)) {
+                Assign(self, field::kWork, self + field::kHere);
+                Post(self, 0xEBA06BF4, 0, 0);
+                done = true;
+            }
+        }
+        if (!done && PlaceValid(self, field::kHome)) {
+            Assign(self, field::kHere, self + field::kHome);
+            Post(self, 0xEBA06C12, 0, 0);
+        }
+    }
+    const uint32_t flags = At<uint32_t>(self, field::kFlags);
+    ChangeFlags(self, At<uint8_t>(self, 0x78) ? flags & 0xFFFFFFFB : flags | 4);
+    auto* const places = reinterpret_cast<PlaceDeque*>(self + field::kPlaces);
+    while (places->lastCur != places->firstCur && !IsValidPlace(places->firstCur))
+        reinterpret_cast<ThisFn>(addr::SC4MySimPlaceDeque_PopFront)(places);
+    Place next;
+    Construct(&next, nullptr);
+    if (places->lastCur != places->firstCur) {
+        reinterpret_cast<void(__thiscall*)(Place*, const void*)>(addr::SC4MySimPlace_Assign)(&next, places->firstCur);
+        reinterpret_cast<ThisFn>(addr::SC4MySimPlaceDeque_PopFront)(places);
+    } else if (((At<uint32_t>(self, field::kFlags) >> 7) & 1) && PlaceDiffers(self + field::kHere, self + field::kHome) &&
+               PlaceValid(self, field::kHome)) {
+        reinterpret_cast<void(__thiscall*)(Place*, const void*)>(addr::SC4MySimPlace_Assign)(&next, self + field::kHome);
+    }
+    At<int32_t>(self, 0x58) = 0;
+    if (next.work && !IsValidPlace(&next) &&
+        reinterpret_cast<uint8_t(__thiscall*)(void*, void*)>(addr::cSC4MySimDispatch_PlanOutside)(self, &next)) {
+        Assign(self, field::kWork, reinterpret_cast<const char*>(&next));
+        Post(self, 0xEBA06BF4, 0, 0);
+    }
+    if (IsValidPlace(&next)) {
+        if (PlaceDiffers(self + field::kHere, &next)) {
+            Assign(self, field::kTarget, reinterpret_cast<const char*>(&next));
+            At<int32_t>(self, 0xD0) = At<int32_t>(self, field::kNow) + At<int32_t>(self, 0xCC);
+            SetStateTo(self, 2);
+            ChangeFlags(self, At<uint32_t>(self, field::kFlags) & 0xFFFFA7FF);
+        }
+    } else if (!((At<uint32_t>(self, field::kFlags) >> 7) & 1) ||
+               PlaceDiffers(self + field::kHere, self + field::kHome)) {
+        SetStateTo(self, -1);
+    }
+    Release(next.object);
+}
+
+// The target rectangle Step gave the route view when it started a search.
+// With flag 0x800 (only ever from a save) the game's Step reads it from
+// stack slots this call did not write, so from an earlier call; the last
+// values computed stand in for those.
+Rect4 g_lastTarget;
+
+// Travelling (state 2): the route searched for, then segment by segment
+// with the vehicle (EndSegment when one ends).
+void StepTravelling(char* self)
+{
+    const uint32_t flags = At<uint32_t>(self, field::kFlags);
+    if ((flags >> 12) & 1) {
+        if ((flags >> 16) & 1)
+            return;
+        if ((flags >> 6) & 1) {
+            SetStateTo(self, -1);
+            RefreshMarkerNow(self);
+            return;
+        }
+        if ((flags >> 10) & 1) {
+            reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_EndSegment)(self);
+            RefreshMarkerNow(self);
+            return;
+        }
+        if ((flags >> 9) & 1) {
+            RefreshMarkerNow(self);
+            return;
+        }
+        const uint32_t status = reinterpret_cast<uint32_t(__thiscall*)(void*, void*, uint32_t)>(
+            addr::cSC4MySimDispatch_StartSegment)(self, nullptr, 0);
+        if (status == 0xFF) {
+            reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_Finish)(self);
+            RefreshMarkerNow(self);
+            return;
+        }
+        ChangeFlags(self, At<uint32_t>(self, field::kFlags) | 0x200);
+        ChangeFlags(self, At<uint32_t>(self, field::kFlags) & 0xFFFFFBFF);
+        reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t)>(addr::cSC4MySimDispatch_SetStatus)(self, status);
+        RefreshMarkerNow(self);
+        return;
+    }
+    bool moving = false;
+    if (!((flags >> 11) & 1)) {
+        const bool replan = (flags >> 14) & 1;
+        const uint32_t status = At<uint32_t>(self, field::kStatus);
+        moving = replan && At<void*>(self, field::kVehicle) && status != 0xFF && status != 0xFE;
+        reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_ClearRoute)(self);
+        Virtual<void>(RouteView(self), 0x20, self + field::kRoute);
+        Virtual<void>(RouteView(self), 0x14, uint32_t{1});
+        Virtual<void>(RouteView(self), 0x14, uint32_t{0x10});
+        Virtual<void>(RouteView(self), 0x48, uint32_t{1});
+        bool last;
+        if (replan && At<uint32_t>(self, field::kStatus) != 0xFF && At<uint32_t>(self, field::kStatus) != 0xFE) {
+            const auto now = [self] { return At<uint32_t>(self, field::kStatus); };
+            Virtual<void>(RouteView(self), 0x34, uint32_t{2}, uint32_t{now() == 1});
+            Virtual<void>(RouteView(self), 0x34, uint32_t{1}, uint32_t{now() == 0});
+            Virtual<void>(RouteView(self), 0x34, uint32_t{4}, uint32_t{now() == 2});
+            Virtual<void>(RouteView(self), 0x34, uint32_t{8}, uint32_t{now() == 3});
+            Virtual<void>(RouteView(self), 0x34, uint32_t{0x40}, uint32_t{now() == 6});
+            Virtual<void>(RouteView(self), 0x34, uint32_t{0x80}, uint32_t{now() == 7});
+            last = now() == 8;
+        } else {
+            const bool turning = (At<uint32_t>(self, field::kFlags) >> 17) & 1;
+            Virtual<void>(RouteView(self), 0x34, uint32_t{2}, uint32_t{1});
+            Virtual<void>(RouteView(self), 0x34, uint32_t{1}, uint32_t{!turning});
+            const auto transit = [self, turning] { return !At<uint8_t>(self, 0x78) && !turning; };
+            Virtual<void>(RouteView(self), 0x34, uint32_t{4}, uint32_t{transit()});
+            Virtual<void>(RouteView(self), 0x34, uint32_t{8}, uint32_t{transit()});
+            Virtual<void>(RouteView(self), 0x34, uint32_t{0x40}, uint32_t{transit()});
+            Virtual<void>(RouteView(self), 0x34, uint32_t{0x80}, uint32_t{transit()});
+            last = transit();
+        }
+        Virtual<void>(RouteView(self), 0x34, uint32_t{0x100}, uint32_t{last});
+        Virtual<void>(RouteView(self), 0x24, uint32_t{3});
+        if (At<uint8_t>(self, field::kTarget + 0x1D))
+            Assign(self, field::kWork, self + field::kTarget);
+        Virtual<void>(RouteView(self), 0x4C, PlaceRect(self, field::kHere));
+        g_lastTarget = PlaceRect(self, field::kTarget);
+        Virtual<void>(RouteView(self), 0x50, g_lastTarget);
+    }
+    const int32_t found = Virtual<int32_t>(RouteView(self), 0x5C);
+    if (found == 2) {
+        RefreshMarkerNow(self);
+        return;
+    }
+    if (found != 1) {
+        if (!At<uint8_t>(self, field::kTarget + 0x1C)) {
+            if (FindConnection(self, field::kTarget)) {
+                Virtual<void>(RouteView(self), 0x50, PlaceRect(self, field::kTarget));
+                RefreshMarkerNow(self);
+                return;
+            }
+        } else if (!At<uint8_t>(self, 0x78) && FindConnection(self, field::kHere)) {
+            Virtual<void>(RouteView(self), 0x4C, PlaceRect(self, field::kHere));
+            RefreshMarkerNow(self);
+            return;
+        }
+        SetStateTo(self, -1);
+        Post(self, 0xEBA06C12, 0, 0);
+        RefreshMarkerNow(self);
+        return;
+    }
+    const int32_t size = RouteSize(self);
+    ChangeFlags(self, At<uint32_t>(self, field::kFlags) & 0xFFFFF7DF);
+    ChangeFlags(self, At<uint32_t>(self, field::kFlags) | 0x1000);
+    const bool walking = !moving || (At<uint8_t>(self, field::kFlags) & 1);
+    reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t, uint32_t)>(addr::cSC4MySimDispatch_SetFlags)(
+        self, 0x400, walking ? 1 : 0);
+    SegmentStart(self) = 0;
+    SegmentEnd(self) = 0;
+    const uint8_t* const lastCell =
+        reinterpret_cast<uint8_t*(__thiscall*)(void*, int32_t)>(addr::SC4CellDeque_At)(self + field::kRoute, size - 1);
+    const Rect4& target = g_lastTarget;
+    if (target.v[2] == target.v[0] && target.v[3] == target.v[1]) {
+        const uint8_t cell[3] = {static_cast<uint8_t>(target.v[0]), static_cast<uint8_t>(target.v[1]), lastCell[2]};
+        PushCell(self, cell);
+    }
+    const uint8_t stop[3] = {lastCell[0], lastCell[1], 0xFE};
+    PushCell(self, stop);
+    reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_AdvanceRoute)(self);
+    if (moving) {
+        void* path = nullptr;
+        void** const slot = reinterpret_cast<void**(__thiscall*)(void**)>(addr::SC4RefPtr_Reset)(&path);
+        Virtual<uint8_t>(At<void*>(self, field::kVehicle), 0x0, uint32_t{0x8B99EE7C}, slot);
+        uint32_t local[10];
+        uint8_t allocator;
+        reinterpret_cast<void(__thiscall*)(void*, uint8_t*)>(addr::SC4RouteDeque_Construct)(local, &allocator);
+        reinterpret_cast<uint8_t(__thiscall*)(void*, void*, uint32_t)>(addr::cSC4MySimDispatch_CopyRoute)(self, local,
+                                                                                                            0);
+        Virtual<uint8_t>(path, 0x244, local, uint32_t{1}, uint32_t{0});
+        reinterpret_cast<ThisFn>(addr::SC4RouteDeque_Destroy)(local);
+        Release(path);
+        RefreshMarkerNow(self);
+        return;
+    }
+    Post(self, 0x4BB71A7E, 0, 0);
+    RefreshMarkerNow(self);
+}
+
+// No state (-1): back home if there is one, stopped there.
+void StepNone(char* self)
+{
+    Place empty;
+    Construct(&empty, nullptr);
+    ChangeFlags(self, At<uint32_t>(self, field::kFlags) & 0xFFFF01B2);
+    const uint32_t flags = At<uint32_t>(self, field::kFlags);
+    bool home = false;
+    if ((flags >> 7) & 1) {
+        if (!PlaceDiffers(self + field::kHere, self + field::kHome)) {
+            reinterpret_cast<uint8_t(__thiscall*)(void*, int32_t)>(addr::cSC4MySimDispatch_SetState)(self, 3);
+        } else {
+            ChangeFlags(self, flags & 0xFFFFFFCD);
+            home = ((At<uint32_t>(self, field::kFlags) >> 7) & 1) &&
+                   PlaceDiffers(self + field::kHere, self + field::kHome);
+        }
+    }
+    if (!home) {
+        auto* const places = reinterpret_cast<PlaceDeque*>(self + field::kPlaces);
+        if (places->lastCur != places->firstCur)
+            reinterpret_cast<uint8_t(__thiscall*)(void*, int32_t)>(addr::cSC4MySimDispatch_SetState)(self, 3);
+        RefreshMarkerNow(self);
+        return;
+    }
+    reinterpret_cast<void(__thiscall*)(Place*, const void*)>(addr::SC4MySimPlace_Assign)(&empty, self + field::kHome);
+    Assign(self, field::kHere, reinterpret_cast<const char*>(&empty));
+    if (At<uint32_t>(self, field::kStatus) != 0xFE)
+        ++At<int32_t>(self, field::kChanges);
+    At<uint32_t>(self, field::kStatus) = 0xFE;
+    ++At<int32_t>(self, field::kChanges);
+    At<int32_t>(self, 0x80) = At<int32_t>(self, 0x7C) + At<int32_t>(self, field::kNow);
+    Post(self, 0xEBA06C12, 0, 0);
+    if (void* const vehicle = At<void*>(self, field::kVehicle)) {
+        void* automaton = nullptr;
+        Virtual<uint8_t>(vehicle, 0x0, kIidAutomaton, &automaton);
+        if (automaton) {
+            Virtual<void>(automaton, 0xA0, self + 8);
+            Virtual<void>(automaton, 0x34, uint32_t{0});
+            if (void* const old = At<void*>(self, field::kVehicle)) {
+                At<void*>(self, field::kVehicle) = nullptr;
+                Release(old);
+            }
+            Release(automaton);
+        }
+    }
+    const int32_t previous = At<int32_t>(self, field::kState);
+    At<int32_t>(self, field::kPrevious) = previous;
+    At<int32_t>(self, field::kState) = 3;
+    ChangeFlags(self, At<uint32_t>(self, field::kFlags) | 2);
+    PostStateChange(self);
+    Release(empty.object);
+    RefreshMarkerNow(self);
+}
+
+uint8_t __fastcall Step(char* self, void*)
+{
+    switch (At<int32_t>(self, field::kState)) {
+    case -1:
+        StepNone(self);
+        break;
+    case 2:
+        StepTravelling(self);
+        break;
+    case 3:
+        StepStopped(self);
+        RefreshMarkerNow(self);
+        break;
+    default:
+        RefreshMarkerNow(self);
+        break;
+    }
+    return 1;
+}
+
+bool InstallStep(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* original = nullptr;
+    const addr::Entry* found = addr_check::Find(addr::cSC4MySimDispatch_Step);
+    return found && hook::Install(*found, reinterpret_cast<void*>(&Step), &original);
+}
+
+const bool g_stepRegistered = registry::Register({
+    "simulators.mysim_agents.dispatch_step",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySimDispatch_Step,
+    "Our cSC4MySimDispatch Step, the trip state machine (docs/mysim-agents.md)",
+    false,
+    InstallStep,
 });
 
 bool InstallState(registry::Mode)
