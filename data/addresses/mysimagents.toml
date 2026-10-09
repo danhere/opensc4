@@ -1578,3 +1578,257 @@ name = "MySim::DiedText"
 address = 0x00A84FFC
 kind = "data"
 source = "'my_sim_died'."
+
+[[entry]]
+name = "cSC4MySimDispatch::PostEvent"
+address = 0x00431A30
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 87 1C 01 00"
+source = "Name ours. A message 0x2BA06B99 (event id, two values, data) to the owner MySim's message target (+0x11C, its +0x10); docs/mysim-agents.md."
+
+[[entry]]
+name = "cSC4MySimDispatch::SetStatus"
+address = 0x00431270
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 51 50 89"
+source = "Name ours. The trip status (+0x50; 0xFF none, 0xFE stopped); a change counts at +0x34."
+
+[[entry]]
+name = "cSC4MySimDispatch::SetFlags"
+address = 0x00431BC0
+kind = "function"
+convention = "thiscall"
+expect = "8A 54 24 08 84 D2 56 8B"
+source = "Name ours. (mask, set): flags at +0x48 set or cleared; a change is posted (0x4BB2D020, old, new) and counted."
+
+[[entry]]
+name = "cSC4MySimDispatch::SetState"
+address = 0x00431C10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 40 89 46"
+source = "Name ours. The state (+0x40; previous +0x44); state 3 sets flag 2; a change is posted (0x4BB2CFC0, previous, new)."
+
+[[entry]]
+name = "cSC4MySimDispatch::Reshow"
+address = 0x00431FE0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 5E 48 C1"
+source = "Name ours. HideLocation, keeping flag 0x100 as it was."
+
+[[entry]]
+name = "cSC4MySimDispatch::SetVehicle"
+address = 0x00432030
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Name ours. The vehicle (+0x118); the old one's automaton is detached from the dispatch (+8) first."
+
+[[entry]]
+name = "cSC4MySimDispatch::Finish"
+address = 0x004320D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 48 A8 12"
+source = "Name ours. Flags 0x2401 (when stopped or idle) and 0x440 set, then event 0xEBA06C12 posted."
+
+[[entry]]
+name = "cSC4MySimDispatch::Mover"
+address = 0x00431780
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 46 48 8B"
+source = "Name ours. What moves the MySim now: the vehicle, or the current place's occupant when it is not a building (0xC9B6D7D6); null when hidden."
+
+[[entry]]
+name = "cSC4MySimDispatch::VehicleAutomaton"
+address = 0x004317F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 C7 00 00 00"
+source = "Name ours. The vehicle's automaton interface (0xA9B40F05) into out."
+
+[[entry]]
+name = "cSC4MySimDispatch::ModelService"
+address = 0x00431820
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 15 42 00"
+source = "Name ours. The service for a model id: 0x00B43D48 for 0x4107/0x4149/0x414A, 0x00B43D44 for the transit ones. ECX unused."
+
+[[entry]]
+name = "cSC4MySimDispatch::ModelKey"
+address = 0x00432900
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 0C 56 8D B1"
+source = "Name ours. (out, kind): the model key for a kind from the map at +0x150, zero when none. Returns out."
+
+[[entry]]
+name = "cSC4MySimDispatch::ModelIndex"
+address = 0x00432960
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 56 8D B1"
+source = "Name ours. The map entry's +0x20 for a kind, -1 when none."
+
+[[entry]]
+name = "cSC4MySimDispatch::ModelFor"
+address = 0x004329A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 0C 53"
+source = "Name ours. (status, &model id, &kind): a car 0x4107 (kind 1, 2 when flag 1 or stopped; a pedestrian 0x4149/0x414A without a car key), bus 0x420B, others by status."
+
+[[entry]]
+name = "cSC4MySimDispatch::ClearRoute"
+address = 0x00432EE0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D BE 28 01"
+source = "Name ours. The route cells (+0x128) cleared, flags 0x5800 cleared, the route view (+0x124) told."
+
+[[entry]]
+name = "cSC4MySimDispatch::IsArrived"
+address = 0x00431D00
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 46 40 57"
+source = "Name ours. Vtable slot 6: in a car at status 1, or stopped at home or work."
+
+[[entry]]
+name = "cSC4MySimDispatch::Abort"
+address = 0x00434360
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 F6 46 4A 01"
+source = "Name ours. Vtable slot 8: the trip dropped (places reset to home, status 0xFF, state -1, route cleared, vehicle released); flags 0x30000 cleared."
+
+[[entry]]
+name = "SC4MySimPlaceDeque::Clear"
+address = 0x00433870
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B E9 8B 45 1C"
+source = "A deque of SC4MySimPlace (0x28 bytes, 3 per block) emptied, releasing each place's object. cSC4MySimDispatch+0x160."
+
+[[entry]]
+name = "SC4OverlayManager::Remove"
+address = 0x0046EFB0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B E9 8B 4C 24 0C"
+source = "Name ours, not analysed in detail. (id, 0): removes a marker by id; on what slot 22 of 0x00B43D04 returns."
+
+[[entry]]
+name = "SC4::Service43D48"
+address = 0x00B43D48
+kind = "data"
+source = "Name ours. The service ModelService returns for the car and pedestrian models."
+
+[[entry]]
+name = "SC4MySimPlace::SetPosition"
+address = 0x00431400
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. (x, z): the position and its cell (ToCell)."
+
+[[entry]]
+name = "SC4MySimPlace::ToCell"
+address = 0x00431370
+kind = "function"
+convention = "cdecl"
+expect = "D9 44 24 04 D8 0D 98 57"
+source = "Name ours. (x, z, &cell x, &cell z): floor(x / 16), floor(z / 16) through an x87 rounding trick."
+
+[[entry]]
+name = "SC4MySimPlace::Write"
+address = 0x004314F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Name ours. The place to a stream: object reference, x, z, cells, connection, local and work flags, +0x20, +0x24."
+
+[[entry]]
+name = "SC4MySimPlace::Read"
+address = 0x00431590
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8B 0F 85"
+source = "Name ours. The place from a stream (Write's order; object read as 0x26BB767E)."
+
+[[entry]]
+name = "SC4MySimPlace::Differ"
+address = 0x00431690
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8A 51 1C 3A"
+source = "Name ours. Not Same."
+
+[[entry]]
+name = "SC4MySimPlace::Reset"
+address = 0x004316F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 0E 85 C9 C6"
+source = "Name ours. Back to no place: object released, cells -1, position -16."
+
+[[entry]]
+name = "SC4MySimPlace::IsBuilding"
+address = 0x00431730
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 8B 08 85"
+source = "Name ours. Whether a place's object is a building occupant (0x87DDA3A9); ECX unused, the place is the argument."
+
+[[entry]]
+name = "SC4MySimPlace::Rect"
+address = 0x00431880
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D 08 3D B4 00 83 EC"
+source = "Name ours. (out, place): the cell rectangle of the place's lot, or its cell; ECX unused. Returns out."
+
+[[entry]]
+name = "SC4MySimPlace::Distance"
+address = 0x00431900
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 54 8B 44 24 58 56"
+source = "Name ours. (a, b): the least distance from a corner of b's rectangle to a's (SC4::BoxDistance), truncated."
+
+[[entry]]
+name = "SC4MySimPlace::ValidConnection"
+address = 0x00434520
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D 94 3C B4 00 8B 01"
+source = "Name ours, not analysed in detail. (connection x, z): whether a neighbour connection exists; IsValid's case for places outside the city."
+
+[[entry]]
+name = "SC4Rect::Normalize"
+address = 0x004312E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 8B 51 08 3B C2 7E"
+source = "Name ours. Swaps the corners of an int rectangle so x0 <= x1, z0 <= z1."
+
+[[entry]]
+name = "SC4::BoxDistance"
+address = 0x005D7290
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 D9 01 8B 54"
+source = "Name ours, not analysed in detail. (point, corner, corner): a float distance from a 2D point to a box."
+
+[[entry]]
+name = "SC4::PairsEqual"
+address = 0x00424EC0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 4C 24 08"
+source = "Name ours. Two int pairs equal (SC4MySimPlace connections)."
