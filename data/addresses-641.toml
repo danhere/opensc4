@@ -6879,6 +6879,8 @@ kind = "function"
 convention = "thiscall"
 expect = "C7 01 D0 EC AC 00 E9 E3"
 source = "Name ours. (docs/civic.md)."
+
+[[entry]]
 name = "cSC4DemandSimulator::vftable"
 address = 0x00AB0E48
 kind = "vtable"
