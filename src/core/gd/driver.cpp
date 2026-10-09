@@ -1616,6 +1616,7 @@ void __fastcall SelectGraphicsDriver(void* app, void* edx, bool selectDriver)
 using UpdateProjectionFn = void(__fastcall*)(void* camera, void* edx);
 UpdateProjectionFn g_updateProjection = nullptr;
 constexpr size_t kFineZoom = 0xF0;
+float g_cityZoomDivisor = 1.0f;
 
 void __fastcall UpdateProjection(void* camera, void* edx)
 {
@@ -1632,6 +1633,8 @@ bool Register(registry::Mode)
     if (RenderScale() != 1.0f)
         InstallImportWrappers(RenderScale());
     if (RenderScale() != 1.0f && !settings::GetBool("renderer", "scale_city", false)) {
+        // Our camera control (renderer.camera.control) divides by it itself.
+        g_cityZoomDivisor = RenderScale();
         const addr::Entry* projection = addr_check::Find(addr::cSC4CameraControl_UpdateProjection);
         if (projection && hook::Install(*projection, &UpdateProjection, &g_updateProjection))
             log::Write("d3d11 driver: the city keeps its full-resolution size; only the interface is enlarged");
@@ -1656,4 +1659,7 @@ const bool g_registered = registry::Register({
 });
 
 } // namespace
+
+float CityZoomDivisor() { return g_cityZoomDivisor; }
+
 } // namespace opensc4::gd
