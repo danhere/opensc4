@@ -1467,3 +1467,12 @@ convention = "cdecl"
 signature = "cIGZCOM* ()"
 expect = "E8 1C D4 F6 FF 8B 10 8B"
 source = "Name ours. The framework's COM object (RZGetFramework, then its slot 12); its slot 3 creates an instance by class and interface; the ordinance simulator creates ordinances by class ID with it (docs/demand.md, docs/ordinance.md)."
+
+[[entry]]
+name = "cSC4App::SaveCity"
+address = 0x00455E20
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4App* this, cIGZString const& path, bool fastSave)"
+expect = "81 EC 10 01 00 00 53 57"
+source = "cISC4App vtable (0x00A86AF0) slot 15; slot 16 (cSC4App::SaveCity_InPlace 0x00454DA0) calls it with the city's own path. game.timelapse copies the city after it (docs/timelapse.md)."

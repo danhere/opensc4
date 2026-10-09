@@ -53,6 +53,7 @@ add_library(opensc4_core SHARED
   director.cpp
   fixed_seed.cpp
   game_seed.cpp
+  game_timelapse.cpp
   gd/d3d11_backend.cpp
   gd/driver.cpp
   d3d7_probe.cpp
