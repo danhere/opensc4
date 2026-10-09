@@ -52,6 +52,11 @@ add_library(opensc4_core SHARED
   mysim_sim.cpp
   commercial_autotest.cpp
   commercial_sim.cpp
+  residential_autotest.cpp
+  residential_messages.cpp
+  residential_object.cpp
+  residential_occupants.cpp
+  residential_queries.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp
