@@ -136,6 +136,10 @@ add_library(opensc4_core SHARED
   civic_init.cpp
   civic_object.cpp
   civic_sim.cpp
+  core_init.cpp
+  core_object.cpp
+  core_sim.cpp
+  simulator_autotest.cpp
   weather_autotest.cpp
   weather_bodies.cpp
   weather_init.cpp
