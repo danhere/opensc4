@@ -44,6 +44,10 @@ add_library(opensc4_core SHARED
   pollution_tuning.cpp
   power_object.cpp
   power_sim.cpp
+  protection_sim.cpp
+  fire_sim.cpp
+  police_sim.cpp
+  protection_sources.cpp
   traffic_object.cpp
   traffic_pathfinder.cpp
   traffic_sim.cpp
