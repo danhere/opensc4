@@ -349,13 +349,31 @@ def land_value_simulator(r):
     return out
 
 
+def civic_simulator(r):
+    """cSC4CivicBuildingSimulator (0x0A413481): Write at 0x0069D920, Read at
+    0x0069E820 (version 6 only). Names give the object offsets; the
+    cIGZSerializable part sits at +0x8 (docs/civic.md). The hash tables are
+    in bucket order."""
+    out = header(r)
+    out['version'] = v = r.u16()
+    if v != 6:
+        raise struct.error('version %d not known' % v)
+    out['excluded_18'] = [r.u32() for _ in range(r.u32())]
+    out['statuses_2c'] = [[r.u32(), r.u8(), r.u16(), r.gzstr()] for _ in range(r.u32())]
+    out['department_14'] = r.ref()
+    out['zoo_40'] = r.ref_list()
+    out['landmarks_44'] = r.ref_list()
+    return out
+
+
 SCHEMAS = {0x8990C065: ('cSC4PollutionSimulator', pollution_simulator),
            0x0990C005: ('cSC4PowerSimulator', power_simulator),
            0x0990C075: ('cSC4PlumbingSimulator', water_simulator),
            0x6990C1AA: ('cSC4TrafficSimulator', traffic_simulator),
            0x0990BDD8: ('cSC4AuraSimulator', aura_simulator),
            0xE990C18E: ('cSC4LandValueSimulator', land_value_simulator),
-           0x8990C09A: ('cSC4CrimeSimulator', crime_simulator)}
+           0x8990C09A: ('cSC4CrimeSimulator', crime_simulator),
+           0x0A413481: ('cSC4CivicBuildingSimulator', civic_simulator)}
 
 
 def decode(data, decoder):
