@@ -20,7 +20,12 @@
 //     slot (home to work and back);
 //   simulators.mysim_agents.dispatch_step: Step, the trip state machine
 //     (stopped: the next place; travelling: the route and the vehicle;
-//     none: back home).
+//     none: back home);
+//   simulators.mysim_agents.dispatch_segment: EndSegment, what happens when
+//     a segment ends (to and from the car, transit stops and vehicles,
+//     arriving);
+//   simulators.mysim_agents.dispatch_save: Write and Read (the
+//     cIGZSerializable part at +0xC).
 //
 // The deque and map helpers it uses stay the game's.
 #include "core/address_check.h"
@@ -1982,6 +1987,486 @@ uint8_t __fastcall Step(char* self, void*)
     return 1;
 }
 
+// --- EndSegment -------------------------------------------------------------------------
+
+// A std::list the game's way (an empty sentinel from the shared node
+// allocator).
+void* NewList()
+{
+    void* const node = Virtual<void*>(ListNodeAllocator(), 0xC, uint32_t{0xC});
+    At<void*>(node, 0) = node;
+    At<void*>(node, 4) = node;
+    return node;
+}
+
+void ClearList(void** list)
+{
+    reinterpret_cast<void(__thiscall*)(void**)>(addr::SC4List_Clear2)(list);
+}
+
+void DestroyList(void** list)
+{
+    reinterpret_cast<void(__thiscall*)(void**)>(addr::SC4List_Destroy2)(list);
+}
+
+uint32_t StartSegmentWith(char* self, void* vehicle, uint32_t walking)
+{
+    return reinterpret_cast<uint32_t(__thiscall*)(void*, void*, uint32_t)>(addr::cSC4MySimDispatch_StartSegment)(
+        self, vehicle, walking);
+}
+
+bool IsBuildingPlace(char* self, std::size_t at)
+{
+    return reinterpret_cast<uint8_t(__thiscall*)(void*, const void*)>(addr::SC4MySimPlace_IsBuilding)(self,
+                                                                                                       self + at) != 0;
+}
+
+int32_t PlaceDistance(char* self, std::size_t a, std::size_t b)
+{
+    return reinterpret_cast<int32_t(__thiscall*)(void*, const void*, const void*)>(addr::SC4MySimPlace_Distance)(
+        self, self + a, self + b);
+}
+
+void DropHereObject(char* self)
+{
+    if (void* const object = At<void*>(self, field::kHere)) {
+        At<void*>(self, field::kHere) = nullptr;
+        Release(object);
+    }
+}
+
+void SetVehicleTo(char* self, void* vehicle)
+{
+    reinterpret_cast<uint8_t(__thiscall*)(void*, void*)>(addr::cSC4MySimDispatch_SetVehicle)(self, vehicle);
+}
+
+struct SegmentResult {
+    uint32_t status;
+    int32_t state;
+    uint32_t set = 0;
+    uint32_t clear = 0;
+};
+
+// Back on the route's previous cell when there is more route ahead.
+bool ResumeRoute(char* self, SegmentResult& r, uint32_t clear)
+{
+    if (!reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::cSC4MySimDispatch_HasRouteAhead)(self))
+        return false;
+    const uint8_t* const cell = reinterpret_cast<uint8_t*(__thiscall*)(void*, int32_t)>(addr::SC4CellDeque_At)(
+        self + field::kRoute, SegmentStart(self) - 1);
+    const uint32_t x = cell[0];
+    const uint32_t z = cell[1];
+    r.status = cell[2];
+    r.set = 0x220;
+    r.clear = clear;
+    reinterpret_cast<void(__thiscall*)(void*, int32_t, int32_t)>(addr::SC4MySimPlace_Clear)(
+        self + field::kHere, static_cast<int32_t>(x), static_cast<int32_t>(z));
+    return true;
+}
+
+void StopHere(char* self, SegmentResult& r)
+{
+    At<int32_t>(self, 0x80) = At<int32_t>(self, 0x7C) + At<int32_t>(self, field::kNow);
+    r.state = 3;
+    r.clear = 0xA403;
+}
+
+// In or by the car (flag 1): walking to it (0x2000), the car's model, or
+// getting out near the target.
+void SegmentInCar(char* self, SegmentResult& r)
+{
+    void* automaton = nullptr;
+    if (void* const vehicle = At<void*>(self, field::kVehicle))
+        Virtual<uint8_t>(vehicle, 0x0, kIidAutomaton, &automaton);
+    const int32_t* const info = automaton ? Virtual<const int32_t*>(automaton, 0xE0) : nullptr;
+    bool walkingToCar = (At<uint32_t>(self, field::kFlags) >> 13) & 1;
+    r.clear = 0x2002;
+    int32_t index = -1;
+    if (walkingToCar) {
+        Post(self, 0xEBA06BD0, 0, 0);
+        index = reinterpret_cast<int32_t(__thiscall*)(void*, int32_t)>(addr::cSC4MySimDispatch_ModelIndex)(
+            self, At<int32_t>(self, 0x15C));
+    }
+    const uint32_t status = At<uint32_t>(self, field::kStatus);
+    if (!(automaton && At<int32_t>(self, 0x15C) == 2 && info && info[1] == 7 && (status == 0 || status == 0xFE))) {
+        Place copy;
+        CopyPlace(reinterpret_cast<char*>(&copy), self + field::kHere);
+        using AtFn = uint8_t*(__thiscall*)(void*, int32_t);
+        const auto cellAt = [self](int32_t index) {
+            return reinterpret_cast<AtFn>(addr::SC4CellDeque_At)(self + field::kRoute, index);
+        };
+        const int32_t start = SegmentStart(self);
+        if (cellAt(start)[2] != 0xFE) {
+            const int32_t x = cellAt(start)[0];
+            copy.cellX = x;
+            const int32_t z = cellAt(start)[1];
+            copy.cellZ = z;
+            copy.x = static_cast<float>(x << 4);
+            copy.z = static_cast<float>(z << 4);
+        }
+        using SnapFn = uint8_t(__thiscall*)(void*, void*);
+        if (reinterpret_cast<SnapFn>(addr::cSC4MySimDispatch_SnapToRoad)(self, self + field::kHere) ||
+            reinterpret_cast<SnapFn>(addr::cSC4MySimDispatch_SnapToRoad)(self, &copy)) {
+            Assign(self, field::kHere, reinterpret_cast<const char*>(&copy));
+            uint32_t local[10] = {};
+            reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4RouteDeque_Init)(local, 0);
+            const uint8_t cell[3] = {cellAt(SegmentStart(self))[0], cellAt(SegmentStart(self))[1], 0};
+            auto& end = *reinterpret_cast<CellIterator*>(reinterpret_cast<char*>(local) + 0x10);
+            if (end.cur != end.last - 3) {
+                if (end.cur) {
+                    end.cur[0] = cell[0];
+                    end.cur[1] = cell[1];
+                    end.cur[2] = cell[2];
+                }
+                end.cur += 3;
+            } else {
+                reinterpret_cast<void(__thiscall*)(void*, const uint8_t*)>(addr::SC4RouteDeque_PushBackSlow)(local,
+                                                                                                          cell);
+            }
+            Post(self, 0xEBA06BD0, 0, 0);
+            const uint32_t launched = reinterpret_cast<uint32_t(__thiscall*)(void*, void*, void*, uint32_t)>(
+                addr::cSC4MySimDispatch_Launch)(self, local, nullptr, 1);
+            if (launched == 0xFF || At<uint32_t>(self, field::kStatus) != 0xFE)
+                r.status = launched;
+            if (launched == 0xFF) {
+                Post(self, 0xEBA06C12, 0, 0);
+                r.state = -1;
+            }
+            reinterpret_cast<ThisFn>(addr::SC4RouteDeque_Destroy)(local);
+        } else {
+            Post(self, 0xEBA06C12, 0, 0);
+            r.state = -1;
+            walkingToCar = false;
+        }
+        Release(copy.object);
+    }
+    if (walkingToCar) {
+        if (automaton) {
+            void* const old = automaton;
+            automaton = nullptr;
+            Release(old);
+        }
+        if (void* const vehicle = At<void*>(self, field::kVehicle))
+            Virtual<uint8_t>(vehicle, 0x0, kIidAutomaton, &automaton);
+        if (At<int32_t>(self, 0x80) >= At<int32_t>(self, field::kNow) && automaton) {
+            if (index > 0) {
+                Virtual<void>(automaton, 0x4C, index);
+                r.clear = 0x2002;
+            }
+        } else {
+            ChangeFlags(self, At<uint32_t>(self, field::kFlags) & 0xFFFFFFFE);
+            const int32_t reach = At<int32_t>(self, 0x18);
+            const bool near = PlaceDistance(self, field::kTarget, field::kHere) < reach * reach;
+            if (At<uint32_t>(self, field::kStatus) == 0xFE && ((At<uint32_t>(self, field::kFlags) >> 5) & 1)) {
+                if (IsBuildingPlace(self, field::kTarget) && near)
+                    Assign(self, field::kHere, self + field::kTarget);
+                StopHere(self, r);
+            } else {
+                const uint32_t status = StartSegmentWith(self, nullptr, 0);
+                r.status = status;
+                if (status != 0xFF) {
+                    r.set = 0x200;
+                    r.clear = 0x2437;
+                } else if (!ResumeRoute(self, r, 0x2002)) {
+                    if (near) {
+                        if (IsBuildingPlace(self, field::kTarget))
+                            Assign(self, field::kHere, self + field::kTarget);
+                        StopHere(self, r);
+                    } else {
+                        Post(self, 0xEBA06C12, 0, 0);
+                        r.state = -1;
+                    }
+                }
+            }
+        }
+    }
+    Release(automaton);
+}
+
+struct TransitKind {
+    uint32_t model;
+    uint32_t stop;
+};
+
+// On a transit segment (flag 0x10): to the stop for the kind, then onto a
+// vehicle of the line there.
+void SegmentTransit(char* self, SegmentResult& r)
+{
+    const uint32_t kind = reinterpret_cast<uint8_t*(__thiscall*)(void*, int32_t)>(addr::SC4CellDeque_At)(
+        self + field::kRoute, SegmentStart(self))[2];
+    void* const network = Global<void*>(addr::SC4_NetworkService);
+    void* found = NewList();
+    void* holder = nullptr;
+    if (!At<void*>(self, field::kHere)) {
+        uint32_t stop = 0;
+        switch (kind) {
+        case 2:
+            At<uint32_t>(self, 0x28) = 0x4200;
+            stop = 0x1301;
+            break;
+        case 3:
+            At<uint32_t>(self, 0x28) = 0x4215;
+            stop = 0x1300;
+            break;
+        case 6:
+            At<uint32_t>(self, 0x28) = 0x4217;
+            stop = 0x1302;
+            break;
+        case 7:
+            At<uint32_t>(self, 0x28) = 0x422C;
+            stop = 0x1303;
+            break;
+        case 8:
+            At<uint32_t>(self, 0x28) = 0x422E;
+            stop = 0x1307;
+            break;
+        default:
+            break;
+        }
+        using AtFn = uint8_t*(__thiscall*)(void*, int32_t);
+        int32_t x0 = At<int32_t>(self, 0x68);
+        int32_t z0 = At<int32_t>(self, 0x6C);
+        int32_t x1 = reinterpret_cast<AtFn>(addr::SC4CellDeque_At)(self + field::kRoute, SegmentStart(self))[0];
+        int32_t z1 = reinterpret_cast<AtFn>(addr::SC4CellDeque_At)(self + field::kRoute, SegmentStart(self))[1];
+        if (x0 > x1) {
+            const int32_t t = x0;
+            x0 = x1;
+            x1 = t;
+        }
+        if (z0 > z1) {
+            const int32_t t = z0;
+            z0 = z1;
+            z1 = t;
+        }
+        const int32_t low[2] = {x0 - 1, z0 - 1};
+        const int32_t high[2] = {x1 + 1, z1 + 1};
+        void* stops = NewList();
+        Virtual<void>(network, 0xA0, &stops, low, high, uint32_t{0}, uint32_t{0xFFFFFFFF});
+        for (void* node = At<void*>(stops, 0); node != stops;) {
+            void* const occupant = At<void*>(node, 8);
+            node = At<void*>(node, 0);
+            if (Virtual<uint8_t>(occupant, 0x58, stop)) {
+                reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4RefPtr_Assign)(self + field::kHere, occupant);
+                float position[3];
+                Virtual<void>(At<void*>(self, field::kHere), 0x20, position);
+                reinterpret_cast<void(__thiscall*)(void*, float, float)>(addr::SC4MySimPlace_SetPosition)(
+                    self + field::kHere, position[0], position[2]);
+                At<int32_t>(self, 0x80) = At<int32_t>(self, 0x24) + At<int32_t>(self, field::kNow);
+                At<int32_t>(self, 0x54) = At<int32_t>(self, field::kNow);
+                Post(self, 0xEBA0732E, stop, 0);
+                SetVehicleTo(self, nullptr);
+                break;
+            }
+        }
+        Virtual<void>(network, 0xC0, &stops);
+        ClearList(&stops);
+        DestroyList(&stops);
+        if (!At<void*>(self, field::kHere)) {
+            r.set = 0x40;
+            DestroyList(&found);
+            return;
+        }
+    }
+    if (At<int32_t>(self, 0x80) < At<int32_t>(self, field::kNow)) {
+        const uint32_t status = StartSegmentWith(self, nullptr, 0);
+        r.status = status;
+        if (status == 0xFF) {
+            r.set = 0x40;
+        } else {
+            r.set = 0x200;
+            r.clear = 0x436;
+        }
+    } else {
+        int32_t cell[4] = {At<int32_t>(self, 0x68), At<int32_t>(self, 0x6C), At<int32_t>(self, 0x68),
+                           At<int32_t>(self, 0x6C)};
+        reinterpret_cast<void(__thiscall*)(int32_t*)>(addr::SC4Rect_Normalize)(cell);
+        const int32_t low[2] = {cell[0], cell[1]};
+        const int32_t high[2] = {cell[2], cell[3]};
+        Virtual<void>(network, 0xA0, &found, low, high, uint32_t{0}, uint32_t{0xFFFFFFFF});
+        for (void* node = At<void*>(found, 0); node != found;) {
+            void* const occupant = At<void*>(node, 8);
+            node = At<void*>(node, 0);
+            if (holder) {
+                void* const old = holder;
+                holder = nullptr;
+                Release(old);
+            }
+            if (occupant && Virtual<uint8_t>(occupant, 0x58, At<uint32_t>(self, 0x28)) &&
+                Virtual<uint8_t>(occupant, 0x0, kIidAutomaton, &holder)) {
+                Virtual<void>(holder, 0x9C, self + 8);
+                Virtual<void>(holder, 0x78, uint32_t{0x1000000}, uint32_t{1});
+                Virtual<void>(holder, 0x78, uint32_t{0x10000}, uint32_t{1});
+                Virtual<void>(holder, 0x100, uint32_t{0xFF});
+                const uint32_t status = StartSegmentWith(self, holder, 0);
+                r.status = status;
+                if (status == 0xFF) {
+                    r.set = 0x40;
+                } else {
+                    r.set = 0x200;
+                    r.clear = 0x436;
+                }
+                break;
+            }
+        }
+        Virtual<void>(network, 0xC0, &found);
+        ClearList(&found);
+    }
+    Release(holder);
+    DestroyList(&found);
+}
+
+// At the end of a segment on foot (flag 0x20): arrived at a stop or the
+// target, or onto the next kind of segment.
+void SegmentWalking(char* self, SegmentResult& r, uint32_t status0)
+{
+    const uint32_t kind = reinterpret_cast<uint8_t*(__thiscall*)(void*, int32_t)>(addr::SC4CellDeque_At)(
+        self + field::kRoute, SegmentStart(self))[2];
+    r.clear = 0x20;
+    if (kind == 0xFE) {
+        r.clear = 0x460;
+        r.set = 2;
+        if (!At<uint8_t>(self, 0x78) || !At<uint8_t>(self, field::kTarget + 0x1C)) {
+            r.set = 6;
+            DropHereObject(self);
+            SetVehicleTo(self, nullptr);
+        }
+        const int32_t reach = At<int32_t>(self, 0x18);
+        if (PlaceDistance(self, field::kTarget, field::kHere) > reach * reach) {
+            r.set |= 0x421;
+            At<int32_t>(self, 0x80) = At<int32_t>(self, field::kNow) + At<int32_t>(self, 0x1C);
+            Post(self, 0x2BAC398F, 0, 0);
+            r.status = 0xFE;
+            return;
+        }
+        if (!((At<uint32_t>(self, field::kFlags) >> 2) & 1) && !(r.set & 4) && !(At<uint8_t>(self, field::kFlags) & 1) &&
+            PlaceDiffers(self + field::kTarget, self + field::kHome) &&
+            PlaceDiffers(self + field::kTarget, self + field::kWork)) {
+            r.set |= 0x421;
+            At<int32_t>(self, 0x80) = At<int32_t>(self, field::kNow) + At<int32_t>(self, 0x1C);
+        } else {
+            At<int32_t>(self, 0x7C) = At<int32_t>(self, 0x7C) + At<int32_t>(self, field::kNow);
+            r.clear = 0x8460;
+            r.state = 3;
+            if (IsBuildingPlace(self, field::kTarget))
+                Assign(self, field::kHere, self + field::kTarget);
+        }
+        Post(self, 0xEBA06BD4, 0, 0);
+        r.status = 0xFE;
+        return;
+    }
+    if (kind == status0) {
+        void* automaton = nullptr;
+        void** const slot = reinterpret_cast<void**(__thiscall*)(void**)>(addr::SC4RefPtr_Reset)(&automaton);
+        reinterpret_cast<uint8_t(__thiscall*)(void*, void**)>(addr::cSC4MySimDispatch_VehicleAutomaton)(self, slot);
+        const uint32_t status = StartSegmentWith(self, automaton, 0);
+        if (status == 0xFF) {
+            reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_Finish)(self);
+        } else {
+            ChangeFlags(self, At<uint32_t>(self, field::kFlags) | 0x200);
+            ChangeFlags(self, At<uint32_t>(self, field::kFlags) & 0xFFFFFBFF);
+            reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t)>(addr::cSC4MySimDispatch_SetStatus)(self, status);
+        }
+        Release(automaton);
+        return;
+    }
+    const int32_t from = static_cast<int32_t>(status0);
+    if (from > 8) {
+        if (status0 >= 0xFE && status0 <= 0xFF)
+            r.state = -1;
+        return;
+    }
+    if (from < 6 && (from < 0 || from > 3))
+        return;
+    switch (kind) {
+    case 0:
+    case 1:
+        r.set = 1;
+        DropHereObject(self);
+        At<int32_t>(self, 0x80) = At<int32_t>(self, field::kNow) + At<int32_t>(self, 0x1C);
+        break;
+    case 2:
+    case 3:
+    case 6:
+    case 7:
+    case 8:
+        r.set = 0x10;
+        DropHereObject(self);
+        At<int32_t>(self, 0x80) = At<int32_t>(self, field::kNow) + At<int32_t>(self, 0x24);
+        break;
+    default:
+        break;
+    }
+    SetVehicleTo(self, nullptr);
+}
+
+uint8_t __fastcall EndSegment(char* self, void*)
+{
+    SegmentResult r;
+    r.state = At<int32_t>(self, field::kState);
+    const uint32_t status0 = At<uint32_t>(self, field::kStatus);
+    r.status = status0;
+    const uint32_t flags = At<uint32_t>(self, field::kFlags);
+    const bool inCar = At<uint8_t>(self, field::kFlags) & 1;
+    if ((flags >> 6) & 1 && !inCar) {
+        r.state = -1;
+    } else if (inCar) {
+        SegmentInCar(self, r);
+    } else {
+        bool done = false;
+        if (status0 == 0xFE && !((flags >> 2) & 1) && PlaceDiffers(self + field::kHere, self + field::kHome) &&
+            PlaceDiffers(self + field::kHere, self + field::kWork)) {
+            At<int32_t>(self, 0x80) = At<int32_t>(self, field::kNow) + At<int32_t>(self, 0x1C);
+            r.set = 1;
+            done = true;
+        }
+        if (!done) {
+            if ((flags >> 4) & 1) {
+                SegmentTransit(self, r);
+            } else if ((flags >> 2) & 1) {
+                if (At<int32_t>(self, 0x80) < At<int32_t>(self, field::kNow)) {
+                    const uint32_t status = StartSegmentWith(self, nullptr, 0);
+                    r.status = status;
+                    if (status == 0xFF) {
+                        r.set = 0x40;
+                    } else {
+                        r.set = 0x200;
+                        r.clear = 0x436;
+                    }
+                }
+            } else if ((flags >> 5) & 1) {
+                SegmentWalking(self, r, status0);
+                if (!(r.set & 0x53)) {
+                    r.set |= 3;
+                    r.status = 0xFE;
+                    reinterpret_cast<ThisFn>(addr::SC4MySimPlaceDeque_Clear)(self + field::kPlaces);
+                    At<int32_t>(self, 0x80) = At<int32_t>(self, field::kNow) + At<int32_t>(self, 0x1C);
+                }
+            } else {
+                const uint32_t status = StartSegmentWith(self, nullptr, 0);
+                r.status = status;
+                if (status != 0xFF) {
+                    r.set = 0x200;
+                    r.clear = 0x436;
+                } else if (!ResumeRoute(self, r, 2)) {
+                    Post(self, 0xEBA06C12, 0, 0);
+                    r.state = -1;
+                }
+            }
+        }
+    }
+    if (r.status != At<uint32_t>(self, field::kStatus))
+        ++At<int32_t>(self, field::kChanges);
+    At<uint32_t>(self, field::kStatus) = r.status;
+    reinterpret_cast<uint8_t(__thiscall*)(void*, int32_t)>(addr::cSC4MySimDispatch_SetState)(self, r.state);
+    if (r.set & 0x40)
+        reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_Finish)(self);
+    if (r.set & 1)
+        ChangeFlags(self, At<uint32_t>(self, field::kFlags) | 0x2401);
+    ChangeFlags(self, At<uint32_t>(self, field::kFlags) & ~r.clear);
+    ChangeFlags(self, At<uint32_t>(self, field::kFlags) | r.set);
+    return 1;
+}
+
 bool InstallStep(registry::Mode)
 {
     if (!game::IsBuild641())
@@ -1989,6 +2474,15 @@ bool InstallStep(registry::Mode)
     static void* original = nullptr;
     const addr::Entry* found = addr_check::Find(addr::cSC4MySimDispatch_Step);
     return found && hook::Install(*found, reinterpret_cast<void*>(&Step), &original);
+}
+
+bool InstallSegment(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* original = nullptr;
+    const addr::Entry* found = addr_check::Find(addr::cSC4MySimDispatch_EndSegment);
+    return found && hook::Install(*found, reinterpret_cast<void*>(&EndSegment), &original);
 }
 
 const bool g_stepRegistered = registry::Register({
@@ -2000,6 +2494,227 @@ const bool g_stepRegistered = registry::Register({
     "Our cSC4MySimDispatch Step, the trip state machine (docs/mysim-agents.md)",
     false,
     InstallStep,
+});
+
+const bool g_segmentRegistered = registry::Register({
+    "simulators.mysim_agents.dispatch_segment",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySimDispatch_EndSegment,
+    "Our cSC4MySimDispatch EndSegment: car, transit and arrival at a segment's end (docs/mysim-agents.md)",
+    false,
+    InstallSegment,
+});
+
+// --- Save -------------------------------------------------------------------------------
+//
+// From the serializable part at +0xC (`ser`): the object's +X is ser+X-0xC.
+
+uint32_t PlaceCount(const PlaceDeque* places)
+{
+    return static_cast<uint32_t>((places->lastNode - places->firstNode) * 3 +
+                                 (places->lastCur - places->lastBegin) / 0x28 +
+                                 (places->firstEnd - places->firstCur) / 0x28 - 3);
+}
+
+int32_t __fastcall WriteDispatch(char* ser, void*, void* stream)
+{
+    char* const self = ser - 0xC;
+    Virtual<void>(stream, 0x20, uint32_t{1});
+    reinterpret_cast<void(__cdecl*)(void*, uint32_t)>(addr::SC4Stream_WriteBool)(stream, At<uint8_t>(ser, 0x4));
+    for (std::size_t at = 0x8; at <= 0x4C; at += 4)
+        Virtual<void>(stream, 0x20, At<uint32_t>(ser, at));
+    using PlaceWriteFn = int32_t(__thiscall*)(void*, void*);
+    for (const std::size_t at : {field::kHere, field::kHome, field::kTarget, field::kWork})
+        reinterpret_cast<PlaceWriteFn>(addr::SC4MySimPlace_Write)(self + at, stream);
+    using WriteReferenceFn = void(__cdecl*)(void*, void*);
+    const auto writeReference = reinterpret_cast<WriteReferenceFn>(addr::SC4Stream_WriteReference);
+    writeReference(stream, At<void*>(self, field::kShown));
+    Virtual<void>(stream, 0x20, At<uint32_t>(self, 0x100));
+    Virtual<void>(stream, 0x3C, self + 0x104);
+    writeReference(stream, At<void*>(self, field::kVehicle));
+    char* const owner = At<char*>(self, field::kOwner);
+    writeReference(stream, owner ? owner + 0xB8 : nullptr);
+    writeReference(stream, At<void*>(self, 0x120));
+    Virtual<void>(stream, 0x20, static_cast<uint32_t>(RouteSize(self)));
+    CellIterator cell = *reinterpret_cast<CellIterator*>(self + field::kRoute);
+    uint8_t* const routeEnd = At<uint8_t*>(self, field::kRoute + 0x10);
+    while (cell.cur != routeEnd) {
+        const uint8_t* const at = cell.cur;
+        cell.cur += 3;
+        if (cell.cur == cell.last) {
+            ++cell.node;
+            cell.cur = *cell.node;
+            cell.first = cell.cur;
+            cell.last = cell.cur + 0x7E;
+        }
+        Virtual<void>(stream, 0x14, uint32_t{at[0]});
+        Virtual<void>(stream, 0x14, uint32_t{at[1]});
+        Virtual<void>(stream, 0x14, uint32_t{at[2]});
+    }
+    auto* const header = At<MapNode*>(self, field::kModels);
+    Virtual<void>(stream, 0x20, At<uint32_t>(self, field::kModels + 4));
+    for (MapNode* node = header->left; node != header;) {
+        MapNode* next;
+        if (node->right) {
+            next = node->right;
+            while (next->left)
+                next = next->left;
+        } else {
+            MapNode* child = node;
+            next = node->parent;
+            while (child == next->right) {
+                child = next;
+                next = next->parent;
+            }
+            if (child->right == next)
+                next = child;
+        }
+        Virtual<void>(stream, 0x20, static_cast<uint32_t>(node->kind));
+        reinterpret_cast<void(__cdecl*)(void*, const uint32_t*)>(addr::SC4Stream_WriteResourceKey)(stream, node->key);
+        Virtual<void>(stream, 0x20, static_cast<uint32_t>(node->index));
+        node = next;
+    }
+    Virtual<void>(stream, 0x20, At<uint32_t>(self, 0x15C));
+    auto* const places = reinterpret_cast<PlaceDeque*>(self + field::kPlaces);
+    Virtual<void>(stream, 0x20, PlaceCount(places));
+    char* place = places->firstCur;
+    char* last = places->firstEnd;
+    char** node = places->firstNode;
+    while (place != places->lastCur) {
+        char* const at = place;
+        place += 0x28;
+        if (place == last) {
+            ++node;
+            place = *node;
+            last = place + 0x78;
+        }
+        reinterpret_cast<PlaceWriteFn>(addr::SC4MySimPlace_Write)(at, stream);
+    }
+    return Virtual<uint8_t>(stream, 0x48) ? 0 : 1;
+}
+
+uint8_t __fastcall ReadDispatch(char* ser, void*, void* stream)
+{
+    char* const self = ser - 0xC;
+    uint32_t version;
+    Virtual<void>(stream, 0x20, &version);
+    reinterpret_cast<void(__cdecl*)(void*, void*)>(addr::SC4Stream_ReadBool)(stream, ser + 0x4);
+    for (std::size_t at = 0x8; at <= 0x30; at += 4)
+        Virtual<void>(stream, 0x20, ser + at);
+    for (const std::size_t at : {std::size_t{0x34}, std::size_t{0x38}}) {
+        uint32_t value;
+        Virtual<void>(stream, 0x20, &value);
+        At<uint32_t>(ser, at) = value;
+    }
+    for (std::size_t at = 0x3C; at <= 0x4C; at += 4)
+        Virtual<void>(stream, 0x20, ser + at);
+    using PlaceReadFn = int32_t(__thiscall*)(void*, void*);
+    for (const std::size_t at : {field::kHere, field::kHome, field::kTarget, field::kWork})
+        reinterpret_cast<PlaceReadFn>(addr::SC4MySimPlace_Read)(self + at, stream);
+    using ReadReferenceFn = void(__cdecl*)(void*, uint32_t, void*, uint32_t);
+    const auto readReference = [stream](char* slot, uint32_t iid) {
+        if (void* const old = At<void*>(slot, 0)) {
+            At<void*>(slot, 0) = nullptr;
+            Release(old);
+        }
+        reinterpret_cast<ReadReferenceFn>(addr::SC4Stream_ReadReference)(stream, iid, slot, 0);
+    };
+    readReference(self + field::kShown, 0x26BB767E);
+    Virtual<void>(stream, 0x20, self + 0x100);
+    Virtual<void>(stream, 0x3C, self + 0x104);
+    readReference(self + field::kVehicle, 0x26BB767E);
+    readReference(self + field::kOwner, 0x8BC01FFE);
+    readReference(self + 0x120, 0x681BD53A);
+    int32_t count;
+    Virtual<void>(stream, 0x20, &count);
+    for (int32_t i = 0; i < count; ++i) {
+        uint8_t cell[3];
+        Virtual<void>(stream, 0x14, &cell[0]);
+        Virtual<void>(stream, 0x14, &cell[1]);
+        Virtual<void>(stream, 0x14, &cell[2]);
+        auto& end = *reinterpret_cast<CellIterator*>(self + field::kRoute + 0x10);
+        if (end.cur != end.last - 3) {
+            if (end.cur) {
+                end.cur[0] = cell[0];
+                end.cur[1] = cell[1];
+                end.cur[2] = cell[2];
+            }
+            end.cur += 3;
+        } else {
+            reinterpret_cast<void(__thiscall*)(void*, const uint8_t*)>(addr::SC4RouteDeque_PushBackSlow)(
+                self + field::kRoute, cell);
+        }
+    }
+    struct {
+        int32_t kind;
+        uint32_t key[3];
+        int32_t index;
+    } model{};
+    Virtual<void>(stream, 0x20, &count);
+    for (int32_t i = 0; i < count; ++i) {
+        Virtual<void>(stream, 0x20, &model.kind);
+        reinterpret_cast<void(__cdecl*)(void*, uint32_t*)>(addr::SC4Stream_ReadResourceKey)(stream, model.key);
+        Virtual<void>(stream, 0x20, &model.index);
+        uint32_t result[2];
+        reinterpret_cast<void(__thiscall*)(void*, uint32_t*, const void*)>(addr::SC4MySimModelMap_Insert)(
+            self + field::kModels, result, &model);
+    }
+    uint32_t kind;
+    Virtual<void>(stream, 0x20, &kind);
+    At<uint32_t>(self, 0x15C) = kind;
+    Place place;
+    Construct(&place, nullptr);
+    Virtual<void>(stream, 0x20, &count);
+    auto* const places = reinterpret_cast<PlaceDeque*>(self + field::kPlaces);
+    for (int32_t i = 0; i < count; ++i) {
+        reinterpret_cast<PlaceReadFn>(addr::SC4MySimPlace_Read)(&place, stream);
+        if (places->lastCur != places->lastEnd - 0x28) {
+            if (places->lastCur)
+                CopyPlace(places->lastCur, &place);
+            places->lastCur += 0x28;
+        } else {
+            reinterpret_cast<void(__thiscall*)(void*, const void*)>(addr::SC4MySimPlaceDeque_PushBackSlow)(places,
+                                                                                                          &place);
+        }
+    }
+    Virtual<void>(Global<void*>(addr::SC4_MessageServer), 0x14, self ? self + 8 : nullptr, uint32_t{0x26D31EC1});
+    const uint8_t ok = Virtual<uint8_t>(stream, 0x48) ? 0 : 1;
+    At<uint8_t>(self, 0x188) = ok;
+    Release(place.object);
+    return ok;
+}
+
+bool InstallSave(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* originals[2] = {};
+    const struct {
+        std::uintptr_t address;
+        void* ours;
+    } hooks[] = {
+        {addr::cSC4MySimDispatch_Write, reinterpret_cast<void*>(&WriteDispatch)},
+        {addr::cSC4MySimDispatch_Read, reinterpret_cast<void*>(&ReadDispatch)},
+    };
+    for (std::size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); ++i) {
+        const addr::Entry* found = addr_check::Find(hooks[i].address);
+        if (!found || !hook::Install(*found, hooks[i].ours, &originals[i]))
+            return false;
+    }
+    return true;
+}
+
+const bool g_saveRegistered = registry::Register({
+    "simulators.mysim_agents.dispatch_save",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySimDispatch_Write,
+    "Our cSC4MySimDispatch Write and Read (docs/mysim-agents.md)",
+    false,
+    InstallSave,
 });
 
 bool InstallState(registry::Mode)

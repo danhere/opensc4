@@ -2084,3 +2084,27 @@ kind = "function"
 convention = "thiscall"
 expect = "33 C0 56 8B F1 89 06 89"
 source = "An empty deque of 3-byte cells (Init with 0); the argument is the allocator."
+
+[[entry]]
+name = "cSC4MySimDispatch::Write"
+address = 0x00432440
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 53 55 56 8B 74"
+source = "Name ours. The cIGZSerializable part (+0xC) slot 3: version 1, the fields +0x10..+0x58, the four places, marker, icon and text, vehicle, owner (its cISC4MySim part), clock, the route cells, the model map, +0x15C and the places still to go."
+
+[[entry]]
+name = "cSC4MySimDispatch::Read"
+address = 0x00434760
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 50 53 55 56 8B 74"
+source = "Name ours. Slot 4: Write's order (references as 0x26BB767E, the owner 0x8BC01FFE, the clock 0x681BD53A), appended to the containers; registers for 0x26D31EC1; the result in +0x188."
+
+[[entry]]
+name = "SC4MySimModelMap::Insert"
+address = 0x00432C80
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "insert of (kind, key, index) into the map at cSC4MySimDispatch+0x150: (&result, &value)."
