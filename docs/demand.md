@@ -1,6 +1,6 @@
 # The demand simulator (cSC4DemandSimulator)
 
-The RCI demand: reimplemented after pollution, power, water, traffic, land value, aura and crime, the same way: function by function on the original object under the parity harness ([parity.md](parity.md)), then our own object under the class ID. Build 641 addresses throughout. Code: [src/core/demand_sim.h](../src/core/demand_sim.h), [demand_demand.cpp](../src/core/demand_demand.cpp) (the demand objects), [demand_sim.cpp](../src/core/demand_sim.cpp) (the interface and the save record).
+The RCI demand: reimplemented after pollution, power, water, traffic, land value, aura and crime, the same way: function by function on the original object under the parity harness ([parity.md](parity.md)), then our own object under the class ID. Build 641 addresses throughout. Code: [src/core/demand_sim.h](../src/core/demand_sim.h), [demand_demand.cpp](../src/core/demand_demand.cpp) (the demand objects), [demand_sim.cpp](../src/core/demand_sim.cpp) (the interface and the save record), [demand_step.cpp](../src/core/demand_step.cpp) (the step, the passes, the messages), [demand_region.cpp](../src/core/demand_region.cpp) (the sources), [demand_month.cpp](../src/core/demand_month.cpp) (the month), [demand_init.cpp](../src/core/demand_init.cpp) (the tuning, Init, Shutdown), [demand_object.cpp](../src/core/demand_object.cpp) (our object).
 
 **Nothing about demand is fixed in the code.** Every demand, its caps (the active demand's range, the cap a demand puts on another) and the links between demands come from the game's demand exemplars, and the simulator's own numbers from its tuning exemplar; ours reads them the same way. So mods that change them, the Colossus Addon Mod (CAM) with its extra growth stages among them, keep working.
 
@@ -66,6 +66,47 @@ The slots are gzcom-dll's; several are one-line functions the exe shares with ot
 
 `SimulationBegin` (slot 5) computes the active demand first unless loaded, then sends the same message with the value truncated.
 
+## Messages
+
+| Message | What happens |
+| --- | --- |
+| 0x6695681A | the step with the message's time budget |
+| 0x66956814 | the step with 5, then `PublishActive` (0x006A7600): the passes and the twelve RCI groups' active demand as figures 0x2A67A399 ... 0x8A67A3CC |
+| 0x66956816 MonthPassed | `MonthEffects`, `MonthJobs`, and a step waiting in state 3 back to 0 |
+| 0x66956810 | every demand's SimulationBegin |
+| 0x26C63343 | the passes, twice |
+| 0xE8BDA2E7 | an occupant's state changed: when it becomes or stops being functional (states 2 and 3) its type's demand effects (`OccupantDemand`, the global map at 0x00B49008) and its jobs (`OccupantJobs`) are added or taken off, unless its exemplar has 0x27812844 |
+| 0x8A0D15DA, 0xEA0D163E | the neighbours (`Neighbors` with false) |
+| 0xCA1B151C | the tuning reloaded |
+
+## The step
+
+`Step` (0x006A7020) runs one state a call (+0x14):
+
+- 0: `RegionDemand` (0x006A6070): for each of the twelve RCI groups, the tax rate over the last 90 days (figures 0xAABAAA9F ... 0xAABAAAAA, the history through figure slot 7) against the neutral rate (slot 10, at least 0.1) through curve +0xB4, plus the group's ordinance factor less 1, as its demand's tax modifier; the economy modifier from the service at 0x00B43C94 (slot 34's object, slot 16), plus +0xA0 for offices and +0xA4 for industry. The 24 counted values of +0x1C cleared; the cell walk restarted.
+- 1: the cell walk, under the time budget (`SC4Deadline`, checked every 0x400 steps; adaptive step at 0x00B49024): `CountCell` (0x006A5A00) a cell: a functional, zoned lot's residents by wealth (+0x1001 + 16 × wealth) and weighted by the cell's value (+0x2110 + 16 × wealth + a level of 1 to 4), or its jobs (its key + 1). At the end each counted value that moved since the last walk goes to its demand's supply (region use 1) or demand (2) and is kept at +0x28.
+- 2: the month's figures: population and jobs by wealth, the jobs of commerce and industry, the workers without jobs, and the average of twelve demands weighted by +0x68 (figure 0x8A63F30C).
+- 3: waits for MonthPassed.
+
+`Propagate` (0x006A4E70) applies each demand's effects on the others (the multimap at +0x5C, from the demand exemplars): new supply or demand times a factor added to another's supply or demand (0x47BB3F30-32), another's cap from this one's demand over supply (0x47BB3F41), or this one as the sum of others (0x47BB3F50); then each demand's EndOfCycle. Repeated until a pass adds nothing above 0.01.
+
+`Neighbors` (0x006A5CB0) moves the change in the neighbouring cities' figures (city slot 17, every neighbour but this city) to the regional demands (ID + 0x10000).
+
+## The month
+
+- `MonthEffects` (0x006A3ED0): +0xAC from the capacity of some kinds of buildings (the service at +0x44, slot 16; kinds 1, 2, 3, 8, 10 and 12 through the service at 0x00B43DA8, slot 21, with 3) times +0xD0; +0xA8 from six counts of civic buildings by kind (unique IDs gathered in sets, plus list lengths) through ln, weighted by +0xBC, times 1/ln 2. Both plus two city counts (city slots 76 and 77) times tuning. The change goes to the supply of 0x4800 and 0x4900 (+0xAC) and 0x3800 (+0xA8). The logarithms are x87 `FYL2X`, whose result is extended precision before the multiply; ours runs the same instructions (inline assembly) to match it bit for bit.
+- `MonthJobs` (0x006A8FF0): for each lot type not updated in the last 0x41 days with at least 10 places open, the neighbour connections in order of their offer (the game's own sort over a map of offers, so ties keep its order) each take up to 1,000 places while 10 are left; `ShareWorkers` (0x006A68E0) and `ShareJobs` (0x006A6AF0) carry the workers and jobs over to the demands.
+
+## Tuning
+
+Nothing about demand is fixed in code.
+
+- The demands: Init hands the resource manager a callback (`ForEachExemplar`, 0x006A7840) for every exemplar; those of exemplar type 3 go to `ConfigureDemand` (0x006A5350): the demand with its ID (property 0x21, else the exemplar's instance) is made if new (`CreateDemand`, 0x006A5210, class 0x8990C12D); unless the city was loaded, its starting supply and demand (0x47BB3F20, 0x47BB3F21); its range (0x47BB3F10 minimum, 0x47BB3F11 maximum); its effects on other demands (0x47BB3F31, 30, 32 as (target, factor in hundredths) pairs; 0x47BB3F41 and 50 as targets), numbered by a global counter (0x00B49020); its region use (0x47BB3F60).
+- The occupant effects (`LoadTuning` 0x006A8790, `OccupantTuning` 0x006A8420): for every lot or building type the service at +0x3C knows, pairs (demand, amount) from its exemplar: 0x27812841 (demand; amounts replaced by the floats of 0x27812843) and 0x27812840 (supply; 0x27812842), kept for demands that exist, into the global map at 0x00B49008.
+- The simulator's tuning exemplar 6534284A-E7E2C2DB-4A1F3CE6: curves 0x4A1F38B5 (+0xB0) and 0x4A1F38B6 (+0xB4), 0x4A1F38B7 (+0xB8, 90), 0x4A1F38C5 (13 floats, +0xBC), 0x4A1F38C6 to CA (+0xC8 to +0xD8), 0x8A63F2A1 (12 weights, +0x68, 100 each by default).
+
+Init (0x006A8C20) also makes the cell walk over the city, references its services, declares the twelve active-demand figures, registers for the messages and as a simulator ("cSC4DemandSimulator", kinds 0, 4, 6, 10), and runs the passes once. A city loaded from a save starts the step at 0, a new one at 3. Shutdown (0x006A3A20) undoes it; where it frees the curve at +0xB4 it clears +0xB0 (a slip in the game, kept).
+
 ## What is ours
 
 | Replacement | What is ours |
@@ -73,6 +114,16 @@ The slots are gzcom-dll's; several are one-line functions the exe shares with ot
 | `simulators.demand.demands` | every slot of both cSC4Demand vtables (36 + 6), so every demand object runs our code |
 | `simulators.demand.interface` | slots 5-11 of `cISC4DemandSimulator` |
 | `simulators.demand.save`, `.load` | Write, Read (version 2) |
+| `simulators.demand.step` | the step (0x006A7020) and `ClearCounts` (0x006A37A0) |
+| `simulators.demand.passes` | `Propagate`, `PublishActive`, `BeginAll` (0x006A27E0), MonthPassed (0x006A9450) |
+| `simulators.demand.messages` | DoMessage (+4 slot 3), `OccupantDemand` (0x006A5920), `OccupantJobs` (0x006A2C80) |
+| `simulators.demand.sources` | `RegionDemand`, `CountCell`, `Neighbors` |
+| `simulators.demand.month` | `MonthEffects`, `MonthJobs`, `ShareWorkers`, `ShareJobs` |
+| `simulators.demand.tuning` | `ForEachExemplar`, `ConfigureDemand`, `CreateDemand`, `OccupantTuning`, `LoadTuning`, slot 13 (`AddDemand`) |
+| `simulators.demand.init`, `.shutdown` | Init, Shutdown |
+| `simulators.demand.object` | our own object under the class ID: constructor (0x006A35E0), destructor (0x006A3020), identity, copies of the three vtables |
+
+Still the game's: the STL helpers (map inserts and erases, list and set helpers, the sort `MonthJobs` uses), the curve evaluation, and the global effect maps' registration (0x006A7CA0).
 
 `UpdateOccupantEffects` (slot 7) calls the occupant demand helper (0x006A5920) through its address. `GetNeutralTaxRate` returns the curve's result unrounded (in ST0), as the game's does: its callers compute with it before storing it.
 
@@ -86,6 +137,8 @@ The slots are gzcom-dll's; several are one-line functions the exe shares with ot
 
 The fingerprint's `demand` part: the step's state, the four saved floats, each demand's fields under its key, the two maps of counted values (the walk's map only outside state 1: the walk is cut into time slices, so a day can end anywhere in it), the neutral tax rate (slot 10) and the jobs of every demand (slot 9).
 
+Two autotest switches bring in what a week's run would miss: `OPENSC4_TEST_DEMAND_MONTH=<n>` calls MonthPassed every n days (the monthly passes, and a waiting step restarted), `OPENSC4_TEST_DEMAND_MESSAGES=<n>` sends SimulationBegin, the neighbours message and the passes on day n. The cell walk takes most of a month in the tutorial cities, so the step's state 2 (the month's figures) is reached only in the 35-day runs.
+
 ## Parity
 
 Results folders under `%LOCALAPPDATA%\opensc4\parity\`.
@@ -94,3 +147,11 @@ Results folders under `%LOCALAPPDATA%\opensc4\parity\`.
 | --- | --- |
 | the demand objects, the interface, Write and Read on Big City d0090 (`dem-smoke`) | identical for a week; the control run (`dem-ctl`) showed the walk's map differing mid-walk between two runs of the original, hence the fingerprint rule above |
 | the same on the 12 saves for a week (`dem-m1-7`, two games at a time, with other threads' batches running on the machine) | 10 of 12 on the first pair. Big City d0000 and d0365 "partly": every run's fingerprints identical and every demand record identical; the runs part in the pollution and traffic save records only, where the original also reached two outcomes by itself in the same batch (the time-sliced passes of those simulators) |
+| the step, passes, messages, sources and month added, with `OPENSC4_TEST_DEMAND_MONTH=2 OPENSC4_TEST_DEMAND_MESSAGES=1` (`dem-m2-7`) | 12 of 12; Big City d0000 and d0365 after retries, where the original gave two and three outcomes itself |
+| the same for 35 days (`dem-m2-35`), the cell walk finishing on 6 saves | 11 of 12, 36 of 36 days identical on each. Big City d0090 "partly": the original reached three outcomes in four runs (its counted residents differ by a few after the walk ends), ours two, one of them the original's most common |
+| everything, our object included, with the two switches (`dem-all-7`) | 11 of 12, our object made in every B run. Big City d0000 "partly": fingerprints and demand records identical in every run, the runs part in the traffic record only (as in `dem-m1-7`) |
+| everything for 90 days on `saves-mm2` (`dem-all-mm90`) | 2 of 2, 91 of 91 days identical |
+| everything on `saves-plopped` with the two switches (`dem-all-pl7`) | 3 of 3 |
+
+Not reached in the corpus: a new city (the starting supply and demand of the exemplars, Init's not-loaded path), the occupant message (0xE8BDA2E7: a building switching between functional and not), the tuning reload (0xCA1B151C).
+

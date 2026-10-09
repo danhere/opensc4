@@ -6780,3 +6780,356 @@ convention = "thiscall"
 signature = "void (std::map<uint32_t, uint32_t>* this, node* root)"
 expect = "53 56 8B 74 24 0C 85 F6"
 source = "Name ours. Frees a subtree of a map with 4-byte keys and values (the header is left as it was). GetLocalPopulationSummary clears the caller's map with it (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::Step"
+address = 0x006A7020
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this, uint32_t budget)"
+expect = "83 EC 44 53 55 56 57 8B"
+source = "Name ours. Messages 0x6695681A (with a time budget) and 0x66956814 (5). One state a call (+0x14): 0 region demand (0x006A6070), the counts cleared, the cell walk restarted; 1 the cell walk (0x006A5A00 a cell, SC4Deadline) then the counts applied to the demands; 2 the month's figures; 3 waits for MonthPassed. Reimplemented by simulators.demand.step (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::ClearCounts"
+address = 0x006A37A0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this, std::map<uint32_t, float>* map)"
+expect = "51 56 8B 74 24 0C 8D 44"
+source = "Name ours. The 24 counted IDs (0x2111-0x2134, 0x1011, 0x1021, 0x1031, 0x3111, 0x3121, 0x3131, 0x3321, 0x3331, 0x4101-0x4401) of a map set to 0. Reimplemented by simulators.demand.step (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::RegionDemand"
+address = 0x006A6070
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this)"
+expect = "83 EC 30 53 55 56 8B F1"
+source = "Name ours. State 0 of the step: the twelve RCI groups' tax and ordinance modifiers and their demand from the 90-day history of figures 0xAABAAA9F-0xAABAAAAA (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::CountCell"
+address = 0x006A5A00
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this, int32_t x, int32_t z)"
+expect = "83 EC 0C 53 8B 5C 24 18"
+source = "Name ours. The cell walk's body: a cell's occupant counted into the map at +0x1C by its kind and wealth (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::BeginAll"
+address = 0x006A27E0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this)"
+expect = "56 57 8B F9 8B 47 50 8B"
+source = "Name ours. Message 0x66956810: every demand's SimulationBegin (slot 5). Reimplemented by simulators.demand.passes (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::Propagate"
+address = 0x006A4E70
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this)"
+expect = "83 EC 28 53 55 56 89 4C"
+source = "Name ours. Each demand's effects on the others (the multimap at +0x5C: kinds 0x47BB3F30-32 add, 0x47BB3F41 caps, 0x47BB3F50 sums), then its EndOfCycle; repeated until a pass adds nothing above 0.01. Reimplemented by simulators.demand.passes (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::PublishActive"
+address = 0x006A7600
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this)"
+expect = "51 53 56 57 8B F9 E8 65"
+source = "Name ours. Message 0x66956814 after the step: Propagate, then the active demand of the twelve RCI groups (0x21010-0x24400) as figures 0x2A67A399-0x8A67A3CC. Reimplemented by simulators.demand.passes (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::MonthPassed"
+address = 0x006A9450
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this)"
+expect = "56 8B F1 E8 78 AA FF FF"
+source = "Name ours. Message 0x66956816: MonthEffects, MonthJobs, a waiting step (state 3) back to 0. Reimplemented by simulators.demand.passes (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::MonthEffects"
+address = 0x006A3ED0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this)"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. The month's demand from the city's civic buildings and connections: counts of buildings by kind (the service at +0x44), weighted by the 13 floats at +0xBC through log curves, into +0xA8 and +0xAC and demands 0x4800, 0x3800 (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::MonthJobs"
+address = 0x006A8FF0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this)"
+expect = "83 EC 6C 53 55 8B E9 8B"
+source = "Name ours. Monthly: each zoned lot type's jobs and workers handed out over the demands (0x006A68E0, 0x006A6AF0); figures 0xAA772F1D, 0x6A774F64, 0xCA774F69 (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::OccupantJobs"
+address = 0x006A2C80
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this, uint32_t type, uint32_t value, bool add)"
+expect = "8B 54 24 04 55 8B E9 8B"
+source = "Name ours. An occupant type's jobs (records of the service at +0x3C) added to or taken off its key's demand supply. Reimplemented by simulators.demand.messages (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::LoadTuning"
+address = 0x006A8790
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this)"
+expect = "83 EC 2C 53 55 56 57 8B"
+source = "Name ours. Init and message 0xCA1B151C: the occupant demand effects of every building exemplar (0x006A8420), then the tuning exemplar 6534284A-E7E2C2DB-4A1F3CE6: curves 0x4A1F38B5 (+0xB0) and 0x4A1F38B6 (+0xB4), 0x4A1F38B7 (+0xB8, 90), 0x4A1F38C5 (13 floats, +0xBC), 0x4A1F38C6-CA (+0xC8-+0xD8), 0x8A63F2A1 (12 weights, +0x68) (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::Neighbors"
+address = 0x006A5CB0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this, bool update)"
+expect = "83 EC 20 55 56 8B F1 8B"
+source = "Name ours. Init and messages 0x8A0D15DA, 0xEA0D163E: the neighbouring cities' share of the demands of region use 1 and 2 (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::OccupantEffects"
+address = 0x00B49008
+kind = "data"
+source = "Name ours. A global std::map<uint32, list*>: an occupant type's demand effects (list nodes: next, prev, demand ID, supply factor, demand factor), from the building exemplars (0x006A8420). Also 0x00B49014 and 0x00B48FFC, cleared with it (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::One"
+address = 0x00B0D278
+kind = "data"
+source = "float 1.0: the amount the occupant message passes to OccupantDemand (docs/demand.md)."
+
+[[entry]]
+name = "cRZDate::cRZDate"
+address = 0x00912E7B
+kind = "function"
+convention = "thiscall"
+signature = "cRZDate* (cRZDate* this, int32_t dayNumber)"
+expect = "8B C1 8B 4C 24 04 89 48"
+source = "Name ours. A 16-byte date object: vtable 0x00ACEAF0, the day number, an interface vtable 0x00ACEA38 at +8 (what is passed on), 0 (docs/demand.md)."
+
+[[entry]]
+name = "cRZDate::Destroy"
+address = 0x009128BF
+kind = "function"
+convention = "thiscall"
+expect = "C7 01 F0 EA AC 00 C7 41"
+source = "Name ours. The date object's destructor: its two vtables reset (docs/demand.md)."
+
+[[entry]]
+name = "SC4Uint32Set::Insert2"
+address = 0x0049A050
+kind = "function"
+convention = "thiscall"
+signature = "void (std::set<uint32_t>* this, pair* result, const uint32_t* key)"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Name ours. insert() of a set of uint32 (nodes of 0x14 bytes) (docs/demand.md)."
+
+[[entry]]
+name = "SC4Uint32Set::EraseTree"
+address = 0x004A4660
+kind = "function"
+convention = "thiscall"
+signature = "void (std::set<uint32_t>* this, node* root)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of a set of uint32 (docs/demand.md)."
+
+[[entry]]
+name = "SC4List::Destroy4"
+address = 0x00411FE0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4List* this)"
+expect = "51 56 8B F1 E8 07 FE FF"
+source = "Name ours. SC4List::ClearReleasing4, then the head freed through the allocator at 0x00B207E0 (docs/demand.md)."
+
+[[entry]]
+name = "SC4FloatMap::Copy"
+address = 0x006A2DB0
+kind = "function"
+convention = "thiscall"
+signature = "void (std::map<uint32_t, float>* this, const std::map<uint32_t, float>* source)"
+expect = "55 56 8B F1 6A 18 C7 06"
+source = "Name ours. The copy constructor of a map from uint32 to float; the demand simulator passes copies by value as its sort's comparator (docs/demand.md)."
+
+[[entry]]
+name = "SC4FloatMap::EraseTree"
+address = 0x006A25C0
+kind = "function"
+convention = "thiscall"
+signature = "void (std::map<uint32_t, float>* this, node* root)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of a map from uint32 to float (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::SortByOffer"
+address = 0x006A8F40
+kind = "function"
+convention = "cdecl"
+signature = "void (void** begin, void** end, std::map<void*, float> offers)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. std::sort of a vector of neighbours by their offer in the map (by value; highest first), as MonthJobs calls it (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::ShareWorkers"
+address = 0x006A68E0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this, void* neighbour, uint32_t key, float amount)"
+expect = "83 EC 18 57 8B 7C 24 24"
+source = "Name ours. For 0x1010, 0x1020, 0x1030: the workers a neighbour takes, split by its figures +0x1101 to +0x1104, to the supply of the key + 0x11101 ... demands. Reimplemented by simulators.demand.month (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::ShareJobs"
+address = 0x006A6AF0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this, void* neighbour, uint32_t key, float amount)"
+expect = "8B 44 24 08 83 EC 14 3D"
+source = "Name ours. For the job groups: the jobs a neighbour gives to the supply of key + 0x10001, the workers they need to the demand of 0x12010-0x12030. Reimplemented by simulators.demand.month (docs/demand.md)."
+
+[[entry]]
+name = "RZGetCOM"
+address = 0x0090DDF1
+kind = "function"
+convention = "cdecl"
+signature = "cIGZCOM* ()"
+expect = "E8 1C D4 F6 FF 8B 10 8B"
+source = "Name ours. The framework's COM object (RZGetFramework, then its slot 12); its slot 3 creates an instance by class and interface (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::CreateDemand"
+address = 0x006A5210
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4DemandSimulator* this, uint32_t id, uint32_t iid, void** out)"
+expect = "51 56 8B F1 C7 44 24 04"
+source = "Name ours. A new cSC4Demand (class 0x8990C12D) under the ID, replacing any other. Reimplemented by simulators.demand.tuning (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::ConfigureDemand"
+address = 0x006A5350
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this, uint32_t instance, cISCPropertyHolder* exemplar)"
+expect = "83 EC 4C 53 55 8B 6C 24"
+source = "Name ours. One demand exemplar: the demand, its starting values, range (0x47BB3F10, 0x47BB3F11), effects (0x47BB3F30-32, 41, 50) and region use (0x47BB3F60). Reimplemented by simulators.demand.tuning (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::ForEachExemplar"
+address = 0x006A7840
+kind = "function"
+convention = "cdecl"
+signature = "void (const cGZPersistResourceKey* key, cSC4DemandSimulator* self)"
+expect = "83 EC 08 8B 0D A8 3C B4"
+source = "Name ours. The callback Init hands the resource manager: demand exemplars (type 3) to ConfigureDemand. Reimplemented by simulators.demand.tuning (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::OccupantTuning"
+address = 0x006A8420
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4DemandSimulator* this, uint32_t type, const cGZPersistResourceKey* key)"
+expect = "83 EC 20 53 55 56 57 6A"
+source = "Name ours. An occupant type's demand effects (0x27812840-43) into the global map at 0x00B49008. Reimplemented by simulators.demand.tuning (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::InitEffectMaps"
+address = 0x006A7CA0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cSC4DemandSimulator* self)"
+expect = "A0 F8 8F B4 00 53 33 DB"
+source = "Name ours. Once: the three global maps at 0x00B49008, 0x00B49014, 0x00B48FFC cleared and their cleanup (0x006A6F50) registered with the service at 0x00B43C94 (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::OccupantEffectsAt"
+address = 0x006A8230
+kind = "function"
+convention = "thiscall"
+signature = "list* (std::map<uint32_t, list>* this, const uint32_t* key)"
+expect = "83 EC 0C 53 55 8B 6C 24"
+source = "Name ours. operator[] of the occupant effects map: the list for a type, made empty when missing (docs/demand.md)."
+
+[[entry]]
+name = "SC4DemandEffectList::Assign"
+address = 0x006A2F40
+kind = "function"
+convention = "thiscall"
+signature = "list* (list* this, const list* source)"
+expect = "53 55 56 8B F1 8B 4C 24"
+source = "Name ours. operator= of a list of demand effects (3 words each) (docs/demand.md)."
+
+[[entry]]
+name = "SC4EffectMap::Insert"
+address = 0x006A2840
+kind = "function"
+convention = "thiscall"
+signature = "void (multimap* this, node** result, node* x, node* parent, const uint32_t* value, bool)"
+expect = "53 8B 5C 24 10 56 8B 74"
+source = "Name ours. The node insert of the demand simulator's effect multimap (+0x5C; values of 6 words) (docs/demand.md)."
+
+[[entry]]
+name = "SC4DemandMap::EraseTree"
+address = 0x006A2540
+kind = "function"
+convention = "thiscall"
+signature = "void (std::map<uint32_t, cISC4Demand*>* this, node* root)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of the demand map (+0x50) (docs/demand.md)."
+
+[[entry]]
+name = "SC4FloatMap::EraseTree2"
+address = 0x006A2500
+kind = "function"
+convention = "thiscall"
+signature = "void (std::map<uint32_t, float>* this, node* root)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of the counted-value maps (+0x1C, +0x28) (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::Init"
+address = 0x006A8C20
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4DemandSimulator* this)"
+expect = "83 EC 18 53 56 8B F1 8A"
+source = "Init (slot 3). Reimplemented by simulators.demand.init (docs/demand.md)."
+
+[[entry]]
+name = "cSC4DemandSimulator::Shutdown"
+address = 0x006A3A20
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4DemandSimulator* this)"
+expect = "56 8B F1 8A 46 0D 84 C0"
+source = "Shutdown (slot 4); clears +0xB0 where it frees the curve at +0xB4. Reimplemented by simulators.demand.shutdown (docs/demand.md)."
+
+[[entry]]
+name = "SC4FloatVector::Resize2"
+address = 0x00464130
+kind = "function"
+convention = "thiscall"
+signature = "void (std::vector<float>* this, uint32_t count, const float* fill)"
+expect = "8B 11 8B 44 24 04 56 8B"
+source = "Name ours. resize() of a vector of floats; the demand simulator's constructor sizes +0xBC to 13 (docs/demand.md)."
+
+[[entry]]
+name = "SC4EffectMap::EraseTree"
+address = 0x006A2580
+kind = "function"
+convention = "thiscall"
+signature = "void (multimap* this, node* root)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of the demand simulator's effect multimap (+0x5C) (docs/demand.md)."
