@@ -338,3 +338,35 @@ name = "Budget::DefaultFunding"
 address = 0x00B0D1C4
 kind = "data"
 source = "What CreateDepartmentBudget hands a new department's slot 11 (the float 1.0 at this address). (docs/budget.md)."
+
+[[entry]]
+name = "SC4::GetPropertySint64Vector"
+address = 0x005FFD80
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. (holder, id, vector<int64>*): an int64 array property's values. (docs/budget.md)."
+
+[[entry]]
+name = "SC4::SetPropertySint64Vector"
+address = 0x005FE7F0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. (holder, id, const vector<int64>*): sets an int64 array property's values. (docs/budget.md)."
+
+[[entry]]
+name = "SC4::SetPropertyFloatVector"
+address = 0x005FE750
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. (holder, id, const vector<float>*): sets a float array property's values. (docs/budget.md)."
+
+[[entry]]
+name = "ItemVector::Resize"
+address = 0x00693710
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 8B 11 8B 44 24"
+source = "Name ours. resize(n) of a vector of 0x20-byte budget items; the new ones are copies of a stack temporary of which only the last word is set. Generic container code. (docs/budget.md)."

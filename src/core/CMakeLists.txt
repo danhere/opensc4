@@ -23,6 +23,7 @@ add_library(opensc4_core SHARED
   autotest.cpp
   budget_autotest.cpp
   budget_departments.cpp
+  budget_items.cpp
   budget_month.cpp
   budget_sim.cpp
   crime_autotest.cpp
