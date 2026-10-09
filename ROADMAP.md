@@ -42,7 +42,7 @@ Output is a toolkit, not a game change. Everything later depends on it.
 - [x] Survey ([docs/resources.md](docs/resources.md)): segment order and override rules measured in the running game (`diagnostics.dbpf_survey`); on the vanilla game building all segments takes under 40 ms, so loading speed only matters with large plugin folders
 - [x] Our DBPF reader (format, index, compression) as a tested library ([src/dbpf](src/dbpf), `opensc4-dbpf` tool); byte-identical to the game's own reading for all 111,838 records of the clean install, and reads every saved city in the test region. Also the base for P4, since saved cities are DBPF files
 - [ ] Our DBPF loader with exact plugin override precedence (top level: first segment wins; inside a folder: last file wins, top-level files before subfolders, alphabetical)
-- [ ] Faster loading, conflict and override diagnostics (pays off with mods; absorbs sc4-dbpf-loading)
+- [ ] Faster loading, conflict and override diagnostics (pays off with mods; absorbs sc4-dbpf-loading). Offline conflict report started: `opensc4-dbpf plugins` ([docs/resources.md](docs/resources.md))
 - [ ] Coordinate with existing DBPF-loading DLLs
 
 ## P4: Save format and determinism (gate before any simulator work)
