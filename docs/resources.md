@@ -30,6 +30,8 @@ The segments are built once at startup by `cSC4App::SetupResources` (our name, 0
 - **Inside a folder, the last listed file wins.** `Sku2_European` beats `Sku1_US`.
 - **Files in a folder are listed top-level files first, alphabetically, then subfolders, alphabetically** (probes `aa_probe.dat`, `mm_probe.dat`, `aa_sub\cc_probe.dat`, `zz_sub\bb_probe.dat` were listed in that order, and `zz_sub\bb_probe.dat` served the shared key). So any file in a subfolder overrides any top-level file, and later names win, which is why override packs are named `zzz_...`.
 
+**Offline report.** [src/dbpf/plugins.h](../src/dbpf/plugins.h) applies these rules to files on disk, and `opensc4-dbpf plugins <folder> [--keys] [--game <package>...]` prints a Plugins folder's load order, the files it skips as not packages, and every key more than one file has: which file serves it, which it hides, and whether the copies are identical (a shared dependency shipped twice) or differ (a real override). Assumed, not measured: deeper subfolders follow the same rule at each level, and names sort like NTFS (by uppercase, so `_` comes after letters). The base for the in-game mod manager on the roadmap.
+
 ## Time
 
 Building all segments takes **33-38 ms** on the clean install (`trace: cSC4App::SetupResources`), out of about 3.5 s from core.dll attaching to the end of app init; loading a city takes about 0.7 s. Listing every key of every segment (the survey itself) takes about 200 ms.

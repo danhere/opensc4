@@ -1,10 +1,14 @@
-// DBPF reader and QFS decompression on hand-built packages and streams.
+// DBPF reader, QFS decompression and plugin load order on hand-built
+// packages and streams.
 #include "dbpf/dbpf.h"
+#include "dbpf/plugins.h"
 #include "dbpf/qfs.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -215,12 +219,113 @@ void TestPackage()
     Check(e && !mismatch->Read(*e, out, &error), "directory size mismatch reported");
 }
 
+bool SameOrder(std::vector<std::string> in, const std::vector<std::string>& want)
+{
+    SortFolderOrder(in);
+    return in == want;
+}
+
+void TestFolderOrder()
+{
+    // The probe layout docs/resources.md measured in the game.
+    Check(SameOrder({"zz_sub/bb_probe.dat", "mm_probe.dat", "aa_sub/cc_probe.dat", "aa_probe.dat"},
+                    {"aa_probe.dat", "mm_probe.dat", "aa_sub/cc_probe.dat", "zz_sub/bb_probe.dat"}),
+          "top-level files, then subfolders, alphabetically");
+    Check(SameOrder({"B.dat", "a.dat", "c.dat"}, {"a.dat", "B.dat", "c.dat"}), "names compare without case");
+    // NTFS compares uppercase forms, so '_' (0x5F) sorts after letters.
+    Check(SameOrder({"a_b.dat", "ab.dat"}, {"ab.dat", "a_b.dat"}), "underscore after letters");
+    Check(SameOrder({"sub/deeper/a.dat", "sub/z.dat", "z.dat"}, {"z.dat", "sub/z.dat", "sub/deeper/a.dat"}),
+          "each subfolder ordered the same way");
+}
+
+std::unique_ptr<Source> Mem(Bytes bytes)
+{
+    return std::make_unique<MemorySource>(std::move(bytes));
+}
+
+void TestLoadOrder()
+{
+    const Key shared{1, 1, 1}, same{2, 2, 2}, own{3, 3, 3}, gameOnly{4, 4, 4};
+    const Bytes packedStream = Cat({{0x0F, 0x02}, Str("abc"), {0xFC}});
+    LoadOrder order;
+    std::vector<LoadOrder::NamedSource> plugins;
+    plugins.push_back({"a.dat", Mem(BuildPackage({{shared, Str("from a"), 0}, {same, Qfs(packedStream, 9), 9}}))});
+    plugins.push_back({"readme.txt", Mem(Str("not a package"))});
+    // The same contents, stored uncompressed: still identical.
+    plugins.push_back({"b.dat", Mem(BuildPackage({{shared, Str("from b"), 0},
+                                                  {same, Str("abcabcabc"), 0},
+                                                  {own, Str("only b"), 0},
+                                                  {own, Str("only b, again"), 0}}))});
+    order.AddSegment(std::move(plugins));
+    std::vector<LoadOrder::NamedSource> game;
+    game.push_back({"SimCity_1.dat", Mem(BuildPackage({{shared, Str("from the game"), 0}, {gameOnly, Str("g"), 0}}))});
+    order.AddSegment(std::move(game));
+
+    const auto& files = order.Files();
+    Check(files.size() == 4 && order.SegmentCount() == 2, "four files in two segments");
+    Check(files.size() == 4 && !files[1].package && !files[1].error.empty(), "non-package kept with a reason");
+
+    const PluginFile* w = order.Winner(shared);
+    Check(w && w->path == "b.dat", "inside a folder the last file wins");
+    w = order.Winner(gameOnly);
+    Check(w && w->path == "SimCity_1.dat", "game file serves what no plugin has");
+    Check(order.Winner({9, 9, 9}) == nullptr && order.Winner(kDirectoryKey) == nullptr, "no winner");
+
+    const std::vector<Conflict> conflicts = order.Conflicts();
+    Check(conflicts.size() == 2, "two conflicts (no directory record, no in-package duplicate)");
+    if (conflicts.size() == 2) {
+        Check(conflicts[0].key == shared && conflicts[0].files == std::vector<size_t>{2, 0, 3} &&
+                  !conflicts[0].identical,
+              "shared key: b over a over the game, contents differ");
+        Check(conflicts[1].key == same && conflicts[1].files == std::vector<size_t>{2, 0} && conflicts[1].identical,
+              "same key: identical after decompression");
+    }
+    Check(order.Conflicts(false).size() == 2, "conflicts without reading contents");
+}
+
+void WriteFile(const std::filesystem::path& path, const Bytes& bytes)
+{
+    std::filesystem::create_directories(path.parent_path());
+    std::ofstream out(path, std::ios::binary);
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+}
+
+void TestPluginFolder()
+{
+    namespace fs = std::filesystem;
+    const Key key{5, 5, 5};
+    const fs::path root = fs::temp_directory_path() / "opensc4_plugins_test";
+    std::error_code ec;
+    fs::remove_all(root, ec);
+    WriteFile(root / "zzz_override.dat", BuildPackage({{key, Str("top level")}}));
+    WriteFile(root / "aaa_mods" / "mod.dat", BuildPackage({{key, Str("subfolder")}}));
+    WriteFile(root / "notes.txt", Str("hello"));
+
+    const std::u8string u8 = root.generic_u8string();
+    const std::string folder(u8.begin(), u8.end());
+    std::vector<std::string> listed;
+    Check(ListFolder(folder, listed) &&
+              listed == std::vector<std::string>{"notes.txt", "zzz_override.dat", "aaa_mods/mod.dat"},
+          "folder listed in load order");
+
+    LoadOrder order;
+    std::string error;
+    Check(order.AddFolder(folder, &error), "folder segment added");
+    const PluginFile* w = order.Winner(key);
+    Check(w && w->path == "aaa_mods/mod.dat", "a subfolder file beats any top-level file");
+    Check(!order.AddFolder(folder + "/missing", &error) && !error.empty(), "missing folder reported");
+    fs::remove_all(root, ec);
+}
+
 } // namespace
 
 int main()
 {
     TestQfs();
     TestPackage();
+    TestFolderOrder();
+    TestLoadOrder();
+    TestPluginFolder();
     if (g_failures) {
         std::printf("%d failures\n", g_failures);
         return 1;

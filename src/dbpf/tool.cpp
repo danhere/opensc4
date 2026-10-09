@@ -5,8 +5,14 @@
 //                                      exit 1 if any fails
 //   opensc4-dbpf diff <a> <b>          compares the records' contents by key;
 //                                      exit 1 if anything differs
+//   opensc4-dbpf plugins <folder> [--keys] [--game <package>...]
+//                                      load order of a Plugins folder and the
+//                                      keys its packages fight over; with
+//                                      --game, also the game files it overrides
 #include "dbpf/dbpf.h"
+#include "dbpf/plugins.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
@@ -135,6 +141,84 @@ int Diff(const char* pathA, const char* pathB)
     return differ || onlyA || onlyB ? 1 : 0;
 }
 
+std::string KeyText(const Key& k)
+{
+    char text[64];
+    const char* name = TypeName(k.type);
+    std::snprintf(text, sizeof text, "%08X %08X %08X%s%s", k.type, k.group, k.instance, name ? "  " : "",
+                  name ? name : "");
+    return text;
+}
+
+int Plugins(const char* folder, bool keys, const std::vector<std::string>& game)
+{
+    LoadOrder order;
+    std::string error;
+    if (!order.AddFolder(folder, &error)) {
+        std::printf("%s\n", error.c_str());
+        return 2;
+    }
+    for (const std::string& path : game)
+        order.AddFile(path);
+
+    const auto& files = order.Files();
+    std::printf("load order (later files win inside the folder; the folder wins over game files):\n");
+    size_t skipped = 0;
+    for (size_t i = 0; i < files.size(); ++i) {
+        if (!files[i].package) {
+            ++skipped;
+            continue;
+        }
+        std::printf("  %4zu  %s  %zu records\n", i + 1, files[i].path.c_str(), files[i].package->Entries().size());
+    }
+    if (skipped) {
+        std::printf("skipped %zu files that are not packages:\n", skipped);
+        for (const PluginFile& f : files)
+            if (!f.package)
+                std::printf("        %s: %s\n", f.path.c_str(), f.error.c_str());
+    }
+
+    const std::vector<Conflict> conflicts = order.Conflicts();
+    // Winner and the file it hides most directly, with counts.
+    struct Pair {
+        size_t winner, loser;
+        uint32_t keys = 0, identical = 0;
+    };
+    std::vector<Pair> pairs;
+    uint32_t identical = 0;
+    for (const Conflict& c : conflicts) {
+        identical += c.identical;
+        for (size_t j = 1; j < c.files.size(); ++j) {
+            auto it = std::find_if(pairs.begin(), pairs.end(),
+                                   [&](const Pair& p) { return p.winner == c.files[0] && p.loser == c.files[j]; });
+            if (it == pairs.end())
+                it = pairs.insert(pairs.end(), {c.files[0], c.files[j]});
+            ++it->keys;
+            it->identical += c.identical;
+        }
+    }
+    std::printf("\n%zu keys in more than one file (%u with identical copies, %zu that differ)\n", conflicts.size(),
+                identical, conflicts.size() - identical);
+    for (const Pair& p : pairs) {
+        std::string note;
+        if (p.identical == p.keys)
+            note = ", all identical";
+        else if (p.identical)
+            note = ", " + std::to_string(p.keys - p.identical) + " differ";
+        std::printf("  %s overrides %s: %u keys%s\n", files[p.winner].path.c_str(), files[p.loser].path.c_str(),
+                    p.keys, note.c_str());
+    }
+    if (keys) {
+        std::printf("\n");
+        for (const Conflict& c : conflicts) {
+            std::printf("%s%s\n", KeyText(c.key).c_str(), c.identical ? "  (identical)" : "");
+            for (size_t j = 0; j < c.files.size(); ++j)
+                std::printf("    %s %s\n", j == 0 ? "wins " : "hides", files[c.files[j]].path.c_str());
+        }
+    }
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -145,6 +229,22 @@ int main(int argc, char** argv)
         return Check(argc - 2, argv + 2);
     if (argc == 4 && std::strcmp(argv[1], "diff") == 0)
         return Diff(argv[2], argv[3]);
-    std::printf("usage: opensc4-dbpf list <package> | check <package...> | diff <a> <b>\n");
+    if (argc >= 3 && std::strcmp(argv[1], "plugins") == 0) {
+        bool keys = false;
+        std::vector<std::string> game;
+        for (int i = 3; i < argc; ++i) {
+            if (std::strcmp(argv[i], "--keys") == 0)
+                keys = true;
+            else if (std::strcmp(argv[i], "--game") == 0)
+                game.assign(argv + i + 1, argv + argc), i = argc;
+            else {
+                std::printf("unknown option %s\n", argv[i]);
+                return 2;
+            }
+        }
+        return Plugins(argv[2], keys, game);
+    }
+    std::printf("usage: opensc4-dbpf list <package> | check <package...> | diff <a> <b>\n"
+                "       opensc4-dbpf plugins <folder> [--keys] [--game <package>...]\n");
     return 2;
 }
