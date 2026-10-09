@@ -43,6 +43,9 @@ add_library(opensc4_core SHARED
   traffic_tuning.cpp
   water_object.cpp
   water_sim.cpp
+  aura_init.cpp
+  aura_object.cpp
+  aura_sim.cpp
   pollution_sim.cpp
   pollution_tracts.cpp
   virtual_clock.cpp
