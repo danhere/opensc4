@@ -1,6 +1,7 @@
 #include "core/autotest.h"
 
 #include "core/autotest_hooks.h"
+#include "core/camera_control.h"
 
 #include "core/crash.h"
 #include "core/log.h"
@@ -791,6 +792,10 @@ private:
                 centre[0x44 / 4] = city->SizeX() / 2;
                 centre[0x4C / 4] = city->SizeZ() / 2;
             }
+        }
+        if (Env("OPENSC4_TEST_CAMERA_EXERCISE") == "1") {
+            if (void* control = renderer->GetCameraControl())
+                camera_control::Exercise(control, shot_);
         }
         const int32_t result = view->SetZoomAndRotation(zoom, rotation);
         uint32_t width = 0, height = 0;

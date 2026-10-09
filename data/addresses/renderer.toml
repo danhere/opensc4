@@ -166,3 +166,227 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 24 56 8B F1 83 BE"
 source = "Name ours. (screen point, out origin, out direction) (docs/renderer.md, \"The camera\")."
+
+[[entry]]
+name = "cSC4CameraControl::ReleaseCamera"
+address = 0x007CB970
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 0C 85 C9"
+source = "Name ours. Releases the S3D camera at +0xC and clears it (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::GetViewSize"
+address = 0x007CB990
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 2C 01 00 00 8B 54"
+source = "Name ours. (out width, out height): the view size in pixels (+0x12C, +0x130) (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::SetViewSize"
+address = 0x007CB9B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. (width, height): stores them and sets the S3D camera's viewport (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::GetNearFar"
+address = 0x007CB9F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 24 01 00 00 8B 54"
+source = "Name ours. (out near, out far): +0x124, +0x128 (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::Write"
+address = 0x007CBB10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Vtable slot 3 (serialisation): version 1, the view centre (+0x44), the old and new zoom and rotation (+0x100 to +0x114) (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::Read"
+address = 0x007CBBA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Name ours. Vtable slot 4: sets +0x5 (loaded), reads what Write writes (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::EffectiveZoom"
+address = 0x007CBC40
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 F0 00 00 00 DC 1D"
+source = "Name ours. The zoom (+0x108), one more when the fine zoom (+0xF0) is past 1.5 (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::SetCenterOffset"
+address = 0x007CBC60
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 10 56 8B"
+source = "Name ours. (float[3]): +0x50, unless a coordinate is NaN (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::PostSetUp"
+address = 0x007CC5B0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 8B F9 C7 44 24"
+source = "Name ours. Posts 0xA6B79620 with the old and new zoom and rotation (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::cSC4CameraControl"
+address = 0x007CC990
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 C7 00 18 AD AB 00"
+source = "Constructor (0x160 bytes); the factory 0x007CCC00 jumps to it (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::DeletingDestructor"
+address = 0x007CCC20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 18 AD AB"
+source = "Vtable slot 6: frees the bounds (+0x14C), then the object if flags & 1 (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::Update"
+address = 0x007CCF80
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 0C 85 C0"
+source = "Name ours. (mode): rebuilds box (but mode 3), view, view volume and bounds, posts the mode's messages; mode 2 then keeps the centre in bounds (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::Scroll"
+address = 0x007CD330
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 D9 44 24 28 53"
+source = "Name ours. (screen angle, distance): moves the view centre by distance x the zoom's scroll speed (+0xB8), kept in bounds and put on the terrain (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::SetRotation"
+address = 0x007CD540
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 33 F6 3B"
+source = "Name ours. (0 to 3) (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::SetCenter"
+address = 0x007CD810
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 4C 24 08 8B"
+source = "Name ours. (float[3]): the view centre, each coordinate within +-100,000 (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::SetShake"
+address = 0x007CDA20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 D9 86 B0 00 00"
+source = "Name ours. (x, y): pixel offsets (+0xB0); cSC43DRender::Draw sets them every frame (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::SetCitySize"
+address = 0x007CDAA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours. (width, depth) in metres (+0x158) (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::Init"
+address = 0x007CDB20
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8A 47 04 84 C0"
+source = "Name ours. (centre, S3D camera): once; the centre unless read from a save (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::SetZoomAndRotation"
+address = 0x007CDE60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 DB 44 24 0C 55"
+source = "Name ours. (zoom, rotation): integer zoom; past the maximum the fine zoom enlarges instead (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "SC4CameraView::Update"
+address = 0x007F83F0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC BC 00 00 00 56 8B"
+source = "Name ours, not analysed. (camera control): rebuilds the view volume (SC4::CameraView) from the camera control and its S3D camera (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "SC4CameraView::GroundCorner"
+address = 0x007F6BA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8B 44 24 08"
+source = "Name ours. (index 0 to 3, out float[3]): a corner of the ground in view, by the view's rotation (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "SC4CameraView::TileExtent"
+address = 0x007F8300
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 D9 04 8D C4"
+source = "Name ours. (size, zoom): size x (cos a + sin a) for the zoom's view angle |0x00ABCFC4[zoom]|, in ST0 (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "SC4::TerrainPicker"
+address = 0x00602160
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D F4 3C B4 00 85 C9"
+source = "Name ours, not analysed. The terrain's (SC4::Terrain) slot 66 object; its slot 3 (position, direction, 0, out point, 1) meets a ray with the ground (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::vftable"
+address = 0x00ABAD18
+kind = "vtable"
+source = "Seven slots: QueryInterface, AddRef, Release, Write, Read, class ID 0xC9C628EC, destructor (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::TileSizes"
+address = 0x00ABACE0
+kind = "data"
+source = "Name ours. int32[5]: pixels per 16 m tile by zoom (8, 16, 32, 73, 146) (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::Pitches"
+address = 0x00ABACCC
+kind = "data"
+source = "Name ours. float[5]: the camera's pitch by zoom (camera mods rewrite it) (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "S3D::UnsetFloat"
+address = 0x00B4E268
+kind = "data"
+source = "Name ours. The value the game's code gives float locals it has not set yet (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::SetZoomFactor"
+address = 0x007CD6E0
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 57 8B F9 D9"
+source = "Name ours. (factor): the fine zoom (+0xF0), changed only from a value in (0, 1000); rebuilds the box and posts 0xA6B79621 (docs/renderer.md, \"The camera control\")."
+
+[[entry]]
+name = "cSC4CameraControl::SetZoom"
+address = 0x007CDC50
+kind = "function"
+convention = "thiscall"
+expect = "51 D9 44 24 08 57 8B F9"
+source = "Name ours. (zoom as a float): behind cSC43DRender::SetZoom; past the maximum (+0xF8, up to +0xFC) the fine zoom enlarges by 2^(zoom - maximum) instead (docs/renderer.md, \"The camera control\")."

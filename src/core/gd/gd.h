@@ -70,4 +70,9 @@ public:
     virtual void Reset() = 0;                                 // slot 11
 };
 
+// [renderer] scale_city = no: the divisor applied to the city camera's fine
+// zoom while it builds its projection (the render scale; 1 when the city is
+// enlarged with the interface or the D3D11 driver is off).
+float CityZoomDivisor();
+
 } // namespace opensc4::gd
