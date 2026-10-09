@@ -1,0 +1,87 @@
+# The commercial and industrial simulators (docs/commercial-industrial.md).
+
+[[entry]]
+name = "cSC4MySimAgentSimulator::GetCountName"
+address = 0x00A85508
+kind = "data"
+source = "Name ours. \"get_count\", the script command's name (docs/mysim.md)."
+
+# --- The commercial and industrial simulators (docs/commercial-industrial.md) ---
+
+[[entry]]
+name = "cSC4CommercialSimulator::vftable"
+address = 0x00AB0CCC
+kind = "vtable"
+expect = "50 EA 69 00 A0 7B 4F 00"
+source = "Primary vtable: cISC4CommercialSimulator, 6 slots and the scalar deleting destructor (slot 6). Others: cIGZMessageTarget2 at +4 (0x00AB0CBC), cIGZSerializable at +8 (0x00AB0CA4) (docs/commercial-industrial.md)."
+
+[[entry]]
+name = "cSC4CommercialSimulator::vftable_4"
+address = 0x00AB0CBC
+kind = "vtable"
+expect = "00 EB 69 00 30 D2 68 00"
+source = "Name ours. The cIGZMessageTarget2 part at +4: DoMessage (slot 3, 0x0069EEB0) (docs/commercial-industrial.md)."
+
+[[entry]]
+name = "cSC4CommercialSimulator::vftable_8"
+address = 0x00AB0CA4
+kind = "vtable"
+expect = "10 EB 69 00 50 D2 68 00"
+source = "Name ours. The cIGZSerializable part at +8: Write (0x0069EC50), Read (0x0069ECB0), GetGZCLSID (0x0069EA40) (docs/commercial-industrial.md)."
+
+[[entry]]
+name = "cSC4CommercialSimulator::Started"
+address = 0x00B48614
+kind = "data"
+source = "Name ours. uint8 set by the first Init (docs/commercial-industrial.md)."
+
+[[entry]]
+name = "cSC4CommercialSimulator::Name"
+address = 0x00A89920
+kind = "data"
+source = "\"cSC4CommercialSimulator\", the name it registers under (docs/commercial-industrial.md)."
+
+[[entry]]
+name = "SC4SimGridBool8::SC4SimGridBool8"
+address = 0x0045DDB0
+kind = "function"
+convention = "thiscall"
+signature = "SC4SimGridBool8* (SC4SimGridBool8* this, uint32_t unused)"
+expect = "8B C1 C7 40 04 84 07 A8"
+source = "Name ours. A 0x44-byte grid of bits (vtable 0x00A878C0), empty (docs/commercial-industrial.md)."
+
+[[entry]]
+name = "SC4SimGridBool8::FromBuildings"
+address = 0x005E5130
+kind = "function"
+convention = "cdecl"
+signature = "void (cISC4SimGrid* to, void* buildings, uint32_t key)"
+expect = "8B 44 24 08 85 C0 74 39"
+source = "Name ours. Fills `to` from a building map for one building key (0x005E4FA0, then 0x005E4D60); nothing when either is null (docs/commercial-industrial.md)."
+
+[[entry]]
+name = "cSC4IndustrialSimulator::vftable"
+address = 0x00AB1530
+kind = "vtable"
+expect = "70 89 6B 00 A0 7B 4F 00"
+source = "Primary vtable: cISC4IndustrialSimulator, 5 slots and the scalar deleting destructor (slot 5). Others: cIGZMessageTarget2 at +4 (0x00AB1520), cIGZSerializable at +8 (0x00AB1508) (docs/commercial-industrial.md)."
+
+[[entry]]
+name = "cSC4IndustrialSimulator::vftable_4"
+address = 0x00AB1520
+kind = "vtable"
+expect = "20 8A 6B 00 30 D2 68 00"
+source = "Name ours. The cIGZMessageTarget2 part at +4: DoMessage (shared 0x006B8AA0) (docs/commercial-industrial.md)."
+
+[[entry]]
+name = "cSC4IndustrialSimulator::vftable_8"
+address = 0x00AB1508
+kind = "vtable"
+expect = "30 8A 6B 00 50 D2 68 00"
+source = "Name ours. The cIGZSerializable part at +8: Write (shared 0x0042E440), Read (shared 0x006B8A70), GetGZCLSID (0x006B8960) (docs/commercial-industrial.md)."
+
+[[entry]]
+name = "cSC4IndustrialSimulator::Started"
+address = 0x00B490A4
+kind = "data"
+source = "Name ours. uint8 set by the first Init (docs/commercial-industrial.md)."
