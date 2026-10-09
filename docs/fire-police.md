@@ -43,11 +43,12 @@ Offsets from the object. Police adds jails (+0xD4), the jail department (+0xD0),
 | `simulators.protection.base` | the base: messages, the walk, coverage, units, stations, Init, Shutdown, Write, Read (24 functions, protection_sim.cpp) |
 | `simulators.fire.sim` | fire: identity, tuning, Init, Shutdown, strikes, efficiency, coverage, the base's slots, the dispatch interface, Write, Read (31 functions, fire_sim.cpp) |
 | `simulators.protection.sources` | the fire plane and police helicopter dispatch sources: identity, Init, Shutdown, messages, units, buildings, Write, Read (29 functions, protection_sources.cpp) |
+| `simulators.fire.object`, `simulators.police.object` | our own objects (and their dispatch sources) under the class IDs (protection_object.cpp) |
 | `simulators.police.sim` | police: the same and jails, crimes, jailbreaks, crime statistics (59 functions, police_sim.cpp) |
 
 Bisect inside a group with `OPENSC4_PROTECTION_SKIP`, `OPENSC4_SOURCES_SKIP`, `OPENSC4_FIRE_SKIP`, `OPENSC4_POLICE_SKIP` (function addresses in hex).
 
-Not ours yet: the constructors, destructors and factories of the simulators and the sources (our own objects).
+`simulators.fire.object` and `simulators.police.object` (protection_object.cpp) are our own objects under the game's class IDs, with their dispatch sources (0x4C0AE114, 0x0C0B06E8): factories, constructors (the base's at +8 too), destructors, identity, and our copies of the vtables taken after the other replacements patched them; the sources' constructors are detoured as well, since the simulators' Init calls them directly.
 
 ## Parity
 
