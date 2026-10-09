@@ -68,6 +68,7 @@ Parity method (from P4): short-window exact comparison against the original from
 - [x] Crime ([docs/crime.md](docs/crime.md)): every crime function the game runs is replaceable (`simulators.crime.*`) but generic container helpers, and `simulators.crime.object` is our own object. Parity with everything on (`OPENSC4_TEST_CRIME_MONTH=2` runs the monthly pass inside a week): 12 of 12 and 3 of 3 for a week, 2 of 2 for 90 days, crime records identical; the UI-only queries checked with `OPENSC4_TEST_CRIME_QUERIES`.
 - [ ] Coverage sims (health, education, fire, police)
 - [ ] Land value
+- [x] Ordinances ([docs/ordinance.md](docs/ordinance.md)): the simulator, cSC4OrdinanceSimple and its 20 derived classes are ours (`simulators.ordinance.*`), with our own objects under all 22 class IDs. Parity: 10 of 12 for 35 days (the other two noisy for the original too), 8 of 12 with every ordinance enacted, cycled and repealed (the ordinance state identical in every run), 3 of 3 on the plopped corpus, 1 of 2 for a year.
 
 ## P6: Economy simulators
 
