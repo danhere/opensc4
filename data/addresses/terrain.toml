@@ -1,0 +1,205 @@
+[[entry]]
+name = "cSTETerrainView3D::UpdateLandRows"
+address = 0x00756750
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 0C 8B 45"
+source = "Name ours. (render context): the land rows in view (0x00752E80), the view's rotation pair (+0x5C, +0x60 from 0x007F7750), then which rows to draw (0x007535A0) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::LandRowSpans"
+address = 0x00752E80
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. (render context): rows from the camera view's z range (+0x25C, +0x268) and, per row, the vertex columns between two frustum edges (+0x3BC/+0x3C4 and +0x3CC/+0x3D4) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::LandRowVisibility"
+address = 0x007535A0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 24 04 00 00 53 55"
+source = "Name ours. (render context): per row whether land (0x00B4C6D0) or water (0x00B4C6CC) rises above the row's lowest visible height (0x00751EE0), and the row ranges at +0x8C to +0xAC (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::LandRowThresholds"
+address = 0x00751EE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 44 24 14 D9"
+source = "Name ours. (render context, out float per row): the lowest height in view along each row, from the camera view's plane at +0x334 (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::WaterRowSpans"
+address = 0x00753210
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. As LandRowSpans for the water pass: z range +0x98/+0xA4, edges +0x208/+0x210 and +0x218/+0x220, arrays 0x00B4C6C8/0x00B4C6C4, fields +0xBC to +0xE4 (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::WaterRowVisibility"
+address = 0x007539D0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 24 04 00 00 53 55"
+source = "Name ours. As LandRowVisibility for the water pass (flags 0x00B4C6C0, 0x00B4C6BC; thresholds 0x00751FF0) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::WaterRowThresholds"
+address = 0x00751FF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 44 24 14 D9"
+source = "Name ours. As LandRowThresholds with the plane at +0x180 (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::UpdateTextureCoordinates"
+address = 0x00751C80
+kind = "function"
+convention = "stdcall"
+expect = "8B 4C 24 04 8B 41 14 39"
+source = "Name ours. (render context): planar texture coordinates of every land and water vertex for the zoom (scale 0x00B0D708 x 0x00AB4330[zoom]) and rotation, when either changed (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "S3D::LineIntersect2D"
+address = 0x005D7420
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 08 56 8B 74 24"
+source = "Name ours. (point, direction, other point, other direction, out): where two 2D lines meet (null out: whether the directions differ); false when |cross| < 0.01 (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "SC4CameraView::RotationPair"
+address = 0x007F7750
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 10 40 25 03 00 00"
+source = "Name ours. (out a, out b): (rotation + 1) mod 4 and (rotation + 2) mod 4 (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::LandRowStart"
+address = 0x00B4C6D8
+kind = "data"
+source = "Name ours. int32* per row: first vertex column in view (land pass) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::LandRowEnd"
+address = 0x00B4C6D4
+kind = "data"
+source = "Name ours. int32* per row: one past the last column in view (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::LandRowDrawn"
+address = 0x00B4C6D0
+kind = "data"
+source = "Name ours. uint8* per row: land rises into view (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::LandRowWater"
+address = 0x00B4C6CC
+kind = "data"
+source = "Name ours. uint8* per row: water rises into view (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::WaterRowStart"
+address = 0x00B4C6C8
+kind = "data"
+source = "Name ours. int32* per row (water pass) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::WaterRowEnd"
+address = 0x00B4C6C4
+kind = "data"
+source = "Name ours. int32* per row (water pass) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::WaterRowDrawn"
+address = 0x00B4C6C0
+kind = "data"
+source = "Name ours. uint8* per row (water pass) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::WaterRowWater"
+address = 0x00B4C6BC
+kind = "data"
+source = "Name ours. uint8* per row (water pass) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::Columns"
+address = 0x00B4C74C
+kind = "data"
+source = "Name ours. uint32: vertices per row (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::Rows"
+address = 0x00B4C750
+kind = "data"
+source = "Name ours. uint32: rows of vertices (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::VertexCount"
+address = 0x00B4C754
+kind = "data"
+source = "Name ours. uint32: vertices in each array (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::LandVertices"
+address = 0x00B4C758
+kind = "data"
+source = "Name ours. 32-byte vertices: xyz, BGRA at +0xC, uv at +0x10 (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::WaterVertices"
+address = 0x00B4C75C
+kind = "data"
+source = "Name ours. 32-byte vertices, as the land ones (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::CityWidth"
+address = 0x00B4C734
+kind = "data"
+source = "Name ours. float metres (x) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::CityDepth"
+address = 0x00B4C730
+kind = "data"
+source = "Name ours. float metres (z) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::Zoom"
+address = 0x00B4C70C
+kind = "data"
+source = "Name ours. int32: the zoom the textures and coordinates are set up for (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::TextureZoom"
+address = 0x00B0D700
+kind = "data"
+source = "Name ours. int32: the zoom of the last texture coordinates (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::TextureRotation"
+address = 0x00B0D704
+kind = "data"
+source = "Name ours. int32: the rotation of the last texture coordinates (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::TextureScale"
+address = 0x00B0D708
+kind = "data"
+source = "Name ours. float: texture coordinate scale (0.00175) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::CellsPerMetre"
+address = 0x00B0D72C
+kind = "data"
+source = "Name ours. float: 1/16 (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::TextureZoomScale"
+address = 0x00AB4330
+kind = "data"
+source = "Name ours. float[5]: 1, 2, 4, 8, 16 (docs/renderer.md, \"The terrain\")."
