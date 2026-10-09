@@ -636,6 +636,19 @@ void __fastcall BuildDistanceTables(void* self, void*)
           At<int32_t>(self, field::kGoalRect + 12), At<int32_t>(self, field::kDepth) + 1);
 }
 
+// 0x006D9404 calls 0x006D6780 right after BuildDistanceTables without
+// setting ECX again: the game's whole-program build knew it is kept. The
+// thunk keeps ECX and EDX.
+__declspec(naked) void BuildDistanceTablesThunk()
+{
+    __asm push ecx
+    __asm push edx
+    __asm call BuildDistanceTables
+    __asm pop edx
+    __asm pop ecx
+    __asm ret
+}
+
 // 0x006D6780: every node's f again (after the goal moved); open nodes move
 // up the heap.
 void __fastcall Rescore(void* self, void*)
@@ -1829,7 +1842,7 @@ bool Install(registry::Mode)
         {addr::TrafficPathfinder_HeapPush, reinterpret_cast<void*>(&HeapPush)},
         {addr::TrafficPathfinder_DecreaseKey, reinterpret_cast<void*>(&DecreaseKey)},
         {addr::TrafficPathfinder_Estimate, reinterpret_cast<void*>(&Estimate)},
-        {addr::TrafficPathfinder_BuildDistanceTables, reinterpret_cast<void*>(&BuildDistanceTables)},
+        {addr::TrafficPathfinder_BuildDistanceTables, reinterpret_cast<void*>(&BuildDistanceTablesThunk)},
         {addr::TrafficPathfinder_Rescore, reinterpret_cast<void*>(&Rescore)},
         {addr::TrafficPathfinder_DistanceToRect, reinterpret_cast<void*>(&DistanceToRect)},
         {addr::TrafficPathfinder_FinishRoute, reinterpret_cast<void*>(&FinishRoute)},
