@@ -45,6 +45,8 @@ The cISC4MySim methods take the +0xB8 part as `this`; offsets in src/core/mysim_
 | `simulators.mysim_agents.dispatch_object` | the constructor (the game's allocation order kept), destructors and QueryInterface (any other IID goes to the base's with IID 1, so it also succeeds) |
 | `simulators.mysim_agents.dispatch_connections` | ValidConnection (a neighbour connection with a link of one of nine kinds) and FindConnection (the game's builds an empty list and never fills it, so it never finds one; kept as is) |
 
+Still the game's (open in ROADMAP.md): `cSC4MyStreetSim` (created, saved and loaded in the test saves, but its message handlers for its car or walker never run unattended, so parity cannot check it), the MySim UI (the move-in and dispatch tools, the panel and camera methods, which run only from clicks), two script helpers with a register convention (0x425B80, 0x425BD0) and two functors (0x424F30, 0x425100), and the dispatch's STL container helpers.
+
 Replacement code reads the MySim stopwatches through `sim_timers::Claim` first, so `determinism.sim_timers` takes them over as it would for the original code.
 
 ## Testing
