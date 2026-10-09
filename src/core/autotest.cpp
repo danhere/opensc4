@@ -564,6 +564,34 @@ private:
                     log::Write("autotest: crime month restarted on day %d", day);
                 }
         }
+        // OPENSC4_TEST_DEMAND_MONTH=<n>: every n days of the run, the demand
+        // simulator's MonthPassed (0x006A9450, build 641): its monthly passes
+        // and a waiting step restarted, so a week's run goes through them
+        // without a month's end (docs/demand.md).
+        if (const int every = EnvInt("OPENSC4_TEST_DEMAND_MONTH", -1); every > 0 && self->runDays_ >= 0 &&
+                                                                      game::IsBuild641()) {
+            const int into = day - (self->endDay_ - self->runDays_);
+            if (into > 0 && into % every == 0)
+                if (void* const demand = city->GetDemandSimulator()) {
+                    reinterpret_cast<void(__thiscall*)(void*)>(addr::cSC4DemandSimulator_MonthPassed)(demand);
+                    log::Write("autotest: demand month passed on day %d", day);
+                }
+        }
+        // OPENSC4_TEST_DEMAND_MESSAGES=<n>: on the n-th day, the messages the
+        // demand simulator gets rarely: SimulationBegin (0x66956810), the
+        // neighbours changed (0x8A0D15DA) and the passes (0x26C63343), to its
+        // DoMessage (docs/demand.md).
+        if (const int when = EnvInt("OPENSC4_TEST_DEMAND_MESSAGES", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641())
+            if (void* const demand = city->GetDemandSimulator()) {
+                for (const uint32_t type : {0x66956810u, 0x8A0D15DAu, 0x26C63343u}) {
+                    void* const message = demand_sim::NewMessage();
+                    Virtual<uint32_t>(message, 0x14, type);
+                    Virtual<uint8_t>(static_cast<char*>(demand) + 4, 0xC, message);
+                    Virtual<uint32_t>(message, 0x8);
+                }
+                log::Write("autotest: demand messages sent on day %d", day);
+            }
         // OPENSC4_TEST_OCCUPANT_CYCLE=<n>: on the n-th day, hand the water and
         // power simulators "removed" then "added" for an existing pipe and
         // pole (messages 0x99EF1143, 0x99EF1142), and power the plant
