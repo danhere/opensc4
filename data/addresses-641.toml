@@ -5503,14 +5503,6 @@ kind = "data"
 source = "The C string the ordinance simulator registers under with the simulator service (\"cSC4OrdinanceSimulator\") (docs/ordinance.md)."
 
 [[entry]]
-name = "RZ::GZCOM"
-address = 0x0090DDF1
-kind = "function"
-convention = "cdecl"
-expect = "E8 1C D4 F6 FF 8B 10 8B"
-source = "Name ours. The framework's cIGZCOM (RZGetFramework, then its slot). Used by the ordinance simulator to create ordinances by class ID (docs/ordinance.md)."
-
-[[entry]]
 name = "cRZBaseString::MakeLower"
 address = 0x0090EAC5
 kind = "function"
@@ -7254,7 +7246,7 @@ kind = "function"
 convention = "cdecl"
 signature = "cIGZCOM* ()"
 expect = "E8 1C D4 F6 FF 8B 10 8B"
-source = "Name ours. The framework's COM object (RZGetFramework, then its slot 12); its slot 3 creates an instance by class and interface (docs/demand.md)."
+source = "Name ours. The framework's COM object (RZGetFramework, then its slot 12); its slot 3 creates an instance by class and interface; the ordinance simulator creates ordinances by class ID with it (docs/demand.md, docs/ordinance.md)."
 
 [[entry]]
 name = "cSC4DemandSimulator::CreateDemand"

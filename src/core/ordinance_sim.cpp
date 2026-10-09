@@ -719,7 +719,7 @@ void __fastcall CreateOrdinance(void* self, void*, const uint32_t* key)
     FirstCall("CreateOrdinance", logged);
     using GzcomFn = void*(__cdecl*)();
     void* created = nullptr;
-    void* const com = reinterpret_cast<GzcomFn>(addr::RZ_GZCOM)();
+    void* const com = reinterpret_cast<GzcomFn>(addr::RZGetCOM)();
     if (Virtual<uint8_t>(com, 0xC, key[2], 0x8BD4FC74u, &created)) {
         Virtual<uint8_t>(created, ord::kSetKey, key);
         Virtual<uint8_t>(created, ord::kInit);
