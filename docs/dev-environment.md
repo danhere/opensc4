@@ -34,8 +34,8 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 
 ## Address database and hooks
 
-- Every game address OpenSC4 relies on lives in [`data/addresses-641.toml`](../data/addresses-641.toml): name, address, kind, calling convention, signature, the first bytes, and how it was identified. The build generates `opensc4/addresses.h` from it (`tools/gen_addresses.py`, Python 3.11+); C++ code uses `opensc4::addr::<name>` constants instead of literal addresses.
-- `python3 tools/gen_addresses.py --check data/addresses-641.toml "<SimCity 4.exe>"` checks every entry's bytes against an exe; `scripts/ghidra-setup.sh` runs it too.
+- Every game address OpenSC4 relies on lives in [`data/addresses/`](../data/addresses/README.md), one file per simulator plus `core.toml`: name, address, kind, calling convention, signature, the first bytes, and how it was identified. The build generates `opensc4/addresses.h` from it (`tools/gen_addresses.py`, Python 3.11+); C++ code uses `opensc4::addr::<name>` constants instead of literal addresses.
+- `python3 tools/gen_addresses.py --check data/addresses "<SimCity 4.exe>"` checks every entry's bytes against an exe; `scripts/ghidra-setup.sh` runs it too.
 - In the game, `core.dll` logs a manifest after all plugins have loaded: which entries still have their expected bytes, and for patched ones, which module the patch jumps into.
 - Hooks (`src/core/hook.h`) go through MinHook, only at `function` entries from the database, and are refused when the entry's bytes don't match (a different build, or another DLL got there first). Detours for `__thiscall` functions are written as `__fastcall` free functions (`this` in ECX, unused EDX).
 - Trace hooks log calls into the game and pass them through; they are replacements named `diagnostics.trace.*` (currently `diagnostics.trace.loadcity` for `cSC4App::LoadCity`).

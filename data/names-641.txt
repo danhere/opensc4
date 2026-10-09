@@ -1,7 +1,7 @@
 # Function names for SimCity 4.exe 1.1.641 that OpenSC4's work has
 # established, applied to the Ghidra project by scripts/ghidra-setup.sh
 # (step 5b, tools/ghidra/ApplyNameList.java) together with the names in
-# data/addresses-641.toml. Functions only get renamed while they still have
+# data/addresses/. Functions only get renamed while they still have
 # Ghidra's default name, so library names from Function ID are kept.
 #
 # Format: <address> <name> <note: what the name rests on, and where it is
