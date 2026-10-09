@@ -113,3 +113,16 @@ The test cities enact no ordinances. Three autotest switches (both sides of a pa
 - `OPENSC4_TEST_ORDINANCES=<n>`: on the n-th day every ordinance is made available and enacted.
 - `OPENSC4_TEST_ORDINANCES_OFF=<n>`: every ordinance repealed (legalised gambling's repeal demolishes casinos).
 - `OPENSC4_TEST_ORDINANCES_CYCLE=<n>`: the new city's creation from the exemplars (the ordinances exist already, so each new one is released again), every ordinance found by name, removed and added back, and the recount message.
+
+## Parity
+
+Everything ours (all eleven `simulators.ordinance.*` switches, our objects included) against the original, 2026-10-09, 2 parallel jobs in their own user folders; result folders under `%LOCALAPPDATA%\opensc4\parity\`. Every function was reached in the stress runs (first-call log lines) but the ordinances' own `Shutdown`, `ForceMonthlyAdjustedIncome` and the simulator's `SetOrdinanceEnabled`, which nothing in a test run calls.
+
+| Run | Result |
+| --- | --- |
+| 12 saves, 35 days (`ord-all35`) | 10 identical; Making Money d0000 and Rush Hour d0090 not. Again with the original against itself (`ord-ctl35`) and ours (`ord-noisy35`): Making Money d0000 identical on the first pair; Rush Hour d0090 gives a new outcome almost every run on both sides (the original 6 outcomes in 16 runs, ours 5 in 8, one shared); its ordinance fingerprint is the same in all 24 runs |
+| 12 saves, 35 days, every ordinance enacted on day 1, cycled on day 10, repealed on day 20 (`ord-stress35`) | 8 identical. Big City d0000 splits for the original too. Making Money d0090, Rush Hour d0000 and d0090: pooled over four batches (`ord-stressctl35`, `ord-bis-noobj`, `ord-bis-class`), the original reaches 3 to 5 outcomes in 9 to 11 runs, ours 3 in 6; the most frequent outcome of each side is an outcome of the other. The ordinance fingerprint and all 20 ordinance records are identical in every run of these saves |
+| `saves-mm2`, 365 days, every ordinance enacted (`ord-mm365`) | d0090 identical for all 366 days. d0365: all four runs differ, the original's two from each other as well |
+| `saves-plopped`, 35 days, stress switches (`ord-pl35`) | 3 of 3 identical |
+
+The divergences in the noisy saves start in pollution and power figures, not in the ordinances; with every ordinance enacted their effects reach the other simulators through `GetCumulativeFactor` and `GetCumulativeOffset`, which makes these saves noisier for the original as well. Not shown exact: those four saves under the stress switches, and a year with enacted ordinances from d0365.
