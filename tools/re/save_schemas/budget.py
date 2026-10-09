@@ -43,4 +43,67 @@ def budget_simulator(r):
     return out
 
 
-SCHEMAS = {0xE990BE01: ('cSC4BudgetSimulator', budget_simulator)}
+def one_department(r):
+    """cSC4DepartmentBudget (0xE990BFFC): Write at 0x006A9D70 (version 10),
+    Read at 0x006AC1D0 (up to 10; before 10 the fundings are in percent); the
+    cIGZSerializable part sits at +0x4 (docs/budget.md)."""
+    out = header(r)
+    out['version'] = v = r.u16()
+    if v > 10:
+        raise struct.error('version %d not known' % v)
+    out['initialised_8'], out['id_10'], out['name_14'], out['group_30'] = r.u8(), r.u32(), r.gzstr(), r.u32()
+    out['funding_34'], out['max_funding_38'], out['spending_40'] = r.f32(), r.f32(), r.s64()
+    out['fixed_48'] = r.u8()
+    out['lines_4c'] = [r.ref() for _ in range(r.u32())]
+    out['local_58'] = [{'holder': r.ref(), 'purpose': r.u32()} for _ in range(r.u32())]
+    out['name_instance_28'], out['name_group_2c'] = r.u32(), r.u32()
+    return out
+
+
+def one_line_item(r):
+    """cSC4LineItem (0xAA313C9F): Write at 0x006A9AA0, Read at 0x006A9B60
+    (version 4); the cIGZSerializable part sits at +0x4 (docs/budget.md)."""
+    out = header(r)
+    out['version'] = v = r.u16()
+    if v != 4:
+        raise struct.error('version %d not known' % v)
+    out['name_c'] = r.gzstr()
+    out['secondary_30'], out['full_38'], out['current_40'], out['income_48'] = r.s64(), r.s64(), r.s64(), r.s64()
+    out['id_54'], out['flags_58'], out['local_5c'], out['type_64'] = r.u32(), r.u32(), r.u8(), r.u16()
+    out['department_60'] = r.ref()
+    out['name_instance_20'], out['name_group_24'] = r.u32(), r.u32()
+    return out
+
+
+def without_addresses(value):
+    """References (tuples) without the heap address they were saved as."""
+    if isinstance(value, tuple):
+        return (value[0] != 0, value[1])
+    if isinstance(value, list):
+        return [without_addresses(v) for v in value]
+    if isinstance(value, dict):
+        return {k: without_addresses(v) for k, v in value.items()}
+    return value
+
+
+def every(one):
+    """A record of many objects of one class, one after the other (in an
+    order that follows heap addresses, so they are sorted here). The
+    objects' CRCs and address-IDs are left out (sc4save.py --compare skips
+    them only at the top), the top's are zero."""
+    def decode(r):
+        objects = []
+        while r.pos < len(r.data):
+            fields = one(r)
+            del fields['crc'], fields['id']
+            objects.append(fields)
+        objects.sort(key=lambda o: repr(sorted((k, without_addresses(v)) for k, v in o.items())))
+        return {'crc': 0, 'id': 0, 'objects': objects}
+    return decode
+
+
+SCHEMAS = {
+    0xE990BE01: ('cSC4BudgetSimulator', budget_simulator),
+    0xE990BFFC: ('cSC4DepartmentBudget', every(one_department)),
+    0xAA313C9F: ('cSC4LineItem', every(one_line_item)),
+}
