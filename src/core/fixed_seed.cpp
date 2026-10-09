@@ -108,8 +108,14 @@ void RecordStatic(void* self, bool mt)
 // The first code address up the stack from `retSlot` outside the cRZRandom
 // functions (0x00913600-0x00913C40): the code that constructed or seeded the
 // generator, not the shared constructor.
+// SiteOverride's site and thread.
+uint32_t g_siteOverride = 0;
+DWORD g_siteOverrideThread = 0;
+
 uint32_t CallSite(void** retSlot)
 {
+    if (g_siteOverride && GetCurrentThreadId() == g_siteOverrideThread)
+        return g_siteOverride;
     auto* words = reinterpret_cast<uint32_t*>(retSlot);
     for (int i = 0; i < 32; ++i) {
         const uint32_t v = words[i];
@@ -327,6 +333,17 @@ void EndStartup()
         return;
     log::Write("fixed_seed: startup over after %u seed calls; from now on only clock seeds are replaced",
                g_calls.load());
+}
+
+SiteOverride::SiteOverride(uint32_t site) : previous_(g_siteOverride)
+{
+    g_siteOverride = site;
+    g_siteOverrideThread = GetCurrentThreadId();
+}
+
+SiteOverride::~SiteOverride()
+{
+    g_siteOverride = previous_;
 }
 
 } // namespace opensc4::fixed_seed

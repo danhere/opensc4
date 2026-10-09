@@ -20,4 +20,20 @@ bool InstallForGameSeed();
 // counted afresh. Main thread, before a city loads.
 void ReseedForCity(uint32_t seed);
 
+// For replacements of code that constructs or seeds generators: the call
+// site clock seeds are counted under is the first exe address up the stack,
+// which from our code is not the original's. While a SiteOverride lives,
+// seed calls on its thread count under `site` (the original's return
+// address after the cRZRandom call).
+class SiteOverride {
+public:
+    explicit SiteOverride(uint32_t site);
+    ~SiteOverride();
+    SiteOverride(const SiteOverride&) = delete;
+    SiteOverride& operator=(const SiteOverride&) = delete;
+
+private:
+    uint32_t previous_;
+};
+
 } // namespace opensc4::fixed_seed

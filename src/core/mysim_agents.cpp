@@ -15,12 +15,19 @@
 //     SetResidence;
 //   simulators.mysim_agents.script: UpdateHomeAndJob, the home and job
 //     facts the MySim's script reads;
-//   simulators.mysim_agents.trip: OnCommand, the trip facts.
+//   simulators.mysim_agents.trip: OnCommand, the trip facts;
+//   simulators.mysim_agents.agent: the agent (+0) and advisor (+8)
+//     interfaces' methods;
+//   simulators.mysim_agents.ui: the cISC4MySim methods the panel and the
+//     residence view use;
+//   simulators.mysim_agents.object: the factory, constructor and
+//     destructors.
 //
 // The methods take the cISC4MySim part as `this` (here `self`); offsets
 // below are from it. The object starts at self - 0xB8.
 #include "core/address_check.h"
 #include "core/game.h"
+#include "core/fixed_seed.h"
 #include "core/game_access.h"
 #include "core/hook.h"
 #include "core/log.h"
@@ -868,7 +875,7 @@ void __fastcall Update(char* mysim, void*)
     if (paused)
         return;
     if (!At<int32_t>(mysim, 0xE0) && !At<int32_t>(mysim, 0xE4) && !At<uint8_t>(mysim, 0x158) &&
-        At<int32_t>(mysim, 0xC0) == 2 && !reinterpret_cast<ThisBoolFn>(addr::cSC4MySim_IsBusy)(mysim))
+        At<int32_t>(mysim, 0xC0) == 2 && !reinterpret_cast<ThisBoolFn>(addr::cSC4MySim_TryGoToWork)(mysim))
         ++At<int32_t>(mysim, 0xFC);
     if (At<uint8_t>(mysim, 0x160)) {
         reinterpret_cast<ThisFn>(addr::cSC4MySim_RefreshLocation)(mysim);
@@ -934,10 +941,10 @@ uint8_t __fastcall ChangeResidence(char* self, void*, void* occupant)
         return 0;
     }
     char* const object = Object(self);
-    reinterpret_cast<ThisFn>(addr::cSC4MySim_ResetTrip)(object);
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_ClearResidence)(object);
     Virtual<void>(self, 0x34, occupant); // SetResidence
     if (Virtual<uint8_t>(self - 0xB0, 0x4C, 0x6A47E79Bu)) {
-        reinterpret_cast<ThisFn>(addr::cSC4MySim_ResetTrip)(object);
+        reinterpret_cast<ThisFn>(addr::cSC4MySim_ClearResidence)(object);
         Virtual<void>(self, 0x34, old);
     }
     if (At<uint8_t>(self, field::kResidenceShown))
@@ -1022,10 +1029,10 @@ uint8_t __fastcall DeleteFromGame(char* self, void*)
     }
     for (std::size_t at = 0x194; at <= 0x1A8; at += 4)
         At<uint32_t>(self, at) = 0;
-    reinterpret_cast<ThisFn>(addr::cSC4MySim_ResetTrip)(object);
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_ClearResidence)(object);
     At<int32_t>(self, field::kState) = 0;
     Virtual<void>(self, 0x8C); // HideLocation
-    reinterpret_cast<ThisFn>(addr::cSC4MySim_Unregister)(object);
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_ResetAdvisor)(object);
     Send(0xAA25827C, nullptr, self);
     return 1;
 }
@@ -1115,7 +1122,7 @@ void __fastcall DoBuildingAdded(char* self, void*, void* occupant)
     void* const data = NewAdviceData();
     if (!data)
         return;
-    const uint32_t value = reinterpret_cast<uint32_t(__thiscall*)(void*, uint32_t)>(addr::cSC4MySim_DescribeOccupant)(
+    const uint32_t value = reinterpret_cast<uint32_t(__thiscall*)(void*, uint32_t)>(addr::cSC4MySim_DistanceTo)(
         Object(self), Virtual<uint32_t>(occupant, 0xC));
     Virtual<void>(data, 0x1C, occupant);
     Virtual<void>(data, 0x28, value);
@@ -1134,7 +1141,7 @@ void __fastcall DoBuildingRemoved(char* self, void*, void* occupant, uint32_t re
             At<uint32_t>(self, 0xA4) = replacement;
             reinterpret_cast<ThisFn>(addr::cSC4MySim_UpdateHomeAndJob)(object);
             Advise(self, 0xAA4D2D64, nullptr);
-            reinterpret_cast<ThisFn>(addr::cSC4MySim_ResetTrip)(object);
+            reinterpret_cast<ThisFn>(addr::cSC4MySim_ClearResidence)(object);
         } else {
             Advise(self, 0xAA48F5C1, nullptr);
             Virtual<uint8_t>(self, 0x14); // FindNewResidence
@@ -1427,7 +1434,7 @@ uint8_t __fastcall SetResidence(char* self, void*, void* occupant)
             At<uint8_t>(self, field::kLocationShown) = reinterpret_cast<HasFlagFn>(addr::cSC4MySimDispatch_HasFlag)(
                 At<void*>(self, field::kDispatch), 0x100);
     } else {
-        reinterpret_cast<ThisFn>(addr::cSC4MySim_Unregister)(object);
+        reinterpret_cast<ThisFn>(addr::cSC4MySim_ResetAdvisor)(object);
         At<int32_t>(self, field::kState) = 2;
         void* const city = Global<void*>(addr::SC4_Service43DA4);
         const int32_t x = At<int32_t>(self, 0x10);
@@ -1561,7 +1568,7 @@ float Funding(char* mysim, void* service, bool fire, void** head)
                 const double dz = static_cast<double>(At<float>(mysim, 0xD8)) - position[2];
                 distance = static_cast<uint32_t>(Truncate(std::sqrt(dz * dz + dx * dx)));
             } else {
-                distance = reinterpret_cast<uint32_t(__thiscall*)(void*, void*)>(addr::cSC4MySim_DescribeOccupant)(
+                distance = reinterpret_cast<uint32_t(__thiscall*)(void*, void*)>(addr::cSC4MySim_DistanceTo)(
                     mysim, station);
             }
             if (distance < best &&
@@ -2265,6 +2272,871 @@ void __fastcall OnCommand(char* mysim, void*, int32_t trip, int32_t tripBefore, 
     Release(place.object);
 }
 
+// --- The agent and advisor interfaces ------------------------------------------------------
+//
+// From the object's start (+0 interface) or its +8 part (advisor).
+
+uint8_t __fastcall QueryInterface(char* mysim, void*, uint32_t iid, void** out)
+{
+    *out = nullptr;
+    if (iid == 0x0A1DA42F) {
+        *out = mysim ? mysim + 0xB8 : nullptr;
+        Virtual<uint32_t>(mysim, 0x4);
+        return 1;
+    }
+    if (iid == 0x8BC01FFE) {
+        *out = mysim;
+        Virtual<uint32_t>(mysim, 0x4);
+        return 1;
+    }
+    return reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t, void**)>(addr::SC4AgentBase_QueryInterface)(mysim,
+                                                                                                             iid, out);
+}
+
+uint8_t __fastcall CheckBalloonTarget(char* mysim, void*)
+{
+    const auto timeout = reinterpret_cast<ThisFn>(addr::cSC4MySim_OnBalloonTimeout);
+    char* const dispatch = At<char*>(mysim, 0x20C);
+    if (At<uint8_t>(mysim, 0x244) && !At<uint8_t>(mysim, 0x245) && dispatch) {
+        if (At<void*>(mysim, 0x248) &&
+            reinterpret_cast<int32_t(__thiscall*)(void*)>(addr::cSC4MySimDispatch_State)(dispatch) == 2) {
+            Place here;
+            reinterpret_cast<PlaceCopyFn>(addr::SC4MySimPlace_Copy)(&here, At<char*>(mysim, 0x20C) + 0xAC);
+            if (!reinterpret_cast<AtPlaceFn>(addr::cSC4MySim_AtBalloonPlace)(mysim, &here) ||
+                !reinterpret_cast<uint8_t*>(&here)[0x1C])
+                timeout(mysim);
+            Release(here.object);
+            At<uint8_t>(mysim, 0x244) = 0;
+            return 1;
+        }
+        timeout(mysim);
+    }
+    At<uint8_t>(mysim, 0x244) = 0;
+    return 1;
+}
+
+void* __fastcall GetBalloonTarget(char* mysim, void*)
+{
+    return At<void*>(mysim, 0x248);
+}
+
+void __fastcall SetDispatchFlag(char* mysim, void*, uint8_t value)
+{
+    At<uint8_t>(At<char*>(mysim, 0x20C), 0x10) = value;
+}
+
+uint32_t __fastcall IsAboveWater(char*, void*, float x, float z)
+{
+    void* const terrain = Global<void*>(addr::SC4_Terrain);
+    if (!terrain)
+        return 0;
+    using HeightFn = double(__thiscall*)(void*, float, float);
+    using LevelFn = double(__thiscall*)(void*);
+    const auto height = static_cast<float>(reinterpret_cast<HeightFn>(At<void**>(terrain, 0)[0x34 / 4])(terrain, x, z));
+    const double water = reinterpret_cast<LevelFn>(At<void**>(terrain, 0)[0x74 / 4])(terrain);
+    return water < height ? 1 : 0;
+}
+
+int32_t __fastcall GetTripTime(char* mysim, void*)
+{
+    if (char* const dispatch = At<char*>(mysim, 0x20C))
+        return At<int32_t>(dispatch, 0x3C);
+    return At<int32_t>(mysim, 0x150);
+}
+
+// Birthdays, the facts, and the last six months of education and health
+// (delta_eq and delta_hq: now against six months ago).
+void __fastcall MonthPassed(char* mysim, void*)
+{
+    bool skip = true;
+    if (At<int32_t>(mysim, 0xC0)) {
+        void* service = nullptr;
+        if (void* const framework = reinterpret_cast<void*(__cdecl*)()>(addr::RZGetFramework)())
+            Virtual<void>(framework, 0x14, 0xA417445Eu, 0x5A4u, &service);
+        skip = Virtual<uint8_t>(service, 0xA8) != 0;
+        Release(service);
+    }
+    if (skip)
+        return;
+    if (At<int32_t>(mysim, 0x58) % 12 == At<uint8_t>(mysim, 0x129))
+        ++At<uint8_t>(mysim, 0x128);
+    if (At<void*>(mysim, 0xE0) || At<void*>(mysim, 0xE4))
+        reinterpret_cast<ThisFn>(addr::cSC4MySim_RefreshLocation)(mysim);
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_UpdateHomeAndJob)(mysim);
+    const auto history = [&](std::size_t index, std::size_t now, std::size_t ring, std::size_t delta) {
+        uint8_t& i = At<uint8_t>(mysim, index);
+        const std::size_t at = ring + std::size_t{i} * 4;
+        At<float>(mysim, delta) =
+            static_cast<float>(static_cast<double>(At<float>(mysim, now)) - static_cast<double>(At<float>(mysim, at)));
+        At<uint32_t>(mysim, at) = At<uint32_t>(mysim, now);
+        i = static_cast<uint8_t>(i + 1);
+        if (i == 6)
+            i = 0;
+    };
+    history(0x1D8, 0x17C, 0x1A8, 0x1DC); // education
+    history(0x1D9, 0x180, 0x1C0, 0x1E0); // health
+    Virtual<void>(mysim + 0xB8, 0x110); // ActivateLuaContext
+    reinterpret_cast<ThisFn>(addr::SC4AgentBase_MonthPassed)(mysim);
+}
+
+// The name, from the second generation with a suffix (localized for
+// generations up to 10, else "name n"); made once and kept at +0x170.
+void* __fastcall GetName(char* advisor, void*)
+{
+    if (At<uint16_t>(advisor, 0x108) <= 1)
+        return advisor + 0x30;
+    if (At<void*>(advisor, 0x170))
+        return At<void*>(advisor, 0x170);
+    void* const memory = reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x14);
+    void* const text = memory ? reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4String_SC4String)(memory) : nullptr;
+    void* const old = At<void*>(advisor, 0x170);
+    if (text != old) {
+        if (text)
+            Virtual<uint32_t>(text, 0x4);
+        At<void*>(advisor, 0x170) = text;
+        Release(old);
+    }
+    const uint16_t generation = At<uint16_t>(advisor, 0x108);
+    if (generation <= 10) {
+        struct {
+            std::uintptr_t vtable;
+            char* begin;
+            char* end;
+            char* capacity;
+            uint32_t rest[4];
+        } suffix{};
+        reinterpret_cast<void*(__thiscall*)(void*, uint32_t, uint32_t, uint32_t)>(addr::SC4LocalizedString_SC4LocalizedString)(
+            &suffix, 0xEA231E96, 0x6A56248Eu + generation, 1);
+        const bool found = suffix.end != suffix.begin;
+        if (found) {
+            char* const name = At<char*>(advisor, 0x170);
+            reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::cRZBaseString_Assign)(name, advisor + 0x30);
+            reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4String_PushBack)(At<char*>(advisor, 0x170) + 4,
+                                                                                          ' ');
+            uint8_t allocator = 0;
+            reinterpret_cast<void(__thiscall*)(void*, char*, char*, void*)>(addr::SC4String_AppendRange)(
+                At<char*>(advisor, 0x170) + 4, suffix.begin, suffix.end, &allocator);
+        }
+        suffix.vtable = addr::SC4String_Vtable;
+        if (suffix.begin)
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(suffix.begin);
+        if (found)
+            return At<void*>(advisor, 0x170);
+    }
+    void* const name = At<void*>(advisor, 0x170);
+    const auto format = reinterpret_cast<void(__cdecl*)(void*, const char*, const char*, uint32_t)>(
+        At<void**>(name, 0)[0x6C / 4]);
+    format(name, reinterpret_cast<const char*>(addr::SC4MySim_GenerationFormat), At<const char*>(advisor, 0x34),
+           uint32_t{generation});
+    return At<void*>(advisor, 0x170);
+}
+
+// The balloon target (+0x248): made once and set up (its name from the
+// path service plus the MySim's text at +0x134, the key from its slot 3's
+// slot 9, the MySim itself); then the active tool becomes the dispatch tool.
+void* __fastcall MakeBalloonTarget(char* mysim, void*)
+{
+    if (!At<void*>(mysim, 0x248)) {
+        void* const memory = reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x1CC);
+        void* const made = memory ? reinterpret_cast<void*(__thiscall*)(void*, uint32_t)>(
+                                        addr::SC4MySimBalloonTarget_Construct)(memory, 1)
+                                  : nullptr;
+        void* const old = At<void*>(mysim, 0x248);
+        if (made != old) {
+            if (made)
+                Virtual<uint32_t>(made, 0x4);
+            At<void*>(mysim, 0x248) = made;
+            Release(old);
+        }
+        Virtual<void>(At<void*>(mysim, 0x248), 0x10);
+        Virtual<void>(At<void*>(mysim, 0x248), 0x2C, uint32_t{0});
+        Virtual<void>(At<void*>(mysim, 0x248), 0x24, uint32_t{4});
+        Virtual<void>(At<void*>(mysim, 0x248), 0x18, uint32_t{1});
+        uint32_t key[3] = {};
+        Virtual<void>(Virtual<void*>(At<void*>(mysim, 0x248), 0xC), 0x24, key);
+        ScriptString text{};
+        char* const buffer = static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(8));
+        text.begin = buffer;
+        text.end = buffer;
+        text.capacity = buffer + 8;
+        *buffer = 0;
+        text.vtable = addr::SC4String_Vtable;
+        text.references = 0;
+        Virtual<void>(Global<void*>(addr::SC4_Service43C94), 0xF4, &text);
+        uint8_t allocator = 0;
+        reinterpret_cast<void(__thiscall*)(void*, char*, char*, void*)>(addr::SC4String_AppendRange)(
+            &text.begin, At<char*>(mysim, 0x134), At<char*>(mysim, 0x138), &allocator);
+        Virtual<void>(At<void*>(mysim, 0x248), 0x20, At<uint32_t>(mysim, 0x12C), &text);
+        void* self = nullptr;
+        Virtual<uint8_t>(mysim, 0x0, uint32_t{1}, &self);
+        Virtual<void>(At<void*>(mysim, 0x248), 0x4C, self);
+        At<uint8_t>(mysim, 0x245) = 0;
+        Release(self);
+        text.vtable = addr::SC4String_Vtable;
+        if (text.begin)
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(text.begin);
+    }
+    At<uint8_t>(mysim, 0x244) = 1;
+    void* const tool = Virtual<void*>(Global<void*>(addr::SC4_Service43DC4), 0x60);
+    void*& current = Global<void*>(addr::SC4_DispatchTool);
+    void* const old = current;
+    if (tool != old) {
+        if (tool)
+            Virtual<uint32_t>(tool, 0x4);
+        current = tool;
+        Release(old);
+    }
+    return At<void*>(mysim, 0x248);
+}
+
+// With `follow`, the MySim heads for the balloon target's place (its
+// building's lot when there is one); arriving there is state 6. Without,
+// the target lets go of it.
+uint8_t __fastcall FollowBalloonTarget(char* mysim, void*, uint8_t follow)
+{
+    if (At<void*>(mysim, 0x20C) && follow) {
+        void* target = Virtual<void*>(At<void*>(mysim, 0x248), 0xC);
+        if (target)
+            Virtual<uint32_t>(target, 0x4);
+        Place there;
+        reinterpret_cast<ThisFn>(addr::SC4MySimPlace_Construct)(&there);
+        const auto setOccupant = reinterpret_cast<void(__thiscall*)(Place*, void*)>(addr::SC4MySimPlace_SetOccupant);
+        setOccupant(&there, target);
+        if (void* const lot = Virtual<void*>(Global<void*>(addr::SC4_LotManager), 0x18, there.words[2], there.words[3],
+                                             uint32_t{0}))
+            if (void* const building = Virtual<void*>(lot, 0xC0)) {
+                reinterpret_cast<AssignFn>(addr::SC4RefPtr_Assign)(&target, Virtual<void*>(building, 0xC));
+                Virtual<void>(At<void*>(mysim, 0x248), 0x44, target);
+                setOccupant(&there, target);
+            }
+        Place here;
+        reinterpret_cast<PlaceCopyFn>(addr::SC4MySimPlace_Copy)(&here, At<char*>(mysim, 0x20C) + 0xAC);
+        const auto* const hereBytes = reinterpret_cast<const uint8_t*>(&here);
+        const auto* const thereBytes = reinterpret_cast<const uint8_t*>(&there);
+        bool go = false;
+        if (hereBytes[0x1C] == thereBytes[0x1C]) {
+            using DifferFn = uint8_t(__cdecl*)(const void*, const void*);
+            if (reinterpret_cast<DifferFn>(addr::SC4_CellPairsDiffer)(&here.words[2], &there.words[2]))
+                go = true;
+            else if (there.object != here.object && here.object)
+                go = there.object != nullptr;
+        }
+        if (go) {
+            void* const balloon = At<void*>(mysim, 0x248);
+            if (reinterpret_cast<uint8_t(__thiscall*)(void*, Place*)>(addr::cSC4MySimDispatch_GoTo)(At<void*>(mysim, 0x20C),
+                                                                                                   &there)) {
+                Virtual<void>(balloon, 0x2C, uint32_t{3});
+                reinterpret_cast<PostFn>(addr::SC4_PostMessage)(kBalloonMessage, 0, 0, 0, 0, mysim + 0xB8);
+                At<int32_t>(mysim, 0xC0) = 6;
+                At<int32_t>(mysim, 0x298) = At<int32_t>(mysim, 0x5C);
+            } else {
+                Virtual<void>(balloon, 0x2C, uint32_t{1});
+            }
+        }
+        Release(here.object);
+        Release(there.object);
+        Release(target);
+    }
+    At<uint8_t>(mysim, 0x245) = follow;
+    if (!follow)
+        Virtual<void>(At<void*>(mysim, 0x248), 0x44, nullptr);
+    return 1;
+}
+
+// The +8 part's Init: the message stopwatch, the base Init, the script
+// context (from the city), three strings, and for a MySim that has moved in
+// the dispatch object (made if missing), the home's lot, the job's
+// occupant, the first trip; then the advice and tuning.
+uint8_t __fastcall Init(char* advisor, void*, void* argument)
+{
+    char* const mysim = advisor - 8;
+    sim_timers::Claim(advisor + 0x278);
+    reinterpret_cast<ThisFn>(addr::GZStopwatch_Start)(advisor + 0x278);
+    if (!reinterpret_cast<uint8_t(__thiscall*)(void*, void*)>(addr::SC4AdvisorBase_Init)(advisor, argument))
+        return 0;
+    const auto hold = [&](std::size_t at, void* object) {
+        void* const old = At<void*>(advisor, at);
+        if (object == old)
+            return;
+        if (object)
+            Virtual<uint32_t>(object, 0x4);
+        At<void*>(advisor, at) = object;
+        Release(old);
+    };
+    hold(0x1E8, Virtual<void*>(Virtual<void*>(Global<void*>(addr::SC4_City), 0x144), 0x28));
+    const auto newString = [&] {
+        void* const memory = reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x14);
+        return memory ? reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4String_SC4String)(memory) : nullptr;
+    };
+    if (!At<void*>(advisor, 0x1EC))
+        hold(0x1EC, newString());
+    if (!At<void*>(advisor, 0x1F0)) {
+        hold(0x1F0, newString());
+        LoadText(At<void*>(advisor, 0x1F0), 0xEA231E96, 0xAA665D3E, 0);
+    }
+    if (!At<void*>(advisor, 0x1F4)) {
+        hold(0x1F4, newString());
+        LoadText(At<void*>(advisor, 0x1F4), 0xEA231E96, 0x0A665D4C, 0);
+    }
+    if (At<int32_t>(advisor, 0xB8)) {
+        const bool made = !At<void*>(advisor, 0x204);
+        if (made) {
+            void* const memory = reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x18C);
+            void* const dispatch = memory ? reinterpret_cast<void*(__thiscall*)(void*, void*)>(
+                                                addr::cSC4MySimDispatch_cSC4MySimDispatch)(memory, mysim)
+                                          : nullptr;
+            reinterpret_cast<AssignFn>(addr::SC4RefPtr_Assign)(advisor + 0x204, dispatch);
+            reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_Reset)(At<void*>(advisor, 0x204));
+        }
+        if (void* const residence = At<void*>(advisor, 0xBC))
+            reinterpret_cast<AssignFn>(addr::SC4RefPtr_Assign)(
+                advisor + 0xD4,
+                Virtual<void*>(Global<void*>(addr::SC4_LotManager), 0x38, Virtual<void*>(residence, 0xC)));
+        if (!At<void*>(advisor, 0xD8) && (At<int32_t>(advisor, 0xE0) || At<int32_t>(advisor, 0xE4))) {
+            void* const cells = Virtual<void*>(Global<void*>(addr::SC4_Service43C94), 0x8C);
+            if (void* const occupant =
+                    Virtual<void*>(cells, 0x2C, At<int32_t>(advisor, 0xE0), At<int32_t>(advisor, 0xE4)))
+                reinterpret_cast<AssignFn>(addr::SC4RefPtr_AssignFrom)(advisor + 0xDC, occupant);
+            At<uint8_t>(advisor, 0x158) = 1;
+        } else if (void* const pending = At<void*>(advisor, 0xDC)) {
+            At<void*>(advisor, 0xDC) = nullptr;
+            Release(pending);
+        }
+        if (made) {
+            Place home;
+            reinterpret_cast<ThisFn>(addr::SC4MySimPlace_Construct)(&home);
+            if (void* const residence = At<void*>(advisor, 0xBC)) {
+                reinterpret_cast<void(__thiscall*)(Place*, void*)>(addr::SC4MySimPlace_SetOccupant)(
+                    &home, Virtual<void*>(residence, 0xC));
+                reinterpret_cast<void(__thiscall*)(void*, Place*)>(addr::cSC4MySimDispatch_SetHome)(
+                    At<void*>(advisor, 0x204), &home);
+            }
+            if (void* const job = At<void*>(advisor, 0xD8))
+                Virtual<void>(advisor + 0xB0, 0x20, job); // ChangeJob
+            Release(home.object);
+        }
+        reinterpret_cast<ThisFn>(addr::cSC4MySim_UpdateHomeAndJob)(mysim);
+        Virtual<void>(advisor + 0xB0, 0x110); // ActivateLuaContext
+    }
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_LoadAdvice)(mysim);
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_LoadTuning)(mysim);
+    return 1;
+}
+
+uint32_t __fastcall Shutdown(char* advisor, void*)
+{
+    char* const mysim = advisor - 8;
+    const auto drop = [&](std::size_t at) {
+        if (void* const object = At<void*>(advisor, at)) {
+            At<void*>(advisor, at) = nullptr;
+            Release(object);
+        }
+    };
+    if (At<uint8_t>(advisor, 0x1DC)) {
+        void* table = nullptr;
+        if (void* const framework = reinterpret_cast<void*(__cdecl*)()>(addr::RZGetFramework)())
+            Virtual<void>(framework, 0x14, 0xEBE0E860u, 0xE898ED03u, &table);
+        reinterpret_cast<void(__cdecl*)(void*, void*)>(addr::SC4Script_UnregisterTable)(mysim, table);
+        reinterpret_cast<void(__thiscall*)(void**)>(addr::SC4_ReleaseRefHolder)(&table);
+        void* const target = reinterpret_cast<std::uintptr_t>(mysim) ? advisor + 8 : nullptr;
+        if (void* const frames = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_GetService86AD10EC)())
+            Virtual<void>(frames, 0x18, target, uint32_t{0xFF});
+        reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_Shutdown)(At<void*>(advisor, 0x204));
+        drop(0x204);
+        reinterpret_cast<ThisFn>(addr::cSC4MySim_DropTripObject)(At<void*>(advisor, 0x230));
+        drop(0x230);
+        void* const server = Global<void*>(addr::SC4_MessageServer);
+        for (const uint32_t type : {0x0B6F3E27u, 0xAB6F3E2Du, 0x4B6F3EBFu, 0x0BB04126u, 0x4BC42C48u, 0x26D31EC1u})
+            Virtual<void>(server, 0x18, target, type);
+        At<uint8_t>(advisor, 0x1DC) = 0;
+    }
+    for (const std::size_t at : {0x1ECu, 0x1F0u, 0x1F4u, 0xBCu, 0xD4u, 0xD8u, 0xDCu})
+        drop(at);
+    const bool view = At<void*>(advisor, 0x13C) != nullptr;
+    At<uint32_t>(advisor, 0xE0) = 0;
+    At<uint32_t>(advisor, 0xE4) = 0;
+    if (view) {
+        Virtual<void>(advisor + 0xB0, 0x84); // HideResidence
+        drop(0x13C);
+    }
+    if (void* const pylon = At<void*>(advisor, 0xF0)) {
+        Virtual<void>(pylon, 0x34, uint32_t{0});
+        drop(0xF0);
+    }
+    for (const std::size_t at : {0x160u, 0x164u, 0x168u, 0x16Cu, 0x170u})
+        drop(at);
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_DropAdvice)(mysim);
+    if (const uint32_t table = At<uint32_t>(advisor, 0x15C)) {
+        Virtual<void>(At<void*>(advisor, 0x1E8), 0xF8, table);
+        At<uint32_t>(advisor, 0x15C) = 0;
+    }
+    if (char* const map = At<char*>(advisor, 0x1E0)) {
+        if (At<uint32_t>(map, 4)) {
+            reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4Uint32Map_EraseSubtree)(
+                map, At<void*>(At<char*>(map, 0), 4));
+            At<char*>(At<char*>(map, 0), 8) = At<char*>(map, 0);
+            At<void*>(At<char*>(map, 0), 4) = nullptr;
+            At<char*>(At<char*>(map, 0), 0xC) = At<char*>(map, 0);
+            At<uint32_t>(map, 4) = 0;
+        }
+        if (void* const head = At<void*>(map, 0))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(head);
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(map);
+        At<void*>(advisor, 0x1E0) = nullptr;
+    }
+    for (const std::size_t at : {0x17Cu, 0x180u, 0x1ECu, 0x1F4u, 0x1F0u, 0x1E8u, 0x184u})
+        drop(at);
+    if (void* const tool = Global<void*>(addr::SC4_DispatchTool)) {
+        Global<void*>(addr::SC4_DispatchTool) = nullptr;
+        Release(tool);
+    }
+    At<int32_t>(advisor, 0xB8) = 0;
+    if (void* const balloon = At<void*>(mysim, 0x248)) {
+        Virtual<void>(balloon, 0x14);
+        if (void* const again = At<void*>(mysim, 0x248)) {
+            At<void*>(mysim, 0x248) = nullptr;
+            Release(again);
+        }
+        At<uint8_t>(mysim, 0x245) = 0;
+    }
+    At<uint8_t>(advisor, 0x23D) = 0;
+    At<uint8_t>(advisor, 0x23C) = 0;
+    return reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::SC4AdvisorBase_Shutdown)(advisor);
+}
+
+// For each queued event (the list at +0xB0; its count taken first, the
+// first node read each time), the advice entries the map at +0x220 keys by
+// the event's ID (an ordered map: key +0x10, entry index +0x14) are told of
+// it; those that become due are reset and queued (the list at +0x230).
+uint32_t __fastcall ProcessAdviceEvents(char* mysim, void*)
+{
+    char* const events = At<char*>(mysim, 0xB0);
+    uint32_t count = 0;
+    for (char* node = At<char*>(events, 0); node != events; node = At<char*>(node, 0))
+        ++count;
+    for (; count; --count) {
+        char* const event = At<char*>(At<char*>(mysim, 0xB0), 0) + 8;
+        const int32_t id = At<int32_t>(event, 0);
+        char* const head = At<char*>(mysim, 0x220);
+        char* low = head;
+        for (char* x = At<char*>(head, 4); x;) {
+            if (At<int32_t>(x, 0x10) < id) {
+                x = At<char*>(x, 0xC);
+            } else {
+                low = x;
+                x = At<char*>(x, 8);
+            }
+        }
+        char* high = head;
+        for (char* x = At<char*>(head, 4); x;) {
+            if (id >= At<int32_t>(x, 0x10)) {
+                x = At<char*>(x, 0xC);
+            } else {
+                high = x;
+                x = At<char*>(x, 8);
+            }
+        }
+        for (char* node = low; node != high;) {
+            const int32_t index = At<int32_t>(node, 0x14);
+            char* const entry = At<char*>(mysim, 0x214) + index * 12;
+            void* const advice = At<void*>(entry, 0);
+            void* const data = Virtual<void*>(advice, 0x10);
+            if (Virtual<uint8_t>(At<void*>(entry, 0), 0x38, uint32_t{1})) {
+                if (Virtual<uint8_t>(At<void*>(entry, 0), 0x30)) {
+                    Virtual<void>(data, 0x60, At<uint32_t>(event, 4));
+                    Virtual<void>(data, 0x38, uint32_t{0x10}, uint32_t{1});
+                }
+            } else if (Virtual<uint8_t>(At<void*>(entry, 0), 0x30)) {
+                Virtual<void>(data, 0x60, At<uint32_t>(event, 4));
+                Virtual<void>(data, 0x38, uint32_t{0x10}, uint32_t{1});
+                const auto entries =
+                    static_cast<int32_t>((At<char*>(mysim, 0x218) - At<char*>(mysim, 0x214)) / 12);
+                if (At<uint8_t>(mysim, 0x210) && index >= 0 && static_cast<uint32_t>(index) < static_cast<uint32_t>(entries)) {
+                    char* const due = At<char*>(mysim, 0x214) + index * 12;
+                    At<uint32_t>(due, 8) = At<uint32_t>(mysim, 0x200);
+                    At<uint32_t>(due, 4) = 0;
+                    Virtual<void>(At<void*>(due, 0), 0x34, uint32_t{1}, uint32_t{1});
+                    char* const queue = At<char*>(mysim, 0x230);
+                    char* const added =
+                        static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(0xC));
+                    At<int32_t>(added, 8) = index;
+                    char* const last = At<char*>(queue, 4);
+                    At<char*>(added, 0) = queue;
+                    At<char*>(added, 4) = last;
+                    At<char*>(last, 0) = added;
+                    At<char*>(queue, 4) = added;
+                }
+            }
+            // The in-order successor.
+            if (char* right = At<char*>(node, 0xC)) {
+                while (At<char*>(right, 8))
+                    right = At<char*>(right, 8);
+                node = right;
+            } else {
+                char* parent = At<char*>(node, 4);
+                while (node == At<char*>(parent, 0xC)) {
+                    node = parent;
+                    parent = At<char*>(parent, 4);
+                }
+                if (At<char*>(node, 0xC) != parent)
+                    node = parent;
+            }
+        }
+    }
+    return reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::SC4AgentBase_ProcessEvents)(mysim);
+}
+
+uint8_t __fastcall AdvisorRun(char* advisor, void*, uint32_t argument)
+{
+    if (!At<int32_t>(advisor, 0xB8))
+        return 0;
+    Virtual<void>(advisor + 0xB0, 0x110); // ActivateLuaContext
+    return reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t)>(addr::SC4AdvisorBase_Run)(advisor, argument);
+}
+
+// --- The panel and the residence view ---------------------------------------------------
+
+void __fastcall UpdateResidence(char* self, void*)
+{
+    if (!At<int32_t>(self, field::kState) || !At<void*>(self, field::kResidence) || !At<void*>(self, field::kResidenceView))
+        return;
+    int32_t point[3];
+    void* const residence = At<void*>(self, field::kResidence);
+    int32_t* const second = &point[2];
+    int32_t* const first = &point[0];
+    const std::uintptr_t fn = addr::cSC4MySim_ResidenceScreenPoint;
+    __asm {
+        push edi
+        mov ecx, residence
+        mov edi, second
+        push first
+        call dword ptr [fn]
+        add esp, 4
+        pop edi
+    }
+    point[1] = point[2];
+    Virtual<void>(At<void*>(self, field::kResidenceView), 0x3C, point);
+}
+
+// The nearest building (from the city service's list slot) that is of
+// `kind`, and its grade (the service's grade slot); the default funding
+// value when there is none.
+void* Grade(char* self, void* out, uint32_t kind, std::size_t listSlot, std::size_t gradeSlot)
+{
+    using ListFn = void(__thiscall*)(void* list);
+    void* const grades = Global<void*>(addr::SC4_Service43DA4);
+    void** const head = static_cast<void**>(Virtual<void*>(ListNodeAllocator(), 0xC, 0xCu));
+    head[0] = head;
+    head[1] = head;
+    struct {
+        void* head;
+        uint32_t size;
+    } list{head, 0};
+    uint32_t result = Global<uint32_t>(addr::SC4_DefaultFunding);
+    uint32_t best = 0xFFFFFFFF;
+    Virtual<void>(grades, listSlot, &list, uint32_t{0});
+    for (char* node = static_cast<char*>(head[0]); node != list.head; node = At<char*>(node, 0)) {
+        void* const building = At<void*>(node, 8);
+        if (Virtual<uint8_t>(building, 0x58, kind)) {
+            float position[3];
+            Virtual<void>(building, 0x20, position);
+            const double dx = static_cast<double>(At<float>(self, 0x18)) - position[0];
+            const double dz = static_cast<double>(At<float>(self, 0x20)) - position[2];
+            const auto distance = static_cast<uint32_t>(Truncate(std::sqrt(dz * dz + dx * dx)));
+            if (distance < best) {
+                struct {
+                    std::uintptr_t vtable;
+                    char* begin;
+                    char* end;
+                    char* capacity;
+                    uint32_t references;
+                    uint32_t words[5];
+                    uint32_t grade; // +0x28
+                    uint32_t more[5];
+                } info{};
+                char* const buffer =
+                    static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(8));
+                info.begin = buffer;
+                info.end = buffer;
+                info.capacity = buffer + 8;
+                *buffer = 0;
+                info.vtable = addr::SC4String_Vtable;
+                Virtual<void>(grades, gradeSlot, building, &info);
+                result = info.grade;
+                best = distance;
+                info.vtable = addr::SC4String_Vtable;
+                if (info.begin)
+                    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(info.begin);
+            }
+        }
+        Virtual<uint32_t>(building, 0x8);
+    }
+    reinterpret_cast<ListFn>(addr::SC4List_Clear2)(&list);
+    *static_cast<uint32_t*>(out) = result;
+    reinterpret_cast<ListFn>(addr::SC4List_Clear2)(&list);
+    Virtual<void>(ListNodeAllocator(), 0x10, list.head);
+    return out;
+}
+
+// A model from an exemplar (or the default one, from the resource
+// manager): its key (property 0x09C80416) into `keyAt`, its button
+// (0xEBFC5E5E) into `buttonAt`; returns the exemplar holder to release.
+void* LoadModel(char* self, void* exemplar, std::uintptr_t defaultKey, bool pedestrian, std::size_t keyAt,
+                std::size_t buttonAt, uint32_t* key)
+{
+    key[0] = Global<uint32_t>(defaultKey);
+    key[1] = Global<uint32_t>(defaultKey + 4);
+    key[2] = Global<uint32_t>(defaultKey + 8);
+    void* holder = nullptr;
+    if (!exemplar) {
+        const void* const at = pedestrian ? static_cast<const void*>(key) : reinterpret_cast<const void*>(defaultKey);
+        Virtual<void>(Global<void*>(addr::SC4_ResourceManager), 0xC, at, 0xA52160F5u, &holder, uint32_t{0},
+                      uint32_t{0});
+        exemplar = holder;
+    }
+    At<uint32_t>(self, buttonAt) = 0;
+    At<uint32_t>(self, keyAt) = 0;
+    At<uint32_t>(self, keyAt + 4) = 0;
+    At<uint32_t>(self, keyAt + 8) = 0;
+    if (exemplar) {
+        using KeyFn = uint8_t(__cdecl*)(void*, uint32_t, uint32_t*);
+        if (reinterpret_cast<KeyFn>(addr::SC4_GetPropertyResourceKey)(Virtual<void*>(exemplar, 0x18), 0x09C80416, key)) {
+            At<uint32_t>(self, keyAt) = key[0];
+            At<uint32_t>(self, keyAt + 4) = key[1];
+            At<uint32_t>(self, keyAt + 8) = key[2];
+        }
+        int32_t button = 0;
+        using IntFn = uint8_t(__cdecl*)(void*, uint32_t, int32_t*);
+        if (reinterpret_cast<IntFn>(addr::SC4_GetPropertySint32)(Virtual<void*>(exemplar, 0x18), 0xEBFC5E5E, &button))
+            At<int32_t>(self, buttonAt) = button;
+    }
+    return holder;
+}
+
+uint8_t __fastcall SetCar(char* self, void*, void* exemplar)
+{
+    uint32_t key[3];
+    void* const holder = LoadModel(self, exemplar, addr::SC4MySim_DefaultCarKey, false, 0x194, 0x150, key);
+    reinterpret_cast<void(__thiscall*)(void*, uint32_t, void*, uint32_t)>(addr::cSC4MySimDispatch_SetModel)(
+        At<void*>(self, field::kDispatch), 0, self + 0x194, 0);
+    Release(holder);
+    return 1;
+}
+
+uint8_t __fastcall SetPedestrian(char* self, void*, void* exemplar)
+{
+    uint32_t key[3];
+    void* const holder = LoadModel(self, exemplar, addr::SC4MySim_DefaultPedestrianKeyData, true, 0x1A0, 0x14C, key);
+    uint32_t made[3];
+    const auto* const other = reinterpret_cast<const uint32_t*(__thiscall*)(void*, uint32_t*)>(
+        addr::cSC4MySim_DefaultPedestrianKey)(Object(self), made);
+    key[0] = other[0];
+    key[1] = other[1];
+    key[2] = other[2];
+    if (!At<uint32_t>(self, 0x1A8)) {
+        At<uint32_t>(self, 0x1A0) = key[0];
+        At<uint32_t>(self, 0x1A4) = key[1];
+        At<uint32_t>(self, 0x1A8) = key[2];
+    }
+    const auto setModel = reinterpret_cast<void(__thiscall*)(void*, uint32_t, void*, uint32_t)>(
+        addr::cSC4MySimDispatch_SetModel);
+    setModel(At<void*>(self, field::kDispatch), 1, self + 0x1A0, 0);
+    setModel(At<void*>(self, field::kDispatch), 2, key, 0);
+    Release(holder);
+    return 1;
+}
+
+void* __fastcall LocalSchoolGrade(char* self, void*, void* out, uint32_t kind)
+{
+    return Grade(self, out, kind, 0xBC, 0x68);
+}
+
+void* __fastcall LocalHospitalGrade(char* self, void*, void* out, uint32_t kind)
+{
+    return Grade(self, out, kind, 0xC4, 0x6C);
+}
+
+// --- The object ---------------------------------------------------------------------------
+
+void* NewList()
+{
+    void** const head =
+        static_cast<void**>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(0xC));
+    head[0] = head;
+    head[1] = head;
+    return head;
+}
+
+void EmptyString(char* object, std::size_t at)
+{
+    At<char*>(object, at + 4) = nullptr;
+    At<char*>(object, at + 8) = nullptr;
+    At<char*>(object, at + 0xC) = nullptr;
+    char* const buffer = static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(8));
+    At<char*>(object, at + 4) = buffer;
+    At<char*>(object, at + 8) = buffer;
+    At<char*>(object, at + 0xC) = buffer + 8;
+    *buffer = 0;
+}
+
+char* __fastcall Construct(char* mysim, void*)
+{
+    reinterpret_cast<ThisFn>(addr::SC4AgentBase_Construct)(mysim);
+    At<std::uintptr_t>(mysim, 0xB8) = 0x00A84C10;
+    At<std::uintptr_t>(mysim, 0x0) = 0x00A85218;
+    At<std::uintptr_t>(mysim, 0x8) = 0x00A851C0;
+    At<std::uintptr_t>(mysim, 0xC) = 0x00A851A4;
+    At<std::uintptr_t>(mysim, 0x10) = 0x00A85194;
+    At<std::uintptr_t>(mysim, 0xB8) = 0x00A85080;
+    At<uint8_t>(mysim, 0xBC) = 0;
+    for (std::size_t at = 0xC0; at <= 0xCC; at += 4)
+        At<uint32_t>(mysim, at) = 0;
+    for (std::size_t at = 0xDC; at <= 0x10C; at += 4)
+        At<uint32_t>(mysim, at) = 0;
+    At<uint16_t>(mysim, 0x110) = 1;
+    At<uint8_t>(mysim, 0x112) = 0;
+    At<uint8_t>(mysim, 0x113) = 1;
+    EmptyString(mysim, 0x114);
+    At<uint32_t>(mysim, 0x124) = 0;
+    At<std::uintptr_t>(mysim, 0x114) = addr::SC4String_Vtable;
+    At<uint8_t>(mysim, 0x128) = 0;
+    At<uint8_t>(mysim, 0x129) = 0;
+    At<uint32_t>(mysim, 0x12C) = 0;
+    EmptyString(mysim, 0x130);
+    At<std::uintptr_t>(mysim, 0x130) = addr::SC4String_Vtable;
+    At<uint32_t>(mysim, 0x140) = 0;
+    At<uint32_t>(mysim, 0x144) = 0;
+    At<uint8_t>(mysim, 0x148) = 0;
+    At<uint8_t>(mysim, 0x149) = 0;
+    At<uint32_t>(mysim, 0x14C) = 0;
+    At<uint32_t>(mysim, 0x150) = 0;
+    At<uint32_t>(mysim, 0x154) = 0;
+    At<uint8_t>(mysim, 0x158) = 0;
+    At<uint32_t>(mysim, 0x15C) = 0;
+    At<uint8_t>(mysim, 0x160) = 0;
+    for (std::size_t at = 0x164; at <= 0x18C; at += 4)
+        At<uint32_t>(mysim, at) = 0;
+    {
+        // A clock seed, counted under the original constructor's site.
+        const fixed_seed::SiteOverride site(0x00429A68);
+        reinterpret_cast<void*(__thiscall*)(void*, uint32_t)>(addr::SC4Random_Construct)(mysim + 0x190, 0xFFFFFFFF);
+    }
+    At<uint8_t>(mysim, 0x1D8) = 0;
+    At<uint8_t>(mysim, 0x1D9) = 0;
+    At<uint32_t>(mysim, 0x1DC) = 0;
+    At<uint32_t>(mysim, 0x1E0) = 0;
+    At<uint8_t>(mysim, 0x1E4) = 0;
+    for (std::size_t at = 0x1E8; at <= 0x20C; at += 4)
+        At<uint32_t>(mysim, at) = 0;
+    At<uint8_t>(mysim, 0x210) = 0;
+    At<uint32_t>(mysim, 0x214) = 0;
+    At<uint32_t>(mysim, 0x218) = 0;
+    At<uint32_t>(mysim, 0x21C) = 0;
+    At<uint32_t>(mysim, 0x220) = 0;
+    char* const node = static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(0x18));
+    At<char*>(mysim, 0x220) = node;
+    At<uint32_t>(mysim, 0x224) = 0;
+    At<uint8_t>(node, 0) = 0;
+    At<void*>(node, 4) = nullptr;
+    At<char*>(node, 8) = node;
+    At<char*>(node, 0xC) = node;
+    At<uint32_t>(mysim, 0x22C) = 0;
+    At<void*>(mysim, 0x22C) = NewList();
+    At<uint32_t>(mysim, 0x230) = 0;
+    At<void*>(mysim, 0x230) = NewList();
+    At<uint32_t>(mysim, 0x234) = 0;
+    At<uint32_t>(mysim, 0x238) = 0;
+    At<uint32_t>(mysim, 0x23C) = 0;
+    At<int32_t>(mysim, 0x240) = 7;
+    At<uint8_t>(mysim, 0x244) = 0;
+    At<uint8_t>(mysim, 0x245) = 0;
+    for (std::size_t at = 0x248; at <= 0x260; at += 4)
+        At<uint32_t>(mysim, at) = 0;
+    At<int32_t>(mysim, 0x264) = -1;
+    const auto stopwatch = reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4Stopwatch_Construct);
+    stopwatch(mysim + 0x268, 5);
+    stopwatch(mysim + 0x280, 5);
+    At<uint32_t>(mysim, 0x298) = 0;
+    At<uint32_t>(mysim, 0x29C) = 0;
+    stopwatch(mysim + 0x2A0, 5);
+    At<uint32_t>(mysim, 0xD0) = 0;
+    At<uint32_t>(mysim, 0xD4) = 0;
+    At<uint32_t>(mysim, 0xD8) = 0;
+    for (std::size_t at = 0x1A8; at <= 0x1D4; at += 4)
+        At<uint32_t>(mysim, at) = 0;
+    void* const memory = reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x18C);
+    void* const dispatch =
+        memory ? reinterpret_cast<void*(__thiscall*)(void*, void*)>(addr::cSC4MySimDispatch_cSC4MySimDispatch)(memory, mysim)
+               : nullptr;
+    void* const old = At<void*>(mysim, 0x20C);
+    if (dispatch != old) {
+        if (dispatch)
+            Virtual<uint32_t>(dispatch, 0x4);
+        At<void*>(mysim, 0x20C) = dispatch;
+        Release(old);
+    }
+    sim_timers::Claim(mysim + 0x2A0);
+    reinterpret_cast<ThisFn>(addr::SC4Stopwatch_Start)(mysim + 0x2A0);
+    return mysim;
+}
+
+void __fastcall Destruct(char* mysim, void*)
+{
+    At<std::uintptr_t>(mysim, 0x0) = 0x00A85218;
+    At<std::uintptr_t>(mysim, 0x8) = 0x00A851C0;
+    At<std::uintptr_t>(mysim, 0xC) = 0x00A851A4;
+    At<std::uintptr_t>(mysim, 0x10) = 0x00A85194;
+    At<std::uintptr_t>(mysim, 0xB8) = 0x00A85080;
+    const auto stopwatch = reinterpret_cast<ThisFn>(addr::SC4Stopwatch_Destruct);
+    stopwatch(mysim + 0x2A0);
+    stopwatch(mysim + 0x280);
+    stopwatch(mysim + 0x268);
+    Release(At<void*>(mysim, 0x248));
+    Release(At<void*>(mysim, 0x238));
+    reinterpret_cast<ThisFn>(addr::SC4PairList_Destroy)(mysim + 0x230);
+    reinterpret_cast<ThisFn>(addr::SC4PairList_Destroy)(mysim + 0x22C);
+    char*& head = At<char*>(mysim, 0x220);
+    if (At<uint32_t>(mysim, 0x224)) {
+        reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4Uint32Map_EraseSubtree2)(mysim + 0x220,
+                                                                                            At<void*>(head, 4));
+        At<char*>(head, 8) = head;
+        At<void*>(head, 4) = nullptr;
+        At<char*>(head, 0xC) = head;
+        At<uint32_t>(mysim, 0x224) = 0;
+    }
+    if (head)
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(head);
+    reinterpret_cast<ThisFn>(addr::SC4Vector12_Destroy)(mysim + 0x214);
+    for (const std::size_t at : {0x20Cu, 0x1FCu, 0x1F8u, 0x1F4u, 0x1F0u, 0x1ECu, 0x18Cu, 0x188u, 0x184u, 0x178u,
+                                 0x174u, 0x170u, 0x16Cu, 0x168u, 0x14Cu, 0x144u})
+        Release(At<void*>(mysim, at));
+    for (const std::size_t at : {0x130u, 0x114u}) {
+        At<std::uintptr_t>(mysim, at) = addr::SC4String_Vtable;
+        if (void* const buffer = At<void*>(mysim, at + 4))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(buffer);
+    }
+    for (const std::size_t at : {0xF8u, 0xE4u, 0xE0u, 0xDCu, 0xC4u})
+        Release(At<void*>(mysim, at));
+    reinterpret_cast<ThisFn>(addr::SC4AgentBase_Destruct)(mysim);
+}
+
+char* __fastcall DeletingDestructor(char* mysim, void*, uint8_t flags)
+{
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_Destruct)(mysim);
+    if (flags & 1)
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(mysim);
+    return mysim;
+}
+
+void* __cdecl Create()
+{
+    char* const memory = static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x2B8));
+    if (!memory)
+        return nullptr;
+    char* const mysim = reinterpret_cast<char*(__thiscall*)(void*)>(addr::cSC4MySim_cSC4MySim)(memory);
+    return mysim ? mysim + 0xB8 : nullptr;
+}
+
 // --- Registration ----------------------------------------------------------------------
 
 bool InstallInterface(registry::Mode)
@@ -2493,6 +3365,118 @@ const bool g_tripRegistered = registry::Register({
     "Our cSC4MySim OnCommand: the trip facts in the MySim's script (docs/mysim-agents.md)",
     false,
     InstallTrip,
+});
+
+bool InstallAgent(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* originals[16] = {};
+    const struct {
+        std::uintptr_t address;
+        void* ours;
+    } hooks[] = {
+        {addr::cSC4MySim_QueryInterface, reinterpret_cast<void*>(&QueryInterface)},
+        {addr::cSC4MySim_CheckBalloonTarget, reinterpret_cast<void*>(&CheckBalloonTarget)},
+        {addr::cSC4MySim_GetBalloonTarget, reinterpret_cast<void*>(&GetBalloonTarget)},
+        {addr::cSC4MySim_SetDispatchFlag, reinterpret_cast<void*>(&SetDispatchFlag)},
+        {addr::cSC4MySim_IsAboveWater, reinterpret_cast<void*>(&IsAboveWater)},
+        {addr::cSC4MySim_GetTripTime, reinterpret_cast<void*>(&GetTripTime)},
+        {addr::cSC4MySim_AdvisorRun, reinterpret_cast<void*>(&AdvisorRun)},
+        {addr::cSC4MySim_MonthPassed, reinterpret_cast<void*>(&MonthPassed)},
+        {addr::cSC4MySim_GetName, reinterpret_cast<void*>(&GetName)},
+        {addr::cSC4MySim_MakeBalloonTarget, reinterpret_cast<void*>(&MakeBalloonTarget)},
+        {addr::cSC4MySim_FollowBalloonTarget, reinterpret_cast<void*>(&FollowBalloonTarget)},
+        {addr::cSC4MySim_Init, reinterpret_cast<void*>(&Init)},
+        {addr::cSC4MySim_Shutdown, reinterpret_cast<void*>(&Shutdown)},
+        {addr::cSC4MySim_ProcessAdviceEvents, reinterpret_cast<void*>(&ProcessAdviceEvents)},
+    };
+    static_assert(sizeof(hooks) / sizeof(hooks[0]) <= sizeof(originals) / sizeof(originals[0]));
+    for (std::size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); ++i) {
+        const addr::Entry* found = addr_check::Find(hooks[i].address);
+        if (!found || !hook::Install(*found, hooks[i].ours, &originals[i]))
+            return false;
+    }
+    return true;
+}
+
+const bool g_agentRegistered = registry::Register({
+    "simulators.mysim_agents.agent",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySim_QueryInterface,
+    "Our cSC4MySim agent and advisor methods: QueryInterface, balloon target, trip time (docs/mysim-agents.md)",
+    false,
+    InstallAgent,
+});
+
+bool InstallUi(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* originals[8] = {};
+    const struct {
+        std::uintptr_t address;
+        void* ours;
+    } hooks[] = {
+        {addr::cSC4MySim_UpdateResidence, reinterpret_cast<void*>(&UpdateResidence)},
+        {addr::cSC4MySim_LocalSchoolGrade, reinterpret_cast<void*>(&LocalSchoolGrade)},
+        {addr::cSC4MySim_LocalHospitalGrade, reinterpret_cast<void*>(&LocalHospitalGrade)},
+        {addr::cSC4MySim_SetCar, reinterpret_cast<void*>(&SetCar)},
+        {addr::cSC4MySim_SetPedestrian, reinterpret_cast<void*>(&SetPedestrian)},
+    };
+    static_assert(sizeof(hooks) / sizeof(hooks[0]) <= sizeof(originals) / sizeof(originals[0]));
+    for (std::size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); ++i) {
+        const addr::Entry* found = addr_check::Find(hooks[i].address);
+        if (!found || !hook::Install(*found, hooks[i].ours, &originals[i]))
+            return false;
+    }
+    return true;
+}
+
+const bool g_uiRegistered = registry::Register({
+    "simulators.mysim_agents.ui",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySim_UpdateResidence,
+    "Our cSC4MySim panel and residence-view methods (docs/mysim-agents.md)",
+    false,
+    InstallUi,
+});
+
+bool InstallObject(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* originals[4] = {};
+    const struct {
+        std::uintptr_t address;
+        void* ours;
+    } hooks[] = {
+        {addr::cSC4MySim_Create, reinterpret_cast<void*>(&Create)},
+        {addr::cSC4MySim_cSC4MySim, reinterpret_cast<void*>(&Construct)},
+        {addr::cSC4MySim_Destruct, reinterpret_cast<void*>(&Destruct)},
+        {addr::cSC4MySim_DeletingDestructor, reinterpret_cast<void*>(&DeletingDestructor)},
+    };
+    for (std::size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); ++i) {
+        const addr::Entry* found = addr_check::Find(hooks[i].address);
+        if (!found || !hook::Install(*found, hooks[i].ours, &originals[i]))
+            return false;
+    }
+    return true;
+}
+
+const bool g_objectRegistered = registry::Register({
+    "simulators.mysim_agents.object",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySim_cSC4MySim,
+    "Our cSC4MySim factory, constructor and destructors (docs/mysim-agents.md)",
+    false,
+    InstallObject,
 });
 
 const bool g_interfaceRegistered = registry::Register({
