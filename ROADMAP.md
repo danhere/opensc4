@@ -110,3 +110,10 @@ Decided (Dan, 2026-10-09): bigger cities land with P8, when the classes that blo
 - [ ] Region layout and region view with a fourth size, and a save flag so vanilla SC4 refuses bigger cities cleanly
 - [ ] 64-bit build after exe independence (P9), removing the memory ceiling (needed for 16 km and up)
 - [ ] Measure simulation time at 512 and 1024 cells per side
+
+## Beyond the original: modern asset formats
+
+Asked by Dan (2026-10-09). New assets use the community pipeline until then: model in Blender, 3ds Max or gmax, render with BAT or a Blender exporter to S3D models and FSH textures, set up the lot in the Lot Editor, ship as a DBPF plugin. That works today because the game's own loader still reads them; DBPF compatibility stays so existing mods keep working.
+
+- [ ] Load glTF models (exported straight from Blender) alongside S3D, once our own model and lot loading replaces the game's (P8 lots/buildings, after the renderer and UI phase)
+- [ ] Modern texture formats (PNG, KTX2) alongside FSH, through the same loader
