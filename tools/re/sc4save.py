@@ -227,6 +227,53 @@ def crime_simulator(r):
     return out
 
 
+def weather_simulator(r):
+    """cSC4WeatherSimulator (0x2990C1BC): Write at 0x00725E80 (version 2).
+    The record holds no references, so after the version it is compared
+    byte for byte (docs/weather.md)."""
+    out = header(r)
+    out['version'] = r.u16()
+    out['bytes'] = list(r.data[r.pos:])
+    r.pos = len(r.data)
+    return out
+
+
+def flora_simulator(r):
+    """cSC4FloraSimulator (0xC990C034): Write at 0x006AFEE0, Read at
+    0x006AFFE0 (version 2 only). Names give the object offsets; the
+    cIGZSerializable part sits at +0x8 (docs/flora.md)."""
+    out = header(r)
+    out['version'] = v = r.u16()
+    if v != 2:
+        raise struct.error('version %d not known' % v)
+    out['flags_2c'] = [r.u8() for _ in range(4)]
+    out['size_30'] = [r.f32(), r.f32()]
+    out['cells_38'] = [r.s32(), r.s32()]
+    out['u40'] = [r.u32() for _ in range(4)]
+    out['b50'] = r.u8()
+    # The tract walk at +0x54, as the pollution simulator's (0x005DAB70).
+    s = {'a': r.s8(), 'b': r.s8(), 'c': r.u8(), 'ints': [r.s32() for _ in range(5)]}
+    s['values'] = [r.u16() for _ in range(r.u32())]
+    s['tail'] = [r.s32() for _ in range(3)]
+    out['walk_54'] = s
+    out['random_88'] = [r.u32(), r.u32(), r.s32(), r.f64()]
+    out['dying_a4'] = r.ref_list()
+    out['f_a8'] = [r.f32(), r.f32()]
+    return out
+
+
+def neighbors_simulator(r):
+    """cSC4NeighborsSimulator (0xC990C0A4): Write at 0x006CFB60, Read at
+    0x006CFDC0 (version 2): the connections as references
+    (docs/neighbors.md)."""
+    out = header(r)
+    out['version'] = v = r.u16()
+    if v != 2:
+        raise struct.error('version %d not known' % v)
+    out['connections'] = r.ref_list()
+    return out
+
+
 def traffic_simulator(r):
     """cSC4TrafficSimulator (0x6990C1AA): Write at 0x00712400 (version 41).
     Field names are ours; offsets in them are from the object's start (the
@@ -366,6 +413,49 @@ def civic_simulator(r):
     return out
 
 
+def ordinance_simulator(r):
+    """cSC4OrdinanceSimulator (0xA990C08E): Write at 0x0080D780, Read at
+    0x0080E8B0 (version 4 only); the cIGZSerializable part sits at +0x8
+    (docs/ordinance.md)."""
+    out = header(r)
+    out['version'] = v = r.u16()
+    if v != 4:
+        raise struct.error('version %d not known' % v)
+    out['expense_18'], out['income_20'] = r.s64(), r.s64()
+    out['ordinances_30'] = [r.ref() for _ in range(r.u32())]
+    out['pending_28'] = r.s64()
+    return out
+
+
+def ordinance(r):
+    """cSC4OrdinanceSimple and its derived classes (21 class IDs): Write at
+    0x0080CB30, Read at 0x0080D0B0 (version 4 written; Read knows 1 to 4).
+    The property holder's own record follows, kept as bytes
+    (docs/ordinance.md)."""
+    out = header(r)
+    out['version'] = v = r.u16()
+    out['initialised_28'] = r.u8()
+    out['id_38'] = r.u32()
+    out['name_3c'], out['description_50'] = r.gzstr(), r.gzstr()
+    out['year_64'] = r.u32()
+    out['chance_68'] = r.f32()
+    out['enactment_70'], out['repeal_78'], out['constant_80'] = r.s64(), r.s64(), r.s64()
+    out['factor_88'] = r.f32()
+    out['advisor_8c'] = r.u32()
+    out['available_91'], out['on_92'], out['enabled_93'] = r.u8(), r.u8(), r.u8()
+    out['adjusted_98'] = r.s64()
+    if v >= 2:
+        out['income_ordinance_90'] = r.u8()
+    out['holder'] = r.data[r.pos:].hex()
+    r.pos = len(r.data)
+    return out
+
+
+ORDINANCE_CLASSES = (0x8BD4FC74, 0xA2BF1DDC, 0xA2BF1E43, 0x00D0723D, 0x40D07236, 0x815B4CEF, 0x22F6E80C,
+                     0xA0D07129, 0x62BF1DAA, 0x62BF1DB9, 0xE0D0722E, 0x22F6E81B, 0x82B9999B, 0xE0D07233,
+                     0xA2BF1DE5, 0xC2F6E81F, 0x62F6E7CF, 0x42BF1E18, 0xC2BF1E04, 0x02BF1DFA, 0xC2BF1DC5)
+
+
 def demand_simulator(r):
     """cSC4DemandSimulator (0x2990BFF2): Write at 0x006A2680, Read at
     0x006A3C50 (versions 0 to 2; before 2, four ignored words first). Names
@@ -423,9 +513,14 @@ SCHEMAS = {0x8990C065: ('cSC4PollutionSimulator', pollution_simulator),
            0x0990BDD8: ('cSC4AuraSimulator', aura_simulator),
            0xE990C18E: ('cSC4LandValueSimulator', land_value_simulator),
            0x8990C09A: ('cSC4CrimeSimulator', crime_simulator),
+           0x2990C1BC: ('cSC4WeatherSimulator', weather_simulator),
+           0xC990C034: ('cSC4FloraSimulator', flora_simulator),
+           0xC990C0A4: ('cSC4NeighborsSimulator', neighbors_simulator),
+           0xA990C08E: ('cSC4OrdinanceSimulator', ordinance_simulator),
            0x2990BFF2: ('cSC4DemandSimulator', demand_simulator),
            0x8990C12D: ('cSC4Demand', demands),
            0x0A413481: ('cSC4CivicBuildingSimulator', civic_simulator)}
+SCHEMAS.update({clsid: ('ordinance %08X' % clsid, ordinance) for clsid in ORDINANCE_CLASSES})
 
 
 def decode(data, decoder):

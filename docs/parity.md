@@ -84,6 +84,8 @@ The test cities never edit their networks, so parity alone would not reach the c
 | `OPENSC4_TEST_DEMAND_MONTH=<n>` | every n days, the demand simulator's MonthPassed ([demand.md](demand.md)) |
 | `OPENSC4_TEST_DEMAND_MESSAGES=<n>` | on day n, SimulationBegin, the neighbours message and the passes to the demand simulator |
 | `OPENSC4_TEST_CRIME_QUERIES=1` | each day, the crime queries only the UI and the automata make, into the fingerprint ([crime.md](crime.md)) |
+| `OPENSC4_TEST_FLORA_MONTH=<n>` | every n days, the flora simulator's monthly pass (the date into +0x40, then 0x006B2CB0), as MonthPassed does ([flora.md](flora.md)) |
+| `OPENSC4_TEST_NEIGHBORS_MONTH=<n>` | every n days, the neighbors simulator's monthly pass (0x006D0E50: commodity statistics, then the deals), as MonthPassed does ([neighbors.md](neighbors.md)) |
 | `OPENSC4_TEST_POWER_MESSAGES=<n>` | on day n, a network change (0x278E6003) and a changed cell rectangle (0x07699455) over the whole city, to power's DoMessage |
 | `OPENSC4_TEST_OCCUPANT_CYCLE=<n>` | on day n, "removed" then "added" (0x99EF1143, 0x99EF1142) for an existing pipe and pole, to the water and power simulators; and power's plant disaster message (0xC2C09554 with 0xE0D0722E) |
 | `OPENSC4_TEST_FIND_POWER_PLANTS=1`, `OPENSC4_TEST_CAPACITY_SCALE=1`, `OPENSC4_TEST_GARBAGE_BUILDINGS=1`, `OPENSC4_TEST_RADIATION=x,z,amount,radius` | one call each after the load: power's FindPowerPlants, pollution's capacity scale handler, GetGarbageBuildings, AddRadiationToCity |
