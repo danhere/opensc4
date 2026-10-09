@@ -27,6 +27,11 @@
 //                         the city's file and its neighbours' in the region,
 //                         so use it only in a disposable user folder
 //                         (scripts/run-save-test.sh). P4 determinism tests.
+//   OPENSC4_TEST_QUICK    "1": skip what a test run does not need: wait 1 s
+//                         instead of 5 on the region view, and save with the
+//                         game's fast save, which leaves out the region
+//                         thumbnails (~1 s instead of ~11). Parity runs
+//                         (scripts/run-parity.sh) use it by default.
 //   OPENSC4_TEST_FINGERPRINT  "1": while running, log a fingerprint of the
 //                         simulation every game day (population, funds, lot
 //                         count, checksums of the traffic, land value and
