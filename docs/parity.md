@@ -17,7 +17,15 @@ scripts/run-parity.sh "$B" "$LOCALAPPDATA/opensc4/parity/proxy" 7 "$LOCALAPPDATA
 - Results go to `<output dir>/<city>/<save>/` (`a.log`, `b.log`, `a.sc4`, `b.sc4`, `fpdiff.txt` and `records.txt` for the first pair, `groups.txt`) and a `summary.txt`. Runs already done are reused, so an interrupted run can be resumed; delete the output folder to start over.
 - A run with A = B is the control: it shows the noise of the method itself on those saves.
 - One run takes about 20 s plus a 20 s pause (Steam relaunches the game when it starts right after the last run).
-- **Parallel runs** (`OPENSC4_PARITY_JOBS=<n>`, untested in the game as of 2026-10-08): n saves at a time, each job in its own user folder (`%LOCALAPPDATA%\opensc4\p4env\job<k>`, via `OPENSC4_SAVE_ENV`) with both runs of a pair in the same job. Adds `harness.multi_instance` to both sides ([src/core/multi_instance.cpp](../src/core/multi_instance.cpp): per-process names for the exe's named mutexes and events, other processes' windows hidden from FindWindow; it logs every such call, so the log names whatever single-instance check the game makes) and sets `OPENSC4_PARALLEL=1`, so `run-autotest.sh` skips its "already running" check and its watchdog kills its own game by pid. Determinism no longer depends on timing or heap layout, so parallel runs should give the same outcomes; check with a control (A = B) at 1 and at n jobs. A 32-bit copy of the game uses up to 2 GB.
+- **Parallel runs** (`OPENSC4_PARITY_JOBS=<n>`): n saves at a time, each job in its own user folder (`%LOCALAPPDATA%\opensc4\p4env\job<k>`, via `OPENSC4_SAVE_ENV`) with both runs of a pair in the same job. Adds `harness.multi_instance` to both sides ([src/core/multi_instance.cpp](../src/core/multi_instance.cpp): per-process names for the exe's named mutexes and events, other processes' windows hidden from FindWindow; it logs every such call, so the log names whatever single-instance check the game makes) and sets `OPENSC4_PARALLEL=1`, so `run-autotest.sh` skips its "already running" check and its watchdog kills its own game by pid. Determinism no longer depends on timing or heap layout, so parallel runs should give the same outcomes; check with a control (A = B) at 1 and at n jobs. The game's only single-instance check is a mutex named "SimCity 4 Mutex" (it calls no FindWindow). Control A = B, 7 days, 12 saves, on 2026-10-09 (20 logical CPUs, 32 GB):
+
+  | Jobs | Result | Wall time |
+  |---|---|---|
+  | 1 | 12 of 12 same | 1,119 s |
+  | 2 | 12 of 12 same | 551 s |
+  | 4 | 12 of 12 same | 327 s |
+
+  No retries, timeouts or Steam relaunches; each copy used at most about 400 MB. Four jobs fall short of 4x because job starts are staggered by 15 s.
 
 ## Sampling inside the simulator's tick
 
