@@ -396,6 +396,23 @@ def land_value_simulator(r):
     return out
 
 
+def civic_simulator(r):
+    """cSC4CivicBuildingSimulator (0x0A413481): Write at 0x0069D920, Read at
+    0x0069E820 (version 6 only). Names give the object offsets; the
+    cIGZSerializable part sits at +0x8 (docs/civic.md). The hash tables are
+    in bucket order."""
+    out = header(r)
+    out['version'] = v = r.u16()
+    if v != 6:
+        raise struct.error('version %d not known' % v)
+    out['excluded_18'] = [r.u32() for _ in range(r.u32())]
+    out['statuses_2c'] = [[r.u32(), r.u8(), r.u16(), r.gzstr()] for _ in range(r.u32())]
+    out['department_14'] = r.ref()
+    out['zoo_40'] = r.ref_list()
+    out['landmarks_44'] = r.ref_list()
+    return out
+
+
 def ordinance_simulator(r):
     """cSC4OrdinanceSimulator (0xA990C08E): Write at 0x0080D780, Read at
     0x0080E8B0 (version 4 only); the cIGZSerializable part sits at +0x8
@@ -437,6 +454,7 @@ def ordinance(r):
 ORDINANCE_CLASSES = (0x8BD4FC74, 0xA2BF1DDC, 0xA2BF1E43, 0x00D0723D, 0x40D07236, 0x815B4CEF, 0x22F6E80C,
                      0xA0D07129, 0x62BF1DAA, 0x62BF1DB9, 0xE0D0722E, 0x22F6E81B, 0x82B9999B, 0xE0D07233,
                      0xA2BF1DE5, 0xC2F6E81F, 0x62F6E7CF, 0x42BF1E18, 0xC2BF1E04, 0x02BF1DFA, 0xC2BF1DC5)
+
 
 def demand_simulator(r):
     """cSC4DemandSimulator (0x2990BFF2): Write at 0x006A2680, Read at
@@ -500,7 +518,8 @@ SCHEMAS = {0x8990C065: ('cSC4PollutionSimulator', pollution_simulator),
            0xC990C0A4: ('cSC4NeighborsSimulator', neighbors_simulator),
            0xA990C08E: ('cSC4OrdinanceSimulator', ordinance_simulator),
            0x2990BFF2: ('cSC4DemandSimulator', demand_simulator),
-           0x8990C12D: ('cSC4Demand', demands)}
+           0x8990C12D: ('cSC4Demand', demands),
+           0x0A413481: ('cSC4CivicBuildingSimulator', civic_simulator)}
 SCHEMAS.update({clsid: ('ordinance %08X' % clsid, ordinance) for clsid in ORDINANCE_CLASSES})
 
 

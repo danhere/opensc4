@@ -84,6 +84,9 @@ add_library(opensc4_core SHARED
   aura_init.cpp
   aura_object.cpp
   aura_sim.cpp
+  civic_init.cpp
+  civic_object.cpp
+  civic_sim.cpp
   weather_bodies.cpp
   weather_init.cpp
   weather_moisture.cpp
