@@ -1,5 +1,6 @@
 #include "core/registry.h"
 
+#include "core/hook.h"
 #include "core/log.h"
 #include "core/settings.h"
 
@@ -176,6 +177,11 @@ void Apply(Phase phase, const std::wstring& iniPath)
         }
     }
 
+    // One thread freeze for the phase's hooks instead of one per hook
+    // (hook.h). Attach runs from DllMain, before any other game thread.
+    const bool batch = phase != Phase::Attach;
+    if (batch)
+        hook::BeginBatch();
     for (const Replacement& r : replacements) {
         if (r.phase != phase)
             continue;
@@ -203,6 +209,8 @@ void Apply(Phase phase, const std::wstring& iniPath)
         log::Write("registry: %-34s %-8s [%s, %s, 0x%08X]%s", r.id, ToString(mode), ToString(r.kind), r.subsystem,
                    static_cast<unsigned>(r.target), note);
     }
+    if (batch)
+        hook::EndBatch();
 }
 
 Mode ModeOf(const char* id)
