@@ -96,6 +96,7 @@ add_library(opensc4_core SHARED
   s3d_camera.cpp
   camera_control.cpp
   photo_mode.cpp
+  terrain_view.cpp
   d3d7_probe.cpp
   dbpf_survey.cpp
   plugin_loader.cpp
