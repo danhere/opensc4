@@ -1,0 +1,329 @@
+[[entry]]
+name = "cSC4Simulator::vftable"
+address = 0x00AB2FB8
+kind = "vtable"
+expect = "40 20 70 00 30 7E 44 00"
+source = "cISC4Simulator: QueryInterface, AddRef, Release, Init, Shutdown, slots 5-33 (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::vftable_4"
+address = 0x00AB2FA0
+kind = "vtable"
+expect = "B0 3D 70 00 00 84 44 00"
+source = "cIGZSerializable at +0x4: Write 0x00702290, Read 0x00702340, GetGZCLSID 0x00702030 (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::vftable_8"
+address = 0x00AB2F6C
+kind = "vtable"
+expect = "D0 3D 70 00 30 84 44 00"
+source = "cIGZSystemService at +0x8 (cRZBaseSystemService): Init and Shutdown thunks, OnTick = RunTimeSlice (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::vftable_C"
+address = 0x00AB2F54
+kind = "vtable"
+expect = "F0 3D 70 00 60 84 44 00"
+source = "The base service's second interface at +0xC (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::vftable_24"
+address = 0x00AB2F44
+kind = "vtable"
+expect = "20 3E 70 00 30 3E 70 00"
+source = "cIGZMessageTarget2 at +0x24: DoMessage 0x00703540 (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::Init"
+address = 0x00703250
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Simulator* this)"
+expect = "83 EC 18 53 56 8B F1 8A"
+source = "Slot 3 (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::Shutdown"
+address = 0x00702950
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Simulator* this)"
+expect = "83 EC 20 53 56 8B F1 8A"
+source = "Slot 4 (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::Post"
+address = 0x007020E0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 2C 8B F9 E8 EF"
+source = "Name ours. A message (type, data 1-3) posted to the message server (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::SendToAgent"
+address = 0x007024C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 56 57 8B"
+source = "Name ours. (agent node value*, type, data 1-3): a message to one agent, its answer (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::ApplySpeed"
+address = 0x00702430
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "Name ours. Speeds 0-2: frame rate cap, time per step, message 0x4A7FB7E9 (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::LoadTuning"
+address = 0x007025B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 6A 00 8B F1"
+source = "Name ours. Exemplar 0xE9590E52: times per step, animation time dilations (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::ClockStep"
+address = 0x00702A80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 33 C0 56 8B F1"
+source = "Name ours. One step of the simulation clock: minutes, hours, the day and its messages (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::IdleAgents"
+address = 0x00702DF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 46"
+source = "Name ours. The idle agents (type 10) within the slice's time (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::DispatchType"
+address = 0x00702F10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 8B 6C 24"
+source = "Name ours. (type): every agent of a type gets its message (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::TickAgents"
+address = 0x007038B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 57 8B"
+source = "Name ours. A tick's agents within the slice's time (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::OnCheat"
+address = 0x00703420
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 3C 3D"
+source = "Name ours. The frame rate (0x0AC07E24) and date (0x8A78BEFF) cheats (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::DoMessage"
+address = 0x00703540
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 80 00 00 00 53 55"
+source = "Name ours. Slot 3 of the +0x24 vtable (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::Write"
+address = 0x00702290
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Name ours. +4 slot 3: version 4 (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::Read"
+address = 0x00702340
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 8B 74 24 20"
+source = "Name ours. +4 slot 4: versions up to 4 (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::FreeAgentNodes"
+address = 0x00703850
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. (map*, node): an agent map's nodes freed, recursively (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::ServiceNoOp"
+address = 0x00949ADE
+kind = "function"
+convention = "thiscall"
+expect = "B0 01 C3 8A 81 30 01 00"
+source = "Name ours. An empty function Init and Shutdown call on the service part (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::Construct"
+address = 0x00704120
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 57 68 80"
+source = "Name ours. The constructor (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::Destroy"
+address = 0x00703C50
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8D"
+source = "Name ours. The destructor (docs/simulator.md)."
+
+[[entry]]
+name = "cSC4Simulator::Create"
+address = 0x00704340
+kind = "function"
+convention = "cdecl"
+expect = "68 E0 01 00 00 E8 96 12"
+source = "Name ours. The factory: SC4::operator_new(0x1E0), then the constructor (docs/simulator.md)."
+
+[[entry]]
+name = "GZStopwatch::Start"
+address = 0x0089058F
+kind = "function"
+convention = "thiscall"
+expect = "51 57 8B F9 83 3F 00 8D"
+source = "Name ours. Restarts a stopwatch (fixed_ticks reads it through ElapsedMilliseconds) (docs/simulator.md)."
+
+[[entry]]
+name = "cRZDate::DayOfWeekAt8"
+address = 0x0091295C
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 F8 E9 27 FF FF FF"
+source = "Name ours. Through the +8 interface: (day number + 1) % 7 ... 1 to 7 (docs/simulator.md)."
+
+[[entry]]
+name = "cRZDate::DayOfMonthAt8"
+address = 0x00912F13
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 F8 E9 D0 FC FF FF"
+source = "Name ours. Through the +8 interface: the day of the month (docs/simulator.md)."
+
+[[entry]]
+name = "cRZDate::DayOfYearAt8"
+address = 0x00912F0B
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 F8 E9 B9 FC FF FF"
+source = "Name ours. Through the +8 interface: the day of the year (docs/simulator.md)."
+
+[[entry]]
+name = "cRZDate::FromDate"
+address = 0x0091270E
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 83"
+source = "Name ours. (cIGZDate* at +8 of a date): an 8-byte date of its day number (docs/simulator.md)."
+
+[[entry]]
+name = "cRZDate::FromShortDate"
+address = 0x00912E4E
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 C7 00"
+source = "Name ours. A 16-byte date from an 8-byte one (docs/simulator.md)."
+
+[[entry]]
+name = "SC4Tokenizer::Word"
+address = 0x00913E62
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 2B 41 08 56 6A"
+source = "Name ours. (index): the word's text (docs/simulator.md)."
+
+[[entry]]
+name = "SC4::atol"
+address = 0x009EF84A
+kind = "function"
+convention = "cdecl"
+expect = "E9 73 FF FF FF 55 8B EC"
+source = "The C runtime's atol (docs/simulator.md)."
+
+[[entry]]
+name = "SC4Stream::WriteDate"
+address = 0x005DA1A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 8B 51 04 56"
+source = "Name ours. (stream, date) (docs/simulator.md)."
+
+[[entry]]
+name = "SC4Stream::ReadDate"
+address = 0x005DA170
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 06 8D"
+source = "Name ours. (stream, date) (docs/simulator.md)."
+
+[[entry]]
+name = "SC4Stream::ReadStopwatch"
+address = 0x005DA1C0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 56 57 8B 7C 24"
+source = "Name ours. (stream, stopwatch) (docs/simulator.md)."
+
+[[entry]]
+name = "SC4::Service43D44"
+address = 0x00B43D44
+kind = "data"
+source = "An unnamed service; its slot 13 asks for the full animation time dilation (docs/simulator.md)."
+
+[[entry]]
+name = "cRZBaseSystemService::cRZBaseSystemService"
+address = 0x0091DE0F
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t serviceId, int32_t priority)"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "The system service base constructor (docs/class-creation.md); cSC4Simulator makes its part at +0x8 with it (docs/simulator.md)."
+
+[[entry]]
+name = "cRZBaseSystemService::Destroy"
+address = 0x0091DD53
+kind = "function"
+convention = "thiscall"
+expect = "C7 01 CC F1 AC 00 83 C1"
+source = "Name ours. The system service base destructor (docs/simulator.md)."
+
+[[entry]]
+name = "cRZBaseSystemService::QueryInterface"
+address = 0x0091DD67
+kind = "function"
+convention = "thiscall"
+expect = "81 7C 24 04 97 B6 7F 28"
+source = "Name ours. The system service base's QueryInterface; cSC4Simulator's falls back to it (docs/simulator.md)."
+
+[[entry]]
+name = "SC4CycleClock::Construct"
+address = 0x005D9320
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 1F 6C 2B 00"
+source = "Name ours. The cycles-per-millisecond estimate's object (float first), at +0x88 of cSC4Simulator (docs/simulator.md)."
+
+[[entry]]
+name = "cRZDate::FromMonthDayYear"
+address = 0x0091319B
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 10 8B F1 FF"
+source = "Name ours. A 16-byte date constructed from (month, day, year) (docs/simulator.md)."
+
+[[entry]]
+name = "SC4Deadline::TicksPerMs"
+address = 0x00B0A83C
+kind = "data"
+source = "Name ours. float: 1 / SC4Deadline::MsPerTick, set with it (docs/simulator.md)."
