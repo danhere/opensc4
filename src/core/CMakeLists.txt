@@ -22,9 +22,12 @@ target_link_libraries(opensc4_core_support
 add_library(opensc4_core SHARED
   autotest.cpp
   budget_autotest.cpp
+  budget_department.cpp
+  budget_department_object.cpp
   budget_departments.cpp
   budget_init.cpp
   budget_items.cpp
+  budget_lineitem.cpp
   budget_object.cpp
   budget_save.cpp
   budget_month.cpp
@@ -72,6 +75,11 @@ add_library(opensc4_core SHARED
   trafficmap_save.cpp
   trafficmap_signals.cpp
   trafficmap_sim.cpp
+  development_autotest.cpp
+  development_messages.cpp
+  development_object.cpp
+  development_occupants.cpp
+  development_queries.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp
