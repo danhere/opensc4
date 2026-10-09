@@ -153,6 +153,17 @@ The city view's camera is two objects: `cSC4CameraControl` (0x160 bytes, vtable 
 
 `OPENSC4_TEST_CAMERA_EXERCISE=1` makes the shots harness work the camera before each shot: eight scrolls past the bounds, a rotation, zooms past the maximum, a shake, a centre far outside the city, Update in each mode, fine zoom changes. Results (2026-10-09, 20 views of the test city): with the workout, 0 divergences in about 142,000 calls (Scroll 160, Update 100, SetZoom 41, SetCenter 41, SetZoomFactor 40, SetShake about 141,000 of them, every function at least once; every clipping path reached), screenshots 20 of 20 against the game's with the same workout, 20 of 20 without it, and a save's camera record identical to the game's.
 
+## The terrain
+
+The terrain is drawn by `cSTETerrainView3D` (class ID 0xC9B84E10, constructor 0x007567C0, 0xE8 bytes, code 0x007504F0 to 0x0075CE60, about 166 functions), which `cSTETerrain` creates (0x00749540) and which registers with the 3D render for pass 0 (the land) and pass 2 (water and overlays). A separate overlay manager (0x00735260 to 0x0073CF40) draws decals and shadows on the ground. Nothing in the drawing is random or seasonal; the texture variation comes from a grid of random numbers the terrain simulation fills (0x0074B460).
+
+Each frame, pass 0 (0x0075BFD0, then 0x0075BEE0) works out which rows of the terrain mesh are in view, reloads textures when the terrain type changes, redoes the texture coordinates when the zoom or rotation changes, then draws the land, the city-edge skirts and, when on, the grid. The mesh is two static arrays of 32-byte vertices, land (0x00B4C758) and water (0x00B4C75C): position, BGRA colour at +0xC, texture coordinates at +0x10.
+
+- Rows in view (0x00756750 for the land, 0x00753210 and 0x007539D0 for the water pass): the rows from the camera view's z range, and per row the vertex columns between two frustum edges (line intersections, 0x005D7420), floored and ceiled with the 1.5 * 2^23 trick, clamped, and widened so that each row covers the next. Then each row is kept for land if its highest land vertex reaches the lowest height the camera sees along the row (0x00751EE0, from a plane of the camera view), and for water if its highest water vertex does and is above the lowest land; the row ranges to draw follow.
+- Texture coordinates (0x00751C80): planar in x and z, scaled by 0.00175 x (1, 2, 4, 8, 16) by zoom and turned with the camera's rotation.
+
+`renderer.terrain.rows` replaces these (four detours; the helpers are ours behind them). In compare mode ours runs first, the view object and the per-row arrays (or the two vertex arrays) are put back, the game's runs, and the results are compared bit for bit. 2026-10-09, the three test cities with the camera workout: 0 divergences (row updates 661 to 2,271 per run, texture coordinates 25, water rows 21); with ours on, 20 of 20 screenshots match the stock driver's.
+
 ## What the driver calls mean
 
 Reference for writing a driver, from decompiling both stock drivers (vtables: DirectX 0x00AC4660, OpenGL 0x00AC36D0, `cIGZGDriver` at object + 0xC in both). The OpenGL driver is the plainest spec, since most methods are one GL call after a table lookup; the DirectX driver is what the game was tuned against and what the screenshot harness compares with (the OpenGL driver renders without terrain and with black boxes around trees on a current NVIDIA card, so it is no visual reference).
