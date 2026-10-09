@@ -51,6 +51,10 @@ Stream types follow `cIGZIStream`/`cIGZOStream` (little-endian; strings are a 32
 
 Checked on 2026-10-06: the decoder consumes every pollution record exactly in 531 saves (the test region, the P4 test runs, and the six regions that ship with the game): 28 of version 4, 5 of version 3 and 498 of version 2 (cities the game has never re-saved). The three averages match what the live simulator reported for the same save.
 
+## cSC4CrimeSimulator (0x8990C09A)
+
+Version 6, `Write` 0x0069F600, `Read` 0x006A05E0, the `cIGZSerializable` part at +0xC. Layout in [crime.md](crime.md), "Save record"; decoded by `sc4save.py` (all 17 corpus saves).
+
 ## cSC4TutorialSystem (0xAA3836FB)
 
 23 bytes in the tutorial cities' saves: the record header, uint16 version (2), uint8 active (1), uint32 (0), uint32 tutorial ID (Big City 0xCC02D3A3, Making Money 0x0BFDB71B, Rush Hour 0x2C12D0E9). With the active byte set to 0 the city loads as an ordinary city, without the tutorial's dialogs and locked tools; the loader does not reject the record although its CRC no longer matches.

@@ -107,7 +107,7 @@ uint8_t __fastcall GetExtremeRating(void* self, void*, int32_t* location)
 void __fastcall BustStrike(void*, void*, uint32_t type)
 {
     if (type == 1 || type == 0)
-        if (void* const police = Service(addr::SC4_Service43D98))
+        if (void* const police = Service(addr::SC4_PoliceSimulator))
             Virtual<void>(police, 0x34);
     if (type == 2 || type == 0)
         if (void* const fire = Service(addr::SC4_Service43D78))
