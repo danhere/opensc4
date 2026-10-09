@@ -117,3 +117,30 @@ Asked by Dan (2026-10-09). New assets use the community pipeline until then: mod
 
 - [ ] Load glTF models (exported straight from Blender) alongside S3D, once our own model and lot loading replaces the game's (P8 lots/buildings, after the renderer and UI phase)
 - [ ] Modern texture formats (PNG, KTX2) alongside FSH, through the same loader
+
+## Beyond the original: ideas from newer games
+
+Brainstormed with Dan (2026-10-09), from Cities: Skylines, SimCity (2013) and other sim games. Each would be an in-game option, with vanilla as the default. Only the ideas Dan reacted to are listed.
+
+Wanted:
+- [ ] In-game mod manager: enable and disable plugins and see conflicts without leaving the game (P3 resources/DBPF)
+- [ ] Photo mode: free camera, tilt, depth of field, no UI (P1 renderer)
+- [ ] Improved traffic: lane-aware, junctions that back up; the "our own" traffic option (P7, with NAM)
+- [ ] Transit lines: draw bus and rail routes, stats per line (P7)
+- [ ] Shared regional services: buses, schools, ambulances across city borders, so small towns can feed a big city (P8 region view)
+- [ ] City chronicle: an auto-written history of the city's milestones and disasters, building on the news ticker
+- [ ] Freight that matters: SC4 has one generic freight trip (industry ships to neighbor connections, seaports and rail), not goods types, so this means adding goods and trade routes (P5 traffic, P6 demand)
+- [ ] Colorblind-friendly data views, as a UI add-on (P2)
+- [ ] Multi-threaded simulation, tabled until P9 and the 64-bit build
+- [ ] Crash-safe autosave: keep the last few saves, restore with one click (P4 save format). Finding why the game crashes, as simulators are replaced, should make it needed less often
+- [ ] Real-world terrain import: build a region from real elevation data (P8 terrain)
+- [ ] Seasons and weather: snow, autumn trees, rain (P1 renderer)
+- [ ] Hot-reload mods: add or change a plugin without restarting, for mod creators; pairs with the mod manager (P3)
+
+Maybe, and stretch goals:
+- [ ] Districts and policies: per-district ordinances, taxes and zoning rules (P6 budget, a save addition). Real cities do this at the neighborhood scale (special zoning, historic and business improvement districts), so it need not wait for bigger maps
+- [ ] Scenario editor: goals and events in Lua (P6 Lua bindings); a late stretch goal
+- [ ] Steam Deck and controller support (P2 UI); a stretch goal
+
+Not now:
+- Building add-ons (SimCity 2013 modules): would need a lot of new art, and Dan does not want AI-generated assets
