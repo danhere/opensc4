@@ -13,6 +13,7 @@ add_library(opensc4_core_support STATIC
   interface_counter.cpp
   log.cpp
   registry.cpp
+  seed_code.cpp
   settings.cpp)
 target_link_libraries(opensc4_core_support
   PUBLIC opensc4_options opensc4_address_db
@@ -31,10 +32,23 @@ add_library(opensc4_core SHARED
   demand_region.cpp
   demand_sim.cpp
   demand_step.cpp
+  flora_growth.cpp
+  flora_messages.cpp
+  flora_object.cpp
+  flora_place.cpp
+  flora_sim.cpp
+  flora_types.cpp
+  neighbors_classes.cpp
+  neighbors_connections.cpp
+  neighbors_deals.cpp
+  neighbors_messages.cpp
+  neighbors_object.cpp
+  neighbors_sim.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp
   fixed_seed.cpp
+  game_seed.cpp
   gd/d3d11_backend.cpp
   gd/driver.cpp
   d3d7_probe.cpp
@@ -42,6 +56,10 @@ add_library(opensc4_core SHARED
   gdriver_proxy.cpp
   landvalue_object.cpp
   landvalue_sim.cpp
+  ordinance_class.cpp
+  ordinance_object.cpp
+  ordinance_objects.cpp
+  ordinance_sim.cpp
   pollution_buildings.cpp
   pollution_effects.cpp
   pollution_init.cpp
@@ -69,6 +87,11 @@ add_library(opensc4_core SHARED
   civic_init.cpp
   civic_object.cpp
   civic_sim.cpp
+  weather_bodies.cpp
+  weather_init.cpp
+  weather_moisture.cpp
+  weather_object.cpp
+  weather_sim.cpp
   pollution_sim.cpp
   pollution_tracts.cpp
   virtual_clock.cpp

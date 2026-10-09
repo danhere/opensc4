@@ -34,6 +34,8 @@
 #include <cISC4LotManager.h>
 #include <cISC4Occupant.h>
 #include <cISC4LandValueSimulator.h>
+#include <cISC4Ordinance.h>
+#include <cISC4OrdinanceSimulator.h>
 #include <cISC4BudgetSimulator.h>
 #include <cISC4View3DWin.h>
 #include <cRZAutoRefCount.h>
@@ -566,6 +568,44 @@ private:
                     log::Write("autotest: crime month restarted on day %d", day);
                 }
         }
+        // OPENSC4_TEST_WEATHER_YEAR=<n>: on the n-th day, run the weather
+        // simulator's month handler as for January (0x00729630 with 1, build
+        // 641; docs/weather.md): the water-body search runs then only.
+        if (const int when = EnvInt("OPENSC4_TEST_WEATHER_YEAR", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641()) {
+            if (void* const weather = city->GetWeatherSimulator()) {
+                using MonthFn = void(__thiscall*)(void* self, int32_t month, int32_t unused);
+                reinterpret_cast<MonthFn>(0x00729630)(weather, 1, 0);
+                log::Write("autotest: weather January handler run on day %d", day);
+            }
+        }
+
+        // OPENSC4_TEST_FLORA_MONTH=<n>: every n days of the run, the flora
+        // simulator's monthly pass, as MonthPassed does (the date into +0x40,
+        // then 0x006B2CB0; cSC4FloraSimulator, build 641) (docs/flora.md).
+        if (const int every = EnvInt("OPENSC4_TEST_FLORA_MONTH", -1); every > 0 && self->runDays_ >= 0 &&
+                                                                     game::IsBuild641()) {
+            const int into = day - (self->endDay_ - self->runDays_);
+            if (into > 0 && into % every == 0)
+                if (void* const flora = city->GetFloraSimulator()) {
+                    static_cast<int32_t*>(flora)[0x40 / 4] = day;
+                    reinterpret_cast<void(__thiscall*)(void*)>(addr::cSC4FloraSimulator_OnMonth)(flora);
+                    log::Write("autotest: flora month on day %d", day);
+                }
+        }
+        // OPENSC4_TEST_NEIGHBORS_MONTH=<n>: every n days of the run, the
+        // neighbors simulator's monthly pass over its deals (0x006D0E50,
+        // build 641), as MonthPassed does (docs/neighbors.md).
+        if (const int every = EnvInt("OPENSC4_TEST_NEIGHBORS_MONTH", -1); every > 0 && self->runDays_ >= 0 &&
+                                                                         game::IsBuild641()) {
+            const int into = day - (self->endDay_ - self->runDays_);
+            if (into > 0 && into % every == 0)
+                if (void* const neighbors = city->GetNeighborsSimulator()) {
+                    reinterpret_cast<void(__thiscall*)(void*)>(addr::cSC4NeighborsSimulator_Monthly)(neighbors);
+                    log::Write("autotest: neighbors month on day %d", day);
+                }
+        }
+
         // OPENSC4_TEST_DEMAND_MONTH=<n>: every n days of the run, the demand
         // simulator's MonthPassed (0x006A9450, build 641): its monthly passes
         // and a waiting step restarted, so a week's run goes through them
@@ -617,6 +657,24 @@ private:
         // change (0x278E6003, corners packed in data 1 and 2) and a changed
         // cell rectangle (0x07699455, the rectangle in void 2), so their
         // handlers run in runs without edits (docs/power.md).
+        // OPENSC4_TEST_ORDINANCES=<n>: on the n-th day, make every ordinance
+        // available and enact it; OPENSC4_TEST_ORDINANCES_OFF=<n>: repeal
+        // every enacted one. The test cities enact none, so this reaches the
+        // ordinances' costs, effects and repeal paths (docs/ordinance.md).
+        if (const int when = EnvInt("OPENSC4_TEST_ORDINANCES", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when)
+            SetOrdinances(city, true);
+        if (const int when = EnvInt("OPENSC4_TEST_ORDINANCES_OFF", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when)
+            SetOrdinances(city, false);
+        // OPENSC4_TEST_ORDINANCES_CYCLE=<n>: on the n-th day, the paths a
+        // saved city never runs: the new city's ordinance creation from the
+        // exemplars (they are already there, so each new one is released
+        // again), every ordinance looked up by name, removed and added back,
+        // and the recount message 0x66956810 (docs/ordinance.md).
+        if (const int when = EnvInt("OPENSC4_TEST_ORDINANCES_CYCLE", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641())
+            CycleOrdinances(city);
         if (const int when = EnvInt("OPENSC4_TEST_POWER_MESSAGES", -1);
             when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641()) {
             if (void* const power = city->GetPowerSimulator())
@@ -713,6 +771,60 @@ private:
         }
         log::Write("autotest: civic driven (landmark %p, lot %p, excluded %u, status %p)", occupant, lot, excluded,
                    static_cast<void*>(first));
+    }
+
+    static void SetOrdinances(cISC4City* city, bool on)
+    {
+        cISC4OrdinanceSimulator* const ordinances = city->GetOrdinanceSimulator();
+        if (!ordinances)
+            return;
+        uint32_t ids[128];
+        uint32_t count = 128;
+        ordinances->GetOrdinanceIDArray(ids, count);
+        for (uint32_t i = 0; i < count; ++i) {
+            if (on) {
+                ordinances->SetOrdinanceAvailable(ids[i], true);
+                ordinances->SetOrdinanceOn(ids[i], true);
+            } else {
+                ordinances->SetOrdinanceOn(ids[i], false);
+            }
+        }
+        log::Write("autotest: %u ordinances %s", count, on ? "made available and enacted" : "repealed");
+    }
+
+    static void CycleOrdinances(cISC4City* city)
+    {
+        cISC4OrdinanceSimulator* const ordinances = city->GetOrdinanceSimulator();
+        if (!ordinances)
+            return;
+        using ThisFn = void(__thiscall*)(void*);
+        reinterpret_cast<ThisFn>(addr::cSC4OrdinanceSimulator_CreateOrdinances)(ordinances);
+        uint32_t ids[128];
+        uint32_t count = 128;
+        ordinances->GetOrdinanceIDArray(ids, count);
+        uint32_t named = 0;
+        for (uint32_t i = 0; i < count; ++i) {
+            cISC4Ordinance* const ordinance = ordinances->GetOrdinanceByID(ids[i]);
+            if (!ordinance)
+                continue;
+            if (ordinances->GetOrdinanceIDByName(*ordinance->GetName()) == ids[i])
+                ++named;
+            ordinance->AddRef();
+            ordinances->RemoveOrdinance(*ordinance);
+            ordinances->AddOrdinance(*ordinance);
+            ordinance->Release();
+        }
+        using MessageFn = void*(__thiscall*)(void* memory);
+        using AllocateFn = void*(__cdecl*)(std::size_t size);
+        void* const memory = reinterpret_cast<AllocateFn>(addr::RZ_operator_new)(0x2C);
+        if (void* const message = memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr) {
+            Virtual<uint32_t>(message, 0x4);
+            Virtual<uint32_t>(message, 0x14, 0x66956810u);
+            Virtual<uint8_t>(reinterpret_cast<char*>(ordinances) + 0x4, 0xC, message); // DoMessage
+            Virtual<uint32_t>(message, 0x8);
+        }
+        log::Write("autotest: ordinances created again, %u of %u found by name, removed and added back, recounted",
+                   named, count);
     }
 
     // OPENSC4_TEST_PROTECTION: every fire and police station's funding set
@@ -972,6 +1084,152 @@ private:
                               set, visuals, sim, prop);
             }
         }
+        // Weather (cSC4WeatherSimulator, build 641 offsets; docs/weather.md):
+        // the moisture maps (+0x74, +0xDC, +0xE8, rows of bytes), the water
+        // cells (+0x80, rows of bits), the water bodies (+0x8C), the cells
+        // left this pass (+0xC8), the season and month, temperature and
+        // humidity, the wind (+0x118 to +0x144) as float bits.
+        void* const weather = city->GetWeatherSimulator();
+        char weatherText[256] = " | weather none";
+        if (weather && game::IsBuild641()) {
+            auto rowsSum = [weather](std::size_t offset) {
+                uint32_t h = 2166136261u;
+                char* const* const begin = At<char* const*>(weather, offset);
+                char* const* const end = At<char* const*>(weather, offset + 4);
+                for (char* const* row = begin; row && row < end; row += 3)
+                    for (const char* b = row[0]; b < row[1]; ++b)
+                        h = (h ^ static_cast<uint8_t>(*b)) * 16777619u;
+                return h;
+            };
+            uint32_t bits = 2166136261u;
+            {
+                const int32_t countX = At<int32_t>(weather, 0x2C), countZ = At<int32_t>(weather, 0x30);
+                const char* const rows = At<const char*>(weather, 0x80);
+                const int32_t rowCount = rows ? static_cast<int32_t>((At<const char*>(weather, 0x84) - rows) / 20) : 0;
+                for (int32_t x = 0; x < countX && x < rowCount; ++x) {
+                    const uint32_t* const data = *reinterpret_cast<uint32_t* const*>(rows + 20 * x);
+                    const int32_t start = *reinterpret_cast<const int32_t*>(rows + 20 * x + 4);
+                    for (int32_t z = 0; z < countZ; ++z) {
+                        const int32_t bit = start + z;
+                        const uint32_t set = (data[bit >> 5] >> (bit & 31)) & 1;
+                        bits = (bits ^ set) * 16777619u;
+                    }
+                }
+            }
+            auto f = [weather](std::size_t offset) { return At<uint32_t>(weather, offset); };
+            const char* const bodies = At<const char*>(weather, 0x8C);
+            std::snprintf(weatherText, sizeof weatherText,
+                          " | weather %08X %08X %08X %08X bodies %d left %d season %d month %d temp %08X hum %08X "
+                          "wind %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X",
+                          rowsSum(0x74), rowsSum(0xDC), rowsSum(0xE8), bits,
+                          bodies ? static_cast<int>((At<const char*>(weather, 0x90) - bodies) / 16) : 0,
+                          At<int32_t>(weather, 0xC8), At<int32_t>(weather, 0x60), At<int32_t>(weather, 0x160), f(0x70),
+                          f(0xF4), f(0x11C), f(0x120), f(0x124), f(0x128), f(0x12C), f(0x130), f(0x134), f(0x138),
+                          f(0x13C), f(0x140), f(0x144));
+        }
+
+        // Flora: every flora occupant (occupant manager slot 39, type
+        // 0x74758926): count, and a checksum of each one's type, birth and
+        // last seeding dates, state, orientation (cISC4FloraOccupant slots
+        // 4, 6, 8, 10, 12) and position (docs/flora.md).
+        char floraText[64] = " | flora none";
+        if (void* const occupants = Virtual<void*>(city, 0x88); occupants && game::IsBuild641()) {
+            void** const sentinel = static_cast<void**>(Virtual<void*>(ListNodeAllocator(), 0xC, 0xCu));
+            sentinel[0] = sentinel;
+            sentinel[1] = sentinel;
+            void* head = sentinel;
+            Virtual<uint8_t>(occupants, 0x9C, &head, 0u, 0u, 0x74758926u, -1);
+            uint32_t count = 0, sum = 0;
+            for (void** node = static_cast<void**>(sentinel[0]); node != sentinel; node = static_cast<void**>(node[0])) {
+                void* const occupant = node[2];
+                void* flora = nullptr;
+                if (!Virtual<uint8_t>(occupant, 0x0, 0xC83DD057u, &flora) || !flora)
+                    continue;
+                float position[3] = {};
+                Virtual<uint32_t>(occupant, 0x20, position);
+                const uint32_t values[5] = {Virtual<uint32_t>(flora, 0x10), Virtual<uint32_t>(flora, 0x18),
+                                            Virtual<uint32_t>(flora, 0x20), Virtual<uint32_t>(flora, 0x28),
+                                            Virtual<uint32_t>(flora, 0x30)};
+                sum = sum * 31 + BytesChecksum(values, sizeof values) * 7 + BytesChecksum(position, sizeof position);
+                ++count;
+                Virtual<uint32_t>(flora, 0x8);
+            }
+            Virtual<uint8_t>(occupants, 0xC0, &head);
+            reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4List_Destroy2)(&head);
+            std::snprintf(floraText, sizeof floraText, " | flora %u %08X", count, sum);
+        }
+        // Neighbors: every connection through slot 16 (count, and a
+        // checksum of each one's type, cells, visited and active flags,
+        // whether it has a city across, and what slots 10-13 answer for
+        // it); the counts slots 17 and 20 give (road connections; adjacent
+        // cities with and without unestablished ones); the deals (slot 28)
+        // and monthly income and expense (32, 33) (docs/neighbors.md).
+        char neighborsText[128] = " | nb none";
+        if (void* const neighbors = city->GetNeighborsSimulator(); neighbors && game::IsBuild641()) {
+            using ClearFn = void(__thiscall*)(void*);
+            const auto newList = [](std::uintptr_t allocator) {
+                void** const sentinel = static_cast<void**>(Virtual<void*>(NodeAllocatorAt(allocator), 0xC, 0xCu));
+                sentinel[0] = sentinel;
+                sentinel[1] = sentinel;
+                return static_cast<void*>(sentinel);
+            };
+            const auto count = [](void* head) {
+                uint32_t n = 0;
+                for (void** node = static_cast<void**>(static_cast<void**>(head)[0]); node != head;
+                     node = static_cast<void**>(node[0]))
+                    ++n;
+                return n;
+            };
+            void* connections = newList(addr::SC4List_NodeAllocator3);
+            Virtual<void>(neighbors, 0x40, &connections);
+            uint32_t sum = 0;
+            for (void** node = static_cast<void**>(static_cast<void**>(connections)[0]); node != connections;
+                 node = static_cast<void**>(node[0])) {
+                void* const connection = node[2];
+                int32_t cell[6] = {};
+                Virtual<void>(connection, 0x18, &cell[0], &cell[1]);
+                Virtual<uint8_t>(connection, 0x1C, &cell[2], &cell[3]);
+                Virtual<void>(connection, 0x20, &cell[4], &cell[5]);
+                const uint32_t type = Virtual<uint32_t>(connection, 0x14);
+                const uint32_t values[8] = {
+                    type,
+                    Virtual<uint8_t>(connection, 0x2C),
+                    Virtual<uint8_t>(connection, 0x34),
+                    Virtual<void*>(connection, 0x24) != nullptr,
+                    Virtual<uint32_t>(neighbors, 0x28, type, cell[0], cell[1]),
+                    Virtual<void*>(neighbors, 0x2C, type, cell[0], cell[1]) == connection,
+                    Virtual<void*>(neighbors, 0x30, cell[0], cell[1]) == Virtual<void*>(connection, 0x24),
+                    Virtual<void*>(neighbors, 0x34, connection) != nullptr};
+                sum = sum * 31 + BytesChecksum(values, sizeof values) * 7 + BytesChecksum(cell, sizeof cell);
+            }
+            const uint32_t total = count(connections);
+            void* roads = newList(addr::SC4List_NodeAllocator3);
+            Virtual<void>(neighbors, 0x44, 2u, &roads);
+            const uint32_t roadCount = count(roads);
+            reinterpret_cast<ClearFn>(addr::SC4List_ClearReleasing)(&roads);
+            Virtual<void>(NodeAllocatorAt(addr::SC4List_NodeAllocator3), 0x10, roads);
+            reinterpret_cast<ClearFn>(addr::SC4List_ClearReleasing)(&connections);
+            Virtual<void>(NodeAllocatorAt(addr::SC4List_NodeAllocator3), 0x10, connections);
+            uint32_t adjacent[2] = {};
+            for (uint32_t all = 0; all < 2; ++all) {
+                void* cities = newList(addr::SC4List_NodeAllocator4);
+                Virtual<void>(neighbors, 0x50, &cities, static_cast<uint8_t>(all));
+                adjacent[all] = count(cities);
+                reinterpret_cast<ClearFn>(addr::SC4List_ClearReleasing4)(&cities);
+                Virtual<void>(NodeAllocatorAt(addr::SC4List_NodeAllocator4), 0x10, cities);
+            }
+            void* deals = newList(addr::SC4List_NodeAllocator);
+            Virtual<void>(neighbors, 0x70, &deals);
+            const uint32_t dealCount = count(deals);
+            reinterpret_cast<ClearFn>(addr::SC4List_Destroy)(&deals);
+            const int64_t income = Virtual<int64_t>(neighbors, 0x80);
+            const int64_t expense = Virtual<int64_t>(neighbors, 0x84);
+            const auto* const flags = static_cast<const uint8_t*>(neighbors);
+            std::snprintf(neighborsText, sizeof neighborsText,
+                          " | nb %u %08X roads %u adj %u %u deals %u %lld %lld fl %02X%02X%02X%02X", total, sum,
+                          roadCount, adjacent[0], adjacent[1], dealCount, static_cast<long long>(income),
+                          static_cast<long long>(expense), flags[0xC], flags[0x3C], flags[0x3D], flags[0x3F]);
+        }
         // Demand (cSC4DemandSimulator, build 641 offsets; docs/demand.md): the
         // step's state, the four saved floats, each demand's fields (ID to
         // region use, +0x10 to +0x48) under its key, the two maps of counted
@@ -1046,6 +1304,36 @@ private:
                           GridChecksum(land->GetIntrinsicLandValueMap()), GridChecksum(land->GetSlopeMap()),
                           land->GetAverageLandValue(), modeBits, altitudeBits,
                           *reinterpret_cast<const int32_t*>(reinterpret_cast<const char*>(land) + 0x38));
+        }
+        // Ordinances (build 641): last month's expense and income, the
+        // enactment and repeal income pending (+0x28), how many are available
+        // and enacted, and a checksum of each one's ID, flags and adjusted
+        // income in ID order (docs/ordinance.md).
+        char ordinanceText[128] = "";
+        if (cISC4OrdinanceSimulator* const ordinances = city->GetOrdinanceSimulator(); ordinances && game::IsBuild641()) {
+            uint32_t ids[128];
+            uint32_t count = 128;
+            ordinances->GetOrdinanceIDArray(ids, count);
+            uint32_t h = 2166136261u;
+            for (uint32_t i = 0; i < count; ++i) {
+                void* const ordinance = ordinances->GetOrdinanceByID(ids[i]);
+                if (!ordinance)
+                    continue;
+                struct {
+                    uint32_t id;
+                    uint8_t available, on, enabled, pad;
+                    int64_t adjusted;
+                } state{ids[i], Virtual<uint8_t>(ordinance, 0x44), Virtual<uint8_t>(ordinance, 0x48),
+                        Virtual<uint8_t>(ordinance, 0x4C), 0, Virtual<int64_t>(ordinance, 0x50)};
+                const auto* b = reinterpret_cast<const uint8_t*>(&state);
+                for (size_t k = 0; k < sizeof state; ++k)
+                    h = (h ^ b[k]) * 16777619u;
+            }
+            std::snprintf(ordinanceText, sizeof ordinanceText, " | ord %lld %lld %lld av %u on %u n %u %08X",
+                          static_cast<long long>(ordinances->GetOrdinanceMonthlyExpense()),
+                          static_cast<long long>(ordinances->GetOrdinanceMonthlyIncome()),
+                          *reinterpret_cast<const long long*>(reinterpret_cast<const char*>(ordinances) + 0x28),
+                          ordinances->GetOrdinanceAvailableCount(), ordinances->GetOrdinanceOnCount(), count, h);
         }
         // Fire and police (build 641 slots; docs/fire-police.md): the
         // protection grids (slot 5), average and percent coverage (fire 19,
@@ -1133,7 +1421,7 @@ private:
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
         log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s%s%s%s",
+                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
                    day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
                    lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
                    traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
@@ -1144,7 +1432,8 @@ private:
                    pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
                    worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText,
-                   waterText, auraText, crimeText, demandText, trafficText, landText, serviceText, civicText, ticks, rng);
+                   waterText, auraText, crimeText, demandText, weatherText, floraText, neighborsText, trafficText, landText,
+                   serviceText, ordinanceText, civicText, ticks, rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,

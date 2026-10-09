@@ -12,6 +12,7 @@
 #include "core/diagnostics.h"
 #include "core/fixed_seed.h"
 #include "core/game.h"
+#include "core/game_seed.h"
 #include "core/gdriver_proxy.h"
 #include "core/log.h"
 #include "core/registry.h"
@@ -79,6 +80,7 @@ public:
         opensc4::registry::Apply(opensc4::registry::Phase::PostAppInit);
         opensc4::fixed_seed::EndStartup();
         opensc4::registry::Apply(opensc4::registry::Phase::LateInit);
+        opensc4::game_seed::Start();
         if (opensc4::autotest::Enabled())
             opensc4::autotest::Start();
         return true;
