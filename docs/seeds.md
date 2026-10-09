@@ -46,7 +46,43 @@ So the random state after a load is a function of the save and the seed alone.
 
 ## Same seed, same game?
 
-Same random state is necessary, not sufficient. In normal play how much simulation runs per frame, and so the order of draws, follows real time ([experiments/determinism.md](experiments/determinism.md)): two players with the same save and seed start alike and drift apart within days to weeks of game time. With the determinism replacements of the parity harness (`determinism.fixed_seed`, `virtual_clock`, `fixed_ticks`, `agent_order`, `zero_alloc`) a seed replays exactly, but those make the simulation run as fast as it can and the main thread's clock virtual, which is fine for tests, not for play. A play mode with the same guarantee (deterministic simulation, paced to real time) is the next step, and is what a recorded replay (timelapse) needs too.
+Same random state is necessary, not sufficient. In normal play how much simulation runs per frame, and so the order of draws, follows real time ([experiments/determinism.md](experiments/determinism.md)): two players with the same save and seed start alike and drift apart within days to weeks of game time. The parity harness's determinism replacements remove that, but they also make the simulation run as fast as it can whatever the speed setting (10 game days in 2.4 s at turtle speed as at cheetah), so they are no way to play.
+
+### Deterministic play
+
+`[determinism] pace = realtime` keeps the harness's deterministic simulation and paces it to real time:
+
+```ini
+[replacements]
+game.seed = ours
+determinism.virtual_clock = ours
+determinism.fixed_ticks = ours
+determinism.agent_order = ours
+determinism.zero_alloc = ours
+
+[determinism]
+pace = realtime
+```
+
+- **Slices are held back, not changed.** Each simulation slice still runs its fixed 60 ticks; before one starts, `fixed_ticks.cpp` checks a schedule and, if the game is ahead of it, returns without running it, so that frame does no simulation work. The simulator keeps no unit finer than the day (GetSimTime stays 0), so slices are spread over each day by how many the previous day took, at 2,000, 1,000 and 300 ms per game day for the three speeds (the unmodified game took 2.1 s per day at turtle speed on Making Money; cheetah is as fast as the machine allows).
+- **The clock is virtual inside slices only.** Rendering, the interface and saving see real time, so animation and scrolling run at their normal speed; simulation code still sees the virtual clock, which advances only in slices.
+- **The cycle clock is fixed.** The simulator recalibrates a milliseconds-per-cycle estimate at every slice (0x005D9370: a moving average of rdtsc against counter deltas, in floats), which its time-boxed work turns into deadlines. Its path to the virtual clock's 3 GHz depended on how many clock reads came between slices, so a different number of paused slices before the run moved a deadline by one check and the idle work with it. Paced, it is the value it converges to (1/3,000,000 ms per cycle).
+
+- **Inside slices the clock catches up.** At the start of each slice the virtual clock moves up to the real time outside (never back). Some stopwatches span both sides: the camera's pause while scrolling (0x007E5B40) is started by the interface and ended by a stopwatch checked in the view update (0x007E5B70 from 0x007F6200), and while recording input on a separate frame clock the city stayed paused after the first keyboard scroll. With the catch-up, a paced Big City run with keyboard scrolling kept going (6 days, 2026-10-09).
+
+Checked by running the same save at 0.5, 1 and 3 times the scheduled rate (`OPENSC4_PACE_SCALE`), seed 1234-5678, cheetah speed, 10 days:
+
+| Save | 0.5x vs 1x | 3x vs 1x |
+| --- | --- | --- |
+| Big City d0090 | identical | identical |
+| Rush Hour d0365 | identical | weather parts on day 10 (and stays apart, checked to day 15) |
+| Making Money d1095 | identical | pollution grid parts on day 10 |
+
+Repeat runs at the same rate are identical, so the 3x differences are systematic, not noise. The simulation's own clock reads inside slices are identical read for read between 1x and 3x (`OPENSC4_VCLOCK_TRACE`, Rush Hour d0365, 11 days), and holding slices during the simulator's hidden pauses changed nothing, so something outside the slices feeds the weather (and through the wind, pollution); the weather alone also reaches several outcomes in 35-day harness runs of the unmodified game ([weather.md](weather.md)). Not located yet. Before main gained the weather fingerprint field the same three saves were identical at 3x as well (2026-10-09 morning). Making Money d0365 parts on day 4 in the pollution grid between rates, as it does between repeat runs of the harness under load.
+
+The speed setting is part of the history: it sets the frame rate cap the slice budget comes from, so the same save at turtle and at cheetah is not the same game. A replay has to repeat speed changes at the same slices, like any other input.
+
+Not yet tried by hand: how play feels (the simulation runs in steps between held frames; at cheetah on a big city the schedule may be slower than the machine could go).
 
 ## Checks
 

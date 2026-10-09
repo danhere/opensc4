@@ -12,7 +12,6 @@
 0x0048E460 RectJobWorker::Run              ours; thread body: takes rectangular jobs from a locked queue under a stopwatch budget; owner class unnamed (vtable 0x00A8ED5C) (docs/experiments/determinism.md)
 0x0048E8F0 RectJobWorker::ThreadEntry      ours; thread routine started during city load, calls 0x0048E460 (docs/experiments/determinism.md)
 0x0048E900 RectJobWorker::Init             ours; sets up the worker and starts its thread (docs/experiments/determinism.md)
-0x005D9370 cSC4Simulator::EstimateCyclesPerMs ours; called at the start of every time slice on +0x80 of the slice's this: smoothed rdtsc cycles per QueryPerformanceCounter millisecond; its rdtsc reads the virtual counter under determinism.virtual_clock (docs/experiments/determinism.md)
 0x005D99A0 SC4Stream::WriteReference          ours; writes a reference to a serialised object: its address-ID and class ID, 8 bytes (docs/save-format.md)
 0x005DAB70 SC4Stream::WritePollutionStruct    ours; writes the struct at cSC4PollutionSimulator+0x1D8: int8 x2, uint8, int32 x5, counted uint16 array, int32 x3 (docs/save-format.md)
 0x005DAFF0 SC4Stream::WriteReferenceList      ours; writes a count then references (docs/save-format.md)
