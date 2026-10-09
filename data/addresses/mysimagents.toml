@@ -518,3 +518,309 @@ kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 6A FF 68 60 EE"
 source = "Name ours. Releases a reference holder (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::ChangeResidence"
+address = 0x00426C10
+kind = "function"
+convention = "thiscall"
+expect = "55 56 8B F1 57 8B 7E 0C"
+source = "cISC4MySim slot 6 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::TestForResidence"
+address = 0x00425CA0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B D9 8B 0D EC 3C"
+source = "cISC4MySim slot 7 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::ChangeJob"
+address = 0x00425D70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 56 8B F1 8D"
+source = "cISC4MySim slot 8 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DeleteFromGame"
+address = 0x0042DF50
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 8E 54 01"
+source = "cISC4MySim slot 9 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::GetLocation"
+address = 0x004265D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 89 54 01 00 00 83 EC"
+source = "cISC4MySim slot 14 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::AnnounceMoveIn"
+address = 0x0042BF70
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 07 FF 90 E0"
+source = "cISC4MySim slot 40 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DoScriptCommand"
+address = 0x0042DB50
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 85 C0 0F 84 90"
+source = "cISC4MySim slot 41 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DoBuildingAdded"
+address = 0x00426060
+kind = "function"
+convention = "thiscall"
+expect = "51 57 8B F9 8B 47 08 85"
+source = "cISC4MySim slot 42 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DoBuildingRemoved"
+address = 0x0042C940
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 08 85 C0"
+source = "cISC4MySim slot 44 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DoFireAdded"
+address = 0x00426120
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 46 08 85"
+source = "cISC4MySim slot 45 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DoPipeBurst"
+address = 0x004261D0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 46 08 85"
+source = "cISC4MySim slot 46 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DoTornado"
+address = 0x00426280
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 46 08 85"
+source = "cISC4MySim slot 47 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DoDisaster"
+address = 0x00426330
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 55 56 8B F1 8B"
+source = "cISC4MySim slot 48 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DistanceToClosestSpecial"
+address = 0x00426AE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 8B E9 8B"
+source = "cISC4MySim slot 51 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::CreateDispatchTool"
+address = 0x00426830
+kind = "function"
+convention = "thiscall"
+expect = "56 68 90 00 00 00 8B F1"
+source = "cISC4MySim slot 67 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::ResetTrip"
+address = 0x00426BA0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 86 C4 00"
+source = "Name ours. Called around residence changes and deletion (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::Script0A57DE1F"
+address = 0x00426FA0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 86 C0 00"
+source = "Name ours. DoScriptCommand 0x0A57DE1F (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::ScriptEA4D269C"
+address = 0x00428900
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 8B F1 8B 86"
+source = "Name ours. DoScriptCommand 0xEA4D269C (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::ScriptAA4934B4"
+address = 0x0042CA30
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 C0 00 00"
+source = "Name ours. DoScriptCommand 0xAA4934B4 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::Script6A495F7F"
+address = 0x0042CA60
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 8E C0 00 00"
+source = "Name ours. DoScriptCommand 0x6A495F7F (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::Script6A4A5E9E"
+address = 0x0042CAD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 C0 00 00"
+source = "Name ours. DoScriptCommand 0x6A4A5E9E (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::FindNewJob"
+address = 0x0042C050
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 C0 00 00"
+source = "Name ours. DoScriptCommand 0x6A5E6860; also after the job's building is removed (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::Unregister"
+address = 0x0042DBF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 55 56 57 8B"
+source = "Name ours. Called by DeleteFromGame after hiding the location (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::DescribeOccupant"
+address = 0x00424B80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 4C"
+source = "Name ours. A value for an occupant's ID, set into the building-added advice (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MySimHelper10::Construct"
+address = 0x00424AB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 C8 55 1C 00"
+source = "Name ours. Constructor of a 0x10-byte residence test object (argument 1) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MySimPlace::Construct"
+address = 0x00431320
+kind = "function"
+convention = "thiscall"
+expect = "51 8B C1 33 D2 83 C9 FF"
+source = "Name ours. An empty place (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MySimPlace::SetOccupant"
+address = 0x00431430
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 83 C8 FF 55"
+source = "Name ours. Sets a place from an occupant ID (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySimDispatch::SetDestination"
+address = 0x004350D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 28 53"
+source = "Name ours. ChangeJob hands it a place and 1 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4::DispatchTool"
+address = 0x00B20E0C
+kind = "data"
+source = "Name ours. The MySim dispatch tool in use (referenced) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::MoveIn"
+address = 0x0042D880
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 56 8B F1 8B"
+source = "cISC4MySim slot 4 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::SetResidence"
+address = 0x0042E020
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 50 53 56 8B F1 8B"
+source = "cISC4MySim slot 13 (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySimDispatch::Reset"
+address = 0x00433EB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 55 56 8B F1"
+source = "Name ours. SetResidence calls it for a MySim not yet moved in (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySimDispatch::SetHome"
+address = 0x00435030
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Name ours. SetResidence hands it the new home's place (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MySimPlace::SetWork"
+address = 0x004311E0
+kind = "function"
+convention = "thiscall"
+expect = "B0 01 88 41 1D C3 CC CC"
+source = "Name ours. SetResidence's first trip place (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MySimMoveInTool::Construct"
+address = 0x00439FC0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 58 13 1C 00"
+source = "Name ours. Constructor of the 0x4C-byte move-in tool (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MySimMoveInTool::Init"
+address = 0x0043A730
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 64 57 8B F9 8B 07"
+source = "Name ours. Sets the move-in tool up for a MySim; true makes it the dispatch tool (docs/mysim-agents.md)."
+
+[[entry]]
+name = "cSC4MySim::FindNewResidence"
+address = 0x0042A700
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 56 57 8B F9"
+source = "cISC4MySim slot 5; a random house from the occupant manager's list (the MySim's generator at +0xD8 from the cISC4MySim part); returns false (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MySim::ResidenceFilterVtable"
+address = 0x00A84B44
+kind = "data"
+source = "Name ours. The occupant filter FindNewResidence makes (second vtable at +4: 0x00A84B2C, byte +0xC 1) (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MySim::ResidenceFilterVtable4"
+address = 0x00A84B2C
+kind = "data"
+source = "Name ours. The filter's second vtable (docs/mysim-agents.md)."
