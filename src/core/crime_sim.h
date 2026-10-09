@@ -43,8 +43,8 @@ constexpr std::size_t kGridCellSize = 0xD8;   // tuning 0x47E2C200
 constexpr std::size_t kCurveDC = 0xDC;        // curve 0x49A34301
 constexpr std::size_t kQuarterCurves = 0xEC;  // 3 curves, 0x8A0CBAA4 to 0x8A0CBAA6
 constexpr std::size_t kFactorCurves = 0x11C;  // 3 curves, 0x8A0CBAA7 to 0x8A0CBAA9
-constexpr std::size_t kChanceCurve = 0x14C;   // curve 0x8A0CBAAA: police minus effect -> threshold
-constexpr std::size_t kExcessCurve = 0x15C;   // curve 0x8A0CBAAB: crimes over the criminals
+constexpr std::size_t kChanceCurve = 0x14C;   // curve 0x8A0CBAAB: police minus effect -> threshold
+constexpr std::size_t kExcessCurve = 0x15C;   // curve 0x8A0CBAAA: crimes over the criminals
 constexpr std::size_t kDecay = 0x16C;         // float, 0x8A0CBAAC
 constexpr std::size_t kUnjailedFactor = 0x170; // float, 0x8A0CBAAD
 } // namespace field

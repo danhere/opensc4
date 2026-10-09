@@ -761,7 +761,7 @@ private:
         // the month's target and its parts) and the incidents (crime type
         // and name key each) (docs/crime.md).
         void* const crime = city->GetCrimeSimulator();
-        char crimeText[160] = " | crime none";
+        char crimeText[224] = " | crime none";
         if (crime && game::IsBuild641()) {
             void** const vtable = *static_cast<void***>(crime);
             using GridFn = cISC4SimGrid<uint8_t>*(__thiscall*)(void*);
@@ -779,10 +779,38 @@ private:
                 if (incidents[i])
                     incidentSum = incidentSum * 31 + BytesChecksum(incidents[i] + 4, 4) * 7 +
                                   BytesChecksum(incidents[i] + 0x1C, 12);
-            std::snprintf(crimeText, sizeof crimeText, " | crime %08X avg %u cnt %u hot %u %u,%d,%d st %08X inc %u %08X",
-                          GridChecksum(reinterpret_cast<GridFn>(vtable[5])(crime)),
-                          reinterpret_cast<CountFn>(vtable[6])(crime), reinterpret_cast<CountFn>(vtable[7])(crime), hot,
-                          hotValue, hotX, hotZ, BytesChecksum(base + 0x7C, 0x5C), incidentCount, incidentSum);
+            const int written = std::snprintf(
+                crimeText, sizeof crimeText, " | crime %08X avg %u cnt %u hot %u %u,%d,%d st %08X inc %u %08X",
+                GridChecksum(reinterpret_cast<GridFn>(vtable[5])(crime)), reinterpret_cast<CountFn>(vtable[6])(crime),
+                reinterpret_cast<CountFn>(vtable[7])(crime), hot, hotValue, hotX, hotZ,
+                BytesChecksum(base + 0x7C, 0x5C), incidentCount, incidentSum);
+            // OPENSC4_TEST_CRIME_QUERIES=1: the queries only the UI and the
+            // automata make (slots 9-13): the incident events, the visuals
+            // flag of the first incident (set, then read), and whether a
+            // crime sim and a crime prop are within 2 km of the hotspot.
+            if (EnvInt("OPENSC4_TEST_CRIME_QUERIES", 0) > 0 && written > 0) {
+                struct {
+                    char* begin = nullptr;
+                    char* end = nullptr;
+                    char* capacity = nullptr;
+                } events;
+                using EventsFn = uint8_t(__thiscall*)(void*, void*);
+                const uint8_t any = reinterpret_cast<EventsFn>(vtable[11])(crime, &events);
+                const uint32_t eventSum =
+                    events.begin ? BytesChecksum(events.begin, static_cast<size_t>(events.end - events.begin)) : 0u;
+                if (events.begin)
+                    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(events.begin);
+                using SetFn = uint8_t(__thiscall*)(void*, uint32_t, uint8_t);
+                using GetFn = uint8_t(__thiscall*)(void*, uint32_t);
+                const uint8_t set = reinterpret_cast<SetFn>(vtable[12])(crime, 0, 1);
+                const uint8_t visuals = reinterpret_cast<GetFn>(vtable[13])(crime, 0);
+                const float position[3] = {static_cast<float>(hotX * 16 + 8), 0.0f, static_cast<float>(hotZ * 16 + 8)};
+                using NearestFn = void*(__thiscall*)(void*, const float*, float);
+                const bool sim = reinterpret_cast<NearestFn>(vtable[9])(crime, position, 2000.0f) != nullptr;
+                const bool prop = reinterpret_cast<NearestFn>(vtable[10])(crime, position, 2000.0f) != nullptr;
+                std::snprintf(crimeText + written, sizeof crimeText - written, " q %u %08X %u%u %u%u", any, eventSum,
+                              set, visuals, sim, prop);
+            }
         }
         // Traffic (build 641 slots): trip scale and the one shown (14, 15),
         // last month's income (18) and the freight scaling (27), as float bits.
