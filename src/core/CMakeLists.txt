@@ -35,6 +35,10 @@ add_library(opensc4_core SHARED
   gdriver_proxy.cpp
   landvalue_object.cpp
   landvalue_sim.cpp
+  ordinance_class.cpp
+  ordinance_object.cpp
+  ordinance_objects.cpp
+  ordinance_sim.cpp
   pollution_buildings.cpp
   pollution_effects.cpp
   pollution_init.cpp

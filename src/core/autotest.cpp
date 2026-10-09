@@ -33,6 +33,8 @@
 #include <cISC4LotManager.h>
 #include <cISC4Occupant.h>
 #include <cISC4LandValueSimulator.h>
+#include <cISC4Ordinance.h>
+#include <cISC4OrdinanceSimulator.h>
 #include <cISC4BudgetSimulator.h>
 #include <cISC4View3DWin.h>
 #include <cRZAutoRefCount.h>
@@ -578,6 +580,24 @@ private:
         // change (0x278E6003, corners packed in data 1 and 2) and a changed
         // cell rectangle (0x07699455, the rectangle in void 2), so their
         // handlers run in runs without edits (docs/power.md).
+        // OPENSC4_TEST_ORDINANCES=<n>: on the n-th day, make every ordinance
+        // available and enact it; OPENSC4_TEST_ORDINANCES_OFF=<n>: repeal
+        // every enacted one. The test cities enact none, so this reaches the
+        // ordinances' costs, effects and repeal paths (docs/ordinance.md).
+        if (const int when = EnvInt("OPENSC4_TEST_ORDINANCES", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when)
+            SetOrdinances(city, true);
+        if (const int when = EnvInt("OPENSC4_TEST_ORDINANCES_OFF", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when)
+            SetOrdinances(city, false);
+        // OPENSC4_TEST_ORDINANCES_CYCLE=<n>: on the n-th day, the paths a
+        // saved city never runs: the new city's ordinance creation from the
+        // exemplars (they are already there, so each new one is released
+        // again), every ordinance looked up by name, removed and added back,
+        // and the recount message 0x66956810 (docs/ordinance.md).
+        if (const int when = EnvInt("OPENSC4_TEST_ORDINANCES_CYCLE", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641())
+            CycleOrdinances(city);
         if (const int when = EnvInt("OPENSC4_TEST_POWER_MESSAGES", -1);
             when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641()) {
             if (void* const power = city->GetPowerSimulator())
@@ -619,6 +639,60 @@ private:
         if (!piece || !Virtual<uint8_t>(piece, 0x0, 0x26BB767Eu, &occupant))
             return nullptr;
         return occupant;
+    }
+
+    static void SetOrdinances(cISC4City* city, bool on)
+    {
+        cISC4OrdinanceSimulator* const ordinances = city->GetOrdinanceSimulator();
+        if (!ordinances)
+            return;
+        uint32_t ids[128];
+        uint32_t count = 128;
+        ordinances->GetOrdinanceIDArray(ids, count);
+        for (uint32_t i = 0; i < count; ++i) {
+            if (on) {
+                ordinances->SetOrdinanceAvailable(ids[i], true);
+                ordinances->SetOrdinanceOn(ids[i], true);
+            } else {
+                ordinances->SetOrdinanceOn(ids[i], false);
+            }
+        }
+        log::Write("autotest: %u ordinances %s", count, on ? "made available and enacted" : "repealed");
+    }
+
+    static void CycleOrdinances(cISC4City* city)
+    {
+        cISC4OrdinanceSimulator* const ordinances = city->GetOrdinanceSimulator();
+        if (!ordinances)
+            return;
+        using ThisFn = void(__thiscall*)(void*);
+        reinterpret_cast<ThisFn>(addr::cSC4OrdinanceSimulator_CreateOrdinances)(ordinances);
+        uint32_t ids[128];
+        uint32_t count = 128;
+        ordinances->GetOrdinanceIDArray(ids, count);
+        uint32_t named = 0;
+        for (uint32_t i = 0; i < count; ++i) {
+            cISC4Ordinance* const ordinance = ordinances->GetOrdinanceByID(ids[i]);
+            if (!ordinance)
+                continue;
+            if (ordinances->GetOrdinanceIDByName(*ordinance->GetName()) == ids[i])
+                ++named;
+            ordinance->AddRef();
+            ordinances->RemoveOrdinance(*ordinance);
+            ordinances->AddOrdinance(*ordinance);
+            ordinance->Release();
+        }
+        using MessageFn = void*(__thiscall*)(void* memory);
+        using AllocateFn = void*(__cdecl*)(std::size_t size);
+        void* const memory = reinterpret_cast<AllocateFn>(addr::RZ_operator_new)(0x2C);
+        if (void* const message = memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr) {
+            Virtual<uint32_t>(message, 0x4);
+            Virtual<uint32_t>(message, 0x14, 0x66956810u);
+            Virtual<uint8_t>(reinterpret_cast<char*>(ordinances) + 0x4, 0xC, message); // DoMessage
+            Virtual<uint32_t>(message, 0x8);
+        }
+        log::Write("autotest: ordinances created again, %u of %u found by name, removed and added back, recounted",
+                   named, count);
     }
 
     static void CycleOccupants(cISC4City* city)
@@ -877,12 +951,42 @@ private:
                           land->GetAverageLandValue(), modeBits, altitudeBits,
                           *reinterpret_cast<const int32_t*>(reinterpret_cast<const char*>(land) + 0x38));
         }
+        // Ordinances (build 641): last month's expense and income, the
+        // enactment and repeal income pending (+0x28), how many are available
+        // and enacted, and a checksum of each one's ID, flags and adjusted
+        // income in ID order (docs/ordinance.md).
+        char ordinanceText[128] = "";
+        if (cISC4OrdinanceSimulator* const ordinances = city->GetOrdinanceSimulator(); ordinances && game::IsBuild641()) {
+            uint32_t ids[128];
+            uint32_t count = 128;
+            ordinances->GetOrdinanceIDArray(ids, count);
+            uint32_t h = 2166136261u;
+            for (uint32_t i = 0; i < count; ++i) {
+                void* const ordinance = ordinances->GetOrdinanceByID(ids[i]);
+                if (!ordinance)
+                    continue;
+                struct {
+                    uint32_t id;
+                    uint8_t available, on, enabled, pad;
+                    int64_t adjusted;
+                } state{ids[i], Virtual<uint8_t>(ordinance, 0x44), Virtual<uint8_t>(ordinance, 0x48),
+                        Virtual<uint8_t>(ordinance, 0x4C), 0, Virtual<int64_t>(ordinance, 0x50)};
+                const auto* b = reinterpret_cast<const uint8_t*>(&state);
+                for (size_t k = 0; k < sizeof state; ++k)
+                    h = (h ^ b[k]) * 16777619u;
+            }
+            std::snprintf(ordinanceText, sizeof ordinanceText, " | ord %lld %lld %lld av %u on %u n %u %08X",
+                          static_cast<long long>(ordinances->GetOrdinanceMonthlyExpense()),
+                          static_cast<long long>(ordinances->GetOrdinanceMonthlyIncome()),
+                          *reinterpret_cast<const long long*>(reinterpret_cast<const char*>(ordinances) + 0x28),
+                          ordinances->GetOrdinanceAvailableCount(), ordinances->GetOrdinanceOnCount(), count, h);
+        }
         char rng[256];
         rng_trace::Describe(rng, sizeof rng);
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
         log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s",
+                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s%s",
                    day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
                    lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
                    traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
@@ -893,7 +997,7 @@ private:
                    pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
                    worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText,
-                   waterText, auraText, crimeText, trafficText, landText, ticks, rng);
+                   waterText, auraText, crimeText, trafficText, landText, ordinanceText, ticks, rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,
