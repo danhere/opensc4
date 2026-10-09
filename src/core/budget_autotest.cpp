@@ -2,6 +2,7 @@
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/game_access.h"
+#include "core/log.h"
 
 #include <cISC4City.h>
 
@@ -75,7 +76,38 @@ void Fingerprint(cISC4City* city, std::string& line)
     line += text;
 }
 
+// OPENSC4_TEST_BUDGET_BOND=<n>: on the n-th day, issue a bond of 25,000 and
+// read back the loans, the groups and each group's departments (build 641
+// slots; docs/budget.md). The test cities issue no bonds.
+void Bond(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_BUDGET_BOND") || !game::IsBuild641())
+        return;
+    void* const budget = day.city->GetBudgetSimulator();
+    if (!budget)
+        return;
+    const uint8_t issued = Virtual<uint8_t>(budget, 0xA0, 25000u);
+    struct Vector {
+        char* begin = nullptr;
+        char* end = nullptr;
+        char* capacity = nullptr;
+    } loans, groups, departments;
+    Virtual<uint32_t>(budget, 0xB8, &loans);
+    Virtual<uint32_t>(budget, 0x74, &groups);
+    int members = 0;
+    for (char* group = groups.begin; group && group < groups.end; group += 0x28) {
+        departments.end = departments.begin;
+        Virtual<uint32_t>(budget, 0x7C, *reinterpret_cast<uint32_t*>(group), &departments);
+        for (char* at = departments.begin; at && at < departments.end; at += 4, ++members)
+            Virtual<uint32_t>(*reinterpret_cast<void**>(at), 0x8);
+    }
+    log::Write("autotest: bond %s, %d loans, %d groups, %d departments in groups", issued ? "issued" : "refused",
+               static_cast<int>((loans.end - loans.begin) / 0x20), static_cast<int>((groups.end - groups.begin) / 0x28),
+               members);
+}
+
 const FingerprintPart kFingerprint{"budget", 70, &Fingerprint};
+const DayHook kBond{"budget.bond", 70, &Bond};
 
 } // namespace
 } // namespace opensc4::autotest
