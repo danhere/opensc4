@@ -10,6 +10,7 @@
 #include "core/crash.h"
 #include "core/d3d7_probe.h"
 #include "core/diagnostics.h"
+#include "core/fixed_ticks.h"
 #include "core/fixed_seed.h"
 #include "core/game.h"
 #include "core/game_seed.h"
@@ -92,6 +93,7 @@ public:
         opensc4::gdriver_proxy::LogCallCounts("PreAppShutdown");
         opensc4::d3d7_probe::LogCounts();
         opensc4::diagnostics::OnShutdown();
+        opensc4::fixed_ticks::LogPace();
         return true;
     }
 
