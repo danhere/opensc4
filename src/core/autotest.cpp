@@ -537,6 +537,19 @@ private:
                 log::Write("autotest: plumbing simulator woken on day %d", day);
             }
         }
+        // OPENSC4_TEST_AURA_PASS=<n>: on the n-th day, start the aura
+        // simulator's monthly pass as MonthPassed does when it is idle (state
+        // +0x70 of cSC4AuraSimulator set to 1, build 641; docs/aura.md), so a
+        // pass runs in every test window.
+        if (const int when = EnvInt("OPENSC4_TEST_AURA_PASS", -1);
+            when >= 0 && self->runDays_ >= 0 && day == self->endDay_ - self->runDays_ + when && game::IsBuild641()) {
+            if (void* const aura = city->GetAuraSimulator()) {
+                uint32_t& state = At<uint32_t>(aura, 0x70);
+                if (state == 0)
+                    state = 1;
+                log::Write("autotest: aura pass started on day %d (state %u)", day, state);
+            }
+        }
         // OPENSC4_TEST_CRIME_MONTH=<n>: every n days of the run, restart the
         // crime simulator's monthly pass as MonthPassed does (state +0x90 from
         // 6, waiting, to 0; cSC4CrimeSimulator, build 641), so a week's run
@@ -755,6 +768,30 @@ private:
                           GridChecksum(watered), slot(12), slot(13), slot(14), slot(15), slot(16), slot(17), slot(18),
                           slot(19), slot(20), slot(21), slot(22), slot(23));
         }
+        // Aura (cSC4AuraSimulator, build 641 offsets; docs/aura.md): the
+        // aura grid and the grids the monthly pass builds it from, the pass
+        // state, the mayor rating and its best and worst cells. The effect
+        // grid (+0x44) is left out while state 5 fills it: that state is cut
+        // into time slices, so a day can end at any point in it.
+        void* const aura = city->GetAuraSimulator();
+        char auraText[256] = " | aura none";
+        if (aura && game::IsBuild641()) {
+            auto grid8 = [aura](std::size_t offset) {
+                return GridChecksum(At<cISC4SimGrid<int8_t>*>(aura, offset));
+            };
+            auto grid16 = [aura](std::size_t offset) {
+                return GridChecksum(At<cISC4SimGrid<int16_t>*>(aura, offset));
+            };
+            const uint32_t state = At<uint32_t>(aura, 0x70);
+            std::snprintf(auraText, sizeof auraText,
+                          " | aura %08X %08X %08X %08X %08X %08X %08X %08X %08X st %u rating %d %d max %d,%d=%d min "
+                          "%d,%d=%d",
+                          grid8(0x40), state == 5 ? 0u : grid8(0x44), grid8(0x48), grid8(0x4C), grid8(0x50),
+                          grid16(0x54), grid16(0x58), grid16(0x68), grid16(0x6C), state, At<int32_t>(aura, 0x84),
+                          At<int32_t>(aura, 0x88), At<int32_t>(aura, 0x148), At<int32_t>(aura, 0x14C),
+                          At<int16_t>(aura, 0x150), At<int32_t>(aura, 0x154), At<int32_t>(aura, 0x158),
+                          At<int16_t>(aura, 0x15C));
+        }
         // Crime (cSC4CrimeSimulator, build 641 slots): the crime grid (slot
         // 5), average and monthly count (6, 7), the hotspot (8), the step's
         // fields (+0x7C to +0xD8: count, hotspot, ordinance factor, state,
@@ -845,7 +882,7 @@ private:
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
         log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s",
+                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s",
                    day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
                    lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
                    traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
@@ -856,7 +893,7 @@ private:
                    pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
                    worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText,
-                   waterText, crimeText, trafficText, landText, ticks, rng);
+                   waterText, auraText, crimeText, trafficText, landText, ticks, rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,
