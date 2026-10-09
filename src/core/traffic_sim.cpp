@@ -5620,6 +5620,19 @@ void __fastcall ClearRoadEdges(void* self, void*)
     }
 }
 
+// 0x007206BD calls 0x007183B0 right after ClearRoadEdges without setting
+// ECX again: the game's whole-program build knew ClearRoadEdges keeps it.
+// The thunk keeps ECX and EDX.
+__declspec(naked) void ClearRoadEdgesThunk()
+{
+    __asm push ecx
+    __asm push edx
+    __asm call ClearRoadEdges
+    __asm pop edx
+    __asm pop ecx
+    __asm ret
+}
+
 // Budget line items: department slot 20 (index) gives the item, whose
 // slot 12 takes the month's amount (int64).
 void* LineItem(void* department, uint32_t index)
@@ -8299,7 +8312,7 @@ bool InstallHelpers(registry::Mode)
         {addr::cSC4TrafficSimulator_AddCongestionEffect, reinterpret_cast<void*>(&AddCongestionEffect), &g_originalAddCongestion},
         {addr::cSC4TrafficSimulator_EdgeSide, reinterpret_cast<void*>(&EdgeSide), &g_originalEdgeSide},
         {addr::cSC4TrafficSimulator_CellHasTraffic, reinterpret_cast<void*>(&CellHasTraffic), &g_originalCellHasTraffic},
-        {addr::cSC4TrafficSimulator_ClearRoadEdges, reinterpret_cast<void*>(&ClearRoadEdges), &g_originalClearRoadEdges},
+        {addr::cSC4TrafficSimulator_ClearRoadEdges, reinterpret_cast<void*>(&ClearRoadEdgesThunk), &g_originalClearRoadEdges},
         {addr::cSC4TrafficSimulator_FinishStats1, reinterpret_cast<void*>(&FinishStats1), &g_originalFinishStats1},
         {addr::cSC4TrafficSimulator_FinishStats2, reinterpret_cast<void*>(&FinishStats2), &g_originalFinishStats2},
         {addr::cSC4TrafficSimulator_OnKind7Building, reinterpret_cast<void*>(&OnKind7Building), &g_originalKind7},
