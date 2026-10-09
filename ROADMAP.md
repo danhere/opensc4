@@ -152,6 +152,15 @@ Content with little or no new art (Dan, 2026-10-09, all wanted). Reuses the game
 - [ ] Elections: a low mayor rating risks losing office, campaign promises become goals
 - [ ] New rewards and challenges: new unlock conditions for existing buildings, achievements (P6 Lua)
 - [ ] Newspaper and petitions: news stories and citizen demands tied to real city statistics (news ticker)
+- [ ] Shareable seeds: events, news and disasters drawn from a seed you can give a friend ("try this one, 2031 is brutal"). Builds on P4's fixed seed (`determinism.fixed_seed`)
+- [ ] Tourism: landmarks, parks and beaches draw visitors whose spending lifts commercial demand (P6 demand)
+- [ ] Jobs that need education: high-tech jobs go unfilled without schools, unemployment on the map (P5 education, P6 demand)
+- [ ] Disaster insurance: a premium, paid out after a fire or quake (P6 budget)
+- [ ] Deeper garbage: landfills fill up, recycling targets, waste exports (P5 pollution)
+- [ ] Region dashboard: the region's population, budget and trade on one screen (P8 region view)
+- [ ] Sandbox panel: sliders for demand, money and disaster frequency
 
 Not now:
 - Building add-ons (SimCity 2013 modules): would need a lot of new art, and Dan does not want AI-generated assets
+- MySim stories: gimmicky
+- City specializations (a declared tourism or industry focus): feels fake; real towns exist for more than one reason
