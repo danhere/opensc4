@@ -13,7 +13,11 @@
 //     and Shutdown;
 //   simulators.mysim_agents.dispatch_route: the route (a deque of 3-byte
 //     cells at +0x128: x, z, kind; the segment in hand is +0x30 to +0x2C),
-//     snapping a place to a road, and a destination outside the city.
+//     snapping a place to a road, and a destination outside the city;
+//   simulators.mysim_agents.dispatch_vehicle: making and launching the
+//     vehicle (or walker) for a segment, and the location marker;
+//   simulators.mysim_agents.dispatch_legs: GoTo and the vtable's next-leg
+//     slot (home to work and back).
 //
 // The deque and map helpers it uses stay the game's.
 #include "core/address_check.h"
@@ -131,6 +135,21 @@ int32_t __fastcall WaitLength(char* self, void*)
         At<int32_t>(self, field::kNow) - At<int32_t>(self, field::kWaitStart) > 0xF)
         At<int32_t>(self, field::kWaitStart) = 0;
     return At<int32_t>(self, field::kWaitStart);
+}
+
+// The game calls these two expecting registers kept that the calling
+// convention lets a callee change: Step (0x0043699A) relies on ECX after
+// SetStatus, MakeVehicle (0x00435226) on EDX after ModelService. The
+// thunks keep both.
+__declspec(naked) void SetStatusThunk()
+{
+    __asm push ecx
+    __asm push edx
+    __asm push dword ptr [esp + 12]
+    __asm call SetStatus
+    __asm pop edx
+    __asm pop ecx
+    __asm ret 4
 }
 
 uint8_t __fastcall SetFlags(char* self, void*, uint32_t mask, uint32_t set)
@@ -271,6 +290,17 @@ void* __fastcall ModelService(void*, void*, uint32_t model)
     default:
         return nullptr;
     }
+}
+
+__declspec(naked) void ModelServiceThunk()
+{
+    __asm push ecx
+    __asm push edx
+    __asm push dword ptr [esp + 12]
+    __asm call ModelService
+    __asm pop edx
+    __asm pop ecx
+    __asm ret 4
 }
 
 struct MapNode {
@@ -1269,6 +1299,356 @@ const bool g_routeRegistered = registry::Register({
     InstallRoute,
 });
 
+// --- Vehicle ----------------------------------------------------------------------------
+
+uint8_t __fastcall MakeVehicle(char* self, void*, uint32_t status, void** out, void*, void*)
+{
+    uint32_t model = 0;
+    int32_t kind = -1;
+    reinterpret_cast<void(__thiscall*)(void*, uint32_t, uint32_t*, int32_t*)>(addr::cSC4MySimDispatch_ModelFor)(
+        self, status, &model, &kind);
+    uint32_t key[3] = {0, 0, 0};
+    if (const MapNode* const found = FindModel(self, kind)) {
+        key[0] = found->key[0];
+        key[1] = found->key[1];
+        key[2] = found->key[2];
+    }
+    float position[3] = {At<float>(self, 0x60), 0.0f, At<float>(self, 0x64)};
+    if (!IsValidPlace(self + field::kHere)) {
+        position[0] = 0.0f;
+        position[2] = 0.0f;
+    }
+    void* const service = reinterpret_cast<void*(__thiscall*)(void*, uint32_t)>(addr::cSC4MySimDispatch_ModelService)(
+        self, model);
+    void* const made = Virtual<void*>(service, 0x3C, model, position, uint32_t{0x214042}, key, self + 8,
+                                      uint32_t{0xFF}, uint32_t{0});
+    void* held = nullptr;
+    if (made) {
+        Virtual<uint32_t>(made, 0x4);
+        *out = made;
+        Virtual<uint32_t>(made, 0x4);
+        held = made;
+        void* const exemplar = Virtual<void*>(Virtual<void*>(made, 0x14), 0x18);
+        reinterpret_cast<void(__cdecl*)(void*, uint32_t, uint32_t)>(addr::SC4_SetPropertyBool)(exemplar, 0x1BC42C49, 1);
+    }
+    const uint8_t result = *out != nullptr ? 1 : 0;
+    Release(held);
+    return result;
+}
+
+uint32_t __fastcall Launch(char* self, void*, char* route, void* vehicle, uint32_t walking)
+{
+    if (At<char*>(route, 0x10) == At<char*>(route, 0))
+        return 0xFF;
+    const bool walk = static_cast<uint8_t>(walking) != 0;
+    uint32_t result = 0xFF;
+    bool ok = true;
+    uint32_t model = 0;
+    int32_t kind = -1;
+    void* mover = vehicle;
+    if (mover)
+        Virtual<uint32_t>(mover, 0x4);
+    const uint32_t status =
+        reinterpret_cast<uint8_t*(__thiscall*)(void*, int32_t)>(addr::SC4CellDeque_At)(route, 0)[2];
+    reinterpret_cast<void(__thiscall*)(void*, uint32_t, uint32_t*, int32_t*)>(addr::cSC4MySimDispatch_ModelFor)(
+        self, status, &model, &kind);
+    bool make = true;
+    if (mover) {
+        if (Virtual<uint8_t>(Virtual<void*>(mover, 0x14), 0x58, model) && !Virtual<uint8_t>(mover, 0x7C, uint32_t{1})) {
+            make = false;
+        } else {
+            void* const old = mover;
+            mover = nullptr;
+            Release(old);
+        }
+    }
+    if (make) {
+        ok = reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t, void**, uint32_t*, int32_t*)>(
+                 addr::cSC4MySimDispatch_MakeVehicle)(self, status, &mover, &model, &kind) != 0;
+    }
+    if (!mover)
+        return result;
+    if (ok) {
+        Virtual<void>(mover, 0x78, uint32_t{0x10000}, uint32_t{1});
+        Virtual<void>(mover, 0x78, uint32_t{0x40}, uint32_t{1});
+        Virtual<void>(mover, 0x78, uint32_t{0x200000}, uint32_t{1});
+        Virtual<void>(mover, 0x78, uint32_t{0x1000000}, uint32_t{1});
+        Virtual<void>(mover, 0x78, uint32_t{0x200}, uint32_t{0});
+        Virtual<void>(mover, 0x78, uint32_t{0x2000}, uint32_t{0});
+        Virtual<void>(mover, 0x78, uint32_t{0x100}, static_cast<uint32_t>(static_cast<uint8_t>(walking)));
+        Virtual<void>(mover, 0x78, uint32_t{0x40}, uint32_t{walk ? 0u : 1u});
+        Virtual<void>(mover, 0x78, uint32_t{0x20}, uint32_t{walk ? 0u : 1u});
+        Virtual<void>(mover, 0x100, uint32_t{0xFF});
+        void* path = nullptr;
+        const int32_t index = reinterpret_cast<int32_t(__thiscall*)(void*, int32_t)>(
+            addr::cSC4MySimDispatch_ModelIndex)(self, kind);
+        bool launched = false;
+        if (Virtual<uint8_t>(mover, 0x0, uint32_t{0x8B99EE7C}, &path)) {
+            if (walk) {
+                Virtual<void>(mover, 0xCC, uint32_t{7}, uint32_t{0}, uint32_t{0xBF800000}, uint32_t{0},
+                              static_cast<uint32_t>(index >= 0 ? index : 0), uint32_t{0}, uint32_t{0});
+            } else {
+                ok = Virtual<uint8_t>(path, 0x244, route, uint32_t{1}, uint32_t{0}) != 0;
+                if (index >= 0)
+                    Virtual<void>(mover, 0x4C, index);
+                Virtual<void>(mover, 0xCC, uint32_t{0}, uint32_t{0}, uint32_t{0xBF800000}, uint32_t{0}, uint32_t{0},
+                              uint32_t{0}, uint32_t{0});
+            }
+            if (ok) {
+                reinterpret_cast<uint8_t(__thiscall*)(void*, void*)>(addr::cSC4MySimDispatch_SetVehicle)(
+                    self, Virtual<void*>(mover, 0x14));
+                result = status;
+                At<int32_t>(self, 0x15C) = kind;
+                float position[3];
+                Virtual<void>(At<void*>(self, field::kVehicle), 0x20, position);
+                reinterpret_cast<void(__thiscall*)(void*, float, float)>(addr::SC4MySimPlace_SetPosition)(
+                    self + field::kHere, position[0], position[2]);
+                launched = true;
+            }
+        }
+        if (!launched) {
+            Virtual<void>(mover, 0xA0, self ? self + 8 : nullptr);
+            Virtual<void>(mover, 0x34, uint32_t{0});
+        }
+        Release(path);
+    }
+    Release(mover);
+    return result;
+}
+
+uint32_t __fastcall StartSegment(char* self, void*, void* vehicle, uint32_t walking)
+{
+    uint32_t local[10] = {};
+    reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4RouteDeque_Init)(local, 0);
+    uint32_t result = 0xFF;
+    if (reinterpret_cast<uint8_t(__thiscall*)(void*, void*, uint32_t)>(addr::cSC4MySimDispatch_CopyRoute)(
+            self, local, 0) &&
+        static_cast<uint32_t>(reinterpret_cast<int32_t(__thiscall*)(void*)>(addr::SC4CellDeque_Size)(local)) > 1)
+        result = reinterpret_cast<uint32_t(__thiscall*)(void*, void*, void*, uint32_t)>(addr::cSC4MySimDispatch_Launch)(
+            self, local, vehicle, walking);
+    reinterpret_cast<ThisFn>(addr::SC4RouteDeque_Destroy)(local);
+    return result;
+}
+
+void KeepShown(char* self, bool shown)
+{
+    const uint32_t flags = At<uint32_t>(self, field::kFlags);
+    ChangeFlags(self, shown ? flags | 0x100 : flags & 0xFFFFFEFF);
+}
+
+int32_t __fastcall ShowLocation(char* self, void*, uint32_t icon, char* text)
+{
+    ChangeFlags(self, At<uint32_t>(self, field::kFlags) | 0x100);
+    At<uint32_t>(self, 0x100) = icon;
+    char* const from = text ? text + 4 : nullptr;
+    if (from != self + 0x108) {
+        uint8_t allocator;
+        reinterpret_cast<void(__thiscall*)(void*, char*, char*, uint8_t*)>(addr::SC4String_AssignRange)(
+            self + 0x108, At<char*>(from, 0), At<char*>(from, 4), &allocator);
+    }
+    const bool shown = (At<uint32_t>(self, field::kFlags) >> 8) & 1;
+    reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_HideLocation)(self);
+    KeepShown(self, shown);
+    if (((At<uint32_t>(self, field::kFlags) >> 2) & 1) || At<int32_t>(self, field::kMarker) != -1)
+        return At<int32_t>(self, field::kMarker);
+    void* const overlays = Virtual<void*>(Global<void*>(addr::SC4_DispatchService), 0x58);
+    void* const mover = reinterpret_cast<void*(__thiscall*)(void*)>(addr::cSC4MySimDispatch_Mover)(self);
+    if (mover) {
+        const int32_t id = reinterpret_cast<int32_t(__thiscall*)(void*, void*, uint32_t, uint32_t, char*)>(
+            addr::SC4OverlayManager_Add)(overlays, mover, 3, icon, icon ? nullptr : text);
+        At<int32_t>(self, field::kMarker) = id;
+        if (id)
+            reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4RefPtr_Assign)(self + field::kShown, mover);
+        else
+            At<int32_t>(self, field::kMarker) = -1;
+        if (mover == At<void*>(self, field::kVehicle) && At<uint8_t>(self, 0x10)) {
+            void* automaton = nullptr;
+            void** const slot = reinterpret_cast<void**(__thiscall*)(void**)>(addr::SC4RefPtr_Reset)(&automaton);
+            reinterpret_cast<uint8_t(__thiscall*)(void*, void**)>(addr::cSC4MySimDispatch_VehicleAutomaton)(self,
+                                                                                                             slot);
+            Virtual<void>(Global<void*>(addr::SC4_Service43D44), 0x88, automaton);
+            Release(automaton);
+        }
+    }
+    return At<int32_t>(self, field::kMarker);
+}
+
+uint8_t __fastcall RefreshMarker(char* self, void*)
+{
+    if (At<int32_t>(self, 0x38) == At<int32_t>(self, field::kChanges) &&
+        At<void*>(self, field::kShown) == reinterpret_cast<void*(__thiscall*)(void*)>(addr::cSC4MySimDispatch_Mover)(self))
+        return 1;
+    const bool shown = (At<uint32_t>(self, field::kFlags) >> 8) & 1;
+    if (At<void*>(self, field::kShown) || At<int32_t>(self, field::kMarker) != -1) {
+        reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_HideLocation)(self);
+        KeepShown(self, shown);
+    }
+    if (shown)
+        reinterpret_cast<int32_t(__thiscall*)(void*, uint32_t, char*)>(addr::cSC4MySimDispatch_ShowLocation)(
+            self, At<uint32_t>(self, 0x100), self + 0x104);
+    KeepShown(self, shown);
+    return 1;
+}
+
+bool InstallVehicle(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* originals[8] = {};
+    const struct {
+        std::uintptr_t address;
+        void* ours;
+    } hooks[] = {
+        {addr::cSC4MySimDispatch_MakeVehicle, reinterpret_cast<void*>(&MakeVehicle)},
+        {addr::cSC4MySimDispatch_Launch, reinterpret_cast<void*>(&Launch)},
+        {addr::cSC4MySimDispatch_StartSegment, reinterpret_cast<void*>(&StartSegment)},
+        {addr::cSC4MySimDispatch_ShowLocation, reinterpret_cast<void*>(&ShowLocation)},
+        {addr::cSC4MySimDispatch_RefreshMarker, reinterpret_cast<void*>(&RefreshMarker)},
+    };
+    static_assert(sizeof(hooks) / sizeof(hooks[0]) <= sizeof(originals) / sizeof(originals[0]));
+    for (std::size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); ++i) {
+        const addr::Entry* found = addr_check::Find(hooks[i].address);
+        if (!found || !hook::Install(*found, hooks[i].ours, &originals[i]))
+            return false;
+    }
+    return true;
+}
+
+const bool g_vehicleRegistered = registry::Register({
+    "simulators.mysim_agents.dispatch_vehicle",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySimDispatch_Launch,
+    "Our cSC4MySimDispatch vehicle making and launching and the location marker (docs/mysim-agents.md)",
+    false,
+    InstallVehicle,
+});
+
+// --- Legs -------------------------------------------------------------------------------
+
+uint8_t __fastcall GoTo(char* self, void*, const Place* place)
+{
+    Place copy;
+    CopyPlace(reinterpret_cast<char*>(&copy), place);
+    void* const object = copy.object;
+    if (object && static_cast<int32_t>(copy.extra[0]) < At<int32_t>(self, 0x20))
+        copy.extra[0] = At<uint32_t>(self, 0x20);
+    if (At<int32_t>(self, field::kState) != 2) {
+        At<int32_t>(self, 0x80) = At<int32_t>(self, field::kNow) - 1;
+        reinterpret_cast<ThisFn>(addr::SC4MySimPlaceDeque_Clear)(self + field::kPlaces);
+        auto* const places = reinterpret_cast<PlaceDeque*>(self + field::kPlaces);
+        if (places->lastCur != places->lastEnd - 0x28) {
+            if (places->lastCur)
+                CopyPlace(places->lastCur, &copy);
+            places->lastCur += 0x28;
+        } else {
+            reinterpret_cast<void(__thiscall*)(void*, const void*)>(addr::SC4MySimPlaceDeque_PushBackSlow)(places,
+                                                                                                          &copy);
+        }
+        Release(copy.object);
+        return 1;
+    }
+    reinterpret_cast<ThisFn>(addr::SC4MySimPlaceDeque_Clear)(self + field::kPlaces);
+    Assign(self, field::kTarget, reinterpret_cast<const char*>(&copy));
+    void* automaton = nullptr;
+    bool busy = false;
+    if (void* const vehicle = At<void*>(self, field::kVehicle))
+        busy = Virtual<uint8_t>(vehicle, 0x0, kIidAutomaton, &automaton) && Virtual<uint8_t>(automaton, 0x7C, uint32_t{1});
+    uint8_t result = 1;
+    if (busy) {
+        ChangeFlags(self, At<uint32_t>(self, field::kFlags) & 0xFFFFA7FF);
+        ChangeFlags(self, At<uint32_t>(self, field::kFlags) & 0xFFFFBFFF);
+    } else {
+        ChangeFlags(self, At<uint32_t>(self, field::kFlags) & 0xFFFFA7FF);
+        ChangeFlags(self, At<uint32_t>(self, field::kFlags) | 0x4000);
+        reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_Step)(self);
+        char* const route = self + field::kRoute;
+        if (At<char*>(route, 0x10) == At<char*>(route, 0) || SegmentStart(self) == SegmentEnd(self)) {
+            reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_Finish)(self);
+            result = 0;
+        }
+    }
+    Release(automaton);
+    Release(object);
+    return result;
+}
+
+uint8_t __fastcall NextLeg(char* self, void*)
+{
+    if (!Virtual<uint8_t>(self, 0x18)) // IsArrived
+        return 0;
+    const int32_t state = At<int32_t>(self, field::kState);
+    if (state == 2) {
+        void* automaton = nullptr;
+        if (void* const vehicle = At<void*>(self, field::kVehicle))
+            Virtual<uint8_t>(vehicle, 0x0, kIidAutomaton, &automaton);
+        if (!automaton)
+            return 1;
+        if (char* const part = Virtual<char*>(Global<void*>(addr::SC4_Service43D34), 0x1C, uint32_t{0x1D}))
+            Virtual<void>(part - 8, 0x28);
+        if (void* const traffic = Virtual<void*>(Global<void*>(addr::SC4_City), 0xC4)) {
+            bool parked = false;
+            if (Virtual<uint8_t>(traffic, 0x4C, uint32_t{0x4209})) {
+                Virtual<void>(traffic, 0x64, automaton, uint32_t{0x4209});
+                parked = Virtual<uint8_t>(traffic, 0x58, Virtual<void*>(automaton, 0x14), uint32_t{0}) != 0;
+            }
+            if (!parked)
+                Virtual<void>(traffic, 0x60, automaton, uint32_t{1}, self + 8);
+        } else {
+            reinterpret_cast<void(__cdecl*)(void*, void*)>(addr::SC4_ParkAutomaton)(automaton, self + 8);
+        }
+        ChangeFlags(self, At<uint32_t>(self, field::kFlags) | 0x10000);
+        Release(automaton);
+        return 1;
+    }
+    if (state != 3)
+        return 0;
+    using GoToFn = uint8_t(__thiscall*)(void*, const void*);
+    if (Same(self, field::kHere, field::kHome)) {
+        ChangeFlags(self, At<uint32_t>(self, field::kFlags) | 0x20000);
+        reinterpret_cast<GoToFn>(addr::cSC4MySimDispatch_GoTo)(self, self + field::kWork);
+        return 1;
+    }
+    if (Same(self, field::kHere, field::kWork)) {
+        ChangeFlags(self, At<uint32_t>(self, field::kFlags) | 0x20000);
+        reinterpret_cast<GoToFn>(addr::cSC4MySimDispatch_GoTo)(self, self + field::kHome);
+        return 1;
+    }
+    return 0;
+}
+
+bool InstallLegs(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* originals[2] = {};
+    const struct {
+        std::uintptr_t address;
+        void* ours;
+    } hooks[] = {
+        {addr::cSC4MySimDispatch_GoTo, reinterpret_cast<void*>(&GoTo)},
+        {addr::cSC4MySimDispatch_NextLeg, reinterpret_cast<void*>(&NextLeg)},
+    };
+    for (std::size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); ++i) {
+        const addr::Entry* found = addr_check::Find(hooks[i].address);
+        if (!found || !hook::Install(*found, hooks[i].ours, &originals[i]))
+            return false;
+    }
+    return true;
+}
+
+const bool g_legsRegistered = registry::Register({
+    "simulators.mysim_agents.dispatch_legs",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySimDispatch_GoTo,
+    "Our cSC4MySimDispatch GoTo and next leg (docs/mysim-agents.md)",
+    false,
+    InstallLegs,
+});
+
 bool InstallState(registry::Mode)
 {
     if (!game::IsBuild641())
@@ -1279,7 +1659,7 @@ bool InstallState(registry::Mode)
         void* ours;
     } hooks[] = {
         {addr::cSC4MySimDispatch_PostEvent, reinterpret_cast<void*>(&PostEvent)},
-        {addr::cSC4MySimDispatch_SetStatus, reinterpret_cast<void*>(&SetStatus)},
+        {addr::cSC4MySimDispatch_SetStatus, reinterpret_cast<void*>(&SetStatusThunk)},
         {addr::cSC4MySimDispatch_WaitLength, reinterpret_cast<void*>(&WaitLength)},
         {addr::cSC4MySimDispatch_SetFlags, reinterpret_cast<void*>(&SetFlags)},
         {addr::cSC4MySimDispatch_SetState, reinterpret_cast<void*>(&SetState)},
@@ -1290,7 +1670,7 @@ bool InstallState(registry::Mode)
         {addr::cSC4MySimDispatch_Finish, reinterpret_cast<void*>(&Finish)},
         {addr::cSC4MySimDispatch_Mover, reinterpret_cast<void*>(&Mover)},
         {addr::cSC4MySimDispatch_VehicleAutomaton, reinterpret_cast<void*>(&VehicleAutomaton)},
-        {addr::cSC4MySimDispatch_ModelService, reinterpret_cast<void*>(&ModelService)},
+        {addr::cSC4MySimDispatch_ModelService, reinterpret_cast<void*>(&ModelServiceThunk)},
         {addr::cSC4MySimDispatch_ModelKey, reinterpret_cast<void*>(&ModelKey)},
         {addr::cSC4MySimDispatch_ModelIndex, reinterpret_cast<void*>(&ModelIndex)},
         {addr::cSC4MySimDispatch_ModelFor, reinterpret_cast<void*>(&ModelFor)},

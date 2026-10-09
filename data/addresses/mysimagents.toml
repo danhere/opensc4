@@ -1950,3 +1950,97 @@ name = "SC4::Service43D54"
 address = 0x00B43D54
 kind = "data"
 source = "Name ours. Slot 8 (cell x, z, mask, 0): the network kinds at a cell; slot 25 (&vector, &rect, 1, 1, mask): the network occupants in a rectangle."
+
+[[entry]]
+name = "cSC4MySimDispatch::MakeVehicle"
+address = 0x00435170
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 8B 54 24 24 53"
+source = "Name ours. (status, &out, unused, unused): an automaton for the status's model made at the current place (owner +8), its model flag 0x1BC42C49 set; true when made."
+
+[[entry]]
+name = "cSC4MySimDispatch::Launch"
+address = 0x004352B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 8B 5C 24 28"
+source = "Name ours. (route, vehicle, walking): the vehicle reused or made for the route's first cell, its flags set and route given; it becomes the dispatch's vehicle. Returns the status, 0xFF when none."
+
+[[entry]]
+name = "cSC4MySimDispatch::StartSegment"
+address = 0x00435540
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 56 33 F6 57"
+source = "Name ours. (vehicle, walking): the current segment copied and launched when it has more than one cell. Returns the status, 0xFF when none."
+
+[[entry]]
+name = "cSC4MySimDispatch::ShowLocation"
+address = 0x00435610
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8B 4E 48"
+source = "Name ours. (icon, text): the location marker (overlay) on what moves the MySim; returns its id."
+
+[[entry]]
+name = "cSC4MySimDispatch::RefreshMarker"
+address = 0x00435780
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 38 3B 46"
+source = "Name ours. The location marker moved to what moves the MySim now, if anything changed."
+
+[[entry]]
+name = "SC4OverlayManager::Add"
+address = 0x0046F240
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 68 02 00 00 53 8B"
+source = "Name ours, not analysed in detail. (object, 3, icon, text): a marker on an object; returns its id (0 none)."
+
+[[entry]]
+name = "SC4RouteDeque::Init"
+address = 0x00431E00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 44 24 0C 53"
+source = "Sets up an empty deque of 3-byte cells with room for n (the map and one block)."
+
+[[entry]]
+name = "SC4RouteDeque::Destroy"
+address = 0x004334B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 8B F1"
+source = "Frees a deque of 3-byte cells (its blocks and map)."
+
+[[entry]]
+name = "cSC4MySimDispatch::Step"
+address = 0x004365C0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 80 00 00 00 53 55"
+source = "Name ours. The trip state machine: by state (-1, 2 travelling, 3 stopped) the next place, the route and the vehicle. GoTo calls it after a new target."
+
+[[entry]]
+name = "cSC4MySimDispatch::NextLeg"
+address = 0x00437340
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8B 06 57"
+source = "Name ours. Vtable slot 7: when arrived (slot 6), in a car the automaton is parked (traffic simulator 0x4209, or 0x00506850) and flag 0x10000 set; stopped at home it goes to work, at work home (flag 0x20000)."
+
+[[entry]]
+name = "SC4::ParkAutomaton"
+address = 0x00506850
+kind = "function"
+convention = "cdecl"
+expect = "A1 74 1D B2 00 85 C0 0F"
+source = "Name ours, not analysed in detail. (automaton, owner): the fallback when the city has no traffic simulator."
+
+[[entry]]
+name = "SC4::Service43D34"
+address = 0x00B43D34
+kind = "data"
+source = "Name ours, not analysed. Slot 7 (0x1D) gives an interface at +8 whose object slot 10 NextLeg calls."
