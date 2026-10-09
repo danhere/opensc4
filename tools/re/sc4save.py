@@ -227,6 +227,42 @@ def crime_simulator(r):
     return out
 
 
+def flora_simulator(r):
+    """cSC4FloraSimulator (0xC990C034): Write at 0x006AFEE0, Read at
+    0x006AFFE0 (version 2 only). Names give the object offsets; the
+    cIGZSerializable part sits at +0x8 (docs/flora.md)."""
+    out = header(r)
+    out['version'] = v = r.u16()
+    if v != 2:
+        raise struct.error('version %d not known' % v)
+    out['flags_2c'] = [r.u8() for _ in range(4)]
+    out['size_30'] = [r.f32(), r.f32()]
+    out['cells_38'] = [r.s32(), r.s32()]
+    out['u40'] = [r.u32() for _ in range(4)]
+    out['b50'] = r.u8()
+    # The tract walk at +0x54, as the pollution simulator's (0x005DAB70).
+    s = {'a': r.s8(), 'b': r.s8(), 'c': r.u8(), 'ints': [r.s32() for _ in range(5)]}
+    s['values'] = [r.u16() for _ in range(r.u32())]
+    s['tail'] = [r.s32() for _ in range(3)]
+    out['walk_54'] = s
+    out['random_88'] = [r.u32(), r.u32(), r.s32(), r.f64()]
+    out['dying_a4'] = r.ref_list()
+    out['f_a8'] = [r.f32(), r.f32()]
+    return out
+
+
+def neighbors_simulator(r):
+    """cSC4NeighborsSimulator (0xC990C0A4): Write at 0x006CFB60, Read at
+    0x006CFDC0 (version 2): the connections as references
+    (docs/neighbors.md)."""
+    out = header(r)
+    out['version'] = v = r.u16()
+    if v != 2:
+        raise struct.error('version %d not known' % v)
+    out['connections'] = r.ref_list()
+    return out
+
+
 def traffic_simulator(r):
     """cSC4TrafficSimulator (0x6990C1AA): Write at 0x00712400 (version 41).
     Field names are ours; offsets in them are from the object's start (the
@@ -448,6 +484,8 @@ SCHEMAS = {0x8990C065: ('cSC4PollutionSimulator', pollution_simulator),
            0x0990BDD8: ('cSC4AuraSimulator', aura_simulator),
            0xE990C18E: ('cSC4LandValueSimulator', land_value_simulator),
            0x8990C09A: ('cSC4CrimeSimulator', crime_simulator),
+           0xC990C034: ('cSC4FloraSimulator', flora_simulator),
+           0xC990C0A4: ('cSC4NeighborsSimulator', neighbors_simulator),
            0xA990C08E: ('cSC4OrdinanceSimulator', ordinance_simulator),
            0x2990BFF2: ('cSC4DemandSimulator', demand_simulator),
            0x8990C12D: ('cSC4Demand', demands)}
