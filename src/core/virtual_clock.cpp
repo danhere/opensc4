@@ -179,6 +179,7 @@ constexpr int64_t kTscReadStepUs = 100;
 int64_t g_tscStep = 0;      // counter ticks per read
 int64_t g_qpcFrequency = 1;
 std::atomic<uint32_t> g_tscReads{0};
+bool g_sitesPatched = false; // the game's rdtsc sites read the virtual counter
 
 uint64_t VirtualTsc()
 {
@@ -262,10 +263,23 @@ bool PatchRdtscSites()
     }
     log::Write("virtual_clock: %d of %d rdtsc sites read the virtual counter", patched,
                static_cast<int>(sizeof kRdtscSites / sizeof kRdtscSites[0]));
+    g_sitesPatched = patched > 0;
     return patched > 0;
 }
 
 } // namespace
+
+uint64_t ReadTsc(const void* stack)
+{
+    if (!g_sitesPatched)
+        return __rdtsc();
+    const bool main = GetCurrentThreadId() == g_mainThread;
+    const uint64_t value = main ? VirtualTsc() : __rdtsc();
+    if (main && g_traceFile && !g_real)
+        TraceRead('T', static_cast<const uint32_t*>(stack));
+    g_tscReads.fetch_add(1, std::memory_order_relaxed);
+    return value;
+}
 
 void OnNewDay(int day)
 {
