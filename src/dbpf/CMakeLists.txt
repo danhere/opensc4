@@ -1,6 +1,7 @@
 # DBPF package reader (P3): portable, no game or Windows dependencies.
 add_library(opensc4_dbpf STATIC
   dbpf.cpp
+  plugins.cpp
   qfs.cpp)
 target_link_libraries(opensc4_dbpf PUBLIC opensc4_options)
 
