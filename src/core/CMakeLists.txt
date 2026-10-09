@@ -13,6 +13,7 @@ add_library(opensc4_core_support STATIC
   interface_counter.cpp
   log.cpp
   registry.cpp
+  seed_code.cpp
   settings.cpp)
 target_link_libraries(opensc4_core_support
   PUBLIC opensc4_options opensc4_address_db
@@ -35,6 +36,7 @@ add_library(opensc4_core SHARED
   dllmain.cpp
   director.cpp
   fixed_seed.cpp
+  game_seed.cpp
   gd/d3d11_backend.cpp
   gd/driver.cpp
   d3d7_probe.cpp
