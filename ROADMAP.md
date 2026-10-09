@@ -140,7 +140,7 @@ Brainstormed with Dan (2026-10-09), from Cities: Skylines, SimCity (2013) and ot
 
 Wanted:
 - [ ] In-game mod manager: enable and disable plugins and see conflicts without leaving the game (P3 resources/DBPF)
-- [ ] Photo mode: free camera, tilt, depth of field, no UI (P1 renderer)
+- [~] Photo mode: the game's angles with the interface hidden, any fine zoom, full-resolution PNG captures (docs/photo-mode.md). Free camera and tilt need our own building and tree models (Dan, 2026-10-09: game angles only for now). Still to do: pictures larger than the window, depth of field (P1 renderer)
 - [ ] Improved traffic: lane-aware, junctions that back up; the "our own" traffic option (P7, with NAM)
 - [ ] Transit lines: draw bus and rail routes, stats per line (P7)
 - [ ] Shared regional services: buses, schools, ambulances across city borders, so small towns can feed a big city (P8 region view)
