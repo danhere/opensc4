@@ -11,6 +11,7 @@
 #include <cIGZUnknown.h>
 
 #include <cstdint>
+#include <vector>
 
 class cIGZBuffer;
 
@@ -74,5 +75,13 @@ public:
 // zoom while it builds its projection (the render scale; 1 when the city is
 // enlarged with the interface or the D3D11 driver is off).
 float CityZoomDivisor();
+
+// The last frame shown in the game's window at its full (physical)
+// resolution, as BGRA rows; false without the D3D11 driver's window.
+bool ReadFrame(std::vector<uint8_t>& pixels, uint32_t& width, uint32_t& height);
+
+// Shows the back buffer on a timer while photo mode is on (the game stops
+// presenting when every interface window is hidden).
+void PresentWhileActive();
 
 } // namespace opensc4::gd
