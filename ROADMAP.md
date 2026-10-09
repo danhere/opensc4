@@ -66,7 +66,8 @@ Parity method (from P4): short-window exact comparison against the original from
 - Order from here (Dan, 2026-10-08): (1) a coverage test that reaches the paths no test city runs (network edits, a new city, the disaster cases), (2) traffic, (3) fire and police, (4) land value, (5) the remaining simulators, (6) back to the renderer and UI.
 - [x] Aura (mayor rating) ([docs/aura.md](docs/aura.md)): every function the game runs is replaceable (`simulators.aura.*`) but container helpers and the script registration glue, and `simulators.aura.object` is our own object. Parity with everything on: 12 of 12 and 3 of 3 for 25 days (a whole monthly pass, started by `OPENSC4_TEST_AURA_PASS`), 2 of 2 for 90 days, save records identical.
 - [x] Crime ([docs/crime.md](docs/crime.md)): every crime function the game runs is replaceable (`simulators.crime.*`) but generic container helpers, and `simulators.crime.object` is our own object. Parity with everything on (`OPENSC4_TEST_CRIME_MONTH=2` runs the monthly pass inside a week): 12 of 12 and 3 of 3 for a week, 2 of 2 for 90 days, crime records identical; the UI-only queries checked with `OPENSC4_TEST_CRIME_QUERIES`.
-- [ ] Coverage sims (health, education, fire, police)
+- [x] Fire and police ([docs/fire-police.md](docs/fire-police.md)): the shared protection base, fire, police (jails, crimes, jailbreaks, strikes) and the fire plane and police helicopter dispatch sources are replaceable (`simulators.protection.{base,sources}`, `simulators.fire.sim`, `simulators.police.sim`; about 140 functions). Parity with everything on: 11 of 12 and 3 of 3 for a week, 1 of 2 for 90 days (the others partly, single B runs off outside fire and police under load), and 2 of 2 for 40 days with strikes and a jailbreak forced by `OPENSC4_TEST_PROTECTION`. Not ours yet: the constructors, destructors and factories (our own objects).
+- [ ] Coverage sims (health, education)
 - [ ] Land value
 
 ## P6: Economy simulators
