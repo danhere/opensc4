@@ -155,7 +155,7 @@ Content with little or no new art (Dan, 2026-10-09, all wanted). Reuses the game
 - [ ] Elections: a low mayor rating risks losing office, campaign promises become goals
 - [ ] New rewards and challenges: new unlock conditions for existing buildings, achievements (P6 Lua)
 - [ ] Newspaper and petitions: news stories and citizen demands tied to real city statistics (news ticker)
-- [ ] Shareable seeds: events, news and disasters drawn from a seed you can give a friend ("try this one, 2031 is brutal"). Builds on P4's fixed seed (`determinism.fixed_seed`)
+- [ ] Shareable seeds: events, news and disasters drawn from a seed you can give a friend ("try this one, 2031 is brutal"). Builds on P4's fixed seed (`determinism.fixed_seed`). First part done (`game.seed`, [docs/seeds.md](docs/seeds.md)): one seed per city, shown in the title and set with the `seed` cheat; the same save and seed start from the same random state whatever came before. Left: a play mode whose simulation does not follow real time, so a seed also replays exactly in normal play (also what a recorded timelapse needs)
 - [ ] Tourism: landmarks, parks and beaches draw visitors whose spending lifts commercial demand (P6 demand)
 - [ ] Jobs that need education: high-tech jobs go unfilled without schools, unemployment on the map (P5 education, P6 demand)
 - [ ] Disaster insurance: a premium, paid out after a fire or quake (P6 budget)
