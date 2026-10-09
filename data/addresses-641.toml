@@ -5432,434 +5432,205 @@ expect = "51 56 8B F1 8B 4E 20 8B"
 source = "Name ours. The terrain height against sea level, up or down, times +0xA0, floored and clamped to 0..15 (docs/flora.md)."
 
 [[entry]]
-name = "SC4List::AllocateNodes"
-address = 0x00413DD0
+name = "cSC4City::cSC4City"
+address = 0x00459F30
 kind = "function"
 convention = "thiscall"
-signature = "void** (SC4List* this, uint32_t count, uint32_t zero)"
-expect = "51 8B 0D E4 07 B2 00 85"
-source = "Name ours. New list nodes from the allocator at 0x00B207E4 (docs/flora.md)."
+signature = "cSC4City* (cSC4City* this)"
+expect = "53 56 8B F1 57 C7 06 C0"
+source = "Constructor, called by the class factory cSC4City::Create 0x0045A560 (operator new(0x20C)) for every city loaded or founded; plain ret. game.seed reseeds the game's generators here: the earliest point of a city load, before the city's objects seed theirs (docs/seeds.md)."
 
 [[entry]]
-name = "SC4::FloatHalf"
-address = 0x00A84D2C
+name = "cSC4ProtectionSimulator::DoMessage"
+address = 0x006F62C0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours (the class names itself cSC4ProtectionSimulator, 0x00A89624). Base slot 3: the step (slot 5), the month (slot 6), funding (0x006F5C30), occupants in and out and changed (slots 7-9, unless property 0x029244DB), dispatch messages (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::Step"
+address = 0x006F6A70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 55 56 8B F1 8B"
+source = "Name ours. Base slot 5: +0x28 cells of the coverage walk (tract iterator at +0x34), the derived class told per cell (slot 16) and at the walk's end (slot 17); average and share of developed cells covered at +0x90, +0x94 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::Init"
+address = 0x006F6BC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 56 8B F1 8B"
+source = "Name ours. The base's Init: city, budget and service 0x00B43D14 references, the uint8 coverage and int16 power grids (built inline), the walk's rectangle, the simulator service and message registrations, the dispatch service (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::Shutdown"
+address = 0x006F56F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 33 FF 3B"
+source = "Name ours. The base's Shutdown: city services told, messages unregistered, grids shut down and released, references released (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::PaintCoverage"
+address = 0x006F5C30
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 60 01 00 00 53 55"
+source = "Name ours, not analysed in detail. The power grid painted again from the stations (+0x80) and the dispatch sources (0x00B43D04) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::OnDispatch"
+address = 0x006F5A40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 8B F1 8B 0D"
+source = "Name ours, not analysed in detail. (id): message 0x894671F6 (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::OnDispatchMove"
+address = 0x006F61F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 56 8B F1 8B 0D"
+source = "Name ours, not analysed in detail. (id, start): messages 0xE94671EC (1) and 0xE94671ED (0) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::CoverageCell"
+address = 0x006F5E40
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8D 14 40 8B"
+source = "Name ours. (x, z, power rows, coverage rows): the power value x +0x98 rounded, 0 to 255, into the coverage grid; returns it (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::BlockDeveloped"
+address = 0x006F6180
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 2C 8B 54 24 04 53"
+source = "Name ours. (x, z, byte rows): whether any byte of the +0x2C-cell block is set (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::DefaultShare"
+address = 0x00B4AF88
 kind = "data"
-source = "float 0.5 (docs/flora.md)."
+source = "float set at startup: the share covered when no cell was counted (docs/fire-police.md)."
 
 [[entry]]
-name = "cSC4FloraSimulator::RemoveDying"
-address = 0x006B15F0
-kind = "function"
-convention = "thiscall"
-signature = "void (cSC4FloraSimulator* this, uint32_t count)"
-expect = "53 55 8B 6C 24 0C 85 ED"
-source = "Name ours. Up to `count` trees off the dying list (+0xA4), removed from the occupant manager and released (docs/flora.md)."
+name = "cSC4ProtectionSimulator::Name"
+address = 0x00A89624
+kind = "data"
+source = "\"cSC4ProtectionSimulator\": the name the base registers with the simulator service (docs/fire-police.md)."
 
 [[entry]]
-name = "cSC4FloraSimulator::Step"
-address = 0x006B16D0
-kind = "function"
-convention = "thiscall"
-signature = "void (cSC4FloraSimulator* this)"
-expect = "D9 81 B0 00 00 00 83 EC"
-source = "Name ours. Message 0x66956814: the death timer (+0xA8, rate +0xB0), deaths (+0xAC, +0xB4 a step), whole deaths removed (docs/flora.md)."
+name = "SC4::DispatchService"
+address = 0x00B43D04
+kind = "data"
+source = "Name ours. Dispatch sources: slot 13 registers a protection simulator (+4), slot 10 (id, info*) an entry, slots 11/12 the count and the list (docs/fire-police.md)."
 
 [[entry]]
-name = "cSC4FloraSimulator::Suitability"
-address = 0x006B0900
-kind = "function"
-convention = "thiscall"
-signature = "float (cSC4FloraSimulator* this, uint32_t type, float x, float z)"
-expect = "51 57 8B F9 8D 44 24 0C"
-source = "Name ours. A flora type's table (+0x50, row by slope class, column by the cell service) at a position, over 255 (docs/flora.md)."
+name = "SC4SimGridSint16::Vtable2"
+address = 0x00A879C4
+kind = "data"
+source = "The int16 sim grid's second vtable, at +4 (docs/fire-police.md)."
 
 [[entry]]
-name = "cSC4FloraSimulator::Seed"
-address = 0x006B0980
+name = "cSC4ProtectionSimulator::CopyCoverage"
+address = 0x006F5EB0
 kind = "function"
 convention = "thiscall"
-signature = "bool (cSC4FloraSimulator* this, uint32_t type, float x, float z)"
-expect = "83 EC 14 53 8B 5C 24 24"
-source = "Name ours. A new tree where the place is fine (slot 15) and suitable enough (+0x30), with a chance (+0x34) (docs/flora.md)."
+expect = "83 EC 08 8B 44 24 14 53"
+source = "Name ours. (x, z, radius, power rows, coverage rows): the coverage bytes of the square around (x, z) within the grid, as CoverageCell (docs/fire-police.md)."
 
 [[entry]]
-name = "cSC4FloraSimulator::Age"
-address = 0x006B0A80
+name = "cSC4ProtectionSimulator::UpdateAround"
+address = 0x006F6110
 kind = "function"
 convention = "thiscall"
-signature = "void (cSC4FloraSimulator* this, cISC4FloraOccupant* flora)"
+expect = "53 56 57 8D 54 24 14 52"
+source = "Name ours. (x, z, float radius): (x, z) made a tract (grid slot 19), the power grid painted again (0x006F5C30), the coverage around it copied with radius x the grid's scale (slot 16) truncated (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::ReturnUnit"
+address = 0x006F5620
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 57 8B 7C 24"
+source = "Name ours. (station, slot): a unit back at its station: the slot's bit set in the station's mask (+4 slot 7, slot 10), unless all are home or it already is (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::SendUnit"
+address = 0x006F5570
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 8B 6C 24"
+source = "Name ours. +4 slot 9 (this = base + 4): (station, slot*): a unit leaves: the given slot's bit (or, for 0, the first set bit) cleared in the station's mask (slot 10); the slot number back (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::CanDispatch"
+address = 0x006F5A80
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8B 07 FF"
+source = "Name ours. +4 slot 4: (x, z, bool* busy): false without stations or over water; busy = every unit out (dispatch service slot 11 count against +4 slot 5) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::UnitCount"
+address = 0x006F5B00
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 57 8B F9 8B 47"
+source = "Name ours. +4 slot 5: the stations' units summed (+4 slot 7's count) (docs/fire-police.md)."
+
+[[entry]]
+name = "cSC4ProtectionSimulator::NearestStation"
+address = 0x006F5B40
+kind = "function"
+convention = "thiscall"
 expect = "55 8B EC 83 E4 F8 83 EC"
-source = "Name ours. One tree's month: life stage by age (0x006AFBE0), death where unsuitable, seeds around mature trees (docs/flora.md)."
+source = "Name ours. +4 slot 8: (x, z, slot*): the nearest station with a unit home (and an occupant manager entry that allows it), a unit sent from it (+4 slot 9) (docs/fire-police.md)."
 
 [[entry]]
-name = "cRZRandom::Below"
-address = 0x009136B1
+name = "cSC4ProtectionSimulator::GetStations"
+address = 0x006F6A50
 kind = "function"
 convention = "thiscall"
-signature = "uint32_t (cRZRandom* this, uint32_t count)"
-expect = "83 7C 24 04 00 75 04 33"
-source = "Name ours. (draw * count) >> 32, 0 for no count (docs/flora.md)."
+expect = "8B 54 24 04 8D 41 7C 50"
+source = "Name ours. +4 slot 6: (list*): the stations copied in (0x006DFC70); whether there are any (docs/fire-police.md)."
 
 [[entry]]
-name = "cRZRandom::Uniform"
-address = 0x00913761
+name = "cSC4ProtectionSimulator::ScaleDispatchInfo"
+address = 0x006F56A0
 kind = "function"
 convention = "thiscall"
-signature = "double (cRZRandom* this, double low, double high)"
-expect = "E8 C8 FF FF FF DD 44 24"
-source = "Name ours. NextFloat (0x0091372E) * (high - low) + low, in ST0 (docs/flora.md)."
+expect = "D9 44 24 08 56 8B 74 24"
+source = "Name ours. (info, factor), this unused: info +8 times the factor, +0xC and +0x10 too (truncated) (docs/fire-police.md)."
 
 [[entry]]
-name = "SC4::FloatZero"
-address = 0x00A81054
-kind = "data"
-source = "float 0.0 (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::vftable_4"
-address = 0x00AB13AC
-kind = "vtable"
-expect = "90 16 6B 00 30 D2 68 00"
-source = "The cIGZMessageTarget2 interface at +4: slot 3 DoMessage 0x006B2F70. simulators.flora.messages swaps it (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::Reheight"
-address = 0x006B1200
+name = "cSC4ProtectionSimulator::Write"
+address = 0x006F5850
 kind = "function"
 convention = "thiscall"
-signature = "void (cSC4FloraSimulator* this, cISC4Occupant* occupant, cISC4FloraOccupant* flora)"
-expect = "83 EC 14 53 56 57 8B F9"
-source = "Name ours. A tree back on the ground (at least sea level for land trees) when off by more than 0.001 (docs/flora.md)."
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. cIGZSerializable slot 3 (this = base + 8): version 3 record (docs/fire-police.md)."
 
 [[entry]]
-name = "cSC4FloraSimulator::NetworkChanged"
-address = 0x006B1AB0
+name = "cSC4ProtectionSimulator::Read"
+address = 0x006F5920
 kind = "function"
 convention = "thiscall"
-signature = "void (cSC4FloraSimulator* this, int32_t const* rect)"
-expect = "83 EC 14 56 8B F1 8B 0D"
-source = "Name ours. Message 0x278E6003: trees over a changed cell rectangle reheighted, or removed when off the ground (docs/flora.md)."
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Name ours. cIGZSerializable slot 4 (this = base + 8): versions up to 3; before 3 the share was a percentage (docs/fire-police.md)."
 
 [[entry]]
-name = "cSC4FloraSimulator::OnOccupantInserted"
-address = 0x006B04F0
+name = "SC4::CopyOccupantList"
+address = 0x006DFC70
 kind = "function"
 convention = "thiscall"
-signature = "void (cSC4FloraSimulator* this, cISC4Occupant* occupant, uint32_t type)"
-expect = "8B 44 24 08 83 EC 18 3D"
-source = "Name ours. Message 0x99EF1142: trees under a new building (2 m around) or a filtered network piece demolished (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::OnOccupantRemoved"
-address = 0x006B1190
-kind = "function"
-convention = "thiscall"
-signature = "void (cSC4FloraSimulator* this, cISC4Occupant* occupant, uint32_t type)"
-expect = "81 7C 24 08 26 89 75 74"
-source = "Name ours. Message 0x99EF1143: a removed tree leaves the dying list (docs/flora.md)."
-
-[[entry]]
-name = "SC4List::Erase"
-address = 0x00413F70
-kind = "function"
-convention = "thiscall"
-signature = "void** (SC4List* this, void** out, void* node)"
-expect = "56 57 8B 7C 24 10 8B 37"
-source = "Name ours. Unlinks and frees a node of a list of the allocator at 0x00B207E4 (docs/flora.md)."
-
-[[entry]]
-name = "SC4Uint32Vector::Clear"
-address = 0x00413E30
-kind = "function"
-convention = "thiscall"
-signature = "void (vector<uint32_t>* this)"
-expect = "57 8B F9 8B 47 04 3B C0"
-source = "Name ours. end = begin (docs/flora.md)."
-
-[[entry]]
-name = "SC4FloraMap::Clear"
-address = 0x006B08C0
-kind = "function"
-convention = "thiscall"
-signature = "void (MapNode** map)"
-expect = "56 8B F1 8B 46 04 85 C0"
-source = "Name ours. Empties the flora type map (frees the nodes, 0x006B04B0) (docs/flora.md)."
-
-[[entry]]
-name = "SC4FamilyMap::Clear"
-address = 0x00510C40
-kind = "function"
-convention = "thiscall"
-signature = "void (MapNode** map)"
-expect = "56 8B F1 8B 46 04 85 C0"
-source = "Name ours. Empties a map whose values are vectors (the flora families) (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::LoadTypes"
-address = 0x006B0760
-kind = "function"
-convention = "thiscall"
-signature = "void (cSC4FloraSimulator* this)"
-expect = "51 56 8B F1 8B 0D A8 3C"
-source = "Name ours. Every flora exemplar of group 0x6534284A through the resource manager (slot 18, a callback 0x006B03B0), then message 0x87A6277F (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::LoadTuning"
-address = 0x006B00F0
-kind = "function"
-convention = "thiscall"
-signature = "void (cSC4FloraSimulator* this)"
-expect = "83 EC 18 56 6A 00 6A 00"
-source = "Name ours. The tuning exemplar 6534284A-7A4A8458-1A2FDB6A: death rate and step, tracts and seeds a month, slope scale (docs/flora.md)."
-
-[[entry]]
-name = "FloraTuning::HeightEpsilon"
-address = 0x00A867A4
-kind = "data"
-source = "Name ours. float 0.001: a tree off the ground by less is left alone (docs/flora.md)."
-
-[[entry]]
-name = "FloraTuning::Huge"
-address = 0x00AB1390
-kind = "data"
-source = "Name ours. float 0x7EFFFFFF (1.7e38), the top of the box a new building clears of trees (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::DefaultData"
-address = 0x006B0220
-kind = "function"
-convention = "stdcall"
-signature = "void (FloraData* data)"
-expect = "8B 44 24 04 B9 00 80 36"
-source = "Name ours. The defaults of a flora type record before its exemplar is read (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::LoadTypeCallback"
-address = 0x006B03B0
-kind = "function"
-convention = "cdecl"
-signature = "uint32_t (const cGZPersistResourceKey* key, cSC4FloraSimulator* self)"
-expect = "8B 0D A8 3C B4 00 8B 01"
-source = "Name ours. LoadTypes' callback for each exemplar: flora exemplars (type property 0x10 = 0xF) go to slot 5 (docs/flora.md)."
-
-[[entry]]
-name = "SC4FloraMap::EraseTree"
-address = 0x006B04B0
-kind = "function"
-convention = "thiscall"
-signature = "void (MapNode** map, MapNode* node)"
-expect = "53 56 8B 74 24 0C 85 F6"
-source = "Name ours. Frees a subtree of the flora type map (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::NotifyTypesLoaded"
-address = 0x006B05E0
-kind = "function"
-convention = "thiscall"
-signature = "void (cSC4FloraSimulator* this)"
-expect = "53 57 8B 3D CC 3C B4 00"
-source = "Name ours. Posts message 0x87A6277F (the simulator, the type count) after the types are loaded (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::FreeTypes"
-address = 0x006B1070
-kind = "function"
-convention = "cdecl"
-signature = "bool ()"
-expect = "A0 3C 90 B4 00 53 33 DB"
-source = "Name ours. Releases every flora type record and empties the type map and list; registered with the app (slot 69) on the first Init (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::TypesLoaded"
-address = 0x00B4903C
-kind = "data"
-source = "Name ours. uint8: the flora types are loaded and FreeTypes is registered (docs/flora.md)."
-
-[[entry]]
-name = "SC4FloraMap::Insert"
-address = 0x004FB6C0
-kind = "function"
-convention = "thiscall"
-signature = "void* (MapNode** map, void* result, const void* pair)"
-expect = "53 8B 5C 24 0C 55 8B E9"
-source = "Name ours. std::map<uint32_t, T*>::insert (result: node, inserted) (docs/flora.md)."
-
-[[entry]]
-name = "SC4FamilyMap::Insert"
-address = 0x00510E50
-kind = "function"
-convention = "thiscall"
-signature = "void* (MapNode** map, void* result, const void* pair)"
-expect = "53 8B 5C 24 0C 55 8B E9"
-source = "Name ours. std::map<uint32_t, std::vector<uint32_t>>::insert, the flora families (docs/flora.md)."
-
-[[entry]]
-name = "SC4Uint32Vector::CopyAssign"
-address = 0x00462C10
-kind = "function"
-convention = "thiscall"
-signature = "void* (Vector* this, const Vector* other)"
-expect = "55 8B 6C 24 08 56 8B F1"
-source = "Name ours. std::vector<uint32_t>::operator= (docs/flora.md)."
-
-[[entry]]
-name = "SC4Uint32Vector::Copy"
-address = 0x00462F00
-kind = "function"
-convention = "thiscall"
-signature = "void* (Vector* this, const Vector* other)"
-expect = "56 8B 74 24 08 57 8B F9"
-source = "Name ours. std::vector<uint32_t> copy constructor (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraOccupant::Allocate"
-address = 0x00472960
-kind = "function"
-convention = "cdecl"
-signature = "void* (size_t size)"
-expect = "A1 CC 7F B0 00 8B 40 08"
-source = "Name ours. The flora occupants' pool (free list at 0x00B07FCC; the size is ignored) (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraOccupant::cSC4FloraOccupant"
-address = 0x00472B30
-kind = "function"
-convention = "thiscall"
-signature = "cSC4FloraOccupant* (cSC4FloraOccupant* this)"
-expect = "56 8B F1 57 8D 7E 04 8B"
-source = "Name from Ghidra's symbols. 0x5C bytes; the cISC4Occupant part at +4 (docs/flora.md)."
-
-[[entry]]
-name = "cRZRandom::Between"
-address = 0x009136CA
-kind = "function"
-convention = "thiscall"
-signature = "uint32_t (cRZRandom* this, uint32_t low, uint32_t high)"
-expect = "8B 44 24 08 2B 44 24 04"
-source = "Name ours. low + Below(high - low) (docs/flora.md)."
-
-[[entry]]
-name = "SC4::BoxesIntersect"
-address = 0x005D6D80
-kind = "function"
-convention = "cdecl"
-signature = "bool (const float* min1, const float* max1, const float* min2, const float* max2, int, int)"
-expect = "8B 54 24 04 D9 02 56 57"
-source = "Name ours. Whether two boxes overlap (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::MergedType"
-address = 0x006B0DA0
-kind = "function"
-convention = "thiscall"
-signature = "uint32_t (cSC4FloraSimulator* this, uint32_t a, uint32_t b)"
-expect = "53 8B 5C 24 08 85 DB 56"
-source = "Name ours. Two trees as one: if b follows a in the +4 chain of types, the type after b; if a follows b, the type after a; else 0 (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::DefaultNormal"
-address = 0x00B49040
-kind = "data"
-source = "Name ours. float that fills the terrain normal before slot 15 asks for it (0) (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::vftable_8"
-address = 0x00AB1394
-kind = "data"
-source = "Name ours. The cIGZSerializable part at +8: Write (slot 3, 0x006AFEE0), Read (slot 4, 0x006AFFE0), GetGZCLSID (slot 5) (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::Init"
-address = 0x006B2960
-kind = "function"
-convention = "thiscall"
-signature = "bool (cSC4FloraSimulator* this)"
-expect = "83 EC 1C 53 56 8B F1 8A"
-source = "Name ours. cISC4FloraSimulator slot 3: types once, messages, services, the occupant filter, the city's size, the tract walk unless loaded, the type 0 record, the tuning, the cheat code, saved obliterated flora (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::Shutdown"
-address = 0x006AFDA0
-kind = "function"
-convention = "thiscall"
-signature = "bool (cSC4FloraSimulator* this)"
-expect = "53 57 8B F9 8A 47 0C 33"
-source = "Name ours. cISC4FloraSimulator slot 4: dying trees removed, the cheat code, services and messages released (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::LoadOccupants"
-address = 0x006B0660
-kind = "function"
-convention = "thiscall"
-signature = "bool (cSC4FloraSimulator* this, cIGZPersistDBSegment* segment)"
-expect = "83 EC 14 8B 44 24 18 53"
-source = "Name ours. Flora saved by slot 24 (records C9BB3FC6-C9BB3FC7-1 count, C9BB3FC6-4A664F83-i occupants) back into the occupant manager (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::SetEnabled"
-address = 0x006B19E0
-kind = "function"
-convention = "thiscall"
-signature = "void (cSC4FloraSimulator* this, bool enabled)"
-expect = "51 8A 44 24 08 55 8B E9"
-source = "Name ours. +0x2C; turning flora off demolishes every tree (the cheat \"Flora off\") (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::FilterIncludes"
-address = 0x006AFD10
-kind = "function"
-convention = "thiscall"
-signature = "bool (OccupantFilter* this, cISC4Occupant* occupant)"
-expect = "56 8B 74 24 08 8B 06 8B"
-source = "Name ours. The flora occupant filter (+0x28, vtable 0x00AB1374 slot 3): flora and three other occupant types, and props of some kinds (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::FilterVtable"
-address = 0x00AB1374
-kind = "data"
-source = "Name ours. The flora occupant filter's vtable (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::FilterVtable2"
-address = 0x00AB135C
-kind = "data"
-source = "Name ours. The flora occupant filter's second vtable (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::Name"
-address = 0x00A898AC
-kind = "data"
-source = "The string \"cSC4FloraSimulator\", its name with the simulator service (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::PlaceFloraCommand"
-address = 0x00AB1428
-kind = "data"
-source = "The string \"PlaceFlora\", the command registered for message 0xAB99A64B (docs/flora.md)."
-
-[[entry]]
-name = "cSC4FloraSimulator::CheatName"
-address = 0x00B0D2A0
-kind = "data"
-source = "Name ours. char* to \"Flora\", the cheat code registered as 0x095BDC9C (docs/flora.md)."
-
-[[entry]]
-name = "SC4::CheatCodes"
-address = 0x00B43CAC
-kind = "data"
-source = "Name ours. The cheat code service: slot 3 registers a code, slot 7 adds a target, slot 8 removes it, slot 4 unregisters (docs/flora.md)."
-
-[[entry]]
-name = "SC4::Commands"
-address = 0x00B43CB0
-kind = "data"
-source = "Name ours. The command service: slot 6 registers a command by message and name, slot 9 unregisters (docs/flora.md)."
-
-[[entry]]
-name = "SC4::Service43DAC"
-address = 0x00B43DAC
-kind = "data"
-source = "Name ours. A service the flora simulator keeps at +0x18 (docs/flora.md)."
+expect = "51 8B 4C 24 08 53 55 56"
+source = "Name ours. (list* out, list* in), this unused: out emptied, then each occupant of in held (AddRef) and appended; the count (docs/fire-police.md)."
 
 [[entry]]
 name = "SC4Stream::WriteBool"
@@ -6495,198 +6266,6 @@ expect = "55 8B EC 51 56 8B F1 6A"
 source = "Name ours. An 8-byte date (vtable 0x00A827D8, day) set to today by the clock (time(), localtime) (docs/neighbors.md)."
 
 [[entry]]
-name = "cSC4ProtectionSimulator::DoMessage"
-address = 0x006F62C0
-kind = "function"
-convention = "thiscall"
-expect = "53 56 8B 74 24 0C 8B 06"
-source = "Name ours (the class names itself cSC4ProtectionSimulator, 0x00A89624). Base slot 3: the step (slot 5), the month (slot 6), funding (0x006F5C30), occupants in and out and changed (slots 7-9, unless property 0x029244DB), dispatch messages (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::Step"
-address = 0x006F6A70
-kind = "function"
-convention = "thiscall"
-expect = "83 EC 1C 55 56 8B F1 8B"
-source = "Name ours. Base slot 5: +0x28 cells of the coverage walk (tract iterator at +0x34), the derived class told per cell (slot 16) and at the walk's end (slot 17); average and share of developed cells covered at +0x90, +0x94 (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::Init"
-address = 0x006F6BC0
-kind = "function"
-convention = "thiscall"
-expect = "83 EC 18 53 56 8B F1 8B"
-source = "Name ours. The base's Init: city, budget and service 0x00B43D14 references, the uint8 coverage and int16 power grids (built inline), the walk's rectangle, the simulator service and message registrations, the dispatch service (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::Shutdown"
-address = 0x006F56F0
-kind = "function"
-convention = "thiscall"
-expect = "53 56 57 8B F1 33 FF 3B"
-source = "Name ours. The base's Shutdown: city services told, messages unregistered, grids shut down and released, references released (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::PaintCoverage"
-address = 0x006F5C30
-kind = "function"
-convention = "thiscall"
-expect = "81 EC 60 01 00 00 53 55"
-source = "Name ours, not analysed in detail. The power grid painted again from the stations (+0x80) and the dispatch sources (0x00B43D04) (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::OnDispatch"
-address = 0x006F5A40
-kind = "function"
-convention = "thiscall"
-expect = "83 EC 2C 56 8B F1 8B 0D"
-source = "Name ours, not analysed in detail. (id): message 0x894671F6 (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::OnDispatchMove"
-address = 0x006F61F0
-kind = "function"
-convention = "thiscall"
-expect = "83 EC 44 56 8B F1 8B 0D"
-source = "Name ours, not analysed in detail. (id, start): messages 0xE94671EC (1) and 0xE94671ED (0) (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::CoverageCell"
-address = 0x006F5E40
-kind = "function"
-convention = "thiscall"
-expect = "8B 44 24 04 8D 14 40 8B"
-source = "Name ours. (x, z, power rows, coverage rows): the power value x +0x98 rounded, 0 to 255, into the coverage grid; returns it (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::BlockDeveloped"
-address = 0x006F6180
-kind = "function"
-convention = "thiscall"
-expect = "8B 41 2C 8B 54 24 04 53"
-source = "Name ours. (x, z, byte rows): whether any byte of the +0x2C-cell block is set (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::DefaultShare"
-address = 0x00B4AF88
-kind = "data"
-source = "float set at startup: the share covered when no cell was counted (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::Name"
-address = 0x00A89624
-kind = "data"
-source = "\"cSC4ProtectionSimulator\": the name the base registers with the simulator service (docs/fire-police.md)."
-
-[[entry]]
-name = "SC4::DispatchService"
-address = 0x00B43D04
-kind = "data"
-source = "Name ours. Dispatch sources: slot 13 registers a protection simulator (+4), slot 10 (id, info*) an entry, slots 11/12 the count and the list (docs/fire-police.md)."
-
-[[entry]]
-name = "SC4SimGridSint16::Vtable2"
-address = 0x00A879C4
-kind = "data"
-source = "The int16 sim grid's second vtable, at +4 (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::CopyCoverage"
-address = 0x006F5EB0
-kind = "function"
-convention = "thiscall"
-expect = "83 EC 08 8B 44 24 14 53"
-source = "Name ours. (x, z, radius, power rows, coverage rows): the coverage bytes of the square around (x, z) within the grid, as CoverageCell (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::UpdateAround"
-address = 0x006F6110
-kind = "function"
-convention = "thiscall"
-expect = "53 56 57 8D 54 24 14 52"
-source = "Name ours. (x, z, float radius): (x, z) made a tract (grid slot 19), the power grid painted again (0x006F5C30), the coverage around it copied with radius x the grid's scale (slot 16) truncated (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::ReturnUnit"
-address = 0x006F5620
-kind = "function"
-convention = "thiscall"
-expect = "83 EC 08 56 57 8B 7C 24"
-source = "Name ours. (station, slot): a unit back at its station: the slot's bit set in the station's mask (+4 slot 7, slot 10), unless all are home or it already is (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::SendUnit"
-address = 0x006F5570
-kind = "function"
-convention = "thiscall"
-expect = "83 EC 08 53 55 8B 6C 24"
-source = "Name ours. +4 slot 9 (this = base + 4): (station, slot*): a unit leaves: the given slot's bit (or, for 0, the first set bit) cleared in the station's mask (slot 10); the slot number back (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::CanDispatch"
-address = 0x006F5A80
-kind = "function"
-convention = "thiscall"
-expect = "53 56 57 8B F9 8B 07 FF"
-source = "Name ours. +4 slot 4: (x, z, bool* busy): false without stations or over water; busy = every unit out (dispatch service slot 11 count against +4 slot 5) (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::UnitCount"
-address = 0x006F5B00
-kind = "function"
-convention = "thiscall"
-expect = "51 53 56 57 8B F9 8B 47"
-source = "Name ours. +4 slot 5: the stations' units summed (+4 slot 7's count) (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::NearestStation"
-address = 0x006F5B40
-kind = "function"
-convention = "thiscall"
-expect = "55 8B EC 83 E4 F8 83 EC"
-source = "Name ours. +4 slot 8: (x, z, slot*): the nearest station with a unit home (and an occupant manager entry that allows it), a unit sent from it (+4 slot 9) (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::GetStations"
-address = 0x006F6A50
-kind = "function"
-convention = "thiscall"
-expect = "8B 54 24 04 8D 41 7C 50"
-source = "Name ours. +4 slot 6: (list*): the stations copied in (0x006DFC70); whether there are any (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::ScaleDispatchInfo"
-address = 0x006F56A0
-kind = "function"
-convention = "thiscall"
-expect = "D9 44 24 08 56 8B 74 24"
-source = "Name ours. (info, factor), this unused: info +8 times the factor, +0xC and +0x10 too (truncated) (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::Write"
-address = 0x006F5850
-kind = "function"
-convention = "thiscall"
-expect = "56 8B 74 24 08 8B 06 57"
-source = "Name ours. cIGZSerializable slot 3 (this = base + 8): version 3 record (docs/fire-police.md)."
-
-[[entry]]
-name = "cSC4ProtectionSimulator::Read"
-address = 0x006F5920
-kind = "function"
-convention = "thiscall"
-expect = "51 56 8B 74 24 0C 8B 06"
-source = "Name ours. cIGZSerializable slot 4 (this = base + 8): versions up to 3; before 3 the share was a percentage (docs/fire-police.md)."
-
-[[entry]]
-name = "SC4::CopyOccupantList"
-address = 0x006DFC70
-kind = "function"
-convention = "thiscall"
-expect = "51 8B 4C 24 08 53 55 56"
-source = "Name ours. (list* out, list* in), this unused: out emptied, then each occupant of in held (AddRef) and appended; the count (docs/fire-police.md)."
-
-[[entry]]
 name = "cSC4ProtectionSimulator::OnStationAdded"
 address = 0x006F6610
 kind = "function"
@@ -6709,6 +6288,436 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 18 56 57 8B 7C 24"
 source = "Name ours. Base slot 9: a listed station changed: the coverage around it is repainted (docs/fire-police.md)."
+
+[[entry]]
+name = "SC4List::AllocateNodes"
+address = 0x00413DD0
+kind = "function"
+convention = "thiscall"
+signature = "void** (SC4List* this, uint32_t count, uint32_t zero)"
+expect = "51 8B 0D E4 07 B2 00 85"
+source = "Name ours. New list nodes from the allocator at 0x00B207E4 (docs/flora.md)."
+
+[[entry]]
+name = "SC4::FloatHalf"
+address = 0x00A84D2C
+kind = "data"
+source = "float 0.5 (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::RemoveDying"
+address = 0x006B15F0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FloraSimulator* this, uint32_t count)"
+expect = "53 55 8B 6C 24 0C 85 ED"
+source = "Name ours. Up to `count` trees off the dying list (+0xA4), removed from the occupant manager and released (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::Step"
+address = 0x006B16D0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FloraSimulator* this)"
+expect = "D9 81 B0 00 00 00 83 EC"
+source = "Name ours. Message 0x66956814: the death timer (+0xA8, rate +0xB0), deaths (+0xAC, +0xB4 a step), whole deaths removed (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::Suitability"
+address = 0x006B0900
+kind = "function"
+convention = "thiscall"
+signature = "float (cSC4FloraSimulator* this, uint32_t type, float x, float z)"
+expect = "51 57 8B F9 8D 44 24 0C"
+source = "Name ours. A flora type's table (+0x50, row by slope class, column by the cell service) at a position, over 255 (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::Seed"
+address = 0x006B0980
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4FloraSimulator* this, uint32_t type, float x, float z)"
+expect = "83 EC 14 53 8B 5C 24 24"
+source = "Name ours. A new tree where the place is fine (slot 15) and suitable enough (+0x30), with a chance (+0x34) (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::Age"
+address = 0x006B0A80
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FloraSimulator* this, cISC4FloraOccupant* flora)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. One tree's month: life stage by age (0x006AFBE0), death where unsuitable, seeds around mature trees (docs/flora.md)."
+
+[[entry]]
+name = "cRZRandom::Below"
+address = 0x009136B1
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cRZRandom* this, uint32_t count)"
+expect = "83 7C 24 04 00 75 04 33"
+source = "Name ours. (draw * count) >> 32, 0 for no count (docs/flora.md)."
+
+[[entry]]
+name = "cRZRandom::Uniform"
+address = 0x00913761
+kind = "function"
+convention = "thiscall"
+signature = "double (cRZRandom* this, double low, double high)"
+expect = "E8 C8 FF FF FF DD 44 24"
+source = "Name ours. NextFloat (0x0091372E) * (high - low) + low, in ST0 (docs/flora.md)."
+
+[[entry]]
+name = "SC4::FloatZero"
+address = 0x00A81054
+kind = "data"
+source = "float 0.0 (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::vftable_4"
+address = 0x00AB13AC
+kind = "vtable"
+expect = "90 16 6B 00 30 D2 68 00"
+source = "The cIGZMessageTarget2 interface at +4: slot 3 DoMessage 0x006B2F70. simulators.flora.messages swaps it (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::Reheight"
+address = 0x006B1200
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FloraSimulator* this, cISC4Occupant* occupant, cISC4FloraOccupant* flora)"
+expect = "83 EC 14 53 56 57 8B F9"
+source = "Name ours. A tree back on the ground (at least sea level for land trees) when off by more than 0.001 (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::NetworkChanged"
+address = 0x006B1AB0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FloraSimulator* this, int32_t const* rect)"
+expect = "83 EC 14 56 8B F1 8B 0D"
+source = "Name ours. Message 0x278E6003: trees over a changed cell rectangle reheighted, or removed when off the ground (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::OnOccupantInserted"
+address = 0x006B04F0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FloraSimulator* this, cISC4Occupant* occupant, uint32_t type)"
+expect = "8B 44 24 08 83 EC 18 3D"
+source = "Name ours. Message 0x99EF1142: trees under a new building (2 m around) or a filtered network piece demolished (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::OnOccupantRemoved"
+address = 0x006B1190
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FloraSimulator* this, cISC4Occupant* occupant, uint32_t type)"
+expect = "81 7C 24 08 26 89 75 74"
+source = "Name ours. Message 0x99EF1143: a removed tree leaves the dying list (docs/flora.md)."
+
+[[entry]]
+name = "SC4List::Erase"
+address = 0x00413F70
+kind = "function"
+convention = "thiscall"
+signature = "void** (SC4List* this, void** out, void* node)"
+expect = "56 57 8B 7C 24 10 8B 37"
+source = "Name ours. Unlinks and frees a node of a list of the allocator at 0x00B207E4 (docs/flora.md)."
+
+[[entry]]
+name = "SC4Uint32Vector::Clear"
+address = 0x00413E30
+kind = "function"
+convention = "thiscall"
+signature = "void (vector<uint32_t>* this)"
+expect = "57 8B F9 8B 47 04 3B C0"
+source = "Name ours. end = begin (docs/flora.md)."
+
+[[entry]]
+name = "SC4FloraMap::Clear"
+address = 0x006B08C0
+kind = "function"
+convention = "thiscall"
+signature = "void (MapNode** map)"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Name ours. Empties the flora type map (frees the nodes, 0x006B04B0) (docs/flora.md)."
+
+[[entry]]
+name = "SC4FamilyMap::Clear"
+address = 0x00510C40
+kind = "function"
+convention = "thiscall"
+signature = "void (MapNode** map)"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Name ours. Empties a map whose values are vectors (the flora families) (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::LoadTypes"
+address = 0x006B0760
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FloraSimulator* this)"
+expect = "51 56 8B F1 8B 0D A8 3C"
+source = "Name ours. Every flora exemplar of group 0x6534284A through the resource manager (slot 18, a callback 0x006B03B0), then message 0x87A6277F (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::LoadTuning"
+address = 0x006B00F0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FloraSimulator* this)"
+expect = "83 EC 18 56 6A 00 6A 00"
+source = "Name ours. The tuning exemplar 6534284A-7A4A8458-1A2FDB6A: death rate and step, tracts and seeds a month, slope scale (docs/flora.md)."
+
+[[entry]]
+name = "FloraTuning::HeightEpsilon"
+address = 0x00A867A4
+kind = "data"
+source = "Name ours. float 0.001: a tree off the ground by less is left alone (docs/flora.md)."
+
+[[entry]]
+name = "FloraTuning::Huge"
+address = 0x00AB1390
+kind = "data"
+source = "Name ours. float 0x7EFFFFFF (1.7e38), the top of the box a new building clears of trees (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::DefaultData"
+address = 0x006B0220
+kind = "function"
+convention = "stdcall"
+signature = "void (FloraData* data)"
+expect = "8B 44 24 04 B9 00 80 36"
+source = "Name ours. The defaults of a flora type record before its exemplar is read (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::LoadTypeCallback"
+address = 0x006B03B0
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (const cGZPersistResourceKey* key, cSC4FloraSimulator* self)"
+expect = "8B 0D A8 3C B4 00 8B 01"
+source = "Name ours. LoadTypes' callback for each exemplar: flora exemplars (type property 0x10 = 0xF) go to slot 5 (docs/flora.md)."
+
+[[entry]]
+name = "SC4FloraMap::EraseTree"
+address = 0x006B04B0
+kind = "function"
+convention = "thiscall"
+signature = "void (MapNode** map, MapNode* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of the flora type map (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::NotifyTypesLoaded"
+address = 0x006B05E0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FloraSimulator* this)"
+expect = "53 57 8B 3D CC 3C B4 00"
+source = "Name ours. Posts message 0x87A6277F (the simulator, the type count) after the types are loaded (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::FreeTypes"
+address = 0x006B1070
+kind = "function"
+convention = "cdecl"
+signature = "bool ()"
+expect = "A0 3C 90 B4 00 53 33 DB"
+source = "Name ours. Releases every flora type record and empties the type map and list; registered with the app (slot 69) on the first Init (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::TypesLoaded"
+address = 0x00B4903C
+kind = "data"
+source = "Name ours. uint8: the flora types are loaded and FreeTypes is registered (docs/flora.md)."
+
+[[entry]]
+name = "SC4FloraMap::Insert"
+address = 0x004FB6C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (MapNode** map, void* result, const void* pair)"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Name ours. std::map<uint32_t, T*>::insert (result: node, inserted) (docs/flora.md)."
+
+[[entry]]
+name = "SC4FamilyMap::Insert"
+address = 0x00510E50
+kind = "function"
+convention = "thiscall"
+signature = "void* (MapNode** map, void* result, const void* pair)"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Name ours. std::map<uint32_t, std::vector<uint32_t>>::insert, the flora families (docs/flora.md)."
+
+[[entry]]
+name = "SC4Uint32Vector::CopyAssign"
+address = 0x00462C10
+kind = "function"
+convention = "thiscall"
+signature = "void* (Vector* this, const Vector* other)"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. std::vector<uint32_t>::operator= (docs/flora.md)."
+
+[[entry]]
+name = "SC4Uint32Vector::Copy"
+address = 0x00462F00
+kind = "function"
+convention = "thiscall"
+signature = "void* (Vector* this, const Vector* other)"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Name ours. std::vector<uint32_t> copy constructor (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraOccupant::Allocate"
+address = 0x00472960
+kind = "function"
+convention = "cdecl"
+signature = "void* (size_t size)"
+expect = "A1 CC 7F B0 00 8B 40 08"
+source = "Name ours. The flora occupants' pool (free list at 0x00B07FCC; the size is ignored) (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraOccupant::cSC4FloraOccupant"
+address = 0x00472B30
+kind = "function"
+convention = "thiscall"
+signature = "cSC4FloraOccupant* (cSC4FloraOccupant* this)"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "Name from Ghidra's symbols. 0x5C bytes; the cISC4Occupant part at +4 (docs/flora.md)."
+
+[[entry]]
+name = "cRZRandom::Between"
+address = 0x009136CA
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cRZRandom* this, uint32_t low, uint32_t high)"
+expect = "8B 44 24 08 2B 44 24 04"
+source = "Name ours. low + Below(high - low) (docs/flora.md)."
+
+[[entry]]
+name = "SC4::BoxesIntersect"
+address = 0x005D6D80
+kind = "function"
+convention = "cdecl"
+signature = "bool (const float* min1, const float* max1, const float* min2, const float* max2, int, int)"
+expect = "8B 54 24 04 D9 02 56 57"
+source = "Name ours. Whether two boxes overlap (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::MergedType"
+address = 0x006B0DA0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4FloraSimulator* this, uint32_t a, uint32_t b)"
+expect = "53 8B 5C 24 08 85 DB 56"
+source = "Name ours. Two trees as one: if b follows a in the +4 chain of types, the type after b; if a follows b, the type after a; else 0 (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::DefaultNormal"
+address = 0x00B49040
+kind = "data"
+source = "Name ours. float that fills the terrain normal before slot 15 asks for it (0) (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::vftable_8"
+address = 0x00AB1394
+kind = "data"
+source = "Name ours. The cIGZSerializable part at +8: Write (slot 3, 0x006AFEE0), Read (slot 4, 0x006AFFE0), GetGZCLSID (slot 5) (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::Init"
+address = 0x006B2960
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4FloraSimulator* this)"
+expect = "83 EC 1C 53 56 8B F1 8A"
+source = "Name ours. cISC4FloraSimulator slot 3: types once, messages, services, the occupant filter, the city's size, the tract walk unless loaded, the type 0 record, the tuning, the cheat code, saved obliterated flora (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::Shutdown"
+address = 0x006AFDA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4FloraSimulator* this)"
+expect = "53 57 8B F9 8A 47 0C 33"
+source = "Name ours. cISC4FloraSimulator slot 4: dying trees removed, the cheat code, services and messages released (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::LoadOccupants"
+address = 0x006B0660
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4FloraSimulator* this, cIGZPersistDBSegment* segment)"
+expect = "83 EC 14 8B 44 24 18 53"
+source = "Name ours. Flora saved by slot 24 (records C9BB3FC6-C9BB3FC7-1 count, C9BB3FC6-4A664F83-i occupants) back into the occupant manager (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::SetEnabled"
+address = 0x006B19E0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FloraSimulator* this, bool enabled)"
+expect = "51 8A 44 24 08 55 8B E9"
+source = "Name ours. +0x2C; turning flora off demolishes every tree (the cheat \"Flora off\") (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::FilterIncludes"
+address = 0x006AFD10
+kind = "function"
+convention = "thiscall"
+signature = "bool (OccupantFilter* this, cISC4Occupant* occupant)"
+expect = "56 8B 74 24 08 8B 06 8B"
+source = "Name ours. The flora occupant filter (+0x28, vtable 0x00AB1374 slot 3): flora and three other occupant types, and props of some kinds (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::FilterVtable"
+address = 0x00AB1374
+kind = "data"
+source = "Name ours. The flora occupant filter's vtable (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::FilterVtable2"
+address = 0x00AB135C
+kind = "data"
+source = "Name ours. The flora occupant filter's second vtable (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::Name"
+address = 0x00A898AC
+kind = "data"
+source = "The string \"cSC4FloraSimulator\", its name with the simulator service (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::PlaceFloraCommand"
+address = 0x00AB1428
+kind = "data"
+source = "The string \"PlaceFlora\", the command registered for message 0xAB99A64B (docs/flora.md)."
+
+[[entry]]
+name = "cSC4FloraSimulator::CheatName"
+address = 0x00B0D2A0
+kind = "data"
+source = "Name ours. char* to \"Flora\", the cheat code registered as 0x095BDC9C (docs/flora.md)."
+
+[[entry]]
+name = "SC4::CheatCodes"
+address = 0x00B43CAC
+kind = "data"
+source = "Name ours. The cheat code service: slot 3 registers a code, slot 7 adds a target, slot 8 removes it, slot 4 unregisters (docs/flora.md)."
+
+[[entry]]
+name = "SC4::Commands"
+address = 0x00B43CB0
+kind = "data"
+source = "Name ours. The command service: slot 6 registers a command by message and name, slot 9 unregisters (docs/flora.md)."
+
+[[entry]]
+name = "SC4::Service43DAC"
+address = 0x00B43DAC
+kind = "data"
+source = "Name ours. A service the flora simulator keeps at +0x18 (docs/flora.md)."
 
 [[entry]]
 name = "SC4BitVector::Resize"
