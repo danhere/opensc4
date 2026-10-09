@@ -89,17 +89,26 @@ std::unique_ptr<FileSource> FileSource::Open(const std::string& path)
         std::fclose(file);
         return nullptr;
     }
-    return std::unique_ptr<FileSource>(new FileSource(file, static_cast<uint64_t>(size)));
+    return std::unique_ptr<FileSource>(new FileSource(path, file, static_cast<uint64_t>(size)));
 }
 
 FileSource::~FileSource()
 {
-    std::fclose(file_);
+    Release();
+}
+
+void FileSource::Release()
+{
+    if (file_)
+        std::fclose(file_);
+    file_ = nullptr;
 }
 
 bool FileSource::Read(uint64_t offset, std::span<uint8_t> out)
 {
     if (offset > size_ || out.size() > size_ - offset)
+        return false;
+    if (!file_ && !(file_ = OpenRead(path_)))
         return false;
     if (Seek(file_, static_cast<int64_t>(offset), SEEK_SET) != 0)
         return false;
