@@ -202,7 +202,8 @@ void MoveIn(const Day& day)
 // that a neighbour connection went, of a fire, a pipe burst, a tornado and
 // disasters near it, of its home added, of its job's building replaced,
 // and changes job to the same one (cISC4MySim slots 38, 39, 54, 43, 49,
-// 45-48, 42, 41, 44, 7, 8; docs/mysim-agents.md).
+// 45-48, 42, 41, 44, 7, 8; docs/mysim-agents.md). Not the balloon target
+// (+0 slots 9-11): the original crashes making one unattended.
 void Drive(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_MYSIM_DRIVE") || !game::IsBuild641())
