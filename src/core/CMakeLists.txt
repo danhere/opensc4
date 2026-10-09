@@ -29,6 +29,8 @@ add_library(opensc4_core SHARED
   d3d7_probe.cpp
   dbpf_survey.cpp
   gdriver_proxy.cpp
+  landvalue_object.cpp
+  landvalue_sim.cpp
   pollution_buildings.cpp
   pollution_effects.cpp
   pollution_init.cpp
@@ -38,9 +40,12 @@ add_library(opensc4_core SHARED
   pollution_tuning.cpp
   power_object.cpp
   power_sim.cpp
+  traffic_object.cpp
   traffic_pathfinder.cpp
   traffic_sim.cpp
   traffic_tuning.cpp
+  traffic_water.cpp
+  traffic_walks.cpp
   water_object.cpp
   water_sim.cpp
   aura_init.cpp

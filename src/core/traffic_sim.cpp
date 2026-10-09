@@ -2396,7 +2396,7 @@ uint8_t __fastcall Phase13(void* self, void*, void* deadline)
     FirstCall("Phase13", logged);
     if (!reinterpret_cast<WalkFn>(addr::cSC4TrafficSimulator_WalkCells13)(self, deadline, At<void*>(self, 0x818)))
         return 0;
-    reinterpret_cast<FinishFn>(addr::SC4TrafficZones_Finish)(static_cast<char*>(self) + 0x70, static_cast<char*>(self) + 0x64);
+    reinterpret_cast<FinishFn>(addr::SC4TrafficZones_Assign)(static_cast<char*>(self) + 0x70, static_cast<char*>(self) + 0x64);
     return 1;
 }
 
@@ -4521,7 +4521,7 @@ void __fastcall CityInited(void* object, void*)
                 break;
         }
     }
-    reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4TrafficZones_Finish)(self + 0x70, self + 0x64);
+    reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4TrafficZones_Assign)(self + 0x70, self + 0x64);
     if (At<uint32_t>(self, field::kPhase) == 12 || At<uint32_t>(self, field::kPhase) == 13)
         At<uint32_t>(self, field::kPhase) = 8;
     {

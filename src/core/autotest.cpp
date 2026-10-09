@@ -793,12 +793,26 @@ private:
             std::snprintf(trafficText, sizeof trafficText, " | traffic %08X %08X %08X %08X", slot(14), slot(15),
                           slot(18), slot(27));
         }
+        // Land value (the total grid is in the main line): the intrinsic and
+        // slope grids, the average land value, the mode and average altitude
+        // (float bits) and the step's state (+0x78, +0x38; docs/landvalue.md).
+        char landText[96] = "";
+        if (land && game::IsBuild641()) {
+            const float mode = land->GetModeAltitude();
+            uint32_t modeBits, altitudeBits;
+            std::memcpy(&modeBits, &mode, sizeof modeBits);
+            std::memcpy(&altitudeBits, reinterpret_cast<const char*>(land) + 0x78, sizeof altitudeBits);
+            std::snprintf(landText, sizeof landText, " | lv %08X %08X avg %u mode %08X alt %08X st %d",
+                          GridChecksum(land->GetIntrinsicLandValueMap()), GridChecksum(land->GetSlopeMap()),
+                          land->GetAverageLandValue(), modeBits, altitudeBits,
+                          *reinterpret_cast<const int32_t*>(reinterpret_cast<const char*>(land) + 0x38));
+        }
         char rng[256];
         rng_trace::Describe(rng, sizeof rng);
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
         log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s",
+                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s",
                    day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
                    lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
                    traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
@@ -809,7 +823,7 @@ private:
                    pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
                    worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText,
-                   waterText, auraText, trafficText, ticks, rng);
+                   waterText, auraText, trafficText, landText, ticks, rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,
