@@ -71,6 +71,7 @@ Parity method (from P4): short-window exact comparison against the original from
 - [x] Fire and police ([docs/fire-police.md](docs/fire-police.md)): the shared protection base, fire, police (jails, crimes, jailbreaks, strikes) and the fire plane and police helicopter dispatch sources are replaceable (`simulators.protection.{base,sources}`, `simulators.fire.sim`, `simulators.police.sim`; about 140 functions). Parity with everything on: 11 of 12 and 3 of 3 for a week, 1 of 2 for 90 days (the others partly, single B runs off outside fire and police under load), and 2 of 2 for 40 days with strikes and a jailbreak forced by `OPENSC4_TEST_PROTECTION`. Not ours yet: the constructors, destructors and factories (our own objects).
 - [ ] Coverage sims (health, education)
 - [ ] Land value
+- [x] Ordinances ([docs/ordinance.md](docs/ordinance.md)): the simulator, cSC4OrdinanceSimple and its 20 derived classes are ours (`simulators.ordinance.*`), with our own objects under all 22 class IDs. Parity: 10 of 12 for 35 days (the other two noisy for the original too), 8 of 12 with every ordinance enacted, cycled and repealed (the ordinance state identical in every run), 3 of 3 on the plopped corpus, 1 of 2 for a year.
 
 ## P6: Economy simulators
 
