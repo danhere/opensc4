@@ -563,6 +563,19 @@ private:
                     log::Write("autotest: crime month restarted on day %d", day);
                 }
         }
+        // OPENSC4_TEST_FLORA_MONTH=<n>: every n days of the run, the flora
+        // simulator's monthly pass, as MonthPassed does (the date into +0x40,
+        // then 0x006B2CB0; cSC4FloraSimulator, build 641) (docs/flora.md).
+        if (const int every = EnvInt("OPENSC4_TEST_FLORA_MONTH", -1); every > 0 && self->runDays_ >= 0 &&
+                                                                     game::IsBuild641()) {
+            const int into = day - (self->endDay_ - self->runDays_);
+            if (into > 0 && into % every == 0)
+                if (void* const flora = city->GetFloraSimulator()) {
+                    static_cast<int32_t*>(flora)[0x40 / 4] = day;
+                    reinterpret_cast<void(__thiscall*)(void*)>(addr::cSC4FloraSimulator_OnMonth)(flora);
+                    log::Write("autotest: flora month on day %d", day);
+                }
+        }
         // OPENSC4_TEST_OCCUPANT_CYCLE=<n>: on the n-th day, hand the water and
         // power simulators "removed" then "added" for an existing pipe and
         // pole (messages 0x99EF1143, 0x99EF1142), and power the plant
@@ -849,6 +862,36 @@ private:
                               set, visuals, sim, prop);
             }
         }
+        // Flora: every flora occupant (occupant manager slot 39, type
+        // 0x74758926): count, and a checksum of each one's type, birth and
+        // last seeding dates, state, orientation (cISC4FloraOccupant slots
+        // 4, 6, 8, 10, 12) and position (docs/flora.md).
+        char floraText[64] = " | flora none";
+        if (void* const occupants = Virtual<void*>(city, 0x88); occupants && game::IsBuild641()) {
+            void** const sentinel = static_cast<void**>(Virtual<void*>(ListNodeAllocator(), 0xC, 0xCu));
+            sentinel[0] = sentinel;
+            sentinel[1] = sentinel;
+            void* head = sentinel;
+            Virtual<uint8_t>(occupants, 0x9C, &head, 0u, 0u, 0x74758926u, -1);
+            uint32_t count = 0, sum = 0;
+            for (void** node = static_cast<void**>(sentinel[0]); node != sentinel; node = static_cast<void**>(node[0])) {
+                void* const occupant = node[2];
+                void* flora = nullptr;
+                if (!Virtual<uint8_t>(occupant, 0x0, 0xC83DD057u, &flora) || !flora)
+                    continue;
+                float position[3] = {};
+                Virtual<uint32_t>(occupant, 0x20, position);
+                const uint32_t values[5] = {Virtual<uint32_t>(flora, 0x10), Virtual<uint32_t>(flora, 0x18),
+                                            Virtual<uint32_t>(flora, 0x20), Virtual<uint32_t>(flora, 0x28),
+                                            Virtual<uint32_t>(flora, 0x30)};
+                sum = sum * 31 + BytesChecksum(values, sizeof values) * 7 + BytesChecksum(position, sizeof position);
+                ++count;
+                Virtual<uint32_t>(flora, 0x8);
+            }
+            Virtual<uint8_t>(occupants, 0xC0, &head);
+            reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4List_Destroy2)(&head);
+            std::snprintf(floraText, sizeof floraText, " | flora %u %08X", count, sum);
+        }
         // Traffic (build 641 slots): trip scale and the one shown (14, 15),
         // last month's income (18) and the freight scaling (27), as float bits.
         char trafficText[96] = "";
@@ -882,7 +925,7 @@ private:
         char ticks[64];
         fixed_ticks::Describe(ticks, sizeof ticks);
         log::Write("fp: day %d pop %d funds %lld lots %d | congestion %08X trips %08X commercial %08X airtraffic "
-                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s",
+                   "%08X | landvalue %08X | pollution %08X %08X %08X | worst %u,%u=%d %u,%u=%d %u,%u=%d fx %08X%s%s%s%s%s%s%s%s%s",
                    day, res ? res->GetPopulation() : -1, budget ? static_cast<long long>(budget->GetTotalFunds()) : -1LL,
                    lots ? lots->GetLotCount() : -1, traffic ? GridChecksum(traffic->GetCongestionMap()) : 0u,
                    traffic ? GridChecksum(traffic->GetTripLengthMap()) : 0u,
@@ -893,7 +936,7 @@ private:
                    pollution ? GridChecksum(pollution->GetPollutionGrid(1)) : 0u,
                    pollution ? GridChecksum(pollution->GetPollutionGrid(2)) : 0u, worstX[0], worstZ[0], worstValue[0],
                    worstX[1], worstZ[1], worstValue[1], worstX[2], worstZ[2], worstValue[2], effectRandom, powerText,
-                   waterText, auraText, crimeText, trafficText, landText, ticks, rng);
+                   waterText, auraText, crimeText, floraText, trafficText, landText, ticks, rng);
     }
 
     // OPENSC4_TEST_SAVE=1. cISC4App::SaveCity(path, fastSave) (slot 15,
