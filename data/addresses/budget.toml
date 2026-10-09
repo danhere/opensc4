@@ -506,3 +506,147 @@ kind = "function"
 convention = "thiscall"
 expect = "51 55 8B 6C 24 0C 85 ED"
 source = "Name ours. Frees the budget group map's nodes below a node, each record's name and set. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::vftable"
+address = 0x00AB0EB0
+kind = "vtable"
+expect = "C0 96 6A 00 A0 64 46 00"
+source = "Primary vtable: cISC4DepartmentBudget, 34 slots in gzcom-dll's order, then the scalar deleting destructor (slot 34). simulators.budget.department swaps its slots (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::vftable_4"
+address = 0x00AB0E94
+kind = "vtable"
+expect = "90 AC 6A 00 70 22 6C 00"
+source = "The vtable of the cIGZSerializable interface at +0x4: slot 3 Write 0x006A9D70, 4 Read 0x006AC1D0, 5 GetGZCLSID 0x006A96B0 (docs/budget.md)."
+
+[[entry]]
+name = "cSC4LineItem::vftable"
+address = 0x00AB0F58
+kind = "vtable"
+expect = "D0 97 6A 00 30 98 6A 00"
+source = "Primary vtable: cISC4LineItem, 20 slots in gzcom-dll's order, then the scalar deleting destructor (slot 20). simulators.budget.lineitem swaps its slots (docs/budget.md)."
+
+[[entry]]
+name = "cSC4LineItem::vftable_4"
+address = 0x00AB0F3C
+kind = "vtable"
+expect = "50 AF 6A 00 60 AF 6A 00"
+source = "The vtable of the cIGZSerializable interface at +0x4: slot 3 Write 0x006A9AA0, 4 Read 0x006A9B60, 5 GetGZCLSID 0x006A97C0 (docs/budget.md)."
+
+[[entry]]
+name = "cSC4LineItem::cSC4LineItem"
+address = 0x006AAE20
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 C7 46 04 84"
+source = "The line item's constructor (0x68 bytes), from CreateLineItem and the class factory 0x006AB7A0 (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::SetFunding"
+address = 0x006AB810
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 44 24 0C 55"
+source = "Name ours. (fraction*, line, share): the funding clamped to the minimum and the maximum, each city-funded expense line's current expense from it; the local shares again if asked; message 0x08DAC3E7. Behind slot 11 (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::ShareLocalFunding"
+address = 0x006AB340
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. Shares the department's funding out over its locally funded objects, each up to the maximum, and writes each object's funding and its line's current expense (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::RecountLocalLine"
+address = 0x006AB1E0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. (line): a local expense line's current expense again from its objects' budget items (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::Announce"
+address = 0x006A98D0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 81 FB E7"
+source = "Name ours. (message, value): tells the budget simulator (slot 33 for 0x08DAC3E7, 32 for 0x08DAC3E8) and posts the message (docs/budget.md)."
+
+[[entry]]
+name = "cSC4DepartmentBudget::AnnounceNeededFunding"
+address = 0x006A9980
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 0D 64 3D"
+source = "Name ours. Budget simulator slot 32 and message 0x08DAC3E8 for the department; from the line items when an expense or income changes (docs/budget.md)."
+
+[[entry]]
+name = "LocalFundingSet::Insert"
+address = 0x006AA700
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 10 8B D9"
+source = "Name ours. insert into a std::set of (holder, purpose) pairs: (result pair, key). Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "LocalFundingSet::Find"
+address = 0x006A9D10
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 57 8B 39"
+source = "Name ours. find in a std::set of (holder, purpose) pairs: the node or the header. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "LocalFundingSet::EraseNodes"
+address = 0x006A9C90
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a (holder, purpose) set's nodes below a node. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "LineItemMap::EraseNodes"
+address = 0x006A9C50
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a department's line item map's nodes below a node. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "LocalShareVector::InsertN"
+address = 0x006AAA80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B D9 8B 43"
+source = "Name ours. Inserts n copies of a 0x40-byte record, growing the vector. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "Int64Map::At"
+address = 0x006AAF80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 56 8B 31 8B"
+source = "Name ours. operator[] of a std::map<uint32, int64>: the value, inserted as 0 if missing. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "Int64Map::EraseNodes"
+address = 0x006A9CD0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a std::map<uint32, int64>'s nodes below a node. Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::MinFunding"
+address = 0x00B49030
+kind = "data"
+source = "Name ours. A float (zero in .bss) the department funding is clamped up to (docs/budget.md)."
+
+[[entry]]
+name = "Budget::FullFunding"
+address = 0x00B0D284
+kind = "data"
+source = "Name ours. The float 1.0 a department gets when its last locally funded object goes, or when its needs are zero (docs/budget.md)."
