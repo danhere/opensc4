@@ -56,3 +56,127 @@ name = "Budget::OneTwelfth"
 address = 0x00AB08B0
 kind = "data"
 source = "double 1/12: the yearly interest rate to a monthly one (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::NotifyFunds"
+address = 0x0068FE10
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 47 1C 85 C0"
+source = "Name ours. Message 0x0772FAD4 (funds changed, the simulator twice) through the message server at +0x1C, when there is one. Message 0x66956810 calls it too. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::MonthPassed"
+address = 0x00692510
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C 56 8B F1 8B 46"
+source = "Name ours. Message 0x66956816: taxes (CollectTaxes), incomes and expenses (+0x24, the month end service, the departments), the bonds, the funds, the charts, the year's end, the end-game message 0xAA5CF1E3. Reimplemented by simulators.budget.month. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::CollectTaxes"
+address = 0x00691E20
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. The month's taxes over every lot with a paying building: assessed values by tax group (+0xE0) and the month's tax by group (+0xE8); returns the total. Reimplemented by simulators.budget.month. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::PublishTaxRates"
+address = 0x006900F0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 33 F6 8D 79 70"
+source = "Name ours. Message 0x66956814: the 12 tax rates x 10, rounded, to the figures service (ids 0xAABAAA9F + group). Reimplemented by simulators.budget.month. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::SetStartingFunds"
+address = 0x00690450
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 18 8B 01"
+source = "Name ours. Message 0x26D31EC4: the funds from the table at +0x790 by the level (+0x18's slot 24). Reimplemented by simulators.budget.month. (docs/budget.md)."
+
+[[entry]]
+name = "cSC4BudgetSimulator::SetStartingTaxRates"
+address = 0x00690490
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 8D 7E 70"
+source = "Name ours. Message 0x26D31EC4: every group's rate from the table at +0x820 by the level. Reimplemented by simulators.budget.month. (docs/budget.md)."
+
+[[entry]]
+name = "DoubleVector::Assign"
+address = 0x00691500
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. vector<double>::assign(count, value). Generic container code. (docs/budget.md)."
+
+[[entry]]
+name = "CRT::atoi64"
+address = 0x0090FC6F
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "The C runtime's _atoi64. The budget's funds cheat parses its argument with it. (docs/budget.md)."
+
+[[entry]]
+name = "Budget::TaxGroupTable"
+address = 0x00AB0840
+kind = "data"
+source = "int16[]: the tax group (0-11, -1 none) by zone + 4 x the building's wealth (docs/budget.md)."
+
+[[entry]]
+name = "Budget::RoundingMagic"
+address = 0x00AB0888
+kind = "data"
+source = "float 12582912 (1.5 x 2^23): added and stored as float to round to the nearest integer (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Ten"
+address = 0x00A94D50
+kind = "data"
+source = "float 10 (docs/budget.md)."
+
+[[entry]]
+name = "Budget::OneTwelfthFloat"
+address = 0x00A949DC
+kind = "data"
+source = "float 1/12: the bonds' monthly interest from the yearly rate (docs/budget.md)."
+
+[[entry]]
+name = "Budget::CheatRandom"
+address = 0x00B47B78
+kind = "data"
+source = "The random generator object the fundraiser cheat draws from (SC4Random::Unit) (docs/budget.md)."
+
+[[entry]]
+name = "SC4::Service43D3C"
+address = 0x00B43D3C
+kind = "data"
+source = "Name ours. Global pointer to the disaster service: slot 7 by disaster ID, then the disaster's slot 6 (x, z) starts it (docs/budget.md)."
+
+[[entry]]
+name = "Budget::FundraiserStep"
+address = 0x00A94D54
+kind = "data"
+source = "float 0.2: the fundraiser cheat's riot chance is 1 - 1 / (0.2 n + 1) (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Quarter"
+address = 0x00AA74E8
+kind = "data"
+source = "double 0.25 (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Eighth"
+address = 0x00A867A8
+kind = "data"
+source = "float 0.125 (docs/budget.md)."
+
+[[entry]]
+name = "Budget::Three"
+address = 0x00A85074
+kind = "data"
+source = "float 3 (docs/budget.md)."
