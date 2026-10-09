@@ -24,6 +24,12 @@ add_library(opensc4_core SHARED
   crime_object.cpp
   crime_step.cpp
   crime_tuning.cpp
+  flora_growth.cpp
+  flora_messages.cpp
+  flora_object.cpp
+  flora_place.cpp
+  flora_sim.cpp
+  flora_types.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp
