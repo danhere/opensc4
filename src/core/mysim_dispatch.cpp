@@ -10,7 +10,10 @@
 //     neighbour connection +0x14/+0x18, in the city +0x1C, work +0x1D);
 //   simulators.mysim_agents.dispatch_trip: starting a trip (the places to
 //     go, a deque at +0x160), home, destination, model keys, Clear, Reset
-//     and Shutdown.
+//     and Shutdown;
+//   simulators.mysim_agents.dispatch_route: the route (a deque of 3-byte
+//     cells at +0x128: x, z, kind; the segment in hand is +0x30 to +0x2C),
+//     snapping a place to a road, and a destination outside the city.
 //
 // The deque and map helpers it uses stay the game's.
 #include "core/address_check.h"
@@ -990,6 +993,280 @@ const bool g_tripRegistered = registry::Register({
     "Our cSC4MySimDispatch trip start, home, destination, Clear, Reset and Shutdown (docs/mysim-agents.md)",
     false,
     InstallTrip,
+});
+
+// --- Route ------------------------------------------------------------------------------
+
+struct CellIterator {
+    uint8_t* cur;
+    uint8_t* first;
+    uint8_t* last;
+    uint8_t** node;
+};
+
+uint8_t* CellAt(char* self, int32_t index)
+{
+    CellIterator it = *reinterpret_cast<CellIterator*>(self + field::kRoute);
+    reinterpret_cast<void(__thiscall*)(CellIterator*, int32_t)>(addr::SC4CellIterator_Advance)(&it, index);
+    return it.cur;
+}
+
+int32_t RouteSize(char* self)
+{
+    return reinterpret_cast<int32_t(__thiscall*)(void*)>(addr::SC4CellDeque_Size)(self + field::kRoute);
+}
+
+int32_t& SegmentStart(char* self)
+{
+    return At<int32_t>(self, 0x30);
+}
+
+int32_t& SegmentEnd(char* self)
+{
+    return At<int32_t>(self, 0x2C);
+}
+
+uint8_t __fastcall ReachedStop(char* self, void*)
+{
+    void* const network = Global<void*>(addr::SC4_Service43D54);
+    if (SegmentStart(self) >= SegmentEnd(self))
+        return 0;
+    do {
+        const uint8_t* const cell = CellAt(self, SegmentStart(self));
+        if (Virtual<int32_t>(network, 0x20, uint32_t{cell[0]}, uint32_t{cell[1]}, uint32_t{0x1FCF}, uint32_t{0}))
+            return 1;
+        ++SegmentStart(self);
+    } while (SegmentStart(self) < SegmentEnd(self));
+    return 0;
+}
+
+void __fastcall AdvanceRoute(char* self, void*)
+{
+    for (;;) {
+        SegmentStart(self) = SegmentEnd(self);
+        const int32_t size = RouteSize(self);
+        const uint32_t kind = CellAt(self, SegmentEnd(self))[2];
+        if (size > SegmentEnd(self)) {
+            for (;;) {
+                const int32_t at = SegmentEnd(self);
+                if (CellAt(self, at)[2] != kind)
+                    break;
+                SegmentEnd(self) = at + 1;
+                if (!(size > at + 1))
+                    break;
+            }
+        }
+        if (reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::cSC4MySimDispatch_ReachedStop)(self))
+            return;
+        if (SegmentStart(self) != SegmentEnd(self) || kind == 0xFE || !(SegmentStart(self) < size))
+            return;
+    }
+}
+
+uint8_t __fastcall HasRouteAhead(char* self, void*)
+{
+    if (SegmentStart(self) >= SegmentEnd(self))
+        return 0;
+    reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_AdvanceRoute)(self);
+    if (SegmentStart(self) >= SegmentEnd(self))
+        return 0;
+    return CellAt(self, SegmentStart(self))[2] != 0xFE ? 1 : 0;
+}
+
+uint8_t __fastcall CopyRoute(char* self, void*, char* out, uint32_t append)
+{
+    if (!static_cast<uint8_t>(append))
+        reinterpret_cast<ThisFn>(addr::SC4CellDeque_Clear)(out);
+    int32_t count = 0;
+    for (int32_t at = SegmentStart(self); at < SegmentEnd(self); ++at, ++count) {
+        const uint8_t* const cell = CellAt(self, at);
+        auto& end = *reinterpret_cast<CellIterator*>(out + 0x10);
+        if (end.cur != end.last - 3) {
+            if (end.cur) {
+                end.cur[0] = cell[0];
+                end.cur[1] = cell[1];
+                end.cur[2] = cell[2];
+            }
+            end.cur += 3;
+        } else {
+            reinterpret_cast<void(__thiscall*)(void*, const uint8_t*)>(addr::SC4RouteDeque_PushBackSlow)(out, cell);
+        }
+    }
+    return count > 0 ? 1 : 0;
+}
+
+// The place moved to a road cell of its lot (the route's next cell if it
+// is one of them).
+uint8_t __fastcall SnapToRoad(char* self, void*, Place* place)
+{
+    void* const network = Global<void*>(addr::SC4_Service43D54);
+    if (Virtual<int32_t>(network, 0x20, place->cellX, place->cellZ, uint32_t{0x849}, uint32_t{0}))
+        return 1;
+    int32_t rect[4];
+    reinterpret_cast<int32_t*(__thiscall*)(void*, int32_t*, const Place*)>(addr::SC4MySimPlace_Rect)(self, rect,
+                                                                                                      place);
+    struct {
+        void** begin;
+        void** end;
+        void** capacity;
+    } roads{};
+    using FreeFn = void(__cdecl*)(void*);
+    if (!Virtual<uint8_t>(network, 0x64, &roads, rect, uint32_t{1}, uint32_t{1}, uint32_t{0x849})) {
+        if (roads.begin)
+            reinterpret_cast<FreeFn>(addr::SC4_Free)(roads.begin);
+        return 0;
+    }
+    void* chosen = nullptr;
+    char* const route = self + field::kRoute;
+    if (At<char*>(route, 0x10) != At<char*>(route, 0) && SegmentStart(self) <= SegmentEnd(self) &&
+        static_cast<uint32_t>(SegmentStart(self)) < static_cast<uint32_t>(RouteSize(self))) {
+        const int32_t index = SegmentStart(self);
+        using AtFn = uint8_t*(__thiscall*)(void*, int32_t);
+        const int32_t x = reinterpret_cast<AtFn>(addr::SC4CellDeque_At)(route, index)[0];
+        const int32_t z = reinterpret_cast<AtFn>(addr::SC4CellDeque_At)(route, index)[1];
+        const int32_t count = static_cast<int32_t>(roads.end - roads.begin);
+        for (int32_t i = 0; i < count; ++i) {
+            int32_t cellX;
+            int32_t cellZ;
+            Virtual<void>(roads.begin[i], 0xEC, &cellX, &cellZ);
+            if (cellX == x && cellZ == z) {
+                chosen = roads.begin[i];
+                break;
+            }
+        }
+    }
+    if (!chosen)
+        chosen = roads.begin[0];
+    int32_t cellX;
+    int32_t cellZ;
+    Virtual<void>(chosen, 0xEC, &cellX, &cellZ);
+    place->cellX = cellX;
+    place->x = static_cast<float>(cellX << 4);
+    place->cellZ = cellZ;
+    place->z = static_cast<float>(cellZ << 4);
+    for (void** at = roads.end; at != roads.begin;) {
+        --at;
+        Virtual<uint32_t>(*at, 0x8);
+        roads.end = at;
+    }
+    if (roads.begin)
+        reinterpret_cast<FreeFn>(addr::SC4_Free)(roads.begin);
+    return 1;
+}
+
+// A way from home to the place found by the route view: a neighbour
+// connection outside the city, or the building on the lot it ends at.
+uint8_t __fastcall PlanOutside(char* self, void*, Place* place)
+{
+    reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_ClearRoute)(self);
+    Place empty;
+    Construct(&empty, nullptr);
+    reinterpret_cast<void(__thiscall*)(Place*, const Place*)>(addr::SC4MySimPlace_Assign)(place, &empty);
+    place->work = 1;
+    if (!((At<uint32_t>(self, field::kFlags) >> 7) & 1))
+        return 0;
+    void* const view = At<void*>(self, field::kRouteView);
+    Virtual<void>(view, 0x14, uint32_t{1});
+    Virtual<void>(At<void*>(self, field::kRouteView), 0x14, uint32_t{0x10});
+    Virtual<void>(At<void*>(self, field::kRouteView), 0x24, uint32_t{0});
+    char* const owner = At<char*>(self, field::kOwner);
+    uint32_t mode = 1;
+    switch (Virtual<int32_t>(owner + 0xB8, 0x4C)) {
+    case 2:
+        mode = 2;
+        break;
+    case 3:
+        mode = 4;
+        break;
+    default:
+        break;
+    }
+    Virtual<void>(At<void*>(self, field::kRouteView), 0x28, mode);
+    Virtual<void>(At<void*>(self, field::kRouteView), 0x48, uint32_t{1});
+    struct Rect {
+        int32_t v[4];
+    } home;
+    reinterpret_cast<int32_t*(__thiscall*)(void*, int32_t*, const void*)>(addr::SC4MySimPlace_Rect)(
+        self, home.v, self + field::kHome);
+    Virtual<void>(At<void*>(self, field::kRouteView), 0x4C, home);
+    Virtual<void>(At<void*>(self, field::kRouteView), 0x34, uint32_t{0x1CF}, uint32_t{1});
+    if (Virtual<int32_t>(At<void*>(self, field::kRouteView), 0x5C) != 1)
+        return 0;
+    int32_t x;
+    int32_t z;
+    Virtual<void>(At<void*>(self, field::kRouteView), 0x6C, &x, &z);
+    void* const city = Global<void*>(addr::SC4_City);
+    if (!Virtual<uint8_t>(city, 0x18C, x, z)) {
+        void* const connection = Virtual<void*>(Global<void*>(addr::SC4_MonthEndService), 0x30, x, z);
+        if (!connection)
+            return 0;
+        if (x < 0)
+            x = 0;
+        if (z < 0)
+            z = 0;
+        if (x >= Virtual<int32_t>(city, 0x174))
+            x = Virtual<int32_t>(city, 0x174) - 1;
+        if (z >= Virtual<int32_t>(city, 0x178))
+            z = Virtual<int32_t>(city, 0x178) - 1;
+        place->local = 0;
+        if (void* const old = place->object) {
+            place->object = nullptr;
+            Release(old);
+        }
+        reinterpret_cast<void(__thiscall*)(Place*, int32_t, int32_t)>(addr::SC4MySimPlace_Clear)(place, x, z);
+        Virtual<void>(connection, 0x14, &place->connection[0], &place->connection[1]);
+        return 1;
+    }
+    void* const lot = Virtual<void*>(Global<void*>(addr::SC4_LotManager), 0x18, x, z, uint32_t{0});
+    if (!lot)
+        return 0;
+    void* const building = Virtual<void*>(lot, 0xC0);
+    if (!building)
+        return 0;
+    Place before;
+    CopyPlace(reinterpret_cast<char*>(&before), place);
+    reinterpret_cast<uint8_t(__thiscall*)(Place*, void*)>(addr::SC4MySimPlace_SetOccupant)(
+        place, Virtual<void*>(building, 0xC));
+    place->work = before.work;
+    place->local = 1;
+    Release(before.object);
+    return 1;
+}
+
+bool InstallRoute(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* originals[8] = {};
+    const struct {
+        std::uintptr_t address;
+        void* ours;
+    } hooks[] = {
+        {addr::cSC4MySimDispatch_ReachedStop, reinterpret_cast<void*>(&ReachedStop)},
+        {addr::cSC4MySimDispatch_AdvanceRoute, reinterpret_cast<void*>(&AdvanceRoute)},
+        {addr::cSC4MySimDispatch_HasRouteAhead, reinterpret_cast<void*>(&HasRouteAhead)},
+        {addr::cSC4MySimDispatch_CopyRoute, reinterpret_cast<void*>(&CopyRoute)},
+        {addr::cSC4MySimDispatch_SnapToRoad, reinterpret_cast<void*>(&SnapToRoad)},
+        {addr::cSC4MySimDispatch_PlanOutside, reinterpret_cast<void*>(&PlanOutside)},
+    };
+    static_assert(sizeof(hooks) / sizeof(hooks[0]) <= sizeof(originals) / sizeof(originals[0]));
+    for (std::size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); ++i) {
+        const addr::Entry* found = addr_check::Find(hooks[i].address);
+        if (!found || !hook::Install(*found, hooks[i].ours, &originals[i]))
+            return false;
+    }
+    return true;
+}
+
+const bool g_routeRegistered = registry::Register({
+    "simulators.mysim_agents.dispatch_route",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySimDispatch_AdvanceRoute,
+    "Our cSC4MySimDispatch route segments, road snapping and destinations outside the city (docs/mysim-agents.md)",
+    false,
+    InstallRoute,
 });
 
 bool InstallState(registry::Mode)

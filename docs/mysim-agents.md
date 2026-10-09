@@ -35,6 +35,7 @@ The cISC4MySim methods take the +0xB8 part as `this`; offsets in src/core/mysim_
 | `simulators.mysim_agents.dispatch_state` | cSC4MySimDispatch (src/core/mysim_dispatch.cpp), the object that takes a MySim from place to place: the state, flag and status setters and the events they post to the MySim (0x2BA06B99), Stop, HideLocation, the vehicle, the model lookups, the route reset, and the vtable's arrived and abort slots |
 | `simulators.mysim_agents.place` | SC4MySimPlace, a place a MySim is at or goes to (occupant, position, cell, neighbour connection): construct, copy, assign, compare, read, write, cell and lot rectangle, distance between two places |
 | `simulators.mysim_agents.dispatch_trip` | starting a trip (the places still to go, a deque at +0x160), home, destination, model keys, Clear, Reset and Shutdown |
+| `simulators.mysim_agents.dispatch_route` | the route (a deque of 3-byte cells: x, z, kind; the segment in hand runs from +0x30 to +0x2C): advancing to the next segment, stops, copying a segment, snapping a place to a road cell, a destination outside the city through a neighbour connection |
 
 Replacement code reads the MySim stopwatches through `sim_timers::Claim` first, so `determinism.sim_timers` takes them over as it would for the original code.
 
@@ -63,5 +64,7 @@ With the misc group as well (fourteen groups, 2026-10-09): `saves-mysim` 4 of 4,
 With the dispatch state and place groups as well (sixteen groups, 2026-10-09): `saves-mysim` 4 of 4, with the script commands on day 25 3 of 4 and the fourth partly (one run of ours one tick short on the commands day, every record and later day identical); the usual 12 with a MySim moving in 12 of 12. The dispatch object's deque and map helpers stay the game's.
 
 With the dispatch trip group as well (seventeen groups, 2026-10-09): `saves-mysim` 4 of 4, with the script commands 3 of 4 and one partly (one run of ours a tick short on one day, every record identical; the original shows such one-tick differences of its own in a run's first pair); the usual 12 with a MySim moving in 12 of 12.
+
+With the dispatch route group as well (eighteen groups, 2026-10-09): `saves-mysim` 3 of 4 and one partly, with the script commands 4 of 4, the usual 12 with a MySim moving in 11 of 12 and one partly; both partlies are the first pair's run of ours one tick short on one day with every record identical (the same counts, 1042/1041 and 843/842, appear in other batches with unrelated replacements).
 
 **A moved-in MySim does not always repeat.** It travels by car, and cars move on frame time ([traffic-map.md](traffic-map.md)), so when it arrives can differ between runs of the original; its state (and the advice it gives) then differs from that day. Judge MySim runs with travel by outcome sets.
