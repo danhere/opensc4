@@ -116,6 +116,11 @@ void TraceRead(char kind, const uint32_t* stack)
     std::fprintf(g_traceFile, "%c %08X %08X %08X\n", kind, found[0], found[1], found[2]);
 }
 
+// determinism.sim_timers (sim_timers.cpp): while a stopwatch it owns reads
+// the clock, the main thread's reads return its simulation-time counter.
+int64_t (*g_simTimerCounter)() = nullptr;
+bool g_simTimerRead = false;
+
 BOOL WINAPI VirtualQpc(LARGE_INTEGER* count)
 {
     if (GetCurrentThreadId() != g_mainThread) {
@@ -134,6 +139,10 @@ BOOL WINAPI VirtualQpc(LARGE_INTEGER* count)
         const BOOL ok = g_realQpc(count);
         count->QuadPart += g_offset;
         return ok;
+    }
+    if (g_simTimerRead && g_simTimerCounter) {
+        count->QuadPart = g_simTimerCounter();
+        return TRUE;
     }
     if (g_slicesOnly && !fixed_ticks::InSlice())
         return g_realQpc(count);
@@ -407,4 +416,19 @@ const bool g_registered = registry::Register({
 });
 
 } // namespace
+void SetSimTimerCounter(int64_t (*counter)())
+{
+    g_simTimerCounter = counter;
+}
+
+void SetSimTimerRead(bool on)
+{
+    g_simTimerRead = on;
+}
+
+int64_t QpcFrequency()
+{
+    return g_qpcFrequency;
+}
+
 } // namespace opensc4::virtual_clock

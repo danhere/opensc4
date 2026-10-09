@@ -30,4 +30,11 @@ void TraceEvent(char kind, const void* stack);
 // The real counter when the sites are not patched.
 uint64_t ReadTsc(const void* stack);
 
+// determinism.sim_timers: the counter the main thread's QueryPerformanceCounter
+// returns while SetSimTimerRead(true) (sim_timers.cpp), and the frequency the
+// game was told.
+void SetSimTimerCounter(int64_t (*counter)());
+void SetSimTimerRead(bool on);
+int64_t QpcFrequency();
+
 } // namespace opensc4::virtual_clock

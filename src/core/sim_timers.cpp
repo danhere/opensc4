@@ -1,0 +1,215 @@
+// determinism.sim_timers: the stopwatches the MySim agents read run on
+// simulation time (docs/experiments/determinism.md, "Simulation timers").
+//
+// An active MySim (cSC4MySim, cSC4MyStreetSim) acts on real-time timers: its
+// message handler does its work only when a GZStopwatch shows more than a
+// couple of milliseconds since the last time, and its advice balloons expire
+// by another (0x00552BD0, every 500 ms). Under the virtual clock those
+// stopwatches read a counter that advances with every clock read anywhere,
+// so how often a MySim acted depended on frame-level work and two runs of
+// the same save parted on the first day.
+//
+// Here a stopwatch read by that code (the caller's return address in the
+// MySim, dispatch or street-sim code, or in the balloon timer) is taken
+// over: from then on, every one of its clock reads returns a counter that
+// advances 10 ms per simulation tick (determinism.fixed_ticks' slice checks)
+// and nothing else. It is rebased when taken over if it was running. The
+// counter is read through the virtual clock (virtual_clock.h), from thunks
+// on the stopwatch methods that read the clock.
+#include "core/address_check.h"
+#include "core/fixed_ticks.h"
+#include "core/hook.h"
+#include "core/log.h"
+#include "core/registry.h"
+#include "core/virtual_clock.h"
+
+#include <opensc4/addresses.h>
+
+#include <windows.h>
+
+#include <cstdint>
+
+namespace opensc4::sim_timers {
+namespace {
+
+// Code whose stopwatches run on simulation time.
+constexpr struct {
+    uint32_t begin;
+    uint32_t end;
+} kOwners[] = {
+    {0x00424B00, 0x0042E300}, // cSC4MySim
+    {0x00433000, 0x00434800}, // cSC4MySimDispatch
+    {0x0043A050, 0x0043EBA0}, // cSC4MyStreetSim
+    {0x00552BD0, 0x00552D00}, // the MySim balloon timer
+};
+
+constexpr int kMaxOwned = 64;
+void* g_owned[kMaxOwned];
+int g_ownedCount = 0;
+DWORD g_mainThread = 0;
+bool g_read = false; // the flag virtual_clock checks (through SetSimTimerRead)
+
+int64_t Counter()
+{
+    const int64_t perTick = virtual_clock::QpcFrequency() / 100; // 10 ms
+    return virtual_clock::QpcFrequency() * 1000 + static_cast<int64_t>(fixed_ticks::Checks()) * perTick;
+}
+
+bool Owner(uint32_t address)
+{
+    for (const auto& range : kOwners)
+        if (address >= range.begin && address < range.end)
+            return true;
+    return false;
+}
+
+// Before a stopwatch method reads the clock: whether this stopwatch is ours
+// (taking it over when the caller is owning code), and if so the clock reads
+// that follow return the simulation counter.
+void* g_Elapsed = nullptr;
+
+void __cdecl Enter(void* stopwatch, uint32_t caller)
+{
+    if (!g_Elapsed)
+        g_Elapsed = fixed_ticks::ElapsedOriginal();
+    if (GetCurrentThreadId() != g_mainThread)
+        return;
+    bool owned = false;
+    for (int i = 0; i < g_ownedCount && !owned; ++i)
+        owned = g_owned[i] == stopwatch;
+    if (!owned) {
+        if (!Owner(caller) || g_ownedCount == kMaxOwned)
+            return;
+        g_owned[g_ownedCount++] = stopwatch;
+        auto* const start = reinterpret_cast<int64_t*>(static_cast<char*>(stopwatch) + 8);
+        if (*start != 0)
+            *start = Counter();
+        if (g_ownedCount <= 16)
+            log::Write("sim_timers: stopwatch %p (mode %d) on simulation time, first read from %08X", stopwatch,
+                       *static_cast<int*>(stopwatch), caller);
+    }
+    g_read = true;
+    virtual_clock::SetSimTimerRead(true);
+}
+
+void __cdecl Leave()
+{
+    if (g_read) {
+        g_read = false;
+        virtual_clock::SetSimTimerRead(false);
+    }
+}
+
+// A thunk per method: Enter with this and the return address, the original
+// called with copies of its stack arguments (Args of them), Leave, and back
+// with every register as the original left it (the float methods return in
+// ST0).
+#define SIM_TIMER_ENTER                                                                                                \
+    __asm push eax                                                                                                    \
+    __asm push ecx                                                                                                    \
+    __asm push edx                                                                                                    \
+    __asm push dword ptr [esp + 12]                                                                                   \
+    __asm push ecx                                                                                                    \
+    __asm call Enter                                                                                                  \
+    __asm add esp, 8                                                                                                  \
+    __asm pop edx                                                                                                     \
+    __asm pop ecx                                                                                                     \
+    __asm pop eax
+#define SIM_TIMER_LEAVE                                                                                                \
+    __asm push eax                                                                                                    \
+    __asm push ecx                                                                                                    \
+    __asm push edx                                                                                                    \
+    __asm call Leave                                                                                                  \
+    __asm pop edx                                                                                                     \
+    __asm pop ecx                                                                                                     \
+    __asm pop eax
+#define SIM_TIMER_THUNK0(name)                                                                                         \
+    void* g_##name = nullptr;                                                                                         \
+    __declspec(naked) void Thunk##name()                                                                              \
+    {                                                                                                                  \
+        SIM_TIMER_ENTER                                                                                               \
+        __asm call dword ptr [g_##name]                                                                               \
+        SIM_TIMER_LEAVE                                                                                               \
+        __asm ret                                                                                                     \
+    }
+#define SIM_TIMER_THUNK1(name)                                                                                         \
+    void* g_##name = nullptr;                                                                                         \
+    __declspec(naked) void Thunk##name()                                                                              \
+    {                                                                                                                  \
+        SIM_TIMER_ENTER                                                                                               \
+        __asm push dword ptr [esp + 4]                                                                                \
+        __asm call dword ptr [g_##name]                                                                               \
+        SIM_TIMER_LEAVE                                                                                               \
+        __asm ret 4                                                                                                   \
+    }
+#define SIM_TIMER_THUNK2(name)                                                                                         \
+    void* g_##name = nullptr;                                                                                         \
+    __declspec(naked) void Thunk##name()                                                                              \
+    {                                                                                                                  \
+        SIM_TIMER_ENTER                                                                                               \
+        __asm push dword ptr [esp + 8]                                                                                \
+        __asm push dword ptr [esp + 8]                                                                                \
+        __asm call dword ptr [g_##name]                                                                               \
+        SIM_TIMER_LEAVE                                                                                               \
+        __asm ret 8                                                                                                   \
+    }
+
+// ElapsedMilliseconds (its pointer is set on the first Enter).
+__declspec(naked) void ThunkElapsed()
+{
+    SIM_TIMER_ENTER
+    __asm call dword ptr [g_Elapsed]
+    SIM_TIMER_LEAVE
+    __asm ret
+}
+SIM_TIMER_THUNK1(Elapsed2)
+SIM_TIMER_THUNK1(Elapsed3)
+SIM_TIMER_THUNK2(Elapsed4)
+SIM_TIMER_THUNK1(Elapsed5)
+SIM_TIMER_THUNK0(Restart)
+SIM_TIMER_THUNK0(Start)
+SIM_TIMER_THUNK0(Stop)
+
+bool Install(registry::Mode)
+{
+    g_mainThread = GetCurrentThreadId();
+    virtual_clock::SetSimTimerCounter(&Counter);
+    const struct {
+        std::uintptr_t address;
+        void* thunk;
+        void** original;
+    } hooks[] = {
+        {addr::SC4Stopwatch_Elapsed2, reinterpret_cast<void*>(&ThunkElapsed2), &g_Elapsed2},
+        {addr::SC4Stopwatch_GetElapsed, reinterpret_cast<void*>(&ThunkElapsed3), &g_Elapsed3},
+        {addr::SC4Stopwatch_Elapsed4, reinterpret_cast<void*>(&ThunkElapsed4), &g_Elapsed4},
+        {addr::SC4Stopwatch_Elapsed5, reinterpret_cast<void*>(&ThunkElapsed5), &g_Elapsed5},
+        {addr::GZStopwatch_Start, reinterpret_cast<void*>(&ThunkRestart), &g_Restart},
+        {addr::SC4Stopwatch_Start, reinterpret_cast<void*>(&ThunkStart), &g_Start},
+        {addr::SC4Stopwatch_Stop, reinterpret_cast<void*>(&ThunkStop), &g_Stop},
+    };
+    for (const auto& h : hooks) {
+        const addr::Entry* found = addr_check::Find(h.address);
+        if (!found || !hook::Install(*found, h.thunk, h.original))
+            return false;
+    }
+    // ElapsedMilliseconds is fixed_ticks' hook (which this needs; either may
+    // install first); stopwatches it does not handle come here, and the
+    // original is looked up on the first call (Enter).
+    fixed_ticks::SetElapsedPass(reinterpret_cast<void*>(&ThunkElapsed));
+    log::Write("sim_timers: installed (MySim stopwatches on simulation time, 10 ms per tick)");
+    return true;
+}
+
+const bool g_registered = registry::Register({
+    "determinism.sim_timers",
+    "determinism",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::GZStopwatch_Start, // restarts (data/addresses/simulator.toml)
+    "The MySim agents' stopwatches run on simulation time (10 ms a tick), not on clock reads",
+    false,
+    Install,
+});
+
+} // namespace
+} // namespace opensc4::sim_timers
