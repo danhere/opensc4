@@ -32,6 +32,8 @@ The cISC4MySim methods take the +0xB8 part as `this`; offsets in src/core/mysim_
 | `simulators.mysim_agents.helpers` | the object's own helpers: CanTravel (a trip to work within the working hours left, or home), ShowAdvice, the balloon queues (PopBalloon, NextBalloon, QueueBalloon, ClearBalloons), ClearResidence, DropAdvice, OnBalloonTimeout, TryGoToWork, LoadLuaContext, AtBalloonPlace, DistanceTo, OccupantCondition, ResetAdvisor |
 | `simulators.mysim_agents.loading` | LoadAdvice (the balloon entries rebuilt from the advisor's advice and the advice still waiting; the first time also the dispatch object, the balloon, the message notifications and the script tables `mysims`, `age` and `name`) and LoadTuning (the `MYSIM_BALLOON_*` and `MYSIM_TRIP_*` tuning constants) |
 | `simulators.mysim_agents.misc` | the rest of the object's own methods: FindNewJob, OnStranded, RefreshLocation (a route from home to work asked of the path finder), OnScriptEvent (the script's idle animation offset), ArriveHome, CancelMoveIn, PostChanged, PlaceGhost, DefaultPedestrianKey and the script commands (leave, died, fired, a new generation, richer) |
+| `simulators.mysim_agents.dispatch_state` | cSC4MySimDispatch (src/core/mysim_dispatch.cpp), the object that takes a MySim from place to place: the state, flag and status setters and the events they post to the MySim (0x2BA06B99), Stop, HideLocation, the vehicle, the model lookups, the route reset, and the vtable's arrived and abort slots |
+| `simulators.mysim_agents.place` | SC4MySimPlace, a place a MySim is at or goes to (occupant, position, cell, neighbour connection): construct, copy, assign, compare, read, write, cell and lot rectangle, distance between two places |
 
 Replacement code reads the MySim stopwatches through `sim_timers::Claim` first, so `determinism.sim_timers` takes them over as it would for the original code.
 
@@ -56,5 +58,7 @@ With the helpers as well (twelve groups, 2026-10-09): `saves-mysim` 4 of 4, the 
 With LoadAdvice and LoadTuning as well (thirteen groups, 2026-10-09): `saves-mysim` 4 of 4, the usual 12 with a MySim moving in 12 of 12. Both run on every load.
 
 With the misc group as well (fourteen groups, 2026-10-09): `saves-mysim` 4 of 4, and 4 of 4 with the script commands on day 5 as well; the usual 12 with a MySim moving in 11 of 12, the twelfth (Rush Hour d0090) partly with one run of ours giving the original's other outcome there (both seen from the original in earlier batches). Not reached: OnStranded (no route), OnScriptEvent.
+
+With the dispatch state and place groups as well (sixteen groups, 2026-10-09): `saves-mysim` 4 of 4, with the script commands on day 25 3 of 4 and the fourth partly (one run of ours one tick short on the commands day, every record and later day identical); the usual 12 with a MySim moving in 12 of 12. The dispatch object's deque and map helpers stay the game's.
 
 **A moved-in MySim does not always repeat.** It travels by car, and cars move on frame time ([traffic-map.md](traffic-map.md)), so when it arrives can differ between runs of the original; its state (and the advice it gives) then differs from that day. Judge MySim runs with travel by outcome sets.
