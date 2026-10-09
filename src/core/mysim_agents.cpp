@@ -24,7 +24,9 @@
 //     destructors;
 //   simulators.mysim_agents.helpers: the object's own helpers (trips,
 //     balloons, advice, distances);
-//   simulators.mysim_agents.loading: LoadAdvice and LoadTuning.
+//   simulators.mysim_agents.loading: LoadAdvice and LoadTuning;
+//   simulators.mysim_agents.misc: the rest of the object's own methods
+//     (jobs, stranding, the script's commands, the ghost, the location).
 //
 // The methods take the cISC4MySim part as `this` (here `self`); offsets
 // below are from it. The object starts at self - 0xB8.
@@ -3715,6 +3717,269 @@ uint8_t __fastcall LoadTuning(char* mysim, void*)
     return 1;
 }
 
+// --- Misc -------------------------------------------------------------------------------
+//
+// From the object's start.
+
+void __cdecl PostChanged()
+{
+    Send(0xAA25827C, nullptr, nullptr);
+}
+
+// The move-in tool, if it is the current one, is dropped.
+void __cdecl CancelMoveIn()
+{
+    void* const tools = Global<void*>(addr::SC4_Service43DC4);
+    if (tools) {
+        void* const tool = Global<void*>(addr::SC4_DispatchTool);
+        if (!tool)
+            return;
+        if (Virtual<void*>(tools, 0x60) == tool)
+            Virtual<void>(Global<void*>(addr::SC4_Service43DC4), 0x68, uint32_t{0});
+    }
+    if (void* const tool = Global<void*>(addr::SC4_DispatchTool)) {
+        Global<void*>(addr::SC4_DispatchTool) = nullptr;
+        Release(tool);
+    }
+}
+
+// The script's game.mysim_get_idle_animation_offset(context), handed to
+// the dispatch object (-1 without one).
+int32_t __fastcall OnScriptEvent(char* mysim, void*)
+{
+    void* const script = Script(mysim);
+    const int32_t top = Virtual<int32_t>(script, 0x18);
+    Virtual<void>(mysim + 0xB8, 0x110); // ActivateLuaContext
+    int32_t result = -1;
+    Virtual<void>(Script(mysim), 0x94, reinterpret_cast<const char*>(addr::MySim_ScriptGame));
+    if (Virtual<int32_t>(Script(mysim), 0x30, -1) == 5) {
+        Virtual<void>(Script(mysim), 0x84, reinterpret_cast<const char*>(addr::MySim_ScriptIdleAnimation));
+        Virtual<void>(Script(mysim), 0x9C, -2);
+        if (Virtual<int32_t>(Script(mysim), 0x30, -1) == 6) {
+            Virtual<void>(Script(mysim), 0xAC, At<int32_t>(mysim, 0x164));
+            if (!Virtual<int32_t>(Script(mysim), 0xCC, uint32_t{1}, uint32_t{1}))
+                result = Truncate(Virtual<double>(Script(mysim), 0x5C, -1));
+        }
+    }
+    reinterpret_cast<void(__thiscall*)(void*, uint32_t, int32_t, uint32_t)>(addr::cSC4MySimDispatch_ScriptEvent)(
+        At<void*>(mysim, 0x20C), 2, result, 0);
+    Virtual<void>(Script(mysim), 0x1C, top);
+    return result;
+}
+
+void __fastcall ArriveHome(char* mysim, void*)
+{
+    reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::cSC4MySim_ShowAdvice)(
+        mysim, At<uint8_t>(mysim, 0x113) ? 0x2A5F9CDCu : 0x6A5FB141u);
+}
+
+// The job (+0xE0, or the neighbour job at +0xE4) given up, then the
+// script's facts again.
+void __fastcall FindNewJob(char* mysim, void*)
+{
+    if (!At<int32_t>(mysim, 0xC0))
+        return;
+    if (At<void*>(mysim, 0xE0)) {
+        Virtual<void>(mysim + 0xB8, 0x9C);
+        if (void* const job = At<void*>(mysim, 0xE0)) {
+            At<void*>(mysim, 0xE0) = nullptr;
+            Release(job);
+        }
+    } else if (void* const job = At<void*>(mysim, 0xE4)) {
+        At<void*>(mysim, 0xE4) = nullptr;
+        Release(job);
+        At<uint32_t>(mysim, 0xE8) = 0;
+        At<uint32_t>(mysim, 0xEC) = 0;
+    }
+    if (At<int32_t>(mysim, 0xC0) != 5)
+        At<int32_t>(mysim, 0xC0) = 2;
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_UpdateHomeAndJob)(mysim);
+}
+
+void __fastcall OnStranded(char* mysim, void*)
+{
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_FindNewJob)(mysim);
+    Virtual<void>(mysim + 8, 0x48, uint32_t{0xCA4553B7}, uint32_t{0});
+    Place work;
+    reinterpret_cast<ThisFn>(addr::SC4MySimPlace_Construct)(&work);
+    reinterpret_cast<ThisFn>(addr::SC4MySimPlace_SetWork)(&work);
+    reinterpret_cast<uint8_t(__thiscall*)(void*, Place*, uint32_t)>(addr::cSC4MySimDispatch_SetDestination)(
+        At<void*>(mysim, 0x20C), &work, 1);
+    Release(work.object);
+}
+
+// A route from home to work (or the neighbour connection at +0xF0) asked
+// of the path finder; its time to +0x154, or stranded without one.
+uint8_t __fastcall RefreshLocation(char* mysim, void*)
+{
+    void* const finder = Virtual<void*>(Global<void*>(addr::SC4_City), 0x114);
+    uint8_t result = 0;
+    void* path = nullptr;
+    if ((!At<void*>(mysim, 0xE0) && !At<void*>(mysim, 0xE4)) || !At<void*>(mysim, 0xC4))
+        return 0;
+    Virtual<void>(finder, 0x18, &path);
+    if (!path)
+        return 0;
+    struct Rect {
+        int32_t v[4];
+    } home, work;
+    Virtual<void>(Virtual<void*>(At<void*>(mysim, 0xC4), 0xC), 0x2C, &home);
+    if (void* const job = At<void*>(mysim, 0xE0)) {
+        Virtual<void>(Virtual<void*>(job, 0xC), 0x2C, &work);
+    } else {
+        work.v[0] = At<int32_t>(mysim, 0xF0);
+        work.v[1] = At<int32_t>(mysim, 0xF4);
+        work.v[2] = At<int32_t>(mysim, 0xF0);
+        work.v[3] = At<int32_t>(mysim, 0xF4);
+    }
+    Virtual<void>(path, 0x14, uint32_t{1});
+    Virtual<void>(path, 0x24, uint32_t{3});
+    Virtual<void>(path, 0x48, uint32_t{1});
+    Virtual<void>(path, 0x4C, home);
+    Virtual<void>(path, 0x50, work);
+    const int32_t found = Virtual<int32_t>(path, 0x5C);
+    if (found == 1) {
+        result = static_cast<uint8_t>(found);
+        At<int32_t>(mysim, 0x154) = Truncate(Virtual<float>(path, 0x68));
+    } else {
+        reinterpret_cast<ThisFn>(addr::cSC4MySim_OnStranded)(mysim);
+    }
+    Release(path);
+    return result;
+}
+
+// The ghost effect at the MySim's position.
+void __fastcall PlaceGhost(char* mysim, void*)
+{
+    void* const effects = Global<void*>(addr::SC4_Service43D1C);
+    for (int i = 0; i < 2; ++i)
+        if (void* const old = At<void*>(mysim, 0x18C)) {
+            At<void*>(mysim, 0x18C) = nullptr;
+            Release(old);
+        }
+    if (!Virtual<uint8_t>(effects, 0x1C, reinterpret_cast<const char*>(addr::MySim_GhostName), mysim + 0x18C))
+        return;
+    struct {
+        uint8_t flags[4];
+        float rotation[9];
+        float position[3];
+        float scale;
+    } place{};
+    place.flags[0] = 1;
+    place.flags[1] = 1;
+    place.rotation[0] = 1.0f;
+    place.rotation[4] = 1.0f;
+    place.rotation[8] = 1.0f;
+    place.position[0] = At<float>(mysim, 0xD0);
+    place.position[1] = At<float>(mysim, 0xD4);
+    place.position[2] = At<float>(mysim, 0xD8);
+    place.scale = 1.0f;
+    Virtual<void>(At<void*>(mysim, 0x18C), 0x1C, &place);
+    Virtual<void>(At<void*>(mysim, 0x18C), 0xC, uint32_t{0});
+}
+
+// Leaving the game: home given up, the trip stopped, the balloon dropped.
+void __fastcall Script0A57DE1F(char* mysim, void*)
+{
+    if (!At<int32_t>(mysim, 0xC0))
+        return;
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_ClearResidence)(mysim);
+    Virtual<void>(mysim + 0xB8, 0x8C);
+    At<int32_t>(mysim, 0xC0) = 0;
+    reinterpret_cast<ThisFn>(addr::cSC4MySimDispatch_Shutdown)(At<void*>(mysim, 0x20C));
+    for (std::size_t at = 0x24C; at <= 0x260; at += 4)
+        At<uint32_t>(mysim, at) = 0;
+    if (void* const balloon = At<void*>(mysim, 0x248)) {
+        Virtual<void>(balloon, 0x14);
+        if (void* const again = At<void*>(mysim, 0x248)) {
+            At<void*>(mysim, 0x248) = nullptr;
+            Release(again);
+        }
+        At<uint8_t>(mysim, 0x245) = 0;
+    }
+    reinterpret_cast<void(__cdecl*)()>(addr::cSC4MySim_PostChanged)();
+}
+
+// Died: the news at its position, the ghost, then leaving.
+void __fastcall ScriptEA4D269C(char* mysim, void*)
+{
+    if (!At<int32_t>(mysim, 0xC0))
+        return;
+    ScriptString text;
+    reinterpret_cast<void(__thiscall*)(void*, const char*)>(addr::SC4String_FromText)(
+        &text, reinterpret_cast<const char*>(addr::MySim_DiedText));
+    void* const news = Virtual<void*>(Global<void*>(addr::SC4_City), 0xBC);
+    Virtual<void>(news, 0x28, &text, uint32_t{0}, mysim + 0xD0);
+    text.vtable = addr::SC4String_Vtable;
+    if (text.begin)
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(text.begin);
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_PlaceGhost)(mysim);
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_Script0A57DE1F)(mysim);
+}
+
+// Fired: a new job looked for; the trip time kept.
+void __fastcall ScriptAA4934B4(char* mysim, void*)
+{
+    if (!At<int32_t>(mysim, 0xC0))
+        return;
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_FindNewJob)(mysim);
+    At<uint8_t>(mysim, 0x158) = 1;
+    At<int32_t>(mysim, 0x150) = At<int32_t>(At<char*>(mysim, 0x20C), 0x3C);
+}
+
+// A new generation: the child's age and job.
+void __fastcall Script6A495F7F(char* mysim, void*)
+{
+    if (!At<int32_t>(mysim, 0xC0))
+        return;
+    ++At<uint16_t>(mysim, 0x110);
+    At<uint8_t>(mysim, 0x158) = 0;
+    if (void* const old = At<void*>(mysim, 0x178)) {
+        At<void*>(mysim, 0x178) = nullptr;
+        Release(old);
+    }
+    At<uint8_t>(mysim, 0x128) = Virtual<uint8_t>(Global<void*>(addr::SC4_Service43DA4), 0xA8, At<int32_t>(mysim, 0x10C));
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_FindNewJob)(mysim);
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_PlaceGhost)(mysim);
+    reinterpret_cast<void(__cdecl*)()>(addr::cSC4MySim_PostChanged)();
+}
+
+// Richer, up to wealth 3.
+void __fastcall Script6A4A5E9E(char* mysim, void*)
+{
+    if (!At<int32_t>(mysim, 0xC0) || At<int32_t>(mysim, 0x10C) >= 3)
+        return;
+    ++At<int32_t>(mysim, 0x10C);
+    reinterpret_cast<ThisFn>(addr::cSC4MySim_FindNewJob)(mysim);
+    Virtual<void>(mysim + 0xB8, 0x14);
+}
+
+// The pedestrian model's key: a walker made at (0, -100, 0) and asked.
+// Returns `out`.
+uint32_t* __fastcall DefaultPedestrianKey(char*, void*, uint32_t* out)
+{
+    uint32_t key[3] = {0, 0, 0};
+    if (void* const automata = Virtual<void*>(Global<void*>(addr::SC4_City), 0xB0)) {
+        const float where[3] = {0.0f, -100.0f, 0.0f};
+        void* const walker = Virtual<void*>(automata, 0x3C, uint32_t{0x4149}, where, uint32_t{2}, key, uint32_t{0},
+                                            uint32_t{0xFF}, uint32_t{0});
+        if (walker) {
+            Virtual<uint32_t>(walker, 0x4);
+            uint32_t scratch[3];
+            const uint32_t* const got = Virtual<const uint32_t*>(walker, 0x180, scratch, uint32_t{0});
+            key[0] = got[0];
+            key[1] = got[1];
+            key[2] = got[2];
+            Virtual<void>(walker, 0x34, uint32_t{1});
+            Release(walker);
+        }
+    }
+    out[0] = key[0];
+    out[1] = key[1];
+    out[2] = key[2];
+    return out;
+}
+
 // --- Registration ----------------------------------------------------------------------
 
 bool InstallInterface(registry::Mode)
@@ -4131,6 +4396,50 @@ const bool g_loadingRegistered = registry::Register({
     "Our cSC4MySim LoadAdvice and LoadTuning (docs/mysim-agents.md)",
     false,
     InstallLoading,
+});
+
+bool InstallMisc(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    static void* originals[16] = {};
+    const struct {
+        std::uintptr_t address;
+        void* ours;
+    } hooks[] = {
+        {addr::cSC4MySim_PostChanged, reinterpret_cast<void*>(&PostChanged)},
+        {addr::cSC4MySim_CancelMoveIn, reinterpret_cast<void*>(&CancelMoveIn)},
+        {addr::cSC4MySim_OnScriptEvent, reinterpret_cast<void*>(&OnScriptEvent)},
+        {addr::cSC4MySim_ArriveHome, reinterpret_cast<void*>(&ArriveHome)},
+        {addr::cSC4MySim_FindNewJob, reinterpret_cast<void*>(&FindNewJob)},
+        {addr::cSC4MySim_OnStranded, reinterpret_cast<void*>(&OnStranded)},
+        {addr::cSC4MySim_RefreshLocation, reinterpret_cast<void*>(&RefreshLocation)},
+        {addr::cSC4MySim_PlaceGhost, reinterpret_cast<void*>(&PlaceGhost)},
+        {addr::cSC4MySim_Script0A57DE1F, reinterpret_cast<void*>(&Script0A57DE1F)},
+        {addr::cSC4MySim_ScriptEA4D269C, reinterpret_cast<void*>(&ScriptEA4D269C)},
+        {addr::cSC4MySim_ScriptAA4934B4, reinterpret_cast<void*>(&ScriptAA4934B4)},
+        {addr::cSC4MySim_Script6A495F7F, reinterpret_cast<void*>(&Script6A495F7F)},
+        {addr::cSC4MySim_Script6A4A5E9E, reinterpret_cast<void*>(&Script6A4A5E9E)},
+        {addr::cSC4MySim_DefaultPedestrianKey, reinterpret_cast<void*>(&DefaultPedestrianKey)},
+    };
+    static_assert(sizeof(hooks) / sizeof(hooks[0]) <= sizeof(originals) / sizeof(originals[0]));
+    for (std::size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); ++i) {
+        const addr::Entry* found = addr_check::Find(hooks[i].address);
+        if (!found || !hook::Install(*found, hooks[i].ours, &originals[i]))
+            return false;
+    }
+    return true;
+}
+
+const bool g_miscRegistered = registry::Register({
+    "simulators.mysim_agents.misc",
+    "simulators/mysim_agents",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4MySim_FindNewJob,
+    "Our cSC4MySim jobs, stranding, script commands, ghost and location (docs/mysim-agents.md)",
+    false,
+    InstallMisc,
 });
 
 const bool g_interfaceRegistered = registry::Register({

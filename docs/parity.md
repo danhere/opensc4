@@ -91,6 +91,7 @@ The test cities never edit their networks, so parity alone would not reach the c
 | `OPENSC4_TEST_MYSIM_QUERIES=1` | each day, what the MySim panel and balloons ask every MySim, into the fingerprint ([mysim-agents.md](mysim-agents.md)) |
 | `OPENSC4_TEST_MYSIM_DRIVE=<day>` | on that day every MySim leaves for work, returns home and hears of building and connection changes, fires and disasters ([mysim-agents.md](mysim-agents.md)) |
 | `OPENSC4_TEST_MYSIM_DELETE=<day>` | the first MySim leaves the game on that day ([mysim-agents.md](mysim-agents.md)) |
+| `OPENSC4_TEST_MYSIM_COMMANDS=<day>` | on that day every MySim gets the script commands for richer, fired and a new generation, and the first one for dying ([mysim-agents.md](mysim-agents.md)) |
 | `OPENSC4_TEST_MYSIM_MOVEIN=<day>` | a MySim moves in on that day ([mysim-agents.md](mysim-agents.md)) |
 | `OPENSC4_TEST_FLORA_MONTH=<n>` | every n days, the flora simulator's monthly pass (the date into +0x40, then 0x006B2CB0), as MonthPassed does ([flora.md](flora.md)) |
 | `OPENSC4_TEST_NEIGHBORS_MONTH=<n>` | every n days, the neighbors simulator's monthly pass (0x006D0E50: commodity statistics, then the deals), as MonthPassed does ([neighbors.md](neighbors.md)) |
