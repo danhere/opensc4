@@ -9,7 +9,8 @@ The pieces, in the order they are being rewritten under the parity harness ([par
 | The script variables (`game.g_population` and 294 more) | 16 functions, about 28 KB, 0x00411BC0 to 0x00422A00 | ours (`scripts.globals.*`) |
 | The native script functions (`game.trend_value`, `ordinance_is_on`, ...) | 36 natives and 5 helpers, about 9 KB, 0x00409690 to 0x0040B8D0 | ours (`scripts.natives.*`) |
 | The advisor base class (the advice engine every advisor shares) and the place object | 101 functions, about 17 KB, 0x0040CE00 to 0x00411800 | ours (`scripts.advisors.base1`, `base2`, `base3`) |
-| The advisor classes' own functions (factories, Init and Shutdown, save and load, message handlers) | 81 functions, about 10 KB | in progress |
+| The advisor classes' own functions (factories, constructors, Init and Shutdown, save and load, message handlers) | 81 functions, about 10 KB | ours (`scripts.advisors.classes1`, `classes2`) |
+| The advice class (cSC4Advice, 0x00407A90 to 0x00409690), the city situation advice (0x00422FF0 to 0x00424B00) and the advisor system's helper (0x0041D400 to 0x00420D30) | about 26 KB | the game's |
 | The script context and server (cISCLua and the classes behind it) | 0x008B0xxx | the game's |
 
 The advisor system that owns the script context is already ours ([advisors.md](advisors.md)).
@@ -83,6 +84,20 @@ The range also holds the place object the `l_` variables carry (class 0x6A26D049
 
 One function has a convention of its own: 0x0040DA10 (post a message from an object) takes the object in ECX and three stack arguments that the caller removes. Our replacement and our calls to it go through small thunks.
 
+## The advisor classes
+
+| Advisor | Class ID | Size | What it adds to the base |
+| --- | --- | --- | --- |
+| City planning | 0x2A5F877D | 0xDC | counts of buildings, parks and recreation and a per-group building count map, kept from the occupant messages and saved (version 3) |
+| City situations | 0x4BE372CD | 0xC0 | advices that follow a condition: started while it holds, ended when it stops |
+| Finance | 0xAA5292D7 | 0xC4 | an update request when buildings change |
+| Health and education | 0x6A5F8755 | 0xC4 | ten building-group keys, filled at Init from a table of 19 group numbers |
+| Safety | 0xEA19E825 | 0xC4 | sixteen notifications (strikes, jail breaks, disasters) |
+| Transport | 0x4A3AD3E1 | 0xD0 | a set of zots |
+| Utilities and neighbour deals | 0xCA2C2A2F | 0xC4 | a text token callback for deal texts, and its own event pass: a deal event goes to the one advice of the deal's type, or a copy of that advice is made for it |
+
+The neighbour deal advice (class 0x6A3848DB, an advice with a deal type read from the script field `nd_type`) and a few helpers live in the same range (daylight saving dates, a percent-decoding string copy). Eleven functions there are shared by the rest of the game through code folding and stay the game's.
+
 ## Tests
 
 - The fingerprint's `lua` part reads all 295 names back from the `game` table through the script context and hashes their types and values (for an `l_` name also whether its place is there); `OPENSC4_TEST_LUA_DUMP=1` logs every value each day. Scratch tools compare two logs name by name.
@@ -106,3 +121,5 @@ The script's result string was the same on both sides in every save (it differs 
 Not reached by any test: the natives that need a current advice or a MySim (`advice_subject`, `event_building_distance`, `event_disaster_distance`, `building_is_group`, `nd_cancel`, `advice_info`, the five `mysim_` ones), `camera_jump` and `camera_zoom`, and inside the message handlers whatever no test city triggers (strikes, jail breaks, outages).
 
 With the advisor base class on too (ten groups; `lu9-*`): 12 of 12 plain, 12 of 12 with the monthly cycle and the advisors driven (every advisor removed and created again on day 2, so Init runs from the script), 12 of 12 with the natives' script. The base's Write runs at the end of every run and its Read at every load; the saves and decoded records match.
+
+With the advisor classes on too (twelve groups; `lu10-*`, `lu13-*`): 12 of 12 plain, with the monthly cycle and the advisors recreated (constructors, destructors, Init and Shutdown of every class run), and with the natives' script. The first run of the second part crashed every city while loading: a flag pushed early for a three-argument call had been given to the call before it, which takes none. An audit of every call's argument bytes against its callee followed.

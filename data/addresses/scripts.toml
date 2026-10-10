@@ -2087,3 +2087,341 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 3C 57 8B F9 8B 8F"
 source = "Placeholder name (docs/lua.md): a function of the advisor classes, 1200 bytes."
+
+[[entry]]
+name = "cSC4AdvisorCityPlanning::Vtable"
+address = 0x00A81514
+kind = "data"
+source = "Name ours. The city planning advisor (class 0x2A5F877D)'s main vtable at +0."
+
+[[entry]]
+name = "cSC4AdvisorCityPlanning::InterfaceVtable"
+address = 0x00A814C0
+kind = "data"
+source = "Name ours. The city planning advisor (class 0x2A5F877D)'s vtable of the advisor interface at +8."
+
+[[entry]]
+name = "cSC4AdvisorCityPlanning::SerializableVtable"
+address = 0x00A814A8
+kind = "data"
+source = "Name ours. The city planning advisor (class 0x2A5F877D)'s vtable of the serialisable part at +0xC."
+
+[[entry]]
+name = "cSC4AdvisorCityPlanning::MessageTargetVtable"
+address = 0x00A81498
+kind = "data"
+source = "Name ours. The city planning advisor (class 0x2A5F877D)'s vtable of the message target at +0x10."
+
+[[entry]]
+name = "cSC4AdvisorCitySituations::Vtable"
+address = 0x00A81C9C
+kind = "data"
+source = "Name ours. The city situations advisor (class 0x4BE372CD)'s main vtable at +0."
+
+[[entry]]
+name = "cSC4AdvisorCitySituations::InterfaceVtable"
+address = 0x00A81C48
+kind = "data"
+source = "Name ours. The city situations advisor (class 0x4BE372CD)'s vtable of the advisor interface at +8."
+
+[[entry]]
+name = "cSC4AdvisorCitySituations::SerializableVtable"
+address = 0x00A81C30
+kind = "data"
+source = "Name ours. The city situations advisor (class 0x4BE372CD)'s vtable of the serialisable part at +0xC."
+
+[[entry]]
+name = "cSC4AdvisorCitySituations::MessageTargetVtable"
+address = 0x00A81C20
+kind = "data"
+source = "Name ours. The city situations advisor (class 0x4BE372CD)'s vtable of the message target at +0x10."
+
+[[entry]]
+name = "cSC4AdvisorFinance::Vtable"
+address = 0x00A81D4C
+kind = "data"
+source = "Name ours. The finance advisor (class 0xAA5292D7)'s main vtable at +0."
+
+[[entry]]
+name = "cSC4AdvisorFinance::InterfaceVtable"
+address = 0x00A81CF8
+kind = "data"
+source = "Name ours. The finance advisor (class 0xAA5292D7)'s vtable of the advisor interface at +8."
+
+[[entry]]
+name = "cSC4AdvisorFinance::SerializableVtable"
+address = 0x00A81CE0
+kind = "data"
+source = "Name ours. The finance advisor (class 0xAA5292D7)'s vtable of the serialisable part at +0xC."
+
+[[entry]]
+name = "cSC4AdvisorFinance::MessageTargetVtable"
+address = 0x00A81CD0
+kind = "data"
+source = "Name ours. The finance advisor (class 0xAA5292D7)'s vtable of the message target at +0x10."
+
+[[entry]]
+name = "cSC4AdvisorHQ::Vtable"
+address = 0x00A81FDC
+kind = "data"
+source = "Name ours. The health and education advisor (class 0x6A5F8755)'s main vtable at +0."
+
+[[entry]]
+name = "cSC4AdvisorHQ::InterfaceVtable"
+address = 0x00A81F88
+kind = "data"
+source = "Name ours. The health and education advisor (class 0x6A5F8755)'s vtable of the advisor interface at +8."
+
+[[entry]]
+name = "cSC4AdvisorHQ::SerializableVtable"
+address = 0x00A81F70
+kind = "data"
+source = "Name ours. The health and education advisor (class 0x6A5F8755)'s vtable of the serialisable part at +0xC."
+
+[[entry]]
+name = "cSC4AdvisorHQ::MessageTargetVtable"
+address = 0x00A81F60
+kind = "data"
+source = "Name ours. The health and education advisor (class 0x6A5F8755)'s vtable of the message target at +0x10."
+
+[[entry]]
+name = "cSC4AdvisorSafety::Vtable"
+address = 0x00A8237C
+kind = "data"
+source = "Name ours. The safety advisor (class 0xEA19E825)'s main vtable at +0."
+
+[[entry]]
+name = "cSC4AdvisorSafety::InterfaceVtable"
+address = 0x00A82328
+kind = "data"
+source = "Name ours. The safety advisor (class 0xEA19E825)'s vtable of the advisor interface at +8."
+
+[[entry]]
+name = "cSC4AdvisorSafety::SerializableVtable"
+address = 0x00A82310
+kind = "data"
+source = "Name ours. The safety advisor (class 0xEA19E825)'s vtable of the serialisable part at +0xC."
+
+[[entry]]
+name = "cSC4AdvisorSafety::MessageTargetVtable"
+address = 0x00A82300
+kind = "data"
+source = "Name ours. The safety advisor (class 0xEA19E825)'s vtable of the message target at +0x10."
+
+[[entry]]
+name = "ScriptGlobals::EducationKey"
+address = 0x00B20818
+kind = "data"
+source = "0xC-byte building group key (all educational buildings: groups 0x150F, 0x1510, 0x1514, 0x1504, 0x1506, 0x1505), as ScriptGlobals::ElementaryKey; filled by the health and education advisor's Init 0x00415A00, emptied by its Shutdown 0x00413EE0."
+
+[[entry]]
+name = "ScriptGlobals::BuildingGroupTable"
+address = 0x00A81F10
+kind = "data"
+source = "19 building group numbers (uint32) the health and education advisor's Init 0x00415A00 copies into the ten group keys at 0x00B207E8 to 0x00B20854; ends at 0x00A81F5C."
+
+[[entry]]
+name = "SC4Advice::QueryInterface"
+address = 0x00407BC0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D F5 F5 09"
+source = "Name ours. The advice base class's QueryInterface (iid, void** out), ret 8: 0x8A09F5F5 gives the object, 0xE4FDA3D4 its part at +0xC, the rest goes to 0x009457C6 with the part at +4."
+
+[[entry]]
+name = "SC4Advice::Copy"
+address = 0x00407C50
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 86"
+source = "Name ours, not analysed in full. (void** out), ret 4: makes a new advice of the same class from the same script entry (+0x88) into *out; false when it cannot. Main vtable slot 5."
+
+[[entry]]
+name = "SC4Advice::Write"
+address = 0x00408090
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours, not analysed. The advice base class's Write (stream), ret 4; this is the serialisable part at +0xC."
+
+[[entry]]
+name = "SC4Advice::Read"
+address = 0x004082F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "Name ours, not analysed. The advice base class's Read (stream), ret 4; this is the serialisable part at +0xC."
+
+[[entry]]
+name = "SC4Advice::Construct"
+address = 0x004085D0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 8D 7E 04"
+source = "Name ours, not analysed. The advice base class's constructor (vtables 0x00A808B8 at +0, 0x00A8089C at +4, 0x00A80884 at +0xC); returns this."
+
+[[entry]]
+name = "SC4Advice::Destruct"
+address = 0x00408750
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8D 5E 04 8D"
+source = "Name ours, not analysed. The advice base class's destructor; no arguments."
+
+[[entry]]
+name = "SC4Advice::Init"
+address = 0x00408C70
+kind = "function"
+convention = "thiscall"
+expect = "81 EC C0 00 00 00 55 8B"
+source = "Name ours, not analysed in full. (script index), ret 4: keeps the index at +0x88 and reads the advice's entry of the script table; false when it fails."
+
+[[entry]]
+name = "SC4LocalizedString::SetKey"
+address = 0x00602F90
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 10 89 51"
+source = "Name ours. (const uint32_t key[3]), ret 4: copies the three numbers (type 0x2026960B, group 0x6A231EA4, instance) to +0x14, +0x18, +0x1C."
+
+[[entry]]
+name = "SC4LocalizedString::KeyFormat1"
+address = 0x00B07CE4
+kind = "data"
+source = "Name ours. const char* to 'text@0x%08x' (0x00A827AC), the first format a key text is scanned with."
+
+[[entry]]
+name = "SC4LocalizedString::KeyFormat2"
+address = 0x00B07CE8
+kind = "data"
+source = "Name ours. const char* to 'text@%08x' (0x00A827A0)."
+
+[[entry]]
+name = "SC4LocalizedString::KeyFormat3"
+address = 0x00B07CEC
+kind = "data"
+source = "Name ours. const char* to 'text@%u' (0x00A82798)."
+
+[[entry]]
+name = "SC4LocalizedString::KeyFormat4"
+address = 0x00B07CF0
+kind = "data"
+source = "Name ours. const char* to 'text@%i' (0x00A82790)."
+
+[[entry]]
+name = "SC4Date::BackToWeekday"
+address = 0x00912C42
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 10 8B F1"
+source = "Name ours. (SC4Date* out, weekday 1 to 7), ret 8: the last day with that weekday on or before the date, into *out (vtable 0x00A827D8, day number); returns out."
+
+[[entry]]
+name = "SC4Date::EpochDay"
+address = 0x00B6289C
+kind = "data"
+source = "Name ours. uint32: the day number of the start of time_t; a date's day number less this, times 86400, is its time_t."
+
+[[entry]]
+name = "SC4::Timezone"
+address = 0x00B18BA8
+kind = "data"
+source = "Name ours. The C runtime's _timezone (seconds; 28800 until tzset), followed by _daylight at 0x00B18BAC."
+
+[[entry]]
+name = "SC4::isxdigit"
+address = 0x009EF657
+kind = "function"
+convention = "cdecl"
+expect = "E8 A8 7F 00 00 8B 40 64"
+source = "The C runtime's isxdigit: int (int c)."
+
+[[entry]]
+name = "SC4ScriptNames::Advices2"
+address = 0x00B07D38
+kind = "data"
+source = "Name ours. A second const char* to 'advices' (0x00A806D0), used by the deal advice's Init."
+
+[[entry]]
+name = "SC4SetAdvisor::Vtable"
+address = 0x00A82FEC
+kind = "data"
+source = "Name ours (class 0x4A3AD3E1, 0xD0 bytes, an advisor with a set at +0xC0 that listens for message 0x4C04DE69). Main vtable; slot 3 is its scalar deleting destructor 0x0041C0F0."
+
+[[entry]]
+name = "SC4SetAdvisor::Vtable8"
+address = 0x00A82F98
+kind = "data"
+source = "Name ours. The set advisor's vtable of the advisor interface at +8; Init 0x0041B800, Shutdown 0x0041B850."
+
+[[entry]]
+name = "SC4SetAdvisor::VtableC"
+address = 0x00A82F7C
+kind = "data"
+source = "Name ours. The set advisor's vtable of the serialisable part at +0xC."
+
+[[entry]]
+name = "SC4SetAdvisor::Vtable10"
+address = 0x00A82F6C
+kind = "data"
+source = "Name ours. The set advisor's vtable of the message target at +0x10."
+
+[[entry]]
+name = "SC4DealAdvisor::Vtable"
+address = 0x00A83B8C
+kind = "data"
+source = "Name ours, a guess from its advice's script field 'nd_type' (class 0xCA2C2A2F, 0xC4 bytes). Main vtable; slot 3 is its scalar deleting destructor 0x00420E20."
+
+[[entry]]
+name = "SC4DealAdvisor::Vtable8"
+address = 0x00A83B38
+kind = "data"
+source = "Name ours. The deal advisor's vtable of the advisor interface at +8; Init 0x004229C0, Shutdown 0x00422AA0."
+
+[[entry]]
+name = "SC4DealAdvisor::VtableC"
+address = 0x00A83B20
+kind = "data"
+source = "Name ours. The deal advisor's vtable of the serialisable part at +0xC."
+
+[[entry]]
+name = "SC4DealAdvisor::Vtable10"
+address = 0x00A83B10
+kind = "data"
+source = "Name ours. The deal advisor's vtable of the message target at +0x10."
+
+[[entry]]
+name = "SC4DealAdvisor::TokenName1"
+address = 0x00B20D5C
+kind = "data"
+source = "Name ours. A static string object (0x14 bytes, filled at start-up) the token callback 0x00421880 compares the lower-cased name with: the text comes from the party's slot 7 object."
+
+[[entry]]
+name = "SC4DealAdvisor::TokenName2"
+address = 0x00B20D70
+kind = "data"
+source = "Name ours. The second such string: the text is the party's slot 10 amount as the application's slot 38 object formats it (slot 18)."
+
+[[entry]]
+name = "SC4DealAdvisor::TokenName3"
+address = 0x00B20D84
+kind = "data"
+source = "Name ours. The third such string: the text is the party's slot 22 amount (int64) through SC4::FormatMoney."
+
+[[entry]]
+name = "SC4DealAdvice::Vtable"
+address = 0x00A83BE8
+kind = "data"
+source = "Name ours (class 0x6A3848DB, 0xC4 bytes, the advice base plus a type at +0xC0; interface 0xEA3848BA with slots 31 get type, 32 set type). Main vtable."
+
+[[entry]]
+name = "SC4DealAdvice::Vtable4"
+address = 0x00A83BCC
+kind = "data"
+source = "Name ours. The deal advice's vtable at +4."
+
+[[entry]]
+name = "SC4DealAdvice::VtableC"
+address = 0x00A83BB4
+kind = "data"
+source = "Name ours. The deal advice's vtable of the serialisable part at +0xC; Write 0x00420F40, Read 0x00420F80."
