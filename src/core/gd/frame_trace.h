@@ -22,6 +22,10 @@ bool Active();
 // Called by the driver for every draw it hands the backend.
 void Record(const DrawState& state, const DrawCall& call);
 
+// One draw's checksum (state the backend reads, vertices and indices the
+// draw uses, textures by content), as Record computes it.
+uint32_t HashDraw(const DrawState& state, const DrawCall& call);
+
 // Called by the driver for texture creation and uploads: draws are hashed
 // with their textures' contents, not the handles (which follow load order).
 void TextureCreated(uint32_t texture, uint32_t format, uint32_t width, uint32_t height, uint32_t levels);

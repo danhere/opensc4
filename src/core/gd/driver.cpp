@@ -77,6 +77,8 @@ struct PhysicalSize {
 
 class Driver;
 Driver* g_output = nullptr; // the driver whose window is up
+bool g_capturing = false, g_captureDraws = true; // BeginCapture
+std::vector<uint32_t> g_captured;
 
 class BufferRegions final : public BufferRegionExtension {
 public:
@@ -723,8 +725,100 @@ private:
     {
         const DrawState& state = State();
         frame_trace::Record(state, call);
+        if (g_capturing) {
+            g_captured.push_back(frame_trace::HashDraw(state, call));
+            if (!g_captureDraws)
+                return;
+        }
         backend_->Draw(state, call);
     }
+
+public:
+    // The pipeline state (SaveState/RestoreState in gd.h).
+    struct Pipeline {
+        Rect viewport;
+        float clearColor[4];
+        float clearDepth;
+        uint8_t clearStencil;
+        bool enabled[kGDNumCapabilities];
+        uint32_t depthFunc;
+        bool depthMask;
+        uint32_t stencilFunc, stencilReadMask, stencilWriteMask;
+        int32_t stencilRef;
+        uint32_t stencilOps[3];
+        uint32_t blendSrc, blendDst, alphaFunc;
+        float alphaRef;
+        uint32_t shadeModel;
+        int32_t polygonOffset;
+        float colorMultiplier[4];
+        bool lighting, vertexColors, vertexSpecular, diffuseFromVertex;
+        float textureFactor[4];
+        uint32_t fogMode;
+        float fogColor[4];
+        float fogDensity, fogStart, fogEnd;
+        uint32_t matrixMode;
+        float modelView[16], projection[16];
+        uint32_t stage;
+        StageState stages[kStages];
+        uint32_t vertexFormat, vertexStride;
+        const void* vertexData;
+    };
+
+    void Save(Pipeline& p) const
+    {
+        p.viewport = viewport_;
+        std::memcpy(p.clearColor, clearColor_, sizeof p.clearColor);
+        p.clearDepth = clearDepth_, p.clearStencil = clearStencil_;
+        std::memcpy(p.enabled, enabled_, sizeof p.enabled);
+        p.depthFunc = depthFunc_, p.depthMask = depthMask_;
+        p.stencilFunc = stencilFunc_, p.stencilReadMask = stencilReadMask_, p.stencilWriteMask = stencilWriteMask_;
+        p.stencilRef = stencilRef_;
+        std::memcpy(p.stencilOps, stencilOps_, sizeof p.stencilOps);
+        p.blendSrc = blendSrc_, p.blendDst = blendDst_, p.alphaFunc = alphaFunc_, p.alphaRef = alphaRef_;
+        p.shadeModel = shadeModel_, p.polygonOffset = polygonOffset_;
+        std::memcpy(p.colorMultiplier, colorMultiplier_, sizeof p.colorMultiplier);
+        p.lighting = lighting_, p.vertexColors = vertexColors_, p.vertexSpecular = vertexSpecular_;
+        p.diffuseFromVertex = diffuseFromVertex_;
+        std::memcpy(p.textureFactor, textureFactor_, sizeof p.textureFactor);
+        p.fogMode = fogMode_;
+        std::memcpy(p.fogColor, fogColor_, sizeof p.fogColor);
+        p.fogDensity = fogDensity_, p.fogStart = fogStart_, p.fogEnd = fogEnd_;
+        p.matrixMode = matrixMode_;
+        std::memcpy(p.modelView, modelView_, sizeof p.modelView);
+        std::memcpy(p.projection, projection_, sizeof p.projection);
+        p.stage = stage_;
+        std::memcpy(p.stages, stages_, sizeof p.stages);
+        p.vertexFormat = vertexFormat_, p.vertexStride = vertexStride_, p.vertexData = vertexData_;
+    }
+
+    void Restore(const Pipeline& p)
+    {
+        viewport_ = p.viewport;
+        std::memcpy(clearColor_, p.clearColor, sizeof p.clearColor);
+        clearDepth_ = p.clearDepth, clearStencil_ = p.clearStencil;
+        std::memcpy(enabled_, p.enabled, sizeof p.enabled);
+        depthFunc_ = p.depthFunc, depthMask_ = p.depthMask;
+        stencilFunc_ = p.stencilFunc, stencilReadMask_ = p.stencilReadMask, stencilWriteMask_ = p.stencilWriteMask;
+        stencilRef_ = p.stencilRef;
+        std::memcpy(stencilOps_, p.stencilOps, sizeof p.stencilOps);
+        blendSrc_ = p.blendSrc, blendDst_ = p.blendDst, alphaFunc_ = p.alphaFunc, alphaRef_ = p.alphaRef;
+        shadeModel_ = p.shadeModel, polygonOffset_ = p.polygonOffset;
+        std::memcpy(colorMultiplier_, p.colorMultiplier, sizeof p.colorMultiplier);
+        lighting_ = p.lighting, vertexColors_ = p.vertexColors, vertexSpecular_ = p.vertexSpecular;
+        diffuseFromVertex_ = p.diffuseFromVertex;
+        std::memcpy(textureFactor_, p.textureFactor, sizeof p.textureFactor);
+        fogMode_ = p.fogMode;
+        std::memcpy(fogColor_, p.fogColor, sizeof p.fogColor);
+        fogDensity_ = p.fogDensity, fogStart_ = p.fogStart, fogEnd_ = p.fogEnd;
+        matrixMode_ = p.matrixMode;
+        std::memcpy(modelView_, p.modelView, sizeof p.modelView);
+        std::memcpy(projection_, p.projection, sizeof p.projection);
+        stage_ = p.stage;
+        std::memcpy(stages_, p.stages, sizeof p.stages);
+        vertexFormat_ = p.vertexFormat, vertexStride_ = p.vertexStride, vertexData_ = p.vertexData;
+    }
+
+private:
 
     // The state a draw uses, for the backend.
     const DrawState& State()
@@ -1706,6 +1800,36 @@ const bool g_registered = registry::Register({
 } // namespace
 
 float CityZoomDivisor() { return g_cityZoomDivisor; }
+
+void BeginCapture(bool draw)
+{
+    g_capturing = true;
+    g_captureDraws = draw;
+    g_captured.clear();
+}
+
+std::vector<uint32_t> EndCapture()
+{
+    g_capturing = false;
+    g_captureDraws = true;
+    return std::move(g_captured);
+}
+
+std::vector<char> SaveState()
+{
+    std::vector<char> state;
+    if (g_output) {
+        state.resize(sizeof(Driver::Pipeline));
+        g_output->Save(*reinterpret_cast<Driver::Pipeline*>(state.data()));
+    }
+    return state;
+}
+
+void RestoreState(const std::vector<char>& state)
+{
+    if (g_output && state.size() == sizeof(Driver::Pipeline))
+        g_output->Restore(*reinterpret_cast<const Driver::Pipeline*>(state.data()));
+}
 
 void PresentWhileActive()
 {
