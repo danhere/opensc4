@@ -3675,3 +3675,2443 @@ kind = "function"
 convention = "cdecl"
 expect = "A1 E4 0D B2 00 85 C0 C7"
 source = "Name ours. The exit handler that destroys SC4SituationAdvice::MessageText."
+
+[[entry]]
+name = "cSCLua::F880000"
+address = 0x00880000
+kind = "function"
+convention = "thiscall"
+expect = "53 56 6A 58 E8 D7 55 D6"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880050"
+address = 0x00880050
+kind = "function"
+convention = "thiscall"
+expect = "53 56 6A 1C E8 87 55 D6"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8800A0"
+address = 0x008800A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 6A 58 E8 37 55 D6"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8800F0"
+address = 0x008800F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 95 E0 08 00"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880150"
+address = 0x00880150
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 90 3F AC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 48 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880180"
+address = 0x00880180
+kind = "function"
+convention = "thiscall"
+expect = "8A 0D E4 42 B5 00 B8 01"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8801C0"
+address = 0x008801C0
+kind = "function"
+convention = "thiscall"
+expect = "E9 2B 6C 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8801D0"
+address = 0x008801D0
+kind = "function"
+convention = "thiscall"
+expect = "E9 5B 6C 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8801E0"
+address = 0x008801E0
+kind = "function"
+convention = "thiscall"
+expect = "E9 9B 6C 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8801F0"
+address = 0x008801F0
+kind = "function"
+convention = "thiscall"
+expect = "E9 DB 6C 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880200"
+address = 0x00880200
+kind = "function"
+convention = "thiscall"
+expect = "E9 1B 6D 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880210"
+address = 0x00880210
+kind = "function"
+convention = "thiscall"
+expect = "E9 5B 6D 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880220"
+address = 0x00880220
+kind = "function"
+convention = "thiscall"
+expect = "E9 8B 6E 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880230"
+address = 0x00880230
+kind = "function"
+convention = "thiscall"
+expect = "E9 CB 6E 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880240"
+address = 0x00880240
+kind = "function"
+convention = "thiscall"
+expect = "E9 0B 6F 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880250"
+address = 0x00880250
+kind = "function"
+convention = "thiscall"
+expect = "E9 5B 71 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880260"
+address = 0x00880260
+kind = "function"
+convention = "thiscall"
+expect = "E9 3B 6F 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880270"
+address = 0x00880270
+kind = "function"
+convention = "thiscall"
+expect = "E9 7B 6F 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880280"
+address = 0x00880280
+kind = "function"
+convention = "thiscall"
+expect = "E9 7B 81 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880290"
+address = 0x00880290
+kind = "function"
+convention = "thiscall"
+expect = "E9 8B 72 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8802A0"
+address = 0x008802A0
+kind = "function"
+convention = "thiscall"
+expect = "E9 3B 73 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8802B0"
+address = 0x008802B0
+kind = "function"
+convention = "thiscall"
+expect = "E9 8B 73 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8802C0"
+address = 0x008802C0
+kind = "function"
+convention = "thiscall"
+expect = "E9 CB 73 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8802D0"
+address = 0x008802D0
+kind = "function"
+convention = "thiscall"
+expect = "E9 6B 74 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8802E0"
+address = 0x008802E0
+kind = "function"
+convention = "thiscall"
+expect = "E9 AB 74 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8802F0"
+address = 0x008802F0
+kind = "function"
+convention = "thiscall"
+expect = "E9 EB 74 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880300"
+address = 0x00880300
+kind = "function"
+convention = "thiscall"
+expect = "E9 2B 75 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880310"
+address = 0x00880310
+kind = "function"
+convention = "thiscall"
+expect = "E9 DB 84 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880320"
+address = 0x00880320
+kind = "function"
+convention = "thiscall"
+expect = "E9 CB 73 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880330"
+address = 0x00880330
+kind = "function"
+convention = "thiscall"
+expect = "E9 9B 75 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880340"
+address = 0x00880340
+kind = "function"
+convention = "thiscall"
+expect = "DD 44 24 04 83 EC 08 DD"
+source = "Placeholder name (docs/lua.md): a function of the script context, 32 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880360"
+address = 0x00880360
+kind = "function"
+convention = "thiscall"
+expect = "E9 FB 75 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880370"
+address = 0x00880370
+kind = "function"
+convention = "thiscall"
+expect = "E9 3B 76 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880380"
+address = 0x00880380
+kind = "function"
+convention = "thiscall"
+expect = "E9 7B 76 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880390"
+address = 0x00880390
+kind = "function"
+convention = "thiscall"
+expect = "E9 0B 84 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8803A0"
+address = 0x008803A0
+kind = "function"
+convention = "thiscall"
+expect = "E9 AB 76 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8803B0"
+address = 0x008803B0
+kind = "function"
+convention = "thiscall"
+expect = "E9 CB 7E 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8803C0"
+address = 0x008803C0
+kind = "function"
+convention = "thiscall"
+expect = "E9 7B 77 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8803D0"
+address = 0x008803D0
+kind = "function"
+convention = "thiscall"
+expect = "E9 BB 77 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8803E0"
+address = 0x008803E0
+kind = "function"
+convention = "thiscall"
+expect = "E9 FB 77 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8803F0"
+address = 0x008803F0
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 C8 E9 68 79 03 00"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880400"
+address = 0x00880400
+kind = "function"
+convention = "thiscall"
+expect = "E9 AB 80 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880410"
+address = 0x00880410
+kind = "function"
+convention = "thiscall"
+expect = "E9 7B 7F 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880420"
+address = 0x00880420
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 C8 E9 08 78 03 00"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880430"
+address = 0x00880430
+kind = "function"
+convention = "thiscall"
+expect = "E9 AB 7E 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880440"
+address = 0x00880440
+kind = "function"
+convention = "thiscall"
+expect = "E9 6B 79 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880450"
+address = 0x00880450
+kind = "function"
+convention = "thiscall"
+expect = "E9 AB 79 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880460"
+address = 0x00880460
+kind = "function"
+convention = "thiscall"
+expect = "E9 EB 79 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880470"
+address = 0x00880470
+kind = "function"
+convention = "thiscall"
+expect = "E9 CB 80 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880480"
+address = 0x00880480
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 C8 E8 B8 7E 03 00"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880490"
+address = 0x00880490
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 8B 54 24 04"
+source = "Placeholder name (docs/lua.md): a function of the script context, 32 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8804B0"
+address = 0x008804B0
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 C8 E9 88 7A 03 00"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8804C0"
+address = 0x008804C0
+kind = "function"
+convention = "thiscall"
+expect = "E9 CB 7A 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8804D0"
+address = 0x008804D0
+kind = "function"
+convention = "thiscall"
+expect = "E9 0B 7B 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8804E0"
+address = 0x008804E0
+kind = "function"
+convention = "thiscall"
+expect = "E9 4B 7B 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8804F0"
+address = 0x008804F0
+kind = "function"
+convention = "thiscall"
+expect = "E9 2B 87 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880500"
+address = 0x00880500
+kind = "function"
+convention = "thiscall"
+expect = "E9 5B 87 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880510"
+address = 0x00880510
+kind = "function"
+convention = "thiscall"
+expect = "E9 8B 87 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880520"
+address = 0x00880520
+kind = "function"
+convention = "thiscall"
+expect = "E9 BB 80 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880530"
+address = 0x00880530
+kind = "function"
+convention = "thiscall"
+expect = "E9 8B 81 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880540"
+address = 0x00880540
+kind = "function"
+convention = "thiscall"
+expect = "E9 2B 81 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880550"
+address = 0x00880550
+kind = "function"
+convention = "thiscall"
+expect = "E9 8B 7E 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880560"
+address = 0x00880560
+kind = "function"
+convention = "thiscall"
+expect = "E9 CB 7B 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880570"
+address = 0x00880570
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8D 71"
+source = "Placeholder name (docs/lua.md): a function of the script context, 176 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880620"
+address = 0x00880620
+kind = "function"
+convention = "thiscall"
+expect = "E9 CB 7A 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880630"
+address = 0x00880630
+kind = "function"
+convention = "thiscall"
+expect = "E9 4B 7B 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880640"
+address = 0x00880640
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 C8 E9 A8 74 03 00"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880650"
+address = 0x00880650
+kind = "function"
+convention = "thiscall"
+expect = "E9 7B 7B 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880660"
+address = 0x00880660
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 C8 E9 38 81 03 00"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880670"
+address = 0x00880670
+kind = "function"
+convention = "thiscall"
+expect = "E9 DB 80 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880680"
+address = 0x00880680
+kind = "function"
+convention = "thiscall"
+expect = "E9 BB 6B 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880690"
+address = 0x00880690
+kind = "function"
+convention = "thiscall"
+expect = "E9 0B 6C 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8806A0"
+address = 0x008806A0
+kind = "function"
+convention = "thiscall"
+expect = "E9 5B 6C 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8806B0"
+address = 0x008806B0
+kind = "function"
+convention = "thiscall"
+expect = "E9 5B 6D 03 00 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8806C0"
+address = 0x008806C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D A2 C4 10"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880710"
+address = 0x00880710
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 10 8B 0F"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880760"
+address = 0x00880760
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 C8 53 56 57 8B 7C"
+source = "Placeholder name (docs/lua.md): a function of the script context, 112 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8807D0"
+address = 0x008807D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 8B 01 53 56"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880820"
+address = 0x00880820
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 8B 01 53 56"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880860"
+address = 0x00880860
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 2C 84 C0"
+source = "Placeholder name (docs/lua.md): a function of the script context, 160 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880900"
+address = 0x00880900
+kind = "function"
+convention = "thiscall"
+expect = "33 FF C7 44 24 0C 00 00"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880950"
+address = 0x00880950
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8A 46 2C"
+source = "Placeholder name (docs/lua.md): a function of the script context, 144 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8809E0"
+address = 0x008809E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 88 8C 03 00"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880A40"
+address = 0x00880A40
+kind = "function"
+convention = "thiscall"
+expect = "8D 41 E4 85 C0 74 04 8D"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880A50"
+address = 0x00880A50
+kind = "function"
+convention = "thiscall"
+expect = "8D 41 C0 85 C0 74 04 8D"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880A60"
+address = 0x00880A60
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 58 FC FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880A70"
+address = 0x00880A70
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 48 FC FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880A80"
+address = 0x00880A80
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 D8 40 BA FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880A90"
+address = 0x00880A90
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 D8 40 BA FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880AA0"
+address = 0x00880AA0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 40 E9 18 FC FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880AB0"
+address = 0x00880AB0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 40 E9 A8 40 BA FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880AC0"
+address = 0x00880AC0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 40 E9 A8 40 BA FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880AD0"
+address = 0x00880AD0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880AE0"
+address = 0x00880AE0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880AF0"
+address = 0x00880AF0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880B00"
+address = 0x00880B00
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880B10"
+address = 0x00880B10
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880B20"
+address = 0x00880B20
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880B30"
+address = 0x00880B30
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880B40"
+address = 0x00880B40
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880B50"
+address = 0x00880B50
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880B60"
+address = 0x00880B60
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 F8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880B70"
+address = 0x00880B70
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 F8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880B80"
+address = 0x00880B80
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 F8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880B90"
+address = 0x00880B90
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 B8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880BA0"
+address = 0x00880BA0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880BB0"
+address = 0x00880BB0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880BC0"
+address = 0x00880BC0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880BD0"
+address = 0x00880BD0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880BE0"
+address = 0x00880BE0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880BF0"
+address = 0x00880BF0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880C00"
+address = 0x00880C00
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880C10"
+address = 0x00880C10
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880C20"
+address = 0x00880C20
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880C30"
+address = 0x00880C30
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880C40"
+address = 0x00880C40
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880C50"
+address = 0x00880C50
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 E8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880C60"
+address = 0x00880C60
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 F8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880C70"
+address = 0x00880C70
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 F8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880C80"
+address = 0x00880C80
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 F8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880C90"
+address = 0x00880C90
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 F8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880CA0"
+address = 0x00880CA0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 F8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880CB0"
+address = 0x00880CB0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 F8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880CC0"
+address = 0x00880CC0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 F8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880CD0"
+address = 0x00880CD0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 F8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880CE0"
+address = 0x00880CE0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 F8 F6 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880CF0"
+address = 0x00880CF0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 08 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880D00"
+address = 0x00880D00
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 08 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880D10"
+address = 0x00880D10
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 18 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880D20"
+address = 0x00880D20
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 18 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880D30"
+address = 0x00880D30
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 18 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880D40"
+address = 0x00880D40
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 18 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880D50"
+address = 0x00880D50
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 18 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880D60"
+address = 0x00880D60
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 58 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880D70"
+address = 0x00880D70
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 58 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880D80"
+address = 0x00880D80
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 58 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880D90"
+address = 0x00880D90
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 24 E9 58 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880DA0"
+address = 0x00880DA0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 24 E9 58 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880DB0"
+address = 0x00880DB0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 24 E9 58 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880DC0"
+address = 0x00880DC0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 58 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880DD0"
+address = 0x00880DD0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 58 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880DE0"
+address = 0x00880DE0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 58 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880DF0"
+address = 0x00880DF0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 58 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880E00"
+address = 0x00880E00
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 58 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880E10"
+address = 0x00880E10
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 08 F8 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880E20"
+address = 0x00880E20
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 08 F8 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880E30"
+address = 0x00880E30
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 18 F8 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880E40"
+address = 0x00880E40
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 28 F8 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880E50"
+address = 0x00880E50
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 28 F8 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880E60"
+address = 0x00880E60
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 28 F8 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880E70"
+address = 0x00880E70
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 28 F8 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880E80"
+address = 0x00880E80
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 38 E9 28 F8 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880E90"
+address = 0x00880E90
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 44 E9 28 F8 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880EA0"
+address = 0x00880EA0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 44 E9 B8 3C BA FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880EB0"
+address = 0x00880EB0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 44 E9 B8 3C BA FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880EC0"
+address = 0x00880EC0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 24 E9 98 F9 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880ED0"
+address = 0x00880ED0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 24 E9 78 FA FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880EE0"
+address = 0x00880EE0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 54 C7 06"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880F30"
+address = 0x00880F30
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 A8 FF FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 32 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F880F50"
+address = 0x00880F50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 8B 44 24 38 53"
+source = "Placeholder name (docs/lua.md): a function of the script context, 1197 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B69A0"
+address = 0x008B69A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 8B F1 8D 4C"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6A00"
+address = 0x008B6A00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the script context, 560 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6C30"
+address = 0x008B6C30
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 D0 BD"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6C80"
+address = 0x008B6C80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 57 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the script context, 112 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6CF0"
+address = 0x008B6CF0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 57 8B F1 E8 0F"
+source = "Placeholder name (docs/lua.md): a function of the script context, 128 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6D70"
+address = 0x008B6D70
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 90 BC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 112 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6DF0"
+address = 0x008B6DF0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 10 BC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6E30"
+address = 0x008B6E30
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 D0 BB"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6E80"
+address = 0x008B6E80
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 80 BB"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6ED0"
+address = 0x008B6ED0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 30 BB"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6F20"
+address = 0x008B6F20
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 E0 BA"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6F70"
+address = 0x008B6F70
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 90 BA"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6FC0"
+address = 0x008B6FC0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 40 BA"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7010"
+address = 0x008B7010
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 F0 B9"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7060"
+address = 0x008B7060
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 A0 B9"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B70B0"
+address = 0x008B70B0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 50 B9"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7100"
+address = 0x008B7100
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 00 B9"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7150"
+address = 0x008B7150
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 B0 B8"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B71A0"
+address = 0x008B71A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 60 B8"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B71F0"
+address = 0x008B71F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 10 B8"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7240"
+address = 0x008B7240
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 C0 B7"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B72A0"
+address = 0x008B72A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 60 B7"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7300"
+address = 0x008B7300
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 00 B7"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7350"
+address = 0x008B7350
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 B0 B6"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B73B0"
+address = 0x008B73B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 57 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7410"
+address = 0x008B7410
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 57 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7470"
+address = 0x008B7470
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 90 B5"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B74D0"
+address = 0x008B74D0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 30 B5"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7520"
+address = 0x008B7520
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 E0 B4"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7580"
+address = 0x008B7580
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 80 B4"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B75E0"
+address = 0x008B75E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 20 B4"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7640"
+address = 0x008B7640
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 C0 B3"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7690"
+address = 0x008B7690
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 57 8B F9"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B76F0"
+address = 0x008B76F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 10 B3"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7740"
+address = 0x008B7740
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 C0 B2"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7790"
+address = 0x008B7790
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 70 B2"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B77E0"
+address = 0x008B77E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 20 B2"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7830"
+address = 0x008B7830
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 D0 B1"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7880"
+address = 0x008B7880
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 80 B1"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B78D0"
+address = 0x008B78D0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 30 B1"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7910"
+address = 0x008B7910
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 F0 B0"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7960"
+address = 0x008B7960
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 A0 B0"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B79B0"
+address = 0x008B79B0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 50 B0"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7A00"
+address = 0x008B7A00
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 00 B0"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7A50"
+address = 0x008B7A50
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 B0 AF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7AA0"
+address = 0x008B7AA0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 60 AF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7AF0"
+address = 0x008B7AF0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 10 AF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7B40"
+address = 0x008B7B40
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 C0 AE"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7B90"
+address = 0x008B7B90
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 70 AE"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7BE0"
+address = 0x008B7BE0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 20 AE"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7C30"
+address = 0x008B7C30
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 D0 AD"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7C70"
+address = 0x008B7C70
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 90 AD"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7CC0"
+address = 0x008B7CC0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 40 AD"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7D10"
+address = 0x008B7D10
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 F0 AC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7D60"
+address = 0x008B7D60
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 A0 AC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7DB0"
+address = 0x008B7DB0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 50 AC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7E00"
+address = 0x008B7E00
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 00 AC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7E50"
+address = 0x008B7E50
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 B0 AB"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7EA0"
+address = 0x008B7EA0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 60 AB"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7EF0"
+address = 0x008B7EF0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 10 AB"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7F40"
+address = 0x008B7F40
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 C0 AA"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7F90"
+address = 0x008B7F90
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 70 AA"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B7FE0"
+address = 0x008B7FE0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 20 AA"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8030"
+address = 0x008B8030
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 D0 A9"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8090"
+address = 0x008B8090
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 70 A9"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B80F0"
+address = 0x008B80F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 10 A9"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8130"
+address = 0x008B8130
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 D0 A8"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8180"
+address = 0x008B8180
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 80 A8"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B81D0"
+address = 0x008B81D0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 30 A8"
+source = "Placeholder name (docs/lua.md): a function of the script context, 112 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8240"
+address = 0x008B8240
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 E8 C2 A7 FD FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8280"
+address = 0x008B8280
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 80 A7"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B82E0"
+address = 0x008B82E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 20 A7"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8340"
+address = 0x008B8340
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 C0 A6"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8390"
+address = 0x008B8390
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 70 A6"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B83E0"
+address = 0x008B83E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 49 08 50"
+source = "Placeholder name (docs/lua.md): a function of the script context, 22 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B84B0"
+address = 0x008B84B0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 50 A5"
+source = "Placeholder name (docs/lua.md): a function of the script context, 144 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8540"
+address = 0x008B8540
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 C0 A4"
+source = "Placeholder name (docs/lua.md): a function of the script context, 160 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B85E0"
+address = 0x008B85E0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B F1 E8 1F"
+source = "Placeholder name (docs/lua.md): a function of the script context, 144 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8670"
+address = 0x008B8670
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 90 A3"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B86C0"
+address = 0x008B86C0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 40 A3"
+source = "Placeholder name (docs/lua.md): a function of the script context, 144 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8750"
+address = 0x008B8750
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B F1 E8 AF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B87A0"
+address = 0x008B87A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 60 A2"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B87F0"
+address = 0x008B87F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 10 A2"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8840"
+address = 0x008B8840
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D F1 10 28"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8890"
+address = 0x008B8890
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B F9 E8 6F"
+source = "Placeholder name (docs/lua.md): a function of the script context, 288 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B89B0"
+address = 0x008B89B0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B F1 E8 4F"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8A00"
+address = 0x008B8A00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 57 8B"
+source = "Placeholder name (docs/lua.md): a function of the script context, 128 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8A80"
+address = 0x008B8A80
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 80 9F"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8AE0"
+address = 0x008B8AE0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 20 9F"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8B30"
+address = 0x008B8B30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 57 8B"
+source = "Placeholder name (docs/lua.md): a function of the script context, 240 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8C20"
+address = 0x008B8C20
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 E0 9D"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8C60"
+address = 0x008B8C60
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 A0 9D"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8CA0"
+address = 0x008B8CA0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 60 9D"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8CF0"
+address = 0x008B8CF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 81 FA A6 11"
+source = "Placeholder name (docs/lua.md): a function of the script context, 128 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8D70"
+address = 0x008B8D70
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B 70 FC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8DD0"
+address = 0x008B8DD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 46 4C 05 00"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8E10"
+address = 0x008B8E10
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 28 FA FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8E20"
+address = 0x008B8E20
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 57 8B"
+source = "Placeholder name (docs/lua.md): a function of the script context, 176 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8ED0"
+address = 0x008B8ED0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 30 9B"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8F30"
+address = 0x008B8F30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 55 56 57 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the script context, 288 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9050"
+address = 0x008B9050
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the script context, 160 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B90F0"
+address = 0x008B90F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 57 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the script context, 176 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B91A0"
+address = 0x008B91A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the script context, 160 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9240"
+address = 0x008B9240
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 57 8D 7E"
+source = "Placeholder name (docs/lua.md): a function of the script context, 128 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B92C0"
+address = 0x008B92C0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 28 FA FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B92D0"
+address = 0x008B92D0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 18 FA FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B92E0"
+address = 0x008B92E0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 18 58 CC FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B92F0"
+address = 0x008B92F0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 78 58 CC FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9300"
+address = 0x008B9300
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 54 8F AC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9340"
+address = 0x008B9340
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 F8 FE FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 32 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9360"
+address = 0x008B9360
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 5C 53 55 8D 44 24"
+source = "Placeholder name (docs/lua.md): a function of the script context, 784 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9670"
+address = 0x008B9670
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F1 E8 A5 43 05"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B96D0"
+address = 0x008B96D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 89 41"
+source = "Placeholder name (docs/lua.md): a function of the script context, 32 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B96F0"
+address = 0x008B96F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 48 08 F6 C1 01 75 21"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9730"
+address = 0x008B9730
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8B 42 14 3B"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9770"
+address = 0x008B9770
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 08 85 C9 74 08"
+source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B97B0"
+address = 0x008B97B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 40 3C C3"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B97C0"
+address = 0x008B97C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 0F B6 40 30"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B97D0"
+address = 0x008B97D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 40 34 C3"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B97E0"
+address = 0x008B97E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 08 85 C9 8B 54"
+source = "Placeholder name (docs/lua.md): a function of the script context, 112 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9850"
+address = 0x008B9850
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 5E C3 CC CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9860"
+address = 0x008B9860
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 08 8B 49 5C 53"
+source = "Placeholder name (docs/lua.md): a function of the script context, 128 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B98E0"
+address = 0x008B98E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 08 8B 49 5C 53"
+source = "Placeholder name (docs/lua.md): a function of the script context, 176 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9990"
+address = 0x008B9990
+kind = "function"
+convention = "thiscall"
+expect = "8B 40 08 8A 50 06 84 D2"
+source = "Placeholder name (docs/lua.md): a function of the script context, 112 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9A00"
+address = 0x008B9A00
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 68 48 8A 4D 07"
+source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9A60"
+address = 0x008B9A60
+kind = "function"
+convention = "thiscall"
+expect = "B8 F0 0B A8 00 89 46 08"
+source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9AB0"
+address = 0x008B9AB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 48 0C 8B 44 91 04 8B"
+source = "Placeholder name (docs/lua.md): a function of the script context, 48 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9AE0"
+address = 0x008B9AE0
+kind = "function"
+convention = "thiscall"
+expect = "0F B6 51 47 3B C2 7C 16"
+source = "Placeholder name (docs/lua.md): a function of the script context, 48 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9B10"
+address = 0x008B9B10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 8B 44 24 1C 8B"
+source = "Placeholder name (docs/lua.md): a function of the script context, 240 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9C00"
+address = 0x008B9C00
+kind = "function"
+convention = "thiscall"
+expect = "F6 C3 08 74 13 8B 4C 24"
+source = "Placeholder name (docs/lua.md): a function of the script context, 304 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9D30"
+address = 0x008B9D30
+kind = "function"
+convention = "thiscall"
+expect = "8D 4C 2F 05 3B C8 0F 8D"
+source = "Placeholder name (docs/lua.md): a function of the script context, 416 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9ED0"
+address = 0x008B9ED0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 48 2C 68"
+source = "Placeholder name (docs/lua.md): a function of the script context, 32 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9EF0"
+address = 0x008B9EF0
+kind = "function"
+convention = "thiscall"
+expect = "2D FA 00 00 00 78 17 8B"
+source = "Placeholder name (docs/lua.md): a function of the script context, 48 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9F20"
+address = 0x008B9F20
+kind = "function"
+convention = "thiscall"
+expect = "F6 43 08 01 55 8B 6C 24"
+source = "Placeholder name (docs/lua.md): a function of the script context, 160 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B9FC0"
+address = 0x008B9FC0
+kind = "function"
+convention = "thiscall"
+expect = "5F 5E B8 C4 87 AC 00 5D"
+source = "Placeholder name (docs/lua.md): a function of the script context, 144 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BA050"
+address = 0x008BA050
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D8 8A 43 08 B1 01"
+source = "Placeholder name (docs/lua.md): a function of the script context, 128 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BA0D0"
+address = 0x008BA0D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 47 14 8B 48 08 83 EC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 128 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BA150"
+address = 0x008BA150
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 46 5C"
+source = "Placeholder name (docs/lua.md): a function of the script context, 144 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BA1E0"
+address = 0x008BA1E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 08 57 8B 7C 24"
+source = "Placeholder name (docs/lua.md): a function of the script context, 48 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BA210"
+address = 0x008BA210
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 0C 8A 00 84"
+source = "Placeholder name (docs/lua.md): a function of the script context, 176 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BA2C0"
+address = 0x008BA2C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 17 8B 45 08 89 10 8B"
+source = "Placeholder name (docs/lua.md): a function of the script context, 128 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BA340"
+address = 0x008BA340
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 80 3B 3E"
+source = "Placeholder name (docs/lua.md): a function of the script context, 186 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F87FFF0"
+address = 0x0087FFF0
+kind = "function"
+convention = "thiscall"
+expect = "B8 8B 7F 10 CA C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the script context, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B68D0"
+address = 0x008B68D0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8B 4E 38"
+source = "Placeholder name (docs/lua.md): a function of the script context, 208 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B8400"
+address = 0x008B8400
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B F1 E8 FF"
+source = "Placeholder name (docs/lua.md): a function of the script context, 176 bytes with padding."
