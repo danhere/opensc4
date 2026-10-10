@@ -32,6 +32,12 @@ void TextureCreated(uint32_t texture, uint32_t format, uint32_t width, uint32_t 
 void TextureUploaded(uint32_t texture, int32_t level, int32_t x, int32_t y, int32_t width, int32_t height,
                      uint32_t format, uint32_t type, uint32_t rowLength, const void* pixels);
 
+// Replaces what cSC43DRender::Draw runs (the frame's passes) with `body`,
+// through the same hook the trace uses, so both can be on. False when the
+// hook cannot be installed.
+using DrawBody = uint8_t (*)(void* render);
+bool SetDrawBody(DrawBody body);
+
 // The last finished city frame.
 Frame Last();
 

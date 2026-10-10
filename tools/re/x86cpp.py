@@ -15,7 +15,8 @@ address. With exe=<path> (and objdump on the PATH) direct calls without an
 annotation are worked out: the argument bytes from the callee's first `ret N`,
 or from an `add esp,N` right after the call (then the caller cleans up), and a
 float result when the next instruction uses the x87 stack's top. The guesses
-are listed on stderr. 0x009EEF04 (the C runtime's _ftol2) is built in. Anything
+are listed on stderr. A `jmp [reg*4+table]` becomes a switch over the table's
+entries, read from the exe. 0x009EEF04 (the C runtime's _ftol2) is built in. Anything
 not handled stops with an error.
 """
 import re, subprocess, sys
@@ -61,12 +62,38 @@ if exe:
         ret = 'float' if nxt[1] in USES_TOP else 'int'
         calls[rest.lower()] = (nbytes, cleanup, ret)
         print('guessed call=%s:%d:%s:%s' % (rest.lower(), nbytes, cleanup, ret), file=sys.stderr)
+def table_entries(table, lo, hi):
+    """The dwords of a jump table in the exe that point into [lo, hi]."""
+    import struct
+    d = open(exe, 'rb').read()
+    pe = struct.unpack_from('<I', d, 0x3C)[0]
+    nsec, opt = struct.unpack_from('<H', d, pe + 6)[0], struct.unpack_from('<H', d, pe + 20)[0]
+    base = struct.unpack_from('<I', d, pe + 24 + 28)[0]
+    for i in range(nsec):
+        vs, va, rs, ro = struct.unpack_from('<IIII', d, pe + 24 + opt + 40 * i + 8)
+        if va <= table - base < va + max(vs, rs):
+            at = ro + table - base - va
+            break
+    out = []
+    while True:
+        v = struct.unpack_from('<I', d, at + 4 * len(out))[0]
+        if not lo <= v <= hi or len(out) > 255:
+            return out
+        out.append(v)
+JUMP_TABLE = r'DWORD PTR \[(e\w\w)\*4\+0x([0-9a-f]+)\]'
 targets = set()
+tables = {}
 for a, mn, rest in ins:
-    if mn.startswith('j'):
+    if mn == 'jmp' and re.fullmatch(JUMP_TABLE, rest):
+        assert exe, 'a jump table needs exe=<path>'
+        m = re.fullmatch(JUMP_TABLE, rest)
+        tables[a] = (m.group(1), table_entries(int(m.group(2), 16), ins[0][0], ins[-1][0]))
+        targets.update(tables[a][1])
+    elif mn.startswith('j'):
         targets.add(int(rest, 16))
 R32 = ('eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp', 'esp')
-R8 = {'al': ('eax', 0), 'bl': ('ebx', 0), 'cl': ('ecx', 0), 'dl': ('edx', 0), 'ah': ('eax', 8)}
+R8 = {'al': ('eax', 0), 'bl': ('ebx', 0), 'cl': ('ecx', 0), 'dl': ('edx', 0), 'ah': ('eax', 8), 'bh': ('ebx', 8),
+      'ch': ('ecx', 8), 'dh': ('edx', 8)}
 out = []
 def E(s): out.append('    ' + s)
 def addr_expr(inner):
@@ -91,8 +118,10 @@ def mem(op):
     size = m.group(1)
     a = '0x%08Xu' % int(m.group(2), 16) if m.group(2) else addr_expr(m.group(3))
     return size, a
+R16 = {'ax': 'eax', 'bx': 'ebx', 'cx': 'ecx', 'dx': 'edx', 'si': 'esi', 'di': 'edi', 'bp': 'ebp'}
 def rd32(op):
     if op in R32: return op
+    if op in R16: return '(%s & 0xFFFF)' % R16[op]
     if op in R8:
         r, sh = R8[op]; return '((%s >> %d) & 0xFF)' % (r, sh)
     k = mem(op)
@@ -108,6 +137,8 @@ def wr(op, val):
     if m:
         E('M<%s>(0x%08Xu) = static_cast<%s>(%s);' % (bare_type, int(m.group(1), 16), bare_type, val)); return
     if op in R32: E('%s = %s;' % (op, val)); return
+    if op in R16:
+        E('%s = (%s & 0xFFFF0000) | (static_cast<uint32_t>(%s) & 0xFFFF);' % (R16[op], R16[op], val)); return
     if op in R8:
         r, sh = R8[op]; E('%s = (%s & ~(0xFFu << %d)) | ((static_cast<uint32_t>(%s) & 0xFF) << %d);' % (r, r, sh, val, sh)); return
     k = mem(op); assert k, op
@@ -146,8 +177,15 @@ for a, mn, rest in ins:
     elif mn == 'mov': wr(ops[0], rd32(ops[1]))
     elif mn == 'movzx': wr(ops[0], rd32(ops[1]))
     elif mn == 'movsx':
-        k = mem(ops[1]); t = {'BYTE': 'int8_t', 'WORD': 'int16_t'}[k[0]]
-        wr(ops[0], 'static_cast<uint32_t>(static_cast<int32_t>(M<%s>(%s)))' % (t, k[1]))
+        k = mem(ops[1])
+        if k:
+            t = {'BYTE': 'int8_t', 'WORD': 'int16_t'}[k[0]]
+            wr(ops[0], 'static_cast<uint32_t>(static_cast<int32_t>(M<%s>(%s)))' % (t, k[1]))
+        elif ops[1] in R8:
+            wr(ops[0], 'static_cast<uint32_t>(static_cast<int32_t>(static_cast<int8_t>(%s)))' % rd32(ops[1]))
+        else:
+            assert ops[1] in R16, ops[1]
+            wr(ops[0], 'static_cast<uint32_t>(static_cast<int32_t>(static_cast<int16_t>(%s)))' % rd32(ops[1]))
     elif mn == 'lea':
         m = re.fullmatch(r'\[(.+)\]', ops[1]); wr(ops[0], addr_expr(m.group(1)))
     elif mn in ('add', 'sub', 'and', 'or', 'xor', 'imul') and len(ops) == 2:
@@ -171,6 +209,13 @@ for a, mn, rest in ins:
         E('esp -= 4; M<uint32_t>(esp) = %s;' % rd32(ops[0]))
     elif mn == 'pop':
         E('%s = M<uint32_t>(esp); esp += 4;' % ops[0])
+    elif mn == 'jmp' and a in tables:
+        reg, entries = tables[a]
+        E('switch (%s) {' % reg)
+        for i, target in enumerate(entries):
+            E('case %d: goto L_%x;' % (i, target))
+        E('default: __debugbreak();')
+        E('}')
     elif mn == 'jmp':
         E('goto L_%x;' % int(rest, 16))
     elif mn.startswith('j'):
