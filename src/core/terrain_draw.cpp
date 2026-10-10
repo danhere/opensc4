@@ -841,31 +841,48 @@ struct VertexRect {
     int32_t x0, z0, x1, z1;
 };
 
-// The rows of the view inside the rectangle: [first, last).
-VertexRect ClampRows(char* self, VertexRect r)
+// Which rows and columns a rectangle draw goes by: the view's row range and
+// the per-row tables of the land's rows or the water's.
+struct RowSet {
+    std::size_t first, end; // offsets in the view
+    std::uintptr_t drawn, starts, ends;
+};
+constexpr RowSet kLandRows = {0x98, 0x9C, addr::STE_LandRowDrawn, addr::STE_LandRowStart, addr::STE_LandRowEnd};
+
+bool Shown(const RowSet& set, int32_t row)
 {
-    r.z0 = std::max(std::max(r.z0, 0), At<int32_t>(self, 0x98));
-    r.z1 = std::min(At<int32_t>(self, 0x9C), std::min(r.z1, Global<int32_t>(addr::STE_Rows))) - 1;
+    const uint8_t* const drawn = Global<uint8_t*>(set.drawn);
+    return drawn[row] || drawn[row + 1];
+}
+
+// The rows of the view inside the rectangle: [first, end).
+VertexRect ClampRows(char* self, const RowSet& set, VertexRect r)
+{
+    r.z0 = std::max(std::max(r.z0, 0), At<int32_t>(self, set.first));
+    r.z1 = std::min(At<int32_t>(self, set.end), std::min(r.z1, Global<int32_t>(addr::STE_Rows)));
     r.x0 = std::max(r.x0, 0);
     r.x1 = std::min(r.x1, Global<int32_t>(addr::STE_Columns));
     return r;
 }
 
-// 0x007545C0: the land rows inside a rectangle through the dynamic buffers,
-// then the rows' extra quads.
-void DrawRowsBuffered(char* self, char* context, VertexRect rect)
+// 0x007545C0 and 0x00754910: the land vertices of the rows inside a
+// rectangle through the dynamic buffers, then the rows' extra quads.
+void DrawRowsBuffered(char* self, char* context, const RowSet& set, VertexRect rect)
 {
+    const int32_t* const starts = Global<int32_t*>(set.starts);
+    const int32_t* const ends = Global<int32_t*>(set.ends);
     if (!LockBatch())
         return;
     Global<char*>(addr::STE_BatchSource) = Land();
     Global<uint16_t*>(addr::STE_IndexTemplate) = Global<uint16_t*>(addr::STE_RowIndices);
     Global<uint8_t>(addr::STE_IndexTemplatePerRow) = 1;
-    const VertexRect r = ClampRows(self, rect);
+    VertexRect r = ClampRows(self, set, rect);
+    --r.z1;
     for (int32_t row = r.z0; row < r.z1; ++row) {
-        if (!RowShown(row))
+        if (!Shown(set, row))
             continue;
-        const int32_t first = std::max(r.x0, RowStarts()[row]);
-        const int32_t last = std::min(RowEnds()[row], r.x1) - 1;
+        const int32_t first = std::max(r.x0, starts[row]);
+        const int32_t last = std::min(ends[row], r.x1) - 1;
         if ((last - first) * 2 > 0)
             AddStrip(row, first, last);
     }
@@ -881,10 +898,10 @@ void DrawRowsBuffered(char* self, char* context, VertexRect rect)
         Virtual<void>(buffers, 0x28, buffer, 0u, triangles * 3, Global<uint16_t*>(addr::STE_QuadIndices));
     };
     for (int32_t row = r.z0; row < r.z1; ++row) {
-        if (!RowShown(row))
+        if (!Shown(set, row))
             continue;
-        const int32_t first = std::max(r.x0, RowStarts()[row]);
-        const int32_t end = std::min(RowEnds()[row], r.x1);
+        const int32_t first = std::max(r.x0, starts[row]);
+        const int32_t end = std::min(ends[row], r.x1);
         if (end <= first)
             continue;
         const QuadRun run = RowQuadRun(row, Global<uint32_t>(addr::STE_CellsX) + 1, first, end);
@@ -913,24 +930,77 @@ void DrawRowsBuffered(char* self, char* context, VertexRect rect)
     Virtual<uint32_t>(buffers, 8);
 }
 
-// 0x007541C0: the same with vertex arrays.
-void DrawRowsArrays(char* self, char* context, VertexRect rect)
+// 0x007541C0 and 0x007543C0: the same with vertex arrays.
+void DrawRowsArrays(char* self, char* context, const RowSet& set, uint32_t quadsPerRow, VertexRect rect)
 {
-    const VertexRect r = ClampRows(self, rect);
+    const int32_t* const starts = Global<int32_t*>(set.starts);
+    const int32_t* const ends = Global<int32_t*>(set.ends);
+    VertexRect r = ClampRows(self, set, rect);
+    --r.z1;
     for (int32_t row = r.z0; row < r.z1; ++row) {
-        if (!RowShown(row))
+        if (!Shown(set, row))
             continue;
-        const int32_t first = std::max(r.x0, RowStarts()[row]);
-        const int32_t end = std::min(RowEnds()[row], r.x1);
+        const int32_t first = std::max(r.x0, starts[row]);
+        const int32_t end = std::min(ends[row], r.x1);
         if (first >= end)
             continue;
         SetRowArrays(context, row);
         const int32_t triangles = (end - first) * 2 - 2;
         if (triangles > 0)
             CallThis<void>(addr::SC4RenderContext_DrawIndexed, context, 0u, first * 6, triangles * 3);
-        const QuadRun run = RowQuadRun(row, Columns(), first, end);
+        const QuadRun run = RowQuadRun(row, quadsPerRow, first, end);
         if (run.vertices)
             CallThis<void>(addr::SC4RenderContext_DrawArrays, context, 6u, 0xBu, run.count, run.vertices);
+    }
+}
+
+// 0x00755560 and 0x00755700: the water vertices of the rows inside a
+// rectangle, with vertex arrays.
+void DrawWaterRowsArrays(char* self, char* context, const RowSet& set, VertexRect rect)
+{
+    const VertexRect r = ClampRows(self, set, rect);
+    if (r.z0 >= r.z1)
+        return;
+    CallThis<void>(addr::SC4RenderContext_SetIndexArray, context, Global<uint32_t>(addr::STE_IndicesPerRow),
+                   Global<uint16_t*>(addr::STE_SkirtIndices));
+    const int32_t* const starts = Global<int32_t*>(set.starts);
+    const int32_t* const ends = Global<int32_t*>(set.ends);
+    for (int32_t row = r.z0; row < r.z1 - 1; ++row) {
+        if (!Shown(set, row))
+            continue;
+        const int32_t first = std::max(r.x0, starts[row]);
+        const int32_t triangles = (std::min(ends[row], r.x1) - first) * 2 - 2;
+        if (triangles <= 0)
+            continue;
+        const uint32_t columns = Columns();
+        CallThis<void>(addr::SC4RenderContext_SetVertexArray, context, 0xBu, columns,
+                       Global<char*>(addr::STE_WaterVertices) + static_cast<std::size_t>(columns) * row * 32);
+        CallThis<void>(addr::SC4RenderContext_DrawIndexed, context, 0u, first * 6, triangles * 3);
+    }
+}
+
+// cSC4OverlayManager's rectangle draw (0x00735720): a rectangle of cells
+// (x0, z0, x1, z1, inclusive) of the terrain with the state the caller set,
+// by the manager's flags: water vertices (+0x16) or land vertices, the
+// water's rows (+0x15) or the land's, dynamic buffers (+0x94) or arrays.
+void DrawOverlayRect(char* manager, char* context, const int32_t* cells)
+{
+    const VertexRect rect = {cells[0], cells[1], cells[2] + 1, cells[3] + 1};
+    char* const view = At<char*>(manager, 0x8C);
+    const bool waterRows = At<uint8_t>(manager, 0x15) != 0;
+    if (At<uint8_t>(manager, 0x16)) {
+        static constexpr RowSet kWater = {0xD4, 0xD8, addr::STE_WaterRowWater, addr::STE_WaterRowStart, addr::STE_WaterRowEnd};
+        static constexpr RowSet kLand = {0xA4, 0xA8, addr::STE_LandRowWater, addr::STE_LandRowStart, addr::STE_LandRowEnd};
+        DrawWaterRowsArrays(view, context, waterRows ? kWater : kLand, rect);
+    } else if (At<void*>(manager, 0x94)) {
+        static constexpr RowSet kWater = {0xC8, 0xCC, addr::STE_WaterRowDrawn, addr::STE_WaterRowStart, addr::STE_WaterRowEnd};
+        DrawRowsBuffered(view, context, waterRows ? kWater : kLandRows, rect);
+    } else {
+        static constexpr RowSet kWater = {0xBC, 0xC0, addr::STE_WaterRowDrawn, addr::STE_WaterRowStart, addr::STE_WaterRowEnd};
+        if (waterRows)
+            DrawRowsArrays(view, context, kWater, Global<uint32_t>(addr::STE_CellsX) + 1, rect);
+        else
+            DrawRowsArrays(view, context, kLandRows, Columns(), rect);
     }
 }
 
@@ -1016,9 +1086,9 @@ uint32_t DrawGrid(char* self, char* context, void* buffers)
     const VertexRect all = {0, 0, static_cast<int32_t>(L[70].u), static_cast<int32_t>(L[71].u)};
     Virtual<void>(driver, 0x88, 0u, 1u);
     if (buffers)
-        DrawRowsBuffered(self, context, all);
+        DrawRowsBuffered(self, context, kLandRows, all);
     else
-        DrawRowsArrays(self, context, all);
+        DrawRowsArrays(self, context, kLandRows, Columns(), all);
     Virtual<void>(driver, 0x88, 1u, 1u);
     CallThis<void>(addr::SC4RenderContext_ClearTextureMatrix, context, 0u);
     return 1;
@@ -1323,6 +1393,29 @@ void __fastcall DColours(char* self, void*)
 
 OPENSC4_THUNK(TRebuild, DRebuild, 4)
 OPENSC4_THUNK(TColours, DColours, 0)
+using OverlayRectFn = void(__fastcall*)(char*, void*, char*, const int32_t*);
+OverlayRectFn g_overlayRect;
+bool g_compareOverlayRect = false;
+
+void __fastcall DOverlayRect(char* manager, void*, char* context, const int32_t* cells)
+{
+    if (g_depth > 0)
+        return g_overlayRect(manager, nullptr, context, cells);
+    static uint32_t paths = 0;
+    const uint32_t path = 1u << ((At<uint8_t>(manager, 0x16) ? 4 : At<void*>(manager, 0x94) ? 2 : 0) + (At<uint8_t>(manager, 0x15) ? 1 : 0));
+    if (!(paths & path)) {
+        paths |= path;
+        log::Write("overlays: first rectangle with water vertices %d, water rows %d, dynamic buffers %d",
+                   At<uint8_t>(manager, 0x16), At<uint8_t>(manager, 0x15), At<void*>(manager, 0x94) != nullptr);
+    }
+    if (!g_compareOverlayRect)
+        return DrawOverlayRect(manager, context, cells);
+    DrawCompared("overlays.rect", PassRegions(At<char*>(manager, 0x8C), context),
+                 [&] { DrawOverlayRect(manager, context, cells); },
+                 [&] { g_overlayRect(manager, nullptr, context, cells); });
+}
+
+OPENSC4_THUNK(TOverlayRect, DOverlayRect, 8)
 OPENSC4_THUNK(TLandSkirts, DLandSkirts, 4)
 OPENSC4_THUNK(TLand, DLand, 8)
 OPENSC4_THUNK(TWater, DWater, 8)
@@ -1469,6 +1562,29 @@ const bool g_registeredSkirtColours = registry::Register({
     "(docs/renderer.md, \"The terrain\")",
     true,
     InstallSkirtColours,
+});
+
+bool InstallOverlayRect(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareOverlayRect = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC4OverlayManager_DrawRect, &TOverlayRect, &g_overlayRect))
+        return false;
+    log::Write("overlays: rectangle draws %s", g_compareOverlayRect ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredOverlayRect = registry::Register({
+    "renderer.overlays.rect",
+    "renderer/overlays",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4OverlayManager_DrawRect,
+    "The overlay manager's draw of a rectangle of terrain cells; compare mode as renderer.terrain.land "
+    "(docs/renderer.md, \"The overlays\")",
+    true,
+    InstallOverlayRect,
 });
 
 } // namespace
