@@ -1013,3 +1013,19 @@ kind = "function"
 convention = "cdecl"
 expect = "53 8B 5C 24 0C 8D 43 FF"
 source = "Name ours, not analysed. ({drawable, key} pairs, count): a quicksort by key (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "cSC43DRender::DrawMoving"
+address = 0x007C7830
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. (): the pass over the grid cells flagged (+0xC bit 0) as holding items without flag 8 or with flag 0x80: three lists by the item's flags (plain, 0x100, 1), sorted and drawn in rounds, then the items with flag 0x80 drawn once more with a depth offset of 4 (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "cSC43DRender::SortByKeyDescending"
+address = 0x007C5710
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 8D 43 FF"
+source = "Name ours, not analysed (the direction is a guess from its use beside 0x007C56D0). ({drawable, key} pairs, count): the sort of the moving pass's two other lists (docs/renderer.md, \"Models and lots\")."
