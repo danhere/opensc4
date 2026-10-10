@@ -817,6 +817,213 @@ void DrawWater(char* self, char* context, void* buffers)
     DrawWaterSurface(self, context, buffers);
 }
 
+// --- The grid --------------------------------------------------------------------------
+
+// The extra quads of a row between two columns (0x00B4C6B8 counts them per
+// column, 0x00B4C6B0 holds them per row).
+struct QuadRun {
+    const char* vertices;
+    int32_t count; // vertices
+};
+
+QuadRun RowQuadRun(int32_t row, uint32_t perRow, int32_t first, int32_t end)
+{
+    const uint16_t* const offsets = Global<uint16_t*>(addr::STE_RowQuadOffsets);
+    const int32_t base = static_cast<int32_t>(perRow) * row;
+    const int32_t from = offsets[base + first], to = offsets[base + end - 1];
+    if (from >= to)
+        return {nullptr, 0};
+    const char* const quads = At<const char*>(Global<char*>(addr::STE_RowQuads), static_cast<std::size_t>(row) * 12);
+    return {quads + static_cast<std::size_t>(from) * 0x80, (to - from) * 4};
+}
+
+struct VertexRect {
+    int32_t x0, z0, x1, z1;
+};
+
+// The rows of the view inside the rectangle: [first, last).
+VertexRect ClampRows(char* self, VertexRect r)
+{
+    r.z0 = std::max(std::max(r.z0, 0), At<int32_t>(self, 0x98));
+    r.z1 = std::min(At<int32_t>(self, 0x9C), std::min(r.z1, Global<int32_t>(addr::STE_Rows))) - 1;
+    r.x0 = std::max(r.x0, 0);
+    r.x1 = std::min(r.x1, Global<int32_t>(addr::STE_Columns));
+    return r;
+}
+
+// 0x007545C0: the land rows inside a rectangle through the dynamic buffers,
+// then the rows' extra quads.
+void DrawRowsBuffered(char* self, char* context, VertexRect rect)
+{
+    if (!LockBatch())
+        return;
+    Global<char*>(addr::STE_BatchSource) = Land();
+    Global<uint16_t*>(addr::STE_IndexTemplate) = Global<uint16_t*>(addr::STE_RowIndices);
+    Global<uint8_t>(addr::STE_IndexTemplatePerRow) = 1;
+    const VertexRect r = ClampRows(self, rect);
+    for (int32_t row = r.z0; row < r.z1; ++row) {
+        if (!RowShown(row))
+            continue;
+        const int32_t first = std::max(r.x0, RowStarts()[row]);
+        const int32_t last = std::min(RowEnds()[row], r.x1) - 1;
+        if ((last - first) * 2 > 0)
+            AddStrip(row, first, last);
+    }
+    FlushBatch();
+
+    void* buffers = nullptr;
+    Virtual<uint8_t>(At<void*>(context, 0x30), 0, 0x09CD86F9u, &buffers);
+    const int32_t buffer = Virtual<int32_t>(buffers, 0xC, 0xBu);
+    char* locked = nullptr;
+    int32_t triangles = 0;
+    const auto draw = [&] {
+        Virtual<void>(buffers, 0x20, buffer);
+        Virtual<void>(buffers, 0x28, buffer, 0u, triangles * 3, Global<uint16_t*>(addr::STE_QuadIndices));
+    };
+    for (int32_t row = r.z0; row < r.z1; ++row) {
+        if (!RowShown(row))
+            continue;
+        const int32_t first = std::max(r.x0, RowStarts()[row]);
+        const int32_t end = std::min(RowEnds()[row], r.x1);
+        if (end <= first)
+            continue;
+        const QuadRun run = RowQuadRun(row, Global<uint32_t>(addr::STE_CellsX) + 1, first, end);
+        if (!run.vertices)
+            continue;
+        if (locked) {
+            const int32_t total = run.count / 2 + triangles;
+            char* appended = nullptr;
+            if (static_cast<uint32_t>(total * 3) <= Global<uint32_t>(addr::STE_IndicesPerRow))
+                appended = Virtual<char*>(buffers, 0x1C, buffer, run.count);
+            if (appended) {
+                triangles = total;
+                locked = appended;
+                std::memcpy(locked, run.vertices, static_cast<std::size_t>(run.count) * 32);
+                continue;
+            }
+            draw();
+        }
+        locked = Virtual<char*>(buffers, 0x18, buffer, run.count);
+        triangles = run.count / 2;
+        if (locked)
+            std::memcpy(locked, run.vertices, static_cast<std::size_t>(run.count) * 32);
+    }
+    if (locked)
+        draw();
+    Virtual<uint32_t>(buffers, 8);
+}
+
+// 0x007541C0: the same with vertex arrays.
+void DrawRowsArrays(char* self, char* context, VertexRect rect)
+{
+    const VertexRect r = ClampRows(self, rect);
+    for (int32_t row = r.z0; row < r.z1; ++row) {
+        if (!RowShown(row))
+            continue;
+        const int32_t first = std::max(r.x0, RowStarts()[row]);
+        const int32_t end = std::min(RowEnds()[row], r.x1);
+        if (first >= end)
+            continue;
+        SetRowArrays(context, row);
+        const int32_t triangles = (end - first) * 2 - 2;
+        if (triangles > 0)
+            CallThis<void>(addr::SC4RenderContext_DrawIndexed, context, 0u, first * 6, triangles * 3);
+        const QuadRun run = RowQuadRun(row, Columns(), first, end);
+        if (run.vertices)
+            CallThis<void>(addr::SC4RenderContext_DrawArrays, context, 6u, 0xBu, run.count, run.vertices);
+    }
+}
+
+// The grid's alpha at a vertex: opaque from 2 m above the water (the pass
+// takes 2 m off first, so 4 m), none below, 0.5 per metre between, through
+// the 49152.0 rounding trick.
+uint8_t GridAlpha(float land, float water, double slope)
+{
+    const double above = (static_cast<double>(land) - water) - 2.0f;
+    const float stored = static_cast<float>(above);
+    if (above >= 2.0)
+        return 0xFF;
+    if (stored < 0.0f)
+        return 0;
+    const float scaled = static_cast<float>(stored * slope + 49152.0f);
+    uint32_t bits;
+    std::memcpy(&bits, &scaled, 4);
+    bits += 0xB8C00000;
+    return static_cast<uint8_t>(bits - (bits >> 8));
+}
+
+union Cell {
+    float f;
+    uint32_t u;
+};
+
+// 0x00757650.
+uint32_t DrawGrid(char* self, char* context, void* buffers)
+{
+    if (!At<void*>(self, 0x88) || At<uint8_t>(At<char*>(At<char*>(context, 0x38), 0xC), 0x39C))
+        return 0;
+    uint32_t& flags = Global<uint32_t>(addr::STE_GridStaticFlags);
+    uint32_t* const state = &Global<uint32_t>(addr::STE_GridState);
+    if (!(flags & 1)) {
+        flags |= 1;
+        state[0] = 0;
+        state[1] = 0;
+    }
+    if (!Global<uint8_t>(addr::STE_GridStateReady)) {
+        CallThis<void>(addr::SC4RenderState_Init, state, 1u, 0u, 1u, 0u, 1u, 1u, 1u, 3u, 4u, 5u, 0xFFFFFFFFu, -1.0f, 1u,
+                       0xFFFFFFFFu);
+        Global<uint8_t>(addr::STE_GridStateReady) = 1;
+    }
+    CallThis<void>(addr::SC4RenderContext_SetRenderState, context, state);
+    CallThis<void>(addr::SC4RenderContext_BindTexture, context, **reinterpret_cast<uint32_t**>(At<void*>(self, 0x88)), 0u);
+    CallThis<void>(addr::SC4RenderContext_SetState4280, context, 1u, 7u, 0u);
+    CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 3u, 3u, 0u);
+
+    // The texture matrix from the camera's: the game's stack frame as cells,
+    // the arithmetic translated from 0x00757775 to 0x0075821F.
+    Cell L[105] = {};
+    for (int i = 6; i < 22; ++i)
+        L[i].u = Global<uint32_t>(addr::STE_MatrixFill);
+    CallThis<void>(addr::SC4RenderContext_UpdateViewMatrix, context);
+    CallThis<void>(addr::SC4RenderContext_GetViewMatrix, context, &L[6]);
+#include "core/terrain_grid_matrix.inc"
+    L[56].u = r436;
+    L[57].u = r437;
+    CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[42], 0u);
+
+    const int32_t firstRow = At<int32_t>(self, 0x98), endRow = At<int32_t>(self, 0x9C);
+    if (firstRow < endRow) {
+        uint32_t seen = flags;
+        double slope = Global<float>(addr::STE_GridAlphaSlope);
+        const int32_t columns = static_cast<int32_t>(Columns());
+        for (int32_t row = firstRow; row < endRow; ++row) {
+            const int32_t first = RowStarts()[row] + columns * row, end = RowEnds()[row] + columns * row;
+            for (int32_t i = first; i < end; ++i) {
+                if (!(seen & 2)) {
+                    seen |= 2;
+                    slope = 0.5f;
+                }
+                char* const land = Land() + static_cast<std::size_t>(i) * 32;
+                const char* const water = Global<char*>(addr::STE_WaterVertices) + static_cast<std::size_t>(i) * 32;
+                At<uint8_t>(land, 0xF) = GridAlpha(At<float>(land, 4), At<float>(const_cast<char*>(water), 4), slope);
+            }
+        }
+        Global<float>(addr::STE_GridAlphaSlope) = static_cast<float>(slope);
+        flags = seen;
+    }
+
+    void* const driver = At<void*>(context, 0x30);
+    const VertexRect all = {0, 0, static_cast<int32_t>(L[70].u), static_cast<int32_t>(L[71].u)};
+    Virtual<void>(driver, 0x88, 0u, 1u);
+    if (buffers)
+        DrawRowsBuffered(self, context, all);
+    else
+        DrawRowsArrays(self, context, all);
+    Virtual<void>(driver, 0x88, 1u, 1u);
+    CallThis<void>(addr::SC4RenderContext_ClearTextureMatrix, context, 0u);
+    return 1;
+}
+
 // OPENSC4_TERRAIN_SELFCHECK=1: compare mode runs the game's pass against
 // itself, to check the comparison.
 const bool g_selfCheck = [] {
@@ -903,6 +1110,34 @@ uint32_t __fastcall DLandSkirts(char* self, void*, char* context)
     return result;
 }
 
+using GridFn = uint32_t(__fastcall*)(char*, void*, char*, void*);
+GridFn g_grid;
+bool g_compareGrid = false;
+
+uint32_t __fastcall DGrid(char* self, void*, char* context, void* buffers)
+{
+    if (g_depth > 0)
+        return g_grid(self, nullptr, context, buffers);
+    static bool logged[2] = {};
+    if (!logged[buffers != nullptr]) {
+        logged[buffers != nullptr] = true;
+        log::Write("terrain draw: grid pass through %s", buffers ? "the driver's dynamic vertex buffers" : "vertex arrays");
+    }
+    if (!g_compareGrid)
+        return DrawGrid(self, context, buffers);
+    uint32_t result = 0;
+    DrawCompared(g_selfCheck ? "terrain.grid.selfcheck" : "terrain.grid", PassRegions(self, context),
+                 [&] {
+                     if (g_selfCheck)
+                         g_grid(self, nullptr, context, buffers);
+                     else
+                         DrawGrid(self, context, buffers);
+                 },
+                 [&] { result = g_grid(self, nullptr, context, buffers); });
+    return result;
+}
+
+OPENSC4_THUNK(TGrid, DGrid, 8)
 OPENSC4_THUNK(TLandSkirts, DLandSkirts, 4)
 OPENSC4_THUNK(TLand, DLand, 8)
 OPENSC4_THUNK(TWater, DWater, 8)
@@ -981,6 +1216,28 @@ const bool g_registeredSkirts = registry::Register({
     "renderer.terrain.land (docs/renderer.md, \"The terrain\")",
     true,
     InstallSkirts,
+});
+
+bool InstallGrid(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareGrid = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSTETerrainView3D_DrawGrid, &TGrid, &g_grid))
+        return false;
+    log::Write("terrain draw: grid %s", g_compareGrid ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredGrid = registry::Register({
+    "renderer.terrain.grid",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_DrawGrid,
+    "The cell grid over the land; compare mode as renderer.terrain.land (docs/renderer.md, \"The terrain\")",
+    true,
+    InstallGrid,
 });
 
 } // namespace
