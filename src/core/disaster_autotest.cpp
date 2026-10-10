@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 
 namespace opensc4::autotest {
 namespace {
@@ -100,6 +101,63 @@ void Fingerprint(cISC4City* city, std::string& line)
         std::snprintf(riots, sizeof riots, " riot %d %lld %d", rioters, time, levels);
         line += riots;
     }
+    // The fires (one instance, its interface at +0xC): how many, their heats
+    // and stages added up, the burned queue and what was destroyed.
+    for (char* node = At<char*>(header, 0x8); node != header; node = NextNode(node)) {
+        if (At<uint32_t>(node, 0x10) != 0x621CDA33)
+            continue;
+        char* const list = At<char*>(At<char*>(node, 0x14) - 0x8, 0x14);
+        for (char* item = At<char*>(list, 0x0); item != list; item = At<char*>(item, 0x0)) {
+            char* const instance = At<char*>(item, 0x8) - 0xC;
+            int fires = 0;
+            long long heat = 0;
+            int stages = 0;
+            char* const burning = At<char*>(instance, 0xE0);
+            for (char* fire = At<char*>(burning, 0x0); fire != burning; fire = At<char*>(fire, 0x0)) {
+                void* const occupant = At<void*>(fire, 0x8);
+                ++fires;
+                heat += Virtual<int32_t>(occupant, 0x24);
+                stages += Virtual<int32_t>(occupant, 0x18);
+            }
+            int queued = 0;
+            char* const burned = At<char*>(instance, 0xEC);
+            for (char* entry = At<char*>(burned, 0x0); entry != burned; entry = At<char*>(entry, 0x0))
+                ++queued;
+            char fireText[96];
+            std::snprintf(fireText, sizeof fireText, " fire %d %lld %d q %d gone %u groups %u", fires, heat, stages, queued,
+                          At<uint32_t>(instance, 0xE4), At<uint32_t>(instance, 0xF4));
+            line += fireText;
+        }
+    }
+    // The earthquakes: phase, the fault (direction, control points) and how
+    // far along it is.
+    for (char* node = At<char*>(header, 0x8); node != header; node = NextNode(node)) {
+        if (At<uint32_t>(node, 0x10) != 0x42963812)
+            continue;
+        char* const list = At<char*>(At<char*>(node, 0x14) - 0x8, 0x14);
+        for (char* item = At<char*>(list, 0x0); item != list; item = At<char*>(item, 0x0)) {
+            char* const quake = At<char*>(item, 0x8) - 0x8;
+            Fnv fault;
+            for (std::size_t at = 0x24; at < 0x38; at += 4)
+                fault.Add(At<uint32_t>(quake, at));
+            fault.Add(At<uint32_t>(quake, 0x40));
+            fault.Add(At<uint32_t>(quake, 0x44));
+            for (std::size_t vector : {std::size_t{0x48}, std::size_t{0x54}}) {
+                for (char* at = At<char*>(quake, vector); at != At<char*>(quake, vector + 4); at += 4)
+                    fault.Add(At<uint32_t>(at, 0x0));
+            }
+            Fnv progress;
+            progress.Add(At<uint16_t>(quake, 0x60));
+            for (std::size_t at : {std::size_t{0x64}, std::size_t{0x68}, std::size_t{0x8C}, std::size_t{0x90},
+                                   std::size_t{0x94}, std::size_t{0x98}})
+                progress.Add(At<uint32_t>(quake, at));
+            const auto news = static_cast<int>((At<char*>(quake, 0x118) - At<char*>(quake, 0x114)) / 4);
+            char quakes[80];
+            std::snprintf(quakes, sizeof quakes, " quake %d %08X %08X %d", At<int32_t>(quake, 0x14), fault.h, progress.h,
+                          news);
+            line += quakes;
+        }
+    }
 }
 
 // OPENSC4_TEST_PIPE_FUSE=<ms>: after a pipe burst starts, the fuse range
@@ -151,8 +209,35 @@ void Drive(const Day& day)
         if (char* const options = Global<char*>(addr::SC4_Options43CD8))
             At<uint8_t>(options, 0xF08) = 0;
     }
-    // The managers' return values differ; the layer's counts show a start.
     char* const self = Layer(day.city);
+    if (which == 5) {
+        // The effect disaster has no start by cell: as its tool does, an
+        // effect (OPENSC4_TEST_DISASTER_EFFECT, default "QuakeStart") is
+        // made and given to the manager's effect part at the city's
+        // centre; the part's SetLocation then moves it 8 cells.
+        void* extra = nullptr;
+        void* effect = nullptr;
+        const char* name = std::getenv("OPENSC4_TEST_DISASTER_EFFECT");
+        if (!name || !*name)
+            name = "QuakeStart";
+        void* const effects = Virtual<void*>(Global<void*>(addr::SC4_City), 0x154);
+        if (!Virtual<uint8_t>(manager, 0x0, uint32_t{0xCA7B3F3C}, &extra) || !extra || !effects ||
+            !Virtual<uint8_t>(effects, 0x1C, name, &effect) || !effect) {
+            log::Write("autotest: effect disaster not started (part %p, effect %p)", extra, effect);
+            return;
+        }
+        const float middle = static_cast<float>(day.city->CellCountX()) * 8.0f;
+        float position[3] = {middle, 0.0f, middle};
+        Virtual<void*>(extra, 0xC, effect, position, kTypes[5]);
+        position[0] += 128.0f;
+        Virtual<void>(extra, 0x10, position);
+        Virtual<uint32_t>(effect, 0x8);
+        Virtual<uint32_t>(extra, 0x8);
+        log::Write("autotest: effect disaster started with '%s' (ongoing %u, locations %d)", name, At<uint32_t>(self, 0x48),
+                   static_cast<int>((At<char*>(self, 0xD0) - At<char*>(self, 0xCC)) / 0x14));
+        return;
+    }
+    // The managers' return values differ; the layer's counts show a start.
     const uint32_t ongoing = At<uint32_t>(self, 0x48);
     char* const end = At<char*>(self, 0xD0);
     const auto size = static_cast<int32_t>(day.city->CellCountX());
@@ -235,8 +320,70 @@ void PushRiots(const Day& day)
     }
 }
 
+// OPENSC4_TEST_QUAKE_PUSH=<n>: the earthquake's tick comes on frame time,
+// so runs differ in how far the fault got. With this set, each quake is
+// taken off the tick service and its tick (0x00576B10) is run once every
+// run day with n as the time passed.
+void PushQuakes(const Day& day)
+{
+    const int push = EnvInt("OPENSC4_TEST_QUAKE_PUSH", 0);
+    if (push <= 0 || !day.counted || !game::IsBuild641())
+        return;
+    void* const layer = day.city->GetDisasterLayer();
+    char* const manager = layer ? Virtual<char*>(layer, 0x1C, uint32_t{0x42963812}) : nullptr;
+    if (!manager)
+        return;
+    char* quakes[4];
+    int count = 0;
+    char* const list = At<char*>(manager - 0x8, 0x14);
+    for (char* item = At<char*>(list, 0x0); item != list && count < 4; item = At<char*>(item, 0x0))
+        quakes[count++] = At<char*>(item, 0x8) - 0x8;
+    void* const ticks = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_GetService86AD10EC)();
+    for (int i = 0; i < count; ++i) {
+        if (ticks)
+            Virtual<void>(ticks, 0x18, quakes[i] + 0xC, int32_t{0xC0});
+        if (day.day > day.first)
+            reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::cSC4DisasterInstanceEarthquake_Tick)(
+                quakes[i], static_cast<uint32_t>(push));
+    }
+}
+
+// OPENSC4_TEST_FIRE_CALLS=<day>: on that run day the fire manager's fire
+// part (0x49B43F57) is called as the game's tools and other simulators
+// call it: an area burned around the city's centre (inner radius 1, outer
+// 4), the first three fires doused by 3 at their cells, and the cell 6
+// east and south of the centre burned down.
+void FireCalls(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_FIRE_CALLS") || !game::IsBuild641())
+        return;
+    void* const layer = day.city->GetDisasterLayer();
+    char* const manager = layer ? Virtual<char*>(layer, 0x1C, uint32_t{0x621CDA33}) : nullptr;
+    void* extra = nullptr;
+    if (!manager || !Virtual<uint8_t>(manager, 0x0, uint32_t{0x49B43F57}, &extra) || !extra)
+        return;
+    const auto middle = static_cast<int32_t>(day.city->CellCountX()) / 2;
+    const uint8_t area = Virtual<uint8_t>(extra, 0x20, middle, middle, uint32_t{1}, uint32_t{4});
+    int doused = 0;
+    char* const list = At<char*>(manager - 0x8, 0x14);
+    if (At<char*>(list, 0x0) != list) {
+        char* const instance = At<char*>(At<char*>(list, 0x0), 0x8) - 0xC;
+        int32_t cells[3][4];
+        char* const burning = At<char*>(instance, 0xE0);
+        for (char* fire = At<char*>(burning, 0x0); fire != burning && doused < 3; fire = At<char*>(fire, 0x0))
+            Virtual<void>(At<char*>(fire, 0x8) + 0x4, 0x2C, cells[doused++]);
+        for (int i = 0; i < doused; ++i)
+            Virtual<uint8_t>(extra, 0x18, cells[i][0], cells[i][1], uint32_t{3});
+    }
+    const uint8_t down = Virtual<uint8_t>(extra, 0x1C, middle + 6, middle + 6);
+    Virtual<uint32_t>(extra, 0x8);
+    log::Write("autotest: fire calls: area %d, doused %d, burned down %d", area, doused, down);
+}
+
 const FingerprintPart kFingerprint{"disasters", 88, &Fingerprint};
 const DayHook kPushRiots{"disasters.riots", 90, &PushRiots};
+const DayHook kPushQuakes{"disasters.quakes", 90, &PushQuakes};
+const DayHook kFireCalls{"disasters.firecalls", 91, &FireCalls};
 const DayHook kEnd{"disasters.end", 89, &End};
 const DayHook kDrive{"disasters.drive", 88, &Drive};
 
