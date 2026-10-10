@@ -74,6 +74,16 @@ One volcano at a time. The manager's start (at a cell, or at a random one) makes
 
 The tick (message 0x86AD10EE) adds the time passed; while building in state 5 it sets the builder's two rates from two tuning curves at time / duration; past the duration the builder is finished and the state goes to 3 again (or 8 when the effect is over). Tuning: exemplar 0x6534284A/0x29B6C670/1.
 
+### Riot
+
+The manager's start at a cell makes a riot instance (0x78 bytes; saved with the city) while fewer than the tuning's most are active, and adds a first rioter. A rioter is an automaton (type 0x4107) placed at a random spot in the cell of the nearest lot (within 8 rings) that takes residents, commerce or industry, unless the police cover there is too good (the police grid's value through the instance's curve, above 1) or the tuning's most rioters are out. Each rioter keeps {automaton, time, level, top level, lot}.
+
+The tick (message 0x86AD10EE, at most once per millisecond of the instance's stopwatch) adds to each rioter's time 1 less the curve at its cell, so good cover holds it back or runs it down; its level is time / level time. A new level sets the automaton's `Riot<n>` animation; a new top level spawns the tuning's count of rioters for that level around it and posts the `riot_leader_<level>` news. A rioter whose automaton is gone, whose time ran below 0 or who passed the last level is removed. The lots in the 7 by 7 cells around a rioter are handed to the manager, which keeps them in a set and marks them (their slot 0xC0 object, slot 0x34 with 2; unmarked when the last riot goes). The layer is told the riot began when it has its first rioter and ended when the last has gone.
+
+Tuning: exemplar 0x6534284A/0x29B6C670/0x4A38206D (6 levels, level time 30, spawn counts 0 1 0 1 0 0 and a curve 0, 0 up to cover 64, 1 at 65, 3 at 255 by default).
+
+The instance's Read (0x0057E870) first resizes the rioter list to the saved count, with a rioter whose automaton, time and levels are whatever is on the stack, and then appends the saved rioters, which reads as twice the saved count with the first half garbage. That is from reading the code, not from a test (no save with rioters was loaded); Read is left the game's.
+
 ## What is ours
 
 | Replacement | What is ours |
@@ -82,15 +92,16 @@ The tick (message 0x86AD10EE) adds the time passed; while building in state 5 it
 | `simulators.disasters.managers` | the manager base: QueryInterface, Init, Shutdown, the instance list, the active count, the message forwarding |
 | `simulators.disasters.toxic` | the toxic manager and instance |
 | `simulators.disasters.volcano` | the volcano manager and instance (24 functions); the terrain's volcano builder stays the game's |
+| `simulators.disasters.riot` | the riot manager and instance (18 functions) but the instance's Read |
 | `simulators.disasters.pipeburst` | the pipe burst manager, its pipe filter and the instance (21 functions) |
 
 Still the game's: the objects (constructors, destructors), the other managers and instances, container and stopwatch helpers.
 
 ## Test cities
 
-No test city has a disaster. `OPENSC4_TEST_DISASTER=<day>` with `OPENSC4_TEST_DISASTER_TYPE=<n>` (0 volcano, 1 fire, 2 earthquake, 3 pipe burst, 4 riot, 5 effect, 6 toxic) starts one through its manager on that day of a run, at the first cell that takes it, walking out from the centre. The camera jumping to the disaster makes the traffic record's view-dependent fields vary run to run with the original (on Big City d0000 one field took the values 10, 11, 12, 13 and 19 in the original's own runs), so the switch turns the "go to disasters" option off unless `OPENSC4_TEST_DISASTER_CAMERA=1`. `OPENSC4_TEST_DISASTER_END=<day>` shuts the chosen type's instances down on that day (a toxic spill lasts two minutes of real time, longer than a week's run), so a disaster's end also runs. `OPENSC4_TEST_PIPE_FUSE=<ms>` sets the pipe burst's fuses after it starts, so pipes explode and the bursts spread within the run; where the walk finds no accepted pipe the switch falls back to the manager's own choice (slot 7).
+No test city has a disaster. `OPENSC4_TEST_DISASTER=<day>` with `OPENSC4_TEST_DISASTER_TYPE=<n>` (0 volcano, 1 fire, 2 earthquake, 3 pipe burst, 4 riot, 5 effect, 6 toxic) starts one through its manager on that day of a run, at the first cell that takes it, walking out from the centre. The camera jumping to the disaster makes the traffic record's view-dependent fields vary run to run with the original (on Big City d0000 one field took the values 10, 11, 12, 13 and 19 in the original's own runs), so the switch turns the "go to disasters" option off unless `OPENSC4_TEST_DISASTER_CAMERA=1`. `OPENSC4_TEST_DISASTER_END=<day>` shuts the chosen type's instances down on that day (a toxic spill lasts two minutes of real time, longer than a week's run), so a disaster's end also runs. `OPENSC4_TEST_PIPE_FUSE=<ms>` sets the pipe burst's fuses after it starts, so pipes explode and the bursts spread within the run; where the walk finds no accepted pipe the switch falls back to the manager's own choice (slot 7). `OPENSC4_TEST_RIOT_PUSH=<n>` adds n to every rioter's time each day and runs the riot's tick with its stopwatch gate open: under the harness's clock the riot's own tick comes about once a week, so without the push no rioter changes level.
 
-The fingerprint's `dis` part: the disable count, disasters under way, the cost's building count and total, the locations (count and a hash of their cells and zooms) and each manager's instance count (in type order: earthquake, pipe burst, fire, effect, volcano, riot, toxic).
+The fingerprint's `dis` part: the disable count, disasters under way, the cost's building count and total, the locations (count and a hash of their cells and zooms) and each manager's instance count (in type order: earthquake, pipe burst, fire, effect, volcano, riot, toxic), then `riot`: the rioters, and their times and levels added up.
 
 With a disaster under way the original does not always repeat itself: in the control (the original against itself, 12 saves, 7 days) fire and earthquake each gave two or three outcomes on two to five saves. Verdicts go by outcome sets.
 
@@ -130,3 +141,14 @@ With the volcano on too (`disv1-*`): a volcano makes every run its own outcome, 
 | volcano, ended on day 3 | the same in all six runs on 9 saves; on two the original's own runs differ; on Big City d0090 one of ours counted 63 buildings destroyed where the other five runs counted 60 |
 
 So the state machine's course (two disasters counted while the effect and the building overlap, three locations then two, the end) matches wherever the original repeats it, and no run crashed in about 70 with the volcano on. That is all this harness can show for the volcano.
+
+With the riot on too (`disr1-*`, `disr3-push`):
+
+| Leg | Same | Rest |
+| --- | --- | --- |
+| no disaster | 11 | Big City d0000: ours differed from the original in the traffic record's view-dependent field only (10 against 19, 12, 19), fingerprints identical; the original takes those values too in other batches |
+| riot on day 1 | 11 | 1 partly |
+| riot, ended on day 3 | 8 | 3 partly, 1 failed |
+| riot pushed by 40 a day (`OPENSC4_TEST_RIOT_PUSH`) | 11 | 1 partly (Big City d0000) |
+
+Unpushed, a riot is one rioter whose time goes from 1 to 2 in a week. Pushed, the rioters go from 2 to 5 as levels are reached, their locations are registered and one leaves, the same on both sides day by day. The riot's Write runs at the end of every such run (the saves match). The failed run was a B run that crashed in the game's code at 0x005A62A2 while Making Money d1095 loaded, an address [parity.md](parity.md) already has from an A run.

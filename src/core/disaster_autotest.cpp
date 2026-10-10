@@ -79,6 +79,27 @@ void Fingerprint(cISC4City* city, std::string& line)
             used += std::snprintf(text + used, sizeof text - used, " %d", count);
     }
     line += text;
+    // The riots' rioters: how many, their times and levels added up.
+    for (char* node = At<char*>(header, 0x8); node != header; node = NextNode(node)) {
+        if (At<uint32_t>(node, 0x10) != 0xCA380B06)
+            continue;
+        char* const list = At<char*>(At<char*>(node, 0x14) - 0x8, 0x14);
+        int rioters = 0;
+        long long time = 0;
+        int levels = 0;
+        for (char* item = At<char*>(list, 0x0); item != list; item = At<char*>(item, 0x0)) {
+            char* const riot = At<char*>(item, 0x8) - 0x8;
+            char* const members = At<char*>(riot, 0x1C);
+            for (char* member = At<char*>(members, 0x0); member != members; member = At<char*>(member, 0x0)) {
+                ++rioters;
+                time += At<int32_t>(member, 0xC);
+                levels += At<int32_t>(member, 0x10);
+            }
+        }
+        char riots[64];
+        std::snprintf(riots, sizeof riots, " riot %d %lld %d", rioters, time, levels);
+        line += riots;
+    }
 }
 
 // OPENSC4_TEST_PIPE_FUSE=<ms>: after a pipe burst starts, the fuse range
@@ -187,7 +208,35 @@ void End(const Day& day)
     log::Write("autotest: %d disaster instance(s) of type %d shut down", count, which);
 }
 
+// OPENSC4_TEST_RIOT_PUSH=<n>: every run day each rioter's time goes up by
+// n and each riot's tick (0x0057DFE0) is run with its stopwatch gate
+// opened: the riot's own tick hardly ever comes under the harness's clock,
+// and without it no rioter changes level, spawns another or leaves.
+void PushRiots(const Day& day)
+{
+    const int push = EnvInt("OPENSC4_TEST_RIOT_PUSH", 0);
+    if (push <= 0 || !day.counted || day.day <= day.first || !game::IsBuild641())
+        return;
+    void* const layer = day.city->GetDisasterLayer();
+    char* const manager = layer ? Virtual<char*>(layer, 0x1C, uint32_t{0xCA380B06}) : nullptr;
+    if (!manager)
+        return;
+    char* riots[16];
+    int count = 0;
+    char* const list = At<char*>(manager - 0x8, 0x14);
+    for (char* item = At<char*>(list, 0x0); item != list && count < 16; item = At<char*>(item, 0x0))
+        riots[count++] = At<char*>(item, 0x8) - 0x8;
+    for (int i = 0; i < count; ++i) {
+        char* const members = At<char*>(riots[i], 0x1C);
+        for (char* member = At<char*>(members, 0x0); member != members; member = At<char*>(member, 0x0))
+            At<int32_t>(member, 0xC) += push;
+        At<uint32_t>(riots[i], 0x48) = 0;
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::cSC4DisasterInstanceRiot_Tick)(riots[i]);
+    }
+}
+
 const FingerprintPart kFingerprint{"disasters", 88, &Fingerprint};
+const DayHook kPushRiots{"disasters.riots", 90, &PushRiots};
 const DayHook kEnd{"disasters.end", 89, &End};
 const DayHook kDrive{"disasters.drive", 88, &Drive};
 

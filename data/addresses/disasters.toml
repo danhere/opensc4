@@ -1112,3 +1112,219 @@ name = "SC4::FloatHundredThousandth"
 address = 0x00A99F20
 kind = "data"
 source = "Name ours. 1e-5f."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::QueryInterface"
+address = 0x0057D200
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D A4 3B 22"
+source = "0x22223BA4 at +8, 0xE4FDA3D4 at +0xC, else the base's."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::ResetStatics"
+address = 0x0057D270
+kind = "function"
+convention = "cdecl"
+expect = "C6 05 78 2B B2 00 00 B0"
+source = "Clears the byte 0x00B22B78; registered with the app at first use."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::LoadTuning"
+address = 0x0057D280
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 0D A8 3C B4"
+source = "Name ours. Exemplar 0x6534284A/0x29B6C670/0x4A38206D: the most riots (0x00B0A1E8) and the most rioters (0x00B0A1EC)."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::Agitate"
+address = 0x0057D300
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 8B 69 24 8B 0D"
+source = "Name ours. (lot, x, z): every lot in the 7 by 7 cells around is handed to the manager's Track."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::UpdatePhase"
+address = 0x0057D390
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 28 83 E8"
+source = "Name ours. The first rioter: the layer told it began; the last gone: told it ended."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::Shutdown"
+address = 0x0057D420
+kind = "function"
+convention = "thiscall"
+expect = "55 8B E9 8A 45 18 84 C0"
+source = "Interface (+8) slot 3."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::Init"
+address = 0x0057D4A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 B7 9F FF"
+source = "Interface (+8) slot 3."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::FindLotNear"
+address = 0x0057D4C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C 8B 44 24 40 8B"
+source = "Name ours. (&x, &z): the nearest lot within 8 rings whose slot 0x58 accepts 0, 3 or 6."
+
+[[entry]]
+name = "cSC4RiotList::Clear"
+address = 0x0057D620
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 03 56 8B 30"
+source = "Name ours. Frees the rioter list (each node's lot released)."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::ClearTracked"
+address = 0x0057D720
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 24 53 8D 59 24 56"
+source = "Name ours. Every tracked lot's slot 0xC0 object told 2 by slot 0x30, the lots released, the set emptied."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::RemoveInstanceFromList"
+address = 0x0057D7E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 56 50 8B"
+source = "Interface slot 9: the base's; ClearTracked when no riot is left."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::Write"
+address = 0x0057D810
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "The serializable at +0xC: version 2, the phase, the stopwatch, the next tick, the rioters."
+
+[[entry]]
+name = "cSC4RiotList::Insert"
+address = 0x0057D8D0
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 1C E8 7C F6 38 00"
+source = "Name ours. (&out, position, &rioter): a node (0x1C bytes) with a copy of the rioter."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::Track"
+address = 0x0057DA40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Main vtable slot 9: (lot): a lot not yet in the set is kept and its slot 0xC0 object told 2 by slot 0x34."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::Construct"
+address = 0x0057DAC0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 55 FF 38"
+source = "The constructor (0x78 bytes)."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::SetAnimation"
+address = 0x0057DC20
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 57 33 DB"
+source = "Name ours. (automaton, level): its 'Riot<n>' states cleared, the level's set."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::AddRioter"
+address = 0x0057DD00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 55 56 57 8B"
+source = "Name ours. (x, z, spawned): a rioter automaton at the nearest lot, unless the police coverage there or the rioter limit forbids it."
+
+[[entry]]
+name = "cSC4RiotList::Resize"
+address = 0x0057DF50
+kind = "function"
+convention = "thiscall"
+expect = "8B 11 8B 02 56 33 F6 3B"
+source = "Name ours. (count, &rioter)."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::Tick"
+address = 0x0057DFE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 5C 55 8B E9 8D 4D"
+source = "Name ours. Each stopwatch millisecond: every rioter's time grows by 1 less the police curve at its cell; its level follows; new levels spawn rioters and news; gone or done rioters are removed."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::LoadTuning"
+address = 0x0057E3D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 8B D9 55 56"
+source = "Name ours. Levels, level time, spawn counts per level, the zoom, the police curve (exemplar 0x6534284A/0x29B6C670/0x4A38206D)."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::DoMessage"
+address = 0x0057E740
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "The message target at +0x10: 0x86AD10EE runs Tick."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::Init"
+address = 0x0057E770
+kind = "function"
+convention = "thiscall"
+expect = "A0 78 2B B2 00 83 EC 10"
+source = "Name ours."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::Read"
+address = 0x0057E870
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 55 56 8B 74"
+source = "The serializable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::AttemptDisasterStart"
+address = 0x0057EA10
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 07 FF 50 28"
+source = "Interface slot 6: (x, z): a new riot with a first rioter, while fewer than the most are active."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::Random"
+address = 0x00B22B80
+kind = "data"
+source = "Name ours. The static generator for a rioter's place in its cell."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::Statics"
+address = 0x00B22B78
+kind = "data"
+source = "Name ours. +0 registered with the app, +4 a value positions start from."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::NewsFormat"
+address = 0x00B22B9C
+kind = "data"
+source = "Name ours. Pointer to 'riot_leader_%d'."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::Limits"
+address = 0x00B0A1E8
+kind = "data"
+source = "Name ours. The most riots, the most rioters."
