@@ -98,6 +98,7 @@ The test cities never edit their networks, so parity alone would not reach the c
 | `OPENSC4_TEST_LANDFILL_ZONING=<n>`, `OPENSC4_TEST_LANDFILL_DEZONING=<n>`, `OPENSC4_TEST_LANDFILLZONE=1` | on the n-th day: a 6 by 6 square of free land zoned as landfill through the zone manager; its left half dezoned; each day, the landfill zones' queries into the fingerprint ([landfill.md](landfill.md)) |
 | `OPENSC4_TEST_LOTCONFIG=1` (2: a filter registered and unregistered too) | each day, the lot configuration manager's queries into the fingerprint ([lotconfig.md](lotconfig.md)) |
 | `OPENSC4_TEST_LOTCFG=1` | each day, the query slots of every 16th lot configuration into the fingerprint ([lotconfig.md](lotconfig.md)) |
+| `OPENSC4_TEST_ZONEMGR=1` (2: the failure counts too; 3: the display alpha set and restored) | each day, the zone manager's queries and PlaceZone in its test-only form across the city, into the fingerprint ([zonemgr.md](zonemgr.md)) |
 | `OPENSC4_TEST_ZONE=1` | each day, the lot manager's and zone developer's pure queries on a lattice of cells, into the fingerprint ([zone.md](zone.md)) |
 | `OPENSC4_TEST_CRIME_QUERIES=1` | each day, the crime queries only the UI and the automata make, into the fingerprint ([crime.md](crime.md)) |
 | `OPENSC4_TEST_MYSIM_QUERIES=1` | each day, what the MySim panel and balloons ask every MySim, into the fingerprint ([mysim-agents.md](mysim-agents.md)) |
