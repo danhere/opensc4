@@ -2686,7 +2686,7 @@ source = "Placeholder name (docs/lua.md): a function of the advice classes, 27 b
 name = "cSC4Advice::F408AE0"
 address = 0x00408AE0
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "83 EC 10 56 8B 74 24 1C"
 source = "Placeholder name (docs/lua.md): a function of the advice classes, 161 bytes."
 
@@ -3222,7 +3222,7 @@ source = "Placeholder name (docs/lua.md): a function of the advice classes, 27 b
 name = "cSC4Advice::F423DD0"
 address = 0x00423DD0
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "68 9C 01 00 00 E8 06 18"
 source = "Placeholder name (docs/lua.md): a function of the advice classes, 35 bytes."
 
@@ -3337,3 +3337,341 @@ kind = "function"
 convention = "thiscall"
 expect = "B8 BF BB 1D 4A C3 CC CC"
 source = "Placeholder name (docs/lua.md): a function of the advice classes, 6 bytes."
+
+[[entry]]
+name = "SC4AdviceNames::Advices"
+address = 0x00B07C60
+kind = "data"
+source = "Name ours. const char* to 'advices' (0x00A806D0), the script table the advice's Init and text loader open."
+
+[[entry]]
+name = "SC4AdviceNames::UndefinedMessage"
+address = 0x00B07C64
+kind = "data"
+source = "Name ours. const char* to '<UNDEFINED> message ' (0x00A806B8), a new advice's message text."
+
+[[entry]]
+name = "SC4AdviceNames::UndefinedTitle"
+address = 0x00B07C68
+kind = "data"
+source = "Name ours. const char* to '<UNDEFINED> title' (0x00A806A4), a new advice's title text."
+
+[[entry]]
+name = "SC4AdviceNames::TriggerPrefix"
+address = 0x00B07C6C
+kind = "data"
+source = "Name ours. const char* to '_atrg_' (0x00A8069C), the script global an advice's trigger function is compiled into."
+
+[[entry]]
+name = "SC4AdviceNames::Message"
+address = 0x00A809A0
+kind = "data"
+source = "Name ours. The text 'message' itself: the advice's Init stores this address in the text vector at +0x10."
+
+[[entry]]
+name = "SC4AdviceNames::Title"
+address = 0x00A80998
+kind = "data"
+source = "Name ours. The text 'title' itself: the advice's Init stores this address in the text vector at +0x10."
+
+[[entry]]
+name = "SC4Advice::SessionCounter"
+address = 0x00B207C4
+kind = "data"
+source = "Name ours. uint32 counter of advices constructed; each constructor increments it and keeps the new value at +0xB0."
+
+[[entry]]
+name = "SC4Advice::VtableBase"
+address = 0x00A80710
+kind = "data"
+source = "Name ours. The vtable the advice's constructor writes at +0 first, before the base at +4 is constructed."
+
+[[entry]]
+name = "SC4Advice::Vtable"
+address = 0x00A808B8
+kind = "data"
+source = "Name ours. cSC4Advice's main vtable (31 slots)."
+
+[[entry]]
+name = "SC4Advice::UnknownVtable"
+address = 0x00A8089C
+kind = "data"
+source = "Name ours. cSC4Advice's vtable of the reference-counted base at +4 (slot 3 the deleting destructor thunk 0x00408730)."
+
+[[entry]]
+name = "SC4Advice::SerializableVtable"
+address = 0x00A80884
+kind = "data"
+source = "Name ours. cSC4Advice's vtable of the serialisable part at +0xC (Write 0x00408090, Read 0x004082F0, class ID 0x00407A90)."
+
+[[entry]]
+name = "SC4Advice::Delete"
+address = 0x0043EC10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 38 9B FC FF"
+source = "Name ours. (flags), ret 4: cSC4Advice's scalar deleting destructor (Destruct 0x00408750, then operator delete when flags & 1); returns this."
+
+[[entry]]
+name = "SC4LocalizedString::GetKey"
+address = 0x00602F70
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 14 8B 44 24 04 89"
+source = "Name ours. (uint32_t out[3]), ret 4: copies the three dwords at +0x14 (the text's resource key; the third is the instance)."
+
+[[entry]]
+name = "SC4LocalizedString::Substitute"
+address = 0x00602FB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 85 F6 57"
+source = "Name ours, not analysed. (service or 0, flag), ret 8: with the service given or the one at 0x00B43CDC, sets its mode (slot 10) to flag, runs its slot 9 on the string (in place) and restores the mode; returns false."
+
+[[entry]]
+name = "SC4PairVector::Clear"
+address = 0x00606870
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 8B 11 56 8B F0"
+source = "Name ours. No arguments: empties a vector of 8-byte items (end = begin)."
+
+[[entry]]
+name = "SC4PairVector::PushBack"
+address = 0x004467A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 3B 41 08 74 1B"
+source = "Name ours. (const item*), ret 4: push_back of an 8-byte item (two dwords); grows through 0x007C61A0."
+
+[[entry]]
+name = "SC4Script::GetField"
+address = 0x005FB6A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. (cISCLua* script, const char* name, int32_t tableIndex): pushes table[name]; when it is nil pops it and returns false."
+
+[[entry]]
+name = "SC4Script::ReadIntList"
+address = 0x005FB900
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 8B 03 55"
+source = "Name ours. (cISCLua* script, list** list, int32_t tableIndex): empties the list of integers and fills it with the values of the script table (walked with Next, each through ToNumber and ftol); returns whether the list is not empty."
+
+[[entry]]
+name = "cRZBaseString::FromChar"
+address = 0x0090F50F
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. (const char* text), ret 4: the string's slot 4, sets it from a C string (empties it for null)."
+
+[[entry]]
+name = "SC4ScriptField::Float"
+address = 0x005FB4E0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 53 56 8B 74"
+source = "Name ours. (context, name, float* out, table index): pushes table[name]; a nil gives 0, anything else ToNumber as a float; pops it. Always writes out."
+
+[[entry]]
+name = "SC4ScriptField::Uint32"
+address = 0x005FB550
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 53 56 8B 74"
+source = "Name ours. (context, name, uint32_t* out, table index): as SC4ScriptField::Float with ToUint32 (context slot 0x54)."
+
+[[entry]]
+name = "SC4ScriptField::Sint32"
+address = 0x005FB5C0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 53 56 8B 74"
+source = "Name ours. (context, name, int32_t* out, table index): as SC4ScriptField::Float with ToSint32 (context slot 0x58)."
+
+[[entry]]
+name = "SC4ScriptField::Bool"
+address = 0x005FB630
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 53 56 8B 74"
+source = "Name ours. (context, name, uint8_t* out, table index): pushes table[name]; a boolean gives ToBoolean, anything else 0; pops it. Always writes out."
+
+[[entry]]
+name = "SC4ScriptField::String"
+address = 0x005FC9B0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 83 EC 14 53"
+source = "Name ours. (context, name, string* out, table index): table[name] as text into a 0x14-byte game string."
+
+[[entry]]
+name = "SC4ScriptValue::Uint32Vector"
+address = 0x005FBE40
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 10 55 56 8B"
+source = "Name ours. (context, vector* out, stack index): the table at the index as a vector of uint32 (begin, end, capacity)."
+
+[[entry]]
+name = "SC4ScriptValue::StringVector"
+address = 0x005FCE90
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 53 8B 5C 24 24"
+source = "Name ours. (context, vector* out, stack index): the table at the index as a vector of 0x14-byte game strings."
+
+[[entry]]
+name = "SC4ScriptTableWalk::Construct"
+address = 0x005FB9C0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 33 DB 89 5E"
+source = "Name ours. (context, stack index), ret 8: a 0x20-byte walk over a script table: context at +0, a game string at +4, the table's absolute index at +0x18, the end flag at +0x1C."
+
+[[entry]]
+name = "SC4ScriptTableWalk::First"
+address = 0x005FB730
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 18 85 C0"
+source = "Name ours. No arguments: pushes nil and calls the context's Next; sets the end flag at +0x1C when there is no entry."
+
+[[entry]]
+name = "SC4ScriptTableWalk::Next"
+address = 0x005FB770
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 1C 84 C0"
+source = "Name ours. No arguments: pops the value and calls the context's Next; sets the end flag when done."
+
+[[entry]]
+name = "cSC4Advisors::F4179F0"
+address = 0x004179F0
+kind = "function"
+convention = "thiscall"
+expect = "E9 FB FE FF FF CC CC CC"
+source = "Placeholder name. A jump to cSC4Advisors::F4178F0 (the localised string's key from a text): (text, length), ret 8. Had no entry."
+
+[[entry]]
+name = "cSC4Advisors::F419140"
+address = 0x00419140
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Placeholder name. No arguments: destroys a vector of 0x14-byte game strings (each one's slot 28 with 0, then the buffer freed). Had no entry."
+
+[[entry]]
+name = "SC4AdviceBase::AddRefThunk"
+address = 0x005BE3E0
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 04 E9 78 A7 3A 00"
+source = "Name ours. add ecx,4 and a jump to the shared AddRef 0x00968B60 (count at +4): the AddRef of an object whose counted base is at +4, here the advice."
+
+[[entry]]
+name = "SC4AdviceBase::ReleaseThunk"
+address = 0x005BCB30
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 04 E9 5F 0E 35 00"
+source = "Name ours. add ecx,4 and a jump to cRZBaseUnknown::ReleaseCounted 0x0090D997: the Release of such an object."
+
+[[entry]]
+name = "SC4Advice::AdvicesTableName"
+address = 0x00B07D48
+kind = "data"
+source = "Name ours. A pointer to the text 'advices' (0x00A806D0): the script's global table of advices."
+
+[[entry]]
+name = "SC4SituationAdvice::Vtable"
+address = 0x00A845B8
+kind = "data"
+source = "Name ours. The city situation advice's main vtable (cISC4CitySituationAdvice, 56 slots), at +0 of the 0x19C-byte object."
+
+[[entry]]
+name = "SC4SituationAdvice::Vtable4"
+address = 0x00A84538
+kind = "data"
+source = "Name ours. Its cSC4Advice vtable, at +4 (Init 0x004239D0, Shutdown 0x00423090, the title 0x00424750, the message 0x00424760)."
+
+[[entry]]
+name = "SC4SituationAdvice::Vtable8"
+address = 0x00A84520
+kind = "data"
+source = "Name ours. Its vtable at +8 (slot 3 the deleting destructor through 0x004238C0)."
+
+[[entry]]
+name = "SC4SituationAdvice::Vtable10"
+address = 0x00A84508
+kind = "data"
+source = "Name ours. Its vtable at +0x10 (the serialisable part; GetGZCLSID 0x00423000)."
+
+[[entry]]
+name = "SC4SituationAdvice::InterfaceVtable"
+address = 0x00A843C8
+kind = "data"
+source = "Name ours. The abstract interface's vtable (every slot the pure-call stub 0x005D4A10) that the constructor stores first."
+
+[[entry]]
+name = "SC4SituationAdvice::ProgressText"
+address = 0x00B20D98
+kind = "data"
+source = "Name ours. A static localised string (0x20 bytes): the result of GetProgressText (0x00424450)."
+
+[[entry]]
+name = "SC4SituationAdvice::ProgressTextGuard"
+address = 0x00B20DB8
+kind = "data"
+source = "Name ours. Bit 0: SC4SituationAdvice::ProgressText is constructed."
+
+[[entry]]
+name = "SC4SituationAdvice::ProgressTextAtExit"
+address = 0x00A7A300
+kind = "function"
+convention = "cdecl"
+expect = "A1 9C 0D B2 00 85 C0 C7"
+source = "Name ours. The exit handler that destroys SC4SituationAdvice::ProgressText."
+
+[[entry]]
+name = "SC4SituationAdvice::ScriptText"
+address = 0x00B20DBC
+kind = "data"
+source = "Name ours. A static localised string: the result of the text reader 0x00424600 (title, message, success and failure texts)."
+
+[[entry]]
+name = "SC4SituationAdvice::ScriptTextGuard"
+address = 0x00B20DDC
+kind = "data"
+source = "Name ours. Bit 0: SC4SituationAdvice::ScriptText is constructed."
+
+[[entry]]
+name = "SC4SituationAdvice::ScriptTextAtExit"
+address = 0x00A7A320
+kind = "function"
+convention = "cdecl"
+expect = "A1 C0 0D B2 00 85 C0 C7"
+source = "Name ours. The exit handler that destroys SC4SituationAdvice::ScriptText."
+
+[[entry]]
+name = "SC4SituationAdvice::MessageText"
+address = 0x00B20DE0
+kind = "data"
+source = "Name ours. A static localised string: the result of the message (0x00424760)."
+
+[[entry]]
+name = "SC4SituationAdvice::MessageTextGuard"
+address = 0x00B20E00
+kind = "data"
+source = "Name ours. Bit 0: SC4SituationAdvice::MessageText is constructed."
+
+[[entry]]
+name = "SC4SituationAdvice::MessageTextAtExit"
+address = 0x00A7A2E0
+kind = "function"
+convention = "cdecl"
+expect = "A1 E4 0D B2 00 85 C0 C7"
+source = "Name ours. The exit handler that destroys SC4SituationAdvice::MessageText."

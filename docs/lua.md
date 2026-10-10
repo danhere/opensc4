@@ -10,7 +10,8 @@ The pieces, in the order they are being rewritten under the parity harness ([par
 | The native script functions (`game.trend_value`, `ordinance_is_on`, ...) | 36 natives and 5 helpers, about 9 KB, 0x00409690 to 0x0040B8D0 | ours (`scripts.natives.*`) |
 | The advisor base class (the advice engine every advisor shares) and the place object | 101 functions, about 17 KB, 0x0040CE00 to 0x00411800 | ours (`scripts.advisors.base1`, `base2`, `base3`) |
 | The advisor classes' own functions (factories, constructors, Init and Shutdown, save and load, message handlers) | 81 functions, about 10 KB | ours (`scripts.advisors.classes1`, `classes2`) |
-| The advice class (cSC4Advice, 0x00407A90 to 0x00409690), the city situation advice (0x00422FF0 to 0x00424B00) and the advisor system's helper (0x0041D400 to 0x00420D30) | about 26 KB | the game's |
+| The advice class (cSC4Advice, 0x00407A90 to 0x00409690) and the city situation advice (the Rush Hour missions, 0x00422FF0 to 0x00424B00) | 95 functions; 40 more are generic string and container code or folded with other classes and stay the game's | ours (`scripts.advisors.advice1`, `advice2`) |
+| The advice window's text builder (0x0041D400 to 0x00420D30) | 62 functions, about 14 KB; interface code (it builds the HTML of the advice list), not script bindings | the game's, with the interface |
 | The script context and server (cISCLua and the classes behind it) | 0x008B0xxx | the game's |
 
 The advisor system that owns the script context is already ours ([advisors.md](advisors.md)).
@@ -98,6 +99,14 @@ One function has a convention of its own: 0x0040DA10 (post a message from an obj
 
 The neighbour deal advice (class 0x6A3848DB, an advice with a deal type read from the script field `nd_type`) and a few helpers live in the same range (daylight saving dates, a percent-decoding string copy). Eleven functions there are shared by the rest of the game through code folding and stay the game's.
 
+## The advice classes
+
+An advice (cSC4Advice, 0xC8 bytes) is one entry of the script's `advices` table: Init opens the entry by its index, reads the fields (type, mood, priority, frequency, timeout, title, message, effects, command) and compiles the trigger into a script global named `_atrg_` plus the advice's ID. Its vtables are at +0 (main, 31 slots), +4 (reference counting) and +0xC (save and load); flags are at +0x70, the entry's index at +0x88, the ID at +0x8C and a session number at +0xB0.
+
+The city situation advice (cISC4CitySituationAdvice in gzcom-dll, 0x19C bytes, main vtable 0x00A845B8 with 56 slots, the advice at +4) is a Rush Hour mission. Its Init keeps a reference to the script entry and reads the automata, target and sequence lists; a second pass (slot 55) reads about 40 more fields: the success condition, distances and times, the coverage rectangle and cells, the evade list, success and failure aura, effect and money. Most getters read the script entry again on every call and fall back to a field.
+
+Things the original does that ours keeps: the mission's Init never pops the context advice it pushed on the way that succeeds; a numeric `target_sequence` is added to the target list instead of the sequence; the constructor leaves a dozen fields unset that the getters return when there is no script entry.
+
 ## Tests
 
 - The fingerprint's `lua` part reads all 295 names back from the `game` table through the script context and hashes their types and values (for an `l_` name also whether its place is there); `OPENSC4_TEST_LUA_DUMP=1` logs every value each day. Scratch tools compare two logs name by name.
@@ -123,3 +132,5 @@ Not reached by any test: the natives that need a current advice or a MySim (`adv
 With the advisor base class on too (ten groups; `lu9-*`): 12 of 12 plain, 12 of 12 with the monthly cycle and the advisors driven (every advisor removed and created again on day 2, so Init runs from the script), 12 of 12 with the natives' script. The base's Write runs at the end of every run and its Read at every load; the saves and decoded records match.
 
 With the advisor classes on too (twelve groups; `lu10-*`, `lu13-*`): 12 of 12 plain, with the monthly cycle and the advisors recreated (constructors, destructors, Init and Shutdown of every class run), and with the natives' script. The first run of the second part crashed every city while loading: a flag pushed early for a three-argument call had been given to the call before it, which takes none. An audit of every call's argument bytes against its callee followed. It checked 930 of 950 virtual calls and all 221 direct calls in the advisor files (the rest have a receiver it could not identify) and found three more places where two neighbouring calls had their arguments split wrongly, each harmless only because the pair cleaned the stack between them. All three are fixed (`lu14-*`: 12 of 12 plain and monthly). The advisors' fingerprint now also hashes each record's advice ID and flags.
+
+With the advice classes on too (fourteen groups; `lu15-*`): 12 of 12 in the three legs. The coverage run reaches 20 of the 28 functions of the advice and 23 of the 67 of the mission advice: the constructors, Init, the field readers, save and load. No test starts a mission, so the mission's getters and texts are compared by reading only.
