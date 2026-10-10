@@ -197,6 +197,56 @@ const bool g_registeredCurves = registry::Register({
     InstallCurves,
 });
 
+// --- DestroyCurves (0x006E5150) ---------------------------------------------
+
+const auto OperatorDelete = reinterpret_cast<FreeFn>(addr::SC4_operator_delete);
+
+// The callback CreateCurves registers: when the curves were created, each
+// of the six global curves loses its points and is deleted, in address
+// order, and its pointer is cleared. Runs when the game shuts down.
+uint8_t __cdecl DestroyCurves()
+{
+    if (!Global<uint8_t>(addr::PollutionTuning_CurvesCreated))
+        return 1;
+    Global<uint8_t>(addr::PollutionTuning_CurvesCreated) = 0;
+    int freed = 0;
+    for (const auto& curve : kGlobalCurves) {
+        void*& pointer = Global<void*>(curve.pointer);
+        if (!pointer)
+            continue;
+        void* const object = pointer;
+        if (void* const points = At<void*>(object, 0x0))
+            Free(points);
+        OperatorDelete(object);
+        pointer = nullptr;
+        ++freed;
+    }
+    log::Write("pollution tuning: our DestroyCurves freed %d curves", freed);
+    return 1;
+}
+
+using DestroyCurvesFn = uint8_t(__cdecl*)();
+DestroyCurvesFn g_originalDestroyCurves = nullptr;
+
+bool InstallDestroyCurves(registry::Mode)
+{
+    const addr::Entry* entry = addr_check::Find(addr::PollutionTuning_DestroyCurves);
+    if (!game::IsBuild641() || !entry)
+        return false;
+    return hook::Install(*entry, &DestroyCurves, &g_originalDestroyCurves);
+}
+
+const bool g_registeredDestroyCurves = registry::Register({
+    "simulators.pollution.curves_exit",
+    "simulators/pollution",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::PollutionTuning_DestroyCurves,
+    "Our freeing of the pollution tuning curves at exit (DestroyCurves) (docs/pollution.md)",
+    false,
+    InstallDestroyCurves,
+});
+
 // --- Self-check ---------------------------------------------------------------
 
 using TuningFn = void(__fastcall*)(void*, void*);

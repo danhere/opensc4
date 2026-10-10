@@ -192,6 +192,7 @@ add_library(opensc4_core SHARED
   pollution_object.cpp
   pollution_proxy.cpp
   pollution_save.cpp
+  pollution_lists.cpp
   pollution_tuning.cpp
   power_autotest.cpp
   power_object.cpp

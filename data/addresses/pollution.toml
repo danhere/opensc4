@@ -415,3 +415,19 @@ convention = "thiscall"
 signature = "bool (cIGZSerializable* this, cIGZIStream& stream)"
 expect = "83 EC 18 53 56 8B 74 24 24"
 source = "cIGZSerializable slot 4 (vtable 0x00AB25E8; `this` is the object + 0xC); reads versions up to 4, the mirror of Write; versions below 3 carry a string and a uint32 that are read and dropped. Reimplemented by simulators.pollution.load (docs/save-format.md, docs/pollution.md)."
+
+[[entry]]
+name = "SC4PointerList::EraseRange"
+address = 0x006E41F0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 56 8B 74"
+source = "Name ours. (node** out, node* first, node* last), ret 0xC: unlinks the nodes of a list of object pointers from first up to last and gives them back to the allocator at 0x00B207E4; writes last through out and returns out. this is not used (docs/pollution.md)."
+
+[[entry]]
+name = "SC4PointerList::InsertRange"
+address = 0x006E4270
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 56 8B 74"
+source = "Name ours. (node* position, node* first, node* last, tag), ret 0x10: a new node from the allocator at 0x00B207E4 before position for each node from first up to last, with its value. this and the tag are not used (docs/pollution.md)."
