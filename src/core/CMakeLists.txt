@@ -111,6 +111,11 @@ add_library(opensc4_core SHARED
   prop_autotest.cpp
   prop_object.cpp
   prop_props.cpp
+  lot_autotest.cpp
+  lot_build.cpp
+  lot_construct.cpp
+  lot_object.cpp
+  lot_terrain.cpp
   landfill_sim.cpp
   seaport_autotest.cpp
   seaport_sim.cpp
