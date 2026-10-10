@@ -98,7 +98,8 @@ bool DirtyRows(int32_t first, int32_t end)
 }
 
 template <typename Ours, typename Original>
-void DrawCompared(const char* id, const std::vector<Region>& regions, Ours&& ours, Original&& original)
+void DrawCompared(const char* id, const std::vector<Region>& regions, Ours&& ours, Original&& original,
+                  bool localVertices = false)
 {
     std::vector<std::vector<char>> before, mine;
     for (const Region& r : regions)
@@ -108,7 +109,7 @@ void DrawCompared(const char* id, const std::vector<Region>& regions, Ours&& our
     gd::BeginCapture(false);
     ours();
     const std::vector<uint32_t> ourDraws = gd::EndCapture();
-    const std::vector<char> ourPipeline = gd::SaveState();
+    std::vector<char> ourPipeline = gd::SaveState();
     for (const Region& r : regions)
         mine.emplace_back(r.data, r.data + r.size);
     for (std::size_t i = 0; i < regions.size(); ++i)
@@ -136,7 +137,15 @@ void DrawCompared(const char* id, const std::vector<Region>& regions, Ours&& our
         compare::Record(id, false, game, text);
         return;
     }
-    if (const std::vector<char> gamePipeline = gd::SaveState(); gamePipeline != ourPipeline) {
+    std::vector<char> gamePipeline = gd::SaveState();
+    // A pass that draws from an array on its own stack leaves the driver
+    // with that pointer (the pipeline state's last member), which differs
+    // between our frame and the game's.
+    if (localVertices && gamePipeline.size() >= sizeof(void*) && ourPipeline.size() == gamePipeline.size()) {
+        std::memset(gamePipeline.data() + gamePipeline.size() - sizeof(void*), 0, sizeof(void*));
+        std::memset(ourPipeline.data() + ourPipeline.size() - sizeof(void*), 0, sizeof(void*));
+    }
+    if (gamePipeline != ourPipeline) {
         std::size_t at = 0;
         while (at < gamePipeline.size() && gamePipeline[at] == ourPipeline[at])
             ++at;
@@ -1103,6 +1112,44 @@ uint32_t DrawGrid(char* self, char* context, void* buffers)
     return 1;
 }
 
+// cSC4OverlayManager's partial rectangle draw (0x007356D0, through the
+// terrain view's 0x00754C60 or 0x00754F10): cell by cell, each a quad of
+// the land's vertices raised to the water level where that is higher, split
+// along the diagonal the terrain gives for the cell.
+void DrawOverlayRectPartial(char* manager, char* context, const int32_t* cells)
+{
+    char* const view = At<char*>(manager, 0x8C);
+    const bool waterRows = At<uint8_t>(manager, 0x15) != 0;
+    const std::size_t firstOffset = waterRows ? 0xBC : 0x8C, endOffset = waterRows ? 0xC0 : 0x90;
+    const uint8_t* const drawn = Global<uint8_t*>(waterRows ? addr::STE_WaterRowDrawn : addr::STE_LandRowDrawn);
+    const uint8_t* const water = Global<uint8_t*>(waterRows ? addr::STE_WaterRowWater : addr::STE_LandRowWater);
+    const int32_t columns = static_cast<int32_t>(Columns());
+    char quad[4 * 32];
+    CallThis<void>(addr::SC4RenderContext_SetVertexArray, context, 0xBu, 4u, quad);
+    const int32_t first = std::max(std::max(cells[1], 0), At<int32_t>(view, firstOffset));
+    const int32_t last = std::min(At<int32_t>(view, endOffset), std::min(cells[3] + 1, Global<int32_t>(addr::STE_Rows))) - 1;
+    for (int32_t row = first; row < last; ++row) {
+        if (!drawn[row] && !drawn[row + 1] && !water[row] && !water[row + 1])
+            continue;
+        const int32_t end = std::min(RowEnds()[row], cells[2] + 1);
+        for (int32_t column = std::max(cells[0], RowStarts()[row]); column < end; ++column) {
+            const int32_t at = columns * row + column;
+            const int32_t corners[4] = {at, at + 1, at + columns, at + columns + 1};
+            for (int k = 0; k < 4; ++k) {
+                char* const vertex = quad + k * 32;
+                std::memcpy(vertex, Land() + static_cast<std::size_t>(corners[k]) * 32, 32);
+                const float level = At<float>(Global<char*>(addr::STE_WaterVertices), static_cast<std::size_t>(corners[k]) * 32 + 4);
+                if (At<float>(vertex, 4) < level)
+                    At<float>(vertex, 4) = level;
+            }
+            const bool turned = Virtual<uint8_t>(At<void*>(view, 0x20), 0x118, column, row) != 0;
+            CallThis<void>(addr::SC4RenderContext_SetIndexArray, context, 6u,
+                           reinterpret_cast<uint16_t*>(turned ? addr::STE_QuadIndicesTurned : addr::STE_QuadIndicesPlain));
+            CallThis<void>(addr::SC4RenderContext_DrawIndexed, context, 0u, 0, 6);
+        }
+    }
+}
+
 // cSC4OverlayManager's decal pass (0x00736790). An overlay is a 0xB4-byte
 // record in the manager's vector at +0x98: +0 -1 when in use, +4 flags, +8
 // the index of its render state (the manager's +0x24, 8 bytes each), +0xC
@@ -1289,6 +1336,38 @@ void DrawShadows(char* manager, const float* matrix, char* context, char** list)
         ++At<uint32_t>(manager, 0xDC);
     }
     CallThis<void>(addr::SC4RenderContext_SetState3EF0, context, 0u, 1u);
+}
+
+// cSC4OverlayManager's list of overlays in view (0x00738390). The manager
+// keeps its overlays in a grid of buckets (cells >> +0xE4 a side, +0xE8
+// buckets a row, +0xF0 the buckets: lists of {next, overlay index}); the
+// terrain view gives the rows in view and their first and end columns.
+// Each overlay is listed once, by a stamp (+0xE0, the overlay's +0xA).
+void ListVisibleOverlays(char* manager, char** list)
+{
+    list[1] = list[0];
+    int32_t firstRow = 0, endRow = 0;
+    const int32_t* starts = nullptr;
+    const int32_t* ends = nullptr;
+    CallThis<void>(addr::cSTETerrainView3D_RowsInView, At<void*>(manager, 0x8C), &firstRow, &endRow, &starts, &ends);
+    const int32_t shift = At<int32_t>(manager, 0xE4);
+    const int32_t round = (1 << shift) - 1;
+    const int32_t endBucket = (round + endRow - 1) >> shift;
+    const uint16_t stamp = ++At<uint16_t>(manager, 0xE0);
+    for (int32_t z = firstRow >> shift; z < endBucket; ++z) {
+        const int32_t endX = (ends[z] + round - 1) >> shift;
+        for (int32_t x = starts[z] >> shift; x < endX; ++x) {
+            const char* node = At<const char**>(manager, 0xF0)[At<int32_t>(manager, 0xE8) * z + x];
+            for (; node; node = At<const char*>(const_cast<char*>(node), 0)) {
+                uint32_t index = At<uint32_t>(const_cast<char*>(node), 4);
+                char* const overlay = At<char*>(manager, 0x98) + index * 0xB4;
+                if (At<uint16_t>(overlay, 0xA) == stamp)
+                    continue;
+                At<uint16_t>(overlay, 0xA) = stamp;
+                CallThis<void>(addr::SC4PtrVector_PushBack, list, &index);
+            }
+        }
+    }
 }
 
 // cSC4OverlayManager's draw (0x00738A50): the inverse of the view matrix,
@@ -1673,6 +1752,18 @@ void __fastcall DOverlayRect(char* manager, void*, char* context, const int32_t*
         log::Write("overlays: first rectangle with water vertices %d, water rows %d, dynamic buffers %d",
                    At<uint8_t>(manager, 0x16), At<uint8_t>(manager, 0x15), At<void*>(manager, 0x94) != nullptr);
     }
+    // OPENSC4_TEST_OVERLAY_PARTIAL=1: every rectangle of water vertices is
+    // also drawn cell by cell, ours compared with the game's (the test cities
+    // have no overlay partly under water, so nothing else reaches that draw;
+    // the extra quads show).
+    static const bool partial = [] {
+        const char* v = std::getenv("OPENSC4_TEST_OVERLAY_PARTIAL");
+        return v && *v == '1';
+    }();
+    if (partial && At<uint8_t>(manager, 0x16))
+        DrawCompared("overlays.rect_partial", PassRegions(At<char*>(manager, 0x8C), context),
+                     [&] { DrawOverlayRectPartial(manager, context, cells); },
+                     [&] { CallThis<void>(addr::cSC4OverlayManager_DrawRectPartial, manager, context, cells); }, true);
     if (!g_compareOverlayRect)
         return DrawOverlayRect(manager, context, cells);
     DrawCompared("overlays.rect", PassRegions(At<char*>(manager, 0x8C), context),
@@ -1790,10 +1881,51 @@ void __fastcall DOverlays(char* manager, void*, char* context)
     }
 }
 
+using ListVisibleFn = void(__fastcall*)(char*, void*, char**);
+ListVisibleFn g_listVisible;
+bool g_compareListVisible = false;
+
+void __fastcall DListVisible(char* manager, void*, char** list)
+{
+    if (g_depth > 0)
+        return g_listVisible(manager, nullptr, list);
+    if (!g_compareListVisible)
+        return ListVisibleOverlays(manager, list);
+    const uint16_t stamp = At<uint16_t>(manager, 0xE0);
+    ListVisibleOverlays(manager, list);
+    const std::vector<uint32_t> mine(reinterpret_cast<uint32_t*>(list[0]), reinterpret_cast<uint32_t*>(list[1]));
+    const bool stamped = At<uint16_t>(manager, 0xE0) == static_cast<uint16_t>(stamp + 1);
+    g_listVisible(manager, nullptr, list);
+    const std::vector<uint32_t> theirs(reinterpret_cast<uint32_t*>(list[0]), reinterpret_cast<uint32_t*>(list[1]));
+    const bool same = stamped && mine == theirs;
+    char text[64] = "", mineText[64] = "";
+    if (!same) {
+        std::snprintf(text, sizeof text, "%zu overlays", theirs.size());
+        std::snprintf(mineText, sizeof mineText, "%zu overlays, stamp %s", mine.size(), stamped ? "ok" : "off");
+    }
+    compare::Record("overlays.visible", same, text, mineText);
+}
+
+OPENSC4_THUNK(TListVisible, DListVisible, 4)
 OPENSC4_THUNK(TOverlays, DOverlays, 4)
 OPENSC4_THUNK(TShadows, DShadows, 12)
 OPENSC4_THUNK(TShadowsPlain, DShadowsPlain, 12)
 OPENSC4_THUNK(TDecals, DDecals, 12)
+OverlayRectFn g_overlayRectPartial;
+bool g_compareOverlayRectPartial = false;
+
+void __fastcall DOverlayRectPartial(char* manager, void*, char* context, const int32_t* cells)
+{
+    if (g_depth > 0)
+        return g_overlayRectPartial(manager, nullptr, context, cells);
+    if (!g_compareOverlayRectPartial)
+        return DrawOverlayRectPartial(manager, context, cells);
+    DrawCompared("overlays.rect_partial", PassRegions(At<char*>(manager, 0x8C), context),
+                 [&] { DrawOverlayRectPartial(manager, context, cells); },
+                 [&] { g_overlayRectPartial(manager, nullptr, context, cells); }, true);
+}
+
+OPENSC4_THUNK(TOverlayRectPartial, DOverlayRectPartial, 8)
 OPENSC4_THUNK(TOverlayRect, DOverlayRect, 8)
 OPENSC4_THUNK(TLandSkirts, DLandSkirts, 4)
 OPENSC4_THUNK(TLand, DLand, 8)
@@ -2055,6 +2187,52 @@ const bool g_registeredOverlays = registry::Register({
     "renderer.terrain.land, with the passes the game's in both runs (docs/renderer.md, \"The overlays\")",
     true,
     InstallOverlays,
+});
+
+bool InstallListVisible(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareListVisible = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC4OverlayManager_ListVisible, &TListVisible, &g_listVisible))
+        return false;
+    log::Write("overlays: list of overlays in view %s", g_compareListVisible ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredListVisible = registry::Register({
+    "renderer.overlays.visible",
+    "renderer/overlays",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4OverlayManager_ListVisible,
+    "The list of overlays in view; compare mode builds ours, then the game's, and compares the lists "
+    "(docs/renderer.md, \"The overlays\")",
+    true,
+    InstallListVisible,
+});
+
+bool InstallOverlayRectPartial(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareOverlayRectPartial = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC4OverlayManager_DrawRectPartial, &TOverlayRectPartial, &g_overlayRectPartial))
+        return false;
+    log::Write("overlays: partial rectangle draws %s", g_compareOverlayRectPartial ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredOverlayRectPartial = registry::Register({
+    "renderer.overlays.rect_partial",
+    "renderer/overlays",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4OverlayManager_DrawRectPartial,
+    "The overlay manager's cell-by-cell draw of a rectangle partly under water; compare mode as "
+    "renderer.terrain.land (docs/renderer.md, \"The overlays\")",
+    true,
+    InstallOverlayRectPartial,
 });
 
 } // namespace
