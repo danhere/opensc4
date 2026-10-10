@@ -729,3 +729,51 @@ name = "STE::RowQuadOffsets"
 address = 0x00B4C6B8
 kind = "data"
 source = "Name ours. uint16 per vertex: the number of extra quads before this column in its row (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "cSTETerrainView3D::UpdateSkirtColours"
+address = 0x007558B0
+kind = "function"
+convention = "thiscall"
+expect = "A0 48 C8 B4 00 83 EC 28"
+source = "Name ours. (): the land skirts' vertex colours, a grey per side from the side's normal (through the object at 0x00B43DDC, slot 0x5C) and the light at 0x00B0D720, darker towards the bottom (docs/renderer.md, \"The skirts\")."
+
+[[entry]]
+name = "STE::ClearRowLayers"
+address = 0x007598A0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B E9 8B 45 00 8B"
+source = "Name ours. thiscall on a row's layer list (an entry of 0x00B4C7E0): empties it (docs/renderer.md, \"The land pass\")."
+
+[[entry]]
+name = "cSTETerrainView3D::AddRowLayerSpan"
+address = 0x0075AA60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 44 24 14 8B"
+source = "Name ours. (row's layer list, layer id, first column, last column): adds a span to the layer's node in the list, making the node if needed (docs/renderer.md, \"The land pass\")."
+
+[[entry]]
+name = "STE::SkirtNormals"
+address = 0x00B4C818
+kind = "data"
+source = "Name ours. four float[3]: the outward normals of the city's sides, filled on first use (flag bit 0 of 0x00B4C848) (docs/renderer.md, \"The skirts\")."
+
+[[entry]]
+name = "STE::SkirtStaticFlags"
+address = 0x00B4C848
+kind = "data"
+source = "Name ours. uint32: bit 0 the side normals are filled (docs/renderer.md, \"The skirts\")."
+
+[[entry]]
+name = "SC4::Transform43DDC"
+address = 0x00B43DDC
+kind = "data"
+source = "Name ours, not analysed. an object whose slot 0x5C (float[3] out, float[3] in) turns a side's normal for the skirt colours (docs/renderer.md, \"The skirts\")."
+
+[[entry]]
+name = "STE::SkirtLightScale"
+address = 0x00B0D71C
+kind = "data"
+source = "Name ours. float, then float[3] at +4: the scale and the light vector of the skirt colours (docs/renderer.md, \"The skirts\")."
