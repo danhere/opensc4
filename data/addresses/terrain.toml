@@ -879,3 +879,25 @@ name = "SC4::Lighting43DD0"
 address = 0x00B43DD0
 kind = "data"
 source = "Name ours, not analysed. an object whose slot 0x24 returns another whose slot 0x38 (float out, float out, float[3] out) gives the values the shadow pass sets up with (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "cSC4OverlayManager::DrawShadows"
+address = 0x00736BF0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC C4 01 00 00 53 57"
+source = "Name ours (the patch census calls the pass draw-shadows). (float[16] inverse view matrix, render context, vector of overlay indices): the overlays with flags 9 with two texture stages, each overlay's own texture and the manager's shadow texture (+0xD4), or the shadow texture alone when the manager's +0x1C is 4 (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "cSC4OverlayManager::DrawRectPartial"
+address = 0x007356D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 54 24 18 8B"
+source = "Name ours, not analysed. (render context, int32[4] cells): the rectangle through the terrain view's 0x00754C60 or 0x00754F10, used by the shadow pass with water vertices when the terrain (the manager's +0x88, slot 0xD4) counts fewer cells in it than its area (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "STE::OverlaySunTest"
+address = 0x00B0D4CC
+kind = "data"
+source = "Name ours. bool: the shadow pass scales each overlay's light by the lighting object's slot 0x3C at the overlay's centre (docs/renderer.md, \"The overlays\")."
