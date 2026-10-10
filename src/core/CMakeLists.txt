@@ -175,6 +175,8 @@ add_library(opensc4_core SHARED
   photo_mode.cpp
   terrain_view.cpp
   terrain_draw.cpp
+  view_objects.cpp
+  water_effects.cpp
   d3d7_probe.cpp
   dbpf_survey.cpp
   plugin_loader.cpp
