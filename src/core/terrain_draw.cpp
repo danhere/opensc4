@@ -19,6 +19,7 @@
 #include <opensc4/addresses.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdlib>
 #include <cstdint>
@@ -627,7 +628,178 @@ void RefreshWaterColours(char* self)
     At<uint8_t>(self, 0x48) = 1;
 }
 
-// 0x007572A0. The skirts are still the game's.
+// --- The skirts along the city edges ---------------------------------------------------
+
+int32_t MagicInt(float rounded)
+{
+    uint32_t bits;
+    std::memcpy(&bits, &rounded, sizeof bits);
+    return static_cast<int32_t>(bits + 0xB4C00000u);
+}
+
+int32_t Floor(double value)
+{
+    const int32_t n = MagicInt(static_cast<float>((value - 0.5f) + 12582912.0f));
+    return value == static_cast<double>(n + 1) ? n + 1 : n;
+}
+
+int32_t Ceil(double value)
+{
+    const int32_t n = MagicInt(static_cast<float>((0.5f + value) + 12582912.0f));
+    return value == static_cast<double>(n - 1) ? n - 1 : n;
+}
+
+// 0x005D7420 (as in terrain_view.cpp).
+bool Intersect(const float* point, const float* direction, const float* other, const float* otherDirection, float* out)
+{
+    const double ax = static_cast<double>(other[0]) - point[0];
+    const double ay = static_cast<double>(other[1]) - point[1];
+    const double negY = -static_cast<double>(otherDirection[1]);
+    const double x = otherDirection[0];
+    const double den = x * direction[1] + negY * direction[0];
+    if (std::fabs(den) < 0.01f)
+        return false;
+    const double t = (x * ay + negY * ax) / den;
+    out[0] = static_cast<float>(t * direction[0] + point[0]);
+    out[1] = static_cast<float>(t * direction[1] + point[1]);
+    return true;
+}
+
+// The part of a city edge between the two frustum edges, as cell numbers
+// along it: the edge's line (from its first vertex along the edge) met with
+// both, floored and ceiled, mirrored for the sides that run backwards, and
+// clamped to the edge's vertices.
+struct EdgeSpan {
+    int32_t first, last, count; // count: vertices along the edge
+};
+
+EdgeSpan EdgeInView(char* context, const char* vertices, std::size_t stride, std::size_t pointZ, uint32_t side,
+                    float (&a)[2], float (&b)[2])
+{
+    char* const camera = At<char*>(context, 0x24);
+    const uint32_t odd = side & 1;
+    const int32_t cells = static_cast<int32_t>(Global<uint32_t>(odd ? addr::STE_CellsZ : addr::STE_CellsX));
+    const float point[2] = {*reinterpret_cast<const float*>(vertices), *reinterpret_cast<const float*>(vertices + pointZ)};
+    const char* const end = vertices + static_cast<std::size_t>(cells) * stride;
+    const float along[2] = {
+        static_cast<float>(static_cast<double>(*reinterpret_cast<const float*>(end)) - *reinterpret_cast<const float*>(vertices)),
+        static_cast<float>(static_cast<double>(*reinterpret_cast<const float*>(end + 8)) -
+                           *reinterpret_cast<const float*>(vertices + 8))};
+    Intersect(point, along, &At<float>(camera, 0x3BC), &At<float>(camera, 0x3C4), a);
+    Intersect(point, along, &At<float>(camera, 0x3CC), &At<float>(camera, 0x3D4), b);
+    const double perMetre = Global<float>(addr::STE_CellsPerMetre);
+    const bool swap = !(a[odd] < b[odd]);
+    int32_t first = Floor(perMetre * (swap ? b[odd] : a[odd]));
+    int32_t last = Ceil(perMetre * (swap ? a[odd] : b[odd]));
+    if (side == 1 || side == 2) {
+        const int32_t mirroredFirst = cells - last;
+        last = cells - first;
+        first = mirroredFirst;
+    }
+    const int32_t count = static_cast<int32_t>(Global<uint32_t>(odd ? addr::STE_Rows : addr::STE_Columns));
+    const int32_t top = count - 1;
+    if (first < 0)
+        first = 0;
+    else if (first > top)
+        first = top;
+    if (last > top)
+        last = top;
+    else if (last < 0)
+        last = 0;
+    return {first, last, count};
+}
+
+// The runs of cells where the edge's top row is above its bottom row, each
+// widened by a cell at its start.
+void DrawEdgeRuns(char* context, const char* vertices, std::size_t stride, const EdgeSpan& span)
+{
+    int32_t run = -1;
+    if (span.first > span.last)
+        return;
+    int32_t j = span.first;
+    for (; j <= span.last; ++j) {
+        const float topY = *reinterpret_cast<const float*>(vertices + static_cast<std::size_t>(j) * stride + 4);
+        const float bottomY =
+            *reinterpret_cast<const float*>(vertices + static_cast<std::size_t>(span.count + j) * stride + 4);
+        if (topY > bottomY) {
+            if (run < 0) {
+                run = j - 1;
+                if (run < 0)
+                    run = 0;
+            }
+        } else if (run >= 0) {
+            if ((j - run) * 2 > 0)
+                CallThis<void>(addr::SC4RenderContext_DrawIndexed, context, 0u, run * 6, (j - run) * 6);
+            run = -1;
+        }
+    }
+    if (run < 0)
+        return;
+    if (j > span.count - 1)
+        j = span.count - 1;
+    if ((j - run) * 2 > 0)
+        CallThis<void>(addr::SC4RenderContext_DrawIndexed, context, 0u, run * 6, (j - run) * 6);
+}
+
+// 0x007551C0: the water's faces along the city edges, when the water level
+// (terrain slot 29) is not below the terrain's slot 21 height.
+void DrawWaterSkirts(char* self, char* context)
+{
+    void* const terrain = At<void*>(self, 0x20);
+    const float level = Virtual<float>(terrain, 0x74);
+    if (Virtual<float>(terrain, 0x54) > level)
+        return;
+    CallThis<void>(addr::SC4RenderContext_SetState2850, context, uint8_t{0});
+    CallThis<void>(addr::SC4RenderContext_SetState3EF0, context, uint8_t{0}, uint8_t{0});
+    CallThis<void>(addr::SC4RenderContext_SetIndexArray, context, Global<uint32_t>(addr::STE_IndicesPerRow),
+                   Global<uint16_t*>(addr::STE_SkirtIndices));
+    CallThis<void>(addr::SC4RenderContext_SetState28A0, context, 1u);
+    const int32_t depthOffset = At<int32_t>(context, 0xBC);
+    float a[2] = {0.0f, 0.0f}, b[2] = {0.0f, 0.0f}; // stack locals in the game: kept across sides
+    for (uint32_t side = 0; side < 4; ++side) {
+        const bool facing = side == At<uint32_t>(self, 0x5C) || side == At<uint32_t>(self, 0x60);
+        CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, facing ? -1 : -5);
+        const char* const vertices = (&Global<char*>(addr::STE_WaterSkirts))[side];
+        const EdgeSpan span = EdgeInView(context, vertices, 16, 0x18, side, a, b);
+        CallThis<void>(addr::SC4RenderContext_SetVertexArray, context, 1u, Columns() * 2, vertices);
+        DrawEdgeRuns(context, vertices, 16, span);
+    }
+    CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, depthOffset);
+    CallThis<void>(addr::SC4RenderContext_SetState28A0, context, 3u);
+    CallThis<void>(addr::SC4RenderContext_SetState3EF0, context, uint8_t{1}, uint8_t{0});
+    CallThis<void>(addr::SC4RenderContext_SetState2850, context, uint8_t{1});
+}
+
+// 0x00753E00: the land's faces along the two city edges that face the
+// camera, in three textured layers.
+uint32_t DrawLandSkirts(char* self, char* context)
+{
+    static const uint32_t kLayers[3] = {0x11, 0x10, 0x15};
+    const int32_t depthOffset = At<int32_t>(context, 0xBC);
+    CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, 1);
+    CallThis<void>(addr::SC4RenderContext_SetState40B0, context, 1u, 0u);
+    CallThis<void>(addr::SC4RenderContext_SetIndexArray, context, Global<uint32_t>(addr::STE_IndicesPerRow),
+                   Global<uint16_t*>(addr::STE_SkirtIndices));
+    float a[2] = {0.0f, 0.0f}, b[2] = {0.0f, 0.0f};
+    char* const textures = Global<char*>(addr::STE_TexturesByZoom + 4 * Global<int32_t>(addr::STE_Zoom));
+    for (uint32_t side = 0; side < 4; ++side) {
+        if (side != At<uint32_t>(self, 0x5C) && side != At<uint32_t>(self, 0x60))
+            continue;
+        char* const* const layers = &Global<char*>(addr::STE_LandSkirts) + 3 * side;
+        const EdgeSpan span = EdgeInView(context, layers[0], 24, 8, side, a, b);
+        for (int k = 0; k < 3; ++k) {
+            CallThis<void>(addr::SC4RenderContext_SetVertexArray, context, 10u, static_cast<uint32_t>(span.count) * 2,
+                           layers[k]);
+            CallThis<void>(addr::SC4RenderContext_BindTexture, context,
+                           ***reinterpret_cast<uint32_t***>(textures + 4 * kLayers[k]), 0u);
+            DrawEdgeRuns(context, layers[k], 24, span);
+        }
+    }
+    CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, depthOffset);
+    return 1;
+}
+
+// 0x007572A0.
 void DrawWater(char* self, char* context, void* buffers)
 {
     if (Global<uint8_t>(addr::STE_DebugCells))
@@ -641,7 +813,7 @@ void DrawWater(char* self, char* context, void* buffers)
             log::Write("terrain draw: %u water colour refreshes (ours)", refreshes);
         RefreshWaterColours(self);
     }
-    CallThis<void>(addr::cSTETerrainView3D_DrawWaterSkirts, self, context);
+    DrawWaterSkirts(self, context);
     DrawWaterSurface(self, context, buffers);
 }
 
@@ -709,6 +881,29 @@ void __fastcall DWater(char* self, void*, char* context, void* buffers)
                  [&] { g_water(self, nullptr, context, buffers); });
 }
 
+using SkirtsFn = uint32_t(__fastcall*)(char*, void*, char*);
+SkirtsFn g_landSkirts;
+bool g_compareSkirts = false;
+
+uint32_t __fastcall DLandSkirts(char* self, void*, char* context)
+{
+    if (g_depth > 0)
+        return g_landSkirts(self, nullptr, context);
+    if (!g_compareSkirts)
+        return DrawLandSkirts(self, context);
+    uint32_t result = 0;
+    DrawCompared(g_selfCheck ? "terrain.landskirts.selfcheck" : "terrain.landskirts", PassRegions(self, context),
+                 [&] {
+                     if (g_selfCheck)
+                         g_landSkirts(self, nullptr, context);
+                     else
+                         DrawLandSkirts(self, context);
+                 },
+                 [&] { result = g_landSkirts(self, nullptr, context); });
+    return result;
+}
+
+OPENSC4_THUNK(TLandSkirts, DLandSkirts, 4)
 OPENSC4_THUNK(TLand, DLand, 8)
 OPENSC4_THUNK(TWater, DWater, 8)
 
@@ -763,6 +958,29 @@ const bool g_registeredWater = registry::Register({
     "renderer.terrain.land (docs/renderer.md, \"The terrain\")",
     true,
     InstallWater,
+});
+
+bool InstallSkirts(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareSkirts = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSTETerrainView3D_DrawLandSkirts, &TLandSkirts, &g_landSkirts))
+        return false;
+    log::Write("terrain draw: land skirts %s", g_compareSkirts ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredSkirts = registry::Register({
+    "renderer.terrain.skirts",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_DrawLandSkirts,
+    "The land's faces along the city edges (the water's are part of renderer.terrain.water); compare mode as "
+    "renderer.terrain.land (docs/renderer.md, \"The terrain\")",
+    true,
+    InstallSkirts,
 });
 
 } // namespace
