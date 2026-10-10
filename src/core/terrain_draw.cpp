@@ -98,7 +98,8 @@ bool DirtyRows(int32_t first, int32_t end)
 }
 
 template <typename Ours, typename Original>
-void DrawCompared(const char* id, const std::vector<Region>& regions, Ours&& ours, Original&& original)
+void DrawCompared(const char* id, const std::vector<Region>& regions, Ours&& ours, Original&& original,
+                  bool localVertices = false)
 {
     std::vector<std::vector<char>> before, mine;
     for (const Region& r : regions)
@@ -108,7 +109,7 @@ void DrawCompared(const char* id, const std::vector<Region>& regions, Ours&& our
     gd::BeginCapture(false);
     ours();
     const std::vector<uint32_t> ourDraws = gd::EndCapture();
-    const std::vector<char> ourPipeline = gd::SaveState();
+    std::vector<char> ourPipeline = gd::SaveState();
     for (const Region& r : regions)
         mine.emplace_back(r.data, r.data + r.size);
     for (std::size_t i = 0; i < regions.size(); ++i)
@@ -136,7 +137,15 @@ void DrawCompared(const char* id, const std::vector<Region>& regions, Ours&& our
         compare::Record(id, false, game, text);
         return;
     }
-    if (const std::vector<char> gamePipeline = gd::SaveState(); gamePipeline != ourPipeline) {
+    std::vector<char> gamePipeline = gd::SaveState();
+    // A pass that draws from an array on its own stack leaves the driver
+    // with that pointer (the pipeline state's last member), which differs
+    // between our frame and the game's.
+    if (localVertices && gamePipeline.size() >= sizeof(void*) && ourPipeline.size() == gamePipeline.size()) {
+        std::memset(gamePipeline.data() + gamePipeline.size() - sizeof(void*), 0, sizeof(void*));
+        std::memset(ourPipeline.data() + ourPipeline.size() - sizeof(void*), 0, sizeof(void*));
+    }
+    if (gamePipeline != ourPipeline) {
         std::size_t at = 0;
         while (at < gamePipeline.size() && gamePipeline[at] == ourPipeline[at])
             ++at;
@@ -1103,6 +1112,44 @@ uint32_t DrawGrid(char* self, char* context, void* buffers)
     return 1;
 }
 
+// cSC4OverlayManager's partial rectangle draw (0x007356D0, through the
+// terrain view's 0x00754C60 or 0x00754F10): cell by cell, each a quad of
+// the land's vertices raised to the water level where that is higher, split
+// along the diagonal the terrain gives for the cell.
+void DrawOverlayRectPartial(char* manager, char* context, const int32_t* cells)
+{
+    char* const view = At<char*>(manager, 0x8C);
+    const bool waterRows = At<uint8_t>(manager, 0x15) != 0;
+    const std::size_t firstOffset = waterRows ? 0xBC : 0x8C, endOffset = waterRows ? 0xC0 : 0x90;
+    const uint8_t* const drawn = Global<uint8_t*>(waterRows ? addr::STE_WaterRowDrawn : addr::STE_LandRowDrawn);
+    const uint8_t* const water = Global<uint8_t*>(waterRows ? addr::STE_WaterRowWater : addr::STE_LandRowWater);
+    const int32_t columns = static_cast<int32_t>(Columns());
+    char quad[4 * 32];
+    CallThis<void>(addr::SC4RenderContext_SetVertexArray, context, 0xBu, 4u, quad);
+    const int32_t first = std::max(std::max(cells[1], 0), At<int32_t>(view, firstOffset));
+    const int32_t last = std::min(At<int32_t>(view, endOffset), std::min(cells[3] + 1, Global<int32_t>(addr::STE_Rows))) - 1;
+    for (int32_t row = first; row < last; ++row) {
+        if (!drawn[row] && !drawn[row + 1] && !water[row] && !water[row + 1])
+            continue;
+        const int32_t end = std::min(RowEnds()[row], cells[2] + 1);
+        for (int32_t column = std::max(cells[0], RowStarts()[row]); column < end; ++column) {
+            const int32_t at = columns * row + column;
+            const int32_t corners[4] = {at, at + 1, at + columns, at + columns + 1};
+            for (int k = 0; k < 4; ++k) {
+                char* const vertex = quad + k * 32;
+                std::memcpy(vertex, Land() + static_cast<std::size_t>(corners[k]) * 32, 32);
+                const float level = At<float>(Global<char*>(addr::STE_WaterVertices), static_cast<std::size_t>(corners[k]) * 32 + 4);
+                if (At<float>(vertex, 4) < level)
+                    At<float>(vertex, 4) = level;
+            }
+            const bool turned = Virtual<uint8_t>(At<void*>(view, 0x20), 0x118, column, row) != 0;
+            CallThis<void>(addr::SC4RenderContext_SetIndexArray, context, 6u,
+                           reinterpret_cast<uint16_t*>(turned ? addr::STE_QuadIndicesTurned : addr::STE_QuadIndicesPlain));
+            CallThis<void>(addr::SC4RenderContext_DrawIndexed, context, 0u, 0, 6);
+        }
+    }
+}
+
 // cSC4OverlayManager's decal pass (0x00736790). An overlay is a 0xB4-byte
 // record in the manager's vector at +0x98: +0 -1 when in use, +4 flags, +8
 // the index of its render state (the manager's +0x24, 8 bytes each), +0xC
@@ -1196,6 +1243,190 @@ void DrawShadowsPlain(char* manager, const float* matrix, char* context, char** 
     }
     if (!wasOn)
         Virtual<void>(driver, 0xB4, 7u);
+}
+
+// cSC4OverlayManager's two-stage shadow pass (0x00736BF0): each overlay's
+// own texture in stage 0 with the manager's shadow texture in stage 1, or
+// the shadow texture alone when the manager's +0x1C is 4. L is the game's
+// stack frame: the light vector at L[7..10], the amount at L[5], the
+// strength at L[12].
+void DrawShadows(char* manager, const float* matrix, char* context, char** list)
+{
+    if (list[0] == list[1])
+        return;
+    CallThis<void>(addr::SC4RenderContext_SetRenderState, context, At<char*>(manager, 0x24) + 0x20);
+    Cell L[117] = {};
+    for (int i = 7; i < 11; ++i)
+        L[i].u = Global<uint32_t>(0x00B4B3C8);
+    void* const source = Virtual<void*>(Global<void*>(addr::SC4_Lighting43DD0), 0x24);
+    Virtual<void>(source, 0x38, &L[10], &L[5], &L[7]);
+    CallThis<void>(addr::SC4RenderContext_SetLightVector, context, &L[7]);
+    L[12].u = L[10].u;
+    const double none = Global<double>(0x00A80990);
+    if (L[5].f > none) {
+        CallThis<void>(addr::SC4RenderContext_SetState3E90, context, 1u);
+        CallThis<void>(addr::SC4RenderContext_SetState2F50, context, 6u,
+                       static_cast<float>(static_cast<double>(L[12].f) * L[5].f));
+    } else {
+        CallThis<void>(addr::SC4RenderContext_SetState3E90, context, 0u);
+    }
+    const bool single = At<int32_t>(manager, 0x1C) == 4;
+    CallThis<void>(addr::SC4RenderContext_SetState4280, context, 1u, 1u, 0u);
+    CallThis<void>(addr::SC4RenderContext_SetState3030, context, manager + 0x38, 0u);
+    if (At<void*>(manager, 0xD4)) {
+        const uint32_t stage = single ? 0 : 1;
+        CallThis<void>(addr::SC4RenderContext_SetState3EF0, context, 1u, stage);
+        CallThis<void>(addr::SC4RenderContext_BindTexture, context, ***reinterpret_cast<uint32_t***>(manager + 0xD4), stage);
+        CallThis<void>(addr::SC4RenderContext_SetState4280, context, 0u, 0u, stage);
+        CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 2u, 2u, stage);
+        CallThis<void>(addr::SC4RenderContext_SetState3030, context, manager + (single ? 0x50 : 0x44), stage);
+    }
+    CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, 3);
+    At<uint32_t>(manager, 0xDC) = 0;
+    for (uint32_t i = 0; i < static_cast<uint32_t>((list[1] - list[0]) >> 2); ++i) {
+        char* const overlay = At<char*>(manager, 0x98) + At<int32_t>(list[0], i * 4) * 0xB4;
+        if (At<int32_t>(overlay, 0) != -1 || (At<uint32_t>(overlay, 4) & 9) != 9)
+            continue;
+        const float* const record = reinterpret_cast<const float*>(overlay);
+        const int32_t* const cells = reinterpret_cast<const int32_t*>(overlay + 0xC);
+        if (!single) {
+            CallThis<void>(addr::SC4RenderContext_BindTexture, context, ***reinterpret_cast<uint32_t***>(overlay + 0xAC), 0u);
+            if (At<uint32_t>(overlay, 4) & 2)
+                CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 3u, 3u, 0u);
+            else
+                CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 2u, 2u, 0u);
+            {
+#include "core/overlay_shadow2_a.inc"
+            }
+            CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[33], 0u);
+            {
+#include "core/overlay_shadow2_b.inc"
+            }
+            CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[65], 1u);
+            if (Global<uint8_t>(addr::STE_OverlaySunTest)) {
+                // The light at the overlay's centre, in cells.
+                const double x = cells[0] + cells[2], z = cells[1] + cells[3];
+                L[10].u = L[12].u;
+                const double half = static_cast<double>(At<float>(manager, 0x64)) * Global<double>(0x00A92D28);
+                L[27].f = static_cast<float>(half * x);
+                L[28].f = static_cast<float>(half * z);
+                if (!At<uint8_t>(manager, 0x16))
+                    L[10].f = static_cast<float>(Virtual<double>(source, 0x3C, &L[27]) * L[10].f);
+                if (L[10].f < Global<double>(0x00AB39A0))
+                    continue;
+                if (L[5].f > none)
+                    CallThis<void>(addr::SC4RenderContext_SetState2F50, context, 6u,
+                                   static_cast<float>(static_cast<double>(L[10].f) * L[5].f));
+                CallThis<void>(addr::SC4RenderContext_SetLightVector, context, &L[7]);
+            }
+        } else {
+            {
+#include "core/overlay_shadow2_c.inc"
+            }
+            CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[49], 0u);
+        }
+        bool partial = false;
+        if (At<uint8_t>(manager, 0x16)) {
+            std::memcpy(&L[29], cells, 16);
+            const int32_t counted = Virtual<int32_t>(At<void*>(manager, 0x88), 0xD4, &L[29]);
+            partial = counted < (cells[3] - cells[1] + 1) * (cells[2] - cells[0] + 1);
+        }
+        CallThis<void>(partial ? addr::cSC4OverlayManager_DrawRectPartial : addr::cSC4OverlayManager_DrawRect, manager,
+                       context, cells);
+        ++At<uint32_t>(manager, 0xDC);
+    }
+    CallThis<void>(addr::SC4RenderContext_SetState3EF0, context, 0u, 1u);
+}
+
+// cSC4OverlayManager's list of overlays in view (0x00738390). The manager
+// keeps its overlays in a grid of buckets (cells >> +0xE4 a side, +0xE8
+// buckets a row, +0xF0 the buckets: lists of {next, overlay index}); the
+// terrain view gives the rows in view and their first and end columns.
+// Each overlay is listed once, by a stamp (+0xE0, the overlay's +0xA).
+void ListVisibleOverlays(char* manager, char** list)
+{
+    list[1] = list[0];
+    int32_t firstRow = 0, endRow = 0;
+    const int32_t* starts = nullptr;
+    const int32_t* ends = nullptr;
+    CallThis<void>(addr::cSTETerrainView3D_RowsInView, At<void*>(manager, 0x8C), &firstRow, &endRow, &starts, &ends);
+    const int32_t shift = At<int32_t>(manager, 0xE4);
+    const int32_t round = (1 << shift) - 1;
+    const int32_t endBucket = (round + endRow - 1) >> shift;
+    const uint16_t stamp = ++At<uint16_t>(manager, 0xE0);
+    for (int32_t z = firstRow >> shift; z < endBucket; ++z) {
+        const int32_t endX = (ends[z] + round - 1) >> shift;
+        for (int32_t x = starts[z] >> shift; x < endX; ++x) {
+            const char* node = At<const char**>(manager, 0xF0)[At<int32_t>(manager, 0xE8) * z + x];
+            for (; node; node = At<const char*>(const_cast<char*>(node), 0)) {
+                uint32_t index = At<uint32_t>(const_cast<char*>(node), 4);
+                char* const overlay = At<char*>(manager, 0x98) + index * 0xB4;
+                if (At<uint16_t>(overlay, 0xA) == stamp)
+                    continue;
+                At<uint16_t>(overlay, 0xA) = stamp;
+                CallThis<void>(addr::SC4PtrVector_PushBack, list, &index);
+            }
+        }
+    }
+}
+
+// cSC4OverlayManager's draw (0x00738A50): the inverse of the view matrix,
+// the list of overlays to draw, then the passes.
+void DrawOverlays(char* manager, char* context)
+{
+    if (At<uint8_t>(manager, 0x15) && At<uint8_t>(At<char*>(At<char*>(context, 0x38), 0xC), 0x39C))
+        return;
+    Cell L[87] = {};
+    for (int i = 4; i < 20; ++i)
+        L[i].u = Global<uint32_t>(0x00B4B3C8);
+    CallThis<void>(addr::SC4RenderContext_UpdateViewMatrix, context);
+    CallThis<void>(addr::SC4RenderContext_GetViewMatrix, context, &L[4]);
+    {
+#include "core/overlay_view_inverse.inc"
+        L[19].u = r332;
+    }
+    const int32_t depthOffset = At<int32_t>(context, 0xBC);
+    uint32_t& flags = Global<uint32_t>(addr::STE_OverlayListFlags);
+    char** const list = &Global<char*>(addr::STE_OverlayList);
+    if (!(flags & 1)) {
+        flags |= 1;
+        list[0] = list[1] = list[2] = nullptr;
+        reinterpret_cast<int(__cdecl*)(std::uintptr_t)>(addr::SC4_atexit)(0x00A7D300);
+    }
+    if (!At<uint8_t>(manager, 0x15) && At<uint8_t>(manager, 0x20)) {
+        CallThis<void>(addr::cSC4OverlayManager_ListVisible, manager, list);
+    } else {
+        CallThis<void>(addr::SC4Uint32Vector_Clear, list);
+        const auto count = [&] {
+            return static_cast<uint32_t>(static_cast<int32_t>(At<char*>(manager, 0x9C) - At<char*>(manager, 0x98)) / 0xB4);
+        };
+        for (uint32_t i = 0; i < count(); ++i) {
+            if (At<int32_t>(At<char*>(manager, 0x98), i * 0xB4) != -1)
+                continue;
+            uint32_t index = i;
+            CallThis<void>(addr::SC4PtrVector_PushBack, list, &index);
+        }
+    }
+    At<void*>(manager, 0x94) = reinterpret_cast<void*(__cdecl*)(void*)>(addr::STE_DynamicBuffersFor)(At<void*>(context, 0x30));
+    const auto preference = [&](std::size_t offset) {
+        return At<uint8_t>(At<char*>(At<char*>(context, 0x38), 0xC), offset) != 0;
+    };
+    if (list[0] != list[1]) {
+        if (preference(0x15C))
+            CallThis<void>(addr::cSC4OverlayManager_DrawDecals, manager, &L[4], context, list);
+        if (list[0] != list[1] && preference(0x13C)) {
+            if (At<int32_t>(manager, 0x18) > 2 && preference(0x17C))
+                CallThis<void>(addr::cSC4OverlayManager_DrawShadows, manager, &L[4], context, list);
+            else
+                CallThis<void>(addr::cSC4OverlayManager_DrawShadowsPlain, manager, &L[4], context, list);
+        }
+    }
+    CallThis<void>(addr::SC4RenderContext_ClearTextureMatrix, context, 0u);
+    CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, depthOffset);
+    if (void* const buffers = At<void*>(manager, 0x94)) {
+        CallThis<void>(addr::STE_ReleaseDynamicBuffers, buffers);
+        At<void*>(manager, 0x94) = nullptr;
+    }
 }
 
 // --- The rows' layer lists and the skirts' colours ------------------------------------------
@@ -1521,6 +1752,18 @@ void __fastcall DOverlayRect(char* manager, void*, char* context, const int32_t*
         log::Write("overlays: first rectangle with water vertices %d, water rows %d, dynamic buffers %d",
                    At<uint8_t>(manager, 0x16), At<uint8_t>(manager, 0x15), At<void*>(manager, 0x94) != nullptr);
     }
+    // OPENSC4_TEST_OVERLAY_PARTIAL=1: every rectangle of water vertices is
+    // also drawn cell by cell, ours compared with the game's (the test cities
+    // have no overlay partly under water, so nothing else reaches that draw;
+    // the extra quads show).
+    static const bool partial = [] {
+        const char* v = std::getenv("OPENSC4_TEST_OVERLAY_PARTIAL");
+        return v && *v == '1';
+    }();
+    if (partial && At<uint8_t>(manager, 0x16))
+        DrawCompared("overlays.rect_partial", PassRegions(At<char*>(manager, 0x8C), context),
+                     [&] { DrawOverlayRectPartial(manager, context, cells); },
+                     [&] { CallThis<void>(addr::cSC4OverlayManager_DrawRectPartial, manager, context, cells); }, true);
     if (!g_compareOverlayRect)
         return DrawOverlayRect(manager, context, cells);
     DrawCompared("overlays.rect", PassRegions(At<char*>(manager, 0x8C), context),
@@ -1571,8 +1814,118 @@ void __fastcall DShadowsPlain(char* manager, void*, const float* matrix, char* c
                  [&] { g_shadowsPlain(manager, nullptr, matrix, context, list); });
 }
 
+DecalsFn g_shadows;
+bool g_compareShadows = false;
+
+void __fastcall DShadows(char* manager, void*, const float* matrix, char* context, char** list)
+{
+    if (g_depth > 0)
+        return g_shadows(manager, nullptr, matrix, context, list);
+    static uint32_t cases = 0;
+    const uint32_t which = (At<int32_t>(manager, 0x1C) == 4 ? 1u : 2u) | (At<uint8_t>(manager, 0x16) ? 4u : 8u);
+    if ((cases & which) != which) {
+        cases |= which;
+        log::Write("overlays: shadow pass with the manager's +0x1C %d, water vertices %d, sun test %d",
+                   At<int32_t>(manager, 0x1C), At<uint8_t>(manager, 0x16), Global<uint8_t>(addr::STE_OverlaySunTest));
+    }
+    if (!g_compareShadows)
+        return DrawShadows(manager, matrix, context, list);
+    std::vector<Region> regions = PassRegions(At<char*>(manager, 0x8C), context);
+    regions.push_back({"manager", manager, 0xE0});
+    DrawCompared(g_selfCheck ? "overlays.shadows2.selfcheck" : "overlays.shadows2", regions,
+                 [&] {
+                     if (g_selfCheck)
+                         g_shadows(manager, nullptr, matrix, context, list);
+                     else
+                         DrawShadows(manager, matrix, context, list);
+                 },
+                 [&] { g_shadows(manager, nullptr, matrix, context, list); });
+}
+
+using OverlaysFn = void(__fastcall*)(char*, void*, char*);
+OverlaysFn g_overlays;
+bool g_compareOverlays = false;
+
+void __fastcall DOverlays(char* manager, void*, char* context)
+{
+    if (g_depth > 0)
+        return g_overlays(manager, nullptr, context);
+    if (!g_compareOverlays)
+        return DrawOverlays(manager, context);
+    std::vector<Region> regions = PassRegions(At<char*>(manager, 0x8C), context);
+    regions.push_back({"manager", manager, 0xE0});
+    // The list is rebuilt by both runs; its contents are compared apart
+    // (its buffer may move, so it is not put back in between).
+    const auto listed = [] {
+        const uint32_t* const* const list = &Global<const uint32_t*>(addr::STE_OverlayList);
+        return std::vector<uint32_t>(list[0], list[1]);
+    };
+    std::vector<uint32_t> mine, theirs;
+    DrawCompared(g_selfCheck ? "overlays.draw.selfcheck" : "overlays.draw", regions,
+                 [&] {
+                     if (g_selfCheck)
+                         g_overlays(manager, nullptr, context);
+                     else
+                         DrawOverlays(manager, context);
+                     mine = listed();
+                 },
+                 [&] {
+                     g_overlays(manager, nullptr, context);
+                     theirs = listed();
+                 });
+    if (mine != theirs) {
+        char text[64], mineText[64];
+        std::snprintf(text, sizeof text, "%zu overlays listed", theirs.size());
+        std::snprintf(mineText, sizeof mineText, "%zu overlays listed", mine.size());
+        compare::Record("overlays.draw.list", false, text, mineText);
+    }
+}
+
+using ListVisibleFn = void(__fastcall*)(char*, void*, char**);
+ListVisibleFn g_listVisible;
+bool g_compareListVisible = false;
+
+void __fastcall DListVisible(char* manager, void*, char** list)
+{
+    if (g_depth > 0)
+        return g_listVisible(manager, nullptr, list);
+    if (!g_compareListVisible)
+        return ListVisibleOverlays(manager, list);
+    const uint16_t stamp = At<uint16_t>(manager, 0xE0);
+    ListVisibleOverlays(manager, list);
+    const std::vector<uint32_t> mine(reinterpret_cast<uint32_t*>(list[0]), reinterpret_cast<uint32_t*>(list[1]));
+    const bool stamped = At<uint16_t>(manager, 0xE0) == static_cast<uint16_t>(stamp + 1);
+    g_listVisible(manager, nullptr, list);
+    const std::vector<uint32_t> theirs(reinterpret_cast<uint32_t*>(list[0]), reinterpret_cast<uint32_t*>(list[1]));
+    const bool same = stamped && mine == theirs;
+    char text[64] = "", mineText[64] = "";
+    if (!same) {
+        std::snprintf(text, sizeof text, "%zu overlays", theirs.size());
+        std::snprintf(mineText, sizeof mineText, "%zu overlays, stamp %s", mine.size(), stamped ? "ok" : "off");
+    }
+    compare::Record("overlays.visible", same, text, mineText);
+}
+
+OPENSC4_THUNK(TListVisible, DListVisible, 4)
+OPENSC4_THUNK(TOverlays, DOverlays, 4)
+OPENSC4_THUNK(TShadows, DShadows, 12)
 OPENSC4_THUNK(TShadowsPlain, DShadowsPlain, 12)
 OPENSC4_THUNK(TDecals, DDecals, 12)
+OverlayRectFn g_overlayRectPartial;
+bool g_compareOverlayRectPartial = false;
+
+void __fastcall DOverlayRectPartial(char* manager, void*, char* context, const int32_t* cells)
+{
+    if (g_depth > 0)
+        return g_overlayRectPartial(manager, nullptr, context, cells);
+    if (!g_compareOverlayRectPartial)
+        return DrawOverlayRectPartial(manager, context, cells);
+    DrawCompared("overlays.rect_partial", PassRegions(At<char*>(manager, 0x8C), context),
+                 [&] { DrawOverlayRectPartial(manager, context, cells); },
+                 [&] { g_overlayRectPartial(manager, nullptr, context, cells); }, true);
+}
+
+OPENSC4_THUNK(TOverlayRectPartial, DOverlayRectPartial, 8)
 OPENSC4_THUNK(TOverlayRect, DOverlayRect, 8)
 OPENSC4_THUNK(TLandSkirts, DLandSkirts, 4)
 OPENSC4_THUNK(TLand, DLand, 8)
@@ -1788,6 +2141,98 @@ const bool g_registeredShadowsPlain = registry::Register({
     "overlays\")",
     true,
     InstallShadowsPlain,
+});
+
+bool InstallShadows(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareShadows = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC4OverlayManager_DrawShadows, &TShadows, &g_shadows))
+        return false;
+    log::Write("overlays: shadow pass %s", g_compareShadows ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredShadows = registry::Register({
+    "renderer.overlays.shadows",
+    "renderer/overlays",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4OverlayManager_DrawShadows,
+    "The overlay manager's two-stage shadow pass; compare mode as renderer.terrain.land (docs/renderer.md, \"The "
+    "overlays\")",
+    true,
+    InstallShadows,
+});
+
+bool InstallOverlays(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareOverlays = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC4OverlayManager_Draw, &TOverlays, &g_overlays))
+        return false;
+    log::Write("overlays: draw %s", g_compareOverlays ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredOverlays = registry::Register({
+    "renderer.overlays.draw",
+    "renderer/overlays",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4OverlayManager_Draw,
+    "The overlay manager's draw: the inverse view matrix, the list of overlays and the passes; compare mode as "
+    "renderer.terrain.land, with the passes the game's in both runs (docs/renderer.md, \"The overlays\")",
+    true,
+    InstallOverlays,
+});
+
+bool InstallListVisible(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareListVisible = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC4OverlayManager_ListVisible, &TListVisible, &g_listVisible))
+        return false;
+    log::Write("overlays: list of overlays in view %s", g_compareListVisible ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredListVisible = registry::Register({
+    "renderer.overlays.visible",
+    "renderer/overlays",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4OverlayManager_ListVisible,
+    "The list of overlays in view; compare mode builds ours, then the game's, and compares the lists "
+    "(docs/renderer.md, \"The overlays\")",
+    true,
+    InstallListVisible,
+});
+
+bool InstallOverlayRectPartial(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareOverlayRectPartial = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC4OverlayManager_DrawRectPartial, &TOverlayRectPartial, &g_overlayRectPartial))
+        return false;
+    log::Write("overlays: partial rectangle draws %s", g_compareOverlayRectPartial ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredOverlayRectPartial = registry::Register({
+    "renderer.overlays.rect_partial",
+    "renderer/overlays",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4OverlayManager_DrawRectPartial,
+    "The overlay manager's cell-by-cell draw of a rectangle partly under water; compare mode as "
+    "renderer.terrain.land (docs/renderer.md, \"The overlays\")",
+    true,
+    InstallOverlayRectPartial,
 });
 
 } // namespace
