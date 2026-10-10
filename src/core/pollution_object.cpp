@@ -180,6 +180,24 @@ void Destroy(char* self)
         DestroyList(self + list);
 }
 
+// The serialisable part's slot 5 (the game's 0x006E2CC0): the class ID.
+uint32_t __fastcall GetGZCLSID(void*, void*)
+{
+    return kClassId;
+}
+
+// Slots 5 and 6 of the +0x8 interface, which the game shares with other
+// classes (0x00648EF0: false; 0x0088B410: three arguments, 0).
+uint8_t __fastcall Unnamed8Slot5(void*, void*)
+{
+    return 0;
+}
+
+uint32_t __fastcall Unnamed8Slot6(void*, void*, uint32_t, uint32_t, uint32_t)
+{
+    return 0;
+}
+
 // The vtables: the game's as they are now (with whatever the other
 // replacements swapped in), with our identity functions.
 void BuildVtables()
@@ -200,6 +218,12 @@ void BuildVtables()
     g_vtableC[0] = reinterpret_cast<void*>(&QueryInterfaceAt<0xC>);
     g_vtableC[1] = reinterpret_cast<void*>(&AddRefAt<0xC>);
     g_vtableC[2] = reinterpret_cast<void*>(&ReleaseAt<0xC>);
+    if (reinterpret_cast<std::uintptr_t>(g_vtableC[5]) == 0x006E2CC0)
+        g_vtableC[5] = reinterpret_cast<void*>(&GetGZCLSID);
+    if (reinterpret_cast<std::uintptr_t>(g_vtable8[5]) == 0x00648EF0)
+        g_vtable8[5] = reinterpret_cast<void*>(&Unnamed8Slot5);
+    if (reinterpret_cast<std::uintptr_t>(g_vtable8[6]) == 0x0088B410)
+        g_vtable8[6] = reinterpret_cast<void*>(&Unnamed8Slot6);
 }
 
 // The factory, as the game's (0x006E5F00): operator new(0x238), then the
