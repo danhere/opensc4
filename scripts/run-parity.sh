@@ -47,7 +47,7 @@ start_pause="${OPENSC4_PARITY_PAUSE:-$([ "$jobs" = 1 ] && echo 20 || echo 0)}"
 export OPENSC4_TEST_QUICK="${OPENSC4_TEST_QUICK:-1}"
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-base="determinism.fixed_seed=ours,determinism.virtual_clock=ours,determinism.fixed_ticks=ours,determinism.agent_order=ours,determinism.zero_alloc=ours,determinism.sim_timers=ours"
+base="determinism.fixed_seed=ours,determinism.virtual_clock=ours,determinism.fixed_ticks=ours,determinism.agent_order=ours,determinism.zero_alloc=ours,determinism.sim_timers=ours,resources.stale_record_fix=ours"
 # Parallel jobs: several copies of the game at once (harness.multi_instance
 # lets them start; run-autotest.sh then kills only its own on a timeout).
 if [ "$jobs" != 1 ]; then
