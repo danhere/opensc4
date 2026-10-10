@@ -54,11 +54,27 @@ Init (0x0041B570) takes the script context, registers the script types (0x004189
 | `simulators.advisors.run` | DoMessage (the run and the cheats), RegisterTypes, Reload, CreateAll, CreateAdvisor, Reconcile |
 | `simulators.advisors.scripts` | DoLink (a link in advice text) and the data tags' gc callback (0x00418B50) |
 | `simulators.advisors.save` | Write and Read (version 1: the advisor count, then each advisor as a reference and its ID) |
+| `simulators.advisors.tokens` | the text-token callback (0x00417AF0) |
 | `simulators.advisors.object` | our own object under the class ID: constructor, destructor, AddRef, Release, our copies of the six vtables |
 
-Still the game's: the text-token callback (0x00417AF0, the advice text's `#token#` values), the map, set, vector, string and date helpers, the shared getters, GetGZCLSID.
+Still the game's: the map, set, vector, string and date helpers, the shared getters, GetGZCLSID.
 
 One call looks like it takes an argument and does not: slot 0xC4 of 0x00B43C94 takes none, and the value pushed before it belongs to the next call (0x004B7D70, `ret 4`). Reading it as an argument of the slot left the stack 4 bytes off and crashed every load. The constructor's generator (+0x30) is seeded under the original's call site (0x0041AA02) with `fixed_seed::SiteOverride`; from our code `determinism.fixed_seed` would count it under another site and seed it differently.
+
+## Text tokens
+
+The callback 0x00417AF0 (registered with the service at 0x00B43CDC) fills a token in advice text: it gets the token's name, the string to fill and the advisor system. Named tokens (strings at 0x00B20860):
+
+| Token | Value |
+| --- | --- |
+| `link_id`, `sit_link_id` | `sc4://advice/%08x%08x` with the context advice's two IDs |
+| `advisor` | the name of the context advice's advisor (a string resource, instance 0xC8) |
+| `building_initial_cost`, `building_monthly_cost` | money, from the context advice's building |
+| `mission_target`, `num_targets`, `cur_target_index`, `num_targets_remaining`, `mission_mayor_rating`, `mission_failure_mayor_rating`, `mission_money`, `mission_failure_money` | from the city's mission (city slot 0xC4) |
+
+Any other name is run as script, `_dasd_=(name)`, and the result formatted: a number by the prefix (`S@` plain integer, `M@` money, `P@` percent, `D@` date, `T@` time, none the locale's number), a string as it is, a data-tag object as its string. A token nothing fills becomes `%UNKNOWN TOKEN --name--%`. A week's run fills about a hundred `tuning_constants.*` tokens at load; the Adv cheats' advice reaches `advisor`.
+
+Three calls here pass arguments that were pushed earlier than the call before them: the resource lookup (slot 0x8C of the 0x00913C72 singleton) takes only the ID, and the key and a 0 pushed before it go to the string service's slot 0xC8; the time helpers 0x004178B0 and 0x00417870 take none, and the seconds pushed before them go to the locale's slot 0x28.
 
 ## Test cities
 
@@ -72,9 +88,9 @@ Everything on (`simulators.advisors.*`), two jobs at a time; results (2026-10-09
 
 | Run | Result |
 | --- | --- |
-| 12 saves, 7 days (`advall2-7`) | **12 of 12**, all on the first pair |
-| `saves-mm2`, 30 days (`advall2-mm30`) | 2 of 2 |
-| 12 saves, 7 days, advisors removed and created again on day 2 (`advall2-drv`) | 12 of 12 |
-| 12 saves, 7 days, cheats and a link on day 1 (`advall2-cht`) | 12 of 12 |
+| 12 saves, 7 days (`advtok4-7`) | 11 of 12; Making Money d0365 partly: B's first run parted in the harness's tick count (`checks` 843/842) on day 6, its two retry pairs matched. 12 of 12 in the two batches before (`advtok2-7`, `advtok3-7`) |
+| `saves-mm2`, 30 days (`advtok4-mm30`) | 2 of 2 |
+| 12 saves, 7 days, advisors removed and created again on day 2 (`advtok4-drv`) | 11 of 12; Rush Hour d1095 partly: B's first run parted in the flammability walk a day in, its two retry pairs matched. 12 of 12 in the two batches before |
+| 12 saves, 7 days, cheats and a link on day 1 (`advtok4-cht`) | 12 of 12 |
 
-The advisor system's record was identical in every pair (`savediff.py --pointers`). The interface group alone was 12 of 12 before (`advi1-7`, graded with the own-fields hash masked, as that run still hashed the service pointer at +0x64).
+The advisor system's record was identical in every pair (`savediff.py --pointers`). Without the token callback everything was 12 of 12 (`advall2-*`).
