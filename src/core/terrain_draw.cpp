@@ -1686,6 +1686,58 @@ __declspec(naked) double __cdecl GameAsin(double)
     }
 }
 
+// The machine the translated functions run on (see billboard_corners.inc):
+// memory by address, the x87 stack as doubles, its compare flags as the
+// status word's high byte holds them (C0 bit 0, C2 bit 2, C3 bit 6).
+template <typename T>
+T& M(uint32_t address)
+{
+    return *reinterpret_cast<T*>(static_cast<std::uintptr_t>(address));
+}
+
+bool Even(uint32_t value)
+{
+    value &= 0xFF;
+    value ^= value >> 4;
+    value ^= value >> 2;
+    value ^= value >> 1;
+    return (value & 1) == 0;
+}
+
+uint32_t CompareStatus(double a, double b)
+{
+    if (a != a || b != b)
+        return 0x45;
+    return a < b ? 0x01 : a == b ? 0x40 : 0x00;
+}
+
+// The billboard's corners after a change of zoom or rotation (0x007FE400),
+// translated instruction by instruction.
+uint32_t UpdateBillboardCorners(char* object, char* context)
+{
+    uint32_t stackmem[160] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(object);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = reinterpret_cast<uint32_t>(context);
+    double st[8] = {};
+    int top = -1;
+    uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/billboard_corners.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
 // The billboard's draw (0x007FEA90): a textured quad that faces the camera,
 // the most drawn thing in a city. `self` is the object + 0x170, as the
 // adjustor in its vtable passes it. Fields of the object: +0x20 flags,
@@ -2985,6 +3037,35 @@ void __fastcall DCellQuad(char* interface, void*, char* context, uint32_t x, uin
 
 OPENSC4_THUNK(TCellQuad, DCellQuad, 24)
 OPENSC4_THUNK(TGroundQuad, DGroundQuad, 8)
+using CornersFn = uint32_t(__fastcall*)(char*, void*, char*);
+CornersFn g_corners;
+bool g_compareCorners = false;
+
+uint32_t __fastcall DCorners(char* object, void*, char* context)
+{
+    if (!g_compareCorners)
+        return UpdateBillboardCorners(object, context);
+    constexpr std::size_t kSize = 0x170;
+    const std::vector<char> before(object, object + kSize);
+    UpdateBillboardCorners(object, context);
+    const std::vector<char> mine(object, object + kSize);
+    std::memcpy(object, before.data(), kSize);
+    const uint32_t result = g_corners(object, nullptr, context);
+    std::size_t at = 0;
+    while (at < kSize && mine[at] == object[at])
+        ++at;
+    const bool same = at == kSize;
+    char text[64] = "", mineText[64] = "";
+    if (!same) {
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "+%zX %s", at, Hex(object + at, 8).c_str());
+        std::snprintf(mineText, sizeof mineText, "+%zX %s", at, Hex(mine.data() + at, 8).c_str());
+    }
+    compare::Record("models.billboard_corners", same, text, mineText);
+    return result;
+}
+
+OPENSC4_THUNK(TCorners, DCorners, 4)
 OPENSC4_THUNK(TBillboard, DBillboard, 8)
 OPENSC4_THUNK(TDrawMoving, DDrawMoving, 0)
 OPENSC4_THUNK(TDrawStatic, DDrawStatic, 0)
@@ -3591,6 +3672,29 @@ const bool g_registeredCellQuad = registry::Register({
     "terrain); compare mode as renderer.terrain.land, per quad (docs/renderer.md, \"Models and lots\")",
     true,
     InstallCellQuad,
+});
+
+bool InstallCorners(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareCorners = mode == registry::Mode::Compare;
+    if (!Detour(addr::cS3DBillboard_UpdateCorners, &TCorners, &g_corners))
+        return false;
+    log::Write("models: billboard corners %s", g_compareCorners ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredCorners = registry::Register({
+    "renderer.models.billboard_corners",
+    "renderer/models",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cS3DBillboard_UpdateCorners,
+    "The billboard's corners after a change of zoom or rotation; compare mode runs ours, puts the billboard back, "
+    "runs the game's and compares the billboard's bytes (docs/renderer.md, \"Models and lots\")",
+    true,
+    InstallCorners,
 });
 
 } // namespace
