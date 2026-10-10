@@ -1,0 +1,599 @@
+[[entry]]
+name = "cSC4AdvisorSystem::Instance"
+address = 0x00B207C0
+kind = "data"
+source = "Name ours. The advisor system (0xA8 bytes), set by its constructor (docs/advisors.md)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::QueryInterface"
+address = 0x00418640
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D D4 A3 FD"
+source = "Name ours. 0x4A0DD617 at +0, 0x452294AA at +4, 0xE98B2F57 at +8, 0xE4FDA3D4 at +0x10; others to the base at +0x14 (docs/advisors.md)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::PostCheck"
+address = 0x00418730
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 2C E8 A2 AC 4F 00"
+source = "Name ours. Posts message 0xCA5501F2 (the advisors are run when it is handled)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::GetAdvicePopupPriorityThreshold"
+address = 0x00418780
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 0D EC 3C B4"
+source = "Interface slot 21: the threshold for the difficulty (+0x1C easy, +0x20, +0x24)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::MakeHelper"
+address = 0x004187B0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 43 5C 85 C0"
+source = "Name ours. Slot 24: makes the helper at +0x5C (0x70 bytes, 0x0041DB50) if none, then its 0x0041E320."
+
+[[entry]]
+name = "cSC4AdvisorSystem::Helper3"
+address = 0x00418810
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 5C 85 C9 74 05 E9"
+source = "Name ours. Slot 27: the helper's 0x0041D480, false without one."
+
+[[entry]]
+name = "cSC4AdvisorSystem::Helper1"
+address = 0x00418820
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 5C 85 C9 74 05 E9"
+source = "Name ours. Slot 25: the helper's 0x0041D650."
+
+[[entry]]
+name = "cSC4AdvisorSystem::Helper2"
+address = 0x00418830
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 5C 85 C9 74 05 E9"
+source = "Name ours. Slot 26: the helper's 0x0041D710."
+
+[[entry]]
+name = "cSC4AdvisorSystem::DropHelper"
+address = 0x00418840
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 5C 85 C9"
+source = "Name ours. Slot 28: the helper's 0x0041D830, then the helper released."
+
+[[entry]]
+name = "cSC4AdvisorSystem::SetGlobalString"
+address = 0x00418870
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8B 4E 58"
+source = "Slot 12: game[name] = an object with data tag 1."
+
+[[entry]]
+name = "cSC4AdvisorSystem::SetGlobalNumber"
+address = 0x004188E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 58 8B 01"
+source = "Slot 13: game[name] = a number."
+
+[[entry]]
+name = "cSC4AdvisorSystem::SimulateAll"
+address = 0x00418C80
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 59 4C 56 8B 73 08"
+source = "Name ours. (flag): every advisor's Simulate (slot 14)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::PopContextAdvice"
+address = 0x00418CE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 74 8B 51 78 3B C2"
+source = "Slot 19."
+
+[[entry]]
+name = "cSC4AdvisorSystem::GetContextAdvice"
+address = 0x00418C10
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 74 8B 51 78 3B C2"
+source = "Slot 20."
+
+[[entry]]
+name = "cSC4AdvisorSystem::GetDataTag"
+address = 0x00418C30
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 80 00 00 00 8B 4C"
+source = "Slot 22: the data tags at +0x80."
+
+[[entry]]
+name = "cSC4AdvisorSystem::GetAdvisor"
+address = 0x00419070
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 8D 71 4C 8D 44"
+source = "Slot 7: the advisor with an ID, or null."
+
+[[entry]]
+name = "cSC4AdvisorSystem::PushEvent"
+address = 0x004190B0
+kind = "function"
+convention = "thiscall"
+expect = "51 55 56 8D 71 68 8D 44"
+source = "Slot 15: (event, subject) to every advisor subscribed (their slot 18)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::SetLocalValue"
+address = 0x00419520
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 8B F1"
+source = "Slot 14: game[name] = value, game[name..'_subject'] = the subject (data tag 0)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::AddAdvisor"
+address = 0x004197E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 85 F6 57"
+source = "Slot 5: into the map by ID, then message 0x8A09FA6A posted."
+
+[[entry]]
+name = "cSC4AdvisorSystem::PushContextAdvice"
+address = 0x00419840
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 85 F6 57"
+source = "Slot 18."
+
+[[entry]]
+name = "cSC4AdvisorSystem::RemoveAdvisor"
+address = 0x00419BC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 55 56 57 8B"
+source = "Slot 6: message 0x8A09FA69 sent, the advisor out of every event's set (empty events dropped), then out of the map."
+
+[[entry]]
+name = "cSC4AdvisorSystem::UnsubscribeFromEvent"
+address = 0x00419EB0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 57 8D 79 68 8D"
+source = "Slot 17."
+
+[[entry]]
+name = "cSC4AdvisorSystem::SubscribeToEvent"
+address = 0x0041B370
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8D 44 24 0C 50"
+source = "Slot 16."
+
+[[entry]]
+name = "cSC4AdvisorSystem::AdvisorMessage"
+address = 0x00418A80
+kind = "function"
+convention = "cdecl"
+expect = "51 85 C9 C7 04 24 00 00"
+source = "Name ours. ECX = the advisor, (post, type) on the stack, caller pops: a message of the type with the advisor, posted or sent."
+
+[[entry]]
+name = "SC4AdvisorMap::At"
+address = 0x00419640
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 8B 31 8B"
+source = "operator[] of the advisor map (int ID -> advisor); returns the value."
+
+[[entry]]
+name = "SC4AdvisorEventMap::At"
+address = 0x0041B240
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 55 8B 6C 24"
+source = "operator[] of the event map (event -> set of advisors); returns the set."
+
+[[entry]]
+name = "SC4AdvisorEventMap::Erase"
+address = 0x004196C0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8B 07 8D"
+source = "Erases an event node (iterator by value), freeing its set."
+
+[[entry]]
+name = "SC4RefPtrVector::InsertN"
+address = 0x00430A90
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Inserts n copies of a referenced pointer at a position (pos, &value, &allocator, n, 1)."
+
+[[entry]]
+name = "SC4AdvisorHelper::Construct"
+address = 0x0041DB50
+kind = "function"
+convention = "thiscall"
+expect = "83 C8 FF 53 33 DB 56 8B"
+source = "Name ours, not analysed. The helper object (0x70 bytes) the advisor system keeps at +0x5C."
+
+[[entry]]
+name = "SC4AdvisorHelper::Start"
+address = 0x0041E320
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 55 56 8B 35"
+source = "Name ours, not analysed. Called by the advisor system's slot 24 after making the helper."
+
+[[entry]]
+name = "SC4AdvisorHelper::Call1"
+address = 0x0041D650
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8B 4E 18"
+source = "Name ours, not analysed. The advisor system's slot 25."
+
+[[entry]]
+name = "SC4AdvisorHelper::Call2"
+address = 0x0041D710
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B F9 8B 4F"
+source = "Name ours, not analysed. The advisor system's slot 26."
+
+[[entry]]
+name = "SC4AdvisorHelper::Call3"
+address = 0x0041D480
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 56 C3 CC CC CC CC"
+source = "Name ours, not analysed. The advisor system's slot 27."
+
+[[entry]]
+name = "SC4AdvisorHelper::Stop"
+address = 0x0041D830
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B F9 8B 07"
+source = "Name ours, not analysed. The advisor system's slot 28, before the helper is released."
+
+[[entry]]
+name = "cSC4AdvisorSystem::SubjectFormat"
+address = 0x00A82A64
+kind = "data"
+source = "Name ours. '%s_subject', the script global SetLocalValue puts the subject in."
+
+[[entry]]
+name = "cSC4AdvisorSystem::Init"
+address = 0x0041B570
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 56 8B F1 8A 46"
+source = "Interface slot 3: the script context (0x00B43CE8), types, two gc tags, the callback with 0x00B43CDC, the scripts (Reload), the cheats, the advisors from the script, thresholds, messages 0x26D31EC1/0x26D31EC4/0xCA5501F2."
+
+[[entry]]
+name = "cSC4AdvisorSystem::Shutdown"
+address = 0x0041A3B0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 29 33"
+source = "Interface slot 4: undoes Init."
+
+[[entry]]
+name = "cSC4AdvisorSystem::RemoveAll"
+address = 0x0041A2C0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 6A 2C 8B F9 C7"
+source = "Name ours. Message 0x8A09FA6B sent, every advisor removed and shut down, the event map emptied."
+
+[[entry]]
+name = "cSC4AdvisorSystem::LoadThresholds"
+address = 0x0041B3A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 55 57 8B E9 6A"
+source = "Name ours. The popup thresholds (100 each, then tuning_constants.ADVICE_POPUP_PRIORITIES_BY_SKILL_LEVEL low/medium/high)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::RegisterTypes"
+address = 0x00418940
+kind = "function"
+convention = "thiscall"
+expect = "55 56 8B F1 8B 4E 58 8B"
+source = "Name ours. (in globals): the registered script types (0x00B207CC) as game._tf_ entries."
+
+[[entry]]
+name = "cSC4AdvisorSystem::Reload"
+address = 0x0041A4F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 53 55 56 8B F1"
+source = "Name ours. _on_reload, the advisors\\ folders as script paths, the scripts loaded, RegisterTypes."
+
+[[entry]]
+name = "cSC4AdvisorSystem::CreateAdvisor"
+address = 0x004199B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 8B 44 24 34 8B"
+source = "Name ours. (index): advisors[index] created by its class_id under its id, Init(index), message 0x8A09FA6A; removed if Init fails."
+
+[[entry]]
+name = "cSC4AdvisorSystem::CreateAll"
+address = 0x00419B10
+kind = "function"
+convention = "thiscall"
+expect = "A1 08 7D B0 00 83 EC 24"
+source = "Name ours. CreateAdvisor for every entry of the script's advisors table."
+
+[[entry]]
+name = "cSC4AdvisorSystem::Reconcile"
+address = 0x00419D60
+kind = "function"
+convention = "thiscall"
+expect = "A1 08 7D B0 00 83 EC 28"
+source = "Name ours. Every entry of the advisors table: the advisor with that id initialised again, or created."
+
+[[entry]]
+name = "cSC4AdvisorSystem::DoMessage"
+address = 0x0041AAC0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. The message target at +4: 0x26D31EC1/0x26D31EC4 (city ready), 0xCA5501F2 (the run: date globals, every 500 ms Simulate), the cheats 0x230E27AC."
+
+[[entry]]
+name = "SC4::ScriptPathAdd"
+address = 0x005FC510
+kind = "function"
+convention = "cdecl"
+expect = "81 EC 90 01 00 00 53 56"
+source = "Name ours, not analysed. (group, path): a folder for a script group."
+
+[[entry]]
+name = "SC4::ScriptGroupLoad"
+address = 0x005FBA20
+kind = "function"
+convention = "cdecl"
+expect = "81 EC 9C 02 00 00 53 55"
+source = "Name ours, not analysed. (script, group, 0): loads a script group."
+
+[[entry]]
+name = "SC4ScriptHost::Refresh"
+address = 0x004B7D70
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Name ours, not analysed. On what 0x00B43C94's slot 49 returns; after the advisor scripts load and at shutdown."
+
+[[entry]]
+name = "SC4::ScriptContext"
+address = 0x00B43CE8
+kind = "data"
+source = "Name ours. The game's script context (cISCLua) the advisor system uses."
+
+[[entry]]
+name = "SC4::Service43CDC"
+address = 0x00B43CDC
+kind = "data"
+source = "Name ours, not analysed. The advisor system registers a callback (0x00417AF0) with it."
+
+[[entry]]
+name = "cSC4AdvisorSystem::GcCallback"
+address = 0x00418B50
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Name ours, not analysed. The gc tag method of the advisor system's two script tags."
+
+[[entry]]
+name = "cSC4AdvisorSystem::Callback"
+address = 0x00417AF0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 58 53 55 56 57 E8"
+source = "Name ours, not analysed. Registered with 0x00B43CDC."
+
+[[entry]]
+name = "SC4::TableToMap"
+address = 0x005FCCE0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 83 EC 28 55"
+source = "Name ours, not analysed. (script, &map, index): a script table into a hash map of strings to ints."
+
+[[entry]]
+name = "SC4HashTable::Next"
+address = 0x00419440
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 07 8B 08 85"
+source = "The hash table iterator moved on."
+
+[[entry]]
+name = "SC4HashTable::Clear"
+address = 0x0041A920
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B D9 8B 43 08 56"
+source = "Frees every node of a hash table (a key buffer each)."
+
+[[entry]]
+name = "cRZDate::Year2"
+address = 0x00912964
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 F8 E9 37 FF FF FF"
+source = "Name ours. The year, on the start date the simulator service gives."
+
+[[entry]]
+name = "cSC4AdvisorSystem::DebugGuids"
+address = 0x00B20D50
+kind = "data"
+source = "Name ours. The byte the DollyLlama cheat toggles."
+
+[[entry]]
+name = "SC4AdvisorEventMap::EraseSubtree"
+address = 0x00419740
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B 6C 24 0C 85 ED"
+source = "Frees a subtree of the event map (each node's set too)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::ScriptTypes"
+address = 0x00B207CC
+kind = "data"
+source = "Name ours. begin/end of the registered script types {name, tag, global}."
+
+[[entry]]
+name = "cSC4AdvisorSystem::TableName"
+address = 0x00B07D08
+kind = "data"
+source = "Name ours. Pointer to 'advisors', the script table of advisors."
+
+[[entry]]
+name = "cSC4AdvisorSystem::CheatDolly"
+address = 0x00B07D00
+kind = "data"
+source = "Name ours. Pointer to 'DollyLlama'."
+
+[[entry]]
+name = "cSC4AdvisorSystem::CheatAdv"
+address = 0x00B07D04
+kind = "data"
+source = "Name ours. Pointer to 'Adv'."
+
+[[entry]]
+name = "cSC4AdvisorSystem::Write"
+address = 0x00418D10
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Serializable slot (object at +0x10): version 1, advisor count, each advisor as a reference and its ID."
+
+[[entry]]
+name = "cSC4AdvisorSystem::Read"
+address = 0x004198B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 89 4C 24 08 57"
+source = "Serializable slot (object at +0x10): undoes Write; +0x28 = read without errors."
+
+[[entry]]
+name = "SC4AdvisorMap::EraseSubtree"
+address = 0x00418C40
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Frees a subtree of the advisor map (each node's advisor released)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::Construct"
+address = 0x0041A990
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 C7 06 30 29"
+source = "The constructor (0xA8 bytes; sets the instance 0x00B207C0)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::Destruct"
+address = 0x0041A0D0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8D 6E 14"
+source = "The destructor (clears the instance 0x00B207C0)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::Create"
+address = 0x0041B220
+kind = "function"
+convention = "cdecl"
+expect = "68 A8 00 00 00 E8 B6 A3"
+source = "The factory: operator new(0xA8), then the constructor."
+
+[[entry]]
+name = "cSC4AdvisorSystem::vftable"
+address = 0x00A82AC8
+kind = "data"
+source = "Main vtable, 29 slots."
+
+[[entry]]
+name = "cSC4AdvisorSystem::vftable_4"
+address = 0x00A82AB4
+kind = "data"
+source = "The message target at +4, 4 slots."
+
+[[entry]]
+name = "cSC4AdvisorSystem::vftable_8"
+address = 0x00A82AA4
+kind = "data"
+source = "The interface at +8, 4 slots."
+
+[[entry]]
+name = "cSC4AdvisorSystem::vftable_C"
+address = 0x00A82AA0
+kind = "data"
+source = "The part at +0xC, 1 slot (deleting destructor)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::vftable_10"
+address = 0x00A82A88
+kind = "data"
+source = "The serializable at +0x10, 6 slots."
+
+[[entry]]
+name = "cSC4AdvisorSystem::vftable_14"
+address = 0x00A82A70
+kind = "data"
+source = "The reference-counted base at +0x14 (count at +0x18), 6 slots."
+
+[[entry]]
+name = "cSC4AdvisorSystem::vftable_C_base"
+address = 0x00A829AC
+kind = "data"
+source = "What the destructor leaves at +0xC."
+
+[[entry]]
+name = "cRZBaseString::Trim"
+address = 0x0090E8A6
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 BB FF FF FF"
+source = "Name ours. Strips the characters of 0x00ACE73C from both ends."
+
+[[entry]]
+name = "cRZBaseString::Right"
+address = 0x0090F4B3
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 8B 41"
+source = "Name ours. (&out, count): the last count characters as a new string."
+
+[[entry]]
+name = "SC4::sscanf"
+address = 0x009EF536
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 20 8B 45"
+source = "The CRT's sscanf."
+
+[[entry]]
+name = "cSC4AdvisorSystem::DoLink"
+address = 0x0041B080
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 55 56 57 8B"
+source = "Interface slot 11: a link in advice text, '%08x%08x' (advisor ID, advice GUID) and the rest; 0x1D or no advisor runs the rest as script."

@@ -60,6 +60,9 @@ add_library(opensc4_core SHARED
   neighbors_object.cpp
   neighbors_sim.cpp
   mysim_autotest.cpp
+  advisor_autotest.cpp
+  advisor_object.cpp
+  advisor_system.cpp
   mysim_sim.cpp
   commercial_autotest.cpp
   commercial_sim.cpp
