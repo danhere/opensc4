@@ -52,5 +52,6 @@ All runs on 2026-10-09, two games at a time, other threads' games running too. R
 | everything after the fix, 12 saves for 30 days (`tr-all30b`) | 11 of 12, tract records identical. Rush Hour d0090 (where the original reaches 2 to 3 outcomes) differed on the first pairs, and its third B run crashed at 0x0096DA20, the rare game crash seen before in B runs ([parity.md](parity.md)); this time the stack went through our building choice into the game's exemplar style check (0x005E8F70). Three repeats of that save (`tr-rh90-1` to `-3`): no crash, verdicts same, partly (the original 3 outcomes, B 4, shared 1) and same |
 | `saves-plopped`, 30 days (`tr-pl30`) | 3 of 3 |
 | 90 days on `saves-mm2` (`tr-mm90`) | 2 of 2 |
+| everything on main with the terrain renderer merged, 12 saves for a week (`tr-main7`) | 12 of 12, all on the first pair |
 
 Our object was made in every B run. Each group alone, and the pairs grow with lots, object and shutdown, and lots with object, were also identical on Rush Hour d0365 for 20 days.
