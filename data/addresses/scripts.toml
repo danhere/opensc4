@@ -7141,3 +7141,519 @@ kind = "function"
 convention = "thiscall"
 expect = "E9 FB 9F 15 00 CC CC CC"
 source = "Name ours. jmp to 0x0057EB70 and on to cRZBaseUnknown::ReleaseCounted 0x0090D997; the script context's Release slots reach it."
+
+[[entry]]
+name = "cSCLua::F881260"
+address = 0x00881260
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 1008 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F881650"
+address = 0x00881650
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 55 8B E9 8B"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 800 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B59B0"
+address = 0x008B59B0
+kind = "function"
+convention = "thiscall"
+expect = "8D 41 F4 85 C0 74 04 8D"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B59C0"
+address = 0x008B59C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 32 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B5A10"
+address = 0x008B5A10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 44 24 0C 8B"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 48 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B5A40"
+address = 0x008B5A40
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 56"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 288 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B5F20"
+address = 0x008B5F20
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 112 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B5F90"
+address = 0x008B5F90
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 48 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B5FC0"
+address = 0x008B5FC0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 48 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B5FF0"
+address = 0x008B5FF0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B D9 8B 03 8B 4B"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 288 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6110"
+address = 0x008B6110
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 53 8B 5C 24"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 176 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B61C0"
+address = 0x008B61C0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 C7 06 E0 8B"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 192 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6280"
+address = 0x008B6280
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 38 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6290"
+address = 0x008B6290
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 28 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 16 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B62A0"
+address = 0x008B62A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 8B 5C 24 34"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 160 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6340"
+address = 0x008B6340
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 57 8B 7C 24"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 144 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6530"
+address = 0x008B6530
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 88 FC FF FF"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 32 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6550"
+address = 0x008B6550
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 57 8B 7C 24"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 336 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B66A0"
+address = 0x008B66A0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 6A 00 8B F1 8B"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8B6750"
+address = 0x008B6750
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 8B 03 56"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 380 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC1C0"
+address = 0x008BC1C0
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 46 10"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 144 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC250"
+address = 0x008BC250
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 10 8B 4C 24 1C 53"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 128 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC2D0"
+address = 0x008BC2D0
+kind = "function"
+convention = "cdecl"
+expect = "8B 41 20 8B 51 1C C1 E0"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC320"
+address = 0x008BC320
+kind = "function"
+convention = "cdecl"
+expect = "53 56 57 8B 7C 24 10 8A"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC380"
+address = 0x008BC380
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 53 55 56 57 8B"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 176 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC430"
+address = 0x008BC430
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 56 83"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC490"
+address = 0x008BC490
+kind = "function"
+convention = "cdecl"
+expect = "53 56 57 E8 72 65 FD FF"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 112 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC520"
+address = 0x008BC520
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 4C 24 10 8B 54 24"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 32 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC5D0"
+address = 0x008BC5D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 04 57 8B 79 08"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 96 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC630"
+address = 0x008BC630
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 57 8B F9 8B"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 144 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC6C0"
+address = 0x008BC6C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 04 57 8B 79 08"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 64 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC740"
+address = 0x008BC740
+kind = "function"
+convention = "cdecl"
+expect = "53 56 57 E8 C2 62 FD FF"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 144 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC7D0"
+address = 0x008BC7D0
+kind = "function"
+convention = "cdecl"
+expect = "53 55 56 57 E8 31 62 FD"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 128 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC850"
+address = 0x008BC850
+kind = "function"
+convention = "cdecl"
+expect = "53 55 56 57 E8 B1 61 FD"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 144 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC8E0"
+address = 0x008BC8E0
+kind = "function"
+convention = "cdecl"
+expect = "53 55 56 57 E8 21 61 FD"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 128 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC960"
+address = 0x008BC960
+kind = "function"
+convention = "thiscall"
+expect = "53 56 6A 24 E8 EB 05 05"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BC9B0"
+address = 0x008BC9B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 57 8B"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 208 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BCA80"
+address = 0x008BCA80
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B D9 8B 43 08 56"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 112 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BCAF0"
+address = 0x008BCAF0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 46 10 57"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BCB40"
+address = 0x008BCB40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 8B 44 24 44 53"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 224 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BD170"
+address = 0x008BD170
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 53 55 56 57 E8"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 208 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BD240"
+address = 0x008BD240
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 68 EE"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 128 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BD2C0"
+address = 0x008BD2C0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 10 E8 42 57 FD FF"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 496 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BD4B0"
+address = 0x008BD4B0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C E8 52 55 FD FF"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 336 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BE900"
+address = 0x008BE900
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 0C 57 8B 7C"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 48 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BEA30"
+address = 0x008BEA30
+kind = "function"
+convention = "cdecl"
+expect = "53 56 E8 D3 3F FD FF 8B"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 80 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BEA80"
+address = 0x008BEA80
+kind = "function"
+convention = "cdecl"
+expect = "53 57 E8 83 3F FD FF 8B"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 144 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BEB10"
+address = 0x008BEB10
+kind = "function"
+convention = "cdecl"
+expect = "85 C0 56 57 0F 84 5C 01"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 176 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BED40"
+address = 0x008BED40
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 224 bytes with padding."
+
+[[entry]]
+name = "cSCLua::F8BEE20"
+address = 0x008BEE20
+kind = "function"
+convention = "cdecl"
+expect = "53 55 56 57 E8 E1 3B FD"
+source = "Placeholder name (docs/lua.md): a function of the script classes, 112 bytes with padding."
+
+[[entry]]
+name = "cGZLua5Compat::TagCounter"
+address = 0x00B5C438
+kind = "data"
+source = "int32: the last tag number newtag handed out"
+
+[[entry]]
+name = "cGZLua5Compat::Script"
+address = 0x00B15FFC
+kind = "data"
+source = "const char*: the text of the Lua 4 compatibility script that Open runs"
+
+[[entry]]
+name = "Lua::EventNames"
+address = 0x00B16000
+kind = "data"
+source = "const char* [15]: Lua's luaT_eventname (__index, __newindex, __gc, __mode, __eq, __add, __sub, __mul, __div, __pow, __unm, __lt, __le, __concat, __call)"
+
+[[entry]]
+name = "Lua::NewThread"
+address = 0x008BA690
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 46 10"
+source = "lua_newthread(L): a new thread, pushed on L's stack; returns its lua_State*"
+
+[[entry]]
+name = "Lua::PushFString"
+address = 0x008BAF00
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 46 10"
+source = "lua_pushfstring(L, format, ...)"
+
+[[entry]]
+name = "LuaL::TypeError"
+address = 0x008BE6F0
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "luaL_typerror(L, narg, type name)"
+
+[[entry]]
+name = "LuaL::CheckType"
+address = 0x008BE730
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "luaL_checktype(L, narg, type)"
+
+[[entry]]
+name = "LuaL::Error"
+address = 0x008BD920
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 6A 01 56"
+source = "luaL_error(L, format, ...)"
+
+[[entry]]
+name = "cSCLua::F8BD460"
+address = 0x008BD460
+kind = "function"
+convention = "cdecl"
+expect = "53 56 57 E8 A2 55 FD FF"
+source = "Name ours. Lua C function coroutine.wrap of the game's thread library (no entry before: the list had it inside 0x008BD2C0, after that function's jump table)."
+
+[[entry]]
+name = "SC4Uint32HashMap::EraseAt"
+address = 0x00489CF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 57 8B 38"
+source = "(iterator*): takes the node an iterator (node, map) points at out of a hash map with uint32 keys (buckets at +4/+8, count at +0x10) and frees it; nothing where the node is null or not found; ret 4"
+
+[[entry]]
+name = "SC4::DoubleTwo"
+address = 0x00A80AC8
+kind = "data"
+source = "double 2.0 (0x4000000000000000); the one result of the native function table's dispatcher when a call cannot be made"
+
+[[entry]]
+name = "cSCLua::RootTableName"
+address = 0x00B1226C
+kind = "data"
+source = "const char* to 'sc4game' (0x00AC3FD8): the global script table that mirrors the data registry's root"
+
+[[entry]]
+name = "SCLuaFunctionTable::Vtable"
+address = 0x00AC8BE0
+kind = "data"
+source = "Main vtable of the native function table (class 0x2BD13FB4, 0x58 bytes): QueryInterface 0x008B59C0, AddRef, Release, deleting destructor 0x008B6530"
+
+[[entry]]
+name = "SCLuaFunctionTable::TableVtable"
+address = 0x00AC8BC4
+kind = "data"
+source = "The native function table's vtable at +8 (interface 0x0B90251F, 7 slots): slot 4 Shutdown 0x008B68D0, 5 AddFunction 0x008B6A00, 6 RemoveFunction 0x008B5A40"
+
+[[entry]]
+name = "SCLuaFunctionTable::SetupVtable"
+address = 0x00AC8BB0
+kind = "data"
+source = "The native function table's vtable at +0xC (interface 0x2BD144DF, 5 slots): slot 3 the table interface 0x008B59B0, slot 4 the setup 0x008B6750"
+
+[[entry]]
+name = "SCLuaFunctionTable::AbstractTableVtable"
+address = 0x00AC8B80
+kind = "data"
+source = "The abstract vtable (pure calls) the native function table's constructor writes at +8 first"
+
+[[entry]]
+name = "SCLuaFunctionTable::AbstractSetupVtable"
+address = 0x00AC8B9C
+kind = "data"
+source = "The abstract vtable (pure calls) the native function table's constructor writes at +0xC first"

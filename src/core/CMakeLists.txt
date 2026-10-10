@@ -71,6 +71,9 @@ add_library(opensc4_core SHARED
   script_context_1.cpp
   script_context_2.cpp
   script_context_3.cpp
+  script_context_rest_1.cpp
+  script_context_rest_2.cpp
+  script_context_rest_3.cpp
   lua_autotest.cpp
   script_globals_city.cpp
   script_globals_education.cpp
