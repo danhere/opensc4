@@ -1,0 +1,574 @@
+
+[[entry]]
+name = "cSC4DisasterLayer::DisastersEnabled"
+address = 0x005773B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 38 33 C0 85 D2 0F"
+source = "Interface (+8) slot 6: no disable request outstanding (+0x40 is 0)."
+
+[[entry]]
+name = "cSC4DisasterLayer::EnableDisasters"
+address = 0x005773C0
+kind = "function"
+convention = "thiscall"
+expect = "8A 54 24 04 33 C0 84 D2"
+source = "Interface slot 5: (enable): the disable count down or up (not below 0)."
+
+[[entry]]
+name = "cSC4DisasterLayer::IsADisasterOngoing"
+address = 0x005773F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 40 33 C0 3B C2 1B"
+source = "Interface slot 10: +0x48 is not 0."
+
+[[entry]]
+name = "cSC4DisasterLayer::QueryInterface"
+address = 0x00577400
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "0x29B02A2C at +8, 0x452294AA at +0xC, else the base's."
+
+[[entry]]
+name = "cSC4DisasterLayer::Post"
+address = 0x005774C0
+kind = "function"
+convention = "thiscall"
+expect = "57 8B 3D CC 3C B4 00 85"
+source = "Name ours. (type, data 1-3): a message posted."
+
+[[entry]]
+name = "cSC4DisasterLayer::RefreshLocation"
+address = 0x00577540
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 8B 74 24 20"
+source = "Name ours. (location): its cell from its occupant's position, or from the disaster."
+
+[[entry]]
+name = "cSC4DisasterLayer::GetMostRecentDisasterLocation"
+address = 0x005775E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 C8 00 00 00 56 2B"
+source = "Interface slot 12: (disaster or null, &x, &z)."
+
+[[entry]]
+name = "cSC4DisasterLayer::GetDisasterLocationCount"
+address = 0x00577680
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 C4 00 00 00 8B 91"
+source = "Interface slot 16."
+
+[[entry]]
+name = "cSC4DisasterLayer::EraseTimerSubtree"
+address = 0x005776F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of a timer map."
+
+[[entry]]
+name = "cSC4DisasterLayer::EraseManagerSubtree"
+address = 0x00577730
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of the manager map."
+
+[[entry]]
+name = "cSC4DisasterLayer::NextLocation"
+address = 0x00577770
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 9E CC 00"
+source = "Name ours. (&x, &z, &zoom): the location at the camera index (+0xC8), the index stepped back."
+
+[[entry]]
+name = "cSC4DisasterLayer::GoToNextDisaster"
+address = 0x00577810
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 8D 44 24 08 50"
+source = "Interface slot 11: the camera to the next location."
+
+[[entry]]
+name = "cSC4DisasterLayer::GetDisasterLocationByIndex"
+address = 0x00577920
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 85 F6 7C"
+source = "Interface slot 17: (index, &disaster, &x, &z)."
+
+[[entry]]
+name = "cSC4DisasterLayer::Shares"
+address = 0x00577AF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 8B D9 56 8D"
+source = "Name ours. The response timers stopped and their share of the disaster's time into +0xAC, +0xB0."
+
+[[entry]]
+name = "cSC4DisasterLayer::Unsubscribe"
+address = 0x00577CA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 35 CC 3C B4 00 85"
+source = "Name ours. The five messages dropped, then Shares."
+
+[[entry]]
+name = "cSC4DisasterLayer::UnregisterDisasterLocations"
+address = 0x00577D30
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8B 86 C4"
+source = "Interface slot 14: (disaster or null for all)."
+
+[[entry]]
+name = "cSC4DisasterLayer::UnregisterDisasterLocationByOccupant"
+address = 0x00577DE0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8B 86 C4"
+source = "Interface slot 15: (disaster, occupant)."
+
+[[entry]]
+name = "cSC4DisasterLayer::DisasterHasEnded"
+address = 0x00577E90
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 3C 84 C0"
+source = "Interface slot 9: the count down; at 0 the city and the simulator told, Unsubscribe, message 0xAA1B2002."
+
+[[entry]]
+name = "cSC4DisasterLayer::ClearTimers"
+address = 0x00577EF0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 41 10 53 55 8D 59"
+source = "Name ours. Both timer maps emptied (stopwatches deleted), the stopwatch at +0x28 reset."
+
+[[entry]]
+name = "cSC4DisasterLayer::GetDisasterManager"
+address = 0x00578060
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8D B1 B0 00 00 00"
+source = "Interface slot 7: (type): the manager from the map at +0xB8."
+
+[[entry]]
+name = "cSC4DisasterLayer::Shutdown"
+address = 0x005780A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 3C 84 C0"
+source = "Interface slot 4."
+
+[[entry]]
+name = "cSC4DisasterLayer::RegisterDisasterLocation"
+address = 0x005783D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 44 24 20 53"
+source = "Interface slot 13: (disaster, x, z, occupant, zoom, go there)."
+
+[[entry]]
+name = "cSC4DisasterLayer::OnResponse"
+address = 0x005784B0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 57 8B 7C 24 14"
+source = "Name ours. Messages 0x894671F6, 0xE94671EB-ED: a stopwatch per key started or stopped."
+
+[[entry]]
+name = "cSC4DisasterLayer::Destruct"
+address = 0x005787D0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 57 8B F9 8A 47"
+source = "The destructor."
+
+[[entry]]
+name = "cSC4DisasterLayer::Construct"
+address = 0x00578A10
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 05 50 39"
+source = "The constructor (0xD8 bytes)."
+
+[[entry]]
+name = "cSC4DisasterLayer::Create"
+address = 0x00578B70
+kind = "function"
+convention = "cdecl"
+expect = "68 D8 00 00 00 E8 66 CA"
+source = "The factory: operator new(0xD8), the constructor; returns the interface at +8."
+
+[[entry]]
+name = "cSC4DisasterLayer::OnDestroyed"
+address = 0x00578BA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 56 8B F1 8B 0D"
+source = "Name ours. Message 0x99EF1143: the destroyed occupant's value into the cost."
+
+[[entry]]
+name = "cSC4DisasterLayer::ResetCost"
+address = 0x00578D80
+kind = "function"
+convention = "thiscall"
+expect = "51 33 C0 56 8B F1 57 50"
+source = "Name ours. The cost (+0x50 ... +0x9C) zeroed, its records dropped."
+
+[[entry]]
+name = "cSC4DisasterLayer::DoMessage"
+address = 0x00578E10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "The message target at +0xC."
+
+[[entry]]
+name = "cSC4DisasterLayer::Init"
+address = 0x00578E70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 8A 46"
+source = "Interface slot 3: the seven managers created (table 0x00A9E3F4) and initialised."
+
+[[entry]]
+name = "cSC4DisasterLayer::Subscribe"
+address = 0x00578F10
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 3D CC 3C B4 00"
+source = "Name ours. The five messages, ResetCost, ClearTimers, the stopwatch at +0x28 started."
+
+[[entry]]
+name = "cSC4DisasterLayer::DisasterHasBegun"
+address = 0x00578FC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 57 8B"
+source = "Interface slot 8: the count up; at 1 the simulator and the city told, Subscribe; message 0xCA1B1E64."
+
+[[entry]]
+name = "SC4CostRecords::Destroy"
+address = 0x00578730
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. (first, last, tag): destroys {string, int64} records."
+
+[[entry]]
+name = "SC4CostRecords::Copy"
+address = 0x00578760
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 57 8B 7C 24"
+source = "Name ours. (first, last, to, tag): assigns records down; returns the new end."
+
+[[entry]]
+name = "SC4CostRecords::PushBack"
+address = 0x00578B30
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 08 8B 46"
+source = "Name ours. (record) appended to a vector of {string, int64}."
+
+[[entry]]
+name = "SC4LocationVector::Move"
+address = 0x00624070
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 08 8B 4C 24 04"
+source = "Name ours. (first, last, to, tag, 0): moves 20-byte elements down."
+
+[[entry]]
+name = "SC4LocationVector::InsertN"
+address = 0x00626330
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 06"
+source = "Name ours. (at, value, tag, n, 1): insert in a vector of 20-byte elements, growing it."
+
+[[entry]]
+name = "SC4Stopwatch::Reset"
+address = 0x0088FF0A
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 89 41 08 89 41 0C"
+source = "Name ours, not analysed. Called before a stopwatch is started afresh."
+
+[[entry]]
+name = "cSC4DisasterLayer::ManagerTable"
+address = 0x00A9E3F4
+kind = "data"
+source = "Name ours. Seven {disaster type, manager class ID}: volcano, fire, earthquake, pipe burst, riot, effect, toxic."
+
+[[entry]]
+name = "cSC4DisasterLayer::DefaultCost"
+address = 0x00B0A1C0
+kind = "data"
+source = "Name ours. int64: the cost of a destroyed occupant of type 0xC772BF98 without the value property."
+
+[[entry]]
+name = "SC4::Options43CD8"
+address = 0x00B43CD8
+kind = "data"
+source = "Name ours, not analysed. +0xF08: go to a new disaster."
+
+[[entry]]
+name = "SC4::View43DD0"
+address = 0x00B43DD0
+kind = "data"
+source = "Name ours, not analysed. Slot 0x40: the camera control."
+
+[[entry]]
+name = "SC4::App43CC4"
+address = 0x00B43CC4
+kind = "data"
+source = "Name ours, not analysed. [+0xC]+0x4BC: zoom in on disasters."
+
+[[entry]]
+name = "cSC4DisasterManager::GetInstances"
+address = 0x00577450
+kind = "function"
+convention = "thiscall"
+expect = "8D 41 0C C3 CC CC CC CC"
+source = "Interface (+8) slot 11: the instance list (4 bytes)."
+
+[[entry]]
+name = "cSC4DisasterManager::Init"
+address = 0x00577460
+kind = "function"
+convention = "thiscall"
+expect = "B0 01 88 41 08 C3 CC CC"
+source = "Interface slot 3: sets the initialised byte (+0x10)."
+
+[[entry]]
+name = "cSC4DisasterManager::QueryInterface"
+address = 0x00577470
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "0x021E9CBF at +8, 0x452294AA at +0xC, else the base's."
+
+[[entry]]
+name = "cSC4DisasterManager::DoMessage"
+address = 0x005776A0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8D 54 24 08 8B"
+source = "The message target at +0xC: the message as 0x65297976 to the main vtable's slot 6."
+
+[[entry]]
+name = "cSC4DisasterManager::GetActiveInstanceCount"
+address = 0x00577990
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 79 0C 8B 37"
+source = "Interface slot 10: instances whose phase (slot 7) is 1."
+
+[[entry]]
+name = "cSC4DisasterManager::FlushPending"
+address = 0x005779C0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8B 6E 1C"
+source = "Name ours. The instances added and removed while the list was being walked (+0x1C, +0x20), applied."
+
+[[entry]]
+name = "cSC4DisasterManager::Shutdown"
+address = 0x00577A70
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 08 84 C0"
+source = "Interface slot 4: every instance shut down and released, FlushPending."
+
+[[entry]]
+name = "cSC4DisasterManager::Construct"
+address = 0x00578160
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 B5 58 39"
+source = "The base constructor (three lists at +0x14, +0x1C, +0x20)."
+
+[[entry]]
+name = "cSC4DisasterManager::Destruct"
+address = 0x005781E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 10 84 C0"
+source = "The base destructor."
+
+[[entry]]
+name = "cSC4DisasterManager::AddInstanceToList"
+address = 0x00578230
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 10 84 C0 56 57 74"
+source = "Interface slot 8."
+
+[[entry]]
+name = "cSC4DisasterManager::RemoveInstanceFromList"
+address = 0x00578310
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 10 84 C0 56 74 2D"
+source = "Interface slot 9."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::QueryInterface"
+address = 0x0057EAA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 45 83 1E"
+source = "0x4C1E8345 at +0x24, else the manager base's."
+
+[[entry]]
+name = "cSC4DisasterInstanceToxic::QueryInterface"
+address = 0x0057EB10
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 81 FA A4 3B"
+source = "0x22223BA4 at +8, 0xEBFB0403 the object, else the base's."
+
+[[entry]]
+name = "cSC4DisasterInstanceToxic::Shutdown"
+address = 0x0057EB80
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 08 84 C0"
+source = "Interface (+8) slot 3: the tick dropped, the layer told (ended, locations), off the manager's list."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::Init"
+address = 0x0057EC80
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 D7 87 FF"
+source = "Interface (+8) slot 3: the base's, the command 'ToxicSpill' (0x0BFB41BA) and its message."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::Shutdown"
+address = 0x0057ECD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 0D B0 3C B4"
+source = "Interface slot 4."
+
+[[entry]]
+name = "cSC4DisasterInstanceToxic::Init"
+address = 0x0057ED10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 10 84 C0"
+source = "Name ours. The stopwatch started, the layer and manager taken, onto the manager's list, the tick (service 0x86AD10EC), the layer told it began."
+
+[[entry]]
+name = "cSC4DisasterInstanceToxic::CountInRect"
+address = 0x0057EDA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 3C 39 00 75 05 33"
+source = "Name ours. ({x0, z0, x1, z1}): the toxic cells inside."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::Create"
+address = 0x0057EDF0
+kind = "function"
+convention = "cdecl"
+expect = "56 6A 28 E8 E8 67 06 00"
+source = "The factory (0x28 bytes)."
+
+[[entry]]
+name = "cSC4DisasterInstanceToxic::Tick"
+address = 0x0057EE40
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B E9 8D 4D 20 E8"
+source = "Name ours. Once a second by the stopwatch at +0x20: every toxic cell's time down (4 per responder there, else 1); at 0 the cell is removed; the instance shuts down when none is left."
+
+[[entry]]
+name = "cSC4DisasterInstanceToxic::Construct"
+address = 0x0057EF20
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 F5 EA 38"
+source = "The constructor (0x40 bytes)."
+
+[[entry]]
+name = "cSC4DisasterInstanceToxic::DoMessage"
+address = 0x0057EFA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "The message target at +0xC: 0x86AD10EE runs Tick."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::GetInstance"
+address = 0x0057EFD0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 41 14 39 00 75 2F"
+source = "Name ours. The one instance, made on first use; returned with a reference."
+
+[[entry]]
+name = "cSC4DisasterInstanceToxic::AddToxic"
+address = 0x0057F090
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B E9 8B 55 3C 8B"
+source = "Name ours. (x, z, time): more time for the toxic cell there, or a new toxic occupant (0x5C bytes) registered with the layer."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::CountInRect"
+address = 0x0057F180
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 F0 39 00 75 05 33"
+source = "The interface at +0x24, slot 4."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::Count"
+address = 0x0057F1D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 F0 39 00 75 03 33"
+source = "The interface at +0x24, slot 5: the toxic cells."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::AttemptDisasterStart"
+address = 0x0057F220
+kind = "function"
+convention = "thiscall"
+expect = "56 83 C1 F8 E8 A7 FD FF"
+source = "Interface (+8) slot 6: (x, z): a toxic cell for 120."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::OnMessage"
+address = 0x0057F260
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Main vtable slot 6: the command 0x0BFB41BA with x, z, time."
+
+[[entry]]
+name = "cSC4ToxicOccupant::Construct"
+address = 0x004ADC20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "The constructor (0x5C bytes; the occupant interface at +4, time left at +0x38, cell at +0x40, +0x44)."
+
+[[entry]]
+name = "cSC4ToxicOccupant::SetCell"
+address = 0x004ADE10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 8B 5C 24 14"
+source = "Name ours. (x, z)."
