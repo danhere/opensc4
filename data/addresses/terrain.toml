@@ -1197,3 +1197,19 @@ kind = "function"
 convention = "thiscall"
 expect = "8B 54 24 0C 53 8B 5C 24"
 source = "Name ours, not analysed. (old zoom, zoom, render context) (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4DrawableAA7F10::Draw"
+address = 0x0061A850
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 A1 74 B3 B0 00"
+source = "Class unnamed (the drawable with vtable 0x00AA7F10; slot 0x30 after the adjustor 0x0061C150, `this` is the object + 0x17C). (render context, bool): a quad (+0x9C) drawn as one or two triangles by the object's flags with up to two textures, then a list of textured triangles (+0x118, 0x4C bytes each) kept above the terrain; in the overlaid round each is drawn again with a second render state (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4RenderContext::DrawElements"
+address = 0x007D29F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 0C 8B 49 30 8B"
+source = "Name ours, not analysed. (primitive, count, uint16 indices): an indexed draw from the vertex array set before (docs/renderer.md, \"Models and lots\")."
