@@ -1431,6 +1431,36 @@ void DrawOverlays(char* manager, char* context)
 
 // --- Models and lots: the 3D render's passes ------------------------------------------------
 
+// OPENSC4_MODELS_CENSUS=1: counts the draws our passes ask for by the
+// drawable's vtable and logs the totals now and then, to see which classes
+// do the drawing.
+void CountDrawable(const void* drawable, const char* pass)
+{
+    static const bool on = [] {
+        const char* v = std::getenv("OPENSC4_MODELS_CENSUS");
+        return v && *v == '1';
+    }();
+    if (!on)
+        return;
+    static std::vector<std::pair<uint32_t, uint64_t>> counts;
+    static uint64_t total = 0;
+    const uint32_t vtable = *static_cast<const uint32_t*>(drawable);
+    auto it = std::find_if(counts.begin(), counts.end(), [&](const auto& c) { return c.first == vtable; });
+    if (it == counts.end())
+        it = counts.insert(counts.end(), {vtable, 0});
+    ++it->second;
+    if (++total % 200000 != 0)
+        return;
+    std::string text;
+    char entry[48];
+    for (const auto& [table, count] : counts) {
+        std::snprintf(entry, sizeof entry, " %08X:%llu", table, static_cast<unsigned long long>(count));
+        text += entry;
+    }
+    log::Write("models: census after %llu draws (last from the %s pass), slot 0x30 at vtable + 0x30:%s",
+               static_cast<unsigned long long>(total), pass, text.c_str());
+}
+
 // A {drawable, key} pair onto one of the render's vectors (the game's
 // vector growth: twice the size, from its STL allocator).
 void PushDrawable(char** vector, uint32_t drawable, uint32_t key)
@@ -1505,6 +1535,7 @@ void DrawStatic(char* render)
     do {
         for (int32_t i = 0; i < count; ++i) {
             const uint32_t* const pair = reinterpret_cast<const uint32_t*>(current[0]) + i * 2;
+            CountDrawable(reinterpret_cast<const void*>(pair[0]), "static");
             if (Virtual<int32_t>(reinterpret_cast<void*>(pair[0]), 0x30, context, 0u) == 2) {
                 const uint32_t drawable = pair[0], key = pair[1];
                 PushDrawable(other, drawable, key);
@@ -1602,6 +1633,7 @@ void DrawMoving(char* render)
         do {
             kept = begin;
             for (uint32_t* pair = begin; pair < end; pair += 2) {
+                CountDrawable(reinterpret_cast<const void*>(pair[0]), "moving");
                 if (Virtual<int32_t>(reinterpret_cast<void*>(pair[0]), 0x30, context, 0u) == 2) {
                     kept[0] = pair[0];
                     kept[1] = pair[1];
@@ -1625,6 +1657,89 @@ void DrawMoving(char* render)
             Virtual<int32_t>(At<void*>(At<char*>(overlaid[0], static_cast<std::size_t>(i) * 4), 0x18), 0x30, context, 1u);
         CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, 0);
     }
+}
+
+// --- Models and lots: the drawables ----------------------------------------------------------
+
+// x87 instructions and the game's own asin, as the game executes them
+// (53-bit precision).
+double X87Atan2(double y, double x)
+{
+    double result;
+    __asm {
+        fld y
+        fld x
+        fpatan
+        fstp result
+    }
+    return result;
+}
+
+static_assert(addr::CRT_CIasin == 0x009F03B0);
+__declspec(naked) double __cdecl GameAsin(double)
+{
+    __asm {
+        fld qword ptr [esp + 4]
+        mov eax, 0x009F03B0
+        call eax
+        ret
+    }
+}
+
+// The billboard's draw (0x007FEA90): a textured quad that faces the camera,
+// the most drawn thing in a city. `self` is the object + 0x170, as the
+// adjustor in its vtable passes it. Fields of the object: +0x20 flags,
+// +0x24 colour, +0x30 alpha, +0x38 a state byte with its copy at +0x9E,
+// +0x44/+0x50/+0x5C a direction, +0x60 position, +0x88/+0x89 the zoom and
+// rotation its picture was picked for, +0x8C render state, +0x94 the
+// picture's index (by pointer), +0x9C/+0x9D dirty bytes, +0xC4 textures,
+// +0xDC four 24-byte vertices, +0x13C the four corners.
+uint32_t DrawBillboard(char* self, char* context, uint8_t overlaid)
+{
+    if (overlaid || At<int32_t>(context, 0x14) < 2)
+        return 1;
+    char* const object = self - 0x170;
+    if (!At<uint8_t>(object, 0x9D))
+        At<uint8_t>(object, 0x9D) = !(At<uint32_t>(context, 0x14) == At<uint8_t>(object, 0x88) &&
+                                      At<uint32_t>(context, 0x18) == At<uint8_t>(object, 0x89));
+    if (At<uint8_t>(object, 0x9D) || At<uint8_t>(object, 0x9C)) {
+        At<uint8_t>(object, 0x88) = At<uint8_t>(context, 0x14);
+        At<uint8_t>(object, 0x89) = At<uint8_t>(context, 0x18);
+        const float heading = static_cast<float>(X87Atan2(At<float>(object, 0x5C), At<float>(object, 0x44)));
+        const float pitch = static_cast<float>(GameAsin(At<float>(object, 0x50)));
+        CallThis<void>(addr::cS3DBillboard_SelectView, object, pitch, heading, 0u,
+                       static_cast<uint32_t>(At<uint8_t>(object, 0x88)), static_cast<uint32_t>(At<uint8_t>(object, 0x89)),
+                       static_cast<uint32_t>(At<uint8_t>(object, 0x9F)), 0u, At<uint32_t>(object, 0x94));
+        if (At<uint8_t>(object, 0x9D))
+            CallThis<void>(addr::cS3DBillboard_UpdateCorners, object, context);
+        At<uint8_t>(object, 0x9C) = 0;
+    }
+    if (At<uint8_t>(object, 0x9D) || At<uint8_t>(object, 0x9E) != At<uint8_t>(object, 0x38)) {
+        for (std::size_t corner = 0; corner < 4; ++corner)
+            for (std::size_t axis = 0; axis < 3; ++axis)
+                At<float>(object, 0xDC + corner * 0x18 + axis * 4) = static_cast<float>(
+                    static_cast<double>(At<float>(object, 0x60 + axis * 4)) + At<float>(object, 0x13C + corner * 0xC + axis * 4));
+        At<uint8_t>(object, 0x9E) = At<uint8_t>(object, 0x38);
+        At<uint8_t>(object, 0x9D) = 0;
+    }
+    CallThis<void>(addr::SC4RenderContext_UpdateViewMatrix, context);
+    if (At<uint8_t>(object, 0x20) & 4)
+        CallThis<void>(addr::SC4RenderContext_SetColourAlt, context, object + 0x24);
+    else
+        CallThis<void>(addr::SC4RenderContext_SetColourLit, context, object + 4 + At<int32_t>(At<char*>(object, 4), 4),
+                       object + 0x24);
+    CallThis<void>(addr::SC4RenderContext_SetRenderState, context, object + 0x8C);
+    if (At<uint8_t>(object, 0x20) & 2) {
+        CallThis<void>(addr::SC4RenderContext_SetDriverValue84, context, At<uint32_t>(object, 0x30));
+        CallThis<void>(addr::SC4RenderContext_SetState2F50, context, 4u,
+                       static_cast<float>(At<float>(object, 0x30) * Global<double>(0x00A92D28)));
+    }
+    CallThis<void>(addr::SC4RenderContext_BindTexture, context,
+                   (*At<uint32_t**>(object, 0xC4))[*At<uint32_t*>(object, 0x94)], 0u);
+    CallThis<void>(addr::SC4RenderContext_DrawArrays, context, 2u, 0xAu, 4, object + 0xDC);
+    CallThis<void>(addr::SC4RenderContext_ResetColour, context);
+    CallThis<void>(addr::SC4RenderContext_ResetDriverValue84, context);
+    return 1;
 }
 
 // --- The rows' layer lists and the skirts' colours ------------------------------------------
@@ -2181,6 +2296,35 @@ void __fastcall DDrawMoving(char* render, void*)
                  [&] { g_drawMoving(render, nullptr); }, true);
 }
 
+using BillboardFn = uint32_t(__fastcall*)(char*, void*, char*, uint32_t);
+BillboardFn g_billboard;
+bool g_compareBillboard = false;
+
+uint32_t __fastcall DBillboard(char* self, void*, char* context, uint32_t overlaid)
+{
+    if (g_depth > 0)
+        return g_billboard(self, nullptr, context, overlaid);
+    if (!g_compareBillboard)
+        return DrawBillboard(self, context, static_cast<uint8_t>(overlaid));
+    std::vector<Region> regions{{"context", context, kContextSize}, {"billboard", self - 0x170, 0x170}};
+    if (char* const render = At<char*>(context, 0x34))
+        if (char* const camera = At<char*>(render, 0xD8))
+            regions.push_back({"camera", camera, kCameraSize});
+    if (char* const stages = At<char*>(context, 0xE0))
+        regions.push_back({"stages", stages, static_cast<std::size_t>(At<char*>(context, 0xE4) - stages)});
+    uint32_t result = 0, mine = 0;
+    DrawCompared(g_selfCheck ? "models.billboard.selfcheck" : "models.billboard", regions,
+                 [&] {
+                     mine = g_selfCheck ? g_billboard(self, nullptr, context, overlaid)
+                                        : DrawBillboard(self, context, static_cast<uint8_t>(overlaid));
+                 },
+                 [&] { result = g_billboard(self, nullptr, context, overlaid); });
+    if (mine != result)
+        compare::Record("models.billboard.result", false, std::to_string(result), std::to_string(mine));
+    return result;
+}
+
+OPENSC4_THUNK(TBillboard, DBillboard, 8)
 OPENSC4_THUNK(TDrawMoving, DDrawMoving, 0)
 OPENSC4_THUNK(TDrawStatic, DDrawStatic, 0)
 OPENSC4_THUNK(TListVisible, DListVisible, 4)
@@ -2556,6 +2700,29 @@ const bool g_registeredMoving = registry::Register({
     "lots\")",
     true,
     InstallMoving,
+});
+
+bool InstallBillboard(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareBillboard = mode == registry::Mode::Compare;
+    if (!Detour(addr::cS3DBillboard_Draw, &TBillboard, &g_billboard))
+        return false;
+    log::Write("models: billboard draw %s", g_compareBillboard ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredBillboard = registry::Register({
+    "renderer.models.billboard",
+    "renderer/models",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cS3DBillboard_Draw,
+    "The billboard's draw, a textured quad facing the camera; compare mode as renderer.terrain.land, per "
+    "billboard (docs/renderer.md, \"Models and lots\")",
+    true,
+    InstallBillboard,
 });
 
 } // namespace

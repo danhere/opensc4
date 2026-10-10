@@ -240,6 +240,21 @@ The two-stage pass (0x00736BF0) is the one normal play uses. Stage 1 gets the ma
 
 `renderer.models.moving` replaces it, compared as the static pass (a quiet run of the game's first). 2026-10-10, three test cities with the camera workout: 0 divergences (47,927, 39,306 and 56,602 passes; 35,284 on Big City with cars, clouds and water effects on; the game against itself also 0); 20 of 20 screenshots against the stock driver.
 
+**What the passes draw.** A count by the drawable's vtable over a Big City shots run with cars, clouds and water effects on (`OPENSC4_MODELS_CENSUS=1`, 4.4 million draws; each vtable's slot 0x30, most through an adjustor for a virtual base):
+
+| Vtable | Draw function | Share | What |
+|---|---|---|---|
+| 0x00ABD1D0 | 0x007FEA90 | 41% | a camera-facing textured quad (billboard) |
+| 0x00ABD508, 0x00ABD018 | 0x00801750 | 30% | a model, through the context's 0x007D5710 |
+| 0x00AA2C30 | 0x005E0540 | 20% | not read yet |
+| 0x00AA7F10 | 0x0061A850 | 4% | not read yet |
+| 0x00AA2EA8 | 0x005E28B0 | 2% | not read yet |
+| 0x00AA2808 | 0x005D6120 | 2% | not read yet |
+
+**The billboard** (0x007FEA90; `this` is the object + 0x170) draws nothing for the overlaid round or below zoom 2. It keeps the zoom and rotation its picture was picked for (+0x88, +0x89); when they change (or +0x9C is set) it picks again from a heading (the x87 arctangent of its direction's +0x5C over +0x44) and a pitch (the arcsine of +0x50) through 0x007FE390, and after a change through 0x007FE400. Its four corners (+0x13C) plus its position (+0x60) make the four vertices (+0xDC, 24 bytes each) when that or a state byte (+0x38) changed. Then the colour (one of two ways by flag 4 of +0x20), the render state (+0x8C), with flag 2 an alpha (+0x30), the texture for the picture (+0xC4 by the index at +0x94) and a four-vertex draw.
+
+`renderer.models.billboard` replaces it (the two helpers still the game's; the arctangent is the x87 instruction and the arcsine the game's own C runtime, so the results are the same to the bit). Compared draw by draw per billboard. 2026-10-10, three test cities with the camera workout: 0 divergences (3,098, 797,844 and 36,697 billboards; the game against itself also 0); 20 of 20 screenshots against the stock driver with all 17 renderer replacements on.
+
 ## What the driver calls mean
 
 Reference for writing a driver, from decompiling both stock drivers (vtables: DirectX 0x00AC4660, OpenGL 0x00AC36D0, `cIGZGDriver` at object + 0xC in both). The OpenGL driver is the plainest spec, since most methods are one GL call after a table lookup; the DirectX driver is what the game was tuned against and what the screenshot harness compares with (the OpenGL driver renders without terrain and with black boxes around trees on a current NVIDIA card, so it is no visual reference).
