@@ -777,3 +777,11 @@ name = "STE::SkirtLightScale"
 address = 0x00B0D71C
 kind = "data"
 source = "Name ours. float, then float[3] at +4: the scale and the light vector of the skirt colours (docs/renderer.md, \"The skirts\")."
+
+[[entry]]
+name = "cSC4OverlayManager::DrawRect"
+address = 0x00735720
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 53 8A 59 16"
+source = "Name ours (the class from the patch census). (render context, int32[4] cells x0 z0 x1 z1): draws the terrain inside the rectangle through one of six terrain view functions (0x007541C0, 0x007543C0, 0x007545C0, 0x00754910, 0x00755560, 0x00755700) by the manager's +0x15, +0x16 and +0x94 (docs/renderer.md, \"The overlays\")."
