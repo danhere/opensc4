@@ -1,0 +1,294 @@
+# The zone manager (cSC4ZoneManager, class ID 0x298F9B2D; src/core/zonemgr_sim.h has the class map): code 0x004DC1A0 to 0x004DE2E0 (src/core/zonemgr_sim.cpp, zonemgr_place.cpp).
+
+[[entry]]
+name = "SC4LotPtrSet::InsertUnique"
+address = 0x00467950
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* set, void* result, void* const* value)"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Name ours. insert_unique of a std::set of pointers ordered by address (unsigned): the result {node, inserted} (5 bytes) through the pointer; ret 8. PlaceZone adds every lot it would demolish to the caller's set (its tenth argument) with it. Shared with other classes: left the game's."
+
+[[entry]]
+name = "cSC4ZoneManager::GetGZCLSID"
+address = 0x004DC1A0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 2D 9B 8F 29 C3 CC CC"
+source = "Returns the class ID 0x298F9B2D (+0x8 slot 5; also called from the class registration 0x004603F3). Ours in simulators.zonemgr.object."
+
+[[entry]]
+name = "cSC4ZoneManager::QueryInterface"
+address = 0x004DC1B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ZoneManager* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D 33 24 65"
+source = "Slot 0: IIDs 1 and 0x67652433 the object, 0x452294AA (cIGZMessageTarget2) +0x4, 0xE4FDA3D4 (cIGZSerializable) +0x8. Ours in simulators.zonemgr.object."
+
+[[entry]]
+name = "cSC4ZoneManager::Shutdown"
+address = 0x004DC230
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ZoneManager* this)"
+expect = "53 56 8B F1 8A 46 0C 33"
+source = "Slot 4: the message registration (0x99EF1142) dropped, the message server, the five services and the zone grid (its slot 4 first) released. Ours in simulators.zonemgr.init (src/core/zonemgr_sim.cpp)."
+
+[[entry]]
+name = "cSC4ZoneManager::GetZoneCount"
+address = 0x004DC2D0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4ZoneManager* this, uint32_t type)"
+expect = "8B 44 24 04 8B 44 81 4C"
+source = "Slot 6: the cells zoned as a type (+0x4C[type], no bounds test). Ours in simulators.zonemgr.slots."
+
+[[entry]]
+name = "cSC4ZoneManager::GetUndevelopedTileCountTotal"
+address = 0x004DC2E0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4ZoneManager* this)"
+expect = "8B 81 0C 01 00 00 C3 CC"
+source = "Name ours. Slot 8: +0x10C. Ours in simulators.zonemgr.slots."
+
+[[entry]]
+name = "cSC4ZoneManager::GetUndevelopedTileCount"
+address = 0x004DC2F0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4ZoneManager* this, uint32_t type)"
+expect = "8B 44 24 04 8B 84 81 8C"
+source = "Slot 7: +0x8C[type], no bounds test. Ours in simulators.zonemgr.slots."
+
+[[entry]]
+name = "cSC4ZoneManager::IsRCIZone"
+address = 0x004DC300
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ZoneManager* this, uint32_t type)"
+expect = "8B 44 24 04 83 F8 10 77"
+source = "Slot 13: true for types 1 to 9 (a jump table for 0 to 16). Ours in simulators.zonemgr.slots."
+
+[[entry]]
+name = "cSC4ZoneManager::GetTextureForZone"
+address = 0x004DC340
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ZoneManager* this, uint32_t type, uint32_t* key)"
+expect = "8B 54 24 04 83 FA 10 73"
+source = "Slot 14: the key (0x7AB50E44, 0x1ABE787D, +0x2E0[type]) for a type below 16, else false. Ours in simulators.zonemgr.slots."
+
+[[entry]]
+name = "cSC4ZoneManager::GetDefaultZoneDisplayAlpha"
+address = 0x004DC370
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (cSC4ZoneManager* this)"
+expect = "8A 81 61 03 00 00 C3 CC"
+source = "Slot 17: +0x361. Ours in simulators.zonemgr.slots."
+
+[[entry]]
+name = "cSC4ZoneManager::Release"
+address = 0x004DC430
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4ZoneManager* this)"
+expect = "56 8B F1 8B 46 10 83 F8"
+source = "Slot 2: at the last reference Shutdown (slot 4) and the deleting destructor (slot 21). Ours in simulators.zonemgr.object."
+
+[[entry]]
+name = "cSC4ZoneManager::LoadTuning"
+address = 0x004DC460
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ZoneManager* this)"
+expect = "83 EC 10 55 57 8B F9 8D"
+source = "Name ours. Called by Init only: the exemplar (0x6534284A, 0xE7E2C2DB, 0xE9482490) with the min and max sizes, the max slopes, the zoning and dezoning costs, the textures, the display alpha and the drag colours (properties 0xE94825B2 to 0xE94825B9). Ours as a plain function in simulators.zonemgr.init."
+
+[[entry]]
+name = "cSC4ZoneManager::GetZoneType"
+address = 0x004DC740
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4ZoneManager* this, int32_t x, int32_t z)"
+expect = "8B 49 48 8B 01 FF 50 60"
+source = "Slot 12: the zone grid's cell, sign extended; no bounds test. Ours in simulators.zonemgr.slots."
+
+[[entry]]
+name = "cSC4ZoneManager::Write"
+address = 0x004DC7A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "+0x8 slot 3: version 1 (tools/re/save_schemas/zonemgr.py). Ours in simulators.zonemgr.save."
+
+[[entry]]
+name = "cSC4ZoneManager::DoMessage"
+address = 0x004DCA70
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZMessageTarget2* this, cIGZMessage2* message)"
+expect = "83 EC 34 55 56 8B 74 24"
+source = "+0x4 slot 3: message 0x99EF1142 with data 3 = 0xC772BF98 (a network occupant) without the flags 0x80200090: the occupant's cells dezoned through PlaceZone (slot 11). Ours in simulators.zonemgr.messages."
+
+[[entry]]
+name = "cSC4ZoneManager::Destroy"
+address = 0x004DCC70
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ZoneManager* this)"
+expect = "53 56 57 8B F9 8D B7 70"
+source = "Name ours. The destructor: the vtables, then the maps at +0x370 and +0x364 freed. Called by the deleting destructor only. Ours in simulators.zonemgr.object."
+
+[[entry]]
+name = "cSC4ZoneManager::GetZoneDisplayAlpha"
+address = 0x004DCD10
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (cSC4ZoneManager* this)"
+expect = "8A 81 60 03 00 00 C3 CC"
+source = "Slot 16: +0x360. Ours in simulators.zonemgr.slots."
+
+[[entry]]
+name = "cSC4ZoneManager::GetZoneDragColor"
+address = 0x004DCD20
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4ZoneManager* this, uint32_t type)"
+expect = "8B 44 24 04 8B 84 81 20"
+source = "Slot 15: +0x320[type], no bounds test. Ours in simulators.zonemgr.slots."
+
+[[entry]]
+name = "cSC4ZoneManager::GetMinZoneSize"
+address = 0x004DCD30
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4ZoneManager* this, uint32_t type)"
+expect = "8B 44 24 04 8B 84 81 1C"
+source = "Slot 19: +0x11C[type], no bounds test. Ours in simulators.zonemgr.slots."
+
+[[entry]]
+name = "cSC4ZoneManager::GetMaxZoneSize"
+address = 0x004DCD40
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4ZoneManager* this, uint32_t type)"
+expect = "8B 44 24 04 8B 84 81 5C"
+source = "Slot 20: +0x15C[type], no bounds test. Ours in simulators.zonemgr.slots."
+
+[[entry]]
+name = "cSC4ZoneManager::cSC4ZoneManager"
+address = 0x004DCE50
+kind = "function"
+convention = "thiscall"
+signature = "cSC4ZoneManager* (cSC4ZoneManager* this)"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "The constructor (0x380 bytes), reached only by the jump from the factory 0x004DD3E0. Detoured by simulators.zonemgr.object (no register assumptions: the factory's caller is the class registry)."
+
+[[entry]]
+name = "cSC4ZoneManager::DeletingDestructor"
+address = 0x004DCF40
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4ZoneManager* this, uint32_t flags)"
+expect = "56 8B F1 E8 28 FD FF FF"
+source = "Slot 21. Ours in simulators.zonemgr.object."
+
+[[entry]]
+name = "cSC4ZoneManager::SetZoneDisplayAlpha"
+address = 0x004DCF60
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ZoneManager* this, uint8_t alpha)"
+expect = "8A 44 24 04 38 81 60 03"
+source = "Slot 18: when the value changes, every lot of the city (the lot manager's slot 7) in state 1 gets its empty-lot texture again from the lot developer (slot 43). Ours in simulators.zonemgr.slots."
+
+[[entry]]
+name = "cSC4ZoneManager::Create"
+address = 0x004DD3E0
+kind = "function"
+convention = "cdecl"
+signature = "cSC4ZoneManager* ()"
+expect = "68 80 03 00 00 E8 F6 81"
+source = "The factory registered for class 0x298F9B2D: SC4::operator_new(0x380) and a jump to the constructor. Left the game's."
+
+[[entry]]
+name = "cSC4ZoneManager::Read"
+address = 0x004DD400
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "83 EC 20 53 55 8B E9 56"
+source = "+0x8 slot 4: version 1 only; sets the loaded flag (+0x14). Ours in simulators.zonemgr.save."
+
+[[entry]]
+name = "cSC4ZoneManager::PlaceZone"
+address = 0x004DD780
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ZoneManager* this, SC4CellRegion* region, uint32_t type, bool place, bool skipFunds, bool customZoning, bool skipSize, bool wholeLots, int64_t* cost, int32_t* error, void* lotSet)"
+expect = "81 EC 80 00 00 00 53 55"
+source = "Slot 11 (ret 0x28). Ours in simulators.zonemgr.place (src/core/zonemgr_place.cpp)."
+
+[[entry]]
+name = "cSC4ZoneManager::GetDevelopmentFailureCount"
+address = 0x004DE130
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4ZoneManager* this, int32_t type, int32_t reason)"
+expect = "8B 44 24 04 83 F8 10 7D"
+source = "Slot 9: the map at +0x364 under (type < 16, reason < 19); a missing key is inserted with 0, as std::map's operator[]. Ours in simulators.zonemgr.slots."
+
+[[entry]]
+name = "cSC4ZoneManager::Init"
+address = 0x004DE170
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ZoneManager* this)"
+expect = "53 56 8B F1 8A 46 0C 33"
+source = "Slot 3: the tuning, the services not read from a save, the message registration, the counts of a new city and the zone grid. Ours in simulators.zonemgr.init."
+
+[[entry]]
+name = "SC4SimGridSint8::vftable_4"
+address = 0x00A87934
+kind = "vtable"
+expect = "D0 FC 45 00 70 22 6C 00"
+source = "Name ours. The second vtable (+0x4) of cSC4SimGridSint8, written by the inlined constructors (the zone manager's Init makes its zone grid so)."
+
+[[entry]]
+name = "cSC4ZoneManager::ZonedMessageVtable"
+address = 0x00A92D40
+kind = "vtable"
+expect = "92 32 91 00 60 8B 96 00"
+source = "Name ours. The vtable of the message 0x07699455 PlaceZone sends (a cGZMessage, 0x2C bytes, whose destructor 0x004DCC30 frees the cell region in data 2). The message's own functions stay the game's."
+
+[[entry]]
+name = "cSC4ZoneManager::vftable_8"
+address = 0x00A92DD8
+kind = "vtable"
+expect = "60 CD 4D 00 50 D2 68 00"
+source = "Name ours. The cIGZSerializable part at +0x8 (6 slots): thunks 0x004DCD60, 0x0068D250, 0x004DCD80, Write 0x004DC7A0, Read 0x004DD400, GetGZCLSID 0x004DC1A0. Slots 3 and 4 replaced by simulators.zonemgr.save."
+
+[[entry]]
+name = "cSC4ZoneManager::vftable_4"
+address = 0x00A92DF0
+kind = "vtable"
+expect = "50 CD 4D 00 30 D2 68 00"
+source = "Name ours. The cIGZMessageTarget2 part at +0x4 (4 slots): thunks 0x004DCD50, 0x0068D230, 0x004DCD70, DoMessage 0x004DCA70. Slot 3 replaced by simulators.zonemgr.messages."
+
+[[entry]]
+name = "cSC4ZoneManager::vftable"
+address = 0x00A92E00
+kind = "vtable"
+expect = "B0 C1 4D 00 A0 7B 4F 00"
+source = "The primary cISC4ZoneManager vtable (22 slots, the deleting destructor last; the map in src/core/zonemgr_sim.h). Slots 3 and 4 replaced by simulators.zonemgr.init, 6-9 and 12-20 by simulators.zonemgr.slots, 11 by simulators.zonemgr.place; our object copies all of it."
+
+[[entry]]
+name = "cSC4ZoneManager::InitFlag"
+address = 0x00B21934
+kind = "data"
+source = "Name ours. A byte Init sets to 1 when it is 0; nothing else reads it."
