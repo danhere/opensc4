@@ -174,7 +174,13 @@ The land (0x0075BD10) is drawn twice over the rows in view. First without textur
 
 The water (0x007572A0, pass 2) is drawn when the terrain has water and the tuning shows it: the water colours are refreshed if stale, then the water's faces along the city edges (0x007551C0), then the water surface (0x00752240): the water mesh over the land pass's rows whose water is in view, blended (4, 5), with the zoom's water texture (0x00B4C698), through the dynamic buffers or vertex arrays as the land. The colours (0x00756D20, after a rotation or a terrain change) come per vertex from its depth: a colour from a depth ramp picture (index 0.72 per metre), mixed with a colour picture laid over the city (by its blue channel) or faded to a tint, and an alpha from 0x20 at the surface to opaque at 10 m.
 
-`renderer.terrain.water` replaces the pass, the surface and the colour refresh (the edge faces are still the game's), with the land pass's draw comparison plus the water vertices. 2026-10-10, three test cities with the camera workout: 0 divergences (1,240, 2,083 and 658 passes; the colour refresh ran at least 16 times a run); 20 of 20 screenshots with ours on.
+`renderer.terrain.water` replaces the pass, the surface, the colour refresh and the water's edge faces (below), with the land pass's draw comparison plus the water vertices. 2026-10-10, three test cities with the camera workout: 0 divergences (1,240, 2,083 and 658 passes; the colour refresh ran at least 16 times a run); 20 of 20 screenshots with ours on.
+
+### The skirts
+
+The faces along the city edges are two rows of vertices per side, a top row along the terrain (or the water level) and a bottom row: four sides of three textured layers for the land (0x00B4C760, 24-byte vertices, layer textures 0x11, 0x10 and 0x15; drawn by 0x00753E00 for the two sides that face the camera) and four sides for the water (0x00B4C790, 16-byte vertices, untextured, 0x007551C0, all four sides with a depth offset of -1 for the facing sides and -5 for the others, when the water level reaches the terrain's lowest height). For each side the part in view is found by meeting the edge's line with the two frustum edges (as the rows do), mirrored for the sides that run backwards; within it, runs of cells whose top is above their bottom are drawn, each widened by a cell at its start.
+
+`renderer.terrain.skirts` replaces the land's; the water's are part of `renderer.terrain.water`. 2026-10-10, three test cities with the camera workout: 0 divergences (1,207, 1,943 and 653 passes each); 20 of 20 screenshots with ours on.
 
 ## What the driver calls mean
 
