@@ -84,6 +84,21 @@ Tuning: exemplar 0x6534284A/0x29B6C670/0x4A38206D (6 levels, level time 30, spaw
 
 The instance's Read (0x0057E870) first resizes the rioter list to the saved count, with a rioter whose automaton, time and levels are whatever is on the stack, and then appends the saved rioters, which reads as twice the saved count with the first half garbage. That is from reading the code, not from a test (no save with rioters was loaded); Read is left the game's.
 
+### Fire
+
+The fire manager (0x2C bytes) has a fire part (interface 0x49B43F57 at +0x24) that other simulators and tools call, and one instance (0x100 bytes), made when the manager is initialised, that holds every fire in the city. The manager's start at a cell is the part's start with no chance draw and not forced. The instance has three interfaces: the fire interface (0x49B43F58, +8) with the work, the instance interface (+0xC) the layer and manager use, and the message target (+0x10).
+
+A fire is a fire occupant (cSC4FireOccupant, 0x6C bytes, the game's) placed on a burning building (type 0x278128A0), lot object (0xA823821E) or flora (0x74758926). It has a heat, a stage and a group; fires started by one call share a group, and a group has one location with the layer, which passes to another fire of the group when its holder goes out.
+
+- **Starting** (fire interface slot 6: occupant, forced, group, jump): only the three types, only with a flammability (property 0x29244DB5) above 0. Unless forced, nothing starts while the simulator service reports its slot 15 without its slot 17, and the fire cover over the occupant's cells (a grid of service 0x00B43D78, through the third tuning curve, rounded) must not be above 0. An occupant already burning (property 0x69DBEBE1) only gets 1 more heat, and only when forced. Otherwise a fire occupant is made and listed, the group's first fire registers the location, and message 0x49E3DB1D is posted. A forced fire starts at the first stage's limit (half of it for a one-stage occupant).
+- **By cell** (slot 7: x, z, by chance, forced, group): with "by chance" a draw in [0, 100] must not exceed the fourth curve at the cell's value in a grid of service 0x00B43D7C; then a start on every burnable occupant in the cell.
+- **The step** (the update, slot 4, on tick 0x86AD10EE and message 0x66956813): up to five occupants from the burned queue are destroyed; then, once every +0x80 milliseconds (1000) of the instance's stopwatch, every fire steps: a fire with an end time is removed when it has passed; otherwise its heat goes up by 1, or down by a draw up to the cover's cooling (the third curve at the fire cover, plus 4 per responder); below 0 the fire gets an end time up to 4 seconds on; the stage follows the heat through five limits; past the occupant's last stage the fire burns it down (unless the city's slot 0x148 object holds that off). A building's lot is shown in its two last looks (the lot's slot 0x90 with 5 or 6). Then, with a chance of 1 over the stage's odds, the fire spreads: a cell drawn inside the fire's bounds grown by the stage's radius and the wind (times the tuning's factor) gets a by-chance start in the fire's group.
+- **What a fire leaves** (0x005796E0): an effect by type; flora is removed with a `fire_flora_scorch` mark; a building's lot is demolished (service 0x00B43D00's slot 6 with the lot's cells, flags 0x300 and the occupant's rubble property 0x6A43150F) and may leave pollution (properties 0xAA5C04C8 and 0xAA5C04C5); anything without a lot is just removed.
+- **The state**: with the first fire the layer is told a disaster began, the tick is taken and messages 0xA9C7CAB6 (state 1) and 0x49D15B72 are posted; when the last fire has gone, state 3, the locations withdrawn, the layer told, the tick given back. Each update posts 0x49D15B73 with the counts of new fires.
+- **The part's other calls**: douse a cell (its fires lose that much heat), burn a cell down (its occupants are queued as burned), burn an area (within the inner radius burned down, within the outer set alight), ignite an occupant, an owner value.
+
+Tuning: exemplar 0x6534284A/0x29B6C670/0xC9B6B73D (stage lengths, spread odds and radii by stage, the wind factor, the location's zoom, four curves); without it five stages of 10, odds of 10, radii 0 3 5 7 9.
+
 ### Earthquake
 
 One earthquake at a time. The manager's start at a cell makes the instance (0x120 bytes; no start anywhere), starts it and puts it straight into the quake phase.
@@ -113,17 +128,18 @@ A disaster that is only a visual effect a tool started (the caller is a view too
 | `simulators.disasters.riot` | the riot manager and instance (18 functions) but the instance's Read |
 | `simulators.disasters.pipeburst` | the pipe burst manager, its pipe filter and the instance (21 functions) |
 | `simulators.disasters.earthquake` | the earthquake manager's start and the instance (20 functions) |
+| `simulators.disasters.fire` | the fire manager and instance (46 functions); the fire occupant stays the game's |
 | `simulators.disasters.effect` | the effect manager's QueryInterface and effect part, and the instance (13 functions; its QueryInterface is also the earthquake instance's) |
 
-Still the game's: the objects (constructors, destructors), the other managers and instances, container and stopwatch helpers.
+Still the game's: the objects (constructors, destructors), the riot instance's Read, the fire occupant, container and stopwatch helpers.
 
 ## Test cities
 
 No test city has a disaster. `OPENSC4_TEST_DISASTER=<day>` with `OPENSC4_TEST_DISASTER_TYPE=<n>` (0 volcano, 1 fire, 2 earthquake, 3 pipe burst, 4 riot, 5 effect, 6 toxic) starts one through its manager on that day of a run, at the first cell that takes it, walking out from the centre. The camera jumping to the disaster makes the traffic record's view-dependent fields vary run to run with the original (on Big City d0000 one field took the values 10, 11, 12, 13 and 19 in the original's own runs), so the switch turns the "go to disasters" option off unless `OPENSC4_TEST_DISASTER_CAMERA=1`. `OPENSC4_TEST_DISASTER_END=<day>` shuts the chosen type's instances down on that day (a toxic spill lasts two minutes of real time, longer than a week's run), so a disaster's end also runs. `OPENSC4_TEST_PIPE_FUSE=<ms>` sets the pipe burst's fuses after it starts, so pipes explode and the bursts spread within the run; where the walk finds no accepted pipe the switch falls back to the manager's own choice (slot 7). `OPENSC4_TEST_RIOT_PUSH=<n>` adds n to every rioter's time each day and runs the riot's tick with its stopwatch gate open: under the harness's clock the riot's own tick comes about once a week, so without the push no rioter changes level.
 
-`OPENSC4_TEST_QUAKE_PUSH=<n>` takes each earthquake off the tick service and runs its tick once every run day with n as the time passed (the quake's own tick comes on frame time, so unpushed runs differ in how far the fault got). For the effect disaster (type 5), which has no start by cell, the switch does what the game's tool does: it makes an effect (`OPENSC4_TEST_DISASTER_EFFECT`, default `QuakeStart`), gives it to the manager's effect part at the city's centre and then moves it 8 cells through the part's SetLocation. `OPENSC4_TEST_FIRE_CALLS=<day>` calls the fire manager's fire part as tools and other simulators do: an area burned around the centre (inner radius 1, outer 4), the first three fires doused by 3, and one cell burned down.
+`OPENSC4_TEST_QUAKE_PUSH=<n>` takes each earthquake off the tick service and runs its tick once every run day with n as the time passed (the quake's own tick comes on frame time, so unpushed runs differ in how far the fault got). For the effect disaster (type 5), which has no start by cell, the switch does what the game's tool does: it makes an effect (`OPENSC4_TEST_DISASTER_EFFECT`, default `QuakeStart`), gives it to the manager's effect part at the city's centre and then moves it 8 cells through the part's SetLocation. `OPENSC4_TEST_FIRE_CALLS=<day>` calls the fire manager's fire part as tools and other simulators do: an area burned around the centre (inner radius 1, outer 4), the first three fires doused by 3, one cell burned down, a forced start, and the owner and count queries (their results are logged). `OPENSC4_TEST_FIRE_PUSH=<n>` runs the fire instance's update n times every run day with its next-step time cleared, so every call steps every fire: on its own the step comes about once a week under the harness's clock. `OPENSC4_TEST_TUTORIAL_OFF=1` clears the tutorial system's flag (+0x1F of its interface, what IsTutorial returns) on the first run day: every test city is a tutorial city, and while a tutorial is on a fire past its last stage neither burns its occupant down nor spreads.
 
-The fingerprint's `dis` part: the disable count, disasters under way, the cost's building count and total, the locations (count and a hash of their cells and zooms) and each manager's instance count (in type order: earthquake, pipe burst, fire, effect, volcano, riot, toxic), then `riot`: the rioters, and their times and levels added up; `fire` (with a fire instance): the fires, their heats and stages added up, the burned queue, the count destroyed and the groups; and per earthquake `quake`: the phase, a hash of the fault (strength, epicentre, direction, control points), a hash of its progress and the number of news items.
+The fingerprint's `dis` part: the disable count, disasters under way, the cost's building count and total, the locations (count and a hash of their cells and zooms) and each manager's instance count (in type order: earthquake, pipe burst, fire, effect, volcano, riot, toxic), then `riot`: the rioters, and their times and levels added up; `fires` (with a fire instance): the fires, their heats and stages added up, the burned queue, the count destroyed, the groups and a hash of the instance's random generator (so every draw the fires made shows); and per earthquake `quake`: the phase, a hash of the fault (strength, epicentre, direction, control points), a hash of its progress and the number of news items.
 
 With a disaster under way the original does not always repeat itself: in the control (the original against itself, 12 saves, 7 days) fire and earthquake each gave two or three outcomes on two to five saves. Verdicts go by outcome sets.
 
@@ -187,3 +203,21 @@ With the earthquake on too (`dq1-*`, `dq2-push`):
 Unpushed, the fault advances on frame time and the quake is not over within the week. Pushed, it runs its course in three days on both sides, the same day by day in every run of every save: the fault's hash and its 19 news items, the progress on days 1 and 2, the after phase on day 3, then the end (the location withdrawn, the layer's count back to 0), and on Big City the cost (10 buildings and 1220, then 15 and 1810). On the eight Making Money and Rush Hour saves the whole city matched for the week, saves included, with the terrain shaken on both sides. The rumble phase is not reached: the manager's start skips it and nothing else in the game starts an earthquake.
 
 With the effect disaster on too (`dq2-fx`, `dq2-fxe`): 12 of 12 with an effect disaster started on day 1 (one instance, two locations: the start and the move), and 12 of 12 with it ended on day 3. The effect's own end message (0x2A7B582D) did not come within the week with the `QuakeStart` effect, so that path and the move message (0x2A7B582E) are unreached.
+
+With the fire on too (`df1-*` to `df6-*`), every leg with a fire started on day 1:
+
+| Leg | Same | Rest |
+| --- | --- | --- |
+| fire | 11 | 1 partly (Big City d0365: the original gave one outcome, ours two, one of them the original's) |
+| fire calls on day 2 | 12 | |
+| fire calls, ended on day 4 | 12 | |
+| pushed by 20 a day | 12 | |
+| pushed by 20, fire calls | 12 | |
+| pushed by 300 | 12 | |
+| pushed by 300, fire calls | 12 | |
+| tutorial off, pushed by 100 | 12 | |
+| tutorial off, pushed by 100, fire calls | 12 | |
+| tutorial off, pushed by 10 | 12 | |
+| tutorial off, pushed by 10, fire calls | 12 | |
+
+Unpushed, a fire makes one step in the week. With the tutorial on, a pushed fire's heat rises by 1 a step and stops at its last stage; the area call sets up to 13 more fires alight in two more groups, the douse takes heat off, and the burned queue empties five an update (15, then 10 queued; 5, 10, 20 destroyed), with the cost counted the same on both sides. With the tutorial off the fires run their course: at 10 steps a day the first fire changes stage on day 3 and burns its occupant down on day 6, the groups end one by one and the disaster ends. The instance's random generator, drawn from on every step for the spread, has the same state on both sides at the end of every day in every save. Not seen: a spread that starts a new fire (the draws are made, but no day ended with more fires than the calls had started), the two view messages' effect on a fire occupant, and Ignite.
