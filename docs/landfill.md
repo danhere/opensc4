@@ -25,7 +25,7 @@ The save record is version 3: the zone count, then every zone inline (its rectan
 | `simulators.landfill.save` | Write and Read |
 | `simulators.landfill.object` | our own object: a detour on the constructor, identity, copies of the three vtables |
 
-Still the game's: cSC4LandfillZone (twenty functions called at their addresses), the factory, shared helpers. Copied on purpose from the game: removing a zone that is not in the list unlinks and frees the list's head; Read empties the list without releasing the zones; the department is used without a null test; GetLandfillZoneFromCell leaves out a zone's far edges though the other tests include them.
+Still the game's: the factory, shared helpers (cSC4LandfillZone is ours too, see below). Copied on purpose from the game: removing a zone that is not in the list unlinks and frees the list's head; Read empties the list without releasing the zones; the department is used without a null test; GetLandfillZoneFromCell leaves out a zone's far edges though the other tests include them.
 
 ## Test cities
 
@@ -34,3 +34,31 @@ The fingerprint's `landfill` part: the zone count, capacity, use, upkeep and a h
 ## Parity
 
 Run together with the airport and seaport developers; the table is in [ports.md](ports.md#parity). In short (2026-10-09): 10 of 12 for a week and 8 of 12 for 35 days on the usual saves, the others on saves where the original itself varied that evening; 3 of 3 on `saves-plopped` for 35 days and 3 of 3 on `saves-ports` for 30 days (all Big City saves have landfill zones), landfill records identical wherever a pair was the same. Reached: Init, the city loaded, the monthly upkeep with zones, the usage, saving and loading zones and tiles, the queries. Not reached: zoning and dezoning landfill, ground changes under a zone, the zoning cost outside the query switch.
+
+## The zone (cSC4LandfillZone)
+
+One object per landfill zone, made by the developer when landfill is zoned or a save is read. Not a GZCOM class: 0x70 bytes, vtable 0x00AB1610 (5 slots, three of them shared code), constructors 0x006BBB60 (plain, for Read) and 0x006BBD60 (from a region), destructor 0x006BBBC0. Code 0x006BA120 to 0x006BD4B0, 50 functions, all ours (src/core/landfillzone_sim.cpp, landfillzone_cells.cpp, fields and evidence in landfillzone_sim.h; data/addresses/landfillzone.toml). A tile is 0x20 bytes (vtable 0x00AB15DC): its grid place, active, has garbage, capacity and use.
+
+What it does: keeps the zone's cells (a rectangle with a bit per cell) and a grid of tiles over them; levels the ground when landfill is zoned (through the lot developer); puts a base texture on every cell and a landfill occupant on a tile once it holds garbage (one of several pictures, drawn with the C library's rand); finds a cell with road access each month (a zone without it is inactive and gets a marker prop); counts capacity, use and upkeep for the developer; runs the seagulls and the two automata controllers; clears cells when landfill is dezoned or the ground under it changes.
+
+| Replacement | What is ours |
+| --- | --- |
+| `simulators.landfillzone.sim` | Release, the deleting destructors (zone and tile), and what the developer calls: Init, Shutdown, the counts (active tiles, use, free capacity, upkeep, empty), the capacity update, the effects, the month |
+| `simulators.landfillzone.tiles` | AddRegion, ClearCell, the cells' refresh, OnTilesChanged |
+| `simulators.landfillzone.save` | Write and Read (inline in the developer's record, version 4; Read takes 3 too) |
+| `simulators.landfillzone.object` | our own zone: detours on both constructors and the destructor, our copy of the vtable |
+
+The game's 0x006BABC0 reads ECX after calling GetUsage, so that detour is a naked thunk. Copied on purpose from the game and commented in the code: the tile grid is one short each way (x1 - x0 by z1 - z0); AddRegion puts old tiles back by their old grid place in the new width, so they shift when the rectangle grows west or north; the refresh clears a cell without deactivating its tiles; a missing exemplar leaves a null object that is used all the same.
+
+Nothing zones landfill unattended, so `OPENSC4_TEST_LANDFILL_ZONING=<n>` zones a 6 by 6 square of free land next to a network as landfill (zone type 0xE) on the n-th day through the zone manager, and `OPENSC4_TEST_LANDFILL_DEZONING=<n>` dezones its left half. The fingerprint's `landfillzone` part has what the `landfill` part lacks: each zone's cells, counters, road access cell, which effects it holds, and the occupants on its cells; `OPENSC4_TEST_LANDFILLZONE=1` adds the zone's queries.
+
+Parity on 2026-10-10 with the four groups on, both switches and the queries, two games at a time (`%LOCALAPPDATA%\opensc4\parity\crime\`):
+
+| Run | Result |
+| --- | --- |
+| 12 saves for 14 days, landfill zoned on day 2 and dezoned on day 8 (`lfz-zone14`) | 10 of 12. Big City d0000 and d0090 partly: two of the four B runs differ on one day (12 days in) in the lots' checksum alone, the one-day variation the original shows on that city by itself ([citylot.md](citylot.md)); the lot code was the game's in these runs |
+| `saves-plopped`, 30 days, zoned and dezoned (`lfz-pl30`) | 3 of 3, all on the first pair |
+| `saves-ports`, 30 days (`lfz-ports30`) | 3 of 3, all on the first pair |
+
+Reached (43 of the 50 functions): both constructors, Read and Write with tiles, Init, the month with the road access search, the counts, the region constructor with the ground levelled and base textures placed, ClearCell with tiles deactivated and occupants removed, the effects, Shutdown and the destructors. Not reached: AddRegion on an existing zone, OnTilesChanged and its per-cell check (ground changes under a zone), the marker prop of a zone without road access, two tile vector helpers.
+
