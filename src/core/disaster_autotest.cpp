@@ -81,6 +81,26 @@ void Fingerprint(cISC4City* city, std::string& line)
     line += text;
 }
 
+// OPENSC4_TEST_PIPE_FUSE=<ms>: after a pipe burst starts, the fuse range
+// (0x00B0A1D8) and the fuses of the bursts there are set to this, so
+// pipes explode and the bursts spread within a short run.
+void ShortenPipeFuses(char* manager)
+{
+    const int fuse = EnvInt("OPENSC4_TEST_PIPE_FUSE", 0);
+    if (fuse <= 0 || EnvInt("OPENSC4_TEST_DISASTER_TYPE", 1) != 3)
+        return;
+    int32_t* const range = reinterpret_cast<int32_t*>(addr::cSC4DisasterInstancePipeBurst_FuseRange);
+    range[0] = fuse;
+    range[1] = fuse;
+    char* const instances = At<char*>(manager - 0x8, 0x14);
+    for (char* item = At<char*>(instances, 0x0); item != instances; item = At<char*>(item, 0x0)) {
+        char* const instance = At<char*>(item, 0x8) - 0x8;
+        char* const bursts = At<char*>(instance, 0x28);
+        for (char* burst = At<char*>(bursts, 0x0); burst != bursts; burst = At<char*>(burst, 0x0))
+            At<uint32_t>(burst, 0x8 + 0x18) = static_cast<uint32_t>(fuse);
+    }
+}
+
 // OPENSC4_TEST_DISASTER=<day> with OPENSC4_TEST_DISASTER_TYPE=<n>: on that
 // run day a disaster of the n-th type (0 volcano, 1 fire, 2 earthquake,
 // 3 pipe burst, 4 riot, 5 effect, 6 toxic) is started through its manager
@@ -125,10 +145,18 @@ void Drive(const Day& day)
                 Virtual<void*>(manager, 0x18, x, z);
                 if (At<uint32_t>(self, 0x48) != ongoing || At<char*>(self, 0xD0) != end) {
                     log::Write("autotest: disaster type %d started at cell %d,%d", which, x, z);
+                    ShortenPipeFuses(static_cast<char*>(manager));
                     return;
                 }
             }
         }
+    }
+    // No cell on the walk took it: the manager's own choice (slot 7).
+    Virtual<void*>(manager, 0x1C);
+    if (At<uint32_t>(self, 0x48) != ongoing || At<char*>(self, 0xD0) != end) {
+        log::Write("autotest: disaster type %d started at the manager's choice", which);
+        ShortenPipeFuses(static_cast<char*>(manager));
+        return;
     }
     log::Write("autotest: disaster type %d started nowhere", which);
 }

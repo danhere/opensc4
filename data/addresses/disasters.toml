@@ -572,3 +572,255 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 0C 53 8B 5C 24 14"
 source = "Name ours. (x, z)."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::ResetStatics"
+address = 0x0057C050
+kind = "function"
+convention = "cdecl"
+expect = "C6 05 58 2B B2 00 00 B0"
+source = "Clears the tuning-loaded byte 0x00B22B58; registered with the app at first use."
+
+[[entry]]
+name = "cSC4PipeBurstFilter::Accepts"
+address = 0x0057C060
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 57 8B 7C 24"
+source = "Name ours. The occupant filter's slot 3: a pipe (type 0xC772BF98, interface 0x49C05B9F) whose cell the plumbing simulator's slot 0x2C accepts."
+
+[[entry]]
+name = "cSC4DisasterManagerPipeBurst::Create"
+address = 0x0057C0E0
+kind = "function"
+convention = "cdecl"
+expect = "56 6A 28 E8 F8 94 06 00"
+source = "The factory (0x28 bytes)."
+
+[[entry]]
+name = "cSC4DisasterManagerPipeBurst::Shutdown"
+address = 0x0057C160
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 77 1C 85"
+source = "Interface (+8) slot 4."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::Crater"
+address = 0x0057C1A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 56 8B F1 8B 4E"
+source = "Name ours. (x, z): the object at +0x18 (city slot 0x150), slot 0xE4, with the cell's position."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::LoadTuning"
+address = 0x0057C220
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 8B 0D A8 3C B4"
+source = "Name ours. Exemplar 0x6534284A/0x29B6C670/3: the fuse range (0x00B0A1D8, 0x00B0A1DC, seconds times 0x00A867AC) and the zoom byte 0x00B22B59."
+
+[[entry]]
+name = "cSC4DisasterManagerPipeBurst::Init"
+address = 0x0057C320
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 E8 38 B1 FF FF"
+source = "Interface slot 3: the base's, and the pipe filter at +0x24."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::MakeEffect"
+address = 0x0057C390
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 83 EC 38 56"
+source = "Name ours. (name, position, keep, &effect): an effect from the effects manager at +0x1C, placed and started."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::Shutdown"
+address = 0x0057C460
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 08 33"
+source = "Interface (+8) slot 3."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::UpdateBurstEffect"
+address = 0x0057C5B0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 8D"
+source = "Name ours. (burst): its effect for the view mode (+0x24), its time 0 and a new fuse; message 0xEA1F0DCD."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::OnViewMode"
+address = 0x0057C640
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 00 53 8B"
+source = "Name ours. Message 0xC6CDBF1A: every burst's effect remade for the new mode."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::RemoveBurstAt"
+address = 0x0057C680
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 28 56 8B 30 3B F0"
+source = "Name ours. (x, z)."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::OnOccupantRemoved"
+address = 0x0057C6E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Name ours. A pipe removed: its burst dropped."
+
+[[entry]]
+name = "cSC4PipeBurstList::Insert"
+address = 0x0057C750
+kind = "function"
+convention = "thiscall"
+expect = "6A 28 E8 FD 07 39 00 8D"
+source = "Name ours. (&out, position, &burst): a node (0x28 bytes) with a copy of the 0x20-byte burst."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::AddBurst"
+address = 0x0057C7C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 8B 5C 24 30"
+source = "Name ours. (pipe): a burst at the pipe's cell unless there is one."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::Init"
+address = 0x0057C880
+kind = "function"
+convention = "thiscall"
+expect = "51 A0 58 2B B2 00 84 C0"
+source = "Name ours. (pipe): tuning at first use, the layer, manager, filter, messages, the first burst; registers the location and tells the layer."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::SpreadTo"
+address = 0x0057CA60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 44 24 0C 53"
+source = "Name ours. (cells): a burst at each cell with a pipe."
+
+[[entry]]
+name = "cSC4PipeBurstSpreads::Clear"
+address = 0x0057CAF0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 03 56 8B 30"
+source = "Name ours. Frees the pending spreads list."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::AgeSpreads"
+address = 0x0057CB30
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 43 34 56 8B"
+source = "Name ours. Pending spreads a tick older; after 3 they burst."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::Burst"
+address = 0x0057CB90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 53 55 56 57 8B"
+source = "Name ours. (x, z): the pipe there explodes: effect, its connected neighbours queued, the pipe demolished, a crater."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::Tick"
+address = 0x0057CD70
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B D9 E8 B7 FD FF"
+source = "Name ours. (time passed): spreads aged, bursts past their fuse exploded; the instance ends when nothing is left."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::DoMessage"
+address = 0x0057CE20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "The message target at +0xC."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::Construct"
+address = 0x0057CED0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 45 0B 39"
+source = "The constructor (0x38 bytes)."
+
+[[entry]]
+name = "cSC4DisasterManagerPipeBurst::CreateInstance"
+address = 0x0057CF90
+kind = "function"
+convention = "thiscall"
+expect = "51 56 6A 38 E8 47 86 06"
+source = "Name ours. (pipe occupant): a new instance, initialised; its interface or null."
+
+[[entry]]
+name = "cSC4DisasterManagerPipeBurst::AttemptDisasterStartAnywhere"
+address = 0x0057D040
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 54 53 55 56 8B 35"
+source = "Interface slot 7: a random cell, then outwards in a spiral to the first accepted pipe."
+
+[[entry]]
+name = "cSC4DisasterManagerPipeBurst::AttemptDisasterStart"
+address = 0x0057D180
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 56 1C 8B 0D"
+source = "Interface slot 6: (x, z)."
+
+[[entry]]
+name = "cSC4PipeBurstFilter::vftable"
+address = 0x00A9E640
+kind = "data"
+source = "The pipe filter (0x10 bytes; base 0x005EA080; the plumbing simulator at +0xC)."
+
+[[entry]]
+name = "cSC4PipeBurstFilter::vftable_4"
+address = 0x00A9E628
+kind = "data"
+source = "The pipe filter's vtable at +4."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::Random"
+address = 0x00B22B60
+kind = "data"
+source = "Name ours. The static generator for fuses."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::Statics"
+address = 0x00B22B58
+kind = "data"
+source = "Name ours. +0 tuning loaded, +1 the location's zoom, +4 a value the burst's position starts from."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::FuseRange"
+address = 0x00B0A1D8
+kind = "data"
+source = "Name ours. Two ints: the least and most fuse."
+
+[[entry]]
+name = "SC4PointVector::CopyConstruct"
+address = 0x007CED60
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B 13 56"
+source = "Name ours. A vector of 8-byte elements copied from another."
+
+[[entry]]
+name = "SC4::Float867AC"
+address = 0x00A867AC
+kind = "data"
+source = "Name ours. A float the pipe burst's fuse seconds are multiplied by."
