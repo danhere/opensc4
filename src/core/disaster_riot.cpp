@@ -3,13 +3,14 @@
 // list of rioter automata whose anger grows where the police cover is thin,
 // level by level, spawning more rioters. Replacement, off by default:
 //
-//   simulators.disasters.riot: the manager (Init, Shutdown, the tuning, the
+//   simulators.disasters.riot: the manager (Init, the tuning, the
 //     start at a cell, the tracked lots) and the instance (Init, Shutdown,
 //     the tuning, adding a rioter, the tick, the phase, the animation, the
 //     messages, Write).
 //
-// The instance's Read (0x0057E870), the objects' constructors and
-// destructors and the list, set and vector helpers stay the game's.
+// The manager's Shutdown (ClearTracked, then the base's), the instance's
+// Read (0x0057E870), the objects' constructors and destructors and the
+// list, set and vector helpers stay the game's.
 // `riot` is the instance object: its interface is at +8, the serializable
 // at +0xC and the message target at +0x10.
 #include "core/address_check.h"
@@ -197,13 +198,6 @@ void __fastcall ClearTracked(char* manager, void*)
         At<SetNode*>(set, 0x0)->right = At<SetNode*>(set, 0x0);
         At<uint32_t>(set, 0x4) = 0;
     }
-}
-
-uint8_t __fastcall RiotManagerShutdown(char* interface, void*)
-{
-    if (At<uint8_t>(interface, 0x8))
-        reinterpret_cast<ThisFn>(addr::cSC4DisasterManagerRiot_ClearTracked)(interface - 0x8);
-    return reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::cSC4DisasterManager_Shutdown)(interface);
 }
 
 uint8_t __fastcall RiotRemoveInstanceFromList(char* interface, void*, void* instance)

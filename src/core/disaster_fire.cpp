@@ -755,7 +755,7 @@ uint8_t __fastcall StartFire(char* part, void*, void* occupant, uint32_t forcedR
 
 // The occupants of the three burnable types in a cell rectangle, as a list
 // the caller frees.
-char* Burnables(char* self, const int32_t* first, const int32_t* last, void* filter)
+char* Burnables(char* /*self*/, const int32_t* first, const int32_t* last, void* filter)
 {
     char* list = NewList();
     Virtual<void>(Global<void*>(addr::SC4_NetworkService), 0xA0, &list, first, last, filter, int32_t{-1});
