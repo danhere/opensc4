@@ -1133,3 +1133,19 @@ kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 57 8D 86 CC 00"
 source = "Name ours, not analysed. (byte): called with the properties' +1 before an overlaid material (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4GroundQuad::Draw"
+address = 0x005E0200
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 08 83 EC 1C 84"
+source = "Class name ours (unnamed; the drawable with vtable 0x00AA2C30, a fifth of a city's draws; this is its slot 0x30 after the adjustor 0x005E0540, so `this` is the object + 0xEC). (render context, bool): a textured quad, plain, translucent (answers 2 in the first round) or tinted (+0x40 with the colour at +0x3C), drawn from its own four vertices (+0x64) or, without them, through the context's +0x4C object (slot 0x3C) (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4GroundQuad::SetZoom"
+address = 0x005DFD40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 80 7E 45 FF 6A"
+source = "Name ours, not analysed. (zoom): called when the context's zoom differs from the quad's (+0x45) (docs/renderer.md, \"Models and lots\")."

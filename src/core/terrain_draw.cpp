@@ -1742,6 +1742,75 @@ uint32_t DrawBillboard(char* self, char* context, uint8_t overlaid)
     return 1;
 }
 
+// The ground quad's draw (0x005E0200): a textured quad, the third most drawn
+// thing. `self` is the object + 0xEC. Fields of the object: +0x38/+0x39 two
+// bytes for the draped draw, +0x3C a colour (r, g, b, alpha), +0x40 a tint
+// mode (0xFF: none), +0x41 the texture's index, +0x44 a translucency flag,
+// +0x45/+0x46 the zoom and rotation it is set up for, +0x48 its textures
+// ({handles, count}), +0x64 four vertices when +0xC4 is set, +0xC8 what the
+// draped draw takes instead.
+uint32_t DrawGroundQuad(char* self, char* context, uint8_t overlaid)
+{
+    if (overlaid)
+        return 1;
+    char* const object = self - 0xEC;
+    if (At<uint32_t>(context, 0x14) != At<uint8_t>(object, 0x45))
+        CallThis<void>(addr::SC4GroundQuad_SetZoom, object, At<uint32_t>(context, 0x14));
+    const uint32_t rotation = At<uint32_t>(context, 0x18);
+    if (rotation != At<uint8_t>(object, 0x46)) {
+        Virtual<void>(object, 0x10, 0u, 1u, 0u, 0u);
+        At<uint8_t>(object, 0x46) = static_cast<uint8_t>(rotation);
+    }
+    const char* const textures = At<const char*>(object, 0x48);
+    if (!textures)
+        return 1;
+    const int mode = At<uint8_t>(object, 0x40) != 0xFF ? 2 : (At<uint8_t>(object, 0x44) || At<uint8_t>(object, 0x3F) < 0xFF) ? 1 : 0;
+    if (mode != 0 && At<uint32_t>(context, 4) == 0)
+        return 2;
+    CallThis<void>(addr::SC4RenderContext_UpdateViewMatrix, context);
+    CallThis<void>(addr::SC4RenderContext_ResetColour, context);
+    const uint32_t* const handles = At<const uint32_t*>(const_cast<char*>(textures), 0);
+    const uint32_t index = At<uint8_t>(object, 0x41);
+    CallThis<void>(addr::SC4RenderContext_BindTexture, context,
+                   index < At<uint32_t>(const_cast<char*>(textures), 4) ? handles[index] : handles[0], 0u);
+    const float scale = Global<float>(0x00A90BBC);
+    if (mode == 2) {
+        CallThis<void>(addr::SC4RenderContext_SetRenderState, context, reinterpret_cast<void*>(0x00B230A0));
+        CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 2u, 2u, 0u);
+        CallThis<void>(addr::SC4RenderContext_SetState4280, context, 1u, 1u, 0u);
+        Cell light[3];
+        for (Cell& cell : light)
+            cell.u = Global<uint32_t>(0x00B2305C);
+        Virtual<void>(At<void*>(context, 0x44), 0x28, light);
+        uint8_t alpha = At<uint8_t>(object, 0x3F);
+        uint8_t& tint = Global<uint8_t>(0x00B0A878);
+        tint = At<uint8_t>(object, 0x40);
+        if (tint == 3 && At<uint8_t>(At<char*>(At<char*>(context, 0x38), 0xC), 0x3BC)) {
+            tint = 1;
+            alpha >>= 1;
+        }
+        float colour[4];
+        for (int channel = 0; channel < 3; ++channel)
+            colour[channel] = static_cast<float>(
+                static_cast<double>(static_cast<int32_t>(At<uint8_t>(object, 0x3C + channel))) * light[0].f * scale);
+        colour[3] = static_cast<float>(static_cast<double>(static_cast<int32_t>(alpha)) * scale);
+        CallThis<void>(addr::SC4RenderContext_SetLightVector, context, colour);
+        CallThis<void>(addr::SC4RenderContext_SetState3030, context, &tint, 0u);
+    } else {
+        CallThis<void>(addr::SC4RenderContext_SetRenderState, context, reinterpret_cast<void*>(mode == 0 ? 0x00B23090 : 0x00B23098));
+        CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 2u, 2u, 0u);
+    }
+    if (At<uint8_t>(object, 0xC4)) {
+        CallThis<void>(addr::SC4RenderContext_DrawArrays, context, 1u, 0xAu, 4, object + 0x64);
+        return 1;
+    }
+    const float alpha = static_cast<float>(static_cast<double>(static_cast<int32_t>(At<uint8_t>(object, 0x3F))) * scale);
+    Virtual<void>(At<void*>(context, 0x4C), 0x3C, context, static_cast<uint32_t>(At<uint8_t>(object, 0x38)),
+                  static_cast<uint32_t>(At<uint8_t>(object, 0x39)), object + 0xC8, alpha,
+                  static_cast<uint32_t>(At<uint32_t>(context, 0x20) == 8));
+    return 1;
+}
+
 // The context's mesh draw (0x007D4A80). A mesh is three pointers: a vertex
 // buffer {format, +6 a count that must not be 0, +8 the vertices}, an index
 // buffer (a pointer to uint16 indices) or null, and its primitive groups (a
@@ -2495,6 +2564,14 @@ void __fastcall DDrawMoving(char* render, void*)
                  [&] { g_drawMoving(render, nullptr); }, true);
 }
 
+std::vector<Region> ContextRegions(char* context)
+{
+    std::vector<Region> regions{{"context", context, kContextSize}};
+    if (char* const stages = At<char*>(context, 0xE0))
+        regions.push_back({"stages", stages, static_cast<std::size_t>(At<char*>(context, 0xE4) - stages)});
+    return regions;
+}
+
 using BillboardFn = uint32_t(__fastcall*)(char*, void*, char*, uint32_t);
 BillboardFn g_billboard;
 bool g_compareBillboard = false;
@@ -2552,14 +2629,6 @@ void __fastcall DModel(char* context, void*, void* instance, void* model, char* 
                  original, true);
 }
 
-std::vector<Region> ContextRegions(char* context)
-{
-    std::vector<Region> regions{{"context", context, kContextSize}};
-    if (char* const stages = At<char*>(context, 0xE0))
-        regions.push_back({"stages", stages, static_cast<std::size_t>(At<char*>(context, 0xE4) - stages)});
-    return regions;
-}
-
 using MeshFn = void(__fastcall*)(char*, void*, char**);
 MeshFn g_mesh;
 bool g_compareMesh = false;
@@ -2606,6 +2675,33 @@ OPENSC4_THUNK(TMaterial, DMaterial, 8)
 OPENSC4_THUNK(TMesh, DMesh, 4)
 OPENSC4_THUNK(TMaterialOverlaid, DMaterialOverlaid, 8)
 OPENSC4_THUNK(TModel, DModel, 16)
+BillboardFn g_groundQuad;
+bool g_compareGroundQuad = false;
+
+uint32_t __fastcall DGroundQuad(char* self, void*, char* context, uint32_t overlaid)
+{
+    if (g_depth > 0)
+        return g_groundQuad(self, nullptr, context, overlaid);
+    if (!g_compareGroundQuad)
+        return DrawGroundQuad(self, context, static_cast<uint8_t>(overlaid));
+    std::vector<Region> regions = ContextRegions(context);
+    regions.push_back({"quad", self - 0xEC, 0xEC});
+    regions.push_back({"tint", reinterpret_cast<char*>(0x00B0A878), 1});
+    uint32_t result = 0, mine = 0;
+    const auto original = [&] { result = g_groundQuad(self, nullptr, context, overlaid); };
+    QuietRun(regions, original);
+    DrawCompared(g_selfCheck ? "models.groundquad.selfcheck" : "models.groundquad", regions,
+                 [&] {
+                     mine = g_selfCheck ? g_groundQuad(self, nullptr, context, overlaid)
+                                        : DrawGroundQuad(self, context, static_cast<uint8_t>(overlaid));
+                 },
+                 original, true);
+    if (mine != result)
+        compare::Record("models.groundquad.result", false, std::to_string(result), std::to_string(mine));
+    return result;
+}
+
+OPENSC4_THUNK(TGroundQuad, DGroundQuad, 8)
 OPENSC4_THUNK(TBillboard, DBillboard, 8)
 OPENSC4_THUNK(TDrawMoving, DDrawMoving, 0)
 OPENSC4_THUNK(TDrawStatic, DDrawStatic, 0)
@@ -3097,6 +3193,29 @@ const bool g_registeredMaterial = registry::Register({
     "texture stage; compare mode compares the driver state and the context (docs/renderer.md, \"Models and lots\")",
     true,
     InstallMaterial,
+});
+
+bool InstallGroundQuad(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareGroundQuad = mode == registry::Mode::Compare;
+    if (!Detour(addr::SC4GroundQuad_Draw, &TGroundQuad, &g_groundQuad))
+        return false;
+    log::Write("models: ground quad draw %s", g_compareGroundQuad ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredGroundQuad = registry::Register({
+    "renderer.models.groundquad",
+    "renderer/models",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4GroundQuad_Draw,
+    "The ground quad's draw, a textured quad plain, translucent or tinted; compare mode as "
+    "renderer.models.static, per quad (docs/renderer.md, \"Models and lots\")",
+    true,
+    InstallGroundQuad,
 });
 
 } // namespace
