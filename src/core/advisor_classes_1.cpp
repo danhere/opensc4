@@ -406,8 +406,8 @@ uint32_t __fastcall CityPlanningDoMessage(char* self, void*, void* message)
         uint32_t where[3] = {0, 0, 0};
         if (Virtual<uint8_t>(subject, 0x0, uint32_t{0x87DDA3A9}, &reference)) {
             if (void* const service = Global<void*>(addr::SC4_Service43D68)) {
-                void* const got = Virtual<void*>(reference, 0x10, &where[0]);
-                if (Virtual<uint8_t>(service, 0x38, got)) {
+                void* const got = Virtual<void*>(reference, 0x10);
+                if (Virtual<uint8_t>(service, 0x38, got, &where[0])) {
                     char* const map = obj + field::kCounts;
                     InsertResult result;
                     IntPair value;

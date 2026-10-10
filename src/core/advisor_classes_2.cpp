@@ -620,8 +620,8 @@ uint8_t __cdecl DealToken(void* name, void* out, void* subject)
             result = 1;
         }
     } else if (equal(&text, addr::SC4DealAdvisor_TokenName2, 0)) {
-        const int32_t amount = Virtual<int32_t>(party, 0x28, out);
-        Virtual<void>(money, 0x48, static_cast<int64_t>(amount));
+        const int32_t amount = Virtual<int32_t>(party, 0x28);
+        Virtual<void>(money, 0x48, static_cast<int64_t>(amount), out);
         result = 1;
     } else if (equal(&text, addr::SC4DealAdvisor_TokenName3, 0)) {
         const int64_t amount = Virtual<int64_t>(party, 0x58);
