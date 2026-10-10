@@ -37,7 +37,8 @@ Estimates by area (a judgment from the checklists below, not a measurement):
 | Renderer (P1) | ~35% | D3D11 driver done; above it, camera and terrain are ours; models, lots, water, sky and 2D UI are not |
 | UI and input (P2) | ~15% | Scaling only |
 | Files and saves (P3, P4) | ~30% | Our DBPF reader; the game still loads plugins and parses saves |
-| Networks, lots, terrain, region, audio, Lua (P6-P8) | 0% | Not started; networks only together with the NAM team |
+| Script bindings (P6 Lua) | ~95% | All of the game's script code with exact parity: variables, natives, advisors, advices, script context; the Lua 5.0 library itself is still the game's |
+| Networks, lots, terrain, region, audio (P6-P8) | 0% | Not started; networks only together with the NAM team |
 | Framework and exe independence (P9) | 0% | Not started |
 
 ## P0: Foundations
