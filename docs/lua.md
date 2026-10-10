@@ -1,6 +1,6 @@
 # Script bindings (Lua 5.0)
 
-The game embeds Lua 5.0 for the advisors, the news ticker, rewards and the tutorials. This page is about the game's side of it: what the game publishes to scripts and what scripts can call. The Lua runtime itself (0x008B96F0 to 0x008BF160, apart from the game's thread table at 0x008BC700 and its tag library at 0x008BE930) is a third-party library and stays as it is.
+The game embeds Lua 5.0 for the advisors, the news ticker, rewards and the tutorials. This page is about the game's side of it: what the game publishes to scripts and what scripts can call. The Lua runtime itself (0x008B96F0 to 0x008BF160 and what follows, apart from the game's thread table at 0x008BC430 and its tag library at 0x008BE930) is a third-party library and stays as it is.
 
 The pieces, in the order they are being rewritten under the parity harness ([parity.md](parity.md)):
 
@@ -13,7 +13,9 @@ The pieces, in the order they are being rewritten under the parity harness ([par
 | The advice class (cSC4Advice, 0x00407A90 to 0x00409690) and the city situation advice (the Rush Hour missions, 0x00422FF0 to 0x00424B00) | 95 functions; 40 more are generic string and container code or folded with other classes and stay the game's | ours (`scripts.advisors.advice1`, `advice2`) |
 | The advice window's text builder (0x0041D400 to 0x00420D30) | 62 functions, about 14 KB; interface code (it builds the HTML of the advice list), not script bindings | the game's, with the interface |
 | The script context (cISCLua) and the two classes under it, the Lua thread and the Lua engine | 275 functions, about 20 KB, 0x0087FFF0 to 0x00881260 and 0x008B68D0 to 0x008B96F0 | ours (`scripts.context.part1`, `part2`, `part3`) |
-| The call closure of the data registry (0x00881260 to 0x00881640), the thread table (0x008BC700 to 0x008BD630), the tag library (0x008BE930 to 0x008BF160), the native function table's dispatcher (0x008B5B70) | | the game's |
+| The native function table (class 0x2BD13FB4, 0x008B59B0 to 0x008B68D0) with the dispatcher every registered native goes through, and the data registry's call closure and notification handler (0x00881260 to 0x00881963) | 26 functions | ours (`scripts.context.rest1`) |
+| The thread table and the game's `coroutine` library (0x008BC430 to 0x008BD8AC) | 30 functions | ours (`scripts.context.rest2`) |
+| The tag library (Lua 4 tags on Lua 5 metatables, 0x008BE930 to 0x008BF267) | 13 functions | ours (`scripts.context.rest3`) |
 
 The advisor system that owns the script context is already ours ([advisors.md](advisors.md)).
 
@@ -122,6 +124,15 @@ Nearly every thread method is one Lua call inside a precision switch: the game r
 
 Things the original does that ours keeps: the methods the interface declares as returning nothing return whatever the last call left (Lua's result when no switch happened, the precision setter's otherwise); `NewTag` reads its result at stack index 1, so it is right only on an empty stack; the default error reporter builds its whole report (a banner, the thread, the error type and the message) and then frees it without showing it anywhere; the negative-index conversion in the registry entry reader is off by one.
 
+### The classes around it
+
+- **Native function table** (class 0x2BD13FB4): the natives a script server registers by ID. 500 records of two strings and an ID, a free list of record indices and a map from ID to index. A registered native is a closure of one dispatcher (0x008B5B70) with the record index, the table and the thread as upvalues: it packs the arguments into a parameter set, calls the owner with the ID, and pushes the status and the output parameters. When the call cannot be made it pushes 2.
+- **Data registry bridge**: the context listens to the game data registry and mirrors it into the global table `sc4game`. A node becomes a table with its entry in `_e`; a value becomes a closure that reads or sets it (0x00880F50) or, for a call entry, calls it (0x00881260).
+- **Thread table** (at engine+0x20): a hash map from thread ID to a record of state, parent state, child states, flags and the class of the thread object, and the game's own `coroutine` library on top of it (`create`, `wrap`, `resume`, `destroy`, `status`, `valid`, `class`, `parent`, `id`), which replaces Lua's. `coroutine.create` takes option letters: L keeps a dead thread, P makes it a child of its creator, R lets only the parent resume it.
+- **Tag library**: `newtag`, `tag`, `settag`, `gettagmethod`, `settagmethod`, `copytagmethods` and `globals`, Lua 4's tags built on metatables kept in the registry, plus a compatibility script run at Open.
+
+Things the original does that ours keeps: `coroutine.create` reads the class from argument 2 (the options) when there are three arguments; `copytagmethods` tests the type of its first table twice and never the second; ending a thread loops for ever if a child has no thread object.
+
 ## Tests
 
 - The fingerprint's `lua` part reads all 295 names back from the `game` table through the script context and hashes their types and values (for an `l_` name also whether its place is there); `OPENSC4_TEST_LUA_DUMP=1` logs every value each day. Scratch tools compare two logs name by name.
@@ -157,3 +168,5 @@ The natives on a current advice (`lu16-*`, fourteen groups): 12 of 12 with the s
 With the script context on too (seventeen groups; `lu17-*` the thread methods alone, `lu18-*` and `lu19-*` all three parts): 12 of 12 plain, monthly with the advisors recreated, with the natives' script and with the advice script. In the first run of the natives' leg one B run died while loading at 0x0096DA20 (the rare load crash in the game's framework code, [parity.md](parity.md)) and one first B run differed in the advisors' hash; the leg run again was 12 of 12. The coverage run reaches 118 of the 275 functions. Not reached: the constructors, Open and the class factories (they run at startup, before replacements are installed), the tag methods, threads other than the main one, the error paths and the default error reporter, and the data registry bridge. In the registry's value exchange the original passes a 32-bit argument of which it set only the low byte; ours passes the byte zero-extended.
 
 The missions' getters (`lu20-*`, seventeen groups, `OPENSC4_TEST_MISSIONS=1`): 12 of 12 plain and 12 of 12 monthly with the advisors recreated. Each city has 92 mission advices, with 91 different answers among them. Still not run: the getters that take an automaton or a group list, the effect names, and the condition text.
+
+With the classes around the context on too (twenty groups, everything on this page; `lu21-*`): 12 of 12 plain, monthly with the advisors recreated (both with the missions' getters), with the natives' script and with the advice script. The coverage run reaches 33 of these 69 functions: the tables' constructors, Open and Close (a script context is made for each city), the registry bridge and most of the tag library. Not reached: the dispatcher (no script server registers a native in the test cities), the `coroutine` functions and the thread table's Create and Resume.
