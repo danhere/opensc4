@@ -111,6 +111,8 @@ uint32_t IndexAt(const void* indices, uint32_t type, uint32_t i)
 
 using DrawFn = uint8_t(__fastcall*)(void*, void*);
 DrawFn g_originalDraw = nullptr;
+DrawBody g_drawBody = nullptr;
+bool g_hooked = false;
 
 uint8_t __fastcall Draw(void* self, void* edx)
 {
@@ -121,7 +123,7 @@ uint8_t __fastcall Draw(void* self, void* edx)
         if (g_dumping)
             std::fprintf(g_dump, "frame %u (marked %u)\n", g_last.number + 1, ++g_dumpFrames);
     }
-    const uint8_t result = g_originalDraw(self, edx);
+    const uint8_t result = g_drawBody ? g_drawBody(self) : g_originalDraw(self, edx);
     if (--g_depth == 0) {
         ++g_last.number;
         g_last.draws = g_draws;
@@ -139,10 +141,19 @@ uint8_t __fastcall Draw(void* self, void* edx)
     return result;
 }
 
+// One hook on cSC43DRender::Draw serves the trace and a replacement body.
+bool EnsureHook()
+{
+    if (g_hooked)
+        return true;
+    const addr::Entry* entry = addr_check::Find(addr::cSC43DRender_Draw);
+    g_hooked = game::IsBuild641() && entry && hook::Install(*entry, &Draw, &g_originalDraw);
+    return g_hooked;
+}
+
 bool Install(registry::Mode)
 {
-    const addr::Entry* entry = addr_check::Find(addr::cSC43DRender_Draw);
-    if (!game::IsBuild641() || !entry || !hook::Install(*entry, &Draw, &g_originalDraw))
+    if (!EnsureHook())
         return false;
     g_active = true;
     if (const char* path = std::getenv("OPENSC4_FRAME_DUMP"); path && *path)
@@ -190,6 +201,14 @@ void HashInto(const DrawState& state, const DrawCall& call)
 }
 
 } // namespace
+
+bool SetDrawBody(DrawBody body)
+{
+    if (!EnsureHook())
+        return false;
+    g_drawBody = body;
+    return true;
+}
 
 uint32_t HashDraw(const DrawState& state, const DrawCall& call)
 {
