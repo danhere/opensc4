@@ -1149,3 +1149,51 @@ kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 80 7E 45 FF 6A"
 source = "Name ours, not analysed. (zoom): called when the context's zoom differs from the quad's (+0x45) (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4DrawableAA2EA8::Draw"
+address = 0x005E27C0
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 08 84 C0 56 8B"
+source = "Class unnamed (the drawable with vtable 0x00AA2EA8; slot 0x30 after the adjustor 0x005E28B0, `this` is the object + 0xAC). (render context, bool): a strip of triangles (+0x9C to +0xA0, 24-byte vertices) with one texture (+0x98), shown only from the two rotations its side (+0x78) faces (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4DrawableAA2EA8::SetZoom"
+address = 0x005E1710
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Name ours, not analysed. (old zoom, zoom, render context) (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4DrawableAA2EA8::SetRotation"
+address = 0x005E1BC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C 8A 44 24 50 53"
+source = "Name ours, not analysed. (0, 1, scratch pointer, 0, 0, the context's +0x44) (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4DrawableAA2808::Draw"
+address = 0x005D5FC0
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 08 84 C0 56 8B"
+source = "Class unnamed (the drawable with vtable 0x00AA2808; slot 0x30 after the adjustor 0x005D6120, `this` is the object + 0x274). (render context, bool): up to two quads picked by the rotation (+0x50, +0x54 into the quads at +0x74) with one texture (+0x70) when the zoom's flag (+0x4A) is set, then a quad (+0x210) with a second texture (+0x20C) (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4DrawableAA2808::SetRotation"
+address = 0x005D55C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 53 56 8B F1 8A"
+source = "Name ours, not analysed. (0, 1, the context's +0x44) (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4DrawableAA2808::SetZoom"
+address = 0x005D5E90
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 0C 53 8B 5C 24"
+source = "Name ours, not analysed. (old zoom, zoom, render context) (docs/renderer.md, \"Models and lots\")."
