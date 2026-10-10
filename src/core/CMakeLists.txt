@@ -68,6 +68,7 @@ add_library(opensc4_core SHARED
   disaster_managers.cpp
   disaster_pipeburst.cpp
   disaster_toxic.cpp
+  disaster_volcano.cpp
   mysim_sim.cpp
   commercial_autotest.cpp
   commercial_sim.cpp

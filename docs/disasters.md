@@ -60,6 +60,20 @@ The manager keeps a pipe filter (an occupant filter that accepts a pipe, type 0x
 
 A burst is {position, cell, time, fuse, effect}: its effect is `burst_pipe_aboveground` or `burst_pipe_underground` by the view mode (message 0xC6CDBF1A remakes them), its fuse a random time in the tuning's range (exemplar 0x6534284A/0x29B6C670/3, properties 0x4A08C600 and 0x4A08C601, in seconds). The tick (message 0x86AD10EE with the time passed) adds to each burst's time; past its fuse the pipe explodes (`pipe_explodes`): its connected neighbours inside the city are queued, the pipe is demolished (0x00B43D00's slot 0x20), a crater is made (the city's slot 0x150 object, slot 0xE4), and message 0xEA1F0DCD is posted. Three ticks later the queued cells get bursts of their own. A pipe removed by anything else (messages 0x99EF1142, 0x99EF1143) loses its burst. When no burst and no queued cell is left the instance tells the layer it ended and shuts down.
 
+### Volcano
+
+One volcano at a time. The manager's start (at a cell, or at a random one) makes the instance (0x54 bytes; its instance interface is its first vtable, the volcano interface 0x29B5AB88 is at +4), gives it the place, initialises it and puts it in state 3. The instance is a state machine (the +4 interface's slot 8):
+
+| State | What |
+| --- | --- |
+| 1 | set by Init (the layer is told the disaster began; the place, clamped to the city, is registered) |
+| 3 | the `volcano_control` effect starts; if the tuning allows building, the terrain's volcano builder (0x178 bytes, 0x0075E820) is made and the state goes to 5 |
+| 5 | the builder starts at the place with the tuning's height |
+| 7 | the effect reported its end (message 0xCA493C1D): back to 5 while building, else 8 |
+| 8 | the builder is finished, the layer told the disaster ended, and the instance takes itself off the manager's list |
+
+The tick (message 0x86AD10EE) adds the time passed; while building in state 5 it sets the builder's two rates from two tuning curves at time / duration; past the duration the builder is finished and the state goes to 3 again (or 8 when the effect is over). Tuning: exemplar 0x6534284A/0x29B6C670/1.
+
 ## What is ours
 
 | Replacement | What is ours |
@@ -67,6 +81,7 @@ A burst is {position, cell, time, fuse, effect}: its effect is `burst_pipe_above
 | `simulators.disasters.layer` | every layer method but GetDisasterCost (4 bytes): 27 functions |
 | `simulators.disasters.managers` | the manager base: QueryInterface, Init, Shutdown, the instance list, the active count, the message forwarding |
 | `simulators.disasters.toxic` | the toxic manager and instance |
+| `simulators.disasters.volcano` | the volcano manager and instance (24 functions); the terrain's volcano builder stays the game's |
 | `simulators.disasters.pipeburst` | the pipe burst manager, its pipe filter and the instance (21 functions) |
 
 Still the game's: the objects (constructors, destructors), the other managers and instances, container and stopwatch helpers.
@@ -106,3 +121,12 @@ With the pipe burst on too (`disp1-*`, `disp2-fuse`; same machine, same day):
 | pipe burst with 2-second fuses, the manager's own choice where the walk finds no pipe (8 saves with a burst) | 10 | 1 partly (the original gave three outcomes), 1 failed |
 
 With short fuses the pipes explode and the bursts spread: the layer's cost rises the same way day by day on both sides (0, 220, 260, 410 on Rush Hour d0365), and the manager's random choice of pipe matched on the four saves that used it. The failed run was a B run that crashed in the game's code at 0x0080105D while the city loaded, before any disaster, with none of our code on the stack; three repeats of that save loaded and matched (`disp2-rep1` to `rep3`), as did about 80 other B runs of this code. It is listed with the other rare load crashes in [parity.md](parity.md).
+
+With the volcano on too (`disv1-*`): a volcano makes every run its own outcome, the original's as much as ours (three outcomes from three runs on every save; the terrain grows on frame time, and what it destroys follows), so whole-city verdicts say nothing. What can be compared is the fingerprint's `dis` part, day by day, across all six runs of a save:
+
+| Leg | The `dis` part |
+| --- | --- |
+| volcano on day 1 | the same in all six runs on 8 saves; on the four Big City saves it differs among the original's own runs too (the cost of what fell) |
+| volcano, ended on day 3 | the same in all six runs on 9 saves; on two the original's own runs differ; on Big City d0090 one of ours counted 63 buildings destroyed where the other five runs counted 60 |
+
+So the state machine's course (two disasters counted while the effect and the building overlap, three locations then two, the end) matches wherever the original repeats it, and no run crashed in about 70 with the volcano on. That is all this harness can show for the volcano.
