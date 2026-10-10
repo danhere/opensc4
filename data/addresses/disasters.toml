@@ -824,3 +824,291 @@ name = "SC4::Float867AC"
 address = 0x00A867AC
 kind = "data"
 source = "Name ours. A float the pipe burst's fuse seconds are multiplied by."
+
+[[entry]]
+name = "cSC4DisasterManagerVolcano::QueryInterface"
+address = 0x0057F310
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 56 8B 74 24"
+source = "0xA9B5AB9E at +0x24, else the manager base's."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::BeginBuilder"
+address = 0x0057F360
+kind = "function"
+convention = "thiscall"
+expect = "A0 B9 2B B2 00 84 C0 56"
+source = "Name ours. The terrain volcano builder (0x178 bytes) made and held at +0x4C."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::StartBuilding"
+address = 0x0057F3D0
+kind = "function"
+convention = "thiscall"
+expect = "51 A0 B9 2B B2 00 84 C0"
+source = "Name ours. The builder started at the volcano's position with the tuning's height."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::GetManager"
+address = 0x0057F430
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 28 85 C0 74 04 83"
+source = "Slot 4."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::GetPhase"
+address = 0x0057F440
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 24 83 F9 04 B8 02"
+source = "Slot 7: from the state (+0x24)."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::QueryInterface"
+address = 0x0057F480
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 81 FA A4 3B"
+source = "0x22223BA4 the object, 0x29B5AB88 at +4."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::Release"
+address = 0x0057F4D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 83 F8 01 76 05"
+source = "The count at +0xC; the deleting destructor (slot 8) at 0."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::StartEffect"
+address = 0x0057F4F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 41 84 C0"
+source = "Slot 10: the 'volcano_control' effect, once."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::Remove"
+address = 0x0057F520
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 40 84 C0"
+source = "Slot 11: off the manager's list and shut down, unless still building."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::GetHeightAt"
+address = 0x0057F550
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 48 85 C9 75 09 D9"
+source = "The interface at +4, slot 6: the builder's 0x0075D640, or 0."
+
+[[entry]]
+name = "cSC4DisasterManagerVolcano::AttemptDisasterStartAnywhere"
+address = 0x0057F5A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 57 8B F1 6A"
+source = "Interface (+8) slot 7: a random cell."
+
+[[entry]]
+name = "cSC4DisasterManagerVolcano::AttemptDisasterStart"
+address = 0x0057F600
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 57 8B F9 8B 47"
+source = "Interface slot 6: (x, z): one volcano at a time."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::DoMessage"
+address = 0x0057F6C0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8D 54 24 04 8B F1"
+source = "The message target at +8: the tick (0x86AD10EE) and the effect's end (0xCA493C1D)."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::Finish"
+address = 0x0057F740
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 40 84 C0"
+source = "Name ours. The builder finished and released; the layer told the disaster ended."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::SetLocation"
+address = 0x0057F7A0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 56 57 8B"
+source = "The interface at +4, slot 5: ({x, z}): kept and registered with the layer."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::SetState"
+address = 0x0057F820
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 3B"
+source = "The interface at +4, slot 8: the state machine (3 erupt, 5 build, 7 effect over, 8 done)."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::Shutdown"
+address = 0x0057F920
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 20 33"
+source = "Slot 3."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::LoadTuning"
+address = 0x0057F9F0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 10 8B 0D A8 3C B4"
+source = "Name ours. Exemplar 0x6534284A/0x29B6C670/1: two curves, the duration, a scale, the height, the build flag."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::Construct"
+address = 0x0057FAF0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 C7 40 04 08 EA A9"
+source = "The constructor (0x54 bytes)."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::Tick"
+address = 0x0057FB90
+kind = "function"
+convention = "thiscall"
+expect = "A0 B9 2B B2 00 83 EC 08"
+source = "Slot 14: (time passed): the builder's two rates from the curves; past the duration the building ends."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::MakeEffect"
+address = 0x0057FCE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 83 EC 44 56"
+source = "Slot 13: (name, {x, z}, keep, &effect): an effect on the ground there that reports its end."
+
+[[entry]]
+name = "cSC4DisasterManagerVolcano::CreateInstance"
+address = 0x0057FE50
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 54 8B F9 E8 85"
+source = "The interface at +0x24, slot 4: (&out): a new instance on the list; out is its +4 interface."
+
+[[entry]]
+name = "cSC4DisasterManagerVolcano::GetHeightAt"
+address = 0x0057FEA0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 41 F0 39 00 74 48"
+source = "The interface at +0x24, slot 5: the first instance's, or 0."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::StaticDestroy"
+address = 0x0057FF60
+kind = "function"
+convention = "cdecl"
+expect = "A0 B8 2B B2 00 84 C0 74"
+source = "Frees the two curves; registered with the app at first use."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::StaticInit"
+address = 0x0057FFE0
+kind = "function"
+convention = "cdecl"
+expect = "A0 B8 2B B2 00 84 C0 75"
+source = "Name ours. The two tuning curves made, once."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::Init"
+address = 0x00580070
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 55 56 8B F1 57"
+source = "Slot 9."
+
+[[entry]]
+name = "cSC4VolcanoBuilder::Construct"
+address = 0x0075E820
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 8D 7E 04"
+source = "Name ours, not analysed. The terrain volcano builder (0x178 bytes)."
+
+[[entry]]
+name = "cSC4VolcanoBuilder::Prepare"
+address = 0x0075E270
+kind = "function"
+convention = "thiscall"
+expect = "A0 E8 D4 B4 00 84 C0 56"
+source = "Name ours, not analysed."
+
+[[entry]]
+name = "cSC4VolcanoBuilder::SetRateA"
+address = 0x0075D5B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 81 10 01"
+source = "Name ours, not analysed. (float)."
+
+[[entry]]
+name = "cSC4VolcanoBuilder::SetRateB"
+address = 0x0075D5C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 81 14 01"
+source = "Name ours, not analysed. (float)."
+
+[[entry]]
+name = "cSC4VolcanoBuilder::Start"
+address = 0x0075F8C0
+kind = "function"
+convention = "thiscall"
+expect = "D9 05 A4 D7 B0 00 53 D8"
+source = "Name ours, not analysed. (x, z, height, 1)."
+
+[[entry]]
+name = "cSC4VolcanoBuilder::Finish"
+address = 0x0075E720
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 10 33"
+source = "Name ours, not analysed."
+
+[[entry]]
+name = "cSC4VolcanoBuilder::HeightAt"
+address = 0x0075D640
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 48 85 F6 74 21"
+source = "Name ours, not analysed. (a, b) -> float."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::Statics"
+address = 0x00B22BB0
+kind = "data"
+source = "Name ours. +0 and +4 the two curves, +8 statics made, +9 building allowed."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::Tuning"
+address = 0x00B0A1F8
+kind = "data"
+source = "Name ours. +0 a scale (float), +4 the duration (float), +8 the height (uint)."
+
+[[entry]]
+name = "SC4::FloatMillionth"
+address = 0x00A86510
+kind = "data"
+source = "Name ours. 1e-6f."
+
+[[entry]]
+name = "SC4::FloatHundredThousandth"
+address = 0x00A99F20
+kind = "data"
+source = "Name ours. 1e-5f."
