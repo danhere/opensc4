@@ -28,7 +28,7 @@ The save record is version 1: the three service references. `tools/re/save_schem
 | `simulators.lotconfig.footprints` | slots 16, 17 and 24 to 27 | lotconfig_queries.cpp |
 | `simulators.lotconfig.filter` | the base filter's QueryInterface and deleting destructor | lotconfig_queries.cpp |
 
-The developers pick from the sets by position, so the sets must come out node for node as the game's: the map is walked in bucket order and the game's own resize and insert functions are called in the game's order. Still the game's: cSC4LotConfiguration itself (called through its slots and helpers), generic sort code shared with other classes, the base filter's constructor (other classes' filters call it), the factory. Copied on purpose from the game and commented in the code: several slots return whatever EAX held (ours return 1; the callers found ignore it); CreateGenericLotConfiguration leaves one field of the new building object as stack leftovers (zero in ours); Read compares a version word the stream may leave unset.
+The developers pick from the sets by position, so the sets must come out node for node as the game's: the map is walked in bucket order and the game's own resize and insert functions are called in the game's order. Still the game's: generic sort code shared with other classes, the base filter's constructor (other classes' filters call it), the factory. Copied on purpose from the game and commented in the code: several slots return whatever EAX held (ours return 1; the callers found ignore it); CreateGenericLotConfiguration leaves one field of the new building object as stack leftovers (zero in ours); Read compares a version word the stream may leave unset.
 
 ## Test cities
 
@@ -46,3 +46,36 @@ All runs on 2026-10-10 with every `simulators.lotconfig.*` group on, two games a
 | `saves-plopped`, 30 days, zoning (`lcm-pl30`) | 3 of 3, all on the first pair |
 
 Reached (27 of the 31 functions that log their first call): the constructor, Read, Init with the load of all 1,909 configurations, the lookups and the sets by filter, family and size, the registered filter's cached path, the footprints and ID arrays, the building family and type tests, DoMessage, Write, Shutdown, the cleanup at exit. Not reached: Remove, CreateGenericLotConfiguration (the plop-everything cheat), FixLotConfiguration and the save of one configuration (nothing in a city run calls them); the audit compared those instruction by instruction and found nothing to change.
+
+## The configuration (cSC4LotConfiguration)
+
+One object per lot configuration: 0xC0 bytes, vtable 0x00A8CEB8 (34 slots, `cISC4LotConfiguration`, IID 0x68EDBEBC; gzcom-dll's slot order is right), no class ID. Constructor 0x004797A0 (three `new` sites: the manager's load by key and CreateGenericLotConfiguration, and the lot editor), destructor 0x00479C20. Code 0x004777B0 to 0x0047A77B. Ours in src/core/lotcfg_sim.cpp and lotcfg_load.cpp (fields and evidence in lotcfg_sim.h; data/addresses/lotcfg.toml).
+
+A configuration holds its ID and name, width and depth, family IDs, the slope limits, growth stage, capacities, a water flag, three bit sets (16 zone, 4 wealth and 9 purpose types), the required roads, retaining walls and fences, and its objects. An object is 0x34 bytes: kind (building, prop, texture, fence, flora, water, land, network piece), flags with the detail level, orientation and mirroring, position, the least and greatest corners, a foundation type, an ID and a list of IDs (the exemplars or families it may be).
+
+Load (slot 31, 0x00479F70) reads the exemplar's properties in a fixed order: the name (0x20), the version (0x88EDC789; below 1 fails, not 2 has the exemplar written back), size (0x88EDC790), families, the three slopes, growth stage, water, the zone, wealth and purpose lists, the construction flag, retaining walls, fences, roads, then one object per property from 0x88EDC900 up to the first missing one (twelve or more uint32 values: kind, flags, orientation with the mirror bit, seven 16.16 fixed point coordinates, the foundation, the ID, the IDs), and an extra foundation object (0x88FCD877). Objects that are not buildings and are above the game's detail setting are left out; the rest are clamped into the lot. Save (slot 32) writes the same set.
+
+| Replacement | What is ours |
+| --- | --- |
+| `simulators.lotcfg.slots` | 27 slots: the getters and setters, the bit tests for zone, wealth and purpose, family membership, the required roads, the first object of a kind |
+| `simulators.lotcfg.load` | Load and Save with the object reader (0x00479D10) and writer (0x004783A0) |
+| `simulators.lotcfg.objects` | ten detours on the object list: an object's constructor, copy and assignment, the vector's copy, erase, insert, push and destructor, the clamp into the lot |
+| `simulators.lotcfg.object` | our own configuration: a detour on the constructor, the destructor, identity, a copy of the vtable taken once |
+
+Still the game's: two shared stubs in the vtable, generic bit-vector code other classes use. Copied on purpose from the game and commented in the code: the extra foundation object's ID is stack leftovers in the game (zero in ours; nothing compares it); no bounds test on the fence count; Load leaks one reference when it writes an exemplar back.
+
+`OPENSC4_TEST_LOTCFG=1` adds to the fingerprint's `lotcfg` part a checksum of slots 0 and 2 to 30 called on every 16th configuration. The loader itself is compared through the manager's `lotconfig` part, which hashes every field and object of all 1,909 configurations.
+
+Parity on 2026-10-10 with the four groups on and both query switches, two games at a time:
+
+| Run | Result |
+| --- | --- |
+| 12 saves for 30 days (`lcf-all30`) | 12 of 12, all on the first pair |
+| 12 saves for 14 days, land zoned and dezoned (`lcf-zone14`) | 11 of 12; Big City d0000 partly, see below |
+| `saves-ports`, 30 days, zoning, growth asked and ports removed (`lcf-ports30`) | 3 of 3, all on the first pair |
+| `saves-plopped`, 30 days, zoning, the manager ours as well (`lcf-pl30`) | 3 of 3, all on the first pair |
+
+**Big City d0000 and machine load.** Two of the four B runs of `lcf-zone14` parted from the original on the first day, in the lots' checksum only (at the end: one byte in the trips of a few industrial lots, and the traffic record). No run of the original had shown that value in any earlier batch, and eight repeats (four single runs, four small batches) did not bring it back. Five more small batches with every CPU core kept busy did: all five runs of the original and all five of ours gave the odd value (CB2DB07F), on the first day. So the first day's trips on that save depend on how loaded the machine is, in the original too; the two odd runs had run while an audit was using the CPU. Result folders `lcf-rep1` to `lcf-rep9`.
+
+Reached (36 of the 42 functions that log their first call): the constructor, Load with the object reader for every configuration, the clamp, the slots, the object list's copy, insert and erase, the destructor at exit. Not reached: Save and the two writers (no exemplar of the game has a version other than 2), an object's own constructor, assignment and push (the lot editor). The audit compared every function instruction by instruction and found nothing to change.
+

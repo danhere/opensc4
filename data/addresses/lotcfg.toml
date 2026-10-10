@@ -1,0 +1,476 @@
+# cSC4LotConfiguration (vtable 0x00A8CEB8, 0xC0 bytes; src/core/lotcfg_sim.h has the class map): code 0x004777B0 to 0x0047A77B (src/core/lotcfg_sim.cpp, lotcfg_load.cpp). The constructor and four of the object list's functions are in lotconfig.toml (the manager calls them).
+
+[[entry]]
+name = "cSC4LotConfiguration::QueryInterface"
+address = 0x004777B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfiguration* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 48 74 0C 2D"
+source = "Slot 0: IIDs 1 and 0x68EDBEBC (cISC4LotConfiguration) the object; ret 8. Ours only in our own object's vtable (simulators.lotcfg.object)."
+
+[[entry]]
+name = "cSC4LotConfiguration::Release"
+address = 0x00479CE0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotConfiguration* this)"
+expect = "56 8B F1 8B 46 04 83 F8"
+source = "Slot 2: at the last reference Reset (0x00479A10, called directly) and the deleting destructor (slot 33); the count is not lowered then. Ours only in our own object's vtable."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetID"
+address = 0x004777E0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotConfiguration* this)"
+expect = "8B 41 08 C3 CC CC CC CC"
+source = "Slot 3: +0x8. Code shared with another class (a direct call at 0x004E1BC7). Slot replaced by simulators.lotcfg.slots (src/core/lotcfg_sim.cpp)."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetName"
+address = 0x004777F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfiguration* this, cIGZString* name)"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Slot 4: a jump to the string's slot 13 (Copy) with the name at +0xC. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::BelongsToFamily"
+address = 0x00477A90
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfiguration* this, uint32_t family)"
+expect = "8B 41 28 56 8B 71 24 2B"
+source = "Slot 5: a search of the family IDs (+0x24); ret 4. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetFamilyIDArray"
+address = 0x00477810
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfiguration* this)"
+expect = "8D 41 24 C3 CC CC CC CC"
+source = "Slot 6: the vector at +0x24. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetSize"
+address = 0x00477820
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfiguration* this, uint32_t* width, uint32_t* depth)"
+expect = "0F B6 41 20 8B 54 24 04"
+source = "Slot 7: the bytes +0x20 and +0x21; ret 8. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetMaximumSlope"
+address = 0x00477840
+kind = "function"
+convention = "thiscall"
+signature = "float (cSC4LotConfiguration* this)"
+expect = "D9 41 30 C3 CC CC CC CC"
+source = "Slot 8: +0x30. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetMinimumSlope"
+address = 0x00477850
+kind = "function"
+convention = "thiscall"
+signature = "float (cSC4LotConfiguration* this)"
+expect = "D9 41 34 C3 CC CC CC CC"
+source = "Slot 9: +0x34. Code shared with other classes (the weather simulator's cell width). Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetMaximumSlopeBeforeFoundation"
+address = 0x00477860
+kind = "function"
+convention = "thiscall"
+signature = "float (cSC4LotConfiguration* this)"
+expect = "D9 41 38 C3 CC CC CC CC"
+source = "Slot 10: +0x38. Code shared with other classes. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetGrowthStage"
+address = 0x00477870
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (cSC4LotConfiguration* this)"
+expect = "8A 41 3C C3 CC CC CC CC"
+source = "Slot 11: +0x3C. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetMinBuildingCapacity"
+address = 0x004798E0
+kind = "function"
+convention = "thiscall"
+signature = "uint16_t (cSC4LotConfiguration* this)"
+expect = "66 8B 41 3E C3 CC CC CC"
+source = "Slot 12: +0x3E. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetMaxBuildingCapacity"
+address = 0x004798F0
+kind = "function"
+convention = "thiscall"
+signature = "uint16_t (cSC4LotConfiguration* this)"
+expect = "66 8B 41 40 C3 CC CC CC"
+source = "Slot 13: +0x40. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::IsCompatibleWithWater"
+address = 0x00477880
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfiguration* this)"
+expect = "8A 41 42 C3 CC CC CC CC"
+source = "Slot 14: +0x42. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::IsCompatibleWithZoneType"
+address = 0x00477D00
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotConfiguration* this, uint32_t type)"
+expect = "8B 44 24 04 56 8B 71 44"
+source = "Slot 15: a bit of the vector at +0x44 (16 bits), 0 or 1 in EAX; no test of the index; ret 4. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::IsCompatibleWithWealthType"
+address = 0x00477D50
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotConfiguration* this, uint32_t type)"
+expect = "8B 44 24 04 56 8B 71 58"
+source = "Slot 16: a bit of the vector at +0x58 (4 bits); ret 4. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::IsCompatibleWithPurposeType"
+address = 0x00477DA0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotConfiguration* this, uint32_t type)"
+expect = "8B 44 24 04 56 8B 71 6C"
+source = "Slot 17: a bit of the vector at +0x6C (9 bits); ret 4. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::IsCompatibleWithStyleType"
+address = 0x00477AC0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfiguration* this, uint32_t style)"
+expect = "8B 81 80 00 00 00 8B 89"
+source = "Slot 18: a search of the vector at +0x80 (filled by the manager's message); ret 4. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::IsDoConstruction"
+address = 0x00479900
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfiguration* this)"
+expect = "8A 81 8D 00 00 00 C3 CC"
+source = "Slot 20: +0x8D. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetRequiredRoads"
+address = 0x00478200
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfiguration* this, void* bits)"
+expect = "53 56 8B 74 24 0C 8B 46"
+source = "Slot 21: the caller's std::vector<bool> resized to 4 bits (SC4BitVector::Resize) and set from the low four bits of +0x8E; ret 4. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetLotConfigurationObjectCount"
+address = 0x00477AF0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4LotConfiguration* this)"
+expect = "8B 81 90 00 00 00 8B 91"
+source = "Slot 22: the objects of the vector at +0x90. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetLotConfigurationObjectArray"
+address = 0x00477890
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfiguration* this)"
+expect = "8D 81 90 00 00 00 C3 CC"
+source = "Slot 23: the vector at +0x90. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::FindObjectOfKind"
+address = 0x00477B10
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfiguration* this, uint32_t kind)"
+expect = "8B 81 90 00 00 00 8B 91"
+source = "Name ours. The first object of a kind, or null; ret 4. Only called by slots 24 to 26; a plain function of ours."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetPrimaryBuildingConfigurationObject"
+address = 0x00477DF0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfiguration* this)"
+expect = "6A 00 E8 19 FD FF FF C3"
+source = "Slot 24: the first object of kind 0. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetPrimaryBaseConfigurationObject"
+address = 0x00477E00
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfiguration* this)"
+expect = "6A 02 E8 09 FD FF FF C3"
+source = "Slot 25: the first object of kind 2. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetPrimaryFoundationConfigurationObject"
+address = 0x00477E10
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfiguration* this)"
+expect = "6A 03 E8 F9 FC FF FF C3"
+source = "Slot 26: the first object of kind 3. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::HasObjectsOfType"
+address = 0x00477B60
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfiguration* this, uint32_t kind)"
+expect = "8B 91 94 00 00 00 56 57"
+source = "Slot 27; ret 4. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetRetainingWallIDArray"
+address = 0x004778A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfiguration* this)"
+expect = "8D 81 9C 00 00 00 C3 CC"
+source = "Slot 28: the vector at +0x9C. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetFenceIDArray"
+address = 0x004778B0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfiguration* this)"
+expect = "8D 81 A8 00 00 00 C3 CC"
+source = "Slot 29: the vector at +0xA8. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::GetFenceSegmentPositionArray"
+address = 0x004778C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfiguration* this)"
+expect = "8D 81 B4 00 00 00 C3 CC"
+source = "Slot 30: the vector at +0xB4. Slot replaced by simulators.lotcfg.slots."
+
+[[entry]]
+name = "cSC4LotConfiguration::Load"
+address = 0x00479F70
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfiguration* this, const void* key, uint8_t detail)"
+expect = "81 EC A0 00 00 00 53 55"
+source = "Slot 31: the configuration read from the exemplar at the key (the resource manager's slot 3, interface 0xA52160F5); false without the exemplar or for a version (property 0x88EDC789) below 1; an exemplar of another version than 2 is saved again; ret 8. Slot replaced by simulators.lotcfg.load (src/core/lotcfg_load.cpp)."
+
+[[entry]]
+name = "cSC4LotConfiguration::Save"
+address = 0x00479580
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfiguration* this, const void* key, void* segment)"
+expect = "83 EC 08 53 56 57 8B 3D"
+source = "Slot 32: the configuration written to the exemplar at the key (a new cSCResExemplar when there is none) and the exemplar stored in the segment (the resource manager's slot 13); ret 8. Slot replaced by simulators.lotcfg.load."
+
+[[entry]]
+name = "cSC4LotConfiguration::DeletingDestructor"
+address = 0x00479F50
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfiguration* this, uint32_t flags)"
+expect = "56 8B F1 E8 C8 FC FF FF"
+source = "Slot 33: the destructor 0x00479C20, then operator delete when flags & 1; ret 4. Ours only in our own object's vtable."
+
+[[entry]]
+name = "cSC4LotConfiguration::Destruct"
+address = 0x00479C20
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfiguration* this)"
+expect = "56 8B F1 C7 06 B8 CE A8"
+source = "Name ours. The destructor: Reset, then the storage of every container and of the name. Only called by the deleting destructor."
+
+[[entry]]
+name = "cSC4LotConfiguration::Reset"
+address = 0x00479A10
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfiguration* this)"
+expect = "83 EC 08 53 55 56 8B F1"
+source = "Name ours. Everything but the reference count and the style list (+0x80) back to what the constructor sets, the storage kept. Called by Release, the destructor and Load; a plain function of ours."
+
+[[entry]]
+name = "cSC4LotConfiguration::WriteToExemplar"
+address = 0x00478AC0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfiguration* this, cISCPropertyHolder* holder)"
+expect = "83 EC 34 55 57 8B 7C 24"
+source = "Name ours. Every property of the configuration set on a property holder (emptied first by its slot 18), version 2; false for no holder; ret 4. Only called by Save; a plain function of ours."
+
+[[entry]]
+name = "cSC4LotConfiguration::ClampObjects"
+address = 0x00477BB0
+kind = "function"
+convention = "cdecl"
+signature = "bool (void* objects, const float* rect)"
+expect = "8B 54 24 04 83 EC 0C 85"
+source = "Name ours. Every object's centre moved into the rectangle (greatest x and z, least x and z) less the margin 0x00A8CEA8, its own rectangle moved with it; whether one was moved. Called by Load and at 0x0060F903. Ours in simulators.lotcfg.objects, by a detour."
+
+[[entry]]
+name = "cSC4LotConfiguration::ConstructObject"
+address = 0x00478360
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* object)"
+expect = "8B C1 8B 0D 70 16 B2 00"
+source = "Name ours. The default constructor of a 0x34-byte configuration object (position from 0x00B21670, rectangle 0 to 1, no IDs). Only the lot editor calls it (0x004848C1 and five more). Ours in simulators.lotcfg.objects, by a detour."
+
+[[entry]]
+name = "cSC4LotConfiguration::WriteObjects"
+address = 0x004783A0
+kind = "function"
+convention = "cdecl"
+signature = "void (cISCPropertyHolder* holder, void* objects)"
+expect = "83 EC 30 56 8B 74 24 3C"
+source = "Name ours. Every object but the foundations written as a uint32 array property, 0x88EDC900 and following (positions as 16.16 fixed point; a non-prop's or a negative height is set to 0 in the object first). Called by WriteToExemplar and at 0x0060EBF1. Ours in simulators.lotcfg.load, by a detour."
+
+[[entry]]
+name = "cSC4LotConfiguration::AssignObject"
+address = 0x00478950
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* object, const void* other)"
+expect = "8B 44 24 04 56 8B F1 8A"
+source = "Name ours. The assignment of a configuration object (the ID list by SC4Uint32Vector::CopyAssign); ret 4. Only the lot editor calls it (0x004803AF). Ours in simulators.lotcfg.objects, by a detour."
+
+[[entry]]
+name = "cSC4LotConfiguration::CopyObjectsInto"
+address = 0x004789C0
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* out, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. Objects copy-constructed into raw storage; the end of the copies. Only called by InsertObjects; a plain function of ours."
+
+[[entry]]
+name = "cSC4LotConfiguration::CopyObjectVector"
+address = 0x00479670
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector, const void* other)"
+expect = "53 8B 5C 24 08 55 8B 2B"
+source = "Name ours. The copy constructor of the vector of configuration objects (storage for exactly the other's objects); ret 4. Called by Load (to shrink the vector) and at 0x0060F855. Ours in simulators.lotcfg.objects, by a detour."
+
+[[entry]]
+name = "cSC4LotConfiguration::DestroyObjects"
+address = 0x00479760
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector)"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. The destructor of the vector of configuration objects: every ID list freed, then the storage. Called by InsertObjects, the destructor, at 0x0049BD90 and 0x006100B3 and by the exit thunk 0x00A7C050. Ours in simulators.lotcfg.objects, by a detour."
+
+[[entry]]
+name = "cSC4LotConfiguration::PushBackObject"
+address = 0x00479BE0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, const void* object)"
+expect = "56 8B F1 8B 4E 04 3B 4E"
+source = "Name ours. push_back of the vector of configuration objects; ret 4. Only the lot editor calls it (0x00484CAF). Ours in simulators.lotcfg.objects, by a detour."
+
+[[entry]]
+name = "cSC4LotConfiguration::LoadObjects"
+address = 0x00479D10
+kind = "function"
+convention = "cdecl"
+signature = "void (cISCPropertyHolder* holder, void* objects, uint8_t version, uint8_t detail)"
+expect = "83 EC 44 0F B6 44 24 54"
+source = "Name ours. The object vector emptied and filled from the uint32 array properties 0x88EDC900 and following, up to the first missing one (at least 10 values each; an object that is no building with detail bits (flags & 0x30) of detail << 4 or more is left out). Called by Load and at 0x0060F816. Ours in simulators.lotcfg.load, by a detour."
+
+[[entry]]
+name = "SC4::SetPropertyString"
+address = 0x005FE580
+kind = "function"
+convention = "cdecl"
+signature = "void (cISCPropertyHolder* holder, uint32_t property, const cIGZString* value)"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. As SC4::SetPropertyUint32 with the variant's slot 56 (0xE0): sets a string property, adding the property if missing."
+
+[[entry]]
+name = "SC4::SetPropertyUint8Vector"
+address = 0x005FE610
+kind = "function"
+convention = "cdecl"
+signature = "void (cISCPropertyHolder* holder, uint32_t property, const void* vector)"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "Name ours. As SC4::SetPropertyUint32Vector for a byte vector (the variant's slot 94, 0x178, with the bytes and their count)."
+
+[[entry]]
+name = "cSCResExemplar::cSCResExemplar"
+address = 0x0067CC50
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 8B F1 57 8D 7E 04"
+source = "The constructor of an exemplar (0x40 bytes; vtables 0x00AAF0D0, 0x00AAF09C at +0x4 and the property holder's 0x00AAF038 at +0x1C). The lot configuration's Save makes one when the key has none."
+
+[[entry]]
+name = "cSC4LotConfiguration::vftable"
+address = 0x00A8CEB8
+kind = "vtable"
+expect = "B0 77 47 00 F0 47 5F 00"
+source = "The cISC4LotConfiguration vtable (34 slots, the deleting destructor last; the map in src/core/lotcfg_sim.h). Slots 3 to 18 and 20 to 30 replaced by simulators.lotcfg.slots, 31 and 32 by simulators.lotcfg.load; our object (simulators.lotcfg.object) copies all of it."
+
+[[entry]]
+name = "cSC4LotConfiguration::FloatEdgeMargin"
+address = 0x00A8CEA8
+kind = "data"
+source = "float 0.04: how far inside the lot's edge ClampObjects keeps an object's centre."
+
+[[entry]]
+name = "cSC4LotConfiguration::DoubleFixedPoint"
+address = 0x00A8CEB0
+kind = "data"
+source = "double 65536.0: WriteObjects' scale of a position to 16.16 fixed point."
+
+[[entry]]
+name = "cSC4LotConfiguration::DoubleFixedPointInverse"
+address = 0x00A8CF40
+kind = "data"
+source = "double 1/65536: LoadObjects' scale of a 16.16 fixed point value to a float."
+
+[[entry]]
+name = "cSC4LotConfiguration::RoadWarningFormat"
+address = 0x00A8CF48
+kind = "data"
+source = "The text 'Lot template 0x%08x should have a road required on the south edge' (and a line feed) Load formats into a string (and drops) when the road byte lacks bit 8."
+
+[[entry]]
+name = "cSC4LotConfiguration::NextObjectId"
+address = 0x00B2166C
+kind = "data"
+source = "uint32: the counter of object IDs LoadObjects gives the objects of exemplars older than version 2; seeded from the COM object's CreateGuid (slot 7) when 0."
+
+[[entry]]
+name = "cSC4LotConfiguration::ObjectDefaultPosition"
+address = 0x00B21670
+kind = "data"
+source = "float (0 in the image): x, y and z of a default-constructed configuration object."

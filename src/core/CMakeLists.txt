@@ -155,6 +155,9 @@ add_library(opensc4_core SHARED
   lotconfig_autotest.cpp
   lotconfig_queries.cpp
   lotconfig_sim.cpp
+  lotcfg_autotest.cpp
+  lotcfg_load.cpp
+  lotcfg_sim.cpp
   landfill_sim.cpp
   seaport_autotest.cpp
   seaport_sim.cpp

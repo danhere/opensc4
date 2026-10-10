@@ -70,6 +70,7 @@ Along the way the proxy turned up a real bug: eight garbage getters return 64-bi
 ## Limits
 
 - **Heap layout** no longer matters for the cases tested: with `determinism.agent_order` and `determinism.zero_alloc`, shifting the game's heap by up to a few kilobytes changes nothing (ten shifts over 7 days, clock reads identical; 11 of 12 saves in the shifted control). The harness still gives both runs identical environments, which costs nothing. A replacement that reads uninitialised memory of its own, or orders things by address, would bring the problem back; the shifted control (`OPENSC4_PARITY_B=diagnostics.heap_shift=ours OPENSC4_HEAP_SHIFT=<bytes>`) is the check.
+- **Machine load** still reaches the simulation on some saves: with every CPU core busy, the first day's trips on Big City d0000 come out differently, in the original as in ours, every time (five of five each; [lotconfig.md](lotconfig.md)). Batches that run while something else uses the machine can part on that save; repeat on a quiet machine before reading anything into it.
 - **Schedule.** `determinism.fixed_ticks` ends a day as soon as its work is done; real play on a fast machine spends waiting time on idle work. Parity holds for this schedule.
 - **Whole saves** still differ from run to run in some records (automata, advisors, props, the traffic network map; [experiments/determinism.md](experiments/determinism.md)); the harness compares fingerprints and decoded records, which agree.
 
@@ -96,6 +97,7 @@ The test cities never edit their networks, so parity alone would not reach the c
 | `OPENSC4_TEST_CITYLOT=1` | each day, the pure query slots of every 7th lot, into the fingerprint ([citylot.md](citylot.md)); `OPENSC4_TEST_CITYLOT_DUMP=<n>` logs every lot's fields at the n-th fingerprint of a run |
 | `OPENSC4_TEST_LANDFILL_ZONING=<n>`, `OPENSC4_TEST_LANDFILL_DEZONING=<n>`, `OPENSC4_TEST_LANDFILLZONE=1` | on the n-th day: a 6 by 6 square of free land zoned as landfill through the zone manager; its left half dezoned; each day, the landfill zones' queries into the fingerprint ([landfill.md](landfill.md)) |
 | `OPENSC4_TEST_LOTCONFIG=1` (2: a filter registered and unregistered too) | each day, the lot configuration manager's queries into the fingerprint ([lotconfig.md](lotconfig.md)) |
+| `OPENSC4_TEST_LOTCFG=1` | each day, the query slots of every 16th lot configuration into the fingerprint ([lotconfig.md](lotconfig.md)) |
 | `OPENSC4_TEST_ZONE=1` | each day, the lot manager's and zone developer's pure queries on a lattice of cells, into the fingerprint ([zone.md](zone.md)) |
 | `OPENSC4_TEST_CRIME_QUERIES=1` | each day, the crime queries only the UI and the automata make, into the fingerprint ([crime.md](crime.md)) |
 | `OPENSC4_TEST_MYSIM_QUERIES=1` | each day, what the MySim panel and balloons ask every MySim, into the fingerprint ([mysim-agents.md](mysim-agents.md)) |
