@@ -1,0 +1,55 @@
+# The water effects, sky and clouds layer of the renderer (docs/renderer.md).
+
+[[entry]]
+name = "cSC43DRender::AddViewObject"
+address = 0x007C5D90
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC43DRender* this, cISC4ViewObject3D* object, int32_t pass, uint32_t order)"
+expect = "8B 44 24 08 83 F8 03 56"
+source = "Vtable 0x00ABAB60 slot 32 (gzcom-dll cISC43DRender.h). Adds the object to one of four lists by pass: 3 (+0x188), 5 (+0x18C), 0 (+0x190), 2 (+0x194); cSC43DRender::Draw calls each list's objects (slot 0xC, with the render context) around the static and moving passes."
+
+[[entry]]
+name = "SC4CameraView::BoxInView"
+address = 0x007F6770
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4CameraView* this, const float* min, const float* max)"
+expect = "83 EC 0C D9 81 14 02 00"
+source = "Name ours, not analysed. Called on the render context's +0x24 object with a box's two corners before drawing what the box holds (the shore strips 0x0075FE70 and 0x00761FF0, the effects manager's draw 0x00593120)."
+
+[[entry]]
+name = "STEShore::Draw"
+address = 0x00761FF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (STEShore* this, SC4RenderContext* context)"
+expect = "51 55 8B E9 8A 45 18 84"
+source = "Class name ours (vtables 0x00AB45FC and 0x00AB4624; code 0x0075FAE0 to 0x00762100). Slot 3 of the vtable at 0x00AB4624, the object cSC43DRender::AddViewObject gets for pass 5, order 1100 (diagnostics.trace.viewobjects). Builds its strips on the first draw, then, when the render property at +0x7C is set, draws every group in view (docs/renderer.md, \"Water effects\")."
+
+[[entry]]
+name = "STEShore::DrawStrip"
+address = 0x0075FE70
+kind = "function"
+convention = "thiscall"
+signature = "void (STEShore* this, STEShoreStrip* strip, SC4RenderContext* context)"
+expect = "53 8B D9 8B 83 B4 00 00"
+source = "Name ours. When the object has textures (+0xB4) and the strip's box (+0x34, +0x40) is in view: binds the texture the strip's +0xC picks and draws the strip's 24-byte vertices (+0, +4) as primitive 7, format 10. Called only by STEShore::Draw (0x007620CF)."
+
+[[entry]]
+name = "STEShore::Build"
+address = 0x00761B70
+kind = "function"
+convention = "thiscall"
+signature = "void (STEShore* this)"
+expect = "A0 B0 D7 B0 00 83 EC 30"
+source = "Name ours, not analysed. Walks the terrain's cells (records at the terrain's +0x6C, flags at +0x22: bit 0x10 set, bit 1 clear) and builds the strips. Called by STEShore::Draw on the first draw (0x00762000) and by STEShore::SetZoom."
+
+[[entry]]
+name = "STEShore::SetZoom"
+address = 0x00761CF0
+kind = "function"
+convention = "thiscall"
+signature = "void (STEShore* this)"
+expect = "83 EC 08 53 56 8B F1 8A"
+source = "Name ours, not analysed. Rebuilds when +0x78 is set, then takes the values for the zoom at +0x40 from tables and redoes each group. Called by STEShore::Draw on the first draw and when the context's zoom (+0x14) differs from +0x40."
