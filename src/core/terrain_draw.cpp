@@ -1738,6 +1738,33 @@ uint32_t UpdateBillboardCorners(char* object, char* context)
 #undef FCOM
 }
 
+// cSC43DRender::ClearViewport (0x007C3F80, slot 0xBC), the frame's
+// background redraw, translated instruction by instruction.
+uint32_t ClearViewport(char* render, uint32_t argument)
+{
+    uint32_t stackmem[320] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(render);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[288]);
+    M<uint32_t>(esp + 4) = argument;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/render_clear_viewport.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
 // The billboard's draw (0x007FEA90): a textured quad that faces the camera,
 // the most drawn thing in a city. `self` is the object + 0x170, as the
 // adjustor in its vtable passes it. Fields of the object: +0x20 flags,
@@ -3065,6 +3092,33 @@ uint32_t __fastcall DCorners(char* object, void*, char* context)
     return result;
 }
 
+using ClearFn = uint32_t(__fastcall*)(char*, void*, uint32_t);
+ClearFn g_clearViewport;
+bool g_compareClear = false;
+
+uint32_t __fastcall DClearViewport(char* render, void*, uint32_t argument)
+{
+    if (g_depth > 0)
+        return g_clearViewport(render, nullptr, argument);
+    if (!g_compareClear)
+        return ClearViewport(render, argument);
+    std::vector<Region> regions = RenderRegions(render);
+    regions.push_back({"render", render, 0x270});
+    uint32_t result = 0;
+    const auto original = [&] { result = g_clearViewport(render, nullptr, argument); };
+    QuietRun(regions, original);
+    DrawCompared(g_selfCheck ? "render.clear.selfcheck" : "render.clear", regions,
+                 [&] {
+                     if (g_selfCheck)
+                         g_clearViewport(render, nullptr, argument);
+                     else
+                         ClearViewport(render, argument);
+                 },
+                 original, true);
+    return result;
+}
+
+OPENSC4_THUNK(TClearViewport, DClearViewport, 4)
 OPENSC4_THUNK(TCorners, DCorners, 4)
 OPENSC4_THUNK(TBillboard, DBillboard, 8)
 OPENSC4_THUNK(TDrawMoving, DDrawMoving, 0)
@@ -3695,6 +3749,29 @@ const bool g_registeredCorners = registry::Register({
     "runs the game's and compares the billboard's bytes (docs/renderer.md, \"Models and lots\")",
     true,
     InstallCorners,
+});
+
+bool InstallClearViewport(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareClear = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC43DRender_ClearViewportBody, &TClearViewport, &g_clearViewport))
+        return false;
+    log::Write("render: background redraw %s", g_compareClear ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredClearViewport = registry::Register({
+    "renderer.frame.background",
+    "renderer/frame",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC43DRender_ClearViewportBody,
+    "cSC43DRender::ClearViewport, the frame's background redraw; compare mode as renderer.models.static "
+    "(docs/renderer.md, \"Models and lots\")",
+    true,
+    InstallClearViewport,
 });
 
 } // namespace
