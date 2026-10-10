@@ -92,6 +92,8 @@ The test cities never edit their networks, so parity alone would not reach the c
 | `OPENSC4_TEST_AIRPORT=1`, `OPENSC4_TEST_SEAPORT=1`, `OPENSC4_TEST_LANDFILL=1` | each day, the queries of those developers no test city makes, into the fingerprint ([ports.md](ports.md), [landfill.md](landfill.md)) |
 | `OPENSC4_TEST_PROP=1` (2: the frame-driven state too) | each day, the prop developer's queries no test city makes, into the fingerprint ([prop.md](prop.md)) |
 | `OPENSC4_TEST_LOT=1` (2: the timer-driven night step too) | each day, the lot developer's queries no test city makes, into the fingerprint ([lot.md](lot.md)) |
+| `OPENSC4_TEST_ZONING=<n>`, `OPENSC4_TEST_DEZONING=<n>` | on the n-th day: four rectangles of free land zoned through the zone manager (residential, commercial, agriculture, industry); the left half of each dezoned again ([zone.md](zone.md)) |
+| `OPENSC4_TEST_ZONE=1` | each day, the lot manager's and zone developer's pure queries on a lattice of cells, into the fingerprint ([zone.md](zone.md)) |
 | `OPENSC4_TEST_CRIME_QUERIES=1` | each day, the crime queries only the UI and the automata make, into the fingerprint ([crime.md](crime.md)) |
 | `OPENSC4_TEST_MYSIM_QUERIES=1` | each day, what the MySim panel and balloons ask every MySim, into the fingerprint ([mysim-agents.md](mysim-agents.md)) |
 | `OPENSC4_TEST_MYSIM_DRIVE=<day>` | on that day every MySim leaves for work, returns home and hears of building and connection changes, fires and disasters ([mysim-agents.md](mysim-agents.md)) |
