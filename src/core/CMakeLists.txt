@@ -172,6 +172,7 @@ add_library(opensc4_core SHARED
   d3d7_probe.cpp
   dbpf_survey.cpp
   plugin_loader.cpp
+  stale_record_fix.cpp
   gdriver_proxy.cpp
   landvalue_autotest.cpp
   landvalue_object.cpp
