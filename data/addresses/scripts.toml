@@ -3680,7 +3680,7 @@ source = "Name ours. The exit handler that destroys SC4SituationAdvice::MessageT
 name = "cSCLua::F880000"
 address = 0x00880000
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "53 56 6A 58 E8 D7 55 D6"
 source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
 
@@ -3688,7 +3688,7 @@ source = "Placeholder name (docs/lua.md): a function of the script context, 80 b
 name = "cSCLua::F880050"
 address = 0x00880050
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "53 56 6A 1C E8 87 55 D6"
 source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
 
@@ -3696,7 +3696,7 @@ source = "Placeholder name (docs/lua.md): a function of the script context, 80 b
 name = "cSCLua::F8800A0"
 address = 0x008800A0
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "53 56 6A 58 E8 37 55 D6"
 source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
 
@@ -3720,7 +3720,7 @@ source = "Placeholder name (docs/lua.md): a function of the script context, 48 b
 name = "cSCLua::F880180"
 address = 0x00880180
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "8A 0D E4 42 B5 00 B8 01"
 source = "Placeholder name (docs/lua.md): a function of the script context, 64 bytes with padding."
 
@@ -4280,7 +4280,7 @@ source = "Placeholder name (docs/lua.md): a function of the script context, 80 b
 name = "cSCLua::F880710"
 address = 0x00880710
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "56 57 8B 7C 24 10 8B 0F"
 source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
 
@@ -4315,14 +4315,6 @@ kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8A 46 2C 84 C0"
 source = "Placeholder name (docs/lua.md): a function of the script context, 160 bytes with padding."
-
-[[entry]]
-name = "cSCLua::F880900"
-address = 0x00880900
-kind = "function"
-convention = "thiscall"
-expect = "33 FF C7 44 24 0C 00 00"
-source = "Placeholder name (docs/lua.md): a function of the script context, 80 bytes with padding."
 
 [[entry]]
 name = "cSCLua::F880950"
@@ -4952,7 +4944,7 @@ source = "Placeholder name (docs/lua.md): a function of the script context, 32 b
 name = "cSCLua::F880F50"
 address = 0x00880F50
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "83 EC 34 8B 44 24 38 53"
 source = "Placeholder name (docs/lua.md): a function of the script context, 1197 bytes with padding."
 
@@ -5712,7 +5704,7 @@ source = "Placeholder name (docs/lua.md): a function of the script context, 128 
 name = "cSCLua::F8B8D70"
 address = 0x008B8D70
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "8B 44 24 04 56 8B 70 FC"
 source = "Placeholder name (docs/lua.md): a function of the script context, 96 bytes with padding."
 
@@ -5840,7 +5832,7 @@ source = "Placeholder name (docs/lua.md): a function of the script context, 32 b
 name = "cSCLua::F8B9360"
 address = 0x008B9360
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "83 EC 5C 53 55 8D 44 24"
 source = "Placeholder name (docs/lua.md): a function of the script context, 784 bytes with padding."
 
@@ -6115,3 +6107,1037 @@ kind = "function"
 convention = "thiscall"
 expect = "53 55 56 57 8B F1 E8 FF"
 source = "Placeholder name (docs/lua.md): a function of the script context, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Precision::Get"
+address = 0x00892A0A
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 83 65 FC 00"
+source = "Returns the x87 precision setting: 0 = 24 bit, 1 = 53 bit, 2 = 64 bit"
+
+[[entry]]
+name = "SC4Precision::Set"
+address = 0x008929E0
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 83 65 FC 00"
+source = "(precision): sets the x87 precision (0 = 24 bit, 1 = 53 bit, 2 = 64 bit)"
+
+[[entry]]
+name = "SCLuaRecord::Construct"
+address = 0x008B5E70
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 33 DB 89 5E"
+source = "Constructor of the native function table's 0x2C-byte record (id, two strings at +4 and +0x18); returns this"
+
+[[entry]]
+name = "SCLuaRecords::DestroyRange"
+address = 0x008B5ED0
+kind = "function"
+convention = "cdecl"
+expect = "55 8B 6C 24 0C 57 8B 7C"
+source = "(first, last, tag*): destroys the function table's records in a range"
+
+[[entry]]
+name = "SCLuaRecords::CopyRange"
+address = 0x008B63D0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 53 8B 5C 24"
+source = "(first, last, to, tag*, 0): copies the function table's records down; returns the end of the copy"
+
+[[entry]]
+name = "SCLuaRecords::Resize"
+address = 0x008B66E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 1E 57 8B"
+source = "(count, record*): resize of the function table's record vector with a fill record; ret 8"
+
+[[entry]]
+name = "SCLuaFunctionTable::Dispatch"
+address = 0x008B5B70
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "(lua_State*): the Lua C function behind every function of the native function table (upvalues: record index, table object, context)"
+
+[[entry]]
+name = "SC4Uint32HashMap::Lookup"
+address = 0x004F8D30
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 08 56"
+source = "(key*): the value slot of a key in a uint32 to uint32 hash map, inserted with 0 when missing; returns a pointer to the value; ret 4"
+
+[[entry]]
+name = "SCLuaThreads::FromState"
+address = 0x008BC500
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 48 10 8B"
+source = "(lua_State*): the thread table of the Lua object that owns a state (through the main thread's owner pointer)"
+
+[[entry]]
+name = "SCLuaThreads::ThreadStatus"
+address = 0x008BC540
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 60 56 8B 71 08 57"
+source = "(thread id): -1 unknown, 2 flagged 0x10000000, 1 running or with values on its stack, else 0; ret 4"
+
+[[entry]]
+name = "SCLuaThreads::EndThread"
+address = 0x008BCEE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 8B D9 8B 53"
+source = "(lua_State*, thread id): ends a thread and its children, clears its registry entry; false when unknown; ret 8"
+
+[[entry]]
+name = "Lua::CheckStack"
+address = 0x008BA5D0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "lua_checkstack(L, extra)"
+
+[[entry]]
+name = "Lua::XMove"
+address = 0x008BA630
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 08 8B 4B 08"
+source = "lua_xmove(from, to, n)"
+
+[[entry]]
+name = "Lua::GetTop"
+address = 0x008BA6D0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 41 08 2B"
+source = "lua_gettop(L)"
+
+[[entry]]
+name = "Lua::SetTop"
+address = 0x008BA6E0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 85 C9 8B 44"
+source = "lua_settop(L, index)"
+
+[[entry]]
+name = "Lua::Remove"
+address = 0x008BA740
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_remove(L, index)"
+
+[[entry]]
+name = "Lua::Insert"
+address = 0x008BA7A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_insert(L, index)"
+
+[[entry]]
+name = "Lua::Replace"
+address = 0x008BA800
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "lua_replace(L, index)"
+
+[[entry]]
+name = "Lua::PushValue"
+address = 0x008BA850
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_pushvalue(L, index)"
+
+[[entry]]
+name = "Lua::Type"
+address = 0x008BA890
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 8B 4C"
+source = "lua_type(L, index)"
+
+[[entry]]
+name = "Lua::TypeName"
+address = 0x008BA8C0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 83 F8 FF 75"
+source = "lua_typename(L, type)"
+
+[[entry]]
+name = "Lua::IsCFunction"
+address = 0x008BA8E0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 8B 4C"
+source = "lua_iscfunction(L, index)"
+
+[[entry]]
+name = "Lua::IsNumber"
+address = 0x008BA920
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "lua_isnumber(L, index)"
+
+[[entry]]
+name = "Lua::IsString"
+address = 0x008BA970
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 8B 4C"
+source = "lua_isstring(L, index)"
+
+[[entry]]
+name = "Lua::IsUserData"
+address = 0x008BA9B0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 8B 4C"
+source = "lua_isuserdata(L, index)"
+
+[[entry]]
+name = "Lua::RawEqual"
+address = 0x008BA9F0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_rawequal(L, index1, index2)"
+
+[[entry]]
+name = "Lua::Equal"
+address = 0x008BAA60
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_equal(L, index1, index2)"
+
+[[entry]]
+name = "Lua::LessThan"
+address = 0x008BAAE0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_lessthan(L, index1, index2)"
+
+[[entry]]
+name = "Lua::ToNumber"
+address = 0x008BAB50
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "lua_tonumber(L, index); the double is returned on the x87 stack"
+
+[[entry]]
+name = "Lua::ToBoolean"
+address = 0x008BABA0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 8B 4C"
+source = "lua_toboolean(L, index)"
+
+[[entry]]
+name = "Lua::ToString"
+address = 0x008BABE0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 57"
+source = "lua_tostring(L, index)"
+
+[[entry]]
+name = "Lua::StrLen"
+address = 0x008BAC50
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 57"
+source = "lua_strlen(L, index)"
+
+[[entry]]
+name = "Lua::ToCFunction"
+address = 0x008BACB0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 8B 4C"
+source = "lua_tocfunction(L, index)"
+
+[[entry]]
+name = "Lua::ToUserData"
+address = 0x008BACF0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 8B 4C"
+source = "lua_touserdata(L, index)"
+
+[[entry]]
+name = "Lua::ToThread"
+address = 0x008BAD30
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 8B 4C"
+source = "lua_tothread(L, index)"
+
+[[entry]]
+name = "Lua::PushNil"
+address = 0x008BADD0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 48 08 C7"
+source = "lua_pushnil(L)"
+
+[[entry]]
+name = "Lua::PushNumber"
+address = 0x008BADF0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 DD 44 24 08"
+source = "lua_pushnumber(L, double)"
+
+[[entry]]
+name = "Lua::PushLString"
+address = 0x008BAE10
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 46 10"
+source = "lua_pushlstring(L, text, length)"
+
+[[entry]]
+name = "Lua::PushString"
+address = 0x008BAE60
+kind = "function"
+convention = "cdecl"
+expect = "55 8B 6C 24 0C 85 ED 75"
+source = "lua_pushstring(L, text)"
+
+[[entry]]
+name = "Lua::PushCClosure"
+address = 0x008BAF30
+kind = "function"
+convention = "cdecl"
+expect = "53 56 8B 74 24 0C 8B 46"
+source = "lua_pushcclosure(L, function, upvalues)"
+
+[[entry]]
+name = "Lua::PushBoolean"
+address = 0x008BAFC0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 48 08 56"
+source = "lua_pushboolean(L, value)"
+
+[[entry]]
+name = "Lua::PushLightUserData"
+address = 0x008BAFF0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 48 08 8B"
+source = "lua_pushlightuserdata(L, pointer)"
+
+[[entry]]
+name = "Lua::GetTable"
+address = 0x008BB010
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_gettable(L, index)"
+
+[[entry]]
+name = "Lua::RawGet"
+address = 0x008BB060
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_rawget(L, index)"
+
+[[entry]]
+name = "Lua::RawGetI"
+address = 0x008BB0B0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_rawgeti(L, index, n)"
+
+[[entry]]
+name = "Lua::NewTable"
+address = 0x008BB100
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 46 10"
+source = "lua_newtable(L)"
+
+[[entry]]
+name = "Lua::GetMetaTable"
+address = 0x008BB140
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_getmetatable(L, index)"
+
+[[entry]]
+name = "Lua::GetFEnv"
+address = 0x008BB1B0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_getfenv(L, index)"
+
+[[entry]]
+name = "Lua::SetTable"
+address = 0x008BB200
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_settable(L, index)"
+
+[[entry]]
+name = "Lua::RawSet"
+address = 0x008BB240
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_rawset(L, index)"
+
+[[entry]]
+name = "Lua::RawSetI"
+address = 0x008BB2A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 57"
+source = "lua_rawseti(L, index, n)"
+
+[[entry]]
+name = "Lua::SetMetaTable"
+address = 0x008BB300
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_setmetatable(L, index)"
+
+[[entry]]
+name = "Lua::SetFEnv"
+address = 0x008BB370
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "lua_setfenv(L, index)"
+
+[[entry]]
+name = "Lua::Call"
+address = 0x008BB3E0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 8B 44 24 04"
+source = "lua_call(L, nargs, nresults)"
+
+[[entry]]
+name = "Lua::Load"
+address = 0x008BB490
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 10 83 EC 14 85"
+source = "lua_load(L, reader, data, chunkname)"
+
+[[entry]]
+name = "Lua::Error"
+address = 0x008BB590
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 50 E8 B6 EB"
+source = "lua_error(L)"
+
+[[entry]]
+name = "Lua::Next"
+address = 0x008BB5A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "lua_next(L, index)"
+
+[[entry]]
+name = "Lua::Concat"
+address = 0x008BB5F0
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 46 10"
+source = "lua_concat(L, n)"
+
+[[entry]]
+name = "Lua::NewUserData"
+address = 0x008BB670
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 46 10"
+source = "lua_newuserdata(L, size)"
+
+[[entry]]
+name = "Lua::Yield"
+address = 0x008BC0F0
+kind = "function"
+convention = "cdecl"
+expect = "51 56 8B 74 24 0C 66 83"
+source = "lua_yield(L, nresults)"
+
+[[entry]]
+name = "LuaL::Ref"
+address = 0x008BE160
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 85 DB 56"
+source = "luaL_ref(L, table index)"
+
+[[entry]]
+name = "LuaL::Unref"
+address = 0x008BE230
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 10 85 DB 7C"
+source = "luaL_unref(L, table index, reference)"
+
+[[entry]]
+name = "Lua::DoFile"
+address = 0x008BE580
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "lua_dofile(L, filename)"
+
+[[entry]]
+name = "Lua::DoBuffer"
+address = 0x008BE5C0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 8B 44 24 10 8B"
+source = "lua_dobuffer(L, buffer, size, name)"
+
+[[entry]]
+name = "Lua::DoString"
+address = 0x008BE620
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 08 8B C2 56 8D"
+source = "lua_dostring(L, text)"
+
+[[entry]]
+name = "Lua::PCall"
+address = 0x008BB420
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 10 83 EC 08 85"
+source = "lua_pcall (lua_State*, int nargs, int nresults, int errfunc)."
+
+[[entry]]
+name = "Lua::GetGCThreshold"
+address = 0x008BB530
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 48 10 8B"
+source = "lua_getgcthreshold (lua_State*)."
+
+[[entry]]
+name = "Lua::GetGCCount"
+address = 0x008BB540
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 48 10 8B"
+source = "lua_getgccount (lua_State*)."
+
+[[entry]]
+name = "Lua::SetGCThreshold"
+address = 0x008BB550
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 3D FF FF 3F"
+source = "lua_setgcthreshold (lua_State*, int)."
+
+[[entry]]
+name = "LuaL::LoadFile"
+address = 0x008BE310
+kind = "function"
+convention = "cdecl"
+expect = "81 EC 04 02 00 00 53 56"
+source = "luaL_loadfile (lua_State*, const char* name)."
+
+[[entry]]
+name = "LuaL::LoadBuffer"
+address = 0x008BE4E0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 8B 44 24 10 8B"
+source = "luaL_loadbuffer (lua_State*, const char* buffer, size_t size, const char* name)."
+
+[[entry]]
+name = "Lua::OpenTable"
+address = 0x008BFAA0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 6A 00 68 90"
+source = "luaopen_table (lua_State*)."
+
+[[entry]]
+name = "Lua::OpenDebug"
+address = 0x008C0450
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 6A 00 68"
+source = "luaopen_debug (lua_State*); also sets _TRACEBACK."
+
+[[entry]]
+name = "Lua::OpenMath"
+address = 0x008C0B40
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 6A 00 68"
+source = "luaopen_math (lua_State*)."
+
+[[entry]]
+name = "Lua::OpenString"
+address = 0x008C2470
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 6A 00 68 70"
+source = "luaopen_string (lua_State*)."
+
+[[entry]]
+name = "Lua::OpenIO"
+address = 0x008C3AD0
+kind = "function"
+convention = "cdecl"
+expect = "53 56 8B 74 24 0C 57 6A"
+source = "luaopen_io (lua_State*)."
+
+[[entry]]
+name = "Lua::OpenBase"
+address = 0x008C4F30
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 E8 36 FF"
+source = "luaopen_base (lua_State*)."
+
+[[entry]]
+name = "Lua::Open"
+address = 0x008C52C0
+kind = "function"
+convention = "cdecl"
+expect = "53 6A 68 33 DB 53 53 53"
+source = "lua_open (): a new Lua state."
+
+[[entry]]
+name = "Lua::Close"
+address = 0x008C5360
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 48 10 56"
+source = "lua_close (lua_State*)."
+
+[[entry]]
+name = "cGZLua5Compat::NewTag"
+address = 0x008BE930
+kind = "function"
+convention = "cdecl"
+expect = "53 56 57 E8 D2 40 FD FF"
+source = "Name ours. Lua C function of the game's Lua 4 tag library (game code, not Lua's): returns a new tag number (counter at 0x00B5C438)."
+
+[[entry]]
+name = "cGZLua5Compat::Tag"
+address = 0x008BE990
+kind = "function"
+convention = "cdecl"
+expect = "53 56 57 E8 72 40 FD FF"
+source = "Name ours. Lua C function of the game's Lua 4 tag library: the tag of its argument."
+
+[[entry]]
+name = "cGZLua5Compat::GetTagMethod"
+address = 0x008BEC80
+kind = "function"
+convention = "cdecl"
+expect = "53 55 56 E8 82 3D FD FF"
+source = "Name ours. Lua C function of the game's Lua 4 tag library: (tag, event) gives the tag method."
+
+[[entry]]
+name = "cGZLua5Compat::SetTag"
+address = 0x008BEE90
+kind = "function"
+convention = "cdecl"
+expect = "53 56 57 E8 72 3B FD FF"
+source = "Name ours. (lua_State*, int32_t tag): gives the value on top of the stack the tag (Lua 4 lua_settag made with Lua 5 metatables)."
+
+[[entry]]
+name = "cGZLua5Compat::SetTagMethod"
+address = 0x008BEF00
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 53 55 56 57 E8"
+source = "Name ours. Lua C function of the game's Lua 4 tag library: (tag, event, function) sets the tag method."
+
+[[entry]]
+name = "cGZLua5Compat::CopyTagMethods"
+address = 0x008BEFE0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 53 55 56 57 E8"
+source = "Name ours. Lua C function of the game's Lua 4 tag library: (to, from) copies the tag methods."
+
+[[entry]]
+name = "cGZLua5Compat::PushUserTag"
+address = 0x008BF100
+kind = "function"
+convention = "cdecl"
+expect = "53 55 56 57 E8 01 39 FD"
+source = "Name ours. (lua_State*, void* data, int32_t tag): pushes a new user data holding the pointer and gives it the tag."
+
+[[entry]]
+name = "cGZLua5Compat::Open"
+address = 0x008BF160
+kind = "function"
+convention = "cdecl"
+expect = "53 56 57 E8 A2 38 FD FF"
+source = "Name ours. (cIGZLua5*): registers the Lua 4 compatibility functions (cIGZLua5::Open flag 0x40)."
+
+[[entry]]
+name = "cGZLua5::OpenExtras"
+address = 0x008BD6A0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 53 55 56 57 E8"
+source = "Name ours. (cIGZLua5*): the last step of cIGZLua5::Open after the standard libraries, always run; works through the main thread's interface."
+
+[[entry]]
+name = "SCLuaThreads::Find"
+address = 0x008BC700
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 04 57 8B 79 08"
+source = "Name ours. The thread table of cGZLua5 (object + 0x20; hash map from thread ID). (int32_t id): the thread's lua_State* or null; the thread object's cIGZLua5Thread* is stored in the four bytes before the state."
+
+[[entry]]
+name = "SCLuaThreads::Destruct"
+address = 0x008BCC20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 14 85 C9"
+source = "Name ours. Destructor of cGZLua5's thread table."
+
+[[entry]]
+name = "SCLuaThreads::Open"
+address = 0x008BCC50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 8B 5C 24 24"
+source = "Name ours. (cIGZLua5* owner, lua_State* main): takes the owner as the main thread (its OnCreate), registers it; returns a bool."
+
+[[entry]]
+name = "SCLuaThreads::Create"
+address = 0x008BCD50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 55 8B 6C 24"
+source = "Name ours. (lua_State* main, int32_t flags, uint32_t user): makes a Lua thread and its cIGZLua5Thread object; returns the new thread ID or -1."
+
+[[entry]]
+name = "SCLuaThreads::Resume"
+address = 0x008BD040
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 55 8B 6C 24 18"
+source = "Name ours. (lua_State* main, int32_t id, int32_t nargs): resumes a thread; returns the Lua status (1 with the message 'Resuming Lua thread with invalid ID' when there is none)."
+
+[[entry]]
+name = "SCLuaThreads::Construct"
+address = 0x008BD600
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 33 FF 89 7E"
+source = "Name ours. Constructor of cGZLua5's thread table (1000 buckets)."
+
+[[entry]]
+name = "SCLuaThreads::Close"
+address = 0x008BD630
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 14 8B 01"
+source = "Name ours. Destroys every thread and releases the main thread; returns true."
+
+[[entry]]
+name = "cIGZLua5Thread::PureVtable"
+address = 0x00AC8BF8
+kind = "data"
+source = "Name ours. The abstract cIGZLua5Thread vtable (pure-call slots) the constructors store first."
+
+[[entry]]
+name = "cIGZLua5::PureVtable"
+address = 0x00AC8D7C
+kind = "data"
+source = "Name ours. The abstract cIGZLua5 vtable (pure-call slots) cGZLua5's constructor stores first."
+
+[[entry]]
+name = "cGZLua5Thread::ThreadVtable"
+address = 0x00AC8DD0
+kind = "data"
+source = "Name ours. cGZLua5Thread's cIGZLua5Thread vtable (object + 8, 97 slots)."
+
+[[entry]]
+name = "cGZLua5Thread::Vtable"
+address = 0x00AC8F54
+kind = "data"
+source = "Name ours. cGZLua5Thread's main vtable (QueryInterface, AddRef, Release, deleting destructor)."
+
+[[entry]]
+name = "cGZLua5::LuaVtable"
+address = 0x00AC8F80
+kind = "data"
+source = "Name ours. cGZLua5's cIGZLua5 vtable (object + 0x1C, 15 slots)."
+
+[[entry]]
+name = "cGZLua5::ThreadVtable"
+address = 0x00AC8FC0
+kind = "data"
+source = "Name ours. cGZLua5's cIGZLua5Thread vtable (object + 8, 97 slots; differs from cGZLua5Thread's only in QueryInterface)."
+
+[[entry]]
+name = "cGZLua5::Vtable"
+address = 0x00AC9144
+kind = "data"
+source = "Name ours. cGZLua5's main vtable."
+
+[[entry]]
+name = "cRZBaseUnknown::AddRefJump"
+address = 0x0057EB00
+kind = "function"
+convention = "thiscall"
+expect = "E9 5B A0 3E 00 CC CC CC"
+source = "Name ours. A jump to the reference-counted base's AddRef (0x00968B60), shared by many classes' vtables."
+
+[[entry]]
+name = "cRZBaseUnknown::ReleaseJump"
+address = 0x0057EB70
+kind = "function"
+convention = "thiscall"
+expect = "E9 22 EE 38 00 CC CC CC"
+source = "Name ours. A jump to cRZBaseUnknown::ReleaseCounted (0x0090D997), shared by many classes' vtables."
+
+[[entry]]
+name = "SC4String::ConcatTextBody"
+address = 0x00455540
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 55 8B 6C 24 18"
+source = "Name ours. (body* result, const char* text, const body* tail): result = text followed by the string body; returns result."
+
+[[entry]]
+name = "SC4String::ConcatBodyText"
+address = 0x0041E270
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 55 8B 6C 24 1C"
+source = "Name ours. (body* result, const body* head, const char* text): result = the string body followed by text; returns result."
+
+[[entry]]
+name = "SC4ScriptClass2BD13FB4::Construct"
+address = 0x008B6480
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 95 75 05"
+source = "Name ours. Constructor (no arguments, returns this) of the 0x58-byte class the script director registers under class ID 0x2BD13FB4; called by the factory at 0x00880000."
+
+[[entry]]
+name = "cRZCOMDllDirector::Construct"
+address = 0x0090E18D
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 46 04 9C E6"
+source = "Constructor of the COM director base (no arguments, returns this); the script director's constructor 0x008800F0 calls it first."
+
+[[entry]]
+name = "cRZCOMDllDirector::Destruct"
+address = 0x0090E0A5
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 38 C7 06"
+source = "Destructor of the COM director base (no arguments); called by the script director's deleting destructor 0x00880150."
+
+[[entry]]
+name = "cSCLuaDirector::Vtable"
+address = 0x00AC3F90
+kind = "data"
+source = "Name ours. Main vtable of the director that registers the script classes (director ID 0xCA107F8B at slot 24 = 0x0087FFF0, deleting destructor at slot 27 = 0x00880150)."
+
+[[entry]]
+name = "cSCLuaDirector::FrameworkHookVtable"
+address = 0x00AC3F64
+kind = "data"
+source = "Name ours. The script director's second vtable, stored at +4."
+
+[[entry]]
+name = "cSCLuaDirector::Instance"
+address = 0x00B54298
+kind = "data"
+source = "Name ours. The script director object itself (static storage), constructed on first use by 0x00880180."
+
+[[entry]]
+name = "cSCLuaDirector::InstanceGuard"
+address = 0x00B542E4
+kind = "data"
+source = "Name ours. uint32 of init flags; bit 0 says the script director at 0x00B54298 has been constructed."
+
+[[entry]]
+name = "cSCLuaDirector::AtExit"
+address = 0x00A7F310
+kind = "function"
+convention = "cdecl"
+expect = "C7 05 98 42 B5 00 90 3F"
+source = "Name ours. The exit-time destructor of the script director at 0x00B54298, registered with atexit by 0x00880180."
+
+[[entry]]
+name = "cSCLua::Vtable"
+address = 0x00AC4444
+kind = "data"
+source = "Name ours. The script context's vtable at +0 (counted base: QueryInterface 0x008806C0, AddRef, Release, deleting destructor 0x00880F30)."
+
+[[entry]]
+name = "cSCLua::ThreadVtable"
+address = 0x00AC42C0
+kind = "data"
+source = "Name ours. The script context's main vtable at +8 (the Lua thread part, 97 slots)."
+
+[[entry]]
+name = "cSCLua::EngineVtable"
+address = 0x00AC4280
+kind = "data"
+source = "Name ours. The script context's vtable at +0x1C (the engine part: thread getter, Open 0x00880860, Close 0x00880950, the collector's figures)."
+
+[[entry]]
+name = "cSCLua::ScriptVtable"
+address = 0x00AC4148
+kind = "data"
+source = "Name ours. The script context's cISCLua vtable at +0x40 (78 slots, mostly thunks that move this back by 0x38)."
+
+[[entry]]
+name = "cSCLua::TargetVtable"
+address = 0x00AC4138
+kind = "data"
+source = "Name ours. The script context's vtable at +0x44 (4 slots; slot 3 = 0x00881650), the notification target Open adds to service 0xEBE0E860."
+
+[[entry]]
+name = "cSCLua::AbstractScriptVtable"
+address = 0x00AC3FE8
+kind = "data"
+source = "Name ours. The abstract cISCLua vtable (pure-call stubs) the constructor 0x008809E0 writes at +0x40 before the real one."
+
+[[entry]]
+name = "cSCLua::AbstractTargetVtable"
+address = 0x00AC4120
+kind = "data"
+source = "Name ours. The abstract vtable (4 pure-call stubs) the constructor 0x008809E0 writes at +0x44 before the real one."
+
+[[entry]]
+name = "cSCLua::EntryFieldName"
+address = 0x00B12270
+kind = "data"
+source = "Name ours. const char* to '_e' (0x00AC3FD4): the field of a script table that holds its data registry entry."
+
+[[entry]]
+name = "SC4ScriptParameterSet::Construct"
+address = 0x0092A5B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 66 04 00 8D"
+source = "Name ours. Constructor (no arguments, returns this) of a 0x28-byte counted object (vtable 0x00AD16C8); the script context's Open makes two (+0x4C, +0x50), probably the command parameter sets of a registry call."
+
+[[entry]]
+name = "SC4ScriptNumber::Construct"
+address = 0x009166D4
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 33 C9 C7 00 D0 EC"
+source = "Name ours. Constructs an empty 0x14-byte script value (vtable 0x00ACECD0, type word at +0xE = 0); returns this."
+
+[[entry]]
+name = "SC4ScriptNumber::SetString"
+address = 0x009166CF
+kind = "function"
+convention = "thiscall"
+expect = "E9 49 F3 FF FF 8B C1 33"
+source = "Name ours. (cIGZString* text): jmp to 0x00915A1D; gives the script value the string's text; ret 4."
+
+[[entry]]
+name = "SC4ScriptNumber::SetBool"
+address = 0x00916657
+kind = "function"
+convention = "thiscall"
+expect = "E9 55 F1 FF FF E9 78 F1"
+source = "Name ours. (uint8_t value): jmp to 0x009157B1; type 1; ret 4."
+
+[[entry]]
+name = "SC4ScriptNumber::SetDouble"
+address = 0x009166AA
+kind = "function"
+convention = "thiscall"
+expect = "DD 44 24 04 51 51 DD 1C"
+source = "Name ours. (double value): type 11; ret 8."
+
+[[entry]]
+name = "SC4ScriptNumber::SetObject"
+address = 0x0091663F
+kind = "function"
+convention = "thiscall"
+expect = "E9 1B F4 FF FF E9 FD F3"
+source = "Name ours. (cIGZUnknown* object, may be null): jmp to 0x00915A5F; type 16, holds a reference; ret 4."
+
+[[entry]]
+name = "SC4ScriptNumber::GetBool"
+address = 0x0091559F
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 8B 01 8D 55"
+source = "Name ours. The script value as a byte (through its slot 0x28); no arguments."
+
+[[entry]]
+name = "SC4ScriptNumber::GetDouble"
+address = 0x00915694
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 8B 01 D9"
+source = "Name ours. The script value as a double on the x87 stack (through its slot 0xA0); no arguments."
+
+[[entry]]
+name = "SC4ScriptNumber::GetObject"
+address = 0x009157A3
+kind = "function"
+convention = "thiscall"
+expect = "66 83 79 0E 10 75 04 8B"
+source = "Name ours. The object of a type 16 script value, else null; no arguments."
+
+[[entry]]
+name = "SC4ScriptNumber::GetString"
+address = 0x00917ADB
+kind = "function"
+convention = "thiscall"
+expect = "E9 C1 F7 FF FF 8A 44 24"
+source = "Name ours. (cIGZString* out): jmp to 0x009172A1; the script value as text; ret 4."
+
+[[entry]]
+name = "cRZUnknown::AddRefThunk"
+address = 0x00424B60
+kind = "function"
+convention = "thiscall"
+expect = "E9 9B 9F 15 00 CC CC CC"
+source = "Name ours. jmp to 0x0057EB00 and on to 0x00968B60 (the counted base's AddRef: ++[this+4], returned); the script context's AddRef slots reach it."
+
+[[entry]]
+name = "cRZUnknown::ReleaseThunk"
+address = 0x00424B70
+kind = "function"
+convention = "thiscall"
+expect = "E9 FB 9F 15 00 CC CC CC"
+source = "Name ours. jmp to 0x0057EB70 and on to cRZBaseUnknown::ReleaseCounted 0x0090D997; the script context's Release slots reach it."

@@ -1,6 +1,6 @@
 # Script bindings (Lua 5.0)
 
-The game embeds Lua 5.0 for the advisors, the news ticker, rewards and the tutorials. This page is about the game's side of it: what the game publishes to scripts and what scripts can call. The Lua runtime itself (0x008B6C30 to 0x008BF160) is a third-party library and stays as it is.
+The game embeds Lua 5.0 for the advisors, the news ticker, rewards and the tutorials. This page is about the game's side of it: what the game publishes to scripts and what scripts can call. The Lua runtime itself (0x008B96F0 to 0x008BF160, apart from the game's thread table at 0x008BC700 and its tag library at 0x008BE930) is a third-party library and stays as it is.
 
 The pieces, in the order they are being rewritten under the parity harness ([parity.md](parity.md)):
 
@@ -12,7 +12,8 @@ The pieces, in the order they are being rewritten under the parity harness ([par
 | The advisor classes' own functions (factories, constructors, Init and Shutdown, save and load, message handlers) | 81 functions, about 10 KB | ours (`scripts.advisors.classes1`, `classes2`) |
 | The advice class (cSC4Advice, 0x00407A90 to 0x00409690) and the city situation advice (the Rush Hour missions, 0x00422FF0 to 0x00424B00) | 95 functions; 40 more are generic string and container code or folded with other classes and stay the game's | ours (`scripts.advisors.advice1`, `advice2`) |
 | The advice window's text builder (0x0041D400 to 0x00420D30) | 62 functions, about 14 KB; interface code (it builds the HTML of the advice list), not script bindings | the game's, with the interface |
-| The script context and server (cISCLua and the classes behind it) | 0x008B0xxx | the game's |
+| The script context (cISCLua) and the two classes under it, the Lua thread and the Lua engine | 275 functions, about 20 KB, 0x0087FFF0 to 0x00881260 and 0x008B68D0 to 0x008B96F0 | ours (`scripts.context.part1`, `part2`, `part3`) |
+| The call closure of the data registry (0x00881260 to 0x00881640), the thread table (0x008BC700 to 0x008BD630), the tag library (0x008BE930 to 0x008BF160), the native function table's dispatcher (0x008B5B70) | | the game's |
 
 The advisor system that owns the script context is already ours ([advisors.md](advisors.md)).
 
@@ -107,6 +108,20 @@ The city situation advice (cISC4CitySituationAdvice in gzcom-dll, 0x19C bytes, m
 
 Things the original does that ours keeps: the mission's Init never pops the context advice it pushed on the way that succeeds; a numeric `target_sequence` is added to the target list instead of the sequence; the constructor leaves a dozen fields unset that the getters return when there is no script entry.
 
+## The script context
+
+Three classes, one on top of the other; gzcom-dll's `cIGZLua5Thread.h`, `cIGZLua5.h` and `cISCLua.h` match their vtables slot for slot.
+
+| Class | Size | What it is |
+| --- | --- | --- |
+| Lua thread (cGZLua5Thread) | 0x1C | one Lua state. The thread interface (97 slots, vtable 0x00AC8DD0) is at +8; the thread's ID is at +0xC, the `lua_State` at +0x10, the owning engine at +0x14. The four bytes before each `lua_State` point back at the thread interface, which is how a native finds its context. |
+| Lua engine (cGZLua5) | 0x40 | the main state, a thread itself. Its own interface (15 slots, 0x00AC8F80) at +0x1C opens and closes Lua, creates, resumes and destroys threads and holds the error reporter (+0x3C); the thread table is at +0x20. |
+| Script context (class 0x4B2811AA) | 0x58 | the engine plus the game's cISCLua interface (78 slots, 0x00AC4148) at +0x40 and a notification target at +0x44. Nearly all of its code is forwarding: a jump per slot to the thread's method, and a second jump per interface. Its own additions are `getn`, references, and the bridge to the game's data registry. |
+
+Nearly every thread method is one Lua call inside a precision switch: the game runs the x87 at 24 bit, Lua needs 53, so the method reads the setting (0x00892A0A), sets 53 bit when it was 24 (0x008929E0), makes the call and puts 24 bit back. Ours keeps the switch in place and does no arithmetic of its own outside it.
+
+Things the original does that ours keeps: the methods the interface declares as returning nothing return whatever the last call left (Lua's result when no switch happened, the precision setter's otherwise); `NewTag` reads its result at stack index 1, so it is right only on an empty stack; the default error reporter builds its whole report (a banner, the thread, the error type and the message) and then frees it without showing it anywhere; the negative-index conversion in the registry entry reader is off by one.
+
 ## Tests
 
 - The fingerprint's `lua` part reads all 295 names back from the `game` table through the script context and hashes their types and values (for an `l_` name also whether its place is there); `OPENSC4_TEST_LUA_DUMP=1` logs every value each day. Scratch tools compare two logs name by name.
@@ -137,3 +152,5 @@ With the advisor classes on too (twelve groups; `lu10-*`, `lu13-*`): 12 of 12 pl
 With the advice classes on too (fourteen groups; `lu15-*`): 12 of 12 in the three legs. The coverage run reaches 20 of the 28 functions of the advice and 23 of the 67 of the mission advice: the constructors, Init, the field readers, save and load. No test starts a mission, so the mission's getters and texts are compared by reading only.
 
 The natives on a current advice (`lu16-*`, fourteen groups): 12 of 12 with the script on day 1; with the monthly cycle driven and the script on day 4, 11 same and one partly (Making Money d0090: the first B run differed from day 0, before the script ran, and the two repeats matched; the known first-run noise). Every city has an advice with a subject, and the result strings match on both sides. The advice's advisor is never a MySim in the test cities, so the `mysim_` natives are compared on their nil path only; `advice_info`, `camera_jump` and `camera_zoom` stay untested.
+
+With the script context on too (seventeen groups; `lu17-*` the thread methods alone, `lu18-*` and `lu19-*` all three parts): 12 of 12 plain, monthly with the advisors recreated, with the natives' script and with the advice script. In the first run of the natives' leg one B run died while loading at 0x0096DA20 (the rare load crash in the game's framework code, [parity.md](parity.md)) and one first B run differed in the advisors' hash; the leg run again was 12 of 12. The coverage run reaches 118 of the 275 functions. Not reached: the constructors, Open and the class factories (they run at startup, before replacements are installed), the tag methods, threads other than the main one, the error paths and the default error reporter, and the data registry bridge. In the registry's value exchange the original passes a 32-bit argument of which it set only the low byte; ours passes the byte zero-extended.
