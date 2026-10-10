@@ -248,8 +248,8 @@ The two-stage pass (0x00736BF0) is the one normal play uses. Stage 1 gets the ma
 | 0x00ABD508, 0x00ABD018 | 0x00801750 | 30% | a model, through the context's 0x007D5710 |
 | 0x00AA2C30 | 0x005E0200 | 20% | a textured quad on the ground |
 | 0x00AA7F10 | 0x0061A850 | 4% | not read yet |
-| 0x00AA2EA8 | 0x005E28B0 | 2% | not read yet |
-| 0x00AA2808 | 0x005D6120 | 2% | not read yet |
+| 0x00AA2EA8 | 0x005E27C0 | 2% | a strip of triangles shown from two rotations |
+| 0x00AA2808 | 0x005D5FC0 | 2% | quads picked by the rotation |
 
 **The billboard** (0x007FEA90; `this` is the object + 0x170) draws nothing for the overlaid round or below zoom 2. It keeps the zoom and rotation its picture was picked for (+0x88, +0x89); when they change (or +0x9C is set) it picks again from a heading (the x87 arctangent of its direction's +0x5C over +0x44) and a pitch (the arcsine of +0x50) through 0x007FE390, and after a change through 0x007FE400. Its four corners (+0x13C) plus its position (+0x60) make the four vertices (+0xDC, 24 bytes each) when that or a state byte (+0x38) changed. Then the colour (one of two ways by flag 4 of +0x20), the render state (+0x8C), with flag 2 an alpha (+0x30), the texture for the picture (+0xC4 by the index at +0x94) and a four-vertex draw.
 
@@ -268,6 +268,10 @@ The overlaid round's material setup (0x007D5670: one stage, straight to the driv
 **The ground quad** (0x005E0200 after the adjustor 0x005E0540; `this` is the object + 0xEC) draws nothing in the overlaid round. It follows the context's zoom (0x005DFD40 when it differs from +0x45) and rotation (its own slot 0x10, then +0x46). It has three ways to draw: tinted when its tint mode (+0x40) is not 0xFF, translucent when a flag (+0x44) is set or its alpha (+0x3F) is below 255, else plain; the first two answer 2 in the first round, so they are drawn in the second, after everything opaque. Each way has a fixed render state (0x00B23090, 0x00B23098, 0x00B230A0) with the quad's texture (+0x48 by the index at +0x41). Tinted, the colour (+0x3C, scaled by a light value from the context's +0x44 object and by 1/255) and alpha go to the context as its light vector, with the tint mode; a preference (+0x3BC) turns mode 3 into mode 1 at half the alpha. The quad is then drawn from its own four vertices (+0x64) when it has them (+0xC4), else through the context's +0x4C object (slot 0x3C), which lays it on the terrain.
 
 `renderer.models.groundquad` replaces it (the zoom change and the draw on the terrain still the game's), compared per quad with a quiet run of the game's first. 2026-10-10, three test cities with the camera workout: 0 divergences (19,948, 601,829 and 17,829 quads; the game against itself also 0); 20 of 20 screenshots against the stock driver with all 22 renderer replacements on.
+
+**Two rarer drawables.** The one with vtable 0x00AA2EA8 (0x005E27C0; `this` is the object + 0xAC) follows the zoom and rotation through two helpers (0x005E1710, 0x005E1BC0), then, when it is visible (+0x66) and the rotation is one of the two its side (+0x78) faces, draws its vertices (+0x9C to +0xA0, 24 bytes each) as one strip with its texture (+0x98) and a fixed render state (0x00B230B4). The one with vtable 0x00AA2808 (0x005D5FC0; `this` is the object + 0x274) takes two indices from the rotation (the camera view's 0x007F7750, to +0x50 and +0x54), and draws the quads they pick (from +0x74, 0x60 bytes each) with one texture (+0x70) when the zoom's flag (+0x4A) is set, then one more quad (+0x210) with a second texture (+0x20C), all with the render state at 0x00B23034. Neither draws in the overlaid round.
+
+`renderer.models.sidestrip` and `renderer.models.rotationquads` replace them (their zoom and rotation helpers still the game's). 2026-10-10, three test cities with the camera workout: 0 divergences (1,103, 81,080 and 1,563 strips; 882, 66,915 and 1,693 of the quads; the game against itself also 0); 20 of 20 screenshots against the stock driver with all 24 renderer replacements on.
 
 ## What the driver calls mean
 
