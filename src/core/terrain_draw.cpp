@@ -1152,6 +1152,52 @@ void DrawDecals(char* manager, const float* matrix, char* context, char** list)
     Virtual<void>(driver, 0x88, 1u, 1u);
 }
 
+// cSC4OverlayManager's plain shadow pass (0x00737870): the overlays with
+// flags 9, all with the manager's shadow texture and one render state, each
+// with a texture matrix from its second matrix (+0x5C).
+void DrawShadowsPlain(char* manager, const float* matrix, char* context, char** list)
+{
+    if (list[0] == list[1])
+        return;
+    CallThis<void>(addr::SC4RenderContext_SetRenderState, context, At<char*>(manager, 0x24) + 0x20);
+    void* const driver = At<void*>(context, 0x30);
+    const bool wasOn = Virtual<uint8_t>(driver, 0xB8, 7u) != 0;
+    Virtual<void>(driver, 0xB0, 7u);
+    Cell light[4];
+    for (Cell& c : light)
+        c.u = Global<uint32_t>(0x00B4B3C8);
+    float amount;
+    void* const source = Virtual<void*>(Global<void*>(addr::SC4_Lighting43DD0), 0x24);
+    Virtual<void>(source, 0x38, &light[3], &amount, &light[0]);
+    CallThis<void>(addr::SC4RenderContext_SetLightVector, context, &light[0]);
+    if (amount > Global<double>(0x00A80990)) {
+        CallThis<void>(addr::SC4RenderContext_SetState3E90, context, 1u);
+        CallThis<void>(addr::SC4RenderContext_SetState2F50, context, 6u,
+                       static_cast<float>(static_cast<double>(light[3].f) * amount));
+    } else {
+        CallThis<void>(addr::SC4RenderContext_SetState3E90, context, 0u);
+    }
+    CallThis<void>(addr::SC4RenderContext_BindTexture, context, ***reinterpret_cast<uint32_t***>(manager + 0xD4), 0u);
+    CallThis<void>(addr::SC4RenderContext_SetState4280, context, 1u, 1u, 0u);
+    CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 2u, 2u, 0u);
+    CallThis<void>(addr::SC4RenderContext_SetState3030, context, manager + 0x38, 0u);
+    CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, 3);
+    At<uint32_t>(manager, 0xDC) = 0;
+    for (uint32_t i = 0; i < static_cast<uint32_t>((list[1] - list[0]) >> 2); ++i) {
+        char* const overlay = At<char*>(manager, 0x98) + At<int32_t>(list[0], i * 4) * 0xB4;
+        if (At<int32_t>(overlay, 0) != -1 || (At<uint32_t>(overlay, 4) & 9) != 9)
+            continue;
+        Cell L[43] = {};
+        const float* const record = reinterpret_cast<const float*>(overlay);
+#include "core/overlay_shadow_matrix.inc"
+        CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[15], 0u);
+        CallThis<void>(addr::cSC4OverlayManager_DrawRect, manager, context, overlay + 0xC);
+        ++At<uint32_t>(manager, 0xDC);
+    }
+    if (!wasOn)
+        Virtual<void>(driver, 0xB4, 7u);
+}
+
 // --- The rows' layer lists and the skirts' colours ------------------------------------------
 
 // 0x0075ABA0: a row's list of texture layers with their spans of columns,
@@ -1287,6 +1333,15 @@ uint32_t __fastcall DLand(char* self, void*, char* context, void* buffers)
     }();
     if (arrays)
         At<uint8_t>(At<char*>(Global<char*>(0x00B43CC4), 0xC), 0x33C) = 0;
+    // OPENSC4_TEST_SINGLE_STAGE=1: the paths for cards without a second
+    // texture stage (the overlays' plain shadow pass among them), by
+    // clearing the preference at +0x17C.
+    static const bool singleStage = [] {
+        const char* v = std::getenv("OPENSC4_TEST_SINGLE_STAGE");
+        return v && *v == '1';
+    }();
+    if (singleStage)
+        At<uint8_t>(At<char*>(Global<char*>(0x00B43CC4), 0xC), 0x17C) = 0;
     static bool logged = false;
     if (!logged) {
         logged = true;
@@ -1495,6 +1550,28 @@ void __fastcall DDecals(char* manager, void*, const float* matrix, char* context
                  [&] { g_decals(manager, nullptr, matrix, context, list); });
 }
 
+DecalsFn g_shadowsPlain;
+bool g_compareShadowsPlain = false;
+
+void __fastcall DShadowsPlain(char* manager, void*, const float* matrix, char* context, char** list)
+{
+    if (g_depth > 0)
+        return g_shadowsPlain(manager, nullptr, matrix, context, list);
+    if (!g_compareShadowsPlain)
+        return DrawShadowsPlain(manager, matrix, context, list);
+    std::vector<Region> regions = PassRegions(At<char*>(manager, 0x8C), context);
+    regions.push_back({"manager", manager, 0xE0});
+    DrawCompared(g_selfCheck ? "overlays.shadows.selfcheck" : "overlays.shadows", regions,
+                 [&] {
+                     if (g_selfCheck)
+                         g_shadowsPlain(manager, nullptr, matrix, context, list);
+                     else
+                         DrawShadowsPlain(manager, matrix, context, list);
+                 },
+                 [&] { g_shadowsPlain(manager, nullptr, matrix, context, list); });
+}
+
+OPENSC4_THUNK(TShadowsPlain, DShadowsPlain, 12)
 OPENSC4_THUNK(TDecals, DDecals, 12)
 OPENSC4_THUNK(TOverlayRect, DOverlayRect, 8)
 OPENSC4_THUNK(TLandSkirts, DLandSkirts, 4)
@@ -1688,6 +1765,29 @@ const bool g_registeredDecals = registry::Register({
     "The overlay manager's decal pass; compare mode as renderer.terrain.land (docs/renderer.md, \"The overlays\")",
     true,
     InstallDecals,
+});
+
+bool InstallShadowsPlain(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareShadowsPlain = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC4OverlayManager_DrawShadowsPlain, &TShadowsPlain, &g_shadowsPlain))
+        return false;
+    log::Write("overlays: plain shadow pass %s", g_compareShadowsPlain ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredShadowsPlain = registry::Register({
+    "renderer.overlays.shadows_plain",
+    "renderer/overlays",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4OverlayManager_DrawShadowsPlain,
+    "The overlay manager's plain shadow pass; compare mode as renderer.terrain.land (docs/renderer.md, \"The "
+    "overlays\")",
+    true,
+    InstallShadowsPlain,
 });
 
 } // namespace
