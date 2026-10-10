@@ -35,7 +35,7 @@ The building development simulator starts a map update on every developer (slot 
 
 Message 0x07699455 updates the capacity of a changed rectangle; 0xE8BDA2E7 (an occupant's stage changed) adds or takes its capacity when the occupant is the developer's.
 
-The save record is version 1 (Read takes only 1): the capacity last told to the demand, the total capacity and five grid references (+0x110 is not saved). `tools/re/save_schemas/growth.py` decodes it.
+The save record is version 1 (Read takes only 1): the capacity last told to the demand, the total capacity and five grid references (+0x110 is not saved). One save record holds every developer's, one after the other (12 in the test cities); `tools/re/save_schemas/growth.py` decodes them all, in all 17 corpus saves.
 
 ## What is ours
 
@@ -64,5 +64,6 @@ All runs on 2026-10-09 with every `simulators.growth.*` group on, two games at a
 | `saves-plopped`, 30 days, with the queries (`gro-pl30`) | 3 of 3 |
 | 90 days on `saves-mm2` (`gro-mm90`) | 2 of 2 |
 | on main with fire, police and flammability objects and the simulator core merged, a week with the queries (`gro-main7`) | 11 of 12; on Rush Hour d0365 the original's run did not start (empty log), the rerun (`gro-main7-rh365`) same |
+| everything again with the decoder reading all 12 developers, 30 days (`gro-re30`) | 10 of 12; Big City d1095 partly (the pollution difference on day 19 the original reaches too) and Rush Hour d0090 partly (the original reaches 2 outcomes there); every developer record identical in the pairs that were the same |
 
-Our object was made for every developer in every B run, and the developer records were identical wherever a pair was the same. Before the first run, an audit of every call against the game's pushes and RET sizes found one wrong argument (the stage change gave the development simulator's purpose lookup the occupant instead of message data 3).
+Our object was made for every developer in every B run, and the first developer's record was identical wherever a pair was the same (the decoder then read only the first of the 12 developers in the record; with that fixed, `gro-re30` below compares them all). Before the first run, an audit of every call against the game's pushes and RET sizes found one wrong argument (the stage change gave the development simulator's purpose lookup the occupant instead of message data 3).
