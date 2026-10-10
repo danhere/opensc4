@@ -63,6 +63,10 @@ add_library(opensc4_core SHARED
   advisor_autotest.cpp
   advisor_object.cpp
   advisor_system.cpp
+  disaster_autotest.cpp
+  disaster_layer.cpp
+  disaster_managers.cpp
+  disaster_toxic.cpp
   mysim_sim.cpp
   commercial_autotest.cpp
   commercial_sim.cpp
