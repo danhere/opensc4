@@ -780,7 +780,7 @@ uint32_t SubnetworksIn(void* self, const int32_t* rect, Filter inside, uint32_t*
                 if (!id)
                     continue;
                 const uint32_t value = id;
-                uint32_t result[2];
+                uint32_t result[3]; // pair<iterator {node, table}, bool>: 9 bytes
                 reinterpret_cast<ResizeFn>(addr::SC4Uint32HashSet_Resize)(&set, set.count + 1);
                 reinterpret_cast<SetInsertFn>(addr::SC4Uint32HashSet_Insert)(&set, result, &value);
             }

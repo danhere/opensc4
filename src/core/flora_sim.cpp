@@ -64,7 +64,7 @@ void PushWord(Vector* vector, uint32_t value)
 void AddToSet(void* set, const uint32_t* key)
 {
     reinterpret_cast<ResizeFn>(addr::SC4Uint32HashSet_Resize)(set, At<uint32_t>(set, 0x10) + 1);
-    char result[8];
+    char result[12]; // pair<iterator {node, table}, bool>: 9 bytes
     reinterpret_cast<InsertFn>(addr::SC4Uint32HashSet_Insert)(set, result, key);
 }
 
