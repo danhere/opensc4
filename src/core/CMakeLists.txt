@@ -181,6 +181,7 @@ add_library(opensc4_core SHARED
   stale_record_fix.cpp
   pin_plugin_dlls.cpp
   puzzle_piece_fix.cpp
+  single_core.cpp
   gdriver_proxy.cpp
   landvalue_autotest.cpp
   landvalue_object.cpp
