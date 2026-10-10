@@ -289,6 +289,125 @@ void Commands(const Day& day)
     }
 }
 
+// --- OPENSC4_TEST_MYSIM_TOOLS (docs/ui.md) -----------------------------------
+
+char g_toolsToken[160];
+
+// The current tool swept over a grid of screen points (OnMouseMove, slot
+// 20), as the mouse would: what each point answers and whether a building
+// or figure is under it (+0x2C of the three building tools).
+void Sweep(Fnv& f, bool building, int32_t* hitX, int32_t* hitZ)
+{
+    *hitX = -1;
+    for (int32_t z = 80; z <= 720; z += 64) {
+        for (int32_t x = 80; x <= 960; x += 64) {
+            char* const tool = Global<char*>(addr::SC4_DispatchTool);
+            if (!tool)
+                return;
+            f.Add(Virtual<uint8_t>(tool, 0x50, x, z, uint32_t{0}));
+            if (building) {
+                const bool hit = At<void*>(tool, 0x2C) != nullptr;
+                f.Add(hit);
+                if (hit && *hitX < 0) {
+                    *hitX = x;
+                    *hitZ = z;
+                }
+            } else {
+                f.Add(At<int32_t>(tool, 0x30));
+            }
+        }
+    }
+}
+
+// On that run day the MySim tools are used as the player would use them,
+// with no player: the list of Sims the picker shows; then for the MySim in
+// the first place the home tool, the job tool and the dispatch tool, each
+// made as its panel button makes it, swept over the screen, clicked on the
+// first building it accepted (the home and job tools: the MySim moves or
+// changes job) and ended. One fingerprint token from then on; the MySims'
+// own fields are in the fingerprint already.
+void Tools(const Day& day)
+{
+    // OPENSC4_TEST_MYSIM_TOOLS_DAYS=<n>: on that many days in a row.
+    const int first = EnvInt("OPENSC4_TEST_MYSIM_TOOLS", 0);
+    const int run = static_cast<int>(day.day - day.first);
+    if (first <= 0 || !day.counted || run < first || run >= first + EnvInt("OPENSC4_TEST_MYSIM_TOOLS_DAYS", 1) ||
+        !game::IsBuild641())
+        return;
+    Fnv picker;
+    int records = 0;
+    if (char* const memory = static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x2C))) {
+        char* const list = reinterpret_cast<char*(__thiscall*)(void*)>(addr::SC4UI_F43B3B0)(memory);
+        picker.Add(Virtual<uint8_t>(list, 0x20)); // FindSims
+        char* out[3] = {nullptr, nullptr, nullptr};
+        Virtual<void*>(list, 0x18, &out[0]); // GetSims
+        for (char* record = out[0]; record && record != out[1]; record += 0x30, ++records) {
+            picker.Text(record + 0x4);
+            picker.Text(record + 0x18);
+        }
+        if (out[0]) {
+            uint8_t tag = 0;
+            reinterpret_cast<void(__cdecl*)(char*, char*, uint8_t*)>(addr::SC4UI_F43B180)(out[0], out[1], &tag);
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(out[0]);
+        }
+        uint32_t imported = 77;
+        picker.Add(Virtual<uint8_t>(list, 0x1C, &imported)); // Import: The Sims is not installed
+        picker.Add(imported);
+        Virtual<void*>(list, 0xC, uint32_t{1}); // delete
+    }
+
+    Fnv tools;
+    int clicks = 0;
+    void* const mysims = Virtual<void*>(day.city, 0x11C);
+    void** const sims = mysims ? At<void**>(mysims, 0x14) : nullptr;
+    char* const sim = sims && At<void**>(mysims, 0x18) != sims ? static_cast<char*>(sims[0]) : nullptr;
+    if (sim) {
+        char* const object = sim - 0xB8;
+        using MakeFn = uint8_t(__thiscall*)(void*);
+        const struct {
+            std::uintptr_t maker;
+            void* self;
+            bool building;
+        } kinds[] = {
+            {addr::cSC4MySim_MakeHomeTool, object, true},
+            {addr::cSC4MySim_MakeJobTool, object, true},
+            {addr::cSC4MySim_CreateDispatchTool, sim, false},
+        };
+        for (const auto& kind : kinds) {
+            const uint8_t made = reinterpret_cast<MakeFn>(kind.maker)(kind.self);
+            tools.Add(made);
+            if (!made)
+                continue;
+            int32_t x = -1, z = -1;
+            Sweep(tools, kind.building, &x, &z);
+            char* tool = Global<char*>(addr::SC4_DispatchTool);
+            if (tool && kind.building) {
+                tools.Add(Virtual<uint8_t>(tool, 0x58)); // the mouse leaves
+                if (x >= 0) {
+                    Virtual<uint8_t>(tool, 0x50, x, z, uint32_t{0});
+                    tools.Add(Virtual<uint8_t>(tool, 0x40, x, z, uint32_t{0})); // the click ends the tool
+                    ++clicks;
+                }
+            }
+            // Whatever is still the view's tool is ended as Escape ends it.
+            void* const view = Global<void*>(addr::SC4_Service43DC4);
+            tool = Global<char*>(addr::SC4_DispatchTool);
+            if (tool && view && Virtual<void*>(view, 0x60) == tool)
+                Virtual<uint8_t>(tool, 0x38, uint32_t{0x1B}, uint32_t{0});
+        }
+    }
+    std::snprintf(g_toolsToken, sizeof g_toolsToken, " mstools %d %08X sim %d clicks %d %08X", records, picker.h,
+                  sim ? 1 : 0, clicks, tools.h);
+    log::Write("autotest: MySim tools driven:%s", g_toolsToken);
+}
+
+void ToolsFingerprint(cISC4City*, std::string& line)
+{
+    line += g_toolsToken;
+}
+
+const FingerprintPart kToolsFingerprint{"mysim.tools", 86, &ToolsFingerprint};
+const DayHook kTools{"mysim.tools", 86, &Tools};
 const FingerprintPart kFingerprint{"mysim", 85, &Fingerprint};
 const DayHook kDelete{"mysim.delete", 85, &Delete};
 const DayHook kDrive{"mysim.drive", 85, &Drive};
