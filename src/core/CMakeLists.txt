@@ -152,6 +152,9 @@ add_library(opensc4_core SHARED
   landfillzone_autotest.cpp
   landfillzone_cells.cpp
   landfillzone_sim.cpp
+  lotconfig_autotest.cpp
+  lotconfig_queries.cpp
+  lotconfig_sim.cpp
   landfill_sim.cpp
   seaport_autotest.cpp
   seaport_sim.cpp
