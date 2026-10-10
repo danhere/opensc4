@@ -203,3 +203,221 @@ name = "STE::TextureZoomScale"
 address = 0x00AB4330
 kind = "data"
 source = "Name ours. float[5]: 1, 2, 4, 8, 16 (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DrawLand"
+address = 0x0075BD10
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B 74 24 18"
+source = "Name ours. (render context, dynamic vertex buffers or null): the land: an untextured pass with the vertex colours from terrain record +0x13, then the texture layers (0x0075BA90) with the colours from +0x10, blended (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::DirtyRowBits"
+address = 0x00B4C7EC
+kind = "data"
+source = "Name ours. uint32* bit array: rows whose texture-layer spans must be rebuilt (0x0075ABA0), bit index row + 0x00B4C7F0 (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::DirtyRowBase"
+address = 0x00B4C7F0
+kind = "data"
+source = "Name ours. int32: bit offset of row 0 in 0x00B4C7EC (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "SC4RenderContext::SetState3EF0"
+address = 0x007D3EF0
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 56 57"
+source = "Name ours, not analysed. (bool, bool): a cached render state; the land pass sets (0, 0) before the untextured pass and (1, 0) before the layers (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "SC4RenderContext::SetState4010"
+address = 0x007D4010
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 56 8B"
+source = "Name ours, not analysed. (bool): a cached render state, on around the land's texture layers (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "SC4RenderContext::SetBlend"
+address = 0x007D28F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 80 00 00 00 8B 81"
+source = "Name ours (inferred). (source, destination) in the context's state bits (+0x80) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "SC4RenderContext::SetState40B0"
+address = 0x007D40B0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 83 FF"
+source = "Name ours, not analysed. (int, int) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "SC4RenderContext::SetState4280"
+address = 0x007D4280
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 0C 53 8B 5C 24"
+source = "Name ours, not analysed. (stage, int, int): texture stage setup (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "SC4RenderContext::SetState41E0"
+address = 0x007D41E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 0C 53 8B 5C 24"
+source = "Name ours, not analysed. (stage, int, int): texture stage setup (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "SC4RenderContext::BindTexture"
+address = 0x007D4070
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B 74"
+source = "Name ours (inferred). (texture handle, stage) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "SC4RenderContext::SetVertexArray"
+address = 0x007D2970
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 30 8B 01 C7 44 24"
+source = "Name ours. (vertex format, count, vertices): forwards to the driver's InterleavedArrays (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "SC4RenderContext::SetIndexArray"
+address = 0x007D2980
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 89 81 FC 01"
+source = "Name ours. (count, uint16 indices) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "SC4RenderContext::DrawIndexed"
+address = 0x007D29C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 0C 8B C1 8B"
+source = "Name ours. (primitive, first index, index count) of the index array set before (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::RebuildRowLayers"
+address = 0x0075ABA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 41 20 8B 15"
+source = "Name ours. (row): rebuilds the row's list of texture layers and their column spans (0x00B4C7E0) from the terrain record and clears the row's dirty bit (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DrawLandLayers"
+address = 0x0075BA90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 33 DB 56"
+source = "Name ours. (render context, dynamic buffers or null): one draw per texture layer over the rows in view, weights in the vertex alpha (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::RowIndices"
+address = 0x00B4C6F4
+kind = "data"
+source = "Name ours. uint16* the index list of a two-row strip, per row (0x00B4C700 each) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::IndicesPerRow"
+address = 0x00B4C700
+kind = "data"
+source = "Name ours. uint32 (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::RowLayers"
+address = 0x00B4C7E0
+kind = "data"
+source = "Name ours. list** per row: texture layers {next, prev, id, spans}, each with column spans {next, prev, first, last}, by id (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::TexturesByZoom"
+address = 0x00B4C670
+kind = "data"
+source = "Name ours. per zoom: texture handles by layer id (low 12 and high 16 bits), then a variant (bits 12-15) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::DynamicBuffers"
+address = 0x00B4C8B0
+kind = "data"
+source = "Name ours. the driver's 0x09CD86F9 interface, when the dynamic path is used (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::Buffer"
+address = 0x00B4C8A8
+kind = "data"
+source = "Name ours. int32: the dynamic buffer (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::BufferCapacity"
+address = 0x00B4C8A4
+kind = "data"
+source = "Name ours. uint32: vertices (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::BatchVertices"
+address = 0x00B4C8AC
+kind = "data"
+source = "Name ours. locked vertex memory, null when not locked (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::BatchVertexCount"
+address = 0x00B4C8A0
+kind = "data"
+source = "Name ours. uint32 (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::BatchIndexCount"
+address = 0x00B4C89C
+kind = "data"
+source = "Name ours. int32 (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::BatchSource"
+address = 0x00B4C8B4
+kind = "data"
+source = "Name ours. vertex base copied from (the land vertices) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::IndexTemplate"
+address = 0x00B4C898
+kind = "data"
+source = "Name ours. uint16* strip indices copied with an offset (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::IndexTemplatePerRow"
+address = 0x00B4C894
+kind = "data"
+source = "Name ours. uint8: the template has a part per row (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::BatchRowStride"
+address = 0x00B4C888
+kind = "data"
+source = "Name ours. uint32: vertices per row in the source (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::BatchLastColumn"
+address = 0x00B4C890
+kind = "data"
+source = "Name ours. uint32: indices above it are in the second row (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::BatchTemplateRow"
+address = 0x00B4C884
+kind = "data"
+source = "Name ours. uint32: template indices per row (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::BatchIndices"
+address = 0x00B4C8BC
+kind = "data"
+source = "Name ours. vector<uint16>: begin (then end, capacity) (docs/renderer.md, \"The terrain\")."

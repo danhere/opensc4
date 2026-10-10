@@ -166,11 +166,10 @@ const bool g_registered = registry::Register({
 
 bool Active() { return g_active; }
 
-void Record(const DrawState& state, const DrawCall& call)
+namespace {
+
+void HashInto(const DrawState& state, const DrawCall& call)
 {
-    if (!g_active || g_depth == 0)
-        return;
-    ++g_draws;
     g_drawHash = 2166136261u;
     Value(call.primitive), Value(call.vertexFormat), Value(call.vertexStride), Value(call.count);
     State(state);
@@ -188,6 +187,25 @@ void Record(const DrawState& state, const DrawCall& call)
         Bytes(call.vertices + static_cast<std::size_t>(low) * call.vertexStride,
               static_cast<std::size_t>(high - low + 1) * call.vertexStride);
     }
+}
+
+} // namespace
+
+uint32_t HashDraw(const DrawState& state, const DrawCall& call)
+{
+    const uint32_t saved = g_drawHash;
+    HashInto(state, call);
+    const uint32_t hash = g_drawHash;
+    g_drawHash = saved;
+    return hash;
+}
+
+void Record(const DrawState& state, const DrawCall& call)
+{
+    if (!g_active || g_depth == 0)
+        return;
+    ++g_draws;
+    HashInto(state, call);
     for (int i = 0; i < 4; ++i)
         g_hash = (g_hash ^ ((g_drawHash >> (8 * i)) & 0xFF)) * 16777619u;
     // OPENSC4_FRAME_DUMP_DRAW=<n>: that draw's vertex bytes too, in hex.
