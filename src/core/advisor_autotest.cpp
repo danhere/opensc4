@@ -107,6 +107,10 @@ void Fingerprint(cISC4City*, std::string& line)
         char* const last = At<char*>(advisor, 0x88);
         const bool sane = first <= last && (last - first) % 0x10 == 0 && last - first < 0x10000;
         for (char* record = first; sane && record != last; record += 0x10) {
+            if (char* const advice = At<char*>(record, 0x0)) {
+                one.Add(At<uint32_t>(advice, 0x8C)); // GUID
+                one.Add(At<int32_t>(advice, 0x70));  // flags
+            }
             one.Add(At<int32_t>(record, 0x4));
             one.Add(At<int32_t>(record, 0x8));
             one.Add(At<int32_t>(record, 0xC));

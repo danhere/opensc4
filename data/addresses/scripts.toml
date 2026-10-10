@@ -2425,3 +2425,915 @@ name = "SC4DealAdvice::VtableC"
 address = 0x00A83BB4
 kind = "data"
 source = "Name ours. The deal advice's vtable of the serialisable part at +0xC; Write 0x00420F40, Read 0x00420F80."
+
+[[entry]]
+name = "cSC4Advice::F407A90"
+address = 0x00407A90
+kind = "function"
+convention = "thiscall"
+expect = "B8 F4 F5 09 8A C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 6 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407AA0"
+address = 0x00407AA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 84 00 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407AB0"
+address = 0x00407AB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 78 C3 CC CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 4 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407AC0"
+address = 0x00407AC0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 74 C3 CC CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 4 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407AD0"
+address = 0x00407AD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 41 74 C2"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 10 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407AE0"
+address = 0x00407AE0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 46 70 8A"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 132 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407B70"
+address = 0x00407B70
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 70 8B 4C 24 04 23"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 19 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407B90"
+address = 0x00407B90
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 6A 02 FF 50 3C C3"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407BA0"
+address = 0x00407BA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 7C C3 CC CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 4 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407BB0"
+address = 0x00407BB0
+kind = "function"
+convention = "thiscall"
+expect = "8D 41 50 C3 CC CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 4 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407C20"
+address = 0x00407C20
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 B4 00 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407C30"
+address = 0x00407C30
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 FF 60 78 CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 5 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407C40"
+address = 0x00407C40
+kind = "function"
+convention = "thiscall"
+expect = "68 F0 06 A8 00 E8 56 54"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 12 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407D70"
+address = 0x00407D70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 33 C0 89 04 24"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 36 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407DA0"
+address = 0x00407DA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 33 C0 89 04 24"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 36 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407DD0"
+address = 0x00407DD0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 8B 06 6A"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 64 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407E10"
+address = 0x00407E10
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 10 57 8B"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 56 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407E50"
+address = 0x00407E50
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 83 FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 59 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407E90"
+address = 0x00407E90
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 BE B8 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 62 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407ED0"
+address = 0x00407ED0
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 07 6A 08 FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 103 bytes."
+
+[[entry]]
+name = "cSC4Advice::F407F40"
+address = 0x00407F40
+kind = "function"
+convention = "thiscall"
+expect = "55 8B E9 8B 85 BC 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 91 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408000"
+address = 0x00408000
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 56 8B F1 8B"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 65 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408050"
+address = 0x00408050
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 00 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 51 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408170"
+address = 0x00408170
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 10 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 96 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408420"
+address = 0x00408420
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 0C 56 57"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 92 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408720"
+address = 0x00408720
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 98 F4 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408730"
+address = 0x00408730
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 D8 64 03 00"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408740"
+address = 0x00408740
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 78 F4 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408800"
+address = 0x00408800
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 57 8B"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 360 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408970"
+address = 0x00408970
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 68 00 04"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 52 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408A20"
+address = 0x00408A20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 33 C0 89 06 89"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 42 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408A50"
+address = 0x00408A50
+kind = "function"
+convention = "thiscall"
+expect = "68 C0 00 00 00 E8 86 CB"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 27 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408AE0"
+address = 0x00408AE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B 74 24 1C"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 161 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408B90"
+address = 0x00408B90
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 04 8D 44"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 66 bytes."
+
+[[entry]]
+name = "cSC4Advice::F408C40"
+address = 0x00408C40
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 3B"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 36 bytes."
+
+[[entry]]
+name = "cSC4Advice::F409300"
+address = 0x00409300
+kind = "function"
+convention = "thiscall"
+expect = "81 EC A4 00 00 00 55 8B"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 871 bytes."
+
+[[entry]]
+name = "cSC4Advice::F409670"
+address = 0x00409670
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 0D C8 07 B2 00"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 19 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423000"
+address = 0x00423000
+kind = "function"
+convention = "thiscall"
+expect = "B8 3B 75 E3 8B C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 6 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423020"
+address = 0x00423020
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 8A 1E EB"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 39 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423050"
+address = 0x00423050
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 04 E9 88 B3 19 00"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423060"
+address = 0x00423060
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 04 E9 C8 9A 19 00"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423070"
+address = 0x00423070
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 8B 51 04 2B D0 B8"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 25 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423090"
+address = 0x00423090
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 F8 4D FE FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 52 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4230D0"
+address = 0x004230D0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B D9 8B 8B 98 01"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 109 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423140"
+address = 0x00423140
+kind = "function"
+convention = "thiscall"
+expect = "51 D9 81 D4 00 00 00 D8"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 74 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423190"
+address = 0x00423190
+kind = "function"
+convention = "thiscall"
+expect = "53 55 57 8B 7C 24 10 32"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 92 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4231F0"
+address = 0x004231F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 55 8B 2A 8B"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 98 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423260"
+address = 0x00423260
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 08 89 08"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 11 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423270"
+address = 0x00423270
+kind = "function"
+convention = "thiscall"
+expect = "68 A8 44 A8 00 E8 56 FE"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 11 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423280"
+address = 0x00423280
+kind = "function"
+convention = "thiscall"
+expect = "56 68 B0 44 A8 00 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 27 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4232A0"
+address = 0x004232A0
+kind = "function"
+convention = "thiscall"
+expect = "56 68 C0 44 A8 00 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 27 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4232C0"
+address = 0x004232C0
+kind = "function"
+convention = "thiscall"
+expect = "56 68 D8 44 A8 00 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 29 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4232E0"
+address = 0x004232E0
+kind = "function"
+convention = "thiscall"
+expect = "56 68 E8 44 A8 00 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 27 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423300"
+address = 0x00423300
+kind = "function"
+convention = "thiscall"
+expect = "56 68 F8 44 A8 00 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 29 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423430"
+address = 0x00423430
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 31 57 6A 0C E8 19"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 57 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423470"
+address = 0x00423470
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 8D 7E 04"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 381 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4235F0"
+address = 0x004235F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 C4 00 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423600"
+address = 0x00423600
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 C8 00 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423610"
+address = 0x00423610
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 CC 00 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423620"
+address = 0x00423620
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 D0 00 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423630"
+address = 0x00423630
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 D8 00 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423640"
+address = 0x00423640
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 DC 00 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423650"
+address = 0x00423650
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 E0 00 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423660"
+address = 0x00423660
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 E0 00 00 00 23 44"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 19 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423680"
+address = 0x00423680
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 E4 00 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423690"
+address = 0x00423690
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 F0 00 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4236A0"
+address = 0x004236A0
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 FC 00 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4236B0"
+address = 0x004236B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 E0 00 00 00 C1 E8"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 12 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4236C0"
+address = 0x004236C0
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 24 01 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4236D0"
+address = 0x004236D0
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 28 01 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4236E0"
+address = 0x004236E0
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 14 01 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4236F0"
+address = 0x004236F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 08 01 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423700"
+address = 0x00423700
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 10 01 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423710"
+address = 0x00423710
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 2C 01 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423720"
+address = 0x00423720
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 38 01 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423730"
+address = 0x00423730
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 3C 01 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423740"
+address = 0x00423740
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 44 01 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423750"
+address = 0x00423750
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 4C 01 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423760"
+address = 0x00423760
+kind = "function"
+convention = "thiscall"
+expect = "8B 89 54 01 00 00 8B 44"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 15 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423770"
+address = 0x00423770
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 58 01 00 00 8B 44"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 52 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4237B0"
+address = 0x004237B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 74 01 00 00 8B 4C"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 33 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4237E0"
+address = 0x004237E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 78 01 00 00 8B 44"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 52 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423820"
+address = 0x00423820
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 94 01 00 00 8B 4C"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 33 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423850"
+address = 0x00423850
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 98 01 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423860"
+address = 0x00423860
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 B8 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423870"
+address = 0x00423870
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 D8 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423880"
+address = 0x00423880
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 D8 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423890"
+address = 0x00423890
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 88 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4238A0"
+address = 0x004238A0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 A8 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4238B0"
+address = 0x004238B0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 A8 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4238C0"
+address = 0x004238C0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 38 05 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4238D0"
+address = 0x004238D0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 10 E9 48 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4238E0"
+address = 0x004238E0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 10 E9 68 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4238F0"
+address = 0x004238F0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 10 E9 68 F7 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423900"
+address = 0x00423900
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 18 01 00 00 3B 81"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 16 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423910"
+address = 0x00423910
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8D 5E 04 C7"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 187 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4239D0"
+address = 0x004239D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 8B 44 24 28 53"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 840 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423D20"
+address = 0x00423D20
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 83 EC 20 FF 50 10"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 121 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423DB0"
+address = 0x00423DB0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 54 24 08 8D 04 24"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 27 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423DD0"
+address = 0x00423DD0
+kind = "function"
+convention = "thiscall"
+expect = "68 9C 01 00 00 E8 06 18"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 35 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423E00"
+address = 0x00423E00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 08 FB FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 30 bytes."
+
+[[entry]]
+name = "cSC4Advice::F423E20"
+address = 0x00423E20
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C 53 56 8B 35 E8"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 1347 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4243B0"
+address = 0x004243B0
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 60 01 00 00 85 C0"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 67 bytes."
+
+[[entry]]
+name = "cSC4Advice::F424400"
+address = 0x00424400
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 80 01 00 00 85 C0"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 67 bytes."
+
+[[entry]]
+name = "cSC4Advice::F424450"
+address = 0x00424450
+kind = "function"
+convention = "thiscall"
+expect = "A0 B8 0D B2 00 83 EC 0C"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 425 bytes."
+
+[[entry]]
+name = "cSC4Advice::F424600"
+address = 0x00424600
+kind = "function"
+convention = "thiscall"
+expect = "A0 DC 0D B2 00 83 EC 14"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 331 bytes."
+
+[[entry]]
+name = "cSC4Advice::F424750"
+address = 0x00424750
+kind = "function"
+convention = "thiscall"
+expect = "68 98 09 A8 00 83 C1 FC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 14 bytes."
+
+[[entry]]
+name = "cSC4Advice::F424760"
+address = 0x00424760
+kind = "function"
+convention = "thiscall"
+expect = "A0 00 0E B2 00 81 EC 98"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 618 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4249D0"
+address = 0x004249D0
+kind = "function"
+convention = "thiscall"
+expect = "68 8C 49 A8 00 E8 26 FC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 11 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4249E0"
+address = 0x004249E0
+kind = "function"
+convention = "thiscall"
+expect = "68 9C 49 A8 00 E8 16 FC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 11 bytes."
+
+[[entry]]
+name = "cSC4Advice::F4249F0"
+address = 0x004249F0
+kind = "function"
+convention = "thiscall"
+expect = "68 AC 49 A8 00 E8 06 FC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 11 bytes."
+
+[[entry]]
+name = "cSC4Advice::F424A00"
+address = 0x00424A00
+kind = "function"
+convention = "thiscall"
+expect = "68 C4 49 A8 00 E8 F6 FB"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 11 bytes."
+
+[[entry]]
+name = "cSC4Advice::F424AE0"
+address = 0x00424AE0
+kind = "function"
+convention = "thiscall"
+expect = "B8 DE 35 93 6A C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 6 bytes."
+
+[[entry]]
+name = "cSC4Advice::F424AF0"
+address = 0x00424AF0
+kind = "function"
+convention = "thiscall"
+expect = "B8 BF BB 1D 4A C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advice classes, 6 bytes."

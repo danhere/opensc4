@@ -922,8 +922,8 @@ uint8_t __fastcall AdvisorDoMessage(char* target, void*, void* message)
         void** const out = reinterpret_cast<void**(__thiscall*)(void**)>(addr::SC4RefPtr_Reset)(&reference);
         if (Virtual<uint8_t>(subject, 0x0, uint32_t{0x87DDA3A9}, out)) {
             if (void* const service = Global<void*>(addr::SC4_Service43D68)) {
-                void* const got = Virtual<void*>(reference, 0x10, &where[0]);
-                if (Virtual<uint8_t>(service, 0x38, got))
+                void* const got = Virtual<void*>(reference, 0x10);
+                if (Virtual<uint8_t>(service, 0x38, got, &where[0]))
                     RequestUpdate(obj, 1, where[2]);
             }
         }
