@@ -247,7 +247,7 @@ The two-stage pass (0x00736BF0) is the one normal play uses. Stage 1 gets the ma
 | 0x00ABD1D0 | 0x007FEA90 | 41% | a camera-facing textured quad (billboard) |
 | 0x00ABD508, 0x00ABD018 | 0x00801750 | 30% | a model, through the context's 0x007D5710 |
 | 0x00AA2C30 | 0x005E0200 | 20% | a textured quad on the ground |
-| 0x00AA7F10 | 0x0061A850 | 4% | not read yet |
+| 0x00AA7F10 | 0x0061A850 | 4% | a quad as one or two triangles, and a list of triangles |
 | 0x00AA2EA8 | 0x005E27C0 | 2% | a strip of triangles shown from two rotations |
 | 0x00AA2808 | 0x005D5FC0 | 2% | quads picked by the rotation |
 
@@ -272,6 +272,10 @@ The overlaid round's material setup (0x007D5670: one stage, straight to the driv
 **Two rarer drawables.** The one with vtable 0x00AA2EA8 (0x005E27C0; `this` is the object + 0xAC) follows the zoom and rotation through two helpers (0x005E1710, 0x005E1BC0), then, when it is visible (+0x66) and the rotation is one of the two its side (+0x78) faces, draws its vertices (+0x9C to +0xA0, 24 bytes each) as one strip with its texture (+0x98) and a fixed render state (0x00B230B4). The one with vtable 0x00AA2808 (0x005D5FC0; `this` is the object + 0x274) takes two indices from the rotation (the camera view's 0x007F7750, to +0x50 and +0x54), and draws the quads they pick (from +0x74, 0x60 bytes each) with one texture (+0x70) when the zoom's flag (+0x4A) is set, then one more quad (+0x210) with a second texture (+0x20C), all with the render state at 0x00B23034. Neither draws in the overlaid round.
 
 `renderer.models.sidestrip` and `renderer.models.rotationquads` replace them (their zoom and rotation helpers still the game's). 2026-10-10, three test cities with the camera workout: 0 divergences (1,103, 81,080 and 1,563 strips; 882, 66,915 and 1,693 of the quads; the game against itself also 0); 20 of 20 screenshots against the stock driver with all 24 renderer replacements on.
+
+**The last drawable** (vtable 0x00AA7F10, 0x0061A850; `this` is the object + 0x17C) asks itself about its flags through its own slot 0x20 and looks textures up through its slot 0x134. It picks one of two render states (0x00B45260, or 0x00B45268 when the pieces it reports through slot 0xB4 do not combine to one of twelve plain patterns). With either of the flags 0x6000000 it draws its quad (+0x9C) with up to two textures, each as one or two triangles by the flags 0x2000000 and 0x4000000, from one of two index lists by flag 0x1000000. Then it draws a list of single triangles (+0x118, 0x4C bytes each: a texture key and three vertices), leaving out those the terrain (0x00B43CF4, slot 0x78) has risen above. Unlike the others it also draws in the overlaid round: there, after asking its second interface (slot 0x40) whether to, it uses a fixed colour and draws everything a second time with a third render state (0x00B45270).
+
+`renderer.models.flaggedquad` replaces it. 2026-10-10, three test cities with the camera workout: 0 divergences (5,102, 157,704 and 5,258 objects; the game against itself also 0); 20 of 20 screenshots against the stock driver with all 25 renderer replacements on. With it every kind of drawable the passes meet in the test cities is drawn by our code.
 
 ## What the driver calls mean
 
