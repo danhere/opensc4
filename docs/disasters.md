@@ -82,7 +82,7 @@ The tick (message 0x86AD10EE, at most once per millisecond of the instance's sto
 
 Tuning: exemplar 0x6534284A/0x29B6C670/0x4A38206D (6 levels, level time 30, spawn counts 0 1 0 1 0 0 and a curve 0, 0 up to cover 64, 1 at 65, 3 at 255 by default).
 
-The instance's Read (0x0057E870) first resizes the rioter list to the saved count, with a rioter whose automaton, time and levels are whatever is on the stack, and then appends the saved rioters, which reads as twice the saved count with the first half garbage. That is from reading the code, not from a test (no save with rioters was loaded); Read is left the game's.
+The instance's Read (0x0057E870) first resizes the rioter list to the saved count, with a rioter whose automaton, time and levels are whatever is on the stack, and then appends the saved rioters, which reads as twice the saved count with the first half garbage. That is from reading the code, not from a test: nothing in the game saves or loads a riot (see Parity), so Read cannot be reached, and what it would do depends on what is on the stack. It is left the game's.
 
 ### Fire
 
@@ -117,6 +117,14 @@ The tick is message 0x86AD10EE with the time passed (the same service as the vol
 
 A disaster that is only a visual effect a tool started (the caller is a view tool at 0x005803D0). The manager has no start by cell; its effect part (interface 0xCA7B3F3C at +0x24) takes an effect, a position and a disaster type, makes an instance (0x2C bytes) around the effect, and can move or stop the first instance. The instance tells the effect to report to it (message 0x2A7B582D when it is over, 0x2A7B582E with a new cell), starts it, puts itself on the manager's list and tells the layer a disaster began; its location is the position's cell, registered with the layer. When the effect reports it is over the instance shuts down: the effect is stopped if it still runs, the layer is told and the location withdrawn.
 
+## The objects
+
+The layer, the seven managers and five instances are registered classes (their factories are in the game's class table at 0x00460B57 to 0x00460C2F); the toxic and effect instances are made directly by their managers. Sizes: layer 0xD8; managers 0x24 (earthquake), 0x28 (pipe burst, volcano, effect, toxic), 0x2C (fire), 0x30 (riot); instances 0x100 (fire), 0x120 (earthquake), 0x38 (pipe burst), 0x54 (volcano), 0x78 (riot), 0x2C (effect), 0x40 (toxic).
+
+A manager's factory runs the base constructor (three empty lists) and sets its own vtables; the riot manager adds its set of marked lots, the fire manager sets the global 0x00B22B4C to itself. Most factories return the object's interface at +8; the fire and effect managers' return their extra part at +0x24, the volcano instance's the object itself. The volcano instance is the odd one: no reference-counted base, its instance interface first, and a constructor that leaves three fields unset.
+
+The destructors shut the object down first if it is still initialised, then free its containers. The fire instance's constructor seeds its random generator from the clock.
+
 ## What is ours
 
 | Replacement | What is ours |
@@ -129,9 +137,10 @@ A disaster that is only a visual effect a tool started (the caller is a view too
 | `simulators.disasters.pipeburst` | the pipe burst manager, its pipe filter and the instance (21 functions) |
 | `simulators.disasters.earthquake` | the earthquake manager's start and the instance (20 functions) |
 | `simulators.disasters.fire` | the fire manager and instance (46 functions); the fire occupant stays the game's |
+| `simulators.disasters.objects` | the factories, constructors, destructors and deleting destructors of the layer, the managers (and their base) and the instances (46 functions) |
 | `simulators.disasters.effect` | the effect manager's QueryInterface and effect part, and the instance (13 functions; its QueryInterface is also the earthquake instance's) |
 
-Still the game's: the objects (constructors, destructors), the riot instance's Read, the fire occupant, container and stopwatch helpers.
+Still the game's: the riot instance's Read, the fire occupant, the vtables (data), and shared code: the reference-counted base, container and stopwatch helpers.
 
 ## Test cities
 
@@ -189,7 +198,7 @@ With the riot on too (`disr1-*`, `disr3-push`):
 | riot, ended on day 3 | 8 | 3 partly, 1 failed |
 | riot pushed by 40 a day (`OPENSC4_TEST_RIOT_PUSH`) | 11 | 1 partly (Big City d0000) |
 
-Unpushed, a riot is one rioter whose time goes from 1 to 2 in a week. Pushed, the rioters go from 2 to 5 as levels are reached, their locations are registered and one leaves, the same on both sides day by day. The riot's Write runs at the end of every such run (the saves match). The failed run was a B run that crashed in the game's code at 0x005A62A2 while Making Money d1095 loaded, an address [parity.md](parity.md) already has from an A run.
+Unpushed, a riot is one rioter whose time goes from 1 to 2 in a week. Pushed, the rioters go from 2 to 5 as levels are reached, their locations are registered and one leaves, the same on both sides day by day. The riot is not saved: a city saved with five rioters has no riot record (class 0x4A38206D) among its 147, and loading it makes the riot manager but no instance (the coverage meter on the three saves of `saves-riot`: the instance's factory, constructor and Read did not run; `riotload1`: no riot after loading). So the instance's Write and Read cannot be reached through saving and loading, and an earlier note here that Write ran at the end of these runs was wrong. The failed run was a B run that crashed in the game's code at 0x005A62A2 while Making Money d1095 loaded, an address [parity.md](parity.md) already has from an A run.
 
 With the earthquake on too (`dq1-*`, `dq2-push`):
 
@@ -221,3 +230,18 @@ With the fire on too (`df1-*` to `df6-*`), every leg with a fire started on day 
 | tutorial off, pushed by 10, fire calls | 12 | |
 
 Unpushed, a fire makes one step in the week. With the tutorial on, a pushed fire's heat rises by 1 a step and stops at its last stage; the area call sets up to 13 more fires alight in two more groups, the douse takes heat off, and the burned queue empties five an update (15, then 10 queued; 5, 10, 20 destroyed), with the cost counted the same on both sides. With the tutorial off the fires run their course: at 10 steps a day the first fire changes stage on day 3 and burns its occupant down on day 6, the groups end one by one and the disaster ends. The instance's random generator, drawn from on every step for the spread, has the same state on both sides at the end of every day in every save. Not seen: a spread that starts a new fire (the draws are made, but no day ended with more fires than the calls had started), the two view messages' effect on a fire occupant, and Ignite.
+
+With the objects on too (`do1-*`; every constructor, destructor and factory ours):
+
+| Leg | Same | Rest |
+| --- | --- | --- |
+| no disaster | 12 | |
+| toxic spill, ended on day 3 | 12 | |
+| earthquake pushed | 8 | the four Big City saves as before: every run its own outcome, the `dis` part the same in all six |
+| effect disaster, ended on day 3 | 12 | |
+| pipe burst with 2-second fuses | 11 | 1 partly: fingerprints identical, one of ours saved with the traffic record's walk at another cell (the view-dependent fields) |
+| riot pushed, ended on day 5 | 12 | |
+| volcano, ended on day 3 | 3 | as before every run its own outcome on most saves; the `dis` part the same in all runs on the 8 Making Money and Rush Hour saves, and on Big City within what the original's own runs give |
+| fire with the tutorial off, pushed by 10, fire calls | 11 | 1 partly: one of ours differed from day 1 in the advisor part only (code that is the game's on both sides) |
+
+Every run makes the layer, the seven managers and the fire instance when the city loads and destroys them when the game quits (the coverage meter shows the original doing both). All 15 classes' constructors run in these legs. For the destructors, one original run per disaster with the coverage meter (`analysis/cov-dis-*`): the earthquake, effect, pipe burst, riot and volcano instances' ran; the toxic instance's (0x0057F030) did not, not even at quit, though the instance had been shut down (something still holds it); and nothing reaches the fire part's own deleting destructor (0x00579570). So those two of ours are untested. No run crashed or failed.
