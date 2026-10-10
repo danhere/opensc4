@@ -158,6 +158,9 @@ add_library(opensc4_core SHARED
   lotcfg_autotest.cpp
   lotcfg_load.cpp
   lotcfg_sim.cpp
+  zonemgr_autotest.cpp
+  zonemgr_place.cpp
+  zonemgr_sim.cpp
   landfill_sim.cpp
   seaport_autotest.cpp
   seaport_sim.cpp
