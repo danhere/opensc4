@@ -80,6 +80,16 @@ float CityZoomDivisor();
 // resolution, as BGRA rows; false without the D3D11 driver's window.
 bool ReadFrame(std::vector<uint8_t>& pixels, uint32_t& width, uint32_t& height);
 
+// Same-frame comparison of draws, for the compare mode of replacements that
+// draw: Begin records a checksum per draw (frame_trace::HashDraw) and, with
+// `draw` false, keeps the draws off the screen; End returns the checksums.
+// SaveState/RestoreState copy the driver's pipeline state (matrices, enables,
+// blending, stages, viewport...), so that a quiet run can be undone.
+void BeginCapture(bool draw);
+std::vector<uint32_t> EndCapture();
+std::vector<char> SaveState();
+void RestoreState(const std::vector<char>& state);
+
 // Shows the back buffer on a timer while photo mode is on (the game stops
 // presenting when every interface window is hidden).
 void PresentWhileActive();
