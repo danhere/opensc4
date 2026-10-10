@@ -1742,6 +1742,69 @@ uint32_t DrawBillboard(char* self, char* context, uint8_t overlaid)
     return 1;
 }
 
+// The context's model draw (0x007D5710): an instance's transform and colour,
+// then each group of the model: its material set up, its mesh drawn.
+// `properties` is a flags byte (4: plain colour, 8: not in the overlaid
+// round) and a colour at +4. `original` draws the bounding box instead when
+// the debug preference at +0x35C asks for it.
+template <typename Original>
+void DrawModel(char* context, void* instance, void* model, char* properties, uint8_t overlaid, Original&& original)
+{
+    const auto preference = [&](std::size_t offset) {
+        return At<uint8_t>(At<char*>(At<char*>(context, 0x38), 0xC), offset) != 0;
+    };
+    if (!overlaid) {
+        if (preference(0x35C))
+            return original();
+    } else if (At<uint8_t>(properties, 0) & 8) {
+        return;
+    }
+    if (preference(0x3DC)) {
+        float box[6] = {1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f};
+        Virtual<void>(instance, 0x20, box);
+        float size[3], length;
+        for (int axis = 0; axis < 3; ++axis)
+            size[axis] = static_cast<float>(static_cast<double>(box[3 + axis]) - box[axis]);
+        const float* const measured =
+            reinterpret_cast<const float*(__cdecl*)(const float*, float*)>(addr::S3D_VectorLength)(size, &length);
+        if (static_cast<double>(At<float>(At<char*>(context, 0x24), 0x154)) * *measured <
+            At<float>(At<char*>(At<char*>(context, 0x38), 0x24), 0x184))
+            return;
+    }
+    const uint32_t groups = Virtual<uint32_t>(model, 0xC);
+    struct {
+        uint8_t flags[4];
+        float rotation[9];
+        float position[3];
+        float scale;
+    } transform = {{0, 0, 0, 0}, {1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 0, 0}, 1};
+    Virtual<void>(instance, 0x24, &transform);
+    CallThis<void>(addr::SC4RenderContext_SetModelTransform, context, &transform);
+    void* const driver = At<void*>(context, 0x30);
+    if (!overlaid && !(At<uint8_t>(properties, 0) & 4)) {
+        CallThis<void>(addr::SC4RenderContext_SetColourLit, context, instance, properties + 4);
+    } else {
+        Virtual<void>(driver, 0x80, At<uint32_t>(properties, 4), At<uint32_t>(properties, 8), At<uint32_t>(properties, 0xC));
+        At<uint8_t>(context, 0x1F8) = 1;
+    }
+    for (uint32_t group = 0; group < groups; ++group) {
+        char* const material = Virtual<char*>(model, 0x18, group);
+        void* const mesh = Virtual<void*>(model, 0x10, group);
+        CallThis<void>(overlaid ? addr::SC4RenderContext_SetMaterialOverlaid : addr::SC4RenderContext_SetMaterial, context,
+                       material, properties);
+        CallThis<void>(addr::SC4RenderContext_DrawMesh, context, mesh);
+        if (!preference(0x17C) && At<uint8_t>(material, 0xB) == 2) {
+            CallThis<void>(addr::SC4RenderContext_BeginSecondPass, context);
+            CallThis<void>(addr::SC4RenderContext_DrawMesh, context, mesh);
+        }
+    }
+    if (At<uint8_t>(context, 0x1F8)) {
+        Virtual<void>(driver, 0x80, At<uint32_t>(context, 0x94), At<uint32_t>(context, 0x98), At<uint32_t>(context, 0x9C));
+        At<uint8_t>(context, 0x1F8) = 0;
+    }
+    Virtual<void>(driver, 0x84, 1.0f);
+}
+
 // --- The rows' layer lists and the skirts' colours ------------------------------------------
 
 // 0x0075ABA0: a row's list of texture layers with their spans of columns,
@@ -2324,6 +2387,36 @@ uint32_t __fastcall DBillboard(char* self, void*, char* context, uint32_t overla
     return result;
 }
 
+using ModelFn = void(__fastcall*)(char*, void*, void*, void*, char*, uint32_t);
+ModelFn g_model;
+bool g_compareModel = false;
+
+void __fastcall DModel(char* context, void*, void* instance, void* model, char* properties, uint32_t overlaid)
+{
+    const auto original = [&] { g_model(context, nullptr, instance, model, properties, overlaid); };
+    if (g_depth > 0)
+        return original();
+    const auto ours = [&] { DrawModel(context, instance, model, properties, static_cast<uint8_t>(overlaid), original); };
+    if (!g_compareModel)
+        return ours();
+    std::vector<Region> regions{{"context", context, kContextSize}};
+    if (char* const render = At<char*>(context, 0x34))
+        if (char* const camera = At<char*>(render, 0xD8))
+            regions.push_back({"camera", camera, kCameraSize});
+    if (char* const stages = At<char*>(context, 0xE0))
+        regions.push_back({"stages", stages, static_cast<std::size_t>(At<char*>(context, 0xE4) - stages)});
+    QuietRun(regions, original);
+    DrawCompared(g_selfCheck ? "models.model.selfcheck" : "models.model", regions,
+                 [&] {
+                     if (g_selfCheck)
+                         original();
+                     else
+                         ours();
+                 },
+                 original, true);
+}
+
+OPENSC4_THUNK(TModel, DModel, 16)
 OPENSC4_THUNK(TBillboard, DBillboard, 8)
 OPENSC4_THUNK(TDrawMoving, DDrawMoving, 0)
 OPENSC4_THUNK(TDrawStatic, DDrawStatic, 0)
@@ -2723,6 +2816,29 @@ const bool g_registeredBillboard = registry::Register({
     "billboard (docs/renderer.md, \"Models and lots\")",
     true,
     InstallBillboard,
+});
+
+bool InstallModel(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareModel = mode == registry::Mode::Compare;
+    if (!Detour(addr::SC4RenderContext_DrawModel, &TModel, &g_model))
+        return false;
+    log::Write("models: model draw %s", g_compareModel ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredModel = registry::Register({
+    "renderer.models.model",
+    "renderer/models",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4RenderContext_DrawModel,
+    "The render context's model draw: transform, colour, then each group's material and mesh; compare mode as "
+    "renderer.models.static, per model (docs/renderer.md, \"Models and lots\")",
+    true,
+    InstallModel,
 });
 
 } // namespace
