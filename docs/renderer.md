@@ -281,6 +281,26 @@ The overlaid round's material setup (0x007D5670: one stage, straight to the driv
 
 **The billboard's corners** (0x007FE400, after a change of zoom or rotation) are about 490 instructions of x87 arithmetic with some forty branches: a scale from the camera, the four corners from the picture's rectangle and the camera's axes, and a bounding box grown corner by corner. `renderer.models.billboard_corners` replaces it with a translation made by [tools/re/x86cpp.py](../tools/re/x86cpp.py), which turns a whole function of the game into C++ statements over an emulated machine (registers as integers, memory by address, the x87 stack as doubles, branches as gotos, calls to the game's own functions): [billboard_corners.inc](../src/core/billboard_corners.inc). Compare mode runs ours, puts the billboard back, runs the game's and compares the billboard's bytes. 2026-10-10, three test cities with the camera workout: 0 divergences (3, 639 and 15 calls); 20 of 20 screenshots against the stock driver with all 27 renderer replacements on.
 
+## Water effects, sky and clouds
+
+**What draws after the models.** Besides the models, the 3D render calls objects that registered for one of four passes (`cSC43DRender::AddViewObject`, 0x007C5D90: pass 0 and 2 around the static pass, 3 and 5 around the moving-objects pass; each object's slot 0xC with the render context, in the order number's order). `diagnostics.trace.viewobjects` logs every registration; `OPENSC4_VIEWOBJECT_SKIP=<draw function>` leaves an object out, to see in a screenshot what it draws. In a loaded city (2026-10-10):
+
+| Pass, order | Draw function | What |
+|---|---|---|
+| 0, 0 and 2, 1000 | 0x0075BFD0 | the terrain view: land, then water |
+| 2, 0 and 1100; 5, 1000 and 1100 | 0x00739490 | four overlay managers |
+| 5, 1000 | 0x0046D990 | not identified yet (5.6 KB) |
+| 5, 1000 | 0x007514F0 | the terrain view again: coloured and textured cell quads from two hash tables (+0xB0, +0x9C) |
+| 5, 1000 (three objects) | 0x00620500 | not identified yet: quads from two trees, drawn twice |
+| 5, 1100 | 0x00761FF0 | the shore: the surf line along the water's edge |
+| 5, 1900 | 0x00593120 | the effects manager: every particle effect, the clouds and their shadows among them |
+
+There is no sky in the city view: what shows behind the terrain is the background the 3D render restores (`ClearViewport`). The clouds are particle effects: an effect's description carries a render flag (the effects parser's `kRenderWaterEffects` 3 and `kRenderCloudsAndFog` 4, the numbers of the render properties of those names), and with the effects manager left out the clouds and their shadows are gone and nothing else in the paused test city changes.
+
+**The shore** (class name ours, `STEShore`: vtables 0x00AB45FC and 0x00AB4624, code 0x0075FAE0 to 0x00762100; the 3D render holds the interface at the second vtable). Its draw (0x00761FF0) builds the strips on the first draw (0x00761B70, from the terrain's cells whose record has flag 0x10 and not flag 1 at +0x22) and sets them up for the zoom (0x00761CF0, again whenever the context's zoom differs from +0x40). Then, when the `RenderWaterEffects` property is set (the byte at +0x7C of the render properties), it applies one fixed render state (0x00B4D528, filled on first use) and draws each group (0x38 bytes each, +0x34 to +0x38) whose bounding box (+0x20, +0x2C) the camera view has in sight: for each strip in the group's list (+0xC), again by its own box (+0x34, +0x40), the texture its index (+0xC) picks from the object's table (+0xB4) and its 24-byte vertices as one strip (primitive 7, vertex format 10; 0x0075FE70).
+
+`renderer.water.shore` replaces the draw and the strip draw (building the strips and the zoom change still the game's). Compared draw by draw in the same frame as the terrain's passes; frames that build or change zoom run the game's only, because they allocate. 2026-10-10, three test cities with the camera workout and water effects on: 0 divergences (63,600, 64,584 and 81,191 calls of the draw; the game against itself also 0); 20 of 20 screenshots with ours on against the same run without it.
+
 ## What the driver calls mean
 
 Reference for writing a driver, from decompiling both stock drivers (vtables: DirectX 0x00AC4660, OpenGL 0x00AC36D0, `cIGZGDriver` at object + 0xC in both). The OpenGL driver is the plainest spec, since most methods are one GL call after a table lookup; the DirectX driver is what the game was tuned against and what the screenshot harness compares with (the OpenGL driver renders without terrain and with black boxes around trees on a current NVIDIA card, so it is no visual reference).
