@@ -64,6 +64,8 @@ add_library(opensc4_core SHARED
   advisor_base_1.cpp
   advisor_base_2.cpp
   advisor_base_3.cpp
+  advisor_classes_1.cpp
+  advisor_classes_2.cpp
   lua_autotest.cpp
   script_globals_city.cpp
   script_globals_education.cpp
