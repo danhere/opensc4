@@ -66,6 +66,7 @@ add_library(opensc4_core SHARED
   disaster_autotest.cpp
   disaster_earthquake.cpp
   disaster_effect.cpp
+  disaster_fire.cpp
   disaster_layer.cpp
   disaster_managers.cpp
   disaster_pipeburst.cpp

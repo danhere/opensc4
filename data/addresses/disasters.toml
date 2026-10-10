@@ -2150,3 +2150,579 @@ name = "SC4OccupantFilterBase::vftable"
 address = 0x00AA42C8
 kind = "data"
 source = "Name ours. The filter base's vtable (second 0x00AA42B0)."
+
+[[entry]]
+name = "cSC4DisasterLayer::DeletingDestructor"
+address = 0x00578B10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 B8 FC FF FF"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::Create"
+address = 0x00579AE0
+kind = "function"
+convention = "cdecl"
+expect = "56 6A 2C E8 F8 BA 06 00"
+source = "The factory (0x2C bytes); returns the fire part (+0x24). Sets the manager's global 0x00B22B4C."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::DeletingDestructor"
+address = 0x00579B40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 4C E5 A9"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::PartDeletingDestructor"
+address = 0x00579570
+kind = "function"
+convention = "thiscall"
+expect = "F6 44 24 04 01 56 8B F1"
+source = "The +0x28 part's deleting destructor."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::Create"
+address = 0x0057BB60
+kind = "function"
+convention = "cdecl"
+expect = "68 00 01 00 00 E8 76 9A"
+source = "The factory; returns the fire interface (+8)."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::Destruct"
+address = 0x0057ABF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D BE F0 00"
+source = "The destructor."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::DeletingDestructor"
+address = 0x0057AEF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 F8 FC FF FF"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterManagerEarthquake::DeletingDestructor"
+address = 0x005756B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 C0 E0 A9"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Create"
+address = 0x005763F0
+kind = "function"
+convention = "cdecl"
+expect = "68 20 01 00 00 E8 E6 F1"
+source = "The factory; returns the interface (+8)."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Destruct"
+address = 0x00576420
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8A 47 10"
+source = "The destructor."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::DeletingDestructor"
+address = 0x00576AF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 28 F9 FF FF"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterManagerEffect::DeletingDestructor"
+address = 0x00576FD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 E8 E1 A9"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::DeletingDestructor"
+address = 0x00577310
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 18 84 C0"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterManagerPipeBurst::DeletingDestructor"
+address = 0x0057C120
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 9C E6 A9"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::Create"
+address = 0x0057D000
+kind = "function"
+convention = "cdecl"
+expect = "6A 38 E8 D9 85 06 00 83"
+source = "The factory; returns the interface (+8)."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::Destruct"
+address = 0x0057CF40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 10 84 C0"
+source = "The destructor."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::DeletingDestructor"
+address = 0x0057D020
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 18 FF FF FF"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterManagerVolcano::Create"
+address = 0x0057FE00
+kind = "function"
+convention = "cdecl"
+expect = "56 6A 28 E8 D8 57 06 00"
+source = "The factory (0x28 bytes); returns the interface (+8)."
+
+[[entry]]
+name = "cSC4DisasterManagerVolcano::DeletingDestructor"
+address = 0x0057F680
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 C4 E9 A9"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::Create"
+address = 0x0057FF00
+kind = "function"
+convention = "cdecl"
+expect = "6A 54 E8 D9 56 06 00 83"
+source = "The factory (0x54 bytes); returns the object."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::DeletingDestructor"
+address = 0x0057FF20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 20 84 C0"
+source = "Slot 8."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::Create"
+address = 0x0057DAA0
+kind = "function"
+convention = "cdecl"
+expect = "6A 30 E8 39 7B 06 00 83"
+source = "The factory (0x30 bytes); returns the interface (+8)."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::Construct"
+address = 0x0057D9A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 B8 A7 FF FF"
+source = "The constructor: the base and the set of marked lots at +0x24."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::Destruct"
+address = 0x0057D6B0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8D 77 24 C7"
+source = "The destructor."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::DeletingDestructor"
+address = 0x0057DA00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 A8 FC FF FF"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::Create"
+address = 0x0057DFA0
+kind = "function"
+convention = "cdecl"
+expect = "6A 78 E8 39 76 06 00 83"
+source = "The factory (0x78 bytes); returns the interface (+8)."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::Destruct"
+address = 0x0057DBA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 20 84 C0"
+source = "The destructor."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::DeletingDestructor"
+address = 0x0057DFC0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 D8 FB FF FF"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::DeletingDestructor"
+address = 0x0057EC40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 CC E8 A9"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterInstanceToxic::DeletingDestructor"
+address = 0x0057F030
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 10 84 C0"
+source = "Main slot 3."
+
+[[entry]]
+name = "cSC4DisasterManager::vftable"
+address = 0x00A9E364
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterManager::vftable_8"
+address = 0x00A9E334
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterManager::vftable_C"
+address = 0x00A9E324
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterLayer::vftable"
+address = 0x00A9E3DC
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterLayer::vftable_8"
+address = 0x00A9E390
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterLayer::vftable_C"
+address = 0x00A9E380
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::vftable"
+address = 0x00A9E54C
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::vftable_8"
+address = 0x00A9E51C
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::vftable_C"
+address = 0x00A9E50C
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::vftable_24"
+address = 0x00A9E4DC
+kind = "data"
+source = "The vtable at +0x24."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::vftable_28"
+address = 0x00A9E4D8
+kind = "data"
+source = "The vtable at +0x28."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::vftable"
+address = 0x00A9E5F4
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::vftable_8"
+address = 0x00A9E5B0
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::vftable_C"
+address = 0x00A9E590
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::vftable_10"
+address = 0x00A9E580
+kind = "data"
+source = "The vtable at +0x10."
+
+[[entry]]
+name = "cSC4DisasterManagerEarthquake::vftable"
+address = 0x00A9E0C0
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterManagerEarthquake::vftable_8"
+address = 0x00A9E090
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterManagerEarthquake::vftable_C"
+address = 0x00A9E080
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::vftable"
+address = 0x00A9E160
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::vftable_8"
+address = 0x00A9E140
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::vftable_C"
+address = 0x00A9E130
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterManagerEffect::vftable"
+address = 0x00A9E1E8
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterManagerEffect::vftable_8"
+address = 0x00A9E1B8
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterManagerEffect::vftable_C"
+address = 0x00A9E1A8
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterManagerEffect::vftable_24"
+address = 0x00A9E190
+kind = "data"
+source = "The vtable at +0x24."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::vftable"
+address = 0x00A9E27C
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::vftable_8"
+address = 0x00A9E258
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::vftable_C"
+address = 0x00A9E248
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterManagerPipeBurst::vftable"
+address = 0x00A9E69C
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterManagerPipeBurst::vftable_8"
+address = 0x00A9E66C
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterManagerPipeBurst::vftable_C"
+address = 0x00A9E65C
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::vftable"
+address = 0x00A9E750
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::vftable_8"
+address = 0x00A9E730
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterInstancePipeBurst::vftable_C"
+address = 0x00A9E720
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterManagerVolcano::vftable"
+address = 0x00A9E9C4
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterManagerVolcano::vftable_8"
+address = 0x00A9E994
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterManagerVolcano::vftable_C"
+address = 0x00A9E984
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterManagerVolcano::vftable_24"
+address = 0x00A9E96C
+kind = "data"
+source = "The vtable at +0x24."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::vftable"
+address = 0x00A9EA60
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::vftable_4"
+address = 0x00A9EA3C
+kind = "data"
+source = "The vtable at +0x4."
+
+[[entry]]
+name = "cSC4DisasterInstanceVolcano::vftable_8"
+address = 0x00A9EA2C
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::vftable"
+address = 0x00A9E7C8
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::vftable_8"
+address = 0x00A9E798
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterManagerRiot::vftable_C"
+address = 0x00A9E788
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::vftable"
+address = 0x00A9E838
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::vftable_8"
+address = 0x00A9E818
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::vftable_C"
+address = 0x00A9E800
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterInstanceRiot::vftable_10"
+address = 0x00A9E7F0
+kind = "data"
+source = "The vtable at +0x10."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::vftable"
+address = 0x00A9E8CC
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::vftable_8"
+address = 0x00A9E89C
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::vftable_C"
+address = 0x00A9E88C
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterManagerToxic::vftable_24"
+address = 0x00A9E874
+kind = "data"
+source = "The vtable at +0x24."
+
+[[entry]]
+name = "cSC4DisasterInstanceToxic::vftable"
+address = 0x00A9E940
+kind = "data"
+source = "The vtable at +0x0."
+
+[[entry]]
+name = "cSC4DisasterInstanceToxic::vftable_8"
+address = 0x00A9E920
+kind = "data"
+source = "The vtable at +0x8."
+
+[[entry]]
+name = "cSC4DisasterInstanceToxic::vftable_C"
+address = 0x00A9E910
+kind = "data"
+source = "The vtable at +0xC."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::Instance"
+address = 0x00B22B4C
+kind = "data"
+source = "The fire manager, set by its factory and cleared by its destructors."

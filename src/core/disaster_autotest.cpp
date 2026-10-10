@@ -123,9 +123,15 @@ void Fingerprint(cISC4City* city, std::string& line)
             char* const burned = At<char*>(instance, 0xEC);
             for (char* entry = At<char*>(burned, 0x0); entry != burned; entry = At<char*>(entry, 0x0))
                 ++queued;
-            char fireText[96];
-            std::snprintf(fireText, sizeof fireText, " fire %d %lld %d q %d gone %u groups %u", fires, heat, stages, queued,
-                          At<uint32_t>(instance, 0xE4), At<uint32_t>(instance, 0xF4));
+            // The instance's random generator (+0x18: the integer state,
+            // the uniform state, a flag): every draw the fires made shows
+            // in it.
+            Fnv draws;
+            for (std::size_t at = 0x18; at < 0x24; at += 4)
+                draws.Add(At<uint32_t>(instance, at));
+            char fireText[112];
+            std::snprintf(fireText, sizeof fireText, " fires %d %lld %d q %d gone %u groups %u rng %08X", fires, heat, stages,
+                          queued, At<uint32_t>(instance, 0xE4), At<uint32_t>(instance, 0xF4), draws.h);
             line += fireText;
         }
     }
@@ -351,8 +357,9 @@ void PushQuakes(const Day& day)
 // OPENSC4_TEST_FIRE_CALLS=<day>: on that run day the fire manager's fire
 // part (0x49B43F57) is called as the game's tools and other simulators
 // call it: an area burned around the city's centre (inner radius 1, outer
-// 4), the first three fires doused by 3 at their cells, and the cell 6
-// east and south of the centre burned down.
+// 4), the first three fires doused by 3 at their cells, the cell 6 east
+// and south of the centre burned down, a forced start 6 west and north,
+// and the owner and count queries.
 void FireCalls(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_FIRE_CALLS") || !game::IsBuild641())
@@ -376,14 +383,79 @@ void FireCalls(const Day& day)
             Virtual<uint8_t>(extra, 0x18, cells[i][0], cells[i][1], uint32_t{3});
     }
     const uint8_t down = Virtual<uint8_t>(extra, 0x1C, middle + 6, middle + 6);
+    // A forced start (no chance, no fire cover check), the owner value, and
+    // the instance's counts.
+    const uint8_t forced = Virtual<uint8_t>(extra, 0x14, middle - 6, middle - 6, uint32_t{0}, uint32_t{1}, uint32_t{0});
+    const uint32_t owner = Virtual<uint32_t>(extra, 0x24, uint32_t{5});
+    const uint32_t ownerNow = Virtual<uint32_t>(extra, 0x28);
+    int32_t fires = -1;
+    int32_t inCity = -1;
+    if (void* const part = Virtual<void*>(extra, 0x2C)) {
+        const int32_t all[4] = {0, 0, middle * 2 - 1, middle * 2 - 1};
+        fires = Virtual<int32_t>(part, 0x40);
+        inCity = Virtual<int32_t>(part, 0x3C, all);
+        Virtual<uint32_t>(part, 0x8);
+    }
     Virtual<uint32_t>(extra, 0x8);
-    log::Write("autotest: fire calls: area %d, doused %d, burned down %d", area, doused, down);
+    log::Write("autotest: fire calls: area %d, doused %d, burned down %d, forced %d, owner %u %u, fires %d (%d in the city)",
+               area, doused, down, forced, owner, ownerNow, fires, inCity);
+}
+
+// OPENSC4_TEST_FIRE_PUSH=<n>: the fires step once a second of the
+// instance's stopwatch, on a tick that comes on frame time; under the
+// harness's clock that is about one step a week. With this set, every run
+// day the fire instance's update (fire interface slot 4) is run n times
+// with its next-step time cleared, so each call steps every fire.
+void PushFires(const Day& day)
+{
+    const int push = EnvInt("OPENSC4_TEST_FIRE_PUSH", 0);
+    if (push <= 0 || !day.counted || day.day <= day.first || !game::IsBuild641())
+        return;
+    void* const layer = day.city->GetDisasterLayer();
+    char* const manager = layer ? Virtual<char*>(layer, 0x1C, uint32_t{0x621CDA33}) : nullptr;
+    if (!manager)
+        return;
+    char* const list = At<char*>(manager - 0x8, 0x14);
+    if (At<char*>(list, 0x0) == list)
+        return;
+    char* const instance = At<char*>(At<char*>(list, 0x0), 0x8) - 0xC;
+    Virtual<uint32_t>(instance, 0x4);
+    for (int i = 0; i < push; ++i) {
+        At<uint32_t>(instance, 0xC8) = 0;
+        Virtual<void>(instance + 0x8, 0x10);
+    }
+    Virtual<uint32_t>(instance, 0x8);
+}
+
+// OPENSC4_TEST_TUTORIAL_OFF=1: the test cities are tutorial cities, and
+// while a tutorial is on a fire does not burn its occupant down or spread
+// from its last stage (the fire's step asks the tutorial system's
+// IsTutorial, slot 8). On the first run day the byte that getter returns
+// is cleared, if the getter starts `mov dl, [ecx + n]; xor eax, eax` as it
+// does in build 641 (n is 0x1F).
+void TutorialOff(const Day& day)
+{
+    if (!EnvInt("OPENSC4_TEST_TUTORIAL_OFF", 0) || !day.counted || day.day != day.first + 1 || !game::IsBuild641())
+        return;
+    char* const tutorial = Virtual<char*>(Global<void*>(addr::SC4_City), 0x148);
+    if (!tutorial)
+        return;
+    const uint8_t* const code = At<const uint8_t* const*>(tutorial, 0x0)[8];
+    if (code[0] == 0x8A && code[1] == 0x51 && code[3] == 0x33 && code[4] == 0xC0) {
+        log::Write("autotest: tutorial flag at +0x%X was %d, cleared", code[2], At<uint8_t>(tutorial, code[2]));
+        At<uint8_t>(tutorial, code[2]) = 0;
+    } else {
+        log::Write("autotest: IsTutorial is %02X %02X %02X %02X %02X %02X at %p: flag left alone", code[0], code[1], code[2],
+                   code[3], code[4], code[5], static_cast<const void*>(code));
+    }
 }
 
 const FingerprintPart kFingerprint{"disasters", 88, &Fingerprint};
 const DayHook kPushRiots{"disasters.riots", 90, &PushRiots};
 const DayHook kPushQuakes{"disasters.quakes", 90, &PushQuakes};
 const DayHook kFireCalls{"disasters.firecalls", 91, &FireCalls};
+const DayHook kPushFires{"disasters.fires", 92, &PushFires};
+const DayHook kTutorialOff{"disasters.tutorial", 87, &TutorialOff};
 const DayHook kEnd{"disasters.end", 89, &End};
 const DayHook kDrive{"disasters.drive", 88, &Drive};
 
