@@ -587,3 +587,145 @@ name = "STE::SkirtIndices"
 address = 0x00B4C6FC
 kind = "data"
 source = "Name ours. uint16*: the index list of a two-row strip for the skirts (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DrawGrid"
+address = 0x00757650
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 94 01 00 00 53 55"
+source = "Name ours. (render context, dynamic buffers): the cell grid over the land when 0x00B4C741 is set: the grid texture (+0x88) through a texture matrix from the camera, vertex alpha from the height above the water, then the land rows (0x007545C0 or 0x007541C0) (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DrawRowsBuffered"
+address = 0x007545C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 57 8B 7C 24"
+source = "Name ours. (render context, dynamic buffers, x0, z0, x1, z1): the land rows inside a rectangle of vertices through the driver's dynamic buffers, then the rows' extra quads (0x00B4C6B0); also used by the overlay manager (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DrawRowsArrays"
+address = 0x007541C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 44 24 18 33"
+source = "Name ours. (x0, z0, x1, z1, render context): as 0x007545C0 with vertex arrays (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "cSTETerrainView3D::ShowGrid"
+address = 0x00755E80
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 8A 15 41 C7"
+source = "Name ours. (bool): sets 0x00B4C741 and asks for a redraw of the whole city (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "SC4RenderState::Init"
+address = 0x007D2B50
+kind = "function"
+convention = "thiscall"
+expect = "8A 54 24 04 33 C0 84 D2"
+source = "Name ours, not analysed. (14 values): fills a packed render state (two dwords) (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "SC4RenderContext::SetRenderState"
+address = 0x007D4530
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8B 42 04 53"
+source = "Name ours, not analysed. (packed render state*): applies a packed render state (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "SC4RenderContext::UpdateViewMatrix"
+address = 0x007D2D20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 86 38 01 00"
+source = "Name ours, not analysed. (): brings the matrix at +0x1AC up to date (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "SC4RenderContext::GetViewMatrix"
+address = 0x007D2730
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8D B1"
+source = "Name ours. (float[16] out): copies the matrix at +0x1AC (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "SC4RenderContext::SetTextureMatrix"
+address = 0x007D4340
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 85 DB 56"
+source = "Name ours. (float[16] or null, stage): a stage's texture matrix (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "SC4RenderContext::ClearTextureMatrix"
+address = 0x007D4420
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 57 8B"
+source = "Name ours, not analysed. (stage): ends a stage's texture matrix (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "SC4RenderContext::DrawArrays"
+address = 0x007D2990
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 10 56 52 8B 54"
+source = "Name ours. (primitive, vertex format, count, vertices): a draw without indices (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "STE::ShowGrid"
+address = 0x00B4C741
+kind = "data"
+source = "Name ours. bool: the grid is drawn (set by 0x00755E80) (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "STE::GridState"
+address = 0x00B4C864
+kind = "data"
+source = "Name ours. the grid's packed render state (two dwords), filled on first use (flag byte 0x00B4C860) (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "STE::GridStateReady"
+address = 0x00B4C860
+kind = "data"
+source = "Name ours. bool: 0x00B4C864 is filled (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "STE::GridStaticFlags"
+address = 0x00B4C86C
+kind = "data"
+source = "Name ours. uint32: bit 0 the grid state is constructed, bit 1 the alpha slope (0x00B4C85C) is set (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "STE::GridAlphaSlope"
+address = 0x00B4C85C
+kind = "data"
+source = "Name ours. float, 0.5: grid alpha per metre above the water (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "STE::MatrixFill"
+address = 0x00B4C7C0
+kind = "data"
+source = "Name ours. dword the grid pass fills its matrix with before reading the context's (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "STE::RowQuads"
+address = 0x00B4C6B0
+kind = "data"
+source = "Name ours. per row (12 bytes each) a pointer to the row's extra quads, four 32-byte vertices each (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "STE::QuadIndices"
+address = 0x00B4C6B4
+kind = "data"
+source = "Name ours. uint16*: the index list for runs of quads (docs/renderer.md, \"The grid\")."
+
+[[entry]]
+name = "STE::RowQuadOffsets"
+address = 0x00B4C6B8
+kind = "data"
+source = "Name ours. uint16 per vertex: the number of extra quads before this column in its row (docs/renderer.md, \"The grid\")."
