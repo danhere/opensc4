@@ -421,3 +421,127 @@ name = "STE::BatchIndices"
 address = 0x00B4C8BC
 kind = "data"
 source = "Name ours. vector<uint16>: begin (then end, capacity) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DrawWater"
+address = 0x007572A0
+kind = "function"
+convention = "thiscall"
+expect = "A0 5C BC B4 00 84 C0 56"
+source = "Name ours. (render context, dynamic buffers or null): the water pass: when the terrain has water (its slot 83) and water is shown (0x00B0D718), refreshes the water colours if stale (+0x48), draws the water skirts and the water surface (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::RefreshWaterColours"
+address = 0x00756D20
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 48 53 56 8B F1 D9"
+source = "Name ours. The water vertices' colour and alpha from the depth ramp (0x00B4C7A8), the colour picture (0x00B4C7B8) and the water alpha tuning, over the dirty rectangle at +0x4C (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DrawWaterSkirts"
+address = 0x007551C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 55 8B E9 8B 4D"
+source = "Name ours. (render context): the water's faces along the city edges (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DrawWaterSurface"
+address = 0x00752240
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 55 56 57"
+source = "Name ours. (render context, dynamic buffers or null): the water mesh over the rows whose water is in view, blended (4, 5), with the zoom's water texture (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "SC4RenderContext::SetState28A0"
+address = 0x007D28A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 83 FA FF 74"
+source = "Name ours, not analysed. (int): the water surface sets 1 before and 3 after (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::WaterTexturesByZoom"
+address = 0x00B4C698
+kind = "data"
+source = "Name ours. per zoom: the water texture handles (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::DebugCells"
+address = 0x00B4BC5C
+kind = "data"
+source = "Name ours. uint8: a cheat that draws the cell overlay and hides the water (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::ShowWater"
+address = 0x00B0D718
+kind = "data"
+source = "Name ours. uint8, from the tuning exemplar (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::WaterColourPicture"
+address = 0x00B4C7B8
+kind = "data"
+source = "Name ours. an image (slots 9 and 10 its size, slot 21 a pixel): the water's colour variation over the city (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::WaterDepthRamp"
+address = 0x00B4C7A8
+kind = "data"
+source = "Name ours. an image whose row 0 is the water colour by depth (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::WaterDepthRampLast"
+address = 0x00B4C7AC
+kind = "data"
+source = "Name ours. uint32: the ramp's last index (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::WaterAlphaDepth"
+address = 0x00B0D70C
+kind = "data"
+source = "Name ours. float: the depth at which water is opaque (10) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::WaterMinAlpha"
+address = 0x00B0D710
+kind = "data"
+source = "Name ours. uint8: the alpha at depth 0 (0x20) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::WaterRampScale"
+address = 0x00B0D714
+kind = "data"
+source = "Name ours. float: ramp index per metre of depth (0.72) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::WaterFadeTint"
+address = 0x00B4C618
+kind = "data"
+source = "Name ours. float[3]: the colour the water fades to (+0x44 of the view) (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::CellsX"
+address = 0x00B4C744
+kind = "data"
+source = "Name ours. uint32: cells along x (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::CellsZ"
+address = 0x00B4C748
+kind = "data"
+source = "Name ours. uint32: cells along z (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "STE::Rotation"
+address = 0x00B4C708
+kind = "data"
+source = "Name ours. int32: the rotation the view is set up for (docs/renderer.md, \"The terrain\")."
+
+[[entry]]
+name = "SC4::Preferences43CC4"
+address = 0x00B43CC4
+kind = "data"
+source = "Name ours. an object whose +0xC holds display preferences (+0x33C dynamic vertex buffers, +0x39C plain water) (docs/renderer.md, \"The terrain\")."

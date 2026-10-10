@@ -34,7 +34,7 @@ constexpr std::size_t kViewSize = 0xE8;
 constexpr std::size_t kContextSize = 0x200; // cSC43DRender + 0x11C (0x007C9F50)
 constexpr std::size_t kCameraSize = 0x1A8;
 
-bool g_compare = false;
+bool g_compareLand = false, g_compareWater = false;
 int g_depth = 0;
 uint64_t g_passesCompared = 0, g_drawsCompared = 0;
 
@@ -67,6 +67,7 @@ std::vector<Region> PassRegions(char* self, char* context)
     if (camera)
         regions.push_back({"camera", camera, kCameraSize});
     regions.push_back({"land", Global<char*>(addr::STE_LandVertices), vertices});
+    regions.push_back({"water", Global<char*>(addr::STE_WaterVertices), vertices});
     for (const auto& [name, address] : {std::pair{"batchsource", addr::STE_BatchSource},
                                         std::pair{"template", addr::STE_IndexTemplate},
                                         std::pair{"templaterow", addr::STE_IndexTemplatePerRow},
@@ -479,6 +480,171 @@ using LandFn = uint32_t(__fastcall*)(char*, void*, char*, void*);
 LandFn g_land;
 uint64_t g_skipped = 0;
 
+// --- The water pass --------------------------------------------------------------------
+
+// 0x00752240: the water mesh over the rows whose water is in view (the land
+// pass's rows and columns), with the zoom's water texture.
+void DrawWaterSurface(char* self, char* context, void* buffers)
+{
+    CallThis<void>(addr::SC4RenderContext_SetState4010, context, uint8_t{1});
+    CallThis<void>(addr::SC4RenderContext_SetBlend, context, 4u, 5u);
+    CallThis<void>(addr::SC4RenderContext_SetState40B0, context, 1u, 0u);
+    char* const textures = Global<char*>(addr::STE_WaterTexturesByZoom + 4 * Global<int32_t>(addr::STE_Zoom));
+    CallThis<void>(addr::SC4RenderContext_BindTexture, context, **reinterpret_cast<uint32_t**>(textures), 0u);
+    CallThis<void>(addr::SC4RenderContext_SetState28A0, context, 1u);
+    const int32_t* const starts = RowStarts();
+    const int32_t* const ends = RowEnds();
+    const uint8_t* const water = Global<uint8_t*>(addr::STE_LandRowWater);
+    const int32_t first = At<int32_t>(self, 0xA4), end = At<int32_t>(self, 0xAC);
+    if (buffers) {
+        LockBatch();
+        Global<char*>(addr::STE_BatchSource) = Global<char*>(addr::STE_WaterVertices);
+        Global<uint16_t*>(addr::STE_IndexTemplate) = Global<uint16_t*>(addr::STE_RowIndices);
+        Global<uint8_t>(addr::STE_IndexTemplatePerRow) = 1;
+        for (int32_t r = first; r < end; ++r) {
+            if (!water[r] && !water[r + 1])
+                continue;
+            if (ends[r] - 1 > starts[r])
+                AddStrip(r, starts[r], ends[r] - 1);
+        }
+        FlushBatch();
+    } else {
+        const uint32_t columns = Columns();
+        const uint32_t perRow = Global<uint32_t>(addr::STE_IndicesPerRow);
+        for (int32_t r = first; r < end; ++r) {
+            if (!water[r] && !water[r + 1])
+                continue;
+            const int32_t triangles = (ends[r] - starts[r]) * 2 - 2;
+            if (triangles <= 0)
+                continue;
+            CallThis<void>(addr::SC4RenderContext_SetIndexArray, context, perRow,
+                           Global<uint16_t*>(addr::STE_RowIndices) + static_cast<std::size_t>(perRow) * r);
+            CallThis<void>(addr::SC4RenderContext_SetVertexArray, context, 0xBu, columns,
+                           Global<char*>(addr::STE_WaterVertices) + static_cast<std::size_t>(columns) * r * 32);
+            CallThis<void>(addr::SC4RenderContext_DrawIndexed, context, 0u, starts[r] * 6, triangles * 3);
+        }
+    }
+    CallThis<void>(addr::SC4RenderContext_SetState28A0, context, 3u);
+    CallThis<void>(addr::SC4RenderContext_SetState4010, context, uint8_t{0});
+}
+
+uint8_t Truncated(double value) { return static_cast<uint8_t>(static_cast<int32_t>(value)); }
+
+// 0x00756D20: the water vertices' colours over the view's dirty rectangle
+// (+0x4C to +0x58): the depth ramp's colour for the vertex's depth, mixed
+// with the colour picture or faded to the tint, and an alpha that grows
+// with depth.
+void RefreshWaterColours(char* self)
+{
+    const float fade = At<float>(self, 0x44);
+    const bool fading = fade > 0.0f;
+    const uint8_t plain = At<uint8_t>(At<char*>(Global<char*>(addr::SC4_Preferences43CC4), 0xC), 0x39C);
+    const bool usePicture = At<uint8_t>(self, 0x49) && !fading && !plain;
+    char* const* const depthRecords = &At<char*>(At<char*>(self, 0x24), 0x18);
+    float tint[3] = {0.0f, 0.0f, 0.0f}; // unset in the game unless fading
+    if (fading)
+        for (int i = 0; i < 3; ++i)
+            tint[i] = static_cast<float>(1.0f - (1.0f - static_cast<double>((&Global<float>(addr::STE_WaterFadeTint))[i])) * fade);
+    void* const picture = Global<void*>(addr::STE_WaterColourPicture);
+    if (!picture)
+        return;
+    const float alphaDepth = Global<float>(addr::STE_WaterAlphaDepth);
+    const uint8_t minAlpha = Global<uint8_t>(addr::STE_WaterMinAlpha);
+    float alphaScale = 1.0f;
+    if (alphaDepth > 0.0f)
+        alphaScale = static_cast<float>(static_cast<double>(0xFF - minAlpha) / alphaDepth);
+    const int32_t w = Virtual<int32_t>(picture, 0x24) - 1;
+    const int32_t h = Virtual<int32_t>(picture, 0x28) - 1;
+    const uint32_t columns = Columns();
+    uint32_t u = static_cast<uint32_t>(w), v = static_cast<uint32_t>(w);
+    for (int32_t r = At<int32_t>(self, 0x50); r <= At<int32_t>(self, 0x58); ++r) {
+        for (int32_t c = At<int32_t>(self, 0x4C); c <= At<int32_t>(self, 0x54); ++c) {
+            const std::size_t index = static_cast<std::size_t>(columns) * r + c;
+            const float depth = At<float>(*depthRecords, index * 0x24);
+            int32_t rampIndex = static_cast<int32_t>(static_cast<double>(Global<float>(addr::STE_WaterRampScale)) * depth);
+            if (rampIndex < 0)
+                rampIndex = 0;
+            else if (static_cast<uint32_t>(rampIndex) > Global<uint32_t>(addr::STE_WaterDepthRampLast))
+                rampIndex = static_cast<int32_t>(Global<uint32_t>(addr::STE_WaterDepthRampLast));
+            const uint32_t pixel = Virtual<uint32_t>(Global<void*>(addr::STE_WaterDepthRamp), 0x54, 0, rampIndex);
+            double red = (pixel >> 16) & 0xFF;
+            float green = static_cast<float>((pixel >> 8) & 0xFF);
+            float blue = static_cast<float>(pixel & 0xFF);
+            if (!fading) {
+                switch (Global<int32_t>(addr::STE_Rotation)) {
+                case 0: v = static_cast<uint32_t>(r), u = static_cast<uint32_t>(c); break;
+                case 1: v = Global<uint32_t>(addr::STE_CellsZ) - c, u = static_cast<uint32_t>(r); break;
+                case 2: v = Global<uint32_t>(addr::STE_CellsZ) - r, u = Global<uint32_t>(addr::STE_CellsX) - c; break;
+                case 3: u = Global<uint32_t>(addr::STE_CellsX) - r, v = static_cast<uint32_t>(c); break;
+                default: break;
+                }
+                uint32_t y = v * static_cast<uint32_t>(h) / Global<uint32_t>(addr::STE_Rows);
+                if (static_cast<int32_t>(y) > h)
+                    y = static_cast<uint32_t>(h);
+                uint32_t x = u * static_cast<uint32_t>(w) / Columns();
+                if (static_cast<int32_t>(x) > w)
+                    x = static_cast<uint32_t>(w);
+                if (usePicture) {
+                    const uint32_t mix = Virtual<uint32_t>(picture, 0x54, x, y) & 0xFF;
+                    const double a = static_cast<double>(mix) * 0.00392156886f; // 1/255 as the game's float
+                    const float keep = static_cast<float>(1.0 - a);
+                    const float add = static_cast<float>(a * 255.0f);
+                    const float redF = static_cast<float>(red);
+                    red = static_cast<double>(keep) * redF + add;
+                    green = static_cast<float>(static_cast<double>(keep) * green + add);
+                    blue = static_cast<float>(static_cast<double>(keep) * blue + add);
+                }
+            } else {
+                red = red * tint[0];
+                green = static_cast<float>(static_cast<double>(tint[1]) * green);
+                blue = static_cast<float>(static_cast<double>(tint[2]) * blue);
+            }
+            char* const vertex = Global<char*>(addr::STE_WaterVertices) + index * 32;
+            vertex[0xE] = static_cast<char>(Truncated(red));
+            vertex[0xD] = static_cast<char>(Truncated(green));
+            vertex[0xC] = static_cast<char>(Truncated(blue));
+            if (depth >= alphaDepth) {
+                vertex[0xF] = static_cast<char>(0xFF);
+            } else if (!(depth > 0.0f) && depth == depth) {
+                vertex[0xF] = static_cast<char>(minAlpha);
+            } else {
+                const float rounded = static_cast<float>((static_cast<double>(depth) * alphaScale + minAlpha) + 12582912.0f);
+                std::memcpy(&vertex[0xF], &rounded, 1);
+            }
+        }
+    }
+    if (plain) {
+        // As the game's loop: the row's columns once, then its outer counter is past the end.
+        char* const water = Global<char*>(addr::STE_WaterVertices);
+        for (int32_t r = At<int32_t>(self, 0x50); r <= At<int32_t>(self, 0x58); ++r) {
+            int32_t i = At<int32_t>(self, 0x4C) + static_cast<int32_t>(columns) * r;
+            const int32_t last = At<int32_t>(self, 0x54) + static_cast<int32_t>(columns) * r;
+            for (; i <= last; ++i)
+                for (int32_t c = At<int32_t>(self, 0x4C); c <= At<int32_t>(self, 0x54); ++c, ++i)
+                    water[static_cast<std::size_t>(i) * 32 + 0xF] = static_cast<char>(0xFF);
+        }
+    }
+    At<uint8_t>(self, 0x48) = 1;
+}
+
+// 0x007572A0. The skirts are still the game's.
+void DrawWater(char* self, char* context, void* buffers)
+{
+    if (Global<uint8_t>(addr::STE_DebugCells))
+        return;
+    if (!Virtual<uint8_t>(At<void*>(self, 0x20), 0x14C) || !Global<uint8_t>(addr::STE_ShowWater))
+        return;
+    if (!At<uint8_t>(self, 0x48)) {
+        static uint32_t refreshes = 0;
+        ++refreshes;
+        if ((refreshes & (refreshes - 1)) == 0)
+            log::Write("terrain draw: %u water colour refreshes (ours)", refreshes);
+        RefreshWaterColours(self);
+    }
+    CallThis<void>(addr::cSTETerrainView3D_DrawWaterSkirts, self, context);
+    DrawWaterSurface(self, context, buffers);
+}
+
 // OPENSC4_TERRAIN_SELFCHECK=1: compare mode runs the game's pass against
 // itself, to check the comparison.
 const bool g_selfCheck = [] {
@@ -504,7 +670,7 @@ uint32_t __fastcall DLand(char* self, void*, char* context, void* buffers)
         logged = true;
         log::Write("terrain draw: land pass through %s", buffers ? "the driver's dynamic vertex buffers" : "vertex arrays");
     }
-    if (!g_compare)
+    if (!g_compareLand)
         return DrawLand(self, context, buffers);
     if (DirtyRows(At<int32_t>(self, 0x98), At<int32_t>(self, 0xA0))) {
         if (g_skipped++ % 100 == 0)
@@ -524,7 +690,27 @@ uint32_t __fastcall DLand(char* self, void*, char* context, void* buffers)
     return result;
 }
 
+using WaterFn = void(__fastcall*)(char*, void*, char*, void*);
+WaterFn g_water;
+
+void __fastcall DWater(char* self, void*, char* context, void* buffers)
+{
+    if (g_depth > 0)
+        return g_water(self, nullptr, context, buffers);
+    if (!g_compareWater)
+        return DrawWater(self, context, buffers);
+    DrawCompared(g_selfCheck ? "terrain.water.selfcheck" : "terrain.water", PassRegions(self, context),
+                 [&] {
+                     if (g_selfCheck)
+                         g_water(self, nullptr, context, buffers);
+                     else
+                         DrawWater(self, context, buffers);
+                 },
+                 [&] { g_water(self, nullptr, context, buffers); });
+}
+
 OPENSC4_THUNK(TLand, DLand, 8)
+OPENSC4_THUNK(TWater, DWater, 8)
 
 template <typename Fn>
 bool Detour(std::uintptr_t address, void (*thunk)(), Fn* original)
@@ -537,10 +723,10 @@ bool Install(registry::Mode mode)
 {
     if (!game::IsBuild641())
         return false;
-    g_compare = mode == registry::Mode::Compare;
+    g_compareLand = mode == registry::Mode::Compare;
     if (!Detour(addr::cSTETerrainView3D_DrawLand, &TLand, &g_land))
         return false;
-    log::Write("terrain draw: land pass %s", g_compare ? (g_selfCheck ? "compared, the game's against itself" : "compared with the game's") : "ours");
+    log::Write("terrain draw: land pass %s", g_compareLand ? (g_selfCheck ? "compared, the game's against itself" : "compared with the game's") : "ours");
     return true;
 }
 
@@ -554,6 +740,29 @@ const bool g_registered = registry::Register({
     "(docs/renderer.md, \"The terrain\")",
     true,
     Install,
+});
+
+bool InstallWater(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareWater = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSTETerrainView3D_DrawWater, &TWater, &g_water))
+        return false;
+    log::Write("terrain draw: water pass %s", g_compareWater ? (g_selfCheck ? "compared, the game's against itself" : "compared with the game's") : "ours");
+    return true;
+}
+
+const bool g_registeredWater = registry::Register({
+    "renderer.terrain.water",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_DrawWater,
+    "The terrain's water pass (the surface ours; colour refresh and skirts still the game's); compare mode as "
+    "renderer.terrain.land (docs/renderer.md, \"The terrain\")",
+    true,
+    InstallWater,
 });
 
 } // namespace
