@@ -2,6 +2,7 @@
 SCHEMAS maps class IDs to (name, decoder)."""
 import struct
 
+from .budget import every
 from .common import header
 
 
@@ -20,4 +21,5 @@ def growth_developer(r):
     return out
 
 
-SCHEMAS = {0x0990C138: ('cSC4GrowthDeveloper', growth_developer)}
+# One record holds every developer, one after the other.
+SCHEMAS = {0x0990C138: ('cSC4GrowthDeveloper', every(growth_developer))}

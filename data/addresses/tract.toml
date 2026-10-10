@@ -1,0 +1,1171 @@
+# The tract developer (cSC4TractDeveloper, class ID 0x2990C142; docs/tract.md): every function of the class (src/core/tract_*.cpp). Fn_<address> names are placeholders until a part names the function.
+
+[[entry]]
+name = "cSC4TractDeveloper::vftable"
+address = 0x00AB3118
+kind = "vtable"
+expect = "B0 45 70 00 A0 7B 4F 00"
+source = "The primary cISC4TractDeveloper vtable (16 slots: QueryInterface 0x007045B0, AddRef (shared), Release, Init, Shutdown, Grow, Decline, UpdatePopulation, the style slots 8-14, the deleting destructor)."
+
+[[entry]]
+name = "cSC4TractDeveloper::vftable_4"
+address = 0x00AB3104
+kind = "vtable"
+expect = "90 C8 70 00 30 D2 68 00"
+source = "The cIGZMessageTarget2 vtable at +0x4 (DoMessage 0x007048E0 in slot 3)."
+
+[[entry]]
+name = "cSC4TractDeveloper::vftable_8"
+address = 0x00AB30EC
+kind = "vtable"
+expect = "A0 C8 70 00 50 D2 68 00"
+source = "The cIGZSerializable vtable at +0x8 (Write 0x00704B60, Read 0x00707950, GetGZCLSID 0x007045A0)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_007045A0"
+address = 0x007045A0
+kind = "function"
+convention = "custom"
+expect = "B8 42 C1 90 29 C3 CC CC"
+source = "cSC4TractDeveloper code (6 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::QueryInterface"
+address = 0x007045B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 1B ED 18"
+source = "cSC4TractDeveloper code (115 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704630"
+address = 0x00704630
+kind = "function"
+convention = "custom"
+expect = "56 8B 74 24 08 8B 46 38"
+source = "cSC4TractDeveloper code (294 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704770"
+address = 0x00704770
+kind = "function"
+convention = "custom"
+expect = "8B 44 24 04 D9 40 34 8B"
+source = "cSC4TractDeveloper code (30 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704790"
+address = 0x00704790
+kind = "function"
+convention = "custom"
+expect = "53 8B 5C 24 08 8B 0B 55"
+source = "cSC4TractDeveloper code (122 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704810"
+address = 0x00704810
+kind = "function"
+convention = "custom"
+expect = "53 8B 5C 24 0C 55 8B 6C"
+source = "cSC4TractDeveloper code (63 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704850"
+address = 0x00704850
+kind = "function"
+convention = "custom"
+expect = "56 57 8B 7C 24 10 8D 47"
+source = "cSC4TractDeveloper code (96 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Release"
+address = 0x007048B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 83 F8"
+source = "cSC4TractDeveloper code (37 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_007048E0"
+address = 0x007048E0
+kind = "function"
+convention = "custom"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "cSC4TractDeveloper code (106 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704950"
+address = 0x00704950
+kind = "function"
+convention = "custom"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "cSC4TractDeveloper code (55 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704990"
+address = 0x00704990
+kind = "function"
+convention = "custom"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "cSC4TractDeveloper code (51 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_007049D0"
+address = 0x007049D0
+kind = "function"
+convention = "custom"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "cSC4TractDeveloper code (51 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704A10"
+address = 0x00704A10
+kind = "function"
+convention = "custom"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "cSC4TractDeveloper code (51 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704A50"
+address = 0x00704A50
+kind = "function"
+convention = "custom"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "cSC4TractDeveloper code (51 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704A90"
+address = 0x00704A90
+kind = "function"
+convention = "custom"
+expect = "8B 44 24 08 55 8B 6C 24"
+source = "cSC4TractDeveloper code (83 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704AF0"
+address = 0x00704AF0
+kind = "function"
+convention = "custom"
+expect = "53 8B 5C 24 0C 55 8B 6C"
+source = "cSC4TractDeveloper code (111 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704B60"
+address = 0x00704B60
+kind = "function"
+convention = "custom"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "cSC4TractDeveloper code (148 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704C00"
+address = 0x00704C00
+kind = "function"
+convention = "custom"
+expect = "55 56 8B F1 8B 8E 80 00"
+source = "cSC4TractDeveloper code (501 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00704E00"
+address = 0x00704E00
+kind = "function"
+convention = "custom"
+expect = "8B 54 24 04 83 EC 20 56"
+source = "cSC4TractDeveloper code (569 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705040"
+address = 0x00705040
+kind = "function"
+convention = "custom"
+expect = "83 EC 14 53 55 56 8B F1"
+source = "cSC4TractDeveloper code (832 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705380"
+address = 0x00705380
+kind = "function"
+convention = "custom"
+expect = "51 53 55 56 57 8B D9 6A"
+source = "cSC4TractDeveloper code (169 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705430"
+address = 0x00705430
+kind = "function"
+convention = "custom"
+expect = "51 53 55 56 57 8B D9 6A"
+source = "cSC4TractDeveloper code (169 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_007054E0"
+address = 0x007054E0
+kind = "function"
+convention = "custom"
+expect = "53 8B 5C 24 14 55 8B 6C"
+source = "cSC4TractDeveloper code (108 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705550"
+address = 0x00705550
+kind = "function"
+convention = "custom"
+expect = "53 8B 5C 24 0C 57 8B 7C"
+source = "cSC4TractDeveloper code (83 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_007055B0"
+address = 0x007055B0
+kind = "function"
+convention = "custom"
+expect = "55 57 8B 7C 24 0C 8B E9"
+source = "cSC4TractDeveloper code (393 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705750"
+address = 0x00705750
+kind = "function"
+convention = "custom"
+expect = "83 EC 14 53 55 57 8B F9"
+source = "cSC4TractDeveloper code (490 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705950"
+address = 0x00705950
+kind = "function"
+convention = "custom"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "cSC4TractDeveloper code (178 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705A10"
+address = 0x00705A10
+kind = "function"
+convention = "custom"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "cSC4TractDeveloper code (178 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705AD0"
+address = 0x00705AD0
+kind = "function"
+convention = "custom"
+expect = "55 56 8B F1 6A 14 C7 06"
+source = "cSC4TractDeveloper code (161 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705B80"
+address = 0x00705B80
+kind = "function"
+convention = "custom"
+expect = "53 56 8B 74 24 18 8B D9"
+source = "cSC4TractDeveloper code (217 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705C60"
+address = 0x00705C60
+kind = "function"
+convention = "custom"
+expect = "53 55 8B 6C 24 10 8B D9"
+source = "cSC4TractDeveloper code (168 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705D10"
+address = 0x00705D10
+kind = "function"
+convention = "custom"
+expect = "56 8B F1 8B 86 94 00 00"
+source = "cSC4TractDeveloper code (139 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705DA0"
+address = 0x00705DA0
+kind = "function"
+convention = "custom"
+expect = "83 EC 14 8B 4C 24 18 8B"
+source = "cSC4TractDeveloper code (239 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705E90"
+address = 0x00705E90
+kind = "function"
+convention = "custom"
+expect = "83 EC 14 53 55 8B E9 8B"
+source = "cSC4TractDeveloper code (269 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00705FA0"
+address = 0x00705FA0
+kind = "function"
+convention = "custom"
+expect = "83 EC 08 56 8B F1 8B 4E"
+source = "cSC4TractDeveloper code (152 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00706040"
+address = 0x00706040
+kind = "function"
+convention = "custom"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "cSC4TractDeveloper code (642 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_007062D0"
+address = 0x007062D0
+kind = "function"
+convention = "custom"
+expect = "8B 44 24 08 55 8B 6C 24"
+source = "cSC4TractDeveloper code (108 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00706340"
+address = 0x00706340
+kind = "function"
+convention = "custom"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "cSC4TractDeveloper code (77 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00706390"
+address = 0x00706390
+kind = "function"
+convention = "custom"
+expect = "53 56 8B F1 33 DB 6A 14"
+source = "cSC4TractDeveloper code (149 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00706430"
+address = 0x00706430
+kind = "function"
+convention = "custom"
+expect = "53 56 8B D9 8B 83 90 00"
+source = "cSC4TractDeveloper code (201 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00706500"
+address = 0x00706500
+kind = "function"
+convention = "custom"
+expect = "8B 44 24 08 83 EC 28 53"
+source = "cSC4TractDeveloper code (980 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_007068E0"
+address = 0x007068E0
+kind = "function"
+convention = "custom"
+expect = "83 EC 18 53 55 56 57 8B"
+source = "cSC4TractDeveloper code (626 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00706B60"
+address = 0x00706B60
+kind = "function"
+convention = "custom"
+expect = "56 57 8B 7C 24 0C 8B 77"
+source = "cSC4TractDeveloper code (92 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::UpdatePopulation"
+address = 0x00706BC0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "cSC4TractDeveloper code (592 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00706E10"
+address = 0x00706E10
+kind = "function"
+convention = "custom"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "cSC4TractDeveloper code (47 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00706E40"
+address = 0x00706E40
+kind = "function"
+convention = "custom"
+expect = "8B 44 24 04 85 C0 53 55"
+source = "cSC4TractDeveloper code (83 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00706EA0"
+address = 0x00706EA0
+kind = "function"
+convention = "custom"
+expect = "8B 44 24 04 53 8B 5C 24"
+source = "cSC4TractDeveloper code (72 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00706EF0"
+address = 0x00706EF0
+kind = "function"
+convention = "custom"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "cSC4TractDeveloper code (68 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00706F40"
+address = 0x00706F40
+kind = "function"
+convention = "custom"
+expect = "53 8B 5C 24 0C 55 8B 6C"
+source = "cSC4TractDeveloper code (117 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00706FC0"
+address = 0x00706FC0
+kind = "function"
+convention = "custom"
+expect = "83 EC 18 56 6A 00 6A 00"
+source = "cSC4TractDeveloper code (633 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00707240"
+address = 0x00707240
+kind = "function"
+convention = "custom"
+expect = "53 8B D9 55 8B 6C 24 0C"
+source = "cSC4TractDeveloper code (221 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00707320"
+address = 0x00707320
+kind = "function"
+convention = "custom"
+expect = "51 A1 D0 AF B4 00 3B 05"
+source = "cSC4TractDeveloper code (66 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00707370"
+address = 0x00707370
+kind = "function"
+convention = "custom"
+expect = "8B 4C 24 04 8B 01 8B 51"
+source = "cSC4TractDeveloper code (237 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::SetActiveStyles"
+address = 0x00707470
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 8B 18 8B"
+source = "cSC4TractDeveloper code (93 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_007074D0"
+address = 0x007074D0
+kind = "function"
+convention = "custom"
+expect = "83 EC 0C 56 8B 74 24 14"
+source = "cSC4TractDeveloper code (98 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00707540"
+address = 0x00707540
+kind = "function"
+convention = "custom"
+expect = "53 8B 5C 24 08 55 8B 2B"
+source = "cSC4TractDeveloper code (122 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_007075C0"
+address = 0x007075C0
+kind = "function"
+convention = "custom"
+expect = "83 EC 08 55 56 8B F1 8B"
+source = "cSC4TractDeveloper code (188 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00707680"
+address = 0x00707680
+kind = "function"
+convention = "custom"
+expect = "51 53 55 56 8B F1 33 DB"
+source = "cSC4TractDeveloper code (256 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Init"
+address = 0x00707780
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 8B F1 8A 46"
+source = "cSC4TractDeveloper code (436 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00707950"
+address = 0x00707950
+kind = "function"
+convention = "custom"
+expect = "83 EC 08 53 8B D9 56 8B"
+source = "cSC4TractDeveloper code (271 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00707A60"
+address = 0x00707A60
+kind = "function"
+convention = "custom"
+expect = "8A 44 24 08 83 EC 40 84"
+source = "cSC4TractDeveloper code (792 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00707D90"
+address = 0x00707D90
+kind = "function"
+convention = "custom"
+expect = "A0 94 B0 B4 00 83 EC 08"
+source = "cSC4TractDeveloper code (203 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00707E60"
+address = 0x00707E60
+kind = "function"
+convention = "custom"
+expect = "53 8B 5C 24 10 55 8B 6C"
+source = "cSC4TractDeveloper code (187 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00707F20"
+address = 0x00707F20
+kind = "function"
+convention = "custom"
+expect = "53 8B 5C 24 08 57 8B 7C"
+source = "cSC4TractDeveloper code (140 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00707FB0"
+address = 0x00707FB0
+kind = "function"
+convention = "custom"
+expect = "A0 C8 B0 B4 00 83 EC 14"
+source = "cSC4TractDeveloper code (350 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00708110"
+address = 0x00708110
+kind = "function"
+convention = "custom"
+expect = "83 EC 64 53 8B D9 8B 83"
+source = "cSC4TractDeveloper code (1495 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00708700"
+address = 0x00708700
+kind = "function"
+convention = "custom"
+expect = "83 EC 5C 53 56 8B 74 24"
+source = "cSC4TractDeveloper code (1257 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00708C00"
+address = 0x00708C00
+kind = "function"
+convention = "custom"
+expect = "83 EC 68 56 57 8B F9 8B"
+source = "cSC4TractDeveloper code (1506 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Decline"
+address = 0x00709200
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C A0 FC B0 B4 00"
+source = "cSC4TractDeveloper code (496 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_007093F0"
+address = 0x007093F0
+kind = "function"
+convention = "custom"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "cSC4TractDeveloper code (290 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00709520"
+address = 0x00709520
+kind = "function"
+convention = "custom"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "cSC4TractDeveloper code (74 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00709570"
+address = 0x00709570
+kind = "function"
+convention = "custom"
+expect = "8B 44 24 0C 53 55 56 57"
+source = "cSC4TractDeveloper code (217 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00709650"
+address = 0x00709650
+kind = "function"
+convention = "custom"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "cSC4TractDeveloper code (391 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_007097E0"
+address = 0x007097E0
+kind = "function"
+convention = "custom"
+expect = "83 EC 30 57 8B F9 8B 87"
+source = "cSC4TractDeveloper code (932 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_00709BA0"
+address = 0x00709BA0
+kind = "function"
+convention = "custom"
+expect = "81 EC 80 00 00 00 53 55"
+source = "cSC4TractDeveloper code (1989 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070A370"
+address = 0x0070A370
+kind = "function"
+convention = "custom"
+expect = "56 8B F1 57 33 FF C7 06"
+source = "cSC4TractDeveloper code (87 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070A3D0"
+address = 0x0070A3D0
+kind = "function"
+convention = "custom"
+expect = "83 EC 2C 53 55 56 8B F1"
+source = "cSC4TractDeveloper code (1504 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070A9B0"
+address = 0x0070A9B0
+kind = "function"
+convention = "custom"
+expect = "83 EC 2C 53 55 56 57 8B"
+source = "cSC4TractDeveloper code (846 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070AD20"
+address = 0x0070AD20
+kind = "function"
+convention = "custom"
+expect = "83 EC 3C 53 55 56 8B F1"
+source = "cSC4TractDeveloper code (510 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070AF20"
+address = 0x0070AF20
+kind = "function"
+convention = "custom"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "cSC4TractDeveloper code (58 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070AF60"
+address = 0x0070AF60
+kind = "function"
+convention = "custom"
+expect = "83 EC 08 53 8B D9 8B 8B"
+source = "cSC4TractDeveloper code (457 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070B130"
+address = 0x0070B130
+kind = "function"
+convention = "custom"
+expect = "83 EC 08 53 55 56 8B F1"
+source = "cSC4TractDeveloper code (212 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Shutdown"
+address = 0x0070B210
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8A 46 0C 84"
+source = "cSC4TractDeveloper code (544 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070B440"
+address = 0x0070B440
+kind = "function"
+convention = "custom"
+expect = "83 EC 0C 53 8B 5C 24 14"
+source = "cSC4TractDeveloper code (498 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070B640"
+address = 0x0070B640
+kind = "function"
+convention = "custom"
+expect = "83 EC 6C 53 55 56 57 33"
+source = "cSC4TractDeveloper code (1742 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070BD30"
+address = 0x0070BD30
+kind = "function"
+convention = "custom"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "cSC4TractDeveloper code (105 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070BDA0"
+address = 0x0070BDA0
+kind = "function"
+convention = "custom"
+expect = "53 55 56 57 8B 7C 24 14"
+source = "cSC4TractDeveloper code (149 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070BE40"
+address = 0x0070BE40
+kind = "function"
+convention = "custom"
+expect = "51 56 8B 74 24 0C 85 F6"
+source = "cSC4TractDeveloper code (222 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070BF20"
+address = 0x0070BF20
+kind = "function"
+convention = "custom"
+expect = "53 68 98 00 00 00 E8 29"
+source = "cSC4TractDeveloper code (73 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070BF70"
+address = 0x0070BF70
+kind = "function"
+convention = "custom"
+expect = "53 8B 5C 24 10 55 8B 6C"
+source = "cSC4TractDeveloper code (219 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070C050"
+address = 0x0070C050
+kind = "function"
+convention = "custom"
+expect = "53 55 8B 6C 24 10 8B D9"
+source = "cSC4TractDeveloper code (168 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070C100"
+address = 0x0070C100
+kind = "function"
+convention = "custom"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "cSC4TractDeveloper code (642 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070C390"
+address = 0x0070C390
+kind = "function"
+convention = "custom"
+expect = "56 57 8B 7C 24 0C 68 98"
+source = "cSC4TractDeveloper code (88 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070C3F0"
+address = 0x0070C3F0
+kind = "function"
+convention = "custom"
+expect = "51 55 57 8B 7C 24 10 33"
+source = "cSC4TractDeveloper code (114 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070C470"
+address = 0x0070C470
+kind = "function"
+convention = "custom"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "cSC4TractDeveloper code (195 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070C540"
+address = 0x0070C540
+kind = "function"
+convention = "custom"
+expect = "81 EC 0C 01 00 00 53 56"
+source = "cSC4TractDeveloper code (339 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070C6A0"
+address = 0x0070C6A0
+kind = "function"
+convention = "custom"
+expect = "55 56 8B F1 68 98 00 00"
+source = "cSC4TractDeveloper code (166 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::~cSC4TractDeveloper"
+address = 0x0070C750
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8D B7 7C"
+source = "cSC4TractDeveloper code (237 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::GetActiveStyles"
+address = 0x0070C840
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 18 01 00 00 C3 CC"
+source = "cSC4TractDeveloper code (7 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::IsUsingAllStylesAtOnce"
+address = 0x0070C850
+kind = "function"
+convention = "thiscall"
+expect = "8A 91 2C 01 00 00 33 C0"
+source = "cSC4TractDeveloper code (14 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::UseAllStylesAtOnce"
+address = 0x0070C860
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 0F 94"
+source = "cSC4TractDeveloper code (18 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::SetYearsBetweenStyleChanges"
+address = 0x0070C880
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 41 7C C2"
+source = "cSC4TractDeveloper code (10 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070C890"
+address = 0x0070C890
+kind = "function"
+convention = "custom"
+expect = "83 E9 04 E9 18 7D FF FF"
+source = "cSC4TractDeveloper code (8 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070C8A0"
+address = 0x0070C8A0
+kind = "function"
+convention = "custom"
+expect = "83 E9 08 E9 08 7D FF FF"
+source = "cSC4TractDeveloper code (8 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070C8B0"
+address = 0x0070C8B0
+kind = "function"
+convention = "custom"
+expect = "83 E9 04 E9 F8 7F FF FF"
+source = "cSC4TractDeveloper code (8 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070C8C0"
+address = 0x0070C8C0
+kind = "function"
+convention = "custom"
+expect = "83 E9 08 E9 E8 7F FF FF"
+source = "cSC4TractDeveloper code (8 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::GetCurrentStyle"
+address = 0x0070C8D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 18 01 00 00 3B 81"
+source = "cSC4TractDeveloper code (33 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::scalar_deleting_destructor"
+address = 0x0070CA80
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 C8 FC FF FF"
+source = "cSC4TractDeveloper code (30 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Create"
+address = 0x0070CAA0
+kind = "function"
+convention = "thiscall"
+expect = "68 88 01 00 00 E8 36 8B"
+source = "cSC4TractDeveloper code (408 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070CAC0"
+address = 0x0070CAC0
+kind = "function"
+convention = "custom"
+expect = "53 8B 5C 24 10 55 8B 6C"
+source = "cSC4TractDeveloper code (202 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070CB90"
+address = 0x0070CB90
+kind = "function"
+convention = "custom"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "cSC4TractDeveloper code (180 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070CC50"
+address = 0x0070CC50
+kind = "function"
+convention = "custom"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "cSC4TractDeveloper code (518 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070CE60"
+address = 0x0070CE60
+kind = "function"
+convention = "custom"
+expect = "83 EC 1C 53 55 8B 6C 24"
+source = "cSC4TractDeveloper code (305 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070CFA0"
+address = 0x0070CFA0
+kind = "function"
+convention = "custom"
+expect = "83 EC 10 56 8B F1 8B 4E"
+source = "cSC4TractDeveloper code (388 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Grow"
+address = 0x0070D130
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 8B 44 24 1C 53"
+source = "cSC4TractDeveloper code (1600 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Fn_0070D780"
+address = 0x0070D780
+kind = "function"
+convention = "custom"
+expect = "8B 54 24 04 8B 4C 24 0C"
+source = "cSC4TractDeveloper code (76 bytes)."
+
+[[entry]]
+name = "cSC4TractDeveloper::cSC4TractDeveloper"
+address = 0x0070C900
+kind = "function"
+convention = "thiscall"
+signature = "cSC4TractDeveloper* (cSC4TractDeveloper* this)"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "The constructor (0x188-byte object); the factory Create 0x0070CAA0 jumps to it (its only caller). Missing from tract.toml because Ghidra merged it into Create (docs/tract.md)."
+
+[[entry]]
+name = "cSC4TractDeveloper::InitOnce"
+address = 0x00B4AFC8
+kind = "data"
+source = "Name ours. uint8 set by the first Init of any tract developer; nothing else in the class reads it (docs/tract.md)."
+
+[[entry]]
+name = "cSC4TractDeveloper::Name"
+address = 0x00A89788
+kind = "data"
+source = "The text \"cSC4TractDeveloper\", the name Init registers under with the simulator service (docs/tract.md)."
+
+[[entry]]
+name = "cSC4TractDeveloper::DeclineWalk"
+address = 0x00B4B0CC
+kind = "data"
+source = "Name ours. Decline's function-local static TractIterator (0x30 bytes: state bytes +0..+2, rectangle +4..+0x10), made on first use (docs/tract.md)."
+
+[[entry]]
+name = "cSC4TractDeveloper::DeclineWalkGuard"
+address = 0x00B4B0FC
+kind = "data"
+source = "Name ours. Bit 0: Decline's static TractIterator is made (docs/tract.md)."
+
+[[entry]]
+name = "cSC4TractDeveloper::DeclineWalkAtExit"
+address = 0x00A7D270
+kind = "data"
+source = "Name ours. The exit-time destructor of Decline's static iterator, registered with atexit by Decline (docs/tract.md)."
+
+[[entry]]
+name = "cSC4TractDeveloper::RoundMagic"
+address = 0x00AB3048
+kind = "data"
+source = "float 12582912.0 (1.5 x 2^23); UpdatePopulation adds it and passes the float's bits on: their low bits are the population rounded to nearest (docs/tract.md)."
+
+[[entry]]
+name = "SC4::Service43D18"
+address = 0x00B43D18
+kind = "data"
+source = "Unnamed service; the tract developer keeps it at +0x24 and unregisters the objects of its map +0x130 from its slot 19 in Shutdown (docs/tract.md)."
+
+[[entry]]
+name = "SC4::atexit"
+address = 0x009EF059
+kind = "function"
+convention = "cdecl"
+signature = "int (void (*fn)(void))"
+expect = "FF 74 24 04 E8 BF FF FF"
+source = "The C runtime's atexit (onexit through 0x009EF021, 0 or -1); function-local statics register their destructors with it (docs/tract.md)."
+
+[[entry]]
+name = "SC4Uint32Vector::InsertRange"
+address = 0x00414040
+kind = "function"
+convention = "thiscall"
+signature = "void (Vector* this, uint32_t* pos, const uint32_t* first, const uint32_t* last, void* tag)"
+expect = "51 8B 54 24 0C 56 8B F1"
+source = "Name ours. std::vector<uint32_t>::insert(pos, first, last) (ret 0x10; the fourth argument is an unused tag byte's address); the tract developer's tuning fills its style list with it (docs/tract.md)."
+
+[[entry]]
+name = "cRZDate::vftable"
+address = 0x00A827D8
+kind = "vtable"
+expect = "60 E9 96 00 60 E9 96 00"
+source = "The vtable of the 8-byte cRZDate (vtable, day); the tract developer's constructor builds one at +0x13C (docs/tract.md)."
+
+[[entry]]
+name = "cSC4TractDeveloper::TractCells"
+address = 0x00B4B098
+kind = "data"
+source = "Name ours. A static cell iterator (0x30 bytes; TractIterator::Restart/Next) over the cells of one tract, set up on first use by 0x00707FB0 (guard bit 1 of 0x00B4B0C8, destructor 0x00A7D290 through atexit)."
+
+[[entry]]
+name = "cSC4TractDeveloper::TractCellsGuard"
+address = 0x00B4B0C8
+kind = "data"
+source = "Name ours. uint32 guard of the static at 0x00B4B098 (bit 0 set once it is constructed)."
+
+[[entry]]
+name = "cSC4TractDeveloper::TractCellsAtExit"
+address = 0x00A7D290
+kind = "function"
+convention = "cdecl"
+expect = "A1 B0 B0 B4 00 85 C0 74"
+source = "Name ours. Destroys the static cell iterator at 0x00B4B098 at exit (frees its buffer at +0x18); registered through atexit by 0x00707FB0."
+
+[[entry]]
+name = "SC4IntVectorVector::Resize"
+address = 0x00462B20
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 59 04 56 8B 74 24"
+source = "Name ours. vector<vector<int32>>::resize(count, vector const* fill) (rows of 12 bytes): erases the tail through 0x00462B90 or appends copies (0x00462D40). Shared."
+
+[[entry]]
+name = "SC4IntVectorVector::Erase"
+address = 0x00462B90
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Name ours. vector<vector<int32>>::erase(first, last): assigns the rows after last down (0x00462C10), frees what is left over; returns first. Shared."
+
+[[entry]]
+name = "SC4IntVector::DestroyRange"
+address = 0x0045DD80
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. Frees the buffers of the vectors (12 bytes each) in [first, last). Shared."
+
+[[entry]]
+name = "SC4PtrVector::Assign"
+address = 0x0072BD50
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 4C 24 08 3B"
+source = "Name ours. operator= of a vector of 4-byte elements (reallocates exactly when the source is larger than the capacity). Shared."
+
+[[entry]]
+name = "cSC4TractDeveloper::CandidatePool"
+address = 0x00B4AFCC
+kind = "data"
+source = "Name ours. vector<candidate*> (begin; end 0x00B4AFD0, capacity 0x00B4AFD4): spare lot candidates (0xA4 bytes each). 0x00707D90 pops one (filling the pool with ten new ones when it is empty), 0x00707320 pushes one back."
+
+[[entry]]
+name = "cSC4TractDeveloper::DefaultCandidate"
+address = 0x00B4AFF0
+kind = "data"
+source = "Name ours. A function-local static candidate (0xA4 bytes) of 0x00707D90, built by 0x00707680 on first use; every candidate taken from the pool is assigned from it (0x00707240)."
+
+[[entry]]
+name = "cSC4TractDeveloper::DefaultCandidateGuard"
+address = 0x00B4B094
+kind = "data"
+source = "Name ours. uint32 guard of the static at 0x00B4AFF0 (bit 0 set once it is built)."
+
+[[entry]]
+name = "cSC4TractDeveloper::DefaultCandidateAtExit"
+address = 0x00A7D260
+kind = "function"
+convention = "cdecl"
+expect = "B9 F0 AF B4 00 E9 A6 8A"
+source = "Name ours. Exit-time destructor of the static candidate 0x00B4AFF0 (mov ecx, 0x00B4AFF0; jmp 0x00705D10), registered through atexit by 0x00707D90."
+
+[[entry]]
+name = "SC4IntVector::Assign"
+address = 0x0050DB90
+kind = "function"
+convention = "thiscall"
+signature = "vector<int32_t>* (vector<int32_t>* this, vector<int32_t> const* other)"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. operator= of a vector of 32-bit values (ret 4); the candidate assignment 0x00707240 copies its four per-side network counts with it."
+
+[[entry]]
+name = "cSC4BuildingDevelopmentSimulator::GrowthStageFitsZone"
+address = 0x00695340
+kind = "function"
+convention = "cdecl"
+signature = "bool (uint32_t growthStage, uint32_t zoneType)"
+expect = "8B 44 24 08 48 83 F8 08"
+source = "Name ours. By zone type 1-9: low density zones take growth stages up to 3, medium up to 6, high any; other zone types none (table at 0x00695378). The lot candidate passes (0x00708110, 0x00708C00, 0x007097E0) check a lot configuration's stage against the zone at the lot."
+
+[[entry]]
+name = "cSC4GrowthDeveloper::ZoneKindOf"
+address = 0x006B3890
+kind = "function"
+convention = "cdecl"
+signature = "int32_t (uint32_t zoneType)"
+expect = "8B 44 24 04 48 83 F8 08"
+source = "Name ours. Zone type 1-9 to the zone kind (residential, commercial, industrial) through a table; 0x0070A3D0 compares it with the growth developer's target zone kind."
+
+[[entry]]
+name = "cSC4TractDeveloper::Random"
+address = 0x00B4AFD8
+kind = "data"
+source = "Name ours. The class's random number generator (SC4Random::BelowLcg): the style draw (100), the lot configuration and building type picks, the farm field type (docs/tract.md)."
+
+[[entry]]
+name = "cSC4TractDeveloper::ConfigFilter::vftable"
+address = 0x00AB30DC
+kind = "vtable"
+expect = "80 C9 62 00 50 D4 8C 00"
+source = "Name ours. The 12-byte lot configuration filter (vtable, wealth +4, purpose +8) that 0x00709650 makes per (wealth, purpose) and registers with the service at +0x24 (slot 18); slot 3 is the test 0x00704950 (docs/tract.md)."
+
+[[entry]]
+name = "SC4PairMap::LowerBound"
+address = 0x0063C070
+kind = "function"
+convention = "thiscall"
+signature = "Node* (Tree* this, const int32_t* key)"
+expect = "8B 01 8B 48 04 85 C9 74"
+source = "Name ours. lower_bound of a red-black tree keyed by a pair of int32 (key at node +0x10, +0x14; signed, first then second): the node, or the header (docs/tract.md)."
+
+[[entry]]
+name = "SC4Uint32HashSet::Assign"
+address = 0x0050DA70
+kind = "function"
+convention = "thiscall"
+signature = "void* (Hashtable* this, const Hashtable* other)"
+expect = "51 53 55 8B E9 8B 45 08"
+source = "Name ours. hash_set<uint32> operator=: the buckets resized to the other's count, every chain copied into new 8-byte nodes (docs/tract.md)."
+
+[[entry]]
+name = "SC4Exemplar::HasBuildingStyle"
+address = 0x005E8F70
+kind = "function"
+convention = "cdecl"
+signature = "bool (const cGZPersistResourceKey* exemplar, uint32_t style)"
+expect = "51 8B 0D A8 3C B4 00 53"
+source = "Name ours. Loads the exemplar (resource manager slot 3, interface 0xA52160F5) and looks for the style in its property 0xAA1DD396 (docs/tract.md)."
