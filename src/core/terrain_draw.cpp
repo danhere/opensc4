@@ -1198,6 +1198,99 @@ void DrawShadowsPlain(char* manager, const float* matrix, char* context, char** 
         Virtual<void>(driver, 0xB4, 7u);
 }
 
+// cSC4OverlayManager's two-stage shadow pass (0x00736BF0): each overlay's
+// own texture in stage 0 with the manager's shadow texture in stage 1, or
+// the shadow texture alone when the manager's +0x1C is 4. L is the game's
+// stack frame: the light vector at L[7..10], the amount at L[5], the
+// strength at L[12].
+void DrawShadows(char* manager, const float* matrix, char* context, char** list)
+{
+    if (list[0] == list[1])
+        return;
+    CallThis<void>(addr::SC4RenderContext_SetRenderState, context, At<char*>(manager, 0x24) + 0x20);
+    Cell L[117] = {};
+    for (int i = 7; i < 11; ++i)
+        L[i].u = Global<uint32_t>(0x00B4B3C8);
+    void* const source = Virtual<void*>(Global<void*>(addr::SC4_Lighting43DD0), 0x24);
+    Virtual<void>(source, 0x38, &L[10], &L[5], &L[7]);
+    CallThis<void>(addr::SC4RenderContext_SetLightVector, context, &L[7]);
+    L[12].u = L[10].u;
+    const double none = Global<double>(0x00A80990);
+    if (L[5].f > none) {
+        CallThis<void>(addr::SC4RenderContext_SetState3E90, context, 1u);
+        CallThis<void>(addr::SC4RenderContext_SetState2F50, context, 6u,
+                       static_cast<float>(static_cast<double>(L[12].f) * L[5].f));
+    } else {
+        CallThis<void>(addr::SC4RenderContext_SetState3E90, context, 0u);
+    }
+    const bool single = At<int32_t>(manager, 0x1C) == 4;
+    CallThis<void>(addr::SC4RenderContext_SetState4280, context, 1u, 1u, 0u);
+    CallThis<void>(addr::SC4RenderContext_SetState3030, context, manager + 0x38, 0u);
+    if (At<void*>(manager, 0xD4)) {
+        const uint32_t stage = single ? 0 : 1;
+        CallThis<void>(addr::SC4RenderContext_SetState3EF0, context, 1u, stage);
+        CallThis<void>(addr::SC4RenderContext_BindTexture, context, ***reinterpret_cast<uint32_t***>(manager + 0xD4), stage);
+        CallThis<void>(addr::SC4RenderContext_SetState4280, context, 0u, 0u, stage);
+        CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 2u, 2u, stage);
+        CallThis<void>(addr::SC4RenderContext_SetState3030, context, manager + (single ? 0x50 : 0x44), stage);
+    }
+    CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, 3);
+    At<uint32_t>(manager, 0xDC) = 0;
+    for (uint32_t i = 0; i < static_cast<uint32_t>((list[1] - list[0]) >> 2); ++i) {
+        char* const overlay = At<char*>(manager, 0x98) + At<int32_t>(list[0], i * 4) * 0xB4;
+        if (At<int32_t>(overlay, 0) != -1 || (At<uint32_t>(overlay, 4) & 9) != 9)
+            continue;
+        const float* const record = reinterpret_cast<const float*>(overlay);
+        const int32_t* const cells = reinterpret_cast<const int32_t*>(overlay + 0xC);
+        if (!single) {
+            CallThis<void>(addr::SC4RenderContext_BindTexture, context, ***reinterpret_cast<uint32_t***>(overlay + 0xAC), 0u);
+            if (At<uint32_t>(overlay, 4) & 2)
+                CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 3u, 3u, 0u);
+            else
+                CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 2u, 2u, 0u);
+            {
+#include "core/overlay_shadow2_a.inc"
+            }
+            CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[33], 0u);
+            {
+#include "core/overlay_shadow2_b.inc"
+            }
+            CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[65], 1u);
+            if (Global<uint8_t>(addr::STE_OverlaySunTest)) {
+                // The light at the overlay's centre, in cells.
+                const double x = cells[0] + cells[2], z = cells[1] + cells[3];
+                L[10].u = L[12].u;
+                const double half = static_cast<double>(At<float>(manager, 0x64)) * Global<double>(0x00A92D28);
+                L[27].f = static_cast<float>(half * x);
+                L[28].f = static_cast<float>(half * z);
+                if (!At<uint8_t>(manager, 0x16))
+                    L[10].f = static_cast<float>(Virtual<double>(source, 0x3C, &L[27]) * L[10].f);
+                if (L[10].f < Global<double>(0x00AB39A0))
+                    continue;
+                if (L[5].f > none)
+                    CallThis<void>(addr::SC4RenderContext_SetState2F50, context, 6u,
+                                   static_cast<float>(static_cast<double>(L[10].f) * L[5].f));
+                CallThis<void>(addr::SC4RenderContext_SetLightVector, context, &L[7]);
+            }
+        } else {
+            {
+#include "core/overlay_shadow2_c.inc"
+            }
+            CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[49], 0u);
+        }
+        bool partial = false;
+        if (At<uint8_t>(manager, 0x16)) {
+            std::memcpy(&L[29], cells, 16);
+            const int32_t counted = Virtual<int32_t>(At<void*>(manager, 0x88), 0xD4, &L[29]);
+            partial = counted < (cells[3] - cells[1] + 1) * (cells[2] - cells[0] + 1);
+        }
+        CallThis<void>(partial ? addr::cSC4OverlayManager_DrawRectPartial : addr::cSC4OverlayManager_DrawRect, manager,
+                       context, cells);
+        ++At<uint32_t>(manager, 0xDC);
+    }
+    CallThis<void>(addr::SC4RenderContext_SetState3EF0, context, 0u, 1u);
+}
+
 // --- The rows' layer lists and the skirts' colours ------------------------------------------
 
 // 0x0075ABA0: a row's list of texture layers with their spans of columns,
@@ -1571,6 +1664,35 @@ void __fastcall DShadowsPlain(char* manager, void*, const float* matrix, char* c
                  [&] { g_shadowsPlain(manager, nullptr, matrix, context, list); });
 }
 
+DecalsFn g_shadows;
+bool g_compareShadows = false;
+
+void __fastcall DShadows(char* manager, void*, const float* matrix, char* context, char** list)
+{
+    if (g_depth > 0)
+        return g_shadows(manager, nullptr, matrix, context, list);
+    static uint32_t cases = 0;
+    const uint32_t which = (At<int32_t>(manager, 0x1C) == 4 ? 1u : 2u) | (At<uint8_t>(manager, 0x16) ? 4u : 8u);
+    if ((cases & which) != which) {
+        cases |= which;
+        log::Write("overlays: shadow pass with the manager's +0x1C %d, water vertices %d, sun test %d",
+                   At<int32_t>(manager, 0x1C), At<uint8_t>(manager, 0x16), Global<uint8_t>(addr::STE_OverlaySunTest));
+    }
+    if (!g_compareShadows)
+        return DrawShadows(manager, matrix, context, list);
+    std::vector<Region> regions = PassRegions(At<char*>(manager, 0x8C), context);
+    regions.push_back({"manager", manager, 0xE0});
+    DrawCompared(g_selfCheck ? "overlays.shadows2.selfcheck" : "overlays.shadows2", regions,
+                 [&] {
+                     if (g_selfCheck)
+                         g_shadows(manager, nullptr, matrix, context, list);
+                     else
+                         DrawShadows(manager, matrix, context, list);
+                 },
+                 [&] { g_shadows(manager, nullptr, matrix, context, list); });
+}
+
+OPENSC4_THUNK(TShadows, DShadows, 12)
 OPENSC4_THUNK(TShadowsPlain, DShadowsPlain, 12)
 OPENSC4_THUNK(TDecals, DDecals, 12)
 OPENSC4_THUNK(TOverlayRect, DOverlayRect, 8)
@@ -1788,6 +1910,29 @@ const bool g_registeredShadowsPlain = registry::Register({
     "overlays\")",
     true,
     InstallShadowsPlain,
+});
+
+bool InstallShadows(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareShadows = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC4OverlayManager_DrawShadows, &TShadows, &g_shadows))
+        return false;
+    log::Write("overlays: shadow pass %s", g_compareShadows ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredShadows = registry::Register({
+    "renderer.overlays.shadows",
+    "renderer/overlays",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4OverlayManager_DrawShadows,
+    "The overlay manager's two-stage shadow pass; compare mode as renderer.terrain.land (docs/renderer.md, \"The "
+    "overlays\")",
+    true,
+    InstallShadows,
 });
 
 } // namespace
