@@ -1,0 +1,823 @@
+# The airport developer (cSC4AirportDeveloper, class ID 0xAA2049A1, code 0x0068AFD0-0x0068B95B plus six functions folded with the seaport developer's) and the port base both developers share (cSC4PortDeveloper, 0x006E8F10-0x006EABA6): src/core/airport_sim.cpp (the base), src/core/airport_object.cpp (the airport and our object).
+
+[[entry]]
+name = "cSC4PortDeveloper::vftable"
+address = 0x00AB2790
+kind = "vtable"
+expect = "D0 8F 6E 00 A0 7B 4F 00"
+source = "The port base's own vtable (19 slots; set only while the base constructor 0x006E9C60 and destructor 0x006E9D30 run, the airport's is 0x00AB06C8 and the seaport's 0x00AB2DC0): 0 QueryInterface 0x006E8FD0, 1 AddRef 0x004F7BA0, 2 Release 0x006E8F90, 3 Init, 4 Shutdown, 5 GetAvgEfficiency, 6 pure, 7 GetLeastEfficientPort, 8 GetAllPortLots, 9 GetNumPorts, 10 deleting destructor 0x006E9F00, 11 DeleteThis 0x006E8FB0, 12-18 pure (docs: src/core/airport_sim.cpp)."
+
+[[entry]]
+name = "cSC4PortDeveloper::vftable_4"
+address = 0x00AB2780
+kind = "vtable"
+expect = "F0 9C 6E 00 30 D2 68 00"
+source = "Name ours. The base's cIGZMessageTarget2 part at +0x4: thunks 0x006E9CF0, 0x0068D230, 0x006E9D00, DoMessage 0x006EA1C0."
+
+[[entry]]
+name = "cSC4PortDeveloper::vftable_8"
+address = 0x00AB2768
+kind = "vtable"
+expect = "10 9D 6E 00 50 D2 68 00"
+source = "Name ours. The base's cIGZSerializable part at +0x8: thunks 0x006E9D10, 0x0068D250, 0x006E9D20, Write 0x006E9850, Read 0x006EAA60, GetGZCLSID 0x006E9CE0 (0x0A2C4EEE)."
+
+[[entry]]
+name = "cSC4PortDeveloper::Port_vftable"
+address = 0x00AB2760
+kind = "vtable"
+expect = "80 91 6E 00 8F C2 75 3F"
+source = "Name ours. The vtable of one port (0x28 bytes): its deleting destructor 0x006E9180 only. The slot is replaced by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::PortType_vftable"
+address = 0x00AB27DC
+kind = "vtable"
+expect = "B0 A3 6E 00 E8 06 A8 00"
+source = "Name ours. The vtable of a port type (0x30 bytes, one per exemplar of the list property 0x8A270FC3): its deleting destructor 0x006EA3B0 only. The slot is replaced by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::Level_Construct"
+address = 0x006E8F10
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t index, uint32_t building, uint32_t costLow, uint32_t costHigh, uint32_t capacity, uint32_t growLow, uint32_t growHigh)"
+expect = "8B 54 24 08 8B C1 8B 4C"
+source = "Name ours. Fills one 0x20-byte growth stage of a port type: +0 index, +4 building, +8 int64, +0x10 capacity, +0x18 int64; only caller PortType_Load (0x006EA545)."
+
+[[entry]]
+name = "cSC4PortDeveloper::IsPortOccupant"
+address = 0x006E8F50
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4PortDeveloper* this, cISC4Occupant* occupant)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. 1 when the occupant's type (slot 7) is 0x278128A0 and it is in the occupant group +0x40 (slot 22); only caller DoMessage."
+
+[[entry]]
+name = "cSC4PortDeveloper::Release"
+address = 0x006E8F90
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4PortDeveloper* this)"
+expect = "8B 41 10 83 F8 01 7E 05"
+source = "The base's Release (count +0x10, signed): at the last reference its slot 11 (DeleteThis). Reached from the airport's thunk 0x0068B1E0 (also in the seaport's vtables). Detoured by simulators.airport.portobject."
+
+[[entry]]
+name = "cSC4PortDeveloper::DeleteThis"
+address = 0x006E8FB0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4PortDeveloper* this)"
+expect = "56 8B F1 8B 06 FF 50 10"
+source = "Name ours. Slot 11: Shutdown (slot 4), then the deleting destructor (slot 10) with 1. Reached through the jump 0x00700F10. Detoured by simulators.airport.portobject."
+
+[[entry]]
+name = "cSC4PortDeveloper::QueryInterface"
+address = 0x006E8FD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PortDeveloper* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D 69 4E 2C"
+source = "IIDs 1 and 0x4A2C4E69 (cISC4PortDeveloper): the part itself; 0x452294AA: +0x4; 0xE4FDA3D4: +0x8. Reached from the airport's 0x0068B1A0 and the seaport's 0x00700EE0. Detoured by simulators.airport.portobject."
+
+[[entry]]
+name = "cSC4PortDeveloper::GetNumPortsOfSize"
+address = 0x006E9050
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4PortDeveloper* this, uint32_t size)"
+expect = "56 8B C1 8B 4C 24 08 8B"
+source = "Name ours. Slot 9 (GetNumPorts) with the size's bit and every stage (0x1F); the tail of cSC4AirportDeveloper::GetNumAirports. Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::SendEfficiencyMessage"
+address = 0x006E9070
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PortDeveloper* this, uint32_t data1, uint32_t data2)"
+expect = "57 8B F9 8B 47 1C 85 C0"
+source = "Name ours. Sends message 0x89EFA536 with two data words through the message server +0x1C (slot 3); only caller Update."
+
+[[entry]]
+name = "cSC4PortDeveloper::Port_Construct"
+address = 0x006E90E0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B C1 33 C9 C7 00 60 27"
+source = "Name ours. The constructor of a port: vtable 0x00AB2760, zeroes, the efficiency +0x14 from 0x00B0D418; only caller AddPort (Read builds its ports inline)."
+
+[[entry]]
+name = "cSC4PortDeveloper::PostAdvice"
+address = 0x006E9120
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PortDeveloper* this, uint32_t id)"
+expect = "8B 49 28 8B 01 56 FF 90"
+source = "Name ours. The city's slot 81 (+0x144) object's slot 15 with (id, 0). Called by the airport (0x0068B4AA) and the seaport (0x00700F39, 0x00702008). Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::Port_DeletingDestructor"
+address = 0x006E9180
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 8B 4E 20 85 C9"
+source = "Name ours. Releases the port's lot +0x20. Slot 0 of 0x00AB2760."
+
+[[entry]]
+name = "cSC4PortDeveloper::Port_GetLot"
+address = 0x006E91C0
+kind = "function"
+convention = "thiscall"
+signature = "cISC4Lot* (void* this)"
+expect = "57 8B F9 8A 47 0C 84 C0"
+source = "Name ours. The port's lot +0x20; a port read from a save (+0xC set) first gets it from the lot manager (0x00B43D08 slot 6) at its cell (+0xE, +0x10). Called by the airport (0x0068B70E) and the seaport (five sites). Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::SumCosts"
+address = 0x006E9210
+kind = "function"
+convention = "thiscall"
+signature = "int64_t (cSC4PortDeveloper* this)"
+expect = "57 8B 79 44 8B 0F 33 C0"
+source = "Name ours. The sum of the ports' current stages' int64 at +0x8 (EDX:EAX). Called by Update and by UpdateMaintenance (0x00700FC0). Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::FindType"
+address = 0x006E9250
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PortDeveloper* this, uint32_t building, int32_t* index)"
+expect = "53 8B 5C 24 0C 57 C7 03"
+source = "Name ours. The index of the port type whose first stage has the building; only caller AddPort."
+
+[[entry]]
+name = "cSC4PortDeveloper::ReplaceLot"
+address = 0x006E92A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PortDeveloper* this, void* port, uint32_t building)"
+expect = "83 EC 20 53 55 56 57 8B"
+source = "Name ours. Growth: the port's lot demolished through 0x00B43D68's slot 36 object (slots 12, 13) and a lot of the next stage placed on its rectangle (lot manager slot 23, then slots 10 and 32 of the lot and slot 7 of that object); only caller Grow."
+
+[[entry]]
+name = "cSC4PortDeveloper::FindByCell"
+address = 0x006E9400
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4PortDeveloper* this, cISC4Lot* lot)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. The port whose lot is at the same cell (slot 21) as the given lot; only caller OnLotRemoved."
+
+[[entry]]
+name = "cSC4PortDeveloper::GetNumPorts"
+address = 0x006E94C0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4PortDeveloper* this, int32_t sizeFlags, int32_t stageFlags)"
+expect = "51 57 8B 79 44 8B 17 33"
+source = "Slot 9: the ports whose type's size (+0x20) and stage (+0x4) are in the two bit sets. Reached through the thunk 0x0068AFF0. Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::GetLeastEfficientPort"
+address = 0x006E9520
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PortDeveloper* this, float* efficiency, int32_t* cell)"
+expect = "51 8B 51 44 56 8B 32 32"
+source = "Slot 7. No port: false. One port: its efficiency +0x14 and its lot's cell. Two or more: the game's loop never advances and never ends (0x006E9550). Reached through the thunk 0x0068B260. Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::FindByLot"
+address = 0x006E9590
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PortDeveloper* this, cISC4Lot* lot, void** port)"
+expect = "8B 54 24 08 53 C7 02 00"
+source = "Name ours. The port of a lot. Called by GetMaintenanceCost (0x00701855). Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::Port_UpdateEfficiency"
+address = 0x006E9620
+kind = "function"
+convention = "thiscall"
+signature = "float* (void* this, float* out, float funding, uint32_t usage)"
+expect = "51 8B 41 04 8B 51 08 8B"
+source = "Name ours. The port's efficiency +0x14: 1 without usage, 0 without funded capacity or when usage exceeds it, else 1 - usage / (capacity * funding); only caller Update."
+
+[[entry]]
+name = "cSC4PortDeveloper::Port_WantsGrowth"
+address = 0x006E96E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cSC4PortDeveloper* developer)"
+expect = "53 56 8B F1 8B 46 08 8B"
+source = "Name ours. True when the port has a next stage, its lot's slot 33 is not 2 and its usage (developer slot 12) is at least 0.96 of its capacity; callers Update and Grow."
+
+[[entry]]
+name = "cSC4PortDeveloper::GetUsageValues"
+address = 0x006E9770
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PortDeveloper* this, cISC4Lot* lot, uint32_t* usage, uint32_t* capacity)"
+expect = "83 EC 08 8B 44 24 14 53"
+source = "Name ours. Usage (slot 12, at most the capacity) and capacity of a lot's port. Called by Update and by GetAirportUsageValues/GetSeaportUsageValues (0x00700FFB). Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::Write"
+address = 0x006E9850
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "55 56 8B 74 24 0C 8B 06"
+source = "The base's save record (this = part + 8): version 1, +0x14, +0x34 as uint16, the port count, then per port stage, type index, cell x, cell z. Called by the airport's and seaport's Write (0x0068B3F4). Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::GetAvgEfficiency"
+address = 0x006E9900
+kind = "function"
+convention = "thiscall"
+signature = "float* (cSC4PortDeveloper* this, float* out)"
+expect = "51 8B 41 44 8B 15 18 D4"
+source = "Slot 5: the mean of the ports' efficiencies +0x14, 0x00B0D418 (1) without ports. Called from 0x00700F49. Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::Update"
+address = 0x006E9980
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PortDeveloper* this)"
+expect = "83 EC 38 55 8B E9 8B 45"
+source = "Name ours. Message 0x66956816 after slot 16: per port its efficiency, the demand change of its building (0x00B43D74 slot 7), its lot's condition (slot 36) and at most one growth request (slot 15); then message 0x89EFA536 with the average efficiency in percent; only caller DoMessage."
+
+[[entry]]
+name = "cSC4PortDeveloper::Grow"
+address = 0x006E9BD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PortDeveloper* this)"
+expect = "55 57 8B F9 8B 47 44 8B"
+source = "Name ours. Every port that wants growth gets its next stage (ReplaceLot), the budget simulator slot 8 its int64 at +0x18, then slots 13 and 17. Called by the airport's DoMessage (0x0068B23B) and the seaport (0x00700F29, 0x00701F4D). Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::cSC4PortDeveloper"
+address = 0x006E9C60
+kind = "function"
+convention = "thiscall"
+signature = "cSC4PortDeveloper* (cSC4PortDeveloper* this)"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "The base constructor (0x60 bytes; the port list's head from the STL allocator). Called by the airport's (0x0068B4CF) and the seaport's (0x007018FF). Detoured by simulators.airport.portobject."
+
+[[entry]]
+name = "cSC4PortDeveloper::GetGZCLSID"
+address = 0x006E9CE0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 EE 4E 2C 0A C3 CC CC"
+source = "The base's class ID 0x0A2C4EEE (slot 5 of 0x00AB2768; never reached, both subclasses override it)."
+
+[[entry]]
+name = "cSC4PortDeveloper::Destroy"
+address = 0x006E9D30
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PortDeveloper* this)"
+expect = "56 8B F1 C7 06 90 27 AB"
+source = "Name ours. The base destructor: the vectors +0x54 and +0x48 and the port list +0x44 freed. Called by the airport's (0x0068B3C0) and the seaport's (0x00701A43). Detoured by simulators.airport.portobject."
+
+[[entry]]
+name = "cSC4PortDeveloper::RemovePort"
+address = 0x006E9D70
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PortDeveloper* this, void* port)"
+expect = "83 EC 40 53 55 56 8B 74"
+source = "Name ours. The port's building leaves the demand (0x00B43D74 slot 7), its lot's rectangle is dezoned (zone manager slot 11), the port leaves the list and is deleted, then slot 17; only caller OnLotRemoved."
+
+[[entry]]
+name = "cSC4PortDeveloper::OnLotRemoved"
+address = 0x006E9EA0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PortDeveloper* this, cISC4Lot* lot, uint32_t data1, uint32_t data2)"
+expect = "83 7C 24 0C 05 57 8B F9"
+source = "Name ours. Message 0xE8BDA2E7 with data 2 = 5: the port at the lot's cell is removed unless it is being replaced (+0x18); only caller DoMessage."
+
+[[entry]]
+name = "cSC4PortDeveloper::DeletingDestructor"
+address = 0x006E9F00
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4PortDeveloper* this, uint32_t flags)"
+expect = "56 8B F1 C7 06 90 27 AB"
+source = "Slot 10 of the base's own vtable (never reached: the subclasses' destructors call Destroy)."
+
+[[entry]]
+name = "cSC4PortDeveloper::Shutdown"
+address = 0x006E9F60
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PortDeveloper* this)"
+expect = "56 8B F1 8A 46 0D 84 C0"
+source = "Slot 4: the three notifications removed, the ports and port types deleted, the services released, the target removed from the simulator (city slot 47, its slot 20). Called by the airport's (0x0068B178) and the seaport's (0x00700EC0). Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::AddPort"
+address = 0x006EA0E0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PortDeveloper* this, cISC4Lot* lot)"
+expect = "83 EC 0C 53 55 57 8B 7C"
+source = "Name ours. A new port for a lot whose building (lot slot 9 object's slot 3) is a port type's first stage; then slots 17 and 14; only caller DoMessage."
+
+[[entry]]
+name = "cSC4PortDeveloper::DoMessage"
+address = 0x006EA1C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZMessageTarget2* this, cIGZMessage2* message)"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "The base's messages (this = part + 4): 0x66956816 slot 16 and Update, 0x26D31EC1 every port's lot fetched, 0x99EF1142 AddPort for a port building, 0xE8BDA2E7 OnLotRemoved. Called by the airport's (0x0068B22E) and the seaport's (0x00701F40). Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::GetAllPortLots"
+address = 0x006EA2F0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PortDeveloper* this, void* vector)"
+expect = "51 53 56 8B 71 44 8B 1E"
+source = "Slot 8: every port's lot, referenced, appended to a pointer vector. Reached through the thunk 0x0068B000. Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::PortType_DeletingDestructor"
+address = 0x006EA3B0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 8D 4E 24 C7 06"
+source = "Name ours. Frees the type's table +0x24 and stages +0x14. Slot 0 of 0x00AB27DC."
+
+[[entry]]
+name = "cSC4PortDeveloper::PortType_Load"
+address = 0x006EA3F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t index, cISCPropertyHolder* exemplar)"
+expect = "83 EC 10 8B 44 24 14 53"
+source = "Name ours. A port type from its exemplar: properties 0xCA271780 (stage count), 81/83/84/86 (per stage building, int64, capacity, int64), 85 (percent, +0x10), 87 (size, +0x20), 88/89 and 0xCA271800 (a table, +0x24); only caller LoadType."
+
+[[entry]]
+name = "cSC4PortDeveloper::LoadType"
+address = 0x006EA740
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PortDeveloper* this, int32_t index)"
+expect = "83 EC 14 8B 54 24 18 53"
+source = "Name ours. The exemplar (0x6534284A, 0x67CD5FA1, id +0x54[index]) loaded into a new port type appended to +0x48; only caller LoadTypes."
+
+[[entry]]
+name = "cSC4PortDeveloper::LoadTypes"
+address = 0x006EA840
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PortDeveloper* this)"
+expect = "83 EC 14 57 8B F9 8A 47"
+source = "Name ours. Once (+0xC): the exemplar (0x6534284A, 0x67CD5FA1, +0x14), its property 0x8A270FC3 as the type IDs +0x54 (count +0x18), then LoadType for each; callers Init and Read."
+
+[[entry]]
+name = "cSC4PortDeveloper::Init"
+address = 0x006EA950
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PortDeveloper* this)"
+expect = "83 EC 14 56 8B F1 8A 46"
+source = "Slot 3, once (+0xD): LoadTypes, registration with the simulator service (0x00B43D5C slot 19, kind 6, name 0x00A89650), the city, zone manager, lot manager, budget simulator and message server referenced at +0x28, +0x20, +0x24, +0x2C, +0x1C, three notifications. Called by the airport's (0x0068B024) and the seaport's (0x00701E74). Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::Read"
+address = 0x006EAA60
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "83 EC 10 53 55 56 8B 74"
+source = "The base's Read (this = part + 8), version 1 only: as Write; the ports are created unresolved (+0xC) at their cells. Called from 0x007010D6 (the subclasses' Read). Detoured by simulators.airport.port."
+
+[[entry]]
+name = "cSC4PortDeveloper::Name"
+address = 0x00A89650
+kind = "data"
+source = "The text \"cSC4PortDeveloper\" the base registers itself under (Init)."
+
+[[entry]]
+name = "cSC4PortDeveloper::OnePercentage"
+address = 0x00B0D418
+kind = "data"
+source = "Name ours. float 1.0 read as a port's first efficiency and the average without ports (Port_Construct, Port_UpdateEfficiency, GetAvgEfficiency)."
+
+[[entry]]
+name = "cSC4PortDeveloper::ZeroPercentage"
+address = 0x00B4A5A8
+kind = "data"
+source = "Name ours. float 0 (zero-initialised data): the efficiency of an overused or unfunded port, a port type's first +0x10, and the demand value a removed port's building is given by address."
+
+[[entry]]
+name = "SC4CellRegion::ConstructCells"
+address = 0x004422A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* cells, uint32_t width, uint32_t depth, const bool* fill)"
+expect = "8B 44 24 08 A8 1F 56 8B"
+source = "Name ours. The part at +0x10 of a 0x24-byte cell region (vtable 0x00A86364) built for a size and filled; cSC4PortDeveloper::RemovePort builds the region of a lot's rectangle with it."
+
+[[entry]]
+name = "SC4Uint32VectorVector::Resize"
+address = 0x00464300
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count)"
+expect = "83 EC 0C 8B 54 24 10 8D"
+source = "Name ours. resize() of a vector of 12-byte vectors; cSC4PortDeveloper::PortType_Load sizes a type's table +0x24 with it. Generic container code, left the game's."
+
+[[entry]]
+name = "SC4Block32Vector::PushBack"
+address = 0x00692110
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* value)"
+expect = "8B C1 8B 48 08 57 8B 78"
+source = "Name ours. push_back of a 0x20-byte element (insert 0x006915E0, which uses the copy helper 0x006E9150 inside the port base's range); cSC4PortDeveloper::PortType_Load appends the stages with it. Generic container code, left the game's."
+
+[[entry]]
+name = "cSC4AirportDeveloper::vftable"
+address = 0x00AB0714
+kind = "vtable"
+expect = "A0 B1 68 00 D0 B1 68 00"
+source = "The primary cISC4AirportDeveloper vtable (15 slots; set by the constructor 0x0068B4C0): 0 QueryInterface, 1 AddRef, 2 Release, 3 Init, 4 Shutdown, 5 GetAvgEfficiency 0x00700F40, 6 GetSimulatorType, 7-9 thunks to the port base (0x0068B260, 0x0068B000, 0x0068AFF0), 10 AsISC4PortDeveloper 0x005FD7E0, 11 GetNumAirports, 12 GetAirportUsageValues 0x00700FE0, 13 GetNumAirportTrips 0x00701800, 14 GetMaintenanceCost 0x00701830 (5, 12-14: code shared with the seaport developer). Slots 3-14 replaced by simulators.airport.sim."
+
+[[entry]]
+name = "cSC4AirportDeveloper::vftable_4"
+address = 0x00AB06C8
+kind = "vtable"
+expect = "90 B2 68 00 A0 B2 68 00"
+source = "Name ours. The port base's vtable at +0x4 (19 slots): 0-2 identity thunks, 3-9 thunks to the primary's slots 3-9 (0x0068B2C0-0x0068B320), 10 deleting destructor thunk 0x0068B330, 11 DeleteThis 0x00700F10, 12 GetPortUsage 0x0068B250, 13/14 the shared empty 0x00648F10, 15 NotifyGrowth 0x0068B400, 16 UpdateUsage 0x0068B630, 17 UpdateMaintenance 0x00700FA0, 18 GetFunding 0x0068B270. Slots 3-9 and 11-18 replaced by simulators.airport.sim."
+
+[[entry]]
+name = "cSC4AirportDeveloper::vftable_8"
+address = 0x00AB06B4
+kind = "vtable"
+expect = "40 B3 68 00 50 B3 68 00"
+source = "Name ours. The cIGZMessageTarget2 part at +0x8 (4 slots): identity thunks 0x0068B340-0x0068B360, 3 DoMessage 0x0068B1F0 (replaced by simulators.airport.sim)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::vftable_C"
+address = 0x00AB069C
+kind = "vtable"
+expect = "70 B3 68 00 80 B3 68 00"
+source = "Name ours. The cIGZSerializable part at +0xC (6 slots): identity thunks 0x0068B370-0x0068B390, 3 Write 0x0068B3E0, 4 Read 0x007010B0 (shared with the seaport developer), 5 GetGZCLSID 0x0068AFD0. Slots 3 and 4 replaced by simulators.airport.sim."
+
+[[entry]]
+name = "cSC4AirportDeveloper::GetGZCLSID"
+address = 0x0068AFD0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 A1 49 20 AA C3 CC CC"
+source = "Returns the class ID 0xAA2049A1 (+0xC slot 5; also called by the class registration 0x004604EF). Ours in simulators.airport.object."
+
+[[entry]]
+name = "cSC4AirportDeveloper::GetSimulatorType"
+address = 0x0068AFE0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4AirportDeveloper* this)"
+expect = "B8 C4 55 39 EA C3 CC CC"
+source = "Slot 6: 0xEA3955C4."
+
+[[entry]]
+name = "cSC4AirportDeveloper::GetNumPorts_Thunk"
+address = 0x0068AFF0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4AirportDeveloper* this, int32_t sizeFlags, int32_t stageFlags)"
+expect = "83 C1 04 E9 C8 E4 05 00"
+source = "Slot 9: this + 4, then the port base's 0x006E94C0 (also slot 9 of the seaport's primary vtable)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::GetAllPortLots_Thunk"
+address = 0x0068B000
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4AirportDeveloper* this, void* vector)"
+expect = "83 C1 04 E9 E8 F2 05 00"
+source = "Slot 8: this + 4, then the port base's 0x006EA2F0 (also in the seaport's primary vtable)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Init"
+address = 0x0068B010
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4AirportDeveloper* this)"
+expect = "56 8B F1 8A 4E 11 84 C9"
+source = "Slot 3: the base's Init, the department budget 0x6A4119F0 (budget simulator slot 28, created through slot 25 with its line item 1 when missing) at +0x34, six notifications."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Shutdown"
+address = 0x0068B110
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4AirportDeveloper* this)"
+expect = "56 8B F1 8A 4E 11 84 C9"
+source = "Slot 4: the six notifications removed, the base's Shutdown, the department released."
+
+[[entry]]
+name = "cSC4AirportDeveloper::QueryInterface"
+address = 0x0068B1A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4AirportDeveloper* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D 8D 54 20"
+source = "IID 0xEA20548D (cISC4AirportDeveloper): the object; others go to the port base at +4 (0x006E8FD0). Ours in simulators.airport.object."
+
+[[entry]]
+name = "cSC4AirportDeveloper::AddRef"
+address = 0x0068B1D0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4AirportDeveloper* this)"
+expect = "83 C1 04 E9 C8 C9 E6 FF"
+source = "this + 4, then the shared AddRef 0x004F7BA0 (count at +0x14; also in the seaport's vtables). Ours in simulators.airport.object."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Release"
+address = 0x0068B1E0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4AirportDeveloper* this)"
+expect = "83 C1 04 E9 A8 DD 05 00"
+source = "this + 4, then the port base's Release 0x006E8F90 (also in the seaport's vtables). Ours in simulators.airport.object."
+
+[[entry]]
+name = "cSC4AirportDeveloper::DoMessage"
+address = 0x0068B1F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZMessageTarget2* this, cIGZMessage2* message)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+0x8 slot 3: the six growth messages (0xEA394B74, 0xCB3BE815, 0xEB3BE415, 0x2B3BE44A, 0x6B3BE6D8, 0x0B3BE81A) run the base's Grow; others go to the base's DoMessage."
+
+[[entry]]
+name = "cSC4AirportDeveloper::GetPortUsage"
+address = 0x0068B250
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4PortDeveloper* this, void* port)"
+expect = "8B 44 24 04 8B 40 24 C2"
+source = "Name ours. +0x4 slot 12: the port's usage +0x24."
+
+[[entry]]
+name = "cSC4AirportDeveloper::GetLeastEfficientPort_Thunk"
+address = 0x0068B260
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4AirportDeveloper* this, float* efficiency, int32_t* cell)"
+expect = "83 C1 04 E9 B8 E2 05 00"
+source = "Slot 7: this + 4, then the port base's 0x006E9520 (also in the seaport's primary vtable)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::GetFunding"
+address = 0x0068B270
+kind = "function"
+convention = "thiscall"
+signature = "int64_t (cSC4PortDeveloper* this)"
+expect = "8B 49 30 8B 01 6A 01 FF"
+source = "Name ours. +0x4 slot 18: the department's line item 1 (slot 20), its slot 11 (int64; also slot 18 of the seaport's +0x4 vtable)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Thunk4_Init"
+address = 0x0068B2C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PortDeveloper* this)"
+expect = "83 E9 04 E9 48 FD FF FF"
+source = "this - 4, then Init (+0x4 slot 3)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Thunk4_Shutdown"
+address = 0x0068B2D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PortDeveloper* this)"
+expect = "83 E9 04 E9 38 FE FF FF"
+source = "this - 4, then Shutdown (+0x4 slot 4)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Thunk4_GetAvgEfficiency"
+address = 0x0068B2E0
+kind = "function"
+convention = "thiscall"
+signature = "float* (cSC4PortDeveloper* this, float* out)"
+expect = "83 E9 04 E9 58 5C 07 00"
+source = "this - 4, then 0x00700F40 (+0x4 slot 5; also in the seaport's +0x4 vtable)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Thunk4_GetSimulatorType"
+address = 0x0068B2F0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4PortDeveloper* this)"
+expect = "83 E9 04 E9 E8 FC FF FF"
+source = "this - 4, then GetSimulatorType (+0x4 slot 6)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Thunk4_GetLeastEfficientPort"
+address = 0x0068B300
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PortDeveloper* this, float* efficiency, int32_t* cell)"
+expect = "83 E9 04 E9 58 FF FF FF"
+source = "this - 4, then 0x0068B260 (+0x4 slot 7)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Thunk4_GetAllPortLots"
+address = 0x0068B310
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PortDeveloper* this, void* vector)"
+expect = "83 E9 04 E9 E8 FC FF FF"
+source = "this - 4, then 0x0068B000 (+0x4 slot 8)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Thunk4_GetNumPorts"
+address = 0x0068B320
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4PortDeveloper* this, int32_t sizeFlags, int32_t stageFlags)"
+expect = "83 E9 04 E9 C8 FC FF FF"
+source = "this - 4, then 0x0068AFF0 (+0x4 slot 9)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::DeletingDestructor"
+address = 0x0068B3A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4AirportDeveloper* this, uint32_t flags)"
+expect = "56 8B F1 8D 4E 04 C7 06"
+source = "The destructor (through the thunk 0x0068B330, +0x4 slot 10): the port base's Destroy, then operator delete for flag 1. Ours in simulators.airport.object."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Write"
+address = 0x0068B3E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+0xC slot 3: version 2, then the port base's Write 0x006E9850 (also slot 3 of the seaport's +0xC vtable)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::NotifyGrowth"
+address = 0x0068B400
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PortDeveloper* this, void* port)"
+expect = "53 8B D9 8B 4C 24 08 8B"
+source = "Name ours. +0x4 slot 15: the growth message of the port's size and stage (size 1: 0xEA394B74 or 0xCB3BE815; 2: 0xEB3BE415 or 0x2B3BE44A; 3: 0x6B3BE6D8 or 0x0B3BE81A; second when the stage is not 0), posted through the message server (slot 4) when 0x00B47B5C is set, else given to the base's PostAdvice."
+
+[[entry]]
+name = "cSC4AirportDeveloper::cSC4AirportDeveloper"
+address = 0x0068B4C0
+kind = "function"
+convention = "thiscall"
+signature = "cSC4AirportDeveloper* (cSC4AirportDeveloper* this)"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "The constructor (0x64 bytes; only reached from the factory 0x0068B520): the port base at +4, then +0x18 = 0xCA270E9D, +0x34 = 0, +0x38 = 0xB, +0x3C = 0x6A3E9032, +0x40 = 0x6A4119F0, +0x44 = 0x1508. Detoured by simulators.airport.object."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Create"
+address = 0x0068B520
+kind = "function"
+convention = "cdecl"
+signature = "cSC4AirportDeveloper* ()"
+expect = "6A 64 E8 B9 A0 F5 FF 83"
+source = "The class factory (referenced from the registration at 0x004604EB): operator new(0x64), then the constructor."
+
+[[entry]]
+name = "cSC4AirportDeveloper::GetNumAirports"
+address = 0x0068B540
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4AirportDeveloper* this, int32_t size)"
+expect = "8B 44 24 04 85 C0 75 13"
+source = "Slot 11: size 0 counts the port list +0x48; others go to the base's GetNumPortsOfSize."
+
+[[entry]]
+name = "cSC4AirportDeveloper::UpdateUsage"
+address = 0x0068B630
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PortDeveloper* this)"
+expect = "83 EC 40 53 55 56 57 8B"
+source = "Name ours. +0x4 slot 16: the traffic simulator's (city slot 69) vectors 0x3320 and 0x3330 (slot 42) and, per port lot, its list of indexes (slot 39); each index's sum of both vectors is shared among its ports by funded capacity into the usage +0x24."
+
+[[entry]]
+name = "cSC4AirportDeveloper::GetAvgEfficiency"
+address = 0x00700F40
+kind = "function"
+convention = "thiscall"
+signature = "float* (cSC4AirportDeveloper* this, float* out)"
+expect = "56 8B 74 24 08 56 83 C1"
+source = "Slot 5 (code shared with the seaport developer, in its range): the port base's 0x006E9900."
+
+[[entry]]
+name = "cSC4AirportDeveloper::UpdateMaintenance"
+address = 0x00700FA0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PortDeveloper* this)"
+expect = "56 57 8B F9 8B 4F 30 8B"
+source = "Name ours. +0x4 slot 17 (code shared with the seaport developer): the department's line item 1 gets the base's SumCosts (its slot 12)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::GetAirportUsageValues"
+address = 0x00700FE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4AirportDeveloper* this, cISC4Lot* lot, uint32_t* usage, uint32_t* capacity)"
+expect = "8B 44 24 04 83 EC 08 53"
+source = "Slot 12 (code shared with the seaport developer): the base's GetUsageValues, the capacity scaled by the line item's slot 11 over its slot 10."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Read"
+address = 0x007010B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+0xC slot 4 (code shared with the seaport developer): version 2 only, then the port base's Read 0x006EAA60."
+
+[[entry]]
+name = "cSC4AirportDeveloper::GetNumAirportTrips"
+address = 0x00701800
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4AirportDeveloper* this)"
+expect = "53 8B 59 48 55 56 8B 33"
+source = "Slot 13 (code shared with the seaport developer): the sum of the ports' usage (+0x4 slot 12)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::GetMaintenanceCost"
+address = 0x00701830
+kind = "function"
+convention = "thiscall"
+signature = "int64_t (cSC4AirportDeveloper* this, cISC4Lot* lot)"
+expect = "83 EC 14 53 56 57 8B F1"
+source = "Slot 14 (code shared with the seaport developer): the lot's port's stage's int64 at +0x8, scaled by the line item's slot 11 over its slot 10 when that is above 0."
+
+[[entry]]
+name = "cSC4AirportDeveloper::DeleteThis_Jump"
+address = 0x00700F10
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4PortDeveloper* this)"
+expect = "E9 9B 80 FE FF CC CC CC"
+source = "+0x4 slot 11 (in the seaport's range, also in its +0x4 vtable): a jump to the port base's DeleteThis 0x006E8FB0."
+
+[[entry]]
+name = "cSC4AirportDeveloper::Thunk4_DeletingDestructor"
+address = 0x0068B330
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4PortDeveloper* this, uint32_t flags)"
+expect = "83 E9 04 E9 68 00 00 00"
+source = "this - 4, then the destructor 0x0068B3A0 (+0x4 slot 10)."
+
+[[entry]]
+name = "cSC4AirportDeveloper::AsISC4PortDeveloper"
+address = 0x005FD7E0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "85 C9 74 04 8D 41 04 C3"
+source = "Slot 10 (shared code): this + 4, or null for null; the AsISC4PortDeveloper slot of the airport and seaport developers and the same slot of some 80 other vtables."
+
+[[entry]]
+name = "cSC4AirportDeveloper::EmptySlot"
+address = 0x00648F10
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t)"
+expect = "C2 04 00 CC CC CC CC CC"
+source = "Name ours. An empty method with one argument (ret 4), shared by some 200 vtables; slots 13 and 14 of the airport developer's +0x4 vtable."
+
+[[entry]]
+name = "cSC4AirportDeveloper::PostGrowthMessages"
+address = 0x00B47B5C
+kind = "data"
+source = "Name ours. uint8 (zero-initialised): when set, NotifyGrowth posts its message instead of asking for advice."
+
+[[entry]]
+name = "cSC4AirportDeveloper::DepartmentValue"
+address = 0x00B0D148
+kind = "data"
+source = "Name ours. float 1.2 passed by address to the new department budget's slot 13 (Init)."
