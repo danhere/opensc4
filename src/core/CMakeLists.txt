@@ -87,6 +87,11 @@ add_library(opensc4_core SHARED
   growth_messages.cpp
   growth_object.cpp
   growth_queries.cpp
+  tract_autotest.cpp
+  tract_buildings.cpp
+  tract_grow.cpp
+  tract_lots.cpp
+  tract_object.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp
