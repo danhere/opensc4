@@ -595,7 +595,7 @@ Per-DLL compatibility policy:
 | DLL | Policy | Reason |
 |---|---|---|
 | nam-dll | defer | 12 mid-function stubs with fixed return addresses across the network tool, RUL engine and pathfinding. The roadmap already schedules networks only with the NAM team (P7). |
-| sc4fix | absorb | Four small, well-understood fixes (DLL unload, puzzle-piece crash, prop-pox save rewrite). OpenSC4 can ship them correctly, including the part-1 fix that sc4fix never actually installs. |
+| sc4fix | absorb | Absorbed ([crashes.md](crashes.md)): DLL unload as `fixes.pin_plugin_dlls`, the puzzle-piece crash as `fixes.puzzle_piece`, and the part-1 fix sc4fix never installs as `resources.stale_record_fix`, all without patching. The prop-pox save rewrite matches the original save step for step, so there is nothing to port. |
 | submenus-dll | defer | 19 mid-function stubs across catalog and menu UI functions, and widely depended on by content. |
 | sc4-render-services | chain | Its patches are checked, reversible call-site rewrites, and it exposes 4 services other DLLs build on. OpenSC4's renderer must keep the draw-pass call sites, or provide the same service IDs. |
 | UI Modernization | defer | About 385 sites in UI dialogs. It checks bytes and declines individually, so it fails safe, but replacing those dialogs (P2) duplicates its whole purpose. Coordinate before P2. |

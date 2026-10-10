@@ -1,0 +1,11 @@
+# Fixes for the game's own crashes that are not part of a replaced subsystem
+# (docs/crashes.md).
+
+[[entry]]
+name = "PuzzlePieceSolver::NextEntry"
+address = 0x0065ED80
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t* id, float* value, bool* changed)"
+expect = "83 EC 08 55 8B 6C 24 18"
+source = "Name ours (class unknown; sc4fix calls it Sub65EBA0, its 640 address). Pops a pending (id, value) pair from the stack at +0x50/+0x54, else picks the entry of the hash table at +0x28 (buckets +0x2C..+0x30, node [0] next, [1] id, [2..8] entry) with the smallest hi - lo. With no entry chosen it reads [NULL+0x18] at 0x0065EE40: the puzzle-piece crash sc4fix patches mid-function (0x0065EE3E, 0x0065EE66). One caller, 0x00660B72 in 0x00660B10, which ignores the outputs on false. RET 0xC."
