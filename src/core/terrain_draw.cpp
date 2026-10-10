@@ -1889,6 +1889,109 @@ uint32_t DrawRotationQuads(char* self, char* context, uint32_t overlaid)
     return 1;
 }
 
+// The draw of the drawable with vtable 0x00AA7F10 (0x0061A850; `self` is
+// the object + 0x17C): a quad drawn as one or two triangles by the object's
+// flags (its slot 0x20 answers whether a flag is set) with up to two
+// textures, then a list of textured triangles kept above the terrain. In
+// the overlaid round everything is drawn a second time with another render
+// state. `contextWord` is how the game passes one answer on: in the low
+// byte of the context pointer's stack slot.
+uint32_t DrawFlaggedQuad(char* self, char* context, uint32_t overlaidWord)
+{
+    const bool overlaid = static_cast<uint8_t>(overlaidWord) != 0;
+    char* const object = self - 0x17C;
+    const auto flag = [&](uint32_t bits) { return Virtual<uint8_t>(object, 0x20, bits) != 0; };
+    const auto texture = [&](uint32_t a, uint32_t b) { return Virtual<uint32_t**>(object, 0x134, a, b); };
+    if (Global<uint32_t>(0x00B0B374) != At<uint32_t>(context, 0x14))
+        Virtual<void>(object, 0x138, context);
+    if (!flag(0x8000))
+        Virtual<void>(object, 0x13C, At<uint32_t>(context, 0x44));
+    void* state = reinterpret_cast<void*>(0x00B45260);
+    if (flag(0x80000) || (flag(0x40000000) && At<uint8_t>(object, 0xAB) == 0xFF)) {
+        char* const pieces = Virtual<char*>(object, 0xB4);
+        uint32_t bits = At<uint32_t>(pieces, 8);
+        const uint32_t* piece = reinterpret_cast<const uint32_t*>(At<char*>(pieces, 0xC) + 4);
+        for (uint32_t n = At<uint8_t>(pieces, 0); n != 0; --n, piece += 2)
+            bits |= *piece;
+        static constexpr uint32_t kPlain[] = {0x3010000, 0x30100,   0x301,   0x1000003, 0x1000000, 0x10000,
+                                              0x100,     1,         0x3000000, 0x30000,  0x300,     3};
+        if (std::find(std::begin(kPlain), std::end(kPlain), bits) == std::end(kPlain))
+            state = reinterpret_cast<void*>(0x00B45268);
+    }
+    CallThis<void>(addr::SC4RenderContext_SetRenderState, context, state);
+    CallThis<void>(addr::SC4RenderContext_UpdateViewMatrix, context);
+    if (overlaid) {
+        if (!Virtual<uint32_t>(object + 4, 0x40))
+            return 1;
+        CallThis<void>(addr::SC4RenderContext_SetColourAlt, context, reinterpret_cast<void*>(0x00B0B388));
+    } else {
+        CallThis<void>(addr::SC4RenderContext_ResetColour, context);
+    }
+    void* const second = reinterpret_cast<void*>(0x00B45270);
+    if (Virtual<uint8_t>(object, 0x24, 0x6000000u)) {
+        uint32_t** textures[2];
+        textures[0] = At<uint32_t>(object, 0x100) ? texture(At<uint32_t>(object, 0x100), 0) : nullptr;
+        const uint32_t base = At<uint32_t>(object, 0xFC);
+        textures[1] = texture(base + At<uint8_t>(object, 0x105) * 16u, base);
+        if (textures[1]) {
+            CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 2u, 2u, 0u);
+            CallThis<void>(addr::SC4RenderContext_SetState4280, context, 1u, 1u, 0u);
+            CallThis<void>(addr::SC4RenderContext_SetVertexArray, context, 0xAu, 4u, object + 0x9C);
+            for (uint32_t** const entry : textures) {
+                if (!entry)
+                    continue;
+                CallThis<void>(addr::SC4RenderContext_BindTexture, context, **entry, 0u);
+                char* const indices = reinterpret_cast<char*>(flag(0x1000000) ? 0x00AA7D34 : 0x00AA7D28);
+                const auto triangles = [&] {
+                    if (flag(0x2000000))
+                        CallThis<void>(addr::SC4RenderContext_DrawElements, context, 0u, 3u, indices);
+                    if (flag(0x4000000))
+                        CallThis<void>(addr::SC4RenderContext_DrawElements, context, 0u, 3u, indices + 6);
+                };
+                triangles();
+                if (overlaid) {
+                    CallThis<void>(addr::SC4RenderContext_SetRenderState, context, second);
+                    CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 2u, 2u, 0u);
+                    CallThis<void>(addr::SC4RenderContext_SetState4280, context, 1u, 1u, 0u);
+                    triangles();
+                    CallThis<void>(addr::SC4RenderContext_SetRenderState, context, state);
+                }
+            }
+            if (const uint8_t extra = Virtual<uint8_t>(object, 0x114))
+                Virtual<void>(object, 0x130, context, overlaidWord, state,
+                              (reinterpret_cast<uint32_t>(context) & 0xFFFFFF00) | extra);
+        }
+    }
+    if (At<char*>(object, 0x118) != At<char*>(object, 0x11C)) {
+        CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 3u, 3u, 0u);
+        CallThis<void>(addr::SC4RenderContext_SetState4280, context, 1u, 1u, 0u);
+        void* const terrain = Global<void*>(0x00B43CF4);
+        const bool checked = Virtual<uint8_t>(terrain, 0x14C) != 0;
+        char* const end = At<char*>(object, 0x11C);
+        for (char* entry = At<char*>(object, 0x118); entry != end; entry += 0x4C) {
+            char* const vertices = entry + 4;
+            if (checked && Virtual<double>(terrain, 0x78, At<uint32_t>(vertices, 0), At<uint32_t>(vertices, 8)) >
+                               At<float>(vertices, 4))
+                continue;
+            uint32_t** const found = texture(At<uint32_t>(entry, 0), 0);
+            if (!found)
+                continue;
+            CallThis<void>(addr::SC4RenderContext_BindTexture, context, **found, 0u);
+            CallThis<void>(addr::SC4RenderContext_DrawArrays, context, 0u, 0xAu, 3, vertices);
+            if (overlaid) {
+                CallThis<void>(addr::SC4RenderContext_SetRenderState, context, second);
+                CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 3u, 3u, 0u);
+                CallThis<void>(addr::SC4RenderContext_SetState4280, context, 1u, 1u, 0u);
+                CallThis<void>(addr::SC4RenderContext_DrawArrays, context, 0u, 0xAu, 3, vertices);
+                CallThis<void>(addr::SC4RenderContext_SetRenderState, context, state);
+            }
+        }
+    }
+    if (overlaid)
+        CallThis<void>(addr::SC4RenderContext_ResetColour, context);
+    return 1;
+}
+
 // The context's mesh draw (0x007D4A80). A mesh is three pointers: a vertex
 // buffer {format, +6 a count that must not be 0, +8 the vertices}, an index
 // buffer (a pointer to uint16 indices) or null, and its primitive groups (a
@@ -2789,6 +2892,7 @@ struct SmallDrawable {
 };
 SmallDrawable g_sideStrip = {"models.sidestrip", 0xAC, 0xAC, DrawSideStrip, nullptr, false};
 SmallDrawable g_rotationQuads = {"models.rotationquads", 0x274, 0x274, DrawRotationQuads, nullptr, false};
+SmallDrawable g_flaggedQuad = {"models.flaggedquad", 0x17C, 0x17C, DrawFlaggedQuad, nullptr, false};
 
 uint32_t DrawSmall(SmallDrawable& d, char* self, char* context, uint32_t overlaid)
 {
@@ -2818,6 +2922,12 @@ uint32_t __fastcall DRotationQuads(char* self, void*, char* context, uint32_t ov
     return DrawSmall(g_rotationQuads, self, context, overlaid);
 }
 
+uint32_t __fastcall DFlaggedQuad(char* self, void*, char* context, uint32_t overlaid)
+{
+    return DrawSmall(g_flaggedQuad, self, context, overlaid);
+}
+
+OPENSC4_THUNK(TFlaggedQuad, DFlaggedQuad, 8)
 OPENSC4_THUNK(TSideStrip, DSideStrip, 8)
 OPENSC4_THUNK(TRotationQuads, DRotationQuads, 8)
 OPENSC4_THUNK(TGroundQuad, DGroundQuad, 8)
@@ -3381,6 +3491,29 @@ const bool g_registeredRotationQuads = registry::Register({
     "renderer.models.static, per object (docs/renderer.md, \"Models and lots\")",
     true,
     InstallRotationQuads,
+});
+
+bool InstallFlaggedQuad(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_flaggedQuad.compare = mode == registry::Mode::Compare;
+    if (!Detour(addr::SC4DrawableAA7F10_Draw, &TFlaggedQuad, &g_flaggedQuad.original))
+        return false;
+    log::Write("models: flagged quad draw %s", g_flaggedQuad.compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredFlaggedQuad = registry::Register({
+    "renderer.models.flaggedquad",
+    "renderer/models",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4DrawableAA7F10_Draw,
+    "The draw of the drawable with vtable 0x00AA7F10, a quad as one or two triangles and a list of triangles; "
+    "compare mode as renderer.models.static, per object (docs/renderer.md, \"Models and lots\")",
+    true,
+    InstallFlaggedQuad,
 });
 
 } // namespace
