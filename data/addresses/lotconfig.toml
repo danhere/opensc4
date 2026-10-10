@@ -1,0 +1,647 @@
+# The lot configuration manager (cSC4LotConfigurationManager, class ID 0x299062C0; src/core/lotconfig_sim.h has the class map): code 0x00489650 to 0x0048C050 (src/core/lotconfig_sim.cpp, lotconfig_queries.cpp), with the base lot configuration filter and the cSC4LotConfiguration helpers it calls.
+
+[[entry]]
+name = "SC4BitVector::Erase"
+address = 0x004780D0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector, void* result, uint32_t* firstWord, uint32_t firstBit, uint32_t* lastWord, uint32_t lastBit)"
+expect = "53 8B 5C 24 10 56 57 8B"
+source = "Name ours. std::vector<bool>::erase(first, last) with the two iterators (word, bit) by value and the result iterator through a pointer; ret 0x14. CreateGenericLotConfiguration empties the configuration's three bit vectors (+0x44, +0x58, +0x6C) with it."
+
+[[entry]]
+name = "cSC4LotConfiguration::CopyObject"
+address = 0x004788D0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* object, const void* other)"
+expect = "8B 44 24 04 56 8B F1 8A"
+source = "Name ours. The copy constructor of a 0x34-byte configuration object (the ID list +0x28 copied); ret 4."
+
+[[entry]]
+name = "cSC4LotConfiguration::CopyObjects"
+address = 0x004789F0
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* out, void* tag, uint32_t zero)"
+expect = "8B 4C 24 08 53 8B 5C 24"
+source = "Name ours. std::copy of 0x34-byte configuration objects by assignment. FixLotConfiguration closes the gap of a removed object with it."
+
+[[entry]]
+name = "cSC4LotConfiguration::EraseObjects"
+address = 0x004796F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector, void* first, void* last)"
+expect = "8B 54 24 08 53 55 56 8B"
+source = "Name ours. erase(first, last) of the vector of 0x34-byte configuration objects (their ID lists freed); ret 8."
+
+[[entry]]
+name = "cSC4LotConfiguration::cSC4LotConfiguration"
+address = 0x004797A0
+kind = "function"
+convention = "thiscall"
+signature = "cSC4LotConfiguration* (cSC4LotConfiguration* this)"
+expect = "53 55 33 DB 56 8B F1 C7"
+source = "The lot configuration's constructor (0xC0 bytes, vtable 0x00A8CEB8, reference count 0). Not the manager's: called by its CreateLotConfigurationFromKey and CreateGenericLotConfiguration."
+
+[[entry]]
+name = "cSC4LotConfiguration::InsertObjects"
+address = 0x00479910
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, void* where, const void* object, void* tag, uint32_t count, bool atEnd)"
+expect = "51 53 8B D9 8B 03 8B 4B"
+source = "Name ours. The growing insert of the vector of 0x34-byte configuration objects (as SC4PtrVector::InsertN); ret 0x14."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetGZCLSID"
+address = 0x00489650
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 C0 62 90 29 C3 CC CC"
+source = "Returns the class ID 0x299062C0 (+0x8 slot 5; also called from the class registration 0x00460405). Ours in simulators.lotconfig.object."
+
+[[entry]]
+name = "cSC4LotConfigurationFilter::SetVtable"
+address = 0x00489660
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfigurationFilter* this)"
+expect = "C7 01 1C EC A8 00 C3 CC"
+source = "Name ours. The base filter's destructor: only sets the vtable 0x00A8EC1C. Called by derived filters' destructors (0x0072A733, 0x00732F69); left the game's."
+
+[[entry]]
+name = "cSC4LotConfigurationFilter::QueryInterface"
+address = 0x00489670
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfigurationFilter* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 48 74 0C 2D"
+source = "IIDs 1 and 0x68F0113A: the object, AddRef through slot 1. Slot 0 of the four filter vtables; ours in simulators.lotconfig.filter for the base vtable only."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::QueryInterface"
+address = 0x004896A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfigurationManager* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "Slot 0. IIDs 0x00000001 and 0xC8EDBEC0 (cISC4LotConfigurationManager): the object; 0xE4FDA3D4 (cIGZSerializable): +0x8; AddRef through slot 1. The message target part (+0x4) has no IID. Ours in simulators.lotconfig.object."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::SaveLotConfiguration"
+address = 0x00489700
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfigurationManager* this, const void* key, cSC4LotConfiguration* configuration, void* segment)"
+expect = "8B 4C 24 08 32 C0 85 C9"
+source = "Name ours. Not virtual: the configuration's slot 32 (key, segment), false for no configuration. Only called from the lot configuration's own code (0x0047AB91). Ours in simulators.lotconfig.load, by a detour."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetLotConfigurationMap"
+address = 0x00489720
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfigurationManager* this)"
+expect = "B8 C8 16 B2 00 C3 CC CC"
+source = "Slot 20: the address of the static map 0x00B216C8. Ours in simulators.lotconfig.queries."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetLotConfigurationFamilyIDSet"
+address = 0x00489730
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfigurationManager* this)"
+expect = "B8 DC 16 B2 00 C3 CC CC"
+source = "Slot 21: the address of the static set 0x00B216DC. Ours in simulators.lotconfig.queries."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::AddRefAdapter"
+address = 0x00489790
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZUnknown* this)"
+expect = "8B 01 FF 60 04 CC CC CC"
+source = "Name ours. A jump to the object's slot 1; GetLotConfigurationsByFilter (0x0048B2B2) references each cached configuration with it. Ours inline."
+
+[[entry]]
+name = "cSC4LotConfigurationFilter::DeletingDestructor"
+address = 0x004897A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfigurationFilter* this, uint32_t flags)"
+expect = "F6 44 24 04 01 56 8B F1"
+source = "The base filter's slot 4. Ours in simulators.lotconfig.filter."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::Release"
+address = 0x004897C0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotConfigurationManager* this)"
+expect = "56 8B F1 8B 46 10 83 F8"
+source = "Slot 2: at the last reference Shutdown (slot 4) and the deleting destructor (slot 28). Ours in simulators.lotconfig.object."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::Shutdown"
+address = 0x004897F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfigurationManager* this)"
+expect = "53 56 8B F1 8A 46 0C 33"
+source = "Slot 4: message 0x26D31EC1 unregistered, the three services released; the static configurations stay. Ours in simulators.lotconfig.load."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::Write"
+address = 0x00489850
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+0x8 slot 3: version 1 and the references of the three services (+0x14, +0x18, +0x1C). Ours in simulators.lotconfig.save."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::Read"
+address = 0x004898A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+0x8 slot 4: version 1 only; the three services by IID (0x07813EAE, 0x06C66177, 0x28326F3E). Ours in simulators.lotconfig.save."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::CreateLotConfigurationFromKey"
+address = 0x00489910
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfigurationManager* this, const void* key, cSC4LotConfiguration** configuration)"
+expect = "53 56 8B 74 24 10 68 C0"
+source = "Name ours. Not virtual: a new cSC4LotConfiguration (0xC0 bytes) with one reference, loaded from the exemplar at the key (its slot 31 with the option byte 0x00B43CD8+0xF16); released when the load fails (the pointer stays in the out argument). Called by AddLotConfiguration by key and from the lot configuration's code (0x00483CAC). Ours in simulators.lotconfig.load, by a detour."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::OnResourceKey"
+address = 0x00489990
+kind = "function"
+convention = "cdecl"
+signature = "void (const uint32_t* key, cSC4LotConfigurationManager* manager)"
+expect = "8B 44 24 04 81 78 04 72"
+source = "Name ours. The callback of LoadAll's walk over the exemplar keys: a key of group 0xA8FBD372 goes to the manager's slot 5. Ours in simulators.lotconfig.load (our own callback is passed)."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::EraseFilterNodes"
+address = 0x004899B0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees the filter map's nodes below a node (0x18 bytes each; the cached vectors are not freed). Called by the destructor. Ours as a plain function."
+
+[[entry]]
+name = "cSC4LotConfigurationFilter::Construct"
+address = 0x00489A50
+kind = "function"
+convention = "thiscall"
+signature = "cSC4LotConfigurationFilter* (cSC4LotConfigurationFilter* this)"
+expect = "8B C1 C7 00 1C EC A8 00"
+source = "Name ours. The base filter's constructor: the vtable 0x00A8EC1C and reference count 0. Called by derived filters' constructors (0x004BE0C3, 0x004BE103, 0x00732F32); left the game's."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::AddLotConfigurationByKey"
+address = 0x00489A60
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfigurationManager* this, const void* key)"
+expect = "53 56 8B F1 8B 4C 24 0C"
+source = "Slot 5 (one argument: gzcom-dll has the two overloads the other way round): CreateLotConfigurationFromKey, slot 6 with (configuration, true), the configuration released. Ours in simulators.lotconfig.load."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::LotConfigurationHasBuildingFamily"
+address = 0x00489AA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfigurationManager* this, cISC4LotConfiguration* configuration, uint32_t family, void** object)"
+expect = "8B 44 24 0C 85 C0 74 06"
+source = "Slot 16: the first building object (kind 0) of the configuration whose ID list holds the ID. Ours in simulators.lotconfig.footprints."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::LotConfigurationHasBuildingType"
+address = 0x00489B40
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfigurationManager* this, cISC4LotConfiguration* configuration, uint32_t type, void** object)"
+expect = "83 EC 08 8B 44 24 14 85"
+source = "Slot 17: the first building object whose ID list holds the type or a family the type belongs to (the development simulator's slot 20). Ours in simulators.lotconfig.footprints."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::Destructor"
+address = 0x00489D70
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfigurationManager* this)"
+expect = "56 8B F1 C7 06 58 EC A8"
+source = "The destructor: Shutdown, the filter map's nodes and head freed. Only caller the deleting destructor. Ours in simulators.lotconfig.object."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::QueryInterfaceThunk4"
+address = 0x00489DD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 04 E9 C8 F8 FF FF"
+source = "Name ours. +0x4 slot 0: this - 4, QueryInterface. Ours in simulators.lotconfig.object."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::QueryInterfaceThunk8"
+address = 0x00489DE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 08 E9 B8 F8 FF FF"
+source = "Name ours. +0x8 slot 0: this - 8, QueryInterface. Ours in simulators.lotconfig.object."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::ReleaseThunk4"
+address = 0x00489DF0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part)"
+expect = "83 E9 04 E9 C8 F9 FF FF"
+source = "Name ours. +0x4 slot 2: this - 4, Release. Ours in simulators.lotconfig.object."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::ReleaseThunk8"
+address = 0x00489E00
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part)"
+expect = "83 E9 08 E9 B8 F9 FF FF"
+source = "Name ours. +0x8 slot 2: this - 8, Release. Ours in simulators.lotconfig.object."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetMaxFootprintForBuildingFamilies"
+address = 0x00489E10
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfigurationManager* this, const void* ids, float* rect)"
+expect = "83 EC 10 8B 44 24 14 55"
+source = "Slot 24: (4, 4, 0, 0), then the largest width and depth (profile +0x20, +0x28; development simulator slot 40) over the building types and the types of the families in the list. Ours in simulators.lotconfig.footprints."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetMaxFootprintForPropFamilies"
+address = 0x00489F50
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfigurationManager* this, const void* ids, float* rect)"
+expect = "83 EC 10 8B 44 24 14 55"
+source = "Slot 26: (2, 2, 0, 0), then the largest of the prop records' +0x4 and +0xC (prop manager 0x00B43D10 slot 14; families through slot 9). Ours in simulators.lotconfig.footprints."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::InvalidateFilterCaches"
+address = 0x0048A080
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfigurationManager* this)"
+expect = "55 8B 69 20 56 8B 75 08"
+source = "Name ours. Frees the cached configuration vector of every registered filter. Called by AddLotConfiguration. Ours as a plain function."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::InsertConfigurationRange"
+address = 0x0048A170
+kind = "function"
+convention = "thiscall"
+signature = "void (void* set, void** first, void** last, void* tag)"
+expect = "83 EC 0C 53 56 8B 74 24"
+source = "Name ours. insert_unique(first, last) of a hash set of pointers: SC4PtrHashSet::Resize for count + n, then SC4PtrHashSet::Insert for each. Only called by GetLotConfigurationsByFilter. Ours as a plain function."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::cSC4LotConfigurationManager"
+address = 0x0048A1B0
+kind = "function"
+convention = "thiscall"
+signature = "cSC4LotConfigurationManager* (cSC4LotConfigurationManager* this)"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "The constructor (0x2C bytes; reached only by the jump from the factory 0x0048A520): the three vtables, the fields zeroed, the empty filter map. Detoured by simulators.lotconfig.object."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::DeletingDestructor"
+address = 0x0048A220
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotConfigurationManager* this, uint32_t flags)"
+expect = "56 8B F1 E8 48 FB FF FF"
+source = "Slot 28. Ours in simulators.lotconfig.object."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::FreeConfigurations"
+address = 0x0048A240
+kind = "function"
+convention = "cdecl"
+signature = "bool (void* unused)"
+expect = "A0 BC 16 B2 00 83 EC 08"
+source = "Name ours. The cleanup LoadAll registers with the service at 0x00B43C94 (slot 69) and calls itself when the option byte changed: the loaded flag cleared, itself unregistered (slot 70), every configuration released, the map emptied (not the family set). Ours in simulators.lotconfig.load, by a detour."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::RemoveLotConfiguration"
+address = 0x0048A2D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfigurationManager* this, uint32_t id)"
+expect = "53 8B 1D D0 16 B2 00 56"
+source = "Slot 7: slot 6 with (the configuration of the ID, false); false for an ID not in the map. Ours in simulators.lotconfig.load."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetLotConfiguration"
+address = 0x0048A320
+kind = "function"
+convention = "thiscall"
+signature = "cISC4LotConfiguration* (cSC4LotConfigurationManager* this, uint32_t id)"
+expect = "8B 0D CC 16 B2 00 56 8B"
+source = "Slot 8: the configuration of an ID in the static map, or null; no reference. Ours in simulators.lotconfig.queries."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::ClearLotConfigurationSet"
+address = 0x0048A370
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfigurationManager* this, void* set)"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Slot 12: every configuration of a hash set of pointers released, the set emptied. Ours in simulators.lotconfig.queries."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::UnregisterLotConfigurationFilter"
+address = 0x0048A3F0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfigurationManager* this, void* filter)"
+expect = "51 53 56 8D 71 20 8D 44"
+source = "Slot 19: the filter's node taken out of the map +0x20, its cached vector freed. Ours in simulators.lotconfig.queries."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::Create"
+address = 0x0048A520
+kind = "function"
+convention = "cdecl"
+signature = "cSC4LotConfigurationManager* ()"
+expect = "6A 2C E8 B9 B0 15 00 83"
+source = "The factory registered for class ID 0x299062C0 (0x00460400): operator new of 0x2C bytes, then a jump to the constructor. Left the game's (the constructor detour covers it)."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::LoadAll"
+address = 0x0048A540
+kind = "function"
+convention = "cdecl"
+signature = "bool (cSC4LotConfigurationManager* manager)"
+expect = "51 A1 D8 3C B4 00 56 0F"
+source = "Name ours. Called by Init: nothing when the configurations are loaded for the current option byte (0x00B43CD8+0xF16, kept at 0x00B216C0); else FreeConfigurations when loaded, the cleanup registered, and every exemplar key (resource manager slot 18, type 0x6534284A) handed to OnResourceKey. Ours as a plain function of simulators.lotconfig.load."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::Init"
+address = 0x0048A5E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfigurationManager* this)"
+expect = "56 8B F1 8A 46 0C 84 C0"
+source = "Slot 3: LoadAll, the three services taken where the save gave none (0x00B43D68, 0x00B43D80, 0x00B43D10), message 0x26D31EC1 registered. Ours in simulators.lotconfig.load."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::RegisterLotConfigurationFilter"
+address = 0x0048A660
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfigurationManager* this, void* filter)"
+expect = "83 EC 10 8B 44 24 14 8D"
+source = "Slot 18: the filter into the map +0x20 with no cached vector. Ours in simulators.lotconfig.queries."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::AddLotConfiguration"
+address = 0x0048A690
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfigurationManager* this, cISC4LotConfiguration* configuration, bool add)"
+expect = "83 EC 18 53 55 8B 6C 24"
+source = "Slot 6 (two arguments). ID not in the map: with `add` the configuration referenced, its families into the family set, the filter caches freed, the pair inserted. ID in the map: with `add` the old configuration replaced (released, the new one referenced); without it the caches freed and the pair erased (the configuration is not released). Ours in simulators.lotconfig.load."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetLotConfigurationsByFamily"
+address = 0x0048A7E0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotConfigurationManager* this, void* set, uint32_t family)"
+expect = "83 EC 10 56 57 8D 44 24"
+source = "Slot 10: the configurations of a family (their slot 5), referenced, into a hash set of pointers; the count. Ours in simulators.lotconfig.queries."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetLotConfigurationsBySize"
+address = 0x0048A8B0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotConfigurationManager* this, void* set, uint32_t width, uint32_t depth)"
+expect = "83 EC 1C 56 57 8D 44 24"
+source = "Slot 11: the configurations of a size, referenced, into a hash set of pointers; the count. Ours in simulators.lotconfig.queries."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetLotConfigurationIDsByFilter"
+address = 0x0048A9A0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotConfigurationManager* this, void* set, void* filter)"
+expect = "83 EC 10 56 57 8D 44 24"
+source = "Slot 13: the IDs of the configurations a filter accepts (all for no filter) into a hash set of IDs; the count. Ours in simulators.lotconfig.queries."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetLotConfigurationIDsByFamily"
+address = 0x0048AA80
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotConfigurationManager* this, void* set, uint32_t family)"
+expect = "83 EC 10 56 57 8D 44 24"
+source = "Slot 14. Ours in simulators.lotconfig.queries."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetLotConfigurationIDsBySize"
+address = 0x0048AB50
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotConfigurationManager* this, void* set, uint32_t width, uint32_t depth)"
+expect = "83 EC 1C 56 57 8D 44 24"
+source = "Slot 15. Ours in simulators.lotconfig.queries."
+
+[[entry]]
+name = "SC4::SortUint32"
+address = 0x0048ACF0
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t* first, uint32_t* last)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. std::sort of unsigned 32-bit values, ascending (introsort 0x0048AC40, then insertion sort 0x0048A460; their helpers 0x004899F0, 0x0048A460 and 0x0048A4B0 are shared with other classes). GetLotConfigurationsByFilter sorts a filter's configurations by address with it; left the game's."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::UpdateConfiguration"
+address = 0x0048AD40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfigurationManager* this, cSC4LotConfiguration* configuration)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. For message 0x26D31EC1: over the building types of the configuration's building object (families through the development simulator's slot 19) the smallest and largest capacity (profile +0x8) into the configuration's +0x3E and +0x40, the sorted union of the exemplars' uint32 lists (SC4::LoadUint32List) into its vector +0x80 and whether a building lacks the true property 0x2781283F into +0x8C. Only called by DoMessage. Ours in simulators.lotconfig.messages."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetLotConfigurationsByFilter"
+address = 0x0048B1A0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotConfigurationManager* this, void* set, void* filter)"
+expect = "8B 44 24 08 83 EC 1C 53"
+source = "Slot 9. A registered filter: its accepted configurations, sorted by address, kept in a vector at the filter's map node; each referenced and inserted in the set. Otherwise every configuration the filter accepts (all for none). Ours in simulators.lotconfig.queries."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::FixLotConfiguration"
+address = 0x0048B3B0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotConfigurationManager* this, cISC4LotConfiguration* configuration)"
+expect = "83 EC 74 53 55 56 8B B4"
+source = "Slot 23: unknown IDs and empty objects of kinds 0, 1 and 4 removed, footprints and centres put right, the first unknown retaining wall type removed; the kind of the first fix (1 to 6) or 0. Ours in simulators.lotconfig.load."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetMaxFootprintForFloraFamilies"
+address = 0x0048B860
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfigurationManager* this, const void* ids, float* rect)"
+expect = "83 EC 24 8B 44 24 2C 53"
+source = "Slot 25: (2, 2, 0, 0), then twice the largest radius (+0x3C of the flora simulator's slot 7 record; families through slot 14). Ours in simulators.lotconfig.footprints."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::GetObjectIDArray"
+address = 0x0048BA10
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotConfigurationManager* this, const void* object, void* ids)"
+expect = "83 EC 4C 55 56 57 8B 7C"
+source = "Slot 27: the types an object of kind 0, 1 or 4 stands for: its IDs that are types, and the types of its IDs that are families. Ours in simulators.lotconfig.footprints."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::DoMessage"
+address = 0x0048BC50
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZMessageTarget2* this, cIGZMessage2* message)"
+expect = "83 EC 08 53 8B D9 8B 4C"
+source = "+0x4 slot 3: at message 0x26D31EC1 UpdateConfiguration for every configuration of the map. Ours in simulators.lotconfig.messages."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::CreateGenericLotConfiguration"
+address = 0x0048BCF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotConfigurationManager* this, cISC4LotConfiguration** configuration, uint32_t buildingType)"
+expect = "8B 54 24 08 83 EC 5C 53"
+source = "Slot 22: a new configuration (one reference, a new GUID as its ID, not added to the map) just large enough for the building type, with one building object in its middle. Ours in simulators.lotconfig.load."
+
+[[entry]]
+name = "SC4::AddRefAt10"
+address = 0x004F7BA0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 10 40 89 41 10 C3"
+source = "Name ours. Shared AddRef code: the count at +0x10 raised and returned (slot 1 of the lot configuration manager, the prop manager and the flora simulator)."
+
+[[entry]]
+name = "SC4Uint32HashMap::Insert"
+address = 0x005E04A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* map, void* result, const void* pair)"
+expect = "8B 44 24 08 53 8B 18 55"
+source = "Name ours. insert_unique without resize of an STLport hash map with uint32 keys and 4-byte values (0xC-byte nodes): a 9-byte result {node, map, inserted}; ret 8. Generic; left the game's."
+
+[[entry]]
+name = "SC4::AddRefAt10Thunk4"
+address = 0x0068D230
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part)"
+expect = "83 E9 04 E9 68 A9 E6 FF"
+source = "Name ours. Shared thunk: this - 4, SC4::AddRefAt10."
+
+[[entry]]
+name = "SC4::AddRefAt10Thunk8"
+address = 0x0068D250
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part)"
+expect = "83 E9 08 E9 48 A9 E6 FF"
+source = "Name ours. Shared thunk: this - 8, SC4::AddRefAt10."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::FloatMargin"
+address = 0x00A8EC08
+kind = "data"
+source = "Name ours. float 0.05: FixLotConfiguration lets objects reach the lot size less this."
+
+[[entry]]
+name = "cSC4LotConfigurationFilter::vftable"
+address = 0x00A8EC1C
+kind = "vtable"
+expect = "70 96 48 00 F0 47 5F 00"
+source = "Name ours. The base lot configuration filter (8 bytes: vtable, reference count; IIDs 1 and 0x68F0113A), 5 slots: QueryInterface 0x00489670, AddRef 0x005F47F0 and Release 0x0076A370 (shared code), the test 0x004FC900 (shared code: true for every configuration), the deleting destructor 0x004897A0. Other classes derive their filters from it (0x00A906C0, 0x00A906D4, 0x00AB36FC). Slots 0 and 4 replaced by simulators.lotconfig.filter; the autotest builds one on the stack."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::vftable_8"
+address = 0x00A8EC30
+kind = "vtable"
+expect = "E0 9D 48 00 50 D2 68 00"
+source = "Name ours. The cIGZSerializable part at +0x8 (6 slots): thunks 0x00489DE0, 0x0068D250, 0x00489E00, Write 0x00489850, Read 0x004898A0, GetGZCLSID 0x00489650. Slots 3 and 4 replaced by simulators.lotconfig.save."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::vftable_4"
+address = 0x00A8EC48
+kind = "vtable"
+expect = "D0 9D 48 00 30 D2 68 00"
+source = "Name ours. The cIGZMessageTarget2 part at +0x4 (4 slots): thunks 0x00489DD0, 0x0068D230, 0x00489DF0, DoMessage 0x0048BC50. Slot 3 replaced by simulators.lotconfig.messages."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::vftable"
+address = 0x00A8EC58
+kind = "vtable"
+expect = "A0 96 48 00 A0 7B 4F 00"
+source = "The primary cISC4LotConfigurationManager vtable (29 slots, the deleting destructor last; the map in src/core/lotconfig_sim.h). Slots 3-7, 22 and 23 replaced by simulators.lotconfig.load, 8-15 and 18-21 by simulators.lotconfig.queries, 16, 17 and 24-27 by simulators.lotconfig.footprints; our object copies all of it."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::FloatMinEdge"
+address = 0x00A8ECCC
+kind = "data"
+source = "Name ours. float 0.049: the least minimum x and z of an object in FixLotConfiguration."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::FloatMinusSixteenth"
+address = 0x00A8ECD0
+kind = "data"
+source = "Name ours. float -0.0625: CreateGenericLotConfiguration, meters to cells."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::Loaded"
+address = 0x00B216BC
+kind = "data"
+source = "Name ours. uint8: the static configurations are loaded and FreeConfigurations is registered."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::LoadedOption"
+address = 0x00B216C0
+kind = "data"
+source = "Name ours. uint32: the option byte (0x00B43CD8+0xF16) the configurations were loaded for."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::Map"
+address = 0x00B216C8
+kind = "data"
+source = "Name ours. The static STLport hash map of every configuration by ID (buckets +4/+8, count +0x10; nodes {next, ID, configuration}); slot 20 returns its address."
+
+[[entry]]
+name = "cSC4LotConfigurationManager::FamilySet"
+address = 0x00B216DC
+kind = "data"
+source = "Name ours. The static STLport hash set of the family IDs of every configuration added (count +0x10; nodes {next, ID}); never emptied; slot 21 returns its address."
