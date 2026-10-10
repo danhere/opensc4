@@ -27,6 +27,66 @@ struct Fnv {
     }
 };
 
+void AddBytes(Fnv& f, const char* first, const char* last)
+{
+    if (first && first <= last && last - first < 0x10000)
+        for (const char* at = first; at != last; ++at)
+            f.Add(*at);
+}
+
+// OPENSC4_TEST_MISSIONS=1: the answers of a mission advice's getters (the
+// city situation advice, docs/lua.md; `mission` is the object, the advice is
+// at +4). No test starts a mission, so this is how the getters are compared.
+// The text getters return a static string object (text from +4 to +8).
+void AddMission(Fnv& f, char* mission, char* advice)
+{
+    for (std::size_t slot : {std::size_t{0x10}, std::size_t{0x64}, std::size_t{0x68}, std::size_t{0x6C},
+                             std::size_t{0x70}, std::size_t{0x74}, std::size_t{0x8C}})
+        f.Add(Virtual<uint32_t>(mission, slot));
+    for (std::size_t slot : {std::size_t{0x18}, std::size_t{0x1C}, std::size_t{0x20}, std::size_t{0x24},
+                             std::size_t{0x28}, std::size_t{0x2C}, std::size_t{0x50}, std::size_t{0x54},
+                             std::size_t{0xD0}})
+        f.Add(Virtual<double>(mission, slot));
+    for (uint32_t flag = 1; flag <= 0x80; flag <<= 1)
+        f.Add(static_cast<uint8_t>(Virtual<uint32_t>(mission, 0x3C, flag) != 0));
+    f.Add(Virtual<uint8_t>(mission, 0x44));
+    f.Add(Virtual<uint8_t>(mission, 0x4C));
+    for (std::size_t slot : {std::size_t{0x30}, std::size_t{0x34}, std::size_t{0x40}}) {
+        char* const vector = Virtual<char*>(mission, slot);
+        AddBytes(f, At<char*>(vector, 0x0), At<char*>(vector, 0x4));
+    }
+    char* const rect = Virtual<char*>(mission, 0xA0);
+    AddBytes(f, rect, rect + 8);
+    uint32_t percent = 0;
+    Virtual<uint32_t*>(mission, 0xB4, &percent);
+    f.Add(percent);
+    for (std::size_t slot : {std::size_t{0xB8}, std::size_t{0xC4}}) {
+        uint32_t radius = 0;
+        uint32_t magnitude = 0;
+        f.Add(static_cast<uint8_t>(Virtual<uint32_t>(mission, slot, &radius, &magnitude) != 0));
+        f.Add(radius);
+        f.Add(magnitude);
+    }
+    for (std::size_t slot : {std::size_t{0xC0}, std::size_t{0xCC}}) {
+        int32_t money[2] = {0, 0};
+        f.Add(static_cast<uint8_t>(Virtual<uint32_t>(mission, slot, &money[0]) != 0));
+        f.Add(money[0]);
+        f.Add(money[1]);
+    }
+    for (std::size_t slot : {std::size_t{0x58}, std::size_t{0x5C}, std::size_t{0x84}, std::size_t{0x88}}) {
+        char* const text = Virtual<char*>(mission, slot);
+        AddBytes(f, At<char*>(text, 0x4), At<char*>(text, 0x8));
+    }
+    for (uint32_t index = 1; index <= 2; ++index) {
+        char* const text = Virtual<char*>(mission, 0x60, index);
+        AddBytes(f, At<char*>(text, 0x4), At<char*>(text, 0x8));
+    }
+    for (std::size_t slot : {std::size_t{0x48}, std::size_t{0x50}}) { // the advice's title and message
+        char* const text = Virtual<char*>(advice, slot);
+        AddBytes(f, At<char*>(text, 0x4), At<char*>(text, 0x8));
+    }
+}
+
 // The keys of a std::map's nodes (key at +0x10), in order.
 void MapKeys(Fnv& f, char* header)
 {
@@ -89,6 +149,9 @@ void Fingerprint(cISC4City*, std::string& line)
     // its advice records (0x10 bytes: the advice, then three numbers) the
     // numbers. `OPENSC4_TEST_ADVISOR_DUMP=1` logs one line per advisor.
     Fnv advisors;
+    Fnv missions;
+    int missionCount = 0;
+    const bool withMissions = EnvInt("OPENSC4_TEST_MISSIONS", 0) != 0;
     int count = 0;
     int records = 0;
     char* const header = At<char*>(system, 0x4C);
@@ -110,6 +173,14 @@ void Fingerprint(cISC4City*, std::string& line)
             if (char* const advice = At<char*>(record, 0x0)) {
                 one.Add(At<uint32_t>(advice, 0x8C)); // GUID
                 one.Add(At<int32_t>(advice, 0x70));  // flags
+                if (withMissions && At<std::uintptr_t>(advice - 4, 0) == addr::SC4SituationAdvice_Vtable) {
+                    Fnv mission;
+                    AddMission(mission, advice - 4, advice);
+                    if (EnvInt("OPENSC4_TEST_ADVISOR_DUMP", 0))
+                        log::Write("mission: %08X hash %08X", At<uint32_t>(advice, 0x8C), mission.h);
+                    missions.Add(mission.h);
+                    ++missionCount;
+                }
             }
             one.Add(At<int32_t>(record, 0x4));
             one.Add(At<int32_t>(record, 0x8));
@@ -141,6 +212,10 @@ void Fingerprint(cISC4City*, std::string& line)
     char more[64];
     std::snprintf(more, sizeof more, " advisors %d %d %08X", count, records, advisors.h);
     line += more;
+    if (withMissions) {
+        std::snprintf(more, sizeof more, " missions %d %08X", missionCount, missions.h);
+        line += more;
+    }
 }
 
 // OPENSC4_TEST_ADVISORS=<day>: on that run day every advisor is removed
