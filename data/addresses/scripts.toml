@@ -565,3 +565,1525 @@ name = "SC4ScriptNatives::VectorInitial"
 address = 0x00B207C8
 kind = "data"
 source = "A dword (float bits, zero in the file) the natives fill a new three-float vector with (camera_jump, 0x00409670)"
+
+[[entry]]
+name = "cSC4Advisor::F40CE00"
+address = 0x0040CE00
+kind = "function"
+convention = "thiscall"
+expect = "B8 49 D0 26 6A C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 6 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40CE10"
+address = 0x0040CE10
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 04 84 C0 74 04 D9"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 18 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40CE30"
+address = 0x0040CE30
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 04 84 C0 74 04 D9"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 18 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40CE50"
+address = 0x0040CE50
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 04 C3 CC CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 4 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40CE60"
+address = 0x0040CE60
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 10 C3 CC CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 4 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40CE70"
+address = 0x0040CE70
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 14 C3 CC CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 4 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40CE80"
+address = 0x0040CE80
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 41 14 C2"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 10 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40CE90"
+address = 0x0040CE90
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 50 D0 26"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 91 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40CEF0"
+address = 0x0040CEF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 21 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40CF10"
+address = 0x0040CF10
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 18 C3 CC CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 4 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40CF20"
+address = 0x0040CF20
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 121 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40CFA0"
+address = 0x0040CFA0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 162 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D050"
+address = 0x0040D050
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 8A 46"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 157 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D0F0"
+address = 0x0040D0F0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 98 FD FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 8 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D100"
+address = 0x0040D100
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 88 FD FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 8 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D110"
+address = 0x0040D110
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 29 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D130"
+address = 0x0040D130
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 85 F6 57"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 80 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D180"
+address = 0x0040D180
+kind = "function"
+convention = "thiscall"
+expect = "55 56 57 6A 28 8B E9 E8"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 237 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D270"
+address = 0x0040D270
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 28 E8 68 83 1D 00"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 84 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D2D0"
+address = 0x0040D2D0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 8B F9 8D 77 24"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 95 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D330"
+address = 0x0040D330
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 0C 84 C0"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 77 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D380"
+address = 0x0040D380
+kind = "function"
+convention = "thiscall"
+expect = "B8 B4 37 C9 EA C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 6 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D390"
+address = 0x0040D390
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 58 C3 CC CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 4 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D3A0"
+address = 0x0040D3A0
+kind = "function"
+convention = "thiscall"
+expect = "8D 41 10 C3 CC CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 4 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D3B0"
+address = 0x0040D3B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 10 83 C1 10 FF 60"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 9 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D3C0"
+address = 0x0040D3C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 30 83 C1 30 FF 60"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 9 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D3D0"
+address = 0x0040D3D0
+kind = "function"
+convention = "thiscall"
+expect = "8D 41 70 C3 CC CC CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 4 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D3E0"
+address = 0x0040D3E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 14 85"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 65 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D4B0"
+address = 0x0040D4B0
+kind = "function"
+convention = "thiscall"
+expect = "B8 43 F5 09 CA C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 6 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D4C0"
+address = 0x0040D4C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8B 41 0C 85"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 54 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D500"
+address = 0x0040D500
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 80 39 00 75"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 64 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D540"
+address = 0x0040D540
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8B 41 0C 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 74 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D590"
+address = 0x0040D590
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8B 41 08 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 74 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D7A0"
+address = 0x0040D7A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8B 77 7C"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 60 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D7E0"
+address = 0x0040D7E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8B 77 7C"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 60 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D820"
+address = 0x0040D820
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 56 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 73 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D870"
+address = 0x0040D870
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 74 12"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 44 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40D990"
+address = 0x0040D990
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 55 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40DA10"
+address = 0x0040DA10
+kind = "function"
+convention = "thiscall"
+expect = "51 85 C9 C7 04 24 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 156 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40DAB0"
+address = 0x0040DAB0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 51 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40DDF0"
+address = 0x0040DDF0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 70 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40DE40"
+address = 0x0040DE40
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 68 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40DE90"
+address = 0x0040DE90
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B 5C 24 0C 55 56"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 144 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40DF20"
+address = 0x0040DF20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 103 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40DF90"
+address = 0x0040DF90
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 97 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40E000"
+address = 0x0040E000
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 29 56 8B 75 04 85"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 78 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40E050"
+address = 0x0040E050
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 63 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40E090"
+address = 0x0040E090
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 55 56 57"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 233 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40E180"
+address = 0x0040E180
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B 5C 24 10 55 56"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 223 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40E260"
+address = 0x0040E260
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 57 8B 7C 24"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 117 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40E440"
+address = 0x0040E440
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 57 8D 48"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 70 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40E490"
+address = 0x0040E490
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 57 8B F9"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 58 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40E4D0"
+address = 0x0040E4D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 753 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40E7D0"
+address = 0x0040E7D0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 56 8B 74"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 203 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40E8A0"
+address = 0x0040E8A0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 180 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40E960"
+address = 0x0040E960
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 66 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40E9B0"
+address = 0x0040E9B0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B 74 24 10 85"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 112 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40EA20"
+address = 0x0040EA20
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B 7C 24"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 213 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40EB00"
+address = 0x0040EB00
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 178 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40EBC0"
+address = 0x0040EBC0
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B 6C 24 10 56 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 276 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40ECE0"
+address = 0x0040ECE0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 66 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40EEC0"
+address = 0x0040EEC0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 14 85"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 111 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40EF30"
+address = 0x0040EF30
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 E8 F8 FD FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 190 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40EFF0"
+address = 0x0040EFF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 57 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 141 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40F080"
+address = 0x0040F080
+kind = "function"
+convention = "thiscall"
+expect = "8B 11 8B 42 04 85 C0 56"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 58 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40F0C0"
+address = 0x0040F0C0
+kind = "function"
+convention = "thiscall"
+expect = "55 56 8B F1 6A 18 C7 06"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 161 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40F170"
+address = 0x0040F170
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 53 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40F1B0"
+address = 0x0040F1B0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B 7C 24"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 145 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40F370"
+address = 0x0040F370
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 B8 E0 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 8 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40F380"
+address = 0x0040F380
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 A8 E0 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 8 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40F390"
+address = 0x0040F390
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 10 E9 98 E0 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 8 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40F3A0"
+address = 0x0040F3A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 56 8B F1 8A 86"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 187 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40FA10"
+address = 0x0040FA10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 55 56 57 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 676 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40FCC0"
+address = 0x0040FCC0
+kind = "function"
+convention = "thiscall"
+expect = "C7 01 CC 12 A8 00 C7 41"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 32 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40FCE0"
+address = 0x0040FCE0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 86 B8 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 33 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40FD10"
+address = 0x0040FD10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 56 8B 31 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 123 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40FD90"
+address = 0x0040FD90
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 242 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40FFD0"
+address = 0x0040FFD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 78 F2 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 30 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F40FFF0"
+address = 0x0040FFF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 A8 FE FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 60 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F410030"
+address = 0x00410030
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 CC 12 A8"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 57 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F410070"
+address = 0x00410070
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 43 08 56 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 96 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F4100D0"
+address = 0x004100D0
+kind = "function"
+convention = "thiscall"
+expect = "68 B8 00 00 00 E8 06 55"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 35 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F410DD0"
+address = 0x00410DD0
+kind = "function"
+convention = "thiscall"
+expect = "56 68 C0 00 00 00 E8 05"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 86 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F410E30"
+address = 0x00410E30
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 57 50 8B F9"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 206 bytes."
+
+[[entry]]
+name = "cSC4Advisor::F410F00"
+address = 0x00410F00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B C6 57"
+source = "Placeholder name (docs/lua.md): a function of the advisor base class range, 41 bytes."
+
+[[entry]]
+name = "cRZBaseUnknown::Construct"
+address = 0x0090DA1E
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 83 60 04 00 C7 00"
+source = "The base constructor: void* (void* this); sets the base vtable (0x00ACE638) and a count of 0 at +4, returns this."
+
+[[entry]]
+name = "cRZBaseUnknown::Destruct"
+address = 0x0090D990
+kind = "function"
+convention = "thiscall"
+expect = "C7 01 38 E6 AC 00 C3 8B"
+source = "The base destructor: void (void* this); puts the base vtable (0x00ACE638) back."
+
+[[entry]]
+name = "SC4::memmove"
+address = 0x009EEB70
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 57 56 8B 75 0C"
+source = "The C runtime's memmove: void* (void* to, const void* from, size_t count)."
+
+[[entry]]
+name = "SC4ScriptPlace::Vtable"
+address = 0x00A810E0
+kind = "data"
+source = "Main vtable of the advice place (class 0x6A26D049, 0x28 bytes): QueryInterface 0x0040CE90, AddRef, Release, deleting destructor 0x0040D2D0."
+
+[[entry]]
+name = "SC4ScriptPlace::SerializableVtable"
+address = 0x00A810C8
+kind = "data"
+source = "The advice place's serialisable part at +8: Write 0x0040CF20, Read 0x0040CFA0, GetGZCLSID 0x0040CE00."
+
+[[entry]]
+name = "SC4ScriptPlace::InterfaceVtable"
+address = 0x00A81090
+kind = "data"
+source = "The advice place's interface (IID 0x6A26D050) at +0xC, 14 slots: 3 set position, 4/5 x/y, 6 has position, 7/8 set/get object, 9/10 get/set first number, 11/12 get/set second number, 13 clone."
+
+[[entry]]
+name = "STL::ThrowLengthError"
+address = 0x009DD1D0
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 6A FF 68 06 F3"
+source = "Throws std::length_error with the given text (the string helpers pass the text basic_string); does not return: void (const char*)"
+
+[[entry]]
+name = "SC4EventList::Clear"
+address = 0x00584210
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 03 56 8B 30"
+source = "Empties a list of (value, counted object) nodes: releases each node's object at +0xC, frees the nodes, links the sentinel to itself"
+
+[[entry]]
+name = "SC4Uint32TripleMap::InsertHint"
+address = 0x00603A70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "Tree insert with a hint for a map of uint32 to two uint32 (0x1C-byte nodes): (Node** result, Node* hint, const uint32_t value[3]), ret 0xC"
+
+[[entry]]
+name = "SC4LocalizedString::ConstructBase"
+address = 0x00603000
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 33 DB 89 5E"
+source = "Constructor of the 0x20-byte string object under SC4LocalizedString (vtable 0x00A85478, an 8-byte empty buffer); returns this"
+
+[[entry]]
+name = "cSC4Advisor::HeadsTableName"
+address = 0x00B07C98
+kind = "data"
+source = "Pointer to 'advisor_heads', the script table of advisor heads"
+
+[[entry]]
+name = "SC4AgentBase::Vtable"
+address = 0x00A81204
+kind = "data"
+source = "The agent base class's main vtable (object +0)"
+
+[[entry]]
+name = "SC4AgentBase::Vtable8"
+address = 0x00A811B0
+kind = "data"
+source = "The agent base class's vtable at +8 (the advisor interface)"
+
+[[entry]]
+name = "SC4AgentBase::VtableC"
+address = 0x00A81194
+kind = "data"
+source = "The agent base class's vtable at +0xC (the serialisable part)"
+
+[[entry]]
+name = "SC4AgentBase::Vtable10"
+address = 0x00A81184
+kind = "data"
+source = "The agent base class's vtable at +0x10 (the message target)"
+
+[[entry]]
+name = "SC4AgentBase::VtableBase8"
+address = 0x00A81120
+kind = "data"
+source = "The interface's own vtable set at +8 by the agent base constructor before the class's"
+
+[[entry]]
+name = "SC4AdvisorBase::Vtable"
+address = 0x00A812CC
+kind = "data"
+source = "The advisor base class's main vtable (object +0)"
+
+[[entry]]
+name = "SC4AdvisorBase::Vtable8"
+address = 0x00A81278
+kind = "data"
+source = "The advisor base class's vtable at +8"
+
+[[entry]]
+name = "SC4AdvisorBase::VtableC"
+address = 0x00A81260
+kind = "data"
+source = "The advisor base class's vtable at +0xC"
+
+[[entry]]
+name = "SC4AdvisorBase::Vtable10"
+address = 0x00A81250
+kind = "data"
+source = "The advisor base class's vtable at +0x10"
+
+[[entry]]
+name = "SC4ScriptTable::Close"
+address = 0x004085A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 0C 84 C0"
+source = "Name ours. Destructor of an open script table: restores the script's saved top (slot 7) when open, and frees its string. No arguments."
+
+[[entry]]
+name = "SC4ScriptTable::GetString"
+address = 0x004079F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 0C 84 C0"
+source = "Name ours. (name), ret 4: the open table's field as text, in the table's own SC4String (+0x10), whose address it returns."
+
+[[entry]]
+name = "SC4LocalizedString::SetKeyText"
+address = 0x00417A00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B C6 57"
+source = "Name ours. (const char* text), ret 4: takes a text naming a text resource (measures it, forwards to 0x004178F0)."
+
+[[entry]]
+name = "SC4LocalizedString::Load"
+address = 0x00603300
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 57 8B"
+source = "Name ours. (1, 0), ret 8: loads the localised text of the string's key; false when there is none."
+
+[[entry]]
+name = "RZ::ConvertStringEncoding"
+address = 0x00911466
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 81 EC 08 02 00"
+source = "Name ours. (cIGZString* source, int encoding, cIGZString* destination): the advisor base's Init passes 0x4E4 (code page 1252) with the same string twice."
+
+[[entry]]
+name = "cRZBaseString::Left"
+address = 0x0090F45F
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 8B 41"
+source = "Name ours. (&out, count), ret 8: the first count characters as a new string; returns &out."
+
+[[entry]]
+name = "SC4ScriptNames::Advices"
+address = 0x00B07C90
+kind = "data"
+source = "Name ours. const char* to 'advices' (0x00A806D0), the script table of all advices."
+
+[[entry]]
+name = "SC4ScriptNames::Advisors"
+address = 0x00B07C94
+kind = "data"
+source = "Name ours. const char* to 'advisors' (0x00A81108), the script table of the advisors."
+
+[[entry]]
+name = "cSC4Advisors::F411800"
+address = 0x00411800
+kind = "function"
+convention = "thiscall"
+expect = "B8 7D 87 5F 2A C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 6 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F411810"
+address = 0x00411810
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 7D 87 5F"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 36 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F411840"
+address = 0x00411840
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 00 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 40 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4118C0"
+address = 0x004118C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 57 50 8B F9"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 290 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4119F0"
+address = 0x004119F0
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8A 87 B8 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 261 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F411C80"
+address = 0x00411C80
+kind = "function"
+convention = "thiscall"
+expect = "53 57 8B 7C 24 0C 8B 07"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 208 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F411D50"
+address = 0x00411D50
+kind = "function"
+convention = "thiscall"
+expect = "8B 11 8B 0A 33 C0 3B CA"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 24 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F411E70"
+address = 0x00411E70
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8D B7 D0 00"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 107 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F411EE0"
+address = 0x00411EE0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 28 F9 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F411EF0"
+address = 0x00411EF0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 18 F9 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F411F00"
+address = 0x00411F00
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 10 E9 08 F9 FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F412040"
+address = 0x00412040
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 180 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F412100"
+address = 0x00412100
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 E7 DE FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 124 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F412180"
+address = 0x00412180
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 E8 FC FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 30 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4121A0"
+address = 0x004121A0
+kind = "function"
+convention = "thiscall"
+expect = "68 DC 00 00 00 E8 36 34"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 35 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4121D0"
+address = 0x004121D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 8B 5C 24 28"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 514 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4123E0"
+address = 0x004123E0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 267 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F413680"
+address = 0x00413680
+kind = "function"
+convention = "thiscall"
+expect = "B8 CD 72 E3 4B C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 6 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4136B0"
+address = 0x004136B0
+kind = "function"
+convention = "thiscall"
+expect = "56 68 C0 00 00 00 E8 25"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 62 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4136F0"
+address = 0x004136F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 9C 1C A8"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 57 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F413730"
+address = 0x00413730
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B 74 24 10 85"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 140 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4137C0"
+address = 0x004137C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 57 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 258 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4138D0"
+address = 0x004138D0
+kind = "function"
+convention = "thiscall"
+expect = "B8 D7 92 52 AA C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 6 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4138E0"
+address = 0x004138E0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 139 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F413970"
+address = 0x00413970
+kind = "function"
+convention = "thiscall"
+expect = "C6 81 B0 00 00 00 01 E9"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 12 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F413980"
+address = 0x00413980
+kind = "function"
+convention = "thiscall"
+expect = "56 68 C4 00 00 00 E8 55"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 69 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4139D0"
+address = 0x004139D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 4C 1D A8"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 57 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F413D00"
+address = 0x00413D00
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 37 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F413D30"
+address = 0x00413D30
+kind = "function"
+convention = "thiscall"
+expect = "B8 55 87 5F 6A C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 6 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F413D40"
+address = 0x00413D40
+kind = "function"
+convention = "thiscall"
+expect = "56 68 C4 00 00 00 E8 95"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 69 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F413D90"
+address = 0x00413D90
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 DC 1F A8"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 57 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F413EE0"
+address = 0x00413EE0
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 B8 00 00 00 84 C0"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 132 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F414210"
+address = 0x00414210
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 33 DB 89 5E"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 62 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F415960"
+address = 0x00415960
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 156 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F415A00"
+address = 0x00415A00
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 50 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 378 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F415B80"
+address = 0x00415B80
+kind = "function"
+convention = "thiscall"
+expect = "B8 25 E8 19 EA C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 6 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F415B90"
+address = 0x00415B90
+kind = "function"
+convention = "thiscall"
+expect = "53 56 68 C4 00 00 00 E8"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 91 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F415BF0"
+address = 0x00415BF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 7C 23 A8"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 57 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F415C30"
+address = 0x00415C30
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 57 50 8B F9"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 514 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F415E40"
+address = 0x00415E40
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8A 87 B8 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 485 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F417600"
+address = 0x00417600
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B 74 24 1C"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 216 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4176E0"
+address = 0x004176E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 83 EC 10 50"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 74 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F417730"
+address = 0x00417730
+kind = "function"
+convention = "thiscall"
+expect = "A1 AC 8B B1 00 83 EC 0C"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 117 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4177B0"
+address = 0x004177B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 33 44 24 08"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 9 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4177C0"
+address = 0x004177C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 00 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 40 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F417840"
+address = 0x00417840
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 15 A8 8B B1 00 56"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 40 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4178F0"
+address = 0x004178F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B 74 24 14"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 167 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F417A30"
+address = 0x00417A30
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F1 E8 C7 B5 1E"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 49 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F417AD0"
+address = 0x00417AD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 50 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 19 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4184B0"
+address = 0x004184B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 55 56 57 6A"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 373 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F41B7F0"
+address = 0x0041B7F0
+kind = "function"
+convention = "thiscall"
+expect = "B8 E1 D3 3A 4A C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 6 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F41B800"
+address = 0x0041B800
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 86 C4 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 74 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F41B850"
+address = 0x0041B850
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 86 C4 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 59 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F41B890"
+address = 0x0041B890
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 51 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F41BE50"
+address = 0x0041BE50
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 66 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F41BEA0"
+address = 0x0041BEA0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 189 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F41BF60"
+address = 0x0041BF60
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8D B7 C0 00"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 107 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F41C080"
+address = 0x0041C080
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 67 3F FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 106 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F41C0F0"
+address = 0x0041C0F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 68 FE FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 30 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F41C170"
+address = 0x0041C170
+kind = "function"
+convention = "thiscall"
+expect = "68 D0 00 00 00 E8 66 94"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 35 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F41D3C0"
+address = 0x0041D3C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 0C 53 8B 5C 24"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 49 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420D30"
+address = 0x00420D30
+kind = "function"
+convention = "thiscall"
+expect = "B8 2F 2A 2C CA C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 6 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420D40"
+address = 0x00420D40
+kind = "function"
+convention = "thiscall"
+expect = "B8 DB 48 38 6A C3 CC CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 6 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420D60"
+address = 0x00420D60
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D BA 48 38"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 36 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420D90"
+address = 0x00420D90
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 C0 00 00 00 C3 CC"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 7 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420DA0"
+address = 0x00420DA0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 B8 FF FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420DB0"
+address = 0x00420DB0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 E8 00 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420DC0"
+address = 0x00420DC0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 98 FF FF FF"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 8 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420DD0"
+address = 0x00420DD0
+kind = "function"
+convention = "thiscall"
+expect = "56 68 C4 00 00 00 E8 05"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 69 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420E20"
+address = 0x00420E20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 8C 3B A8"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 57 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420E60"
+address = 0x00420E60
+kind = "function"
+convention = "thiscall"
+expect = "56 68 C4 00 00 00 E8 75"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 55 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420EA0"
+address = 0x00420EA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 E8 3B A8"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 50 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420EE0"
+address = 0x00420EE0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 57 8B"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 95 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420F40"
+address = 0x00420F40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 56 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F420F80"
+address = 0x00420F80
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 74 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4217C0"
+address = 0x004217C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 24 53"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 189 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F421880"
+address = 0x00421880
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 56 8B 74 24"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 515 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F421A90"
+address = 0x00421A90
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 00 8B F1 6A 01 C7"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 29 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F4229C0"
+address = 0x004229C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 50 8B F1"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 221 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F422AA0"
+address = 0x00422AA0
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8A 87 B8 00 00"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 158 bytes."
+
+[[entry]]
+name = "cSC4Advisors::F422B40"
+address = 0x00422B40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C 57 8B F9 8B 8F"
+source = "Placeholder name (docs/lua.md): a function of the advisor classes, 1200 bytes."

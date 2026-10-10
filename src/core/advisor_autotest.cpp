@@ -83,6 +83,60 @@ void Fingerprint(cISC4City*, std::string& line)
                       context.h, tags.h);
     }
     line += text;
+    if (!system)
+        return;
+    // Each advisor (docs/lua.md): its timers and counters, and of each of
+    // its advice records (0x10 bytes: the advice, then three numbers) the
+    // numbers. `OPENSC4_TEST_ADVISOR_DUMP=1` logs one line per advisor.
+    Fnv advisors;
+    int count = 0;
+    int records = 0;
+    char* const header = At<char*>(system, 0x4C);
+    for (char* node = At<char*>(header, 0x8); node != header;) {
+        char* const advisor = At<char*>(node, 0x14) - 0x8; // the system holds the interface at +8
+        Fnv one;
+        one.Add(At<int32_t>(node, 0x10));
+        // +0x58 a stamp, +0x5C a time, +0x60 the script's id, +0x64, +0x68 the
+        // advice type, +0x70 triggers, +0x7C active advices.
+        for (std::size_t at : {std::size_t{0x58}, std::size_t{0x5C}, std::size_t{0x60}, std::size_t{0x64}, std::size_t{0x68},
+                               std::size_t{0x70}, std::size_t{0x7C}})
+            one.Add(At<int32_t>(advisor, at));
+        one.Add(At<uint8_t>(advisor, 0xB4));
+        int own = 0;
+        char* const first = At<char*>(advisor, 0x84);
+        char* const last = At<char*>(advisor, 0x88);
+        const bool sane = first <= last && (last - first) % 0x10 == 0 && last - first < 0x10000;
+        for (char* record = first; sane && record != last; record += 0x10) {
+            one.Add(At<int32_t>(record, 0x4));
+            one.Add(At<int32_t>(record, 0x8));
+            one.Add(At<int32_t>(record, 0xC));
+            ++own;
+        }
+        if (EnvInt("OPENSC4_TEST_ADVISOR_DUMP", 0))
+            log::Write("advisor: %08X stamp %d time %d cursor %d type %d triggers %d active %d records %d hash %08X",
+                       At<uint32_t>(node, 0x10), At<int32_t>(advisor, 0x58), At<int32_t>(advisor, 0x5C),
+                       At<int32_t>(advisor, 0x64), At<int32_t>(advisor, 0x68), At<int32_t>(advisor, 0x70),
+                       At<int32_t>(advisor, 0x7C), own, one.h);
+        advisors.Add(one.h);
+        ++count;
+        records += own;
+        if (char* right = At<char*>(node, 0xC)) {
+            while (At<char*>(right, 0x8))
+                right = At<char*>(right, 0x8);
+            node = right;
+        } else {
+            char* parent = At<char*>(node, 0x4);
+            while (node == At<char*>(parent, 0xC)) {
+                node = parent;
+                parent = At<char*>(parent, 0x4);
+            }
+            if (At<char*>(node, 0xC) != parent)
+                node = parent;
+        }
+    }
+    char more[64];
+    std::snprintf(more, sizeof more, " advisors %d %d %08X", count, records, advisors.h);
+    line += more;
 }
 
 // OPENSC4_TEST_ADVISORS=<day>: on that run day every advisor is removed
