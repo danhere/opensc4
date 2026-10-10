@@ -7,6 +7,8 @@
 
 #include <windows.h>
 
+#include <cstdint>
+
 extern "C" __declspec(dllexport) const char* __cdecl OpenSC4_Version()
 {
     return OPENSC4_VERSION;
@@ -22,6 +24,11 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID /*reserved*/)
         opensc4::log::Write("core.dll %s attached: pid %lu, host %ls, build %s (sentinel %d)",
             OPENSC4_VERSION, GetCurrentProcessId(), host,
             opensc4::game::IsBuild641() ? "1.1.641" : "unknown", sentinel);
+        // 2 GB unless the exe is large-address-aware (opensc4 --large-address).
+        SYSTEM_INFO system{};
+        GetSystemInfo(&system);
+        opensc4::log::Write("address space: %lu MB for the game",
+            static_cast<unsigned long>((reinterpret_cast<std::uintptr_t>(system.lpMaximumApplicationAddress) >> 20) + 1));
         // Injected by the launcher, the game's own code has not run yet; loaded
         // as a plugin, this comes after the game's startup.
         if (opensc4::game::IsBuild641())

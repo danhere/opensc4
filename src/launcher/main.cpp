@@ -1,6 +1,7 @@
 // opensc4.exe: starts SimCity 4.exe suspended, injects core.dll and resumes.
 #include "common/abi.h"
 #include "launcher/inject.h"
+#include "launcher/mirror.h"
 
 #include <windows.h>
 
@@ -30,14 +31,16 @@ void SetSteamLaunchEnvironment()
 void Usage()
 {
     std::fwprintf(stderr,
-        L"usage: opensc4 [--game <path to SimCity 4.exe>] [--core <path to core.dll>] [--wait]\n"
+        L"usage: opensc4 [--game <path to SimCity 4.exe>] [--core <path to core.dll>] [--wait] [--large-address]\n"
         L"               [-- <game arguments>]\n"
         L"       opensc4 --version\n"
         L"       opensc4 --check-core\n"
         L"\n"
         L"Without --game, SimCity 4.exe is looked for next to opensc4.exe.\n"
         L"Without --core, core.dll next to opensc4.exe is injected. When core.dll is also\n"
-        L"installed in a Plugins folder, pass that copy so the game sees one module.\n");
+        L"installed in a Plugins folder, pass that copy so the game sees one module.\n"
+        L"--large-address runs the game from a mirror of its install in %%LOCALAPPDATA%%\\opensc4\\laa\n"
+        L"whose exe is large-address-aware (4 GB instead of 2 GB; the install is not changed).\n");
 }
 
 std::wstring ModuleDirectory()
@@ -93,6 +96,7 @@ int wmain(int argc, wchar_t** argv)
     std::wstring core;
     std::wstring gameArgs;
     bool wait = false;
+    bool largeAddress = false;
 
     for (int i = 1; i < argc; ++i) {
         const std::wstring arg = argv[i];
@@ -107,6 +111,8 @@ int wmain(int argc, wchar_t** argv)
             core = argv[++i];
         } else if (arg == L"--wait") {
             wait = true;
+        } else if (arg == L"--large-address") {
+            largeAddress = true;
         } else if (arg == L"--") {
             for (++i; i < argc; ++i)
                 gameArgs += (gameArgs.empty() ? L"" : L" ") + QuoteArg(argv[i]);
@@ -128,6 +134,24 @@ int wmain(int argc, wchar_t** argv)
     if (!FileExists(core)) {
         std::fwprintf(stderr, L"core.dll not found at %ls\n", core.c_str());
         return 2;
+    }
+
+    if (largeAddress) {
+        wchar_t local[MAX_PATH];
+        const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", local, MAX_PATH);
+        if (!length || length >= MAX_PATH) {
+            std::fwprintf(stderr, L"opensc4: LOCALAPPDATA is not set\n");
+            return 1;
+        }
+        std::wstring error;
+        const std::wstring mirrored =
+            opensc4::launcher::PrepareLargeAddressMirror(game, std::wstring(local, length) + L"\\opensc4\\laa", error);
+        if (mirrored.empty()) {
+            std::fwprintf(stderr, L"opensc4: --large-address: %ls\n", error.c_str());
+            return 1;
+        }
+        std::wprintf(L"opensc4: large-address-aware mirror at %ls\n", mirrored.c_str());
+        game = mirrored;
     }
 
     SetSteamLaunchEnvironment();
