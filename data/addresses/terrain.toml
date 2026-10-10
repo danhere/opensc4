@@ -1221,3 +1221,11 @@ kind = "function"
 convention = "thiscall"
 expect = "8A 44 24 18 81 EC 84 00"
 source = "Name ours. Slot 0x3C of the view's interface at +0xC (vtable 0x00AB4410), which the render context holds at +0x4C. (render context, x, z, float[8] texture coordinates, float alpha, bool always): one cell of the land as a quad with the caller's texture coordinates and alpha, when the cell is in the rows in view (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "cSC43DRender::ClearViewportBody"
+address = 0x007C3F80
+kind = "function"
+convention = "thiscall"
+expect = "81 EC DC 00 00 00 53 56"
+source = "gzcom-dll's cISC43DRender (slot 0xBC, ClearViewport). (bool): what lies under the objects of a frame: restores or redraws the background for the area to draw (docs/renderer.md, \"Models and lots\")."
