@@ -92,6 +92,14 @@ add_library(opensc4_core SHARED
   tract_grow.cpp
   tract_lots.cpp
   tract_object.cpp
+  airport_autotest.cpp
+  airport_object.cpp
+  airport_sim.cpp
+  landfill_autotest.cpp
+  ports_autotest.cpp
+  landfill_sim.cpp
+  seaport_autotest.cpp
+  seaport_sim.cpp
   diagnostics.cpp
   dllmain.cpp
   director.cpp
