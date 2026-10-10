@@ -8,7 +8,8 @@ The pieces, in the order they are being rewritten under the parity harness ([par
 | --- | --- | --- |
 | The script variables (`game.g_population` and 294 more) | 16 functions, about 28 KB, 0x00411BC0 to 0x00422A00 | ours (`scripts.globals.*`) |
 | The native script functions (`game.trend_value`, `ordinance_is_on`, ...) | 36 natives and 5 helpers, about 9 KB, 0x00409690 to 0x0040B8D0 | ours (`scripts.natives.*`) |
-| The advisors (the advice engine every advisor shares, and the eight advisors) | about 30 KB more in 0x0040CE00 to 0x00422B50 | the game's |
+| The advisor base class (the advice engine every advisor shares) and the place object | 101 functions, about 17 KB, 0x0040CE00 to 0x00411800 | ours (`scripts.advisors.base1`, `base2`, `base3`) |
+| The advisor classes' own functions (factories, Init and Shutdown, save and load, message handlers) | 81 functions, about 10 KB | in progress |
 | The script context and server (cISCLua and the classes behind it) | 0x008B0xxx | the game's |
 
 The advisor system that owns the script context is already ours ([advisors.md](advisors.md)).
@@ -59,10 +60,34 @@ A static initialiser (0x0040B8D0) builds a vector of name and function pairs (0x
 
 `print` and `_dofile_from_resource` are in the same table and are not in this range.
 
+## The advisor base class
+
+Every advisor is one class (0xB8 bytes; 0xC0 with the part the eight city advisors add) with four vtables: the object at +0, the advisor interface at +8 (the pointer the advisor system holds), the serialisable part at +0xC and the message target at +0x10.
+
+| Field | What |
+| --- | --- |
+| +0x14 | Init's argument (which entry of the script's `advisors` table) |
+| +0x18, +0x38 | caption and name (localised strings) |
+| +0x58, +0x5C | a tick count and "now" (the simulator's day) |
+| +0x60, +0x68 | the script's id and advice type |
+| +0x64 | the cursor of the trigger check |
+| +0x6C | triggers: a multimap from event type to record index |
+| +0x78 | the active advices: a map from advice to record index |
+| +0x84 | the records, 16 bytes each: the advice, a time it may next show, a time it ends, a stamp |
+| +0x90 to +0xA4 | the selected head and the two lists of head indices (from the script's `advisor_heads`) |
+| +0xB0 | queued events (type, object) |
+
+Init reads the advisor's entry and reconciles its records with the script's advices of its type. Each step checks the triggers of a thirtieth of the records (plus one) from the cursor, then walks the active advices: one whose time is up or whose condition no longer holds is ended (message 0x8A09FA65), one that newly holds is started (0x8A09FA64, and 0x8A09FA6C when it has a follow-up). Queued events run every record whose trigger matches. The object saves its fields, its records and its event queue (version 3).
+
+The range also holds the place object the `l_` variables carry (class 0x6A26D049, 0x28 bytes: an optional position, two numbers and an object) and a good deal of container code. Ten container and string helpers in it are shared by the whole game through code folding (tree successor and rebalancing, a string append with about 160 callers); those stay the game's, as container helpers do everywhere in this project. Seven four-byte getters cannot be hooked.
+
+One function has a convention of its own: 0x0040DA10 (post a message from an object) takes the object in ECX and three stack arguments that the caller removes. Our replacement and our calls to it go through small thunks.
+
 ## Tests
 
 - The fingerprint's `lua` part reads all 295 names back from the `game` table through the script context and hashes their types and values (for an `l_` name also whether its place is there); `OPENSC4_TEST_LUA_DUMP=1` logs every value each day. Scratch tools compare two logs name by name.
 - `OPENSC4_TEST_LUA_SCRIPT=<file>` runs a chunk in the script context on a run day (`OPENSC4_TEST_LUA_SCRIPT_DAY`, default 1) and logs and hashes the string it leaves in `_test_result`. `tests/scripts/natives.lua` calls 23 natives with fixed arguments (48 calls). It leaves out the ones that need a current advice or a MySim, and the camera and dialog ones.
+- The fingerprint's `adv` part now ends with `advisors`: how many, their records, and a hash of each advisor's counters and of every record's three numbers (15 advisors and 2,815 records in Big City); `OPENSC4_TEST_ADVISOR_DUMP=1` logs one line per advisor.
 - A 35-day run of Big City with the coverage meter reaches all 16 publishing functions and seven natives on its own (`trend_slope`, `trend_value`, `trend_count`, `ordinance_is_on`, `random_chance`, `reward_instance_count`, `_combine_guids`).
 
 ## Parity
@@ -79,3 +104,5 @@ All seven groups on, 12 saves, 7 days (2026-10-10; folders `lu5-*`, `lu6-*` unde
 The script's result string was the same on both sides in every save (it differs from save to save). In the control (the original against itself) the `lua` part was 12 of 12. Before the two garbage variables were taken out of the hash, the month leg differed on all 12 saves in `g_health_capacity` alone; every other variable matched day by day.
 
 Not reached by any test: the natives that need a current advice or a MySim (`advice_subject`, `event_building_distance`, `event_disaster_distance`, `building_is_group`, `nd_cancel`, `advice_info`, the five `mysim_` ones), `camera_jump` and `camera_zoom`, and inside the message handlers whatever no test city triggers (strikes, jail breaks, outages).
+
+With the advisor base class on too (ten groups; `lu9-*`): 12 of 12 plain, 12 of 12 with the monthly cycle and the advisors driven (every advisor removed and created again on day 2, so Init runs from the script), 12 of 12 with the natives' script. The base's Write runs at the end of every run and its Read at every load; the saves and decoded records match.

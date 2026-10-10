@@ -61,6 +61,9 @@ add_library(opensc4_core SHARED
   neighbors_sim.cpp
   mysim_autotest.cpp
   advisor_autotest.cpp
+  advisor_base_1.cpp
+  advisor_base_2.cpp
+  advisor_base_3.cpp
   lua_autotest.cpp
   script_globals_city.cpp
   script_globals_education.cpp
