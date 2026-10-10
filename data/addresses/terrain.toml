@@ -1213,3 +1213,11 @@ kind = "function"
 convention = "thiscall"
 expect = "8B 54 24 0C 8B 49 30 8B"
 source = "Name ours, not analysed. (primitive, count, uint16 indices): an indexed draw from the vertex array set before (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DrawCellQuad"
+address = 0x00752940
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 18 81 EC 84 00"
+source = "Name ours. Slot 0x3C of the view's interface at +0xC (vtable 0x00AB4410), which the render context holds at +0x4C. (render context, x, z, float[8] texture coordinates, float alpha, bool always): one cell of the land as a quad with the caller's texture coordinates and alpha, when the cell is in the rows in view (docs/renderer.md, \"Models and lots\")."

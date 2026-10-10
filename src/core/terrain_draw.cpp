@@ -1742,6 +1742,43 @@ uint32_t DrawBillboard(char* self, char* context, uint8_t overlaid)
     return 1;
 }
 
+// The terrain view's cell quad (0x00752940, slot 0x3C of its interface at
+// +0xC): one cell of the land drawn with the caller's texture coordinates
+// and alpha, which is how a quad without vertices of its own is laid on the
+// terrain. Outside the rows in view it draws nothing unless `always`.
+void DrawCellQuad(char* interface, char* context, uint32_t x, uint32_t z, const uint32_t* coordinates, float alpha,
+                  uint8_t always)
+{
+    char* const view = interface - 0xC;
+    if (!always) {
+        if (z < At<uint32_t>(view, 0x98) || z >= At<uint32_t>(view, 0x9C))
+            return;
+        if (x < static_cast<uint32_t>(RowStarts()[z]) || x >= static_cast<uint32_t>(RowEnds()[z]))
+            return;
+        if (!RowShown(static_cast<int32_t>(z)))
+            return;
+    }
+    const std::size_t at = static_cast<std::size_t>(Columns()) * z + x;
+    const bool turned = (At<uint8_t>(Records(view), at * 0x24 + 0x23) & 0x30) != 0;
+    CallThis<void>(addr::SC4RenderContext_SetIndexArray, context, 6u,
+                   reinterpret_cast<uint16_t*>(turned ? addr::STE_QuadIndicesTurned : addr::STE_QuadIndicesPlain));
+    const float rounded = static_cast<float>(static_cast<double>(alpha) + 49152.0f);
+    uint32_t bits;
+    std::memcpy(&bits, &rounded, 4);
+    bits -= 0x47400000;
+    const uint8_t opacity = static_cast<uint8_t>(bits - (bits >> 8));
+    char quad[4 * 32];
+    const std::size_t corners[4] = {at, at + 1, at + Columns(), at + Columns() + 1};
+    for (int corner = 0; corner < 4; ++corner) {
+        char* const vertex = quad + corner * 32;
+        std::memcpy(vertex, Land() + corners[corner] * 32, 32);
+        std::memcpy(vertex + 0x10, coordinates + corner * 2, 8);
+        vertex[0xF] = static_cast<char>(opacity);
+    }
+    CallThis<void>(addr::SC4RenderContext_SetVertexArray, context, 0xBu, 4u, quad);
+    CallThis<void>(addr::SC4RenderContext_DrawIndexed, context, 0u, 0, 6);
+}
+
 // The ground quad's draw (0x005E0200): a textured quad, the third most drawn
 // thing. `self` is the object + 0xEC. Fields of the object: +0x38/+0x39 two
 // bytes for the draped draw, +0x3C a colour (r, g, b, alpha), +0x40 a tint
@@ -2930,6 +2967,23 @@ uint32_t __fastcall DFlaggedQuad(char* self, void*, char* context, uint32_t over
 OPENSC4_THUNK(TFlaggedQuad, DFlaggedQuad, 8)
 OPENSC4_THUNK(TSideStrip, DSideStrip, 8)
 OPENSC4_THUNK(TRotationQuads, DRotationQuads, 8)
+using CellQuadFn = void(__fastcall*)(char*, void*, char*, uint32_t, uint32_t, const uint32_t*, float, uint32_t);
+CellQuadFn g_cellQuad;
+bool g_compareCellQuad = false;
+
+void __fastcall DCellQuad(char* interface, void*, char* context, uint32_t x, uint32_t z, const uint32_t* coordinates,
+                          float alpha, uint32_t always)
+{
+    const auto original = [&] { g_cellQuad(interface, nullptr, context, x, z, coordinates, alpha, always); };
+    if (g_depth > 0)
+        return original();
+    const auto ours = [&] { DrawCellQuad(interface, context, x, z, coordinates, alpha, static_cast<uint8_t>(always)); };
+    if (!g_compareCellQuad)
+        return ours();
+    DrawCompared("terrain.cellquad", ContextRegions(context), ours, original, true);
+}
+
+OPENSC4_THUNK(TCellQuad, DCellQuad, 24)
 OPENSC4_THUNK(TGroundQuad, DGroundQuad, 8)
 OPENSC4_THUNK(TBillboard, DBillboard, 8)
 OPENSC4_THUNK(TDrawMoving, DDrawMoving, 0)
@@ -3514,6 +3568,29 @@ const bool g_registeredFlaggedQuad = registry::Register({
     "compare mode as renderer.models.static, per object (docs/renderer.md, \"Models and lots\")",
     true,
     InstallFlaggedQuad,
+});
+
+bool InstallCellQuad(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareCellQuad = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSTETerrainView3D_DrawCellQuad, &TCellQuad, &g_cellQuad))
+        return false;
+    log::Write("terrain draw: cell quads %s", g_compareCellQuad ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredCellQuad = registry::Register({
+    "renderer.terrain.cellquad",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_DrawCellQuad,
+    "One cell of the land as a quad with a caller's texture coordinates and alpha (how quads are laid on the "
+    "terrain); compare mode as renderer.terrain.land, per quad (docs/renderer.md, \"Models and lots\")",
+    true,
+    InstallCellQuad,
 });
 
 } // namespace
