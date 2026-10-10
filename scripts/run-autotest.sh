@@ -19,6 +19,7 @@
 # OPENSC4_GAME_ARGS adds game command-line options, e.g. "-d:DirectX".
 # OPENSC4_GAME_WINDOW replaces the default -w, e.g. "-f -r1024x768x32" for full screen.
 # OPENSC4_PARALLEL=1 allows other copies of the game to be running.
+# OPENSC4_LAUNCHER_ARGS adds launcher options, e.g. "--large-address".
 set -euo pipefail
 
 build="${1:?usage: run-autotest.sh <build dir> [VAR=value...]}"
@@ -83,7 +84,7 @@ log="$testenv/Plugins/opensc4.log"
 ) </dev/null >/dev/null 2>&1 &
 watchdog=$!
 status=0
-"$build/bin/opensc4.exe" --wait --core "$testenv/Plugins/OpenSC4.dll" --game "$game" \
+"$build/bin/opensc4.exe" --wait ${OPENSC4_LAUNCHER_ARGS:-} --core "$testenv/Plugins/OpenSC4.dll" --game "$game" \
     -- ${OPENSC4_GAME_WINDOW:--w} -intro:off "-UserDir:$userdir" ${OPENSC4_GAME_ARGS:-} || status=$?
 kill "$watchdog" 2>/dev/null || true
 wait "$watchdog" 2>/dev/null || true
