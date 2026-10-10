@@ -1811,6 +1811,84 @@ uint32_t DrawGroundQuad(char* self, char* context, uint8_t overlaid)
     return 1;
 }
 
+// The draw of the drawable with vtable 0x00AA2EA8 (0x005E27C0; `self` is
+// the object + 0xAC): a strip of triangles with one texture, shown only
+// from the two rotations its side (+0x78) faces. `scratch` is the caller's
+// second argument slot, which the game lends to the rotation change.
+uint32_t DrawSideStrip(char* self, char* context, uint32_t overlaid)
+{
+    if (static_cast<uint8_t>(overlaid))
+        return 1;
+    char* const object = self - 0xAC;
+    const uint32_t zoom = At<uint32_t>(context, 0x14);
+    if (zoom != At<uint8_t>(object, 0x64))
+        CallThis<void>(addr::SC4DrawableAA2EA8_SetZoom, object, static_cast<uint32_t>(At<uint8_t>(object, 0x64)), zoom, context);
+    if (At<uint32_t>(context, 0x18) != At<uint8_t>(object, 0x65)) {
+        At<uint8_t>(object, 0x65) = At<uint8_t>(context, 0x18);
+        uint32_t scratch = overlaid;
+        CallThis<void>(addr::SC4DrawableAA2EA8_SetRotation, object, 0u, 1u, &scratch, 0u, 0u, At<uint32_t>(context, 0x44));
+    }
+    if (!At<uint8_t>(object, 0x66))
+        return 1;
+    const int32_t rotation = At<int32_t>(context, 0x18);
+    const int32_t side = At<int8_t>(object, 0x78);
+    if (side != (rotation + 3) % 4 && side != (rotation + 4) % 4)
+        return 1;
+    if (!At<void*>(object, 0x98))
+        return 1;
+    const uint32_t texture = **At<uint32_t**>(object, 0x98);
+    CallThis<void>(addr::SC4RenderContext_UpdateViewMatrix, context);
+    CallThis<void>(addr::SC4RenderContext_SetRenderState, context, reinterpret_cast<void*>(0x00B230B4));
+    CallThis<void>(addr::SC4RenderContext_BindTexture, context, texture, 0u);
+    char* const vertices = At<char*>(object, 0x9C);
+    CallThis<void>(addr::SC4RenderContext_DrawArrays, context, 0u, 0xAu,
+                   static_cast<int32_t>(At<char*>(object, 0xA0) - vertices) / 24, vertices);
+    return 1;
+}
+
+// The draw of the drawable with vtable 0x00AA2808 (0x005D5FC0; `self` is
+// the object + 0x274): up to two quads picked by the rotation with one
+// texture, when the zoom's flag is set, then one more quad with a second
+// texture.
+uint32_t DrawRotationQuads(char* self, char* context, uint32_t overlaid)
+{
+    if (static_cast<uint8_t>(overlaid))
+        return 1;
+    char* const object = self - 0x274;
+    if (At<int32_t>(context, 0x18) != At<int8_t>(object, 0x49)) {
+        At<uint8_t>(object, 0x49) = At<uint8_t>(context, 0x18);
+        CallThis<void>(addr::SC4CameraView_RotationPair, At<void*>(context, 0x24), object + 0x50, object + 0x54);
+        CallThis<void>(addr::SC4DrawableAA2808_SetRotation, object, 0u, 1u, At<uint32_t>(context, 0x44));
+    }
+    if (At<int32_t>(context, 0x14) != At<int8_t>(object, 0x48))
+        CallThis<void>(addr::SC4DrawableAA2808_SetZoom, object, static_cast<int32_t>(At<int8_t>(object, 0x48)),
+                       At<int32_t>(context, 0x14), context);
+    const auto zoomFlag = [&] { return At<uint8_t>(object, 0x4A + At<int8_t>(object, 0x48)) != 0; };
+    if (!zoomFlag() && !At<void*>(object, 0x20C))
+        return 1;
+    CallThis<void>(addr::SC4RenderContext_UpdateViewMatrix, context);
+    CallThis<void>(addr::SC4RenderContext_SetRenderState, context, reinterpret_cast<void*>(0x00B23034));
+    const auto quad = [&](char* vertices) {
+        CallThis<void>(addr::SC4RenderContext_DrawArrays, context, 6u, 0xAu, 4, vertices);
+    };
+    if (zoomFlag() && (At<int32_t>(object, 0x50) >= 0 || At<int32_t>(object, 0x54) >= 0) && At<void*>(object, 0x70)) {
+        if (const uint32_t texture = **At<uint32_t**>(object, 0x70)) {
+            CallThis<void>(addr::SC4RenderContext_BindTexture, context, texture, 0u);
+            if (At<int32_t>(object, 0x50) >= 0)
+                quad(object + 0x74 + At<int32_t>(object, 0x50) * 0x60);
+            if (At<int32_t>(object, 0x54) >= 0)
+                quad(object + 0x74 + At<int32_t>(object, 0x54) * 0x60);
+        }
+    }
+    if (At<void*>(object, 0x20C)) {
+        if (const uint32_t texture = **At<uint32_t**>(object, 0x20C)) {
+            CallThis<void>(addr::SC4RenderContext_BindTexture, context, texture, 0u);
+            quad(object + 0x210);
+        }
+    }
+    return 1;
+}
+
 // The context's mesh draw (0x007D4A80). A mesh is three pointers: a vertex
 // buffer {format, +6 a count that must not be 0, +8 the vertices}, an index
 // buffer (a pointer to uint16 indices) or null, and its primitive groups (a
@@ -2701,6 +2779,47 @@ uint32_t __fastcall DGroundQuad(char* self, void*, char* context, uint32_t overl
     return result;
 }
 
+// The two rarer drawables share one detour shape.
+struct SmallDrawable {
+    const char* id;
+    std::size_t base, size;
+    uint32_t (*ours)(char*, char*, uint32_t);
+    BillboardFn original;
+    bool compare;
+};
+SmallDrawable g_sideStrip = {"models.sidestrip", 0xAC, 0xAC, DrawSideStrip, nullptr, false};
+SmallDrawable g_rotationQuads = {"models.rotationquads", 0x274, 0x274, DrawRotationQuads, nullptr, false};
+
+uint32_t DrawSmall(SmallDrawable& d, char* self, char* context, uint32_t overlaid)
+{
+    if (g_depth > 0)
+        return d.original(self, nullptr, context, overlaid);
+    if (!d.compare)
+        return d.ours(self, context, overlaid);
+    std::vector<Region> regions = ContextRegions(context);
+    regions.push_back({"object", self - d.base, d.size});
+    uint32_t result = 0, mine = 0;
+    const auto original = [&] { result = d.original(self, nullptr, context, overlaid); };
+    QuietRun(regions, original);
+    DrawCompared(d.id, regions, [&] { mine = g_selfCheck ? d.original(self, nullptr, context, overlaid) : d.ours(self, context, overlaid); },
+                 original, true);
+    if (mine != result)
+        compare::Record(d.id, false, std::to_string(result), std::to_string(mine));
+    return result;
+}
+
+uint32_t __fastcall DSideStrip(char* self, void*, char* context, uint32_t overlaid)
+{
+    return DrawSmall(g_sideStrip, self, context, overlaid);
+}
+
+uint32_t __fastcall DRotationQuads(char* self, void*, char* context, uint32_t overlaid)
+{
+    return DrawSmall(g_rotationQuads, self, context, overlaid);
+}
+
+OPENSC4_THUNK(TSideStrip, DSideStrip, 8)
+OPENSC4_THUNK(TRotationQuads, DRotationQuads, 8)
 OPENSC4_THUNK(TGroundQuad, DGroundQuad, 8)
 OPENSC4_THUNK(TBillboard, DBillboard, 8)
 OPENSC4_THUNK(TDrawMoving, DDrawMoving, 0)
@@ -3216,6 +3335,52 @@ const bool g_registeredGroundQuad = registry::Register({
     "renderer.models.static, per quad (docs/renderer.md, \"Models and lots\")",
     true,
     InstallGroundQuad,
+});
+
+bool InstallSideStrip(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_sideStrip.compare = mode == registry::Mode::Compare;
+    if (!Detour(addr::SC4DrawableAA2EA8_Draw, &TSideStrip, &g_sideStrip.original))
+        return false;
+    log::Write("models: side strip draw %s", g_sideStrip.compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredSideStrip = registry::Register({
+    "renderer.models.sidestrip",
+    "renderer/models",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4DrawableAA2EA8_Draw,
+    "The draw of the drawable with vtable 0x00AA2EA8, a strip of triangles shown from two rotations; compare mode "
+    "as renderer.models.static, per object (docs/renderer.md, \"Models and lots\")",
+    true,
+    InstallSideStrip,
+});
+
+bool InstallRotationQuads(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_rotationQuads.compare = mode == registry::Mode::Compare;
+    if (!Detour(addr::SC4DrawableAA2808_Draw, &TRotationQuads, &g_rotationQuads.original))
+        return false;
+    log::Write("models: rotation quads draw %s", g_rotationQuads.compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredRotationQuads = registry::Register({
+    "renderer.models.rotationquads",
+    "renderer/models",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4DrawableAA2808_Draw,
+    "The draw of the drawable with vtable 0x00AA2808, quads picked by the rotation; compare mode as "
+    "renderer.models.static, per object (docs/renderer.md, \"Models and lots\")",
+    true,
+    InstallRotationQuads,
 });
 
 } // namespace
