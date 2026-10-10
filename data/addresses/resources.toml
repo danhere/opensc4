@@ -21,3 +21,30 @@ name = "cGZDBSegmentPackedFile::kSignature"
 address = 0x00B6363C
 kind = "data"
 source = "Name ours. The 4-byte package signature the plugin scan compares a file's first bytes with (0x009728D5, which SetupResources calls for every plugin file that is not a .dat). Uninitialised data in the file, set at startup."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::OpenRecordUnlocked"
+address = 0x009701FD
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZPersistDBSegment* this, const cGZPersistResourceKey* key, cIGZPersistDBRecord** record, uint32_t flags)"
+expect = "55 8B EC 83 EC 14 56 57"
+source = "Name ours. The packed-file segment's (0x086D4A89) open, slot +0x88 of its interface vtable (0x00AD87B0, 0x00AA2578); the public OpenRecord 0x009757A0 calls it under the segment's lock. this is the object + 4. A read-open of a key already in the open map (+0xD4) builds a record on the open one's data; the type-2 path (0x0096D9D1) is the crash at 0x0096DA20 (docs/crashes.md). RET 0xC."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::RecordMapFind"
+address = 0x0097989F
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* map, const cGZPersistResourceKey* key)"
+expect = "53 56 57 8B 39 8B 77 04"
+source = "Name ours. Lower bound of the segment's open-record multimap {header*, count} (segment interface + 0xD4): the first node with the key, or the header when there is none. Node: +0x10 key, +0x1C record. Called from 0x00970247. RET 4."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::RecordMapErase"
+address = 0x00927CF8
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map, void* node)"
+expect = "56 8B F1 8B 06 8D 48 0C"
+source = "Name ours. Erases one node of the open-record multimap (node by value): unlinks and rebalances (0x0040DAF0), frees the node (0x0090CF63), decrements the count; the record is not touched. The segment's close does Release then this (0x00971A3A). RET 4."
