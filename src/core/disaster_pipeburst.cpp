@@ -75,12 +75,6 @@ struct SpreadItem {
 
 using ThisFn = void(__thiscall*)(void* self);
 
-void ReleaseObject(void* object)
-{
-    if (object)
-        Virtual<uint32_t>(object, 0x8);
-}
-
 void Free(void* memory)
 {
     reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(memory);
