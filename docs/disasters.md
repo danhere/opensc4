@@ -54,6 +54,12 @@ A manager is the base (constructor 0x00578160: the reference-counted object, `cI
 
 One instance (0x40 bytes), made on first use, holds a list of toxic occupants (cSC4ToxicOccupant, 0x5C bytes), one per toxic cell, each with its time left. A start at a cell (or the `ToxicSpill x z time` command, 0x0BFB41BA) adds 120 to the cell's time or makes the occupant and registers it with the layer. The tick (message 0x86AD10EE, at most once a second by the instance's stopwatch) takes 1 off each cell's time, or 4 per responder at the cell; at 0 the occupant is removed, and when none is left the instance shuts down (the layer's count goes down).
 
+### Pipe burst
+
+The manager keeps a pipe filter (an occupant filter that accepts a pipe, type 0xC772BF98, whose cell the plumbing simulator's slot 0x2C accepts). A start at a cell takes the accepted pipe there; a start anywhere draws a random cell (a generator seeded from the clock) and walks outwards in a spiral to the first accepted pipe. Either makes an instance (0x38 bytes) with a first burst at the pipe.
+
+A burst is {position, cell, time, fuse, effect}: its effect is `burst_pipe_aboveground` or `burst_pipe_underground` by the view mode (message 0xC6CDBF1A remakes them), its fuse a random time in the tuning's range (exemplar 0x6534284A/0x29B6C670/3, properties 0x4A08C600 and 0x4A08C601, in seconds). The tick (message 0x86AD10EE with the time passed) adds to each burst's time; past its fuse the pipe explodes (`pipe_explodes`): its connected neighbours inside the city are queued, the pipe is demolished (0x00B43D00's slot 0x20), a crater is made (the city's slot 0x150 object, slot 0xE4), and message 0xEA1F0DCD is posted. Three ticks later the queued cells get bursts of their own. A pipe removed by anything else (messages 0x99EF1142, 0x99EF1143) loses its burst. When no burst and no queued cell is left the instance tells the layer it ended and shuts down.
+
 ## What is ours
 
 | Replacement | What is ours |
@@ -61,12 +67,13 @@ One instance (0x40 bytes), made on first use, holds a list of toxic occupants (c
 | `simulators.disasters.layer` | every layer method but GetDisasterCost (4 bytes): 27 functions |
 | `simulators.disasters.managers` | the manager base: QueryInterface, Init, Shutdown, the instance list, the active count, the message forwarding |
 | `simulators.disasters.toxic` | the toxic manager and instance |
+| `simulators.disasters.pipeburst` | the pipe burst manager, its pipe filter and the instance (21 functions) |
 
 Still the game's: the objects (constructors, destructors), the other managers and instances, container and stopwatch helpers.
 
 ## Test cities
 
-No test city has a disaster. `OPENSC4_TEST_DISASTER=<day>` with `OPENSC4_TEST_DISASTER_TYPE=<n>` (0 volcano, 1 fire, 2 earthquake, 3 pipe burst, 4 riot, 5 effect, 6 toxic) starts one through its manager on that day of a run, at the first cell that takes it, walking out from the centre. The camera jumping to the disaster makes the traffic record's view-dependent fields vary run to run with the original (on Big City d0000 one field took the values 10, 11, 12, 13 and 19 in the original's own runs), so the switch turns the "go to disasters" option off unless `OPENSC4_TEST_DISASTER_CAMERA=1`. `OPENSC4_TEST_DISASTER_END=<day>` shuts the chosen type's instances down on that day (a toxic spill lasts two minutes of real time, longer than a week's run), so a disaster's end also runs.
+No test city has a disaster. `OPENSC4_TEST_DISASTER=<day>` with `OPENSC4_TEST_DISASTER_TYPE=<n>` (0 volcano, 1 fire, 2 earthquake, 3 pipe burst, 4 riot, 5 effect, 6 toxic) starts one through its manager on that day of a run, at the first cell that takes it, walking out from the centre. The camera jumping to the disaster makes the traffic record's view-dependent fields vary run to run with the original (on Big City d0000 one field took the values 10, 11, 12, 13 and 19 in the original's own runs), so the switch turns the "go to disasters" option off unless `OPENSC4_TEST_DISASTER_CAMERA=1`. `OPENSC4_TEST_DISASTER_END=<day>` shuts the chosen type's instances down on that day (a toxic spill lasts two minutes of real time, longer than a week's run), so a disaster's end also runs. `OPENSC4_TEST_PIPE_FUSE=<ms>` sets the pipe burst's fuses after it starts, so pipes explode and the bursts spread within the run; where the walk finds no accepted pipe the switch falls back to the manager's own choice (slot 7).
 
 The fingerprint's `dis` part: the disable count, disasters under way, the cost's building count and total, the locations (count and a hash of their cells and zooms) and each manager's instance count (in type order: earthquake, pipe burst, fire, effect, volcano, riot, toxic).
 
@@ -88,3 +95,14 @@ Layer, manager base and toxic on, 12 saves, 7 days, two jobs at a time, on a mac
 | fire, camera jumping | 11 | 1 partly |
 
 No run crashed, and no save had the original agree with itself while ours agreed with itself on something else. The earthquake shakes on frame time; in the control (`disc1-t2`) the original against itself was 10 of 12 on a quieter machine.
+
+With the pipe burst on too (`disp1-*`, `disp2-fuse`; same machine, same day):
+
+| Leg | Same | Rest |
+| --- | --- | --- |
+| no disaster | 10 | 2 partly |
+| pipe burst on day 1 (a pipe found on the four Rush Hour saves only) | 12 | |
+| pipe burst, ended on day 3 | 8 | 4 partly (two in the harness's tick count, on saves with no pipe) |
+| pipe burst with 2-second fuses, the manager's own choice where the walk finds no pipe (8 saves with a burst) | 10 | 1 partly (the original gave three outcomes), 1 failed |
+
+With short fuses the pipes explode and the bursts spread: the layer's cost rises the same way day by day on both sides (0, 220, 260, 410 on Rush Hour d0365), and the manager's random choice of pipe matched on the four saves that used it. The failed run was a B run that crashed in the game's code at 0x0080105D while the city loaded, before any disaster, with none of our code on the stack; three repeats of that save loaded and matched (`disp2-rep1` to `rep3`), as did about 80 other B runs of this code. It is listed with the other rare load crashes in [parity.md](parity.md).
