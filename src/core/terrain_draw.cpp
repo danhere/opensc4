@@ -1429,6 +1429,204 @@ void DrawOverlays(char* manager, char* context)
     }
 }
 
+// --- Models and lots: the 3D render's passes ------------------------------------------------
+
+// A {drawable, key} pair onto one of the render's vectors (the game's
+// vector growth: twice the size, from its STL allocator).
+void PushDrawable(char** vector, uint32_t drawable, uint32_t key)
+{
+    auto* end = reinterpret_cast<uint32_t*>(vector[1]);
+    if (vector[1] != vector[2]) {
+        end[0] = drawable;
+        end[1] = key;
+        vector[1] += 8;
+        return;
+    }
+    const std::size_t size = static_cast<std::size_t>(vector[1] - vector[0]) >> 3;
+    const std::size_t capacity = size + (size ? size : 1);
+    auto* const grown = reinterpret_cast<uint32_t*>(
+        reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(capacity * 8));
+    std::memcpy(grown, vector[0], size * 8);
+    grown[size * 2] = drawable;
+    grown[size * 2 + 1] = key;
+    if (vector[0])
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(vector[0]);
+    vector[0] = reinterpret_cast<char*>(grown);
+    vector[1] = reinterpret_cast<char*>(grown + size * 2 + 2);
+    vector[2] = reinterpret_cast<char*>(grown + capacity * 2);
+}
+
+// cSC43DRender's static pass (0x007C7370): the drawables with flag 8 from
+// the grid cells in view, each once (in its own first cell, or the first
+// cell of the range), keyed by depth and the drawable's own order, sorted,
+// then drawn in rounds: a drawable that answers 2 is drawn again in the
+// next round, between the render's two vectors, up to 12 rounds.
+void DrawStatic(char* render)
+{
+    char* const context = At<char*>(render, 0x11C);
+    At<uint32_t>(context, 0x50) = 1;
+    float bounds[4], plane[4];
+    CallThis<void>(addr::cSC43DRender_ViewBounds, render, bounds, 1);
+    reinterpret_cast<void(__cdecl*)(float*, void*)>(addr::cSC43DRender_DepthPlane)(plane, At<void*>(render, 0x114));
+    char** const first = &At<char*>(render, 0x134);
+    char** const second = &At<char*>(render, 0x140);
+    first[1] = first[0];
+    second[1] = second[0];
+    if (char* const grid = At<char*>(render, 0x120)) {
+        int32_t x0 = 0, z0 = 0, x1 = 0, z1 = 0;
+        CallThis<void>(addr::SC4DrawGrid_CellRange, grid, bounds, &x0, &z0, &x1, &z1);
+        for (int32_t x = x0; x <= x1; ++x) {
+            for (int32_t z = z0; z <= z1; ++z) {
+                const char* const cell = At<char*>(At<char*>(grid, 0x14), static_cast<std::size_t>(x) * 0xC) + z * 0x10;
+                char** const end = At<char**>(const_cast<char*>(cell), 4);
+                for (char** it = At<char**>(const_cast<char*>(cell), 0); it != end; ++it) {
+                    char* const item = *it;
+                    if (!(At<uint8_t>(item, 6) & 8))
+                        continue;
+                    const uint32_t inX = static_cast<uint32_t>(x - At<int32_t>(item, 8) - 1) | static_cast<uint32_t>(x - x0 - 1);
+                    const uint32_t inZ = static_cast<uint32_t>(z - At<int32_t>(item, 0xC) - 1) | static_cast<uint32_t>(z - z0 - 1);
+                    if (static_cast<int32_t>(inX & inZ) >= 0)
+                        continue;
+                    uint32_t pair[2];
+                    CallThis<void>(addr::cSC43DRender_DepthKey, pair, item, plane);
+                    uint32_t order = 0;
+                    Virtual<void>(At<void*>(item, 0x18), 0x44, &order);
+                    PushDrawable(first, pair[0], (order & 0xFFFF0000) + pair[1] + (order << 16));
+                }
+            }
+        }
+    }
+    int32_t count = static_cast<int32_t>((first[1] - first[0]) >> 3);
+    if (count != 0)
+        reinterpret_cast<void(__cdecl*)(char*, int32_t)>(addr::cSC43DRender_SortByKey)(first[0], count);
+    At<uint32_t>(context, 4) = 0;
+    char** current = first;
+    char** other = second;
+    do {
+        for (int32_t i = 0; i < count; ++i) {
+            const uint32_t* const pair = reinterpret_cast<const uint32_t*>(current[0]) + i * 2;
+            if (Virtual<int32_t>(reinterpret_cast<void*>(pair[0]), 0x30, context, 0u) == 2) {
+                const uint32_t drawable = pair[0], key = pair[1];
+                PushDrawable(other, drawable, key);
+            }
+        }
+        current[1] = current[0];
+        std::swap(current, other);
+        count = static_cast<int32_t>((current[1] - current[0]) >> 3);
+        ++At<uint32_t>(context, 4);
+    } while (count != 0 && At<uint32_t>(context, 4) < 12);
+}
+
+// cSC43DRender's moving-objects pass (0x007C7830): from the grid cells in
+// view that are flagged (+0xC bit 0), the items without flag 8 or with flag
+// 0x80, each once as in the static pass. Those without flag 8 go to one of
+// three lists (flag 1: +0x14C; flag 0x100: +0x140; else +0x134 with the
+// drawable's order in the key); those with flag 0x80 also to a fourth
+// (+0x128). A cell keeps its flag only while it holds such an item. The
+// three lists are sorted and drawn in rounds, compacted in place; the round
+// count runs on across them and ends the pass at 12. The fourth list is
+// drawn last with a depth offset of 4.
+void DrawMoving(char* render)
+{
+    char* const context = At<char*>(render, 0x11C);
+    At<uint32_t>(context, 0x50) = 4;
+    char** const plain = &At<char*>(render, 0x134);
+    char** const second = &At<char*>(render, 0x140);
+    char** const third = &At<char*>(render, 0x14C);
+    char** const overlaid = &At<char*>(render, 0x128);
+    plain[1] = plain[0];
+    second[1] = second[0];
+    third[1] = third[0];
+    float bounds[4], plane[4];
+    CallThis<void>(addr::cSC43DRender_ViewBounds, render, bounds, 2);
+    reinterpret_cast<void(__cdecl*)(float*, void*)>(addr::cSC43DRender_DepthPlane)(plane, At<void*>(render, 0x114));
+    overlaid[1] = overlaid[0];
+    if (char* const grid = At<char*>(render, 0x120)) {
+        int32_t x0 = 0, z0 = 0, x1 = 0, z1 = 0;
+        CallThis<void>(addr::SC4DrawGrid_CellRange, grid, bounds, &x0, &z0, &x1, &z1);
+        for (int32_t x = x0; x <= x1; ++x) {
+            for (int32_t z = z0; z <= z1; ++z) {
+                char* const cell = At<char*>(At<char*>(grid, 0x14), static_cast<std::size_t>(x) * 0xC) + z * 0x10;
+                char** const end = At<char**>(cell, 4);
+                char** it = At<char**>(cell, 0);
+                if (it == end || !(At<uint16_t>(cell, 0xC) & 1))
+                    continue;
+                uint32_t cellFlags = At<uint16_t>(cell, 0xC) & 0xFFFFFFFE;
+                for (; it != end; ++it) {
+                    char* item = *it;
+                    const uint32_t flags = At<uint16_t>(item, 6);
+                    if ((flags & 8) && !(flags & 0x80))
+                        continue;
+                    const uint32_t inX = static_cast<uint32_t>(x - At<int32_t>(item, 8) - 1) | static_cast<uint32_t>(x - x0 - 1);
+                    const uint32_t inZ = static_cast<uint32_t>(z - At<int32_t>(item, 0xC) - 1) | static_cast<uint32_t>(z - z0 - 1);
+                    if (static_cast<int32_t>(inX & inZ) < 0) {
+                        if (!(flags & 8)) {
+                            uint32_t pair[2];
+                            CallThis<void>(addr::cSC43DRender_DepthKey, pair, item, plane);
+                            if (flags & 1) {
+                                PushDrawable(third, pair[0], pair[1]);
+                            } else if (flags & 0x100) {
+                                PushDrawable(second, pair[0], pair[1]);
+                            } else {
+                                uint32_t order = 0;
+                                Virtual<void>(At<void*>(item, 0x18), 0x44, &order);
+                                PushDrawable(plain, pair[0], (order << 16) + (order & 0xFFFF0000) + pair[1]);
+                            }
+                        }
+                        if (At<uint8_t>(item, 6) & 0x80)
+                            CallThis<void>(addr::SC4PtrVector_PushBack, overlaid, &item);
+                    }
+                    cellFlags |= 1;
+                }
+                At<uint16_t>(cell, 0xC) = static_cast<uint16_t>(cellFlags);
+            }
+        }
+    }
+    const auto count = [](char** vector) { return static_cast<int32_t>((vector[1] - vector[0]) >> 3); };
+    const auto sort = [&](std::uintptr_t function, char** vector) {
+        if (count(vector) != 0)
+            reinterpret_cast<void(__cdecl*)(char*, int32_t)>(function)(vector[0], count(vector));
+    };
+    sort(addr::cSC43DRender_SortByKeyDescending, third);
+    sort(addr::cSC43DRender_SortByKeyDescending, second);
+    sort(addr::cSC43DRender_SortByKey, plain);
+    At<uint32_t>(context, 4) = 0;
+    bool stopped = false;
+    for (int which = 0; which < 3 && !stopped; ++which) {
+        char** const vector = plain + which * 3;
+        auto* const begin = reinterpret_cast<uint32_t*>(vector[0]);
+        if (vector[0] == vector[1])
+            continue;
+        uint32_t* end = begin + count(vector) * 2;
+        uint32_t* kept;
+        do {
+            kept = begin;
+            for (uint32_t* pair = begin; pair < end; pair += 2) {
+                if (Virtual<int32_t>(reinterpret_cast<void*>(pair[0]), 0x30, context, 0u) == 2) {
+                    kept[0] = pair[0];
+                    kept[1] = pair[1];
+                    kept += 2;
+                }
+            }
+            if (++At<uint32_t>(context, 4) > 11) {
+                stopped = true;
+                break;
+            }
+            end = kept;
+        } while (begin < kept);
+        if (!stopped)
+            vector[1] = vector[0];
+    }
+    if (overlaid[0] != overlaid[1]) {
+        At<uint32_t>(context, 4) = 0;
+        CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, 4);
+        const int32_t items = static_cast<int32_t>((overlaid[1] - overlaid[0]) >> 2);
+        for (int32_t i = 0; i < items; ++i)
+            Virtual<int32_t>(At<void*>(At<char*>(overlaid[0], static_cast<std::size_t>(i) * 4), 0x18), 0x30, context, 1u);
+        CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, 0);
+    }
+}
+
 // --- The rows' layer lists and the skirts' colours ------------------------------------------
 
 // 0x0075ABA0: a row's list of texture layers with their spans of columns,
@@ -1906,6 +2104,85 @@ void __fastcall DListVisible(char* manager, void*, char** list)
     compare::Record("overlays.visible", same, text, mineText);
 }
 
+using RenderPassFn = void(__fastcall*)(char*, void*);
+RenderPassFn g_drawStatic;
+bool g_compareStatic = false;
+
+// The memory a 3D render pass may change outside the drawables: the render
+// context with its stage cache and the S3D camera. The render's own vectors
+// are rebuilt by each run.
+std::vector<Region> RenderRegions(char* render)
+{
+    char* const context = At<char*>(render, 0x11C);
+    std::vector<Region> regions{{"context", context, kContextSize}};
+    if (char* const camera = At<char*>(render, 0xD8))
+        regions.push_back({"camera", camera, kCameraSize});
+    if (char* const stages = At<char*>(context, 0xE0))
+        regions.push_back({"stages", stages, static_cast<std::size_t>(At<char*>(context, 0xE4) - stages)});
+    return regions;
+}
+
+// A run whose draws are recorded and thrown away, with the regions and the
+// driver's state put back after it.
+template <typename Run>
+void QuietRun(const std::vector<Region>& regions, Run&& run)
+{
+    std::vector<std::vector<char>> before;
+    for (const Region& r : regions)
+        before.emplace_back(r.data, r.data + r.size);
+    const std::vector<char> pipeline = gd::SaveState();
+    ++g_depth;
+    gd::BeginCapture(false);
+    run();
+    gd::EndCapture();
+    --g_depth;
+    for (std::size_t i = 0; i < regions.size(); ++i)
+        std::memcpy(regions[i].data, before[i].data(), regions[i].size);
+    gd::RestoreState(pipeline);
+}
+
+void __fastcall DDrawStatic(char* render, void*)
+{
+    if (g_depth > 0)
+        return g_drawStatic(render, nullptr);
+    if (!g_compareStatic)
+        return DrawStatic(render);
+    // Drawables change on their first draw (a texture arrives, a placeholder
+    // goes), so the game's pass differs from itself when run twice. A quiet
+    // run of the game's first lets both compared runs see them settled.
+    QuietRun(RenderRegions(render), [&] { g_drawStatic(render, nullptr); });
+    DrawCompared(g_selfCheck ? "models.static.selfcheck" : "models.static", RenderRegions(render),
+                 [&] {
+                     if (g_selfCheck)
+                         g_drawStatic(render, nullptr);
+                     else
+                         DrawStatic(render);
+                 },
+                 [&] { g_drawStatic(render, nullptr); }, true);
+}
+
+RenderPassFn g_drawMoving;
+bool g_compareMoving = false;
+
+void __fastcall DDrawMoving(char* render, void*)
+{
+    if (g_depth > 0)
+        return g_drawMoving(render, nullptr);
+    if (!g_compareMoving)
+        return DrawMoving(render);
+    QuietRun(RenderRegions(render), [&] { g_drawMoving(render, nullptr); });
+    DrawCompared(g_selfCheck ? "models.moving.selfcheck" : "models.moving", RenderRegions(render),
+                 [&] {
+                     if (g_selfCheck)
+                         g_drawMoving(render, nullptr);
+                     else
+                         DrawMoving(render);
+                 },
+                 [&] { g_drawMoving(render, nullptr); }, true);
+}
+
+OPENSC4_THUNK(TDrawMoving, DDrawMoving, 0)
+OPENSC4_THUNK(TDrawStatic, DDrawStatic, 0)
 OPENSC4_THUNK(TListVisible, DListVisible, 4)
 OPENSC4_THUNK(TOverlays, DOverlays, 4)
 OPENSC4_THUNK(TShadows, DShadows, 12)
@@ -2233,6 +2510,52 @@ const bool g_registeredOverlayRectPartial = registry::Register({
     "renderer.terrain.land (docs/renderer.md, \"The overlays\")",
     true,
     InstallOverlayRectPartial,
+});
+
+bool InstallStatic(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareStatic = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC43DRender_DrawStatic, &TDrawStatic, &g_drawStatic))
+        return false;
+    log::Write("models: static pass %s", g_compareStatic ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredStatic = registry::Register({
+    "renderer.models.static",
+    "renderer/models",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC43DRender_DrawStatic,
+    "The 3D render's static pass: collects the drawables in view, sorts them and has them drawn; compare mode as "
+    "renderer.terrain.land, the drawables the game's in both runs (docs/renderer.md, \"Models and lots\")",
+    true,
+    InstallStatic,
+});
+
+bool InstallMoving(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareMoving = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC43DRender_DrawMoving, &TDrawMoving, &g_drawMoving))
+        return false;
+    log::Write("models: moving-objects pass %s", g_compareMoving ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredMoving = registry::Register({
+    "renderer.models.moving",
+    "renderer/models",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC43DRender_DrawMoving,
+    "The 3D render's moving-objects pass; compare mode as renderer.models.static (docs/renderer.md, \"Models and "
+    "lots\")",
+    true,
+    InstallMoving,
 });
 
 } // namespace

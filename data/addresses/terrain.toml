@@ -965,3 +965,67 @@ name = "STE::QuadIndicesPlain"
 address = 0x00B4C6E8
 kind = "data"
 source = "Name ours. uint16[6]: a quad's two triangles otherwise (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "cSC43DRender::DrawStatic"
+address = 0x007C7370
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. (): the static pass: the drawables with flag 8 (+6) from the cells of the grid (+0x120) in view, each with a depth key, sorted, then drawn (slot 0x30 with the render context); those that answer 2 are drawn again in the next round, up to 12 rounds (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "cSC43DRender::ViewBounds"
+address = 0x007C1FD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 85 C0 56 57"
+source = "Name ours, not analysed. (float[4] out, which): the bounds of the view on the ground, cached per frame (+0x164, +0x178) (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "cSC43DRender::DepthPlane"
+address = 0x007C2F80
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 18 56 8B 74 24 24"
+source = "Name ours, not analysed. (float[4] out, camera view): the plane the depth keys are measured against (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "cSC43DRender::DepthKey"
+address = 0x007C2EB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 8B 44 24 1C 8B"
+source = "Name ours. thiscall on a {drawable, key} pair (grid item, plane): the item's drawable (+0x18) and a key from its bounding box (+0x1C to +0x30) against the plane (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4DrawGrid::CellRange"
+address = 0x005F29C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 D9 00 53 D8"
+source = "Name ours. (float[4] bounds, int out x4): the grid cells the bounds cover, clamped (cell size 1 / +0xC, +0x10 cells a side; cells at +0x14, 12 bytes per column and 16 per cell) (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "cSC43DRender::SortByKey"
+address = 0x007C56D0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 8D 43 FF"
+source = "Name ours, not analysed. ({drawable, key} pairs, count): a quicksort by key (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "cSC43DRender::DrawMoving"
+address = 0x007C7830
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. (): the pass over the grid cells flagged (+0xC bit 0) as holding items without flag 8 or with flag 0x80: three lists by the item's flags (plain, 0x100, 1), sorted and drawn in rounds, then the items with flag 0x80 drawn once more with a depth offset of 4 (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "cSC43DRender::SortByKeyDescending"
+address = 0x007C5710
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 8D 43 FF"
+source = "Name ours, not analysed (the direction is a guess from its use beside 0x007C56D0). ({drawable, key} pairs, count): the sort of the moving pass's two other lists (docs/renderer.md, \"Models and lots\")."
