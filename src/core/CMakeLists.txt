@@ -61,6 +61,14 @@ add_library(opensc4_core SHARED
   neighbors_sim.cpp
   mysim_autotest.cpp
   advisor_autotest.cpp
+  lua_autotest.cpp
+  script_globals_city.cpp
+  script_globals_education.cpp
+  script_globals_safety.cpp
+  script_globals_transport.cpp
+  script_globals_utilities.cpp
+  script_natives_a.cpp
+  script_natives_b.cpp
   advisor_object.cpp
   advisor_system.cpp
   disaster_autotest.cpp
