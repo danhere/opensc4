@@ -801,6 +801,10 @@ private:
                 centre[0x4C / 4] = city->SizeZ() / 2;
             }
         }
+        // OPENSC4_TEST_TERRAIN_GRID=1: the cell grid shown, as the zoning
+        // and building tools do (docs/renderer.md, "The grid").
+        if (Env("OPENSC4_TEST_TERRAIN_GRID") == "1")
+            Global<uint8_t>(addr::STE_ShowGrid) = 1;
         if (Env("OPENSC4_TEST_CAMERA_EXERCISE") == "1") {
             if (void* control = renderer->GetCameraControl())
                 camera_control::Exercise(control, shot_);

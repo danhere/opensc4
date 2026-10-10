@@ -182,6 +182,12 @@ The faces along the city edges are two rows of vertices per side, a top row alon
 
 `renderer.terrain.skirts` replaces the land's; the water's are part of `renderer.terrain.water`. 2026-10-10, three test cities with the camera workout: 0 divergences (1,207, 1,943 and 653 passes each); 20 of 20 screenshots with ours on.
 
+### The grid
+
+The cell lines shown while zoning or building (`cSTETerrainView3D::ShowGrid`, 0x00755E80, sets the byte at 0x00B4C741; the pass is 0x00757650, called after the land's skirts) are the land's vertices drawn once more with the grid texture (the view's +0x88) and blending. The texture coordinates come from a texture matrix built from the camera's (the context's matrix at +0x1AC) on every pass; the vertex alpha, written into the land vertices' colour, fades the lines out towards the water: none below 2 m above the water level, opaque from 4 m, 0.5 per metre between. The rows are drawn by 0x007545C0 (dynamic buffers) or 0x007541C0 (vertex arrays), which the overlay manager also calls with smaller rectangles: the land strips first, then each row's extra quads (0x00B4C6B0, counted per column in 0x00B4C6B8).
+
+`renderer.terrain.grid` replaces the pass. The matrix arithmetic (about 700 x87 instructions without a branch) is translated instruction by instruction by a script, the game's stack frame as an array of cells ([terrain_grid_matrix.inc](../src/core/terrain_grid_matrix.inc)). `OPENSC4_TEST_TERRAIN_GRID=1` shows the grid in test runs. 2026-10-10, three test cities with the camera workout: 0 divergences (1,213, 1,951 and 668 passes each; 1,131 with vertex arrays); 20 of 20 screenshots with ours on against the stock driver with its grid, though the lines are faint enough that the shots also pass against shots without a grid, so the same-frame comparison is the check that counts here.
+
 ## What the driver calls mean
 
 Reference for writing a driver, from decompiling both stock drivers (vtables: DirectX 0x00AC4660, OpenGL 0x00AC36D0, `cIGZGDriver` at object + 0xC in both). The OpenGL driver is the plainest spec, since most methods are one GL call after a table lookup; the DirectX driver is what the game was tuned against and what the screenshot harness compares with (the OpenGL driver renders without terrain and with black boxes around trees on a current NVIDIA card, so it is no visual reference).
