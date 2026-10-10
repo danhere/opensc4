@@ -102,11 +102,52 @@ void Fingerprint(cISC4City*, std::string& line)
     line += text;
 }
 
+// The advice OPENSC4_TEST_LUA_ADVICE makes current: over the advisors in ID
+// order and their advice records in order, the first advice that has a
+// subject (+0xAC), else the first advice.
+char* TestAdvice(void* system)
+{
+    char* found = nullptr;
+    char* const header = At<char*>(system, 0x4C);
+    for (char* node = At<char*>(header, 0x8); node != header;) {
+        char* const advisor = At<char*>(node, 0x14) - 0x8; // the system holds the interface at +8
+        char* const first = At<char*>(advisor, 0x84);
+        char* const last = At<char*>(advisor, 0x88);
+        const bool sane = first <= last && (last - first) % 0x10 == 0 && last - first < 0x10000;
+        for (char* record = first; sane && record != last; record += 0x10) {
+            char* const advice = At<char*>(record, 0x0);
+            if (!advice)
+                continue;
+            if (At<void*>(advice, 0xAC))
+                return advice;
+            if (!found)
+                found = advice;
+        }
+        if (char* right = At<char*>(node, 0xC)) {
+            while (At<char*>(right, 0x8))
+                right = At<char*>(right, 0x8);
+            node = right;
+        } else {
+            char* parent = At<char*>(node, 0x4);
+            while (node == At<char*>(parent, 0xC)) {
+                node = parent;
+                parent = At<char*>(parent, 0x4);
+            }
+            if (At<char*>(node, 0xC) != parent)
+                node = parent;
+        }
+    }
+    return found;
+}
+
 // OPENSC4_TEST_LUA_SCRIPT=<file>: on run day OPENSC4_TEST_LUA_SCRIPT_DAY
 // (default 1) the file is run as a chunk in the advisors' script context
 // (DoString), and the string it leaves in the global `_test_result` is
 // logged, in pieces. The chunk calls the game's native script functions,
-// so their results can be compared between the original and ours.
+// so their results can be compared between the original and ours. With
+// OPENSC4_TEST_LUA_ADVICE=1 an advice is the advisor system's context advice
+// while the chunk runs (PushContextAdvice, PopContextAdvice), as it is while
+// the game runs an advice's trigger.
 void RunScript(const Day& day)
 {
     const char* const path = std::getenv("OPENSC4_TEST_LUA_SCRIPT");
@@ -126,8 +167,17 @@ void RunScript(const Day& day)
     for (std::size_t got; (got = std::fread(buffer, 1, sizeof buffer, file)) > 0;)
         chunk.append(buffer, got);
     std::fclose(file);
+    void* const system = Global<void*>(addr::cSC4AdvisorSystem_Instance);
+    char* const advice = system && EnvInt("OPENSC4_TEST_LUA_ADVICE", 0) ? TestAdvice(system) : nullptr;
+    if (advice) {
+        log::Write("autotest: lua script runs with advice %08X as the context advice (subject %s)",
+                   At<uint32_t>(advice, 0x8C), At<void*>(advice, 0xAC) ? "yes" : "no");
+        Virtual<void>(system, 0x48, advice);
+    }
     const int32_t top = Virtual<int32_t>(script, 0x18);
     Virtual<void>(script, 0xD8, chunk.c_str());
+    if (advice)
+        Virtual<void*>(system, 0x4C);
     Virtual<void>(script, 0x1C, top);
     Virtual<void>(script, 0x94, "_test_result");
     if (Virtual<int32_t>(script, 0x30, int32_t{-1}) == kString) {
