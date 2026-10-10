@@ -1125,3 +1125,11 @@ kind = "function"
 convention = "cdecl"
 expect = "8B 4C 24 04 56 8B 74 24"
 source = "Name ours, not analysed (the use suggests a length). (float[3], float out): returns the out pointer (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4RenderContext::SetState4FB0"
+address = 0x007D4FB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 86 CC 00"
+source = "Name ours, not analysed. (byte): called with the properties' +1 before an overlaid material (docs/renderer.md, \"Models and lots\")."

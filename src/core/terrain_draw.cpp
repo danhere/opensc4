@@ -1742,6 +1742,142 @@ uint32_t DrawBillboard(char* self, char* context, uint8_t overlaid)
     return 1;
 }
 
+// The context's mesh draw (0x007D4A80). A mesh is three pointers: a vertex
+// buffer {format, +6 a count that must not be 0, +8 the vertices}, an index
+// buffer (a pointer to uint16 indices) or null, and its primitive groups (a
+// vector at +4 of {primitive, first, count}).
+void DrawMesh(char* context, char** mesh)
+{
+    char* const vertices = mesh[0];
+    if (!vertices || At<uint16_t>(vertices, 6) == 0)
+        return;
+    void* const driver = At<void*>(context, 0x30);
+    Virtual<void>(driver, 0x14, At<uint32_t>(vertices, 0), 0u, At<uint32_t>(vertices, 8));
+    const int32_t groups = static_cast<int32_t>(At<char*>(mesh[2], 8) - At<char*>(mesh[2], 4)) / 0xC;
+    if (mesh[1]) {
+        At<uint32_t>(context, 0x1FC) = At<uint32_t>(mesh[1], 0);
+        for (int32_t i = 0; i < groups; ++i) {
+            const uint32_t* const group = reinterpret_cast<const uint32_t*>(At<char*>(mesh[2], 4)) + i * 3;
+            Virtual<void>(driver, 0x10, group[0], group[2], 3u, At<uint32_t>(context, 0x1FC) + group[1] * 2);
+        }
+    } else {
+        for (int32_t i = 0; i < groups; ++i) {
+            const uint32_t* const group = reinterpret_cast<const uint32_t*>(At<char*>(mesh[2], 4)) + i * 3;
+            Virtual<void>(driver, 0xC, group[0], group[1], group[2]);
+        }
+    }
+}
+
+// The material setup of the overlaid round (0x007D5670): the texture in
+// stage 0 with the material's environment mode (+0x19), wrap (+0x14, +0x15)
+// and filters (+0x16, +0x17), past the context's stage cache.
+void SetMaterialOverlaid(char* context, char* material, char* properties)
+{
+    CallThis<void>(addr::SC4RenderContext_SetState4FB0, context, static_cast<uint32_t>(At<uint8_t>(properties, 1)));
+    if (At<uint8_t>(material, 0xB) == 0)
+        return;
+    void* const driver = At<void*>(context, 0x30);
+    const uint32_t texture = **At<uint32_t**>(material, 0x10);
+    Virtual<void>(driver, 0xE8, texture, 0u);
+    At<uint32_t>(At<char*>(context, 0xE0), 0) = texture;
+    const uint32_t mode = At<uint8_t>(material, 0x19);
+    if (At<uint32_t>(At<char*>(context, 0xE0), 4) != mode) {
+        Virtual<void>(driver, 0xCC, 0u);
+        Virtual<void>(driver, 0xD0, mode);
+    }
+    At<uint32_t>(At<char*>(context, 0xE0), 4) = mode;
+    CallThis<void>(addr::SC4RenderContext_SetState41E0, context, static_cast<uint32_t>(At<uint8_t>(material, 0x14)),
+                   static_cast<uint32_t>(At<uint8_t>(material, 0x15)), 0u);
+    CallThis<void>(addr::SC4RenderContext_SetState4280, context, static_cast<uint32_t>(At<uint8_t>(material, 0x16)),
+                   static_cast<uint32_t>(At<uint8_t>(material, 0x17)), 0u);
+}
+
+// The context's material setup (0x007D5310). A material: +4 flags (16
+// bits), +6 to +0xA state values, +8 an alpha (0 to 255), +0xB the number of
+// texture stages (0 to 2), then per stage 0x14 bytes from +0x10: a texture
+// (by two pointers), wrap (+4, +5), filters (+6, +7), a coordinate source
+// (+8), the environment mode (+9), a flag for an animated texture matrix
+// (+0xA) and its period (+0xC). The properties' flags change it: 8 dims the
+// colour by the value at +0x10, 2 makes it translucent by it, 0x10 and 0x20
+// pick other state values.
+void SetMaterial(char* context, char* material, char* properties)
+{
+    const uint8_t flags = At<uint8_t>(properties, 0);
+    const bool other = (flags >> 4) & 1, forced = (flags >> 5) & 1;
+    bool translucent = (flags >> 1) & 1;
+    float alpha = static_cast<float>(static_cast<double>(static_cast<int32_t>(At<uint8_t>(material, 8))) *
+                                     Global<double>(0x00ABB4E0));
+    const float value = At<float>(properties, 0x10);
+    void* const driver = At<void*>(context, 0x30);
+    if (flags & 8) {
+        Virtual<void>(driver, 0x80, value, value, value);
+        translucent = false;
+    } else if (translucent && value < Global<float>(0x00A81228)) {
+        alpha = static_cast<float>(static_cast<double>(value) * alpha);
+        Virtual<void>(driver, 0x84, value);
+    }
+    const uint32_t bits = At<uint16_t>(material, 4);
+    const uint8_t stages = At<uint8_t>(material, 0xB);
+    const uint32_t second = stages >= 2 ? At<uint8_t>(material, 0x2C) : 0xFFFFFFFF;
+    const uint32_t first = stages >= 1 ? At<uint8_t>(material, 0x18) : 0xFFFFFFFF;
+    const uint32_t a = translucent ? 5 : At<uint8_t>(material, 0xA);
+    const uint32_t b = translucent ? 4 : At<uint8_t>(material, 9);
+    const uint32_t c = forced ? 4 : At<uint8_t>(material, 6);
+    const uint32_t d = translucent ? 1 : (bits >> 4) & 1;
+    uint32_t e = 0, f = 0;
+    if (!other) {
+        if (forced) {
+            e = 1;
+        } else {
+            e = (bits >> 1) & 1;
+            f = (bits >> 7) & 1;
+        }
+    }
+    uint32_t state[2] = {0, 0};
+    CallThis<void>(addr::SC4RenderState_Init, state, (bits >> 8) & 0xFFFFFF01, f, e, bits & 1, d,
+                   static_cast<uint32_t>(stages), (bits >> 3) & 0xFFFFFF01, c, b, a,
+                   static_cast<uint32_t>(At<uint8_t>(material, 7)), alpha, first, second);
+    CallThis<void>(addr::SC4RenderContext_SetRenderState, context, state);
+    if (!(bits & 0x20))
+        return;
+    const auto secondStage = [&] { return At<uint8_t>(At<char*>(At<char*>(context, 0x38), 0xC), 0x17C) != 0; };
+    for (uint32_t stage = 0; stage < At<uint8_t>(material, 0xB); ++stage) {
+        char* const texture = material + 0x10 + stage * 0x14;
+        const uint32_t handle = **At<uint32_t**>(texture, 0);
+        if (stage == 0 || secondStage())
+            Virtual<void>(driver, 0xE8, handle, stage);
+        At<uint32_t>(At<char*>(context, 0xE0), stage * 0x68) = handle;
+        const uint32_t mode = At<uint8_t>(texture, 9);
+        if ((stage == 0 || secondStage()) && At<uint32_t>(At<char*>(context, 0xE0), stage * 0x68 + 4) != mode) {
+            Virtual<void>(driver, 0xCC, stage);
+            Virtual<void>(driver, 0xD0, mode);
+        }
+        At<uint32_t>(At<char*>(context, 0xE0), stage * 0x68 + 4) = mode;
+        CallThis<void>(addr::SC4RenderContext_SetState41E0, context, static_cast<uint32_t>(At<uint8_t>(texture, 4)),
+                       static_cast<uint32_t>(At<uint8_t>(texture, 5)), stage);
+        CallThis<void>(addr::SC4RenderContext_SetState4280, context, static_cast<uint32_t>(At<uint8_t>(texture, 6)),
+                       static_cast<uint32_t>(At<uint8_t>(texture, 7)), stage);
+        if (At<uint8_t>(texture, 8) == 4)
+            CallThis<void>(addr::SC4RenderContext_SetState3030, context, context + 0xC0, stage);
+        CallThis<void>(addr::SC4RenderContext_SetState40B0, context, static_cast<uint32_t>(At<uint8_t>(texture, 8)), stage);
+        if (At<uint8_t>(texture, 0xA) & 1) {
+            float period;
+            std::memcpy(&period, texture + 0xC, 4);
+            const double scale = static_cast<double>(Global<float>(0x00A81228)) / period;
+            Cell matrix[16];
+            for (Cell& cell : matrix)
+                cell.u = Global<uint32_t>(0x00B4E324);
+            matrix[0].f = static_cast<float>(scale);
+            matrix[5].f = static_cast<float>(-scale);
+            matrix[12].f = static_cast<float>(-(scale * At<float>(context, 0x19C)));
+            matrix[13].f = static_cast<float>(scale * At<float>(context, 0x1A0));
+            CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, matrix, stage);
+        } else {
+            CallThis<void>(addr::SC4RenderContext_ClearTextureMatrix, context, stage);
+        }
+    }
+}
+
 // The context's model draw (0x007D5710): an instance's transform and colour,
 // then each group of the model: its material set up, its mesh drawn.
 // `properties` is a flags byte (4: plain colour, 8: not in the overlaid
@@ -2416,6 +2552,59 @@ void __fastcall DModel(char* context, void*, void* instance, void* model, char* 
                  original, true);
 }
 
+std::vector<Region> ContextRegions(char* context)
+{
+    std::vector<Region> regions{{"context", context, kContextSize}};
+    if (char* const stages = At<char*>(context, 0xE0))
+        regions.push_back({"stages", stages, static_cast<std::size_t>(At<char*>(context, 0xE4) - stages)});
+    return regions;
+}
+
+using MeshFn = void(__fastcall*)(char*, void*, char**);
+MeshFn g_mesh;
+bool g_compareMesh = false;
+
+void __fastcall DMesh(char* context, void*, char** mesh)
+{
+    if (g_depth > 0)
+        return g_mesh(context, nullptr, mesh);
+    if (!g_compareMesh)
+        return DrawMesh(context, mesh);
+    DrawCompared("models.mesh", ContextRegions(context), [&] { DrawMesh(context, mesh); },
+                 [&] { g_mesh(context, nullptr, mesh); });
+}
+
+using MaterialFn = void(__fastcall*)(char*, void*, char*, char*);
+MaterialFn g_materialOverlaid;
+bool g_compareMaterialOverlaid = false;
+
+void __fastcall DMaterialOverlaid(char* context, void*, char* material, char* properties)
+{
+    if (g_depth > 0)
+        return g_materialOverlaid(context, nullptr, material, properties);
+    if (!g_compareMaterialOverlaid)
+        return SetMaterialOverlaid(context, material, properties);
+    DrawCompared("models.material_overlaid", ContextRegions(context),
+                 [&] { SetMaterialOverlaid(context, material, properties); },
+                 [&] { g_materialOverlaid(context, nullptr, material, properties); });
+}
+
+MaterialFn g_material;
+bool g_compareMaterial = false;
+
+void __fastcall DMaterial(char* context, void*, char* material, char* properties)
+{
+    if (g_depth > 0)
+        return g_material(context, nullptr, material, properties);
+    if (!g_compareMaterial)
+        return SetMaterial(context, material, properties);
+    DrawCompared("models.material", ContextRegions(context), [&] { SetMaterial(context, material, properties); },
+                 [&] { g_material(context, nullptr, material, properties); }, true);
+}
+
+OPENSC4_THUNK(TMaterial, DMaterial, 8)
+OPENSC4_THUNK(TMesh, DMesh, 4)
+OPENSC4_THUNK(TMaterialOverlaid, DMaterialOverlaid, 8)
 OPENSC4_THUNK(TModel, DModel, 16)
 OPENSC4_THUNK(TBillboard, DBillboard, 8)
 OPENSC4_THUNK(TDrawMoving, DDrawMoving, 0)
@@ -2839,6 +3028,75 @@ const bool g_registeredModel = registry::Register({
     "renderer.models.static, per model (docs/renderer.md, \"Models and lots\")",
     true,
     InstallModel,
+});
+
+bool InstallMesh(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareMesh = mode == registry::Mode::Compare;
+    if (!Detour(addr::SC4RenderContext_DrawMesh, &TMesh, &g_mesh))
+        return false;
+    log::Write("models: mesh draw %s", g_compareMesh ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredMesh = registry::Register({
+    "renderer.models.mesh",
+    "renderer/models",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4RenderContext_DrawMesh,
+    "The render context's mesh draw: the vertex buffer to the driver, then each primitive group; compare mode as "
+    "renderer.terrain.land, per mesh (docs/renderer.md, \"Models and lots\")",
+    true,
+    InstallMesh,
+});
+
+bool InstallMaterialOverlaid(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareMaterialOverlaid = mode == registry::Mode::Compare;
+    if (!Detour(addr::SC4RenderContext_SetMaterialOverlaid, &TMaterialOverlaid, &g_materialOverlaid))
+        return false;
+    log::Write("models: overlaid material setup %s", g_compareMaterialOverlaid ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredMaterialOverlaid = registry::Register({
+    "renderer.models.material_overlaid",
+    "renderer/models",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4RenderContext_SetMaterialOverlaid,
+    "The material setup of the overlaid round; compare mode compares the driver state and the context "
+    "(docs/renderer.md, \"Models and lots\")",
+    true,
+    InstallMaterialOverlaid,
+});
+
+bool InstallMaterial(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareMaterial = mode == registry::Mode::Compare;
+    if (!Detour(addr::SC4RenderContext_SetMaterial, &TMaterial, &g_material))
+        return false;
+    log::Write("models: material setup %s", g_compareMaterial ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredMaterial = registry::Register({
+    "renderer.models.material",
+    "renderer/models",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4RenderContext_SetMaterial,
+    "The render context's material setup: a render state from the material and the properties, then each "
+    "texture stage; compare mode compares the driver state and the context (docs/renderer.md, \"Models and lots\")",
+    true,
+    InstallMaterial,
 });
 
 } // namespace
