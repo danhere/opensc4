@@ -1024,6 +1024,121 @@ uint32_t DrawGrid(char* self, char* context, void* buffers)
     return 1;
 }
 
+// --- The rows' layer lists and the skirts' colours ------------------------------------------
+
+// 0x0075ABA0: a row's list of texture layers with their spans of columns,
+// from the layer ids of the row's vertices and the next row's, one layer
+// slot at a time.
+void RebuildRowLayers(char* self, int32_t row)
+{
+    const char* const records = Records(self);
+    char** const list = &Global<char**>(addr::STE_RowLayers)[row];
+    CallThis<void>(addr::STE_ClearRowLayers, list);
+    const int32_t index = Global<int32_t>(addr::STE_DirtyRowBase) + row;
+    uint32_t* word = Global<uint32_t*>(addr::STE_DirtyRowBits) + index / 32;
+    int32_t bit = index % 32;
+    if (bit < 0) {
+        bit += 32;
+        --word;
+    }
+    *word &= ~(1u << bit);
+    const uint32_t columns = Columns(), cells = Global<uint32_t>(addr::STE_CellsX);
+    uint32_t start = static_cast<uint32_t>(row);
+    const auto add = [&](uint32_t layer, uint32_t last) {
+        CallThis<void>(addr::cSTETerrainView3D_AddRowLayerSpan, self, list, layer, start, last);
+    };
+    for (uint32_t slot = 0; slot < 3; ++slot) {
+        uint32_t current = 0;
+        uint32_t vertex = columns * static_cast<uint32_t>(row);
+        for (uint32_t column = 0; column < columns; ++column) {
+            for (int next = 0; next < 2; ++next) {
+                const uint32_t id = *reinterpret_cast<const uint16_t*>(records + (slot + vertex * 9) * 4 + 0x16);
+                if (current != id) {
+                    if (current != 0)
+                        add(current, next ? column : column - 1);
+                    current = id;
+                    if (current != 0)
+                        start = column;
+                }
+                vertex += next ? 0u - cells : columns;
+            }
+        }
+        if (current != 0)
+            add(current, cells);
+    }
+}
+
+std::vector<uint32_t> RowLayerList(int32_t row)
+{
+    std::vector<uint32_t> out;
+    const char* const head = RowLayers(row);
+    for (const char* node = Next(head); node != head; node = Next(node)) {
+        out.push_back(LayerId(node));
+        const char* const spans = At<const char*>(const_cast<char*>(node), 0xC);
+        for (const char* span = Next(spans); span != spans; span = Next(span)) {
+            out.push_back(At<uint32_t>(const_cast<char*>(span), 8));
+            out.push_back(At<uint32_t>(const_cast<char*>(span), 0xC));
+        }
+        out.push_back(0xFFFFFFFF);
+    }
+    return out;
+}
+
+uint8_t Byte(double value) { return static_cast<uint8_t>(static_cast<int64_t>(value)); }
+
+// 0x007558B0: the land skirts' colours. Each side gets a grey from its
+// normal and the light; the top row has it doubled where the terrain is
+// above a height and a blend below, and each layer's bottom row takes the
+// next layer's top (the last the plain grey).
+void UpdateSkirtColours()
+{
+    uint32_t& flags = Global<uint32_t>(addr::STE_SkirtStaticFlags);
+    float* const normals = &Global<float>(addr::STE_SkirtNormals);
+    if (!(flags & 1)) {
+        flags |= 1;
+        static const float kNormals[12] = {0, 0, 1, 1, 0, 0, 0, 0, -1, -1, 0, 0};
+        std::memcpy(normals, kNormals, sizeof(kNormals));
+    }
+    void* const transform = Global<void*>(addr::SC4_Transform43DDC);
+    const float* const light = &Global<float>(addr::STE_SkirtLightScale);
+    const float limit = Global<float>(0x00AB43E4);
+    for (uint32_t side = 0; side < 4; ++side) {
+        float turned[3];
+        const float* const n = Virtual<const float*>(transform, 0x5C, turned, normals + side * 3);
+        const float rounded = static_cast<float>(
+            ((static_cast<double>(light[2]) * n[1] + static_cast<double>(light[3]) * n[2]) + static_cast<double>(light[1]) * n[0]) +
+            49152.0f);
+        uint32_t bits;
+        std::memcpy(&bits, &rounded, 4);
+        bits += 0xB8C00000;
+        double low = static_cast<double>(static_cast<int32_t>(static_cast<uint8_t>(bits - (bits >> 8)))) * light[0];
+        if (low > limit)
+            low = limit;
+        double high = low + low;
+        if (high > limit)
+            high = limit;
+        const float slope = static_cast<float>((high - low) * Global<float>(0x00AB43E0));
+        const uint8_t top = Byte(high), bottom = Byte(low);
+        const int32_t count = (side & 1) ? Global<int32_t>(addr::STE_Rows) : static_cast<int32_t>(Columns());
+        char** const arrays = &Global<char*>(addr::STE_LandSkirts) + side * 3;
+        const auto fill = [](char* vertex, uint8_t value) {
+            vertex[0xC] = vertex[0xD] = vertex[0xE] = static_cast<char>(value);
+        };
+        for (int32_t i = 0; i < count; ++i) {
+            const std::size_t upper = static_cast<std::size_t>(i) * 0x18;
+            const std::size_t lower = static_cast<std::size_t>(count + i) * 0x18;
+            for (int layer = 0; layer < 3; ++layer) {
+                const float height = At<float>(arrays[layer], upper + 4);
+                fill(arrays[layer] + upper,
+                     height >= Global<float>(0x00AB43DC) ? top : Byte(static_cast<double>(slope) * height + low));
+            }
+            fill(arrays[0] + lower, static_cast<uint8_t>(arrays[1][upper + 0xE]));
+            fill(arrays[1] + lower, static_cast<uint8_t>(arrays[2][upper + 0xE]));
+            fill(arrays[2] + lower, bottom);
+        }
+    }
+}
+
 // OPENSC4_TERRAIN_SELFCHECK=1: compare mode runs the game's pass against
 // itself, to check the comparison.
 const bool g_selfCheck = [] {
@@ -1138,6 +1253,76 @@ uint32_t __fastcall DGrid(char* self, void*, char* context, void* buffers)
 }
 
 OPENSC4_THUNK(TGrid, DGrid, 8)
+using RebuildFn = void(__fastcall*)(char*, void*, int32_t);
+RebuildFn g_rebuild;
+bool g_compareRebuild = false;
+
+void __fastcall DRebuild(char* self, void*, int32_t row)
+{
+    if (g_depth > 0)
+        return g_rebuild(self, nullptr, row);
+    if (!g_compareRebuild)
+        return RebuildRowLayers(self, row);
+    const int32_t index = Global<int32_t>(addr::STE_DirtyRowBase) + row;
+    uint32_t* const word = Global<uint32_t*>(addr::STE_DirtyRowBits) + (index >> 5);
+    const uint32_t before = *word;
+    RebuildRowLayers(self, row);
+    const std::vector<uint32_t> mine = RowLayerList(row);
+    const uint32_t mineWord = *word;
+    *word = before;
+    g_rebuild(self, nullptr, row);
+    const std::vector<uint32_t> theirs = RowLayerList(row);
+    const bool same = mine == theirs && mineWord == *word;
+    char text[96] = "";
+    if (!same)
+        std::snprintf(text, sizeof(text), "row %d: %zu values and dirty word %08X", row, theirs.size(), *word);
+    char mineText[96] = "";
+    if (!same)
+        std::snprintf(mineText, sizeof(mineText), "row %d: %zu values and dirty word %08X", row, mine.size(), mineWord);
+    compare::Record("terrain.rowlayers", same, text, mineText);
+}
+
+using ColoursFn = void(__fastcall*)(char*, void*);
+ColoursFn g_colours;
+bool g_compareColours = false;
+
+std::vector<char> SkirtColourBytes()
+{
+    std::vector<char> out;
+    for (uint32_t side = 0; side < 4; ++side) {
+        const std::size_t count = (side & 1) ? Global<uint32_t>(addr::STE_Rows) : Columns();
+        for (uint32_t layer = 0; layer < 3; ++layer) {
+            const char* const array = (&Global<char*>(addr::STE_LandSkirts))[side * 3 + layer];
+            out.insert(out.end(), array, array + count * 2 * 0x18);
+        }
+    }
+    return out;
+}
+
+void __fastcall DColours(char* self, void*)
+{
+    if (g_depth > 0)
+        return g_colours(self, nullptr);
+    UpdateSkirtColours();
+    if (!g_compareColours)
+        return;
+    const std::vector<char> mine = SkirtColourBytes();
+    g_colours(self, nullptr);
+    const std::vector<char> theirs = SkirtColourBytes();
+    std::size_t at = 0;
+    while (at < mine.size() && mine[at] == theirs[at])
+        ++at;
+    const bool same = at == mine.size();
+    char text[64] = "", mineText[64] = "";
+    if (!same) {
+        std::snprintf(text, sizeof(text), "byte %zu: %02X", at, static_cast<uint8_t>(theirs[at]));
+        std::snprintf(mineText, sizeof(mineText), "byte %zu: %02X", at, static_cast<uint8_t>(mine[at]));
+    }
+    compare::Record("terrain.skirtcolours", same, text, mineText);
+}
+
+OPENSC4_THUNK(TRebuild, DRebuild, 4)
+OPENSC4_THUNK(TColours, DColours, 0)
 OPENSC4_THUNK(TLandSkirts, DLandSkirts, 4)
 OPENSC4_THUNK(TLand, DLand, 8)
 OPENSC4_THUNK(TWater, DWater, 8)
@@ -1238,6 +1423,52 @@ const bool g_registeredGrid = registry::Register({
     "The cell grid over the land; compare mode as renderer.terrain.land (docs/renderer.md, \"The terrain\")",
     true,
     InstallGrid,
+});
+
+bool InstallRowLayers(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareRebuild = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSTETerrainView3D_RebuildRowLayers, &TRebuild, &g_rebuild))
+        return false;
+    log::Write("terrain draw: row layer lists %s", g_compareRebuild ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredRowLayers = registry::Register({
+    "renderer.terrain.rowlayers",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_RebuildRowLayers,
+    "A row's list of texture layers and their spans; compare mode builds ours, then the game's, and compares the "
+    "lists (docs/renderer.md, \"The terrain\")",
+    true,
+    InstallRowLayers,
+});
+
+bool InstallSkirtColours(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareColours = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSTETerrainView3D_UpdateSkirtColours, &TColours, &g_colours))
+        return false;
+    log::Write("terrain draw: skirt colours %s", g_compareColours ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredSkirtColours = registry::Register({
+    "renderer.terrain.skirtcolours",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_UpdateSkirtColours,
+    "The land skirts' vertex colours; compare mode fills ours, then the game's, and compares the vertex arrays "
+    "(docs/renderer.md, \"The terrain\")",
+    true,
+    InstallSkirtColours,
 });
 
 } // namespace
