@@ -192,6 +192,22 @@ The cell lines shown while zoning or building (`cSTETerrainView3D::ShowGrid`, 0x
 
 `renderer.terrain.grid` replaces the pass. The matrix arithmetic (about 700 x87 instructions without a branch) is translated instruction by instruction by a script, the game's stack frame as an array of cells ([terrain_grid_matrix.inc](../src/core/terrain_grid_matrix.inc)). `OPENSC4_TEST_TERRAIN_GRID=1` shows the grid in test runs. 2026-10-10, three test cities with the camera workout: 0 divergences (1,213, 1,951 and 668 passes each; 1,131 with vertex arrays); 20 of 20 screenshots with ours on against the stock driver with its grid, though the lines are faint enough that the shots also pass against shots without a grid, so the same-frame comparison is the check that counts here.
 
+## The overlays
+
+What lies flat on the terrain (zone colours, tool highlights, decals and their shadows) is drawn by the overlay manager (the patch census's name; code 0x00735260 to 0x0073CF40, 104 functions, about 31 KB; its draw is 0x00738A50, which sets up texture matrices and calls the decal pass 0x00736790 and two more, 0x00736BF0 and 0x00737870). It has no geometry of its own: each overlay sets its state and texture and has a rectangle of cells of the terrain drawn again.
+
+**The rectangle draw** (0x00735720: render context and four cell coordinates, inclusive) goes to one of six terrain view functions by three of the manager's fields:
+
+| +0x16 | +0x94 | +0x15 clear | +0x15 set |
+|---|---|---|---|
+| clear | dynamic buffers | 0x007545C0: land vertices, the land's rows (view +0x98, +0x9C) | 0x00754910: land vertices, the water's rows (+0xC8, +0xCC) |
+| clear | none | 0x007541C0 | 0x007543C0 (+0xBC, +0xC0) |
+| set | either | 0x00755560: water vertices, the land's rows with water (+0xA4, +0xA8) | 0x00755700: water vertices, the water's rows with water (+0xD4, +0xD8) |
+
+Each pair differs only in the row range and the per-row tables it reads. The land-vertex ones are the grid's row draws (strips, then the rows' extra quads); the water-vertex ones draw strips with vertex arrays only.
+
+`renderer.overlays.rect` replaces the rectangle draw and with it all six. Compared draw by draw in the same frame, as the land pass. 2026-10-10, three test cities with the camera workout: 0 divergences (32,729, 175,779 and 66,945 rectangles; 176,977 on Big City with vertex arrays; all six functions reached); 20 of 20 screenshots with ours on.
+
 ## What the driver calls mean
 
 Reference for writing a driver, from decompiling both stock drivers (vtables: DirectX 0x00AC4660, OpenGL 0x00AC36D0, `cIGZGDriver` at object + 0xC in both). The OpenGL driver is the plainest spec, since most methods are one GL call after a table lookup; the DirectX driver is what the game was tuned against and what the screenshot harness compares with (the OpenGL driver renders without terrain and with black boxes around trees on a current NVIDIA card, so it is no visual reference).
