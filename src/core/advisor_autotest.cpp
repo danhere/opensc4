@@ -290,6 +290,189 @@ void DriveCheats(const Day& day)
     log::Write("autotest: advisor cheats and a script link sent");
 }
 
+// --- OPENSC4_TEST_ADVICE_WINDOW (docs/ui.md) ---------------------------------
+
+// A stand-in for the advice window's list control while FillList runs: it
+// hashes each row the controller hands over (three image strings, the
+// message and the title as HTML, the flag byte, the advice).
+struct WindowString {
+    std::uintptr_t vtable;
+    char* begin;
+    char* end;
+};
+
+Fnv g_rows;
+int g_rowCount = 0;
+
+void AddString(Fnv& f, const WindowString* text)
+{
+    if (text)
+        AddBytes(f, text->begin, text->end);
+    f.Add(uint8_t{0});
+}
+
+void __fastcall FakeAddRow(void*, void*, const WindowString* image1, const WindowString* image2,
+                           const WindowString* message, const WindowString* title, uint32_t flag, char* advice,
+                           const WindowString* image3, uint32_t zero, uint32_t style)
+{
+    for (const WindowString* text : {image1, image2, message, title, image3})
+        AddString(g_rows, text);
+    g_rows.Add(static_cast<uint8_t>(flag));
+    g_rows.Add(advice ? At<uint32_t>(advice, 0x8C) : 0u);
+    g_rows.Add(zero);
+    g_rows.Add(style);
+    ++g_rowCount;
+}
+
+void __fastcall FakeOneArgument(void*, void*, uint32_t value)
+{
+    g_rows.Add(value);
+}
+
+void __fastcall FakeClear(void*, void*)
+{
+    g_rows.Add(uint8_t{0xC1});
+}
+
+char g_windowToken[160];
+
+void AddControllerState(Fnv& f, char* helper)
+{
+    f.Add(At<void*>(helper, 0xC) != nullptr);
+    f.Add(At<int32_t>(helper, 0x10));
+    f.Add(At<int32_t>(helper, 0x14));
+    f.Add(At<uint8_t>(helper, 0x55));
+    f.Add(At<uint8_t>(helper, 0x56));
+    f.Add(At<int32_t>(helper, 0x58));
+    f.Add(At<void*>(helper, 0x5C) != nullptr);
+    for (std::size_t pane = 0; pane < 7; ++pane)
+        f.Add(At<void*>(helper, 0x38 + 4 * pane) != nullptr);
+    char* const end = At<char*>(helper, 0x60);
+    int advices = 0;
+    for (char* node = At<char*>(end, 0x0); node != end && advices < 10000; node = At<char*>(node, 0x0), ++advices)
+        f.Add(At<uint32_t>(At<char*>(node, 0x8), 0x8C));
+    f.Add(advices);
+    f.Add(At<int32_t>(helper, 0x68));
+    if (EnvInt("OPENSC4_TEST_ADVISOR_DUMP", 0)) {
+        unsigned panes = 0;
+        for (std::size_t pane = 0; pane < 7; ++pane)
+            panes = panes * 2 + (At<void*>(helper, 0x38 + 4 * pane) != nullptr);
+        log::Write("advwin: advisor %d type %d index %d news %u shown %u mode %d list %d panes %02X advices %d tree %d "
+                   "hash %08X",
+                   At<void*>(helper, 0xC) != nullptr, At<int32_t>(helper, 0x10), At<int32_t>(helper, 0x14),
+                   At<uint8_t>(helper, 0x55), At<uint8_t>(helper, 0x56), At<int32_t>(helper, 0x58),
+                   At<void*>(helper, 0x5C) != nullptr, panes, advices, At<int32_t>(helper, 0x68), f.h);
+    }
+}
+
+// On that run day the advice window's code is called directly, as the
+// window would call it: for each of the seven advisors the worst mood, the
+// advice list and the list's rows (through the stand-in above); the
+// advisor's head view made, given each mood, its models loaded, advanced
+// and dropped, with no window; then the controller driven through its
+// screens (an advisor's advice, its news, the overview) and hidden again.
+// The result is one fingerprint token from then on.
+void DriveAdviceWindow(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_ADVICE_WINDOW") || !game::IsBuild641())
+        return;
+    char* const system = Global<char*>(addr::cSC4AdvisorSystem_Instance);
+    char* const helper = system ? At<char*>(system, 0x5C) : nullptr;
+    if (!helper) {
+        log::Write("autotest: advice window: no controller");
+        return;
+    }
+    using ThisFn = uint32_t(__thiscall*)(void*);
+    using ThisArgFn = uint32_t(__thiscall*)(void*, void*);
+    using ThisTypeFn = uint32_t(__thiscall*)(void*, uint32_t);
+    const bool window = At<void*>(helper, 0x18) != nullptr;
+    static void* fakeVtable[8] = {nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  reinterpret_cast<void*>(&FakeAddRow),
+                                  reinterpret_cast<void*>(&FakeOneArgument),
+                                  reinterpret_cast<void*>(&FakeOneArgument),
+                                  reinterpret_cast<void*>(&FakeClear)};
+    static void* fakeList = fakeVtable;
+    const uint32_t types[] = {0x19, 0x15, 0x16, 0x17, 0x18, 0x1A, 0x1B};
+
+    Fnv lists;
+    g_rows = Fnv{};
+    g_rowCount = 0;
+    for (const uint32_t type : types) {
+        void* const advisor = Virtual<void*>(system, 0x1C, type);
+        if (!advisor)
+            continue;
+        lists.Add(reinterpret_cast<ThisArgFn>(addr::SC4UI_F41DC20)(helper, advisor)); // the worst mood
+        reinterpret_cast<ThisArgFn>(addr::SC4UI_F41E000)(helper, advisor);           // the advice list
+        AddControllerState(lists, helper);
+        if (window) {
+            void* const list = At<void*>(helper, 0x5C);
+            At<void*>(helper, 0x5C) = &fakeList;
+            reinterpret_cast<ThisFn>(addr::SC4UI_F41E4B0)(helper); // the rows
+            At<void*>(helper, 0x5C) = list;
+        }
+    }
+
+    Fnv heads;
+    for (const uint32_t type : types) {
+        char* const memory = static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0xF8));
+        if (!memory)
+            continue;
+        char* const head = reinterpret_cast<char*(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F420B70)(memory, type);
+        for (uint32_t mood = 0; mood <= 5; ++mood) {
+            Virtual<uint32_t>(head, 0x24, mood);       // the mood
+            Virtual<uint32_t>(head, 0x2C, uint32_t{1}); // the models
+            heads.Add(At<int32_t>(head, 0x10));
+            heads.Add(At<uint32_t>(head, 0x14));
+            heads.Add(At<uint32_t>(head, 0x1C));
+            for (std::size_t model : {std::size_t{0x18}, std::size_t{0x20}, std::size_t{0x24}})
+                heads.Add(At<void*>(head, model) != nullptr);
+            for (int step = 0; step < 4; ++step) {
+                Virtual<uint32_t>(head, 0x34, uint32_t{700}); // advance
+                heads.Add(At<uint32_t>(head, 0xC8));
+                heads.Add(At<uint32_t>(head, 0xCC));
+                heads.Add(At<uint32_t>(head, 0xD0));
+                heads.Add(At<void*>(head, 0x24) == At<void*>(head, 0x18));
+            }
+            Virtual<void>(head, 0x28, 10.0f, 20.0f, 0.0f, 1.5f); // place
+        }
+        Virtual<uint32_t>(head, 0x2C, uint32_t{0});
+        Virtual<void*>(head, 0x14, uint32_t{1}); // delete
+    }
+
+    Fnv screens;
+    if (window) {
+        // Show's result is whatever its last call left behind (a reference
+        // count), so it is not compared.
+        reinterpret_cast<ThisFn>(addr::SC4AdvisorHelper_Call1)(helper);
+        AddControllerState(screens, helper);
+        for (const uint32_t type : types) {
+            reinterpret_cast<ThisTypeFn>(addr::SC4UI_F41F2D0)(helper, type); // an advisor's screen
+            AddControllerState(screens, helper);
+            reinterpret_cast<ThisFn>(addr::SC4UI_F41F610)(helper); // its news
+            AddControllerState(screens, helper);
+            reinterpret_cast<ThisFn>(addr::SC4UI_F41F720)(helper); // its advice
+            AddControllerState(screens, helper);
+        }
+        reinterpret_cast<ThisFn>(addr::SC4UI_F41E1C0)(helper); // the overview
+        AddControllerState(screens, helper);
+        reinterpret_cast<ThisFn>(addr::SC4AdvisorHelper_Call2)(helper); // hide
+        AddControllerState(screens, helper);
+    }
+    std::snprintf(g_windowToken, sizeof g_windowToken, " advwin %d %08X rows %d %08X heads %08X screens %08X",
+                  window ? 1 : 0, lists.h, g_rowCount, g_rows.h, heads.h, screens.h);
+    log::Write("autotest: advice window driven:%s", g_windowToken);
+}
+
+void WindowFingerprint(cISC4City*, std::string& line)
+{
+    line += g_windowToken;
+}
+
+const FingerprintPart kWindowFingerprint{"advisors.window", 87, &WindowFingerprint};
+const DayHook kDriveWindow{"advisors.window", 88, &DriveAdviceWindow};
 const FingerprintPart kFingerprint{"advisors", 86, &Fingerprint};
 const DayHook kDrive{"advisors.drive", 86, &Drive};
 const DayHook kDriveCheats{"advisors.cheats", 87, &DriveCheats};
