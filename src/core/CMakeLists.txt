@@ -108,6 +108,22 @@ add_library(opensc4_core SHARED
   airport_sim.cpp
   landfill_autotest.cpp
   ports_autotest.cpp
+  prop_autotest.cpp
+  prop_object.cpp
+  prop_props.cpp
+  lot_autotest.cpp
+  lot_build.cpp
+  lot_construct.cpp
+  lot_object.cpp
+  lot_terrain.cpp
+  zoning_autotest.cpp
+  zone_autotest.cpp
+  zone_cells.cpp
+  zone_object.cpp
+  zone_parcellize.cpp
+  zone_parcels.cpp
+  zone_slots.cpp
+  zone_streets.cpp
   landfill_sim.cpp
   seaport_autotest.cpp
   seaport_sim.cpp

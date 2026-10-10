@@ -1,0 +1,997 @@
+# The zone developer (cSC4ZoneDeveloper, class ID 0x498F9B01, with the city's lot manager as its +0x4 part; docs/zone.md): code 0x00729E70 to 0x00734B10 (src/core/zone_object.cpp, zone_slots.cpp, zone_cells.cpp, zone_parcels.cpp, zone_streets.cpp, zone_parcellize.cpp). Fn_<address> names are placeholders; each source file names the function in its comments.
+
+[[entry]]
+name = "cSC4ZoneDeveloper::vftable"
+address = 0x00AB3830
+kind = "vtable"
+expect = "F0 9E 72 00 30 53 69 00"
+source = "The primary cISC4ZoneDeveloper vtable (11 slots; QueryInterface 0x00729EF0 first). Slots 3 and 4 replaced by simulators.zone.init/.shutdown, 5 and 6 by simulators.zone.parcellize, 7 and 9 by simulators.zone.slots, 8 by simulators.zone.parcels; our object copies all of it."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::vftable_4"
+address = 0x00AB37C0
+kind = "vtable"
+expect = "F0 47 73 00 D0 00 52 00"
+source = "Name ours. The lot manager part's vtable (object + 4), 28 slots (src/core/zone_sim.h). Slots 3 and 4 (thunks) replaced by simulators.zone.init/.shutdown, 5, 6, 8, 9, 11-14, 17-19 and 26 by simulators.zone.slots (src/core/zone_slots.cpp), 7, 10, 20 and 25 by simulators.zone.cells, 21 and 22 by simulators.zone.streets, 23 and 24 by simulators.zone.parcels; 0-2, 15 (thunk to the detoured 0x00734860), 16 and 27 stay the game's. Our object copies all of it."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::vftable_8"
+address = 0x00AB37AC
+kind = "vtable"
+expect = "00 48 73 00 F0 00 52 00"
+source = "Name ours. The cIGZMessageTarget2 part at +0x8 (4 slots): thunks 0x00734800, 0x005200F0, 0x00734830, DoMessage 0x007328D0. Slot 3 replaced by simulators.zone.messages."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::vftable_C"
+address = 0x00AB3794
+kind = "vtable"
+expect = "10 48 73 00 10 01 52 00"
+source = "Name ours. The cIGZSerializable part at +0xC (6 slots): thunks 0x00734810, 0x00520110, 0x00734840, Write 0x0072AB40, Read 0x00734380, GetGZCLSID 0x00729EB0. Slots 3 and 4 replaced by simulators.zone.save."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotFilter_vftable"
+address = 0x00AB36FC
+kind = "vtable"
+expect = "70 96 48 00 F0 47 5F 00"
+source = "Name ours. The vtable of the zoning code's lot configuration filter (5 slots: 0x00489670, 0x005F47F0, 0x0076A370, the test 0x0072A080, the deleting destructor 0x0072A730 shared with other filters). Slot 3 replaced by simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::cSC4ZoneDeveloper"
+address = 0x007348D0
+kind = "function"
+convention = "thiscall"
+signature = "cSC4ZoneDeveloper* (cSC4ZoneDeveloper* this)"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "The constructor (0xFC bytes; only caller the factory 0x00734AF0). Detoured by simulators.zone.object (src/core/zone_object.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Create"
+address = 0x00734AF0
+kind = "function"
+convention = "cdecl"
+signature = "cSC4ZoneDeveloper* ()"
+expect = "68 FC 00 00 00 E8 E6 0A"
+source = "The factory registered for class ID 0x498F9B01 (0x0046047E): operator new of 0xFC bytes, then a jump to the constructor. Left the game's (the constructor detour covers it)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Destructor"
+address = 0x00734680
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ZoneDeveloper* this)"
+expect = "53 56 57 8B F9 8D B7 F0"
+source = "The destructor: the maps +0xF0, +0xE4, +0xD8, +0x78, the lot lists +0x64 and +0x60 and the lot grid +0x54 freed, the lot developer +0x50 released. Only caller the deleting destructor. Ours in simulators.zone.object."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::DeletingDestructor"
+address = 0x00734AD0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4ZoneDeveloper* this, uint32_t flags)"
+expect = "56 8B F1 E8 A8 FB FF FF"
+source = "Primary slot 10. Ours in simulators.zone.object."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::QueryInterface"
+address = 0x00729EF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ZoneDeveloper* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D BD 05 19"
+source = "IIDs 0x00000001 and 0xE818ED2B: the object; 0x681905BD (the lot manager): +0x4; 0x452294AA: +0x8; 0xE4FDA3D4: +0xC; AddRef through slot 1. Ours in simulators.zone.object."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Release"
+address = 0x0072A270
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4ZoneDeveloper* this)"
+expect = "56 8B F1 8B 46 14 83 F8"
+source = "Slot 2: at the last reference Shutdown (slot 4) and the deleting destructor (slot 10). Ours in simulators.zone.object."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::GetGZCLSID"
+address = 0x00729EB0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 01 9B 8F 49 C3 CC CC"
+source = "Returns the class ID 0x498F9B01 (+0xC slot 5; also called from the class registration 0x00460483). Ours in simulators.zone.object."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Init"
+address = 0x00734030
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ZoneDeveloper* this)"
+expect = "83 EC 18 53 55 56 8B F1"
+source = "Primary slot 3 (and the lot manager's slot 3 thunk 0x007348C0): the services referenced, the lot grid sized to the city (or each loaded lot initialised), the grid +0x74, 0x0072FF80, three messages and two cheat codes registered. Ours in simulators.zone.init."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Shutdown"
+address = 0x007335A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ZoneDeveloper* this)"
+expect = "53 56 8B F1 8A 46 10 33"
+source = "Primary slot 4 (and the lot manager's slot 4 thunk 0x007348B0): cheat codes and messages unregistered, the map +0xF0 cleared, every lot deleted (0x0072B8D0), the lot grid emptied, the network tools, the grid and the services released. Ours in simulators.zone.shutdown."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::SetOptions"
+address = 0x007347C0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ZoneDeveloper* this, bool a, bool b, bool c)"
+expect = "8A 44 24 04 8A 54 24 08"
+source = "Primary slot 7: a to +0x9B, b to +0x9A, c to +0x9C. Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::IsCellWater"
+address = 0x0072A030
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ZoneDeveloper* this, int32_t x, int32_t z)"
+expect = "8B 49 34 8B 01 FF A0 88"
+source = "Primary slot 9: a tail jump to the terrain's (+0x34) slot 34. Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::DoMessage"
+address = 0x007328D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZMessageTarget2* this, cIGZMessage2* message)"
+expect = "83 EC 28 53 55 8B 6C 24"
+source = "+0x8 slot 3. 0x26D31EC1: the terrain picker and the network tools of types 3, 11 and 0 taken, each loaded lot's slot 8; 0x230E27AC: the cheats (data 1 0x8929E68E 0x0072C8E0, 0x4AB569C9 0x0072BE50); 0x99EF1142 with data 3 0xC772BF98: the lot under a new occupant deleted and its rectangle parcelled again (0x0072D440), then by data 4 0x00731F60 or 0x00732450; 0xA6B79602: +0xD4. Ours in simulators.zone.messages."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Write"
+address = 0x0072AB40
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "53 8B 5C 24 08 8B 03 55"
+source = "+0xC slot 3: version 1, the lot grid's columns and cells per column, a reference per cell. Ours in simulators.zone.save."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Read"
+address = 0x00734380
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "83 EC 3C 53 55 56 8B 74"
+source = "+0xC slot 4: version 1 only; sets +0x11; the grid read cell by cell, each distinct lot appended to the lot list +0x60 (the extra references of a lot's other cells released). Ours in simulators.zone.save."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::PlopAllBuildings"
+address = 0x0072BE50
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ZoneDeveloper* this)"
+expect = "83 EC 60 A1 18 3D B4 00"
+source = "Name ours (cheat 0x4AB569C9, \"PlopAllBuildings\"): for every building type of the development simulator (slot 11) a generic lot configuration, the first place of a spiral walk from the city's centre where the lot manager's slot 22 makes a lot, and the lot developer's slot 7. Only caller DoMessage (0x00732A55). Ours (a plain function) in simulators.zone.messages."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::DeleteAllLots"
+address = 0x0072B8D0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ZoneDeveloper* this)"
+expect = "51 57 8B F9 8B 47 54 8B"
+source = "Name ours. The lot manager's slot 24 for every lot of the grid. Only caller Shutdown (0x00733663). Ours (a plain function) in simulators.zone.shutdown."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_GetLotAtPosition"
+address = 0x0072A1C0
+kind = "function"
+convention = "thiscall"
+signature = "cISC4Lot* (void* lotManager, const float* position)"
+expect = "51 56 57 8B 7C 24 10 8B"
+source = "Name ours. Lot manager slot 5: the lot of the position's cell (city slots 98 and 95, then slot 6). Ours in simulators.zone.slots (src/core/zone_slots.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_GetLot"
+address = 0x0072B410
+kind = "function"
+convention = "thiscall"
+signature = "cISC4Lot* (void* lotManager, int32_t x, int32_t z, bool anchorOnly)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Lot manager slot 6: the lot of a cell of the grid +0x54; with anchorOnly only when the cell is the lot's own (lot slot 21). Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_GetNeighboursOfCell"
+address = 0x0072A230
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* lotManager, int32_t x, int32_t z, void* list, uint32_t sides)"
+expect = "8B 54 24 04 56 8B F1 8B"
+source = "Name ours. Lot manager slot 8: slot 9 for the lot of the cell; 0 without one. Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_GetNeighbours"
+address = 0x0072A750
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* lotManager, cISC4Lot* lot, void* list, uint32_t sides)"
+expect = "83 EC 10 56 8B F1 8B 4C"
+source = "Name ours. Lot manager slot 9: slot 10 for the lot's rectangle (lot slot 14). Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_GetSideLine"
+address = 0x0072A790
+kind = "function"
+convention = "thiscall"
+signature = "void (void* lotManager, const int32_t* rect, uint8_t side, int32_t* out)"
+expect = "8A 44 24 08 A8 01 56 74"
+source = "Name ours. Lot manager slot 11: the rectangle's edge on a side (1, 2, 4, 8) as a line of vertices. Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_GetSideCells"
+address = 0x0072A820
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* lotManager, const int32_t* rect, uint8_t side, int32_t* out)"
+expect = "8B 44 24 0C 83 CA FF 89"
+source = "Name ours. Lot manager slot 12: the row of cells just outside the rectangle on a side, false when the city ends there. Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_GetRandomLot"
+address = 0x0072B3C0
+kind = "function"
+convention = "thiscall"
+signature = "cISC4Lot* (void* lotManager)"
+expect = "53 56 33 DB 57 8B F1 33"
+source = "Name ours. Lot manager slot 13: up to 999 random cells (the generator at 0x00B4B398) until one has a lot. Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_GetOccupantLot"
+address = 0x0072A110
+kind = "function"
+convention = "thiscall"
+signature = "cISC4Lot* (void* lotManager, cISC4Occupant* occupant)"
+expect = "83 EC 0C 56 8B F1 8B 4C"
+source = "Name ours. Lot manager slot 14: the lot of the cell under an occupant's position (slot 8). Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_GetVertexAltitude"
+address = 0x0072A8F0
+kind = "function"
+convention = "thiscall"
+signature = "float (void* lotManager, int32_t x, int32_t z, cISC4Lot* except, bool* found)"
+expect = "8B 44 24 10 85 C0 53 55"
+source = "Name ours. Lot manager slot 17: the altitude (lot slot 16) of the first lot around a vertex with flag bit 0, else the terrain's slot 14. Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_GetAltitudeAtPosition"
+address = 0x0072A9F0
+kind = "function"
+convention = "thiscall"
+signature = "float (void* lotManager, float x, float z, bool* found)"
+expect = "51 D9 05 AC D4 B0 00 56"
+source = "Name ours. Lot manager slot 18: the altitude of the flagged lot of the position's cell, else the terrain's slot 13. Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_GetCellAltitude"
+address = 0x0072AAC0
+kind = "function"
+convention = "thiscall"
+signature = "float (void* lotManager, int32_t x, int32_t z, bool* found)"
+expect = "8B 44 24 04 56 57 8B F9"
+source = "Name ours. Lot manager slot 19: the altitude of the cell's flagged lot, else the terrain's slot 13 at the cell's centre. Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_GetVertexLimits"
+address = 0x0072AE20
+kind = "function"
+convention = "thiscall"
+signature = "void (void* lotManager, int32_t x, int32_t z, float* a, float* b)"
+expect = "83 EC 24 8B 54 24 28 53"
+source = "Name ours. Lot manager slot 26: 3.4e38 into both, 32 when a lot around the vertex is in state 2 or more. Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotFilterTest"
+address = 0x0072A080
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* filter, cSC4LotConfiguration* configuration)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The lot filter's slot 3: the configuration's slots 17 (+8) and 16 (+0xC) accept and its slot 11 byte is at most +0x10. Ours in simulators.zone.slots."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::IsStreetLike"
+address = 0x00729F90
+kind = "function"
+convention = "custom"
+signature = "uint32_t (occupant in ESI)"
+expect = "A0 91 B3 B4 00 84 C0 8B"
+source = "Name ours. The network occupant in ESI: with the flag 0x00B4B391 any of its slot 22 answers for 3, 11, 10, 0; without it (3 or 11) and neither 10 nor 0. Called four times from 0x00731F60. Detoured (naked thunk) by simulators.zone.helpers (src/core/zone_slots.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::PlaceStreet"
+address = 0x0072A0D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ZoneDeveloper* this, int32_t x0, int32_t z0, int32_t x1, int32_t z1, uint32_t flags)"
+expect = "8B 41 48 0F B6 89 99 00"
+source = "Name ours. The street tool's (+0x48) slot 7 with the tool, the byte +0x99 and -1. Only caller 0x0072A717. Ours (a plain function)."
+
+[[entry]]
+name = "SC4::RotateRectangle"
+address = 0x004BDFD0
+kind = "function"
+convention = "cdecl"
+signature = "void (int32_t facing, int32_t width, int32_t depth, const int32_t* rect, int32_t* out)"
+expect = "8B 44 24 08 8B 4C 24 0C"
+source = "Name ours. A rectangle inside a width x depth lot turned by a facing (0 to 3)."
+
+[[entry]]
+name = "SC4PtrHashSet::Resize"
+address = 0x00448250
+kind = "function"
+convention = "thiscall"
+signature = "void (void* set, uint32_t count)"
+expect = "83 EC 14 8B 44 24 18 53"
+source = "Name ours. Grows the buckets of a hash set of pointers for that many elements. Called by cSC4ZoneDeveloper's Read."
+
+[[entry]]
+name = "SC4PtrHashSet::Insert"
+address = 0x0072BA50
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* set, void* result, void* const* value)"
+expect = "8B 44 24 08 53 8B 18 55"
+source = "Name ours. insert_unique without resize of a hash set of pointers (hash: value >> 2): a 9-byte result {node, set, inserted}. Shared with the lot configuration manager (0x0048A19C and others); left the game's."
+
+[[entry]]
+name = "SC4::GetNetworkManager"
+address = 0x00602680
+kind = "function"
+convention = "cdecl"
+signature = "cISC4NetworkManager* ()"
+expect = "8B 0D EC 3C B4 00 85 C9"
+source = "Name ours. The city's (0x00B43CEC) slot 38, null without a city. cSC4ZoneDeveloper's DoMessage takes its network tools through it."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_InitThunk"
+address = 0x007348C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* lotManager)"
+expect = "83 E9 04 E9 68 F7 FF FF"
+source = "Lot manager slot 3: this - 4, a jump to Init (0x00734030). Replaced with Init by simulators.zone.init."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::LotManager_ShutdownThunk"
+address = 0x007348B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* lotManager)"
+expect = "83 E9 04 E9 E8 EC FF FF"
+source = "Lot manager slot 4: this - 4, a jump to Shutdown (0x007335A0). Replaced with Shutdown by simulators.zone.shutdown."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::InitOnce"
+address = 0x00B4B390
+kind = "data"
+source = "uint8: set by the first Init."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::PlopAllLotsName"
+address = 0x00B0D4A4
+kind = "data"
+source = "const char*: \"PlopAllLots\", the name of cheat 0x8929E68E."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::PlopAllBuildingsName"
+address = 0x00B0D4A8
+kind = "data"
+source = "const char*: \"PlopAllBuildings\", the name of cheat 0x4AB569C9."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::CellsPerMetre"
+address = 0x00B0D4AC
+kind = "data"
+source = "float 0.0625, read by the lot manager's slot 18 (0x0072A9F0)."
+
+[[entry]]
+name = "SC4CellRegion::Test"
+address = 0x00466610
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (const void* region, int32_t x, int32_t z)"
+expect = "8B 11 56 8B 74 24 08 2B"
+source = "Name ours. Whether a city cell is set in a 0x24-byte cell region: x and z less the rectangle's corner, unsigned bounds checks against +0x14 and +0x18, then the bit of the row. Generic, left the game's."
+
+[[entry]]
+name = "SC4::Fn_005F9140"
+address = 0x005F9140
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t value, uint8_t flag)"
+expect = "56 68 00 01 00 00 E8 95"
+source = "Not analysed: builds a 0x100-byte object (vtable 0x00AA56C0; value at +0xF8 and +0xFC, +0xD8 = !flag), hands it to slot 41 of what 0x00913C46 returns and releases it. The zone developer's lot-of-every-configuration cheat (0x0072C8E0) calls it with (1000, 1) after every 16th lot."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072A010"
+address = 0x0072A010
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, int32_t x, int32_t z)"
+expect = "8B 54 24 08 8B 01 68 4F"
+source = "The object part's function: ExistsNetworkOfType (slot 8) with the mask 0x1F4F. Called at the game's address by simulators.zone.cells."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072A040"
+address = 0x0072A040
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, int32_t x, int32_t z)"
+expect = "8B 54 24 08 56 8B F1 8B"
+source = "The object part's function: the zone manager's zone type of the cell (slot 12) equals +0xA0, or with +0xA0 = 0 the zone manager's slot 13 for it. Called at the game's address by simulators.zone.cells."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072AC60"
+address = 0x0072AC60
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* map, const int32_t* cell)"
+expect = "53 8B 19 8B 4B 04 85 C9"
+source = "The object part's function: find in a map keyed by a cell pair (+0xD8, +0xE4): the node, or the head for none. Called at the game's address by simulators.zone.cells."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072BAE0"
+address = 0x0072BAE0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map, void** out, void* x, void* y, const int32_t* value, void* w)"
+expect = "53 8B 5C 24 10 56 8B 74"
+source = "The object part's function: the cell map's node insertion (STLport _M_insert). Called at the game's address by simulators.zone.cells."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072BBD0"
+address = 0x0072BBD0
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* map, void** out, const int32_t* value)"
+expect = "53 55 8B 6C 24 10 8B D9"
+source = "The object part's function: the cell map's insert_unique; out is {node, bool} (8 bytes) and is returned. Called at the game's address by simulators.zone.cells."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072C050"
+address = 0x0072C050
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, int32_t x, int32_t z)"
+expect = "83 EC 08 53 8B 5C 24 14"
+source = "The object part's function: whether the cell is taken: a lot at it (lot manager slot 6; with +0x99 clear only when the cell is in the map +0xE4), or with +0x99 clear the cell in the map +0xD8. Called at the game's address by simulators.zone.cells."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072C180"
+address = 0x0072C180
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const int32_t* sides, int32_t* offset, uint8_t* rotation, uint8_t* flip)"
+expect = "51 8B 44 24 08 8B 10 56"
+source = "The object part's function: the parcel outline piece for four side values (packed into a key of the map +0xF0; key 0 when not found): the node's +0x14, +0x18 and +0x19. Called at the game's address by simulators.zone.cells."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072C200"
+address = 0x0072C200
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, int32_t x, int32_t z, uint8_t ignoreZone, uint8_t ignoreWater)"
+expect = "53 8B 5C 24 08 85 DB 56"
+source = "Name ours: the verdict on one cell for CanCreateLot (0 outside the city or the operation's region, 1 water, 2 wrong zone, 3 network, 7 taken, 8 free). Only CanCreateLot called it; our copy is a plain function of src/core/zone_cells.cpp."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072C2D0"
+address = 0x0072C2D0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* lots, int32_t x, int32_t z, int32_t width, int32_t depth, uint8_t ignoreZone, uint8_t ignoreWater, void* configuration)"
+expect = "51 8A 44 24 1C 84 C0 55"
+source = "Lot manager slot 20, CanCreateLot: the lowest cell verdict of the rectangle (8 = yes). Ours in simulators.zone.cells (src/core/zone_cells.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072C370"
+address = 0x0072C370
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* map, void** out, void* position, const int32_t* value)"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "The cell maps' insert_unique with a hint (STLport), called by the operator[] 0x0072F7D0 (0x0072F835). Ours in simulators.zone.cells (src/core/zone_cells.cpp), detoured."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072C600"
+address = 0x0072C600
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* map, void** out, void* position, const int32_t* value)"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "insert_unique with a hint of a std::map keyed by int32 (the map +0xF0; also the lot developer's texture map, 0x0075ED94 calls it too). Generic container code shared with another class, left the game's."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072C810"
+address = 0x0072C810
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* cursor, const uint32_t* value)"
+expect = "56 57 8B F9 8B 47 04 85"
+source = "Insertion through a cursor {node, list*} (the list: head, +8 count): at the end when the cursor is the head, else after the cursor's node, the cursor stepping back. 0x0072E62E calls it on what the traffic simulator's slot 22 returns. Ours in simulators.zone.cells (src/core/zone_cells.cpp), detoured."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072C860"
+address = 0x0072C860
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, const void* value)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "std::fill over lot grid columns (12-byte vectors, SC4PtrVector::Assign). Called by the column insertion 0x00733450. Ours in simulators.zone.cells (src/core/zone_cells.cpp), detoured."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072C890"
+address = 0x0072C890
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* destinationEnd)"
+expect = "8B 54 24 04 56 8B 74 24"
+source = "std::copy_backward over lot grid columns (the caller pushes two more arguments it does not read). Called by the column insertion 0x00733450. Ours in simulators.zone.cells (src/core/zone_cells.cpp), detoured."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072C8E0"
+address = 0x0072C8E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 3C 53 55 56 8B F1"
+source = "A cheat (DoMessage 0x007328D0, command 0x8929E68E registered by Init): one default lot of every lot configuration, laid out in rows across the city. Ours in simulators.zone.cells (src/core/zone_cells.cpp), detoured."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072CAE0"
+address = 0x0072CAE0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* lots, int32_t x1, int32_t z1, int32_t x2, int32_t z2)"
+expect = "51 53 56 57 6A 0C 8B F9"
+source = "Lot manager slot 25: deletes the lots of a cell rectangle (slot 7, then slot 24 for each). Ours in simulators.zone.cells (src/core/zone_cells.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072D440"
+address = 0x0072D440
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, int32_t x, int32_t z, int32_t width, int32_t depth, int32_t side)"
+expect = "83 EC 10 8B 44 24 14 53"
+source = "Fills a rectangle with lots one cell wide facing one side (runs of usable cells; single cells with a random facing for zone types 7 to 9). Ours in simulators.zone.cells (src/core/zone_cells.cpp), detoured."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072E080"
+address = 0x0072E080
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* lots, void* list, int32_t x1, int32_t z1, int32_t x2, int32_t z2, uint8_t byAnchor)"
+expect = "83 EC 3C 53 55 56 57 8B"
+source = "Lot manager slot 7: the lots of a cell rectangle into a list of references; the count. Ours in simulators.zone.cells (src/core/zone_cells.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072E2B0"
+address = 0x0072E2B0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* lots, const int32_t* rectangle, void* list, uint32_t sides)"
+expect = "83 EC 60 8B 44 24 64 53"
+source = "Lot manager slot 10: the lots in the ring of cells around a rectangle (sides: 1 north, 2 east, 4 south, 8 west) appended to a list; the number added. Ours in simulators.zone.cells (src/core/zone_cells.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Random"
+address = 0x00B4B398
+kind = "data"
+source = "Name ours. The class's random generator (drawn through SC4Random::BelowLcg): the first facing tried for a lot (0x0072D200) and the lot manager's random lot (slot 13)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::CreateLot"
+address = 0x0072E520
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* lotManager, int32_t x, int32_t z, int32_t width, int32_t depth, uint32_t facing, cISC4Lot** lot)"
+expect = "83 EC 24 53 55 56 57 68"
+source = "Name ours. Lot manager slot 23 (`this` = object + 4): a new cSC4Lot (0x8C bytes from its pool 0x006BF430, constructor 0x006C1E50) on a rectangle of cells, initialised, state 1, entered in the lot grid and the lot list (at the traffic simulator's insertion point, slot 22, when it gives one), then the lot developer's slot 43 (the empty lot's base texture). *lot holds one reference, the manager another. Ours in simulators.zone.parcels (src/core/zone_parcels.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::DeleteLot"
+address = 0x0072F8E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* lotManager, cISC4Lot* lot)"
+expect = "83 EC 48 53 8B 5C 24 50"
+source = "Name ours. Lot manager slot 24 (`this` = object + 4): removes the lot's zot prop and base texture occupant, clears its cells in the grid, takes it out of the lot list (0x0072B990) and its business unit, shuts it down and releases it. With +0x99 clear (HighlightParcels) it only notes {lot x, lot z, facing} for each of its cells in the map +0xE4 (0x0072F7D0). Ours in simulators.zone.parcels."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::ExistsNetworkOfType"
+address = 0x0072FE10
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ZoneDeveloper* this, int32_t x, int32_t z, uint32_t typeMask)"
+expect = "53 8B 5C 24 10 55 8B 6C"
+source = "Primary slot 8: whether the cell has a network occupant accepting the type mask (0x0072FCA0) or, with +0x99 clear, a network planned by the street tool +0x48 (mask bit 3) or the tool +0x44 (bit 11; their slot 9). Ours in simulators.zone.parcels."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072FF80"
+address = 0x0072FF80
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ZoneDeveloper* this)"
+expect = "83 EC 0C 53 56 57 33 DB"
+source = "Fills the map +0xF0 (0x0072F850) with 47 entries: for each combination of connections on a cell's four sides (a hex digit per side, 0-2) the network piece (0x2000-0x3000), its rotation and whether it is mirrored. Only caller Init (0x00734266). Detoured by simulators.zone.parcels."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072B990"
+address = 0x0072B990
+kind = "function"
+convention = "thiscall"
+signature = "void (void* lotList, cISC4Lot* const* lot)"
+expect = "56 57 8B F9 8B 0F 8B 01"
+source = "Not analysed here (the object part's range): removes the first node holding the lot from the lot list +0x60 (`this` is the list: head, iterator list +4, size +8), moving the live iterators that stand on it. Called at the game's address by simulators.zone.parcels (DeleteLot)."
+
+[[entry]]
+name = "cSC4Lot::Allocate"
+address = 0x006BF430
+kind = "function"
+convention = "cdecl"
+signature = "void* (size_t size)"
+expect = "A1 B0 D3 B0 00 8B 40 08"
+source = "Name ours. A lot's memory from the pool at 0x00B0D3AC (the size argument is not read; lots are 0x8C bytes). Called by cSC4ZoneDeveloper's CreateLot (0x0072E530)."
+
+[[entry]]
+name = "cSC4Lot::cSC4Lot"
+address = 0x006C1E50
+kind = "function"
+convention = "thiscall"
+signature = "cSC4Lot* (cSC4Lot* this, int32_t x, int32_t z, int32_t width, int32_t depth, uint32_t facing)"
+expect = "53 56 8B F1 57 8D 7E 08"
+source = "Name ours. The lot's constructor with its rectangle and facing (vtables 0x00AB19B0, 0x00AB1994, 0x00AB1930, 0x00AB1800); ret 0x14. Called by cSC4ZoneDeveloper's CreateLot (0x0072E557)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_007306C0"
+address = 0x007306C0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* lotManager, int32_t x0, int32_t z0, int32_t x1, int32_t z1, int32_t facing, cSC4LotConfiguration* configuration)"
+expect = "83 EC 2C 53 55 56 8B 74"
+source = "Lot manager slot 21 (`this` = object + 4): whether a lot configuration fits a rectangle of cells with a facing; 8 = yes, lower values name the worst obstacle (0 outside the city or the operation's region, 1 water, 3 a network or a zone of type 15, 4 too steep, 7 a zone of type 10-14). Ours in simulators.zone.streets (src/core/zone_streets.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_00730A80"
+address = 0x00730A80
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* lotManager, int32_t x, int32_t z, int32_t width, int32_t depth, int32_t facing, cISC4Lot** lot, int32_t a7, int32_t a8, int32_t a9)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Lot manager slot 22 (`this` = object + 4): creates a lot on a rectangle when CanCreateLot (slot 20) says 8: with +0x99 set through slot 23 (CreateLot) or, for facing -1, 0x0072D200; with +0x99 clear it only records the cells in the map +0xD8. Ours in simulators.zone.streets."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_00731F60"
+address = 0x00731F60
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ZoneDeveloper* this, cISC4Occupant* occupant)"
+expect = "83 EC 30 56 8B 74 24 38"
+source = "A new road-like network occupant (types 0, 10, 3, 11): each neighbouring street-like cell whose only connection points away gets joined to it with the occupant's own network tool (slot 7). Called by DoMessage (0x00732BB4, message 0x99EF1142 data 3 = 1 or 2). Detoured by simulators.zone.streets."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_00732450"
+address = 0x00732450
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ZoneDeveloper* this, cISC4Occupant* occupant)"
+expect = "83 EC 14 53 56 8B 74 24"
+source = "A new network occupant beside a straight rail: a street or type 11 network on the rail's far side is drawn across the rail to the occupant's cell. Called by DoMessage (0x00732B9F, data 3 = 3). Detoured by simulators.zone.streets."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::NetworkTypeMasks"
+address = 0x00AB3680
+kind = "data"
+expect = "01 00 00 00 02 00 00 00"
+source = "uint32[13]: 1 << network type, read by 0x007306C0, 0x00730BA0, 0x00730D30."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::AnyRoadIsStreetLike"
+address = 0x00B4B391
+kind = "data"
+source = "Name ours. uint8: when set, 0x00729F90 (street-like test of a network occupant) and 0x00731F60 also accept types 0 and 10."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072A2A0"
+address = 0x0072A2A0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ZoneDeveloper* this, int32_t x0, int32_t z0, int32_t x1, int32_t z1, uint32_t whole)"
+expect = "83 EC 10 8B 44 24 1C 53"
+source = "The object part's function, not analysed here: lays a street between two cells with the street tool (+0x48 slot 7). Called at the game's address by simulators.zone.streets (0x00730BA0 with 0, 0x00730D30 with 1)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072AD00"
+address = 0x0072AD00
+kind = "function"
+convention = "cdecl"
+signature = "void (cSC4LotConfiguration* configuration, const void* object, const int32_t* rect, int32_t facing, int32_t* x, int32_t* z, uint32_t* flagsA, uint32_t* flagsB, uint32_t* type)"
+expect = "83 EC 2C 8B 4C 24 30 8B"
+source = "The object part's function, not analysed here: the cell of a lot configuration's network object for a lot rectangle and facing, the object's network type and its two connection flag dwords turned by the facing. Called at the game's address by simulators.zone.streets (0x007306C0)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072B480"
+address = 0x0072B480
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4ZoneDeveloper* this, int32_t x0, int32_t z0, int32_t x1, int32_t z1, int32_t facing, cSC4LotConfiguration* configuration)"
+expect = "81 EC 88 00 00 00 53 56"
+source = "The object part's function, not analysed here: the first check of a configuration whose slot 14 is set (8 = fits). Called at the game's address by simulators.zone.streets (0x007306C0)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072F7D0"
+address = 0x0072F7D0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t* (void* map, const int32_t* cell)"
+expect = "83 EC 14 56 8B 74 24 1C"
+source = "zone_parcels.cpp's function, not analysed here: operator[] of the cell maps (+0xD8): the value (three dwords at node + 0x18) for a cell pair, inserted when missing. Called at the game's address by simulators.zone.streets (0x00730A80)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072FAB0"
+address = 0x0072FAB0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ZoneDeveloper* this, int32_t x, int32_t z, int32_t* sideClass, int32_t* score)"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "zone_parcels.cpp's function, not analysed here: adds a cell's network (or lot, water, occupants) to a side's class and score. Called at the game's address by simulators.zone.streets (0x00731C80)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072FCA0"
+address = 0x0072FCA0
+kind = "function"
+convention = "thiscall"
+signature = "cISC4NetworkOccupant* (cSC4ZoneDeveloper* this, int32_t x, int32_t z, uint32_t typeMask)"
+expect = "83 EC 14 53 56 57 33 DB"
+source = "zone_parcels.cpp's function, not analysed here: the network occupant (interface 0xA821EF94, not referenced) among a cell's occupants that has any of the mask's type flags, or null. Called at the game's address by simulators.zone.streets."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072FE80"
+address = 0x0072FE80
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ZoneDeveloper* this, int32_t x, int32_t z, uint32_t typeMask, int32_t side, int32_t type)"
+expect = "8B 44 24 10 53 55 56 83"
+source = "zone_parcels.cpp's function, not analysed here: whether the cell's network of the mask connects on a side (side s is direction (s + 1) & 3) with a network type; in a preview (+0x99 clear) the street and type 11 tools' uncommitted cells count too. Called at the game's address by simulators.zone.streets (0x00730BA0, 0x00730D30)."
+
+[[entry]]
+name = "SC4::ZoneTypeDensity"
+address = 0x00458960
+kind = "function"
+convention = "cdecl"
+signature = "int32_t (int32_t zoneType)"
+expect = "8B 44 24 04 48 83 F8 08"
+source = "Name ours. 1, 2, 3 for the zone types 1-3 and 4-6 (low, medium, high density), 3 for 7-9, else 0 (byte table 0x0045899C). ChooseLotSizes (0x00732BF0) takes the street spacing from it."
+
+[[entry]]
+name = "SC4LotColumns::Resize"
+address = 0x005D1290
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, uint32_t count, const void* value)"
+expect = "53 8B 59 04 56 8B 74 24"
+source = "Name ours. resize(count, value) of a vector of 12-byte vectors: erases the tail (0x004A0350) or fill-inserts (0x00733450). Called by cSC4ZoneDeveloper's 0x00734000 and Read."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072AF30"
+address = 0x0072AF30
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void** region)"
+expect = "83 EC 28 8B 44 24 2C 53"
+source = "Not analysed here (the object part's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072B180"
+address = 0x0072B180
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* region)"
+expect = "83 EC 4C 53 8B 5C 24 54"
+source = "Not analysed here (the object part's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072BA10"
+address = 0x0072BA10
+kind = "function"
+convention = "stdcall"
+signature = "void** (void** out, void* where, void* const* value)"
+expect = "6A 0C E8 3D 15 1E 00 8D"
+source = "Not analysed here (the object part's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072C0E0"
+address = 0x0072C0E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 57 8B F9 8B 87 DC"
+source = "Not analysed here (the object part's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072CB90"
+address = 0x0072CB90
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* region)"
+expect = "83 EC 18 55 56 6A 24 89"
+source = "Not analysed here (zone_cells.cpp's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072CDA0"
+address = 0x0072CDA0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* region, int32_t column, int32_t row)"
+expect = "83 EC 08 8B 4C 24 14 53"
+source = "Not analysed here (zone_cells.cpp's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072D200"
+address = 0x0072D200
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, int32_t x, int32_t z, int32_t width, int32_t depth, void* orientations, uint32_t* value)"
+expect = "51 8B 44 24 18 8B 00 53"
+source = "Not analysed here (zone_cells.cpp's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072DB60"
+address = 0x0072DB60
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* region)"
+expect = "83 EC 6C 53 55 8B E9 8B"
+source = "Not analysed here (zone_cells.cpp's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072E6A0"
+address = 0x0072E6A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* region, uint32_t flag)"
+expect = "83 EC 5C 56 57 6A 2C 8B"
+source = "Not analysed here (zone_parcels.cpp's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072E9B0"
+address = 0x0072E9B0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t value)"
+expect = "83 EC 10 8B 81 CC 00 00"
+source = "Not analysed here (zone_parcels.cpp's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072EC60"
+address = 0x0072EC60
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* region, void* pieces)"
+expect = "83 EC 10 8B 44 24 14 53"
+source = "Not analysed here (zone_parcels.cpp's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_0072EDD0"
+address = 0x0072EDD0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "81 EC AC 00 00 00 53 55"
+source = "Not analysed here (zone_parcels.cpp's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_00730BA0"
+address = 0x00730BA0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* region, uint32_t networkType)"
+expect = "83 EC 0C 8B 44 24 14 53"
+source = "Not analysed here (zone_streets.cpp's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_00730D30"
+address = 0x00730D30
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* region, uint32_t networkType)"
+expect = "83 EC 20 8B 54 24 24 8B"
+source = "Not analysed here (zone_streets.cpp's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_00731C80"
+address = 0x00731C80
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 10 56 8B F1 57 8B"
+source = "Not analysed here (zone_streets.cpp's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Fn_00732830"
+address = 0x00732830
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map, void* node)"
+expect = "51 55 8B 6C 24 0C 85 ED"
+source = "Not analysed here (zone_streets.cpp's function); called at the game's address by simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::ChooseLotSizes"
+address = 0x00732BF0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const int32_t* region)"
+expect = "83 EC 78 53 55 8B D9 8B"
+source = "Name ours. Picks the lot sizes of a parcellization: the growth developer (residential 0x1010-0x1030, commercial 0x3110-0x3330) with the highest desirability estimate at the region's centre (ties: the higher demand), the lot configurations fitting it (lot configuration manager slot 9 with the filter 0x00AB36FC), the one whose capacity per tract is nearest the demand: its size to +0x84/+0x88, the depth range to +0x8C/+0x90, the street spacing to +0x94. Only caller 0x00733959. Ours (a plain function) in simulators.zone.parcellize (src/core/zone_parcellize.cpp)."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::Parcellize"
+address = 0x00733770
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* region, void** highlight)"
+expect = "83 EC 18 53 55 56 57 8B"
+source = "Name ours. The parcellization of a cell region: with the option +0x9C one lot of the whole region (0x0072D200), else the region is cut into pieces (0x0072CB90, 0x0072AF30, streets 0x00730BA0/0x00730D30, 0x0072EC60) and each piece into lots (0x0072EDD0, or 0x0072E9B0); for HighlightParcels only the pieces at or beside the cell +0xA8, the others cleared from the region returned through `highlight`. Message 0x49D968C4 (data 1 = 1, then 0) around the work. Callers HighlightParcels and DoParcellization. Ours (a plain function) in simulators.zone.parcellize."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::HighlightParcels"
+address = 0x00733F30
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* region, uint32_t zoneType, const int32_t* cell, void** highlight)"
+expect = "8B 44 24 08 56 8B F1 8B"
+source = "Primary slot 5 (ret 0x10): for an RCI zone type (zone manager slot 13) the maps cleared (0x0072C0E0), Parcellize without placing streets (+0x99 = 0 for the call) and 0x0072DB60. Ours in simulators.zone.parcellize."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::DoParcellization"
+address = 0x00733FA0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* region, uint32_t zoneType, uint32_t flag)"
+expect = "8B 44 24 08 56 8B F1 8B"
+source = "Primary slot 6 (ret 0xC): for an RCI zone type 0x0072C0E0 and Parcellize, else 0x0072E6A0 (region, flag). Ours in simulators.zone.parcellize."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::ResizeLotGrid"
+address = 0x00734000
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, uint32_t count)"
+expect = "83 EC 0C 8B 54 24 10 33"
+source = "Name ours. resize(count) of the lot grid +0x54 with empty columns (0x005D1290). Only caller Init (0x00734199). Detoured by simulators.zone.parcellize."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::EraseTree78Inner"
+address = 0x00734580
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map, void* node)"
+expect = "51 55 57 8B 7C 24 10 33"
+source = "Name ours. Erases a subtree of the middle maps of +0x78 (nodes 0x20 bytes, the innermost map at +0x14 erased by 0x00732830). Only callers itself and 0x00734600. Ours (a plain function) in simulators.zone.parcellize."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::EraseTree78"
+address = 0x00734600
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map, void* node)"
+expect = "51 55 57 8B 7C 24 10 33"
+source = "Name ours. Erases a subtree of the map +0x78 (each node's map at +0x14 erased by 0x00734580). Callers itself and the destructor (0x0073476B). Detoured by simulators.zone.parcellize."
+
+[[entry]]
+name = "cSC4ZoneDeveloper::NewLotIterator"
+address = 0x00734860
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* lotList)"
+expect = "83 EC 08 56 6A 08 8B F1"
+source = "Name ours. Lot manager slot 15 behind the thunk 0x00734850 (`this` is the lot list +0x60): an 8-byte iterator {first node, list} from operator new, appended to the iterator list +0x64 (0x0072BA10). Detoured by simulators.zone.parcellize."

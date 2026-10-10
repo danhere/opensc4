@@ -1,0 +1,600 @@
+# The prop developer (cSC4PropDeveloper, class ID 0x89C48F47) and its wealth requester (cSC4WealthRequester, 0x89C49986): code 0x006F0D70 to 0x006F5570 (src/core/prop_object.cpp, prop_props.cpp; docs/prop.md).
+
+[[entry]]
+name = "cSC4PropDeveloper::vftable"
+address = 0x00AB29F8
+kind = "vtable"
+expect = "80 0D 6F 00 A0 7B 4F 00"
+source = "The primary cISC4PropDeveloper vtable (12 slots): 0 QueryInterface 0x006F0D80, 1 AddRef 0x004F7BA0 (shared, count at +0x10), 2 Release 0x006F0EA0, 3 Init 0x006F1F30, 4 Shutdown 0x006F2C60, 5 AddPropRequester 0x006F21C0, 6 RemovePropRequester 0x006F1080, 7 UpdateAllOptionalProps 0x006F4DB0 (the props part), 8 ShowSignsAndLabels 0x006F1210, 9 ToggleSignsAndLabels 0x006F2BF0, 10 AreSignsAndLabelsVisible 0x006F2C10, 11 the deleting destructor 0x006F35B0. Slots 3-6 and 8-10 replaced by simulators.prop.sim (src/core/prop_object.cpp)."
+
+[[entry]]
+name = "cSC4PropDeveloper::vftable_4"
+address = 0x00AB29E8
+kind = "vtable"
+expect = "20 2C 6F 00 30 D2 68 00"
+source = "Name ours. The cIGZMessageTarget2 part at +0x4 (4 slots): QueryInterface thunk 0x006F2C20, AddRef thunk 0x0068D230 (shared), Release thunk 0x006F2C40, DoMessage 0x006F4E90 (the props part)."
+
+[[entry]]
+name = "cSC4PropDeveloper::vftable_8"
+address = 0x00AB29D0
+kind = "vtable"
+expect = "30 2C 6F 00 50 D2 68 00"
+source = "Name ours. The cIGZSerializable part at +0x8 (6 slots): QueryInterface thunk 0x006F2C30, AddRef thunk 0x0068D250 (shared), Release thunk 0x006F2C50, Write 0x006F1930, Read 0x006F3620 (the props part), GetGZCLSID 0x006F0D70. Slot 3 replaced by simulators.prop.save (src/core/prop_object.cpp)."
+
+[[entry]]
+name = "cSC4WealthRequester::vftable"
+address = 0x00AB29B0
+kind = "vtable"
+expect = "30 0E 6F 00 00 DF 4B 00"
+source = "The primary cISC4PropRequester vtable of the wealth requester (7 slots): QueryInterface 0x006F0E30, AddRef 0x004BDF00 (shared, count at +0x8), Release 0x006F1040, slot 3 0x006F0E10, GetType 0x006F0E20, slot 5 0x00648F00 (shared, returns true), ChooseProp 0x006F1CB0. Slots 0, 2-4 and 6 replaced by simulators.prop.requester (src/core/prop_object.cpp)."
+
+[[entry]]
+name = "cSC4WealthRequester::vftable_4"
+address = 0x00AB2998
+kind = "vtable"
+expect = "90 0E 6F 00 00 05 5C 00"
+source = "Name ours. The wealth requester's cIGZSerializable part at +0x4 (6 slots): QueryInterface thunk 0x006F0E90, AddRef thunk 0x005C0500 (shared), Release thunk 0x006F1070, Write and Read 0x004FC900 (shared stub, returns true: the record is only its header), GetGZCLSID 0x006F0E00. Slots 0, 2 and 5 replaced by simulators.prop.requester."
+
+[[entry]]
+name = "cSC4PropDeveloper::GetGZCLSID"
+address = 0x006F0D70
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 47 8F C4 89 C3 CC CC"
+source = "Returns the class ID 0x89C48F47 (+8 slot 5; also called by the class registration at 0x00460417). Ours in simulators.prop.object (src/core/prop_object.cpp)."
+
+[[entry]]
+name = "cSC4PropDeveloper::QueryInterface"
+address = 0x006F0D80
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PropDeveloper* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D D4 A3 FD"
+source = "IIDs 0x00000001 and 0xE9A1F4B6 (cISC4PropDeveloper): the object; 0x452294AA: +0x4; 0xE4FDA3D4: +0x8; AddRef through slot 1. Ours in simulators.prop.object."
+
+[[entry]]
+name = "cSC4WealthRequester::GetGZCLSID"
+address = 0x006F0E00
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 86 99 C4 89 C3 CC CC"
+source = "Returns the class ID 0x89C49986 (+4 slot 5; also called by the class registration at 0x00460429). Ours in simulators.prop.requester."
+
+[[entry]]
+name = "cSC4WealthRequester::Slot3"
+address = 0x006F0E10
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4WealthRequester* this, uint32_t unused)"
+expect = "B8 0A 00 00 00 C2 04 00"
+source = "Name ours. Requester slot 3: returns 10 whatever its argument. Ours in simulators.prop.requester."
+
+[[entry]]
+name = "cSC4WealthRequester::GetType"
+address = 0x006F0E20
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4WealthRequester* this)"
+expect = "B8 95 E9 A1 49 C3 CC CC"
+source = "Name ours. Requester slot 4: returns 0x49A1E995, the requester type cSC4PropDeveloper::PlaceProp (0x006F1620) compares with +0x10 of a prop's record. Ours in simulators.prop.requester."
+
+[[entry]]
+name = "cSC4WealthRequester::QueryInterface"
+address = 0x006F0E30
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4WealthRequester* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "IIDs 0x00000001 and 0x89C498BE (cISC4PropRequester): the object; 0xE4FDA3D4: +0x4; AddRef through slot 1. Ours in simulators.prop.requester."
+
+[[entry]]
+name = "cSC4PropDeveloper::Release"
+address = 0x006F0EA0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4PropDeveloper* this)"
+expect = "8B 41 10 83 F8 01 76 05"
+source = "Count at +0x10 (unsigned compare): above 1 decremented and returned; else the deleting destructor (slot 11) with 1 and 0 returned. No Shutdown call. Ours in simulators.prop.object."
+
+[[entry]]
+name = "cSC4PropDeveloper::StepTimedProps"
+address = 0x006F0EC0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, uint32_t milliseconds)"
+expect = "8B 44 24 04 83 EC 1C 56"
+source = "Name ours. Called by DoMessage (0x006F51A4, message 0x86AD10EE) with data 2 / 1000: adds to +0xA38; above 200 the next +0xA34 props of the vector +0xA20 from index +0xA2C are switched (their slot 11) on when +0xA30 is 1 and the service 0x00B43DA0 (slot 37) says so at their cell. Ours in simulators.prop.handlers, by a detour (src/core/prop_object.cpp)."
+
+[[entry]]
+name = "cSC4WealthRequester::Release"
+address = 0x006F1040
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4WealthRequester* this)"
+expect = "8B 41 08 83 F8 01 76 05"
+source = "Count at +0x8 (unsigned compare): above 1 decremented and returned; else the vtables set and the 12 bytes freed (operator delete), 0 returned. Ours in simulators.prop.requester."
+
+[[entry]]
+name = "cSC4PropDeveloper::RemovePropRequester"
+address = 0x006F1080
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, cISC4PropRequester* requester)"
+expect = "56 8B F1 8B 86 04 0A 00"
+source = "Slot 6: the first match in the vector +0xA04 erased and released. Ours in simulators.prop.sim."
+
+[[entry]]
+name = "cSC4PropDeveloper::SetTimedProps"
+address = 0x006F10E0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, bool on)"
+expect = "83 EC 1C 55 57 8B F9 8B"
+source = "Name ours. Called by DoMessage (0x006F5049, 0x006F505B, 0x006F5099, 0x006F50C7; messages 0x26D31EC1 and 0x44778234): every prop of the vector +0xA20 switched (slot 11) on or off at once, null entries erased; +0xA2C and +0xA30 cleared. Ours in simulators.prop.handlers, by a detour."
+
+[[entry]]
+name = "cSC4PropDeveloper::ShowSignsAndLabels"
+address = 0x006F1210
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, bool show)"
+expect = "8A 44 24 04 3A 81 68 0A"
+source = "Slot 8: when +0xA68 changes, every occupant of the list +0xA6C gets slot 29 (show) or 31 (hide) of its slot 3 object with 2. Ours in simulators.prop.sim."
+
+[[entry]]
+name = "cSC4PropDeveloper::SettleSigns"
+address = 0x006F1270
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, void* unused)"
+expect = "83 EC 18 A1 0C 3D B4 00"
+source = "Name ours. Called by DoMessage (0x006F5104; messages 0x278E6003 and 0x678E6E3A): each occupant of type 0xAB72FBB3 in the list +0xA6C is moved to the higher of the terrain's slots 30 and 13 at its place when it is more than 0.01 off, and the network service 0x00B43D0C told (slot 24). Ours in simulators.prop.handlers, by a detour."
+
+[[entry]]
+name = "cSC4PropDeveloper::OnNetworkOccupantRemoved"
+address = 0x006F1360
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, void* occupant)"
+expect = "83 EC 30 53 8B 1D EC 3C"
+source = "Name ours. Called by DoMessage (0x006F5228; message 0x99EF1143 with data 3 = 0xC772BF98): the occupants of type 0xCB79919B in the list +0xA6C standing in the removed occupant's cell (its slot 11; the city's slot 95 gives a position's cell) are handed to the service 0x00B43D10's slot 29. Ours in simulators.prop.handlers, by a detour."
+
+[[entry]]
+name = "cSC4PropDeveloper::ListPopBack"
+address = 0x006F1430
+kind = "function"
+convention = "thiscall"
+signature = "void (std::list<void*>* this)"
+expect = "8B 01 8B 40 04 8B 08 8B"
+source = "Name ours. pop_back of a list of pointers (12-byte nodes). Only called by DoMessage (0x006F5017). Ours in simulators.prop.containers, by a detour."
+
+[[entry]]
+name = "cSC4PropDeveloper::BitVectorReserve"
+address = 0x006F1450
+kind = "function"
+convention = "thiscall"
+signature = "void (std::vector<bool>* this, uint32_t bits)"
+expect = "83 EC 08 53 56 8B F1 8B"
+source = "Name ours. reserve() of a bit vector (start word and bit, end word and bit, end of storage). Only called by 0x006F4080 (0x006F43D2, the props part). Ours in simulators.prop.containers, by a detour."
+
+[[entry]]
+name = "cSC4WealthRequester::Create"
+address = 0x006F1500
+kind = "function"
+convention = "cdecl"
+signature = "cSC4WealthRequester* ()"
+expect = "6A 0C E8 D9 40 EF FF 83"
+source = "The class factory of 0x89C49986 (registered at 0x00460424): 12 bytes from operator new, the two vtables, count 0. Ours in simulators.prop.requester, by a detour (it is only reached through the registration)."
+
+[[entry]]
+name = "cSC4PropDeveloper::ItemListInsertRange"
+address = 0x006F15C0
+kind = "function"
+convention = "thiscall"
+signature = "void (std::list<Item16>* this, Node* where, Node* first, Node* last, void* dummy)"
+expect = "53 8B 5C 24 10 56 8B 74"
+source = "Name ours. Inserts copies of the 16-byte values of [first, last) before `where` (0x18-byte nodes from SC4::stl_allocate). Called inside the class only (0x006F1E8F, 0x006F2315). Ours as a plain function."
+
+[[entry]]
+name = "cSC4PropDeveloper::PlaceProp"
+address = 0x006F1620
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PropDeveloper* this, Item16 const* item, uint32_t requester)"
+expect = "8B 44 24 04 8B 50 08 83"
+source = "Name ours. Called by 0x006F4080 (0x006F4C52, the props part): the candidates of the item's prop slot that belong to the requester's type, one chosen by the requester or at random (generator +0x38), placed on the lot or the network lot of the item's cell and tagged with property 0x89A1C16C = the requester's index. Ours in simulators.prop.handlers, by a detour."
+
+[[entry]]
+name = "cSC4PropDeveloper::Write"
+address = 0x006F1930
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "+8 slot 3 (this = object + 8): version 5; layout in tools/re/save_schemas/prop.py. Ours in simulators.prop.save."
+
+[[entry]]
+name = "cSC4WealthRequester::ChooseProp"
+address = 0x006F1CB0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4WealthRequester* this, std::vector<uint32_t> const* candidates, int32_t x, int32_t z)"
+expect = "8B 0D 08 3D B4 00 8B 01"
+source = "Name ours. Requester slot 6: the wealth of the lot at the cell (2 for zone types 11, 12 and 15; the network lot manager's slot 10 without a lot), the candidates whose record (service 0x00B43D10 slot 13) has that wealth at +0x14, one of them drawn from the static generator 0x00B4A5C0; 0 when none. Ours in simulators.prop.requester."
+
+[[entry]]
+name = "cSC4PropDeveloper::ItemListAssign"
+address = 0x006F1E10
+kind = "function"
+convention = "thiscall"
+signature = "std::list<Item16>* (std::list<Item16>* this, std::list<Item16> const* other)"
+expect = "53 55 56 8B F1 8B 4C 24"
+source = "Name ours. operator= of a list of 16-byte items. Called inside the class only. Ours as a plain function."
+
+[[entry]]
+name = "SC4StdList::DestroyListRange"
+address = 0x006F1EA0
+kind = "function"
+convention = "cdecl"
+signature = "void (std::list<T>* first, std::list<T>* last, void* dummy)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. Destroys the lists of [first, last): nodes and sentinels freed (SC4::Free). Generic: also called from 0x0051A24A, 0x0051A2E1, 0x0051AC39, 0x0051B386 and the props part (0x006F4D8B); left the game's."
+
+[[entry]]
+name = "cSC4PropDeveloper::ItemListCopy"
+address = 0x006F1EF0
+kind = "function"
+convention = "cdecl"
+signature = "std::list<Item16>* (std::list<Item16>* first, std::list<Item16>* last, std::list<Item16>* dest, void* dummy, uint32_t zero)"
+expect = "8B 44 24 08 57 8B 7C 24"
+source = "Name ours. copy() of lists by assignment; the end of the copies. Called by 0x006F2A20 only. Ours as a plain function."
+
+[[entry]]
+name = "cSC4PropDeveloper::Init"
+address = 0x006F1F30
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PropDeveloper* this)"
+expect = "83 EC 14 53 56 8B F1 8A"
+source = "Slot 3: services taken (+0xA10 the lot manager, +0xA14 0x00B43D10, +0xA1C the city's slot 42, +0xA18 0x00B43DA0), the wealth requester added once (+0xA00), the cell iterator +0x18 set to the city's tracts when the state byte +0x14 is 0 (then 1), registered with the simulator service (10, 4), 13 messages and the service 0x86AD10EC (0xC0). Ours in simulators.prop.sim."
+
+[[entry]]
+name = "cSC4PropDeveloper::AddPropRequester"
+address = 0x006F21C0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, cISC4PropRequester* requester)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Slot 5: referenced and appended to the vector +0xA04. Ours in simulators.prop.sim."
+
+[[entry]]
+name = "cSC4PropDeveloper::KeyListPairConstruct"
+address = 0x006F2220
+kind = "function"
+convention = "thiscall"
+signature = "Pair* (Pair* this, uint32_t const* key, std::list<void*> const* list)"
+expect = "8B 44 24 04 53 56 8B F1"
+source = "Name ours. pair<uint32_t, list<pointer>> from a key and a copy of a list (SC4StdList::InsertRangeUint32). Only called by 0x006F3B70 (0x006F3D77, the props part). Ours in simulators.prop.containers, by a detour."
+
+[[entry]]
+name = "cSC4PropDeveloper::ItemListFill"
+address = 0x006F2270
+kind = "function"
+convention = "cdecl"
+signature = "void (std::list<Item16>* first, std::list<Item16>* last, std::list<Item16> const* value)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. fill() of lists by assignment. Called by 0x006F3330 only. Ours as a plain function."
+
+[[entry]]
+name = "cSC4PropDeveloper::ItemListFillN"
+address = 0x006F22A0
+kind = "function"
+convention = "cdecl"
+signature = "std::list<Item16>* (std::list<Item16>* first, uint32_t count, std::list<Item16> const* value)"
+expect = "57 8B 7C 24 0C 85 FF 76"
+source = "Name ours. fill_n() of lists by assignment; the end. Called by 0x006F3330 only. Ours as a plain function."
+
+[[entry]]
+name = "cSC4PropDeveloper::ItemListUninitializedFillN"
+address = 0x006F22D0
+kind = "function"
+convention = "cdecl"
+signature = "std::list<Item16>* (std::list<Item16>* first, uint32_t count, std::list<Item16> const* value, void* dummy)"
+expect = "8B 44 24 08 85 C0 53 55"
+source = "Name ours. uninitialized_fill_n() of lists: each a new sentinel (0x18 bytes) and copies of the value's items; the end. Called by 0x006F3330 only. Ours as a plain function."
+
+[[entry]]
+name = "cSC4PropDeveloper::UpdateLotOptionalProps"
+address = 0x006F2330
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, cISC4Lot* lot)"
+expect = "83 EC 10 53 55 57 8B 7C"
+source = "Name ours. Called by DoMessage (0x006F54D3; message 0xE8BDA2E7): the props of the lot (service 0x00B43D10 slot 24) whose slot of the lot's configuration (lot slot 9, its slot 23: 0x34-byte objects, ID at +0x24) has bit 0 of byte +1 set are handed to the service's slot 29. Ours in simulators.prop.handlers, by a detour."
+
+[[entry]]
+name = "cSC4PropDeveloper::UpdatePropsInRect"
+address = 0x006F2480
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, int32_t const* rect)"
+expect = "83 EC 28 53 55 8B E9 8B"
+source = "Name ours. Called by DoMessage (0x006F52A7; message 0x8A07AE00, rect = data 1 to 4): the props in the cell rectangle (service slot 30) with property 0x49C9C93C = 1 switched to what the service 0x00B43DA0 says at their cell; the occupants of the list +0xA64 in the rectangle told the same (their slot 21 with 8). Ours in simulators.prop.handlers, by a detour."
+
+[[entry]]
+name = "cSC4PropDeveloper::UpdateLotConditionProps"
+address = 0x006F2790
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, cISC4Lot* lot)"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "Name ours. Called by DoMessage (0x006F5426; message 0xCA5E5027): the props of the lot with property 0x6A5E0727 switched on when the property differs from the lot's slot 33, else off. Ours in simulators.prop.handlers, by a detour."
+
+[[entry]]
+name = "SC4KeyListTable::Erase"
+address = 0x006F28F0
+kind = "function"
+convention = "thiscall"
+signature = "void (Hashtable* this, Iterator const* where)"
+expect = "8B 44 24 04 53 8B D9 8B"
+source = "Name ours. erase(iterator) of a hash table of pair<uint32_t, list>: the node unlinked, its list destroyed (SC4PairList::Destroy), the count decremented. Generic: also called from 0x0051A4D1, 0x0051A4ED, 0x0051A67E, 0x0051A6D4; left the game's."
+
+[[entry]]
+name = "SC4KeyListTable::Clear"
+address = 0x006F2970
+kind = "function"
+convention = "thiscall"
+signature = "void (Hashtable* this)"
+expect = "51 55 8B E9 8B 4D 08 57"
+source = "Name ours. clear() of a hash table of pair<uint32_t, list>. Generic: also called from 0x0051A2A5, 0x0051A2BF, 0x0051A7BD, 0x0051AD10; left the game's."
+
+[[entry]]
+name = "cSC4PropDeveloper::ItemListVectorErase"
+address = 0x006F2A20
+kind = "function"
+convention = "thiscall"
+signature = "std::list<Item16>* (std::vector<std::list<Item16>>* this, std::list<Item16>* first, std::list<Item16>* last)"
+expect = "8B 54 24 08 53 8B 5C 24"
+source = "Name ours. erase(first, last) of a vector of lists. Called by 0x006F3330 only. Ours as a plain function."
+
+[[entry]]
+name = "cSC4PropDeveloper::KeyListTableEraseAt"
+address = 0x006F2A60
+kind = "function"
+convention = "thiscall"
+signature = "void (Hashtable* this, Node* node, Hashtable* table)"
+expect = "83 EC 08 8B 44 24 0C 8B"
+source = "Name ours. erase of an iterator passed by value (SC4KeyListTable::Erase). Called by OnPropRemoved (0x006F319A) only. Ours as a plain function."
+
+[[entry]]
+name = "SC4KeyListTable::InsertUnique"
+address = 0x006F2A90
+kind = "function"
+convention = "thiscall"
+signature = "void (Hashtable* this, InsertResult* out, Pair const* value)"
+expect = "51 53 55 8B 6C 24 14 8B"
+source = "Name ours. insert_unique without a resize of a hash table of pair<uint32_t, list<pointer>>: out = {node, table, inserted} (9 bytes). Generic: also called from 0x0051B024, 0x0051B616 and the props part (0x006F3894); left the game's."
+
+[[entry]]
+name = "cSC4PropDeveloper::Destroy"
+address = 0x006F2B60
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this)"
+expect = "56 8B F1 57 8D 8E 6C 0A"
+source = "The destructor: the vtables, the lists +0xA6C, +0xA64, +0xA60, +0xA5C destroyed (SC4PairList::Destroy), the table +0xA48 cleared and its buckets freed, the vectors +0xA20 and +0xA04 freed. Ours in simulators.prop.object."
+
+[[entry]]
+name = "cSC4PropDeveloper::ToggleSignsAndLabels"
+address = 0x006F2BF0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this)"
+expect = "8A 91 68 0A 00 00 8B 01"
+source = "Slot 9: slot 8 with the opposite of +0xA68. Ours in simulators.prop.sim."
+
+[[entry]]
+name = "cSC4PropDeveloper::AreSignsAndLabelsVisible"
+address = 0x006F2C10
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PropDeveloper* this)"
+expect = "8A 81 68 0A 00 00 C3 CC"
+source = "Slot 10: the byte +0xA68. Ours in simulators.prop.sim."
+
+[[entry]]
+name = "cSC4PropDeveloper::Shutdown"
+address = 0x006F2C60
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PropDeveloper* this)"
+expect = "83 EC 08 56 8B F1 8A 46"
+source = "Slot 4: the occupants of the table +0xA48 and of the lists +0xA60, +0xA5C, +0xA64 and the vector +0xA20 released (the list +0xA64 keeps its nodes), unregistered, the services released, the requesters released when +0xA00. Ours in simulators.prop.sim."
+
+[[entry]]
+name = "cSC4PropDeveloper::OnPropRemoved"
+address = 0x006F2FF0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, cISC4Occupant* occupant)"
+expect = "83 EC 1C 53 55 56 8B 74"
+source = "Name ours. Called by DoMessage (0x006F51FC; message 0x99EF1143 with data 3 = 0xA823821E): unless the occupant has property 0x029244DB, it is taken out of the vector +0xA20, the table +0xA48 (key: property 0x6A3FCC37), the lists +0xA60, +0xA5C, +0xA64 (by properties 0x4A149631, 0x0A751675, 0x6A959E71) and +0xA6C. Ours in simulators.prop.handlers, by a detour."
+
+[[entry]]
+name = "cSC4PropDeveloper::ItemListVectorAssign"
+address = 0x006F3330
+kind = "function"
+convention = "thiscall"
+signature = "void (std::vector<std::list<Item16>>* this, uint32_t count, std::list<Item16> const* value)"
+expect = "53 56 8B F1 8B 06 8B 4E"
+source = "Name ours. assign(count, value) of a vector of lists of 16-byte items. Only called by 0x006F4080 (0x006F40D3, the props part). Ours in simulators.prop.containers, by a detour."
+
+[[entry]]
+name = "cSC4PropDeveloper::cSC4PropDeveloper"
+address = 0x006F3410
+kind = "function"
+convention = "thiscall"
+signature = "cSC4PropDeveloper* (cSC4PropDeveloper* this)"
+expect = "51 33 C0 53 56 8B F1 C7"
+source = "The constructor (0xA70 bytes), reached by a jump from Create (0x006F3600) only (Ghidra merges the two). Seeds the generator +0x38 from SC4::TimeNow * 28 (the return address 0x006F34B6 is the site fixed_seed.cpp knows). Detoured by simulators.prop.object."
+
+[[entry]]
+name = "cSC4PropDeveloper::DeletingDestructor"
+address = 0x006F35B0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4PropDeveloper* this, uint32_t flags)"
+expect = "56 8B F1 E8 A8 F5 FF FF"
+source = "Slot 11: the destructor 0x006F2B60, operator delete when flags bit 0. Ours in simulators.prop.object."
+
+[[entry]]
+name = "cSC4PropDeveloper::KeyListTableInsert"
+address = 0x006F35D0
+kind = "function"
+convention = "thiscall"
+signature = "InsertResult* (Hashtable* this, InsertResult* out, Pair const* value)"
+expect = "56 8B F1 8B 46 10 57 40"
+source = "Name ours. insert_unique: SC4Uint32HashSet::Resize for count + 1, then SC4KeyListTable::InsertUnique; returns out. Only called by 0x006F3B70 (0x006F3D84, the props part). Ours in simulators.prop.containers, by a detour."
+
+[[entry]]
+name = "cSC4PropDeveloper::Create"
+address = 0x006F3600
+kind = "function"
+convention = "cdecl"
+signature = "cSC4PropDeveloper* ()"
+expect = "68 70 0A 00 00 E8 D6 1F"
+source = "The class factory of 0x89C48F47 (registered at 0x00460412; the city asks for it at 0x0045AC49 into +0x14C, interface 0xE9A1F4B6): 0xA70 bytes from operator new, then a jump to the constructor 0x006F3410. Left the game's (the constructor is detoured)."
+
+[[entry]]
+name = "cSC4PropDeveloper::Name"
+address = 0x00A897E0
+kind = "data"
+source = "The text cSC4PropDeveloper that Init registers with the simulator service."
+
+[[entry]]
+name = "cSC4WealthRequester::Random"
+address = 0x00B4A5C0
+kind = "data"
+source = "Name ours. The static generator cSC4WealthRequester::ChooseProp draws from (0x006F1DC2, its only reference; docs/seeds.md lists it)."
+
+[[entry]]
+name = "SC4::TimeNow"
+address = 0x00470B50
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t* (uint32_t* this)"
+expect = "83 EC 10 56 57 8D 44 24"
+source = "Name ours. Writes a packed date and time from time() and localtime() (0x009EFB59, 0x009EF9D9) into *this and returns this. cSC4PropDeveloper's constructor multiplies it by 28 for its generator's seed."
+
+[[entry]]
+name = "SC4StdList::EraseRange"
+address = 0x006A2600
+kind = "function"
+convention = "thiscall"
+signature = "void (std::list<T>* this, Node** out, Node* first, Node* last)"
+expect = "56 8B 74 24 0C 57 8B 7C"
+source = "Name ours. erase(first, last) of a list whose values own nothing: nodes unlinked and freed, *out = last. Generic; cSC4PropDeveloper's list assignment (0x006F1E75) uses it."
+
+[[entry]]
+name = "SC4StdList::Erase"
+address = 0x0049EAA0
+kind = "function"
+convention = "thiscall"
+signature = "void (std::list<T>* this, Node** out, Node* node)"
+expect = "8B 44 24 08 8B 48 04 56"
+source = "Name ours. erase(node) of a list whose values own nothing: unlinked and freed, *out = the next node. Generic; cSC4PropDeveloper::OnPropRemoved (0x006F3176) uses it."
+
+[[entry]]
+name = "SC4BitVector::Copy"
+address = 0x00477E20
+kind = "function"
+convention = "cdecl"
+signature = "BitIterator* (BitIterator* out, uint32_t* first, uint32_t firstBit, uint32_t* last, uint32_t lastBit, uint32_t* dest, uint32_t destBit)"
+expect = "8B 4C 24 18 8B 54 24 1C"
+source = "Name ours. copy() of a bit range; out = the end of the copy. Generic; the bit vector reserve 0x006F1450 uses it."
+
+[[entry]]
+name = "cSC4PropDeveloper::Read"
+address = 0x006F3620
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream& stream)"
+expect = "83 EC 3C 53 55 56 8B 74"
+source = "+8 slot 4 (vtable 0x00AB29D0), `this` is the part at +0x8. Version 4 or 5: the update state, the block iterator, the requesters, the managers, the day and night bookkeeping and the prop lists (layout in src/core/prop_props.cpp). Replaced by simulators.prop.props_load."
+
+[[entry]]
+name = "cSC4PropDeveloper::OnPropAdded"
+address = 0x006F3B70
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, cISC4Occupant* occupant)"
+expect = "83 EC 3C 53 55 56 57 8B"
+source = "Name ours. Called only by DoMessage (0x006F5256, message 0x99EF1142 with data 3 = 0xA823821E): sorts a new prop into the developer's lists by its exemplar properties (state props, value props, props with hours, props with dates, props tested by cell, two prop types). Ours with simulators.prop.props_messages."
+
+[[entry]]
+name = "cSC4PropDeveloper::UpdateOptionalProps"
+address = 0x006F4080
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, int32_t blockX, int32_t blockZ)"
+expect = "81 EC EC 00 00 00 53 55"
+source = "Name ours. One 8 x 8 cell block: counts what each requester wants there, the optional prop slots of the lots (or the cells' own configurations) and the props standing in them, removes at most one prop per requester over its share and fills free slots at random for requesters under theirs (0x006F1620). Called by UpdateAllOptionalProps (0x006F4DF6) and the step 0x006F4E10 (0x006F4E77) only. Ours with simulators.prop.props."
+
+[[entry]]
+name = "cSC4PropDeveloper::UpdateAllOptionalProps"
+address = 0x006F4DB0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this)"
+expect = "51 53 89 4C 24 04 8B 0D"
+source = "Primary slot 7 (vtable 0x00AB29F8): UpdateOptionalProps for every block of the city (city slots 93 and 94, +0x174 and +0x178, divided by 8). Replaced by simulators.prop.props."
+
+[[entry]]
+name = "cSC4PropDeveloper::StepOptionalProps"
+address = 0x006F4E10
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropDeveloper* this, uint32_t unused)"
+expect = "83 EC 08 57 8B F9 0F BE"
+source = "Name ours. The background step (messages 0x66956814 and 0x6695681A): state +0x14 1 becomes 2; in state 2 the block iterator +0x18 gives the next block (restarting when it ends) for UpdateOptionalProps. Called only by DoMessage (0x006F511F, 0x006F5134)."
+
+[[entry]]
+name = "cSC4PropDeveloper::DoMessage"
+address = 0x006F4E90
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZMessageTarget2* this, cIGZMessage2* message)"
+expect = "83 EC 1C 53 56 8B 74 24"
+source = "+4 slot 3 (vtable 0x00AB29E8), `this` is the part at +0x4; true except for 0x86AD10EE while the day and night change is idle (+0xA30 zero). Replaced by simulators.prop.props_messages."
+
+[[entry]]
+name = "SC4BitVector::Resize60D310"
+address = 0x0060D310
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4BitVector* this, uint32_t count, bool value)"
+expect = "83 EC 08 53 55 8B 6C 24"
+source = "Name ours. Another copy of std::vector<bool>::resize(count, value) (fill insert 0x00477E70), used by cSC4PropDeveloper::UpdateOptionalProps."
+
+[[entry]]
+name = "cRZRandomSuper::Between"
+address = 0x00913A14
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cRZRandomSuper* this, uint32_t low, uint32_t high)"
+expect = "8B 44 24 08 2B 44 24 04"
+source = "Name ours. low + (draw * (high - low) >> 32) on a Mersenne Twister generator object (0x00913A06). The prop developer draws from its own generator at +0x38."
+
+[[entry]]
+name = "SC4::Service43DC8"
+address = 0x00B43DC8
+kind = "data"
+source = "Unnamed service; its interface 0xFA47B3F9 slot 46 (+0xB8) answers whether a wealth value (a prop's property 0x6A3FCC37) is shown. cSC4PropDeveloper::OnPropAdded (0x006F3B70)."
+
+[[entry]]
+name = "cSC4PropDeveloper::ZeroB4A5B8"
+address = 0x00B4A5B8
+kind = "data"
+source = "Name ours. A zero float (zero-initialised data) that OnPropAdded fills a position with before asking the prop's occupant for its own."
