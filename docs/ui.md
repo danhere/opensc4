@@ -68,9 +68,12 @@ In every run of these legs the `advwin` and `mstools` tokens of ours are ones th
 
 One run died: a B run of an earlier batch with the MySim simulator ours and the interface code still the game's, with heap corruption on a free ten game days after its one tools drive. It did not happen again in 46 later runs (16 of them with 24 drives each, in the same configuration), on either side.
 
-Not reached by the tests (from what the two switches call; no coverage run has been made with them yet):
+A run of the original with the coverage meter and both switches (Big City with MySims, 8 days, no move-in; `analysis\cov-ui`) reaches 70 of the 95 functions. Not reached:
 
-- the controller's window procedure and message handler (button clicks, advices added and removed while the window is open), and the head view's Init, paint and frame tick, which need its window;
-- the list's rows beyond what the test cities have: the runs looked at handed over one row in all, so the mood colours and the grey, inactive form are compared on few rows;
-- the move-in tool's mouse handlers (the test moves the MySim in without the tool's click), the dispatch tool's click (pick up, put down, double click), and the tools' key handling beyond Escape;
-- the import from The Sims past "not installed": it needs that game's files or a made-up tree of them, and it rewrites `MySims.dat`.
+- the controller: QueryInterface and its thunk, and the two that add and remove an advice while the window is up (0x0041DA00, 0x0041D9B0). Its window procedure and message handler do run;
+- the head view: QueryInterface, its thunk and the frame-tick handler (0x00420100);
+- the dispatch tool: its occupant filter, the highlight, SetMySim, the pick under the cursor and the click (pick up, put down, double click), and Escape;
+- the move-in tool: nothing in that run. The move-in leg runs its constructor, Init and destructor; its mouse handlers are never called, since the test moves the MySim in without the tool's click;
+- the import from The Sims past "not installed" (file decoding, portrait masking, the zodiac lookup, the record copies): it needs that game's files or a made-up tree of them, and it rewrites `MySims.dat`.
+
+The list's rows are thinly compared: the runs looked at handed over one row in all.
