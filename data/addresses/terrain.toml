@@ -901,3 +901,47 @@ name = "STE::OverlaySunTest"
 address = 0x00B0D4CC
 kind = "data"
 source = "Name ours. bool: the shadow pass scales each overlay's light by the lighting object's slot 0x3C at the overlay's centre (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "cSC4OverlayManager::Draw"
+address = 0x00738A50
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 50 01 00 00 53 8B"
+source = "Name ours. (render context): inverts the view matrix, lists the overlays to draw (those in view through 0x00738390 when +0x20 is set and the water's rows are not asked for, else every overlay in use), then the decal pass (preference +0x15C) and a shadow pass (preference +0x13C) (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "cSC4OverlayManager::ListVisible"
+address = 0x00738390
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 53 56 8B 74 24"
+source = "Name ours, not analysed. (vector of overlay indices out): the overlays in view (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "STE::DynamicBuffersFor"
+address = 0x0075CD40
+kind = "function"
+convention = "cdecl"
+expect = "A1 C4 3C B4 00 8B 48 0C"
+source = "Name ours. (driver): the driver's dynamic vertex buffers when the preference at +0x33C allows them, else null (docs/renderer.md, \"The land pass\")."
+
+[[entry]]
+name = "STE::ReleaseDynamicBuffers"
+address = 0x0075CA90
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D B0 C8 B4 00 85 C9"
+source = "Name ours. thiscall on the dynamic buffers: gives them back after a pass (docs/renderer.md, \"The land pass\")."
+
+[[entry]]
+name = "STE::OverlayList"
+address = 0x00B4B3B4
+kind = "data"
+source = "Name ours. vector of uint32 (begin, end, capacity end): the overlays the manager's draw works through, constructed on first use (flag bit 0 of 0x00B4B3C0, destructor 0x00A7D300 at exit) (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "STE::OverlayListFlags"
+address = 0x00B4B3C0
+kind = "data"
+source = "Name ours. uint32: bit 0 the overlay list is constructed (docs/renderer.md, \"The overlays\")."

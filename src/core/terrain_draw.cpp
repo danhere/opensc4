@@ -1291,6 +1291,65 @@ void DrawShadows(char* manager, const float* matrix, char* context, char** list)
     CallThis<void>(addr::SC4RenderContext_SetState3EF0, context, 0u, 1u);
 }
 
+// cSC4OverlayManager's draw (0x00738A50): the inverse of the view matrix,
+// the list of overlays to draw, then the passes.
+void DrawOverlays(char* manager, char* context)
+{
+    if (At<uint8_t>(manager, 0x15) && At<uint8_t>(At<char*>(At<char*>(context, 0x38), 0xC), 0x39C))
+        return;
+    Cell L[87] = {};
+    for (int i = 4; i < 20; ++i)
+        L[i].u = Global<uint32_t>(0x00B4B3C8);
+    CallThis<void>(addr::SC4RenderContext_UpdateViewMatrix, context);
+    CallThis<void>(addr::SC4RenderContext_GetViewMatrix, context, &L[4]);
+    {
+#include "core/overlay_view_inverse.inc"
+        L[19].u = r332;
+    }
+    const int32_t depthOffset = At<int32_t>(context, 0xBC);
+    uint32_t& flags = Global<uint32_t>(addr::STE_OverlayListFlags);
+    char** const list = &Global<char*>(addr::STE_OverlayList);
+    if (!(flags & 1)) {
+        flags |= 1;
+        list[0] = list[1] = list[2] = nullptr;
+        reinterpret_cast<int(__cdecl*)(std::uintptr_t)>(addr::SC4_atexit)(0x00A7D300);
+    }
+    if (!At<uint8_t>(manager, 0x15) && At<uint8_t>(manager, 0x20)) {
+        CallThis<void>(addr::cSC4OverlayManager_ListVisible, manager, list);
+    } else {
+        CallThis<void>(addr::SC4Uint32Vector_Clear, list);
+        const auto count = [&] {
+            return static_cast<uint32_t>(static_cast<int32_t>(At<char*>(manager, 0x9C) - At<char*>(manager, 0x98)) / 0xB4);
+        };
+        for (uint32_t i = 0; i < count(); ++i) {
+            if (At<int32_t>(At<char*>(manager, 0x98), i * 0xB4) != -1)
+                continue;
+            uint32_t index = i;
+            CallThis<void>(addr::SC4PtrVector_PushBack, list, &index);
+        }
+    }
+    At<void*>(manager, 0x94) = reinterpret_cast<void*(__cdecl*)(void*)>(addr::STE_DynamicBuffersFor)(At<void*>(context, 0x30));
+    const auto preference = [&](std::size_t offset) {
+        return At<uint8_t>(At<char*>(At<char*>(context, 0x38), 0xC), offset) != 0;
+    };
+    if (list[0] != list[1]) {
+        if (preference(0x15C))
+            CallThis<void>(addr::cSC4OverlayManager_DrawDecals, manager, &L[4], context, list);
+        if (list[0] != list[1] && preference(0x13C)) {
+            if (At<int32_t>(manager, 0x18) > 2 && preference(0x17C))
+                CallThis<void>(addr::cSC4OverlayManager_DrawShadows, manager, &L[4], context, list);
+            else
+                CallThis<void>(addr::cSC4OverlayManager_DrawShadowsPlain, manager, &L[4], context, list);
+        }
+    }
+    CallThis<void>(addr::SC4RenderContext_ClearTextureMatrix, context, 0u);
+    CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, depthOffset);
+    if (void* const buffers = At<void*>(manager, 0x94)) {
+        CallThis<void>(addr::STE_ReleaseDynamicBuffers, buffers);
+        At<void*>(manager, 0x94) = nullptr;
+    }
+}
+
 // --- The rows' layer lists and the skirts' colours ------------------------------------------
 
 // 0x0075ABA0: a row's list of texture layers with their spans of columns,
@@ -1692,6 +1751,46 @@ void __fastcall DShadows(char* manager, void*, const float* matrix, char* contex
                  [&] { g_shadows(manager, nullptr, matrix, context, list); });
 }
 
+using OverlaysFn = void(__fastcall*)(char*, void*, char*);
+OverlaysFn g_overlays;
+bool g_compareOverlays = false;
+
+void __fastcall DOverlays(char* manager, void*, char* context)
+{
+    if (g_depth > 0)
+        return g_overlays(manager, nullptr, context);
+    if (!g_compareOverlays)
+        return DrawOverlays(manager, context);
+    std::vector<Region> regions = PassRegions(At<char*>(manager, 0x8C), context);
+    regions.push_back({"manager", manager, 0xE0});
+    // The list is rebuilt by both runs; its contents are compared apart
+    // (its buffer may move, so it is not put back in between).
+    const auto listed = [] {
+        const uint32_t* const* const list = &Global<const uint32_t*>(addr::STE_OverlayList);
+        return std::vector<uint32_t>(list[0], list[1]);
+    };
+    std::vector<uint32_t> mine, theirs;
+    DrawCompared(g_selfCheck ? "overlays.draw.selfcheck" : "overlays.draw", regions,
+                 [&] {
+                     if (g_selfCheck)
+                         g_overlays(manager, nullptr, context);
+                     else
+                         DrawOverlays(manager, context);
+                     mine = listed();
+                 },
+                 [&] {
+                     g_overlays(manager, nullptr, context);
+                     theirs = listed();
+                 });
+    if (mine != theirs) {
+        char text[64], mineText[64];
+        std::snprintf(text, sizeof text, "%zu overlays listed", theirs.size());
+        std::snprintf(mineText, sizeof mineText, "%zu overlays listed", mine.size());
+        compare::Record("overlays.draw.list", false, text, mineText);
+    }
+}
+
+OPENSC4_THUNK(TOverlays, DOverlays, 4)
 OPENSC4_THUNK(TShadows, DShadows, 12)
 OPENSC4_THUNK(TShadowsPlain, DShadowsPlain, 12)
 OPENSC4_THUNK(TDecals, DDecals, 12)
@@ -1933,6 +2032,29 @@ const bool g_registeredShadows = registry::Register({
     "overlays\")",
     true,
     InstallShadows,
+});
+
+bool InstallOverlays(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareOverlays = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC4OverlayManager_Draw, &TOverlays, &g_overlays))
+        return false;
+    log::Write("overlays: draw %s", g_compareOverlays ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredOverlays = registry::Register({
+    "renderer.overlays.draw",
+    "renderer/overlays",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4OverlayManager_Draw,
+    "The overlay manager's draw: the inverse view matrix, the list of overlays and the passes; compare mode as "
+    "renderer.terrain.land, with the passes the game's in both runs (docs/renderer.md, \"The overlays\")",
+    true,
+    InstallOverlays,
 });
 
 } // namespace
