@@ -57,7 +57,7 @@ std::string Hex(const void* data, std::size_t size)
 }
 
 // The memory a pass may change: the view, the render context (its state
-// cache), the S3D camera (depth offset, projection), the land vertices
+// cache and, apart from it, its texture stage cache), the S3D camera (depth offset, projection), the land vertices
 // (colours and blend weights are written while drawing).
 std::vector<Region> PassRegions(char* self, char* context)
 {
@@ -67,6 +67,9 @@ std::vector<Region> PassRegions(char* self, char* context)
     std::vector<Region> regions{{"view", self, kViewSize}, {"context", context, kContextSize}};
     if (camera)
         regions.push_back({"camera", camera, kCameraSize});
+    // The context's texture stage cache: a vector of 0x68-byte stages.
+    if (char* const stages = At<char*>(context, 0xE0))
+        regions.push_back({"stages", stages, static_cast<std::size_t>(At<char*>(context, 0xE4) - stages)});
     regions.push_back({"land", Global<char*>(addr::STE_LandVertices), vertices});
     regions.push_back({"water", Global<char*>(addr::STE_WaterVertices), vertices});
     for (const auto& [name, address] : {std::pair{"batchsource", addr::STE_BatchSource},
@@ -133,8 +136,14 @@ void DrawCompared(const char* id, const std::vector<Region>& regions, Ours&& our
         compare::Record(id, false, game, text);
         return;
     }
-    if (gd::SaveState() != ourPipeline) {
-        compare::Record(id, false, "driver state", "driver state");
+    if (const std::vector<char> gamePipeline = gd::SaveState(); gamePipeline != ourPipeline) {
+        std::size_t at = 0;
+        while (at < gamePipeline.size() && gamePipeline[at] == ourPipeline[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "driver state+%zX ", at);
+        const std::size_t n = gamePipeline.size() - at < 8 ? gamePipeline.size() - at : 8;
+        compare::Record(id, false, text + Hex(gamePipeline.data() + at, n), text + Hex(ourPipeline.data() + at, n));
         return;
     }
     for (std::size_t i = 0; i < regions.size(); ++i) {
@@ -1094,6 +1103,55 @@ uint32_t DrawGrid(char* self, char* context, void* buffers)
     return 1;
 }
 
+// cSC4OverlayManager's decal pass (0x00736790). An overlay is a 0xB4-byte
+// record in the manager's vector at +0x98: +0 -1 when in use, +4 flags, +8
+// the index of its render state (the manager's +0x24, 8 bytes each), +0xC
+// its rectangle of cells, +0x1C its matrix, +0x9C a driver value, +0xA0 its
+// colour, +0xAC its texture or +0xB0 an object that gives one.
+void DrawDecals(char* manager, const float* matrix, char* context, char** list)
+{
+    if (list[0] == list[1])
+        return;
+    CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, 2);
+    const uint32_t wanted = At<uint8_t>(At<char*>(At<char*>(context, 0x38), 0xC), 0x39C) ? 0x91 : 0x11;
+    At<uint32_t>(manager, 0xD8) = 0;
+    void* const driver = At<void*>(context, 0x30);
+    for (uint32_t i = 0; i < static_cast<uint32_t>((list[1] - list[0]) >> 2); ++i) {
+        char* const overlay = At<char*>(manager, 0x98) + At<int32_t>(list[0], i * 4) * 0xB4;
+        if (At<int32_t>(overlay, 0) != -1 || (At<uint32_t>(overlay, 4) & wanted) != wanted)
+            continue;
+        const uint32_t flags = At<uint32_t>(overlay, 4);
+        CallThis<void>(addr::SC4RenderContext_SetDriverValue84, context, At<uint32_t>(overlay, 0x9C));
+        if (flags & 0x40) {
+            CallThis<void>(addr::SC4RenderContext_SetColourAlt, context, overlay + 0xA0);
+            Virtual<void>(driver, 0x88, 0u, 0u);
+        } else {
+            CallThis<void>(addr::SC4RenderContext_SetColour, context, overlay + 0xA0);
+            Virtual<void>(driver, 0x88, 1u, 0u);
+        }
+        CallThis<void>(addr::SC4RenderContext_SetRenderState, context, At<char*>(manager, 0x24) + At<uint8_t>(overlay, 8) * 8);
+        const uint32_t texture = At<void*>(overlay, 0xAC) ? **reinterpret_cast<uint32_t**>(At<void*>(overlay, 0xAC))
+                                                         : Virtual<uint32_t>(At<void*>(overlay, 0xB0), 0x10);
+        CallThis<void>(addr::SC4RenderContext_BindTexture, context, texture, 0u);
+        CallThis<void>(addr::SC4RenderContext_SetState4280, context, 1u, 7u, 0u);
+        if (flags & 0x20)
+            CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 3u, 2u, 0u);
+        else if (flags & 2)
+            CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 3u, 3u, 0u);
+        else
+            CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 2u, 2u, 0u);
+        Cell L[38] = {};
+        const float* const record = reinterpret_cast<const float*>(overlay);
+#include "core/overlay_decal_matrix.inc"
+        CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[10], 0u);
+        CallThis<void>(addr::cSC4OverlayManager_DrawRect, manager, context, overlay + 0xC);
+        ++At<uint32_t>(manager, 0xD8);
+    }
+    CallThis<void>(addr::SC4RenderContext_ResetDriverValue84, context);
+    CallThis<void>(addr::SC4RenderContext_ResetColour, context);
+    Virtual<void>(driver, 0x88, 1u, 1u);
+}
+
 // --- The rows' layer lists and the skirts' colours ------------------------------------------
 
 // 0x0075ABA0: a row's list of texture layers with their spans of columns,
@@ -1415,6 +1473,29 @@ void __fastcall DOverlayRect(char* manager, void*, char* context, const int32_t*
                  [&] { g_overlayRect(manager, nullptr, context, cells); });
 }
 
+using DecalsFn = void(__fastcall*)(char*, void*, const float*, char*, char**);
+DecalsFn g_decals;
+bool g_compareDecals = false;
+
+void __fastcall DDecals(char* manager, void*, const float* matrix, char* context, char** list)
+{
+    if (g_depth > 0)
+        return g_decals(manager, nullptr, matrix, context, list);
+    if (!g_compareDecals)
+        return DrawDecals(manager, matrix, context, list);
+    std::vector<Region> regions = PassRegions(At<char*>(manager, 0x8C), context);
+    regions.push_back({"manager", manager, 0xE0});
+    DrawCompared(g_selfCheck ? "overlays.decals.selfcheck" : "overlays.decals", regions,
+                 [&] {
+                     if (g_selfCheck)
+                         g_decals(manager, nullptr, matrix, context, list);
+                     else
+                         DrawDecals(manager, matrix, context, list);
+                 },
+                 [&] { g_decals(manager, nullptr, matrix, context, list); });
+}
+
+OPENSC4_THUNK(TDecals, DDecals, 12)
 OPENSC4_THUNK(TOverlayRect, DOverlayRect, 8)
 OPENSC4_THUNK(TLandSkirts, DLandSkirts, 4)
 OPENSC4_THUNK(TLand, DLand, 8)
@@ -1585,6 +1666,28 @@ const bool g_registeredOverlayRect = registry::Register({
     "(docs/renderer.md, \"The overlays\")",
     true,
     InstallOverlayRect,
+});
+
+bool InstallDecals(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareDecals = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC4OverlayManager_DrawDecals, &TDecals, &g_decals))
+        return false;
+    log::Write("overlays: decal pass %s", g_compareDecals ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDecals = registry::Register({
+    "renderer.overlays.decals",
+    "renderer/overlays",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4OverlayManager_DrawDecals,
+    "The overlay manager's decal pass; compare mode as renderer.terrain.land (docs/renderer.md, \"The overlays\")",
+    true,
+    InstallDecals,
 });
 
 } // namespace

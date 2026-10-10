@@ -785,3 +785,51 @@ kind = "function"
 convention = "thiscall"
 expect = "8B 54 24 08 53 8A 59 16"
 source = "Name ours (the class from the patch census). (render context, int32[4] cells x0 z0 x1 z1): draws the terrain inside the rectangle through one of six terrain view functions (0x007541C0, 0x007543C0, 0x007545C0, 0x00754910, 0x00755560, 0x00755700) by the manager's +0x15, +0x16 and +0x94 (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "cSC4OverlayManager::DrawDecals"
+address = 0x00736790
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 88 00 00 00 55 56"
+source = "Name ours. (float[16] inverse view matrix, render context, vector of overlay indices): the overlays with flags 0x11 (0x91 with plain water), each with its render state, colour, texture and a texture matrix (its own times the inverse view), drawn over its rectangle (0x00735720) (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "SC4RenderContext::SetDriverValue84"
+address = 0x007D2A20
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 30 8B 01 FF A0 84"
+source = "Name ours, not analysed. (value): the driver's slot 0x84 with the overlay's +0x9C (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "SC4RenderContext::SetColour"
+address = 0x007D3140
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 8B 44 24 10 D9"
+source = "Name ours, not analysed. (overlay colour at +0xA0): used when the overlay's flag 0x40 is clear (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "SC4RenderContext::SetColourAlt"
+address = 0x007D31B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 57 8B 78"
+source = "Name ours, not analysed. (overlay colour at +0xA0): used when the overlay's flag 0x40 is set (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "SC4RenderContext::ResetDriverValue84"
+address = 0x007D2A30
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 30 8B 01 68 00 00"
+source = "Name ours, not analysed. (): after the decals (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "SC4RenderContext::ResetColour"
+address = 0x007D3290
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 86 F8 01 00"
+source = "Name ours, not analysed. (): after the decals (docs/renderer.md, \"The overlays\")."
