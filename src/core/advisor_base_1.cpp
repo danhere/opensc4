@@ -694,41 +694,6 @@ Record* __cdecl CopyRecords(Record* first, Record* last, Record* to)
 // ---------------------------------------------------------------------------
 // The tree.
 
-// The game's 0x0040D4C0: the node after `node`. The original never changes
-// EDX and has about a hundred callers in the game; the thunk keeps it.
-TreeNode* __cdecl TreeNext(TreeNode* node)
-{
-    if (TreeNode* at = node->right) {
-        while (at->left)
-            at = at->left;
-        return at;
-    }
-    TreeNode* parent = node->parent;
-    while (node == parent->right) {
-        node = parent;
-        parent = parent->parent;
-    }
-    return node->right == parent ? node : parent;
-}
-
-// The game's 0x0040D500: the node before `node` (EDX kept as above).
-TreeNode* __cdecl TreePrevious(TreeNode* node)
-{
-    if (node->color == 0 && node->parent->parent == node)
-        return node->right;
-    if (TreeNode* at = node->left) {
-        while (at->right)
-            at = at->right;
-        return at;
-    }
-    TreeNode* parent = node->parent;
-    while (node == parent->left) {
-        node = parent;
-        parent = parent->parent;
-    }
-    return parent;
-}
-
 // The game's 0x0040D540.
 TreeNode* __cdecl RotateLeft(TreeNode* x, TreeNode** root)
 {
@@ -959,21 +924,6 @@ uint8_t Less(void** a, void** b)
 uint8_t __fastcall LessAdvice(void*, void*, void** a, void** b)
 {
     return Less(a, b);
-}
-
-// The game's 0x0040E050: frees a subtree of the advice tree, releasing
-// each advice.
-void __fastcall ReleaseSubtree(void* tree, void*, TreeNode* node)
-{
-    while (node) {
-        ReleaseSubtree(tree, nullptr, node->right);
-        void* const advice = node->value;
-        TreeNode* const next = node->left;
-        if (advice)
-            Release(advice);
-        Free(node);
-        node = next;
-    }
 }
 
 // The game's 0x0040DE90: the node of `key`, or the header.

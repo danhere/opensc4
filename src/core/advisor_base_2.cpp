@@ -66,21 +66,10 @@ struct Tree {
     uint32_t count;
 };
 
-struct Text { // the game's string body
-    char* begin;
-    char* end;
-    char* capacity;
-};
-
 struct Items {
     char* begin;
     char* end;
     char* capacity;
-};
-
-struct InsertResult {
-    Node* node;
-    uint8_t inserted;
 };
 
 struct ScriptTable { // SC4ScriptTable, 0x24 bytes
@@ -131,12 +120,6 @@ void* MessageServer()
 void* System()
 {
     return Global<void*>(addr::cSC4AdvisorSystem_Instance);
-}
-
-[[noreturn]] void ThrowLength()
-{
-    reinterpret_cast<void(__cdecl*)(const char*)>(addr::STL_ThrowLengthError)("basic_string");
-    __assume(0);
 }
 
 Node* Next(Node* x)
@@ -240,77 +223,6 @@ bool Flag(void* advice, int32_t flag)
 
 // --- The map of 12-byte values keyed by the first (unsigned) -----------------
 
-Node* NewTripleNode(const uint32_t* value)
-{
-    Node* const node = static_cast<Node*>(Allocate(0x1C));
-    At<uint32_t>(node, 0x10) = value[0];
-    At<uint32_t>(node, 0x14) = value[1];
-    At<uint32_t>(node, 0x18) = value[2];
-    return node;
-}
-
-// The game's 0x0040E7D0: links a new node under `y`.
-Node** __fastcall TripleInsert(Tree* self, void*, Node** result, Node* x, Node* y, const uint32_t* value,
-                               uint32_t onRight)
-{
-    Node* node;
-    if (y != self->header && (onRight || (!x && !(value[0] < At<uint32_t>(y, 0x10))))) {
-        node = NewTripleNode(value);
-        y->right = node;
-        if (y == self->header->right)
-            self->header->right = node;
-    } else {
-        node = NewTripleNode(value);
-        y->left = node;
-        Node* const header = self->header;
-        if (y == header) {
-            header->parent = node;
-            self->header->right = node;
-        } else if (y == header->left) {
-            header->left = node;
-        }
-    }
-    node->parent = y;
-    node->left = nullptr;
-    node->right = nullptr;
-    reinterpret_cast<void(__cdecl*)(Node*, Node**)>(addr::SC4Tree_RebalanceForInsert)(node, &self->header->parent);
-    ++self->count;
-    *result = node;
-    return result;
-}
-
-// The game's 0x0040E8A0: inserts unless the key is there.
-InsertResult* __fastcall TripleInsertUnique(Tree* self, void*, InsertResult* result, const uint32_t* value)
-{
-    Node* const header = self->header;
-    Node* y = header;
-    Node* x = header->parent;
-    uint8_t less = 1;
-    while (x) {
-        less = value[0] < At<uint32_t>(x, 0x10);
-        y = x;
-        x = less ? x->left : x->right;
-    }
-    Node* j = y;
-    Node* node = nullptr;
-    if (less) {
-        if (y == header->left) {
-            result->node = *TripleInsert(self, nullptr, &node, x, y, value, 0);
-            result->inserted = 1;
-            return result;
-        }
-        reinterpret_cast<void(__thiscall*)(Node**)>(addr::SC4TreeIterator_Decrement)(&j);
-    }
-    if (At<uint32_t>(j, 0x10) < value[0]) {
-        result->node = *TripleInsert(self, nullptr, &node, x, y, value, 0);
-        result->inserted = 1;
-        return result;
-    }
-    result->inserted = 0;
-    result->node = j;
-    return result;
-}
-
 // The game's 0x0040E960.
 void __fastcall TripleDestroy(Tree* self, void*)
 {
@@ -399,17 +311,6 @@ void ActiveCopyFrom(Tree* self, Tree* other, bool countWhenEmpty)
     self->count = other->count;
 }
 
-// The game's 0x0040EB00: assignment.
-Tree* __fastcall ActiveAssign(Tree* self, void*, Tree* other)
-{
-    if (self == other)
-        return self;
-    ClearTree(self, addr::cSC4Advisor_F40E050);
-    self->count = 0;
-    ActiveCopyFrom(self, other, false);
-    return self;
-}
-
 // The game's 0x0040F0C0: the copy constructor.
 Tree* __fastcall ActiveCopyConstruct(Tree* self, void*, Tree* other)
 {
@@ -458,77 +359,6 @@ uint32_t* __fastcall ActiveAt(Tree* self, void*, void** key)
             Release(advice);
     }
     return &At<uint32_t>(node, 0x14);
-}
-
-// --- The map of event type (signed) to item index ----------------------------
-
-// The game's 0x0040F080: adds a pair after its equals.
-Node** __fastcall TriggerInsert(Tree* self, void*, Node** result, const int32_t* value)
-{
-    Node* y = self->header;
-    Node* x = y->parent;
-    while (x) {
-        y = x;
-        x = value[0] < At<int32_t>(x, 0x10) ? x->left : x->right;
-    }
-    Call<void>(addr::SC4Sint32Multimap_Insert, self, result, x, y, value, uint32_t{0});
-    return result;
-}
-
-// --- The strings -------------------------------------------------------------
-
-// The game's 0x0040EBC0: appends [first, last).
-Text* __fastcall TextAppend(Text* self, void*, const char* first, const char* last, uint32_t)
-{
-    if (first == last)
-        return self;
-    const uint32_t size = static_cast<uint32_t>(self->end - self->begin);
-    const uint32_t count = static_cast<uint32_t>(last - first);
-    if (count > 0xFFFFFFFE || size > 0xFFFFFFFE - count)
-        ThrowLength();
-    if (count + size > static_cast<uint32_t>(self->capacity - self->begin) - 1) {
-        const uint32_t length = (size < count ? count : size) + size + 1;
-        char* const buffer = length ? static_cast<char*>(Allocate(length)) : nullptr;
-        char* to = buffer;
-        const char* from = self->begin;
-        for (int32_t left = static_cast<int32_t>(self->end - self->begin); left > 0; --left)
-            *to++ = *from++;
-        char* const end = static_cast<char*>(std::memmove(to, first, count)) + count;
-        *end = 0;
-        if (self->begin)
-            Free(self->begin);
-        self->begin = buffer;
-        self->end = end;
-        self->capacity = buffer + length;
-        return self;
-    }
-    const char* const second = first + 1;
-    if (last != second)
-        std::memmove(self->end + 1, second, static_cast<std::size_t>(last - second));
-    self->end[count] = 0;
-    *self->end = *first;
-    self->end += count;
-    return self;
-}
-
-// The game's 0x0040F1B0: a new buffer for at least `count` characters.
-void __fastcall TextReserve(Text* self, void*, uint32_t count)
-{
-    if (count > 0xFFFFFFFE)
-        ThrowLength();
-    const uint32_t size = static_cast<uint32_t>(self->end - self->begin);
-    const uint32_t length = (count < size ? size : count) + 1;
-    char* const buffer = length ? static_cast<char*>(Allocate(length)) : nullptr;
-    char* to = buffer;
-    const char* from = self->begin;
-    for (int32_t left = static_cast<int32_t>(self->end - self->begin); left > 0; --left)
-        *to++ = *from++;
-    *to = 0;
-    if (self->begin)
-        Free(self->begin);
-    self->begin = buffer;
-    self->end = to;
-    self->capacity = buffer + length;
 }
 
 // --- The vector of items -----------------------------------------------------
