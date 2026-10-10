@@ -12,7 +12,7 @@ namespace {
 
 int Fail(const char* what)
 {
-    std::printf("pe patch test FAILED: %s\n", what);
+    std::printf("pe flag test FAILED: %s\n", what);
     return 1;
 }
 
@@ -67,6 +67,6 @@ int main()
     std::vector<std::uint8_t> junk(0x200, 0);
     if (SetLargeAddressAware(junk, nullptr, &error))
         return Fail("accepting a non-PE file");
-    std::printf("pe patch test OK\n");
+    std::printf("pe flag test OK\n");
     return 0;
 }

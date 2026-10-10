@@ -77,7 +77,9 @@ target_link_libraries(opensc4_seed_code_test PRIVATE opensc4_core_support)
 add_test(NAME seed_code COMMAND opensc4_seed_code_test)
 set_tests_properties(seed_code PROPERTIES PASS_REGULAR_EXPRESSION "seed code test OK")
 
-add_executable(opensc4_pe_patch_test pe_patch_test.cpp ${PROJECT_SOURCE_DIR}/src/launcher/pe_patch.cpp)
-target_link_libraries(opensc4_pe_patch_test PRIVATE opensc4_options)
-add_test(NAME pe_patch COMMAND opensc4_pe_patch_test)
-set_tests_properties(pe_patch PROPERTIES PASS_REGULAR_EXPRESSION "pe patch test OK")
+# Not "patch" in the name: Windows installer detection refuses to start a
+# manifest-less exe named like an installer or patch without elevation.
+add_executable(opensc4_pe_flag_test pe_flag_test.cpp ${PROJECT_SOURCE_DIR}/src/launcher/pe_patch.cpp)
+target_link_libraries(opensc4_pe_flag_test PRIVATE opensc4_options)
+add_test(NAME pe_flag COMMAND opensc4_pe_flag_test)
+set_tests_properties(pe_flag PROPERTIES PASS_REGULAR_EXPRESSION "pe flag test OK")

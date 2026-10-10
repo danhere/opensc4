@@ -253,16 +253,16 @@ std::wstring PrepareLargeAddressMirror(const std::wstring& gameExe, const std::w
             ok = false;
         } else {
             do {
-                if (IsDots(entry.cFileName) || !_wcsicmp(entry.cFileName, Leaf(gameExe).c_str()))
+                // Subfolders are left out (Apps has none): a junction would let
+                // the game write into the install.
+                if (IsDots(entry.cFileName) || !_wcsicmp(entry.cFileName, Leaf(gameExe).c_str()) ||
+                    (entry.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
                     continue;
                 const std::wstring from = apps + L"\\" + entry.cFileName;
                 const std::wstring to = mirrorApps + L"\\" + entry.cFileName;
                 // The game writes files into its Apps folder (a config log),
                 // so Apps files are copies, never links into the install.
-                const bool made = (entry.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                                      ? MakeJunction(to, from)
-                                      : CopyFileW(from.c_str(), to.c_str(), FALSE) != FALSE;
-                if (!made) {
+                if (!CopyFileW(from.c_str(), to.c_str(), FALSE)) {
                     error = Failed(L"mirroring", from);
                     ok = false;
                 }
