@@ -1,0 +1,567 @@
+# Script bindings (docs/lua.md): the advisors' script-variable publishers and the native script functions.
+
+[[entry]]
+name = "ScriptGlobals::PublishParkGlobals"
+address = 0x00411BC0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 35 C0 07 B2 00 57"
+source = "Name ours. Of the advisor with vtable 0x00A81514: sets g_parks_funding_p, g_landmarks_funding_p and the counts at +0xC4, +0xC8, +0xCC (g_num_buildings, g_num_parks, g_num_recreation) in the advisor system. No arguments."
+
+[[entry]]
+name = "ScriptGlobals::PublishCityGlobals"
+address = 0x00412530
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Slot 9 of the advisor vtable 0x00A81514: sets the city's script variables (mayor rating, population, demand, zones, neighbours), then calls 0x00411BC0. No arguments."
+
+[[entry]]
+name = "ScriptGlobals::PublishBudgetGlobals"
+address = 0x00413A10
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Slot 9 of the advisor vtable 0x00A81D4C: sets the budget's script variables (funds, income, tax rates, bonds, neighbour deals). No arguments; does not use this."
+
+[[entry]]
+name = "ScriptGlobals::PublishEducationBuildings"
+address = 0x00414290
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Publishes the advisors' script variables for hospitals, clinics, schools, museums and libraries (counts, worst funded and worst graded building of each, coverage, grades); no arguments, never reads ECX; called by 0x00415480."
+
+[[entry]]
+name = "ScriptGlobals::PublishHealthEducation"
+address = 0x00415480
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Publishes the advisors' health and education script variables (funding, averages, lowest and highest tracts), then calls 0x00414290; no arguments."
+
+[[entry]]
+name = "ScriptGlobals::ElementaryKey"
+address = 0x00B207E8
+kind = "data"
+source = "0xC-byte building group key (elementary schools) passed to service 0x00B43DA4 slot 47 by the script-variable publisher 0x00414290; filled at run time."
+
+[[entry]]
+name = "ScriptGlobals::HighSchoolKey"
+address = 0x00B207F4
+kind = "data"
+source = "0xC-byte building group key (high schools), as ScriptGlobals::ElementaryKey."
+
+[[entry]]
+name = "ScriptGlobals::CollegeKey"
+address = 0x00B20800
+kind = "data"
+source = "0xC-byte building group key (colleges), as ScriptGlobals::ElementaryKey."
+
+[[entry]]
+name = "ScriptGlobals::SchoolKey"
+address = 0x00B2080C
+kind = "data"
+source = "0xC-byte building group key (all schools: g_num_schools, g_num_educational_buildings, education coverage), slots 47 and 14."
+
+[[entry]]
+name = "ScriptGlobals::MuseumKey"
+address = 0x00B20824
+kind = "data"
+source = "0xC-byte building group key (museums), slots 47 and 14."
+
+[[entry]]
+name = "ScriptGlobals::LibraryKey"
+address = 0x00B20830
+kind = "data"
+source = "0xC-byte building group key (libraries), slots 47 and 14."
+
+[[entry]]
+name = "ScriptGlobals::HospitalKey"
+address = 0x00B2083C
+kind = "data"
+source = "0xC-byte building group key (hospitals), slot 49."
+
+[[entry]]
+name = "ScriptGlobals::ClinicKey"
+address = 0x00B20848
+kind = "data"
+source = "0xC-byte building group key (clinics), slot 49."
+
+[[entry]]
+name = "ScriptGlobals::HealthKey"
+address = 0x00B20854
+kind = "data"
+source = "0xC-byte building group key (health as a whole), slot 15."
+
+[[entry]]
+name = "ScriptGlobals::PublishTransportCounts"
+address = 0x0041B8D0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Publishes the station, tile, airport and seaport counts (g_*_station_count, g_*_tile_count, g_*airport*_count, g_seaport_*); this unused, no arguments."
+
+[[entry]]
+name = "ScriptGlobals::PublishTransport"
+address = 0x0041C1A0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Publishes the transport script variables (funding, station use, congestion, port efficiency and road access, neighbour connections), then calls 0x0041B8D0; this unused, no arguments."
+
+[[entry]]
+name = "SC4::Service43D2C"
+address = 0x00B43D2C
+kind = "data"
+source = "Unnamed service; slot 8 fills a vector with the airports (references), read by the transport script variables for l_airport_no_road_access."
+
+[[entry]]
+name = "SC4::Service43D30"
+address = 0x00B43D30
+kind = "data"
+source = "Unnamed service; slot 8 fills a vector with the seaports (references), read by the transport script variables for l_seaport_no_road_access."
+
+[[entry]]
+name = "ScriptGlobals::PublishUtilityBuildings"
+address = 0x00421030
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Publishes the power plant, water building and garbage building counts with the worst funded and oldest of each (script variables g_power_plant_count ... g_recycling_center_count); clears bits 0-1 of this+0xBC (docs/lua.md)."
+
+[[entry]]
+name = "ScriptGlobals::PublishNeighborDeals"
+address = 0x00421AB0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Publishes the neighbour deal counts, the connections present and the deals on offer (g_nd_*); clears bit 2 of this+0xBC (docs/lua.md)."
+
+[[entry]]
+name = "ScriptGlobals::PublishUtilities"
+address = 0x004220A0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Publishes the power, water, garbage and pollution figures (g_power_funding_p ... l_uncollected_garbage_h), then calls 0x00421030 and 0x00421AB0 (docs/lua.md)."
+
+[[entry]]
+name = "SC4::FloatOneB07D3C"
+address = 0x00B07D3C
+kind = "data"
+source = "float 1.0 in .data, copied as a dword into the funding figure before the power (slot 30) and water (slot 27) worst-funded queries (docs/lua.md)."
+
+[[entry]]
+name = "cSC4AdvisorSafety::PublishStations"
+address = 0x00416030
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. No arguments, this unused: the fire and police figures (g_fire_funding_p ... l_police_no_roads), with the worst funded station and the first station without a road of each kind as subjects."
+
+[[entry]]
+name = "cSC4AdvisorSafety::PublishGlobals"
+address = 0x004166B0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. No arguments: the safety advisor's variables (g_fire_strike_chance ... g_health_strike_chance), then PublishStations."
+
+[[entry]]
+name = "cSC4AdvisorSafety::DoMessage"
+address = 0x004169E0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. (message), ret 4, on the message target at +0x10: strikes, jailbreaks, disasters, the update request 0xCA8F3DB6; the rest to cSC4Advisor::DoMessage. 0x00416E00 is a case label inside it."
+
+[[entry]]
+name = "cSC4AdvisorTransportation::DoMessage"
+address = 0x0041D250
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Name ours. (message), ret 4, on the message target at +0x10: keeps the set of zotted cars at +0xB0 (message 0x4C04DE69) and publishes g_car_zot_count."
+
+[[entry]]
+name = "cSC4AdvisorUtilities::DoMessage"
+address = 0x00422770
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B 1D C0 07 B2 00"
+source = "Name ours. (message), ret 4, on the message target at +0x10: g_power_strike, outage events (message 0xEA418D8F), the update request."
+
+[[entry]]
+name = "cSC4Advisor::DoMessage"
+address = 0x00411570
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 8B 5C 24 1C"
+source = "Name ours. (message), ret 4: the advisors' base message handler on the message target at +0x10; returns a bool."
+
+[[entry]]
+name = "cSC4Advisor::RequestUpdate"
+address = 0x0040D910
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 2C 8B F9 E8 BF"
+source = "Name ours. (a, b), ret 8, this = the advisor object: posts message 0xCA8F3DB6 with the two values to the advisor's own target (+0x10) through the message server."
+
+[[entry]]
+name = "cSC4AdvisorTransportation::ZotErase"
+address = 0x0041C110
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 08 56"
+source = "Name ours. (key*), ret 4, this = the set at target +0xB0: erases the key, returns the count erased."
+
+[[entry]]
+name = "cSC4AdvisorTransportation::ZotInsert"
+address = 0x0041BFD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 83 EC 08 50"
+source = "Name ours. (result*, key*), ret 8, this = the set at target +0xB0: inserts the key; result is an iterator and a byte."
+
+[[entry]]
+name = "SC4ScriptNatives::TrendSlope"
+address = 0x00409690
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 28 8B 44 24 2C 8B"
+source = "Native script function game.trend_slope: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::TrendValue"
+address = 0x004097E0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 24 8B 44 24 28 8B"
+source = "Native script function game.trend_value: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::TrendCount"
+address = 0x00409900
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 28 8B 44 24 2C 8B"
+source = "Native script function game.trend_count: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::OrdinanceIsOn"
+address = 0x00409A50
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.ordinance_is_on: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::OrdinanceSetOff"
+address = 0x00409B00
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.ordinance_set_off: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::OrdinanceSetOn"
+address = 0x00409B80
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.ordinance_set_on: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::OrdinanceIsAvailable"
+address = 0x00409C00
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.ordinance_is_available: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::OrdinanceCost"
+address = 0x00409CB0
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Helper of the three ordinance fee natives: int (lua_State*, int which); which 0 enact fee, 1 repeal fee, 2 monthly cost"
+
+[[entry]]
+name = "SC4ScriptNatives::OrdinanceEnactFee"
+address = 0x00409E10
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 6A 00 50 E8"
+source = "Native script function game.ordinance_enact_fee: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::OrdinanceRepealFee"
+address = 0x00409E20
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 6A 01 50 E8"
+source = "Native script function game.ordinance_repeal_fee: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::OrdinanceMonthlyCost"
+address = 0x00409E30
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 6A 02 50 E8"
+source = "Native script function game.ordinance_monthly_cost: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::EventFeedback"
+address = 0x00409E40
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.event_feedback: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::ExpireAdvice"
+address = 0x00409F80
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.expire_advice: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::RetireAdvice"
+address = 0x00409FD0
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.retire_advice: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::AdviceSubject"
+address = 0x0040A040
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 8B 44 24 0C 8B"
+source = "Native script function game.advice_subject: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::DifficultyLevel"
+address = 0x0040A120
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.difficulty_level: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::BuildingIsGroup"
+address = 0x0040A1B0
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.building_is_group: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::EventBuildingDistance"
+address = 0x0040A2F0
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.event_building_distance: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::EventDisasterDistance"
+address = 0x0040A390
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.event_disaster_distance: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::MySimDistanceToClosestBuilding"
+address = 0x0040A410
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 8B 44 24 0C 8B"
+source = "Native script function game.mysim_distance_to_closest_building: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::MySimDistanceToClosestLandmarkOrReward"
+address = 0x0040A4F0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 8B 44 24 0C 8B"
+source = "Native script function game.mysim_distance_to_closest_landmark_or_reward: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::MySimLocalSchoolGrade"
+address = 0x0040A5D0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 8B 44 24 0C 8B"
+source = "Native script function game.mysim_local_school_grade: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::MySimLocalHospitalGrade"
+address = 0x0040A6B0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 8B 44 24 0C 8B"
+source = "Native script function game.mysim_local_hospital_grade: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::MySimDispatchTool"
+address = 0x0040A790
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.mysim_dispatch_tool: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::RandomChance"
+address = 0x0040A810
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 8B 44 24 10 8B"
+source = "Native script function game.random_chance: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::RewardInstanceCount"
+address = 0x0040A8E0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 8B 44 24 0C 8B"
+source = "Native script function game.reward_instance_count: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::GetRewardBuildingState"
+address = 0x0040AA60
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 40 FC"
+source = "Native script function game.get_reward_building_state: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::IsTutorial"
+address = 0x0040AB30
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.is_tutorial: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::NdCancel"
+address = 0x0040AC10
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 48 FC"
+source = "Native script function game.nd_cancel: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::CombineGuids"
+address = 0x0040AD10
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 08 8B 40 FC"
+source = "Native script function game._combine_guids: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::AdviceInfo"
+address = 0x0040AE50
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 2C 8B 44 24 30 8B"
+source = "Native script function game.advice_info: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::CameraJump"
+address = 0x0040AF90
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 2C 8B 44 24 30 8B"
+source = "Native script function game.camera_jump: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::CameraZoom"
+address = 0x0040B1F0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 2C 8B 44 24 30 8B"
+source = "Native script function game.camera_zoom: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::OrdinanceDescription"
+address = 0x0040B330
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 1C 8B 44 24 20 8B"
+source = "Native script function game.ordinance_description: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::OrdinanceName"
+address = 0x0040B470
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 1C 8B 44 24 20 8B"
+source = "Native script function game.ordinance_name: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::TriggerEvent"
+address = 0x0040B5B0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 2C 8B 44 24 30 8B"
+source = "Native script function game.trigger_event: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::RewardRecordConstruct"
+address = 0x0040B6E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 33 DB 89 5E"
+source = "Helper of unlock_reward_building: an empty string in a reward record (0x18 bytes: flag byte, count word at +2, string at +4); returns this, no arguments"
+
+[[entry]]
+name = "SC4ScriptNatives::RewardRecordAssign"
+address = 0x0040B720
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 C0 04 56"
+source = "Helper of unlock_reward_building: copies another reward record's flag byte, count and text; (record* source), ret 4, returns this"
+
+[[entry]]
+name = "SC4ScriptNatives::UnlockRewardBuilding"
+address = 0x0040B760
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 30 8B 44 24 34 8B"
+source = "Native script function game.unlock_reward_building: int (lua_State*)"
+
+[[entry]]
+name = "SC4ScriptNatives::ShowError"
+address = 0x004179A0
+kind = "function"
+convention = "cdecl"
+expect = "51 C7 04 24 00 00 00 00"
+source = "The natives' report: void (cIGZString* title, cIGZString* message); slot 0xB0 (message, title, 0, 1, 0) of the service 0xA417445E/0x5A4 from the framework"
+
+[[entry]]
+name = "SC4ScriptNatives::HasRewardCount"
+address = 0x00411F50
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8D B1 D0 00 00 00"
+source = "On advisor 0x17's interface 0x2A5F877D: whether its map at +0xD0 has the ID; (int id), ret 4, returns a byte"
+
+[[entry]]
+name = "SC4ScriptNatives::RewardCount"
+address = 0x00411F10
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8D B1 D0 00 00 00"
+source = "On advisor 0x17's interface 0x2A5F877D: the value (+0x14 of the node) its map at +0xD0 has for the ID, 0 when absent; (int id), ret 4"
+
+[[entry]]
+name = "SC4ScriptNatives::VectorInitial"
+address = 0x00B207C8
+kind = "data"
+source = "A dword (float bits, zero in the file) the natives fill a new three-float vector with (camera_jump, 0x00409670)"
