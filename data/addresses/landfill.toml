@@ -1,0 +1,547 @@
+# The landfill developer (cSC4LandfillDeveloper, class ID 0xEA09D4AE; code 0x006B8B10-0x006BA120): every function, the tuning globals, and the cSC4LandfillZone functions it calls (src/core/landfill_sim.cpp).
+
+[[entry]]
+name = "cSC4LandfillDeveloper::GetGZCLSID"
+address = 0x006B8B10
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 AE D4 09 EA C3 CC CC"
+source = "Returns the class ID 0xEA09D4AE (+8 slot 5; also referenced from the class registration at 0x004604DD). Ours in simulators.landfill.object (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::QueryInterface"
+address = 0x006B8B20
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LandfillDeveloper* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D 02 D5 09"
+source = "IIDs 0x00000001 and 0x8A09D502 (cISC4LandfillDeveloper): the object; 0x452294AA: +0x4; 0xE4FDA3D4: +0x8; AddRef through slot 1. Ours in simulators.landfill.object (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::GetCurrentBudget"
+address = 0x006B8BA0
+kind = "function"
+convention = "thiscall"
+signature = "int64_t (cSC4LandfillDeveloper* this)"
+expect = "8B 49 2C 8B 01 6A 1E FF"
+source = "Slot 8: line item 0x1E of the department budget at +0x2C (its slot 20), then the item's current expenses (slot 11) by a tail jump. Ours in simulators.landfill.sim (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::PublishFigure"
+address = 0x006B8BC0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillDeveloper* this, uint32_t id, uint32_t value)"
+expect = "57 8B F9 8B 47 18 85 C0"
+source = "Name ours. Nothing without the message server +0x18; else a new cGZMessage of type 0x89EFA536 with data 1 = id and data 2 = value, sent (server slot 3) and released. Only called by OnMonth (ids 0x2A8C4696, 0x2A8C4697). Ours as a plain function (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::ListRemoveCopy"
+address = 0x006B8C30
+kind = "function"
+convention = "cdecl"
+signature = "void (node** out, node* first, node* last, node* dest, void* const* value)"
+expect = "8B 44 24 08 57 8B 7C 24"
+source = "Name ours. The tail of std::remove over a list of pointers (node: next, previous, value at +8): values other than *value copied down from dest; *out the new end. Only called by 0x006B9450. Ours as a plain function (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::LoadTuning"
+address = 0x006B8C70
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "83 EC 10 8B 0D A8 3C B4"
+source = "Name ours. The exemplar (type 0x6534284A, group 0x67CD5FA1, instance 0x6A2806AF; interface 0xA52160F5) through the resource manager; eight properties into the LandfillTuning globals. Called once per object by Init (flag +0x48). Ours as a plain function (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::GetEfficiency"
+address = 0x006B8D50
+kind = "function"
+convention = "thiscall"
+signature = "SC4Percentage* (cSC4LandfillDeveloper* this, SC4Percentage* result)"
+expect = "83 EC 10 56 8B F1 8B 06"
+source = "Slot 5: the current budget (own slot 8) over the maintenance costs +0x38 when those are above 0, else the float at 0x00B0D2C0 (1.0); written to *result, which is returned. Ours in simulators.landfill.sim (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::MeasureTerrain"
+address = 0x006B8DB0
+kind = "function"
+convention = "thiscall"
+signature = "float (cSC4LandfillDeveloper* this, int32_t const* rect, float* average, float* highest, float* lowest)"
+expect = "83 EC 10 53 55 56 57 8B"
+source = "Name ours. The terrain heights at the centres of the cells of a rectangle (x0, z0, x1, z1 inclusive): heights at or below the terrain's slot 29 value (sea level) count as that + 1; average, highest and lowest out (both start at the height of the rectangle's middle cell); returns highest - lowest (absolute) in ST0. Called by GetZoningCost and OnZoneChange. Ours as a plain function (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::GetLandfillTileCount"
+address = 0x006B8F10
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4LandfillDeveloper const* this)"
+expect = "8B 0D 14 3D B4 00 8B 01"
+source = "Slot 11: slot 6 (0xE) of the service at 0x00B43D14: the count of cells zoned 14 (landfill). Ours in simulators.landfill.sim (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::UpdateUsage"
+address = 0x006B8F20
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillDeveloper* this)"
+expect = "83 EC 0C 53 55 56 8B F1"
+source = "Name ours. +0x40 (capacity) and +0x44 (use) summed over the active zones (zone +0x29) from cSC4LandfillZone::GetUsage, each sum saturating at 0xFFFFFFFF. Ours as a plain function (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::UpdateMaintenanceCosts"
+address = 0x006B8FB0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillDeveloper* this)"
+expect = "53 55 8B E9 8B 45 30 8B"
+source = "Name ours. The zones' costs (0x006BAA70) summed (int64, saturating at 0x7FFFFFFFFFFFFFFF) into the full expenses of line item 0x1E of the department +0x2C (item slot 12) and into +0x38. Ours as a plain function (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::GetZoningCost"
+address = 0x006B9030
+kind = "function"
+convention = "thiscall"
+signature = "int64_t (cSC4LandfillDeveloper* this, SC4CellRegion<int32_t> const* region)"
+expect = "83 EC 20 53 55 56 8B 74"
+source = "Slot 9 (EDX:EAX, EDX 0): the levelling cost of zoning a region. The level is that of the first zone whose rectangle meets the region's (zone +0x38), else the average height when MeasureTerrain is above LandfillTuning::FlatnessLimit (0 returned when not); the cost is the sum over the region's cells of |level - height| times LandfillTuning::LevellingCost, rounded to nearest by the 1.5 * 2^23 addition (float at 0x00AB1550). Ours in simulators.landfill.sim (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::OnMonth"
+address = 0x006B91D0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillDeveloper* this)"
+expect = "83 EC 14 56 8B F1 8B 46"
+source = "Name ours. Message 0x66956816. The garbage of the pollution simulator (+0x20, slot 20), at most LandfillTuning::MonthlyIntakeLimit and scaled by budget over costs when underfunded, is offered to every zone (0x006BD390); the free room of the active zones goes to the pollution simulator (slot 30); costs and usage updated; figures 0x2A8C4696 (capacity) and 0x2A8C4697 (use + pollution slots 20 and 24) published. Ours as a plain function (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::ClearCells"
+address = 0x006B9360
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillDeveloper* this, cSC4LandfillZone* zone, int32_t const* rect, SC4CellRegion<int32_t> const* region, uint32_t a, uint32_t b)"
+expect = "8B 54 24 08 8B 42 08 53"
+source = "Name ours (this unused). For the cells of rect set in region: zone->0x006BCAA0(x, z, a, b); then the zone's +0x28 set when it has no active tile left (0x006BA3A0). Only called by 0x006B96E0. Ours as a plain function (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::GetLandfillZoneFromCell"
+address = 0x006B9400
+kind = "function"
+convention = "thiscall"
+signature = "cSC4LandfillZone* (cSC4LandfillDeveloper* this, int32_t x, int32_t z)"
+expect = "56 8B 71 30 8B 16 33 C0"
+source = "Slot 12: the first zone of the list +0x30 with x0 <= x < x1 and z0 <= z < z1 of its region (+0xC); null when none. Ours in simulators.landfill.sim (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::ListRemove"
+address = 0x006B9450
+kind = "function"
+convention = "cdecl"
+signature = "node** (node** out, node* first, node* last, void* const* value)"
+expect = "8B 4C 24 08 8B 54 24 0C"
+source = "Name ours. std::remove over a list of pointers: *out the new end (last when the value is absent). Only called by RemoveZone. Ours as a plain function (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::Shutdown"
+address = 0x006B94B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LandfillDeveloper* this)"
+expect = "53 56 8B F1 8A 46 0C 33"
+source = "Slot 4: the five message notifications removed and the server released; every zone shut down (0x006BB750), released and unlinked; +0x2C, +0x28, +0x20, +0x24, +0x1C released; the part +0x4 removed from the city's simulator service (city slot 50, its slot 20). Always true. Ours in simulators.landfill.sim (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::RemoveZone"
+address = 0x006B9600
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillDeveloper* this, cSC4LandfillZone* zone, bool clearCells)"
+expect = "51 8B 51 30 53 55 56 57"
+source = "Name ours. list.erase(std::remove(...)) of the zone with the one-iterator erase (the list head itself is unlinked and freed when the zone is not in the list); with clearCells every set cell of its region goes through 0x006BCAA0 (x, z, 1, 1); the zone shut down and released. Ours as a plain function (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::Dezone"
+address = 0x006B96E0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillDeveloper* this, cSC4LandfillZone* zone, SC4CellRegion<int32_t> const* region, uint32_t a, uint32_t b)"
+expect = "83 EC 20 53 8B 5C 24 2C"
+source = "Name ours. Where the zone's rectangle meets the region's: ClearCells, then the zone removed when empty (0x006BAE30) or refreshed (0x006BB830), and the terrain's slot 68 (1, 1, rectangle, 5). Only called by OnZoneChange. Ours as a plain function (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::cSC4LandfillDeveloper"
+address = 0x006B9780
+kind = "function"
+convention = "thiscall"
+signature = "cSC4LandfillDeveloper* (cSC4LandfillDeveloper* this)"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "The constructor (0x50 bytes; Ghidra folds it into Create, which jumps here): the three vtables, the fields zeroed but +0x34, an empty list head (0xC bytes) at +0x30. Only reached from Create. Detoured by simulators.landfill.object (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::GetLandfillUsage"
+address = 0x006B9820
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillDeveloper* this, uint32_t& usage, uint32_t& capacity)"
+expect = "8B 51 40 8B 44 24 08 89"
+source = "Slot 10: capacity = +0x40, usage = +0x44 but at most the capacity. Ours in simulators.landfill.sim (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::GetSimulatorType"
+address = 0x006B9840
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LandfillDeveloper* this)"
+expect = "B8 D6 8E 39 2A C3 CC CC"
+source = "Slot 6: 0x2A398ED6. Ours in simulators.landfill.sim (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::GetMaintenanceCosts"
+address = 0x006B9850
+kind = "function"
+convention = "thiscall"
+signature = "int64_t (cSC4LandfillDeveloper* this)"
+expect = "8B 41 38 8B 51 3C C3 CC"
+source = "Slot 7: the int64 at +0x38. The same code serves slots of two other classes (referenced from 0x00AB09AC and 0x00AB0F80), so only the vtable slot is replaced, by simulators.landfill.sim (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::Write"
+address = 0x006B9880
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "+8 slot 3, `this` is the part at +0x8: version 3 (uint16), the count of zones (sint32), then each zone inline (cSC4LandfillZone::Write). Always true. Ours in simulators.landfill.save (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::Create"
+address = 0x006B98E0
+kind = "function"
+convention = "cdecl"
+signature = "cSC4LandfillDeveloper* ()"
+expect = "6A 50 E8 F9 BC F2 FF 83"
+source = "The class factory (registered at 0x004604D9 for class 0xEA09D4AE; the city creates the object into its +0x1B4 at 0x0045AB59): operator new(0x50), then a jump to the constructor 0x006B9780. Left the game's."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::Read"
+address = 0x006B9900
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "83 EC 08 53 55 8B 6C 24"
+source = "+8 slot 4: sets the loaded flag (object +0x14), version 3 only (read into the stack slot of its own argument; false otherwise), the count, the list emptied without releasing, then per zone a new cSC4LandfillZone (0x70 bytes) referenced, read (0x006BBEF0) and appended when its read succeeds (left referenced and unlisted when not). Ours in simulators.landfill.save (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::OnTilesChanged"
+address = 0x006B99F0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillDeveloper* this, int32_t const* rect)"
+expect = "53 55 56 57 6A 0C 8B E9"
+source = "Name ours. Message 0x278E6003 with data 4 of 1 to 3: every zone gets 0x006BCF20(rect); the zones then empty (0x006BAE30) are removed with their cells (RemoveZone). Ours as a plain function (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::OnZoneChange"
+address = 0x006B9AC0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillDeveloper* this, SC4CellRegion<int32_t> const* region, uint32_t zoneType)"
+expect = "83 EC 18 53 55 56 57 8B"
+source = "Name ours. Message 0x07699455 (void 2, data 3). The zones within one cell of the region's rectangle: for another zone type than 14 each is dezoned there (Dezone 0, 1); for landfill the first takes the region in (0x006BC150, 0x006BCD70, 0x006BB830, 0x006BB1D0) and the others give it up (Dezone 0, 0), each after 0x006BA190. With none near and type 14 a new zone is made from the region, levelled to the average height when the terrain is not flat enough (0x006BA6B0) and appended. Costs and usage updated. Ours as a plain function (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::Release"
+address = 0x006B9D20
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LandfillDeveloper* this)"
+expect = "56 8B F1 8B 46 10 83 F8"
+source = "Slot 2: the count +0x10 decreased while above 1 (signed); at the last reference Shutdown (slot 4), the list +0x30 destroyed (0x005650A0) and the object freed; 0. No destructor of its own. Ours in simulators.landfill.object (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::Init"
+address = 0x006B9D70
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LandfillDeveloper* this)"
+expect = "83 EC 14 56 8B F1 8A 46"
+source = "Slot 3: once (flag +0xC, set first): the tuning loaded once (flag +0x48); the part +0x4 registered with the simulator service 0x00B43D5C (slot 19: 6, the name, 2); the city, terrain, pollution simulator, budget simulator and message server taken where missing, with five notifications (0x07699455, 0x26D31EC1, 0x0772FAD4, 0x278E6003, 0xC6CDBF1A) when the server was. Always true. Ours in simulators.landfill.sim (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::DoMessage"
+address = 0x006B9EA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZMessageTarget2* this, cIGZMessage2* message)"
+expect = "83 EC 10 53 55 56 8B 74"
+source = "+4 slot 3, `this` is the part at +0x4; always true. 0x26D31EC1: the department budget 0x6A42A8F5 of the budget simulator (slot 28) into +0x2C, and after a load (+0x14) every zone initialised (0x006BB620), costs and usage updated. 0x0772FAD4: whether the department's funding percentage is above 0 to each zone's +0x48 (slot 18). 0x07699455: OnZoneChange. 0x278E6003: OnTilesChanged. 0x66956816: OnMonth. 0xC6CDBF1A: each zone's +0x50 switched by slot 22 of the service at 0x00B43DC4. Ours in simulators.landfill.messages (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::DropEffects"
+address = 0x006BA190
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillZone* this)"
+expect = "56 8B F1 8B 4E 50 85 C9"
+source = "Name ours. Stops (slot 4 (1)) and releases the object at +0x50, then more of the same kind (not read further). Called by OnZoneChange before a zone is merged. Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::CountActiveTiles"
+address = 0x006BA3A0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4LandfillZone* this)"
+expect = "8B 51 10 33 C0 85 D2 7E"
+source = "Name ours. The count of the +0x10 tiles (0x20 bytes each from +0x1C) whose byte +0xC is set. Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::Level"
+address = 0x006BA6B0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillZone* this, int32_t const* rect, float level, uint32_t zero)"
+expect = "83 EC 10 8B 44 24 18 53"
+source = "Name ours. Stores the level at +0x38 and works on the rectangle (clamped at 0; not read further). Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::GetUsage"
+address = 0x006BA7B0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillZone* this, uint32_t* free, uint32_t* used, uint32_t* capacity)"
+expect = "8B 54 24 08 53 56 8B 74"
+source = "Name ours. Sums over the tiles: capacity (+0x14), used (+0x18) and their difference. Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::GetFreeCapacity"
+address = 0x006BA810
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4LandfillZone* this)"
+expect = "8B 51 1C 8B 49 20 33 C0"
+source = "Name ours. The sum over the tiles of capacity (+0x14) less used (+0x18). Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::Write"
+address = 0x006BA900
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LandfillZone* this, cIGZOStream* stream)"
+expect = "55 56 8B 74 24 0C 8B 06"
+source = "Name ours. Version 4, the region's rectangle, one byte per cell for x0 <= x < x1, z0 <= z < z1, +0x18, +0x14, the tiles (version 2, +4, +8, the flags +0xC and +0xD as uint16, +0x18, +0x14), the bool +0x29 and a reference to +0x44; true unless the stream is in error (tools/re/save_schemas/landfill.py). Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::GetMaintenanceCost"
+address = 0x006BAA70
+kind = "function"
+convention = "thiscall"
+signature = "int64_t (cSC4LandfillZone* this)"
+expect = "83 EC 08 53 8B D9 8B 43"
+source = "Name ours. The sum of 0x006BA3C0 (x, z) over the set cells of the region. Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::IsEmpty"
+address = 0x006BAE30
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LandfillZone* this)"
+expect = "83 EC 08 53 8B C1 8A 48"
+source = "Name ours. Whether no cell of the region is set, kept in +0x28 (true at once when +0x28 is already set). Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::Sub6BB1D0"
+address = 0x006BB1D0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillZone* this)"
+expect = "83 EC 48 56 57 8B F1 8D"
+source = "Not read. Called last when a zone takes a region in (OnZoneChange). Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::Init"
+address = 0x006BB620
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillZone* this)"
+expect = "83 EC 08 56 8B F1 8A 46"
+source = "Name ours. Once (flag +0x8): takes the city and other services (not read further). Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::Shutdown"
+address = 0x006BB750
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillZone* this)"
+expect = "53 56 8B F1 E8 37 EA FF"
+source = "Name ours. DropEffects, then when initialised (+0x8) releases what Init took (not read further). Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::UpdateCapacity"
+address = 0x006BB830
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillZone* this)"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. A capacity per tile from the count of active tiles (0x006BB180) into each active tile's +0x14 (0 for the others), the excess of +0x18 given to the object at +0x64 (slot 29); +0x34 = active tiles times that capacity. Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::cSC4LandfillZone"
+address = 0x006BBB60
+kind = "function"
+convention = "thiscall"
+signature = "cSC4LandfillZone* (cSC4LandfillZone* this)"
+expect = "8B C1 33 C9 C7 00 10 16"
+source = "The plain constructor (0x70 bytes, vtable 0x00AB1610, everything 0 but the byte +0x30 = 1). Used by cSC4LandfillDeveloper::Read. Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::FromRegion"
+address = 0x006BBD60
+kind = "function"
+convention = "thiscall"
+signature = "cSC4LandfillZone* (cSC4LandfillZone* this, SC4CellRegion<int32_t> const* region)"
+expect = "83 EC 20 53 33 DB 55 56"
+source = "Name ours. The constructor from a region (not read further). Used by OnZoneChange for a new zone. Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::Read"
+address = 0x006BBEF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LandfillZone* this, cIGZIStream* stream)"
+expect = "83 EC 38 53 55 56 8B E9"
+source = "Name ours. The counterpart of Write for any version: a new region (0x24 bytes), +0x10 = +0x14 * +0x18 tiles (0x006BA2A0 each, version 2), version 3 a byte into +0x29, version 4 and later a bool and the reference (interface 0x26BB767E) into +0x44. Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::AddRegion"
+address = 0x006BC150
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillZone* this, SC4CellRegion<int32_t> const* region)"
+expect = "83 EC 38 53 55 8B E9 8B"
+source = "Name ours. Not read; OnZoneChange has the first zone near a newly zoned region take it in with this. Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::ClearCell"
+address = 0x006BCAA0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillZone* this, int32_t x, int32_t z, uint32_t a, uint32_t b)"
+expect = "83 EC 24 53 55 56 8B F1"
+source = "Name ours. Not read; takes one cell out of the zone (callers pass 1, 1 on removal, 0, 1 for another zone type and 0, 0 for a merge). Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::Sub6BCD70"
+address = 0x006BCD70
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillZone* this)"
+expect = "83 EC 08 55 8B E9 8B 45"
+source = "Not read. Called after a zone took a region in and for a new zone, before UpdateCapacity. Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::OnTilesChanged"
+address = 0x006BCF20
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillZone* this, int32_t const* rect)"
+expect = "83 EC 10 53 8B D9 8B 43"
+source = "Name ours. Works on the set cells where the rectangle meets the zone's (not read further); message 0x278E6003. Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillZone::OnMonth"
+address = 0x006BD390
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillZone* this, int32_t* garbage)"
+expect = "53 55 56 8B E9 E8 56 E5"
+source = "Name ours. Sets the active flag +0x29 (0x006BB8F0), decays the tiles (0x006BA330) and takes garbage from *garbage into the free room (not read further). Zone code, left the game's; called by our landfill developer (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::Name"
+address = 0x00A8987C
+kind = "data"
+source = "The text cSC4LandfillDeveloper, Init's name for the simulator service."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::vftable_8"
+address = 0x00AB1554
+kind = "vtable"
+expect = "70 98 6B 00 50 D2 68 00"
+source = "Name ours. The cIGZSerializable part at +0x8 (6 slots): QueryInterface thunk 0x006B9870, AddRef thunk 0x0068D250 (shared), Release thunk 0x006BA110, Write 0x006B9880, Read 0x006B9900, GetGZCLSID 0x006B8B10. Slots 3 and 4 replaced by simulators.landfill.save (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::vftable_4"
+address = 0x00AB156C
+kind = "vtable"
+expect = "60 98 6B 00 30 D2 68 00"
+source = "Name ours. The cIGZMessageTarget2 part at +0x4 (4 slots): QueryInterface thunk 0x006B9860, AddRef thunk 0x0068D230 (shared), Release thunk 0x006BA100, DoMessage 0x006B9EA0. Slot 3 replaced by simulators.landfill.messages (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "cSC4LandfillDeveloper::vftable"
+address = 0x00AB157C
+kind = "vtable"
+expect = "20 8B 6B 00 A0 7B 4F 00"
+source = "The primary cISC4LandfillDeveloper vtable (13 slots): QueryInterface 0x006B8B20, AddRef 0x004F7BA0 (shared), Release 0x006B9D20, Init, Shutdown, GetEfficiency, GetSimulatorType, GetMaintenanceCosts (0x006B9850, code also referenced from 0x00AB09AC and 0x00AB0F80), GetCurrentBudget, GetZoningCost, GetLandfillUsage, GetLandfillTileCount, GetLandfillZoneFromCell. Slots 3 to 12 replaced by simulators.landfill.sim (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "LandfillTuning::DecayRate"
+address = 0x00B0D2A4
+kind = "data"
+source = "float (0.1 until loaded), property 0x4A280510 of the landfill exemplar. Read by the zone code (0x006BA330: a tile's monthly decay); the developer only loads it (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "LandfillTuning::FlatnessLimit"
+address = 0x00B0D2A8
+kind = "data"
+source = "float (1.0), property 0x4A280513: the height range above which a new zone is levelled and GetZoningCost charges for it (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "LandfillTuning::MonthlyIntakeLimit"
+address = 0x00B0D2AC
+kind = "data"
+source = "uint32 (40000), property 0x4A677E5B: the most garbage OnMonth offers the zones (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "LandfillTuning::Value4A677E5C"
+address = 0x00B0D2B0
+kind = "data"
+source = "uint32 (5000), property 0x4A677E5C. Read by the zone code (0x006BD3E9); the developer only loads it (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "LandfillTuning::Value4A677E5E"
+address = 0x00B0D2B4
+kind = "data"
+source = "uint32 (3000), property 0x4A677E5E. Read by the zone code (0x006BA374: the most a tile decays); the developer only loads it (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "LandfillTuning::Flag4A677E5D"
+address = 0x00B0D2B8
+kind = "data"
+source = "bool (1), property 0x4A677E5D. The developer only loads it (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "LandfillTuning::LevellingCost"
+address = 0x00B0D2BC
+kind = "data"
+source = "float (1.0), property 0x2AA00FE7: GetZoningCost's cost per metre of height difference (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "LandfillTuning::FullEfficiency"
+address = 0x00B0D2C0
+kind = "data"
+source = "float 1.0: GetEfficiency's result when the maintenance costs are not above 0. Not a property (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "LandfillTuning::Value4A677E5F"
+address = 0x00B490A8
+kind = "data"
+source = "int64 (0), property 0x4A677E5F. Read by the zone code (0x006BA3C0, a cell's cost); the developer only loads it (src/core/landfill_sim.cpp)."
+
+[[entry]]
+name = "LandfillTuning::ZeroPercentage"
+address = 0x00B490B0
+kind = "data"
+source = "float 0 (never written by the code read): the funding percentage DoMessage 0x0772FAD4 compares with (0x004C3730: greater than) (src/core/landfill_sim.cpp)."
