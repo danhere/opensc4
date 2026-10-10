@@ -12,6 +12,7 @@
 //     loading the advisor scripts and creating the advisors they list.
 //   simulators.advisors.scripts: DoLink (links in advice text) and the
 //     data tags' gc callback.
+//   simulators.advisors.tokens: the text-token callback.
 //   simulators.advisors.save: Write and Read.
 //
 // The map, set and vector helpers it uses stay the game's.
@@ -1348,6 +1349,307 @@ const bool g_scriptsRegistered = registry::Register({
     "Our cSC4AdvisorSystem DoLink and data-tag gc callback (docs/advisors.md)",
     false,
     InstallScripts,
+});
+
+// The text tokens (0x00417AF0), called by 0x00B43CDC's service with the
+// token's name, the string to fill and the advisor system: links, the
+// advisor, building costs and mission values; any other name is evaluated
+// as script (`_dasd_=(name)`), a prefix like `M@` choosing the format.
+// Returns whether the token was filled. The frame is kept as the
+// original's (`f`, offsets from its stack after the prologue), as some
+// calls fill fixed places in it.
+
+enum Token {
+    kLinkId,
+    kSituationLinkId,
+    kAdvisorName,
+    kBuildingInitialCost,
+    kBuildingMonthlyCost,
+    kMissionTarget,
+    kNumTargets,
+    kCurrentTargetIndex,
+    kNumTargetsRemaining,
+    kMissionMayorRating,
+    kMissionFailureMayorRating,
+    kMissionMoney,
+    kMissionFailureMoney,
+};
+
+template <typename... Args>
+void Sprintf(void* out, const char* format, Args... args)
+{
+    using SprintfFn = void(__cdecl*)(void*, const char*, ...);
+    reinterpret_cast<SprintfFn>((*static_cast<void***>(out))[0x6C / 4])(out, format, args...);
+}
+
+void DestroyAt(char* at)
+{
+    reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4String_Destroy)(at);
+}
+
+// A string from `text` at `at`, appended to the string at `to` (the
+// append works on the string's {begin, end, capacity} part at +4).
+void AppendText(char* to, char* at, const char* text)
+{
+    auto* const made =
+        reinterpret_cast<char*(__thiscall*)(void*, const char*)>(addr::SC4String_FromText)(at, text);
+    reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4String_AppendStd)(to + 4, made ? made + 4 : nullptr);
+    DestroyAt(at);
+}
+
+uint8_t __cdecl TokenCallback(void* token, void* out, char* system)
+{
+    alignas(8) char f[0x78] = {};
+    At<void*>(f, 0x6C) = token;
+    At<void*>(f, 0x70) = out;
+    At<char*>(f, 0x74) = system;
+    uint8_t& handled = At<uint8_t>(f, 0x13);
+    void* const locale = Virtual<void*>(reinterpret_cast<void*(__cdecl*)()>(addr::SC4_CurrentApp)(), 0x98, int32_t{0});
+    const uint32_t size = Virtual<uint32_t>(token, 0x1C);
+    const char* const begin = Virtual<const char*>(token, 0x18);
+    char* const name = f + 0x2C;
+    reinterpret_cast<void(__thiscall*)(void*, const char*, const char*, void*)>(addr::SC4String_FromRange)(
+        name + 4, begin, begin + size, f + 0x74);
+    At<std::uintptr_t>(name, 0x0) = addr::SC4String_Vtable;
+    At<uint32_t>(name, 0x10) = 0;
+    reinterpret_cast<void(__thiscall*)(void*)>(addr::cRZBaseString_Trim)(name);
+    auto is = [name](Token which) {
+        return reinterpret_cast<uint8_t(__thiscall*)(void*, std::uintptr_t, uint32_t)>(addr::cRZBaseString_IsEqual)(
+                   name, addr::cSC4AdvisorSystem_TokenNames + 0x14 * which, 0) != 0;
+    };
+    auto mission = []() -> void* {
+        void* const city = Global<void*>(addr::SC4_City);
+        return city ? Virtual<void*>(city, 0xC4) : nullptr;
+    };
+    auto rating = [&](void* source, std::size_t slot) {
+        Virtual<void>(source, slot, f + 0x6C, f + 0x74);
+        Sprintf(out, "%+.0f", static_cast<double>(At<float>(f, 0x74)));
+        handled = 1;
+    };
+    auto money = [&](void* source, std::size_t slot) {
+        Virtual<void>(source, slot, f + 0x18);
+        Sprintf(out, "%+d", At<uint32_t>(f, 0x18), At<uint32_t>(f, 0x1C));
+        handled = 1;
+    };
+    bool unknown = false;
+    if (is(kLinkId) || is(kSituationLinkId)) {
+        void* const advice = Virtual<void*>(system, 0x50); // GetContextAdvice
+        uint32_t guid = 0;
+        uint32_t session = 0;
+        if (advice) {
+            guid = Virtual<uint32_t>(advice, 0x2C);
+            session = Virtual<uint32_t>(advice, 0x34);
+        }
+        Sprintf(out, *reinterpret_cast<const char* const*>(addr::cSC4AdvisorSystem_LinkFormat), guid, session);
+        handled = 1;
+    } else if (is(kMissionTarget)) {
+        if (void* const m = mission()) {
+            void* const target = Virtual<void*>(m, 0x40, f + 0x40);
+            Virtual<void>(out, 0x34, target);
+            DestroyAt(f + 0x40);
+            handled = 1;
+        } else {
+            unknown = true;
+        }
+    } else if (is(kNumTargets)) {
+        if (void* const m = mission()) {
+            Sprintf(out, "%d", Virtual<int32_t>(m, 0x2C));
+            handled = 1;
+        } else {
+            unknown = true;
+        }
+    } else if (is(kCurrentTargetIndex)) {
+        if (void* const m = mission()) {
+            Sprintf(out, "%d", Virtual<int32_t>(m, 0x28) + 1);
+            handled = 1;
+        } else {
+            unknown = true;
+        }
+    } else if (is(kNumTargetsRemaining)) {
+        if (void* const m = mission()) {
+            Sprintf(out, "%d", Virtual<int32_t>(m, 0x30));
+            handled = 1;
+        } else {
+            unknown = true;
+        }
+    } else if (is(kMissionMayorRating)) {
+        if (void* const m = mission())
+            rating(m, 0x44);
+        else
+            unknown = true;
+    } else if (is(kMissionFailureMayorRating)) {
+        void* const m = mission();
+        void* const failure = m ? Virtual<void*>(m, 0x18) : nullptr;
+        if (failure)
+            rating(failure, 0xC4);
+        else
+            unknown = true;
+    } else if (is(kMissionMoney)) {
+        if (void* const m = mission())
+            money(m, 0x48);
+        else
+            unknown = true;
+    } else if (is(kMissionFailureMoney)) {
+        void* const m = mission();
+        void* const failure = m ? Virtual<void*>(m, 0x18) : nullptr;
+        if (failure)
+            money(failure, 0xCC);
+        else
+            unknown = true;
+    } else if (is(kAdvisorName)) {
+        void* const advice = Virtual<void*>(system, 0x50);
+        void* const advisor = advice ? Virtual<void*>(system, 0x1C, Virtual<int32_t>(advice, 0x2C)) : nullptr;
+        if (advisor) {
+            using SingletonFn = void*(__cdecl*)();
+            const auto singleton = reinterpret_cast<SingletonFn>(addr::SC4_Singleton913C72);
+            void* const strings = Virtual<void*>(singleton(), 0x14, uint32_t{0x68963C4C});
+            const uint32_t language = Virtual<uint32_t>(strings, 0x8C);
+            At<uint32_t>(f, 0x18) = 0;
+            At<uint32_t>(f, 0x1C) = 0;
+            At<uint32_t>(f, 0x20) = 0xC8;
+            At<uint32_t>(f, 0x24) = language;
+            reinterpret_cast<void*(__thiscall*)(void*, void*)>(addr::SC4String_FromIGZString)(
+                f + 0x40, Virtual<void*>(advisor, 0x20));
+            // The singleton's slot 0x8C takes the ID only (0x00997BC4,
+            // ret 4); the key and the 0 pushed before it are arguments of
+            // the strings' slot 0xC8.
+            void* const source = Virtual<void*>(singleton(), 0x8C, uint32_t{0x5377BE31});
+            Virtual<void>(strings, 0xC8, f + 0x40, source, f + 0x18, int32_t{0});
+            Virtual<void>(out, 0x38, f + 0x40);
+            handled = 1;
+            DestroyAt(f + 0x40);
+        } else {
+            unknown = true;
+        }
+    } else if (is(kBuildingInitialCost) || is(kBuildingMonthlyCost)) {
+        void* const advice = Virtual<void*>(system, 0x50);
+        void* const building = advice ? Virtual<void*>(advice, 0x64) : nullptr;
+        if (building) {
+            const int32_t cost = is(kBuildingInitialCost) ? Virtual<int32_t>(building, 0x24)
+                                                          : Virtual<int32_t>(building, 0x2C);
+            reinterpret_cast<void(__cdecl*)(int32_t, int32_t, void*)>(addr::SC4_FormatMoney)(cost, 0, out);
+            handled = 1;
+        } else {
+            unknown = true;
+        }
+    } else {
+        // A prefix "X@" picks the format: S %i, M money, P percent, D date,
+        // T time; none: the locale's number.
+        int32_t format = 0;
+        const uint32_t length = reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::cRZBaseString_Strlen)(name);
+        if (length > 1 && At<const char*>(name, 0x4)[1] == '@') {
+            switch (At<const char*>(name, 0x4)[0]) {
+            case 'S': case 's': format = 1; break;
+            case 'M': case 'm': format = 2; break;
+            case 'D': case 'd': format = 3; break;
+            case 'T': case 't': format = 4; break;
+            case 'P': case 'p': format = 5; break;
+            default: break;
+            }
+            void* const right = reinterpret_cast<void*(__thiscall*)(void*, void*, uint32_t)>(addr::cRZBaseString_Right)(
+                name, f + 0x18, length - 2);
+            reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::cRZBaseString_Assign)(name, right);
+            DestroyAt(f + 0x18);
+        }
+        char* const code = f + 0x40;
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4String_SC4String)(code);
+        AppendText(code, f + 0x18, "_dasd_");
+        AppendText(code, f + 0x18, "=(");
+        reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::cRZBaseString_AppendString)(code, name);
+        AppendText(code, f + 0x18, ")");
+        void* const script = Virtual<void*>(system, 0x28);
+        const char* const text = reinterpret_cast<const char*(__thiscall*)(void*)>(addr::cRZBaseString_Data)(code);
+        if (!Virtual<int32_t>(script, 0xD8, text)) {
+            At<int32_t>(f, 0x14) = Virtual<int32_t>(script, 0x18);
+            Virtual<void>(script, 0x94, "_dasd_");
+            if (Virtual<uint8_t>(script, 0x38, -1)) {
+                const auto value = static_cast<int64_t>(Virtual<double>(script, 0x5C, -1));
+                const auto low = static_cast<int32_t>(value);
+                const auto high = static_cast<int32_t>(value >> 32);
+                using DateFn = int32_t(__thiscall*)(void*);
+                switch (format) {
+                case 0:
+                    Virtual<void>(locale, 0x48, low, high, out);
+                    break;
+                case 1:
+                    Sprintf(out, "%i", low);
+                    break;
+                case 2:
+                    reinterpret_cast<void(__cdecl*)(int32_t, int32_t, void*)>(addr::SC4_FormatMoney)(low, high, out);
+                    break;
+                case 3: {
+                    At<std::uintptr_t>(f, 0x18) = addr::SC4DayDate_Vtable;
+                    At<int32_t>(f, 0x1C) = low;
+                    const int32_t year = reinterpret_cast<DateFn>(addr::SC4Date_Year)(f + 0x18);
+                    const int32_t day = reinterpret_cast<DateFn>(addr::SC4Date_Day)(f + 0x18);
+                    const int32_t month = reinterpret_cast<DateFn>(addr::SC4Date_Month)(f + 0x18);
+                    Virtual<void>(locale, 0x28, month, day, year, out, int32_t{0});
+                    break;
+                }
+                case 4: {
+                    At<int32_t>(f, 0x74) = low;
+                    const uint32_t seconds = static_cast<uint32_t>(low) % 60;
+                    const int32_t minutes = reinterpret_cast<DateFn>(addr::SC4Time_Minutes)(f + 0x74);
+                    const int32_t hours = reinterpret_cast<DateFn>(addr::SC4Time_Hours)(f + 0x74);
+                    Virtual<void>(locale, 0x28, hours, minutes, seconds, out, int32_t{0});
+                    break;
+                }
+                default: {
+                    Virtual<void>(locale, 0x48, low, high, out);
+                    auto* const percent =
+                        reinterpret_cast<void*(__thiscall*)(void*, const char*)>(addr::SC4String_FromText)(f + 0x54,
+                                                                                                         "%");
+                    Virtual<void>(out, 0x40, percent);
+                    DestroyAt(f + 0x54);
+                    break;
+                }
+                }
+                handled = 1;
+            } else if (Virtual<uint8_t>(script, 0x124, -1)) {
+                const int32_t tag = Virtual<int32_t>(script, 0x44, -1);
+                if (tag == Virtual<int32_t>(system, 0x58, 1)) {
+                    Virtual<void>(out, 0x38, Virtual<void*>(script, 0x70, -1));
+                    handled = 1;
+                }
+            } else if (Virtual<uint8_t>(script, 0x3C, -1)) {
+                reinterpret_cast<void*(__thiscall*)(void*, const char*)>(addr::SC4String_FromText)(
+                    f + 0x18, Virtual<const char*>(script, 0x60, -1));
+                Virtual<void>(out, 0x34, f + 0x18);
+                handled = 1;
+                DestroyAt(f + 0x18);
+            }
+            Virtual<void>(script, 0x1C, At<int32_t>(f, 0x14));
+        }
+        DestroyAt(code);
+        unknown = !handled;
+    }
+    if (unknown)
+        Sprintf(out, "%%UNKNOWN TOKEN --%s--%%",
+                reinterpret_cast<const char*(__thiscall*)(void*)>(addr::cRZBaseString_Data)(name));
+    At<std::uintptr_t>(name, 0x0) = addr::SC4String_Vtable;
+    if (char* const buffer = At<char*>(name, 0x4))
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(buffer);
+    return handled;
+}
+
+bool InstallTokens(registry::Mode)
+{
+    static void* originals[1] = {};
+    static const std::pair<std::uintptr_t, void*> hooks[] = {
+        {addr::cSC4AdvisorSystem_Callback, reinterpret_cast<void*>(&TokenCallback)},
+    };
+    return Install(hooks, 1, originals);
+}
+
+const bool g_tokensRegistered = registry::Register({
+    "simulators.advisors.tokens",
+    "simulators/advisors",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4AdvisorSystem_Callback,
+    "Our cSC4AdvisorSystem text-token callback (docs/advisors.md)",
+    false,
+    InstallTokens,
 });
 
 } // namespace

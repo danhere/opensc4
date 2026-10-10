@@ -86,7 +86,7 @@ Parity method (from P4): short-window exact comparison against the original from
 - [x] Coverage sims (health, education): the game does these in its residential simulator, above
 - [ ] Land value
 - [x] Ordinances ([docs/ordinance.md](docs/ordinance.md)): the simulator, cSC4OrdinanceSimple and its 20 derived classes are ours (`simulators.ordinance.*`), with our own objects under all 22 class IDs. Parity: 10 of 12 for 35 days (the other two noisy for the original too), 8 of 12 with every ordinance enacted, cycled and repealed (the ordinance state identical in every run), 3 of 3 on the plopped corpus, 1 of 2 for a year.
-- [~] Advisor system ([docs/advisors.md](docs/advisors.md)): cSC4AdvisorSystem is ours (`simulators.advisors.*`: the interface, Init and Shutdown, the daily run, script loading and advisor creation, the cheats, links, save and load, our own object) but the text-token callback (0x00417AF0) and container helpers. Parity with everything on: 12 of 12 for a week, 2 of 2 for 30 days, 12 of 12 with the advisors created again (`OPENSC4_TEST_ADVISORS`) and with the cheats and a link (`OPENSC4_TEST_ADVISOR_CHEATS`), advisor records identical.
+- [x] Advisor system ([docs/advisors.md](docs/advisors.md)): cSC4AdvisorSystem is ours (`simulators.advisors.*`: the interface, Init and Shutdown, the daily run, script loading and advisor creation, the cheats, links, the text tokens, save and load, our own object) but container helpers. Parity with everything on: 11 of 12 for a week (the twelfth partly: one B run off in the tick count), 2 of 2 for 30 days, 11 of 12 with the advisors created again (`OPENSC4_TEST_ADVISORS`), 12 of 12 with the cheats and a link (`OPENSC4_TEST_ADVISOR_CHEATS`), advisor records identical.
 
 ## P6: Economy simulators
 

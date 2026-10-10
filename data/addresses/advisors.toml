@@ -597,3 +597,69 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 2C 53 55 56 57 8B"
 source = "Interface slot 11: a link in advice text, '%08x%08x' (advisor ID, advice GUID) and the rest; 0x1D or no advisor runs the rest as script."
+
+[[entry]]
+name = "cRZBaseString::IsEqual"
+address = 0x0090EC57
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 28 56 57"
+source = "Name ours. (other, flag): the two strings equal."
+
+[[entry]]
+name = "SC4String::AppendStd"
+address = 0x00408C20
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 50 04 8B"
+source = "Name ours. Appends a {begin, end} string (null: nothing)."
+
+[[entry]]
+name = "cRZBaseString::AppendString"
+address = 0x0090F06C
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Appends another string."
+
+[[entry]]
+name = "SC4::FormatMoney"
+address = 0x005F9AB0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 53 33 DB 6A 08"
+source = "Name ours, not analysed. (int64 value, out): a money amount into a string."
+
+[[entry]]
+name = "SC4Time::Minutes"
+address = 0x004178B0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 15 A8 8B B1 00 56"
+source = "Name ours. The minutes of a time_t (less the time zone 0x00B18BA8, daylight saving)."
+
+[[entry]]
+name = "SC4Time::Hours"
+address = 0x00417870
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 15 A8 8B B1 00 56"
+source = "Name ours. The hours of a time_t (less the time zone 0x00B18BA8, daylight saving)."
+
+[[entry]]
+name = "cSC4AdvisorSystem::LinkFormat"
+address = 0x00B07CE0
+kind = "data"
+source = "Name ours. Pointer to 'sc4://advice/%08x%08x'."
+
+[[entry]]
+name = "cSC4AdvisorSystem::TokenNames"
+address = 0x00B20860
+kind = "data"
+source = "Name ours. 13 strings (0x14 bytes each): link_id, sit_link_id, advisor, building_initial_cost, building_monthly_cost, mission_target, num_targets, cur_target_index, num_targets_remaining, mission_mayor_rating, mission_failure_mayor_rating, mission_money, mission_failure_money."
+
+[[entry]]
+name = "SC4DayDate::Vtable"
+address = 0x00A827D8
+kind = "data"
+source = "Name ours. A date object {vtable, day number} the token callback builds."
