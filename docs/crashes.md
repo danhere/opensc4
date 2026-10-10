@@ -34,6 +34,12 @@ Not fixed: sc4fix's "vaccine" does not change what the save does. It replaces cS
 
 The load side (LoadClassObjects, 0x005D38D0) is where objects are lost: a CRC mismatch skips the object and stops reading the rest of that class's record; a size that disagrees with what Read consumed is silently realigned; an exception in Read keeps the half-read object; an object ID seen twice makes Read run again on the existing object. Finding which objects write records that do not read back (the props' own Write and Read) is the next step.
 
+## Multicore crash
+
+**What players do:** run the game on one core, through Task Manager's affinity or the game's own `-CPUCount:1`. The game's handling of that option (0x0044FC3B in the command-line code) calls 0x005F8CD0, which sets the process affinity to CPUs 0 to N-1; without it the game never sets affinity. Why more cores crash is not established; the game's reference counts are plain increments with no lock (see 0x0096DA20), which threads on two cores can race.
+
+**Fix:** `fixes.single_core = ours` ([src/core/single_core.cpp](../src/core/single_core.cpp), off by default) sets the affinity to one core when core.dll attaches, before the game creates any thread, so it needs no shortcut or command line. The core is `[fixes] core` in opensc4.ini (default: the first core the process may use).
+
 ## Still to look at
 
-From the community: the multicore crash (players set one core) and running out of memory with large plugin folders (the 4GB patch). Other rare crashes the parity harness has hit: 0x00975CC8, 0x0080105D, 0x0075FEEE, 0x005A62A2 ([parity.md](parity.md)). Already fixed by the D3D11 driver: the crash above 2048 px and the start-up crash when no display mode matches ([renderer.md](renderer.md)).
+From the community: running out of memory with large plugin folders (the 4GB patch; the Steam exe 1.1.641 is not large-address-aware). Other rare crashes the parity harness has hit: 0x00975CC8, 0x0080105D, 0x0075FEEE, 0x005A62A2 ([parity.md](parity.md)). Already fixed by the D3D11 driver: the crash above 2048 px and the start-up crash when no display mode matches ([renderer.md](renderer.md)).
