@@ -1029,3 +1029,99 @@ kind = "function"
 convention = "cdecl"
 expect = "53 8B 5C 24 0C 8D 43 FF"
 source = "Name ours, not analysed (the direction is a guess from its use beside 0x007C56D0). ({drawable, key} pairs, count): the sort of the moving pass's two other lists (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "cS3DBillboard::Draw"
+address = 0x007FEA90
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 08 83 EC 18 84"
+source = "Class name ours (unnamed; the drawable with vtable 0x00ABD1D0, the most drawn in a city; this is its slot 0x30 after the adjustor 0x007FEE90, so `this` is the object + 0x170). (render context, bool): a textured quad that faces the camera: picks its picture again when the zoom or rotation changed (0x007FE390, 0x007FE400), moves its four corners, then colour, render state, texture and a four-vertex draw (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "cS3DBillboard::SelectView"
+address = 0x007FE390
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 54 24 10 53 8B 5C"
+source = "Name ours, not analysed. (float pitch, float heading, 0, zoom, rotation, byte +0x9F, 0, +0x94): picks the billboard's picture for a zoom and rotation (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "cS3DBillboard::UpdateCorners"
+address = 0x007FE400
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 48 53 55 56 57 8B"
+source = "Name ours, not analysed. (render context): after a change of zoom or rotation (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4RenderContext::SetColourLit"
+address = 0x007D31E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C A1 24 E3 B4 00"
+source = "Name ours, not analysed. (the drawable's base, colour): the colour for a drawable without flag 4 (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "CRT::CIasin"
+address = 0x009F03B0
+kind = "function"
+convention = "custom"
+expect = "83 EC 0C DD 14 24 E8 DD"
+source = "The exe's statically linked C runtime asin with the argument and result on the x87 stack (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4RenderContext::DrawModel"
+address = 0x007D5710
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 10 83 EC 60 84"
+source = "Name ours. (instance, model, properties, bool overlaid): a model with an instance's transform (the instance's slot 0x24), its colour, then each of the model's groups (count from the model's slot 0xC): the material (slot 0x18) set up by 0x007D5310 (0x007D5670 overlaid) and the mesh (slot 0x10) drawn by 0x007D4A80, with a second pass (0x007D47E0) for materials of kind 2 without a second texture stage; small models are culled when the preference at +0x3DC is set (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4RenderContext::SetModelTransform"
+address = 0x007D3400
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 56 8B F1 8A 86"
+source = "Name ours, not analysed. (transform: two bytes, a 3x3 rotation, a position, a scale): the model matrix for the draws that follow (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4RenderContext::SetMaterial"
+address = 0x007D5310
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 60 53 8B 5C 24 6C"
+source = "Name ours, not analysed. (material, properties): the state for a model's material (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4RenderContext::SetMaterialOverlaid"
+address = 0x007D5670
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 8B F1 0F"
+source = "Name ours, not analysed. (material, properties): the same for the overlaid round (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4RenderContext::DrawMesh"
+address = 0x007D4A80
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 57 8B 7C 24 14"
+source = "Name ours, not analysed. (mesh): draws a model's mesh with the state set (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "SC4RenderContext::BeginSecondPass"
+address = 0x007D47E0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 F7 86 80 00"
+source = "Name ours, not analysed. (): before a material of kind 2 is drawn again without a second texture stage (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "S3D::VectorLength"
+address = 0x00466660
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 56 8B 74 24"
+source = "Name ours, not analysed (the use suggests a length). (float[3], float out): returns the out pointer (docs/renderer.md, \"Models and lots\")."
