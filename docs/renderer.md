@@ -246,7 +246,7 @@ The two-stage pass (0x00736BF0) is the one normal play uses. Stage 1 gets the ma
 |---|---|---|---|
 | 0x00ABD1D0 | 0x007FEA90 | 41% | a camera-facing textured quad (billboard) |
 | 0x00ABD508, 0x00ABD018 | 0x00801750 | 30% | a model, through the context's 0x007D5710 |
-| 0x00AA2C30 | 0x005E0540 | 20% | not read yet |
+| 0x00AA2C30 | 0x005E0200 | 20% | a textured quad on the ground |
 | 0x00AA7F10 | 0x0061A850 | 4% | not read yet |
 | 0x00AA2EA8 | 0x005E28B0 | 2% | not read yet |
 | 0x00AA2808 | 0x005D6120 | 2% | not read yet |
@@ -264,6 +264,10 @@ The two-stage pass (0x00736BF0) is the one normal play uses. Stage 1 gets the ma
 **The material setup** (the context's 0x007D5310: a material and the properties). A material has 16 flag bits at +4, state values at +6 to +0xA, an alpha (0 to 255) at +8, the number of texture stages (0 to 2) at +0xB, then 0x14 bytes per stage from +0x10: the texture (by two pointers), wrap (+4, +5), filters (+6, +7), the texture coordinate source (+8), the environment mode (+9), a flag for a moving texture (+0xA) and its period (+0xC). The setup packs a render state from them (0x007D2B50, fourteen values) and applies it (0x007D4530); the properties' flags bend it: 8 dims the colour by the value at +0x10 (the driver's colour multiplier), 2 makes the model translucent by that value (blend values 4 and 5, the alpha scaled, the driver's alpha multiplier), 0x10 and 0x20 pick other values for three of the fields. Then, when the material's flag 0x20 is set, each stage: the texture and environment mode straight to the driver past the context's stage cache (the second stage only with the second-stage preference), wrap, filters and coordinate source through the context, and for a moving texture a texture matrix that scales by 1 / period and shifts by the context's two values at +0x19C and +0x1A0. `renderer.models.material` replaces it; compare mode compares the driver's state and the context after ours and after the game's. 2026-10-10: 0 divergences (1,004,240, 1,031,155 and 651,468 materials); 20 of 20 screenshots with all 21 renderer replacements on.
 
 The overlaid round's material setup (0x007D5670: one stage, straight to the driver) is written as `renderer.models.material_overlaid` but no model in the test cities is drawn in that round, so it is unverified.
+
+**The ground quad** (0x005E0200 after the adjustor 0x005E0540; `this` is the object + 0xEC) draws nothing in the overlaid round. It follows the context's zoom (0x005DFD40 when it differs from +0x45) and rotation (its own slot 0x10, then +0x46). It has three ways to draw: tinted when its tint mode (+0x40) is not 0xFF, translucent when a flag (+0x44) is set or its alpha (+0x3F) is below 255, else plain; the first two answer 2 in the first round, so they are drawn in the second, after everything opaque. Each way has a fixed render state (0x00B23090, 0x00B23098, 0x00B230A0) with the quad's texture (+0x48 by the index at +0x41). Tinted, the colour (+0x3C, scaled by a light value from the context's +0x44 object and by 1/255) and alpha go to the context as its light vector, with the tint mode; a preference (+0x3BC) turns mode 3 into mode 1 at half the alpha. The quad is then drawn from its own four vertices (+0x64) when it has them (+0xC4), else through the context's +0x4C object (slot 0x3C), which lays it on the terrain.
+
+`renderer.models.groundquad` replaces it (the zoom change and the draw on the terrain still the game's), compared per quad with a quiet run of the game's first. 2026-10-10, three test cities with the camera workout: 0 divergences (19,948, 601,829 and 17,829 quads; the game against itself also 0); 20 of 20 screenshots against the stock driver with all 22 renderer replacements on.
 
 ## What the driver calls mean
 
