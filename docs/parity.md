@@ -90,6 +90,7 @@ The test cities never edit their networks, so parity alone would not reach the c
 | `OPENSC4_TEST_GROWTH_QUERIES=1` | each day, per growth developer, the queries no test city makes (desirability estimates, subjective thresholds, abandonment thresholds, the desirability threshold), into the fingerprint ([growth.md](growth.md)) |
 | `OPENSC4_TEST_PLOP_PORTS=<n>`, `OPENSC4_TEST_GROW_PORTS=<n>`, `OPENSC4_TEST_REMOVE_PORTS=<n>` | on the n-th day: an airport and a seaport built with the game's own calls; growth asked of the ports; the first port of each developer removed ([ports.md](ports.md)) |
 | `OPENSC4_TEST_AIRPORT=1`, `OPENSC4_TEST_SEAPORT=1`, `OPENSC4_TEST_LANDFILL=1` | each day, the queries of those developers no test city makes, into the fingerprint ([ports.md](ports.md), [landfill.md](landfill.md)) |
+| `OPENSC4_TEST_PROP=1` (2: the frame-driven state too) | each day, the prop developer's queries no test city makes, into the fingerprint ([prop.md](prop.md)) |
 | `OPENSC4_TEST_CRIME_QUERIES=1` | each day, the crime queries only the UI and the automata make, into the fingerprint ([crime.md](crime.md)) |
 | `OPENSC4_TEST_MYSIM_QUERIES=1` | each day, what the MySim panel and balloons ask every MySim, into the fingerprint ([mysim-agents.md](mysim-agents.md)) |
 | `OPENSC4_TEST_MYSIM_DRIVE=<day>` | on that day every MySim leaves for work, returns home and hears of building and connection changes, fires and disasters ([mysim-agents.md](mysim-agents.md)) |

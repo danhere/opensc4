@@ -108,6 +108,9 @@ add_library(opensc4_core SHARED
   airport_sim.cpp
   landfill_autotest.cpp
   ports_autotest.cpp
+  prop_autotest.cpp
+  prop_object.cpp
+  prop_props.cpp
   landfill_sim.cpp
   seaport_autotest.cpp
   seaport_sim.cpp
