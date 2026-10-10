@@ -13,8 +13,9 @@ namespace opensc4::launcher {
 // copy where a link is refused), and an Apps folder of its own holding the
 // other Apps files and a copy of the exe with the large-address-aware flag
 // set. The install is only read. The mirror is rebuilt when the exe's size or
-// time changes. Returns the mirrored exe's path, or empty with `error` set.
-std::wstring PrepareLargeAddressMirror(const std::wstring& gameExe, const std::wstring& mirrorRoot,
+// time changes (`rebuilt` says whether it was). Returns the mirrored exe's
+// path, or empty with `error` set.
+std::wstring PrepareLargeAddressMirror(const std::wstring& gameExe, const std::wstring& mirrorRoot, bool* rebuilt,
                                        std::wstring& error);
 
 } // namespace opensc4::launcher

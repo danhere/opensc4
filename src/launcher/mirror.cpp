@@ -191,9 +191,10 @@ bool WritePatchedExe(const std::wstring& from, const std::wstring& to, std::wstr
 
 } // namespace
 
-std::wstring PrepareLargeAddressMirror(const std::wstring& gameExe, const std::wstring& mirrorRoot,
+std::wstring PrepareLargeAddressMirror(const std::wstring& gameExe, const std::wstring& mirrorRoot, bool* rebuilt,
                                        std::wstring& error)
 {
+    *rebuilt = false;
     const std::wstring apps = Parent(gameExe);
     const std::wstring install = Parent(apps);
     if (install.empty() || _wcsicmp(Leaf(apps).c_str(), L"Apps") != 0) {
@@ -205,6 +206,7 @@ std::wstring PrepareLargeAddressMirror(const std::wstring& gameExe, const std::w
     const std::wstring stamp = Stamp(gameExe);
     if (!stamp.empty() && ReadText(stampFile) == stamp && GetFileAttributesW(mirroredExe.c_str()) != INVALID_FILE_ATTRIBUTES)
         return mirroredExe;
+    *rebuilt = true;
 
     // Parent folders of the mirror (%LOCALAPPDATA%\opensc4\...).
     for (size_t at = mirrorRoot.find(L'\\', 3); at != std::wstring::npos; at = mirrorRoot.find(L'\\', at + 1))

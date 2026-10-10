@@ -144,13 +144,14 @@ int wmain(int argc, wchar_t** argv)
             return 1;
         }
         std::wstring error;
-        const std::wstring mirrored =
-            opensc4::launcher::PrepareLargeAddressMirror(game, std::wstring(local, length) + L"\\opensc4\\laa", error);
+        bool rebuilt = false;
+        const std::wstring mirrored = opensc4::launcher::PrepareLargeAddressMirror(
+            game, std::wstring(local, length) + L"\\opensc4\\laa", &rebuilt, error);
         if (mirrored.empty()) {
             std::fwprintf(stderr, L"opensc4: --large-address: %ls\n", error.c_str());
             return 1;
         }
-        std::wprintf(L"opensc4: large-address-aware mirror at %ls\n", mirrored.c_str());
+        std::wprintf(L"opensc4: large-address-aware mirror (%ls) at %ls\n", rebuilt ? L"built" : L"reused", mirrored.c_str());
         game = mirrored;
     }
 
