@@ -1328,3 +1328,825 @@ name = "cSC4DisasterManagerRiot::Limits"
 address = 0x00B0A1E8
 kind = "data"
 source = "Name ours. The most riots, the most rioters."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::InCity"
+address = 0x005755B0
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 D8 1D 54 10"
+source = "Name ours. (x, z): 0 <= x <= +0x30 and 0 <= z <= +0x34."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::ResetStatics"
+address = 0x00575640
+kind = "function"
+convention = "cdecl"
+expect = "C6 05 D8 2A B2 00 00 B0"
+source = "Clears the tuning-loaded byte 0x00B22AD8; registered with the app at first use."
+
+[[entry]]
+name = "cSC4DisasterManagerEarthquake::Create"
+address = 0x00575670
+kind = "function"
+convention = "cdecl"
+expect = "56 6A 24 E8 68 FF 06 00"
+source = "The factory (0x24 bytes)."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::End"
+address = 0x005756F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 1C 8B 01"
+source = "Name ours. The ground's slot 0x13C, the layer told it ended, off the manager's list, shut down."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::LoadTuning"
+address = 0x00575750
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 10 8B 0D A8 3C B4"
+source = "Name ours. Exemplar 0x6534284A/0x29B6C670/2: four curves and six numbers."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::MakeEffect"
+address = 0x00575890
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 83 EC 44 56"
+source = "Name ours. (name, {x, z}, keep, &effect): an effect on the ground there."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Rumble"
+address = 0x005759B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 D9 46 24 8B 4C"
+source = "Name ours. (time passed): phase 1: the strength (+0x24) rises to 1; a 'QuakerShaker' effect every tuning interval."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Bezier"
+address = 0x00575A30
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 D9 05 50 E0 A9"
+source = "Name ours. (&points, t, out): a cubic Bezier through four {x, z} control points."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::NextPoints"
+address = 0x00575AC0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 60 84 C0"
+source = "Name ours. (&a, &b): the next point of each half of the fault at +0x68, until it leaves the city; +0x68 steps on."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::PlaceEffectAt"
+address = 0x00575B70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 8B 49 1C 32 C0"
+source = "Name ours. (effect, {x, z})."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::StartQuake"
+address = 0x00575C40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 8B E9 8B"
+source = "Name ours. Phase 2 begins: the amplitudes from the strength, the two 'Quaker' effects, the fault's step, sounds."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Step"
+address = 0x00575DE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 DB 44 24 3C 53"
+source = "Name ours. (time passed): the fault advances in whole steps, a ground request per half per step; true when it is over."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Construct"
+address = 0x00576150
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 C6 78 39 00"
+source = "The constructor (0x120 bytes)."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::ClearNews"
+address = 0x00576280
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B F9 8B 0D"
+source = "Name ours. The news items at +0x114 withdrawn and released."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Shutdown"
+address = 0x00576300
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 08 33"
+source = "Interface (+8) slot 3."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::AddNews"
+address = 0x00576490
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 A1 E0 2A B2 00"
+source = "Name ours. ({x, z}): a news item at the point."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Preview"
+address = 0x00576580
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C A1 AC A1 B0 00"
+source = "Name ours. The whole fault walked once (coarser), a news item at every point."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::MakeFault"
+address = 0x00576640
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. A random direction and the four control points of each half of the fault."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Tick"
+address = 0x00576B10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 38 8B 4C"
+source = "Name ours. (time passed): by phase: Rumble, Step, or the end 3,000,000 after the fault finished."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::DoMessage"
+address = 0x00576B80
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "The message target at +0xC: 0x86AD10EE runs Tick."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Start"
+address = 0x00576BB0
+kind = "function"
+convention = "thiscall"
+expect = "A0 D8 2A B2 00 83 EC 0C"
+source = "Name ours. (x, z): tuning at first use, the epicentre clamped to the city, the fault, 'QuakeStart', phase 1 with the preview; registers and tells the layer."
+
+[[entry]]
+name = "cSC4DisasterManagerEarthquake::AttemptDisasterStart"
+address = 0x00576D80
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 47 0C 39 00"
+source = "Interface slot 6: (x, z): one earthquake at a time; started and put straight into phase 2."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Statics"
+address = 0x00B22AD8
+kind = "data"
+source = "Name ours. +0 tuning loaded, +1 base angle drawn, +4 the base angle, +8 a value positions start from."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Random"
+address = 0x00B22AE8
+kind = "data"
+source = "Name ours. The static generator for the fault."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Curves"
+address = 0x00B22B00
+kind = "data"
+source = "Name ours. Four curves (0x10 bytes each): the two amplitudes by strength, the two amplitudes along the fault."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Spread"
+address = 0x00B22B40
+kind = "data"
+source = "Name ours. The fault direction's spread (radians)."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::Tuning"
+address = 0x00B0A198
+kind = "data"
+source = "Name ours. +0 the news text, +4 the effect interval, +8 the fault's jitter, +0xC the speed, +0x10 the rumble interval, +0x14 the preview's step."
+
+[[entry]]
+name = "SC4Rect::Union"
+address = 0x004665C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. (out, other): this rectangle grown to hold the other."
+
+[[entry]]
+name = "SC4::Sound43CB8"
+address = 0x00B43CB8
+kind = "data"
+source = "Name ours, not analysed. Slot 0x2C: (message, ...): sounds."
+
+[[entry]]
+name = "SC4::DoubleDegree"
+address = 0x00A9E108
+kind = "data"
+source = "Name ours. pi / 180 as a double."
+
+[[entry]]
+name = "cSC4DisasterInstanceEarthquake::GetManager"
+address = 0x00575630
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 10 85 C0 74 04 83"
+source = "Interface (+8) slot: the manager's interface (+0x10 of the part, +8)."
+
+[[entry]]
+name = "cSC4DisasterManagerEffect::QueryInterface"
+address = 0x00576E10
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 56 8B 74 24"
+source = "(iid, out): 0xCA7B3F3C is the effect part at +0x24; the rest is the base's."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::DoMessage"
+address = 0x00576E70
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "The message target at +0xC: 0x2A7B582D about this instance shuts it down, 0x2A7B582E about it takes a new cell."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::GetLocation"
+address = 0x00576ED0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 8B 54 24 04 89"
+source = "Interface (+8) slot 6: (x*, z*): the cell at +0x10, +0x14."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::GetManager"
+address = 0x00576EF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 1C 85 C0 74 04 83"
+source = "Interface (+8) slot 4."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::QueryInterface"
+address = 0x00576F00
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D A4 3B 22"
+source = "(iid, out): 0x22223BA4 is the interface at +8; the rest goes to the base. The earthquake instance's too."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::End"
+address = 0x00576F50
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 FF 60 0C CC CC CC"
+source = "Interface (+8) slot 8: its slot 3 (Shutdown)."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::StopEffect"
+address = 0x00576F60
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 49 28 6A 01 8D 54"
+source = "Name ours. Slot 8: the effect's (+0x28) slot 0x30 with (0xB, &0, 1)."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::Init"
+address = 0x00577010
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8A 46 18 84"
+source = "Name ours. The effect told to report to this instance and started; the layer and manager taken; on the manager's list; messages 0x2A7B582D/E; the layer told it began."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::Shutdown"
+address = 0x005770E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 10 84 C0"
+source = "Interface (+8) slot 3."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::SetLocation"
+address = 0x005771B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 55 8B 68"
+source = "Slot 7: (float[3]): the position's cell kept (+0x10, +0x14) and registered with the layer."
+
+[[entry]]
+name = "cSC4DisasterManagerEffect::Create"
+address = 0x00577200
+kind = "function"
+convention = "cdecl"
+expect = "56 6A 28 E8 D8 E3 06 00"
+source = "The factory (0x28 bytes)."
+
+[[entry]]
+name = "cSC4DisasterManagerEffect::SetLocation"
+address = 0x00577250
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 E4 8D 4E"
+source = "Effect part (+0x24) slot 4: (float[3]): the first instance's SetLocation, if there is one."
+
+[[entry]]
+name = "cSC4DisasterManagerEffect::StopEffect"
+address = 0x00577280
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 E4 8D 4E"
+source = "Effect part (+0x24) slot 5: the first instance's StopEffect, if there is one."
+
+[[entry]]
+name = "cSC4DisasterInstanceEffect::Construct"
+address = 0x005772B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 66 67 39 00"
+source = "The constructor (0x2C bytes): (effect, disaster type)."
+
+[[entry]]
+name = "cSC4DisasterManagerEffect::Start"
+address = 0x00577360
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 2C E8 78 E2 06 00"
+source = "Effect part (+0x24) slot 3: (effect, float[3], disaster type): a new instance, Init, SetLocation; returns its interface."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::QueryInterface"
+address = 0x005790C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 56 8B 74 24"
+source = "(iid, out): 0x49B43F57 is the fire part at +0x24; the rest is the base's."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::DouseAt"
+address = 0x00579110
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 53 56 32 DB FF 50"
+source = "Fire part (+0x24) slot 6: (x, z, amount): the instance's slot 8, if there is an instance."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::AttemptDisasterStart"
+address = 0x00579150
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 8B 41 1C 6A"
+source = "Interface slot 6: (x, z): the fire part's slot 5 with (x, z, 0, 0, 0); returns null."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::Release"
+address = 0x00579190
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 7E 04 01 75"
+source = "With one reference left the fire interface's Shutdown first; then the base's."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::QueryInterface"
+address = 0x005791B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D A4 3B 22"
+source = "(iid, out): 0x49B43F58 +8 (fire), 0x22223BA4 +0xC (instance), 0x452294AA +0x10 (messages)."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::SetOwner"
+address = 0x00579230
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 D4 00 00 00 85 C0"
+source = "Name ours. Fire interface (+8) slot 13: (value): +0xDC takes the value if it is 0; returns +0xDC."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::ScheduleBurnOut"
+address = 0x00579250
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 85 F6 57"
+source = "Name ours. Slot 8: (fire): a fire with no end time gets now + up to 4 seconds."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::PickSpreadCell"
+address = 0x005792B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 57 8B 7C 24"
+source = "Name ours. (fire, x*, z*): a random cell in the fire's bounds grown by its stage's radius and the wind."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::GetManager"
+address = 0x005793E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D EC 3C B4 00 8B 01"
+source = "Instance interface (+0xC) slot 4."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::SendState"
+address = 0x00579400
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 57 8B F9"
+source = "Name ours. (state): on a change, message 0xA9C7CAB6 with the disaster ID and the state (1 burning, 3 out)."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::SendAlert"
+address = 0x00579480
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 57 8B F9 39"
+source = "Name ours. (value): on a change, message 0x49D15B72 with the value."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::SendFire"
+address = 0x00579500
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 2C 8B F9 E8 CF"
+source = "Name ours. (fire occupant, started): message 0x49E3DB1D."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::DoMessage"
+address = 0x00579600
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "The message target at +0x10: ticks run the update; 0x06CDB65B and 0xA6B79602 go to every fire."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::StageFor"
+address = 0x005796B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 58 8B 54 24 04 33"
+source = "Name ours. (heat): the first of the five stage limits (+0x58) the heat is below, else 5."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::Destroy"
+address = 0x005796E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 74 53 55 56 8B B4"
+source = "Name ours. (occupant): what a fire leaves: an effect, flora removed with a scorch mark, a building's lot demolished to rubble (or the occupant removed), pollution."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::Find"
+address = 0x00579A20
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 99 E0 00 00 00 55"
+source = "Name ours. (occupant): the fire on it, or null."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::CountInRect"
+address = 0x00579A60
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 D8 00 00 00 8B 10"
+source = "Fire interface (+8) slot 15: (cell rect*): the fires whose cells meet it."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::ScheduleBurnOutOn"
+address = 0x00579BD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 57 8B 79"
+source = "Name ours. Fire interface slot 11: (occupant): ScheduleBurnOut of the fire on it."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::BurnDownOn"
+address = 0x00579BF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 57 8B 79"
+source = "Name ours. Fire interface slot 12: (occupant): BurnDown of the fire on it."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::GetInstance"
+address = 0x00579BA0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 41 F0 39 00 75 04"
+source = "Fire part (+0x24) slot 11: the first instance's fire interface, or null."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::LoadTuning"
+address = 0x00579C10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 55 8B D9 C7"
+source = "Name ours. Exemplar 0x6534284A/0x29B6C670/0xC9B6B73D: stage lengths, spread chances and radii, the wind factor, the zoom, four curves; defaults without it."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::UpdateState"
+address = 0x0057A0D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 E0 00 00"
+source = "Name ours. The first fire: the layer told, the tick on, state 1. The last fire gone: state 3, the layer told, the tick off."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::RemoveAllFires"
+address = 0x0057A200
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 1D EC 3C B4 00 85"
+source = "Name ours. Every fire occupant removed, the locations withdrawn."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::GetFireCount"
+address = 0x0057A2F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 D8 00 00 00 8B 0A"
+source = "Fire interface slot 16."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::Init"
+address = 0x0057A310
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 8A 86"
+source = "Fire interface slot 3."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::Shutdown"
+address = 0x0057A540
+kind = "function"
+convention = "thiscall"
+expect = "51 53 57 8B F9 8A 87 BD"
+source = "Fire interface slot 5 (and the instance interface's slot 3)."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::ProcessBurned"
+address = 0x0057A720
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B D9 8B 83 EC 00"
+source = "Name ours. Up to five queued occupants destroyed."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::StartFire"
+address = 0x0057A7D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 56 8B 74 24"
+source = "Fire interface slot 6: (occupant, forced, group, jump): a fire occupant on a flammable occupant, unless fire cover prevents it."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::QueueBurned"
+address = 0x0057AB20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 96 EC 00 00"
+source = "Name ours. (occupant): into the burned queue at a random place."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::BurnArea"
+address = 0x0057AF10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 55 56 57 8B"
+source = "Fire interface slot 10: (x, z, inner, outer): occupants within the inner radius burn down, within the outer catch fire."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::StartFireAt"
+address = 0x0057B170
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 55 56 8B F1 8B"
+source = "Fire interface slot 7: (x, z, by chance, forced, group): fires on the cell's occupants."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::DouseAt"
+address = 0x0057B350
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 56 57 89 4C"
+source = "Fire interface slot 8: (x, z, amount): the cell's fires lose that much heat."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::BurnDownAt"
+address = 0x0057B500
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 55 56 57 8B"
+source = "Fire interface slot 9: (x, z): the cell's occupants are queued as burned."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::RemoveFire"
+address = 0x0057B640
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 81 E0 00 00"
+source = "Name ours. (fire): off the list; its location passes to another fire of its group or the group ends."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::BurnDown"
+address = 0x0057B7B0
+kind = "function"
+convention = "thiscall"
+expect = "53 57 8B 7C 24 0C 85 FF"
+source = "Name ours. Slot 9: (fire): the fire removed and its occupant destroyed."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::GetOrMakeInstance"
+address = 0x0057B800
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 14 39 00 75 37 56"
+source = "Name ours. The instance's fire interface, made and initialised at first use."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::SetOwner"
+address = 0x0057B850
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 F0 8B 10 53 56 33"
+source = "Fire part slot 9: the instance's slot 13."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::GetOwner"
+address = 0x0057B8C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 F0 8B 10 53 56 33"
+source = "Fire part slot 10: the instance's slot 14."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::Ignite"
+address = 0x0057B930
+kind = "function"
+convention = "thiscall"
+expect = "57 8B 7C 24 08 85 FF 75"
+source = "Fire part slot 4: (occupant): StartFire(occupant, 0, 0, 1)."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::StartFireAt"
+address = 0x0057B980
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 F0 39 00 56 75 36"
+source = "Fire part slot 5: the instance's slot 7."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::BurnDownAt"
+address = 0x0057BA00
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 F0 39 00 56 75 36"
+source = "Fire part slot 7: the instance's slot 9."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::BurnArea"
+address = 0x0057BA70
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 F0 39 00 56 75 36"
+source = "Fire part slot 8: the instance's slot 10."
+
+[[entry]]
+name = "cSC4DisasterManagerFire::Init"
+address = 0x0057BAF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 68 B9 FF FF"
+source = "Interface slot 3: the base's, then the instance made and initialised."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::Construct"
+address = 0x0057AD90
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 84 2C"
+source = "The constructor (0x100 bytes)."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::BurnStep"
+address = 0x0057BB90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 55 56 8B 74"
+source = "Name ours. (fire): heat down by fire cover and responders, the stage by heat, the lot's look, and by chance a spread to a cell nearby."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::SpreadAll"
+address = 0x0057BEA0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B E9 8B 0D EC 3C"
+source = "Name ours. BurnStep for every fire."
+
+[[entry]]
+name = "cSC4DisasterInstanceFire::Update"
+address = 0x0057BF10
+kind = "function"
+convention = "thiscall"
+expect = "53 57 8B F9 8D 5F F8 8B"
+source = "Fire interface slot 4: the burned queue, the state, the fires' step every +0x80 ms, message 0x49D15B73 with the new fires."
+
+[[entry]]
+name = "cSC4FireOccupant::Construct"
+address = 0x004711C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "The fire occupant's constructor (0x6C bytes). Not analysed."
+
+[[entry]]
+name = "cSC4FireOccupant::CheckBurnOut"
+address = 0x0046FE00
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 50 85 C0 75 0A 8B"
+source = "Name ours, not analysed. (time): sets or checks the end time at +0x50; 0 when it has passed."
+
+[[entry]]
+name = "cSC4FireOccupant::SetView"
+address = 0x00470250
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 47 58 8B 4F"
+source = "Name ours, not analysed. (flag): on message 0x06CDB65B."
+
+[[entry]]
+name = "cSC4FireOccupant::Refresh"
+address = 0x00472790
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 8B F1 8A 46"
+source = "Name ours, not analysed. On message 0xA6B79602."
+
+[[entry]]
+name = "cRZBaseUnknown::ReleaseCounted"
+address = 0x0090D997
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 83 F8 01 76 05"
+source = "Name ours. The count at +4 down, or with 1 left the deleting destructor (slot 3); returns the count."
+
+[[entry]]
+name = "cRZRandom::UniformSum3"
+address = 0x0091386B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 56 8B"
+source = "Name ours. (double lo, double hi): lo + (hi - lo) x (three uniform draws added) x the double at 0x00ACECB0."
+
+[[entry]]
+name = "SC4::Distance2D"
+address = 0x005D76A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "Name ours. (a*, b*): the distance between two float pairs."
+
+[[entry]]
+name = "SC4::FloraSimulator43D80"
+address = 0x00B43D80
+kind = "data"
+source = "Name ours, not analysed. Slot 0x5C: (flora occupant)."
+
+[[entry]]
+name = "SC4::FireSpreadCurves"
+address = 0x00B21638
+kind = "data"
+source = "Name ours. Two pointers the fire instance sets to its curves at +0x84 and +0x94 while initialised."
+
+[[entry]]
+name = "SC4::FireEffectNames"
+address = 0x00B0A1C8
+kind = "data"
+source = "Name ours. Two effect names: for burned flora, for burned buildings."
+
+[[entry]]
+name = "SC4::FireScorchY"
+address = 0x00B22B50
+kind = "data"
+source = "Name ours. A float the scorch mark's position starts from."
+
+[[entry]]
+name = "SC4OccupantFilter43::vftable"
+address = 0x00A949B8
+kind = "data"
+source = "Name ours. An occupant filter the douse uses (second vtable 0x00A949A0)."
+
+[[entry]]
+name = "SC4OccupantFilterBase::vftable"
+address = 0x00AA42C8
+kind = "data"
+source = "Name ours. The filter base's vtable (second 0x00AA42B0)."

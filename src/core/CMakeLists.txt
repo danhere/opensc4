@@ -64,6 +64,8 @@ add_library(opensc4_core SHARED
   advisor_object.cpp
   advisor_system.cpp
   disaster_autotest.cpp
+  disaster_earthquake.cpp
+  disaster_effect.cpp
   disaster_layer.cpp
   disaster_managers.cpp
   disaster_pipeburst.cpp

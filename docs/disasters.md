@@ -84,6 +84,24 @@ Tuning: exemplar 0x6534284A/0x29B6C670/0x4A38206D (6 levels, level time 30, spaw
 
 The instance's Read (0x0057E870) first resizes the rioter list to the saved count, with a rioter whose automaton, time and levels are whatever is on the stack, and then appends the saved rioters, which reads as twice the saved count with the first half garbage. That is from reading the code, not from a test (no save with rioters was loaded); Read is left the game's.
 
+### Earthquake
+
+One earthquake at a time. The manager's start at a cell makes the instance (0x120 bytes; no start anywhere), starts it and puts it straight into the quake phase.
+
+The start loads the tuning at first use (exemplar 0x6534284A/0x29B6C670/2: four curves and six numbers), clamps the epicentre to the city and makes the fault: a direction (a base angle drawn once per game session in [0, pi], plus a draw within the tuning's spread, from a static generator at 0x00B22AE8) and two halves that leave the epicentre in opposite directions. Each half is a cubic Bezier curve of four control points: the epicentre, then three points each a third of the city's width further along, pushed sideways by a draw within the tuning's jitter (the first pair shares one draw, mirrored). It then plays `QuakeStart`, walks the fault once in coarse steps leaving a news item at every point (the preview), registers the epicentre's cell and tells the layer.
+
+| Phase | What |
+| --- | --- |
+| 1 rumble | the strength (0.1 at first) rises by 1e-7 per unit of time up to 1; a `QuakerShaker` effect at the epicentre every tuning interval. The manager's start skips this phase (the strength stays 0.1) |
+| 2 quake | the two amplitude scales are two curves at the strength; two `Quaker` effects; sounds. Each tick the fault advances by time passed x the tuning's speed, in whole steps of 8: per step the next point of each half (until it leaves the city) and, per half, a terrain request (the city's slot 0x150 object, slot 0xE4, kinds 0x11 and 0x12) from the previous point to this one, with two amplitudes: two more curves at the distance walked, times the scales. The quake is over when both halves have left the city or an amplitude falls below 0.001 (first) or 0.002 (second) |
+| 3 after | 3,000,000 units of time later the instance ends: the layer is told, the instance leaves the manager's list and shuts down (news items withdrawn, effects released) |
+
+The tick is message 0x86AD10EE with the time passed (the same service as the volcano's, on frame time).
+
+### Effect
+
+A disaster that is only a visual effect a tool started (the caller is a view tool at 0x005803D0). The manager has no start by cell; its effect part (interface 0xCA7B3F3C at +0x24) takes an effect, a position and a disaster type, makes an instance (0x2C bytes) around the effect, and can move or stop the first instance. The instance tells the effect to report to it (message 0x2A7B582D when it is over, 0x2A7B582E with a new cell), starts it, puts itself on the manager's list and tells the layer a disaster began; its location is the position's cell, registered with the layer. When the effect reports it is over the instance shuts down: the effect is stopped if it still runs, the layer is told and the location withdrawn.
+
 ## What is ours
 
 | Replacement | What is ours |
@@ -94,6 +112,8 @@ The instance's Read (0x0057E870) first resizes the rioter list to the saved coun
 | `simulators.disasters.volcano` | the volcano manager and instance (24 functions); the terrain's volcano builder stays the game's |
 | `simulators.disasters.riot` | the riot manager and instance (18 functions) but the instance's Read |
 | `simulators.disasters.pipeburst` | the pipe burst manager, its pipe filter and the instance (21 functions) |
+| `simulators.disasters.earthquake` | the earthquake manager's start and the instance (20 functions) |
+| `simulators.disasters.effect` | the effect manager's QueryInterface and effect part, and the instance (13 functions; its QueryInterface is also the earthquake instance's) |
 
 Still the game's: the objects (constructors, destructors), the other managers and instances, container and stopwatch helpers.
 
@@ -101,7 +121,9 @@ Still the game's: the objects (constructors, destructors), the other managers an
 
 No test city has a disaster. `OPENSC4_TEST_DISASTER=<day>` with `OPENSC4_TEST_DISASTER_TYPE=<n>` (0 volcano, 1 fire, 2 earthquake, 3 pipe burst, 4 riot, 5 effect, 6 toxic) starts one through its manager on that day of a run, at the first cell that takes it, walking out from the centre. The camera jumping to the disaster makes the traffic record's view-dependent fields vary run to run with the original (on Big City d0000 one field took the values 10, 11, 12, 13 and 19 in the original's own runs), so the switch turns the "go to disasters" option off unless `OPENSC4_TEST_DISASTER_CAMERA=1`. `OPENSC4_TEST_DISASTER_END=<day>` shuts the chosen type's instances down on that day (a toxic spill lasts two minutes of real time, longer than a week's run), so a disaster's end also runs. `OPENSC4_TEST_PIPE_FUSE=<ms>` sets the pipe burst's fuses after it starts, so pipes explode and the bursts spread within the run; where the walk finds no accepted pipe the switch falls back to the manager's own choice (slot 7). `OPENSC4_TEST_RIOT_PUSH=<n>` adds n to every rioter's time each day and runs the riot's tick with its stopwatch gate open: under the harness's clock the riot's own tick comes about once a week, so without the push no rioter changes level.
 
-The fingerprint's `dis` part: the disable count, disasters under way, the cost's building count and total, the locations (count and a hash of their cells and zooms) and each manager's instance count (in type order: earthquake, pipe burst, fire, effect, volcano, riot, toxic), then `riot`: the rioters, and their times and levels added up.
+`OPENSC4_TEST_QUAKE_PUSH=<n>` takes each earthquake off the tick service and runs its tick once every run day with n as the time passed (the quake's own tick comes on frame time, so unpushed runs differ in how far the fault got). For the effect disaster (type 5), which has no start by cell, the switch does what the game's tool does: it makes an effect (`OPENSC4_TEST_DISASTER_EFFECT`, default `QuakeStart`), gives it to the manager's effect part at the city's centre and then moves it 8 cells through the part's SetLocation. `OPENSC4_TEST_FIRE_CALLS=<day>` calls the fire manager's fire part as tools and other simulators do: an area burned around the centre (inner radius 1, outer 4), the first three fires doused by 3, and one cell burned down.
+
+The fingerprint's `dis` part: the disable count, disasters under way, the cost's building count and total, the locations (count and a hash of their cells and zooms) and each manager's instance count (in type order: earthquake, pipe burst, fire, effect, volcano, riot, toxic), then `riot`: the rioters, and their times and levels added up; `fire` (with a fire instance): the fires, their heats and stages added up, the burned queue, the count destroyed and the groups; and per earthquake `quake`: the phase, a hash of the fault (strength, epicentre, direction, control points), a hash of its progress and the number of news items.
 
 With a disaster under way the original does not always repeat itself: in the control (the original against itself, 12 saves, 7 days) fire and earthquake each gave two or three outcomes on two to five saves. Verdicts go by outcome sets.
 
@@ -152,3 +174,16 @@ With the riot on too (`disr1-*`, `disr3-push`):
 | riot pushed by 40 a day (`OPENSC4_TEST_RIOT_PUSH`) | 11 | 1 partly (Big City d0000) |
 
 Unpushed, a riot is one rioter whose time goes from 1 to 2 in a week. Pushed, the rioters go from 2 to 5 as levels are reached, their locations are registered and one leaves, the same on both sides day by day. The riot's Write runs at the end of every such run (the saves match). The failed run was a B run that crashed in the game's code at 0x005A62A2 while Making Money d1095 loaded, an address [parity.md](parity.md) already has from an A run.
+
+With the earthquake on too (`dq1-*`, `dq2-push`):
+
+| Leg | Same | Rest |
+| --- | --- | --- |
+| no disaster | 12 | |
+| earthquake on day 1 | 9 | 1 partly, 2 where ours shared no outcome with the original, whose own three runs gave three and two outcomes; the `dis` histories that occur (the cost by day) are the same few on both sides |
+| earthquake, ended on day 3 | 10 | 2 partly |
+| earthquake pushed by 2,000,000 a day (`OPENSC4_TEST_QUAKE_PUSH`) | 8 | on the four Big City saves every run was its own outcome, the original's too, but the `dis` part was the same in all six runs |
+
+Unpushed, the fault advances on frame time and the quake is not over within the week. Pushed, it runs its course in three days on both sides, the same day by day in every run of every save: the fault's hash and its 19 news items, the progress on days 1 and 2, the after phase on day 3, then the end (the location withdrawn, the layer's count back to 0), and on Big City the cost (10 buildings and 1220, then 15 and 1810). On the eight Making Money and Rush Hour saves the whole city matched for the week, saves included, with the terrain shaken on both sides. The rumble phase is not reached: the manager's start skips it and nothing else in the game starts an earthquake.
+
+With the effect disaster on too (`dq2-fx`, `dq2-fxe`): 12 of 12 with an effect disaster started on day 1 (one instance, two locations: the start and the move), and 12 of 12 with it ended on day 3. The effect's own end message (0x2A7B582D) did not come within the week with the `QuakeStart` effect, so that path and the move message (0x2A7B582E) are unreached.
