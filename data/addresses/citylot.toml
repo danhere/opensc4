@@ -1,0 +1,794 @@
+# The lot (cSC4Lot, class ID 0xC9BD5D4A) and its business unit (cSC4BusinessUnit, 0x4A232DA8); docs/citylot.md: code 0x006BF180 to 0x006C3AF8 (src/core/citylot_object.cpp, citylot_capacity.cpp, citylot_state.cpp). Fn_<address> names are placeholders; each source file names the function in its comments.
+
+[[entry]]
+name = "cSC4Lot::vftable"
+address = 0x00AB19B0
+kind = "vtable"
+expect = "90 F1 6B 00 A0 64 46 00"
+source = "The primary cISC4Lot vtable (70 slots, listed in src/core/citylot_sim.h). The object part swaps slots 5, 7, 8 (simulators.citylot.init) and 11, 13-15, 17, 20-22, 27, 32, 40, 42, 46, 48-53, 56, 57, 60, 63, 64 (simulators.citylot.slots); simulators.citylot.object copies it at the first construction."
+
+[[entry]]
+name = "cSC4Lot::vftable_4"
+address = 0x00AB1994
+kind = "vtable"
+expect = "60 22 6C 00 70 22 6C 00"
+source = "Name ours. The cIGZSerializable part at +0x4 (6 slots: three thunks, Write 0x006C0080, Read 0x006C35F0, GetGZCLSID 0x006BF180). Slot 3 replaced by simulators.citylot.save."
+
+[[entry]]
+name = "cSC4Lot::vftable_8"
+address = 0x00AB1930
+kind = "vtable"
+expect = "80 22 6C 00 90 22 6C 00"
+source = "Name ours. The property holder part at +0x8 (25 slots: three thunks, the shared holder code, 22 the deleting destructor thunk 0x006C22A0, 23 the Write thunk 0x006C2330, 24 the Read thunk 0x006C3AF0). Slot 23 replaced by simulators.citylot.save."
+
+[[entry]]
+name = "cSC4Lot::vftable_1C"
+address = 0x00AB1914
+kind = "vtable"
+expect = "B0 22 6C 00 C0 22 6C 00"
+source = "Name ours. The cISC4TrafficSource part at +0x1C (6 slots: three thunks, 0x0080BC20, 0x006C27E0, 0x006C22D0). Copied by simulators.citylot.object."
+
+[[entry]]
+name = "cSC4BusinessUnit::vftable"
+address = 0x00AB18DC
+kind = "vtable"
+expect = "90 F3 6B 00 A0 64 46 00"
+source = "The primary cISC4BusinessUnit vtable (6 slots: QueryInterface 0x006BF390, AddRef 0x004664A0, Release 0x006BFE40, Add 0x006C0940, Remove 0x006C08B0, GetMembers 0x008085F0). Slots 0, 2, 3, 4 replaced by simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4BusinessUnit::vftable_4"
+address = 0x00AB18C4
+kind = "vtable"
+expect = "50 08 6C 00 70 22 6C 00"
+source = "Name ours. The business unit's cIGZSerializable part at +0x4 (thunks, Write 0x006C0370, Read 0x006C09E0, GetGZCLSID 0x006BF380). Slot 3 replaced by simulators.citylot.save."
+
+[[entry]]
+name = "cSC4BusinessUnit::vftable_8"
+address = 0x00AB1860
+kind = "vtable"
+expect = "60 08 6C 00 90 22 6C 00"
+source = "Name ours. The business unit's property holder part at +0x8 (25 slots; 22 the deleting destructor thunk 0x006C0870, 23 the Write thunk 0x006C08A0). Slot 23 replaced by simulators.citylot.save."
+
+[[entry]]
+name = "cSC4Lot::GetGZCLSID"
+address = 0x006BF180
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 4A 5D BD C9 C3 CC CC"
+source = "Returns the class ID 0xC9BD5D4A (+4 slot 5; also referenced from the class registration 0x0046045F). Ours in simulators.citylot.object."
+
+[[entry]]
+name = "cSC4Lot::QueryInterface"
+address = 0x006BF190
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Lot* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "IIDs 1 and 0xE818FCED (cISC4Lot): the object; 0xE4FDA3D4: +0x4; AddRef through slot 1. Ours in simulators.citylot.object."
+
+[[entry]]
+name = "cSC4Lot::PostCityInit"
+address = 0x006BF200
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot* this)"
+expect = "8A 41 79 8B 11 0F BE C0"
+source = "Slot 8: the flags byte +0x79 zeroed and set again through slot 13 (sign-extended). Ours in simulators.citylot.init."
+
+[[entry]]
+name = "cSC4Lot::SetFlags"
+address = 0x006BF220
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot* this, uint32_t flags)"
+expect = "8B 44 24 04 56 8B F1 33"
+source = "Slot 13: +0x79 stored; when bit 0 changed the terrain picker (0x00602160) gets every cell of the rectangle through its slot 16 (x, z, the lot's altitude) or slot 17 (x, z). Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetLocation"
+address = 0x006BF2E0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot const* this, int32_t* x, int32_t* z)"
+expect = "0F B6 41 7A 8B 54 24 04"
+source = "Slot 21: the bytes +0x7A, +0x7B. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetSize"
+address = 0x006BF300
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot const* this, uint8_t* width, uint8_t* depth)"
+expect = "8A 41 7C 8B 54 24 04 88"
+source = "Slot 22: the bytes +0x7C, +0x7D. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetBoundingRect"
+address = 0x006BF320
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot const* this, int32_t* rect)"
+expect = "0F B6 51 20 8B 44 24 04"
+source = "Slot 14: the bytes +0x20 to +0x23 as four int32. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetTravelJobs"
+address = 0x006BF350
+kind = "function"
+convention = "thiscall"
+signature = "float (cSC4Lot const* this, uint32_t wealth)"
+expect = "8B 44 24 04 48 74 1B 48"
+source = "Slot 63: +0x6C, +0x70, +0x74 for wealth 1, 2, 3, else 0 (ST0). Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4BusinessUnit::GetGZCLSID"
+address = 0x006BF380
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 A8 2D 23 4A C3 CC CC"
+source = "Returns the class ID 0x4A232DA8 (referenced from the class registration 0x00460471). Left the game's."
+
+[[entry]]
+name = "cSC4BusinessUnit::QueryInterface"
+address = 0x006BF390
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4BusinessUnit* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "IIDs 1 and 0x6A233069: the object; 0xE4FDA3D4: +0x4. Ours in simulators.citylot.slots (the primary slot; the parts' thunks still jump to the game's)."
+
+[[entry]]
+name = "cSC4Lot::Release"
+address = 0x006BF460
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Lot* this)"
+expect = "56 8B F1 8B 46 0C 83 F8"
+source = "Slot 2: the count +0xC down; at the last reference Shutdown (slot 7) and the holder part's slot 22 with 1. Ours in simulators.citylot.object."
+
+[[entry]]
+name = "cSC4Lot::Init"
+address = 0x006BF490
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Lot* this)"
+expect = "A0 10 91 B4 00 83 EC 0C"
+source = "Slot 5. Once (+0x78): travel jobs zeroed, altitude from the terrain (slot 13) at the centre through slot 17. A random 0-99 into +0x88 when it is 0xFF (generator 0x00B49120). The configuration +0x34 released; the ID +0x30 resolved by the lot configuration manager (slot 8) and zeroed. Ours in simulators.citylot.init."
+
+[[entry]]
+name = "cSC4Lot::GetCenter"
+address = 0x006BF560
+kind = "function"
+convention = "thiscall"
+signature = "float* (cSC4Lot const* this, float* center)"
+expect = "51 0F B6 41 21 0F B6 51"
+source = "Slot 15: the middle of the cell rectangle in metres, the altitude between. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::SetAltitude"
+address = 0x006BF5C0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot* this, float altitude)"
+expect = "D9 44 24 04 56 8B F1 D8"
+source = "Slot 17: when it differs by more than 0.001: stored, and both slopes (+0x28, +0x2C) taken from the lot developer (development slot 36, its slot 30). Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::UpdateSlope"
+address = 0x006BF610
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot* this)"
+expect = "56 8B F1 8B 0D 68 3D B4"
+source = "Slot 20: +0x28 from the lot developer's slot 30. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetDaysSinceLastStateChange"
+address = 0x006BF630
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Lot const* this)"
+expect = "56 8B F1 8B 46 38 85 C0"
+source = "Slot 40: today's day number (simulator slot 7, the date's slot 26) less +0x38; 0 when +0x38 is 0. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::SetTravelDesignate"
+address = 0x006BF660
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot* this, cISC4Lot* lot)"
+expect = "53 8B D9 8B 43 50 56 8B"
+source = "Slot 60: +0x50 exchanged, references kept. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::PushTravelJobs"
+address = 0x006BF6A0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot* this)"
+expect = "83 EC 0C 53 56 8B 35 A8"
+source = "Name ours. The travel jobs +0x6C, +0x70, +0x74 rounded and sent to the traffic simulator (slot 19: the lot's slot 3, index, value) when more than a tenth off its slot 20 value (always asked for index 0). Called by ResetTravelPopulation (a tail jump) and AddTravelPopulation (0x006C0CE1). Detoured by simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetJobs"
+address = 0x006BF800
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Lot const* this, float* jobs)"
+expect = "51 53 55 56 57 8B 7C 24"
+source = "Slot 64: jobs[1..3] from the demand simulator (slot 8) times the population, or from the building's properties 0x27812841 / 0x27812843. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetCapacityByWealth"
+address = 0x006BF9B0
+kind = "function"
+convention = "thiscall"
+signature = "uint16_t (cSC4Lot const* this, uint32_t wealth)"
+expect = "57 8B F9 8B 07 6A 01 FF"
+source = "Slot 51: slot 50 for the developer type of the building type's profile and the wealth (development slots 39, 30). Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetBuildingType"
+address = 0x006BFA00
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Lot const* this, bool calculate)"
+expect = "8B C1 8A 4C 24 04 84 C9"
+source = "Slot 46: +0x3C, or the configuration's slot 3 when asked, none stored and the state is not 6. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetBuilding"
+address = 0x006BFA30
+kind = "function"
+convention = "thiscall"
+signature = "cISC4BuildingOccupant* (cSC4Lot const* this)"
+expect = "83 EC 18 8B 51 3C 33 C0"
+source = "Slot 48: the first occupant of type 0x278128A0 in the rectangle (occupant manager slot 35) queried for 0x87DDA3A9; not referenced. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4LotOccupantFilter::SetLot"
+address = 0x006BFAC0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotOccupantFilter* this, cISC4Lot* lot)"
+expect = "83 EC 10 56 8B F1 8B 4C"
+source = "Name ours. The filter's world rectangle (+0xC to +0x18) from the lot's cell rectangle (city slot 96). Only called by GetLotOccupants; left the game's."
+
+[[entry]]
+name = "cSC4LotOccupantFilter::Construct"
+address = 0x006BFB20
+kind = "function"
+convention = "thiscall"
+signature = "cSC4LotOccupantFilter* (cSC4LotOccupantFilter* this)"
+expect = "56 57 8B F1 E8 57 A5 F2"
+source = "Name ours. Constructor of the 0x38-byte occupant filter (vtable 0x00AB1830) GetLotOccupants makes. Left the game's, with its test 0x006BFB80 and destructor 0x006BFC10."
+
+[[entry]]
+name = "cSC4Lot::UpdateZoneType"
+address = 0x006BFC40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot* this)"
+expect = "56 8B F1 0F B6 56 7B 8B"
+source = "Slot 32: +0x81 from the zone manager's slot 12 at the cell +0x7A, +0x7B. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetLandValue"
+address = 0x006BFC60
+kind = "function"
+convention = "thiscall"
+signature = "int64_t (cSC4Lot const* this)"
+expect = "83 EC 08 53 8B 1D 88 3D"
+source = "Slot 42: the land value simulator's slot 6 byte summed over the rectangle (EDX:EAX). Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::HasJobAccess"
+address = 0x006BFCE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Lot const* this)"
+expect = "53 56 57 8B 3D A8 3D B4"
+source = "Slot 27: the traffic simulator's slot 38 (lot, 0 or 1) above 0. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::UpdateNeedsPower"
+address = 0x006BFD20
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot* this)"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. Sets or clears flag 0x08 of +0x79 from the state, the building type's profile and developer and the building's properties 0x27812852 / 0x27812854. Called by SetState (0x006C3417). Detoured by simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4BusinessUnit::Release"
+address = 0x006BFE40
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4BusinessUnit* this)"
+expect = "8B 41 0C 83 F8 01 76 05"
+source = "Slot 2: the count +0xC down; at the last reference the holder part's slot 22 with 1. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetLotConfigurationObject"
+address = 0x006BFEA0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4Lot* this, cISC4Occupant* occupant)"
+expect = "83 EC 20 53 55 56 57 8B"
+source = "Slot 11: the configuration's object whose place (lot developer slot 39) is within 0.1 of the occupant's position in x and z. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetLotOccupants"
+address = 0x006BFF70
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot const* this, SC4List* list)"
+expect = "83 EC 10 56 57 8B F9 0F"
+source = "Slot 49: the occupant manager's slot 40 over the rectangle with a lot filter. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::Write"
+address = 0x006C0080
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "+4 slot 3 (this = lot + 4): version 8 (layout in tools/re/save_schemas/citylot.py). Ours in simulators.citylot.save."
+
+[[entry]]
+name = "cSC4BusinessUnit::Write"
+address = 0x006C0370
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "+4 slot 3 (this = unit + 4): version 1, count, a reference per member lot. Ours in simulators.citylot.save."
+
+[[entry]]
+name = "cSC4Lot::GetPopulation"
+address = 0x006C04A0
+kind = "function"
+convention = "thiscall"
+signature = "uint16_t (cSC4Lot const* this, uint32_t developerType)"
+expect = "51 55 8B 69 58 57 8B 79"
+source = "Slot 53: the type's value summed over the maps of +0x54. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetTravelPopulation"
+address = 0x006C0510
+kind = "function"
+convention = "thiscall"
+signature = "uint16_t (cSC4Lot const* this, uint32_t developerType)"
+expect = "51 8B 44 24 08 56 57 8D"
+source = "Slot 56: the type's value in the map +0x60. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::ResetTravelPopulation"
+address = 0x006C0550
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot* this)"
+expect = "53 56 57 8B F9 8B 47 64"
+source = "Slot 57: the map +0x60 and the travel jobs emptied, then PushTravelJobs. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetCapacityByType"
+address = 0x006C05A0
+kind = "function"
+convention = "thiscall"
+signature = "uint16_t (cSC4Lot const* this, uint32_t developerType, bool calculate)"
+expect = "8A 44 24 08 84 C0 75 11"
+source = "Slot 50: the type's capacity in the building type's profile (development slot 39, maps at +0xC). Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::GetAvailableCapacity"
+address = 0x006C0640
+kind = "function"
+convention = "thiscall"
+signature = "uint16_t (cSC4Lot const* this, uint32_t developerType, bool calculate)"
+expect = "8A 44 24 08 83 EC 14 55"
+source = "Slot 52: the capacity less the shares other types of the same profile map hold. Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4BusinessUnit::WriteThunk"
+address = 0x006C08A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISCPropertyHolder* this, cIGZOStream* stream)"
+expect = "83 E9 04 E9 C8 FA FF FF"
+source = "Name ours. The unit's holder slot 23: this - 4, then a jump to Write 0x006C0370. Replaced by simulators.citylot.save."
+
+[[entry]]
+name = "cSC4BusinessUnit::Remove"
+address = 0x006C08B0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4BusinessUnit* this, cISC4Lot* lot)"
+expect = "56 8B 74 24 08 85 F6 57"
+source = "Slot 4: the lot's nodes erased from the list +0x1C (0x006C0900), then the lot's SetUnit(0) and SetTravelDesignate(0). Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4BusinessUnit::Add"
+address = 0x006C0940
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4BusinessUnit* this, cISC4Lot* lot)"
+expect = "53 55 56 8B 74 24 10 85"
+source = "Slot 3: the lot appended to the list +0x1C unless in it, then the lot's SetUnit(this). Ours in simulators.citylot.slots."
+
+[[entry]]
+name = "cSC4Lot::WriteThunk"
+address = 0x006C2330
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISCPropertyHolder* this, cIGZOStream* stream)"
+expect = "83 E9 04 E9 48 DD FF FF"
+source = "Name ours. The holder part's slot 23: this - 4, then a jump to Write 0x006C0080. Replaced by simulators.citylot.save."
+
+[[entry]]
+name = "cSC4Lot::DefaultConstruct"
+address = 0x006C2340
+kind = "function"
+convention = "thiscall"
+signature = "cSC4Lot* (cSC4Lot* this)"
+expect = "53 56 8B F1 57 8D 7E 08"
+source = "Name ours. The default constructor (the factory 0x006C2FC0 jumps to it; lots read from a save). Detoured by simulators.citylot.object."
+
+[[entry]]
+name = "cSC4Lot::CopyConstruct"
+address = 0x006C2450
+kind = "function"
+convention = "thiscall"
+signature = "cSC4Lot* (cSC4Lot* this, const cSC4Lot* other)"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name ours. The copy constructor (snapshots made by SetCondition 0x006C273C and SetState 0x006C3449). Detoured by simulators.citylot.object."
+
+[[entry]]
+name = "cSC4Lot::Destroy"
+address = 0x006C25D0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot* this)"
+expect = "51 53 55 56 8B F1 57 8D"
+source = "Name ours. The destructor (only called by 0x006C3000). Ours in simulators.citylot.object."
+
+[[entry]]
+name = "cSC4Lot::DeletingDestructor"
+address = 0x006C3000
+kind = "function"
+convention = "thiscall"
+signature = "cSC4Lot* (cSC4Lot* this, uint32_t flags)"
+expect = "56 8B F1 E8 C8 F5 FF FF"
+source = "Name ours. The destructor, then the memory back to the pool 0x00B0D3AC. Reached through the holder part's slot 22 (thunk 0x006C22A0). Ours in simulators.citylot.object."
+
+[[entry]]
+name = "cSC4Lot::Shutdown"
+address = 0x006C3060
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Lot* this)"
+expect = "51 53 56 8B F1 8A 46 78"
+source = "Slot 7. Once initialized: the population maps destroyed, the travel population emptied, configuration and travel designate released, the unit's Remove(this). Ours in simulators.citylot.init."
+
+[[entry]]
+name = "cSC4Lot::Pool"
+address = 0x00B0D3AC
+kind = "data"
+source = "Name ours. The pool the lots' memory comes from (cSC4Lot::Allocate 0x006BF430, blocks of 0x74 lots; current block at +0x4)."
+
+[[entry]]
+name = "cSC4Lot::RandomGuard"
+address = 0x00B49110
+kind = "data"
+source = "Name ours. A byte Init (0x006BF490) sets on its first call: the guard of the generator at 0x00B49120."
+
+[[entry]]
+name = "cSC4Lot::Random"
+address = 0x00B49120
+kind = "data"
+source = "Name ours. The generator Init (0x006BF490) draws a lot's byte +0x88 from (0x00913A06 with 100)."
+
+[[entry]]
+name = "SC4Uint32Uint16Map::EraseNodes"
+address = 0x00458E00
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of 0x18-byte nodes (generic; cSC4Lot's travel population map +0x60 among its users). Left the game's."
+
+[[entry]]
+name = "SC4MapVector::CopyConstruct"
+address = 0x004CDF00
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "53 8B 5C 24 08 55 8B 2B"
+source = "Name ours. Copy constructor of a vector of 12-byte maps (cSC4Lot's populations +0x54 in its copy constructor 0x006C250F). Generic, left the game's."
+
+[[entry]]
+name = "SC4LotTravelMap::CopyConstruct"
+address = 0x004C9470
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "55 56 8B F1 6A 18 C7 06"
+source = "Name ours. Copy constructor of a map uint32 -> uint16 (cSC4Lot +0x60 in its copy constructor 0x006C251B). Generic, left the game's. The state part names the same address SC4Uint32Uint16Map::CopyConstruct."
+
+[[entry]]
+name = "SC4PropertyHolder::CopyConstruct"
+address = 0x005FF120
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSCPropertyHolder* this, const cSCPropertyHolder* other)"
+expect = "8B 44 24 04 56 8B F1 83"
+source = "Name ours. Copy constructor of the 0x14-byte property holder base (properties copied by 0x005FEA70). Called by cSC4Lot's copy constructor (0x006C247A)."
+
+[[entry]]
+name = "SC4RefList::Erase"
+address = 0x007E9330
+kind = "function"
+convention = "thiscall"
+signature = "void (void* list, void** out, void* node)"
+expect = "56 8B 74 24 0C 8B 46 04"
+source = "Name ours. Erases one node of a list of counted pointers (the next node into out). Called by cSC4BusinessUnit's 0x006C0900 (0x006C0928). Generic, left the game's."
+
+[[entry]]
+name = "SC4TripRecord::Write"
+address = 0x0070E0B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cIGZOStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Writes a 0x2C-byte trip record (version 2, two byte vectors, uint32, four bytes, two uint16, a float, a uint32); 1 when the stream reports no error. Called by cSC4Lot::Write (0x006C0334)."
+
+[[entry]]
+name = "cSC4BusinessUnit::Read"
+address = 0x006C09E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4BusinessUnit* this_plus_4, cIGZIStream* stream)"
+expect = "83 EC 10 53 55 8B 6C 24"
+source = "Name ours. Slot 4 of the +0x4 vtable 0x00AB18C4 (and, through the thunk 0x006C0B90, slot 24 of the holder vtable): a uint16 version (1), a uint32 count, that many lot references (SC4Stream::ReadReference, IID 0xE818FCED) appended to the member list at unit +0x1C. Ours in simulators.citylot.capacity (slot swaps)."
+
+[[entry]]
+name = "cSC4BusinessUnit::Create"
+address = 0x006C0EB0
+kind = "function"
+convention = "cdecl"
+signature = "cSC4BusinessUnit* ()"
+expect = "6A 20 E8 29 47 F2 FF 83"
+source = "The class factory (registered at 0x0046046C): 0x20 bytes from SC4::operator_new, then the constructor 0x006C0800 (a tail jump). Ours in simulators.citylot.capacity (detour; only called through the registered pointer)."
+
+[[entry]]
+name = "cSC4BusinessUnit::DeletingDestructor"
+address = 0x006C0ED0
+kind = "function"
+convention = "thiscall"
+signature = "cSC4BusinessUnit* (cSC4BusinessUnit* this, uint32_t flags)"
+expect = "53 56 8B F1 57 8D 7E 1C"
+source = "Name ours. Reached only through the holder vtable's slot 22 (thunk 0x006C0870, from Release 0x006BFE40): the vtables set again, the member list emptied (SC4RefList::Clear) and its sentinel freed, the holder base destroyed (0x005FF150), operator delete when flags & 1. Ours in simulators.citylot.capacity (detour)."
+
+[[entry]]
+name = "cSC4LotTripList::Erase"
+address = 0x006C0FA0
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* list, void** out, void* node)"
+expect = "56 8B 74 24 0C 8B 46 04"
+source = "Name ours. Unlinks a 0x34-byte trip list node, frees its two byte vectors (node +0x14, then +0x8) and the node; *out = the next node, returned in EAX. `this` is not used. Only called from 0x006C2D75 (the state part's 0x006C27E0). Ours in simulators.citylot.capacity (detour)."
+
+[[entry]]
+name = "cSC4Lot::ComputeRoadAccess"
+address = 0x006C1A30
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Lot* this)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. The lot's own road access, stored under key 0 of the access map (+0x40): a network occupant with mask 0x449 along the facing side (zone types 1-6) or any side. Called by HasOrganicRoadAccess (0x006C1D42) and UpdateRoadAccess (0x006C1DA4) only; ours is a plain function in src/core/citylot_capacity.cpp."
+
+[[entry]]
+name = "cSC4Lot::TransitRoadAccess"
+address = 0x006C15D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Lot* this)"
+expect = "83 EC 34 56 57 8B F1 8B"
+source = "Name ours. Road access of a lot whose building is in occupant group 0x1304, from the props of type 0x2C520000/0x2C530000 on it and the networks around them. Only called from 0x006C1A66; ours is a plain function."
+
+[[entry]]
+name = "cSC4Lot::NeighbourRoadAccess"
+address = 0x006C17E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Lot* this, int32_t purpose)"
+expect = "83 EC 08 57 8B F9 8B 07"
+source = "Name ours. Road access for a purpose through the neighbouring lots (the lot manager's slot 9 on the four sides), stored in the access map. Ghidra splits it at 0x006C1808. Called from 0x006C1D91 and 0x006C1DBD only; ours is a plain function."
+
+[[entry]]
+name = "SC4Uint32FloatMap::EraseSubtree"
+address = 0x004C56F0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of 0x18-byte tree nodes (SC4::Free), recursing on the right child: how a map is emptied (its callers reset the head and size). GetOccupancyByType (0x006C1112) and UpdateOccupantWealth (0x006C158C) use it on map<uint32, float>. Generic container code, left the game's."
+
+[[entry]]
+name = "cSC4Lot::ZeroFloat"
+address = 0x00B49114
+kind = "data"
+source = "Name ours. A float that is never written (0.0): GetOccupancy's result without a building (0x006C0E96) and the starting best of UpdateOccupantWealth (0x006C14FC)."
+
+[[entry]]
+name = "cSC4Lot::SetCondition"
+address = 0x006C26D0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot* this, uint32_t condition)"
+expect = "8B 44 24 04 53 55 8B E9"
+source = "Primary slot 36. Nothing when the condition (+0x80) is already that. Stores it, takes today's day number into +0x38 when the lot's state is 4, then posts message 0xE99B3D4D with a copy of the lot (copy constructor 0x006C2450), the old and new condition and the building type. Ours in simulators.citylot.state (src/core/citylot_state.cpp)."
+
+[[entry]]
+name = "cSC4Lot::UpdateTrips"
+address = 0x006C27E0
+kind = "function"
+convention = "thiscall"
+signature = "void (cISC4TrafficSource* this)"
+expect = "83 EC 60 8B 41 E4 53 55"
+source = "Name ours. Slot 4 of the part at +0x1C (`this` = lot + 0x1C): brings the lot's trip list (+0x84) in line with its travel population: residential lots by wealth and travel strategy (the traffic simulator's slot 26 percentages, the residential simulator's slot 30 factor, the lot's random byte +0x88), industrial lots as freight (the traffic simulator's slot 27 factor); commercial lots are left alone. Jump table 0x006C2E14 with its byte table 0x006C2E20. Ours in simulators.citylot.state."
+
+[[entry]]
+name = "cSC4LotPopulations::Clear"
+address = 0x006C2E30
+kind = "function"
+convention = "thiscall"
+signature = "void (std::vector<std::map<uint32_t, uint16_t>>* this)"
+expect = "51 56 57 6A 00 8B F1 8B"
+source = "Name ours. Empties a vector of 12-byte maps (the lot's populations, +0x54). Only SetState (0x006C31E1) calls it; reimplemented as a plain function in src/core/citylot_state.cpp."
+
+[[entry]]
+name = "cSC4LotPopulations::InsertFill"
+address = 0x006C2E70
+kind = "function"
+convention = "thiscall"
+signature = "void (std::vector<std::map<uint32_t, uint16_t>>* this, void* position, uint32_t count, const void* value)"
+expect = "83 EC 0C 56 57 8B 7C 24"
+source = "Name ours. vector::insert(position, count, value) for 12-byte maps. Only 0x006C34F0 calls it; reimplemented as a plain function in src/core/citylot_state.cpp."
+
+[[entry]]
+name = "cSC4Lot::SetState"
+address = 0x006C3100
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot* this, uint32_t state, uint32_t wealth, uint32_t vacateReason)"
+expect = "83 EC 10 53 8B D9 8A 43"
+source = "Primary slot 34. Nothing when the state (+0x7F) is already that. Stores it and today's day number (+0x38); leaving state 2 releases the building type's construction resources (development simulator slot 51) and, into state 3, sets the population of the building's developer type to its capacity; entering state 4 stores the vacate reason, state 2 rebuilds the populations (+0x54) from the building profile's maps with every count 0; outside states 2 and 3 every count is zeroed; then 0x006C1430, the occupant wealth (+0x82), 0x006BFD20 and message 0xE8BDA2E7 with a copy of the lot. Ours in simulators.citylot.state."
+
+[[entry]]
+name = "cSC4LotPopulations::ResizeWith"
+address = 0x006C34F0
+kind = "function"
+convention = "thiscall"
+signature = "void (std::vector<std::map<uint32_t, uint16_t>>* this, uint32_t count, const void* value)"
+expect = "53 56 8B F1 8B 1E 57 8B"
+source = "Name ours. vector::resize(count, value) for 12-byte maps. Only 0x006C3560 calls it; reimplemented as a plain function in src/core/citylot_state.cpp."
+
+[[entry]]
+name = "cSC4LotPopulations::Resize"
+address = 0x006C3560
+kind = "function"
+convention = "thiscall"
+signature = "void (std::vector<std::map<uint32_t, uint16_t>>* this, uint32_t count)"
+expect = "83 EC 0C 53 56 33 DB 6A"
+source = "Name ours. vector::resize(count) for 12-byte maps, with an empty map as the value. Only cSC4Lot's Read (0x006C388D) calls it, with the lot's populations (+0x54) and the count from the save; the call site reloads everything it uses afterwards. Detoured by simulators.citylot.state."
+
+[[entry]]
+name = "cSC4Lot::ReadThunk"
+address = 0x006C3AF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISCPropertyHolder* this, cIGZIStream* stream)"
+expect = "83 E9 04 E9 F8 FA FF FF"
+source = "Name ours. Slot 24 of the property holder part's vtable (0x00AB1930): `this` - 4, then the lot's Read 0x006C35F0. Ours in simulators.citylot.state (it goes through slot 4 of the part at +4)."
+
+[[entry]]
+name = "cSC4Lot::Fn_006C1430"
+address = 0x006C1430
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Lot* this)"
+expect = "83 EC 1C 53 57 8B F9 8B"
+source = "Another part's (capacity). No stack arguments; SetState calls it (0x006C33B5) between two reads of the occupant wealth (+0x82)."
+
+[[entry]]
+name = "cSC4Lot::Fn_006C0AE0"
+address = 0x006C0AE0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* record, const void* source)"
+expect = "56 57 8B 7C 24 0C 57 8B"
+source = "Another part's (capacity). Copy constructor of a 0x2C-byte trip record (two byte vectors through 0x00459E80, then the fields +0x18 to +0x28)."
+
+[[entry]]
+name = "cSC4Lot::Fn_006C1E10"
+address = 0x006C1E10
+kind = "function"
+convention = "thiscall"
+signature = "void (void* list, const void* record)"
+expect = "8B 01 56 57 8B 38 6A 34"
+source = "Another part's (capacity). Puts a copy of a trip record at the front of a trip list (a 0x34-byte node)."
+
+[[entry]]
+name = "cSC4Lot::Fn_006C0B40"
+address = 0x006C0B40
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* resultEnd, void* tag, int)"
+expect = "8B 54 24 04 56 8B 74 24"
+source = "Another part's (capacity). copy_backward over 12-byte maps (assignment 0x004E3F80)."
+
+[[entry]]
+name = "cSC4Lot::Fn_006C1040"
+address = 0x006C1040
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, const void* value)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Another part's (capacity). fill over 12-byte maps (assignment 0x004E3F80)."
+
+[[entry]]
+name = "cSC4Lot::Fn_006C1070"
+address = 0x006C1070
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, uint32_t count, const void* value)"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Another part's (capacity). uninitialized_fill_n over 12-byte maps (copy constructor 0x004C9470); the end."
+
+[[entry]]
+name = "SC4Uint32Uint16Map::Index"
+address = 0x00699030
+kind = "function"
+convention = "thiscall"
+signature = "uint16_t* (std::map<uint32_t, uint16_t>* this, const uint32_t* key)"
+expect = "83 EC 08 53 56 8B 31 8B"
+source = "Name ours. operator[] of a map with uint32 keys and uint16 values (node: key +0x10, value +0x14): the value's address, inserting 0 when missing. cSC4Lot's SetState uses it on the populations' maps (0x006C3278, 0x006C3352), Read too. Generic container code, left the game's."
+
+[[entry]]
+name = "SC4Uint32Uint16Map::Destroy"
+address = 0x00459000
+kind = "function"
+convention = "thiscall"
+signature = "void (std::map<uint32_t, uint16_t>* this)"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Name ours. Destructor of a 12-byte map: its nodes (0x00458E00) and its head. Generic container code, left the game's."
+
+[[entry]]
+name = "SC4MapVector::UninitializedCopy"
+address = 0x00699150
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* result, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. uninitialized_copy over 12-byte maps (copy constructor 0x004C9470); the result's end. Generic container code, left the game's."
+
+[[entry]]
+name = "SC4MapVector::InsertOverflow"
+address = 0x0069A7C0
+kind = "function"
+convention = "thiscall"
+signature = "void (std::vector<std::map<uint32_t, uint16_t>>* this, void* position, const void* value, const void* tag, uint32_t count, bool atEnd)"
+expect = "83 EC 08 53 8B D9 8B 03"
+source = "Name ours. The reallocating insert of a vector of 12-byte maps (STLport _M_insert_overflow; `ret 0x14`). Generic container code, left the game's."
+
+[[entry]]
+name = "cSC4Lot::Fn_006C35F0"
+address = 0x006C35F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "83 EC 50 53 55 56 8B 74"
+source = "The lot's Read (slot 4 of the part at +4, `this` = lot + 4; versions up to 8). The class brief lists it under both the object part (Write/Read) and the state part (by address): src/core/citylot_state.cpp has it as the separate group simulators.citylot.load (the object part's save group has Write only)."
