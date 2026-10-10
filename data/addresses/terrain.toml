@@ -894,7 +894,7 @@ address = 0x007356D0
 kind = "function"
 convention = "thiscall"
 expect = "83 EC 10 8B 54 24 18 8B"
-source = "Name ours, not analysed. (render context, int32[4] cells): the rectangle through the terrain view's 0x00754C60 or 0x00754F10, used by the shadow pass with water vertices when the terrain (the manager's +0x88, slot 0xD4) counts fewer cells in it than its area (docs/renderer.md, \"The overlays\")."
+source = "Name ours. (render context, int32[4] cells): the rectangle cell by cell through the terrain view's 0x00754C60 or 0x00754F10 (the water's rows, +0x15): each cell a quad of land vertices raised to the water level, split by the terrain's slot 0x118; used by the shadow pass with water vertices when the terrain (the manager's +0x88, slot 0xD4) counts fewer cells in it than its area (docs/renderer.md, \"The overlays\")."
 
 [[entry]]
 name = "STE::OverlaySunTest"
@@ -916,7 +916,7 @@ address = 0x00738390
 kind = "function"
 convention = "thiscall"
 expect = "83 EC 30 53 56 8B 74 24"
-source = "Name ours, not analysed. (vector of overlay indices out): the overlays in view (docs/renderer.md, \"The overlays\")."
+source = "Name ours. (vector of overlay indices out): the overlays in the buckets (+0xF0, cells >> +0xE4) that the terrain view's rows in view (0x00752820) touch, each once by a stamp (+0xE0, the overlay's +0xA) (docs/renderer.md, \"The overlays\")."
 
 [[entry]]
 name = "STE::DynamicBuffersFor"
@@ -945,3 +945,23 @@ name = "STE::OverlayListFlags"
 address = 0x00B4B3C0
 kind = "data"
 source = "Name ours. uint32: bit 0 the overlay list is constructed (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "cSTETerrainView3D::RowsInView"
+address = 0x00752820
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 8C 00 00 00 8B 54"
+source = "Name ours, not analysed. (int first row out, int end row out, int* row starts out, int* row ends out): the rows in view and their columns, for the overlay manager's list of overlays in view (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "STE::QuadIndicesTurned"
+address = 0x00B4C6DC
+kind = "data"
+source = "Name ours. uint16[6]: a quad's two triangles when the terrain's slot 0x118 answers yes for the cell (docs/renderer.md, \"The overlays\")."
+
+[[entry]]
+name = "STE::QuadIndicesPlain"
+address = 0x00B4C6E8
+kind = "data"
+source = "Name ours. uint16[6]: a quad's two triangles otherwise (docs/renderer.md, \"The overlays\")."
