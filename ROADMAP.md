@@ -46,7 +46,7 @@ Estimates by area (a judgment from the checklists below, not a measurement):
 Output is a toolkit, not a game change. Everything later depends on it.
 
 - [~] Dev environment set up (see [docs/dev-environment.md](docs/dev-environment.md)). Windows done (scoop toolchain, Ghidra pipeline, isolated in-game test runs); CachyOS not yet
-- [~] Toolchain: clang-cl + lld-link, CMake + Ninja, Windows reference build in CI. Skeleton builds and passes smoke tests on Windows (scoop + xwin); CI workflow exists but is paused (manual trigger only, never run green); still to do: re-enable and confirm CI, Linux/CachyOS cross-build
+- [~] Toolchain: clang-cl + lld-link, CMake + Ninja. Skeleton builds and passes smoke tests on Windows (scoop + xwin); still to do: Linux/CachyOS cross-build. CI moved to "Going public" below
 - [~] Ghidra project for Windows build 1.1.641, with Mac debug-symbol types ported (sc4-ghidra-symbols, version tracking / BinDiff). Rebuilt by [scripts/ghidra-setup.sh](scripts/ghidra-setup.sh): Function ID and the Mac type archives applied, 197 classes and about 1,600 functions named from the exe's own name table and gzcom-dll interfaces. Still to do: apply the Mac class layouts to Windows objects and name secondary vtables
 - [~] Address database: names, addresses, signatures and calling conventions in one versioned source; `addresses.h` and hooks generated from it. Format, generator, byte checks and startup manifest done ([data/addresses/](data/addresses/README.md), one file per simulator); still to do: grow it as work needs addresses, and export the names Ghidra has into it
 - [x] **Answer the class-creation question:** which game classes are created through GZCOM by class ID (can be swapped with no patching) and which with `new` (need detours)? This ratio decides how fragile option B is. **Answered** in [docs/class-creation.md](docs/class-creation.md): about 44% of instantiated classes (462 of ~1060) have GZCOM factories, including all 23 simulators; the rest need vtable swaps or detours. No outside code bypasses the simulators' vtables, and a pass-through pollution simulator registered by a plugin runs the city ([docs/experiments/pollution-proxy.md](docs/experiments/pollution-proxy.md)).
@@ -162,6 +162,12 @@ Parity method (from P4): short-window exact comparison against the original from
 - [ ] Host mode: our exe maps the original exe's sections, then stops needing them
 - [ ] Address shim for ecosystem DLLs that hook fixed addresses
 - [ ] **Exe independence:** the coverage meter shows zero original code executed in the regression suite
+
+## Going public (later)
+
+Left alone until Dan decides to take the project public (Dan, 2026-10-10: building and running on his PC is enough for now).
+
+- [ ] CI: a Windows reference build on every push. The workflow exists but is paused (manual trigger only, never run green); re-enable it and get it green
 
 ## Beyond the original: bigger city tiles
 
