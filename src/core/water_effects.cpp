@@ -1304,10 +1304,204 @@ uint32_t __fastcall DSC4Effect_StepFlag800000(char* self, void*, uint32_t step)
     return EffectRecorded(addr::SC4Effect_StepFlag800000, &WanderByMode, self, step);
 }
 OPENSC4_THUNK(TSC4Effect_StepFlag800000, DSC4Effect_StepFlag800000, 4)
-OPENSC4_EFFECT_HOOK0(SC4EffectBase_TakeParticle)
+// --- The particle pool ---------------------------------------------------------------------
+
+// Particles are kept on a free list (0x00B0A688, linked through each one's
+// first four bytes) of the pool at 0x00B0A67C. Three functions of the base
+// effect class's sub-object (the effect + 4) use it, written here by hand.
+constexpr std::uintptr_t kParticleFree = 0x00B0A688, kParticlePool = 0x00B0A67C, kFloatZero = 0x00B22D70;
+constexpr std::size_t kParticleBytes = 0x44;
+StepMode g_poolMode = StepMode::Original;
+uint64_t g_poolCompared = 0;
+
+void PoolCompared(const char* id, bool same, const std::string& game, const std::string& ours)
+{
+    ++g_poolCompared;
+    if ((g_poolCompared & (g_poolCompared - 1)) == 0)
+        log::Write("water effects: effects.pool: %llu calls compared so far",
+                   static_cast<unsigned long long>(g_poolCompared));
+    compare::Record(id, same, same ? std::string() : game, same ? std::string() : ours);
+}
+
+// Adding a particle to the effect's list (0x005B9F80, slot 0x2C): a new
+// 12-byte node at the end of the list (+0x10), the count (+0x14) raised.
+uint32_t AddParticle(char* base, uint32_t particle)
+{
+    char* const head = At<char*>(base, 0x10);
+    char* const node = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(12);
+    At<uint32_t>(node, 8) = particle;
+    char* const last = At<char*>(head, 4);
+    At<char*>(node, 0) = head;
+    At<char*>(node, 4) = last;
+    At<char*>(last, 0) = node;
+    At<char*>(head, 4) = node;
+    return static_cast<uint32_t>(++At<int32_t>(base, 0x14));
+}
+
+// Giving a particle back (0x005B2240, slot 0x40): onto the free list.
+uint32_t GiveBackParticle(uint32_t particle)
+{
+    if (particle) {
+        M<uint32_t>(particle) = Global<uint32_t>(kParticleFree);
+        Global<uint32_t>(kParticleFree) = particle;
+    }
+    return particle;
+}
+
+// Taking a particle (0x005B7C20, slot 0x3C): the first of the free list
+// (after the pool has grown, 0x005A61B0, when the list is empty), cleared
+// (0x005B9DF0), six of its floats set to zero, and started by the effect
+// (0x005B7580), which the comparison only notes.
+bool g_takeReplay = false;
+uint32_t g_takeStarted = 0;
+
+uint32_t TakeParticle(char* base)
+{
+    if (!Global<uint32_t>(kParticleFree))
+        CallThis<void>(addr::SC4ParticlePool_Grow, reinterpret_cast<void*>(kParticlePool));
+    const uint32_t particle = Global<uint32_t>(kParticleFree);
+    Global<uint32_t>(kParticleFree) = M<uint32_t>(particle);
+    CallThis<void>(addr::SC4Particle_Clear, reinterpret_cast<void*>(particle));
+    for (const uint32_t offset : {0x1Cu, 0x20u, 0x24u, 0x38u, 0x3Cu, 0x40u})
+        M<uint32_t>(particle + offset) = Global<uint32_t>(kFloatZero);
+    if (g_takeReplay)
+        g_takeStarted = particle;
+    else
+        CallThis<void>(addr::SC4Effect_StartParticle, base - 4, particle);
+    return particle;
+}
+
+Call0Fn g_SC4EffectBase_TakeParticle = nullptr;
+Call1Fn g_SC4EffectBase_AddParticle = nullptr, g_SC4EffectBase_GiveBackParticle = nullptr, g_startParticle = nullptr;
+
+// The comparison of the take: the game's runs for real, and a detour on the
+// start of the particle keeps the particle and the free list as they were on
+// entry; then the free list and the particle are put back as before the
+// take, ours runs up to that same point, the two states are compared, and
+// what the game left is put back.
+bool g_takeWatch = false;
+uint32_t g_takeGameParticle = 0, g_takeGameFree = 0;
+char g_takeGameBytes[kParticleBytes];
+
+uint32_t __fastcall DStartParticle(char* effect, void*, uint32_t particle)
+{
+    if (g_takeWatch && !g_takeGameParticle) {
+        g_takeGameParticle = particle;
+        g_takeGameFree = Global<uint32_t>(kParticleFree);
+        std::memcpy(g_takeGameBytes, reinterpret_cast<char*>(particle), kParticleBytes);
+    }
+    return g_startParticle(effect, nullptr, particle);
+}
+OPENSC4_THUNK(TStartParticle, DStartParticle, 4)
+
+uint32_t __fastcall TakeByMode(char* base, void*)
+{
+    const uint32_t first = Global<uint32_t>(kParticleFree);
+    if (g_poolMode == StepMode::Original || g_effectReplay || (g_poolMode == StepMode::Compare && !first))
+        return g_SC4EffectBase_TakeParticle(base, nullptr);
+    if (g_poolMode == StepMode::Ours)
+        return TakeParticle(base);
+    char before[kParticleBytes], after[kParticleBytes], mine[kParticleBytes];
+    char* const bytes = reinterpret_cast<char*>(first);
+    std::memcpy(before, bytes, kParticleBytes);
+    g_takeGameParticle = 0;
+    g_takeWatch = true;
+    const uint32_t result = g_SC4EffectBase_TakeParticle(base, nullptr);
+    g_takeWatch = false;
+    std::memcpy(after, bytes, kParticleBytes);
+    const uint32_t freeAfter = Global<uint32_t>(kParticleFree);
+    std::memcpy(bytes, before, kParticleBytes);
+    Global<uint32_t>(kParticleFree) = first;
+    g_takeStarted = 0;
+    g_takeReplay = true;
+    const uint32_t ourResult = TakeParticle(base);
+    g_takeReplay = false;
+    std::memcpy(mine, bytes, kParticleBytes);
+    const uint32_t ourFree = Global<uint32_t>(kParticleFree);
+    std::memcpy(bytes, after, kParticleBytes);
+    Global<uint32_t>(kParticleFree) = freeAfter;
+    const bool same = result == ourResult && g_takeStarted == g_takeGameParticle && ourFree == g_takeGameFree &&
+                      std::memcmp(mine, g_takeGameBytes, kParticleBytes) == 0;
+    char text[64];
+    std::snprintf(text, sizeof text, "particle %08X, started %08X, free %08X ", result, g_takeGameParticle,
+                  g_takeGameFree);
+    const std::string game = text + Hex(g_takeGameBytes, kParticleBytes);
+    std::snprintf(text, sizeof text, "particle %08X, started %08X, free %08X ", ourResult, g_takeStarted, ourFree);
+    PoolCompared("effects.pool.take", same, game, text + Hex(mine, kParticleBytes));
+    return result;
+}
+
+// The comparison of the add: ours adds a node, what the list then looks
+// like is noted, the node is taken off again and freed, and the game's adds
+// its own; the two shapes are compared (the nodes' addresses may differ).
+std::string ListEnd(char* base, uint32_t particle, const char* lastBefore)
+{
+    char* const head = At<char*>(base, 0x10);
+    char* const node = At<char*>(head, 4);
+    char text[96];
+    std::snprintf(text, sizeof text, "count %d, particle %d, next %d, previous %d, linked %d", At<int32_t>(base, 0x14),
+                  At<uint32_t>(node, 8) == particle, At<char*>(node, 0) == head, At<char*>(node, 4) == lastBefore,
+                  At<char*>(const_cast<char*>(lastBefore), 0) == node);
+    return text;
+}
+
+uint32_t __fastcall AddByMode(char* base, void*, uint32_t particle)
+{
+    if (g_poolMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4EffectBase_AddParticle(base, nullptr, particle);
+    if (g_poolMode == StepMode::Ours)
+        return AddParticle(base, particle);
+    char* const head = At<char*>(base, 0x10);
+    char* const last = At<char*>(head, 4);
+    AddParticle(base, particle);
+    const std::string ours = ListEnd(base, particle, last);
+    char* const node = At<char*>(head, 4);
+    At<char*>(last, 0) = head;
+    At<char*>(head, 4) = last;
+    --At<int32_t>(base, 0x14);
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(node);
+    const uint32_t result = g_SC4EffectBase_AddParticle(base, nullptr, particle);
+    const std::string game = ListEnd(base, particle, last);
+    PoolCompared("effects.pool.add", game == ours, game, ours);
+    return result;
+}
+
+uint32_t __fastcall GiveBackByMode(char* base, void*, uint32_t particle)
+{
+    if (g_poolMode == StepMode::Original || g_effectReplay || !particle)
+        return g_SC4EffectBase_GiveBackParticle(base, nullptr, particle);
+    if (g_poolMode == StepMode::Ours)
+        return GiveBackParticle(particle);
+    const uint32_t freeBefore = Global<uint32_t>(kParticleFree), linkBefore = M<uint32_t>(particle);
+    GiveBackParticle(particle);
+    const uint32_t ourFree = Global<uint32_t>(kParticleFree), ourLink = M<uint32_t>(particle);
+    Global<uint32_t>(kParticleFree) = freeBefore;
+    M<uint32_t>(particle) = linkBefore;
+    const uint32_t result = g_SC4EffectBase_GiveBackParticle(base, nullptr, particle);
+    char text[48];
+    std::snprintf(text, sizeof text, "free %08X, link %08X", Global<uint32_t>(kParticleFree), M<uint32_t>(particle));
+    const std::string game = text;
+    std::snprintf(text, sizeof text, "free %08X, link %08X", ourFree, ourLink);
+    PoolCompared("effects.pool.giveback", game == text, game, text);
+    return result;
+}
+
+uint32_t __fastcall DSC4EffectBase_TakeParticle(char* base, void*)
+{
+    return EffectRecorded(addr::SC4EffectBase_TakeParticle, &TakeByMode, base);
+}
+uint32_t __fastcall DSC4EffectBase_AddParticle(char* base, void*, uint32_t particle)
+{
+    return EffectRecorded(addr::SC4EffectBase_AddParticle, &AddByMode, base, particle);
+}
+uint32_t __fastcall DSC4EffectBase_GiveBackParticle(char* base, void*, uint32_t particle)
+{
+    return EffectRecorded(addr::SC4EffectBase_GiveBackParticle, &GiveBackByMode, base, particle);
+}
+OPENSC4_THUNK(TSC4EffectBase_TakeParticle, DSC4EffectBase_TakeParticle, 0)
+OPENSC4_THUNK(TSC4EffectBase_AddParticle, DSC4EffectBase_AddParticle, 4)
+OPENSC4_THUNK(TSC4EffectBase_GiveBackParticle, DSC4EffectBase_GiveBackParticle, 4)
 OPENSC4_EFFECT_HOOK0(SC4EffectBaseB_TakeParticle)
-OPENSC4_EFFECT_HOOK1(SC4EffectBase_AddParticle)
-OPENSC4_EFFECT_HOOK1(SC4EffectBase_GiveBackParticle)
 OPENSC4_EFFECT_HOOK1(SC4EffectBaseB_GiveBackParticle)
 OPENSC4_EFFECT_HOOK1(SC4Effect_SpawnFromParticle)
 OPENSC4_EFFECT_HOOK1(SC4Effect_SetStopped)
@@ -2002,6 +2196,32 @@ bool HookPool()
     }
     return g_poolHooked;
 }
+
+bool InstallPool(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookPool())
+        return false;
+    if (mode == registry::Mode::Compare && !g_startParticle &&
+        !Detour(addr::SC4Effect_StartParticle, &TStartParticle, &g_startParticle))
+        return false;
+    g_poolMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: particle pool %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredPool = registry::Register({
+    "renderer.effects.pool",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectBase_TakeParticle,
+    "The base effect class's use of the particle pool: taking a particle, adding it to the effect's list and "
+    "giving it back; compare mode runs ours and the game's from the same state (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallPool,
+});
 
 bool HookFinish()
 {
