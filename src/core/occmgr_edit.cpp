@@ -78,8 +78,8 @@ void CellBytes(char* self, float x, float z, uint8_t* outX, uint8_t* outZ)
 // asked and missing.
 Cell* GetCell(char* self, int32_t x, int32_t z, bool create)
 {
-    x = ClampCell(x);
-    z = ClampCell(z);
+    x = ClampCell(self, x);
+    z = ClampCell(self, z);
     Cell* cell = CellAt(self, x, z);
     if (!cell && create) {
         cell = NewCell();
@@ -108,7 +108,7 @@ Cell* FindCell(char* self, void* occupant, int32_t* x, int32_t* z)
             Virtual<uint32_t>(self, slot::kPositionToWorldCell, box[0], box[2], x, z);
         }
     }
-    return CellAt(self, ClampCell(*x), ClampCell(*z));
+    return CellAt(self, ClampCell(self, *x), ClampCell(self, *z));
 }
 
 // 5 (0x0049E050): false once initialized. The size as given, its 64ths
@@ -292,8 +292,8 @@ uint8_t __fastcall RemoveOccupants(char* self, void*, void* filter, uint32_t shu
     ListNode* removed = NewNodeList();
     Vector found{nullptr, nullptr, nullptr};
     LockOf(self);
-    for (int32_t x = 0; x < kWorldCells; ++x)
-        for (int32_t z = 0; z < kWorldCells; ++z) {
+    for (int32_t x = 0; x < WorldCells(self); ++x)
+        for (int32_t z = 0; z < WorldCells(self); ++z) {
             const Cell* const cell = CellAt(self, x, z);
             if (!cell)
                 continue;
@@ -440,8 +440,8 @@ uint8_t __fastcall FindOccupant(char* self, void*, void* occupant, uint32_t sear
     if (const Cell* const cell = FindCell(self, occupant, &firstX, &firstZ))
         found = FindNode(cell, occupant) != cell->head;
     if (!found && (searchAll & 0xFF)) {
-        for (int32_t x = 0; !found && x < kWorldCells; ++x)
-            for (int32_t z = 0; z < kWorldCells; ++z) {
+        for (int32_t x = 0; !found && x < WorldCells(self); ++x)
+            for (int32_t z = 0; z < WorldCells(self); ++z) {
                 const Cell* const cell = CellAt(self, x, z);
                 if (!cell || FindNode(cell, occupant) == cell->head)
                     continue;

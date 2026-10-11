@@ -91,7 +91,7 @@ uint8_t __fastcall IsCellEmpty(char* self, void*, int32_t x, int32_t z)
 {
     static bool logged = false;
     FirstCall("IsCellEmpty", logged);
-    if (x < 0 || x >= kWorldCells || z < 0 || z >= kWorldCells)
+    if (x < 0 || x >= WorldCells(self) || z < 0 || z >= WorldCells(self))
         return 1;
     const Cell* const cell = CellAt(self, x, z);
     return !cell || cell->head->next == cell->head ? 1 : 0;
@@ -139,7 +139,7 @@ uint8_t __fastcall GetFirstOccupant(char* self, void*, void** out, int32_t x, in
     FirstCall("GetFirstOccupant", logged);
     LockOf(self);
     uint8_t found = 0;
-    if (At<uint8_t>(self, field::kInitialized) && x >= 0 && x < kWorldCells && z >= 0 && z < kWorldCells) {
+    if (At<uint8_t>(self, field::kInitialized) && x >= 0 && x < WorldCells(self) && z >= 0 && z < WorldCells(self)) {
         if (const Cell* const cell = CellAt(self, x, z)) {
             ListNode* const head = cell->head;
             for (ListNode* node = head->next; node != head; node = node->next) {
@@ -269,10 +269,10 @@ CellRange RangeOfBox(char* self, const float* low, const float* high)
     CellRange range{};
     Virtual<uint32_t>(self, slot::kPositionToWorldCell, low[0], low[2], &range.x0, &range.z0);
     Virtual<uint32_t>(self, slot::kPositionToWorldCell, high[0], high[2], &range.x1, &range.z1);
-    range.x0 = ClampCell(range.x0);
-    range.z0 = ClampCell(range.z0);
-    range.x1 = ClampCell(range.x1);
-    range.z1 = ClampCell(range.z1);
+    range.x0 = ClampCell(self, range.x0);
+    range.z0 = ClampCell(self, range.z0);
+    range.x1 = ClampCell(self, range.x1);
+    range.z1 = ClampCell(self, range.z1);
     return range;
 }
 
@@ -374,13 +374,13 @@ uint8_t __fastcall GetOccupantsByOccupantManagerCells(char* self, void*, ListNod
     }
     int32_t x0 = kCityOrigin, z0 = kCityOrigin;
     if (low) {
-        x0 = ClampCell(low[0]);
-        z0 = ClampCell(low[1]);
+        x0 = ClampCell(self, low[0]);
+        z0 = ClampCell(self, low[1]);
     }
     int32_t x1, z1;
     if (high) {
-        x1 = ClampCell(high[0]);
-        z1 = ClampCell(high[1]);
+        x1 = ClampCell(self, high[0]);
+        z1 = ClampCell(self, high[1]);
     } else {
         x1 = At<int32_t>(self, field::kCellsX) + 0x3F;
         z1 = At<int32_t>(self, field::kCellsZ) + 0x3F;
@@ -600,12 +600,12 @@ uint8_t __fastcall IterateOccupants(char* self, void*, CallbackFn callback, void
     if (At<uint8_t>(self, field::kInitialized)) {
         CellRange range{kCityOrigin, kCityOrigin, 0, 0};
         if (low) {
-            range.x0 = ClampCell(low[0]);
-            range.z0 = ClampCell(low[2]);
+            range.x0 = ClampCell(self, low[0]);
+            range.z0 = ClampCell(self, low[2]);
         }
         if (high) {
-            range.x1 = ClampCell(high[0]);
-            range.z1 = ClampCell(high[2]);
+            range.x1 = ClampCell(self, high[0]);
+            range.z1 = ClampCell(self, high[2]);
         } else {
             range.x1 = At<int32_t>(self, field::kCellsX) + 0x3F;
             range.z1 = At<int32_t>(self, field::kCellsZ) + 0x3F;
