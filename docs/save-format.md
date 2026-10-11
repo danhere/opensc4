@@ -96,6 +96,41 @@ With `diagnostics.prop_pox` on, which watches `StreamOpen` and `LoadClassObjects
 
 **Checked** (2026-10-11). All six `saves.*` groups on against the original. Twelve saves, seven days, full saves: every city loads through our loader and saves through our saver; eight saves the same, four that part where the original parts from itself (in each the original alone gives two or three outcomes); the stream test's token equal in all 120 runs. A whole-file comparison of a week of Making Money shows ours differing from the original in the five records two runs of the original differ in, and in nothing else. Five saves damaged on purpose (scratch tool: a class's record stored uncompressed, then one object's checksum or size spoiled, among the props, the lots, the buildings and one more class): the original and ours lose the same objects and run the same for three days; the spoiled size among the lots leaves 200 of 433 lots on both sides. Nine saves written by ours load in the original and run as they do with ours (six the same, three partly through the first pair's second run, which a control with the original on both sides shows too). Not reached by any test: a `Read` or `Write` that throws.
 
+## Saving and loading a city (cSC4App)
+
+`cSC4App::SaveCity` (0x00455E20, interface slot 15) and `LoadCity` (0x004555F0, slot 13) with their helpers: the third piece. `saves.app` puts ours in place of the two ([save_app_1.cpp](../src/core/save_app_1.cpp), [save_app_2.cpp](../src/core/save_app_2.cpp)); `saves.app.part1` and `part2` replace the helpers: `SaveCity(fast)` (0x00454DA0, slot 16, which asks the city for its path and calls slot 15), the application's record written (0x004545D0) and read (0x00454620), and the city's file taken out of the resource manager and closed (0x00454A10) or opened and handed to it (0x00454B20). All off by default.
+
+Other features wrap the two functions with detours of their own (`game.timelapse`, `game.seed`, `diagnostics.trace.loadcity`), and one address takes one detour. They reach ours through [save_app.h](../src/core/save_app.h): a wrapper hands over the pointer it would have called, and ours runs when `saves.app` is on. `saves.app` installs after them and puts its own detour only on an address none of them holds.
+
+**Saving**, in order:
+
+1. Four guards (a scope, a timer, modal input, system keys). No city: false.
+2. The real path is made from the region's folder, the city's name and its serial number, whatever path was given. **The path argument is never where the file goes**; it only decides whether an old file there is deleted afterwards. The city is told the real path at once.
+3. A temporary file name. A new save segment on it, opened for writing.
+4. Messages 0x26C63343 and 0x26C63346 (segment, temporary name, real name, fast).
+5. The version record, the game version record (the exe's four version numbers), then the application's record (type 0x49DD6F4C, group 0x49DD6F4E, instance 1): version 2, the city by reference, and the regional city's record. Writing the city's reference is what registers the city with the serializer, and from it everything the city refers to.
+6. Messages 0x26C63344 and 0x26C63345 (the one auto save's copies and the date sync listen to).
+7. The segment is asked to save every registered object, then closed.
+8. The city's own open file is closed, the files are moved (below), the city's file is opened again and given back to the resource manager.
+9. After a good save the neighbours' regional cities are written into their own files.
+
+**The file moves.** T is the temporary file, R the real path, B is R with an underscore added, G the path given.
+
+| Before | Steps | After | Result |
+| --- | --- | --- | --- |
+| no R | T to R | the new save at R | true |
+| no R, the move fails | T removed | nothing at R | false |
+| R there | an old B removed, R to B, T to R, B removed | the new save at R, no B | true |
+| R there, an old B cannot be removed, or R cannot be moved | T removed | the old save at R | false |
+| R there, T cannot be moved to R | T removed, B moved back to R | the old save at R if the move back works, else only at B | false |
+| the segment did not write | T removed | untouched | false |
+
+When G differs from R and a file is there, it is removed after the first, second, third and fifth case, the two failures among them: after a failed last move with a failed move back, the old city is only in B.
+
+**Loading**: a city that is open is closed; a new segment on the file, opened for reading; the version must be 0x3E to 0x41; message 0x26C63340; the segment is given to the resource manager; every object is loaded; the application's record is read (version 2, the city by reference, the regional city, whose failure is not the load's failure); the city takes the regional city's serial number and the path; the screen is changed to the city's; messages 0x26C63341 and 0x26C63342; the city is initialised between the "loaded" messages 0x26D31EC0 and 0x26D31EC1 (the one the date sync listens to). A failed load sends no closing message, releases the city and closes the file. On every path the application's two caches are trimmed and the resource manager collects garbage.
+
+**Checked** (2026-10-11). Every `saves.*` group on against the original. Twelve saves, seven days, full saves: every run loads through our LoadCity and saves through our SaveCity (the third row of the table: the city's file is there); eleven saves the same, one that parts on the first pair's second run on the first day, where that save parts with the original alone. A run of 200 days with `game.autosave`, `game.date_sync`, `game.timelapse` and `game.seed` on as well: ours runs inside the wrappers' detours, the auto saves go through ours and are copied, the date sync hears each save, the timelapse copies each file, and the city loads with its seed. Not reached: the failing rows of the table (a file that cannot be moved or removed) and a load that fails.
+
 ## cSC4PollutionSimulator (0x8990C065)
 
 `Write` 0x006E3380 (writes version 4), `Read` 0x006E5270 (reads versions 2 to 4), `GetGZCLSID` 0x006E2CC0; the `cIGZSerializable` vtable is 0x00AB25E8, at object offset +0xC. Field names are ours except where a getter confirms them; offsets are the object's. (`sc4save.py` names fields by `Write`'s offsets, 0xC lower, so `avg_water` there is +0x104 here.)
