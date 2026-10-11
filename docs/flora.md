@@ -97,7 +97,7 @@ Slot 15 (`LocationIsOKForNewFlora`) wants land (or a water tree), ground less st
 | `simulators.flora.helpers` | the on/off switch (0x006B19E0), the occupant filter's test (0x006AFD10) |
 | `simulators.flora.object` | our own object under the class ID: constructor, destructor, identity, our copies of the three vtables |
 
-Still the game's: the record release 0x00472C70 (outside the flora code; ours does the same), the generic containers, strings and streams, and the flora occupant class.
+Still the game's: the record release 0x00472C70 (outside the flora code; ours does the same), the generic containers, strings and streams (the flora occupant class is ours too, see below).
 
 ## Test cities
 
@@ -123,3 +123,39 @@ All runs with `OPENSC4_TEST_FLORA_MONTH=2` but the 90-day one (2026-10-09, two g
 
 Reached in the runs (the functions that log their first call): all but `MergedType` (no two trees merged in a week), the cheat code, `LoadOccupants`, `SaveObliterated` and `SetEnabled`, which nothing in a test city calls.
 
+## The occupant (cSC4FloraOccupant)
+
+One object per tree or plant. Class ID 0xA9C05C85, IID 0xC83DD057, occupant type 0x74758926; 0x5C bytes from a pool (0x00B07FC8; allocator 0x00472960). Constructor 0x00472B30, factory 0x00472C30, deleting destructor 0x00472D30. Code 0x00472900 to 0x00472DBD. No class derives from it. Underneath is the occupant base class ([occbase.md](occbase.md)). Ours in src/core/floraocc_sim.cpp (fields and vtables with their evidence in floraocc_sim.h; data/addresses/floraocc.toml).
+
+| Offset | Vtable | Interface | Slots |
+| --- | --- | --- | --- |
+| +0x0 | 0x00A88608 | `cISC4FloraOccupant` | 15: the type, birth date, last seeding date and state (eight getters and setters that are stubs folded with other classes), GetOrientation, SetOrientation, SetStaticFloraData |
+| +0x4 | 0x00A88580 | `cISC4Occupant` | 34, most of them the base's; the class's own: GetBoundingBox, GetLotTag |
+| +0x8 | 0x00A88564 | `cIGZSerializable` | Write 0x00472990, Read 0x00472A20 |
+| +0xC, +0x20 | 0x00A88500, 0x00A884E8 | the property and exemplar holders | shared code |
+
+Fields: the base at +0x04; +0x38 the flora type; +0x3C the lot tag; +0x40 the position; +0x4C the birth date, +0x50 the last seeding date; +0x54 the type's record (fetched from the simulator the first time the box is asked for; counted); +0x58 state, +0x59 orientation. The box is the position with the type's radius around it and its height above.
+
+The save record is version 3, every tree of the city in one record (78 bytes each without properties): the base's part, then the type, position, the two dates, state, orientation and lot tag. `tools/re/save_schemas/floraocc.py` decodes all 25,838 trees of the twelve test saves.
+
+| Replacement | What is ours |
+| --- | --- |
+| `simulators.floraocc.slots` | 11 slots: QueryInterface and its thunks, orientation, SetStaticFloraData, GetBoundingBox, GetLotTag, GetGZCLSID; a detour on the release of a type record (0x00472C70) |
+| `simulators.floraocc.save` | Write and Read and their holder thunks |
+| `simulators.floraocc.object` | our own tree: detours on the constructor, the pool's allocator and the factory, the deleting destructor with the pool's free, copies of the five vtables taken once |
+
+Still the game's: the base class, the eight folded getters and setters, the pool. Copied on purpose from the game and commented in the code: the constructor never sets the lot tag, so a new tree no lot planted has what the pool's memory held (zero in a fresh page, a dead tree's tag in a reused place), and it is saved; when the base's part fails, Write and Read skip the class's fields and still report success while the stream has no error.
+
+The fingerprint's `floraocc` part: the number of trees (through the occupant manager's grid) and the sum and XOR of a hash per tree over what the `flora` part does not have: the lot tag, the type's record with its radius and height, the exemplar, the manager's cells, the base's saved state. `OPENSC4_TEST_FLORAOCC=1` adds a checksum of the query slots on a thirteenth of the trees. Before the first batch the original was run three times against itself on Rush Hour d0090 and Making Money d0090: the part and the decoded records agreed.
+
+Parity on 2026-10-11 with the three groups on and the query switch, two games at a time (`%LOCALAPPDATA%\opensc4\parity\crime\`):
+
+| Run | Result |
+| --- | --- |
+| 12 saves for 30 days (`fo-all30`) | 10 of 12; Big City d0000 and d0090 partly: runs on both sides differ on one day (12 days in) in the lots' checksum alone, the variation that city has by itself ([citylot.md](citylot.md)) |
+| 12 saves for 14 days, land and landfill zoned and dezoned (`fo-zone14`) | 12 of 12 |
+| `saves-ports`, 30 days, zoning, growth asked and ports removed (`fo-ports30`) | 3 of 3 |
+| `saves-plopped`, 30 days, zoning (`fo-pl30`) | 3 of 3 |
+| 90 days on `saves-mm2` (`fo-mm90`) | 2 of 2, all 91 days |
+
+Reached: all 14 functions that log their first call (trees made through the allocator and constructor and through the factory, Read, Write, the box with the type's record fetched, the lot tag, orientation, the record's release, the deleting destructor). The audit compared every function instruction by instruction and found no difference in behaviour.

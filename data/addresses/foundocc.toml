@@ -1,0 +1,201 @@
+# The foundation occupant (cSC4FoundationOccupant, class ID 0x49C05C8F, occupant type 0x68FD0C69): code 0x005D6130 to 0x005D6575 (src/core/foundocc_sim.cpp, the class map in src/core/foundocc_sim.h). The constructor 0x005D6440 and the pool allocator 0x005D6220 are in development.toml.
+
+[[entry]]
+name = "cSC4FoundationOccupant::vftable"
+address = 0x00AA29A0
+kind = "vtable"
+expect = "60 61 5D 00 F0 28 5E 00"
+source = "The primary cISC4FoundationOccupant vtable (13 slots, listed in src/core/foundocc_sim.h). simulators.foundocc.slots swaps slots 0, 8, 11 and 12; simulators.foundocc.object copies it at the first construction."
+
+[[entry]]
+name = "cSC4FoundationOccupant::vftable_4"
+address = 0x00AA2918
+kind = "vtable"
+expect = "D0 61 5D 00 B0 29 5E 00"
+source = "Name ours. The cISC4Occupant part at +0x4 (34 slots; the base cSC4Occupant's and shared stubs except 0 and 10). simulators.foundocc.slots swaps slots 0 and 10."
+
+[[entry]]
+name = "cSC4FoundationOccupant::vftable_8"
+address = 0x00AA28FC
+kind = "vtable"
+expect = "E0 61 5D 00 E0 29 5E 00"
+source = "Name ours. The cIGZSerializable part at +0x8 (6 slots: three thunks, Write 0x005D6250, Read 0x005D62D0, GetGZCLSID 0x005D6130). Slots 3 and 4 replaced by simulators.foundocc.save, 0 and 5 by simulators.foundocc.slots."
+
+[[entry]]
+name = "cSC4FoundationOccupant::vftable_C"
+address = 0x00AA2898
+kind = "vtable"
+expect = "F0 61 5D 00 10 2A 5E 00"
+source = "Name ours. The property holder part at +0xC (25 slots: three thunks, the shared holder code, 22 the deleting destructor thunk 0x005D6200, 23 the Write thunk 0x005D6420, 24 the Read thunk 0x005D6430). Slots 23 and 24 replaced by simulators.foundocc.save, 0 by simulators.foundocc.slots."
+
+[[entry]]
+name = "cSC4FoundationOccupant::vftable_20"
+address = 0x00AA2880
+kind = "vtable"
+expect = "10 62 5D 00 A0 06 5E 00"
+source = "Name ours. The exemplar holder part at +0x20 (cISCExemplarPropertyHolder, 5 slots: three thunks, SetPropertyExemplar 0x00458E60, the getter 0x0060CE80). Slot 0 replaced by simulators.foundocc.slots."
+
+[[entry]]
+name = "cSC4FoundationOccupant::GetGZCLSID"
+address = 0x005D6130
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 8F 5C C0 49 C3 CC CC"
+source = "Returns the class ID 0x49C05C8F (+8 slot 5; also called by the class registration at 0x004607FC). Ours in simulators.foundocc.slots."
+
+[[entry]]
+name = "cSC4FoundationOccupant::QueryInterface"
+address = 0x005D6160
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4FoundationOccupant* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D 01 E1 FC"
+source = "Slot 0: IID 0xC8FCE101 gives the object; every other goes to the occupant base's 0x005E89C0 with this + 4. Ours in simulators.foundocc.slots."
+
+[[entry]]
+name = "cSC4FoundationOccupant::GetOrientation"
+address = 0x005D6190
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4FoundationOccupant* this)"
+expect = "0F BE 41 59 C3 CC CC CC"
+source = "Slot 11: the byte at +0x59, sign extended. Ours in simulators.foundocc.slots (a slot swap: five bytes of code)."
+
+[[entry]]
+name = "cSC4FoundationOccupant::SetOrientation"
+address = 0x005D61A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4FoundationOccupant* this, int32_t orientation)"
+expect = "8B 44 24 04 85 C0 7D 0A"
+source = "Slot 12: the argument held to 0 ... 3, its low byte into +0x59; true. Ours in simulators.foundocc.slots."
+
+[[entry]]
+name = "cSC4FoundationOccupant::QueryInterfaceThunk4"
+address = 0x005D61D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 04 E9 88 FF FF FF"
+source = "Name ours. +4 slot 0: this - 4 to QueryInterface. Ours in simulators.foundocc.slots."
+
+[[entry]]
+name = "cSC4FoundationOccupant::QueryInterfaceThunk8"
+address = 0x005D61E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 08 E9 78 FF FF FF"
+source = "Name ours. +8 slot 0: this - 8 to QueryInterface. Ours in simulators.foundocc.slots."
+
+[[entry]]
+name = "cSC4FoundationOccupant::QueryInterfaceThunkC"
+address = 0x005D61F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 0C E9 68 FF FF FF"
+source = "Name ours. +0xC slot 0: this - 0xC to QueryInterface. Ours in simulators.foundocc.slots."
+
+[[entry]]
+name = "cSC4FoundationOccupant::DeletingDestructorThunk"
+address = 0x005D6200
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* part, uint32_t flags)"
+expect = "83 E9 0C E9 F8 02 00 00"
+source = "Name ours. +0xC slot 22: this - 0xC to the deleting destructor 0x005D6500. Ours (in the vtable copy) in simulators.foundocc.object."
+
+[[entry]]
+name = "cSC4FoundationOccupant::QueryInterfaceThunk20"
+address = 0x005D6210
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 20 E9 48 FF FF FF"
+source = "Name ours. +0x20 slot 0: this - 0x20 to QueryInterface. Ours in simulators.foundocc.slots."
+
+[[entry]]
+name = "cSC4FoundationOccupant::Write"
+address = 0x005D6250
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+8 slot 3 (this = object + 8): version 2, the occupant base's record (0x005E8CD0), the foundation type, the height, the position, the size, the usage and the orientation; when the base fails the class's fields are left out and the result is still the stream's state. Ours in simulators.foundocc.save."
+
+[[entry]]
+name = "cSC4FoundationOccupant::Read"
+address = 0x005D62D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+8 slot 4 (this = object + 8): the reverse of 0x005D6250, version 2 only. Ours in simulators.foundocc.save."
+
+[[entry]]
+name = "cSC4FoundationOccupant::GetBoundingBox"
+address = 0x005D63A0
+kind = "function"
+convention = "thiscall"
+signature = "void (cISC4Occupant* this, float* low, float* high)"
+expect = "D9 41 48 8B 44 24 04 D8"
+source = "+4 slot 10 (this = object + 4): the position less and plus half the size (0x00A84D2C) in x and z; in y from the position less the size's height up to the position. Ours in simulators.foundocc.slots."
+
+[[entry]]
+name = "cSC4FoundationOccupant::SetSize"
+address = 0x005D6400
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4FoundationOccupant* this, const float* size)"
+expect = "8B 44 24 04 8B 10 89 51"
+source = "Slot 8: three floats copied to +0x4C; true. Ours in simulators.foundocc.slots."
+
+[[entry]]
+name = "cSC4FoundationOccupant::WriteThunk"
+address = 0x005D6420
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZOStream* stream)"
+expect = "83 E9 04 E9 28 FE FF FF"
+source = "Name ours. +0xC slot 23: this - 4 to Write. Ours in simulators.foundocc.save."
+
+[[entry]]
+name = "cSC4FoundationOccupant::ReadThunk"
+address = 0x005D6430
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZIStream* stream)"
+expect = "83 E9 04 E9 98 FE FF FF"
+source = "Name ours. +0xC slot 24: this - 4 to Read. Ours in simulators.foundocc.save."
+
+[[entry]]
+name = "cSC4FoundationOccupant::Create"
+address = 0x005D64C0
+kind = "function"
+convention = "cdecl"
+signature = "cISC4Occupant* ()"
+expect = "A1 34 A8 B0 00 8B 40 08"
+source = "The class factory (registered at 0x004607F7): an item of the pool 0x00B0A830, the constructor 0x005D6440 called at 0x005D64EC, and the object + 4 returned (the occupant part). A save's reader makes every foundation with it. Ours in simulators.foundocc.object."
+
+[[entry]]
+name = "cSC4FoundationOccupant::DeletingDestructor"
+address = 0x005D6500
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4FoundationOccupant* this, uint32_t flags)"
+expect = "56 8B F1 8D 4E 04 C7 06"
+source = "Name ours. The five vtables, the occupant base's destructor 0x005E8C40 on this + 4, and with flag 1 the item back to its pool page (0x0090D031 at count 0, 0x0090CFF9 at count 0x40000042). Reached only by the jump of the thunk 0x005D6200. Ours (in the vtable copy) in simulators.foundocc.object."
+
+[[entry]]
+name = "cSC4FoundationOccupant::Pool"
+address = 0x00B0A830
+kind = "data"
+source = "Name ours. The pool of the 0x5C-byte foundation occupants (+4 the current page; pages of 8 KB at address & 0xFFFFE000 with the free list at +8 and the used count at +0xC; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at count 0x40000042)."
+
+[[entry]]
+name = "cSC4FoundationOccupant::DefaultSize"
+address = 0x00B2303C
+kind = "data"
+source = "Name ours. A float the constructor copies into each of the size's three floats (0x005D6486, 0x005D648F, 0x005D6498); zero in the exe's image and no instruction addresses it directly but those three reads."
