@@ -260,3 +260,48 @@ convention = "thiscall"
 signature = "void (SC4Effect* this, float step)"
 expect = "55 8B EC 83 E4 F8 83 EC"
 source = "Name ours, not analysed. The emitter for descriptions with neither flag 4 nor flag 2. Called by SC4Effect::Emit (0x005B9784)."
+
+[[entry]]
+name = "SC4EffectBase::TakeParticle"
+address = 0x005B7C20
+kind = "function"
+convention = "thiscall"
+signature = "SC4Particle* (SC4EffectBase* this)"
+expect = "56 8B 35 88 A6 B0 00 85"
+source = "Name ours, not analysed. Slot 0x3C of the base effect class's sub-object (vtable 0x00AA0E58): a new particle from the pool at 0x00B0A688. The emitters call it."
+
+[[entry]]
+name = "SC4EffectBaseB::TakeParticle"
+address = 0x005AEF20
+kind = "function"
+convention = "thiscall"
+signature = "SC4Particle* (SC4EffectBase* this)"
+expect = "83 EC 10 A1 CC A5 B0 00"
+source = "Name ours, not analysed. Slot 0x3C of the second effect class's sub-object (vtable 0x00AA0C10)."
+
+[[entry]]
+name = "SC4EffectBase::AddParticle"
+address = 0x005B9F80
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectBase* this, SC4Particle* particle)"
+expect = "56 57 8B F1 8B 7E 10 6A"
+source = "Name ours, not analysed. Slot 0x2C of both effect classes' sub-objects: a new node for the particle at the end of the list (+0x10, count +0x14)."
+
+[[entry]]
+name = "SC4EffectBase::GiveBackParticle"
+address = 0x005B2240
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectBase* this, SC4Particle* particle)"
+expect = "8B 44 24 04 85 C0 74 0D"
+source = "Name ours, not analysed. Slot 0x40 of the base effect class's sub-object: the particle back to the pool at 0x00B0A688. SC4Effect::Draw calls it for a particle that ended (0x005B86F2), the emitters for one that did not start."
+
+[[entry]]
+name = "SC4EffectBaseB::GiveBackParticle"
+address = 0x005AF390
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectBase* this, SC4Particle* particle)"
+expect = "81 EC D8 00 00 00 55 8B"
+source = "Name ours, not analysed. Slot 0x40 of the second effect class's sub-object (vtable 0x00AA0C10)."

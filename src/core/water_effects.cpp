@@ -377,7 +377,7 @@ struct EffectCall {
 bool g_effectRecord = false, g_effectReplay = false;
 int g_effectNested = 0;
 std::vector<EffectCall> g_effectGameCalls, g_effectOurCalls;
-std::vector<uint8_t> g_effectAnswers;
+std::vector<uint32_t> g_effectAnswers;
 std::size_t g_effectAnswer = 0;
 float g_effectClock = 0;
 
@@ -421,7 +421,34 @@ void RestoreEffect(const std::vector<char>& bytes)
         *EffectByte(at) = bytes[at];
 }
 
-// The functions of the effect the comparison records in the game's run.
+std::vector<char> g_effectTaken;
+std::vector<std::pair<char*, char>> g_effectPoked;
+
+bool IsTake(uint32_t target)
+{
+    return target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle;
+}
+
+void UnpokeParticles()
+{
+    for (auto poked = g_effectPoked.rbegin(); poked != g_effectPoked.rend(); ++poked)
+        *poked->first = poked->second;
+    g_effectPoked.clear();
+}
+
+// The recorded functions whose answer the caller goes by: the particle's
+// step and the end check (a byte), and taking a particle (a pointer).
+bool g_poolHooked = false;
+
+bool Steers(uint32_t target)
+{
+    return target == addr::SC4Effect_StepParticle || target == addr::SC4EffectBase_Finish ||
+           (g_poolHooked &&
+            (target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle));
+}
+
+// The functions of the effect the comparison records in the game's run (the
+// particle pool's only once their detours are in).
 bool Recorded(uint32_t target)
 {
     for (const uint32_t address :
@@ -433,12 +460,10 @@ bool Recorded(uint32_t target)
         if (target == address)
             return true;
     }
-    return false;
-}
-
-bool Steers(uint32_t target)
-{
-    return target == addr::SC4Effect_StepParticle || target == addr::SC4EffectBase_Finish;
+    return g_poolHooked &&
+           (target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle ||
+            target == addr::SC4EffectBase_AddParticle || target == addr::SC4EffectBase_GiveBackParticle ||
+            target == addr::SC4EffectBaseB_GiveBackParticle);
 }
 
 template <typename... Args>
@@ -456,9 +481,19 @@ uint32_t CallThisTraced(uint32_t target, void* self, Args... args)
         }
         g_effectOurCalls.push_back(call);
     }
-    if (Steers(target))
-        return g_effectAnswer < g_effectAnswers.size() ? g_effectAnswers[g_effectAnswer++] : 0u;
-    return 0;
+    if (!Steers(target))
+        return 0;
+    const uint32_t answer = g_effectAnswer < g_effectAnswers.size() ? g_effectAnswers[g_effectAnswer] : 0u;
+    // A particle just taken is read by its first byte, which is no longer
+    // what the game's run saw (given back, the pool keeps a link there): the
+    // byte of the record is put there until the comparison ends.
+    if (answer && IsTake(target) && g_effectAnswer < g_effectTaken.size()) {
+        char* const first = reinterpret_cast<char*>(answer);
+        g_effectPoked.push_back({first, *first});
+        *first = g_effectTaken[g_effectAnswer];
+    }
+    ++g_effectAnswer;
+    return answer;
 }
 
 double CallFloatTraced(uint32_t target, void* self)
@@ -506,8 +541,10 @@ uint32_t EffectRecorded(uint32_t target, Fn original, char* self, Args... args)
                 changes.push_back({static_cast<uint32_t>(at), after[at]});
         }
         g_effectChanges.push_back(std::move(changes));
-        if (Steers(target))
-            g_effectAnswers.push_back(static_cast<uint8_t>(result));
+        if (Steers(target)) {
+            g_effectAnswers.push_back(result);
+            g_effectTaken.push_back(IsTake(target) && result ? *reinterpret_cast<char*>(result) : 0);
+        }
     }
     return result;
 }
@@ -676,10 +713,6 @@ uint32_t EmitterWatched(uint32_t target, Fn original, char* self, uint32_t step)
     return original(self, nullptr, step);
 }
 
-uint32_t __fastcall DEmitToCount(char* self, void*, uint32_t step)
-{
-    return EmitterWatched(addr::SC4Effect_EmitToCount, g_emitToCount, self, step);
-}
 uint32_t __fastcall DEmitBurst(char* self, void*, uint32_t step)
 {
     return EmitterWatched(addr::SC4Effect_EmitBurst, g_emitBurst, self, step);
@@ -688,7 +721,7 @@ uint32_t __fastcall DEmitStream(char* self, void*, uint32_t step)
 {
     return EmitterWatched(addr::SC4Effect_EmitStream, g_emitStream, self, step);
 }
-OPENSC4_THUNK(TEmitToCount, DEmitToCount, 4)
+void TEmitToCount();
 OPENSC4_THUNK(TEmitBurst, DEmitBurst, 4)
 OPENSC4_THUNK(TEmitStream, DEmitStream, 4)
 
@@ -753,6 +786,11 @@ OPENSC4_EFFECT_HOOK0(SC4Effect_PathVelocity)
 OPENSC4_EFFECT_HOOK0(SC4Effect_StepFlag80000000)
 OPENSC4_EFFECT_HOOK0(SC4EffectBase_Finish)
 OPENSC4_EFFECT_HOOK1(SC4Effect_StepFlag800000)
+OPENSC4_EFFECT_HOOK0(SC4EffectBase_TakeParticle)
+OPENSC4_EFFECT_HOOK0(SC4EffectBaseB_TakeParticle)
+OPENSC4_EFFECT_HOOK1(SC4EffectBase_AddParticle)
+OPENSC4_EFFECT_HOOK1(SC4EffectBase_GiveBackParticle)
+OPENSC4_EFFECT_HOOK1(SC4EffectBaseB_GiveBackParticle)
 
 // A particle effect's draw (0x005B8540, slot 0x24 of both effect classes),
 // translated instruction by instruction: the step added to the effect's
@@ -822,10 +860,10 @@ void FreeNoted()
 
 // The replay behind a guard: a fault in it (ours going another way than the
 // game's record) is reported as a divergence instead of ending the game.
-__declspec(noinline) bool TryDrawEffect(char* self, uint32_t step, uint32_t context, uint32_t* result)
+__declspec(noinline) bool TryReplay(uint32_t (*run)(void*), void* argument, uint32_t* result)
 {
     __try {
-        *result = DrawEffect(self, step, context);
+        *result = run(argument);
         return true;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         return false;
@@ -850,17 +888,17 @@ std::vector<char*> EffectNodes(char* self)
     return nodes;
 }
 
-uint32_t EffectDraw(char* self, uint32_t step, uint32_t context)
+// The comparison by record and replay, for one function of an effect:
+// `game` runs the game's for real, `replay` ours with every call answered
+// from the record. `checkResult` when the function's answer counts.
+template <typename Game>
+uint32_t RecordAndReplay(const char* id, char* self, bool checkResult, Game&& game, uint32_t (*replay)(void*),
+                         void* replayArgument)
 {
-    if (g_effectMode == EffectMode::Original || g_effectRecord || g_effectReplay)
-        return g_effectDraw(self, nullptr, step, context);
-    if (g_effectMode == EffectMode::Ours)
-        return DrawEffect(self, step, context);
-    const char* const id = "effects.effect";
     g_effectSelf = self;
     g_effectNodes = EffectNodes(self);
     if (g_effectNodes.empty())
-        return g_effectDraw(self, nullptr, step, context);
+        return game();
     g_effectParticles.assign(1, &g_noParticle);
     for (std::size_t i = 1; i < g_effectNodes.size(); ++i)
         g_effectParticles.push_back(At<char*>(g_effectNodes[i], 8));
@@ -869,10 +907,11 @@ uint32_t EffectDraw(char* self, uint32_t step, uint32_t context)
     const std::vector<char> before = SaveEffect();
     g_effectGameCalls.clear();
     g_effectAnswers.clear();
+    g_effectTaken.clear();
     g_effectChanges.clear();
     g_effectThread = GetCurrentThreadId();
     g_effectRecord = true;
-    const uint32_t result = g_effectDraw(self, nullptr, step, context);
+    const uint32_t result = game();
     g_effectRecord = false;
     const std::vector<char> after = SaveEffect();
     const std::vector<char*> gameNodes = EffectNodes(self);
@@ -882,9 +921,10 @@ uint32_t EffectDraw(char* self, uint32_t step, uint32_t context)
     g_effectAnswer = 0;
     g_effectReplay = true;
     uint32_t ourResult = 0;
-    const bool finished = TryDrawEffect(self, step, context, &ourResult);
+    const bool finished = TryReplay(replay, replayArgument, &ourResult);
     g_effectReplay = false;
     if (!finished) {
+        UnpokeParticles();
         RestoreEffect(after);
         FreeNoted();
         char fault[160];
@@ -901,6 +941,7 @@ uint32_t EffectDraw(char* self, uint32_t step, uint32_t context)
     }
     const std::vector<char> mine(self, self + kEffectSize);
     const std::vector<char*> ourNodes = EffectNodes(self);
+    UnpokeParticles();
     RestoreEffect(after);
     FreeNoted();
     ++g_passesCompared;
@@ -937,7 +978,7 @@ uint32_t EffectDraw(char* self, uint32_t step, uint32_t context)
                         ourNodes.empty() ? "list broken" : "list whole");
         return result;
     }
-    if ((result & 0xFF) != (ourResult & 0xFF) || gameNodes != ourNodes) {
+    if ((checkResult && (result & 0xFF) != (ourResult & 0xFF)) || gameNodes != ourNodes) {
         std::snprintf(text, sizeof text, "result %u, %zu particles", result & 0xFF, gameNodes.size() - 1);
         const std::string game = text;
         std::snprintf(text, sizeof text, "result %u, %zu particles", ourResult & 0xFF, ourNodes.size() - 1);
@@ -956,6 +997,84 @@ uint32_t EffectDraw(char* self, uint32_t step, uint32_t context)
     compare::Record(id, true, std::string(), std::string());
     return result;
 }
+
+uint32_t EffectDraw(char* self, uint32_t step, uint32_t context)
+{
+    if (g_effectMode == EffectMode::Original || g_effectRecord || g_effectReplay)
+        return g_effectDraw(self, nullptr, step, context);
+    if (g_effectMode == EffectMode::Ours)
+        return DrawEffect(self, step, context);
+    struct Arguments {
+        char* self;
+        uint32_t step, context;
+    } arguments{self, step, context};
+    return RecordAndReplay(
+        "effects.effect", self, true, [&] { return g_effectDraw(self, nullptr, step, context); },
+        [](void* a) {
+            const Arguments& args = *static_cast<Arguments*>(a);
+            return DrawEffect(args.self, args.step, args.context);
+        },
+        &arguments);
+}
+
+// The emitter that keeps a count of particles (0x005B3CF0, for descriptions
+// with flag 4), translated instruction by instruction: the step times a rate
+// (+0x130) is added to a double at +0x120, and once that has passed +0x128
+// the number of particles (+0x18) is brought up to a count worked out from
+// the description's +0x88: each one taken from the sub-object (slot 0x3C)
+// and added to the list when its first byte is set (slot 0x2C), else given
+// back (slot 0x40).
+uint32_t EmitToCount(char* self, uint32_t step)
+{
+    uint32_t stackmem[160] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = step;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_emit_count.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+EmitMode g_emitCountMode = EmitMode::Original;
+
+uint32_t __fastcall EmitToCountByMode(char* self, void*, uint32_t step)
+{
+    if (g_emitCountMode == EmitMode::Original || g_effectRecord || g_effectReplay)
+        return g_emitToCount(self, nullptr, step);
+    if (g_emitCountMode == EmitMode::Ours)
+        return EmitToCount(self, step);
+    struct Arguments {
+        char* self;
+        uint32_t step;
+    } arguments{self, step};
+    return RecordAndReplay(
+        "effects.emit_count", self, false, [&] { return g_emitToCount(self, nullptr, step); },
+        [](void* a) {
+            const Arguments& args = *static_cast<Arguments*>(a);
+            return EmitToCount(args.self, args.step);
+        },
+        &arguments);
+}
+
+uint32_t __fastcall DEmitToCount(char* self, void*, uint32_t step)
+{
+    return EmitterWatched(addr::SC4Effect_EmitToCount, &EmitToCountByMode, self, step);
+}
+OPENSC4_THUNK(TEmitToCount, DEmitToCount, 4)
 
 uint32_t __fastcall DEffectDraw(char* self, void*, uint32_t step, uint32_t context)
 {
@@ -1129,7 +1248,8 @@ bool InstallStep(registry::Mode mode)
     if (!game::IsBuild641() || !HookStepParticle())
         return false;
     g_stepMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: particle step %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    log::Write("water effects: particle step %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
     return true;
 }
 
@@ -1146,6 +1266,63 @@ const bool g_registeredStep = registry::Register({
     InstallStep,
 });
 
+// What every record-and-replay comparison needs: the frees held back, and
+// the particle pool's functions recorded.
+bool HookFrees()
+{
+    if (g_free)
+        return true;
+    const addr::Entry* const release = addr_check::Find(addr::SC4_Free);
+    const addr::Entry* const destroy = addr_check::Find(addr::SC4_operator_delete);
+    return release && destroy && hook::Install(*release, &DFree, &g_free) &&
+           hook::Install(*destroy, &DDelete, &g_delete);
+}
+
+bool HookPool()
+{
+    if (g_poolHooked)
+        return true;
+    g_poolHooked =
+        Detour(addr::SC4EffectBase_TakeParticle, &TSC4EffectBase_TakeParticle, &g_SC4EffectBase_TakeParticle) &&
+        Detour(addr::SC4EffectBaseB_TakeParticle, &TSC4EffectBaseB_TakeParticle, &g_SC4EffectBaseB_TakeParticle) &&
+        Detour(addr::SC4EffectBase_AddParticle, &TSC4EffectBase_AddParticle, &g_SC4EffectBase_AddParticle) &&
+        Detour(addr::SC4EffectBase_GiveBackParticle, &TSC4EffectBase_GiveBackParticle,
+               &g_SC4EffectBase_GiveBackParticle) &&
+        Detour(addr::SC4EffectBaseB_GiveBackParticle, &TSC4EffectBaseB_GiveBackParticle,
+               &g_SC4EffectBaseB_GiveBackParticle);
+    return g_poolHooked;
+}
+
+bool HookEmitToCount()
+{
+    return g_emitToCount || Detour(addr::SC4Effect_EmitToCount, &TEmitToCount, &g_emitToCount);
+}
+
+bool InstallEmitCount(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookEmitToCount())
+        return false;
+    if (mode == registry::Mode::Compare && !(HookFrees() && HookPool()))
+        return false;
+    g_emitCountMode = mode == registry::Mode::Compare ? EmitMode::Compare : EmitMode::Ours;
+    log::Write("water effects: count emitter %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredEmitCount = registry::Register({
+    "renderer.effects.emit_count",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_EmitToCount,
+    "The emitter that keeps a count of particles (taking, adding and giving back particles still the game's); "
+    "compare mode records the game's run and replays ours, as renderer.effects.effect (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallEmitCount,
+});
+
 bool HookEmit()
 {
     return g_SC4Effect_Emit || Detour(addr::SC4Effect_Emit, &TSC4Effect_Emit, &g_SC4Effect_Emit);
@@ -1156,7 +1333,7 @@ bool InstallEmit(registry::Mode mode)
     if (!game::IsBuild641() || !HookEmit())
         return false;
     if (mode == registry::Mode::Compare &&
-        !(Detour(addr::SC4Effect_EmitToCount, &TEmitToCount, &g_emitToCount) &&
+        !(HookEmitToCount() &&
           Detour(addr::SC4Effect_EmitBurst, &TEmitBurst, &g_emitBurst) &&
           Detour(addr::SC4Effect_EmitStream, &TEmitStream, &g_emitStream)))
         return false;
@@ -1213,10 +1390,7 @@ bool InstallEffect(registry::Mode mode)
         hook(addr::SC4Effect_StepFlag80000000, &TSC4Effect_StepFlag80000000, &g_SC4Effect_StepFlag80000000);
         hook(addr::SC4EffectBase_Finish, &TSC4EffectBase_Finish, &g_SC4EffectBase_Finish);
         hook(addr::SC4Effect_StepFlag800000, &TSC4Effect_StepFlag800000, &g_SC4Effect_StepFlag800000);
-        const addr::Entry* const release = addr_check::Find(addr::SC4_Free);
-        const addr::Entry* const destroy = addr_check::Find(addr::SC4_operator_delete);
-        if (!ok || !release || !destroy || !hook::Install(*release, &DFree, &g_free) ||
-            !hook::Install(*destroy, &DDelete, &g_delete))
+        if (!ok || !HookFrees() || !HookPool())
             return false;
         const char* const off = std::getenv("OPENSC4_EFFECT_NOCOMPARE");
         if (off && *off == '1') {
