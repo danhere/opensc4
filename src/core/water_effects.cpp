@@ -897,6 +897,18 @@ double X87Sin(double x)
     return result;
 }
 
+double X87Atan2(double y, double x)
+{
+    double result;
+    __asm {
+        fld y
+        fld x
+        fpatan
+        fstp result
+    }
+    return result;
+}
+
 double X87Cos(double x)
 {
     double result;
@@ -1200,7 +1212,95 @@ uint32_t __fastcall DSC4Effect_PathVelocity(char* self, void*)
 OPENSC4_THUNK(TSC4Effect_PathVelocity, DSC4Effect_PathVelocity, 0)
 OPENSC4_EFFECT_HOOK0(SC4Effect_StepFlag80000000)
 OPENSC4_EFFECT_HOOK0(SC4EffectBase_Finish)
-OPENSC4_EFFECT_HOOK1(SC4Effect_StepFlag800000)
+// An effect's wandering (0x005B2730; the effect's draw calls it last for
+// descriptions with flag 0x800000, unless the effect has just ended),
+// translated instruction by instruction: a timer (+0x148) is lowered by the
+// step, and each time it runs out it is set again to a random time between
+// two values of the description (+0x174) and the effect's own velocity
+// (+0x150) is turned by a random amount; the random numbers come from the
+// generator at 0x00B22DF8.
+uint32_t WanderEffect(char* self, uint32_t step)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = step;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_wander.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+StepMode g_wanderMode = StepMode::Original;
+Call1Fn g_SC4Effect_StepFlag800000 = nullptr;
+uint64_t g_wandersCompared = 0;
+constexpr std::uintptr_t kEffectGenerator = 0x00B22DF8;
+constexpr std::size_t kGeneratorSize = 0x10;
+
+// It writes the effect and draws random numbers, so the comparison runs
+// ours, keeps the effect and the generator it left, puts both back and runs
+// the game's: the two then draw the same numbers.
+uint32_t __fastcall WanderByMode(char* self, void*, uint32_t step)
+{
+    if (g_wanderMode == StepMode::Original || g_effectReplay)
+        return g_SC4Effect_StepFlag800000(self, nullptr, step);
+    if (g_wanderMode == StepMode::Ours)
+        return WanderEffect(self, step);
+    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
+    char before[kEffectSize + kGeneratorSize], mine[kEffectSize + kGeneratorSize];
+    const auto save = [&](char* to) {
+        std::memcpy(to, self, kEffectSize);
+        std::memcpy(to + kEffectSize, generator, kGeneratorSize);
+    };
+    save(before);
+    if (g_selfCheck)
+        g_SC4Effect_StepFlag800000(self, nullptr, step);
+    else
+        WanderEffect(self, step);
+    save(mine);
+    std::memcpy(self, before, kEffectSize);
+    std::memcpy(generator, before + kEffectSize, kGeneratorSize);
+    const uint32_t result = g_SC4Effect_StepFlag800000(self, nullptr, step);
+    char game[kEffectSize + kGeneratorSize];
+    save(game);
+    const char* const id = g_selfCheck ? "effects.wander.selfcheck" : "effects.wander";
+    ++g_wandersCompared;
+    if ((g_wandersCompared & (g_wandersCompared - 1)) == 0)
+        log::Write("water effects: %s: %llu calls compared so far", id,
+                   static_cast<unsigned long long>(g_wandersCompared));
+    if (std::memcmp(game, mine, sizeof game) == 0) {
+        compare::Record(id, true, std::string(), std::string());
+    } else {
+        std::size_t at = 0;
+        while (game[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        char text[40];
+        std::snprintf(text, sizeof text, "%s+%zX ", at < kEffectSize ? "effect" : "generator",
+                      at < kEffectSize ? at : at - kEffectSize);
+        compare::Record(id, false, text + Hex(game + at, 8), text + Hex(mine + at, 8));
+    }
+    return result;
+}
+
+uint32_t __fastcall DSC4Effect_StepFlag800000(char* self, void*, uint32_t step)
+{
+    return EffectRecorded(addr::SC4Effect_StepFlag800000, &WanderByMode, self, step);
+}
+OPENSC4_THUNK(TSC4Effect_StepFlag800000, DSC4Effect_StepFlag800000, 4)
 OPENSC4_EFFECT_HOOK0(SC4EffectBase_TakeParticle)
 OPENSC4_EFFECT_HOOK0(SC4EffectBaseB_TakeParticle)
 OPENSC4_EFFECT_HOOK1(SC4EffectBase_AddParticle)
@@ -1849,6 +1949,35 @@ bool HookPool()
     return g_poolHooked;
 }
 
+bool HookWander()
+{
+    return g_SC4Effect_StepFlag800000 ||
+           Detour(addr::SC4Effect_StepFlag800000, &TSC4Effect_StepFlag800000, &g_SC4Effect_StepFlag800000);
+}
+
+bool InstallWander(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookWander())
+        return false;
+    g_wanderMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effect wandering %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredWander = registry::Register({
+    "renderer.effects.wander",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StepFlag800000,
+    "An effect's wandering: a timer, and at its end a random turn of the effect's own velocity; compare mode runs "
+    "ours and the game's from the same effect and the same generator state (docs/renderer.md, \"Water effects, "
+    "sky and clouds\")",
+    true,
+    InstallWander,
+});
+
 bool HookPull()
 {
     return g_SC4Effect_PathVelocity ||
@@ -2159,7 +2288,9 @@ bool InstallEffect(registry::Mode mode)
         bit <<= 1;
         hook(addr::SC4Effect_StepFlag80000000, &TSC4Effect_StepFlag80000000, &g_SC4Effect_StepFlag80000000);
         hook(addr::SC4EffectBase_Finish, &TSC4EffectBase_Finish, &g_SC4EffectBase_Finish);
-        hook(addr::SC4Effect_StepFlag800000, &TSC4Effect_StepFlag800000, &g_SC4Effect_StepFlag800000);
+        if (bits & bit)
+            ok = HookWander() && ok;
+        bit <<= 1;
         if (!ok || !HookFrees() || !HookPool())
             return false;
         const char* const off = std::getenv("OPENSC4_EFFECT_NOCOMPARE");
