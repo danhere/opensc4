@@ -4244,7 +4244,7 @@ uint32_t DataMapFloats(char* window, uint32_t a0, uint32_t a1, uint32_t a2, uint
 // the game's painters too.
 bool g_dataMapGameRun;
 
-// Logs a painter's first call of ours, to show which ones a run reaches.
+// Logs the first call of one of our painters or pixel routines, to show which ones a run reaches.
 void DataMapPainterSeen(bool& seen, const char* name)
 {
     if (!seen && !g_dataMapGameRun)
@@ -4329,6 +4329,234 @@ const bool g_registeredDataMapPainters = registry::Register({
     "\"The data map\")",
     true,
     InstallDataMapPainters,
+});
+
+// The routines under the painters (0x0079EB40 to 0x007A1382): resamplers,
+// pixel loops, smoothers, outline collectors and a row vector's resize,
+// translated instruction by instruction. They are entered with every register
+// as the caller left it (EntryFrame), so nothing is assumed about how the
+// game's optimiser passes their arguments.
+struct EntryFrame
+{
+    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax; // as pushad leaves them
+    uint32_t returnAddress;
+    uint32_t arguments[15];
+};
+
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#define DYNCALL(callee)                                                                                                  \
+    do {                                                                                                                 \
+        DynRegs regs{eax, ecx, edx, ebx, esi, edi, esp, (callee), 0.0, 0};                                               \
+        DynCall(&regs);                                                                                                  \
+        eax = regs.eax, ecx = regs.ecx, edx = regs.edx, ebx = regs.ebx, esi = regs.esi, edi = regs.edi, esp = regs.esp;  \
+        if (regs.isFloat)                                                                                                \
+            PUSH(regs.st0);                                                                                              \
+    } while (0)
+#define DATAMAP_ENTRY_MACHINE(frame)                                                                                     \
+    uint32_t stackmem[1024] = {};                                                                                        \
+    [[maybe_unused]] uint32_t eax = frame->eax, ebx = frame->ebx, ecx = frame->ecx, edx = frame->edx, esi = frame->esi,  \
+                              edi = frame->edi, ebp = frame->ebp, fa = 0, fb = 0;                                        \
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[960]);                                                           \
+    std::memcpy(&stackmem[960], &frame->returnAddress, 16 * sizeof(uint32_t));                                           \
+    [[maybe_unused]] double st[8] = {};                                                                                  \
+    [[maybe_unused]] int top = -1;                                                                                       \
+    [[maybe_unused]] uint32_t status = 0
+// A hooked routine's entry: the game's own while compare mode runs the game's
+// picture, else ours with the registers saved, handed over and put back
+// (EAX, ECX and EDX as ours leaves them).
+#define DATAMAP_ENTRY(Name, Target, Original, ArgBytes)                                                                  \
+    __declspec(naked) void Name()                                                                                        \
+    {                                                                                                                    \
+        __asm cmp byte ptr [g_dataMapGameRun], 0                                                                         \
+        __asm jne theGames                                                                                                  \
+        __asm pushad                                                                                                     \
+        __asm push esp                                                                                                   \
+        __asm call Target                                                                                                \
+        __asm add esp, 4                                                                                                 \
+        __asm popad                                                                                                      \
+        __asm ret ArgBytes                                                                                               \
+        __asm theGames:                                                                                                 \
+        __asm jmp dword ptr [Original]                                                                                   \
+    }
+
+void* g_dataMapResampleRows;
+void __cdecl DataMapResampleRows(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "ResampleRows");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_resample.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TDataMapResampleRows, DataMapResampleRows, g_dataMapResampleRows, 0)
+
+void* g_dataMapPaintPixels;
+void __cdecl DataMapPaintPixels(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "PaintPixels");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_pixels.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TDataMapPaintPixels, DataMapPaintPixels, g_dataMapPaintPixels, 0)
+
+void* g_dataMapResampleRows2;
+void __cdecl DataMapResampleRows2(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "ResampleRows2");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_resample2.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TDataMapResampleRows2, DataMapResampleRows2, g_dataMapResampleRows2, 0)
+
+void* g_dataMapPaintPixels2;
+void __cdecl DataMapPaintPixels2(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "PaintPixels2");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_pixels2.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TDataMapPaintPixels2, DataMapPaintPixels2, g_dataMapPaintPixels2, 0)
+
+void* g_dataMapSmoothRows;
+void __cdecl DataMapSmoothRows(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "SmoothRows");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_smooth.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TDataMapSmoothRows, DataMapSmoothRows, g_dataMapSmoothRows, 0)
+
+void* g_dataMapSmoothRows2;
+void __cdecl DataMapSmoothRows2(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "SmoothRows2");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_smooth2.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TDataMapSmoothRows2, DataMapSmoothRows2, g_dataMapSmoothRows2, 0)
+
+void* g_dataMapCollectOutlines;
+void __cdecl DataMapCollectOutlines(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "CollectOutlines");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_outlines.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TDataMapCollectOutlines, DataMapCollectOutlines, g_dataMapCollectOutlines, 0)
+
+void* g_dataMapCollectOutlines2;
+void __cdecl DataMapCollectOutlines2(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "CollectOutlines2");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_outlines2.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TDataMapCollectOutlines2, DataMapCollectOutlines2, g_dataMapCollectOutlines2, 0)
+
+void* g_dataMapResizeRows;
+void __cdecl DataMapResizeRows(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "ResizeRows");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_resize.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TDataMapResizeRows, DataMapResizeRows, g_dataMapResizeRows, 4)
+
+#undef DATAMAP_ENTRY
+#undef DATAMAP_ENTRY_MACHINE
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+#undef DYNCALL
+
+bool InstallDataMapPixels(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    const bool installed = Detour(addr::DataMap_ResampleRows, &TDataMapResampleRows, &g_dataMapResampleRows)
+                           && Detour(addr::DataMap_PaintPixels, &TDataMapPaintPixels, &g_dataMapPaintPixels)
+                           && Detour(addr::DataMap_ResampleRows2, &TDataMapResampleRows2, &g_dataMapResampleRows2)
+                           && Detour(addr::DataMap_PaintPixels2, &TDataMapPaintPixels2, &g_dataMapPaintPixels2)
+                           && Detour(addr::DataMap_SmoothRows, &TDataMapSmoothRows, &g_dataMapSmoothRows)
+                           && Detour(addr::DataMap_SmoothRows2, &TDataMapSmoothRows2, &g_dataMapSmoothRows2)
+                           && Detour(addr::DataMap_CollectOutlines, &TDataMapCollectOutlines, &g_dataMapCollectOutlines)
+                           && Detour(addr::DataMap_CollectOutlines2, &TDataMapCollectOutlines2, &g_dataMapCollectOutlines2)
+                           && Detour(addr::DataMap_ResizeRows, &TDataMapResizeRows, &g_dataMapResizeRows);
+    if (installed)
+        log::Write("data map: pixel routines ours");
+    return installed;
+}
+
+const bool g_registeredDataMapPixels = registry::Register({
+    "renderer.datamap.pixels",
+    "renderer/datamap",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::DataMap_PaintPixels,
+    "The nine routines under the map picture's painters: resamplers, pixel loops, smoothers, outline collectors; "
+    "compared through renderer.datamap.picture's compare mode (docs/renderer.md, \"The data map\")",
+    true,
+    InstallDataMapPixels,
 });
 
 // The picture a map window's control holds (the control keeps the buffer it
