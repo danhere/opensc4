@@ -1,0 +1,291 @@
+# The lot retaining wall occupant (cSC4LotRetainingWallOccupant, class ID 0x49C05C9F, occupant type 0x895D1169): code 0x005E28C0 to 0x005E33F6 (src/core/wallocc_sim.cpp, the class map in src/core/wallocc_sim.h). The helper 0x005E3070 that makes and removes a lot's wall is SC4::LotHelper_005E3070 in lot.toml.
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::vftable"
+address = 0x00AA3080
+kind = "vtable"
+expect = "C0 28 5E 00 F0 28 5E 00"
+source = "The primary cISC4LotRetainingWallOccupant vtable (13 slots, listed in src/core/wallocc_sim.h). simulators.wallocc.slots swaps slots 0, 4, 6, 9 and 10; simulators.wallocc.object copies it at the first construction."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::vftable_4"
+address = 0x00AA2FF8
+kind = "vtable"
+expect = "A0 29 5E 00 B0 29 5E 00"
+source = "Name ours. The cISC4Occupant part at +0x4 (34 slots; the base cSC4Occupant's and shared stubs except 0, 4, 9 and 10). simulators.wallocc.slots swaps slots 0, 4, 9 and 10."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::vftable_8"
+address = 0x00AA2FDC
+kind = "vtable"
+expect = "D0 29 5E 00 E0 29 5E 00"
+source = "Name ours. The cIGZSerializable part at +0x8 (6 slots: three thunks, Write 0x005E2AB0, Read 0x005E2B40, GetGZCLSID 0x005E2990). Slots 3 and 4 replaced by simulators.wallocc.save, 0 and 5 by simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::vftable_C"
+address = 0x00AA2F78
+kind = "vtable"
+expect = "00 2A 5E 00 10 2A 5E 00"
+source = "Name ours. The property holder part at +0xC (25 slots: three thunks, the shared holder code, 22 the deleting destructor thunk 0x005E2A30, 23 the Write thunk 0x005E2F20, 24 the Read thunk 0x005E2F30). Slots 23 and 24 replaced by simulators.wallocc.save, 0 by simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::vftable_20"
+address = 0x00AA2F64
+kind = "vtable"
+expect = "40 2A 5E 00 A0 06 5E 00"
+source = "Name ours. The exemplar holder part at +0x20 (cISCExemplarPropertyHolder, 5 slots: three thunks, SetPropertyExemplar 0x00458E60, the getter 0x0060CE80). Slot 0 replaced by simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::QueryInterface"
+address = 0x005E28C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotRetainingWallOccupant* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D 62 11 5D"
+source = "Slot 0: IID 0x295D1162 gives the object; every other goes to the occupant base's 0x005E89C0 with this + 4. Ours in simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::GetEdgeHashArray"
+address = 0x005E2910
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t* (cSC4LotRetainingWallOccupant* this, uint32_t* hashes)"
+expect = "8B 51 44 8B 44 24 04 89"
+source = "Slot 9: the four hashes at +0x44 copied out; EAX is the buffer. Ours in simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::SetEdgeHashArray"
+address = 0x005E2930
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LotRetainingWallOccupant* this, const uint32_t* hashes)"
+expect = "8B 44 24 04 8B 10 89 51"
+source = "Slot 10: four hashes copied to +0x44; EAX is the last. Ours in simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::GetGZCLSID"
+address = 0x005E2990
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 9F 5C C0 49 C3 CC CC"
+source = "Returns the class ID 0x49C05C9F (+8 slot 5; also called by the class registration at 0x00460820). Ours in simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::QueryInterfaceThunk4"
+address = 0x005E29A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 04 E9 18 FF FF FF"
+source = "Name ours. +0x4 slot 0: this - 0x4 to QueryInterface. Ours in simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::QueryInterfaceThunk8"
+address = 0x005E29D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 08 E9 E8 FE FF FF"
+source = "Name ours. +0x8 slot 0: this - 0x8 to QueryInterface. Ours in simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::QueryInterfaceThunkC"
+address = 0x005E2A00
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 0C E9 B8 FE FF FF"
+source = "Name ours. +0xC slot 0: this - 0xC to QueryInterface. Ours in simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::QueryInterfaceThunk20"
+address = 0x005E2A40
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 20 E9 78 FE FF FF"
+source = "Name ours. +0x20 slot 0: this - 0x20 to QueryInterface. Ours in simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::DeletingDestructorThunk"
+address = 0x005E2A30
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* part, uint32_t flags)"
+expect = "83 E9 0C E9 38 09 00 00"
+source = "Name ours. +0xC slot 22: this - 0xC to the deleting destructor 0x005E3370. Ours (in the vtable copy) in simulators.wallocc.object."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::Allocate"
+address = 0x005E2A50
+kind = "function"
+convention = "cdecl"
+signature = "void* (size_t size)"
+expect = "A1 B0 A8 B0 00 8B 40 08"
+source = "Name ours. An item of the pool 0x00B0A8AC (the size is not used). Only 0x005E3070 calls it (0x005E30E7). Ours in simulators.wallocc.object."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::Shutdown"
+address = 0x005E2A80
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4Occupant* this)"
+expect = "56 8B F1 8B 06 FF 50 14"
+source = "+4 slot 4 (this = object + 4): when initialized (slot 5) the lot at object + 0x3C is released and cleared, then the base's Shutdown 0x005E8980; true. Ours in simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::Write"
+address = 0x005E2AB0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "+8 slot 3 (this = object + 8): version 2, the occupant base's record (0x005E8CD0), the wall type, the edge flags, the four edge hashes, the position, the size and a reference to the lot; when the base fails the class's fields are left out and the result is still the stream's state. Ours in simulators.wallocc.save."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::Read"
+address = 0x005E2B40
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+8 slot 4 (this = object + 8): the reverse of 0x005E2AB0, version 2 only; the edge flags get the bit of every side whose hash is not zero; the lot held is released before the reference is read (as cISC4Lot, 0xE818FCED). Ours in simulators.wallocc.save."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::SetPosition"
+address = 0x005E2C10
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cISC4Occupant* this, const float* position)"
+expect = "8B 44 24 04 8B 10 89 51"
+source = "+4 slot 9 (this = object + 4): three floats copied to object + 0x54; EAX is the last. Ours in simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::GetBoundingBox"
+address = 0x005E2C30
+kind = "function"
+convention = "thiscall"
+signature = "void (cISC4Occupant* this, float* low, float* high)"
+expect = "D9 41 5C 8B 44 24 04 D8"
+source = "+4 slot 10 (this = object + 4): the position less and plus half the size (0x00A84D2C) in x and z; in y from the position less the size's height up to the position. Ours in simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::SetSize"
+address = 0x005E2C90
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LotRetainingWallOccupant* this, const float* size)"
+expect = "8B 44 24 04 8B 10 89 51"
+source = "Slot 4: three floats copied to +0x60; true. Ours in simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::SetLot"
+address = 0x005E2CB0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LotRetainingWallOccupant* this, cISC4Lot* lot)"
+expect = "53 56 8B 74 24 0C 8B D9"
+source = "Slot 6: another lot than the one held is referenced and stored at +0x3C, the old one released. EAX is left as it was. Ours in simulators.wallocc.slots."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::ComputeEdgeHashes"
+address = 0x005E2CE0
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISC4Lot* lot, float altitude, const int32_t* cells, uint32_t* hashes, float* highest)"
+expect = "83 EC 38 D9 44 24 40 8B"
+source = "Name ours. *highest = altitude + 0.1 (0x00A8C950); then per side 0 to 3 (mask 1 << side): the neighbour cells along it (lot manager slot 12); a side gets a wall when one of them has no lot or a lot without flag 1; its hash is a bit per neighbour cell with a lot whose state is not 6 (from 0x80000000 down, wrapping), plus for every vertex along the side (lot manager slot 11; terrain slot 14) (bits of float(height + 12582912.0) + 0xB4C00000) * z * x + 1, the highest vertex raising *highest. True when a vertex was visited. The lot itself is not used. Called at 0x005E30CB and 0x005E38AA (the lot's wall update 0x005E37F0; nothing read from the registers after). Ours in simulators.wallocc.helpers."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::PickWallType"
+address = 0x005E2ED0
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (cISC4Lot* lot)"
+expect = "8B 4C 24 04 8B 01 57 33"
+source = "Name ours. One of the retaining wall types of the lot's configuration (lot slot 9, then slot 28: a vector of IDs), drawn with the generator 0x00B230C8 (0x009136B1); 0 without a configuration or types. Only 0x005E3070 calls it (0x005E3108); ours with it in simulators.wallocc.helpers."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::WriteThunk"
+address = 0x005E2F20
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZOStream* stream)"
+expect = "83 E9 04 E9 88 FB FF FF"
+source = "Name ours. +0xC slot 23: this - 4 to Write. Ours in simulators.wallocc.save."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::ReadThunk"
+address = 0x005E2F30
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZIStream* stream)"
+expect = "83 E9 04 E9 08 FC FF FF"
+source = "Name ours. +0xC slot 24: this - 4 to Read. Ours in simulators.wallocc.save."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::cSC4LotRetainingWallOccupant"
+address = 0x005E2F40
+kind = "function"
+convention = "thiscall"
+signature = "cSC4LotRetainingWallOccupant* (cSC4LotRetainingWallOccupant* this)"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "The constructor (0x6C bytes): the occupant base 0x005E9220 on this + 4, the five vtables, the type, lot, flags, hashes and position zeroed, the size three copies of the float at 0x00B230C0, the occupant type 0x895D1169. Called at 0x005E30F5 (the helper 0x005E3070) and jumped to by the factory (0x005E335C). Ours in simulators.wallocc.object."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::FindSideDrawable"
+address = 0x005E2FC0
+kind = "function"
+convention = "cdecl"
+signature = "bool (void* placeable, int32_t side, void** drawable)"
+expect = "83 EC 44 8B 4C 24 48 8B"
+source = "Name ours. Up to 16 drawables of a placeable object (its slot 4), each asked for interface 0xA9E2831E; the first whose object (slot 3) has the side at +0x78 is returned referenced. Only the walls' drawable builder 0x005E3400 calls it (0x005E36B3). Drawing code: the game's."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::Create"
+address = 0x005E3330
+kind = "function"
+convention = "cdecl"
+signature = "cSC4LotRetainingWallOccupant* ()"
+expect = "A1 B0 A8 B0 00 8B 40 08"
+source = "The class factory (registered at 0x0046081B): an item of the pool 0x00B0A8AC, then a jump to the constructor 0x005E2F40, so the object itself is returned (not the occupant part). A save's reader makes every wall with it. Ours in simulators.wallocc.object."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::DeletingDestructor"
+address = 0x005E3370
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LotRetainingWallOccupant* this, uint32_t flags)"
+expect = "56 8B F1 57 8D 7E 04 C7"
+source = "Name ours. The five vtables, the lot at +0x3C released, the occupant base's destructor 0x005E8C40 on this + 4, and with flag 1 the item back to its pool page (0x0090D031 at count 0, 0x0090CFF9 at count 0x40000038). Reached only by the jump of the thunk 0x005E2A30. Ours (in the vtable copy) in simulators.wallocc.object."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::Pool"
+address = 0x00B0A8AC
+kind = "data"
+source = "Name ours. The pool of the 0x6C-byte retaining wall occupants (+4 the current page; pages of 8 KB at address & 0xFFFFE000 with the free list at +8 and the used count at +0xC, 75 items each; set up at 0x00A735C0; the page maker 0x005E2950 and the item free 0x005E32F0 are the pool's own; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at count 0x40000038)."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::DefaultSize"
+address = 0x00B230C0
+kind = "data"
+source = "Name ours. A float the constructor copies into each of the size's three floats (0x005E2F89, 0x005E2F92, 0x005E2F9B); zero in the exe's image."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::Random"
+address = 0x00B230C8
+kind = "data"
+source = "Name ours. The cRZRandom of the retaining walls' file (seeded by the static initialiser at 0x00A735B1): PickWallType 0x005E2ED0 draws the wall type from it."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::HeightMargin"
+address = 0x00A8C950
+kind = "data"
+source = "Name ours. float 0.1: what ComputeEdgeHashes 0x005E2CE0 adds to the lot's altitude for the lowest top of the walls."
+
+[[entry]]
+name = "cSC4LotRetainingWallOccupant::HashBias"
+address = 0x00AA2F18
+kind = "data"
+source = "Name ours. float 12582912.0 (1.5 * 2^23): added to a vertex's height in ComputeEdgeHashes 0x005E2CE0, so that the float's bits less 0x4B400000 are the height rounded to a whole number."
