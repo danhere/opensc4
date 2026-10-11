@@ -1840,4 +1840,10 @@ const FingerprintPart kFingerprint{"ui", 97, &Fingerprint};
 const DayHook kBudgetWindows{"ui.budget_windows", 97, &DriveBudgetWindows};
 
 } // namespace
+
+bool RunModalPlayer(uint32_t (*player)(void* window, int depth), void (*run)(void* context), void* context)
+{
+    return RunModal(player, [&] { run(context); });
+}
+
 } // namespace opensc4::autotest

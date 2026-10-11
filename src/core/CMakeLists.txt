@@ -353,6 +353,16 @@ add_library(opensc4_core SHARED
   ui_app_2.cpp
   ui_app_4.cpp
   ui_app_5.cpp
+  audio_1.cpp
+  audio_2.cpp
+  audio_3.cpp
+  audio_4.cpp
+  audio_5.cpp
+  audio_6.cpp
+  audio_7.cpp
+  audio_8.cpp
+  audio_9.cpp
+  audio_autotest.cpp
   ui_advice_text_2.cpp
   ui_mysim_tools_1.cpp
   ui_mysim_tools_2.cpp

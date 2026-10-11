@@ -1,0 +1,5723 @@
+# The audio code (docs/audio.md): the event system, the sound manager, the ambience manager and its layers, the event handlers, the listener and the audio options dialog, 0x004E1320 to about 0x004FA600.
+
+[[entry]]
+name = "SC4Audio::F4E1320"
+address = 0x004E1320
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 56 8D 71 04 6A"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 192 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E13E0"
+address = 0x004E13E0
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 C3 CC CC CC CC CC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E13F0"
+address = 0x004E13F0
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 40 01 00 00 51 D8"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1430"
+address = 0x004E1430
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D AA 94 22"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E14B0"
+address = 0x004E14B0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1530"
+address = 0x004E1530
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 D8 1D 98 31"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E15A0"
+address = 0x004E15A0
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 D8 1D 98 31"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1610"
+address = 0x004E1610
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 D8 1D 98 31"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1680"
+address = 0x004E1680
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E16F0"
+address = 0x004E16F0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 43 24 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1740"
+address = 0x004E1740
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 46 24 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1790"
+address = 0x004E1790
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 8B A9 38"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1840"
+address = 0x004E1840
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 87 38 01 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E18B0"
+address = 0x004E18B0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 54 24 08 56 8D 44"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1920"
+address = 0x004E1920
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 0C C7"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E19C0"
+address = 0x004E19C0
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 0C E9 D8 7D 44 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E19D0"
+address = 0x004E19D0
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 0C E9 B1 C3 43 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E19E0"
+address = 0x004E19E0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 48 FA FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E19F0"
+address = 0x004E19F0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 C8 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1A00"
+address = 0x004E1A00
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 C8 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1A10"
+address = 0x004E1A10
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 18 FA FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1A20"
+address = 0x004E1A20
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 98 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1A30"
+address = 0x004E1A30
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 98 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1A40"
+address = 0x004E1A40
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 E8 F9 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1A50"
+address = 0x004E1A50
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 68 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1A60"
+address = 0x004E1A60
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 68 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1A70"
+address = 0x004E1A70
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 10 E9 B8 F9 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1A80"
+address = 0x004E1A80
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 10 E9 38 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1A90"
+address = 0x004E1A90
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 10 E9 38 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1AA0"
+address = 0x004E1AA0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 10 E9 D8 02 00 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1AB0"
+address = 0x004E1AB0
+kind = "function"
+convention = "thiscall"
+expect = "51 A0 38 19 B2 00 84 C0"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 256 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1BB0"
+address = 0x004E1BB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 85 F6 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1C20"
+address = 0x004E1C20
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 352 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1D80"
+address = 0x004E1D80
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 98 FB FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1DA0"
+address = 0x004E1DA0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 24 8B F9 E8 35"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1E10"
+address = 0x004E1E10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 54 24 14 56"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E1EA0"
+address = 0x004E1EA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 53 8B 1D A8 3C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 640 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2120"
+address = 0x004E2120
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 85 F6 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E21A0"
+address = 0x004E21A0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 6A 00 8D 44 24 08"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2210"
+address = 0x004E2210
+kind = "function"
+convention = "thiscall"
+expect = "A0 38 19 B2 00 83 EC 14"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2410"
+address = 0x004E2410
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 C3 CC CC CC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2420"
+address = 0x004E2420
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 33 C9 C7 00 EC 32"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2450"
+address = 0x004E2450
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 83 F8"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2490"
+address = 0x004E2490
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 85 F6 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E24E0"
+address = 0x004E24E0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 8B 7C 24 10 6A"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2570"
+address = 0x004E2570
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E25B0"
+address = 0x004E25B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2620"
+address = 0x004E2620
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2680"
+address = 0x004E2680
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E26C0"
+address = 0x004E26C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2700"
+address = 0x004E2700
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2740"
+address = 0x004E2740
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2780"
+address = 0x004E2780
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E27C0"
+address = 0x004E27C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2800"
+address = 0x004E2800
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2840"
+address = 0x004E2840
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2880"
+address = 0x004E2880
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E28E0"
+address = 0x004E28E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2920"
+address = 0x004E2920
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2960"
+address = 0x004E2960
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E29A0"
+address = 0x004E29A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2A00"
+address = 0x004E2A00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2A40"
+address = 0x004E2A40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2AA0"
+address = 0x004E2AA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D DC 3D B4 00 8B 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2AB0"
+address = 0x004E2AB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D DC 3D B4 00 8B 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2AD0"
+address = 0x004E2AD0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8D 44 24 04 50"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2B00"
+address = 0x004E2B00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8D 44 24 04 50"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2B30"
+address = 0x004E2B30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8D 44 24 04 50"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2B60"
+address = 0x004E2B60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8D 44 24 04 50"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2B90"
+address = 0x004E2B90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8D 44 24 04 50"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2BC0"
+address = 0x004E2BC0
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D C4 3D B4 00 8B 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2BE0"
+address = 0x004E2BE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D C4 3D B4 00 8B 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2C00"
+address = 0x004E2C00
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D C4 3D B4 00 8B 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2C20"
+address = 0x004E2C20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 35 5C 3D B4 00 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2C50"
+address = 0x004E2C50
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D 5C 3D B4 00 8B 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2C70"
+address = 0x004E2C70
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D 5C 3D B4 00 8B 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2C90"
+address = 0x004E2C90
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D 5C 3D B4 00 8B 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2CB0"
+address = 0x004E2CB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D 44 3D B4 00 8B 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2CC0"
+address = 0x004E2CC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B F1 8B 46"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 208 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2D90"
+address = 0x004E2D90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B 74 24 18"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2E10"
+address = 0x004E2E10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2E80"
+address = 0x004E2E80
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2EF0"
+address = 0x004E2EF0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 57 8B F9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2F60"
+address = 0x004E2F60
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 57 8B F9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E2FD0"
+address = 0x004E2FD0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 57 8B F9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3040"
+address = 0x004E3040
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 57 8B F9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E30B0"
+address = 0x004E30B0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3100"
+address = 0x004E3100
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3170"
+address = 0x004E3170
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E31C0"
+address = 0x004E31C0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3210"
+address = 0x004E3210
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3260"
+address = 0x004E3260
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E32B0"
+address = 0x004E32B0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3310"
+address = 0x004E3310
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3360"
+address = 0x004E3360
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E33B0"
+address = 0x004E33B0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3420"
+address = 0x004E3420
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3490"
+address = 0x004E3490
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3500"
+address = 0x004E3500
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3560"
+address = 0x004E3560
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E35C0"
+address = 0x004E35C0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3620"
+address = 0x004E3620
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3680"
+address = 0x004E3680
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E36F0"
+address = 0x004E36F0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3760"
+address = 0x004E3760
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E37D0"
+address = 0x004E37D0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3840"
+address = 0x004E3840
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 224 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3920"
+address = 0x004E3920
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 240 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3A10"
+address = 0x004E3A10
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 224 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3AF0"
+address = 0x004E3AF0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3B60"
+address = 0x004E3B60
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3BD0"
+address = 0x004E3BD0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3C40"
+address = 0x004E3C40
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3CB0"
+address = 0x004E3CB0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3D20"
+address = 0x004E3D20
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3D90"
+address = 0x004E3D90
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3E20"
+address = 0x004E3E20
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3E90"
+address = 0x004E3E90
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3F00"
+address = 0x004E3F00
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E3F80"
+address = 0x004E3F80
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 175 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4040"
+address = 0x004E4040
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 53 55"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E40A0"
+address = 0x004E40A0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 336 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E41F0"
+address = 0x004E41F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4260"
+address = 0x004E4260
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 56 8B F1 8B 46"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 272 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4370"
+address = 0x004E4370
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 56 8B F1 8B 46"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 288 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4490"
+address = 0x004E4490
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 56 8B F1 8B 46"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 272 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E45A0"
+address = 0x004E45A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 56 8B F1 8B 46"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 272 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E46B0"
+address = 0x004E46B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 55 8B 6C 24 4C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 272 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E47C0"
+address = 0x004E47C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 55 8B 6C 24 4C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 224 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E48A0"
+address = 0x004E48A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 56 8B F1 8B 46"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 272 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E49B0"
+address = 0x004E49B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 53 8B 5C 24 4C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4A60"
+address = 0x004E4A60
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 88 41 0C C2"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4A70"
+address = 0x004E4A70
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4AA0"
+address = 0x004E4AA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 0C 84 C0"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 192 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4B60"
+address = 0x004E4B60
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 0C 33 C9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4BD0"
+address = 0x004E4BD0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 8B 74 24 20"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4C40"
+address = 0x004E4C40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 8B 74 24 20"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4CA0"
+address = 0x004E4CA0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4CE0"
+address = 0x004E4CE0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 4C 24 0C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 416 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4E80"
+address = 0x004E4E80
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 28 85 C9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4EB0"
+address = 0x004E4EB0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 0D A8 3C B4 00 A1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E4F60"
+address = 0x004E4F60
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 57 6A 28 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E50A0"
+address = 0x004E50A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 30 85 C9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E5110"
+address = 0x004E5110
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B F1 8B 0D"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 608 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E5370"
+address = 0x004E5370
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B F1 8B 06"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 768 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E5670"
+address = 0x004E5670
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 56 8B F1 8B 06"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 688 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E5920"
+address = 0x004E5920
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 8B D9 56 89"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 1072 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E5D50"
+address = 0x004E5D50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 57 8B F9 C7"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 800 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E6070"
+address = 0x004E6070
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 34 53"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 384 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E61F0"
+address = 0x004E61F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 81 E8 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E6210"
+address = 0x004E6210
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 56 8B F1 68"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E6240"
+address = 0x004E6240
+kind = "function"
+convention = "thiscall"
+expect = "8B 89 84 01 00 00 8B 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E6280"
+address = 0x004E6280
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B 99 84 01 00 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E6300"
+address = 0x004E6300
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 03 56 8B 30"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E6340"
+address = 0x004E6340
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 8B 44 24 40 55"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 1488 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E6910"
+address = 0x004E6910
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B A9 80 01 00 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 192 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E69D0"
+address = 0x004E69D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 57 8B 7C 24"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E6A70"
+address = 0x004E6A70
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 9E 18 02"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 403 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E6C10"
+address = 0x004E6C10
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 1C 53 56 8D 44 24"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 272 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E6D20"
+address = 0x004E6D20
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 55 56 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 224 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E6E00"
+address = 0x004E6E00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 55 56 8B 74"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 464 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E6FD0"
+address = 0x004E6FD0
+kind = "function"
+convention = "thiscall"
+expect = "E8 3B FC FF FF 8B 0D 50"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E7010"
+address = 0x004E7010
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 8B 1D 60 19"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E7290"
+address = 0x004E7290
+kind = "function"
+convention = "thiscall"
+expect = "53 33 DB 56 8B F1 C7 06"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 960 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E7650"
+address = 0x004E7650
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 88 01 00 00 C3 CC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E7660"
+address = 0x004E7660
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 88 01 00 00 56 8D"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E7690"
+address = 0x004E7690
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 81 FC 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E76A0"
+address = 0x004E76A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 FC 01 00 00 C3 CC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E76B0"
+address = 0x004E76B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 C8 00 00 00 8B 44"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E76E0"
+address = 0x004E76E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 A8 34 A9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 384 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E7860"
+address = 0x004E7860
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8A 46 04 84"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E78E0"
+address = 0x004E78E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 384 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E7A60"
+address = 0x004E7A60
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 08 83 F8"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E7A90"
+address = 0x004E7A90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 78 53 55 56 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 1776 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8180"
+address = 0x004E8180
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8A 46 04 84"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8230"
+address = 0x004E8230
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E82A0"
+address = 0x004E82A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 1C 01 00 00 C3 CC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E82B0"
+address = 0x004E82B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 10 83 F8 01 76 05"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E82D0"
+address = 0x004E82D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 48 74 13 2D"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8300"
+address = 0x004E8300
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D C2 7E 7F"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8350"
+address = 0x004E8350
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 48 74 0C 2D"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8380"
+address = 0x004E8380
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 D9 42 08 56"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8440"
+address = 0x004E8440
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 30 EF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8490"
+address = 0x004E8490
+kind = "function"
+convention = "cdecl"
+expect = "51 53 33 DB 56 89 5C 24"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E84D0"
+address = 0x004E84D0
+kind = "function"
+convention = "thiscall"
+expect = "A1 AC 28 B6 00 83 EC 0C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 592 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8720"
+address = 0x004E8720
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B 74 24 14"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 256 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8820"
+address = 0x004E8820
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 56 8B 74 24"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 368 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8990"
+address = 0x004E8990
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B F1 8B 46"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 320 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8AD0"
+address = 0x004E8AD0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B 74 24 18"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8BF0"
+address = 0x004E8BF0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8C70"
+address = 0x004E8C70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 57 8B F9 8B 47"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8CD0"
+address = 0x004E8CD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 83 F8 01 7E 05"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8CF0"
+address = 0x004E8CF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8D40"
+address = 0x004E8D40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 8B 74 24 1C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 208 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8E10"
+address = 0x004E8E10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 1C 85 C0"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8E60"
+address = 0x004E8E60
+kind = "function"
+convention = "cdecl"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E8EA0"
+address = 0x004E8EA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 55 57 8B 3D BC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 816 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E91D0"
+address = 0x004E91D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 8B 1D A8 3C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 208 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E92A0"
+address = 0x004E92A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 55 56 33 DB"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 432 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E9490"
+address = 0x004E9490
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 85 DB 74"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E94E0"
+address = 0x004E94E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 55 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 384 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E9660"
+address = 0x004E9660
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 59 2C 56 8B 33 3B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E96A0"
+address = 0x004E96A0
+kind = "function"
+convention = "thiscall"
+expect = "51 A1 AC 28 B6 00 85 C0"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E9810"
+address = 0x004E9810
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C6 46 50 00 A1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E9870"
+address = 0x004E9870
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 8B 74 24 34"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 512 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E9C10"
+address = 0x004E9C10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 55 8B E9 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 336 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E9D60"
+address = 0x004E9D60
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 03 56 8B 30"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4E9DA0"
+address = 0x004E9DA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 55 56 8B 74 24"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 736 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA080"
+address = 0x004EA080
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 85 D2 75 05"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA100"
+address = 0x004EA100
+kind = "function"
+convention = "thiscall"
+expect = "53 56 6A 28 E8 4B 2E 42"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA150"
+address = 0x004EA150
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 8B F1 8A 46"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 576 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA390"
+address = 0x004EA390
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 C7 46 04"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 384 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA510"
+address = 0x004EA510
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 FF 60 14 CC CC CC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA520"
+address = 0x004EA520
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 A8 DD FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA530"
+address = 0x004EA530
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 78 DD FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA540"
+address = 0x004EA540
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 88 DD FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA550"
+address = 0x004EA550
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 58 DD FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA560"
+address = 0x004EA560
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 68 DD FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA570"
+address = 0x004EA570
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 38 DD FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA580"
+address = 0x004EA580
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 48 DF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA590"
+address = 0x004EA590
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 08 F1 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA5A0"
+address = 0x004EA5A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 8C 37 A9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 208 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA670"
+address = 0x004EA670
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 28 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA690"
+address = 0x004EA690
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 55 56 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 320 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA7D0"
+address = 0x004EA7D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 56 8B 74 24"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 416 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EA970"
+address = 0x004EA970
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B 74"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 304 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EAAA0"
+address = 0x004EAAA0
+kind = "function"
+convention = "cdecl"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EAAE0"
+address = 0x004EAAE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 55 56 57 6A 18"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 272 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EABF0"
+address = 0x004EABF0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B F1 E8 D5"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 320 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EAD30"
+address = 0x004EAD30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 496 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EAF20"
+address = 0x004EAF20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 352 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB080"
+address = 0x004EB080
+kind = "function"
+convention = "cdecl"
+expect = "68 80 00 00 00 E8 56 A5"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB0A0"
+address = 0x004EB0A0
+kind = "function"
+convention = "cdecl"
+expect = "6A 50 E8 39 A5 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB0C0"
+address = 0x004EB0C0
+kind = "function"
+convention = "cdecl"
+expect = "68 20 01 00 00 E8 16 A5"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB0E0"
+address = 0x004EB0E0
+kind = "function"
+convention = "cdecl"
+expect = "6A 7C E8 F9 A4 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB100"
+address = 0x004EB100
+kind = "function"
+convention = "cdecl"
+expect = "6A 34 E8 D9 A4 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB120"
+address = 0x004EB120
+kind = "function"
+convention = "cdecl"
+expect = "68 98 00 00 00 E8 B6 A4"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB150"
+address = 0x004EB150
+kind = "function"
+convention = "cdecl"
+expect = "68 90 00 00 00 E8 86 A4"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB180"
+address = 0x004EB180
+kind = "function"
+convention = "cdecl"
+expect = "68 00 01 00 00 E8 56 A4"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB1A0"
+address = 0x004EB1A0
+kind = "function"
+convention = "thiscall"
+expect = "B8 17 CA B5 FD C3 CC CC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB1B0"
+address = 0x004EB1B0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 58 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB260"
+address = 0x004EB260
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 79 A3 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB290"
+address = 0x004EB290
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 49 A3 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB2C0"
+address = 0x004EB2C0
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 19 A3 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB2F0"
+address = 0x004EB2F0
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 E9 A2 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB320"
+address = 0x004EB320
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 B9 A2 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB350"
+address = 0x004EB350
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 89 A2 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB380"
+address = 0x004EB380
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 59 A2 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB3B0"
+address = 0x004EB3B0
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 29 A2 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB3E0"
+address = 0x004EB3E0
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 F9 A1 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB410"
+address = 0x004EB410
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 C9 A1 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB440"
+address = 0x004EB440
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 99 A1 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB470"
+address = 0x004EB470
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 69 A1 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB4A0"
+address = 0x004EB4A0
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 39 A1 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB4D0"
+address = 0x004EB4D0
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 09 A1 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB500"
+address = 0x004EB500
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 D9 A0 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB530"
+address = 0x004EB530
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 A9 A0 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB560"
+address = 0x004EB560
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 79 A0 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB590"
+address = 0x004EB590
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 49 A0 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB5C0"
+address = 0x004EB5C0
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 19 A0 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB5F0"
+address = 0x004EB5F0
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 E9 9F 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB620"
+address = 0x004EB620
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 B9 9F 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB650"
+address = 0x004EB650
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 89 9F 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB680"
+address = 0x004EB680
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 59 9F 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB6B0"
+address = 0x004EB6B0
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 29 9F 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB6E0"
+address = 0x004EB6E0
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 F9 9E 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB710"
+address = 0x004EB710
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 C9 9E 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB740"
+address = 0x004EB740
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 99 9E 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB770"
+address = 0x004EB770
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 69 9E 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB7A0"
+address = 0x004EB7A0
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 39 9E 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB7D0"
+address = 0x004EB7D0
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 09 9E 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB800"
+address = 0x004EB800
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 D9 9D 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB830"
+address = 0x004EB830
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 A9 9D 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB860"
+address = 0x004EB860
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 79 9D 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB890"
+address = 0x004EB890
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 49 9D 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB8C0"
+address = 0x004EB8C0
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 19 9D 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB8F0"
+address = 0x004EB8F0
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 E9 9C 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB920"
+address = 0x004EB920
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 B9 9C 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB950"
+address = 0x004EB950
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 89 9C 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB980"
+address = 0x004EB980
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 59 9C 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB9B0"
+address = 0x004EB9B0
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 29 9C 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EB9E0"
+address = 0x004EB9E0
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 F9 9B 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBA10"
+address = 0x004EBA10
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 C9 9B 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBA40"
+address = 0x004EBA40
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 99 9B 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBA70"
+address = 0x004EBA70
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 4C 07 40"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBAA0"
+address = 0x004EBAA0
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 39 9B 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBAD0"
+address = 0x004EBAD0
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 09 9B 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBB00"
+address = 0x004EBB00
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 D9 9A 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBB30"
+address = 0x004EBB30
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 A9 9A 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBB60"
+address = 0x004EBB60
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 79 9A 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBB90"
+address = 0x004EBB90
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 49 9A 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBBC0"
+address = 0x004EBBC0
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 19 9A 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBBF0"
+address = 0x004EBBF0
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 E9 99 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBC20"
+address = 0x004EBC20
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 B9 99 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBC50"
+address = 0x004EBC50
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 89 99 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBC80"
+address = 0x004EBC80
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 59 99 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBCB0"
+address = 0x004EBCB0
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 29 99 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBCE0"
+address = 0x004EBCE0
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 F9 98 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBD10"
+address = 0x004EBD10
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 C9 98 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBD40"
+address = 0x004EBD40
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 99 98 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBD70"
+address = 0x004EBD70
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 69 98 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBDA0"
+address = 0x004EBDA0
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 39 98 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBDD0"
+address = 0x004EBDD0
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 09 98 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBE00"
+address = 0x004EBE00
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 D9 97 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBE30"
+address = 0x004EBE30
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 A9 97 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBE60"
+address = 0x004EBE60
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 79 97 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBE90"
+address = 0x004EBE90
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 49 97 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBEC0"
+address = 0x004EBEC0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 18 3E A9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EBF40"
+address = 0x004EBF40
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 98 00 00 00 53 55"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 880 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC2B0"
+address = 0x004EC2B0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8B 4E 4C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 283 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC3D0"
+address = 0x004EC3D0
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 09 92 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC3F0"
+address = 0x004EC3F0
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 E9 91 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC410"
+address = 0x004EC410
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 C9 91 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC430"
+address = 0x004EC430
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 A9 91 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC450"
+address = 0x004EC450
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 89 91 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC470"
+address = 0x004EC470
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 69 91 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC490"
+address = 0x004EC490
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 49 91 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC4B0"
+address = 0x004EC4B0
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 29 91 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC4D0"
+address = 0x004EC4D0
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 09 91 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC4F0"
+address = 0x004EC4F0
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 E9 90 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC510"
+address = 0x004EC510
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 C9 90 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC530"
+address = 0x004EC530
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 A9 90 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC550"
+address = 0x004EC550
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 89 90 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC570"
+address = 0x004EC570
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 69 90 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC590"
+address = 0x004EC590
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 49 90 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC5B0"
+address = 0x004EC5B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 83 F8 01 7E 05"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC5D0"
+address = 0x004EC5D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 4C 07 40"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC600"
+address = 0x004EC600
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 D9 8F 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC630"
+address = 0x004EC630
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 10 83 F8 01 7E 05"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC650"
+address = 0x004EC650
+kind = "function"
+convention = "cdecl"
+expect = "6A 14 E8 89 8F 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC680"
+address = 0x004EC680
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 38 F8 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC6A0"
+address = 0x004EC6A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 83 F8 01 7E 05"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC6C0"
+address = 0x004EC6C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 4C 07 40"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC6F0"
+address = 0x004EC6F0
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 E8 E9 8E 0F 00 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EC710"
+address = 0x004EC710
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 75 1A 42 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 1616 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ECDA0"
+address = 0x004ECDA0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 10 8B 1E"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 208 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ECE70"
+address = 0x004ECE70
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 10 8B 06"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 288 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ECF90"
+address = 0x004ECF90
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 10 8B 06"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 288 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED0B0"
+address = 0x004ED0B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 83 F8 01 75 0A"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED0D0"
+address = 0x004ED0D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED100"
+address = 0x004ED100
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 00 00 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED130"
+address = 0x004ED130
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 40 EF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED180"
+address = 0x004ED180
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 33 DB 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED1F0"
+address = 0x004ED1F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 20 85 C0 74 0E C7"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED210"
+address = 0x004ED210
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED2A0"
+address = 0x004ED2A0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 336 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED3F0"
+address = 0x004ED3F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 56 8B 74 24"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 688 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED6A0"
+address = 0x004ED6A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 3C 40 A9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED700"
+address = 0x004ED700
+kind = "function"
+convention = "cdecl"
+expect = "6A 20 E8 D9 7E 0F 00 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED730"
+address = 0x004ED730
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 68 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED750"
+address = 0x004ED750
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8B 4E 1C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 336 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED8A0"
+address = 0x004ED8A0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 8B F1 C7 46 04"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED900"
+address = 0x004ED900
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 20 C3 CC CC CC CC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED910"
+address = 0x004ED910
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 83 F8 01 75 0A"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED930"
+address = 0x004ED930
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4ED9A0"
+address = 0x004ED9A0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 8B F1 C7 46 04"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDA00"
+address = 0x004EDA00
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 8B F1 C7 46 04"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDA60"
+address = 0x004EDA60
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDA80"
+address = 0x004EDA80
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 A8 FE FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDA90"
+address = 0x004EDA90
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 78 FE FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDAA0"
+address = 0x004EDAA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 55 56 33 ED 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 656 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDD30"
+address = 0x004EDD30
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 68 40 A9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDD80"
+address = 0x004EDD80
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 A4 40 A9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDDD0"
+address = 0x004EDDD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 E4 40 A9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDE20"
+address = 0x004EDE20
+kind = "function"
+convention = "thiscall"
+expect = "49 74 2A 49 74 18 49 74"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDE60"
+address = 0x004EDE60
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 20 83 F8 01 7E 05"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDE80"
+address = 0x004EDE80
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 72 14 E5"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDF00"
+address = 0x004EDF00
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 50 EF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDF50"
+address = 0x004EDF50
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 60 EF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EDFD0"
+address = 0x004EDFD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 00 00 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EE000"
+address = 0x004EE000
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 8B E9 8A"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EE270"
+address = 0x004EE270
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 4E"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EE300"
+address = 0x004EE300
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 55 56 8B 74 24"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 608 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EE560"
+address = 0x004EE560
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 56 8B F1 8B 46"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 1040 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EE970"
+address = 0x004EE970
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 74 24 0C 85 F6"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 672 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EEC10"
+address = 0x004EEC10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 55 57 8B F9 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 875 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF010"
+address = 0x004EF010
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 4C 24 08 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF0C0"
+address = 0x004EF0C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 56 57 8B 7C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF100"
+address = 0x004EF100
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8B 49 14 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF120"
+address = 0x004EF120
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 4C 24 08 8B 01 8D"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF170"
+address = 0x004EF170
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 57 8B F9 8B 47"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 800 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF490"
+address = 0x004EF490
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 57 8B F9 8B 47"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 320 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF5D0"
+address = 0x004EF5D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 2C 8B 08 83 EC 24"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 288 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF6F0"
+address = 0x004EF6F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 C7 46 04 8C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF7A0"
+address = 0x004EF7A0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 D8 E6 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF7B0"
+address = 0x004EF7B0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 A8 E6 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF7C0"
+address = 0x004EF7C0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 B8 E6 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF7D0"
+address = 0x004EF7D0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 88 E6 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF7E0"
+address = 0x004EF7E0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 98 E6 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF7F0"
+address = 0x004EF7F0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 08 F0 3B 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF800"
+address = 0x004EF800
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 58 E6 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EF810"
+address = 0x004EF810
+kind = "function"
+convention = "thiscall"
+expect = "55 56 8B 74 24 0C 33 ED"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 528 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EFC60"
+address = 0x004EFC60
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 30 C7 06"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EFCC0"
+address = 0x004EFCC0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B 35 CC 3C B4"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 400 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EFE50"
+address = 0x004EFE50
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8B 02 3D 42"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4EFE80"
+address = 0x004EFE80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 57 8B F9 8A 47"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0240"
+address = 0x004F0240
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 1C 40 89 41 1C C3"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0250"
+address = 0x004F0250
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 1C 83 F8 01 7E 05"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0270"
+address = 0x004F0270
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 72 14 E5"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F02F0"
+address = 0x004F02F0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 78 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0300"
+address = 0x004F0300
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 48 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0310"
+address = 0x004F0310
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 58 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0320"
+address = 0x004F0320
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 28 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0330"
+address = 0x004F0330
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 38 02 00 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0340"
+address = 0x004F0340
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 28 FF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0350"
+address = 0x004F0350
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 E8 FE FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0360"
+address = 0x004F0360
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 E8 FE FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0370"
+address = 0x004F0370
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 14 E9 F8 FE FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0380"
+address = 0x004F0380
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 14 E9 B8 FE FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0390"
+address = 0x004F0390
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 14 E9 B8 FE FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F03A0"
+address = 0x004F03A0
+kind = "function"
+convention = "thiscall"
+expect = "51 57 8B F9 8A 47 14 84"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0440"
+address = 0x004F0440
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 4C 24 08 33 C0 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0480"
+address = 0x004F0480
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B 74 24 14"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F04D0"
+address = 0x004F04D0
+kind = "function"
+convention = "cdecl"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0510"
+address = 0x004F0510
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 08 C7"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0570"
+address = 0x004F0570
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 08 C7"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F05D0"
+address = 0x004F05D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B 74 24 18"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 304 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0740"
+address = 0x004F0740
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 56 8B F1 8A 46"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 432 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F08F0"
+address = 0x004F08F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 0E 8B 01 3B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0A30"
+address = 0x004F0A30
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 8B E9 8B 45 1C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0AC0"
+address = 0x004F0AC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B 71 0C 83"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0B40"
+address = 0x004F0B40
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 14 53 8B 5C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 224 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0C20"
+address = 0x004F0C20
+kind = "function"
+convention = "thiscall"
+expect = "55 56 8B E9 8B 75 1C 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 288 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0D40"
+address = 0x004F0D40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 01 57 8B 38"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0DE0"
+address = 0x004F0DE0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B 59 1C 55 8B 2B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0E80"
+address = 0x004F0E80
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 8B 54 24 04"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F0EA0"
+address = 0x004F0EA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 8A 44 24 24 53"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 464 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1070"
+address = 0x004F1070
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 83 F8"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F10C0"
+address = 0x004F10C0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B E9 8B 55 1C 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 320 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1200"
+address = 0x004F1200
+kind = "function"
+convention = "thiscall"
+expect = "6A 00 E8 D9 FB FF FF B0"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1210"
+address = 0x004F1210
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 4B 10 56 8D"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F12B0"
+address = 0x004F12B0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F12E0"
+address = 0x004F12E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 33 FF 8D 4E"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1330"
+address = 0x004F1330
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1360"
+address = 0x004F1360
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8A 46 08 84"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1400"
+address = 0x004F1400
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 08 84 C0"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1470"
+address = 0x004F1470
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 85 C9 74 1E"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F14B0"
+address = 0x004F14B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 15 0C 3D B4 00 83 EC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 1040 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F18C0"
+address = 0x004F18C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 48 D9 40 10 8B 51"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1930"
+address = 0x004F1930
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 C7 00 1C 42 A9 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F19E0"
+address = 0x004F19E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 1C 42 A9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1A50"
+address = 0x004F1A50
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 83 F8"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 36 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1A80"
+address = 0x004F1A80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 56 8B 35 A8"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 736 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1D60"
+address = 0x004F1D60
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1E50"
+address = 0x004F1E50
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 224 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1F30"
+address = 0x004F1F30
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 48 74 0C 2D"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1F60"
+address = 0x004F1F60
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 7C 40 89 41 7C C3"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1F70"
+address = 0x004F1F70
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 33 C0 85 C9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F1F90"
+address = 0x004F1F90
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F20E0"
+address = 0x004F20E0
+kind = "function"
+convention = "cdecl"
+expect = "56 6A 2C E8 F2 12 42 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F2140"
+address = 0x004F2140
+kind = "function"
+convention = "thiscall"
+expect = "51 53 32 DB 85 C9 74 55"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F21B0"
+address = 0x004F21B0
+kind = "function"
+convention = "thiscall"
+expect = "51 85 C9 74 53 8B 01 8D"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F2210"
+address = 0x004F2210
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 33 D2 89 50 10 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F2230"
+address = 0x004F2230
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 C7 44 24 04"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F22C0"
+address = 0x004F22C0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 10 8B 0D A8 3C B4"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F2370"
+address = 0x004F2370
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 56 8B F1 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F23D0"
+address = 0x004F23D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 0E 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F2480"
+address = 0x004F2480
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 06 FF 50"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F2520"
+address = 0x004F2520
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 55 8B E9 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F2580"
+address = 0x004F2580
+kind = "function"
+convention = "cdecl"
+expect = "8B 15 C4 1A B2 00 A1 C0"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F26D0"
+address = 0x004F26D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 7C 83 F8"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F2720"
+address = 0x004F2720
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 33 DB 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F27A0"
+address = 0x004F27A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 74 53 33 DB 55 6A"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 368 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F2910"
+address = 0x004F2910
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 83 EC 28 56"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 352 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F2A70"
+address = 0x004F2A70
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 83 EC 40 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 256 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F2B70"
+address = 0x004F2B70
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 44 53 33 DB 56 6A"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 464 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F2D40"
+address = 0x004F2D40
+kind = "function"
+convention = "cdecl"
+expect = "A0 39 1A B2 00 84 C0 75"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F2D70"
+address = 0x004F2D70
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 84 00 00 00 53 55"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 1104 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F31C0"
+address = 0x004F31C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 53 55 32 C0 33"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 592 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F3410"
+address = 0x004F3410
+kind = "function"
+convention = "cdecl"
+expect = "A0 39 1A B2 00 83 EC 44"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 480 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F35F0"
+address = 0x004F35F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 6C 53 55 33 DB 56"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 192 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F4280"
+address = 0x004F4280
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 288 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F44C0"
+address = 0x004F44C0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 9C 00 00 00 53 55"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 1886 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5120"
+address = 0x004F5120
+kind = "function"
+convention = "thiscall"
+expect = "A0 39 1A B2 00 83 EC 0C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 192 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F51E0"
+address = 0x004F51E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 10 8B 01 52 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5200"
+address = 0x004F5200
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 0F 95"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5210"
+address = 0x004F5210
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5270"
+address = 0x004F5270
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 18 83 F8 01 7E 05"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5290"
+address = 0x004F5290
+kind = "function"
+convention = "cdecl"
+expect = "56 57 6A 0B E8 47 86 41"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F52D0"
+address = 0x004F52D0
+kind = "function"
+convention = "cdecl"
+expect = "56 57 6A 0D E8 07 86 41"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5310"
+address = 0x004F5310
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 57 8B 7C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 208 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F53E0"
+address = 0x004F53E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 57 8B F9 8A"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 320 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5520"
+address = 0x004F5520
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 18 85 C0 8B 44 24"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F55A0"
+address = 0x004F55A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 18 85 C0 74 58 D9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5610"
+address = 0x004F5610
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D EC 1A B2 00 85 C9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5660"
+address = 0x004F5660
+kind = "function"
+convention = "thiscall"
+expect = "E9 7B C0 0E 00 CC CC CC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5670"
+address = 0x004F5670
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 85 D2 74 34"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F56B0"
+address = 0x004F56B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 55 56 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5700"
+address = 0x004F5700
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 14 84 C0"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F57B0"
+address = 0x004F57B0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 46 44 8D"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5860"
+address = 0x004F5860
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 56 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F58B0"
+address = 0x004F58B0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 46 44 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5900"
+address = 0x004F5900
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 46 28 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5970"
+address = 0x004F5970
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 85 D2 75 05"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F59B0"
+address = 0x004F59B0
+kind = "function"
+convention = "thiscall"
+expect = "E9 0B 00 00 00 CC CC CC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F59C0"
+address = 0x004F59C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 85 D2 74 34"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5A20"
+address = 0x004F5A20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8D"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5AB0"
+address = 0x004F5AB0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 59 28 56 8B 33 3B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5AF0"
+address = 0x004F5AF0
+kind = "function"
+convention = "thiscall"
+expect = "53 57 8B 7C 24 0C 85 FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5B80"
+address = 0x004F5B80
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B E9 8B 45 28 56"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5BF0"
+address = 0x004F5BF0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B D9 8B 6B 24 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5C70"
+address = 0x004F5C70
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 43 24 56 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5CD0"
+address = 0x004F5CD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 33 FF 89 3E"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5D50"
+address = 0x004F5D50
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 224 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5E30"
+address = 0x004F5E30
+kind = "function"
+convention = "thiscall"
+expect = "55 56 8B F1 8B 46 44 8D"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 240 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F5F20"
+address = 0x004F5F20
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 8B D9 8B 6B 1C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 304 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6050"
+address = 0x004F6050
+kind = "function"
+convention = "thiscall"
+expect = "55 56 57 8B 7C 24 10 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 240 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6140"
+address = 0x004F6140
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 C7 46 04 58"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 240 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6230"
+address = 0x004F6230
+kind = "function"
+convention = "thiscall"
+expect = "B8 00 00 00 80 C3 CC CC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6240"
+address = 0x004F6240
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 80 00 00 00 C3 CC"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6250"
+address = 0x004F6250
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 88 81 80 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6260"
+address = 0x004F6260
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 A8 EF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6270"
+address = 0x004F6270
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 F8 EF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6280"
+address = 0x004F6280
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 88 EF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6290"
+address = 0x004F6290
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 D8 EF FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F62A0"
+address = 0x004F62A0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 38 F1 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F62B0"
+address = 0x004F62B0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 48 F4 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F62C0"
+address = 0x004F62C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 40 43 A9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6340"
+address = 0x004F6340
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 33 DB 89 5E"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F63B0"
+address = 0x004F63B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 83 EC 10 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 320 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F64F0"
+address = 0x004F64F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 8B D9 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 208 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F65C0"
+address = 0x004F65C0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8B 47 44"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6620"
+address = 0x004F6620
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 8B F1 8B 46"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 416 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F67C0"
+address = 0x004F67C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 55 8B E9 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 544 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F69E0"
+address = 0x004F69E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 D8 F8 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6A00"
+address = 0x004F6A00
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B E9 8B 45 44 56"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6AB0"
+address = 0x004F6AB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 10 85 F6 74"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6B30"
+address = 0x004F6B30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 336 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6C80"
+address = 0x004F6C80
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B 5C 24 0C 85 DB"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 368 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6DF0"
+address = 0x004F6DF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 A1 E8 1A B2 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F6E60"
+address = 0x004F6E60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 8B 41 44 53 56"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 1170 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7300"
+address = 0x004F7300
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 55 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 528 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7510"
+address = 0x004F7510
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 55 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7850"
+address = 0x004F7850
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 55 56 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7AF0"
+address = 0x004F7AF0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 47 44 8D"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7B70"
+address = 0x004F7B70
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7BD0"
+address = 0x004F7BD0
+kind = "function"
+convention = "thiscall"
+expect = "8A 54 24 08 84 D2 8B 44"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7BF0"
+address = 0x004F7BF0
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 D8 0D A4 67"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7C10"
+address = 0x004F7C10
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 0D E8 C7 5C 41"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7C50"
+address = 0x004F7C50
+kind = "function"
+convention = "thiscall"
+expect = "51 D9 01 D9 41 04 DA E9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7CB0"
+address = 0x004F7CB0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4E 5C 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7D20"
+address = 0x004F7D20
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4E 5C 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7D90"
+address = 0x004F7D90
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 8B F9 8B 77 5C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7E20"
+address = 0x004F7E20
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4E 5C 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7E90"
+address = 0x004F7E90
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4E 5C 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7F00"
+address = 0x004F7F00
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 46 5C 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 208 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F7FD0"
+address = 0x004F7FD0
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 4C 24 08 85 C9 C7"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8030"
+address = 0x004F8030
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 4C 39 00 8B 44 24"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8070"
+address = 0x004F8070
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 56 8B F1 8B 4E"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 192 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8130"
+address = 0x004F8130
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 33 DB 89 5C 24"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F81D0"
+address = 0x004F81D0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 0D F0 1A B2 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8240"
+address = 0x004F8240
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 10 89 11"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8280"
+address = 0x004F8280
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 0C 8B 44 24 04 89"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F82A0"
+address = 0x004F82A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 85 D2 74 34"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F82E0"
+address = 0x004F82E0
+kind = "function"
+convention = "thiscall"
+expect = "51 57 6A 01 8B F9 E8 A5"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 256 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F83E0"
+address = 0x004F83E0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 80 EF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 304 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8510"
+address = 0x004F8510
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 85 DB 75"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8590"
+address = 0x004F8590
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 0C 85 F6 75"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F85F0"
+address = 0x004F85F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 0C 85 F6 75"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8650"
+address = 0x004F8650
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 8B F1 D9 06"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 320 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8790"
+address = 0x004F8790
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 33 FF 89 3E"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8820"
+address = 0x004F8820
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 28 44 A9"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8890"
+address = 0x004F8890
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 D8 F2 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F88A0"
+address = 0x004F88A0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 C8 F2 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F88B0"
+address = 0x004F88B0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 B8 F2 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F88C0"
+address = 0x004F88C0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 D8 F2 FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F88D0"
+address = 0x004F88D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 83 F8 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8920"
+address = 0x004F8920
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 48 53 55 56 8B 74"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 976 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8CF0"
+address = 0x004F8CF0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8DA0"
+address = 0x004F8DA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 83 F8"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8DD0"
+address = 0x004F8DD0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 71 38 57 8B 79"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 208 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8EA0"
+address = 0x004F8EA0
+kind = "function"
+convention = "thiscall"
+expect = "A1 D8 3D B4 00 83 EC 24"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8F00"
+address = 0x004F8F00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 33 DB 89 5C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 208 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8FD0"
+address = 0x004F8FD0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 C8 FD FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8FE0"
+address = 0x004F8FE0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 B8 FD FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F8FF0"
+address = 0x004F8FF0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 A8 FD FF FF"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9000"
+address = 0x004F9000
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 4C 24 08 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9050"
+address = 0x004F9050
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 56 8B F1 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9100"
+address = 0x004F9100
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 4C 8B 02 3B C2 56"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9150"
+address = 0x004F9150
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 256 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9250"
+address = 0x004F9250
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 53 55 56 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 480 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9430"
+address = 0x004F9430
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F94C0"
+address = 0x004F94C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 8B D9 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 336 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9610"
+address = 0x004F9610
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 48 39 00"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9640"
+address = 0x004F9640
+kind = "function"
+convention = "thiscall"
+expect = "DB 44 24 04 8B 44 24 04"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9690"
+address = 0x004F9690
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 DB 44 24 04"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9700"
+address = 0x004F9700
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 56 8B F1"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9750"
+address = 0x004F9750
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 FF 4E 3C 75"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F97E0"
+address = 0x004F97E0
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 56 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9830"
+address = 0x004F9830
+kind = "function"
+convention = "thiscall"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 192 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F98F0"
+address = 0x004F98F0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 8D 54 24 08 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9990"
+address = 0x004F9990
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 4C 24 08 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F99F0"
+address = 0x004F99F0
+kind = "function"
+convention = "thiscall"
+expect = "51 57 8B F9 8B 4C 24 0C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 256 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9AF0"
+address = 0x004F9AF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 38 57 8B 79 3C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9B90"
+address = 0x004F9B90
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 10 8B 01"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9C10"
+address = 0x004F9C10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 2C 8B C8"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9CA0"
+address = 0x004F9CA0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 0C 56 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9D20"
+address = 0x004F9D20
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 4C 24 08 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4F9D70"
+address = 0x004F9D70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 57 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 1040 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4FA180"
+address = 0x004FA180
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 41 48 53 8B 18 3B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4FA1F0"
+address = 0x004FA1F0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 4C 24 08 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4FA260"
+address = 0x004FA260
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 38 57 8B 79 3C"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4FA2F0"
+address = 0x004FA2F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 57 33 DB 8B"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 464 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4FA4C0"
+address = 0x004FA4C0
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 4C 24 08 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4FA550"
+address = 0x004FA550
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 4C 24 08 85"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Audio::F4FA590"
+address = 0x004FA590
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Placeholder name (docs/audio.md): a function in the range of the audio code, 111 bytes with padding."
+
+[[entry]]
+name = "SC4AudioScape::Vtable"
+address = 0x00A94340
+kind = "data"
+source = "Name ours. Main vtable of cSC4AudioScapeManager (class 0x29E2797F, interface 0x29E39DB4, 0x98 bytes; 19 slots: QueryInterface, AddRef, Release, Init, Shutdown, AddScape, RemoveScape, ClearScape, ClearScapes, three of part 9, GetClusters at 11, slot 12 of part 9, its short form at 13, RemovePoint, slot 15 of part 9, AddEmitter, RemoveEmitter, the deleting destructor)."
+
+[[entry]]
+name = "SC4AudioScape::ServiceVtable"
+address = 0x00A94308
+kind = "data"
+source = "Name ours. Vtable of the scape manager's system service part at +4 (13 slots; service ID 0x49E50BA1 at object +0x80, running byte at +0x84, OnTick 0x004F67C0 at slot 10)."
+
+[[entry]]
+name = "SC4AudioScape::TargetVtable"
+address = 0x00A942F8
+kind = "data"
+source = "Name ours. Vtable of the scape manager's message target at +8 (4 slots; DoMessage 0x004F5200 only says whether it was given a message)."
+
+[[entry]]
+name = "GZSystemService::PureVtable"
+address = 0x00A93658
+kind = "data"
+source = "Name ours. The vtable a system service part holds while its base constructor runs (every slot 0x005D4A10); the scape manager's constructor stores it at +4 before its own."
+
+[[entry]]
+name = "SC4AudioScape::Sound"
+address = 0x00B21AEC
+kind = "data"
+source = "Name ours. The framework's sound service (service 0x23CECBA0, interface 0x106077D2) as the scape manager's Init keeps it for the clusters' messages (its slot 11, +0x2C, five arguments); released and zeroed by Shutdown."
+
+[[entry]]
+name = "SC4AudioScape::Pool"
+address = 0x00B098A8
+kind = "data"
+source = "Name ours. The pool object of the scape manager's clusters (0x4C bytes) and points (ID and three floats, in the same items): 8 KB blocks, the current block's pointer at +4 (free head at block +8, count at block +0xC); grown by SC4EdgePool::Grow, items freed by 0x004F5670."
+
+[[entry]]
+name = "SC4AudioScape::Zero"
+address = 0x00B21AE8
+kind = "data"
+source = "Name ours. A float (0 in the file) that the scape manager's constructor copies to +0x60 to +0x74 and a cluster's constructor to its sum at +0xC to +0x14; the cell vector's resize 0x004F6DF0 fills new cells from it."
+
+[[entry]]
+name = "SC4AudioScape::One"
+address = 0x00B0989C
+kind = "data"
+source = "Name ours. The float 1.0 in writable data that the cluster averages divide by the count (0x004F5520, 0x004F55A0, 0x004F6E60 and part 9's 0x004F75EF)."
+
+[[entry]]
+name = "SC4AudioOptions::Filled"
+address = 0x00B21A38
+kind = "data"
+source = "Name ours. A byte of the audio options dialog (vtable 0x00A94264): set by 0x004F44C0 once the dialog's window is filled, cleared when the tables are made and at 0x004F2502; the dialog's slot 5 (0x004F5120) loads nothing while it is set."
+
+[[entry]]
+name = "SC4AudioOptions::TablesMade"
+address = 0x00B21A39
+kind = "data"
+source = "Name ours. A byte of the audio options dialog: set by whichever of its functions first needs the dialog's static tables (0x004F2B70, then 0x004F2910 with 0 and 1)."
+
+[[entry]]
+name = "SC4Audio::F4E6840"
+address = 0x004E6840
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 80 01 00 00 56 8B"
+source = "Placeholder name (docs/audio.md): a function the splitter missed, after the jump table of 0x004E6340 (0x004E6828, six entries). Slot 16 of the ambience layer (vtable 0x00A934A8): (sound ID), ret 4: drops the sound with that ID from the layer's list at +0x180 (message 0x4A2C0389 to the sound service, the sound object released, the node freed); answers whether it was there."
+
+[[entry]]
+name = "SC4BitVector::At"
+address = 0x00477A40
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 8B 31 8B"
+source = "Name ours. Generic container code: (result*, index), ret 8, on a bit vector (words, first bit's offset): stores the word's address and the bit's mask at result and returns result. The ambience layer sets its filters' bits through it."
+
+[[entry]]
+name = "SC4::ReturnField1C808620"
+address = 0x00808620
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 1C C3 CC CC CC CC"
+source = "Name ours. A shared four-byte getter (mov eax,[ecx+0x1C]; ret); the ambience layer reads its follower's eased value with it (0x004E5EF1)."
+
+[[entry]]
+name = "SC4Audio::ResourceManagerRef"
+address = 0x00B21950
+kind = "data"
+source = "Name ours. A counted reference to the resource manager (0x00B43CA8) that 0x004E4EB0 keeps for the ambience layers."
+
+[[entry]]
+name = "SC4Audio::SoundService"
+address = 0x00B21954
+kind = "data"
+source = "Name ours. The framework's sound service (service 0x23CECBA0, interface 0x106077D2, vtable 0x00AD7180) as 0x004E4EB0 fetched it, a counted reference. Slot 13 (0x34) makes a message (type, interface 0x5B523BA4, void** out, four numbers), slot 12 (0x30) sends one."
+
+[[entry]]
+name = "SC4Audio::LastCellX"
+address = 0x00B09810
+kind = "data"
+source = "Name ours. Cell x of the last cell an ambience layer took (0x004E5370); 0x7FFFFFFF at start. With 0x00B09814 it saves asking the city and the terrain for the same cell again."
+
+[[entry]]
+name = "SC4Audio::LastCellZ"
+address = 0x00B09814
+kind = "data"
+source = "Name ours. Cell z of the last cell an ambience layer took (0x004E5370); 0x7FFFFFFF at start."
+
+[[entry]]
+name = "SC4Audio::LastCellPlaceX"
+address = 0x00B2196C
+kind = "data"
+source = "Name ours. A float: world x of the middle of the last cell an ambience layer took (the city's slot 97 wrote it)."
+
+[[entry]]
+name = "SC4Audio::LastCellPlaceZ"
+address = 0x00B21970
+kind = "data"
+source = "Name ours. A float: world z of the middle of the last cell an ambience layer took."
+
+[[entry]]
+name = "SC4Audio::LastCellHeight"
+address = 0x00B21948
+kind = "data"
+source = "Name ours. A float: the terrain's height (terrain slot 13) at the middle of the last cell an ambience layer took."
+
+[[entry]]
+name = "SC4Audio::ZeroFloat"
+address = 0x00B2194C
+kind = "data"
+source = "Name ours. A float the audio code reads as a zero vector's parts (0 in the exe; nothing in 0x004E4040 to 0x004E6C10 writes it)."
+
+[[entry]]
+name = "SC4Audio::OneFloat"
+address = 0x00B09818
+kind = "data"
+source = "Name ours. A float 1.0 in writable data that the ambience layer's weighting divides into (0x004E6689, 0x004E6715, 0x004E6798)."
+
+[[entry]]
+name = "SC4Audio::StartScale"
+address = 0x00B21A30
+kind = "data"
+source = "Name ours. A float (0 in the exe, set at run time) the ambience layer multiplies its tuning number +0x1F0 * 0.01 by before a sound starts (0x004E59D7)."
+
+[[entry]]
+name = "cSC4AudioAEMSEventSystem::Vtable"
+address = 0x00A93284
+kind = "data"
+source = "Vtable of the sound event system's part at +0 (0x150 bytes, constructor 0x004E1C20, service ID 0xAC1FAE31): the sound service's message target, interface 0xBB523BB2, 4 slots: QueryInterface 0x004E1430, AddRef 0x004E19C0, Release 0x004E19D0, the message handler 0x004E14B0 (message 0x2A5B69C0, the master volume). Class name from the exe's error string at 0x00A93298."
+
+[[entry]]
+name = "cSC4AudioAEMSEventSystem::EventVtable"
+address = 0x00A9325C
+kind = "data"
+source = "Name ours. Vtable of the event system's part at +4, interface 0x8C1FAEB7, 10 slots: 3 thunks, load bank 0x004E1E10, unload bank 0x004E18B0, start event 0x004E16F0, stop event 0x004E1740, the three channel volumes 0x004E1530, 0x004E15A0, 0x004E1610."
+
+[[entry]]
+name = "cSC4AudioAEMSEventSystem::TargetVtable"
+address = 0x00A9324C
+kind = "data"
+source = "Name ours. Vtable of the event system's part at +8, the game message target (0x452294AA), 4 slots: 3 thunks and the handler 0x004E1680 (message 0xA6B79602)."
+
+[[entry]]
+name = "cSC4AudioAEMSEventSystem::ServiceVtable"
+address = 0x00A93218
+kind = "data"
+source = "Name ours. Vtable of the event system's part at +0xC, the system service base, 13 slots: 3 thunks, five of the base, Init 0x004E2210 at slot 8, Shutdown 0x004E1AB0 at slot 9, three of the base."
+
+[[entry]]
+name = "cSC4AudioAEMSEventSystem::LastVtable"
+address = 0x00A93200
+kind = "data"
+source = "Name ours. Vtable of the event system's part at +0x10, 6 slots: 3 thunks, the deleting destructor's thunk 0x004E1AA0 and two of the base."
+
+[[entry]]
+name = "cSC4AudioAEMSEventSystem::BaseVtable0"
+address = 0x00A931C4
+kind = "data"
+source = "Name ours. The vtable of pure calls the event system's constructor writes at +0 before its own."
+
+[[entry]]
+name = "cSC4AudioAEMSEventSystem::BaseVtable4"
+address = 0x00A931D4
+kind = "data"
+source = "Name ours. The vtable of pure calls the event system's constructor writes at +4 before its own."
+
+[[entry]]
+name = "cSC4AudioAEMSEventSystem::DefaultZoomVolumes"
+address = 0x00A931A8
+kind = "data"
+source = "Name ours. Five floats (0, 0, 0, 0.5, 1): the volume by zoom before the tuning's property 0x8C376D4F is read (0x004E2093)."
+
+[[entry]]
+name = "cSC4AudioAEMSEventSystem::Started"
+address = 0x00B21938
+kind = "data"
+source = "Name ours. A byte: 1 between the event system's Init (0x004E2210) and Shutdown (0x004E1AB0)."
+
+[[entry]]
+name = "cSC4AudioAEMSEventSystem::StartVolume"
+address = 0x00B2193C
+kind = "data"
+source = "Name ours. A dword (a float's bits, 0 in the image and never written) that Init passes to the three channel volume slots."
+
+[[entry]]
+name = "cSC4AudioSoundBank::Vtable"
+address = 0x00A932EC
+kind = "data"
+source = "Name ours. Vtable of the event system's sound bank (0x24 bytes, constructor 0x004E2420), 3 slots: QueryInterface 0x00811CB0 (shared), AddRef 0x005F47F0 (shared), Release 0x004E2450."
+
+[[entry]]
+name = "cRZBaseSystemService::AddRef"
+address = 0x009297A0
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 04 E9 B8 F3 03 00"
+source = "Name ours. The system service base's AddRef (add ecx,4 and on to 0x00968B60); returns the new count. The event system's AddRef 0x004E19C0 ends in it."
+
+[[entry]]
+name = "cRZBaseSystemService::Release"
+address = 0x0091DD89
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 04 E9 06 FC FE FF"
+source = "Name ours. The system service base's Release (add ecx,4 and on to 0x0090D997, which calls the deleting destructor at the count's end); returns the count left. The event system's Release 0x004E19D0 ends in it."
+
+[[entry]]
+name = "SC4RefPtr::ConstructSoundService"
+address = 0x004302E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 00 00 00"
+source = "Name ours. No arguments: a reference holder made empty and then filled with the sound service (framework service 0x23CECBA0, interface 0x106077D2); returns this. Destroyed by SC4RefPtr::DestructGuarded."
+
+[[entry]]
+name = "SC4::OpenResourceRecord"
+address = 0x005F9670
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 8B 54 24 18 8B"
+source = "Name ours, not analysed in full. (key of three dwords*, record** out, bool): finds the key's database segment through the resource manager (slot 37) and opens the record; true with the record in *out, false with null. The caller closes the record (its slot 5) and releases it."
+
+[[entry]]
+name = "SC4FloatVector::InsertN5"
+address = 0x00676CC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 8B E9 8B"
+source = "Name ours. A vector of 4-byte items: (where, value*, allocator*, count, at end), ret 0x14, the 4-byte twin of SC4PointVector::InsertN. The event system's tuning read grows the volume by zoom with it."
+
+[[entry]]
+name = "SC4Shared::SetField20"
+address = 0x006CE100
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 41 20 C2"
+source = "Name ours. Code shared by folding: stores its argument at +0x20, ret 4. The event system sets a new bank's handle to 0 with it (0x004E1BE5)."
+
+[[entry]]
+name = "AEMS::Lock"
+address = 0x00864D10
+kind = "function"
+convention = "cdecl"
+expect = "E8 7B 3B 00 00 A0 7B 0A"
+source = "Name ours. EA's sound library, left the game's: no arguments, waits for the library's lock (0x00868890) and counts it at 0x00B50A7B. The event system brackets its calls of the function table with it."
+
+[[entry]]
+name = "AEMS::Unlock"
+address = 0x00864D30
+kind = "function"
+convention = "cdecl"
+expect = "A0 7B 0A B5 00 FE C8 A2"
+source = "Name ours. EA's sound library, left the game's: no arguments, the counterpart of AEMS::Lock."
+
+[[entry]]
+name = "AEMS::SetMasterVolume"
+address = 0x00867490
+kind = "function"
+convention = "cdecl"
+expect = "A0 78 0A B5 00 84 C0 75"
+source = "Name ours. EA's sound library, left the game's: (level 0..127), the library's master volume; -10 when the library is not running."
+
+[[entry]]
+name = "AEMS::GetConfig"
+address = 0x00867500
+kind = "function"
+convention = "cdecl"
+expect = "A1 DC 08 B5 00 56 85 C0"
+source = "Name ours. EA's sound library, left the game's: (settings*), copies the library's settings (0xD0 bytes) out; negative on failure."
+
+[[entry]]
+name = "AEMS::SetConfig"
+address = 0x00867560
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 56 57 B9 26"
+source = "Name ours. EA's sound library, left the game's: (settings*), takes settings back in."
+
+[[entry]]
+name = "AEMS::Start"
+address = 0x008675B0
+kind = "function"
+convention = "cdecl"
+expect = "A0 78 0A B5 00 53 33 DB"
+source = "Name ours. EA's sound library, left the game's: (memory, size, 0x72B00), starts the library on the caller's working memory; negative on failure."
+
+[[entry]]
+name = "AEMS::Shutdown"
+address = 0x00867730
+kind = "function"
+convention = "cdecl"
+expect = "E8 BB 00 00 00 85 C0 75"
+source = "Name ours. EA's sound library, left the game's: no arguments, stops the library."
+
+[[entry]]
+name = "AEMS::Open"
+address = 0x00867A00
+kind = "function"
+convention = "cdecl"
+expect = "A0 78 0A B5 00 84 C0 75"
+source = "Name ours. EA's sound library, left the game's: five arguments (0, rate, voices, 0, 0 from the event system's Init); negative on failure."
+
+[[entry]]
+name = "AEMS::FunctionTable"
+address = 0x00B107D8
+kind = "data"
+source = "Name ours. Eight pointers to cdecl functions of EA's sound library (0x00864D60, 0x00864EC0, 0x00865380, 0x00865510, 0x00865610, 0x008656C0, 0x00865740, 0x00867800). As the event system uses them: +0 load the event data (data), +4 reset (), +8 remove a bank (handle), +0xC start an event (parameters*) giving a handle, +0x14 stop one (handle, parameters*), +0x18 a channel's volume (channel, level), +0x1C add a bank (data, 0, 0, callback)."
+
+[[entry]]
+name = "SC4Sound::DirectorObject60"
+address = 0x004BB9E0
+kind = "function"
+convention = "cdecl"
+expect = "51 53 33 DB 56 89 5C 24"
+source = "Name ours. No arguments: the object the audio director (SC4Sound::StaticObject, 0x00B21978) keeps at +0x60, not referenced; null when there is no director. The sound kinds take the same object (its dword at +0x14 is the level every sound is scaled by, of 1024). The audio event handler calls it before a placed sound and drops the result (0x004EE8FD)."
+
+[[entry]]
+name = "SC4MessageServerRef::Construct"
+address = 0x00449690
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 00 00 00"
+source = "Name ours. No arguments, this a reference holder (one pointer): clears it and asks the framework for the message server (service 0x04FA845B, interface 0x652294C7); returns this. Ended by SC4RefPtr::Destruct."
+
+[[entry]]
+name = "SC4Audio::PlaceDefault"
+address = 0x00B21A04
+kind = "data"
+source = "Name ours. A float nothing in the code writes (one reader, 0x004EE7B7): the audio event handler fills a place's three numbers with it before asking a message's subject for its place."
+
+[[entry]]
+name = "SC4::ServiceB43CC8"
+address = 0x00B43CC8
+kind = "data"
+source = "Name ours, not analysed. The framework service 0x64063387 (interface 0xC1085722; vtables 0x00A8CA34 and 0x00AD1CD8), kept by 0x0060248B. Slot 5 (+0x14) and slot 6 (+0x18), both (target, number): ask for and give back notices; the audio event handler asks for 0x62BA7B42 and 0x62BA7B43 with its second target (object + 4)."
+
+[[entry]]
+name = "SC4AudioAmbienceLayer::Vtable"
+address = 0x00A934A8
+kind = "data"
+source = "Name ours. cSC4AudioAmbienceLayer's vtable, 29 slots; the object is its own message target (slot 3 DoMessage, 4 Init, 5 Shutdown) (docs/audio.md)."
+
+[[entry]]
+name = "SC4AudioAmbienceLayer::InstanceCount"
+address = 0x00B21944
+kind = "data"
+source = "Name ours. The number of started ambience layers; the first sets the shared services up (0x004E4EB0), the last lets them and the filters go (0x004E6FD0) (docs/audio.md)."
+
+[[entry]]
+name = "SC4AudioAmbienceLayer::Filters"
+address = 0x00B21958
+kind = "data"
+source = "Name ours. The ambience layers' shared occupant filters: a hash table from class ID to filter (interface 0x4A40074C); bucket vector at +4 and +8, nodes of next, class ID, filter (docs/audio.md)."
+
+[[entry]]
+name = "SC4AudioAmbienceManager::FilterVtable"
+address = 0x00A93640
+kind = "data"
+source = "Name ours. The vtable of the ambience manager's occupant filter (6 slots, count at +4; interface 0x46A80026) (docs/audio.md)."
+
+[[entry]]
+name = "SC4AudioAmbienceManager::DefaultFloat"
+address = 0x00B21974
+kind = "data"
+source = "Name ours. A float (zero in the file) the ambience manager starts its positions with (docs/audio.md)."
+
+[[entry]]
+name = "SC4AudioAmbienceManager::FirstView"
+address = 0x00B09824
+kind = "data"
+source = "Name ours. A byte, 1 at start: the ambience manager's first view update (0x004E92A0) sets the earlier cells too and clears it (docs/audio.md)."
+
+[[entry]]
+name = "SC4Audio::Framework"
+address = 0x00B628AC
+kind = "data"
+source = "Name ours. The framework pointer cached by the audio managers' Init and Shutdown (0x004E84D0, 0x004E96A0, 0x004E9810, 0x004EACF0) and by 0x00602541 (docs/audio.md)."
+
+[[entry]]
+name = "SC4Audio::F4EA270"
+address = 0x004EA270
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 74 24 0C 8B 16"
+source = "A start the splitter missed (behind the jump table of 0x004EA150): the ambience manager's 'occupant taken out' (ret 4: occupant); stops the sounds the occupant's properties name. Ours in audio.part4."
+
+[[entry]]
+name = "SC4AudioAmbienceManager::Vtable"
+address = 0x00A9378C
+kind = "data"
+source = "cSC4AudioAmbienceManager's vtable at +0 (system service, 14 slots: Init 0x004E84D0, Shutdown 0x004E96A0, OnTick 0x004EA150)."
+
+[[entry]]
+name = "SC4AudioAmbienceManager::VtableTarget"
+address = 0x00A9377C
+kind = "data"
+source = "cSC4AudioAmbienceManager's vtable at +4 (message target, 4 slots; DoMessage 0x004EAF20)."
+
+[[entry]]
+name = "SC4AudioAmbienceManager::VtableStarter"
+address = 0x00A93768
+kind = "data"
+source = "cSC4AudioAmbienceManager's vtable at +8 (5 slots: slot 3 Init, slot 4 Shutdown, thunks to the service's)."
+
+[[entry]]
+name = "SC4AudioAmbienceManager::VtableEvents"
+address = 0x00A93758
+kind = "data"
+source = "cSC4AudioAmbienceManager's vtable at +0xC (sound event target, 4 slots; DoEvent 0x004E9870)."
+
+[[entry]]
+name = "SC4AudioStarter::VtableBase"
+address = 0x00A9368C
+kind = "data"
+source = "Name ours. The pure base vtable (5 slots) of the audio managers' start and stop interface; constructors store it before the class's own."
+
+[[entry]]
+name = "SC4AudioEventHandler::Vtables"
+address = 0x00A937D0
+kind = "data"
+source = "Name ours. The first of the 65 six-slot vtables of the audio event handlers, 0x18 bytes apart to 0x00A93DD0: thirty 0x10-byte handlers (QueryInterface 0x004EC5D0), then thirty-five 0x14-byte ones (QueryInterface 0x004EBA70); slot 5 is each handler's own function."
+
+[[entry]]
+name = "SC4AudioDirector::Vtable"
+address = 0x00A93E18
+kind = "data"
+source = "Name ours. The audio COM director's vtable (cRZCOMDllDirector's layout; OnStart 0x004EB1B0, GetDirectorID 0x004EB1A0 = 0xFDB5CA17)."
+
+[[entry]]
+name = "SC4AudioDirector::VtableHooks"
+address = 0x00A93DE8
+kind = "data"
+source = "Name ours. The audio COM director's framework hooks vtable at +4 (slot 5 after the application's start 0x004EBF40, slot 6 before its shutdown 0x004EC2B0)."
+
+[[entry]]
+name = "SC4FloatVector::Assign"
+address = 0x00464430
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. A vector of 4-byte items assigned from another (ret 4: source); returns this. Shared container code, the game's."
+
+[[entry]]
+name = "SC4FloatVector::CopyConstruct"
+address = 0x00464760
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours. A vector of 4-byte items copy-constructed from another (ret 4: source); returns this. Shared container code, the game's."
+
+[[entry]]
+name = "SC4RefList::InsertN"
+address = 0x006DB400
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 85 C0 53 56"
+source = "Name ours. Inserts n nodes holding a copy of a pointer before a list position (ret 0xC: position, count, address of the value). Shared container code, the game's."
+
+[[entry]]
+name = "GZSoundConfig::Construct"
+address = 0x0093638E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 53 56 57 FF 75"
+source = "Name ours; framework sound code, the game's. Constructs a 0x68-byte reader on the stack from the object SC4::GetResource5F9670 gave (ret 4)."
+
+[[entry]]
+name = "GZSoundConfig::Apply"
+address = 0x0093756A
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 6C 53 56"
+source = "Name ours; framework sound code, the game's. On the reader's part at +0x3C: reads the sound configuration (section 'Config', 'DefaultSndDataSourcePlayer2DClassId' and others); returns al."
+
+[[entry]]
+name = "GZSoundConfig::Destruct"
+address = 0x00936458
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 54 C7 06"
+source = "Name ours; framework sound code, the game's. The reader's destructor."
+
+[[entry]]
+name = "GZSound::ConstructService"
+address = 0x008D35AB
+kind = "function"
+convention = "thiscall"
+expect = "53 56 68 16 A1 07 00 68"
+source = "Name ours; framework sound code, the game's. Constructor of the 0x90-byte class 0x5CFBDBBF (a system service; the class registry gets its part at +0x1C)."
+
+[[entry]]
+name = "GZSound::Construct8D376E"
+address = 0x008D376E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours; framework sound code, the game's. Constructor of the 0x100-byte class 0x5CFBDBD5."
+
+[[entry]]
+name = "RZGetCOMDllDirector"
+address = 0x0087B212
+kind = "function"
+convention = "cdecl"
+expect = "F6 05 04 41 B5 00 01 75"
+source = "The application's COM director (the object at 0x00B540B8, made on first use)."
+
+[[entry]]
+name = "cRZCOMDllDirector::AddDirector"
+address = 0x0090E0D4
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B D9 57 8B 7C 24"
+source = "Adds a child director (ret 4): the child is given this director's COM and path, its own children are added, and it is appended to the list at +0x2C."
+
+[[entry]]
+name = "GZDirector::Get9666C9"
+address = 0x009666C9
+kind = "function"
+convention = "cdecl"
+expect = "F6 05 F4 35 B6 00 01 75"
+source = "Name ours. A framework COM director (the object at 0x00B635A8, made on first use), one of five the audio director adds at its start."
+
+[[entry]]
+name = "GZDirector::Get87497E"
+address = 0x0087497E
+kind = "function"
+convention = "cdecl"
+expect = "F6 05 84 40 B5 00 01 75"
+source = "Name ours. A framework COM director (the object at 0x00B54038, made on first use), one of five the audio director adds at its start."
+
+[[entry]]
+name = "GZDirector::Get94AC43"
+address = 0x0094AC43
+kind = "function"
+convention = "cdecl"
+expect = "B8 14 F2 A6 00 E8 83 6C"
+source = "Name ours. A framework COM director, one of five the audio director adds at its start."
+
+[[entry]]
+name = "GZDirector::Get9361D5"
+address = 0x009361D5
+kind = "function"
+convention = "cdecl"
+expect = "F6 05 74 33 B6 00 01 75"
+source = "Name ours. A framework COM director, one of five the audio director adds at its start."
+
+[[entry]]
+name = "GZDirector::Get945785"
+address = 0x00945785
+kind = "function"
+convention = "cdecl"
+expect = "E9 D0 FF FF FF 83 7C 24"
+source = "Name ours. A framework COM director, one of five the audio director adds at its start."
+
+[[entry]]
+name = "SC4Audio::EventHandlerVtable"
+address = 0x00A94164
+kind = "data"
+source = "Name ours. cSC4AudioEventHandler's vtable at +0, the sound service's hook (interface 0xBB523BB2): QueryInterface 0x004EDE80, AddRef 0x008AE800, Release 0x004EDE60, the event handler 0x004EF490, the deleting destructor 0x004EFC60."
+
+[[entry]]
+name = "SC4Audio::EventHandlerOldTargetVtable"
+address = 0x00A94154
+kind = "data"
+source = "Name ours. cSC4AudioEventHandler's vtable at +4, an old style message target: thunks 0x004EF7A0, 0x005183B0, 0x004EF7B0 and DoMessage 0x004EFE50 (window opened 0x62BA7B42, closed 0x62BA7B43)."
+
+[[entry]]
+name = "SC4Audio::EventHandlerTargetVtable"
+address = 0x00A94144
+kind = "data"
+source = "Name ours. cSC4AudioEventHandler's vtable at +8, the message target: thunks 0x004EF7C0, 0x008B03D0, 0x004EF7D0 and DoMessage 0x004EF810."
+
+[[entry]]
+name = "SC4Audio::EventHandlerServiceVtable"
+address = 0x00A94130
+kind = "data"
+source = "Name ours. cSC4AudioEventHandler's vtable at +0xC, the system service part: thunks 0x004EF7E0, 0x004EF7F0, 0x004EF800, Init 0x004EFE80, Shutdown 0x004EE000."
+
+[[entry]]
+name = "SC4Audio::OldTargetBaseVtable"
+address = 0x00A8298C
+kind = "data"
+source = "Name ours. The base vtable (old style message target) that the audio event handler's constructor 0x004EF6F0 writes at +4 before its own."
+
+[[entry]]
+name = "SC4Audio::ServiceBaseVtable"
+address = 0x00A94018
+kind = "data"
+source = "Name ours. The base vtable (system service) that the constructors of the audio event handler (at +0xC) and of the fire sounds' handler (at +4) write before their own."
+
+[[entry]]
+name = "SC4Audio::FireHandlerVtable"
+address = 0x00A941E8
+kind = "data"
+source = "Name ours. cSC4AudioEventHandlerDisasterFire's vtable at +0, the message target: QueryInterface 0x004F0270, AddRef 0x004F0240, Release 0x004F0250, DoMessage 0x004F05D0."
+
+[[entry]]
+name = "SC4Audio::FireHandlerServiceVtable"
+address = 0x00A941D4
+kind = "data"
+source = "Name ours. cSC4AudioEventHandlerDisasterFire's vtable at +4, the system service part (what its factory 0x004EB100 hands out): thunks 0x004F02F0, 0x006CE6F0, 0x004F0300, Init 0x004F0740, Shutdown 0x004F03A0."
+
+[[entry]]
+name = "SC4Audio::FireHandlerFilterVtable"
+address = 0x00A941B8
+kind = "data"
+source = "Name ours. cSC4AudioEventHandlerDisasterFire's vtable at +8, an occupant filter: thunks 0x004F0310, 0x006CE720, 0x004F0320, the test 0x004F0440 (fire occupants, interface 0x69D25C60), 0x004FC900 twice, the destructor thunk 0x004F0330."
+
+[[entry]]
+name = "SC4Audio::FireHandlerFilter2Vtable"
+address = 0x00A941A0
+kind = "data"
+source = "Name ours. cSC4AudioEventHandlerDisasterFire's vtable at +0xC, the filter's second part: thunks 0x004F0340, 0x004F0350, 0x004F0360, then the base filter's 0x005E97C0, 0x005E97E0, 0x005E95B0."
+
+[[entry]]
+name = "SC4Audio::FireHandlerHookVtable"
+address = 0x00A94190
+kind = "data"
+source = "Name ours. cSC4AudioEventHandlerDisasterFire's vtable at +0x14, a sound service hook (interface 0xBB523BB2) that does nothing: thunks 0x004F0370, 0x004F0380, 0x004F0390, then the shared stub 0x005DEB40."
+
+[[entry]]
+name = "SC4Audio::ClusterSetVtable"
+address = 0x00A94200
+kind = "data"
+source = "Name ours. The vtable of the ambience layers' cluster set (0x28 bytes, constructor 0x004F12E0): 0x00811CB0, AddRef 0x005F47F0, Release 0x004F1070."
+
+[[entry]]
+name = "SC4Audio::ListenerVtable"
+address = 0x00A9421C
+kind = "data"
+source = "Name ours. cSC4AudioListener's vtable: QueryInterface 0x004F1330, AddRef 0x005F47F0, Release 0x004F1A50, DoMessage 0x004F1E50."
+
+[[entry]]
+name = "SC4Audio::PointerState"
+address = 0x00B219F0
+kind = "data"
+source = "Name ours. What the audio event handler's pointer sounds (0x004EF170) keep between events: +0 a byte, the loops are on; +1 a byte, moves change the pitch; +4 a float, the smoothed speed; +8 the last second number; +0xC the last first number; +0x10 the last time stamp."
+
+[[entry]]
+name = "SC4Audio::MusicFolder"
+address = 0x00B21A0C
+kind = "data"
+source = "Name ours. Two pointers, the begin and end of a text that the audio event handler's Init (0x004EFE80) appends to the folder it gets from service 0x2073215D before giving it to the music player; nothing in the code writes them by address."
+
+[[entry]]
+name = "SC4Audio::FirePlaceDefault"
+address = 0x00B21A1C
+kind = "data"
+source = "Name ours. A float (0 in the file) that the fire sounds' handler fills a place with before asking the occupant for its position (0x004F0480, 0x004F05D0)."
+
+[[entry]]
+name = "SC4Audio::ListenerHeights"
+address = 0x00B21A20
+kind = "data"
+source = "Name ours. Five floats by zoom, the height of the listener over what the camera looks at: written by 0x004F18C0 (the product of the listener's arrays +0x48 and +0x3C and its factor +0x6C), read by 0x004F14B0. The fifth, 0x00B21A30, is SC4Audio::StartScale."
+
+[[entry]]
+name = "SC4Audio::ListenerPlaceDefault"
+address = 0x00B21A34
+kind = "data"
+source = "Name ours. A float (0 in the file) that the listener's constructor 0x004F1930 copies to its nine place floats +0xC to +0x2C."
+
+[[entry]]
+name = "SC4Audio::MusicNames"
+address = 0x00B0984C
+kind = "data"
+source = "Name ours. Two pointers to texts, the music player's station names: +0 'krgn' (the region), +4 'kmay' (the city)."
+
+[[entry]]
+name = "SC4Audio::MusicFadeTime"
+address = 0x00B0988C
+kind = "data"
+source = "Name ours. A dword, 4000: the third argument of the music starter 0x004EE270 when message 0x2A3AD653 carries no second number."
+
+[[entry]]
+name = "SC4::FloatOneB0986C"
+address = 0x00B0986C
+kind = "data"
+source = "float 1.0 in the data section; the listener's update 0x004F14B0 divides it by a vector's length (three readers in the exe)."
+
+[[entry]]
+name = "SC4Audio::RefPtrDestruct4DE460"
+address = 0x004DE460
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 20 EF"
+source = "Name ours. No arguments, this a reference holder: releases the object when there is one, under an exception frame (the same code as SC4RefPtr::Destruct). The audio event handler's Init ends with it for the folder service."
+
+[[entry]]
+name = "SC4::RayPlane"
+address = 0x005D7360
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 0C 8B 4C 24 04"
+source = "Name ours. (origin, direction, plane, out), four pointers to floats (plane: normal and distance): where a ray meets a plane, written to out (the origin when the origin is on the plane, zeros and false when the ray runs along it); returns a byte, nothing on the x87 stack. The listener's update 0x004F14B0 uses it to stop at the water's surface."
+
+[[entry]]
+name = "SC4AudioPreferences::Construct"
+address = 0x00449010
+kind = "function"
+convention = "thiscall"
+expect = "53 BB 01 00 00 00 56 8B"
+source = "Name ours. No arguments: constructor of the audio settings (0x68 bytes, SC4AudioPreferences in gzcom-dll): sound on, volumes 0x400 and 0x320, both lists' 30 track switches on; returns this. The audio options dialog keeps a copy at +0x14 (docs/audio.md)."
+
+[[entry]]
+name = "SC4StringList::Insert"
+address = 0x00457250
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 1C E8 FB 5C 4B"
+source = "Name ours. (node** result, node* where, const string* value), ret 0xC; this is not read: a new 0x1C-byte node with a copy of the string linked in before where; its address goes to result."
+
+[[entry]]
+name = "SC4StringList::Find"
+address = 0x00497360
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 0C 53 8B 5C 24"
+source = "Name ours. (node** result, node* first, node* last, const string* value, tag): the first node from first whose string equals value, or last; five arguments pushed, the last not read."
+
+[[entry]]
+name = "SC4String::SplitAtChar"
+address = 0x0090F335
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 6A 00 FF"
+source = "Name ours. (char separator, string* out), ret 8: moves the text before the first separator to out and drops it and the separator from this, true; with no separator moves everything, false."
+
+[[entry]]
+name = "SC4AudioOptionsDialog::Vtable"
+address = 0x00A94264
+kind = "data"
+source = "Name ours. vtable of the audio options dialog (0x80 bytes, seven slots: QueryInterface 0x004F1F30 shared, AddRef, Release, window message 0x004F4280, 0x0041D4C0 shared, Init 0x004F5120, Shutdown 0x004F2210) (docs/audio.md)."
+
+[[entry]]
+name = "SC4AudioMusic::Playlists"
+address = 0x00B21A88
+kind = "data"
+source = "Name ours. Two music list records of 0x30 bytes, the region's and the city's: index, ID, vector of 16-byte tracks at +8, exemplar instance at +0x14, list of file names at +0x18, folder string at +0x1C (docs/audio.md)."
+
+[[entry]]
+name = "SC4AudioMusic::RadioFolder"
+address = 0x00B21A48
+kind = "data"
+source = "Name ours. Static string 'Radio/Stations/' (made at startup by the initialiser that ends at 0x00A72298; body at +4)."
+
+[[entry]]
+name = "SC4AudioMusic::RegionFolder"
+address = 0x00B21A5C
+kind = "data"
+source = "Name ours. Static string 'Region/Music/' (body at +4)."
+
+[[entry]]
+name = "SC4AudioMusic::CityFolder"
+address = 0x00B21A70
+kind = "data"
+source = "Name ours. Static string 'Mayor/Music/' (body at +4)."
+
+[[entry]]
+name = "SC4AudioMusic::MusicVolumeMin"
+address = 0x00B21A3C
+kind = "data"
+source = "Name ours. uint32: the lower limit of the music volume (tuning property 0x4A7CB3BA of exemplar 0x6A359C5D)."
+
+[[entry]]
+name = "SC4AudioMusic::SoundVolumeMin"
+address = 0x00B21A40
+kind = "data"
+source = "Name ours. uint32: the lower limit of the sound volume (property 0x4A7CB3BB)."
+
+[[entry]]
+name = "SC4AudioMusic::MusicVolumeMax"
+address = 0x00B09884
+kind = "data"
+source = "Name ours. uint32, 0x400 until read: the upper limit of the music volume (property 0x4A7CB3BC)."
+
+[[entry]]
+name = "SC4AudioMusic::SoundVolumeMax"
+address = 0x00B09888
+kind = "data"
+source = "Name ours. uint32, 0x400 until read: the upper limit of the sound volume (property 0x4A7CB3BD)."
+
+[[entry]]
+name = "SC4AudioMusic::BoxBases"
+address = 0x00B0987C
+kind = "data"
+source = "Name ours. Two uint32: the IDs of the first track check box of the region's list (0x2A5BA8A7) and the city's (0x3A5BA8A7)."
+
+[[entry]]
+name = "SC4AudioMusic::FilePatterns"
+address = 0x00B09878
+kind = "data"
+source = "Name ours. char*: '*.mp3,*.wav,*.xa,*.m3u,*.pls,*.lnk', the music files looked for in a list's folder."
+
+[[entry]]
+name = "SC4AudioSound::Vtable"
+address = 0x00A94428
+kind = "data"
+source = "Name ours. Main vtable of cSC4AudioSoundManager (GZCOM class and interface 0x4A47DC0D, 0x80 bytes, constructor 0x004F9830): QueryInterface 0x004F7B70, AddRef 0x004F7BA0, Release 0x004F8DA0, DoMessage 0x004FA590 (the sound service's messages)."
+
+[[entry]]
+name = "SC4AudioSound::TickVtable"
+address = 0x00A94418
+kind = "data"
+source = "Name ours. Vtable of the sound manager's part at +4, which the sound service calls every tick (slot 3, 0x004F9CA0, gets the milliseconds gone by)."
+
+[[entry]]
+name = "SC4AudioSound::SoundEndedVtable"
+address = 0x00A94408
+kind = "data"
+source = "Name ours. Vtable of the sound manager's part at +8, which a playing sound calls when it ends (slot 3, 0x004F98F0, gets the sound)."
+
+[[entry]]
+name = "SC4AudioSound::TargetVtable"
+address = 0x00A943F8
+kind = "data"
+source = "Name ours. Vtable of the sound manager's message target at +0xC (DoMessage 0x004F9430: seven of the game's messages and 0xC53D10AA)."
+
+[[entry]]
+name = "SC4AudioSound::TickBaseVtable"
+address = 0x00A943C0
+kind = "data"
+source = "Name ours. The vtable the sound manager's constructor writes at +4 before its own (every slot 0x005D4A10)."
+
+[[entry]]
+name = "SC4AudioSound::SoundEndedBaseVtable"
+address = 0x00A943D0
+kind = "data"
+source = "Name ours. The vtable the sound manager's constructor writes at +8 before its own (every slot 0x005D4A10)."
+
+[[entry]]
+name = "SC4AudioSound::Zero"
+address = 0x00B21AF0
+kind = "data"
+source = "Name ours. A float (0 in the file, nothing in 0x004F7300 to 0x004FA6A0 writes it) that the mover's and the voice's constructors fill their places with, and that 0x004F8070, 0x004F8920 and 0x004F8F00 start their vectors from."
+
+[[entry]]
+name = "SC4AudioSound::One"
+address = 0x00B098C4
+kind = "data"
+source = "Name ours. The float 1.0 in writable data that the mover's step (0x004F8650) and the group's place (0x004F8920) divide by a length or a weight."
+
+[[entry]]
+name = "SC4AudioSound::VoicePool"
+address = 0x00B098D0
+kind = "data"
+source = "Name ours. The pool object of the sound manager's voices (0x60 bytes): 8 KB blocks, the current block's pointer at +4 (free head at block +8, count at block +0xC); grown by SC4EdgePool::Grow, items freed by 0x004F82A0."
+
+[[entry]]
+name = "SC4Sound::InstanceCounter"
+address = 0x00B098C0
+kind = "data"
+source = "Name ours. The counter SC4Sound::NextInstance (0x004F7BB0) hands out and adds one to (1 when it is 0); the sound manager's 0x004F9D70 does the same inline for a sound started with instance 0."

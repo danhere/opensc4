@@ -40,6 +40,7 @@ Estimates by area (a judgment from the checklists below, not a measurement):
 | Script bindings (P6 Lua) | ~95% | All of the game's script code with exact parity: variables, natives, advisors, advices, script context; the Lua 5.0 library itself is still the game's |
 | Region view (P8) | ~95% | All five parts ours (332 functions); four drawing functions stay with the renderer |
 | Networks, lots and growth, terrain, audio (P7, P8) | ~0% | Not started (the lot and occupant classes are ours under P5); networks only together with the NAM team |
+| Sound system (P8) | the game's own audio classes | The game's audio classes (0x004E1320 to 0x004FA6A0), 575 functions in nine groups, are ours ([docs/audio.md](docs/audio.md)); EA's sound library (AEMS) and the framework's sound service stay the game's. The harness compares state, not what is heard, so playback is untested |
 | Framework and exe independence (P9) | 0% | Not started |
 
 ## P0: Foundations
@@ -168,7 +169,8 @@ Parity method (from P4): short-window exact comparison against the original from
 - [ ] Lots / buildings / growth
 - [ ] Terrain
 - [x] Region view ([docs/region.md](docs/region.md)): all five parts are replaceable, 332 functions, off by default: the region data class (`region.data.*`), the regional city (`region.city.*`), city files and the region pictures (`region.files.*`), the region screen window (`region.screen.*`) and the region map window with its overlay (`region.view.*`). Four functions that draw stay the game's for the renderer. Parity on twelve saves with the region screen up; not reached unattended: anything behind a dialog, real clicks, neighbour connection changes and deals
-- [ ] Audio
+- [x] Audio ([docs/audio.md](docs/audio.md)): the game's own audio classes are rewritten, 575 functions in nine groups (`audio.part1` to `audio.part9`): the ambience, sound and scape managers, the listener, the music lists, the event handlers, the movers and fades and the options dialog. Still the game's: EA's sound library (AEMS) and the framework's sound service and music player. Parity on twelve saves and the plopped corpus: the state the test compares agrees; one rare second outcome of the test also occurs in the original
+  - [ ] listening checks by a person (the harness cannot hear), and the director's start-up code path, which runs before replacements are installed and so is not reached by a normal test
 
 ## P9: Framework and host mode (exe independence)
 
