@@ -87,6 +87,11 @@ target_link_libraries(opensc4_growify_command_test PRIVATE opensc4_core_support)
 add_test(NAME growify_command COMMAND opensc4_growify_command_test)
 set_tests_properties(growify_command PROPERTIES PASS_REGULAR_EXPRESSION "growify command test OK")
 
+add_executable(opensc4_date_sync_region_test date_sync_region_test.cpp)
+target_link_libraries(opensc4_date_sync_region_test PRIVATE opensc4_core_support)
+add_test(NAME date_sync_region COMMAND opensc4_date_sync_region_test)
+set_tests_properties(date_sync_region PROPERTIES PASS_REGULAR_EXPRESSION "date sync region test OK")
+
 # Not "patch" in the name: Windows installer detection refuses to start a
 # manifest-less exe named like an installer or patch without elevation.
 add_executable(opensc4_pe_flag_test pe_flag_test.cpp ${PROJECT_SOURCE_DIR}/src/launcher/pe_patch.cpp)
