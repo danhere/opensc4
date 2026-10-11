@@ -5372,6 +5372,289 @@ const bool g_registeredCityViewDrawingUntested = registry::Register({
     InstallCityViewDrawingUntested,
 });
 
+bool g_compareRegionDraw;
+
+// The region view's drawing, left to the renderer by the region screen's
+// code (docs/region.md): the mask of a city's picture, the terrain overlay,
+// the picture grid copied to the screen, and the overlay window's paint.
+// Translated instruction by instruction and entered like the pixel routines.
+void* g_regionDrawPictureMask;
+void __cdecl RegionDrawPictureMask(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("region draw: PictureMask call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/regiondraw_picturemask.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("region draw: PictureMask left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TRegionDrawPictureMask, RegionDrawPictureMask, g_regionDrawPictureMask, 0)
+
+void* g_regionDrawTerrainOverlay;
+void __cdecl RegionDrawTerrainOverlayOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("region draw: TerrainOverlay call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/regiondraw_terrainoverlay.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("region draw: TerrainOverlay left %d values on the x87 stack", top + 1);
+}
+// Compared in the same frame like the terrain passes: its `this` and the
+// render context it is given. Its four vertices are on its stack, so the
+// driver's vertex pointer is left out.
+void __cdecl RegionDrawTerrainOverlay(EntryFrame* frame)
+{
+    if (!g_compareRegionDraw) {
+        RegionDrawTerrainOverlayOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    char* const context = reinterpret_cast<char*>(frame->arguments[0]);
+    std::vector<Region> regions = ContextRegions(context);
+    regions.push_back({"overlay", self, 0x20});
+    const EntryFrame entry = *frame;
+    DrawCompared(g_selfCheck ? "region.terrainoverlay.selfcheck" : "region.terrainoverlay", regions,
+                 [&] {
+                     if (g_selfCheck) {
+                         CallThis<void>(reinterpret_cast<std::uintptr_t>(g_regionDrawTerrainOverlay), self, context);
+                     } else {
+                         *frame = entry;
+                         RegionDrawTerrainOverlayOurs(frame);
+                     }
+                 },
+                 [&] { frame->eax = CallThis<uint32_t>(reinterpret_cast<std::uintptr_t>(g_regionDrawTerrainOverlay), self, context); }, true);
+}
+DATAMAP_ENTRY(TRegionDrawTerrainOverlay, RegionDrawTerrainOverlay, g_regionDrawTerrainOverlay, 4)
+
+void* g_regionDrawGrid;
+void __cdecl RegionDrawGridOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("region draw: Grid call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/regiondraw_grid.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("region draw: Grid left %d values on the x87 stack", top + 1);
+}
+// Compared in the same frame: the grid object (0x44 bytes) and what reaches
+// the driver.
+void __cdecl RegionDrawGrid(EntryFrame* frame)
+{
+    if (!g_compareRegionDraw) {
+        RegionDrawGridOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const uint32_t argument = frame->arguments[0];
+    const std::vector<Region> regions{{"grid", self, 0x44}};
+    const EntryFrame entry = *frame;
+    DrawCompared(g_selfCheck ? "region.grid.selfcheck" : "region.grid", regions,
+                 [&] {
+                     if (g_selfCheck) {
+                         CallThis<void>(reinterpret_cast<std::uintptr_t>(g_regionDrawGrid), self, argument);
+                     } else {
+                         *frame = entry;
+                         RegionDrawGridOurs(frame);
+                     }
+                 },
+                 [&] { frame->eax = CallThis<uint32_t>(reinterpret_cast<std::uintptr_t>(g_regionDrawGrid), self, argument); });
+}
+DATAMAP_ENTRY(TRegionDrawGrid, RegionDrawGrid, g_regionDrawGrid, 4)
+
+void* g_regionDrawOverlayPaint;
+void __cdecl RegionDrawOverlayPaintOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("region draw: OverlayPaint call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/regiondraw_overlaypaint.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("region draw: OverlayPaint left %d values on the x87 stack", top + 1);
+}
+// Compared in the same frame. The paint draws the window's marks and then
+// steps them (a list whose sentinel node is at +0x114; a node is 0x20 bytes:
+// next, previous, then the mark's x, y, speed x, speed y, texture, alpha),
+// freeing those at or past the right bound (+0x100).
+//
+// - The drawing, the window, its random generator (+0x128) and the nodes are
+//   compared like any draw; a frame that would free a mark is not repeated.
+// - The stopwatch (+0xD8, 0x18 bytes) keeps the clock's reading of its last
+//   restart and the step moves each mark by the real time since then, which
+//   no two runs share. Both are put back for the second run but not compared
+//   byte for byte; the step is checked by its shape instead: every mark must
+//   have moved by its speed times one same time, in ours as in the game's.
+void __cdecl RegionDrawOverlayPaint(EntryFrame* frame)
+{
+    if (!g_compareRegionDraw) {
+        RegionDrawOverlayPaintOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    std::vector<Region> regions{{"overlay window", self, 0xD8}, {"overlay window from +0xF0", self + 0xF0, 0x50}};
+    char stopwatch[0x18];
+    std::memcpy(stopwatch, self + 0xD8, sizeof stopwatch);
+    std::vector<char*> nodes;
+    bool frees = false;
+    if (char* const sentinel = At<char*>(self, 0x114)) {
+        regions.push_back({"marks", sentinel, 0x20});
+        for (char* node = At<char*>(sentinel, 0); node && node != sentinel && nodes.size() < 4096; node = At<char*>(node, 0)) {
+            nodes.push_back(node);
+            regions.push_back({"mark links", node, 8});
+            regions.push_back({"mark speed and look", node + 0x10, 0x10});
+            frees = frees || !(At<float>(node, 8) < At<float>(self, 0x100));
+        }
+    }
+    if (frees) {
+        compare::Record("region.overlaypaint.unrepeatable", true, "", "");
+        if (g_selfCheck)
+            frame->eax = CallThis<uint32_t>(reinterpret_cast<std::uintptr_t>(g_regionDrawOverlayPaint), self);
+        else
+            RegionDrawOverlayPaintOurs(frame);
+        return;
+    }
+    struct Place
+    {
+        float x, y;
+    };
+    const auto places = [&] {
+        std::vector<Place> all;
+        for (char* const node : nodes)
+            all.push_back({At<float>(node, 8), At<float>(node, 0xC)});
+        return all;
+    };
+    const std::vector<Place> before = places();
+    std::vector<Place> first;
+    const EntryFrame entry = *frame;
+    DrawCompared(g_selfCheck ? "region.overlaypaint.selfcheck" : "region.overlaypaint", regions,
+                 [&] {
+                     if (g_selfCheck) {
+                         CallThis<void>(reinterpret_cast<std::uintptr_t>(g_regionDrawOverlayPaint), self);
+                     } else {
+                         *frame = entry;
+                         RegionDrawOverlayPaintOurs(frame);
+                     }
+                     first = places();
+                 },
+                 [&] {
+                     std::memcpy(self + 0xD8, stopwatch, sizeof stopwatch);
+                     for (size_t i = 0; i < nodes.size(); ++i)
+                         At<Place>(nodes[i], 8) = before[i];
+                     frame->eax = CallThis<uint32_t>(reinterpret_cast<std::uintptr_t>(g_regionDrawOverlayPaint), self);
+                 },
+                 true);
+    // A frame in which a mark is made (a chance of 0.003) ends with a new
+    // node, at one address after ours and another after the game's: such
+    // frames show as divergences in the list's links and are counted here.
+    size_t length = 0;
+    if (char* const sentinel = At<char*>(self, 0x114))
+        for (char* node = At<char*>(sentinel, 0); node && node != sentinel && length < 8192; node = At<char*>(node, 0))
+            ++length;
+    if (length != nodes.size())
+        compare::Record(g_selfCheck ? "region.overlaypaint.madeamark.selfcheck" : "region.overlaypaint.madeamark", true, "", "");
+    // The step: each run's moves divided by the speeds give that run's time,
+    // the same for every mark and both axes.
+    const std::vector<Place> second = places();
+    const auto oneTime = [&](const std::vector<Place>& after, double& time) {
+        bool same = true, have = false;
+        for (size_t i = 0; i < nodes.size(); ++i) {
+            const double speed[2] = {At<float>(nodes[i], 0x10), At<float>(nodes[i], 0x14)};
+            const double moved[2] = {double{after[i].x} - before[i].x, double{after[i].y} - before[i].y};
+            for (int axis = 0; axis < 2; ++axis) {
+                if (std::fabs(speed[axis]) < 1.0) {
+                    same = same && std::fabs(moved[axis]) < 0.5;
+                    continue;
+                }
+                const double t = moved[axis] / speed[axis];
+                if (!have)
+                    time = t, have = true;
+                // Positions are floats in the hundreds: a move is known to about 1e-4.
+                same = same && std::fabs(t - time) * std::fabs(speed[axis]) < 2e-3;
+            }
+        }
+        return same;
+    };
+    double ourTime = 0, gameTime = 0;
+    const bool ourShape = oneTime(first, ourTime), gameShape = oneTime(second, gameTime);
+    char detail[120];
+    std::snprintf(detail, sizeof detail, "%zu marks, ours one time %d (%.4f s), the game's one time %d (%.4f s)", nodes.size(), ourShape, ourTime,
+                  gameShape, gameTime);
+    if (!nodes.empty())
+        compare::Record(g_selfCheck ? "region.overlaypaint.step.selfcheck" : "region.overlaypaint.step", ourShape && gameShape,
+                        "every mark moved by its speed times one time", detail);
+}
+DATAMAP_ENTRY(TRegionDrawOverlayPaint, RegionDrawOverlayPaint, g_regionDrawOverlayPaint, 0)
+
+bool InstallRegionDrawing(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareRegionDraw = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::SC4RegionOverlay_Draw, &TRegionDrawTerrainOverlay, &g_regionDrawTerrainOverlay)
+                           && Detour(addr::SC4RegionViewGrid_Draw, &TRegionDrawGrid, &g_regionDrawGrid)
+                           && Detour(addr::SC4RegionOverlayWin_Paint, &TRegionDrawOverlayPaint, &g_regionDrawOverlayPaint);
+    if (installed)
+        log::Write("region draw: terrain overlay, picture grid and overlay window %s", g_compareRegionDraw ? "compared with the game's" : "ours");
+    return installed;
+}
+
+const bool g_registeredRegionDrawing = registry::Register({
+    "renderer.region.draw",
+    "renderer/region",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4RegionViewGrid_Draw,
+    "The region view's drawing: terrain overlay, picture grid, overlay window's paint; compare mode as "
+    "renderer.terrain.land (docs/renderer.md, \"The region view\")",
+    true,
+    InstallRegionDrawing,
+});
+
+// The mask of a city's picture: no test reaches it yet, so it has never run.
+bool InstallRegionDrawingUntested(registry::Mode)
+{
+    if (!game::IsBuild641() || !Detour(addr::SC4CityFiles_DrawPictureMask, &TRegionDrawPictureMask, &g_regionDrawPictureMask))
+        return false;
+    log::Write("region draw: the untested picture mask ours");
+    return true;
+}
+
+const bool g_registeredRegionDrawingUntested = registry::Register({
+    "renderer.region.draw_untested",
+    "renderer/region",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4CityFiles_DrawPictureMask,
+    "The mask of a city's picture for the region map: no test reaches it yet, so never run (docs/renderer.md, \"The "
+    "region view\")",
+    true,
+    InstallRegionDrawingUntested,
+});
+
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),
 // translated instruction by instruction: the window's paint (0x007A79B0),
 // the terrain's pixels (0x007A7FF0), the picture brought up to date
