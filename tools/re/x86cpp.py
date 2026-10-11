@@ -220,7 +220,12 @@ for a, mn, rest in ins:
         w = 'int8_t' if ops[0] in R8 or (mem(ops[0]) and mem(ops[0])[0] == 'BYTE') else 'int32_t'
         E('fa = %s & %s;' % (rd32(ops[0]), rd32(ops[1]))); flag = ('test', 'fa', w)
     elif mn == 'push':
-        E('esp -= 4; M<uint32_t>(esp) = %s;' % rd32(ops[0]))
+        src = rd32(ops[0])
+        if 'esp' in src:
+            # The operand is read before the stack pointer moves.
+            E('{ const uint32_t pushedValue = %s; esp -= 4; M<uint32_t>(esp) = pushedValue; }' % src)
+        else:
+            E('esp -= 4; M<uint32_t>(esp) = %s;' % src)
     elif mn == 'pop':
         E('%s = M<uint32_t>(esp); esp += 4;' % ops[0])
     elif mn == 'jmp' and a in tables:
