@@ -528,7 +528,85 @@ uint32_t EffectRecorded(uint32_t target, Fn original, char* self, Args... args)
     }                                                                                                                  \
     OPENSC4_THUNK(T##Name, D##Name, 8)
 
-OPENSC4_EFFECT_HOOK2(SC4Effect_StepParticle)
+// A particle's step (0x005B9BA0, slot 0x50 of both effect classes),
+// translated instruction by instruction: the particle's age (+4) grows by
+// the step, and past its life (+8) the particle ends (its first byte
+// cleared, the answer false); else its velocity (+0x1C) takes the effect's
+// (+0x13C) times the step and is scaled down by the description's +0x100,
+// and its position (+0xC) moves by the old and the new velocity.
+// Descriptions with a flag of the mask at 0x00B22E14 go to the game's
+// 0x005B9790 instead.
+uint32_t StepParticle(char* self, uint32_t particle, uint32_t step)
+{
+    uint32_t stackmem[160] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = particle;
+    M<uint32_t>(esp + 8) = step;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_step.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+constexpr std::size_t kParticleSize = 0x28;
+constexpr std::uintptr_t kStepOtherMask = 0x00B22E14;
+enum class StepMode { Original, Ours, Compare };
+StepMode g_stepMode = StepMode::Original;
+Call2Fn g_SC4Effect_StepParticle = nullptr;
+uint64_t g_stepsCompared = 0;
+
+// The step by its mode. It only reads the effect and writes the particle,
+// so the comparison runs ours on the particle, keeps what it left, puts the
+// particle back and runs the game's. The other step (0x005B9790) is not
+// compared: it is still the game's on both sides.
+uint32_t __fastcall StepByMode(char* self, void*, uint32_t particle, uint32_t step)
+{
+    if (g_stepMode == StepMode::Original)
+        return g_SC4Effect_StepParticle(self, nullptr, particle, step);
+    if (g_stepMode == StepMode::Ours)
+        return StepParticle(self, particle, step);
+    if (At<uint32_t>(At<char*>(self, 0x24), 0) & Global<uint32_t>(kStepOtherMask))
+        return g_SC4Effect_StepParticle(self, nullptr, particle, step);
+    char* const bytes = reinterpret_cast<char*>(particle);
+    char before[kParticleSize], mine[kParticleSize];
+    std::memcpy(before, bytes, kParticleSize);
+    const uint32_t ourResult = StepParticle(self, particle, step);
+    std::memcpy(mine, bytes, kParticleSize);
+    std::memcpy(bytes, before, kParticleSize);
+    const uint32_t result = g_SC4Effect_StepParticle(self, nullptr, particle, step);
+    ++g_stepsCompared;
+    if ((g_stepsCompared & (g_stepsCompared - 1)) == 0)
+        log::Write("water effects: effects.step: %llu steps compared so far",
+                   static_cast<unsigned long long>(g_stepsCompared));
+    const bool same = (result & 0xFF) == (ourResult & 0xFF) && std::memcmp(bytes, mine, kParticleSize) == 0;
+    if (same)
+        compare::Record("effects.step", true, std::string(), std::string());
+    else
+        compare::Record("effects.step", false, std::to_string(result & 0xFF) + " " + Hex(bytes, kParticleSize),
+                        std::to_string(ourResult & 0xFF) + " " + Hex(mine, kParticleSize));
+    return result;
+}
+
+uint32_t __fastcall DSC4Effect_StepParticle(char* self, void*, uint32_t particle, uint32_t step)
+{
+    return EffectRecorded(addr::SC4Effect_StepParticle, &StepByMode, self, particle, step);
+}
+OPENSC4_THUNK(TSC4Effect_StepParticle, DSC4Effect_StepParticle, 8)
+
 OPENSC4_EFFECT_HOOK0(SC4Effect_Emit)
 OPENSC4_EFFECT_HOOK1(SC4Effect_BeforeParticles)
 OPENSC4_EFFECT_HOOK1(SC4Effect_DrawParticlesTextured)
@@ -904,6 +982,36 @@ bool HookEffectDraw()
     return g_effectDraw || Detour(addr::SC4Effect_Draw, &TEffectDraw, &g_effectDraw);
 }
 
+// The particle's step has one detour too, shared by the effect's comparison
+// (which records it) and its own replacement.
+bool HookStepParticle()
+{
+    return g_SC4Effect_StepParticle ||
+           Detour(addr::SC4Effect_StepParticle, &TSC4Effect_StepParticle, &g_SC4Effect_StepParticle);
+}
+
+bool InstallStep(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookStepParticle())
+        return false;
+    g_stepMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: particle step %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredStep = registry::Register({
+    "renderer.effects.step",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StepParticle,
+    "A particle's step: its age, its end, its velocity and position (the other step, for flagged descriptions, "
+    "still the game's); compare mode runs ours and the game's on the same particle (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallStep,
+});
+
 bool InstallEffect(registry::Mode mode)
 {
     if (!game::IsBuild641())
@@ -921,7 +1029,9 @@ bool InstallEffect(registry::Mode mode)
                 ok = Detour(address, thunk, original) && ok;
             bit <<= 1;
         };
-        hook(addr::SC4Effect_StepParticle, &TSC4Effect_StepParticle, &g_SC4Effect_StepParticle);
+        if (bits & bit)
+            ok = HookStepParticle() && ok;
+        bit <<= 1;
         hook(addr::SC4Effect_Emit, &TSC4Effect_Emit, &g_SC4Effect_Emit);
         hook(addr::SC4Effect_BeforeParticles, &TSC4Effect_BeforeParticles, &g_SC4Effect_BeforeParticles);
         hook(addr::SC4Effect_DrawParticlesTextured, &TSC4Effect_DrawParticlesTextured,
