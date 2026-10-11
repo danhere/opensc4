@@ -19,6 +19,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/settings.h"
 
 #include <opensc4/addresses.h>
 
@@ -121,6 +122,33 @@ void AppendNode(ListNode* head, void* occupant)
     head->previous = node;
 }
 
+bool BigCities()
+{
+    static const bool on = settings::GetBool("improvements", "big_cities", false);
+    return on;
+}
+
+int32_t WorldCells(char* self)
+{
+    if (!BigCities())
+        return kWorldCells;
+    const Vector* const grid = Grid(self);
+    const int32_t columns = static_cast<int32_t>((grid->end - grid->begin) / 12);
+    return columns ? columns : kWorldCells;
+}
+
+int32_t NewGridCells(char* self)
+{
+    if (!BigCities())
+        return kWorldCells;
+    int32_t city = At<int32_t>(self, field::kCellsX);
+    if (At<int32_t>(self, field::kCellsZ) > city)
+        city = At<int32_t>(self, field::kCellsZ);
+    // An occupant keeps its cells as bytes, so 256 a side at most.
+    const int32_t cells = 2 * kCityOrigin + city;
+    return cells < kWorldCells ? kWorldCells : (cells > 0x100 ? 0x100 : cells);
+}
+
 // The set's count and hash count zeroed, its key vector emptied and its
 // spare-entry cursor (+0x48 of the set) put back at the deque's end (+0x30).
 void ResetVisited(char* self)
@@ -166,12 +194,12 @@ float* __fastcall GetOccupantManagerCellSizes(char*, void*, float* x, float* z)
 }
 
 // 7 (0x0049D9B0).
-int32_t* __fastcall GetWorldCellCount(char*, void*, int32_t* x, int32_t* z)
+int32_t* __fastcall GetWorldCellCount(char* self, void*, int32_t* x, int32_t* z)
 {
     static bool logged = false;
     FirstCall("GetWorldCellCount", logged);
-    *x = kWorldCells;
-    *z = kWorldCells;
+    *x = WorldCells(self);
+    *z = WorldCells(self);
     return x;
 }
 
@@ -323,11 +351,11 @@ uint32_t __fastcall PositionToStandardCityCell(char*, void*, float x, float z, i
 // 26 (0x0049DBA0): the neighbours of a world cell as (x, z) pairs, x then
 // z, the cell itself and those outside the grid left out; the count. Away
 // from the edges the game writes the eight without the tests.
-int32_t __fastcall GetBoundingCells(char*, void*, int32_t x, int32_t z, int32_t* cells, int32_t* count)
+int32_t __fastcall GetBoundingCells(char* self, void*, int32_t x, int32_t z, int32_t* cells, int32_t* count)
 {
     static bool logged = false;
     FirstCall("GetBoundingCells", logged);
-    if (x >= 1 && x < kWorldCells - 1 && z >= 1 && z < kWorldCells - 1) {
+    if (x >= 1 && x < WorldCells(self) - 1 && z >= 1 && z < WorldCells(self) - 1) {
         const int32_t pairs[16] = {x - 1, z - 1, x - 1, z, x - 1, z + 1, x,     z - 1,
                                    x,     z + 1, x + 1, z - 1, x + 1, z, x + 1, z + 1};
         for (int i = 0; i < 16; ++i)
@@ -345,7 +373,7 @@ int32_t __fastcall GetBoundingCells(char*, void*, int32_t x, int32_t z, int32_t*
         int32_t cellZ = static_cast<int32_t>(static_cast<uint32_t>(z) - 1u);
         if (cellZ <= lastZ) {
             do {
-                if (cellX >= 0 && cellX < kWorldCells && cellZ >= 0 && cellZ < kWorldCells &&
+                if (cellX >= 0 && cellX < WorldCells(self) && cellZ >= 0 && cellZ < WorldCells(self) &&
                     !(cellX == x && cellZ == z)) {
                     cells[*count * 2] = cellX;
                     cells[*count * 2 + 1] = cellZ;
@@ -420,16 +448,17 @@ uint8_t __fastcall Init(char* self, void*)
         Vector* const grid = Grid(self);
         if (grid->begin == grid->end) {
             const Vector empty{nullptr, nullptr, nullptr};
-            ResizeColumns(grid, static_cast<uint32_t>(kWorldCells), &empty);
+            const int32_t cells = NewGridCells(self);
+            ResizeColumns(grid, static_cast<uint32_t>(cells), &empty);
             const void* const null = nullptr;
             const int32_t columns = static_cast<int32_t>((grid->end - grid->begin) / 12);
             for (int32_t i = 0; i < columns; ++i) {
                 Vector* const column = reinterpret_cast<Vector*>(grid->begin + i * 12);
                 const uint32_t size = static_cast<uint32_t>((column->end - column->begin) >> 2);
-                if (size > static_cast<uint32_t>(kWorldCells))
-                    column->end = column->begin + kWorldCells * 4;
+                if (size > static_cast<uint32_t>(cells))
+                    column->end = column->begin + cells * 4;
                 else
-                    FillInsert(column, column->end, static_cast<uint32_t>(kWorldCells) - size, &null);
+                    FillInsert(column, column->end, static_cast<uint32_t>(cells) - size, &null);
             }
         } else {
             using CallbackFn = uint8_t(__cdecl*)(void*, void*);

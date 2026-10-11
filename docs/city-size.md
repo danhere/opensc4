@@ -98,7 +98,7 @@ Make the region offer an 8 km (512x512) city: patch the `config.bmp` colour deco
 
 Started 2026-10-11. The region data class is ours now (`region.data.*`, [region.md](region.md)), so the layout decode needs no patch: with `[improvements] big_cities = on` in `opensc4.ini` (and `region.data.*` on), our `DecodeLayout` reads a white square (all three channels at 255) as an 8 km tile, stored as log2 index 3. Off by default; with it off the decode is the game's.
 
-The occupant manager is ours too ([occmgr.md](occmgr.md)), but still sized for 256 cells: a 192-cell world grid with the city at 64 to 127. A 512-cell city needs 128 world cells; with a 64-cell margin each side the grid is 256 cells, indices 0 to 255, just inside the one-byte rectangles. That change belongs to the occupant manager's owner.
+The occupant manager is ours too ([occmgr.md](occmgr.md)), but still sized for 256 cells: a 192-cell world grid with the city at 64 to 127. A 512-cell city needs 128 world cells; with a 64-cell margin each side the grid is 256 cells, indices 0 to 255, just inside the one-byte rectangles. With `big_cities` on, Init sizes a new city's grid that way (192 for every standard size, at most 256), and the clamps, walks and slot 7 follow the grid's own columns, so a saved grid of any size reads back. Off, everything is the constant 192 as before.
 
 To run: a test region whose `config.bmp` has one 8x8 white square, then create a city there and record each failure below.
 
