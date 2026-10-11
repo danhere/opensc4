@@ -1050,7 +1050,76 @@ uint32_t __fastcall DSC4Effect_DrawParticles(char* self, void*, uint32_t context
 }
 OPENSC4_THUNK(TSC4Effect_DrawParticles, DSC4Effect_DrawParticles, 4)
 OPENSC4_EFFECT_HOOK1(SC4EffectB_DrawParticles)
-OPENSC4_EFFECT_HOOK0(SC4Effect_NotDrawn)
+// What the base effect class does instead of drawing, when it has no render
+// context or no particle (0x005B6390, slot 0x4C), translated instruction by
+// instruction: the box around its particles (+0x1A0 to +0x1B4) is worked
+// out anew from each particle's position, taken through the effect's matrix
+// (+0xC8), and widened as after a draw.
+uint32_t UpdateEffectBox(char* self)
+{
+    uint32_t stackmem[160] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_box.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+StepMode g_boxMode = StepMode::Original;
+Call0Fn g_SC4Effect_NotDrawn = nullptr;
+uint64_t g_boxesCompared = 0;
+
+// It reads the particles and writes only the effect's box, so the
+// comparison runs ours and the game's on the same effect.
+uint32_t __fastcall BoxByMode(char* self, void*)
+{
+    if (g_boxMode == StepMode::Original || g_effectReplay)
+        return g_SC4Effect_NotDrawn(self, nullptr);
+    if (g_boxMode == StepMode::Ours)
+        return UpdateEffectBox(self);
+    char before[kEffectSize], mine[kEffectSize];
+    std::memcpy(before, self, kEffectSize);
+    UpdateEffectBox(self);
+    std::memcpy(mine, self, kEffectSize);
+    std::memcpy(self, before, kEffectSize);
+    const uint32_t result = g_SC4Effect_NotDrawn(self, nullptr);
+    ++g_boxesCompared;
+    if ((g_boxesCompared & (g_boxesCompared - 1)) == 0)
+        log::Write("water effects: effects.box: %llu calls compared so far",
+                   static_cast<unsigned long long>(g_boxesCompared));
+    if (std::memcmp(self, mine, kEffectSize) == 0) {
+        compare::Record("effects.box", true, std::string(), std::string());
+    } else {
+        std::size_t at = 0;
+        while (self[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        char text[32];
+        std::snprintf(text, sizeof text, "effect+%zX ", at);
+        compare::Record("effects.box", false, text + Hex(self + at, 8), text + Hex(mine + at, 8));
+    }
+    return result;
+}
+
+uint32_t __fastcall DSC4Effect_NotDrawn(char* self, void*)
+{
+    return EffectRecorded(addr::SC4Effect_NotDrawn, &BoxByMode, self);
+}
+OPENSC4_THUNK(TSC4Effect_NotDrawn, DSC4Effect_NotDrawn, 0)
 OPENSC4_EFFECT_HOOK0(SC4EffectB_NotDrawn)
 OPENSC4_EFFECT_HOOK1(SC4Effect_StepFlag2000)
 OPENSC4_EFFECT_HOOK0(SC4Effect_PathVelocity)
@@ -1705,6 +1774,33 @@ bool HookPool()
     return g_poolHooked;
 }
 
+bool HookBox()
+{
+    return g_SC4Effect_NotDrawn || Detour(addr::SC4Effect_NotDrawn, &TSC4Effect_NotDrawn, &g_SC4Effect_NotDrawn);
+}
+
+bool InstallBox(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookBox())
+        return false;
+    g_boxMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effect box %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredBox = registry::Register({
+    "renderer.effects.box",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_NotDrawn,
+    "What the base effect class does when it is not drawn: the box around its particles; compare mode runs ours "
+    "and the game's on the same effect (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallBox,
+});
+
 bool HookBuffered()
 {
     return g_SC4Effect_DrawParticlesTextured ||
@@ -1949,7 +2045,9 @@ bool InstallEffect(registry::Mode mode)
             ok = HookParticles() && ok;
         bit <<= 1;
         hook(addr::SC4EffectB_DrawParticles, &TSC4EffectB_DrawParticles, &g_SC4EffectB_DrawParticles);
-        hook(addr::SC4Effect_NotDrawn, &TSC4Effect_NotDrawn, &g_SC4Effect_NotDrawn);
+        if (bits & bit)
+            ok = HookBox() && ok;
+        bit <<= 1;
         hook(addr::SC4EffectB_NotDrawn, &TSC4EffectB_NotDrawn, &g_SC4EffectB_NotDrawn);
         hook(addr::SC4Effect_StepFlag2000, &TSC4Effect_StepFlag2000, &g_SC4Effect_StepFlag2000);
         hook(addr::SC4Effect_PathVelocity, &TSC4Effect_PathVelocity, &g_SC4Effect_PathVelocity);

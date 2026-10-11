@@ -390,6 +390,10 @@ The draw into the dynamic buffer (0x005B4B90 to 0x005B637F; used when the effect
 
 `renderer.effects.particles` is the same kind of translation of the base class's other draw (0x005B3DA0, [effect_particles.inc](../src/core/effect_particles.inc)), which builds the quads in the batch and draws the batch itself. No effect in the test cities uses it, so it is unverified; its compare mode is in place for the day one does.
 
+**An effect that is not drawn** (the base class's slot 0x4C, 0x005B6390: no render context, because it is out of view, or no particle) still keeps the box around its particles (+0x1A0 to +0x1B4; presumably what the manager's test for what is in view asks for, not checked): the box is started anew and each particle's position (+0xC), taken through the effect's matrix (+0xC8), widens it, as the draws do.
+
+`renderer.effects.box` replaces it with a translation ([effect_box.inc](../src/core/effect_box.inc)). It reads the particles and writes only the box, so compare mode runs ours and the game's on the same effect. 2026-10-11, three test cities with the camera workout, clouds and water effects on: 0 divergences (2,541,779, 1,659,608 and 3,188,746 calls). With all twelve replacements of this section on, Big City ran the camera workout, and its screenshots with clouds off match two runs without them in 20 and 20 of 20. The second class's own version (0x005AE6E0) is still the game's.
+
 ## What the driver calls mean
 
 Reference for writing a driver, from decompiling both stock drivers (vtables: DirectX 0x00AC4660, OpenGL 0x00AC36D0, `cIGZGDriver` at object + 0xC in both). The OpenGL driver is the plainest spec, since most methods are one GL call after a table lookup; the DirectX driver is what the game was tuned against and what the screenshot harness compares with (the OpenGL driver renders without terrain and with black boxes around trees on a current NVIDIA card, so it is no visual reference).
