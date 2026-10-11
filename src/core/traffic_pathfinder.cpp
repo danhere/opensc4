@@ -12,6 +12,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/traffic_cells.h"
 
 #include <opensc4/addresses.h>
 
@@ -285,7 +286,7 @@ uint32_t __fastcall Search(void* self, void*)
             return Finish(deadline, 1);
         }
         if (inside) {
-            char* const record = At<char*>(simulator, 0x58) + ((x << 8) | z) * 0x2E;
+            char* const record = CellRecord(simulator, x, z);
             uint32_t ways = (At<uint16_t>(record, 2 * type) >> (4 * node->side)) & 0xF;
             uint32_t switches = At<uint16_t>(record, 0x12 + 2 * type);
             const bool roadParent = networkOf[type] == 1 && node->parent;
@@ -994,7 +995,7 @@ uint8_t __fastcall AddStartNodes(void* self, void*)
                         continue;
                     if (onLot && !Global<uint8_t>(addr::TrafficPathfinder_StartOnLotOfEdgeKind + static_cast<uint8_t>(edge[5])))
                         continue;
-                    char* const record = At<char*>(simulator, 0x58) + ((x << 8) | z) * 0x2E;
+                    char* const record = CellRecord(simulator, x, z);
                     for (uint32_t type = 0; type < 9; ++type) {
                         if (!(types & (1u << type)) ||
                             Global<uint32_t>(addr::TrafficPathfinder_NetworkOfType + 4 * type) != network)
@@ -1231,9 +1232,8 @@ uint8_t __fastcall RouteStillOpen(void* self, void*)
         const int32_t x = node->x, z = node->z, px = parent->x, pz = parent->z;
         bool skip = !InMap(self, nullptr, x, z) || !InMap(self, nullptr, px, pz) || (x == px && z == pz);
         if (!skip) {
-            char* const records = At<char*>(simulator, 0x58);
-            char* const record = records + ((x << 8) | z) * 0x2E;
-            skip = (record[0x2C] & 2) && (records[((px << 8) | pz) * 0x2E + 0x2C] & 2);
+            char* const record = CellRecord(simulator, x, z);
+            skip = (record[0x2C] & 2) && (CellRecord(simulator, px, pz)[0x2C] & 2);
             if (!skip) {
                 if (nextSide != -1) {
                     if (nextType != type) {
@@ -1351,7 +1351,7 @@ void __fastcall EncodeRoute(void* self, void*, ByteVector* route, uint32_t* type
                 flush();
             uint8_t jump = 0x80;
             if (InMap(self, nullptr, previous->x, previous->z) &&
-                !(At<char*>(simulator, 0x58)[((previous->x << 8) | previous->z) * 0x2E + 0x2C] & 4))
+                !(CellRecord(simulator, previous->x, previous->z)[0x2C] & 4))
                 jump = 0;
             push(static_cast<uint8_t>(at->type | jump));
             pushCell(at);
