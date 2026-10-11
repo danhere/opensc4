@@ -337,6 +337,9 @@ for a, mn, rest in ins:
         wr(ops[0], '~%s' % rd32(ops[0]))
     elif mn == 'fsqrt': E('ST(0) = std::sqrt(ST(0));')
     elif mn == 'fsin': E('ST(0) = X87Sin(ST(0));')
+    elif mn == 'fpatan':
+        E('ST(1) = X87Atan2(ST(1), ST(0));')
+        E('POP();')
     elif mn == 'fcos': E('ST(0) = X87Cos(ST(0));')
     elif mn == 'sbb' and ops[0] == ops[1]:
         # Only right after a neg, whose carry is "the operand was not zero".
