@@ -10,7 +10,7 @@ About 93 KB of game code in five parts (survey of 2026-10-10: vtables, the exe's
 |---|---|---|---|
 | Region data, `cSC4Region`: the open region's folder, `region.ini`, the `config.bmp` layout, the cities found in the folder | 0x004A44E0 to 0x004A74E0 | 12 KB, 41 functions | ours (`region.data.*`), below |
 | Regional city, `cSC4RegionalCity` (class 0x6A037C24, main vtable 0x00A8FB20): what the region knows of one city without loading it (name, position, size, population, neighbour connections and deals) | 0x004A74E0 to 0x004ADC00 | 25 KB, 115 functions | ours (`region.city.*`), below |
-| City files and thumbnails: opening a city file as a regional city (0x005DC220), file names (0x005DC400, 0x005DC790), serial numbers (0x005DBD40), the saved pictures of a city (resource type 0x8A2482B9; 0x005DCA10 to 0x005DEA60) | 0x005DBC10 to 0x005DEA60 | 10 KB | the game's |
+| City files and pictures: opening a city file as a regional city (0x005DC220), file names (0x005DC400, 0x005DC790), serial numbers (0x005DBD40), the pictures a city file carries for the region map (resource type 0x8A2482B9) | 0x005DBC10 to 0x005DEA50 | 10 KB, 32 functions | ours (`region.files.*`) but the one drawing function, below |
 | Region screen window, `cSC4WinRegionScreen` (window class 0xEA659793; vtables 0x00AB92A0 and 0x00AB926C): opening and closing a region, the commands `LoadRegion` and `RegionBitmapLoad`, the terrain made from a region bitmap (0x007AEDD0), the panels | 0x007AC5C0 to 0x007B2440 | 24 KB | the game's |
 | Region map window, `cSC4WinRegionView` (window class 0x2BA6BB97; vtables 0x00AB9698 and 0x00AB9664): the map the cities are picked on | 0x007B2440 to 0x007B7B00 | 22 KB | the game's |
 
@@ -140,3 +140,37 @@ Every regional city is read from its file when the region opens, and the open ci
 Not reached: connection changes from a neighbour and deals (the tutorial region has neither), `SetupCity`, `ApplyPreferences`, SetPosition with a move, the setters.
 
 Parity (2026-10-10, the region and regional city groups all on, both switches, twelve saves for two days): 12 of 12 same on the first pair, and the region and city checksums of ours equal the original's in every run.
+
+## City files and pictures
+
+Free functions (0x005DBC10 to 0x005DEA50) that the application, the region classes and the region screen share.
+
+**City files as the region sees them.** A city file is a database segment; `OpenSegment` (0x005DBFE0) opens one and refuses versions outside 0x3E to 0x41 (the version is the dword of record 0xEA3FF4F5 / 0xEA3FF506 / 0xEA3FF4F5; a file without it counts as 0x41). The regional city is record 0xCA027EDB / 0xCA027EE1 / 0 (`LoadFromFile` 0x005DC220, `SaveToFile` 0x005DC2E0). A city's file is `City - <name>.sc4` in the region's folder, with ` (2)`, ` (3)` and so on added while a file of that name is there, unless that file is the same city by serial number (`MakeFilePath` 0x005DC400, `MakeSavePath` 0x005DC790). A new serial number is the seconds since 31 January 2000 shifted left 4, with four random bits (`NewCitySerial` 0x005DBD40). Also here: text records (type 0x2026960B), a resource copied out as a file (`config.bmp` for a new region) and a record read into a byte vector.
+
+**The pictures.** A city file carries up to four pictures for the region map as PNG files in records 0x8A2482B9 / 0x4A2482BB / 0, 2, 4, 6 (a picture and its mask, twice), each followed by a text record with its file name. `ReadPictures` (0x005DD480) reads them through a temporary file; `LoadSavePictures` (0x005DDA40) does so for a path. When the application saves a city, `MakePictures` (0x005DDEC0) sets the view up, takes sixteen screen shots (four view shifts, plain and mask, two rounds), averages each four (`AveragePictures`), finds the drawn part by the mask (`FindPictureBounds`), crops (`CropPicture`) and writes the four (`WritePictures`). If the game is not in front it waits and tries again, and in the end writes stock pictures by city size (`WriteStockPictures` 0x005DDDC0). A small message target (0xC bytes, vtable 0x00AA2B5C) watches for the application losing the focus meanwhile.
+
+### Replacements
+
+| Group | Functions |
+|---|---|
+| `region.files.part1` | segments (open, close, version), the regional city record, LoadFromFile, SaveToFile, file names and paths, serial numbers, text records, resource to file, record to vector, picture file to image, the focus watcher (19; [region_files_1.cpp](../src/core/region_files_1.cpp)) |
+| `region.files.part2` | reading, writing and making the pictures: StoreFileAsPicture, FindPictureBounds, CropPicture, AveragePictures, ReadPictures, LoadSavePictures, WritePictures, WriteStockPictures, MakePictures (9; [region_files_2.cpp](../src/core/region_files_2.cpp)) |
+
+Left the game's: `DrawPictureMask` (0x005DCCF0), which draws the mask (render states, four vertices per terrain cell) and belongs with the renderer; two generic rectangle functions; the watcher's QueryInterface, folded with other classes. `FindPictureBounds` and `CropPicture` take their picture in EBX (and the rectangle in ESI): ours sit behind small assembly entries.
+
+### Odd things in the original, kept
+
+- `ReadPictures` needs only the first picture: a later one that is missing or will not load leaves the result true.
+- `WritePictures` still writes the name record of a picture whose PNG could not be saved.
+- `MakePictures` skips the cropping when the drawn part starts at the top row.
+- `LoadFromFile` and `SaveToFile` leak the segment when the version is right but the file is not open afterwards.
+
+### How it is tested
+
+Region start-up reads every city file through these functions. `OPENSC4_TEST_REGION_DRIVE=1` adds `files` (on the first tile's city file: segment opened, version, name text, the regional city record's bytes, closed; the file read as a regional city; the file names for its name with its serial number, none and another; a new serial number without its random bits) and `pics` (the pictures of that file read, four and two at a time, every pixel; the average of the first with itself and with the second).
+
+The save path needs a full save (`OPENSC4_TEST_QUICK=0`; quick saves leave the pictures out). Compared by the saved files' picture records: three of the four are byte-identical between the original and ours; the third picture (record 4) differs between two runs of the original as well.
+
+Not reached, or not known to be: SaveToFile on its own, SetVersion, the wait-and-retry of `MakePictures` and the stock pictures (the saved pictures were real ones).
+
+Parity (2026-10-10, the region, regional city and file groups all on, both switches, twelve saves for two days): 11 of 12 same, and the `files` and `pics` checksums of ours equal the original's in every run. Big City day 0 gave "partly" in the batch, with both of its outcomes ones the original gave in the earlier batches (its first-day traffic varies under load); run on its own it was same on the first pair.
