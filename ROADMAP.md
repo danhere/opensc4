@@ -250,6 +250,7 @@ Wanted:
 - [ ] Colorblind-friendly data views, as a UI add-on (P2)
 - [ ] Multi-threaded simulation, tabled until P9 and the 64-bit build
 - [ ] Crash-safe autosave: keep the last few saves, restore with one click (P4 save format). First part done: `game.autosave` saves every few minutes of play and keeps the last few saves as copies ([docs/autosave.md](docs/autosave.md), after the MIT-licensed sc4-auto-save); restoring is still by hand. Finding why the game crashes, as simulators are replaced, should make it needed less often
+- [ ] Bulldozer extras, after the Bulldoze Extensions plugin (our own code): first part done, `game.bulldoze` bulldozes only flora, only transport networks, or everything but networks by held keys ([docs/bulldoze.md](docs/bulldoze.md)). Still to do: diagonal bulldozing, de-zoning that keeps roads
 - [ ] Real-world terrain import: build a region from real elevation data (P8 terrain)
 - [ ] A switch to turn off the MySim mode (the player's own Sims who move into a city, `cSC4MySim`): kept in the rewrite for completeness, but Dan sees no use for it (2026-10-09), so a config option to hide and skip it. It is already inactive until a player moves a MySim in
 - [ ] Seasons and weather: snow, autumn trees, rain (P1 renderer)
