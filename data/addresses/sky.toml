@@ -370,6 +370,15 @@ expect = "D9 44 24 08 83 EC 60 56"
 source = "Name ours. The particle's step for descriptions with a flag of the mask at 0x00B22E14 (SC4Effect::StepParticle jumps to it): the age and the end as there, then the step in parts of at most the float at 0x00AA0CF4, each moving the particle (flag 0x10000000: 0x005B6600), changing its velocity, and ending it off the map (flag 0x800) or when 0x005B8DC0 answers false (flags 0x100, 0x400); last 0x005B8020 for bit 0 of the description's second word of flags. Ours in renderer.effects.step_full (src/core/effect_step_full.inc)."
 
 [[entry]]
+name = "SC4EffectB::ParticleBlock"
+address = 0x005ACA30
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4Particle* particle, uint32_t a, float scale, float* vector, void* block)"
+expect = "81 EC D4 00 00 00 D9 05"
+source = "Name ours (0x005ACA30 to 0x005AD885, 900 instructions). Called by SC4EffectB::DrawParticles (0x005AE0DB) and SC4EffectB::NotDrawn (0x005AE89F): fills a block of two bytes and thirteen floats with the particle's turning and size as a matrix and its place; kinds 2 to 4 of the description's +0xD5 face the camera (0x0080B910, 0x0080B530, 0x0080B830), the others turn about the angle at the particle's +0x50; widens the effect's box (+0x1A0). Arithmetic only; writes the particle, the box and the block. Ours in renderer.effects.block_b (src/core/effect_block_b.inc)."
+
+[[entry]]
 name = "SC4EffectPartB::Start"
 address = 0x00803E10
 kind = "function"
