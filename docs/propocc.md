@@ -48,7 +48,7 @@ Write and Read agree on every field's width.
 
 ## Test cities
 
-The fingerprint's `propocc` part: the number of props (through the occupant manager's grid, each once, derived classes left out) and the sum and XOR of a hash per prop over its type, orientation, hours, date range, the dates' timer bit, chance, usage, lot tag, cells, and its state where only the simulation sets it. Left out because frames drive them: the state of timed and night props, the three other timer bits, two base flags, the position of the box (its size is kept). The decoder masks the same. `OPENSC4_TEST_PROPOCC=1` adds a checksum of the query slots on an eleventh of the props; `=2` adds counts of the frame-driven fields.
+The fingerprint's `propocc` part: the number of props (through the occupant manager's grid, each once, derived classes left out) and the sum and XOR of a hash per prop over its type, orientation, hours, date range, the dates' timer bit, chance, usage, lot tag and cells. Left out because frames drive them: the state of every prop (at first only that of timed and night props was left out; on Big City with landfill zoned, pairs of other props then traded their state between runs of the original, found on 2026-10-11 with `OPENSC4_TEST_PROPOCC_DUMP`, [texocc.md](texocc.md)), the three other timer bits, two base flags, the position of the box (its size is kept). The decoder masks the same. `OPENSC4_TEST_PROPOCC=1` adds a checksum of the query slots on an eleventh of the props; `=2` adds counts of the frame-driven fields.
 
 Before the first batch the original was run three times against itself on Rush Hour d0090 and Big City d0090: the part and the decoded records agreed.
 

@@ -2,6 +2,7 @@
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/game_access.h"
+#include "core/log.h"
 #include "core/occmgr_sim.h"
 #include "core/propocc_sim.h"
 
@@ -96,7 +97,12 @@ uint32_t PropHash(char* self, bool frameDriven)
     hash.Mix(At<uint32_t>(self, field::kLotTag));
     hash.Mix(At<void*>(self, field::kExemplar) != nullptr);
     hash.Mix(At<uint32_t>(self, field::kManagerBox));
-    hash.Mix(frameDriven ? 0xFFu : At<uint8_t>(self, field::kState));
+    // The state is not mixed for any prop: besides the timer and night
+    // props, pairs of other props trade their state between two runs of the
+    // original (Big City with landfill zoned: one shown where the other is,
+    // the sum of the hashes equal and their exclusive or not; the prop
+    // developer's own generator differs between runs, docs/prop.md).
+    static_cast<void>(frameDriven);
     return hash.h;
 }
 
@@ -212,8 +218,21 @@ void Fingerprint(cISC4City* city, std::string& line)
     std::unordered_map<void*, bool> known;
     uint32_t sum = 0, mixed = 0, asked = 0, timed = 0;
     uint32_t counts[6] = {};
+    // OPENSC4_TEST_PROPOCC_DUMP=<n>: the n-th fingerprint of the run also logs
+    // every prop's hashed fields, to find what two runs differ in.
+    static int calls = 0;
+    const bool dump = ++calls == EnvInt("OPENSC4_TEST_PROPOCC_DUMP", 0);
     for (char* const self : seen) {
-        const uint32_t hash = PropHash(self, FrameDriven(self, known));
+        const bool frameDriven = FrameDriven(self, known);
+        const uint32_t hash = PropHash(self, frameDriven);
+        if (dump)
+            log::Write("propocc dump: type %08X cells %08X tag %08X orientation %u hours %04X dates %d timer %u chance %u "
+                       "usage %u state %u frame %d hash %08X",
+                       propocc_sim::TypeAt(At<uint16_t>(self, field::kTypeIndex)), At<uint32_t>(self, field::kManagerBox),
+                       At<uint32_t>(self, field::kLotTag), At<uint8_t>(self, field::kOrientation),
+                       At<uint16_t>(self, field::kHours), At<char*>(self, field::kDates) != nullptr,
+                       At<uint8_t>(self, field::kTimer) & 2u, At<uint8_t>(self, field::kChance),
+                       At<uint8_t>(self, field::kUsage), At<uint8_t>(self, field::kState), frameDriven ? 1 : 0, hash);
         sum += hash;
         mixed ^= hash;
         if (test == 1 && hash % 11 == 0)
