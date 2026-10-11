@@ -62,3 +62,21 @@ Parity on 2026-10-10 with the four groups on, both switches and the queries, two
 
 Reached (43 of the 50 functions): both constructors, Read and Write with tiles, Init, the month with the road access search, the counts, the region constructor with the ground levelled and base textures placed, ClearCell with tiles deactivated and occupants removed, the effects, Shutdown and the destructors. Not reached: AddRegion on an existing zone, OnTilesChanged and its per-cell check (ground changes under a zone), the marker prop of a zone without road access, two tile vector helpers.
 
+## The tile's occupant (cSC4LandfillOccupant)
+
+What stands on a landfill tile once it holds garbage: one object per such tile, placed and changed by the zone (above). Class ID 0x8A22BEBE, IID 0x2A15F262, occupant type 0x6A11BD2B; 0x68 bytes from a pool (0x00B09428; allocator 0x00477320). Two constructors: with the tile's exemplar ID and an orientation (0x00477270, the zone's) and without arguments (0x004774C0, from the factory 0x004776B0 when a save is read). Deleting destructor 0x004776F0. Code 0x00477100 to 0x00477765. Underneath is the occupant base class ([occbase.md](occbase.md)). Ours in src/core/landfillocc_sim.cpp (vtables and fields with their evidence in landfillocc_sim.h; data/addresses/landfillocc.toml).
+
+Vtables: 0x00A8CE28 (its own interface, 10 slots: Init, SetTileID, the orientation), 0x00A8CDA0 (`cISC4Occupant`; its own: SetPosition, GetBoundingBox), 0x00A8CD84 (`cIGZSerializable`: Write 0x00477350, Read 0x00477560), 0x00A8CD20 and 0x00A8CD08 (the holders). Fields: the base at +0x04; +0x38 the position; +0x44 and +0x50 the box (8 m around the position, 16 m high); +0x5C the tile's exemplar ID; +0x60 the orientation; +0x64 a flag the zone sets. SetTileID also writes the new ID into the exemplar's resource key. QueryInterface answers its own IID and the occupant's and serializable's, and does not ask the base.
+
+The save record is version 3, every such occupant in one record: the base's part, the tile's ID, orientation, position and the flag. `tools/re/save_schemas/landfillocc.py` decodes them (39 to 41 in Big City's saves; the other test cities have no landfill).
+
+| Replacement | What is ours |
+| --- | --- |
+| `simulators.landfillocc.slots` | 12 slots: QueryInterface and its thunks, Init, SetTileID, SetOrientation, SetPosition, GetBoundingBox, GetGZCLSID |
+| `simulators.landfillocc.save` | Write and Read and their holder thunks |
+| `simulators.landfillocc.object` | our own occupant: detours on both constructors, the pool's allocator and the factory, the deleting destructor with the pool's free, copies of the five vtables taken once |
+
+The fingerprint's `landfillocc` part: their number and the sum and XOR of a hash per occupant over the tile's ID, orientation, flag, position, box and the base's saved state; `OPENSC4_TEST_LANDFILLOCC=1` adds a checksum of the query slots on a third of them. Three runs of the original against itself on Big City (`saves-plopped/p0090`) agreed before the first batch.
+
+Parity on 2026-10-11, run together with the foundation occupant ([foundocc.md](foundocc.md) has the table): 12 of 12 saves with land and landfill zoned and dezoned, 12 of 12 over 30 days, 3 of 3 on `saves-plopped` and `saves-ports`, 2 of 2 over 90 days; a rerun of Big City d0365 with this class alone: same. Reached: 12 of the 14 functions (both constructors, the allocator, Read, Write, Init, SetPosition, the box, the deleting destructor). Not reached: SetTileID and SetOrientation (the zone changing a heap that is already placed). The audit compared every function instruction by instruction and found no difference in behaviour.
+
