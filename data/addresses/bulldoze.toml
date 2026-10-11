@@ -17,3 +17,12 @@ convention = "thiscall"
 signature = "bool (void* this, cISC4Occupant* occupant)"
 expect = "56 8B 74 24 08 8B 06 8B"
 source = "Name ours. The bulldoze tool's test of an occupant by type (flora 0x74758926, building 0x278128A0, 0x2890D4DE, prop 0xA823821E, 0xC772BF98; networks by flag 0x1F4F); this unused, ret 4. The game's; game.bulldoze wraps it so the tool's preview follows the mode."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::Preview"
+address = 0x004B93B0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ViewInputControlDemolish* this)"
+expect = "83 EC 4C 55 8B E9 8B 45"
+source = "Name ours. Builds the region of the drag (start cell +0x58, +0x5C; end cell +0x60, +0x64; the region at +0x68) and asks DemolishRegion, not demolishing, for the price (+0x88), whether it can be done (+0x6C) and the occupants to highlight. Called from the mouse handlers (0x004B9B4C, 0x004B9C23, 0x004B9C3D, 0x004B9C78), the last before the demolishing on mouse up. The game's; game.bulldoze wraps it to remember the tool."

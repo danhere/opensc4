@@ -23,7 +23,7 @@ Things OpenSC4 adds to the game. Classic behaviour stays: an addition that chang
 
 | Improvement | How to get it | Details |
 |---|---|---|
-| Bulldozer modes: only trees (hold Ctrl), only roads and rails (hold Shift), everything but those (hold both) | always there | [docs/bulldoze.md](docs/bulldoze.md) |
+| Bulldozer modes: only trees (hold Ctrl), only roads and rails (hold Shift), everything but those (hold both), a diagonal strip (hold Alt) | always there | [docs/bulldoze.md](docs/bulldoze.md) |
 | De-zoning that keeps the roads inside the area (hold Shift) | always there | [docs/dezone.md](docs/dezone.md) |
 | Growify: plopped buildings turned into growable lots of a zone, with the `growify <zone> <density>` cheat | always there | [docs/growify.md](docs/growify.md) |
 | Auto save every few minutes of play, with the last few saves kept as copies | `game.autosave = ours` | [docs/autosave.md](docs/autosave.md) |

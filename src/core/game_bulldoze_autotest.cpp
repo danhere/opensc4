@@ -38,7 +38,9 @@ void Bulldoze(const Day& day)
     const uint8_t fill = 1;
     region.x0 = cellsX / 4;
     region.z0 = cellsZ / 4;
-    region.x1 = cellsX * 3 / 4 - 1;
+    // OPENSC4_TEST_BULLDOZE_WIDE=<k>: k cells longer along x (the diagonal
+    // strip's width).
+    region.x1 = cellsX * 3 / 4 - 1 + EnvInt("OPENSC4_TEST_BULLDOZE_WIDE", 0);
     region.z1 = cellsZ * 3 / 4 - 1;
     reinterpret_cast<CellsFn>(addr::SC4CellRegion_ConstructCells)(
         region.cells, static_cast<uint32_t>(region.x1 - region.x0 + 1), static_cast<uint32_t>(region.z1 - region.z0 + 1),

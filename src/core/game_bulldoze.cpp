@@ -6,6 +6,8 @@
 //   Ctrl          only trees and other flora
 //   Shift         only roads, rails and the other transport networks
 //   Ctrl + Shift  everything but the transport networks
+//   Alt           a diagonal strip in place of the rectangle (with any of
+//                 the above)
 //
 // The demolishing is the game's own (cSC4Demolition::DemolishRegion): it
 // takes an occupant filter, which the bulldoze tool leaves empty, and this
@@ -13,6 +15,7 @@
 // bulldozing is from the Bulldoze Extensions plugin by Nicholas Hayes; the
 // code and the way of choosing a mode are ours.
 #include "core/address_check.h"
+#include "core/game_access.h"
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
@@ -41,6 +44,11 @@ constexpr uint32_t kTypeFlora = 0x74758926;
 constexpr std::uintptr_t kToolBegin = 0x004B8830, kToolEnd = 0x004B9E20;
 
 int g_testMode = -1; // OPENSC4_TEST_BULLDOZE_MODE: a mode for every caller
+bool g_testDiagonal = false; // OPENSC4_TEST_BULLDOZE_DIAGONAL=1: a strip from the region's corners
+
+// The tool whose preview ran last: its drag runs from the cell at +0x58
+// (x), +0x5C (z) to the cell at +0x60, +0x64.
+char* g_tool = nullptr;
 
 Mode Current()
 {
@@ -96,6 +104,48 @@ public:
 
 Filter g_filter;
 
+// Clears from the region (SC4CellRegion: the rectangle, then at +0x10 the
+// cells: width +0x14, depth +0x18, a row of bits per x at +0x20) every cell
+// off the diagonal strip of a drag from (sx, sz) to (ex, ez). The strip runs
+// from the start cell at 45 degrees towards the end cell; a drag that is
+// longer one way than the other widens it by the difference, so a square
+// drag is a line one cell wide. Returns the cells left.
+int32_t KeepDiagonal(int32_t* region, int32_t sx, int32_t sz, int32_t ex, int32_t ez)
+{
+    const uint32_t width = static_cast<uint32_t>(region[5]), depth = static_cast<uint32_t>(region[6]);
+    uint32_t** const rows = reinterpret_cast<uint32_t**>(region[8]);
+    if (!rows)
+        return 0;
+    const int32_t dx = ex >= sx ? 1 : -1, dz = ez >= sz ? 1 : -1;
+    // How far the drag is longer along x (positive) or along z (negative).
+    const int32_t extra = (ex - sx) * dx - (ez - sz) * dz;
+    int32_t left = 0;
+    for (int32_t x = region[0]; x <= region[2]; ++x)
+        for (int32_t z = region[1]; z <= region[3]; ++z) {
+            const uint32_t i = static_cast<uint32_t>(x - region[0]), j = static_cast<uint32_t>(z - region[1]);
+            if (i >= width || j >= depth || !(rows[i][j >> 5] & (1u << (j & 31))))
+                continue;
+            // The cell's offset from the line through the start cell.
+            const int32_t off = (x - sx) * dx - (z - sz) * dz;
+            if (extra >= 0 ? (off >= 0 && off <= extra) : (off <= 0 && off >= extra))
+                ++left;
+            else
+                rows[i][j >> 5] &= ~(1u << (j & 31));
+        }
+    return left;
+}
+
+using PreviewFn = uint32_t(__fastcall*)(char* self, void* edx);
+PreviewFn g_preview = nullptr;
+
+// The tool's preview (0x004B93B0), which every DemolishRegion of the tool
+// follows: only remembers the tool.
+uint32_t __fastcall Preview(char* self, void* edx)
+{
+    g_tool = self;
+    return g_preview(self, edx);
+}
+
 using RegionFn = uint8_t(__fastcall*)(void* self, void* edx, uint8_t demolish, void* region, int32_t privilege,
                                       uint32_t flags, uint8_t clearZoned, cISC4OccupantFilter* filter, int64_t* cost,
                                       void* demolished, void* occupant, int32_t a, int32_t b);
@@ -106,12 +156,21 @@ uint8_t __fastcall DemolishRegion(void* self, void* edx, uint8_t demolish, void*
                                   void* demolished, void* occupant, int32_t a, int32_t b)
 {
     const auto caller = reinterpret_cast<std::uintptr_t>(__builtin_return_address(0));
-    if (!filter && (g_testMode >= 0 || (caller >= kToolBegin && caller < kToolEnd))) {
+    const bool tool = caller >= kToolBegin && caller < kToolEnd;
+    if (!filter && (g_testMode >= 0 || tool)) {
         const Mode mode = Current();
         if (mode != Mode::All) {
             g_filter.mode = mode;
             filter = &g_filter;
         }
+    }
+    int32_t* const cells = static_cast<int32_t*>(region);
+    if (g_testDiagonal && cells && privilege == 1 && flags == 1) {
+        const int32_t left = KeepDiagonal(cells, cells[0], cells[1], cells[2], cells[3]);
+        log::Write("bulldoze: diagonal, %d cells", left);
+    } else if (tool && cells && g_tool && GetKeyState(VK_MENU) < 0) {
+        KeepDiagonal(cells, At<int32_t>(g_tool, 0x58), At<int32_t>(g_tool, 0x5C), At<int32_t>(g_tool, 0x60),
+                     At<int32_t>(g_tool, 0x64));
     }
     return g_region(self, edx, demolish, region, privilege, flags, clearZoned, filter, cost, demolished, occupant, a, b);
 }
@@ -133,11 +192,15 @@ bool Install(registry::Mode)
     if (const DWORD n = GetEnvironmentVariableA("OPENSC4_TEST_BULLDOZE_MODE", value, sizeof(value));
         n > 0 && n < sizeof(value))
         g_testMode = std::atoi(value) & 3;
+    g_testDiagonal = GetEnvironmentVariableA("OPENSC4_TEST_BULLDOZE_DIAGONAL", value, sizeof(value)) == 1 &&
+                     value[0] == '1';
     const addr::Entry* region = addr_check::Find(addr::cSC4Demolition_DemolishRegion);
     const addr::Entry* shown = addr_check::Find(addr::cSC4ViewInputControlDemolish_IsOccupantShown);
-    const bool ok = region && shown && hook::Install(*region, &DemolishRegion, &g_region) &&
-                    hook::Install(*shown, &IsOccupantShown, &g_shown);
-    log::Write("bulldoze: Ctrl flora only, Shift networks only, Ctrl+Shift all but networks: %s",
+    const addr::Entry* preview = addr_check::Find(addr::cSC4ViewInputControlDemolish_Preview);
+    const bool ok = region && shown && preview && hook::Install(*region, &DemolishRegion, &g_region) &&
+                    hook::Install(*shown, &IsOccupantShown, &g_shown) &&
+                    hook::Install(*preview, &Preview, &g_preview);
+    log::Write("bulldoze: Ctrl flora only, Shift networks only, Ctrl+Shift all but networks, Alt diagonal: %s",
                ok ? "installed" : "FAILED");
     return ok;
 }
