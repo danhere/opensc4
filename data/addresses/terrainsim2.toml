@@ -1,0 +1,481 @@
+# The city's terrain object (cSTETerrain, vtable 0x00AB3D18): the setters (src/core/terrain_edit.cpp), piece 2. Piece 1's entries are in terrainsim.toml; the terrain VIEW's in terrain.toml (the Renderer's).
+
+[[entry]]
+name = "cSTETerrain::SetTerrainType"
+address = 0x00749A00
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, int32_t type)"
+expect = "8B 44 24 04 83 EC 10 56"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 41: nothing for the type it has (+0x18); else stores it, posts message 0xC922EB91 (data 1 = the type), refreshes the whole terrain (0x007490B0 with 0, 0, cells x, cells z) and redisplays it (slot 68 with 0, 0, rect, 0). AL 1 always. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::CreateFlatAreas"
+address = 0x0074A220
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, bool redisplay)"
+expect = "83 EC 24 56 8B F1 C6 44"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 43: recomputes min/max height (0x00740F70), gives every unmarked vertex with an altitude strictly between sea level + 0.1 * max height and sea level + 0.6 * max height to 0x00749660; if any answered: 0x00743210, 0x00740A20, 0x00745020, the marks 1 and 2 cleared on the whole map, and with the argument slot 68 (1, 1, +0x40, 0). No defined AL. The loop and the order of calls are ours in simulators.terrain.edit (src/core/terrain_edit.cpp); the helpers stay the game's."
+
+[[entry]]
+name = "cSTETerrain::CreateShoreCliffs"
+address = 0x0074C0F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, bool redisplay)"
+expect = "83 EC 48 53 55 56 57 8B"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 44: clears flag 0x10 on the map (0x007409B0), sets it on shore vertices (0x00741DE0 with 0x00741B80), then each unmarked shore vertex starts a std::deque<uint32_t> on the stack that goes through 0x0074AD20, 0x0074AB60, 0x00749FA0; if any answered: 0x00743210, 0x00740A20, 0x00745020 and with the argument slot 68 (1, 1, +0x40, 0); marks 1, 2, 4 always cleared at the end. AL = anything changed. The loop and the order of calls are ours in simulators.terrain.edit (src/core/terrain_edit.cpp); the helpers stay the game's."
+
+[[entry]]
+name = "cSTETerrain::SetSeaLevel"
+address = 0x00743550
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, float level)"
+expect = "D9 44 24 04 56 D8 1D 7C"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 45: AL 0 for a level outside [0x00B0D57C, 0x00B0D580] or a NaN; else stores it (+0x7C), the water object resets every record (0x0073D180 with +0x40), message 0x89171496, slot 68 (1, 1, +0x40, 0); AL 1. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::ChangeSeaLevel"
+address = 0x00740850
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, bool up)"
+expect = "8A 44 24 04 84 C0 51 74"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 46: slot 45 with the sea level plus or minus the float at 0x00B0D584 (rounded to float); its answer. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::ChangeTerrainLevel"
+address = 0x00746440
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, bool raise, float amount)"
+expect = "83 EC 08 8A 44 24 0C 53"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 48: every unlocked vertex raised (clamped to 0x00B0D5DC) or lowered (clamped to 0x00B0D5E0) by the amount, water depth = sea level - altitude; then slot 68 (1, 1, +0x40, 1). The city view's cheat handler calls it with slot 47's amount (0x007E7699, 0x007E76CB). Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::SetAltitudeInRect"
+address = 0x00744F10
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* rect, float altitude, bool update, uint32_t how)"
+expect = "53 8B 5C 24 08 8B 43 0C"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 49 (SetAltitude(rect, ...)): slot 50 for every vertex of the rectangle; with update: 0x00744CF0 (water depths from the sea level) and slot 68 (1, 1, rect, how). Called at 0x0074A879 with (rect, altitude, 1, 2). Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::SetAltitudeAtIndex"
+address = 0x00744E60
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t index, float altitude)"
+expect = "8B 44 24 04 8B 51 6C 8D"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 50 (SetAltitude(index, altitude)): nothing for a locked vertex; stores the altitude unclamped; a wet vertex (depth > 0) keeps its water surface, a dry one below the sea level gets sea level - altitude. No range test. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::SetAltitudeAtVertex"
+address = 0x00744F90
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t x, uint32_t z, float altitude)"
+expect = "8B 51 28 8B 41 6C 42 0F"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 51: index (cells x + 1) * z + x, no range test; raises (clamped to 0x00B0D5DC) or lowers (0x00744AF0, clamped to 0x00B0D5E0) an unlocked vertex to the altitude and sets its water depth to sea level - altitude. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::LockAltitude"
+address = 0x00741F90
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* rect, bool lock)"
+expect = "53 8B 5C 24 08 8B 43 0C"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 52: sets or clears flag 0x4000 of every vertex of a rectangle (inclusive, signed); no range test. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::BeginBrushScrub"
+address = 0x00747A30
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t brush, uint32_t unused)"
+expect = "51 55 8B E9 8B 85 D8 01"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 59 (two stack arguments, not the header's one): empties the scrub set (+0x1D4), starts the brush's looping sound (brush record +0x74 through the sound service 0x00B43CB8 slot 0x2C, command 0xEA451903), then slot 87. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::EndBrushScrub"
+address = 0x00747BB0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t brush, uint32_t second)"
+expect = "51 55 8B E9 8B 85 D8 01"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 60: empties the scrub set, stops the looping sound (0x6A451908), plays the end sound (brush record +0x78), the water object's 0x0073EBA0 with both arguments, then slot 88. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::HideTerrainCell"
+address = 0x007418F0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t x, uint32_t z, bool hide)"
+expect = "8B 41 28 56 8B 74 24 08"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 71: sets or clears flags 0x20 and 0x40 of a cell inside the grid and tells the view (0x00752AF0) when it is active. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::HideEvenTriangle"
+address = 0x00741830
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t x, uint32_t z, bool hide)"
+expect = "8B 41 28 56 8B 74 24 08"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 72: as slot 71 for flag 0x20. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::HideOddTriangle"
+address = 0x00741890
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t x, uint32_t z, bool hide)"
+expect = "8B 41 28 56 8B 74 24 08"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 73: as slot 71 for flag 0x40. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::StartAccumulatingTextureUpdates"
+address = 0x007420B0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "8A 81 C0 00 00 00 84 C0"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 78: unless already set, sets +0xC0 and empties the rectangle at +0xC4. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::StopAccumulatingTextureUpdates"
+address = 0x00749A70
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "56 8B F1 8A 86 C0 00 00"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 79: clears +0xC0; for a rectangle (+0xC4) that is not empty 0x007490B0 and slot 68 (0, 0, rect, 0), then empties it. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::SetTerrainCellFlags"
+address = 0x00742000
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t x, uint32_t z, uint32_t flags)"
+expect = "53 55 8B 6C 24 0C 56 8B"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 81: cell flags 1, 2, 4 to the vertex flags 0x20, 0x40, 0x200, flag 8 through slot 94, then the view is told; AL = the flags word changed; 0 outside the grid. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::SetWaterSurfaceDisplayState"
+address = 0x007434E0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, bool show)"
+expect = "8A 81 DD 00 00 00 53 8A"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 84: nothing for the state it has (+0xDD); else stores it and posts message 0x6AB97795 (data 1 = the state). Called by 0x007A4A80 and 0x007A4D9F. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::SetPlumbingInfoDisplayState"
+address = 0x00741FF0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, bool show)"
+expect = "8A 44 24 04 A2 5C BC B4"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 86: stores the byte at 0x00B4BC5C (STE::DebugCells). Called by 0x007A4A70 and 0x007A4D8A. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::BeginLongTerrainOperation"
+address = 0x00743B40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "6A 00 6A 00 6A 00 6A 00"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 87: posts message 0xEA3B0AF1. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::EndLongTerrainOperation"
+address = 0x007443A0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "6A 00 6A 00 6A 00 6A 00"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 88: posts message 0x6A3B0AFD. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::SetFlipped1"
+address = 0x00741180
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t x, uint32_t z, bool on)"
+expect = "8B 41 28 53 8B 5C 24 08"
+source = "Name ours. Slot 93 (not in the gzcom-dll header): sets or clears flag 0x1000 of a cell inside the grid; the view is told (0x00752AF0) only when the word changes. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::SetFlipped2"
+address = 0x007411F0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t x, uint32_t z, bool on)"
+expect = "8B 41 28 53 8B 5C 24 08"
+source = "Name ours. Slot 94 (not in the gzcom-dll header): as slot 93 for flag 0x2000 (cell flag 8); slot 81 calls it. Ours in simulators.terrain.edit (src/core/terrain_edit.cpp)."
+
+[[entry]]
+name = "cSTETerrain::PostMessage"
+address = 0x00743380
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t type, uint32_t data1, uint32_t data2, uint32_t data3, uint32_t data4)"
+expect = "57 8B 3D CC 3C B4 00 85"
+source = "Name ours. A new standard message with the type and four data values, sent through the message server 0x00B43CCC (slot 4, with 0) and released; nothing without a server. The setters of simulators.terrain.edit use their own copy (src/core/terrain_edit.cpp); not hooked (slot 68 and others of the game still call it)."
+
+[[entry]]
+name = "cSTETerrain::LowerVertex"
+address = 0x00744AF0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t index, float amount)"
+expect = "8B 44 24 04 8B 51 6C 8D"
+source = "Name ours. Lowers an unlocked vertex by the amount, not below 0x00B0D5E0, water depth = sea level - altitude. Slot 51 of simulators.terrain.edit uses its own copy; not hooked (the brushes call it too)."
+
+[[entry]]
+name = "cSTETerrain::ResetWaterDepths"
+address = 0x00744CF0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* rect)"
+expect = "53 55 8B 6C 24 0C 8B 5D"
+source = "Name ours. Water depth of each vertex of a rectangle: sea level - altitude below the sea level, else 0. Only slot 49 calls it; ours has its own copy (src/core/terrain_edit.cpp), not hooked."
+
+[[entry]]
+name = "cSTETerrain::FreeScrubNodes"
+address = 0x00743990
+kind = "function"
+convention = "thiscall"
+signature = "void (void* set, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of the scrub set at +0x1D4 (red-black tree nodes: left +8, right +0xC). Slots 59 and 60 of simulators.terrain.edit use their own copy; not hooked."
+
+[[entry]]
+name = "cSTETerrain::RedisplayTerrainRect"
+address = 0x00749850
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, bool unknown1, bool unknown2, const int32_t* rect, uint32_t unknown4)"
+expect = "83 EC 20 57 8B F9 8A 87"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 68 (RedisplayTerrain(bool, bool, rect, uint32)): nothing unless the view is active (+0xEC); refreshes, tells the view and posts messages 0x278E6003, 0x678E6E3A, 0x870BC918. Drawing; the game's. The setters call it through the vtable."
+
+[[entry]]
+name = "cSTETerrain::RefreshRect"
+address = 0x007490B0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* rect)"
+expect = "56 57 8B 7C 24 0C 57 8B"
+source = "Name ours, not analysed. Recomputes what depends on the altitudes of a rectangle (seven helpers and the view's 0x00755ED0). The game's; called by slots 41 and 79 of simulators.terrain.edit."
+
+[[entry]]
+name = "cSTETerrain::UpdateMinMaxHeight"
+address = 0x00740F70
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "8B 41 6C 85 C0 74 47 D9"
+source = "Name ours. Finds the lowest and highest altitude of all vertices (+0x70, +0x74). The game's; CreateFlatAreas calls it."
+
+[[entry]]
+name = "cSTETerrain::FlattenAround"
+address = 0x00749660
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t index, float reach, uint32_t unknown)"
+expect = "83 EC 20 8B 44 24 24 53"
+source = "Name ours, not analysed. CreateFlatAreas gives it each candidate vertex, 0x00B0D5F4 * the maximum allowed height, and 1. The game's (piece 3)."
+
+[[entry]]
+name = "cSTETerrain::SpreadMarks"
+address = 0x00743210
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t distance, void* test1, uint32_t adjust1, void* test2, uint32_t adjust2, uint32_t mask)"
+expect = "83 EC 28 55 8B E9 8B 45"
+source = "Name ours, not analysed. Walks every vertex with two thiscall callbacks (vertex index) and a flag mask. The game's (piece 3)."
+
+[[entry]]
+name = "cSTETerrain::FlaggedBounds"
+address = 0x00740A20
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, int32_t* rect, uint32_t mask)"
+expect = "8B 44 24 04 BA 00 00 00"
+source = "Name ours. The bounding rectangle of the vertices with any flag of the mask (empty: 0x7FFFFFFF x2, 0x80000000 x2). Leaves ECX as it was: CreateShoreCliffs relies on it (0x0074C323). The game's."
+
+[[entry]]
+name = "cSTETerrain::SmoothRect"
+address = 0x00745020
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* rect, int32_t passes, uint32_t mask)"
+expect = "8B 44 24 08 83 EC 20 85"
+source = "Name ours, not analysed. The game's (piece 3)."
+
+[[entry]]
+name = "cSTETerrain::ClearFlagsInRect"
+address = 0x007409B0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* rect, uint32_t mask)"
+expect = "53 8B 5C 24 08 8B 43 0C"
+source = "Name ours. Clears the mask's bits in the flags word of every vertex of a rectangle. The game's."
+
+[[entry]]
+name = "cSTETerrain::FlagVerticesWhere"
+address = 0x00741DE0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, void* test, uint32_t adjust, uint32_t mask)"
+expect = "56 8B F1 8B 46 5C 57 33"
+source = "Name ours. Sets the mask's bits on every vertex for which the thiscall callback (this + adjust, vertex index) answers. The game's."
+
+[[entry]]
+name = "cSTETerrain::ShoreCollect1"
+address = 0x0074AD20
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t index, void* deque, uint32_t unknown)"
+expect = "83 EC 14 8B 44 24 18 53"
+source = "Name ours, not analysed. First pass over CreateShoreCliffs' queue. The game's (piece 3)."
+
+[[entry]]
+name = "cSTETerrain::ShoreCollect2"
+address = 0x0074AB60
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t index, void* deque, uint32_t unknown)"
+expect = "83 EC 10 8B 44 24 14 53"
+source = "Name ours, not analysed. Second pass over CreateShoreCliffs' queue. The game's (piece 3)."
+
+[[entry]]
+name = "cSTETerrain::ShoreApply"
+address = 0x00749FA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, void* deque)"
+expect = "83 EC 68 55 56 57 8B 7C"
+source = "Name ours, not analysed. Last pass over CreateShoreCliffs' queue; AL = it changed something. The game's (piece 3)."
+
+[[entry]]
+name = "cSTETerrain::IsMarked1"
+address = 0x00740530
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSTETerrain* this, uint32_t index)"
+expect = "8B 44 24 04 8B 49 6C 8D"
+source = "Name ours. Callback: the vertex's flag 1."
+
+[[entry]]
+name = "cSTETerrain::IsMarked4"
+address = 0x00740550
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSTETerrain* this, uint32_t index)"
+expect = "8B 44 24 04 8B 49 6C 8D"
+source = "Name ours. Callback: the vertex's flag 4."
+
+[[entry]]
+name = "cSTETerrain::IsLandUnmarked1"
+address = 0x00740570
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSTETerrain* this, uint32_t index)"
+expect = "8B 44 24 04 8B 51 6C 8D"
+source = "Name ours. Callback: flag 1 clear and the altitude above the sea level."
+
+[[entry]]
+name = "cSTETerrain::IsLandUnmarked4"
+address = 0x007405A0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSTETerrain* this, uint32_t index)"
+expect = "8B 44 24 04 8B 51 6C 8D"
+source = "Name ours. Callback: flag 4 clear and the altitude above the sea level."
+
+[[entry]]
+name = "cSTETerrain::IsShoreVertex"
+address = 0x00741B80
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t index)"
+expect = "55 56 57 8B 7C 24 10 8B"
+source = "Name ours. Callback: the vertex is above the sea level and one of four neighbours (offsets from the table at +0x84, inside the grid) is below it."
+
+[[entry]]
+name = "cSTETerrainView3D::CellFlagsChanged"
+address = 0x00752AF0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrainView3D* this, uint32_t z, uint32_t x)"
+expect = "8B 54 24 08 8B 49 20 8B"
+source = "Name ours, not analysed. The terrain's flag setters (slots 71 to 73, 81, 93, 94) call it with (z, x) when the view is active (+0xEC of the terrain). The Renderer's; the game's."
+
+[[entry]]
+name = "STE::WaterResetDepths"
+address = 0x0073D180
+kind = "function"
+convention = "thiscall"
+signature = "void (void* water, const int32_t* rect)"
+expect = "51 55 56 8B 74 24 10 8B"
+source = "Name ours. Of the water object (service 0x00B43CF0): for each vertex of a rectangle depth = sea level - altitude, and +4, +8, +0xC, +0x1C of the record zeroed. SetSeaLevel calls it. The game's."
+
+[[entry]]
+name = "STE::WaterEndBrushScrub"
+address = 0x0073EBA0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* water, uint32_t unknown1, uint32_t unknown2)"
+expect = "57 8B F9 8B 47 28 3B C0"
+source = "Name ours, not analysed. Of the water object: EndBrushScrub calls it with its two arguments (it reads neither). The game's."
+
+[[entry]]
+name = "cSTETerrain::MinSeaLevel"
+address = 0x00B0D57C
+kind = "data"
+source = "Name ours. float in .data: -10.1 in the exe; SetSeaLevel refuses a level below it."
+
+[[entry]]
+name = "cSTETerrain::MaxSeaLevel"
+address = 0x00B0D580
+kind = "data"
+source = "Name ours. float in .data: 200.1 in the exe; SetSeaLevel refuses a level above it."
+
+[[entry]]
+name = "cSTETerrain::SeaLevelStep"
+address = 0x00B0D584
+kind = "data"
+source = "Name ours. float in .data: 20.0 in the exe; ChangeSeaLevel's step."
+
+[[entry]]
+name = "cSTETerrain::FlatReachFactor"
+address = 0x00B0D5F4
+kind = "data"
+source = "Name ours. float in .data: 0.1 in the exe; CreateFlatAreas gives 0x00749660 this times the maximum allowed height."
+
+[[entry]]
+name = "cSTETerrain::FlatBandLow"
+address = 0x00B0D5F8
+kind = "data"
+source = "Name ours. float in .data: 0.1 in the exe; CreateFlatAreas' lower bound is sea level + this * the maximum height."
+
+[[entry]]
+name = "cSTETerrain::FlatBandHigh"
+address = 0x00B0D5FC
+kind = "data"
+source = "Name ours. float in .data: 0.6 in the exe; CreateFlatAreas' upper bound."
+
+[[entry]]
+name = "cSTETerrain::FlatSmoothPasses"
+address = 0x00B0D600
+kind = "data"
+source = "Name ours. uint32 in .data: 3 in the exe; CreateFlatAreas' second argument to 0x00745020."
+
+[[entry]]
+name = "cSTETerrain::FlatSpread"
+address = 0x00B0D604
+kind = "data"
+source = "Name ours. uint32 in .data: 4 in the exe; CreateFlatAreas' first argument to 0x00743210."
