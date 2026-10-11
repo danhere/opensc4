@@ -7,6 +7,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/save_app.h"
 
 #include <SC4String.h>
 #include <cISC4App.h>
@@ -33,7 +34,7 @@ bool LoadCityBody(cISC4App* self, void* edx, SC4String const& path, cRZAutoRefCo
 {
     log::Write("trace: cSC4App::LoadCity(\"%s\")", path.ToChar());
     const ULONGLONG start = GetTickCount64();
-    const bool loaded = g_loadCity(self, edx, path, city);
+    const bool loaded = saves::LoadCity(reinterpret_cast<void*>(g_loadCity), self, edx, const_cast<SC4String*>(&path), city);
     log::Write("trace: cSC4App::LoadCity returned %s after %llu ms", loaded ? "true" : "false",
                GetTickCount64() - start);
     return loaded;
