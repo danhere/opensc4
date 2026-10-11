@@ -8,6 +8,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/traffic_cells.h"
 
 #include <opensc4/addresses.h>
 
@@ -117,8 +118,10 @@ void __fastcall InitRouteIterator(RouteIterator* it, void*, uint8_t** route)
         return;
     }
     it->current.type = *it->at++ & 0x3F;
-    it->current.x = *it->at++;
-    it->current.z = *it->at++;
+    int32_t x = 0, z = 0;
+    it->at = const_cast<uint8_t*>(ReadRouteCell(it->at, x, z));
+    it->current.x = static_cast<int16_t>(x);
+    it->current.z = static_cast<int16_t>(z);
     it->current.stepped = 0;
     it->current.side = 0xFF;
     it->done = 0;
@@ -154,8 +157,10 @@ uint8_t __fastcall NextOfRoute(RouteIterator* it, void*, RouteStep* out)
                 return 1;
             }
         } else {
-            it->current.x = *it->at++;
-            it->current.z = *it->at++;
+            int32_t x = 0, z = 0;
+            it->at = const_cast<uint8_t*>(ReadRouteCell(it->at, x, z));
+            it->current.x = static_cast<int16_t>(x);
+            it->current.z = static_cast<int16_t>(z);
             it->current.jump = head >> 7;
             it->current.stepped = 0;
             int32_t dx = it->current.x - out->x;
