@@ -221,6 +221,15 @@ Asked by Dan (2026-10-09). New assets use the community pipeline until then: mod
 - [ ] Load glTF models (exported straight from Blender) alongside S3D, once our own model and lot loading replaces the game's (P8 lots/buildings, after the renderer and UI phase)
 - [ ] Modern texture formats (PNG, KTX2) alongside FSH, through the same loader
 
+## Beyond the original: new sounds and soundtracks
+
+Asked by Dan (2026-10-11): add it here, do not act on it yet. It follows the rewrite of the game's own audio code (P8, in progress), which puts every place the game asks for a sound into our code. The estimates are from reading the code, not from trying.
+
+- [ ] Soundtracks: the game's music is plain files in radio folders, and players already add tracks there. Ours to add once the audio classes are ours: more stations, other formats (OGG, FLAC), playlists per situation (disaster, night, region view), crossfades
+- [ ] Replacing an existing sound effect by a plugin: effects are resources in the package files, loaded by key, and the plugin loader already lets a plugin override a resource; to check first, the format the game's sound library expects
+- [ ] Brand-new sound effects without EA's bank format: our own small mixer playing ordinary WAV or OGG files, hooked in at the points where the game asks for a sound (which sound, how loud, where from, for which camera), with a way for a plugin to name sounds. EA's sound library (AEMS) stays as it is underneath for the game's own sounds
+- New audio cannot be checked by the parity harness, which compares state and not what is heard: it needs listening tests
+
 ## Beyond the original: ideas from newer games
 
 Brainstormed with Dan (2026-10-09), from Cities: Skylines, SimCity (2013) and other sim games. Each would be an in-game option, with vanilla as the default. Only the ideas Dan reacted to are listed.
