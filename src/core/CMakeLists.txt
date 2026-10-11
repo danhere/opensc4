@@ -195,6 +195,16 @@ add_library(opensc4_core SHARED
   occbase_sim.cpp
   propocc_autotest.cpp
   propocc_sim.cpp
+  floraocc_autotest.cpp
+  floraocc_sim.cpp
+  foundocc_autotest.cpp
+  foundocc_sim.cpp
+  landfillocc_autotest.cpp
+  landfillocc_sim.cpp
+  wallocc_autotest.cpp
+  wallocc_sim.cpp
+  constrocc_autotest.cpp
+  constrocc_sim.cpp
   landfill_sim.cpp
   seaport_autotest.cpp
   seaport_sim.cpp

@@ -41,12 +41,13 @@ def building(r):
     out['min_3c'] = [r.f32(), r.f32(), r.f32()]
     out['max_48'] = [r.f32(), r.f32(), r.f32()]
     out['orientation_54'] = r.s8()
-    out['completion_58'] = r.f32()
-    if out['completion_58'] != 1.0:
-        # A building under construction: the value follows a timer in
-        # milliseconds (the corpus has 4584/10000, 1288/3000, 2146/7000 ...),
-        # not game days. Not compared.
-        out['completion_58'] = None
+    # Construction runs by frames: the value of a building under construction
+    # is elapsed milliseconds, and whether a building is still under
+    # construction when the city is saved differs between runs of the
+    # original (Big City d0365 with zoning: one building finished in some
+    # runs and not in others, docs/foundocc.md). Not compared.
+    r.f32()
+    out['completion_58'] = None
     return out
 
 

@@ -103,6 +103,11 @@ The test cities never edit their networks, so parity alone would not reach the c
 | `OPENSC4_TEST_BLDGOCC=1` (2: the frame-driven fields too) | each day, the building occupants' query slots on a fifth of the buildings, into the fingerprint ([bldgocc.md](bldgocc.md)) |
 | `OPENSC4_TEST_OCCBASE=1` (2: counts per flag bit too) | each day, the occupant base class's query functions on a seventh of the occupants, into the fingerprint ([occbase.md](occbase.md)) |
 | `OPENSC4_TEST_PROPOCC=1` (2: counts of the frame-driven fields too) | each day, the prop occupants' query slots on an eleventh of the props, into the fingerprint ([propocc.md](propocc.md)) |
+| `OPENSC4_TEST_FLORAOCC=1` | each day, the flora occupants' query slots on a thirteenth of the trees, into the fingerprint ([flora.md](flora.md#the-occupant-csc4floraoccupant)) |
+| `OPENSC4_TEST_FOUNDOCC=1` | each day, the foundation occupants' query slots on a third of them, into the fingerprint ([foundocc.md](foundocc.md)) |
+| `OPENSC4_TEST_LANDFILLOCC=1` | each day, the landfill tile occupants' query slots on a third of them, into the fingerprint ([landfill.md](landfill.md#the-tiles-occupant-csc4landfilloccupant)) |
+| `OPENSC4_TEST_WALLOCC=1` | each day, the retaining walls' query slots and edge hashes on a third of them, into the fingerprint ([wallocc.md](wallocc.md)) |
+| `OPENSC4_TEST_CONSTROCC=1` | each day, the construction sites' query slots on half of them, into the fingerprint ([constrocc.md](constrocc.md)) |
 | `OPENSC4_TEST_ZONE=1` | each day, the lot manager's and zone developer's pure queries on a lattice of cells, into the fingerprint ([zone.md](zone.md)) |
 | `OPENSC4_TEST_CRIME_QUERIES=1` | each day, the crime queries only the UI and the automata make, into the fingerprint ([crime.md](crime.md)) |
 | `OPENSC4_TEST_MYSIM_QUERIES=1` | each day, what the MySim panel and balloons ask every MySim, into the fingerprint ([mysim-agents.md](mysim-agents.md)) |
