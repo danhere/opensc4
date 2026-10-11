@@ -41,11 +41,33 @@ These are among the most called functions in the game, and their float results f
 
 Slot 65 (`IsGoodWaveProducerLocation`) only reads too but is left with the wave producers: it uses the x87 sine and cosine, which our code cannot repeat bit for bit.
 
+## The setters (`simulators.terrain.edit`)
+
+24 slots that change the terrain's own state ([src/core/terrain_edit.cpp](../src/core/terrain_edit.cpp)), swapped in the vtable like the queries; none is called directly from outside the class.
+
+| Slots | What they do |
+|---|---|
+| 49, 50, 51 | `SetAltitude` for a rectangle, an index and a vertex. A locked vertex (flag 0x4000) is left alone. By index the height is stored unclamped (the game compares it only with itself); a wet vertex keeps its water surface, a dry one gets water only when it ends below the sea. By vertex the height is raised or lowered towards the target and clamped to the allowed range. The rectangle form goes through slot 50 vertex by vertex, then sets the water and asks for a redisplay |
+| 52 | `LockAltitude`: flag 0x4000 over a rectangle, no range test |
+| 71, 72, 73, 81, 93, 94 | the hidden-triangle bits (0x20, 0x40), the cell flags, the two triangulation bits (0x1000, 0x2000); the view is told |
+| 41 | `SetTerrainType`: message 0xC922EB91, the whole map refreshed |
+| 45, 46 | `SetSeaLevel`, `ChangeSeaLevel`: refused outside -10.1 to 200.1 (the cities' own sea level, 250, is outside it, so in a normal city every step is refused); otherwise every water record is reset to sea less altitude and message 0x89171496 goes out |
+| 48 | `ChangeTerrainLevel`: every unlocked vertex up or down by an amount, clamped; water follows |
+| 43, 44 | `CreateFlatAreas`, `CreateShoreCliffs`: the loops and flags are ours; the flattening, spreading and smoothing they call are the brushes' machinery, still the game's |
+| 78, 79 | texture updates gathered into one rectangle, refreshed at the end |
+| 84, 86 | the two display states (message 0x6AB97795 for the water surface) |
+| 87, 88 | long terrain operation begin and end (messages 0xEA3B0AF1, 0x6A3B0AFD) |
+| 59, 60 | brush scrub begin and end: the scrubbed set emptied, the brush's sounds, the water object told at the end |
+
+Calls into the view, the redisplay (slot 68) and the water object stay calls.
+
 ## Tests
 
 The fingerprint part `terrain` reads the object's memory directly: the grid, the cell width, the sea level, the height limits, and checksums of every altitude, flags word, water depth and sediment, and normal, plus the water vertex count. Any change of the land between two runs shows there.
 
 `OPENSC4_TEST_TERRAIN=1` compares, inside one run, every one of the 54 slots as the object has it with the game's own function at its address, bit for bit (floats by their bits, ST0 as a double, whole out-buffers): the getters; vertices and cells on every edge, a hashed part of the interior and outside on every side; about 4,600 positions a day on vertices, lines, diagonals and half cells; rectangles inside, empty, reversed and over the edge. It prints `q<agree>/<asked>`. It does not ask what would make the game itself read outside its arrays (the lerped slots on the far edges, rectangles outside the grid for the slots without a range test).
+
+`OPENSC4_TEST_TERRAIN_EDIT=<n>` runs, on the n-th day, 46 calls of the setters on the live terrain in a fixed order at a place picked from the terrain itself: raise and lower by all three forms, under water, on locked vertices, hide and show, flags, gather and refresh, scrub begin and end, the display states; each call logs its answer and a checksum of the state. `OPENSC4_TEST_TERRAIN_SEA=<n>` does the whole-map ones: sea level refused and accepted, terrain level up and down, flat areas, shore cliffs. Both leave the land changed, so the `terrain` fingerprint part shows the result for the rest of the run.
 
 ## Checked
 
@@ -54,9 +76,11 @@ The fingerprint part `terrain` reads the object's memory directly: the grid, the
 - The in-run comparison: about 110,000 questions per game day, 73 million over the batches below, none answered differently. That includes ten days with a volcano growing (`OPENSC4_TEST_DISASTER_TYPE=0`), where the altitude checksum changes every day.
 - Parity, the original against `simulators.terrain.queries=ours` with the comparison on: the 12 saves over 7 days, 10 same; Big City d0000 partly (two outcomes each side, the first-day traffic noise of that save, [parity.md](parity.md); its terrain part is the same in all eight runs); Big City d1095 failed once, see below. The plopped city over 30 days: 3 of 3 same. The volcano runs do not repeat in the original either and are judged by the in-run comparison only.
 - The failed run: our side crashed while the city was loading, before any game day, at 0x00975CC8 (a framework object's constructor at 0x00975CB5 storing its vtable 0x00AD8D88 through a bad pointer), on another thread than the main one. Four more runs of that save with ours loaded and ran; no query of ours is in that code. Counted with the game's rare load crashes ([parity.md](parity.md)).
+- The setters (`simulators.terrain.edit` with the queries, the comparison on): the edit test's 46 calls and the whole-map test's 15 log the same answer and state after every call with the original (twice) and with ours, and the `terrain` part is the same afterwards. Parity with the edits on day 2: 12 of 12 saves the same over 7 days. With the whole-map test on day 2: 11 of 12 the same, Big City d0090 partly, the land and the per-call lines the same in all eight runs and the difference an advisor checksum on the last day. The original against itself with the same test gives 9 and 8 of 12 the same in two batches, with that same advisor value in one of its runs: after the sea is moved under a built city the original does not repeat, more so under load. The plopped city with both tests over 30 days: 2 of 3 the same, the third partly with three outcomes of the original alone.
+- An independent reading of the 24 setters against the disassembly found no difference on any branch, including the ones the tests do not take. Slot 50's clamp in the game is dead code (the height is compared with itself), so ours has none.
 - An independent reading of all 54 against the disassembly found no difference in results. It listed what our C++ cannot repeat and no caller was found to use: the upper bits of EAX where the game sets only AL (nine of the tests leave part of a count there on the out-of-range path), and ECX and EDX, which the game's small getters happen to leave untouched. These are virtual calls, so a caller cannot count on registers being kept.
 - Resting on the build, not checked by a test: no fused multiply-add and no x87 code from the compiler (clang-cl's SSE2 default), and the FPU control word 0x027F wherever the game calls these (measured in the simulator tick only).
 
 ## Still the game's
 
-Everything that changes the terrain (the altitude setters, the brushes, erosion, the flood, sea level), Init, Shutdown, save and load, the object itself, and the drawing side (the view, lighting, redisplay, wave producers). They follow piece by piece.
+The brushes and the machinery under them, erosion, the flood, Init, Shutdown, save and load, the object itself, and the drawing side (the view, lighting, redisplay, wave producers). They follow piece by piece.

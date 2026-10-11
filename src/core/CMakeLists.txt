@@ -238,6 +238,8 @@ add_library(opensc4_core SHARED
   terrain_view.cpp
   terrain_autotest.cpp
   terrain_draw.cpp
+  terrain_edit.cpp
+  terrain_edit_autotest.cpp
   terrain_queries.cpp
   view_objects.cpp
   water_effects.cpp
