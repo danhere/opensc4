@@ -4360,11 +4360,11 @@ struct EntryFrame
             PUSH(regs.st0);                                                                                              \
     } while (0)
 #define DATAMAP_ENTRY_MACHINE(frame)                                                                                     \
-    uint32_t stackmem[1024] = {};                                                                                        \
+    uint32_t stackmem[1536] = {};                                                                                        \
     [[maybe_unused]] uint32_t eax = frame->eax, ebx = frame->ebx, ecx = frame->ecx, edx = frame->edx, esi = frame->esi,  \
                               edi = frame->edi, ebp = frame->ebp, fa = 0, fb = 0;                                        \
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[960]);                                                           \
-    std::memcpy(&stackmem[960], &frame->returnAddress, 16 * sizeof(uint32_t));                                           \
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[1472]);                                                           \
+    std::memcpy(&stackmem[1472], &frame->returnAddress, 16 * sizeof(uint32_t));                                           \
     [[maybe_unused]] double st[8] = {};                                                                                  \
     [[maybe_unused]] int top = -1;                                                                                       \
     [[maybe_unused]] uint32_t status = 0
@@ -4520,6 +4520,389 @@ void __cdecl DataMapResizeRows(EntryFrame* frame)
     frame->edx = edx;
 }
 DATAMAP_ENTRY(TDataMapResizeRows, DataMapResizeRows, g_dataMapResizeRows, 4)
+
+// The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),
+// translated instruction by instruction: the window's paint (0x007A79B0),
+// the terrain's pixels (0x007A7FF0), the picture brought up to date
+// (0x007A8640) and nine pixel routines under them (docs/renderer.md, "The
+// mini map"). Entered like the data map's routines, with every register
+// saved; g_miniMapGameRun sends them to the game's own code while compare
+// mode runs the game's update.
+bool g_miniMapGameRun;
+#define MINIMAP_ENTRY(Name, Target, Original)                                                                            \
+    __declspec(naked) void Name()                                                                                        \
+    {                                                                                                                    \
+        __asm cmp byte ptr [g_miniMapGameRun], 0                                                                         \
+        __asm jne theGames                                                                                               \
+        __asm pushad                                                                                                     \
+        __asm push esp                                                                                                   \
+        __asm call Target                                                                                                \
+        __asm add esp, 4                                                                                                 \
+        __asm popad                                                                                                      \
+        __asm ret                                                                                                        \
+        __asm theGames:                                                                                                  \
+        __asm jmp dword ptr [Original]                                                                                   \
+    }
+
+void* g_miniMapPixel0;
+void __cdecl MiniMapPixel0(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("mini map: pixel0 reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/minimap_pixel0.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("mini map: pixel0 left %d values on the x87 stack", top + 1);
+}
+MINIMAP_ENTRY(TMiniMapPixel0, MiniMapPixel0, g_miniMapPixel0)
+
+void* g_miniMapPixel1;
+void __cdecl MiniMapPixel1(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("mini map: pixel1 reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/minimap_pixel1.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("mini map: pixel1 left %d values on the x87 stack", top + 1);
+}
+MINIMAP_ENTRY(TMiniMapPixel1, MiniMapPixel1, g_miniMapPixel1)
+
+void* g_miniMapPixel2;
+void __cdecl MiniMapPixel2(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("mini map: pixel2 reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/minimap_pixel2.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("mini map: pixel2 left %d values on the x87 stack", top + 1);
+}
+MINIMAP_ENTRY(TMiniMapPixel2, MiniMapPixel2, g_miniMapPixel2)
+
+void* g_miniMapPixel3;
+void __cdecl MiniMapPixel3(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("mini map: pixel3 reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/minimap_pixel3.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("mini map: pixel3 left %d values on the x87 stack", top + 1);
+}
+MINIMAP_ENTRY(TMiniMapPixel3, MiniMapPixel3, g_miniMapPixel3)
+
+void* g_miniMapPixel4;
+void __cdecl MiniMapPixel4(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("mini map: pixel4 reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/minimap_pixel4.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("mini map: pixel4 left %d values on the x87 stack", top + 1);
+}
+MINIMAP_ENTRY(TMiniMapPixel4, MiniMapPixel4, g_miniMapPixel4)
+
+void* g_miniMapPixel5;
+void __cdecl MiniMapPixel5(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("mini map: pixel5 reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/minimap_pixel5.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("mini map: pixel5 left %d values on the x87 stack", top + 1);
+}
+MINIMAP_ENTRY(TMiniMapPixel5, MiniMapPixel5, g_miniMapPixel5)
+
+void* g_miniMapPixel6;
+void __cdecl MiniMapPixel6(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("mini map: pixel6 reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/minimap_pixel6.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("mini map: pixel6 left %d values on the x87 stack", top + 1);
+}
+MINIMAP_ENTRY(TMiniMapPixel6, MiniMapPixel6, g_miniMapPixel6)
+
+void* g_miniMapPixel7;
+void __cdecl MiniMapPixel7(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("mini map: pixel7 reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/minimap_pixel7.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("mini map: pixel7 left %d values on the x87 stack", top + 1);
+}
+MINIMAP_ENTRY(TMiniMapPixel7, MiniMapPixel7, g_miniMapPixel7)
+
+void* g_miniMapPixel8;
+void __cdecl MiniMapPixel8(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("mini map: pixel8 reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/minimap_pixel8.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("mini map: pixel8 left %d values on the x87 stack", top + 1);
+}
+MINIMAP_ENTRY(TMiniMapPixel8, MiniMapPixel8, g_miniMapPixel8)
+
+void* g_miniMapPaint;
+void __cdecl MiniMapPaint(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("mini map: paint reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/minimap_paint.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("mini map: paint left %d values on the x87 stack", top + 1);
+}
+MINIMAP_ENTRY(TMiniMapPaint, MiniMapPaint, g_miniMapPaint)
+
+void* g_miniMapBuild;
+void __cdecl MiniMapTerrain(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("mini map: terrain reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/minimap_terrain.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("mini map: terrain left %d values on the x87 stack", top + 1);
+}
+MINIMAP_ENTRY(TMiniMapTerrain, MiniMapTerrain, g_miniMapBuild)
+
+void* g_miniMapBuild2;
+void __cdecl MiniMapUpdateOurs(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("mini map: update reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/minimap_update.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("mini map: update left %d values on the x87 stack", top + 1);
+}
+
+// What the picture's update reads and writes: the mini map object (0x96C
+// bytes; the update's `this` is its interface at +0xD8), its own pixels
+// (+0x114, a square of side +0xE4), the two bits a cell (+0x960) and the
+// pixels of its buffer (+0xF0) and of the one its owner gave it (+0xF4).
+struct MiniMapRegion
+{
+    char* at;
+    size_t size;
+};
+std::vector<MiniMapRegion> MiniMapRegions(char* window)
+{
+    std::vector<MiniMapRegion> regions{{window, 0x96C}};
+    const uint32_t side = At<uint32_t>(window, 0xE4);
+    if (char* const pixels = At<char*>(window, 0x114); pixels && side && side <= 4096)
+        regions.push_back({pixels, size_t{side} * side * 4});
+    if (char* const begin = At<char*>(window, 0x960); begin && At<char*>(window, 0x964) > begin)
+        regions.push_back({begin, static_cast<size_t>(At<char*>(window, 0x964) - begin)});
+    for (const size_t offset : {size_t{0xF0}, size_t{0xF4}}) {
+        void* const buffer = At<void*>(window, offset);
+        if (!buffer)
+            continue;
+        char* const bits = Virtual<char*>(buffer, 0x88);
+        const uint32_t stride = Virtual<uint32_t>(buffer, 0x8C), height = Virtual<uint32_t>(buffer, 0x28);
+        if (bits && stride && height && height <= 4096 && stride <= 4096 * 4)
+            regions.push_back({bits, size_t{stride} * height});
+    }
+    return regions;
+}
+std::vector<char> MiniMapCopy(const std::vector<MiniMapRegion>& regions)
+{
+    std::vector<char> copy;
+    for (const MiniMapRegion& region : regions)
+        copy.insert(copy.end(), region.at, region.at + region.size);
+    return copy;
+}
+
+bool g_compareMiniMap;
+
+// The picture brought up to date (0x007A8640). Compare mode: ours, then
+// everything it touched put back, then the game's with the game's own
+// routines under it, and the two results compared byte for byte.
+void __cdecl MiniMapUpdate(EntryFrame* frame)
+{
+    if (!g_compareMiniMap) {
+        MiniMapUpdateOurs(frame);
+        return;
+    }
+    char* const window = reinterpret_cast<char*>(frame->ecx) - 0xD8;
+    const std::vector<MiniMapRegion> regions = MiniMapRegions(window);
+    const std::vector<char> before = MiniMapCopy(regions);
+    const bool terrain = At<uint8_t>(window, 0xFD) != 0, stale = At<uint8_t>(window, 0xFE) != 0;
+    if (g_selfCheck) {
+        g_miniMapGameRun = true;
+        CallThis<void>(reinterpret_cast<std::uintptr_t>(g_miniMapBuild2), window + 0xD8);
+        g_miniMapGameRun = false;
+    } else {
+        MiniMapUpdateOurs(frame);
+    }
+    // A run that moved the pixels or the cells cannot be repeated.
+    const std::vector<MiniMapRegion> after = MiniMapRegions(window);
+    bool moved = after.size() != regions.size();
+    for (size_t i = 0; !moved && i < regions.size(); ++i)
+        moved = after[i].at != regions[i].at || after[i].size != regions[i].size;
+    if (moved) {
+        compare::Record("minimap.update.unrepeatable", true, "", "");
+        return;
+    }
+    const std::vector<char> first = MiniMapCopy(regions);
+    size_t at = 0;
+    for (const MiniMapRegion& region : regions) {
+        std::memcpy(region.at, before.data() + at, region.size);
+        at += region.size;
+    }
+    g_miniMapGameRun = true;
+    CallThis<void>(reinterpret_cast<std::uintptr_t>(g_miniMapBuild2), window + 0xD8);
+    g_miniMapGameRun = false;
+    const std::vector<char> second = MiniMapCopy(regions);
+    size_t differing = 0, firstAt = 0;
+    for (size_t i = 0; i < first.size(); ++i)
+        if (first[i] != second[i] && !differing++)
+            firstAt = i;
+    size_t changed = 0;
+    for (size_t i = 0; i < before.size(); ++i)
+        changed += before[i] != second[i];
+    char detail[160];
+    std::snprintf(detail, sizeof detail, "%zu of %zu bytes differ (first at %zu; object is the first 2412), terrain %d, stale %d", differing,
+                  first.size(), firstAt, terrain, stale);
+    static uint32_t logged = 0;
+    if (differing || logged++ < 12)
+        log::Write("mini map: update compared: %s; the game's run changed %zu bytes", detail, changed);
+    compare::Record(g_selfCheck ? "minimap.update.selfcheck" : "minimap.update", !differing, "the game's result", detail);
+    // The calls that had work to do (most find the picture up to date).
+    if (changed)
+        compare::Record(g_selfCheck ? "minimap.update.selfcheck.working" : "minimap.update.working", !differing, "the game's result", detail);
+}
+MINIMAP_ENTRY(TMiniMapUpdate, MiniMapUpdate, g_miniMapBuild2)
+
+#undef MINIMAP_ENTRY
+
+bool InstallMiniMap(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareMiniMap = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::MiniMap_Pixel0, &TMiniMapPixel0, &g_miniMapPixel0)
+                           && Detour(addr::MiniMap_Pixel1, &TMiniMapPixel1, &g_miniMapPixel1)
+                           && Detour(addr::MiniMap_Pixel2, &TMiniMapPixel2, &g_miniMapPixel2)
+                           && Detour(addr::MiniMap_Pixel3, &TMiniMapPixel3, &g_miniMapPixel3)
+                           && Detour(addr::MiniMap_Pixel4, &TMiniMapPixel4, &g_miniMapPixel4)
+                           && Detour(addr::MiniMap_Pixel5, &TMiniMapPixel5, &g_miniMapPixel5)
+                           && Detour(addr::MiniMap_Pixel6, &TMiniMapPixel6, &g_miniMapPixel6)
+                           && Detour(addr::MiniMap_Pixel7, &TMiniMapPixel7, &g_miniMapPixel7)
+                           && Detour(addr::MiniMap_Pixel8, &TMiniMapPixel8, &g_miniMapPixel8)
+                           && Detour(addr::MiniMap_Paint, &TMiniMapPaint, &g_miniMapPaint)
+                           && Detour(addr::MiniMap_Terrain, &TMiniMapTerrain, &g_miniMapBuild)
+                           && Detour(addr::MiniMap_Update, &TMiniMapUpdate, &g_miniMapBuild2);
+    if (installed)
+        log::Write("mini map: drawing ours");
+    return installed;
+}
+
+const bool g_registeredMiniMap = registry::Register({
+    "renderer.minimap.draw",
+    "renderer/minimap",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::MiniMap_Paint,
+    "The mini map's paint, terrain picture, update and pixel routines; compare mode runs each update twice, ours and "
+    "the game's, and compares everything it touched (docs/renderer.md, \"The mini map\")",
+    true,
+    InstallMiniMap,
+});
 
 #undef DATAMAP_ENTRY
 #undef DATAMAP_ENTRY_MACHINE
