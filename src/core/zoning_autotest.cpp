@@ -135,7 +135,41 @@ void Zone(const Day& day)
     }
 }
 
+// OPENSC4_TEST_DEZONE_AREA=<n>: on the n-th day the middle half of the city
+// is dezoned with the zoning tool's arguments (0x004DA846: placing, funds
+// checked, customZoning, no size check, lots not kept whole), to check
+// game.dezone (docs/dezone.md).
+void DezoneArea(const Day& day)
+{
+    if (!game::IsBuild641() || !OnRunDay(day, "OPENSC4_TEST_DEZONE_AREA"))
+        return;
+    void* const zones = Global<void*>(addr::SC4_ZoneManager);
+    void* const seaport = Virtual<void*>(day.city, 0x130);
+    if (!zones || !seaport)
+        return;
+    using CellsFn = void*(__thiscall*)(void* cells, uint32_t width, uint32_t depth, const uint8_t* fill);
+    using SelfFn = void(__thiscall*)(void* self);
+    const int32_t cellsX = At<int32_t>(seaport, 0x74), cellsZ = At<int32_t>(seaport, 0x78);
+    CellRegion region;
+    const uint8_t fill = 1;
+    region.x0 = cellsX / 4;
+    region.z0 = cellsZ / 4;
+    region.x1 = cellsX * 3 / 4 - 1;
+    region.z1 = cellsZ * 3 / 4 - 1;
+    const int32_t x0 = region.x0, z0 = region.z0, x1 = region.x1, z1 = region.z1;
+    reinterpret_cast<CellsFn>(addr::SC4CellRegion_ConstructCells)(region.cells, static_cast<uint32_t>(x1 - x0 + 1),
+                                                                 static_cast<uint32_t>(z1 - z0 + 1), &fill);
+    int64_t cost = 0;
+    int32_t error = 0;
+    const uint8_t done = Virtual<uint8_t>(zones, 0x2C, &region, 0u, 1u, 0u, 1u, 1u, 0u, &cost, &error, 0u);
+    *reinterpret_cast<std::uintptr_t*>(region.cells) = addr::SC4CellRegion_CellsVtable;
+    reinterpret_cast<SelfFn>(addr::SC4CellRegion_DestroyCells)(region.cells);
+    log::Write("autotest: zoning: dezoned the area %d,%d to %d,%d: %s, cost %lld, error %d", x0, z0, x1, z1,
+               done ? "done" : "refused", static_cast<long long>(cost), error);
+}
+
 const DayHook kZone{"zoning", 58, &Zone};
+const DayHook kDezoneArea{"dezonearea", 58, &DezoneArea};
 
 } // namespace
 } // namespace opensc4::autotest
