@@ -298,6 +298,9 @@ add_library(opensc4_core SHARED
   save_streams_2.cpp
   save_streams_3.cpp
   save_autotest.cpp
+  save_serializer_1.cpp
+  save_serializer_2.cpp
+  save_serializer_3.cpp
   minimap_autotest.cpp
   datamap_autotest.cpp
   cityview_draw_autotest.cpp
