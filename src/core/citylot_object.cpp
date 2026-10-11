@@ -166,8 +166,12 @@ void ReleaseOf(void* object) { Virtual<uint32_t>(object, 0x8); }
 // 0x006BF6A0 (not a slot; ResetTravelPopulation and AddTravelPopulation
 // end in it): the three travel job counts, rounded, sent to the traffic
 // simulator as the trip capacities 0, 1, 2 of the lot's holder part (slot
-// 3) when they are more than a tenth off. The current value is always asked
-// for capacity 0 (as the game does: a game bug kept).
+// 3) when they are more than a tenth off. The game always asks the current
+// value of capacity 0: a count is skipped when it is within a tenth of the
+// $ jobs, so high-tech industry (10/80/10) never offers its $$$ jobs. Kept
+// as the game's unless fixes.travel_jobs is on, which asks capacity i.
+bool g_fixTravelJobs = false;
+
 void __fastcall PushTravelJobs(char* self, void*)
 {
     static bool logged = false;
@@ -178,7 +182,7 @@ void __fastcall PushTravelJobs(char* self, void*)
     void* const source = Virtual<void*>(self, slot::kAsPropertyHolder);
     for (uint32_t i = 0; i < 3; ++i) {
         const int32_t jobs = RoundViaFloat(static_cast<double>(At<float>(self, field::kTravelJobs + 4 * i)));
-        const int32_t current = Virtual<int32_t>(traffic, 0x50, source, 0u);
+        const int32_t current = Virtual<int32_t>(traffic, 0x50, source, g_fixTravelJobs ? i : 0u);
         if (jobs == current)
             continue;
         const int32_t larger = jobs < current ? current : jobs;
@@ -1060,6 +1064,18 @@ using SelfFn = void(__fastcall*)(char*, void*);
 SelfFn g_originalPushTravelJobs = nullptr;
 SelfFn g_originalUpdateNeedsPower = nullptr;
 
+// Our 0x006BF6A0, installed once for whichever of simulators.citylot.slots
+// and fixes.travel_jobs comes first.
+bool InstallPushTravelJobs()
+{
+    static bool installed = false;
+    if (installed)
+        return true;
+    const addr::Entry* const push = addr_check::Find(addr::cSC4Lot_PushTravelJobs);
+    installed = push && hook::Install(*push, &PushTravelJobs, &g_originalPushTravelJobs);
+    return installed;
+}
+
 // The slots, and detours on the two functions of this range that the
 // other parts' code calls directly: 0x006BF6A0 (from AddTravelPopulation's
 // end 0x006C0CE1, which only pops and returns after) and 0x006BFD20 (from
@@ -1069,12 +1085,24 @@ bool InstallSlots(registry::Mode)
 {
     if (!game::IsBuild641())
         return false;
-    const addr::Entry* const push = addr_check::Find(addr::cSC4Lot_PushTravelJobs);
     const addr::Entry* const power = addr_check::Find(addr::cSC4Lot_UpdateNeedsPower);
-    if (!push || !power || !SwapSlots(kSlots, "slots"))
+    if (!power || !SwapSlots(kSlots, "slots"))
         return false;
-    return hook::Install(*push, &PushTravelJobs, &g_originalPushTravelJobs) &&
-           hook::Install(*power, &UpdateNeedsPower, &g_originalUpdateNeedsPower);
+    return InstallPushTravelJobs() && hook::Install(*power, &UpdateNeedsPower, &g_originalUpdateNeedsPower);
+}
+
+// fixes.travel_jobs: our 0x006BF6A0 alone, asking each capacity's own value
+// (docs/citylot.md, "Travel jobs").
+bool InstallTravelJobsFix(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_fixTravelJobs = true;
+    const bool ok = InstallPushTravelJobs();
+    log::Write("travel jobs fix: %s", ok ? "on" : "NOT installed");
+    if (!ok)
+        g_fixTravelJobs = false;
+    return ok;
 }
 
 bool InstallInit(registry::Mode) { return SwapSlots(kInitSlots, "init"); }
@@ -1094,6 +1122,12 @@ const bool g_registered[] = {
                         "Our cSC4Lot Write (the save record, version 8) and cSC4BusinessUnit Write "
                         "(src/core/citylot_sim.h)",
                         false, InstallSave}),
+    registry::Register({"fixes.travel_jobs", "fixes", registry::Kind::Detour, registry::Phase::PostAppInit,
+                        addr::cSC4Lot_PushTravelJobs,
+                        "Lots offer their $$ and $$$ jobs when the count is close to the $ jobs (the game "
+                        "skipped them, so high-tech industry had no $$$ jobs)",
+                        false, InstallTravelJobsFix,
+                        true}), // a fix, on unless turned off
 };
 
 // --- Our object -------------------------------------------------------------------
