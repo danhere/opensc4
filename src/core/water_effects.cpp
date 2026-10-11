@@ -1122,7 +1122,82 @@ uint32_t __fastcall DSC4Effect_NotDrawn(char* self, void*)
 OPENSC4_THUNK(TSC4Effect_NotDrawn, DSC4Effect_NotDrawn, 0)
 OPENSC4_EFFECT_HOOK0(SC4EffectB_NotDrawn)
 OPENSC4_EFFECT_HOOK1(SC4Effect_StepFlag2000)
-OPENSC4_EFFECT_HOOK0(SC4Effect_PathVelocity)
+// The pull on an effect's particles from outside (0x005B6C40; called by the
+// effect's draw when its description lists any, +0x1A4), translated
+// instruction by instruction: for descriptions with flag 0x08000000 three
+// floats of the effect (+0xB4) are copied to +0x178; else a velocity is
+// worked out into +0x16C from the middle of
+// the effect's box and what a service of the game (0x00B43CEC, its slots
+// 0xBC and 0x58) answers for that place.
+uint32_t UpdateEffectPull(char* self)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_pull.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+StepMode g_pullMode = StepMode::Original;
+Call0Fn g_SC4Effect_PathVelocity = nullptr;
+uint64_t g_pullsCompared = 0;
+
+// It asks the game's service and writes only the effect, so the comparison
+// runs ours and the game's on the same effect (the service is asked twice).
+uint32_t __fastcall PullByMode(char* self, void*)
+{
+    if (g_pullMode == StepMode::Original || g_effectReplay)
+        return g_SC4Effect_PathVelocity(self, nullptr);
+    if (g_pullMode == StepMode::Ours)
+        return UpdateEffectPull(self);
+    char before[kEffectSize], mine[kEffectSize];
+    std::memcpy(before, self, kEffectSize);
+    if (g_selfCheck)
+        g_SC4Effect_PathVelocity(self, nullptr);
+    else
+        UpdateEffectPull(self);
+    std::memcpy(mine, self, kEffectSize);
+    std::memcpy(self, before, kEffectSize);
+    const uint32_t result = g_SC4Effect_PathVelocity(self, nullptr);
+    const char* const id = g_selfCheck ? "effects.pull.selfcheck" : "effects.pull";
+    ++g_pullsCompared;
+    if ((g_pullsCompared & (g_pullsCompared - 1)) == 0)
+        log::Write("water effects: %s: %llu calls compared so far", id,
+                   static_cast<unsigned long long>(g_pullsCompared));
+    if (std::memcmp(self, mine, kEffectSize) == 0) {
+        compare::Record(id, true, std::string(), std::string());
+    } else {
+        std::size_t at = 0;
+        while (self[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        char text[32];
+        std::snprintf(text, sizeof text, "effect+%zX ", at);
+        compare::Record(id, false, text + Hex(self + at, 8), text + Hex(mine + at, 8));
+    }
+    return result;
+}
+
+uint32_t __fastcall DSC4Effect_PathVelocity(char* self, void*)
+{
+    return EffectRecorded(addr::SC4Effect_PathVelocity, &PullByMode, self);
+}
+OPENSC4_THUNK(TSC4Effect_PathVelocity, DSC4Effect_PathVelocity, 0)
 OPENSC4_EFFECT_HOOK0(SC4Effect_StepFlag80000000)
 OPENSC4_EFFECT_HOOK0(SC4EffectBase_Finish)
 OPENSC4_EFFECT_HOOK1(SC4Effect_StepFlag800000)
@@ -1774,6 +1849,35 @@ bool HookPool()
     return g_poolHooked;
 }
 
+bool HookPull()
+{
+    return g_SC4Effect_PathVelocity ||
+           Detour(addr::SC4Effect_PathVelocity, &TSC4Effect_PathVelocity, &g_SC4Effect_PathVelocity);
+}
+
+bool InstallPull(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookPull())
+        return false;
+    g_pullMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effect pull %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredPull = registry::Register({
+    "renderer.effects.pull",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_PathVelocity,
+    "The pull on an effect's particles from outside, worked out each frame for descriptions that list any; "
+    "compare mode runs ours and the game's on the same effect (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallPull,
+});
+
 bool HookBox()
 {
     return g_SC4Effect_NotDrawn || Detour(addr::SC4Effect_NotDrawn, &TSC4Effect_NotDrawn, &g_SC4Effect_NotDrawn);
@@ -2050,7 +2154,9 @@ bool InstallEffect(registry::Mode mode)
         bit <<= 1;
         hook(addr::SC4EffectB_NotDrawn, &TSC4EffectB_NotDrawn, &g_SC4EffectB_NotDrawn);
         hook(addr::SC4Effect_StepFlag2000, &TSC4Effect_StepFlag2000, &g_SC4Effect_StepFlag2000);
-        hook(addr::SC4Effect_PathVelocity, &TSC4Effect_PathVelocity, &g_SC4Effect_PathVelocity);
+        if (bits & bit)
+            ok = HookPull() && ok;
+        bit <<= 1;
         hook(addr::SC4Effect_StepFlag80000000, &TSC4Effect_StepFlag80000000, &g_SC4Effect_StepFlag80000000);
         hook(addr::SC4EffectBase_Finish, &TSC4EffectBase_Finish, &g_SC4EffectBase_Finish);
         hook(addr::SC4Effect_StepFlag800000, &TSC4Effect_StepFlag800000, &g_SC4Effect_StepFlag800000);
