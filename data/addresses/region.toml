@@ -486,7 +486,7 @@ address = 0x005DBD40
 kind = "function"
 convention = "cdecl"
 expect = "83 EC 3C 56 57 33 F6 56"
-source = "Name ours. No arguments: a city serial number made from the clock (seconds since a date in 2003 shifted left 4) and four random bits."
+source = "Name ours. No arguments: a city serial number made from the clock (seconds since 31 January 2000 shifted left 4) and four random bits."
 
 [[entry]]
 name = "SC4RegionalCity::MakeSavePath"
@@ -1569,3 +1569,408 @@ kind = "function"
 convention = "cdecl"
 expect = "83 EC 14 8B 0D 94 3C B4"
 source = "Name ours, not analysed in full. (cISC4RegionalCity* other, int32_t x, int32_t z, int32_t* outX, int32_t* outZ): takes a cell just past an edge of the other city (the edge from the other city's size) and gives the matching cell in the coordinates of the open regional city (service 0x00B43C94 slot 36), one of the two set to -1 or past the far edge; zeroes both first; returns bool. The twin of 0x006CE920; the regional city's 0x004A9220 calls it (docs/region.md)."
+
+[[entry]]
+name = "SC4CityFiles::CloseSegment"
+address = 0x005DBC10
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 8B 06 8B"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Resource::CopyRecordToFile"
+address = 0x005DBC40
+kind = "function"
+convention = "cdecl"
+expect = "81 EC 88 00 00 00 56 57"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 256 bytes with padding."
+
+[[entry]]
+name = "SC4Resource::SaveText"
+address = 0x005DBEA0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 8B 44 24 14 8B"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::GetVersion"
+address = 0x005DBF30
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 56 8B 74 24 1C"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::SetVersion"
+address = 0x005DBFA0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 10 8B 4C 24 14 6A"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::OpenSegment"
+address = 0x005DBFE0
+kind = "function"
+convention = "cdecl"
+expect = "68 DC 01 00 00 E8 F6 95"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4RegionalCity::ReadFromSegment"
+address = 0x005DC070
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 1C 8B 44 24 20 53"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 304 bytes with padding."
+
+[[entry]]
+name = "SC4RegionalCity::WriteToSegment"
+address = 0x005DC1A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 83 EC 14 53"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::ReadRecordToVector"
+address = 0x005DC3A0
+kind = "function"
+convention = "cdecl"
+expect = "51 53 55 8B 6C 24 14 56"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4FocusWatcher::QueryInterface"
+address = 0x005DC8A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 48 74 0C 2D"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4FocusWatcher::DoMessage"
+address = 0x005DC8D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::LoadPictureFile"
+address = 0x005DC910
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 38 53 8D 4C 24 04"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Rect::EqualsFolded"
+address = 0x005DC950
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 11 3B 10"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Rect::UnionOf"
+address = 0x005DC980
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4FocusWatcher::Release"
+address = 0x005DC9F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 83 F8 01 76 05"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 30 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::StoreFileAsPicture"
+address = 0x005DCA10
+kind = "function"
+convention = "cdecl"
+expect = "81 EC 8C 00 00 00 53 56"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 192 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::FindPictureBounds"
+address = 0x005DCAD0
+kind = "function"
+convention = "custom"
+expect = "83 EC 08 55 8B 6C 24 10"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 288 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::CropPicture"
+address = 0x005DCC00
+kind = "function"
+convention = "custom"
+expect = "8B 03 83 EC 0C 57 8B CB"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 240 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::DrawPictureMask"
+address = 0x005DCCF0
+kind = "function"
+convention = "cdecl"
+expect = "81 EC C0 00 00 00 8B 0D"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 1168 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::AveragePictures"
+address = 0x005DD180
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 48 53 55 56 8B 74"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 768 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::ReadPictures"
+address = 0x005DD480
+kind = "function"
+convention = "cdecl"
+expect = "81 EC F0 00 00 00 8B 84"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 1472 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::WritePictures"
+address = 0x005DDA90
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 78 53 55 56 57 33"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 816 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::WriteStockPictures"
+address = 0x005DDDC0
+kind = "function"
+convention = "cdecl"
+expect = "81 EC 90 00 00 00 8B 0D"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 256 bytes with padding."
+
+[[entry]]
+name = "SC4CityFiles::MakePictures"
+address = 0x005DDEC0
+kind = "function"
+convention = "cdecl"
+expect = "81 EC D4 00 00 00 53 55"
+source = "Placeholder name (docs/region.md): a function of the city file and thumbnail code, 640 bytes with padding."
+
+[[entry]]
+name = "cRZFile::SeekToBegin"
+address = 0x00918352
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 6A 00 6A 00 FF 50"
+source = "Name ours. No arguments: the file object's slot 0x34 with (0, 0), a seek to the start; the record copy 0x005DBC40 calls it before cutting the file (docs/region.md)."
+
+[[entry]]
+name = "cRZFile::SetLength"
+address = 0x009188F1
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 53 56 33 DB"
+source = "Name ours. (uint32_t length), ret 4: on an open file moves the file pointer to length and sets the end of the file there, then reads the position back; returns whether it did. 0x005DBC40 cuts the target file to nothing with it."
+
+[[entry]]
+name = "CRT::mktime"
+address = 0x009F0938
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 6A 01 E8 35"
+source = "The C runtime's mktime (struct tm*): 0x009F0778 with the tm in EAX and 1 for local time. The city serial number 0x005DBD40 calls it."
+
+[[entry]]
+name = "cSC4DBSegmentPackedFile::Construct"
+address = 0x005D3740
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 57 8D 7E"
+source = "Name ours, a guess at the class. No arguments: constructor of the 0x1DC-byte packed file object city files are opened as (vtables 0x00AA2654 at +0, 0x00AA2598 at +4, 0x00AA24F0 at +8, the cIGZPersistDBSegment part that main slot 3 returns); returns this (docs/region.md)."
+
+[[entry]]
+name = "RZFile::CombinePath"
+address = 0x00919738
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 56 8B 75 0C 56"
+source = "Name ours. (cIGZString* out, cIGZString const* path, cIGZString const* base): out = path when 0x009186E7 says path stands alone, else base joined with path (0x009196CC), or 0x00919672 (out, path) without a base. The city file paths are made with it (docs/region.md)."
+
+[[entry]]
+name = "SC4::CityFileExtension2"
+address = 0x00B0A84C
+kind = "data"
+source = "Name ours. const char* to '.sc4' (0x00A87054), the pointer the city file name maker 0x005DC400 reads; SC4::CityFileExtension is another pointer to the same text."
+
+[[entry]]
+name = "cGZImageReader::Construct"
+address = 0x0090BC54
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "Name ours, a guess at the class. No arguments: constructor of a 0x38-byte image reader (vtables 0x00ACE530 at +0, 0x00ACE4FC at +4); returns this. 0x005DC910 makes one on the stack."
+
+[[entry]]
+name = "cGZImageReader::LoadToNewBuffer"
+address = 0x0090B7AC
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 10 57 56"
+source = "Name ours. (cIGZString const* path, cIGZBuffer** out, uint32_t format), ret 0xC: makes a buffer (class 0xC470D325) in *out and loads the picture file into it through the reader's slot 5; on failure releases and clears *out. Also slot 4 of the reader's vtable."
+
+[[entry]]
+name = "cGZImageReader::Destruct"
+address = 0x0090BCB3
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 C7"
+source = "Name ours. No arguments: destructor of the image reader (frees its two vectors, then the base's 0x00975428)."
+
+[[entry]]
+name = "SC4FocusWatcher::Vtable"
+address = 0x00AA2B5C
+kind = "vtable"
+expect = "A0 C8 5D 00 F0 47 5F 00"
+source = "Name ours. vtable of the 0xC-byte message target the picture maker 0x005DDEC0 makes to watch the application's focus: QueryInterface 0x005DC8A0 (folded with two other classes), AddRef 0x005F47F0 (shared), Release 0x005DC9F0, DoMessage 0x005DC8D0 (docs/region.md)."
+
+[[entry]]
+name = "RZFile::Size"
+address = 0x0091A3E2
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 81 EC 64 02 00"
+source = "Name ours. uint32_t (cIGZString const* path): the size in bytes of the file with that path (the low dword of what the find-first call reports), 0xFFFFFFFF when there is no such file. 0x005DCA10 asks it before storing a picture file (docs/region.md)."
+
+[[entry]]
+name = "RZFile::MakeTempName"
+address = 0x0091A497
+kind = "function"
+convention = "cdecl"
+expect = "55 8D 6C 24 90 81 EC E4"
+source = "Name ours, not analysed. bool (cIGZString* out, cIGZString const* extension or null): fills out with the path of a new temporary file whose name ends with the extension; the picture code of the city files (0x005DD480, 0x005DDA90) writes its pictures through such a file and removes it after (docs/region.md)."
+
+[[entry]]
+name = "SC4ByteVector::ResizeZeroed"
+address = 0x00478AA0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 54 24 08 8D 44 24"
+source = "Name ours. (uint32_t size), ret 4: resizes a vector of bytes, new bytes 0 (0x004610A0 with the size and a zero byte). 0x005DD480 sizes its record buffer with it (docs/region.md)."
+
+[[entry]]
+name = "SC4BufferColorType::DepthOf"
+address = 0x00449500
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 C0 FE 83"
+source = "Name ours. (int32_t kind), ret 4, this not used: the bits per pixel of an image colour type: 8 for kind 2, 16 for 3 to 7, 32 for 8 and 9, else 0. 0x005DCC00 fills the second half of a colour type with it (docs/region.md)."
+
+[[entry]]
+name = "cGZImageReader::Save"
+address = 0x0090B1A1
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 53 8B"
+source = "Name ours. bool (cIGZString const* path, cIGZBuffer* image, uint32_t quality), ret 0xC: writes the image's whole area (its slot 0x30) as a picture file through the object's slot 0x24. 0x005DDA90 saves the region pictures with quality 100 (docs/region.md)."
+
+[[entry]]
+name = "SC4::IsAppInFront"
+address = 0x005F85F0
+kind = "function"
+convention = "cdecl"
+expect = "56 FF 15 0C 05 A8 00 8B"
+source = "Name ours. No arguments, returns a bool: whether the two user32 imports at 0x00A8050C and 0x00A80510 give the same window (the application's window is the one in front). The picture maker 0x005DDEC0 asks it (docs/region.md)."
+
+[[entry]]
+name = "SC4UI::SwitchInterface"
+address = 0x005F91C0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 08 53 33 DB 3A"
+source = "Name ours. (bool off, bool a, bool b, bool c, bool d): switches four things of the interface off or on again (framework services 0xC416025C, 0x86AD10EC, 0x46956659 and one more), each when its flag is set; SC4ModalGuard and the picture maker 0x005DDEC0 call it."
+
+[[entry]]
+name = "SC4UI::Snapshot"
+address = 0x005F9510
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 0D A4 3C B4 00 56"
+source = "Name ours. cIGZBuffer* (int32_t x, int32_t y, int32_t width, int32_t height): asks the service at 0x00B43CA4 for interface 0xE69BFE2A and calls its slot 0xC with the four values and 0: a picture of that part of the screen with a reference for the caller, or null. The picture maker 0x005DDEC0 takes its sixteen shots with it (docs/region.md)."
+
+[[entry]]
+name = "SC4::Service43DC4Slot6"
+address = 0x00602180
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D C4 3D B4 00 8B 01"
+source = "Name ours, not analysed. No arguments: jumps to slot 0x18 of the service at 0x00B43DC4 and returns its object; the picture maker 0x005DDEC0 calls that object's slots 0x10 and 0x14 with 0 and 0xF3 (docs/region.md)."
+
+[[entry]]
+name = "RZ::SleepMicroseconds"
+address = 0x009205A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 33 D2 B9 E8"
+source = "Name ours. (uint32_t microseconds): the import at 0x00A802F8 with the value divided by 1000 and 1 (an alertable sleep in milliseconds). The picture maker 0x005DDEC0 waits 500,000 at a time for the application to come to the front."
+
+[[entry]]
+name = "cSC4CameraControl::GetZoomFactor"
+address = 0x007624E0
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 F0 00 00 00 C3 CC"
+source = "Name ours. No arguments: the float at +0xF0 left on the x87 stack (a getter shared through code folding); the picture maker 0x005DDEC0 reads the camera control's zoom factor with it before changing it (docs/region.md)."
+
+[[entry]]
+name = "SC4CityFiles::PictureExtension"
+address = 0x00B0A858
+kind = "data"
+source = "Name ours. const char* to '.png' (the text at 0x00AA2B54): the extension of the temporary files the region pictures of a city file go through (docs/region.md)."
+
+[[entry]]
+name = "SC4CityFiles::PictureDepth"
+address = 0x00B2304C
+kind = "data"
+source = "Name ours. int32_t: how many calls of the picture maker 0x005DDEC0 are running; it calls itself again after the application lost the focus only while this is 2 or less (docs/region.md)."
+
+[[entry]]
+name = "SC4CityFiles::ZeroB23050"
+address = 0x00B23050
+kind = "data"
+source = "Name ours. A dword nothing writes (0): the picture maker 0x005DDEC0 fills its saved view centre with it before reading the real one."
+
+[[entry]]
+name = "SC4CityFiles::PictureFilterVtable"
+address = 0x00A88084
+kind = "data"
+source = "Name ours, not analysed. Main vtable of a 16-byte occupant filter derived from SC4::OccupantFilterBase with three flag bytes at +0xC, +0xD and +0xE (also built at 0x004666D3, 0x005EA25A, 0x006BFB62 and 0x007F367E); the picture maker 0x005DDEC0 hands one with all three 0 to the service at 0x00B43DC4 (slot 0x4C) (docs/region.md)."
+
+[[entry]]
+name = "SC4CityFiles::PictureFilterVtable4"
+address = 0x00A8806C
+kind = "data"
+source = "Name ours. The second vtable (at +4) of the occupant filter whose main vtable is 0x00A88084."
+
+[[entry]]
+name = "SC4CityFiles::ViewShifts"
+address = 0x00AA2B8C
+kind = "data"
+source = "Name ours. Eight floats, four pairs (1/6, 1/3), (1/3, -1/6), (-1/6, -1/3), (-1/3, 1/6): the shifts the picture maker 0x005DDEC0 gives the view (slot 0x34) for the four shots it averages (docs/region.md)."
+
+[[entry]]
+name = "SC4CityFiles::PictureWidths"
+address = 0x00AA2BB8
+kind = "data"
+source = "Name ours. Three dwords by city size, 0x80, 0x100, 0x200: the width in screen pixels of the region picture the picture maker 0x005DDEC0 takes around the middle of the view, before the two extra columns (docs/region.md)."
+
+[[entry]]
+name = "SC4CityFiles::PictureOffsets"
+address = 0x00AA2BAC
+kind = "data"
+source = "Name ours. Three dwords by city size, 0x20, 0x40, 0x80: added to half the view's height to get the height of the shots of the picture maker 0x005DDEC0 (docs/region.md)."
