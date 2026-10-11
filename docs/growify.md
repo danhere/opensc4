@@ -39,4 +39,4 @@ From [sc4-growify](https://github.com/0xC0000054/sc4-growify) by Nicholas Hayes 
 
 ## Checked
 
-Offline: the command parser and the purpose table (`growify_command` test). Not yet checked in the game.
+Offline: the command parser and the purpose table (`growify_command` test). In the game, 2026-10-11, Making Money: the cheat is registered at start, `growify Commercial Medium` and `growify Residential Low` walk the city and answer "Growified 0 ... lot(s)." (the tutorial city has no plopped buildings of those kinds), and `growify x` gets the zone type error. Not checked yet: converting an actual plopped lot.
