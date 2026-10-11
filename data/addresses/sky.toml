@@ -115,7 +115,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4EffectDecal* this, float step)"
 expect = "83 EC 50 55 56 8B F1 8B"
-source = "Class name ours, not analysed. Slot 0x24 of the vtable 0x00A9EE78, the class of the objects in the manager's fourth list (interface +0xBC0), which SC4EffectsManager::Draw draws after the sorted effects (diagnostics.trace.effects)."
+source = "Class name ours. Slot 0x24 of the vtable 0x00A9EE78, the class of the objects in the manager's fourth list (interface +0xBC0), which SC4EffectsManager::Draw calls after the sorted effects (diagnostics.trace.effects). It draws nothing itself: the time (+0x114) grows by the step, a looping one (+0x15 is 1) wraps and one of kind 2 past its end ends itself (slot 4), and the curves from +0x34 read at that time go to the owner (+0x120) for the handle (+0x70): an opacity (slot 0x44), a block of nine values (slot 0x34), a position (slot 0x48). Ours in renderer.effects.decal (src/core/effect_decal.inc)."
 
 [[entry]]
 name = "SC4Effect::StepParticle"
