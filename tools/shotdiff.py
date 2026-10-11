@@ -86,8 +86,10 @@ def write_png(path, width, height, rgb):
                            + chunk(b"IDAT", zlib.compress(rows, 6)) + chunk(b"IEND", b""))
 
 
-def compare(base_path, cand_path, tolerance, diff_path):
-    """Returns (differing pixels, total pixels, max channel delta)."""
+def compare(base_path, cand_path, tolerance, diff_path, rect=None):
+    """Returns (differing pixels, total pixels, max channel delta).
+
+    With rect = (x, y, width, height) only that rectangle is compared."""
     if base_path.read_bytes() == cand_path.read_bytes():
         return 0, None, 0
     w1, h1, c1, a = read_png(base_path)
@@ -98,7 +100,11 @@ def compare(base_path, cand_path, tolerance, diff_path):
     channels = 3
     differing, worst = 0, 0
     mask = bytearray(w1 * h1)
-    for p in range(w1 * h1):
+    inside = None
+    if rect:
+        x0, y0, rw, rh = rect
+        inside = [p for y in range(max(y0, 0), min(y0 + rh, h1)) for p in range(y * w1 + max(x0, 0), y * w1 + min(x0 + rw, w1))]
+    for p in (inside if inside is not None else range(w1 * h1)):
         i, j = p * c1, p * c2
         delta = max(abs(a[i + k] - b[j + k]) for k in range(channels))
         if delta > tolerance:
@@ -114,7 +120,7 @@ def compare(base_path, cand_path, tolerance, diff_path):
                 i = p * c1
                 rgb[p * 3:p * 3 + 3] = bytes(v // 3 for v in a[i:i + 3])
         write_png(diff_path, w1, h1, rgb)
-    return differing, w1 * h1, worst
+    return differing, len(inside) if inside is not None else w1 * h1, worst
 
 
 def main():
@@ -124,6 +130,7 @@ def main():
     parser.add_argument("--diff-dir", type=Path)
     parser.add_argument("--tolerance", type=int, default=0)
     parser.add_argument("--max-differing", type=float, default=0.0)
+    parser.add_argument("--rect", help="x,y,width,height: compare only this rectangle of every shot")
     args = parser.parse_args()
     if args.diff_dir:
         args.diff_dir.mkdir(parents=True, exist_ok=True)
@@ -141,7 +148,8 @@ def main():
             continue
         diff = args.diff_dir / name if args.diff_dir else None
         try:
-            differing, total, worst = compare(args.baseline / name, cand, args.tolerance, diff)
+            rect = tuple(int(v) for v in args.rect.split(",")) if args.rect else None
+            differing, total, worst = compare(args.baseline / name, cand, args.tolerance, diff, rect)
         except ValueError as error:
             print(f"{name}: ERROR {error}")
             failed += 1
