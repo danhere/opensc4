@@ -781,7 +781,79 @@ uint32_t __fastcall DSC4Effect_Emit(char* self, void*)
 }
 OPENSC4_THUNK(TSC4Effect_Emit, DSC4Effect_Emit, 0)
 
-OPENSC4_EFFECT_HOOK1(SC4Effect_BeforeParticles)
+// What an effect does before it draws its particles (0x005B3B90, slot 0x38
+// of both effect classes), translated instruction by instruction: when the
+// rotation of the view (the context's +0x18) is not the one kept at +0x88,
+// the two axes the particles are drawn along (+0x70 and +0x7C) are taken
+// again: the camera view's two (its +0x60 and +0x6C), or for descriptions
+// whose byte at +0xD5 is 1 two worked out from the description's own
+// direction (+0x30).
+uint32_t SetEffectAxes(char* self, uint32_t context)
+{
+    uint32_t stackmem[160] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = context;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_axes.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+StepMode g_axesMode = StepMode::Original;
+Call1Fn g_SC4Effect_BeforeParticles = nullptr;
+uint64_t g_axesCompared = 0;
+
+// It reads the context and the description and writes only the effect, so
+// the comparison runs ours and the game's on the same effect.
+uint32_t __fastcall AxesByMode(char* self, void*, uint32_t context)
+{
+    if (g_axesMode == StepMode::Original || g_effectReplay)
+        return g_SC4Effect_BeforeParticles(self, nullptr, context);
+    if (g_axesMode == StepMode::Ours)
+        return SetEffectAxes(self, context);
+    char before[kEffectSize], mine[kEffectSize];
+    std::memcpy(before, self, kEffectSize);
+    SetEffectAxes(self, context);
+    std::memcpy(mine, self, kEffectSize);
+    std::memcpy(self, before, kEffectSize);
+    const uint32_t result = g_SC4Effect_BeforeParticles(self, nullptr, context);
+    ++g_axesCompared;
+    if ((g_axesCompared & (g_axesCompared - 1)) == 0)
+        log::Write("water effects: effects.axes: %llu calls compared so far",
+                   static_cast<unsigned long long>(g_axesCompared));
+    if (std::memcmp(self, mine, kEffectSize) == 0) {
+        compare::Record("effects.axes", true, std::string(), std::string());
+    } else {
+        std::size_t at = 0;
+        while (self[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        char text[32];
+        std::snprintf(text, sizeof text, "effect+%zX ", at);
+        compare::Record("effects.axes", false, text + Hex(self + at, 8), text + Hex(mine + at, 8));
+    }
+    return result;
+}
+
+uint32_t __fastcall DSC4Effect_BeforeParticles(char* self, void*, uint32_t context)
+{
+    return EffectRecorded(addr::SC4Effect_BeforeParticles, &AxesByMode, self, context);
+}
+OPENSC4_THUNK(TSC4Effect_BeforeParticles, DSC4Effect_BeforeParticles, 4)
 OPENSC4_EFFECT_HOOK1(SC4Effect_DrawParticlesTextured)
 OPENSC4_EFFECT_HOOK1(SC4Effect_DrawParticles)
 OPENSC4_EFFECT_HOOK1(SC4EffectB_DrawParticles)
@@ -1440,6 +1512,35 @@ bool HookPool()
     return g_poolHooked;
 }
 
+bool HookAxes()
+{
+    return g_SC4Effect_BeforeParticles ||
+           Detour(addr::SC4Effect_BeforeParticles, &TSC4Effect_BeforeParticles, &g_SC4Effect_BeforeParticles);
+}
+
+bool InstallAxes(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookAxes())
+        return false;
+    g_axesMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effect axes %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredAxes = registry::Register({
+    "renderer.effects.axes",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_BeforeParticles,
+    "What an effect does before it draws: the two axes its particles are drawn along, taken again when the view's "
+    "rotation changed; compare mode runs ours and the game's on the same effect (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallAxes,
+});
+
 bool HookEmitBurst()
 {
     return g_emitBurst || Detour(addr::SC4Effect_EmitBurst, &TEmitBurst, &g_emitBurst);
@@ -1586,7 +1687,9 @@ bool InstallEffect(registry::Mode mode)
         if (bits & bit)
             ok = HookEmit() && ok;
         bit <<= 1;
-        hook(addr::SC4Effect_BeforeParticles, &TSC4Effect_BeforeParticles, &g_SC4Effect_BeforeParticles);
+        if (bits & bit)
+            ok = HookAxes() && ok;
+        bit <<= 1;
         hook(addr::SC4Effect_DrawParticlesTextured, &TSC4Effect_DrawParticlesTextured,
              &g_SC4Effect_DrawParticlesTextured);
         hook(addr::SC4Effect_DrawParticles, &TSC4Effect_DrawParticles, &g_SC4Effect_DrawParticles);
