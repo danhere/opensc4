@@ -1567,6 +1567,254 @@ void DriveApp(const Day& day)
 const DayHook kApp{"ui.app", 105, &DriveApp};
 
 
+// --- The city view's menus, panels and window sets --------------------------------
+
+char g_viewMenusToken[200];
+
+// OPENSC4_TEST_VIEW_MENUS=<day>: the live city view's buttons pressed
+// through its command handler, as a click does, with the window each
+// button sits in. With the mayor's window set shown, each of five bar
+// buttons opens its pop-up of buttons; up to three of those are pressed,
+// and each menu that comes up is read (its items' IDs and names), the
+// mouse moved over a row and off again, and closed; in the first, a row is
+// pressed, which takes up the lot tool. Then the window set of the current
+// mode hidden and shown, the budget, graphs and style panels asked for and
+// put away, two cheat codes that only set a flag, and the animation
+// recorder shown (it stays up). Nothing is placed in the city and the view
+// is not moved.
+void DriveViewMenus(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_VIEW_MENUS") || !game::IsBuild641())
+        return;
+    char* const view = View();
+    void* const layout = view ? At<void*>(view, 0x18C) : nullptr;
+    if (!layout) {
+        log::Write("autotest: view menus: no city view");
+        return;
+    }
+    cISC4AppPtr app;
+    cIGZWin* const mainWindow = app ? app->GetMainWindow() : nullptr;
+    if (!mainWindow)
+        return;
+    Fnv menus, sets, misc;
+    int opened = 0;
+    // No mode is up in a city just loaded: the mayor's window set is shown
+    // for the menus, and hidden again after them.
+    const int32_t modeBefore = At<int32_t>(view, 0x1F4);
+    if (modeBefore == -1)
+        reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F7E8B90)(view, 1);
+    const auto state = [&](Fnv& f) {
+        f.Add(At<void*>(view, 0x1F8) != nullptr);
+        f.Add(At<void*>(view, 0x1FC) != nullptr);
+        f.Add(At<uint32_t>(view, 0x200));
+        f.Add(At<uint32_t>(view, 0x204));
+        f.Add(static_cast<uint32_t>(At<char*>(view, 0x138) - At<char*>(view, 0x134)) / 4);
+        void* const tool = Virtual<void*>(view, 0x60);
+        f.Add(tool ? Virtual<uint32_t>(tool, 0x14) : 0u);
+    };
+    using CommandFn = void(__thiscall*)(void*, void*, uint32_t*);
+    // A click comes with the window the button sits in; the menu opener
+    // looks the button up there. A button that is not in the layout now
+    // (another mode's) is not pressed.
+    const auto click = [&](uint32_t id, void* within) {
+        void* const button = Virtual<void*>(within, 0x8C, id);
+        void* const bar = button ? Virtual<void*>(button, 0x2C) : nullptr;
+        menus.Add(bar != nullptr);
+        if (!bar)
+            return;
+        uint32_t message[4] = {3, 0x287259F6, id, 0};
+        reinterpret_cast<CommandFn>(addr::SC4UI_F7F4690)(view, bar, &message[0]);
+    };
+    const auto escape = [&] {
+        for (int i = 0; i < 3; ++i)
+            Virtual<uint8_t>(view, 0x1C, 0x6A935CF1u, static_cast<void*>(nullptr), uint32_t{0});
+    };
+
+    // The bar's buttons open a pop-up of more buttons (the secondary menu);
+    // those open the menus proper (the tertiary one).
+    bool pressed = false;
+    for (const uint32_t barButton : {0x0991EE13u, 0x0991EE39u, 0x6991EE42u, 0xA994824Du, 0xE991EE2Fu}) {
+        click(barButton, mainWindow);
+        state(menus);
+        void* const second = At<void*>(view, 0x1F8);
+        int found = 0;
+        for (const uint32_t button : {0x3u, 0x34u, 0x37u, 0x38u, 0x42u, 0x29u, 0x31u, 0x35u, 0x39u, 0x40u, 0x09930709u, 0x89DD5405u,
+                                      0x299237BFu, 0xA99234A6u, 0xE99234B3u, 0xC99231DAu, 0x152231F3u, 0x4A22EA06u}) {
+            if (!second || found >= 3 || !Virtual<void*>(second, 0x8C, button))
+                continue;
+            ++found;
+            click(button, second);
+            state(menus);
+            void* const frame = At<void*>(view, 0x1FC);
+            char* const menuWindow = frame ? Virtual<char*>(frame, 0x8C, 0x8A2CAD8Bu) : nullptr;
+            log::Write("autotest: viewmenus: bar %08X button %08X: third %d menu %d id %08X", barButton, button, frame != nullptr,
+                       menuWindow != nullptr, At<uint32_t>(view, 0x204));
+            if (menuWindow) {
+                ++opened;
+                char* const menu = menuWindow - 0x4;
+                char** const begin = At<char**>(menu, 0xDC);
+                char** const end = At<char**>(menu, 0xE0);
+                menus.Add(static_cast<uint32_t>(end - begin));
+                for (char** item = begin; item != end; ++item) {
+                    menus.Add(At<uint32_t>(*item, 0x38));
+                    AddText(menus, *item + 0x4);
+                    menus.Add(At<uint8_t>(*item, 0x40));
+                }
+                Virtual<uint8_t>(menuWindow, 0x228, int32_t{12}, int32_t{30}, uint32_t{0}); // the mouse over a row
+                menus.Add(At<uint32_t>(menu, 0xEC));
+                menus.Add(At<uint32_t>(menu, 0xF0));
+                if (!pressed && end != begin) {
+                    pressed = true;
+                    Virtual<uint8_t>(menuWindow, 0x220, int32_t{12}, int32_t{30}, uint32_t{0}); // the row pressed
+                    state(menus);
+                } else {
+                    Virtual<uint8_t>(menuWindow, 0x238, uint32_t{0}); // the mouse off the menu
+                }
+            }
+            Virtual<void>(view, 0xF0);               // the tertiary menu closed
+            Virtual<void>(view, 0x6C, uint32_t{0}); // any tool put away
+            state(menus);
+        }
+        log::Write("autotest: viewmenus: bar %08X second %d, %d of its buttons pressed", barButton, second != nullptr, found);
+        Virtual<void>(view, 0xEC); // the secondary menu closed
+        state(menus);
+    }
+    escape();
+    state(menus);
+
+    if (modeBefore == -1)
+        reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F7E8CA0)(view, 1);
+
+    if (const uint32_t set = At<uint32_t>(view, 0x1F4); set < 5) {
+        reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F7E8CA0)(view, set);
+        sets.Bytes(view + 0x2D4, 3);
+        reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F7E8B90)(view, set);
+        sets.Bytes(view + 0x2D4, 3);
+        sets.Add(set);
+    }
+    for (const uint32_t panel : {0x41u, 0x15200002u, 0xABC54125u, 0u}) {
+        reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F7E6F60)(view, panel);
+        sets.Add(At<uint32_t>(view, 0x370));
+        sets.Add(At<uint32_t>(view, 0x374));
+    }
+
+    {
+        using CheatFn = uint8_t(__thiscall*)(void*, uint32_t, void*);
+        const uint8_t kept446 = At<uint8_t>(view, 0x446), kept124 = At<uint8_t>(view, 0x124);
+        misc.Add(reinterpret_cast<CheatFn>(addr::SC4UI_F7F3510)(view, 0x4A82253E, nullptr));
+        misc.Add(At<uint8_t>(view, 0x446));
+        misc.Add(reinterpret_cast<CheatFn>(addr::SC4UI_F7F3510)(view, 0x4A972F37, nullptr));
+        misc.Add(At<uint8_t>(view, 0x124));
+        At<uint8_t>(view, 0x446) = kept446;
+        At<uint8_t>(view, 0x124) = kept124;
+        char* const window = view + 0xC;
+        misc.Add(Virtual<void*>(window, 0x8C, 0xA802B4EBu) != nullptr);
+        misc.Add(reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F7F0840)(view, 1)); // the recorder
+        misc.Add(Virtual<void*>(window, 0x8C, 0xA802B4EBu) != nullptr);
+    }
+
+    std::snprintf(g_viewMenusToken, sizeof g_viewMenusToken, " viewmenus %d menus %08X sets %08X misc %08X", opened, menus.h, sets.h,
+                  misc.h);
+    log::Write("autotest: viewmenus driven:%s", g_viewMenusToken);
+}
+
+const DayHook kViewMenus{"ui.view_menus", 106, &DriveViewMenus};
+
+
+// --- What moves the city view -----------------------------------------------------
+
+char g_viewMovesToken[120];
+
+// OPENSC4_TEST_VIEW_MOVES=<day>: the city view zoomed in and out, set to
+// each zoom, rotated left and right and set, its zoom limits set, the wheel
+// turned both ways, one scroll step each way by command, a scroll key
+// pressed and let go at once, the mouse moved, keys and a character given
+// to the tools, and a right click, which centres the view on the ground
+// under it. After each step the camera's zoom and rotation and the view's
+// scroll state are read. At the end the simulator, which a zoomed view
+// holds on real time, is let go. The view ends at its first zoom and
+// rotation but not at its first place: the view's rectangle is saved with
+// the city, so this switch has a leg of its own.
+void DriveViewMoves(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_VIEW_MOVES") || !game::IsBuild641())
+        return;
+    char* const view = View();
+    char* const camera = view ? At<char*>(view, 0xEC) : nullptr;
+    if (!camera) {
+        log::Write("autotest: view moves: no city view");
+        return;
+    }
+    char* const window = view + 0xC;
+    Fnv moves;
+    const auto state = [&] {
+        moves.Add(At<uint32_t>(camera, 0xC));
+        moves.Add(At<uint32_t>(camera, 0x10));
+        moves.Add(Virtual<uint8_t>(view, 0x30));
+        moves.Add(Virtual<uint8_t>(view, 0x34));
+        moves.Bytes(view + 0x348, 0x10);
+    };
+    const uint32_t zoom = At<uint32_t>(camera, 0xC), rotation = At<uint32_t>(camera, 0x10);
+    const auto command = [&](uint32_t id) {
+        Virtual<uint8_t>(view, 0x1C, id, static_cast<void*>(nullptr), uint32_t{0});
+        state();
+    };
+    state();
+    moves.Add(Virtual<uint8_t>(view, 0x24)); // zoom in
+    state();
+    moves.Add(Virtual<uint8_t>(view, 0x28)); // zoom out
+    state();
+    for (const uint32_t level : {0u, 3u, 5u, 9u}) {
+        moves.Add(Virtual<uint8_t>(view, 0x20, level));
+        state();
+    }
+    moves.Add(Virtual<uint8_t>(view, 0x3C)); // rotate left
+    state();
+    moves.Add(Virtual<uint8_t>(view, 0x40)); // rotate right
+    state();
+    moves.Add(Virtual<uint8_t>(view, 0x38, uint32_t{2}));
+    state();
+    moves.Add(Virtual<uint8_t>(view, 0x44, uint32_t{4}, uint32_t{1}));
+    state();
+    Virtual<void>(view, 0x2C, uint32_t{0}, uint32_t{5}); // the zoom limits
+    state();
+    for (const int32_t turn : {120, -120}) {
+        moves.Add(Virtual<uint8_t>(window, 0x22C, int32_t{400}, int32_t{300}, uint32_t{0}, turn));
+        state();
+    }
+    for (const uint32_t id : {0x6A935CB7u, 0x6A935CBAu, 0x6A935CC9u, 0x6A935CCCu, 0x2A9484DAu, 0x2A9484FFu, 0x2A94850Bu, 0x2A9484F2u,
+                              0x6A935CD8u, 0x2A94826Bu, 0x6A935CE2u, 0x2A948275u})
+        command(id);
+    Virtual<void>(view, 0x8C); // keyboard scrolling killed
+    state();
+    moves.Add(Virtual<uint8_t>(window, 0x228, int32_t{400}, int32_t{300}, uint32_t{0}));
+    using KeyFn = uint8_t(__thiscall*)(void*, uint32_t, uint32_t);
+    moves.Add(reinterpret_cast<KeyFn>(addr::SC4UI_F7E66D0)(view, 0x41, 0));
+    moves.Add(reinterpret_cast<KeyFn>(addr::SC4UI_F7E67D0)(view, 0x41, 0));
+    moves.Add(At<uint32_t>(view, 0x11C));
+    moves.Add(Virtual<uint8_t>(window, 0x204, uint32_t{'a'}));
+    moves.Add(Virtual<uint8_t>(window, 0x21C, int32_t{420}, int32_t{280}, uint32_t{0})); // right button down
+    moves.Add(Virtual<uint8_t>(window, 0x224, int32_t{420}, int32_t{280}, uint32_t{0})); // and up: the view centred there
+    state();
+    Virtual<uint8_t>(window, 0x238, uint32_t{0}); // the mouse off the view
+    moves.Add(Virtual<uint8_t>(view, 0x44, zoom, rotation));
+    Virtual<void>(view, 0x6C, uint32_t{0}); // any tool put away
+    state();
+    moves.Add(static_cast<uint32_t>(At<char*>(view, 0x138) - At<char*>(view, 0x134)) / 4);
+    // A view that was zoomed or turned holds the simulator until a stopwatch
+    // on real time runs out; let go here, the run's days stay what they were.
+    moves.Add(At<uint8_t>(view, 0x178));
+    if (At<uint8_t>(view, 0x178))
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4UI_F7E5B70)(view);
+    moves.Add(At<uint8_t>(view, 0x178));
+
+    std::snprintf(g_viewMovesToken, sizeof g_viewMovesToken, " viewmoves %08X", moves.h);
+    log::Write("autotest: viewmoves driven:%s", g_viewMovesToken);
+}
+
+const DayHook kViewMoves{"ui.view_moves", 107, &DriveViewMoves};
+
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     line += g_budgetToken;
@@ -1575,6 +1823,8 @@ void Fingerprint(cISC4City*, std::string& line)
     line += g_panelsToken;
     line += g_cityViewToken;
     line += g_appToken;
+    line += g_viewMenusToken;
+    line += g_viewMovesToken;
     line += g_panelToken;
     line += g_cityPanelsToken;
     line += g_mapToken;
