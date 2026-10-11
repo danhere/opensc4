@@ -156,7 +156,7 @@ Parity method (from P4): short-window exact comparison against the original from
 
 - [ ] Lots / buildings / growth
 - [ ] Terrain
-- [~] Region view ([docs/region.md](docs/region.md)): mapped (about 93 KB in five parts). The region data class `cSC4Region` (folder, `region.ini`, `config.bmp` layout, the cities found and matched to tiles) is replaceable (`region.data.*`, 36 functions). Still the game's: the regional city, city thumbnails, the region screen and the region map windows
+- [~] Region view ([docs/region.md](docs/region.md)): mapped (about 93 KB in five parts). The region data class `cSC4Region` (folder, `region.ini`, `config.bmp` layout, the cities found and matched to tiles) is replaceable (`region.data.*`, 36 functions), and so is the regional city `cSC4RegionalCity` (a city's summary and save record, neighbour connections carried across the edge; `region.city.*`, 94 functions). Still the game's: city thumbnails, the region screen and the region map windows
 - [ ] Audio
 
 ## P9: Framework and host mode (exe independence)
