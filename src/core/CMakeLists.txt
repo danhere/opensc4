@@ -219,6 +219,7 @@ add_library(opensc4_core SHARED
   game_autosave.cpp
   game_bulldoze.cpp
   game_bulldoze_autotest.cpp
+  game_dezone.cpp
   game_seed.cpp
   game_timelapse.cpp
   gd/d3d11_backend.cpp
