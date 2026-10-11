@@ -1565,3 +1565,35 @@ kind = "function"
 convention = "thiscall"
 expect = "53 8A 5C 24 08 56 8B F1"
 source = "Name ours (class cSC4View3DWin). (bool scrolling, x, y): starts (0x007F6410) or ends (0x007F6160) the view's scrolling and keeps the flag at +0x330 and the two values at +0x328 and +0x32C; clears +0x339. (docs/renderer.md, \"The city view window\")."
+
+[[entry]]
+name = "STE::BuildBuffers"
+address = 0x00758EA0
+kind = "function"
+convention = "cdecl"
+expect = "A1 58 C7 B4 00 83 EC 18"
+source = "Name ours. (): makes the terrain's drawing buffers when they do not exist yet and fills them: the land and water vertices (0x00B4C758, 0x00B4C75C: 32 bytes a vertex, 0x00B4C754 of them, filled by 0x00752430 and 0x00752520), the index lists (0x00B4C6FC, 0x00B4C6F8, 0x00B4C6B4, 0x00B4C6F4) and the per-row arrays (0x00B4C6AC to 0x00B4C6D8). (docs/renderer.md, \"The terrain's buffers\")."
+
+[[entry]]
+name = "STE::FillLandVertices"
+address = 0x00752430
+kind = "function"
+convention = "cdecl"
+expect = "A1 54 C7 B4 00 83 EC 08"
+source = "Name ours. (): fills the land vertices' places and texture coordinates. (docs/renderer.md, \"The terrain's buffers\")."
+
+[[entry]]
+name = "STE::FillWaterVertices"
+address = 0x00752520
+kind = "function"
+convention = "cdecl"
+expect = "A1 54 C7 B4 00 83 EC 10"
+source = "Name ours. (): fills the water vertices; also keeps a value from the object in ECX at 0x00B4C7B8. (docs/renderer.md, \"The terrain's buffers\")."
+
+[[entry]]
+name = "STE::FreeBuffers"
+address = 0x00758750
+kind = "function"
+convention = "cdecl"
+expect = "A1 58 C7 B4 00 55 33 ED"
+source = "Name ours. (): frees the terrain's drawing buffers and clears their pointers. (docs/renderer.md, \"The terrain's buffers\")."
