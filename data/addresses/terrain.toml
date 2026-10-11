@@ -1973,3 +1973,43 @@ kind = "function"
 convention = "cdecl"
 expect = "53 8B 5C 24 0C 55 8B 6C"
 source = "Name ours. (out place, first, last): takes a run of nodes out of a list of row layers and frees them, with each node's own list. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "cSTETerrainView3D::Init"
+address = 0x0075C420
+kind = "function"
+convention = "thiscall"
+expect = "A0 40 C7 B4 00 83 EC 18"
+source = "Name ours. (terrain): starts the view for a city (+0x18 says it is started): runs the one-time set-up if needed (0x0075C0C0), keeps the terrain (+0x20) and the terrain's cells (+0x1C), frees and rebuilds the drawing buffers, makes the view's parts (the overlay manager, the cell marks, the shore and others, kept from +0x78 on) and gives them to the 3D render, fills the heights of every vertex (0x007569F0, 0x00756B00) and picks the zoom's textures. (docs/renderer.md, \"The terrain view's start and stop\")."
+
+[[entry]]
+name = "cSTETerrainView3D::Shutdown"
+address = 0x007560F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 18 33"
+source = "Name ours. (): stops the view (+0x18 cleared): takes its parts back from the 3D render (slot 0x84), destroys them and releases what Init kept. (docs/renderer.md, \"The terrain view's start and stop\")."
+
+[[entry]]
+name = "cSTETerrainView3D::MarkRowsDirty"
+address = 0x00755ED0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. (first row, last row): sets the dirty bits of those rows (0x00B4C7EC, bit offset 0x00B4C7F0). (docs/renderer.md, \"The terrain view's start and stop\")."
+
+[[entry]]
+name = "cSTETerrainView3D::UpdateAllCellIndices"
+address = 0x00755FB0
+kind = "function"
+convention = "thiscall"
+expect = "A1 48 C7 B4 00 53 57 33"
+source = "Name ours. (): redoes the indices of every cell, row by row (0x00752AF0). (docs/renderer.md, \"The terrain view's start and stop\")."
+
+[[entry]]
+name = "cSTETerrainView3D::SetSize"
+address = 0x007595A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 39 0D 44 C7"
+source = "Name ours. (cells across, cells down), cdecl: when the size differs from the one kept (0x00B4C744, 0x00B4C748) keeps it with the values derived from it (vertex columns and rows 0x00B4C74C, 0x00B4C750, vertex count 0x00B4C754, the index steps from 0x00B4C710 on), frees the drawing buffers (0x00758750) and builds them again (0x00758EA0). (docs/renderer.md, \"The terrain view's start and stop\")."
