@@ -4331,6 +4331,10 @@ const bool g_registeredDataMapPainters = registry::Register({
     InstallDataMapPainters,
 });
 
+// While set, every call a translated routine makes notes its ECX here: the
+// objects our run called into (EffectCompared).
+std::vector<uint32_t>* g_dynTouched;
+
 // The routines under the painters (0x0079EB40 to 0x007A1382): resamplers,
 // pixel loops, smoothers, outline collectors and a row vector's resize,
 // translated instruction by instruction. They are entered with every register
@@ -4354,6 +4358,8 @@ struct EntryFrame
 #define DYNCALL(callee)                                                                                                  \
     do {                                                                                                                 \
         DynRegs regs{eax, ecx, edx, ebx, esi, edi, esp, (callee), 0.0, 0};                                               \
+        if (g_dynTouched)                                                                                                \
+            g_dynTouched->push_back(ecx);                                                                                \
         DynCall(&regs);                                                                                                  \
         eax = regs.eax, ecx = regs.ecx, edx = regs.edx, ebx = regs.ebx, esi = regs.esi, edi = regs.edi, esp = regs.esp;  \
         if (regs.isFloat)                                                                                                \
@@ -5103,6 +5109,267 @@ const bool g_registeredWindowPaintsUntested = registry::Register({
     "menu and its arrows, intro, picture file dialog, advisor head, graph box (docs/renderer.md, \"Small windows\")",
     true,
     InstallWindowPaintsUntested,
+});
+
+// A same-run comparison for a function whose results land in other objects
+// (it positions windows, hands over pictures, tells a manager something) and
+// that gives the same result when run again. Ours runs first and notes every
+// object it calls into; the first bytes of those objects are copied; the
+// game's runs, twice; the same bytes are compared. Only objects whose first
+// word points into the game's read-only data (a vtable) are looked at.
+bool LooksLikeObject(uint32_t address, size_t size)
+{
+    MEMORY_BASIC_INFORMATION info{};
+    if (address < 0x10000 || !VirtualQuery(reinterpret_cast<void*>(address), &info, sizeof info))
+        return false;
+    const auto end = reinterpret_cast<uintptr_t>(info.BaseAddress) + info.RegionSize;
+    if (info.State != MEM_COMMIT || (info.Protect & (PAGE_GUARD | PAGE_NOACCESS)) || address + size > end)
+        return false;
+    const uint32_t first = *reinterpret_cast<uint32_t*>(address);
+    return first >= 0x00A70000 && first < 0x00B10000;
+}
+template <typename Ours, typename Game>
+void EffectCompared(const char* id, size_t bytesEach, Ours&& ours, Game&& game)
+{
+    std::vector<uint32_t> touched;
+    g_dynTouched = &touched;
+    ours();
+    g_dynTouched = nullptr;
+    std::sort(touched.begin(), touched.end());
+    touched.erase(std::unique(touched.begin(), touched.end()), touched.end());
+    std::vector<uint32_t> objects;
+    for (const uint32_t address : touched)
+        if (LooksLikeObject(address, bytesEach))
+            objects.push_back(address);
+    const auto copy = [&] {
+        std::vector<char> bytes;
+        for (const uint32_t address : objects) {
+            if (!LooksLikeObject(address, bytesEach)) {
+                bytes.insert(bytes.end(), bytesEach + 12, 0);
+                continue;
+            }
+            bytes.insert(bytes.end(), reinterpret_cast<char*>(address), reinterpret_cast<char*>(address) + bytesEach);
+            // A picture buffer (the game's cIGZBuffer class, vtable
+            // 0x00AC1400) also gives its size and a sum of its pixels.
+            uint32_t picture[3] = {};
+            if (*reinterpret_cast<uint32_t*>(address) == 0x00AC1400) {
+                void* const buffer = reinterpret_cast<void*>(address);
+                const char* const bits = Virtual<const char*>(buffer, 0x88);
+                const uint32_t stride = Virtual<uint32_t>(buffer, 0x8C), height = Virtual<uint32_t>(buffer, 0x28);
+                picture[0] = Virtual<uint32_t>(buffer, 0x24), picture[1] = height;
+                if (bits && stride && height && height <= 4096 && stride <= 4096 * 4)
+                    for (uint32_t i = 0; i < stride * height; ++i)
+                        picture[2] = picture[2] * 31 + static_cast<uint8_t>(bits[i]);
+            }
+            bytes.insert(bytes.end(), reinterpret_cast<char*>(picture), reinterpret_cast<char*>(picture + 3));
+        }
+        return bytes;
+    };
+    // Three results: ours (or, for the self-check, the game's), then the
+    // game's twice. Bytes that differ between the game's two (addresses of
+    // things made anew each run, counts) say nothing and are left out.
+    if (g_selfCheck)
+        game();
+    const std::vector<char> first = copy();
+    game();
+    const std::vector<char> second = copy();
+    game();
+    const std::vector<char> third = copy();
+    size_t differing = 0, firstAt = 0, unsettled = 0;
+    for (size_t i = 0; i < first.size(); ++i) {
+        if (second[i] != third[i])
+            ++unsettled;
+        else if (first[i] != second[i] && !differing++)
+            firstAt = i;
+    }
+    char detail[240];
+    std::snprintf(detail, sizeof detail,
+                  "%zu of %zu bytes differ in %zu objects, %zu left out as unsettled (first in object %zu at +0x%zX, vtable %08X)", differing,
+                  first.size(), objects.size(), unsettled, firstAt / (bytesEach + 12), firstAt % (bytesEach + 12),
+                  differing ? *reinterpret_cast<uint32_t*>(objects[firstAt / (bytesEach + 12)]) : 0);
+    static uint32_t logged = 0;
+    if (differing || logged++ < 6)
+        log::Write("effect compare: %s: %s", id, detail);
+    const std::string name = std::string(id) + (g_selfCheck ? ".selfcheck" : "");
+    compare::Record(name.c_str(), !differing, "the game's result", detail);
+}
+
+bool g_compareCityView;
+
+// The city view window's own drawing (cSC4View3DWin), left as drawing by the
+// interface code (docs/ui.md): the cost indicator's amount, the mayor rating
+// meter, the clock's time handed to the lighting, the window's paint and
+// SetScrolling. Translated instruction by instruction and entered like the
+// pixel routines above.
+void* g_cityViewCostAmount;
+void __cdecl CityViewCostAmount(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("city view: CostAmount reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/cityview_costamount.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("city view: CostAmount left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TCityViewCostAmount, CityViewCostAmount, g_cityViewCostAmount, 0)
+
+void* g_cityViewMayorRating;
+void __cdecl CityViewMayorRatingOurs(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("city view: MayorRating reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/cityview_mayorrating.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("city view: MayorRating left %d values on the x87 stack", top + 1);
+}
+void __cdecl CityViewMayorRating(EntryFrame* frame)
+{
+    if (!g_compareCityView) {
+        CityViewMayorRatingOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    EffectCompared("cityview.mayorrating", 0x80, [&] { CityViewMayorRatingOurs(frame); }, [&] {
+        g_dataMapGameRun = true;
+        CallThis<void>(reinterpret_cast<std::uintptr_t>(g_cityViewMayorRating), self);
+        g_dataMapGameRun = false;
+    });
+}
+DATAMAP_ENTRY(TCityViewMayorRating, CityViewMayorRating, g_cityViewMayorRating, 0)
+
+void* g_cityViewLightingTime;
+void __cdecl CityViewLightingTimeOurs(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("city view: LightingTime reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/cityview_lightingtime.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("city view: LightingTime left %d values on the x87 stack", top + 1);
+}
+void __cdecl CityViewLightingTime(EntryFrame* frame)
+{
+    if (!g_compareCityView) {
+        CityViewLightingTimeOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    EffectCompared("cityview.lightingtime", 0x80, [&] { CityViewLightingTimeOurs(frame); }, [&] {
+        g_dataMapGameRun = true;
+        CallThis<void>(reinterpret_cast<std::uintptr_t>(g_cityViewLightingTime), self);
+        g_dataMapGameRun = false;
+    });
+}
+DATAMAP_ENTRY(TCityViewLightingTime, CityViewLightingTime, g_cityViewLightingTime, 0)
+
+void* g_cityViewPaint;
+void __cdecl CityViewPaint(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("city view: Paint reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/cityview_paint.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("city view: Paint left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TCityViewPaint, CityViewPaint, g_cityViewPaint, 0)
+
+void* g_cityViewSetScrolling;
+void __cdecl CityViewSetScrolling(EntryFrame* frame)
+{
+    static bool seen = false;
+    if (!seen)
+        log::Write("city view: SetScrolling reached");
+    seen = true;
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/cityview_setscrolling.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("city view: SetScrolling left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TCityViewSetScrolling, CityViewSetScrolling, g_cityViewSetScrolling, 12)
+
+bool InstallCityViewDrawing(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareCityView = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::CityView_Paint, &TCityViewPaint, &g_cityViewPaint)
+                           && Detour(addr::SC4UI_F7E8510, &TCityViewMayorRating, &g_cityViewMayorRating)
+                           && Detour(addr::SC4UI_F7E6E40, &TCityViewLightingTime, &g_cityViewLightingTime);
+    if (installed)
+        log::Write("city view: paint ours, mayor rating meter and lighting time %s", g_compareCityView ? "compared with the game's" : "ours");
+    return installed;
+}
+
+const bool g_registeredCityViewDrawing = registry::Register({
+    "renderer.cityview.draw",
+    "renderer/cityview",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::CityView_Paint,
+    "The city view window's paint, mayor rating meter and lighting time; compare mode checks the last two through the "
+    "objects they call into, the paint drives the frame and is checked by screenshots (docs/renderer.md, \"The city "
+    "view window\")",
+    true,
+    InstallCityViewDrawing,
+});
+
+// Two more no test reaches yet: translated the same way, never run.
+bool InstallCityViewDrawingUntested(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    const bool installed = Detour(addr::SC4UI_F7EAC70, &TCityViewCostAmount, &g_cityViewCostAmount)
+                           && Detour(addr::CityView_SetScrolling, &TCityViewSetScrolling, &g_cityViewSetScrolling);
+    if (installed)
+        log::Write("city view: the two untested ones ours");
+    return installed;
+}
+
+const bool g_registeredCityViewDrawingUntested = registry::Register({
+    "renderer.cityview.draw_untested",
+    "renderer/cityview",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::CityView_SetScrolling,
+    "The cost indicator's amount and SetScrolling: no test reaches them yet, so never run (docs/renderer.md, \"The city "
+    "view window\")",
+    true,
+    InstallCityViewDrawingUntested,
 });
 
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),
