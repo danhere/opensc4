@@ -1,0 +1,338 @@
+# The occupant base class (cSC4Occupant, class ID 0xA9BC9AB6; src/core/occbase_sim.h has the class map): code 0x005E8970 to 0x005E95AD (src/core/occbase_sim.cpp). Its other functions already have entries: the constructor, Destroy, QueryInterface, Shutdown, Write, Read, PostOccupantMessage and the message server copy in bldgocc.toml (with IsInitialized 0x00458A40 and GetHighlight 0x00458A50 under the building occupant's name), the two exemplar helpers 0x005E8F70 (SC4Exemplar::HasBuildingStyle, tract.toml) and 0x005E9500 (SC4::LoadUint32List, mysimagents.toml).
+
+[[entry]]
+name = "cSC4Occupant::GetGZCLSID"
+address = 0x005E8970
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 B6 9A BC A9 C3 CC CC"
+source = "The serializable part's slot 5: class ID 0xA9BC9AB6. The class registration (0x00460682) calls it once at startup with the factory 0x005E9330. Ours in simulators.occbase.life."
+
+[[entry]]
+name = "cSC4Occupant::AddRef"
+address = 0x005E89B0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Occupant* this)"
+expect = "83 C1 0C 6A 01 51 E8 5A"
+source = "Slot 1: +0x0C plus one through the atomic helper 0x00933015; the new count. 120 thunks of the derived classes' parts end here or in Release. Ours in simulators.occbase.life."
+
+[[entry]]
+name = "cSC4Occupant::GetPosition"
+address = 0x005E8A20
+kind = "function"
+convention = "thiscall"
+signature = "float* (cSC4Occupant* this, float* position)"
+expect = "8B 44 24 04 33 C9 89 48"
+source = "Slot 8 of the base's own vtable only: zeros. 0x0047021E jumps here when a derived occupant has no object to ask. Ours in simulators.occbase.flags."
+
+[[entry]]
+name = "cSC4Occupant::GetBoundingBox"
+address = 0x005E8A40
+kind = "function"
+convention = "thiscall"
+signature = "float* (cSC4Occupant* this, float* low, float* high)"
+expect = "8B 44 24 04 33 C9 89 48"
+source = "Slot 10 of the base's own vtable only: zeros in both corners. 0x0047023E jumps here. Ours in simulators.occbase.flags."
+
+[[entry]]
+name = "cSC4Occupant::SetRemovalFlags"
+address = 0x005E8A60
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Occupant* this, uint32_t flags)"
+expect = "8A 51 2D 8A 41 2C 53 F6"
+source = "Slot 12: bit 0 counts +0x2D up, bit 1 counts +0x2C up. Ours in simulators.occbase.flags."
+
+[[entry]]
+name = "cSC4Occupant::UnsetRemovalFlags"
+address = 0x005E8AA0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Occupant* this, uint32_t flags)"
+expect = "8A 51 2D 8A 41 2C 53 F6"
+source = "Slot 13: the same, counting down. Ours in simulators.occbase.flags."
+
+[[entry]]
+name = "cSC4Occupant::CanRemove"
+address = 0x005E8AE0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Occupant* this, uint32_t flags)"
+expect = "8A 44 24 04 A8 01 74 0D"
+source = "Slot 14: with bit 0 whether +0x2D is zero, else with bit 1 whether +0x2C is zero, else true. Ours in simulators.occbase.flags."
+
+[[entry]]
+name = "cSC4Occupant::SetVisibility"
+address = 0x005E8B10
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Occupant* this, bool visible, bool send)"
+expect = "8A 44 24 04 84 C0 8A 41"
+source = "Slot 18: flag 4 of +0x2F; occupant message 0x99EF1145 when it changed and `send` is set. Ours in simulators.occbase.flags."
+
+[[entry]]
+name = "cSC4Occupant::SetFlag"
+address = 0x005E8B70
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Occupant* this, uint32_t flags)"
+expect = "0F B6 51 2F 56 8B 74 24"
+source = "Slot 29: the flags +0x2F with the bits, through SetAllFlags (slot 30) when that differs. Ours in simulators.occbase.flags."
+
+[[entry]]
+name = "cSC4Occupant::SetAllFlags"
+address = 0x005E8B90
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Occupant* this, uint32_t flags)"
+expect = "8A 44 24 04 88 41 2F C2"
+source = "Slot 30: the low byte stored at +0x2F. Eight derived classes override the slot and call this. Ours in simulators.occbase.flags."
+
+[[entry]]
+name = "cSC4Occupant::ClearFlag"
+address = 0x005E8BA0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Occupant* this, uint32_t flags)"
+expect = "0F B6 51 2F 8B 44 24 04"
+source = "Slot 31: the flags without the bits, through SetAllFlags when that differs. Ours in simulators.occbase.flags."
+
+[[entry]]
+name = "cSC4Occupant::IsFlagSet"
+address = 0x005E8BC0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Occupant* this, uint32_t flags)"
+expect = "0F B6 41 2F 8B 4C 24 04"
+source = "Slot 32: whether every bit of the argument is set in +0x2F. Ours in simulators.occbase.flags."
+
+[[entry]]
+name = "cSC4Occupant::GetFlags"
+address = 0x005E8BE0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Occupant* this)"
+expect = "0F B6 41 2F C3 CC CC CC"
+source = "Slot 33: +0x2F. Ours in simulators.occbase.flags."
+
+[[entry]]
+name = "cSC4Occupant::GetOccupantManagerBBox"
+address = 0x005E8BF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Occupant* this, uint8_t* box)"
+expect = "8A 51 28 80 FA FF 75 05"
+source = "Slot 25: the four cell bytes +0x28; false when the first is 0xFF. Ours in simulators.occbase.flags."
+
+[[entry]]
+name = "cSC4Occupant::SetOccupantManagerBBox"
+address = 0x005E8C20
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Occupant* this, const uint8_t* box)"
+expect = "8B 44 24 04 8A 10 88 51"
+source = "Slot 26: four bytes to +0x28. Ours in simulators.occbase.flags."
+
+[[entry]]
+name = "cSC4Occupant::DeletingDestructorThunk"
+address = 0x005E8C80
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSCPropertyHolder* this, uint32_t flags)"
+expect = "83 E9 08 E9 F8 05 00 00"
+source = "The holder part's slot 22 in the base's own vtable: this - 8, then a jump to 0x005E9280. The game's (a relative jump in its first five bytes)."
+
+[[entry]]
+name = "cSC4Occupant::Init"
+address = 0x005E8C90
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Occupant* this)"
+expect = "56 8B F1 8B 06 FF 50 14"
+source = "Slot 3: once, bit 0 of +0x2E and occupant message 0x99EF1140, or SetHighlight(0, false) for an occupant read from a save. Ours in simulators.occbase.life."
+
+[[entry]]
+name = "cSC4Occupant::Release"
+address = 0x005E8DF0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Occupant* this)"
+expect = "56 57 8B F1 8D 7E 0C 6A"
+source = "Slot 2: +0x0C minus one; at zero the holder part's slot 22 (the deleting destructor) with flag 1. Ours in simulators.occbase.life."
+
+[[entry]]
+name = "cSC4Occupant::GetBoundingCityCells"
+address = 0x005E8E20
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Occupant* this, int32_t* cells)"
+expect = "83 EC 1C 8B 01 8D 54 24"
+source = "Slot 11 of all 57 occupant vtables: the 16 m city cells of the bounding box (slot 10), low + 0.01 and high - 0.01, as low x, low z, high x, high z. EAX is the FPU status word. Ours in simulators.occbase.messages."
+
+[[entry]]
+name = "cSC4Occupant::SetHighlight"
+address = 0x005E90E0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Occupant* this, uint32_t highlight, bool now)"
+expect = "53 55 57 8B F9 8B 07 FF"
+source = "Slot 17: the high four bits of +0x2E; for an initialized occupant occupant message 0x99EF1145 (`now`) or a queued message 0xE6E85114 with the old and new highlight. Ours in simulators.occbase.messages."
+
+[[entry]]
+name = "cSC4Occupant::GetOrCreatePlaceableObject"
+address = 0x005E91C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4Occupant* this)"
+expect = "53 8B D9 8B 43 30 85 C0"
+source = "Slot 20: +0x30, made on first use (0x005EBDF0, 0x005EC370). Ours in simulators.occbase.messages."
+
+[[entry]]
+name = "cSC4Occupant::DeletingDestructor"
+address = 0x005E9280
+kind = "function"
+convention = "thiscall"
+signature = "cSC4Occupant* (cSC4Occupant* this, uint32_t flags)"
+expect = "56 8B F1 57 8D 7E 08 C7"
+source = "Name ours. The base's deleting destructor: as 0x005E8C40, then with flag 1 the memory freed (0x005E5620). Ours in simulators.occbase.life."
+
+[[entry]]
+name = "cSC4Occupant::IsOccupantGroup"
+address = 0x005E92D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Occupant* this, uint32_t group)"
+expect = "8B 01 53 32 DB FF 50 18"
+source = "Slot 22: whether property 0xAA1DD396 (the occupant's own or its exemplar's) lists the group. Ours in simulators.occbase.groups."
+
+[[entry]]
+name = "cSC4Occupant::Create"
+address = 0x005E9330
+kind = "function"
+convention = "cdecl"
+signature = "cSC4Occupant* ()"
+expect = "6A 34 E8 A9 C2 FF FF 83"
+source = "The class factory of 0xA9BC9AB6: 0x34 bytes from 0x005E55E0, then a jump to the constructor. The game's (a relative call in its first five bytes)."
+
+[[entry]]
+name = "cSC4Occupant::AddOccupantGroup"
+address = 0x005E9350
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Occupant* this, uint32_t group)"
+expect = "83 EC 0C 53 55 56 8B F1"
+source = "Slot 23: the group appended to property 0xAA1DD396 as the occupant's own when it is not listed, and occupant message 0xEBFF18A3. Ours in simulators.occbase.groups."
+
+[[entry]]
+name = "cSC4Occupant::GetOccupantGroups"
+address = 0x005E9410
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Occupant* this, std::set<uint32_t>* groups)"
+expect = "83 EC 14 53 55 56 8B 74"
+source = "Slot 24: the set emptied and filled with the groups that are not zero; whether it has any. Ours in simulators.occbase.groups."
+
+[[entry]]
+name = "cSC4Occupant::SetPlaceableObject"
+address = 0x0078DAF0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Occupant* this, void* object)"
+expect = "53 56 8B 74 24 0C 8B D9"
+source = "Slot 21 of all 57 occupant vtables (the base's inline code, laid out with the view's): +0x30 assigned, the new object referenced and the old released. Two direct callers (0x007ECBD1, 0x007F0588). Ours in simulators.occbase.messages."
+
+[[entry]]
+name = "cSC4Occupant::GetLotTag"
+address = 0x005DEB40
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t* tag)"
+expect = "32 C0 C2 04 00 CC CC CC"
+source = "Slot 27 of 49 occupant vtables: false. Folded with every other one-argument method that returns false: 123 vtables, 74 of them not occupants'. Ours in simulators.occbase.flags (a literal equivalent for any `this`)."
+
+[[entry]]
+name = "cSC4Occupant::AsPropertyHolder"
+address = 0x006C2040
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4Occupant* this)"
+expect = "85 C9 74 04 8D 41 08 C3"
+source = "Slot 6 of all 57 occupant vtables: this + 8 (unchanged EAX for a null this). Folded: 41 foreign vtables. The game's (a conditional jump in its first five bytes)."
+
+[[entry]]
+name = "cSC4Occupant::GetType"
+address = 0x006BDD80
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Occupant* this)"
+expect = "8B 41 24 C3 CC CC CC CC"
+source = "Slot 7 of all 57 occupant vtables: +0x24. Folded: 14 foreign vtables and two direct callers. The game's (4 bytes)."
+
+[[entry]]
+name = "cSC4Occupant::GetPlaceableObject"
+address = 0x006AAC50
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4Occupant* this)"
+expect = "8B 41 30 C3 CC CC CC CC"
+source = "Slot 19 of all 57 occupant vtables: +0x30. Folded: 16 foreign vtables. The game's (4 bytes)."
+
+[[entry]]
+name = "cSC4Occupant::vftable"
+address = 0x00AA41D8
+kind = "vtable"
+expect = "C0 89 5E 00 B0 89 5E 00"
+source = "The base's own cISC4Occupant vtable (34 slots, listed in src/core/occbase_sim.h); objects of class 0xA9BC9AB6 and every occupant during construction and destruction."
+
+[[entry]]
+name = "cSC4Occupant::vftable_4"
+address = 0x00AA41BC
+kind = "vtable"
+expect = "70 0C 58 00 80 0C 58 00"
+source = "The base's cIGZSerializable vtable (6 slots): thunks, Write 0x005E8CD0, Read 0x005E8D60, GetGZCLSID 0x005E8970."
+
+[[entry]]
+name = "cSC4Occupant::vftable_8"
+address = 0x00AA4158
+kind = "vtable"
+expect = "A0 0C 58 00 B0 0C 58 00"
+source = "The base's property holder vtable (25 slots; 0x00AA41BC follows it): slot 22 the deleting destructor thunk 0x005E8C80."
+
+[[entry]]
+name = "cSC4Occupant::vftable_1C"
+address = 0x00AA4140
+kind = "vtable"
+expect = "F0 0C 58 00 00 0D 58 00"
+source = "The base's exemplar holder part vtable (5 slots)."
+
+[[entry]]
+name = "cSC4Occupant::CityCellScale"
+address = 0x00AA40B0
+kind = "data"
+source = "Name ours. The float 0.0625 of GetBoundingCityCells 0x005E8E20 (metres to 16 m cells)."
+
+[[entry]]
+name = "cSC4Occupant::FloorMagic"
+address = 0x00AA40B4
+kind = "data"
+source = "Name ours. The float 12582912.0 (1.5 * 2^23) of GetBoundingCityCells' floor."
+
+[[entry]]
+name = "cSC43DPlaceableObject::Allocate"
+address = 0x005EBDF0
+kind = "function"
+convention = "cdecl"
+signature = "void* (size_t size)"
+expect = "A1 CC A8 B0 00 8B 40 08"
+source = "Name ours. An item of the placeable objects' pool 0x00B0A8C8 (the free head of the current page, the pool grown by 0x0090CF9A when there is none); the size is not read. Called by cSC4Occupant::GetOrCreatePlaceableObject."
+
+[[entry]]
+name = "cSC43DPlaceableObject::Construct"
+address = 0x005EC370
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B C1 33 C9 C7 00 68 44"
+source = "Name ours. The placeable object's constructor (0x30 bytes, vtable 0x00AA4468, zeros, +0x2C = 1)."
