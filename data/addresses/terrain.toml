@@ -1477,3 +1477,59 @@ kind = "function"
 convention = "cdecl"
 expect = "83 EC 08 8B 44 24 18 8B"
 source = "Name ours (class cSC4WinMiniMap). One of the terrain picture's five row routines, picked by the picture's scale at +0x104. (docs/renderer.md, \"The mini map\")."
+
+[[entry]]
+name = "DataMap::BlendPixel"
+address = 0x0079DC00
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 18 55 56 57"
+source = "Name ours. The pixel blend the icon routines use; called from 0x0079E0C0 and 0x0079E130. (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::SetCoordinate"
+address = 0x0079DDE0
+kind = "function"
+convention = "cdecl"
+expect = "66 8B 44 24 08 8B 4C 24"
+source = "Name ours. A four-instruction coordinate setter, used through a pointer. (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::ScaleCoordinate"
+address = 0x0079DDF0
+kind = "function"
+convention = "cdecl"
+expect = "66 8B 44 24 08 66 85 C0"
+source = "Name ours. A coordinate setter that scales its value, used through a pointer. (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::BlendFill"
+address = 0x0079E0C0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 01 83 EC"
+source = "Name ours. A blended fill; called by the map picture (at 0x007A46F2). (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::BlendRing"
+address = 0x0079E130
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 20 53 8B 5C 24 28"
+source = "Name ours. A blended ring; called by the map picture (at 0x007A47CF). (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::BlitIcon"
+address = 0x0079E600
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 44 8B 4C 24 4C 8B"
+source = "Name ours. (buffer, picture, x, y, flags): blits a picture into the buffer centred on a point and clipped to the buffer; flag bits 0 and 1 turn it. Called by the map picture (at 0x007A428F) and by 0x0079F4D0. (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::MarkCells"
+address = 0x0079F4D0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 24 8B 0D EC 3C B4"
+source = "Name ours. (buffer): for every cell the simulator at 0x00B43DA8 picks (its slot 0x40), blits one picture (resource key at 0x00B0DB80) there with 0x0079E600. Called twice by the map picture (at 0x007A3487 and 0x007A3D86). (docs/renderer.md, \"The data map\")."
