@@ -26,6 +26,7 @@
 #include "core/game.h"
 #include "core/game_access.h"
 #include "core/hook.h"
+#include "core/occmgr_sim.h"
 #include "core/registry.h"
 
 #include <opensc4/addresses.h>
@@ -316,8 +317,14 @@ uint8_t __fastcall ResetTutorialCity(char* self, void*, uint32_t id)
 // blue is 0xFF (exactly one of them, counted 1, 2 and 4) starts a tile of
 // that many squares a side if it fits in the picture; the tile's squares are
 // marked covered and the tile (x, y, log2 of the side) is added.
+//
+// An improvement beyond the original (docs/city-size.md, "The 8 km spike"):
+// with big cities on (occmgr_sim.h: the setting and the occupant manager
+// ours), white (all three at 0xFF, a sum of 7) starts an 8 km tile (512
+// cells a side). Off by default, so the layout decodes exactly as the game's.
 void __fastcall DecodeLayout(char* self, void*, void* image)
 {
+    const bool bigCities = occmgr_sim::BigCities();
     const Rect* const area = Virtual<const Rect*>(image, 0x30); // GetBufferArea
     const int32_t width = area->right - area->left;
     const int32_t height = area->bottom - area->top;
@@ -342,7 +349,9 @@ void __fastcall DecodeLayout(char* self, void*, void* image)
             uint8_t blue;
             const uint32_t pixel = Virtual<uint32_t>(image, 0x54, x, y); // GetPixel
             Virtual<uint8_t>(image, 0x7C, pixel, &red, &green, &blue);   // ConvertNativeValueToRGB
-            const int32_t size = (red == 0xFF ? 1 : 0) + (green == 0xFF ? 2 : 0) + (blue == 0xFF ? 4 : 0);
+            int32_t size = (red == 0xFF ? 1 : 0) + (green == 0xFF ? 2 : 0) + (blue == 0xFF ? 4 : 0);
+            if (bigCities && size == 7)
+                size = 8;
             if (size == 0 || (size & (size - 1)) != 0)
                 continue;
             if (x + size > width)
@@ -359,7 +368,7 @@ void __fastcall DecodeLayout(char* self, void*, void* image)
             Tile tile;
             tile.x = x;
             tile.y = y;
-            tile.sizeLog2 = size >> 1;
+            tile.sizeLog2 = size == 8 ? 3 : size >> 1;
             if (tiles.end != tiles.capacity) {
                 if (tiles.end)
                     *tiles.end = tile;

@@ -144,11 +144,24 @@ inline constexpr std::size_t kSerializableSlots = 6;
 inline constexpr std::size_t kMessageSlots = 4;
 inline constexpr std::size_t kSetSize = 0x58;
 
-// The constants that fix the grid (the roadmap wants them from the city
-// one day): 192 world cells a side, the city starting at cell 64, 64 m a
-// cell (4096 m of margin), 16 m a standard city cell.
+// The constants that fix the grid: 192 world cells a side, the city
+// starting at cell 64, 64 m a cell (4096 m of margin), 16 m a standard city
+// cell.
 inline constexpr int32_t kWorldCells = 0xC0;
 inline constexpr int32_t kCityOrigin = 0x40;
+
+// An improvement beyond the original (docs/city-size.md, "The 8 km spike"):
+// with [improvements] big_cities = on and every simulators.occmgr group ours
+// (the game's own slots know only 192), a new city's grid is sized from the
+// city, with the same 64-cell margin on both sides, at most 255 a side: an
+// occupant keeps its cells as bytes and a first byte of 0xFF means "not in
+// the manager". Tiles are square, so one count serves both axes. Off (the
+// default): 192, as the game. Decided on first use, after the replacements
+// are applied.
+bool BigCities();
+// The cells a side Init gives an empty grid: 192, or with big cities enough
+// for the city's size (SetCitySize comes first).
+int32_t NewGridCells(char* self);
 
 namespace field {
 inline constexpr std::size_t kInitialized = 0x0C;
@@ -281,12 +294,22 @@ inline void ShrinkAxis(float& low, float& high)
     }
 }
 
-inline int32_t ClampCell(int32_t value)
+// The grid's cells a side: its own columns, so a saved grid of any size is
+// walked whole whatever the setting; 192 before Init (the game's constant).
+inline int32_t WorldCells(char* self)
 {
+    const Vector* const grid = Grid(self);
+    const int32_t columns = static_cast<int32_t>((grid->end - grid->begin) / 12);
+    return columns ? columns : kWorldCells;
+}
+
+inline int32_t ClampCell(char* self, int32_t value)
+{
+    const int32_t cells = WorldCells(self);
     if (value < 0)
         value = 0;
-    if (value >= kWorldCells)
-        value = kWorldCells - 1;
+    if (value >= cells)
+        value = cells - 1;
     return value;
 }
 
