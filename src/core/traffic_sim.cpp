@@ -140,6 +140,43 @@ char* FindEdge(void* self, uint32_t type, int32_t x, int32_t z)
     return nullptr;
 }
 
+// Whether the keys are wide (traffic_cells.h): a city past 256 cells a
+// side, with big cities on.
+void SetWideCells(int32_t width, int32_t height)
+{
+    g_wideCells = (width > 256 || height > 256) && occmgr_sim::BigCities();
+}
+
+// The lot multimap's value (+0x1A0, in the node from +0x10): a bucket and
+// the lot's cell as bytes, then two bytes of padding. A big city's cell
+// takes the four bytes as a CellKey.
+struct LotValue {
+    uint32_t key;
+    uint8_t cell[4];
+};
+
+LotValue MakeLotValue(uint32_t bucket, int32_t x, int32_t z)
+{
+    LotValue value{bucket, {static_cast<uint8_t>(x), static_cast<uint8_t>(z), 0, 0}};
+    if (g_wideCells) {
+        const uint32_t cell = CellKey(x, z);
+        std::memcpy(value.cell, &cell, 4);
+    }
+    return value;
+}
+
+uint32_t LotValueX(const char* node)
+{
+    return g_wideCells ? static_cast<uint32_t>(KeyX(At<uint32_t>(const_cast<char*>(node), 0x14)))
+                       : static_cast<uint8_t>(node[0x14]);
+}
+
+uint32_t LotValueZ(const char* node)
+{
+    return g_wideCells ? static_cast<uint32_t>(KeyZ(At<uint32_t>(const_cast<char*>(node), 0x14)))
+                       : static_cast<uint8_t>(node[0x15]);
+}
+
 // --- The getters -------------------------------------------------------------
 
 // 5 (0x0071FFA0).
@@ -162,12 +199,18 @@ float __fastcall FloatGetter(void* self, void*)
 
 // 12 (0x00711460): the edge density record of a cell, travel type and
 // commute (hash table at +0x17C keyed by evening << 24 | type << 16 |
-// x << 8 | z), or the game's empty record (0xAB31D0).
-const void* __fastcall GetTrafficEdgeDensity(void* self, void*, uint8_t x, uint8_t z, uint8_t travelType, uint8_t evening)
+// x << 8 | z; TypedCellKey), or the game's empty record (0xAB31D0). The
+// game's takes the cell as bytes; a big city's needs the whole value.
+const void* __fastcall GetTrafficEdgeDensity(void* self, void*, uint32_t x, uint32_t z, uint8_t travelType,
+                                             uint8_t evening)
 {
     static bool logged = false;
     FirstCall("GetTrafficEdgeDensity", logged);
-    const uint32_t key = (((((evening ? 1u : 0u) << 8) | travelType) << 8 | x) << 8) | z;
+    if (!g_wideCells) {
+        x &= 0xFF;
+        z &= 0xFF;
+    }
+    const uint32_t key = TypedCellKey(evening ? 1u : 0u, travelType, static_cast<int32_t>(x), static_cast<int32_t>(z));
     char** const buckets = At<char**>(self, 0x17C);
     const auto count = static_cast<uint32_t>(At<char**>(self, 0x180) - buckets);
     for (char* node = buckets[key % count]; node; node = At<char*>(node, 0))
@@ -290,7 +333,7 @@ double __fastcall GetTravelTimeRatio(void* self, void*, int32_t x, int32_t z, ui
         if (!At<uint8_t>(self, 0xC34 + type))
             continue;
         auto density = [self, x, z, type](uint8_t evening) {
-            return Virtual<char*>(self, 0x30, static_cast<uint8_t>(x), static_cast<uint8_t>(z),
+            return Virtual<char*>(self, 0x30, static_cast<uint32_t>(x), static_cast<uint32_t>(z),
                                   static_cast<uint8_t>(type), evening); // slot 12
         };
         traffic += At<uint16_t>(density(0), 0x20);
@@ -1028,8 +1071,7 @@ void StirBucket(void* self)
     reinterpret_cast<EqualRangeFn>(addr::SC4Multimap_EqualRange)(static_cast<char*>(self) + step::kLots, range,
                                                                 &At<uint32_t>(self, step::kBucket));
     for (char* node = range[0]; node != range[1]; node = NextNode(node)) {
-        void* const lot = Virtual<void*>(lots, 0x18, static_cast<uint32_t>(static_cast<uint8_t>(node[0x14])),
-                                         static_cast<uint32_t>(static_cast<uint8_t>(node[0x15])), 0u);
+        void* const lot = Virtual<void*>(lots, 0x18, LotValueX(node), LotValueZ(node), 0u);
         if (!lot)
             continue;
         const auto noise = static_cast<uint8_t>(reinterpret_cast<BelowFn>(addr::SC4Random_Below)(At<void*>(self, field::kRandom), 100));
@@ -1695,9 +1737,9 @@ void OnOccupant(void* self, void* message, uint32_t type)
                 void* const set = static_cast<char*>(self) + 0x178;
                 const auto erase = reinterpret_cast<EraseFn>(addr::SC4Uint32HashSet_Erase);
                 for (uint32_t i = 0; i < 9; ++i) {
-                    uint32_t key = (((i << 8) | static_cast<uint8_t>(x)) << 8) | static_cast<uint8_t>(z);
+                    uint32_t key = TypedCellKey(0, i, x, z);
                     erase(set, &key);
-                    key = ((((i | 0x100) << 8) | static_cast<uint8_t>(x)) << 8) | static_cast<uint8_t>(z);
+                    key = TypedCellKey(1, i, x, z);
                     erase(set, &key);
                 }
             }
@@ -2045,7 +2087,7 @@ uint8_t __fastcall Phase5(void* self, void*, void* parent)
 }
 
 // The edge density node of a key (evening << 24 | type << 16 | x << 8 |
-// z) in the hash table at +0x17C, or null.
+// z; TypedCellKey) in the hash table at +0x17C, or null.
 char* DensityNode(void* self, uint32_t key)
 {
     char** const buckets = At<char**>(self, 0x17C);
@@ -2058,11 +2100,11 @@ char* DensityNode(void* self, uint32_t key)
 
 // The 32 bytes of counters at +0x2A of a cell's density nodes, for all 9
 // travel types and both commutes, cleared.
-void ClearDensities(void* self, uint8_t x, uint8_t z)
+void ClearDensities(void* self, int32_t x, int32_t z)
 {
     for (uint32_t type = 0; type < 9; ++type) {
         for (uint32_t evening = 0; evening < 2; ++evening) {
-            if (char* const node = DensityNode(self, (((evening << 8 | type) << 8 | x) << 8) | z))
+            if (char* const node = DensityNode(self, TypedCellKey(evening, type, x, z)))
                 std::memset(node + 0x2A, 0, 0x20);
         }
     }
@@ -2086,7 +2128,7 @@ uint8_t __fastcall Phase6(void* self, void*, void* parent)
         const int32_t z = At<int32_t>(iterator, 0x8);
         if (!At<char***>(self, field::kEdges)[3 * x][z] && GridCell<uint32_t>(grid, x, z) == 0)
             continue;
-        ClearDensities(self, static_cast<uint8_t>(x), static_cast<uint8_t>(z));
+        ClearDensities(self, x, z);
         if (SlicedExpired(deadline))
             return 0;
     }
@@ -3295,6 +3337,9 @@ uint8_t __fastcall Read(void* serializable, void*, void* stream)
         f32(&value);
         *static_cast<float*>(to) = static_cast<float>(static_cast<double>(value) * 0.01f);
     };
+    // The saved keys are wide for a big city, and Read may come before Init.
+    if (void* const city = Global<void*>(addr::SC4_City))
+        SetWideCells(Virtual<int32_t>(city, 0x174), Virtual<int32_t>(city, 0x178));
     uint16_t version = 0;
     u16(&version);
     if (version < 0x13)
@@ -4195,6 +4240,7 @@ uint8_t __fastcall Init(void* object, void*)
             if (height > g_recordStride)
                 g_recordStride = height;
         }
+        SetWideCells(width, height);
         const std::size_t bytes = 0x2E * static_cast<std::size_t>(rows) * static_cast<std::size_t>(g_recordStride);
         char* const records = static_cast<char*>(operatorNew(bytes));
         At<char*>(self, 0x58) = records;
@@ -4673,11 +4719,7 @@ void __fastcall CityInited(void* object, void*)
                 continue;
             int32_t x = 0, z = 0;
             Virtual<uint32_t>(lot, 0x54, &x, &z);
-            struct {
-                uint32_t key;
-                uint8_t x, z;
-                uint8_t padding[2];
-            } value{bucket, static_cast<uint8_t>(x), static_cast<uint8_t>(z), {}};
+            const LotValue value = MakeLotValue(bucket, x, z);
             char* parent = At<char*>(self, 0x1A0);
             for (char* at = At<char*>(parent, 0x4); at;) {
                 parent = at;
@@ -4927,8 +4969,7 @@ void __fastcall RecordRouteImpl(void* self, void*, char* trip, uint32_t value, R
             if (!last && !sides)
                 return;
             if (sides) {
-                const uint32_t cell = (static_cast<uint32_t>(cx) & 0xFF) << 8 | (static_cast<uint32_t>(cz) & 0xFF);
-                const uint32_t base = (static_cast<uint32_t>(type) << 16) | cell;
+                const uint32_t base = TypedCellKey(0, static_cast<uint32_t>(type), cx, cz);
                 uint32_t key = base | (kind == 1 ? 1u << 24 : 0u);
                 char* density = reinterpret_cast<DensityFn>(addr::SC4DensityTable_At)(static_cast<char*>(self) + 0x178, &key);
                 AddCapped(At<uint16_t>(density, 0x22 + 2 * (from * 4 + to)), amount);
@@ -5733,8 +5774,7 @@ uint16_t __fastcall CellTrafficPeak(void* self, void*, int32_t x, int32_t z, uin
         const uint32_t network = networks[type];
         if (network != 1 && !(network > 3 && network <= 5))
             continue;
-        const uint32_t key = (static_cast<uint8_t>(commute) << 24) | (type << 16) | (static_cast<uint8_t>(x) << 8) |
-                             static_cast<uint8_t>(z);
+        const uint32_t key = TypedCellKey(static_cast<uint8_t>(commute), type, x, z);
         for (char* node = buckets[key % count]; node; node = At<char*>(node, 0)) {
             if (At<uint32_t>(node, 4) == key) {
                 sums[0][network] = static_cast<uint16_t>(sums[0][network] + At<uint16_t>(node, 0x28));
@@ -6793,7 +6833,7 @@ void __fastcall OnTransitLotRemoved(void* self, void*, void* lot)
             }
         }
         for (; node != At<char*>(self, 0x1A0) && At<uint32_t>(node, 0x10) == bucket; node = TreeNext(node)) {
-            if (At<uint8_t>(node, 0x14) == static_cast<uint32_t>(x) && At<uint8_t>(node, 0x15) == static_cast<uint32_t>(z)) {
+            if (LotValueX(node) == static_cast<uint32_t>(x) && LotValueZ(node) == static_cast<uint32_t>(z)) {
                 reinterpret_cast<EraseFn>(addr::SC4LotMultimap_Erase)(base + 0x1A0, node);
                 break;
             }
@@ -7164,11 +7204,7 @@ void __fastcall OnTransitLotAdded(void* self, void*, void* occupant)
         reinterpret_cast<SetU32Fn>(addr::SC4_SetPropertyUint32)(Virtual<void*>(ground, 0xC), 0x691C863C, bucket);
         int32_t x = 0, z = 0;
         Virtual<uint32_t>(ground, 0x54, &x, &z);
-        struct {
-            uint32_t key;
-            uint8_t x, z;
-            uint8_t padding[2];
-        } value{bucket, static_cast<uint8_t>(x), static_cast<uint8_t>(z), {}};
+        const LotValue value = MakeLotValue(bucket, x, z);
         char* parent = At<char*>(self, 0x1A0);
         char* at = At<char*>(parent, 4);
         while (at) {
@@ -7550,8 +7586,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
                     if (networkOf[t] != index)
                         continue;
                     for (uint32_t evening = 0; evening < 2; ++evening) {
-                        uint32_t key = (evening << 24) | (t << 16) | (static_cast<uint32_t>(cx & 0xFF) << 8) |
-                                       static_cast<uint32_t>(cz & 0xFF);
+                        uint32_t key = TypedCellKey(evening, t, cx, cz);
                         char** const buckets = At<char**>(self, 0x17C);
                         const auto count = static_cast<uint32_t>(At<char**>(self, 0x180) - buckets);
                         char* found = buckets[key % count];
@@ -7908,7 +7943,7 @@ void __fastcall UpdatePendingRect(void* self, void*, int32_t x0, int32_t z0, int
                         }
                     }
                     if (go) {
-                        DequePushBack(deque, (way << 16) | (static_cast<uint32_t>(cx) << 8) | static_cast<uint32_t>(cz));
+                        DequePushBack(deque, (way << (2 * CellBits())) | CellKey(cx, cz));
                         cx += stepX[way];
                         cz += stepZ[way];
                         way = 0;
@@ -7918,9 +7953,9 @@ void __fastcall UpdatePendingRect(void* self, void*, int32_t x0, int32_t z0, int
                     if (deque[4] == deque[0])
                         break;
                     const uint32_t item = DequePopBack(deque);
-                    way = ((item >> 16) & 0xFF) + 1;
-                    cz = static_cast<int32_t>(item & 0xFF);
-                    cx = static_cast<int32_t>((item >> 8) & 0xFF);
+                    way = ((item >> (2 * CellBits())) & 0xFF) + 1;
+                    cz = KeyZ(item);
+                    cx = KeyX(item);
                     --depth;
                 }
             }
@@ -7975,18 +8010,41 @@ void __fastcall SpreadFromEdge(void* self, void*, int32_t startX, int32_t startZ
     }
     void* const ids = Virtual<void*>(At<void*>(self, 0x704), 0x60); // slot 24: the edge-ID grid
     bool changed = false;
-    uint8_t cur[4] = {static_cast<uint8_t>(startX), static_cast<uint8_t>(startZ), static_cast<uint8_t>(startSide), 0};
+    // The game's cursor is four bytes {x, z, side, way}, pushed as one word;
+    // a big city's packs x and z in 10 bits each.
+    struct {
+        int32_t x, z;
+        uint8_t side, way;
+    } cur = {startX, startZ, static_cast<uint8_t>(startSide), 0};
+    auto pack = [&cur]() -> uint32_t {
+        const uint32_t bits = CellBits();
+        const uint32_t mask = (1u << bits) - 1;
+        return (static_cast<uint32_t>(cur.x) & mask) | (static_cast<uint32_t>(cur.z) & mask) << bits |
+               static_cast<uint32_t>(cur.side) << (2 * bits) | static_cast<uint32_t>(cur.way) << 24;
+    };
+    auto unpack = [&cur](uint32_t item) {
+        const uint32_t bits = CellBits();
+        const uint32_t mask = (1u << bits) - 1;
+        cur.x = static_cast<int32_t>(item & mask);
+        cur.z = static_cast<int32_t>((item >> bits) & mask);
+        cur.side = static_cast<uint8_t>((item >> (2 * bits)) & 0xF);
+        cur.way = static_cast<uint8_t>(item >> 24);
+    };
+    if (!g_wideCells) {
+        cur.x &= 0xFF;
+        cur.z &= 0xFF;
+    }
     for (;;) {
-        const int32_t x = cur[0];
-        const int32_t z = cur[1];
+        const int32_t x = cur.x;
+        const int32_t z = cur.z;
         const char* const cell = record(x, z);
         bool found = false;
         char* next = nullptr;
         int32_t nextX = 0, nextZ = 0;
         uint32_t nextSide = 0;
-        while (cur[3] < 4 && !found) {
-            const uint32_t way = cur[3];
-            const uint32_t side = cur[2];
+        while (cur.way < 4 && !found) {
+            const uint32_t way = cur.way;
+            const uint32_t side = cur.side;
             if (ways(cell) & (1u << ((way + 4 * side) & 31))) {
                 stamp(node, side) = At<uint16_t>(self, 0x60);
                 int32_t tx = x + stepX[way];
@@ -8027,14 +8085,14 @@ void __fastcall SpreadFromEdge(void* self, void*, int32_t startX, int32_t startZ
                     }
                 }
             }
-            ++cur[3];
+            ++cur.way;
         }
-        if (!found && cur[3] < 5 && (cell[0x2C] & 2)) {
-            cur[3] = 5;
+        if (!found && cur.way < 5 && (cell[0x2C] & 2)) {
+            cur.way = 5;
             const auto key = static_cast<uint16_t>((x << 8) | z);
             char* const link = FindCellNode(static_cast<char*>(self) + 0xC8, key);
             if (link && (At<uint16_t>(link, 0xA) & (1u << (word & 31)))) {
-                const uint32_t side = cur[2];
+                const uint32_t side = cur.side;
                 stamp(node, side) = At<uint16_t>(self, 0x60);
                 const int32_t lx = At<uint8_t>(link, 8);
                 const int32_t lz = At<uint8_t>(link, 9);
@@ -8049,8 +8107,7 @@ void __fastcall SpreadFromEdge(void* self, void*, int32_t startX, int32_t startZ
             }
         }
         if (found) {
-            uint32_t item;
-            std::memcpy(&item, cur, 4);
+            const uint32_t item = pack();
             if (deque[4] != deque[6] - 4) {
                 if (deque[4])
                     *reinterpret_cast<uint32_t*>(static_cast<std::uintptr_t>(deque[4])) = item;
@@ -8058,10 +8115,11 @@ void __fastcall SpreadFromEdge(void* self, void*, int32_t startX, int32_t startZ
             } else {
                 reinterpret_cast<PushFn>(addr::SC4Uint32Deque_PushBackSlow)(deque, &item);
             }
-            cur[0] = static_cast<uint8_t>(nextX);
-            cur[1] = static_cast<uint8_t>(nextZ);
-            cur[2] = static_cast<uint8_t>(nextSide);
-            cur[3] = 0;
+            cur = {nextX, nextZ, static_cast<uint8_t>(nextSide), 0};
+            if (!g_wideCells) {
+                cur.x &= 0xFF;
+                cur.z &= 0xFF;
+            }
             node = next;
             continue;
         }
@@ -8086,8 +8144,8 @@ void __fastcall SpreadFromEdge(void* self, void*, int32_t startX, int32_t startZ
             deque[4] -= 4;
             item = *reinterpret_cast<const uint32_t*>(static_cast<std::uintptr_t>(deque[4]));
         }
-        std::memcpy(cur, &item, 4);
-        node = findEdge(cur[0], cur[1]);
+        unpack(item);
+        node = findEdge(cur.x, cur.z);
         if (!node) {
             destroy();
             return;
