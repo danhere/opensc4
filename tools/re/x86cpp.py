@@ -324,6 +324,8 @@ for a, mn, rest in ins:
     elif mn == 'not':
         wr(ops[0], '~%s' % rd32(ops[0]))
     elif mn == 'fsqrt': E('ST(0) = std::sqrt(ST(0));')
+    elif mn == 'fsin': E('ST(0) = X87Sin(ST(0));')
+    elif mn == 'fcos': E('ST(0) = X87Cos(ST(0));')
     elif mn == 'sbb' and ops[0] == ops[1]:
         # Only right after a neg, whose carry is "the operand was not zero".
         assert last_neg is not None and last_neg == a_prev, 'sbb at %x without a neg before it' % a
