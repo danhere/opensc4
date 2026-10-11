@@ -29,6 +29,10 @@ The address and symbol database is the real critical path. The renderer can be s
 
 Renderer class IDs: DirectX `0xBADB6906`, OpenGL `0xC4554841`, Software `0x7ACA35C6`.
 
+### Patches inside replaced functions
+
+Other DLLs patch the middle of game functions (NAM most of all; [patch-census.md](patch-census.md)). Replacing such a function would silently drop their change. So [`foreign_sites.cpp`](../src/core/foreign_sites.cpp) lists the census's JMP sites inside functions we replace, and the hook layer leaves a function alone when one of its sites jumps into another module or allocated memory, which the game's own code never does: no hook, a log line naming the DLL, the function itself as the original, and the rest of the replacement still applies. Our code calls such functions through the game's entry, never our C++ directly, so it reaches the other DLL's version. Every replacement that takes over a census function adds its sites to the table.
+
 ## Replacement registry
 
 A declarative table generated from the address database. Each row:
