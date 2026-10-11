@@ -1829,3 +1829,147 @@ kind = "function"
 convention = "thiscall"
 expect = "8B C1 8B 4C 24 04 8B 11"
 source = "Name ours. (from): assigns a 0x80-byte record. (docs/renderer.md, \"A cell's own texture\")."
+
+[[entry]]
+name = "STE::SetUp"
+address = 0x0075C0C0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 4C 53 55 6A 08 E8"
+source = "Name ours. (): the terrain view's one-time set-up, run by the first view that starts (0x00B4C740 says it has run): registers the shutdown (0x00758BC0) with the framework, loads the tuning (0x00758990), gets the texture factory (0x00B4C704), makes five arrays of 0x00B4BC44 dwords (0x00B4C670), loads textures, makes the row layer lists (a vector of lists at 0x00B4C7E0, 0x100 of them) and the dirty row bits (0x00B4C7EC, 0x100 bits). (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::ShutDownStatics"
+address = 0x00758BC0
+kind = "function"
+convention = "cdecl"
+expect = "A0 40 C7 B4 00 53 33 DB"
+source = "Name ours. (): undoes the set-up: unregisters itself, frees the buffers (0x00758750), releases the textures and the arrays, clears 0x00B4C740. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::LoadTuning"
+address = 0x00758990
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 1C 8B 0D A8 3C B4"
+source = "Name ours. (): reads the terrain view's tuning values. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::LoadTuningTable"
+address = 0x00757300
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 1C 8B 0D 38 C7 B4"
+source = "Name ours. (): reads a table of the tuning. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsInsert"
+address = 0x0075BBE0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. (place, count, list): puts copies of a list into the vector of row layer lists. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsGrow"
+address = 0x0075B340
+kind = "function"
+convention = "cdecl"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. (place, list, ?, count, bool): moves the vector of row layer lists to a bigger block. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsDestroy"
+address = 0x0075AE90
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. (first, last): destroys a run of row layer lists. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListConstruct"
+address = 0x0075AEC0
+kind = "function"
+convention = "cdecl"
+expect = "56 57 8B F1 6A 10 C7 06"
+source = "Name ours. (from): makes a row layer list as a copy of another. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsDestroyRange"
+address = 0x0075AF00
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. (first, last): destroys a run of lists (another instance). (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsCopy"
+address = 0x0075AF30
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 57 8B 7C 24"
+source = "Name ours. (first, last, to): assigns a run of lists. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsCopyConstruct"
+address = 0x0075AF70
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 53 55"
+source = "Name ours. (first, last, to): copies a run of lists into raw memory. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsCopyBackward"
+address = 0x0075AFD0
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. (first, last, end): assigns a run of lists, last first. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsFill"
+address = 0x0075B170
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 55 56 8B"
+source = "Name ours. (to, count, list): fills raw memory with copies of a list. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListInsertRange"
+address = 0x0075A9D0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 0C 53 55 56 57"
+source = "Name ours. (place, first, last): puts a run of nodes into a list. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListAssign"
+address = 0x0075AE00
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 53 55 8B E9"
+source = "Name ours. (from): assigns one list to another. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListInsertNode"
+address = 0x00758700
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 10 56 8B 74"
+source = "Name ours. (out place, place, value): puts one node into a list. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListInsertNodes"
+address = 0x00758E20
+kind = "function"
+convention = "cdecl"
+expect = "53 55 8B D9 8B 4C 24 0C"
+source = "Name ours. (...): puts nodes into a list. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListErase"
+address = 0x00759A10
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 55 8B 6C"
+source = "Name ours. (out place, first, last): takes a run of nodes out of a list of row layers and frees them, with each node's own list. (docs/renderer.md, \"The terrain view's set-up\")."
