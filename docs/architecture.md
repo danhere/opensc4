@@ -97,7 +97,7 @@ All harnesses, recorded sessions and golden saves live in the repo and run from 
    - Keep a per-DLL compatibility manifest (defer / absorb / chain).
    - Engage the DLL authors early.
    - Offer a registry API so new DLLs hook through `core.dll`.
-2. **NAM dependence.** NAM 50 requires the NAM DLL's rule injection. Networks go late (P7) and only jointly with the NAM team.
+2. **NAM dependence.** NAM 50 requires the NAM DLL's rule injection. Networks go late (P7); Dan decided (2026-10-11) to proceed without the NAM team, with functions NAM patched left to the game.
 3. **Undocumented simulator state.** P4 front-loads it; in-memory dumpers work around it.
 4. **Non-determinism in the original game.** Prove determinism first, or fall back to statistical parity.
 5. **ABI, heap and STL mismatches.** Follow the ABI rules above; use guard pages in debug builds.
