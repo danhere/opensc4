@@ -224,6 +224,7 @@ add_library(opensc4_core SHARED
   game_date_sync.cpp
   game_dezone.cpp
   game_growify.cpp
+  game_quiet.cpp
   game_seed.cpp
   game_timelapse.cpp
   gd/d3d11_backend.cpp
