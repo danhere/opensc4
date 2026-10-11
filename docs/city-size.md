@@ -150,7 +150,7 @@ Work behind `[improvements] big_cities`; standard sizes keep the game's layouts.
 | # | Status | Owner |
 |---|---|---|
 | 1 | Done: our `FindWaterBodies` scratch keeps 256 x 256 for standard sizes and grows with the city. | weather (this work) |
-| 2 | Part done: the cell record table (+0x58) is sized from the city and indexed through `CellRecord` ([traffic_cells.h](../src/core/traffic_cells.h)), stride 256 for standard sizes. The 16-bit cell keys are still `x & 0xFF`, so cells past 255 alias cells on the near side: see "Traffic cell keys" below. | traffic (this work) |
+| 2 | Part done: the cell record table (+0x58) is sized from the city and indexed through `CellRecord` ([traffic_cells.h](../src/core/traffic_cells.h)), stride 256 for standard sizes; the keys our code builds are wide. The 16-bit tables, ferry records and route bytes are still 8 bits, so cells past 255 alias cells on the near side there: see "Traffic cell keys" below. | traffic (this work) |
 | 3 | Open: `renderer.terrain.rows` has the game's `float[257]` in `LandRowThresholds` and `WaterRowVisibility`; size it from the terrain's rows (cells + 1). | Renderer (terrain drawing) |
 | 4 | Open: the terrain view's set-up 0x0075C0C0 sizes the row layer lists (0x00B4C7E0) and dirty row bits (0x00B4C7EC) to a literal 0x100; take the size from 0x00B4BC44 as its other arrays do. | Renderer (terrain drawing) |
 | 5 | Open: 0x0060ACD0 (behind `MakePictures`' map picture) packs cells as `(x * 0x100 + z) * 0x100 + 1 + n`. Also on the save path: `MakePictures`' size-type tables ({32, 64, 128}, {128, 256, 512}) treat 512 as large, and the record streams refuse counts of 1,000,000 or more. | Save rewrite |
@@ -159,13 +159,23 @@ Work behind `[improvements] big_cities`; standard sizes keep the game's layouts.
 
 ### Traffic cell keys
 
-Still 8 bits a coordinate (about 60 sites, [traffic.md](traffic.md)):
+The game packs a cell in 8 bits a coordinate. `traffic_cells.h` holds the helpers: `CellKey` (`x << 8 | z`) and `TypedCellKey` (top byte, then the travel type at bit 16, then the cell). For a city past 256 cells a side (`g_wideCells`, set by Init) they take 10 bits a coordinate and the type at bit 20; the top byte stays put. Standard sizes keep the game's keys bit for bit.
 
-- **16-bit cell keys** (`x << 8 | z`): the cell hash tables (damaged roads, rail crossings, links, ferries), connection lookups and the water-route search nodes.
-- **32-bit keys with a type**: path finder nodes (`sides << 24 | type << 16 | x << 8 | z`, bit 31 outside), edge density and cost keys (`evening << 24 | type << 16 | x << 8 | z`) and the deque items of the cell walk.
-- **Route bytes**: trips and ferries store a cell as two bytes, and the save record carries them.
+Done (keys only our code builds and reads):
 
-The plan: one key helper, as `CellRecord` did for the table, that packs as now for standard sizes and with 10 bits a coordinate for big cities (x and z in 20 bits leaves 12 for type, sides and the outside bit). The route bytes and the save record need a wider form only for big cities, so standard saves stay byte for byte the game's.
+- Edge density keys (+0x178): slot 12 (now takes whole cells when wide), slot 24's call, the occupant message, phases 6 and the route recording, `CellTrafficPeak`, `OnCellsChanged`. Saved as a u32, so a big city's save carries the wide key.
+- The path finder's node keys (start nodes, `AddNode`, `DecodeKey`) and `RecordRoute`'s previous cell.
+- The water route finder's node cell (a u16 with padding in the game's node; the whole word now).
+- The cell walks' deque items (`UpdatePendingRect`, `SpreadFromEdge`).
+- The lot multimap's value (+0x1A0): two cell bytes and two of padding, a `CellKey` across the four when wide.
+
+Still 8 bits:
+
+- **16-bit cell tables** in the game's `uint16` hash nodes: damaged roads and rail crossings (+0x7B8 to +0x800; slots 16 and 17), the link table (+0xC8, its value has the linked cell as bytes) and the ferry index (+0xDC, +0xF0). All saved except the ferry index.
+- **Byte cells in game-made records**: ferry entries (+0x104: bytes 0-5, 0x1C, 0x1D), the ferry link key, the cost record's switch cell (+0x70C, +0x12/+0x13, no room beside it).
+- **Route bytes** (`type, x, z`, jumps `type | 0x80, x, z`): trips (saved in the lot record), ferry and water routes, the path finder's 3-byte route deque that MySim reads, and the route iterator.
+
+The next step widens these for big cities only: a cell table of our own beside each 16-bit one, two-byte coordinates in the route bytes and ferry records, and a save version for a big city's traffic record. Standard saves stay the game's.
 
 ## Compatibility
 
