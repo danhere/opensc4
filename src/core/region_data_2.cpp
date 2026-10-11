@@ -26,8 +26,8 @@
 #include "core/game.h"
 #include "core/game_access.h"
 #include "core/hook.h"
+#include "core/occmgr_sim.h"
 #include "core/registry.h"
-#include "core/settings.h"
 
 #include <opensc4/addresses.h>
 
@@ -319,12 +319,12 @@ uint8_t __fastcall ResetTutorialCity(char* self, void*, uint32_t id)
 // marked covered and the tile (x, y, log2 of the side) is added.
 //
 // An improvement beyond the original (docs/city-size.md, "The 8 km spike"):
-// with [improvements] big_cities = on, white (all three at 0xFF, a sum of 7)
-// starts an 8 km tile (512 cells a side). Off by default, so the layout
-// decodes exactly as the game's.
+// with big cities on (occmgr_sim.h: the setting and the occupant manager
+// ours), white (all three at 0xFF, a sum of 7) starts an 8 km tile (512
+// cells a side). Off by default, so the layout decodes exactly as the game's.
 void __fastcall DecodeLayout(char* self, void*, void* image)
 {
-    static const bool bigCities = settings::GetBool("improvements", "big_cities", false);
+    const bool bigCities = occmgr_sim::BigCities();
     const Rect* const area = Virtual<const Rect*>(image, 0x30); // GetBufferArea
     const int32_t width = area->right - area->left;
     const int32_t height = area->bottom - area->top;

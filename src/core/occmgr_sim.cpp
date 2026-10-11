@@ -124,17 +124,20 @@ void AppendNode(ListNode* head, void* occupant)
 
 bool BigCities()
 {
-    static const bool on = settings::GetBool("improvements", "big_cities", false);
+    static const bool on = [] {
+        if (!settings::GetBool("improvements", "big_cities", false))
+            return false;
+        for (const char* id : {"simulators.occmgr.cells", "simulators.occmgr.edit", "simulators.occmgr.queries",
+                               "simulators.occmgr.init", "simulators.occmgr.save", "simulators.occmgr.object"}) {
+            if (registry::ModeOf(id) != registry::Mode::Ours) {
+                log::Write("big cities: off, %s is not ours (the game's slots know only 192 cells)", id);
+                return false;
+            }
+        }
+        log::Write("big cities: on");
+        return true;
+    }();
     return on;
-}
-
-int32_t WorldCells(char* self)
-{
-    if (!BigCities())
-        return kWorldCells;
-    const Vector* const grid = Grid(self);
-    const int32_t columns = static_cast<int32_t>((grid->end - grid->begin) / 12);
-    return columns ? columns : kWorldCells;
 }
 
 int32_t NewGridCells(char* self)
@@ -144,9 +147,8 @@ int32_t NewGridCells(char* self)
     int32_t city = At<int32_t>(self, field::kCellsX);
     if (At<int32_t>(self, field::kCellsZ) > city)
         city = At<int32_t>(self, field::kCellsZ);
-    // An occupant keeps its cells as bytes, so 256 a side at most.
     const int32_t cells = 2 * kCityOrigin + city;
-    return cells < kWorldCells ? kWorldCells : (cells > 0x100 ? 0x100 : cells);
+    return cells < kWorldCells ? kWorldCells : (cells > 0xFF ? 0xFF : cells);
 }
 
 // The set's count and hash count zeroed, its key vector emptied and its
