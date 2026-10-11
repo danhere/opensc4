@@ -4335,6 +4335,14 @@ const bool g_registeredDataMapPainters = registry::Register({
 // objects our run called into (EffectCompared).
 std::vector<uint32_t>* g_dynTouched;
 
+// While set, every block a translated routine asks the game's allocator for
+// (0x005E55E0) is noted here with its size.
+struct DynAllocation
+{
+    uint32_t at, size;
+};
+std::vector<DynAllocation>* g_dynAllocations;
+
 // The routines under the painters (0x0079EB40 to 0x007A1382): resamplers,
 // pixel loops, smoothers, outline collectors and a row vector's resize,
 // translated instruction by instruction. They are entered with every register
@@ -4360,7 +4368,10 @@ struct EntryFrame
         DynRegs regs{eax, ecx, edx, ebx, esi, edi, esp, (callee), 0.0, 0};                                               \
         if (g_dynTouched)                                                                                                \
             g_dynTouched->push_back(ecx);                                                                                \
+        const uint32_t dynAsked = g_dynAllocations && (callee) == 0x005E55E0u ? M<uint32_t>(esp) : 0;                    \
         DynCall(&regs);                                                                                                  \
+        if (dynAsked && regs.eax)                                                                                        \
+            g_dynAllocations->push_back({regs.eax, dynAsked});                                                           \
         eax = regs.eax, ecx = regs.ecx, edx = regs.edx, ebx = regs.ebx, esi = regs.esi, edi = regs.edi, esp = regs.esp;  \
         if (regs.isFloat)                                                                                                \
             PUSH(regs.st0);                                                                                              \
@@ -5913,6 +5924,261 @@ const bool g_registeredRegionDrawing = registry::Register({
     "compare mode as renderer.terrain.land (docs/renderer.md, \"The region view\")",
     true,
     InstallRegionDrawing,
+});
+
+// The terrain's drawing buffers (docs/renderer.md, "The terrain's buffers"):
+// made and filled by 0x00758EA0 with its two vertex fills, freed by
+// 0x00758750. Translated instruction by instruction and entered like the
+// pixel routines above.
+bool g_compareTerrainBuffers;
+
+void* g_terrainBuildBuffers;
+void __cdecl TerrainBuildBuffersOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain buffers: BuildBuffers call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrain_buildbuffers.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain buffers: BuildBuffers left %d values on the x87 stack", top + 1);
+}
+
+// Compare mode: ours builds, and the blocks it allocates are noted with their
+// sizes. Each block is then known by where its pointer is kept (a global
+// between 0x00B4C6A0 and 0x00B4C7C0, or a place in another block), because a
+// build allocates some of them anew. The result is the globals and every
+// block's bytes, with the pointers themselves blanked. Then the blocks are
+// cleared and the game's builds, twice, and the results are compared byte for
+// byte.
+void __cdecl TerrainBuildBuffers(EntryFrame* frame)
+{
+    if (!g_compareTerrainBuffers) {
+        TerrainBuildBuffersOurs(frame);
+        return;
+    }
+    struct Slot
+    {
+        int parent;     // -1: the globals
+        uint32_t offset, size;
+        uint32_t ahead; // the kept pointer is this far into the block (0, or 4 past a count)
+    };
+    static std::vector<Slot> slots;
+    char* const globals = reinterpret_cast<char*>(0x00B4C6A0);
+    constexpr uint32_t kGlobals = 0x120;
+    const EntryFrame entry = *frame;
+    using BuildFn = uint32_t(__fastcall*)(uint32_t, uint32_t);
+    const auto game = [&] {
+        g_dataMapGameRun = true;
+        const uint32_t result = reinterpret_cast<BuildFn>(g_terrainBuildBuffers)(entry.ecx, entry.edx);
+        g_dataMapGameRun = false;
+        return result;
+    };
+    // Where every slot's block is now.
+    const auto resolve = [&] {
+        std::vector<char*> at(slots.size(), nullptr);
+        for (size_t i = 0; i < slots.size(); ++i) {
+            char* const base = slots[i].parent < 0 ? globals : at[static_cast<size_t>(slots[i].parent)];
+            char* const kept = base ? *reinterpret_cast<char**>(base + slots[i].offset) : nullptr;
+            at[i] = kept ? kept - slots[i].ahead : nullptr;
+        }
+        return at;
+    };
+    const auto result = [&] {
+        const std::vector<char*> at = resolve();
+        std::vector<char> bytes(globals, globals + kGlobals);
+        std::vector<size_t> starts(slots.size(), 0);
+        for (size_t i = 0; i < slots.size(); ++i) {
+            starts[i] = bytes.size();
+            if (at[i])
+                bytes.insert(bytes.end(), at[i], at[i] + slots[i].size);
+            else
+                bytes.insert(bytes.end(), slots[i].size, 0);
+        }
+        for (size_t i = 0; i < slots.size(); ++i) {
+            const size_t base = slots[i].parent < 0 ? 0 : starts[static_cast<size_t>(slots[i].parent)];
+            std::memset(bytes.data() + base + slots[i].offset, 0, 4);
+        }
+        return bytes;
+    };
+    const auto clear = [&] {
+        const std::vector<char*> at = resolve();
+        for (size_t i = 0; i < slots.size(); ++i)
+            if (at[i])
+                std::memset(at[i], 0, slots[i].size);
+    };
+    std::vector<DynAllocation> made;
+    g_dynAllocations = &made;
+    TerrainBuildBuffersOurs(frame);
+    g_dynAllocations = nullptr;
+    if (!made.empty()) {
+        // Find where each block's pointer is kept: first in the globals,
+        // then in blocks already placed. A block nothing points at is left out.
+        slots.clear();
+        std::vector<uint32_t> placedAt;
+        bool progress = true;
+        std::vector<bool> placed(made.size(), false);
+        while (progress) {
+            progress = false;
+            for (size_t m = 0; m < made.size(); ++m) {
+                if (placed[m])
+                    continue;
+                const auto find = [&](const char* base, uint32_t size, int parent) {
+                    for (const uint32_t ahead : {0u, 4u})
+                        for (uint32_t offset = 0; offset + 4 <= size; offset += 4)
+                            if (*reinterpret_cast<const uint32_t*>(base + offset) == made[m].at + ahead) {
+                                slots.push_back({parent, offset, made[m].size, ahead});
+                                placedAt.push_back(made[m].at);
+                                return true;
+                            }
+                    return false;
+                };
+                bool found = find(globals, kGlobals, -1);
+                for (size_t s = 0; !found && s < placedAt.size(); ++s)
+                    found = find(reinterpret_cast<const char*>(placedAt[s]), slots[s].size, static_cast<int>(s));
+                placed[m] = found;
+                progress = progress || found;
+            }
+        }
+        log::Write("terrain buffers: ours allocated %zu blocks, %zu of them kept", made.size(), slots.size());
+        // Every block the build makes is kept in a global or in another
+        // block. One that nothing points at means a pointer was stored wrong.
+        if (slots.size() != made.size())
+            compare::Record("terrain.buffers.lostblock", false, "every block kept", "a block ours allocated is not pointed at");
+    }
+    // Three results: ours (or, for the self-check, the game's), then the
+    // game's twice. A byte that differs between the game's two (a pointer to
+    // something outside these blocks that each build makes anew) says nothing
+    // and is left out.
+    if (g_selfCheck) {
+        clear();
+        game();
+    }
+    const std::vector<char> first = result();
+    clear();
+    game();
+    const std::vector<char> second = result();
+    clear();
+    frame->eax = game();
+    const std::vector<char> third = result();
+    size_t differing = first.size() == second.size() && second.size() == third.size() ? 0 : 1, firstAt = 0, unsettled = 0;
+    const auto word = [](const std::vector<char>& bytes, size_t at) {
+        uint32_t value;
+        std::memcpy(&value, bytes.data() + at, 4);
+        return value;
+    };
+    const auto mapped = [](uint32_t address) {
+        MEMORY_BASIC_INFORMATION info{};
+        return address >= 0x10000 && VirtualQuery(reinterpret_cast<void*>(address), &info, sizeof info) && info.State == MEM_COMMIT;
+    };
+    for (size_t i = 0; i < first.size() && i < second.size() && i < third.size(); ++i) {
+        // A global that holds three addresses, not all the same, is a pointer
+        // to something each build makes anew: left out whole.
+        if (i < kGlobals && i % 4 == 0) {
+            const uint32_t a = word(first, i), b = word(second, i), c = word(third, i);
+            if ((a != b || b != c) && mapped(a) && mapped(b) && mapped(c)) {
+                unsettled += 4;
+                i += 3;
+                continue;
+            }
+        }
+        if (second[i] != third[i])
+            ++unsettled;
+        else if (first[i] != second[i] && !differing++)
+            firstAt = i;
+    }
+    char detail[200];
+    std::snprintf(detail, sizeof detail,
+                  "%zu of %zu bytes differ in the globals and %zu blocks, %zu left out as unsettled (first at %zu; the globals are the first %u)",
+                  differing, first.size(), slots.size(), unsettled, firstAt, kGlobals);
+    log::Write("terrain buffers: build compared: %s", detail);
+    compare::Record(g_selfCheck ? "terrain.buffers.selfcheck" : "terrain.buffers", !differing, "the game's buffers", detail);
+}
+DATAMAP_ENTRY(TTerrainBuildBuffers, TerrainBuildBuffers, g_terrainBuildBuffers, 0)
+
+void* g_terrainFillLandVertices;
+void __cdecl TerrainFillLandVertices(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain buffers: FillLandVertices call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrain_filllandvertices.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain buffers: FillLandVertices left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainFillLandVertices, TerrainFillLandVertices, g_terrainFillLandVertices, 0)
+
+void* g_terrainFillWaterVertices;
+void __cdecl TerrainFillWaterVertices(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain buffers: FillWaterVertices call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrain_fillwatervertices.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain buffers: FillWaterVertices left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainFillWaterVertices, TerrainFillWaterVertices, g_terrainFillWaterVertices, 0)
+
+void* g_terrainFreeBuffers;
+void __cdecl TerrainFreeBuffers(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain buffers: FreeBuffers call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrain_freebuffers.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain buffers: FreeBuffers left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainFreeBuffers, TerrainFreeBuffers, g_terrainFreeBuffers, 0)
+
+bool InstallTerrainBuffers(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareTerrainBuffers = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::STE_BuildBuffers, &TTerrainBuildBuffers, &g_terrainBuildBuffers)
+                           && Detour(addr::STE_FillLandVertices, &TTerrainFillLandVertices, &g_terrainFillLandVertices)
+                           && Detour(addr::STE_FillWaterVertices, &TTerrainFillWaterVertices, &g_terrainFillWaterVertices)
+                           && Detour(addr::STE_FreeBuffers, &TTerrainFreeBuffers, &g_terrainFreeBuffers);
+    if (installed)
+        log::Write("terrain buffers: %s", g_compareTerrainBuffers ? "compared with the game's" : "ours");
+    return installed;
+}
+
+const bool g_registeredTerrainBuffers = registry::Register({
+    "renderer.terrain.buffers",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::STE_BuildBuffers,
+    "The terrain's drawing buffers made, filled and freed; compare mode builds ours, then the game's into the same "
+    "blocks, and compares them byte for byte (docs/renderer.md, \"The terrain's buffers\")",
+    true,
+    InstallTerrainBuffers,
 });
 
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),
