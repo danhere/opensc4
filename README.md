@@ -25,8 +25,10 @@ Things OpenSC4 adds to the game. Classic behaviour stays: an addition that chang
 |---|---|---|
 | Bulldozer modes: only trees (hold Ctrl), only roads and rails (hold Shift), everything but those (hold both) | always there | [docs/bulldoze.md](docs/bulldoze.md) |
 | De-zoning that keeps the roads inside the area (hold Shift) | always there | [docs/dezone.md](docs/dezone.md) |
+| Growify: plopped buildings turned into growable lots of a zone, with the `growify <zone> <density>` cheat | always there | [docs/growify.md](docs/growify.md) |
 | Auto save every few minutes of play, with the last few saves kept as copies | `game.autosave = ours` | [docs/autosave.md](docs/autosave.md) |
 | Timelapse: a dated copy of the city at every save, rendered into a video | `game.timelapse = ours` | [docs/timelapse.md](docs/timelapse.md) |
+| City date sync: a city loaded with an earlier date than the last one saved in its region moves forward to it | `game.date_sync = ours` | [docs/date-sync.md](docs/date-sync.md) |
 | One seed per city, shown in the title and set with the `seed` cheat | `game.seed = ours` | [docs/seeds.md](docs/seeds.md) |
 | D3D11 renderer: resolutions past 2048 px, windowed and borderless modes, a scaled interface | `renderer.d3d11 = ours` | [docs/renderer.md](docs/renderer.md), [docs/ui-scaling.md](docs/ui-scaling.md) |
 | 8 km city tiles (an experiment: such a city cannot be saved yet) | `[improvements] big_cities = on` | [docs/city-size.md](docs/city-size.md) |
