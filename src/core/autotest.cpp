@@ -2,6 +2,7 @@
 
 #include "core/autotest_hooks.h"
 #include "core/camera_control.h"
+#include "core/datamap_test.h"
 #include "core/photo_mode.h"
 
 #include "core/crash.h"
@@ -799,6 +800,24 @@ private:
                 cISC4City* city = app->GetCity();
                 centre[0x44 / 4] = city->SizeX() / 2;
                 centre[0x4C / 4] = city->SizeZ() / 2;
+            }
+        }
+        // OPENSC4_TEST_DATA_MAP=<n>[,<n>...]: the Data Views window with a
+        // map in each shot. Before the first shot the advisors' script
+        // command opens the window ({0x6A5BDFCD, n} on the queue the object
+        // at 0x00B43DC4 gives); from the second on, shot i shows the list's
+        // map i - 1 (needs diagnostics.datamap_select; docs/renderer.md,
+        // "The data map").
+        if (!Env("OPENSC4_TEST_DATA_MAP").empty()) {
+            std::vector<uint32_t> maps;
+            const std::string list = Env("OPENSC4_TEST_DATA_MAP");
+            for (size_t at = 0; at < list.size(); at = list.find(',', at) == std::string::npos ? list.size() : list.find(',', at) + 1)
+                maps.push_back(static_cast<uint32_t>(std::atoi(list.c_str() + at)));
+            if (shot_ > 0) {
+                datamap_test::Select(maps[static_cast<size_t>(shot_ - 1) % maps.size()]);
+            } else if (void* const holder = Global<void*>(0x00B43DC4)) {
+                uint32_t command[4] = {0x6A5BDFCD, 0, 0, 0};
+                Virtual<void>(Virtual<void*>(holder, 0xC), 0xC, command);
             }
         }
         // OPENSC4_TEST_TERRAIN_GRID=1: the cell grid shown, as the zoning

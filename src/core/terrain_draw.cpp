@@ -7,6 +7,7 @@
 // and the two lists of draws are compared.
 #include "core/address_check.h"
 #include "core/compare.h"
+#include "core/datamap_test.h"
 #include "core/game.h"
 #include "core/game_access.h"
 #include "core/hook.h"
@@ -30,6 +31,7 @@
 #include <vector>
 
 namespace opensc4::terrain_draw {
+int g_dataMapPick = -1;
 namespace {
 
 constexpr std::size_t kViewSize = 0xE8;
@@ -4027,5 +4029,454 @@ const bool g_registeredCellMarks = registry::Register({
     InstallCellMarks,
 });
 
+// What a translated function hands to DynCall: the emulated registers, the
+// emulated stack pointer and the callee. On return the registers are the
+// callee's, esp has moved by what the callee took off the stack, and st0 holds
+// a result it left on the x87 stack (isFloat says whether it did).
+struct DynRegs
+{
+    uint32_t eax, ecx, edx, ebx, esi, edi, esp, target;
+    double st0;
+    uint32_t isFloat;
+};
+static_assert(offsetof(DynRegs, st0) == 32 && offsetof(DynRegs, isFloat) == 40);
+
+// Calls regs->target the way the game's code at the call site would: on a
+// copy of the top 64 bytes of the emulated stack, with the emulated registers
+// loaded. Nothing about the callee has to be known: how much it pops and
+// whether it returns a float are read off the machine after the call.
+__declspec(naked) void __cdecl DynCall(DynRegs*)
+{
+    __asm {
+        push ebp
+        mov ebp, esp
+        push ebx
+        push esi
+        push edi
+        sub esp, 8
+        fnstsw ax
+        mov [ebp - 16], eax
+        mov eax, [ebp + 8]
+        mov ecx, [eax + 28]
+        mov [ebp - 20], ecx
+        sub esp, 64
+        mov esi, [eax + 24]
+        mov edi, esp
+        mov ecx, 16
+        rep movsd
+        mov ecx, [eax + 4]
+        mov edx, [eax + 8]
+        mov ebx, [eax + 12]
+        mov esi, [eax + 16]
+        mov edi, [eax + 20]
+        mov eax, [eax]
+        call dword ptr [ebp - 20]
+        mov [ebp - 20], eax
+        mov eax, [ebp + 8]
+        mov [eax + 4], ecx
+        mov [eax + 8], edx
+        mov [eax + 12], ebx
+        mov [eax + 16], esi
+        mov [eax + 20], edi
+        mov ecx, [ebp - 20]
+        mov [eax], ecx
+        lea ecx, [ebp - 84]
+        mov edx, esp
+        sub edx, ecx
+        add [eax + 24], edx
+        mov edx, eax
+        fnstsw ax
+        xor eax, [ebp - 16]
+        mov dword ptr [edx + 40], 0
+        test eax, 0x3800
+        jz done
+        fstp qword ptr [edx + 32]
+        mov dword ptr [edx + 40], 1
+    done:
+        lea esp, [ebp - 12]
+        pop edi
+        pop esi
+        pop ebx
+        pop ebp
+        ret
+    }
+}
+
+// The map window's picture (0x007A2F60): cSC4WinMapView builds the data map
+// shown in the Data Views window in a buffer of its own and hands it to the
+// window's picture control. Translated instruction by instruction; its calls
+// go through DynCall.
+uint32_t PaintDataMap(char* window, uint32_t* handedOver = nullptr)
+{
+    static uint32_t stackmem[2048];
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(window);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[1984]);
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+    const uint32_t frame = ((esp - 4) & ~7u) - 0xD8 - 16;
+    const auto run = [&]() -> uint32_t {
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#define DYNCALL(callee)                                                                                                  \
+    do {                                                                                                                 \
+        DynRegs regs{eax, ecx, edx, ebx, esi, edi, esp, (callee), 0.0, 0};                                               \
+        DynCall(&regs);                                                                                                  \
+        eax = regs.eax, ecx = regs.ecx, edx = regs.edx, ebx = regs.ebx, esi = regs.esi, edi = regs.edi, esp = regs.esp;  \
+        if (regs.isFloat)                                                                                                \
+            PUSH(regs.st0);                                                                                              \
+    } while (0)
+#include "core/datamap_picture.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+#undef DYNCALL
+    };
+    const uint32_t result = run();
+    if (handedOver) {
+        handedOver[0] = M<uint32_t>(frame + 0x14);
+        handedOver[1] = M<uint32_t>(frame + 0x44);
+    }
+    return result;
+}
+
+// The picture function's painters, one per kind of map a simulator keeps
+// (0x007A2080 to 0x007A2F5D), translated instruction by instruction. Each
+// runs on a stack of its own: the row painter calls itself.
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#define DYNCALL(callee)                                                                                                  \
+    do {                                                                                                                 \
+        DynRegs regs{eax, ecx, edx, ebx, esi, edi, esp, (callee), 0.0, 0};                                               \
+        DynCall(&regs);                                                                                                  \
+        eax = regs.eax, ecx = regs.ecx, edx = regs.edx, ebx = regs.ebx, esi = regs.esi, edi = regs.edi, esp = regs.esp;  \
+        if (regs.isFloat)                                                                                                \
+            PUSH(regs.st0);                                                                                              \
+    } while (0)
+#define DATAMAP_MACHINE(self)                                                                                            \
+    uint32_t stackmem[640] = {};                                                                                         \
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;                      \
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);                                                                     \
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[600]);                                                           \
+    [[maybe_unused]] double st[8] = {};                                                                                  \
+    [[maybe_unused]] int top = -1;                                                                                       \
+    [[maybe_unused]] uint32_t status = 0
+
+uint32_t DataMapGrid(char* window, uint32_t a0)
+{
+    DATAMAP_MACHINE(window);
+    M<uint32_t>(esp + 4) = a0;
+#include "core/datamap_grid.inc"
+}
+
+uint32_t DataMapRows(char* window, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3)
+{
+    DATAMAP_MACHINE(window);
+    M<uint32_t>(esp + 4) = a0;
+    M<uint32_t>(esp + 8) = a1;
+    M<uint32_t>(esp + 12) = a2;
+    M<uint32_t>(esp + 16) = a3;
+#include "core/datamap_rows.inc"
+}
+
+uint32_t DataMapRows2(char* window, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3)
+{
+    DATAMAP_MACHINE(window);
+    M<uint32_t>(esp + 4) = a0;
+    M<uint32_t>(esp + 8) = a1;
+    M<uint32_t>(esp + 12) = a2;
+    M<uint32_t>(esp + 16) = a3;
+#include "core/datamap_rows2.inc"
+}
+
+uint32_t DataMapWords(char* window, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3)
+{
+    DATAMAP_MACHINE(window);
+    M<uint32_t>(esp + 4) = a0;
+    M<uint32_t>(esp + 8) = a1;
+    M<uint32_t>(esp + 12) = a2;
+    M<uint32_t>(esp + 16) = a3;
+#include "core/datamap_words.inc"
+}
+
+uint32_t DataMapShorts(char* window, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3)
+{
+    DATAMAP_MACHINE(window);
+    M<uint32_t>(esp + 4) = a0;
+    M<uint32_t>(esp + 8) = a1;
+    M<uint32_t>(esp + 12) = a2;
+    M<uint32_t>(esp + 16) = a3;
+#include "core/datamap_shorts.inc"
+}
+
+uint32_t DataMapFloats(char* window, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3)
+{
+    DATAMAP_MACHINE(window);
+    M<uint32_t>(esp + 4) = a0;
+    M<uint32_t>(esp + 8) = a1;
+    M<uint32_t>(esp + 12) = a2;
+    M<uint32_t>(esp + 16) = a3;
+#include "core/datamap_floats.inc"
+}
+
+#undef DATAMAP_MACHINE
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+#undef DYNCALL
+
+// Set while compare mode runs the game's picture function, so that it gets
+// the game's painters too.
+bool g_dataMapGameRun;
+
+// Logs a painter's first call of ours, to show which ones a run reaches.
+void DataMapPainterSeen(bool& seen, const char* name)
+{
+    if (!seen && !g_dataMapGameRun)
+        log::Write("data map: painter %s reached", name);
+    seen = seen || !g_dataMapGameRun;
+}
+
+using DataMapPainter1Fn = uint32_t(__fastcall*)(char*, void*, uint32_t);
+using DataMapPainter4Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t, uint32_t);
+DataMapPainter1Fn g_dataMapGrid;
+uint32_t __fastcall DDataMapGrid(char* window, void*, uint32_t a0)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "grid");
+    return g_dataMapGameRun ? g_dataMapGrid(window, nullptr, a0) : DataMapGrid(window, a0);
+}
+OPENSC4_THUNK(TDataMapGrid, DDataMapGrid, 4)
+DataMapPainter4Fn g_dataMapRows;
+uint32_t __fastcall DDataMapRows(char* window, void*, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "rows");
+    return g_dataMapGameRun ? g_dataMapRows(window, nullptr, a0, a1, a2, a3) : DataMapRows(window, a0, a1, a2, a3);
+}
+OPENSC4_THUNK(TDataMapRows, DDataMapRows, 16)
+DataMapPainter4Fn g_dataMapRows2;
+uint32_t __fastcall DDataMapRows2(char* window, void*, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "rows2");
+    return g_dataMapGameRun ? g_dataMapRows2(window, nullptr, a0, a1, a2, a3) : DataMapRows2(window, a0, a1, a2, a3);
+}
+OPENSC4_THUNK(TDataMapRows2, DDataMapRows2, 16)
+DataMapPainter4Fn g_dataMapWords;
+uint32_t __fastcall DDataMapWords(char* window, void*, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "words");
+    return g_dataMapGameRun ? g_dataMapWords(window, nullptr, a0, a1, a2, a3) : DataMapWords(window, a0, a1, a2, a3);
+}
+OPENSC4_THUNK(TDataMapWords, DDataMapWords, 16)
+DataMapPainter4Fn g_dataMapShorts;
+uint32_t __fastcall DDataMapShorts(char* window, void*, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "shorts");
+    return g_dataMapGameRun ? g_dataMapShorts(window, nullptr, a0, a1, a2, a3) : DataMapShorts(window, a0, a1, a2, a3);
+}
+OPENSC4_THUNK(TDataMapShorts, DDataMapShorts, 16)
+DataMapPainter4Fn g_dataMapFloats;
+uint32_t __fastcall DDataMapFloats(char* window, void*, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "floats");
+    return g_dataMapGameRun ? g_dataMapFloats(window, nullptr, a0, a1, a2, a3) : DataMapFloats(window, a0, a1, a2, a3);
+}
+OPENSC4_THUNK(TDataMapFloats, DDataMapFloats, 16)
+
+bool InstallDataMapPainters(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    const bool installed = Detour(addr::cSC4WinMapView_FillGrid, &TDataMapGrid, &g_dataMapGrid)
+                           && Detour(addr::cSC4WinMapView_PaintRows, &TDataMapRows, &g_dataMapRows)
+                           && Detour(addr::cSC4WinMapView_PaintRows2, &TDataMapRows2, &g_dataMapRows2)
+                           && Detour(addr::cSC4WinMapView_PaintWords, &TDataMapWords, &g_dataMapWords)
+                           && Detour(addr::cSC4WinMapView_PaintShorts, &TDataMapShorts, &g_dataMapShorts)
+                           && Detour(addr::cSC4WinMapView_PaintFloats, &TDataMapFloats, &g_dataMapFloats);
+    if (installed)
+        log::Write("data map: painters ours");
+    return installed;
+}
+
+const bool g_registeredDataMapPainters = registry::Register({
+    "renderer.datamap.painters",
+    "renderer/datamap",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4WinMapView_PaintRows,
+    "The six painters the map picture is made with, one per kind of simulator map; compared through "
+    "renderer.datamap.picture's compare mode, whose run of the game's uses the game's painters (docs/renderer.md, "
+    "\"The data map\")",
+    true,
+    InstallDataMapPainters,
+});
+
+// The picture a map window's control holds (the control keeps the buffer it
+// was last handed at +0x1C): its size and its pixels, row by row.
+std::vector<uint32_t> DataMapPixels(uint32_t control)
+{
+    std::vector<uint32_t> pixels;
+    void* const buffer = control ? M<void*>(control + 0x1C) : nullptr;
+    if (!buffer)
+        return pixels;
+    const uint32_t width = Virtual<uint32_t>(buffer, 0x24), height = Virtual<uint32_t>(buffer, 0x28);
+    const uint32_t bytes = Virtual<uint32_t>(buffer, 0x44), stride = Virtual<uint32_t>(buffer, 0x8C);
+    const char* const bits = Virtual<const char*>(buffer, 0x88);
+    pixels = {width, height, bytes};
+    if (!bits || bytes != 4 || width > 4096 || height > 4096)
+        return pixels;
+    pixels.resize(3 + width * height);
+    for (uint32_t y = 0; y < height; ++y)
+        std::memcpy(&pixels[3 + y * width], bits + y * stride, width * 4);
+    return pixels;
+}
+
+using DataMapFn = void(__fastcall*)(char*, void*);
+DataMapFn g_dataMap;
+bool g_compareDataMap;
+
+// What a second run of the picture function must start from to give the same
+// picture: its flag bytes in the window and the step of the moving maps'
+// animation (0x00B4E1A8, which every run advances).
+struct DataMapState
+{
+    uint8_t flags[4]; // the fourth is padding, kept 0 for memcmp
+    uint32_t step;
+};
+DataMapState ReadDataMapState(char* window)
+{
+    return {{At<uint8_t>(window, 0x141), At<uint8_t>(window, 0x94C), At<uint8_t>(window, 0x9D9), 0}, Global<uint32_t>(0x00B4E1A8)};
+}
+
+void __fastcall DDataMap(char* window, void*)
+{
+    if (!g_compareDataMap) {
+        PaintDataMap(window);
+        return;
+    }
+    const DataMapState before = ReadDataMapState(window);
+    uint32_t handed[2] = {};
+    if (g_selfCheck) {
+        // The control is only known from a run of ours.
+        PaintDataMap(window, handed);
+        At<uint8_t>(window, 0x141) = before.flags[0], At<uint8_t>(window, 0x94C) = before.flags[1], At<uint8_t>(window, 0x9D9) = before.flags[2];
+        Global<uint32_t>(0x00B4E1A8) = before.step;
+        g_dataMapGameRun = true;
+        g_dataMap(window, nullptr);
+        g_dataMapGameRun = false;
+    } else {
+        PaintDataMap(window, handed);
+    }
+    const std::vector<uint32_t> first = DataMapPixels(handed[1]);
+    const DataMapState after = ReadDataMapState(window);
+    At<uint8_t>(window, 0x141) = before.flags[0], At<uint8_t>(window, 0x94C) = before.flags[1], At<uint8_t>(window, 0x9D9) = before.flags[2];
+    Global<uint32_t>(0x00B4E1A8) = before.step;
+    g_dataMapGameRun = true;
+    g_dataMap(window, nullptr);
+    g_dataMapGameRun = false;
+    const std::vector<uint32_t> second = DataMapPixels(handed[1]);
+    const DataMapState game = ReadDataMapState(window);
+    size_t differing = first.size() == second.size() ? 0 : 1;
+    for (size_t i = 0; i < first.size() && i < second.size(); ++i)
+        differing += first[i] != second[i];
+    const bool same = !differing && !std::memcmp(&after, &game, sizeof after);
+    static uint32_t logged = 0;
+    if (!same || logged < 40) {
+        ++logged;
+        log::Write("data map: map %u, picture %u by %u, %zu of %zu values differ, state %s", At<uint32_t>(window, 0x144),
+                   second.size() > 1 ? second[0] : 0, second.size() > 1 ? second[1] : 0, differing, second.size(),
+                   std::memcmp(&after, &game, sizeof after) ? "differs" : "same");
+        if (std::memcmp(&after, &game, sizeof after))
+            log::Write("data map: state before %u %u %u step %u, ours %u %u %u step %u, the game's %u %u %u step %u", before.flags[0], before.flags[1],
+                       before.flags[2], before.step, after.flags[0], after.flags[1], after.flags[2], after.step, game.flags[0], game.flags[1],
+                       game.flags[2], game.step);
+    }
+    char detail[64];
+    std::snprintf(detail, sizeof detail, "map %u: %zu values differ", At<uint32_t>(window, 0x144), differing);
+    compare::Record(g_selfCheck ? "datamap.picture.selfcheck" : "datamap.picture", same, "the game's picture", detail);
+}
+OPENSC4_THUNK(TDataMap, DDataMap, 0)
+
+bool InstallDataMap(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareDataMap = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSC4WinMapView_PaintPicture, &TDataMap, &g_dataMap))
+        return false;
+    log::Write("data map: picture %s", g_compareDataMap ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDataMap = registry::Register({
+    "renderer.datamap.picture",
+    "renderer/datamap",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4WinMapView_PaintPicture,
+    "The picture of the Data Views window's map; compare mode paints ours, then the game's, and compares the two "
+    "pictures' pixels (docs/renderer.md, \"The data map\")",
+    true,
+    InstallDataMap,
+});
+
+// A test's pick of the map (datamap_test::Select): the map window's message
+// handler (0x007A54D0, `this` is the window + 4) is where the window is met,
+// and the pick goes to the window's own set-map function there, as a click
+// on the window's list does.
+using DataMapMessageFn = uint32_t(__fastcall*)(char*, void*, void*);
+DataMapMessageFn g_dataMapMessage;
+
+uint32_t __fastcall DDataMapMessage(char* target, void*, void* message)
+{
+    if (g_dataMapPick >= 0) {
+        char* const window = target - 4;
+        const uint32_t done = CallThis<uint32_t>(addr::cSC4WinMapView_SetMap, window, static_cast<uint32_t>(g_dataMapPick));
+        log::Write("data map: test picked map %d: %s, the window's map type %u", g_dataMapPick, (done & 0xFF) ? "set" : "refused",
+                   At<uint32_t>(window, 0x144));
+        g_dataMapPick = -1;
+    }
+    return g_dataMapMessage(target, nullptr, message);
+}
+OPENSC4_THUNK(TDataMapMessage, DDataMapMessage, 4)
+
+const bool g_registeredDataMapSelect = registry::Register({
+    "diagnostics.datamap_select",
+    "diagnostics",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSC4WinMapView_DoMessage,
+    "Lets a test pick the Data Views window's map (OPENSC4_TEST_DATA_MAP; docs/renderer.md, \"The data map\")",
+    false,
+    [](registry::Mode) { return game::IsBuild641() && Detour(addr::cSC4WinMapView_DoMessage, &TDataMapMessage, &g_dataMapMessage); },
+});
+
 } // namespace
 } // namespace opensc4::terrain_draw
+
+namespace opensc4::datamap_test {
+void Select(uint32_t map)
+{
+    terrain_draw::g_dataMapPick = static_cast<int>(map);
+}
+} // namespace opensc4::datamap_test
