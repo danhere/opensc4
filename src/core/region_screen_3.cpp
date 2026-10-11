@@ -295,7 +295,7 @@ uint8_t __fastcall ScreenPaint(char* self, void*)
     const int32_t y = static_cast<int32_t>(Bits(wideY) - static_cast<uint32_t>(height / 2) - 0x4B400000u);
 
     if (void* const map = At<void*>(self, screen::kMapWindow))
-        This<void>(addr::SC4RegionView_F7B4A60, map, x, y);
+        This<void>(addr::cSC4WinRegionView_SetViewPlace, map, x, y);
     if (void* const overlay = At<void*>(self, screen::kOverlay)) {
         int32_t point[2];
         point[0] = x;
@@ -316,7 +316,7 @@ uint8_t __fastcall ScreenPaint(char* self, void*)
 uint8_t __fastcall ScreenMouseDownL(char* self, void*, int32_t x, int32_t y, uint32_t)
 {
     if (At<uint8_t>(self, screen::kPicked)) {
-        void* const hit = This<void*>(addr::SC4RegionView_F7B3A80, At<void*>(self, screen::kMapWindow), x, y);
+        void* const hit = This<void*>(addr::cSC4WinRegionView_TileAt, At<void*>(self, screen::kMapWindow), x, y);
         if (hit && hit == This<void*>(addr::SC4Folded_GetFieldE4, At<void*>(self, screen::kMapWindow))) {
             void* const input = Cdecl<void*>(addr::SC4_Singleton913C72);
             const uint32_t elapsed =
@@ -326,7 +326,7 @@ uint8_t __fastcall ScreenMouseDownL(char* self, void*, int32_t x, int32_t y, uin
                 return 1;
             }
         }
-        This<void>(addr::SC4RegionView_F7B5DD0, At<void*>(self, screen::kMapWindow), x, y);
+        This<void>(addr::cSC4WinRegionView_PickAt, At<void*>(self, screen::kMapWindow), x, y);
         if (!This<void*>(addr::SC4Folded_GetFieldE4, At<void*>(self, screen::kMapWindow))) {
             This<void>(addr::cSC4WinRegionScreen_ApplyMode, self);
             return 1;
@@ -346,17 +346,17 @@ uint8_t __fastcall ScreenMouseDownL(char* self, void*, int32_t x, int32_t y, uin
     // The original pushes the mode with its low byte replaced by the flag.
     const uint32_t mode = At<uint32_t>(self, screen::kMode);
     const uint32_t flag = (mode & 0xFFFFFF00u) | (mode == 1 ? 1u : 0u);
-    This<void>(addr::SC4RegionView_F7B30B0, At<void*>(self, screen::kMapWindow), flag, uint32_t{0});
+    This<void>(addr::cSC4WinRegionView_SetFlags114, At<void*>(self, screen::kMapWindow), flag, uint32_t{0});
     // GetCity
     void** const holder = Virtual<void**>(region, 0x2C, At<uint32_t>(picked, 0x8), At<uint32_t>(picked, 0xC));
     uint32_t colour = 0x0A8CD184;
     if (holder && Virtual<uint8_t>(*holder, 0xAC)) // GetEstablished
         colour = 0xCA539340;
-    This<void>(addr::SC4RegionView_F7B5E20, At<void*>(self, screen::kMapWindow), colour, uint32_t{0x0A551C50});
+    This<void>(addr::cSC4WinRegionView_SetLabelLayout, At<void*>(self, screen::kMapWindow), colour, uint32_t{0x0A551C50});
     At<uint8_t>(self, screen::kPicked) = 1;
     This<void>(addr::GZStopwatch_Start, static_cast<void*>(self + screen::kPickWatch));
     int32_t area[4]; // filled by the map window, not read here
-    This<void>(addr::SC4RegionView_F7B3110, At<void*>(self, screen::kMapWindow), picked, &area[0]);
+    This<void>(addr::cSC4WinRegionView_TileArea, At<void*>(self, screen::kMapWindow), picked, &area[0]);
     return 1;
 }
 

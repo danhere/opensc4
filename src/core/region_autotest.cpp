@@ -521,7 +521,7 @@ std::string g_screenToken;
 // a region is up (the city screen is there otherwise).
 void* RegionScreen()
 {
-    void* const owner = Global<void*>(addr::SC4_AppWindow);
+    void* const owner = Global<void*>(addr::SC4_MainWindowObject);
     void* const screen = owner ? At<void*>(owner, 0xEC) : nullptr;
     return screen && At<uint32_t>(screen, 0x10) == 0xEA659793 ? screen : nullptr;
 }
@@ -656,6 +656,99 @@ uint32_t DriveScreen(void* screen)
     return f.h;
 }
 
+// The region map window (cSC4WinRegionView, at screen +0xE0) worked with
+// the screen up: where every tile's picture sits and which tile is under a
+// grid of points; the map composed into a picture of our own and read pixel
+// by pixel, as it is, with a tile picked, and in the two other modes; the
+// view moved to three places and back, with the picture cache's state after
+// each.
+uint32_t DriveMap(void* screen)
+{
+    Fnv f;
+    char* const map = At<char*>(screen, 0xE0);
+    void* const factory = At<void*>(screen, 0x154);
+    if (!map || !factory)
+        return 0;
+    char* const first = At<char*>(screen, 0x118);
+    char* const last = At<char*>(screen, 0x11C);
+    const auto index = [&](void* record) {
+        return record ? static_cast<int32_t>((static_cast<char*>(record) - first) / 0x80) : -1;
+    };
+    using PlaceFn = void(__thiscall*)(void*, void*, int32_t*, int32_t*);
+    using AreaFn = void(__thiscall*)(void*, void*, int32_t*);
+    using AtFn = void*(__thiscall*)(void*, int32_t, int32_t);
+    using PointFn = uint32_t(__thiscall*)(void*, int32_t, int32_t);
+    using PlainFn = uint32_t(__thiscall*)(void*);
+    using ModeFn = uint32_t(__thiscall*)(void*, uint32_t);
+    using PaintFn = uint8_t(__thiscall*)(void*, void*, int32_t, int32_t);
+
+    for (char* record = first; record != last; record += 0x80) {
+        int32_t place[6] = {};
+        reinterpret_cast<PlaceFn>(addr::cSC4WinRegionView_TilePlace)(map, record, &place[0], &place[1]);
+        reinterpret_cast<AreaFn>(addr::cSC4WinRegionView_TileArea)(map, record, &place[2]);
+        f.Add(place);
+    }
+    int32_t pick[2] = {-1, -1};
+    for (int32_t y = 0; y < 768; y += 24)
+        for (int32_t x = 0; x < 1024; x += 24) {
+            void* const record = reinterpret_cast<AtFn>(addr::cSC4WinRegionView_TileAt)(map, x, y);
+            f.Add(index(record));
+            if (record && pick[0] < 0) {
+                pick[0] = x;
+                pick[1] = y;
+            }
+        }
+
+    void* const grid = At<void*>(map, 0x10C);
+    const auto compose = [&] {
+        void* picture = nullptr;
+        if (!grid || !Virtual<uint8_t>(factory, 0xC, &picture) || !picture)
+            return;
+        if (Virtual<uint8_t>(picture, 0xC, int32_t{512}, int32_t{384}, int32_t{9}, int32_t{0x20})) {
+            f.Add(reinterpret_cast<PaintFn>(addr::SC4RegionViewGrid_Paint)(grid, picture, 0, 0));
+            AddPicture(f, picture);
+        }
+        Virtual<uint32_t>(picture, 0x8);
+    };
+    const auto cache = [&] {
+        if (!grid)
+            return;
+        f.Bytes(static_cast<char*>(grid) + 0x18, 0x28);
+        for (char* cell = At<char*>(grid, 0xC); cell != At<char*>(grid, 0x10); cell += 8)
+            f.Add(static_cast<uint8_t>(cell[4]));
+    };
+
+    reinterpret_cast<PlainFn>(addr::cSC4WinRegionView_Invalidate)(map);
+    cache();
+    compose();
+    cache();
+    if (pick[0] >= 0) {
+        reinterpret_cast<PointFn>(addr::cSC4WinRegionView_PickAt)(map, pick[0], pick[1]);
+        f.Add(index(At<void*>(map, 0xE4)));
+        cache();
+        compose();
+    }
+    const uint32_t mode = At<uint32_t>(map, 0x118);
+    for (const uint32_t other : {1u, 2u, 0u}) {
+        reinterpret_cast<ModeFn>(addr::cSC4WinRegionView_SetMode)(map, other);
+        compose();
+    }
+    reinterpret_cast<ModeFn>(addr::cSC4WinRegionView_SetMode)(map, mode);
+    reinterpret_cast<PlainFn>(addr::cSC4WinRegionView_Unpick)(map);
+    f.Add(index(At<void*>(map, 0xE4)));
+
+    const int32_t home[2] = {At<int32_t>(map, 0xE8), At<int32_t>(map, 0xEC)};
+    const int32_t places[4][2] = {{home[0] + 40, home[1] - 30}, {home[0] - 300, home[1] + 270}, {-5000, 9000},
+                                  {home[0], home[1]}};
+    for (const auto& place : places) {
+        reinterpret_cast<PointFn>(addr::cSC4WinRegionView_SetViewPlace)(map, place[0], place[1]);
+        f.Bytes(map + 0xE8, 8);
+        cache();
+    }
+    compose();
+    return f.h;
+}
+
 // OPENSC4_TEST_REGION_SCREEN=1: unattended runs load their city from the
 // start screen, so the region screen never comes up. With the switch the
 // test puts it up first, as the start screen does when the player goes on
@@ -665,10 +758,10 @@ void AtRegion(cISC4Region*)
 {
     if (Env("OPENSC4_TEST_REGION_SCREEN") != "1" || !game::IsBuild641())
         return;
-    void* const owner = Global<void*>(addr::SC4_AppWindow);
+    void* const owner = Global<void*>(addr::SC4_MainWindowObject);
     if (owner && !RegionScreen()) {
-        reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::SC4AppWindow_RemoveScreen)(owner);
-        reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::SC4AppWindow_ShowRegionScreen)(owner);
+        reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::SC4MainWindow_DropScreen)(owner);
+        reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::SC4MainWindow_ShowScreen200)(owner);
     }
     void* const screen = RegionScreen();
     if (!screen) {
@@ -679,6 +772,7 @@ void AtRegion(cISC4Region*)
     g_screenToken = " scr " + std::to_string(DescribeScreen(screen));
     if (Env("OPENSC4_TEST_REGION_DRIVE") == "1") {
         g_screenToken += " " + std::to_string(DriveScreen(screen));
+        g_screenToken += " map " + std::to_string(DriveMap(screen));
         g_screenToken += " " + std::to_string(DescribeScreen(screen));
     }
     log::Write("autotest: region screen:%s", g_screenToken.c_str());
