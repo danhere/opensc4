@@ -151,14 +151,14 @@ inline constexpr int32_t kWorldCells = 0xC0;
 inline constexpr int32_t kCityOrigin = 0x40;
 
 // An improvement beyond the original (docs/city-size.md, "The 8 km spike"):
-// with [improvements] big_cities = on, a new city's grid is sized from the
-// city, the same 64-cell margin on both sides (256 a side for 8 km, still
-// inside an occupant's one-byte cell rectangle), and every walk and clamp
-// follows the grid in memory, so a saved grid of any size reads back. Off
-// (the default): 192, as the game.
+// with [improvements] big_cities = on and every simulators.occmgr group ours
+// (the game's own slots know only 192), a new city's grid is sized from the
+// city, with the same 64-cell margin on both sides, at most 255 a side: an
+// occupant keeps its cells as bytes and a first byte of 0xFF means "not in
+// the manager". Tiles are square, so one count serves both axes. Off (the
+// default): 192, as the game. Decided on first use, after the replacements
+// are applied.
 bool BigCities();
-// The grid's cells a side: 192, or with big cities the grid's own columns.
-int32_t WorldCells(char* self);
 // The cells a side Init gives an empty grid: 192, or with big cities enough
 // for the city's size (SetCitySize comes first).
 int32_t NewGridCells(char* self);
@@ -292,6 +292,15 @@ inline void ShrinkAxis(float& low, float& high)
         low = static_cast<float>(static_cast<double>(low) + static_cast<double>(kMargin));
         high = static_cast<float>(static_cast<double>(high) - static_cast<double>(kMargin));
     }
+}
+
+// The grid's cells a side: its own columns, so a saved grid of any size is
+// walked whole whatever the setting; 192 before Init (the game's constant).
+inline int32_t WorldCells(char* self)
+{
+    const Vector* const grid = Grid(self);
+    const int32_t columns = static_cast<int32_t>((grid->end - grid->begin) / 12);
+    return columns ? columns : kWorldCells;
 }
 
 inline int32_t ClampCell(char* self, int32_t value)

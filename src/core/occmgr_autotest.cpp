@@ -439,7 +439,9 @@ void Fingerprint(cISC4City* city, std::string& line)
                   At<int32_t>(manager, field::kCellsZ), At<int32_t>(manager, field::kCityCellsX),
                   At<int32_t>(manager, field::kCityCellsZ), columns, rows, lists, entries, occupants, index.h);
     line += text;
-    if (EnvInt("OPENSC4_TEST_OCCMGR", 0) >= 1) {
+    // On a grid other than 192 (big cities) the game's own functions answer
+    // for 192 by design, so the comparison is left out.
+    if (EnvInt("OPENSC4_TEST_OCCMGR", 0) >= 1 && occmgr_sim::WorldCells(manager) == kWorldCells) {
         // The answers differ between two runs of the original (automata are
         // among them), so the checksum itself is not printed: the same
         // questions go to the manager's slots and to the game's own
