@@ -272,7 +272,19 @@ add_library(opensc4_core SHARED
   trace.cpp
   ui_advice_text_1.cpp
   ui_autotest.cpp
+  ui_dialogs_1.cpp
+  ui_dialogs_2.cpp
+  ui_dialogs_3.cpp
+  ui_dialogs_4.cpp
+  ui_dialogs_5.cpp
+  ui_dialogs_6.cpp
   ui_dialogs_base.cpp
+  ui_map_1.cpp
+  ui_map_2.cpp
+  ui_map_3.cpp
+  ui_map_4.cpp
+  ui_map_5.cpp
+  ui_map_6.cpp
   ui_advice_text_2.cpp
   ui_mysim_tools_1.cpp
   ui_mysim_tools_2.cpp
@@ -282,6 +294,8 @@ add_library(opensc4_core SHARED
   ui_mysim_sim.cpp
   ui_mysim_panel_1.cpp
   ui_mysim_panel_2.cpp
+  ui_mysim_panel_3.cpp
+  ui_mysim_panel_4.cpp
   multi_instance.cpp)
 target_link_libraries(opensc4_core PRIVATE opensc4_core_support opensc4_dbpf opensc4_gzcom user32)
 set_target_properties(opensc4_core PROPERTIES OUTPUT_NAME core)
