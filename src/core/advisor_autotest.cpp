@@ -13,6 +13,8 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <string>
+#include <vector>
 
 namespace opensc4::autotest {
 namespace {
@@ -334,7 +336,119 @@ void __fastcall FakeClear(void*, void*)
     g_rows.Add(uint8_t{0xC1});
 }
 
-char g_windowToken[160];
+char g_windowToken[200];
+char g_tickerToken[160];
+
+// Every advice of every advisor, over the advisors in ID order and their
+// records in order.
+std::vector<char*> AllAdvices(char* system)
+{
+    std::vector<char*> advices;
+    char* const header = At<char*>(system, 0x4C);
+    for (char* node = At<char*>(header, 0x8); node != header;) {
+        char* const advisor = At<char*>(node, 0x14) - 0x8;
+        char* const first = At<char*>(advisor, 0x84);
+        char* const last = At<char*>(advisor, 0x88);
+        const bool sane = first <= last && (last - first) % 0x10 == 0 && last - first < 0x10000;
+        for (char* record = first; sane && record != last; record += 0x10)
+            if (char* const advice = At<char*>(record, 0x0))
+                advices.push_back(advice);
+        if (char* right = At<char*>(node, 0xC)) {
+            while (At<char*>(right, 0x8))
+                right = At<char*>(right, 0x8);
+            node = right;
+        } else {
+            char* parent = At<char*>(node, 0x4);
+            while (node == At<char*>(parent, 0xC)) {
+                node = parent;
+                parent = At<char*>(parent, 0x4);
+            }
+            if (At<char*>(node, 0xC) != parent)
+                node = parent;
+        }
+    }
+    return advices;
+}
+
+// The advices' IDs of a list of {next, previous, advice} nodes.
+int AddAdviceList(Fnv& f, char* end)
+{
+    int count = 0;
+    for (char* node = At<char*>(end, 0x0); node != end && count < 100000; node = At<char*>(node, 0x0), ++count)
+        f.Add(At<uint32_t>(At<char*>(node, 0x8), 0x8C));
+    f.Add(count);
+    return count;
+}
+
+void* g_fakeListVtable[8] = {nullptr,
+                             nullptr,
+                             nullptr,
+                             nullptr,
+                             reinterpret_cast<void*>(&FakeAddRow),
+                             reinterpret_cast<void*>(&FakeOneArgument),
+                             reinterpret_cast<void*>(&FakeOneArgument),
+                             reinterpret_cast<void*>(&FakeClear)};
+void* g_fakeList = g_fakeListVtable;
+
+// OPENSC4_TEST_TICKER=<day> (docs/ui.md): a news ticker of our making, as
+// the city view makes its own, with no window: every advice of the city
+// added (the list is kept by priority), the news list's rows and the
+// ticker's three rows taken by the stand-in list control, the ticker moved
+// on twelve times, the inactive advices purged, some removed.
+void DriveTicker(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_TICKER") || !game::IsBuild641())
+        return;
+    char* const system = Global<char*>(addr::cSC4AdvisorSystem_Instance);
+    char* const memory =
+        system ? static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x84)) : nullptr;
+    if (!memory)
+        return;
+    char* const ticker = reinterpret_cast<char*(__thiscall*)(void*)>(addr::SC4UI_F773050)(memory);
+    Virtual<uint32_t>(ticker, 0x4);
+    At<uint32_t>(ticker, 0x80) = 12; // the scroll length, which only Init sets
+    const std::vector<char*> advices = AllAdvices(system);
+    Fnv lists;
+    for (char* const advice : advices)
+        Virtual<void>(ticker, 0x20, advice); // Add
+    const int held = AddAdviceList(lists, At<char*>(ticker, 0x40));
+
+    g_rows = Fnv{};
+    g_rowCount = 0;
+    At<void*>(ticker, 0x38) = &g_fakeList;
+    Virtual<void>(ticker, 0x24); // the news list's rows
+    At<void*>(ticker, 0x38) = nullptr;
+    const int listRows = g_rowCount;
+    const uint32_t listHash = g_rows.h;
+
+    g_rows = Fnv{};
+    g_rowCount = 0;
+    Fnv line;
+    At<void*>(ticker, 0x3C) = &g_fakeList;
+    for (int turn = 0; turn < 12; ++turn) {
+        Virtual<void>(ticker, 0x28); // the ticker moves on
+        for (std::size_t slot : {std::size_t{0x4C}, std::size_t{0x50}, std::size_t{0x54}}) {
+            char* const shown = At<char*>(ticker, slot);
+            line.Add(shown ? At<uint32_t>(shown, 0x8C) : 0u);
+        }
+        line.Add(At<uint32_t>(ticker, 0x74));
+        line.Add(At<uint32_t>(ticker, 0x78));
+        line.Add(At<uint32_t>(ticker, 0x7C));
+    }
+    At<void*>(ticker, 0x3C) = nullptr;
+    line.Add(g_rows.h);
+
+    Virtual<void>(ticker, 0x2C); // Purge: the inactive ones go
+    const int active = AddAdviceList(lists, At<char*>(ticker, 0x40));
+    for (std::size_t i = 0; i < advices.size() && i < 40; i += 3)
+        Virtual<void>(ticker, 0x1C, advices[i]); // Remove
+    AddAdviceList(lists, At<char*>(ticker, 0x40));
+    Virtual<uint32_t>(ticker, 0x8);
+
+    std::snprintf(g_tickerToken, sizeof g_tickerToken, " ticker %d %d %08X rows %d %08X line %d %08X", held, active,
+                  lists.h, listRows, listHash, g_rowCount, line.h);
+    log::Write("autotest: news ticker driven:%s", g_tickerToken);
+}
 
 void AddControllerState(Fnv& f, char* helper)
 {
@@ -415,6 +529,31 @@ void DriveAdviceWindow(const Day& day)
         }
     }
 
+    // Every advice of the city through the controller's own list: added,
+    // the rows built, removed again.
+    int allRows = 0;
+    uint32_t allHash = 0;
+    if (window) {
+        const std::vector<char*> advices = AllAdvices(system);
+        Fnv saved = g_rows;
+        const int savedCount = g_rowCount;
+        g_rows = Fnv{};
+        g_rowCount = 0;
+        for (char* const advice : advices)
+            reinterpret_cast<ThisArgFn>(addr::SC4UI_F41DA00)(helper, advice);
+        void* const list = At<void*>(helper, 0x5C);
+        At<void*>(helper, 0x5C) = &g_fakeList;
+        reinterpret_cast<ThisFn>(addr::SC4UI_F41E4B0)(helper);
+        At<void*>(helper, 0x5C) = list;
+        for (char* const advice : advices)
+            reinterpret_cast<ThisArgFn>(addr::SC4UI_F41D9B0)(helper, advice);
+        AddControllerState(g_rows, helper);
+        allRows = g_rowCount;
+        allHash = g_rows.h;
+        g_rows = saved;
+        g_rowCount = savedCount;
+    }
+
     Fnv heads;
     for (const uint32_t type : types) {
         char* const memory = static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0xF8));
@@ -461,18 +600,20 @@ void DriveAdviceWindow(const Day& day)
         reinterpret_cast<ThisFn>(addr::SC4AdvisorHelper_Call2)(helper); // hide
         AddControllerState(screens, helper);
     }
-    std::snprintf(g_windowToken, sizeof g_windowToken, " advwin %d %08X rows %d %08X heads %08X screens %08X",
-                  window ? 1 : 0, lists.h, g_rowCount, g_rows.h, heads.h, screens.h);
+    std::snprintf(g_windowToken, sizeof g_windowToken, " advwin %d %08X rows %d %08X all %d %08X heads %08X screens %08X",
+                  window ? 1 : 0, lists.h, g_rowCount, g_rows.h, allRows, allHash, heads.h, screens.h);
     log::Write("autotest: advice window driven:%s", g_windowToken);
 }
 
 void WindowFingerprint(cISC4City*, std::string& line)
 {
     line += g_windowToken;
+    line += g_tickerToken;
 }
 
 const FingerprintPart kWindowFingerprint{"advisors.window", 87, &WindowFingerprint};
 const DayHook kDriveWindow{"advisors.window", 88, &DriveAdviceWindow};
+const DayHook kDriveTicker{"advisors.ticker", 89, &DriveTicker};
 const FingerprintPart kFingerprint{"advisors", 86, &Fingerprint};
 const DayHook kDrive{"advisors.drive", 86, &Drive};
 const DayHook kDriveCheats{"advisors.cheats", 87, &DriveCheats};
