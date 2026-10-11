@@ -341,9 +341,9 @@ uint32_t __fastcall Search(void* self, void*)
                     return nullptr;
                 };
                 if (special & 2) {
-                    if (char* const entry = find(&At<char>(simulator, 0xC8))) {
+                    if (char* const entry = FindLink(simulator, x, z)) {
                         if (At<uint16_t>(entry, 0xA) & (1u << type))
-                            AddNode(self, static_cast<uint8_t>(entry[8]), static_cast<uint8_t>(entry[9]), node->side,
+                            AddNode(self, LinkedX(entry), LinkedZ(entry), node->side,
                                     type, At<float>(entry, 0xC + 4 * type), node, Limit(self, type), 0);
                     }
                 }
@@ -1293,14 +1293,12 @@ void __fastcall EncodeRoute(void* self, void*, ByteVector* route, uint32_t* type
     }
     auto pushCell = [&](const Node* at) {
         if (InMap(self, nullptr, at->x, at->z)) {
-            push(static_cast<uint8_t>(at->x));
-            push(static_cast<uint8_t>(at->z));
+            PushRouteCell(push, at->x, at->z);
             return;
         }
         int32_t edgeX = 0, edgeZ = 0;
         reinterpret_cast<EdgeSideFn>(addr::cSC4TrafficSimulator_EdgeSide)(simulator, at->x, at->z, &edgeX, &edgeZ);
-        push(static_cast<uint8_t>(edgeX));
-        push(static_cast<uint8_t>(edgeZ));
+        PushRouteCell(push, edgeX, edgeZ);
     };
     const Node* const start = nodes.begin[0];
     push(start->type);

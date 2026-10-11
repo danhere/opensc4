@@ -27,6 +27,8 @@
 #include <cstdio>
 #include <cstring>
 #include <initializer_list>
+#include <iterator>
+#include <set>
 
 namespace opensc4::traffic_sim {
 namespace {
@@ -77,11 +79,30 @@ T& GridCell(void* rows, int32_t x, int32_t z)
     return reinterpret_cast<T*>(static_cast<char***>(rows)[0][3 * x])[z];
 }
 
-// A chained hash table keyed by a cell (x << 8 | z, 16 bits): whether the
-// key is in it.
-bool InCellTable(void* self, std::size_t table, uint8_t x, uint32_t z)
+// A big city's uint16 cell sets (damaged roads +0x7B8 and +0x7CC, rail
+// crossings +0x7EC and +0x800): a 16-bit key cannot hold its cells, so with
+// wide cells ours keep CellKeys here, ordered, and the game's sets stay
+// empty. Emptied by Shutdown and before Read.
+std::set<uint32_t>& WideSet(std::size_t offset)
 {
-    const auto key = static_cast<uint16_t>((static_cast<uint32_t>(x) << 8) | z);
+    static std::set<uint32_t> sets[4];
+    return sets[offset == 0x7B8 ? 0 : offset == 0x7CC ? 1 : offset == 0x7EC ? 2 : 3];
+}
+
+void ClearWideSets()
+{
+    for (std::size_t offset : {0x7B8u, 0x7CCu, 0x7ECu, 0x800u})
+        WideSet(offset).clear();
+    WideLinks().clear();
+}
+
+// A chained hash table keyed by a cell (x << 8 | z, 16 bits): whether the
+// key is in it. `table` is the set's buckets (the set + 4).
+bool InCellTable(void* self, std::size_t table, uint32_t x, uint32_t z)
+{
+    if (g_wideCells)
+        return WideSet(table - 4).count(CellKey(static_cast<int32_t>(x), static_cast<int32_t>(z))) != 0;
+    const auto key = static_cast<uint16_t>(((x & 0xFF) << 8) | z);
     void** const buckets = At<void**>(self, table);
     const auto count = static_cast<uint32_t>(At<void**>(self, table + 4) - buckets);
     int found = 0;
@@ -220,14 +241,14 @@ const void* __fastcall GetTrafficEdgeDensity(void* self, void*, uint32_t x, uint
 }
 
 // 16 (0x00720070).
-uint8_t __fastcall IsRoadDamaged(void* self, void*, uint8_t x, uint32_t z)
+uint8_t __fastcall IsRoadDamaged(void* self, void*, uint32_t x, uint32_t z)
 {
     return InCellTable(self, field::kDamagedRoads, x, z) ? 1 : 0;
 }
 
 // 17 (0x00711590): a rail crossing at the cell, and a draw of the
 // simulator's generator below the accident chance (+0xD04).
-uint32_t __fastcall CheckRailAccident(void* self, void*, uint8_t x, uint32_t z)
+uint32_t __fastcall CheckRailAccident(void* self, void*, uint32_t x, uint32_t z)
 {
     using RandomFn = double(__thiscall*)(void* random); // ST0
     if (!InCellTable(self, field::kRailCrossings, x, z))
@@ -3133,7 +3154,14 @@ uint8_t __fastcall Write(void* serializable, void*, void* stream)
     u32(field(0x7AC));
     u32(field(0x7B0));
     f32(field(0x7B4));
+    // A big city's: the count and the CellKeys of WideSet, as uint32.
     const auto keys = [&](std::size_t set) {
+        if (g_wideCells) {
+            u32(static_cast<uint32_t>(WideSet(set).size()));
+            for (const uint32_t cell : WideSet(set))
+                u32(cell);
+            return;
+        }
         u32(field(set + 0x10));
         ForEachHashNode(self + set, [&](char* node) { u16(At<uint16_t>(node, 0x4)); });
     };
@@ -3210,16 +3238,30 @@ uint8_t __fastcall Write(void* serializable, void*, void* stream)
         f32(field(block + 0x234));
         u8(At<uint8_t>(self, block + 0x238));
     }
-    u32(field(0xD8));
-    ForEachHashNode(self + 0xC8, [&](char* node) {
-        u16(At<uint16_t>(node, 0x4));
-        u8(At<uint8_t>(node, 0x8));
-        u8(At<uint8_t>(node, 0x9));
-        u16(At<uint16_t>(node, 0xA));
-        u16(At<uint16_t>(node, 0x30));
-        for (std::size_t i = 0; i < 9; ++i)
-            f32(At<uint32_t>(node, 0xC + 4 * i));
-    });
+    // A big city's links: a uint32 key and the linked cell as two uint16.
+    if (g_wideCells) {
+        u32(static_cast<uint32_t>(WideLinks().size()));
+        for (auto& [cell, link] : WideLinks()) {
+            u32(cell);
+            u16(static_cast<uint16_t>(link.x));
+            u16(static_cast<uint16_t>(link.z));
+            u16(At<uint16_t>(link.node, 0xA));
+            u16(At<uint16_t>(link.node, 0x30));
+            for (std::size_t i = 0; i < 9; ++i)
+                f32(At<uint32_t>(link.node, 0xC + 4 * i));
+        }
+    } else {
+        u32(field(0xD8));
+        ForEachHashNode(self + 0xC8, [&](char* node) {
+            u16(At<uint16_t>(node, 0x4));
+            u8(At<uint8_t>(node, 0x8));
+            u8(At<uint8_t>(node, 0x9));
+            u16(At<uint16_t>(node, 0xA));
+            u16(At<uint16_t>(node, 0x30));
+            for (std::size_t i = 0; i < 9; ++i)
+                f32(At<uint32_t>(node, 0xC + 4 * i));
+        });
+    }
     f32(field(0x420));
     f32(field(0x6EC));
     u32(field(0x6F0));
@@ -3340,6 +3382,7 @@ uint8_t __fastcall Read(void* serializable, void*, void* stream)
     // The saved keys are wide for a big city, and Read may come before Init.
     if (void* const city = Global<void*>(addr::SC4_City))
         SetWideCells(Virtual<int32_t>(city, 0x174), Virtual<int32_t>(city, 0x178));
+    ClearWideSets();
     uint16_t version = 0;
     u16(&version);
     if (version < 0x13)
@@ -3540,6 +3583,14 @@ uint8_t __fastcall Read(void* serializable, void*, void* stream)
     const auto keys = [&](std::size_t set) {
         uint32_t n = 0;
         u32(&n);
+        if (g_wideCells) { // as Write: uint32 CellKeys (`set` is from +8)
+            for (uint32_t i = 0; i < n; ++i) {
+                uint32_t cell = 0;
+                u32(&cell);
+                WideSet(set + 8).insert(cell);
+            }
+            return;
+        }
         for (uint32_t i = 0; i < n; ++i) {
             uint16_t key = 0;
             u16(&key);
@@ -3697,7 +3748,22 @@ uint8_t __fastcall Read(void* serializable, void*, void* stream)
     }
     // The link table (+0xC0 here).
     u32(&count);
-    for (uint32_t i = 0; i < count; ++i) {
+    for (uint32_t i = 0; g_wideCells && i < count; ++i) { // as Write writes a big city's
+        uint32_t cell = 0;
+        uint16_t x = 0, z = 0;
+        u32(&cell);
+        u16(&x);
+        u16(&z);
+        WideLink& link = WideLinks()[cell];
+        std::memset(link.node, 0, sizeof link.node);
+        link.x = x;
+        link.z = z;
+        u16(link.node + 0xA);
+        u16(link.node + 0x30);
+        for (int32_t j = 0; j < types; ++j)
+            f32(link.node + 0xC + 4 * j);
+    }
+    for (uint32_t i = 0; !g_wideCells && i < count; ++i) {
         uint16_t key = 0;
         uint32_t value[11] = {};
         u16(&key);
@@ -3898,6 +3964,7 @@ uint8_t __fastcall Shutdown(void* object, void*)
     static bool logged = false;
     FirstCall("Shutdown", logged);
     char* const self = static_cast<char*>(object);
+    ClearWideSets();
     if (!At<uint8_t>(self, 0xC))
         return 1;
     At<uint8_t>(self, 0xC) = 0;
@@ -5872,6 +5939,21 @@ void UpdateBuildingCells(void* self, bool added, uint32_t x, uint32_t z, std::si
     using InsertFn = void(__thiscall*)(void* set, void* result, const uint16_t* key);
     using EraseFn = void(__thiscall*)(void* set, const void* const* iterator);
     char* const base = static_cast<char*>(self);
+    if (g_wideCells) {
+        const uint32_t cell = CellKey(static_cast<int32_t>(x), static_cast<int32_t>(z));
+        if (added) {
+            WideSet(first).insert(cell);
+            ++At<uint32_t>(self, count);
+            return;
+        }
+        if (!WideSet(first).erase(cell) && WideSet(second).erase(cell)) {
+            --At<uint32_t>(self, secondCount);
+            --At<uint16_t>(self, 0x318);
+            PostCellMessage(self, 0x69247DC8, x, z);
+        }
+        --At<uint32_t>(self, count);
+        return;
+    }
     const auto key = static_cast<uint16_t>(((x & 0xFF) << 8) | z);
     if (added) {
         uint32_t result[3];
@@ -5967,20 +6049,35 @@ void __fastcall ChangeActive(void* self, void*, void* first, void* second, int32
         to = first;
         moves = static_cast<uint32_t>(-count);
     }
-    if (moves > At<uint32_t>(from, 0x10))
-        moves = At<uint32_t>(from, 0x10);
+    // A big city's cells are in WideSet instead of the game's sets.
+    std::set<uint32_t>* const wideFrom =
+        g_wideCells ? &WideSet(static_cast<std::size_t>(static_cast<char*>(from) - static_cast<char*>(self))) : nullptr;
+    std::set<uint32_t>* const wideTo =
+        g_wideCells ? &WideSet(static_cast<std::size_t>(static_cast<char*>(to) - static_cast<char*>(self))) : nullptr;
+    const auto size = [&]() { return wideFrom ? static_cast<uint32_t>(wideFrom->size()) : At<uint32_t>(from, 0x10); };
+    if (moves > size())
+        moves = size();
     while (moves) {
-        const uint32_t pick = reinterpret_cast<BelowFn>(addr::SC4Random_Below)(At<void*>(self, field::kRandom), At<uint32_t>(from, 0x10));
-        char** const buckets = At<char**>(from, 4);
-        const auto bucketCount = static_cast<uint32_t>(At<char**>(from, 8) - buckets);
+        const uint32_t pick = reinterpret_cast<BelowFn>(addr::SC4Random_Below)(At<void*>(self, field::kRandom), size());
         char* node = nullptr;
-        for (uint32_t i = 0; i < bucketCount && !node; ++i)
-            node = buckets[i];
-        for (uint32_t i = 0; i < pick; ++i)
-            node = NextHashNode(from, node);
-        const uint16_t key = At<uint16_t>(node, 4);
-        const uint32_t x = key >> 8;
-        const uint32_t z = key & 0xFF;
+        uint16_t key = 0;
+        uint32_t x = 0, z = 0;
+        if (wideFrom) {
+            auto it = wideFrom->begin();
+            std::advance(it, pick);
+            x = static_cast<uint32_t>(KeyX(*it));
+            z = static_cast<uint32_t>(KeyZ(*it));
+        } else {
+            char** const buckets = At<char**>(from, 4);
+            const auto bucketCount = static_cast<uint32_t>(At<char**>(from, 8) - buckets);
+            for (uint32_t i = 0; i < bucketCount && !node; ++i)
+                node = buckets[i];
+            for (uint32_t i = 0; i < pick; ++i)
+                node = NextHashNode(from, node);
+            key = At<uint16_t>(node, 4);
+            x = key >> 8;
+            z = key & 0xFF;
+        }
         char* edge = GridCell<char*>(static_cast<char*>(self) + field::kEdges, static_cast<int32_t>(x), static_cast<int32_t>(z));
         while (edge && At<uint8_t>(edge, 6) != network)
             edge = At<char*>(edge, 0x14);
@@ -5997,6 +6094,13 @@ void __fastcall ChangeActive(void* self, void*, void* first, void* second, int32
             Virtual<uint32_t>(message, 0x54, activate ? 1u : 0u);
             Virtual<uint32_t>(At<void*>(self, 0x18), 0x10, message, 0u);
             Virtual<uint32_t>(message, 0x8);
+        }
+        if (wideFrom) {
+            const uint32_t cell = CellKey(static_cast<int32_t>(x), static_cast<int32_t>(z));
+            wideFrom->erase(cell);
+            wideTo->insert(cell);
+            --moves;
+            continue;
         }
         const void* const iterator[2] = {node, from};
         reinterpret_cast<EraseFn>(addr::SC4Uint16Set_Erase)(from, iterator);
@@ -6381,7 +6485,10 @@ void __fastcall OnNetworkBuilding(void* self, void*, char* occupant, uint8_t add
     const auto key = static_cast<uint16_t>((static_cast<uint32_t>(x & 0xFF) << 8) | static_cast<uint32_t>(z));
     char* const table = static_cast<char*>(self) + 0xC8;
     if (!added) {
-        reinterpret_cast<EraseFn>(addr::SC4LinkTable_Erase)(table, &key);
+        if (g_wideCells)
+            WideLinks().erase(CellKey(x, z));
+        else
+            reinterpret_cast<EraseFn>(addr::SC4LinkTable_Erase)(table, &key);
         return;
     }
     void* const linked = At<void*>(occupant, 0x1D0);
@@ -6422,6 +6529,14 @@ void __fastcall OnNetworkBuilding(void* self, void*, char* occupant, uint8_t add
     const auto* const tables = reinterpret_cast<const float*>(addr::SC4Traffic_LinkCostTables);
     for (uint32_t k = 0; k < 9; ++k)
         link.costs[k] = static_cast<float>(distance * tables[13 * k + type] * 0.0625f);
+    if (g_wideCells) {
+        WideLink& wide = WideLinks()[CellKey(x, z)];
+        std::memset(wide.node, 0, sizeof wide.node);
+        std::memcpy(wide.node + 8, &link, sizeof link);
+        wide.x = otherX;
+        wide.z = otherZ;
+        return;
+    }
     std::memcpy(reinterpret_cast<AtFn>(addr::SC4LinkTable_At)(table, &key), &link, sizeof link);
 }
 
@@ -7710,7 +7825,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
 
     for (int32_t x = xs; x <= xe; ++x) {
         for (int32_t z = zs; z <= ze; ++z) {
-            if (FindCellNode(base + 0xC8, static_cast<uint16_t>((x << 8) | z)))
+            if (FindLink(self, x, z))
                 CellRecord(self, x, z)[0x2C] |= 2;
         }
     }
@@ -8089,13 +8204,12 @@ void __fastcall SpreadFromEdge(void* self, void*, int32_t startX, int32_t startZ
         }
         if (!found && cur.way < 5 && (cell[0x2C] & 2)) {
             cur.way = 5;
-            const auto key = static_cast<uint16_t>((x << 8) | z);
-            char* const link = FindCellNode(static_cast<char*>(self) + 0xC8, key);
+            char* const link = FindLink(self, x, z);
             if (link && (At<uint16_t>(link, 0xA) & (1u << (word & 31)))) {
                 const uint32_t side = cur.side;
                 stamp(node, side) = At<uint16_t>(self, 0x60);
-                const int32_t lx = At<uint8_t>(link, 8);
-                const int32_t lz = At<uint8_t>(link, 9);
+                const int32_t lx = LinkedX(link);
+                const int32_t lz = LinkedZ(link);
                 char* const other = edgeOf(self, network, lx, lz);
                 if (other && stamp(other, side) == 0) {
                     found = true;

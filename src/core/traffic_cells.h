@@ -13,13 +13,16 @@
 // bit 16 and flags in the top byte. For a city past 256 cells a side, ours
 // take 10 bits a coordinate (cities up to 1024 cells, 16 km) and the type at
 // bit 20; the top byte stays where it was. Standard sizes keep the game's
-// keys bit for bit. Route bytes and the 16-bit cell tables are not covered
-// yet (docs/city-size.md, "Traffic cell keys").
+// keys bit for bit. Route bytes give a big city's cells two bytes a
+// coordinate. Ferries are not covered yet (docs/city-size.md, "Traffic cell
+// keys").
 #pragma once
 
 #include "core/game_access.h"
 
 #include <cstdint>
+#include <cstring>
+#include <map>
 
 namespace opensc4::traffic_sim {
 
@@ -65,6 +68,77 @@ inline uint32_t TypedCellKey(uint32_t high, uint32_t type, int32_t x, int32_t z)
 inline uint32_t KeyType(uint32_t key)
 {
     return g_wideCells ? (key >> 20) & 0xF : (key >> 16) & 0xFF;
+}
+
+// A route's cell (route bytes: a head byte, then the cell): x and z one byte
+// each as the game's; a big city's two each, low byte first.
+inline const uint8_t* ReadRouteCell(const uint8_t* at, int32_t& x, int32_t& z)
+{
+    if (!g_wideCells) {
+        x = at[0];
+        z = at[1];
+        return at + 2;
+    }
+    x = at[0] | at[1] << 8;
+    z = at[2] | at[3] << 8;
+    return at + 4;
+}
+
+template <typename Push>
+void PushRouteCell(Push&& push, int32_t x, int32_t z)
+{
+    push(static_cast<uint8_t>(x));
+    if (g_wideCells)
+        push(static_cast<uint8_t>(static_cast<uint32_t>(x) >> 8));
+    push(static_cast<uint8_t>(z));
+    if (g_wideCells)
+        push(static_cast<uint8_t>(static_cast<uint32_t>(z) >> 8));
+}
+
+// The link table (+0xC8, buildings linked to one another): the game's is a
+// hash of uint16 cell keys, its nodes next, the key at +4 and the 0x2C-byte
+// link at +8 (the linked cell as bytes at +8/+9, travel flags +0xA, nine
+// costs +0xC, type +0x30). A big city's are kept here by CellKey instead, in
+// the same layout with the linked cell whole after it; the game's table stays
+// empty.
+struct WideLink {
+    char node[0x34];
+    int32_t x;
+    int32_t z;
+};
+
+inline std::map<uint32_t, WideLink>& WideLinks()
+{
+    static std::map<uint32_t, WideLink> links;
+    return links;
+}
+
+// The link node of a cell, or null.
+inline char* FindLink(void* simulator, int32_t x, int32_t z)
+{
+    if (g_wideCells) {
+        auto& links = WideLinks();
+        const auto it = links.find(CellKey(x, z));
+        return it == links.end() ? nullptr : it->second.node;
+    }
+    const auto key = static_cast<uint16_t>(((static_cast<uint32_t>(x) & 0xFF) << 8) | static_cast<uint32_t>(z));
+    char** const buckets = At<char**>(simulator, 0xC8 + 4);
+    const auto count = static_cast<uint32_t>(At<char**>(simulator, 0xC8 + 8) - buckets);
+    for (char* node = buckets[key % count]; node; node = At<char*>(node, 0))
+        if (At<uint16_t>(node, 4) == key)
+            return node;
+    return nullptr;
+}
+
+// The linked cell of a link node.
+inline int32_t LinkedX(const char* node)
+{
+    return g_wideCells ? reinterpret_cast<const WideLink*>(node)->x : static_cast<uint8_t>(node[8]);
+}
+
+inline int32_t LinkedZ(const char* node)
+{
+    return g_wideCells ? reinterpret_cast<const WideLink*>(node)->z : static_cast<uint8_t>(node[9]);
 }
 
 inline char* CellRecord(void* simulator, int32_t x, int32_t z)
