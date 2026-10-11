@@ -24,4 +24,4 @@ From [sc4-city-date-sync](https://github.com/0xC0000054/sc4-city-date-sync) by N
 
 ## Checked
 
-Offline: telling regions apart by folder (`date_sync_region` test). Not yet checked in the game.
+Offline: telling regions apart by folder (`date_sync_region` test). In the game, 2026-10-11: a save of Making Money remembered its date (`date sync: saved 2008-11-06 for ...\regions\timbuktu`; the folder may come as a short 8.3 name, the same one each time). Not checked yet: moving a city's date on load, which needs two cities loaded in one session.
