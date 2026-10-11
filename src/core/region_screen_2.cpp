@@ -224,7 +224,7 @@ void ShutDownPart(char* self, std::size_t offset)
 uint8_t __fastcall ScreenMouseMove(char* self, void*, uint32_t x, uint32_t y, uint32_t)
 {
     if (!At<uint8_t>(self, screen::kBusy))
-        This<void>(addr::SC4RegionView_F7B5DD0, At<void*>(self, screen::kView), x, y);
+        This<void>(addr::cSC4WinRegionView_PickAt, At<void*>(self, screen::kView), x, y);
     return 1;
 }
 
@@ -349,7 +349,7 @@ uint8_t __fastcall ScreenDoWinMsg(char* self, void*, uint32_t* message)
             return 1;
         }
     }
-    return This<uint8_t>(addr::GZWin_DoWinMsg, self, message);
+    return This<uint8_t>(addr::SC4Win_F99CCF0, self, message);
 }
 
 // The game's 0x007ABB00 (with its tail at 0x007ABB50). Posts a message of
@@ -378,7 +378,7 @@ void __fastcall PostPlainMessage(char*, void*, uint32_t type)
 uint8_t __fastcall ScreenMouseExit(char* self, void*, uint32_t)
 {
     if (!At<uint8_t>(self, screen::kBusy))
-        This<void>(addr::SC4RegionView_F7B5DB0, At<void*>(self, screen::kView));
+        This<void>(addr::cSC4WinRegionView_Unpick, At<void*>(self, screen::kView));
     return 1;
 }
 
@@ -533,16 +533,16 @@ void __fastcall ApplyMode(char* self, void*)
     const uint32_t mode = At<uint32_t>(self, screen::kMode);
     if (mode == 0) {
         This<void>(addr::cSC4WinRegionView_SetFlags111, At<void*>(self, screen::kView), uint32_t{0}, uint32_t{1});
-        This<void>(addr::SC4RegionView_F7B5E20, At<void*>(self, screen::kView), uint32_t{0}, uint32_t{0});
-        This<void>(addr::SC4RegionView_F7B30B0, At<void*>(self, screen::kView), uint32_t{0}, uint32_t{1});
+        This<void>(addr::cSC4WinRegionView_SetLabelLayout, At<void*>(self, screen::kView), uint32_t{0}, uint32_t{0});
+        This<void>(addr::cSC4WinRegionView_SetFlags114, At<void*>(self, screen::kView), uint32_t{0}, uint32_t{1});
     } else if (mode == 1) {
         This<void>(addr::cSC4WinRegionView_SetFlags111, At<void*>(self, screen::kView), uint32_t{1}, uint32_t{0});
-        This<void>(addr::SC4RegionView_F7B5E20, At<void*>(self, screen::kView), uint32_t{0}, uint32_t{0});
-        This<void>(addr::SC4RegionView_F7B30B0, At<void*>(self, screen::kView), uint32_t{1}, uint32_t{1});
+        This<void>(addr::cSC4WinRegionView_SetLabelLayout, At<void*>(self, screen::kView), uint32_t{0}, uint32_t{0});
+        This<void>(addr::cSC4WinRegionView_SetFlags114, At<void*>(self, screen::kView), uint32_t{1}, uint32_t{1});
     }
     void* const view = At<void*>(self, screen::kView);
     At<uint8_t>(self, screen::kBusy) = 0;
-    This<void>(addr::SC4RegionView_F7B5DB0, view);
+    This<void>(addr::cSC4WinRegionView_Unpick, view);
 }
 
 // The game's 0x007AC1A0. Points the 3D view's camera at the view position:

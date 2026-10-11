@@ -271,7 +271,7 @@ uint8_t __fastcall OnControl(char* self, void*, uint32_t type, uint32_t id)
         void* box = nullptr;
         if (ChildButton(self, kNamesBox, &box)) {
             const uint8_t on = Virtual<uint8_t>(box, 0x28);
-            This<void>(addr::SC4RegionView_F7B30D0, At<void*>(self, screen::kMap), uint32_t{on});
+            This<void>(addr::cSC4WinRegionView_SetNames, At<void*>(self, screen::kMap), uint32_t{on});
             At<uint8_t>(Virtual<char*>(App(), 0x98), prefs::kNames) = on;
         }
         if (box)
@@ -381,7 +381,7 @@ uint8_t __fastcall OnControl(char* self, void*, uint32_t type, uint32_t id)
         Virtual<void>(region, 0x38, &holder);
         This<void>(addr::cSC4WinRegionScreen_GiveStockPictures, self, picked);
         This<void>(addr::cSC4WinRegionScreen_PrepareTilePictures, self, picked);
-        This<void>(addr::SC4RegionView_F7B5430, At<void*>(self, screen::kMap), picked);
+        This<void>(addr::cSC4WinRegionView_PlaceMarkers, At<void*>(self, screen::kMap), picked);
         This<void>(addr::cSC4WinRegionScreen_ApplyMode, self);
         This<void>(addr::cSC4WinRegionScreen_ShowPopulation, self);
         break;
@@ -438,7 +438,7 @@ uint8_t __fastcall OnControl(char* self, void*, uint32_t type, uint32_t id)
         for (uint32_t i = 0; i < 3; ++i) {
             const uint8_t on = id == ModeButtons()[i] ? 1 : 0;
             if (on) {
-                This<void>(addr::SC4RegionView_F7B30F0, At<void*>(self, screen::kMap), i);
+                This<void>(addr::cSC4WinRegionView_SetMode, At<void*>(self, screen::kMap), i);
                 At<uint8_t>(Virtual<char*>(App(), 0x98), prefs::kMode) = static_cast<uint8_t>(i);
             }
             if (void* const held = button) {
@@ -498,7 +498,7 @@ void __fastcall SetUpControls(char* self, void*)
     Cdecl<uint32_t>(addr::SC4UIWindows_Collect, static_cast<void*>(self), &before);
 
     uint32_t key[3] = {0, kUiGroup, 0xAA920991};
-    void* panel = Cdecl<void*>(addr::SC4UI_LoadWindowPlain, &key[0], static_cast<void*>(self), kLeftPanel);
+    void* panel = Cdecl<void*>(addr::SC4UI_LoadWindowChild, &key[0], static_cast<void*>(self), kLeftPanel);
     if (panel) {
         const uint32_t width = Virtual<uint32_t>(self, 0xA4);
         const uint32_t height = Virtual<uint32_t>(self, 0xA8);
@@ -564,7 +564,7 @@ void __fastcall SetUpControls(char* self, void*)
     key[0] = 0;
     key[1] = kUiGroup;
     key[2] = 0xABC0ED33;
-    panel = Cdecl<void*>(addr::SC4UI_LoadWindowPlain, &key[0], static_cast<void*>(self), kBarLeft);
+    panel = Cdecl<void*>(addr::SC4UI_LoadWindowChild, &key[0], static_cast<void*>(self), kBarLeft);
     if (panel) {
         scratch = At<uint32_t>(panel, 0x0);
         uint32_t y = uint32_t{0xFFFFFFFB} - Virtual<uint32_t>(panel, 0xA8);
@@ -605,7 +605,7 @@ void __fastcall SetUpControls(char* self, void*)
     scratch = (scratch & 0xFFFFFF00) | borders;
     other = nullptr;
     At<uint32_t>(self, screen::kBorders) = borders;
-    This<void>(addr::SC4RegionView_F7B30D0, At<void*>(self, screen::kMap), namesWord);
+    This<void>(addr::cSC4WinRegionView_SetNames, At<void*>(self, screen::kMap), namesWord);
 
     void* box = nullptr;
     if (ChildButton(self, kNamesBox, &box))
@@ -628,7 +628,7 @@ void __fastcall SetUpControls(char* self, void*)
         if (ChildButton(self, buttonId, &box))
             Virtual<void>(box, 0x24, (buttonId & 0xFFFFFF00) | (mode == i ? 1u : 0u));
     }
-    This<void>(addr::SC4RegionView_F7B30F0, At<void*>(self, screen::kMap), mode);
+    This<void>(addr::cSC4WinRegionView_SetMode, At<void*>(self, screen::kMap), mode);
     ShowBarHalves(self, mode != 0);
     if (box)
         Release(box);
