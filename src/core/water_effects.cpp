@@ -1971,7 +1971,125 @@ uint32_t __fastcall DSC4EffectBase_GiveBackParticle(char* base, void*, uint32_t 
 OPENSC4_THUNK(TSC4EffectBase_TakeParticle, DSC4EffectBase_TakeParticle, 0)
 OPENSC4_THUNK(TSC4EffectBase_AddParticle, DSC4EffectBase_AddParticle, 4)
 OPENSC4_THUNK(TSC4EffectBase_GiveBackParticle, DSC4EffectBase_GiveBackParticle, 4)
-OPENSC4_EFFECT_HOOK0(SC4EffectBaseB_TakeParticle)
+
+// The second effect class taking a particle (0x005AEF20, slot 0x3C of its
+// sub-object), translated instruction by instruction. Its particles are
+// 0x54 bytes, from a pool of their own (0x00B0A5C0, free list 0x00B0A5CC):
+// the first of the list is cleared (0x005ADCB0) and started as any
+// particle. One that is running then gets its two words at +0x48 zeroed
+// and an angle at +0x50 (from the effect's matrix, or -999 for some kinds
+// of the description's +0xD5), and, when the description names one
+// (+0x160), an effect of its own at +0x44: made by the effects manager
+// (0x00B43D1C, slot 0x1C) by that name, its slot 0x34 called with 0xD and
+// the effect's +0x270 when the byte +0x26F is set, and its slot 0xC called
+// with the effect's +0x188.
+uint32_t TakeParticleB(char* base)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(base);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_take_b.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+constexpr std::uintptr_t kParticleFreeB = 0x00B0A5CC;
+constexpr std::size_t kParticleBytesB = 0x54, kParticleChild = 0x44;
+StepMode g_poolModeB = StepMode::Original;
+Call0Fn g_SC4EffectBaseB_TakeParticle = nullptr;
+
+// Its comparison runs both for real, from the same particle, free list,
+// effect and generator: the game's first; then ours, whose particle must be
+// the same but for the effect of its own (one each, or none each), which
+// is taken off as giving the particle back would (slot 0x10 with the
+// effect's +0x188, then released). What the game's left is put back.
+uint32_t __fastcall TakeBByMode(char* base, void*)
+{
+    const uint32_t first = Global<uint32_t>(kParticleFreeB);
+    if (g_poolModeB == StepMode::Original || g_effectRecord || g_effectReplay ||
+        (g_poolModeB == StepMode::Compare && !first))
+        return g_SC4EffectBaseB_TakeParticle(base, nullptr);
+    if (g_poolModeB == StepMode::Ours)
+        return TakeParticleB(base);
+    char* const self = base - 4;
+    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
+    char* const bytes = reinterpret_cast<char*>(first);
+    constexpr std::size_t kEffectAt = kParticleBytesB, kGeneratorAt = kEffectAt + kEffectSize,
+                          kFreeAt = kGeneratorAt + kGeneratorSize, kTotal = kFreeAt + 4;
+    char before[kTotal], mine[kTotal], theirs[kTotal];
+    const auto save = [&](char* to) {
+        std::memcpy(to, bytes, kParticleBytesB);
+        std::memcpy(to + kEffectAt, self, kEffectSize);
+        std::memcpy(to + kGeneratorAt, generator, kGeneratorSize);
+        std::memcpy(to + kFreeAt, reinterpret_cast<const void*>(kParticleFreeB), 4);
+    };
+    const auto restore = [&](const char* from) {
+        std::memcpy(bytes, from, kParticleBytesB);
+        std::memcpy(self, from + kEffectAt, kEffectSize);
+        std::memcpy(generator, from + kGeneratorAt, kGeneratorSize);
+        std::memcpy(reinterpret_cast<void*>(kParticleFreeB), from + kFreeAt, 4);
+    };
+    save(before);
+    const uint32_t result = g_SC4EffectBaseB_TakeParticle(base, nullptr);
+    save(theirs);
+    restore(before);
+    const uint32_t ourResult = TakeParticleB(base);
+    save(mine);
+    char* const child = At<char*>(bytes, kParticleChild);
+    if (child) {
+        CallThis<void>(At<uint32_t>(At<char*>(child, 0), 0x10), child, At<uint32_t>(self, 0x188));
+        CallThis<void>(At<uint32_t>(At<char*>(child, 0), 0x8), child);
+    }
+    restore(theirs);
+    const bool gameChild = At<uint32_t>(theirs, kParticleChild) != 0, ourChild = child != nullptr;
+    static uint64_t withChild = 0;
+    if (gameChild)
+        ++withChild;
+    if (gameChild && (withChild & (withChild - 1)) == 0)
+        log::Write("water effects: effects.pool_b.take: %llu particles with an effect of their own so far",
+                   static_cast<unsigned long long>(withChild));
+    std::memset(theirs + kParticleChild, 0, 4);
+    std::memset(mine + kParticleChild, 0, 4);
+    const bool same = result == ourResult && gameChild == ourChild && std::memcmp(theirs, mine, kTotal) == 0;
+    if (same) {
+        PoolCompared("effects.pool_b.take", true, std::string(), std::string());
+    } else {
+        std::size_t at = 0;
+        while (at < kTotal && theirs[at] == mine[at])
+            ++at;
+        at = at < kTotal ? at & ~std::size_t{3} : 0;
+        const char* const part =
+            at < kEffectAt ? "particle" : at < kGeneratorAt ? "effect" : at < kFreeAt ? "generator" : "free";
+        const std::size_t offset =
+            at < kEffectAt ? at : at < kGeneratorAt ? at - kEffectAt : at < kFreeAt ? at - kGeneratorAt : 0;
+        char text[80];
+        std::snprintf(text, sizeof text, "%08X child %d %s+%zX ", result, gameChild, part, offset);
+        const std::string game = text + Hex(theirs + at, 4);
+        std::snprintf(text, sizeof text, "%08X child %d %s+%zX ", ourResult, ourChild, part, offset);
+        PoolCompared("effects.pool_b.take", false, game, text + Hex(mine + at, 4));
+    }
+    return result;
+}
+
+uint32_t __fastcall DSC4EffectBaseB_TakeParticle(char* base, void*)
+{
+    return EffectRecorded(addr::SC4EffectBaseB_TakeParticle, &TakeBByMode, base);
+}
+OPENSC4_THUNK(TSC4EffectBaseB_TakeParticle, DSC4EffectBaseB_TakeParticle, 0)
 OPENSC4_EFFECT_HOOK1(SC4EffectBaseB_GiveBackParticle)
 OPENSC4_EFFECT_HOOK1(SC4Effect_SpawnFromParticle)
 OPENSC4_EFFECT_HOOK0(SC4EffectBase_LetGo)
@@ -2883,6 +3001,29 @@ const bool g_registeredHit = registry::Register({
     "\"Water effects, sky and clouds\")",
     true,
     InstallHit,
+});
+
+bool InstallPoolB(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookPool())
+        return false;
+    g_poolModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: second effect class's take of a particle %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredPoolB = registry::Register({
+    "renderer.effects.pool_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectBaseB_TakeParticle,
+    "The second effect class taking a particle from its pool: started as any particle, then given an angle and an "
+    "effect of its own; compare mode runs the game's and ours from the same state (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallPoolB,
 });
 
 bool InstallGround(registry::Mode mode)
