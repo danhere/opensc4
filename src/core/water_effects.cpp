@@ -524,9 +524,40 @@ uint32_t CallPlainTraced(uint32_t target, uint32_t argument)
     return 0;
 }
 
+// OPENSC4_EFFECT_CENSUS=1: counts the calls of every hooked effect function
+// and logs the totals now and then, to see which of them a city reaches.
+void CountEffectCall(uint32_t target)
+{
+    static const bool on = [] {
+        const char* v = std::getenv("OPENSC4_EFFECT_CENSUS");
+        return v && *v == '1';
+    }();
+    if (!on)
+        return;
+    static std::vector<std::pair<uint32_t, uint64_t>> counts;
+    static uint64_t total = 0;
+    auto it = counts.begin();
+    while (it != counts.end() && it->first != target)
+        ++it;
+    if (it == counts.end())
+        it = counts.insert(counts.end(), {target, 0});
+    ++it->second;
+    ++total;
+    if ((total & (total - 1)) != 0 || total < 0x10000)
+        return;
+    std::string text;
+    char entry[40];
+    for (const auto& [address, count] : counts) {
+        std::snprintf(entry, sizeof entry, " %08X:%llu", address, static_cast<unsigned long long>(count));
+        text += entry;
+    }
+    log::Write("water effects: census after %llu calls:%s", static_cast<unsigned long long>(total), text.c_str());
+}
+
 template <typename Fn, typename... Args>
 uint32_t EffectRecorded(uint32_t target, Fn original, char* self, Args... args)
 {
+    CountEffectCall(target);
     const bool record = g_effectRecord && g_effectNested == 0;
     if (record) {
         EffectCall call{target, reinterpret_cast<uint32_t>(self), {0, 0}};
@@ -854,8 +885,170 @@ uint32_t __fastcall DSC4Effect_BeforeParticles(char* self, void*, uint32_t conte
     return EffectRecorded(addr::SC4Effect_BeforeParticles, &AxesByMode, self, context);
 }
 OPENSC4_THUNK(TSC4Effect_BeforeParticles, DSC4Effect_BeforeParticles, 4)
-OPENSC4_EFFECT_HOOK1(SC4Effect_DrawParticlesTextured)
-OPENSC4_EFFECT_HOOK1(SC4Effect_DrawParticles)
+// The x87 sine and cosine, as the game executes them.
+double X87Sin(double x)
+{
+    double result;
+    __asm {
+        fld x
+        fsin
+        fstp result
+    }
+    return result;
+}
+
+double X87Cos(double x)
+{
+    double result;
+    __asm {
+        fld x
+        fcos
+        fstp result
+    }
+    return result;
+}
+
+// The base effect class's particle draw (0x005B3DA0, slot 0x44; used when
+// +0x1EC is clear), translated instruction by instruction: nothing without a
+// texture (+0x68); else the effect's batch (+0x28: vertices and indices) is
+// emptied and given room for the particles (+0x18), each particle of the
+// list becomes a quad in it (its size, colour, turn and place worked out
+// from the description's curves and the two axes at +0x70 and +0x7C), a box
+// around them is kept at +0x1A0 to +0x1B4, and the batch is drawn with the
+// texture.
+uint32_t DrawParticles(char* self, uint32_t context)
+{
+    uint32_t stackmem[320] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[256]);
+    M<uint32_t>(esp + 4) = context;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_particles.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// What a particle draw may change, for a comparison that runs both: the
+// effect but for its batch (+0x28 to +0x68: the batch is emptied at the
+// start of every draw, and its storage may be moved by the first run), the
+// render context with its texture stage cache, and the S3D camera.
+constexpr std::size_t kBatchBegin = 0x28, kBatchEnd = 0x68;
+
+std::vector<Region> ParticleRegions(char* self, char* context)
+{
+    std::vector<Region> regions{{"effect", self, kBatchBegin},
+                                {"effect+68", self + kBatchEnd, kEffectSize - kBatchEnd},
+                                {"context", context, kContextSize}};
+    char* const render = At<char*>(context, 0x34);
+    if (char* const camera = render ? At<char*>(render, 0xD8) : nullptr)
+        regions.push_back({"camera", camera, kCameraSize});
+    if (char* const stages = At<char*>(context, 0xE0))
+        regions.push_back({"stages", stages, static_cast<std::size_t>(At<char*>(context, 0xE4) - stages)});
+    return regions;
+}
+
+// An effect's particle draw into the driver's dynamic vertex buffer
+// (0x005B4B90, slot 0x48 of both effect classes; used when the effect has
+// one, +0x1EC), translated instruction by instruction: nothing without a
+// texture (+0x68); else the texture is bound and the particles are drawn in
+// runs of at most the buffer's capacity: the batch (+0x28) gets the run's
+// indices, the buffer is locked for its vertices, each particle becomes a
+// quad of 0x20-byte vertices worked out as in the other draw, the buffer is
+// unlocked and drawn with the indices. The box around the particles is kept
+// at +0x1A0 to +0x1B4.
+uint32_t DrawParticlesBuffered(char* self, uint32_t context)
+{
+    static uint32_t stackmem[1024];
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[896]);
+    M<uint32_t>(esp + 4) = context;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_particles_buffered.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+StepMode g_bufferedMode = StepMode::Original;
+Call1Fn g_SC4Effect_DrawParticlesTextured = nullptr;
+
+uint32_t __fastcall BufferedByMode(char* self, void*, uint32_t context)
+{
+    if (g_bufferedMode == StepMode::Original || g_depth > 0 || g_effectReplay)
+        return g_SC4Effect_DrawParticlesTextured(self, nullptr, context);
+    if (g_bufferedMode == StepMode::Ours)
+        return DrawParticlesBuffered(self, context);
+    uint32_t result = 0;
+    DrawCompared(g_selfCheck ? "effects.particles_buffered.selfcheck" : "effects.particles_buffered",
+                 ParticleRegions(self, reinterpret_cast<char*>(context)),
+                 [&] {
+                     if (g_selfCheck)
+                         g_SC4Effect_DrawParticlesTextured(self, nullptr, context);
+                     else
+                         DrawParticlesBuffered(self, context);
+                 },
+                 [&] { result = g_SC4Effect_DrawParticlesTextured(self, nullptr, context); });
+    return result;
+}
+
+uint32_t __fastcall DSC4Effect_DrawParticlesTextured(char* self, void*, uint32_t context)
+{
+    return EffectRecorded(addr::SC4Effect_DrawParticlesTextured, &BufferedByMode, self, context);
+}
+OPENSC4_THUNK(TSC4Effect_DrawParticlesTextured, DSC4Effect_DrawParticlesTextured, 4)
+
+StepMode g_particlesMode = StepMode::Original;
+Call1Fn g_SC4Effect_DrawParticles = nullptr;
+
+uint32_t __fastcall ParticlesByMode(char* self, void*, uint32_t context)
+{
+    if (g_particlesMode == StepMode::Original || g_depth > 0 || g_effectReplay)
+        return g_SC4Effect_DrawParticles(self, nullptr, context);
+    if (g_particlesMode == StepMode::Ours)
+        return DrawParticles(self, context);
+    uint32_t result = 0;
+    DrawCompared(g_selfCheck ? "effects.particles.selfcheck" : "effects.particles",
+                 ParticleRegions(self, reinterpret_cast<char*>(context)),
+                 [&] {
+                     if (g_selfCheck)
+                         g_SC4Effect_DrawParticles(self, nullptr, context);
+                     else
+                         DrawParticles(self, context);
+                 },
+                 [&] { result = g_SC4Effect_DrawParticles(self, nullptr, context); });
+    return result;
+}
+
+uint32_t __fastcall DSC4Effect_DrawParticles(char* self, void*, uint32_t context)
+{
+    return EffectRecorded(addr::SC4Effect_DrawParticles, &ParticlesByMode, self, context);
+}
+OPENSC4_THUNK(TSC4Effect_DrawParticles, DSC4Effect_DrawParticles, 4)
 OPENSC4_EFFECT_HOOK1(SC4EffectB_DrawParticles)
 OPENSC4_EFFECT_HOOK0(SC4Effect_NotDrawn)
 OPENSC4_EFFECT_HOOK0(SC4EffectB_NotDrawn)
@@ -1512,6 +1705,65 @@ bool HookPool()
     return g_poolHooked;
 }
 
+bool HookBuffered()
+{
+    return g_SC4Effect_DrawParticlesTextured ||
+           Detour(addr::SC4Effect_DrawParticlesTextured, &TSC4Effect_DrawParticlesTextured,
+                  &g_SC4Effect_DrawParticlesTextured);
+}
+
+bool InstallBuffered(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookBuffered())
+        return false;
+    g_bufferedMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: buffered particle draw %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredBuffered = registry::Register({
+    "renderer.effects.particles_buffered",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_DrawParticlesTextured,
+    "An effect's particle draw into the driver's dynamic vertex buffer: each particle a quad, drawn in runs of the "
+    "buffer's capacity; compare mode runs ours quietly, then the game's, and compares the draws (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallBuffered,
+});
+
+bool HookParticles()
+{
+    return g_SC4Effect_DrawParticles ||
+           Detour(addr::SC4Effect_DrawParticles, &TSC4Effect_DrawParticles, &g_SC4Effect_DrawParticles);
+}
+
+bool InstallParticles(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookParticles())
+        return false;
+    g_particlesMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: particle draw %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredParticles = registry::Register({
+    "renderer.effects.particles",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_DrawParticles,
+    "The base effect class's particle draw: each particle a quad in the effect's batch, the batch drawn with the "
+    "texture; compare mode runs ours quietly, then the game's, and compares the draws (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallParticles,
+});
+
 bool HookAxes()
 {
     return g_SC4Effect_BeforeParticles ||
@@ -1690,9 +1942,12 @@ bool InstallEffect(registry::Mode mode)
         if (bits & bit)
             ok = HookAxes() && ok;
         bit <<= 1;
-        hook(addr::SC4Effect_DrawParticlesTextured, &TSC4Effect_DrawParticlesTextured,
-             &g_SC4Effect_DrawParticlesTextured);
-        hook(addr::SC4Effect_DrawParticles, &TSC4Effect_DrawParticles, &g_SC4Effect_DrawParticles);
+        if (bits & bit)
+            ok = HookBuffered() && ok;
+        bit <<= 1;
+        if (bits & bit)
+            ok = HookParticles() && ok;
+        bit <<= 1;
         hook(addr::SC4EffectB_DrawParticles, &TSC4EffectB_DrawParticles, &g_SC4EffectB_DrawParticles);
         hook(addr::SC4Effect_NotDrawn, &TSC4Effect_NotDrawn, &g_SC4Effect_NotDrawn);
         hook(addr::SC4EffectB_NotDrawn, &TSC4EffectB_NotDrawn, &g_SC4EffectB_NotDrawn);
