@@ -2,7 +2,7 @@
 
 Reimplemented after neighbors ([neighbors.md](neighbors.md)) the same way: function by function on the original object under the parity harness ([parity.md](parity.md)), then our own object under the class ID. Build 641 addresses throughout.
 
-The simulator is a thin owner. It keeps the city's MySims (the player's own Sims who move into the city, the "My Sim" mode) in six places and passes the game's messages on to them; the MySims themselves (`cSC4MySim`, and `cSC4MyStreetSim` on top of it, code 0x00424B00 to 0x0042E2F0) are agents that live, work, travel and react, and are not part of this replacement.
+The simulator is a thin owner. It keeps the city's MySims (the player's own Sims who move into the city, the "My Sim" mode) in six places and passes the game's messages on to them; the MySims themselves (`cSC4MySim`, code 0x00424B00 to 0x0042E2F0, and the Microphone Tool's `cSC4MyStreetSim` on top of it, 0x0043D0F0 to 0x0043E740) are agents that live, work, travel and react. They are not part of this replacement; they have their own replacements and page ([mysim-agents.md](mysim-agents.md)).
 
 ## The class
 
