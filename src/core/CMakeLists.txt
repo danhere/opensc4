@@ -334,6 +334,11 @@ add_library(opensc4_core SHARED
   sim_timers.cpp
   mysim_agents.cpp
   mysim_dispatch.cpp
+  mysim_street_1.cpp
+  mysim_street_2.cpp
+  mysim_balloon_advice.cpp
+  mysim_balloon.cpp
+  mysim_leftovers.cpp
   trip_trace.cpp
   agent_order.cpp
   trace.cpp
