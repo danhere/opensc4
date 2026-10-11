@@ -1766,6 +1766,73 @@ uint32_t ClearViewport(char* render, uint32_t argument)
 #undef FCOM
 }
 
+// --- Cell marks ------------------------------------------------------------------------------
+
+// The marks on terrain cells (the object with vtable 0x00AB42F8): coloured
+// cells (0x00750FC0) and textured cells (0x00750CF0), both translated
+// instruction by instruction, and the pass that draws them (0x007514F0).
+uint32_t DrawColouredCellMarks(char* marks, char* context)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(marks);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[160]);
+    M<uint32_t>(esp + 4) = reinterpret_cast<uint32_t>(context);
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/cell_marks_coloured.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+uint32_t DrawTexturedCellMarks(char* marks, char* context)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(marks);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[160]);
+    M<uint32_t>(esp + 4) = reinterpret_cast<uint32_t>(context);
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/cell_marks_textured.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+uint32_t DrawCellMarks(char* marks, char* context)
+{
+    if (At<uint32_t>(marks, 0x9C) != 0 || At<uint32_t>(marks, 0xB0) != 0) {
+        const int32_t depthOffset = At<int32_t>(context, 0xBC);
+        CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, 4);
+        DrawColouredCellMarks(marks, context);
+        DrawTexturedCellMarks(marks, context);
+        CallThis<void>(addr::SC4RenderContext_SetDepthOffset, context, depthOffset);
+    }
+    return 1;
+}
+
 // cSC43DRender's handling of its list of changes before a frame
 // (0x007C9600), translated instruction by instruction.
 uint32_t ProcessRenderChanges(char* render)
@@ -3180,6 +3247,59 @@ uint32_t __fastcall DRenderChanges(char* render, void*)
     return ProcessRenderChanges(render);
 }
 
+using CellMarksFn = uint32_t(__fastcall*)(char*, void*, char*);
+CellMarksFn g_cellMarks;
+bool g_compareCellMarks = false;
+
+// OPENSC4_TEST_CELL_MARKS=1: marks a block of cells around the middle of
+// the city with each of the five colours, once, through the game's own
+// function, so the pass has something to draw in test runs.
+void MarkTestCells(char* marks)
+{
+    static bool done = false;
+    static const bool on = [] {
+        const char* v = std::getenv("OPENSC4_TEST_CELL_MARKS");
+        return v && *v == '1';
+    }();
+    if (!on || done)
+        return;
+    done = true;
+    const int32_t centreX = static_cast<int32_t>(Global<uint32_t>(addr::STE_CellsX) / 2);
+    const int32_t centreZ = static_cast<int32_t>(Global<uint32_t>(addr::STE_CellsZ) / 2);
+    for (uint32_t colour = 0; colour < 5; ++colour) {
+        std::vector<int32_t> cells;
+        for (int32_t z = -12; z < 12; ++z)
+            for (int32_t x = 0; x < 6; ++x) {
+                cells.push_back(centreX - 15 + static_cast<int32_t>(colour) * 6 + x);
+                cells.push_back(centreZ + z);
+            }
+        int32_t* range[3] = {cells.data(), cells.data() + cells.size(), cells.data() + cells.size()};
+        CallThis<void>(addr::STECellMarks_SetColour, marks, range, colour, 0u);
+    }
+    log::Write("cell marks: test cells marked (width field %u, coloured cells now %u)", At<uint32_t>(marks, 0xC0),
+               At<uint32_t>(marks, 0xB0));
+}
+
+uint32_t __fastcall DCellMarks(char* marks, void*, char* context)
+{
+    if (g_depth > 0)
+        return g_cellMarks(marks, nullptr, context);
+    MarkTestCells(marks);
+    if (!g_compareCellMarks)
+        return DrawCellMarks(marks, context);
+    uint32_t result = 0;
+    DrawCompared(g_selfCheck ? "cellmarks.selfcheck" : "cellmarks", ContextRegions(context),
+                 [&] {
+                     if (g_selfCheck)
+                         g_cellMarks(marks, nullptr, context);
+                     else
+                         DrawCellMarks(marks, context);
+                 },
+                 [&] { result = g_cellMarks(marks, nullptr, context); }, true);
+    return result;
+}
+
+OPENSC4_THUNK(TCellMarks, DCellMarks, 4)
 OPENSC4_THUNK(TRenderChanges, DRenderChanges, 0)
 OPENSC4_THUNK(TClearViewport, DClearViewport, 4)
 OPENSC4_THUNK(TCorners, DCorners, 4)
@@ -3882,6 +4002,29 @@ const bool g_registeredRenderChanges = registry::Register({
     "checked by screenshots (docs/renderer.md, \"Models and lots\")",
     true,
     InstallRenderChanges,
+});
+
+bool InstallCellMarks(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareCellMarks = mode == registry::Mode::Compare;
+    if (!Detour(addr::STECellMarks_Draw, &TCellMarks, &g_cellMarks))
+        return false;
+    log::Write("cell marks: pass %s", g_compareCellMarks ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredCellMarks = registry::Register({
+    "renderer.terrain.cellmarks",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::STECellMarks_Draw,
+    "The coloured and textured marks on terrain cells; compare mode as renderer.terrain.land (docs/renderer.md, "
+    "\"Cell marks\")",
+    true,
+    InstallCellMarks,
 });
 
 } // namespace
