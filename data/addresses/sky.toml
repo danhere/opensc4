@@ -379,6 +379,15 @@ expect = "8A 81 8C 00 00 00 83 EC"
 source = "Name ours (0x005B3430 to 0x005B3817). Slot 0xC of both effect classes (vtables 0x00AA0EA0, 0x00AA0C58): two blocks of two bytes and thirteen floats kept at +0x90 and +0xC8, each with a count of its settings (+0x8C, +0xC4) and the block's second byte (+0x8D, +0xC5); no place taken from the first for an effect without +0x21A whose description has flag 0x1000; then the effect's values that go by the transform worked out again, up to the box at +0x194. No calls; writes only the effect. Ours in renderer.effects.transform (src/core/effect_transform.inc)."
 
 [[entry]]
+name = "SC4Effect::Begin"
+address = 0x005B3000
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, uint32_t again)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours (0x005B3000 to 0x005B3423). Slot 0 of both effect classes (vtables 0x00AA0EA0, 0x00AA0C58): starts the effect unless the word is set for a description with a count at +0x18 and no flag 8, or SC4EffectBase::Restart answers false: clocks +0x110 and +0x120 and counts set back, the pull +0x13C from the description's +0xE0, and by the description's flags random delays and speeds (generator 0x00B22DF8; flag 0x800000 runs the wander once), with the cell's kind asked of 0x00B43CEC. Ours in renderer.effects.begin (src/core/effect_begin.inc)."
+
+[[entry]]
 name = "SC4Effect::GetBox"
 address = 0x005B26F0
 kind = "function"
