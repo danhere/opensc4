@@ -1,0 +1,28 @@
+# Game functions wrapped by game.quiet.* (src/core/game_quiet.cpp, docs/quiet.md).
+
+[[entry]]
+name = "cSC4Demolition::DoDemolishOccupantEffect"
+address = 0x004673B0
+kind = "function"
+convention = "thiscall"
+signature = "void (cISC4Demolition* this, cISC4Occupant* occupant, uint32_t, cISC4Lot* lot, bool, long, long)"
+expect = "83 EC 1C 53 8B 5C 24 24"
+source = "Slot 10 of the demolition utility's vtable 0x00A88004 (gzcom-dll cISC4Demolition; DemolishRegion is slot 6, 0x00468410); `ret 0x18`; no direct calls. Opens with the only call of 0x004672E0 (occupant too small for an animation: returns at once on yes)."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::PlaceLot"
+address = 0x004C1740
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ViewInputControlPlaceLot* this, void*, void*, bool smoke, void* cells)"
+expect = "81 EC A4 00 00 00 53 83"
+source = "Name from sc4-disable-lot-plop-smoke. `ret 0x10`; two callers: the lot tool at 0x004C318B (pushes 1 for the third argument) and 0x005C5554 (a value of its own). The fourth argument gets four -1 at entry."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::Init"
+address = 0x00607190
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4NetworkConstructionCrew* this, uint32_t, float, float, uint32_t, uint32_t, uint32_t)"
+expect = "A0 60 3E B4 00 84 C0 56"
+source = "Name from sc4-disable-network-construction-sounds. Slot 4 of the vtable 0x00AA74AC; `ret 0x18`. Stores the sound service (0x00B43CB8), referenced, at +0x18 when there is one (0x006071F4)."

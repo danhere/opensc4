@@ -33,6 +33,7 @@ Things OpenSC4 adds to the game. Classic behaviour stays: an addition that chang
 | D3D11 renderer: resolutions past 2048 px, windowed and borderless modes, a scaled interface | `renderer.d3d11 = ours` | [docs/renderer.md](docs/renderer.md), [docs/ui-scaling.md](docs/ui-scaling.md) |
 | 8 km city tiles (an experiment: such a city cannot be saved yet) | `[improvements] big_cities = on` | [docs/city-size.md](docs/city-size.md) |
 | Buildings keep their occupants when a wealthier group wants in; it changes how cities grow (after sc4-no-kick-out by Nicholas Hayes, MIT License) | on (`game.no_kickout = original` turns it off) | [docs/no-kickout.md](docs/no-kickout.md) |
+| No demolition animation, no smoke when a lot is placed, no sounds from road and rail construction crews: three options, each off until turned on (after sc4-disable-demolition-animation, sc4-disable-lot-plop-smoke and sc4-disable-network-construction-sounds by Nicholas Hayes, MIT License) | `game.quiet.demolish = ours`, `game.quiet.plop = ours`, `game.quiet.network = ours` | [docs/quiet.md](docs/quiet.md) |
 | The cheat `RemovePhantomBudgetItems <category> [all]`: takes budget rows of buildings that are gone, usually after a plugin was removed, out of a department; part of the game (after sc4-remove-phantom-budget-items by Nicholas Hayes, MIT License) | always there | [docs/phantom-budget.md](docs/phantom-budget.md) |
 
 ## Documents
