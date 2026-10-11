@@ -761,16 +761,28 @@ void AddDepartmentState(Fnv& f, char* dialog)
 // game, which also puts the window under the main window; the player does
 // both. The closing is left to the game: the dialog posts its own end when
 // the run is over, and the stop message follows from that. After the start:
-// the page's state as built, the four scroll arrows pressed when the page
-// has them, the page filled again, the funding rows refreshed.
-uint32_t PlayDepartment(void*, int)
+// the page's state as built; the four scroll arrows pressed when the page
+// has them; on the ordinance page a check box clicked (its state is not
+// flipped, so nothing is switched), a description opened (and left for the
+// dialog's end to drop: putting it away with its own button here leaves
+// the game unable to exit, the original as well), the page filled again; on a group's page the first two rows' buttons pressed,
+// each of which opens the department's buildings in a dialog of its own
+// (the same class, run inside this run and played by this player: its
+// arrows pressed, its rows filled again); the funding rows refreshed.
+uint32_t PlayDepartment(void*, int depth)
 {
-    char* const dialog = At<char*>(g_budgetPanel, 0x18);
+    char* dialog = At<char*>(g_budgetPanel, 0x18);
+    if (dialog && depth > 1)
+        dialog = At<char*>(dialog, 0x1C);
     void* const window = dialog ? At<void*>(dialog, 0xC) : nullptr;
-    if (!window)
+    if (!window || depth > 2)
         return 0;
     const auto send = [&](uint32_t type, uint32_t first, uint32_t second) {
         return Virtual<uint8_t>(dialog, 0x10, window, type, first, second, uint32_t{0});
+    };
+    const auto press = [&](uint32_t button) {
+        g_played.Add(send(3, 0x287259F6, button));
+        AddDepartmentState(g_played, dialog);
     };
     cISC4AppPtr app;
     cIGZWin* const main = app ? app->GetMainWindow() : nullptr;
@@ -781,16 +793,32 @@ uint32_t PlayDepartment(void*, int)
     if (!At<uint8_t>(dialog, 0x8))
         g_played.Add(send(0xA2BF8AD0, 0, 0));
     AddDepartmentState(g_played, dialog);
+    g_played.Add(depth);
     const uint32_t kind = At<uint32_t>(dialog, 0x20);
-    if (Virtual<void*>(window, 0x8C, uint32_t{0x451})) {
-        for (const uint32_t button : {0x452u, 0x454u, 0x451u, 0x453u}) {
-            g_played.Add(send(3, 0x287259F6, button));
-            AddDepartmentState(g_played, dialog);
-        }
-        if (kind == 1)
+    const bool buildings = depth == 2;
+    if (Virtual<void*>(window, 0x8C, uint32_t{0x454})) {
+        for (const uint32_t button : {0x452u, 0x454u, 0x451u, 0x453u})
+            if (Virtual<void*>(window, 0x8C, button))
+                press(button);
+        if (buildings) {
+            reinterpret_cast<void(__thiscall*)(void*, void*, uint8_t)>(addr::SC4UI_F785740)(dialog, window, 0);
+            g_played.Add(static_cast<uint32_t>(At<char*>(dialog, 0x48) - At<char*>(dialog, 0x44)));
+            g_played.Add(At<uint32_t>(dialog, 0x138));
+        } else if (kind == 1) {
+            if (Virtual<void*>(window, 0x8C, uint32_t{0x12C}))
+                press(0x12C);
+            if (Virtual<void*>(window, 0x8C, uint32_t{0x1F4})) {
+                press(0x1F4);
+                g_played.Add(At<void*>(dialog, 0x14) != nullptr);
+            }
             reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4UI_F77ADA0)(dialog, window);
-        else if (kind == 2)
+        } else if (kind == 2) {
             reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4UI_F781C90)(dialog, window);
+        } else {
+            for (const uint32_t button : {0x0ABCE600u, 0x0ABCE601u})
+                if (Virtual<void*>(window, 0x8C, button))
+                    press(button);
+        }
         AddDepartmentState(g_played, dialog);
     }
     reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4UI_F77AB40)(dialog);
@@ -805,8 +833,10 @@ uint32_t PlayDepartment(void*, int)
 // region and load region left with cancel, the two questions answered no
 // and yes, the pick-one dialog with its list of the region's cities, OK and
 // cancel pressed); and the budget panel's ordinance, deals and department
-// pages with their arrows pressed and filled again. Nothing is made,
-// deleted or changed. Use with OPENSC4_TEST_TUTORIAL_OFF=1.
+// pages with their arrows and row buttons pressed and filled again, the
+// buildings dialog opened from them; and three small classes (below).
+// Nothing is made, deleted or changed in the city; the clock window stays
+// up. Use with OPENSC4_TEST_TUTORIAL_OFF=1.
 void DriveWindows(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_WINDOWS") || !game::IsBuild641())
@@ -881,8 +911,50 @@ void DriveWindows(const Day& day)
         g_budgetPanel = nullptr;
         ++did;
     }
-    std::snprintf(g_windowsToken, sizeof g_windowsToken, " windows %d picture %08X region %08X pages %08X", did, picture.h,
-                  region.h, pages.h);
+    // Three small classes, as far as they go with no window of their own on
+    // show: the HTML control's link handler made, asked for its interface,
+    // started, stopped and deleted; the tips window's search for tips and
+    // its key list; the clock made and deleted, then shown (it runs on the
+    // computer's time, so its text is not compared).
+    Fnv small;
+    using NewFn = void*(__cdecl*)(std::size_t);
+    if (char* const links = static_cast<char*>(reinterpret_cast<NewFn>(addr::SC4_operator_new)(0x10))) {
+        reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4UI_F78D050)(links);
+        void* part = nullptr;
+        small.Add(Virtual<uint8_t>(links + 0x8, 0x0, 0xC49B192Cu, &part));
+        small.Add(part == links + 0x8);
+        small.Add(At<uint32_t>(links, 0x4));
+        small.Add(Virtual<uint8_t>(links + 0x8, 0xC)); // Init
+        small.Add(At<void*>(links, 0xC) != nullptr);
+        small.Add(Virtual<uint8_t>(links + 0x8, 0x10)); // Shutdown
+        small.Add(At<void*>(links, 0xC) != nullptr);
+        Virtual<void*>(links, 0x0, uint32_t{1}); // deleted
+    }
+    small.Add(reinterpret_cast<uint8_t(__cdecl*)()>(addr::SC4UI_F78C760)());
+    small.Add(reinterpret_cast<uint8_t(__cdecl*)()>(addr::SC4UI_F78CCE0)());
+    {
+        char tips[0x24] = {};
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4UI_F78CC70)(&tips[0]);
+        const char* const begin = At<char*>(&tips[0], 0x8);
+        const std::size_t size = static_cast<std::size_t>(At<char*>(&tips[0], 0xC) - begin);
+        small.Add(static_cast<uint32_t>(size));
+        if (begin) {
+            small.Bytes(begin, size);
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(At<void*>(&tips[0], 0x8));
+        }
+    }
+    if (char* const clock = static_cast<char*>(reinterpret_cast<NewFn>(addr::SC4_operator_new)(0x38))) {
+        reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4UI_F78C340)(clock);
+        small.Add(At<uint32_t>(clock, 0x4));
+        small.Add(At<uint32_t>(clock, 0x18));
+        Virtual<void*>(clock, 0x14, uint32_t{1}); // deleted
+    }
+    small.Add(reinterpret_cast<uint8_t(__cdecl*)()>(addr::SC4UI_F78C590)());
+    small.Add(reinterpret_cast<uint8_t(__cdecl*)()>(addr::SC4UI_F78C590)());
+    ++did;
+
+    std::snprintf(g_windowsToken, sizeof g_windowsToken, " windows %d picture %08X region %08X pages %08X small %08X", did,
+                  picture.h, region.h, pages.h, small.h);
     log::Write("autotest: windows driven:%s", g_windowsToken);
 }
 
