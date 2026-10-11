@@ -207,6 +207,8 @@ add_library(opensc4_core SHARED
   constrocc_sim.cpp
   texocc_autotest.cpp
   texocc_sim.cpp
+  fireocc_autotest.cpp
+  fireocc_sim.cpp
   landfill_sim.cpp
   seaport_autotest.cpp
   seaport_sim.cpp
