@@ -10,6 +10,8 @@ Four more ways to use the bulldozer, chosen by the keys held while it works. An 
 | Ctrl + Shift | everything but the transport networks |
 | Alt, alone or with the above | a diagonal strip in place of the rectangle |
 
+While a key is held and the bulldozer is over the city, a line of text by the cursor says what it will do: "Trees only", "Roads and rails only", "Everything but roads and rails", with ", diagonal" added for Alt, or "Diagonal" alone. It follows the keys as the mouse moves and goes away when the drag ends or the keys are let go. The text is English only for now.
+
 Water pipes and power lines do not count as transport networks. The keys are read each time the tool looks at the area (as the mouse moves, and when the button is let go), so the highlight and the price follow them; what is held when the button is let go decides.
 
 The diagonal strip starts at the cell where the drag began and runs at 45 degrees towards the cell under the cursor. A drag as long one way as the other gives a line one cell wide; each cell the drag is longer one way widens the strip by one, so a diagonal street, which steps through two cells a row, takes a drag one cell longer than it is tall. A lot the strip touches goes whole, as with the rectangle.
@@ -19,6 +21,8 @@ Trees that belong to a lot (a park's, a building's garden) stay in the flora mod
 ## How
 
 `game.bulldoze` ([src/core/game_bulldoze.cpp](../src/core/game_bulldoze.cpp)) changes nothing in the demolishing itself. The game's `cSC4Demolition::DemolishRegion` (0x00468410) takes an occupant filter and puts it in its default filter for the call; the bulldoze tool (`cSC4ViewInputControlDemolish`, vtable 0x00A901A0) passes none. A detour passes ours when the call comes from the tool's code (0x004B8830 to 0x004B9E20: the preview at 0x004B97F1, which also returns the occupants to highlight, and the mouse-up at 0x004B9D04) and a key is held. Other callers (disasters, growth, zoning) are never touched. For the strip, the cells off it are cleared from the tool's region before the game's function runs; a detour on the tool's preview (0x004B93B0) only remembers the tool, whose drag runs from the cell at +0x58, +0x5C to the cell at +0x60, +0x64. A third detour on the tool's own occupant test (0x004B8880, used for the single object under the cursor) applies the same rule.
+
+The text is one of the city view's cursor texts (`SetCursorText`, slot 40 of `cISC4View3DWin`, with our own ID 0x4F534342), set after the tool's mouse move (0x004B9B70) and taken away before its end of a drag (0x004B8ED0: mouse up, Escape, the tool put away). The view's own code is not changed.
 
 The filter: flora is occupant type 0x74758926; a transport piece answers `cISC4NetworkOccupant` and is neither a water pipe nor a power pole.
 
@@ -47,4 +51,6 @@ The strip (`OPENSC4_TEST_BULLDOZE_DIAGONAL=1` shapes the test's region from its 
 | 3 cells longer | 256 | 3588 | 2857 | 3759 | 6,763 |
 | 3 cells longer, networks only | 256 | 3667 | 2939 | 3759 | 93 |
 
-Not checked: the tool itself with real keys and mouse (the highlight, the price shown, the single-object click, Alt held during a drag, and whether the game draws the area's outline from the region or from the rectangle). That part rests on reading the tool's code.
+The text (`OPENSC4_TEST_BULLDOZE_LABEL=<n>` sets it for every mode on the n-th day and reads it back from the view's list): all seven texts come back as set, none for no key, none after clearing.
+
+Not checked: the tool itself with real keys and mouse (the highlight, the price shown, the text by the cursor on screen, the single-object click, Alt held during a drag, and whether the game draws the area's outline from the region or from the rectangle). That part rests on reading the tool's code.

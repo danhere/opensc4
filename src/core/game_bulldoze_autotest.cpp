@@ -5,13 +5,21 @@
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/game_access.h"
+#include "core/game_bulldoze.h"
 #include "core/log.h"
 
 #include <opensc4/addresses.h>
 
+#include <GZServPtrs.h>
+#include <cIGZString.h>
+#include <cIGZWin.h>
+#include <cISC4App.h>
 #include <cISC4City.h>
+#include <cISC4View3DWin.h>
+#include <cRZAutoRefCount.h>
 
 #include <cstdint>
+#include <string>
 
 namespace opensc4::autotest {
 namespace {
@@ -54,7 +62,53 @@ void Bulldoze(const Day& day)
                done ? "done" : "refused", static_cast<long long>(cost));
 }
 
+// The city view, as autotest.cpp finds it for screenshots.
+char* CityView()
+{
+    constexpr uint32_t kWinSC4App = 0x6104489A;
+    constexpr uint32_t kWinView3D = 0x9A47B417;
+    cISC4AppPtr app;
+    cIGZWin* const main = app ? app->GetMainWindow() : nullptr;
+    cIGZWin* const parent = main ? main->GetChildWindowFromID(kWinSC4App) : nullptr;
+    cRZAutoRefCount<cISC4View3DWin> view;
+    if (parent)
+        parent->GetChildAs(kWinView3D, kGZIID_cISC4View3DWin, view.AsPPVoid());
+    return reinterpret_cast<char*>(static_cast<cISC4View3DWin*>(view));
+}
+
+// OPENSC4_TEST_BULLDOZE_LABEL=<n>: on the n-th day game.bulldoze's cursor
+// text is set for every mode and taken away again, and the view's list of
+// cursor texts (+0x3DC: nodes with the ID at +8 and the title at +0x10) is
+// logged after each.
+void Label(const Day& day)
+{
+    if (!game::IsBuild641() || !OnRunDay(day, "OPENSC4_TEST_BULLDOZE_LABEL"))
+        return;
+    char* const view = CityView();
+    if (!view) {
+        log::Write("autotest: bulldoze label: no city view");
+        return;
+    }
+    const auto ours = [&]() -> std::string {
+        char* const head = At<char*>(view, 0x3DC);
+        int count = 0;
+        for (char* node = At<char*>(head, 0x0); node != head && count < 64; node = At<char*>(node, 0x0), ++count)
+            if (At<uint32_t>(node, 0x8) == 0x4F534342) {
+                const char* const text = reinterpret_cast<cIGZString*>(node + 0x10)->ToChar();
+                return text ? text : "";
+            }
+        return "(none)";
+    };
+    for (int i = 0; i < 8; ++i) {
+        game_bulldoze::SetLabel(view, i & 3, (i & 4) != 0);
+        log::Write("autotest: bulldoze label %d%s: \"%s\"", i & 3, (i & 4) ? " diagonal" : "", ours().c_str());
+    }
+    game_bulldoze::ClearLabel(view);
+    log::Write("autotest: bulldoze label cleared: \"%s\"", ours().c_str());
+}
+
 const DayHook kBulldoze{"bulldoze", 58, &Bulldoze};
+const DayHook kLabel{"bulldozelabel", 58, &Label};
 
 } // namespace
 } // namespace opensc4::autotest

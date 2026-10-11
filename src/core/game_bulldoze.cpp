@@ -14,6 +14,8 @@
 // passes one for the tool's calls. The idea of flora-only and network-only
 // bulldozing is from the Bulldoze Extensions plugin by Nicholas Hayes; the
 // code and the way of choosing a mode are ours.
+#include "core/game_bulldoze.h"
+
 #include "core/address_check.h"
 #include "core/game_access.h"
 #include "core/hook.h"
@@ -24,11 +26,13 @@
 #include <cISC4NetworkOccupant.h>
 #include <cISC4Occupant.h>
 #include <cISC4OccupantFilter.h>
+#include <cRZBaseString.h>
 
 #include <windows.h>
 
 #include <cstdint>
 #include <cstdlib>
+#include <string>
 
 #include <opensc4/addresses.h>
 
@@ -146,6 +150,32 @@ uint32_t __fastcall Preview(char* self, void* edx)
     return g_preview(self, edx);
 }
 
+using MoveFn = uint8_t(__fastcall*)(char* self, void* edx, int32_t x, int32_t z, uint32_t modifiers);
+MoveFn g_move = nullptr;
+
+// The tool's mouse move (0x004B9B70, slot 20), hovering or dragging: after
+// it, the label by the cursor says what the held keys give. The view is the
+// tool's +0x1C.
+uint8_t __fastcall MouseMove(char* self, void* edx, int32_t x, int32_t z, uint32_t modifiers)
+{
+    const uint8_t taken = g_move(self, edx, x, z, modifiers);
+    if (void* const view = At<void*>(self, 0x1C))
+        SetLabel(view, static_cast<int>(Current()), GetKeyState(VK_MENU) < 0);
+    return taken;
+}
+
+using EndFn = void(__fastcall*)(char* self, void* edx);
+EndFn g_end = nullptr;
+
+// The tool's end of a drag (0x004B8ED0): on mouse up, on Escape and when the
+// tool is put away. The label goes with it.
+void __fastcall EndDrag(char* self, void* edx)
+{
+    if (void* const view = At<void*>(self, 0x1C))
+        ClearLabel(view);
+    g_end(self, edx);
+}
+
 using RegionFn = uint8_t(__fastcall*)(void* self, void* edx, uint8_t demolish, void* region, int32_t privilege,
                                       uint32_t flags, uint8_t clearZoned, cISC4OccupantFilter* filter, int64_t* cost,
                                       void* demolished, void* occupant, int32_t a, int32_t b);
@@ -197,9 +227,12 @@ bool Install(registry::Mode)
     const addr::Entry* region = addr_check::Find(addr::cSC4Demolition_DemolishRegion);
     const addr::Entry* shown = addr_check::Find(addr::cSC4ViewInputControlDemolish_IsOccupantShown);
     const addr::Entry* preview = addr_check::Find(addr::cSC4ViewInputControlDemolish_Preview);
+    const addr::Entry* move = addr_check::Find(addr::cSC4ViewInputControlDemolish_OnMouseMove);
+    const addr::Entry* end = addr_check::Find(addr::cSC4ViewInputControlDemolish_EndDrag);
     const bool ok = region && shown && preview && hook::Install(*region, &DemolishRegion, &g_region) &&
                     hook::Install(*shown, &IsOccupantShown, &g_shown) &&
-                    hook::Install(*preview, &Preview, &g_preview);
+                    hook::Install(*preview, &Preview, &g_preview) && move && end &&
+                    hook::Install(*move, &MouseMove, &g_move) && hook::Install(*end, &EndDrag, &g_end);
     log::Write("bulldoze: Ctrl flora only, Shift networks only, Ctrl+Shift all but networks, Alt diagonal: %s",
                ok ? "installed" : "FAILED");
     return ok;
@@ -218,4 +251,35 @@ const bool g_registered = registry::Register({
 });
 
 } // namespace
+
+namespace {
+// The cursor text's ID in the view's list (ours) and its priority among the
+// texts shown together.
+constexpr uint32_t kLabelId = 0x4F534342; // "OSCB"
+constexpr uint32_t kLabelPriority = 5;
+} // namespace
+
+void SetLabel(void* view, int mode, bool diagonal)
+{
+    static const char* const kWhat[4] = {"", "Trees only", "Roads and rails only", "Everything but roads and rails"};
+    std::string text = kWhat[mode & 3];
+    if (diagonal)
+        text += text.empty() ? "Diagonal" : ", diagonal";
+    if (text.empty()) {
+        ClearLabel(view);
+        return;
+    }
+    // SetCursorText (slot 40): (id, priority, title, body, icon). The body is
+    // given, empty: without one the game empties the title of a text it
+    // already has.
+    cRZBaseString title(text.c_str()), body;
+    Virtual<void>(view, 0xA0, kLabelId, kLabelPriority, static_cast<cIGZString*>(&title),
+                  static_cast<cIGZString*>(&body), 0);
+}
+
+void ClearLabel(void* view)
+{
+    Virtual<void>(view, 0xA4, kLabelId); // ClearCursorText (slot 41)
+}
+
 } // namespace opensc4::game_bulldoze

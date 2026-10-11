@@ -26,3 +26,21 @@ convention = "thiscall"
 signature = "void (cSC4ViewInputControlDemolish* this)"
 expect = "83 EC 4C 55 8B E9 8B 45"
 source = "Name ours. Builds the region of the drag (start cell +0x58, +0x5C; end cell +0x60, +0x64; the region at +0x68) and asks DemolishRegion, not demolishing, for the price (+0x88), whether it can be done (+0x6C) and the occupants to highlight. Called from the mouse handlers (0x004B9B4C, 0x004B9C23, 0x004B9C3D, 0x004B9C78), the last before the demolishing on mouse up. The game's; game.bulldoze wraps it to remember the tool."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::OnMouseMove"
+address = 0x004B9B70
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ViewInputControlDemolish* this, int32_t x, int32_t z, uint32_t modifiers)"
+expect = "83 EC 0C 53 8B 5C 24 14"
+source = "Slot 20 of the tool's vtable 0x00A901A0 (ret 0xC): picks what is under the cursor and, in a drag, runs the preview (0x004B9C23, 0x004B9C3D). The game's; game.bulldoze wraps it to set its cursor text."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::EndDrag"
+address = 0x004B8ED0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ViewInputControlDemolish* this)"
+expect = "53 56 8B F1 8B 4E 74 33"
+source = "Name ours. Lets go of the drag's highlight and region (+0x74, +0x90, +0x68). Called on mouse up (0x004B9D3F), on Escape and deactivation (0x004B9055), from slot 22 (0x004B9032) and from Shutdown (0x004B8F48). The game's; game.bulldoze wraps it to take its cursor text away."
