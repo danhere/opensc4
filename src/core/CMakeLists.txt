@@ -216,6 +216,7 @@ add_library(opensc4_core SHARED
   dllmain.cpp
   director.cpp
   fixed_seed.cpp
+  game_autosave.cpp
   game_seed.cpp
   game_timelapse.cpp
   gd/d3d11_backend.cpp
