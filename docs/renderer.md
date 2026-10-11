@@ -332,12 +332,12 @@ Checked on the three tutorial cities, with and without the Data Views window ope
 
 A window's paint (window slot 88) does not go to the driver either: it draws into the window's canvas, a `cIGZBuffer` the window keeps at +0x68, which the window manager puts on screen later. So a paint can be checked like the map pictures, in the same run: ours, then the object and the pixels of its buffers put back, then the game's, and the two results compared byte for byte (`PaintCompared` in `terrain_draw.cpp`).
 
-The interface code left fourteen such functions as drawing (docs/ui.md). All are translated instruction by instruction, and all but one are behind `renderer.windows.paints`:
+The interface code left fourteen such functions as drawing (docs/ui.md). All are translated instruction by instruction and are behind `renderer.windows.paints`:
 
 - The loading screen's two draws (0x00777220, 0x007773B0; its picture object keeps buffers at +0xC, +0x10, +0x14 and +0x98) with the blend they use (0x00776C30), and the overlay picture's paint (0x00794100, which copies its picture at +0xE4 into the canvas). A plain test run reaches these.
 - The paints of the progress bar (0x00797CC0), the info tip (0x00798710), the animation recorder (0x007943B0) and its frame (0x00794BF0), the pop-up menu (0x0079AA70) and its arrows (0x0079B0E0), the intro window (0x0079D490) and the picture file dialog (0x0079D6B0), and the graph control's box (0x0076B660, a line function that forwards its seven arguments to the game's line drawing). Nothing puts these windows on screen in an unattended run; `OPENSC4_TEST_WINDOW_PAINTS=<day>` with `OPENSC4_TEST_TUTORIAL_OFF=1` (`src/core/window_paint_autotest.cpp`) brings each one up and has it painted, on the screen's canvas and again on a canvas of its own, which is a picture in memory.
 
-`renderer.windows.paints_untested` is left with the advisor head view's Draw (0x004209D0): the test reaches it, but it draws through the 3D render outside a frame and has no same-run comparison.
+The advisor head view's Draw (0x004209D0) is the one that is not a window paint: it goes to the driver through the 3D render, outside a frame, so it is compared like a pass (`DrawCompared`: the head view, the render's context and camera, and what reaches the driver). It is behind `renderer.windows.paints` with the others.
 
 A window that makes its pictures anew in a paint (the info tip builds its text and its bubble when it is stale, at +0x140 and +0x144; the arrows build a strip) cannot simply be put back: the old picture is gone. `PaintComparedRebuilt` leaves such pointers as the run made them, puts back the rest of the object and the pixels of the buffers that stayed, and compares the rebuilt pictures by their size and pixels, not their address.
 
@@ -347,6 +347,7 @@ Checked on the three tutorial cities, with a self-check; screenshots match the g
 - The eight window paints the test brings up (progress bar, info tip, recorder and frame, pop-up menu and arrows, intro, picture file dialog): 32 paints a run, 96 in all, no difference; 22 of the 32 change the object or a picture (the rest are the paints on the screen's canvas, which is not a picture in memory). The intro is never started in the test, so its paint only counts down a field: only the object is compared.
 - The loading screen's draw: 12 calls a run, no difference, but only one a run changes anything in the object or its buffers, so this is a thin check.
 - The overlay picture's paint: thousands of calls a run, no difference, and none of them had anything to draw (the paint leaves early without a picture), so only its way out is verified.
+- The advisor head's Draw: twice a run in the test (two moods, with a model), 15 driver draws, no difference on the three cities; self-check clean.
 - The graph box is not compared in the same run: the picture it is given is of another buffer class (vtable 0x00AC1550), which the comparison does not read. Its check is the test's own: the graph's canvas has the same checksum with the game's code and with ours, in separate runs.
 
 The translator learned tail calls for this (a `jmp` out of the function or through a pointer: the callee runs without our return address and its result is ours), one-operand `mul`, the sign branches and every set-on-condition.
@@ -377,7 +378,7 @@ The region screen's code is the Region work's (docs/region.md), which left its f
 - **The overlay window's paint** (`SC4RegionOverlayWin::Paint`, 0x007A9D60): the marks that drift over the region. Every frame it sets the driver up and draws each mark as a textured quad, then steps the marks by the time since the last frame, makes a new one with a chance of 0.003, and frees those past the right bound.
 - **The mask of a city's picture** (`SC4CityFiles::DrawPictureMask`, 0x005DCCF0).
 
-`renderer.region.draw` has the first three; `renderer.region.draw_untested` has the mask, which no test reaches, so that code has never run.
+`renderer.region.draw` has all four. The first three run while the region screen is up; the mask is drawn when a city is saved, eight times a save, so a save test (`scripts/run-save-test.sh`, in a disposable folder) is what reaches it.
 
 The region screen is not drawn in an unattended run: the test puts it up and loads the city at once. `OPENSC4_TEST_REGION_HOLD=<ms>` (with `OPENSC4_TEST_REGION_SCREEN=1`) keeps it on screen for that long first.
 
@@ -391,6 +392,7 @@ Checked with the region screen held for 20 seconds, three runs and a self-check:
 
 - The overlay window's paint: 50,897 frames compared. The drawing, the window and the marks are the same in all but 144 of them, and exactly 144 frames made a mark; the self-check has 54 of each in 18,029 frames. The step has the right shape in every frame. 280 frames freed a mark and were not repeated.
 - The picture grid and the terrain overlay are drawn once a run (the region's 3D view only redraws when something changes): no difference in the three runs, which is a thin check.
+- The mask of a city's picture: a save of each tutorial city draws it eight times, so 24 masks are compared (8,072 driver draws in the Making Money save): no difference, and the self-check is clean.
 
 There is no screenshot harness for the region screen, so the picture on screen is not compared.
 
