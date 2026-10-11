@@ -13,6 +13,7 @@
 #include "core/fixed_ticks.h"
 #include "core/fixed_seed.h"
 #include "core/game.h"
+#include "core/game_growify.h"
 #include "core/game_seed.h"
 #include "core/gdriver_proxy.h"
 #include "core/log.h"
@@ -83,6 +84,7 @@ public:
         opensc4::fixed_seed::EndStartup();
         opensc4::registry::Apply(opensc4::registry::Phase::LateInit);
         opensc4::game_seed::Start();
+        opensc4::game_growify::Start();
         if (opensc4::autotest::Enabled())
             opensc4::autotest::Start();
         return true;
