@@ -161,6 +161,10 @@ add_library(opensc4_core SHARED
   zonemgr_autotest.cpp
   zonemgr_place.cpp
   zonemgr_sim.cpp
+  occmgr_autotest.cpp
+  occmgr_edit.cpp
+  occmgr_queries.cpp
+  occmgr_sim.cpp
   landfill_sim.cpp
   seaport_autotest.cpp
   seaport_sim.cpp
