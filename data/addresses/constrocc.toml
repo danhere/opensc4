@@ -1,0 +1,498 @@
+# The construction occupant (cSC4ConstructionOccupant, class ID 0xA97F909E, occupant type 0x096E763C): code 0x005CA7A0 to 0x005D1511 (src/core/constrocc_sim.cpp, the class map in src/core/constrocc_sim.h). The constructor 0x005D00F0 and the pool allocator 0x005CA8A0 are in lot.toml (SC4ConstructionOccupant::Construct, ::Allocate).
+
+[[entry]]
+name = "cSC4ConstructionOccupant::vftable"
+address = 0x00AA2250
+kind = "vtable"
+expect = "A0 A7 5C 00 C0 91 64 00"
+source = "The primary vtable (interface 0x496E7636, 5 slots: QueryInterface 0x005CA7A0, AddRef 0x006491C0, Release 0x006491D0, AsOccupant 0x006C2040, SetLot 0x005D0890). simulators.constrocc.slots swaps slots 0 and 4; simulators.constrocc.object copies it at the first construction."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::vftable_4"
+address = 0x00AA2240
+kind = "vtable"
+expect = "B0 04 5D 00 70 DD 64 00"
+source = "Name ours. The message target part at +0x4 (4 slots: the QueryInterface thunk 0x005D04B0, AddRef 0x0064DD70, Release 0x0064DD80, DoMessage 0x005D1090, left the game's). Slot 0 replaced by simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::vftable_8"
+address = 0x00AA21B8
+kind = "vtable"
+expect = "C0 04 5D 00 90 DD 64 00"
+source = "Name ours. The cISC4Occupant part at +0x8 (34 slots; the base cSC4Occupant's and shared stubs except 0, 3 Init 0x005D1300, 4 Shutdown 0x005D0CE0, 8 GetPosition 0x005CA7D0 and 10 GetBoundingBox 0x005CA820). simulators.constrocc.slots swaps slots 0, 8 and 10."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::vftable_C"
+address = 0x00AA219C
+kind = "vtable"
+expect = "D0 04 5D 00 B0 DD 64 00"
+source = "Name ours. The cIGZSerializable part at +0xC (6 slots: three thunks, Write 0x005CD250, Read 0x005CE770, GetGZCLSID 0x005D04A0). Slots 3 and 4 replaced by simulators.constrocc.save, 0 and 5 by simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::vftable_10"
+address = 0x00AA2138
+kind = "vtable"
+expect = "E0 04 5D 00 D0 DD 64 00"
+source = "Name ours. The property holder part at +0x10 (25 slots: three thunks, the shared holder code, 22 the deleting destructor thunk 0x005D04F0, 23 the Write thunk 0x005D0660, 24 the Read thunk 0x005D0670). Slots 23 and 24 replaced by simulators.constrocc.save, 0 by simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::vftable_24"
+address = 0x00AA2120
+kind = "vtable"
+expect = "00 05 5D 00 00 DE 64 00"
+source = "Name ours. The exemplar holder part at +0x24 (5 slots: three thunks, SetPropertyExemplar 0x00458E60, the getter 0x0060CE80). Slot 0 replaced by simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::vftable_3C"
+address = 0x00AA211C
+kind = "vtable"
+expect = "10 05 5D 00 00 05 5D 00"
+source = "Name ours. The model part at +0x3C (constructor 0x00801CF0; its virtual base table pointer is at +0x40): one slot, the deleting destructor thunk 0x005D0510 (this - 0x3C). simulators.constrocc.object puts ours in its copy."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::vftable_19C"
+address = 0x00AA20D0
+kind = "vtable"
+expect = "20 05 5D 00 30 05 5D 00"
+source = "Name ours. The model part's virtual base at +0x19C (the drawn object the renderer keeps; 19 slots, thunks that take the displacement at this - 4: 0 QueryInterface 0x005D0520, 1 and 2 AddRef and Release, 3 0x005D0550, 7 to 10, 12 and 17 the class's drawing functions 0x005CAA20, 0x005CAC00, 0x005CAC40, 0x005CACD0, 0x005CC410, 0x005CC3E0, the rest the model part's). Slot 0 replaced by simulators.constrocc.slots; the rest left the game's (drawing)."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::vbtable"
+address = 0x00AA2264
+kind = "data"
+source = "Name ours. The model part's virtual base table the most derived constructor stores at +0x40: {-4, 0x15C} (the base is at +0x40 + 0x15C)."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::QueryInterface"
+address = 0x005CA7A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4ConstructionOccupant* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D 36 76 6E"
+source = "Slot 0: IID 0x496E7636 gives the object (counted through its slot 1); every other goes to the occupant base's 0x005E89C0 with this + 8. Ours in simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::QueryInterfaceThunk4"
+address = 0x005D04B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** object)"
+expect = "83 E9 04 E9 E8 A2 FF FF"
+source = "Name ours. Slot 0 of the part at +0x4: this - 0x4, then QueryInterface 0x005CA7A0. Ours in simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::QueryInterfaceThunk8"
+address = 0x005D04C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** object)"
+expect = "83 E9 08 E9 D8 A2 FF FF"
+source = "Name ours. Slot 0 of the part at +0x8: this - 0x8, then QueryInterface 0x005CA7A0. Ours in simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::QueryInterfaceThunkC"
+address = 0x005D04D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** object)"
+expect = "83 E9 0C E9 C8 A2 FF FF"
+source = "Name ours. Slot 0 of the part at +0xC: this - 0xC, then QueryInterface 0x005CA7A0. Ours in simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::QueryInterfaceThunk10"
+address = 0x005D04E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** object)"
+expect = "83 E9 10 E9 B8 A2 FF FF"
+source = "Name ours. Slot 0 of the part at +0x10: this - 0x10, then QueryInterface 0x005CA7A0. Ours in simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::QueryInterfaceThunk24"
+address = 0x005D0500
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** object)"
+expect = "83 E9 24 E9 98 A2 FF FF"
+source = "Name ours. Slot 0 of the part at +0x24: this - 0x24, then QueryInterface 0x005CA7A0. Ours in simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::QueryInterfaceThunk19C"
+address = 0x005D0520
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** object)"
+expect = "2B 49 FC 81 E9 9C 01 00"
+source = "Name ours. Slot 0 of the virtual base at +0x19C: this less the displacement at this - 4 (zero in a whole object) less 0x19C, then QueryInterface 0x005CA7A0. Ours in simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::GetPosition"
+address = 0x005CA7D0
+kind = "function"
+convention = "thiscall"
+signature = "void (cISC4Occupant* this, float* position)"
+expect = "D9 81 AC 00 00 00 8B 44"
+source = "Occupant slot 8 (this = object + 8): the middle of the box, (low + high) * 0.5 per axis. Ours in simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::GetBoundingBox"
+address = 0x005CA820
+kind = "function"
+convention = "thiscall"
+signature = "void (cISC4Occupant* this, float* low, float* high)"
+expect = "8B 91 A0 00 00 00 8B 44"
+source = "Occupant slot 10 (this = object + 8): the box at +0xA8 and +0xB4 copied. Ours in simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::GetGZCLSID"
+address = 0x005D04A0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 9E 90 7F A9 C3 CC CC"
+source = "Returns the class ID 0xA97F909E (+0xC slot 5; also called by the class registration at 0x004607EA). Ours in simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::SetLot"
+address = 0x005D0890
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this, cISC4Lot* lot)"
+expect = "81 EC E0 00 00 00 53 55"
+source = "Name ours. Slot 4: the occupant initialised, the lot and its building (lot slot 48) kept, the scaffolding's geometry and props made by the drawing helpers, then the schedule: the start day, the three short stages' days, the days per floor from the building profile's construction days (byte +0xA; 10 for none), stage 0. The lot developer's StartConstruction calls it (0x006CC820). Ours in simulators.constrocc.slots."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Step"
+address = 0x005D0680
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this)"
+expect = "83 EC 08 56 8B F1 8B 46"
+source = "Name ours. The construction's step, called by DoMessage (0x005D1225) on the simulator's message 0x66956814: once the day (simulator slot 8) has reached the next step's (+0x14C), one move of the stage machine (+0x140); at the end the building is complete, the lot goes to state 3 and the occupant leaves the occupant manager and shuts down. Ours in simulators.constrocc.slots (detour)."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Write"
+address = 0x005CD250
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+0xC slot 3 (this = object + 0xC): version 5, the occupant base's record, then the class's fields (tools/re/save_schemas/constrocc.py). Ours in simulators.constrocc.save."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Read"
+address = 0x005CE770
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "83 EC 2C 53 55 56 8B 74"
+source = "+0xC slot 4 (this = object + 0xC): versions 4 and 5 (4 has a plain matrix for the transform). Ours in simulators.constrocc.save."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::WriteThunk"
+address = 0x005D0660
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cIGZOStream* stream)"
+expect = "83 E9 04 E9 E8 CB FF FF"
+source = "Name ours. Holder slot 23: this - 4, then Write. Ours in simulators.constrocc.save."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::ReadThunk"
+address = 0x005D0670
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cIGZIStream* stream)"
+expect = "83 E9 04 E9 F8 E0 FF FF"
+source = "Name ours. Holder slot 24: this - 4, then Read. Ours in simulators.constrocc.save."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Create"
+address = 0x005D0BC0
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "A1 0C A8 B0 00 8B 40 08"
+source = "The factory the class registration holds (pushed at 0x004607E5): an item of the pool, constructed as the most derived object; returns the object itself (the primary interface). Ours in simulators.constrocc.object."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::DeletingDestructor"
+address = 0x005D0C00
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4ConstructionOccupant* this, uint32_t flags)"
+expect = "56 8B F1 E8 58 00 00 00"
+source = "The destructor 0x005D0C60, then with flag 1 the memory back to the pool. Reached through the holder's slot 22 (thunk 0x005D04F0) and the model part's slot 0 (thunk 0x005D0510) only. Ours in simulators.constrocc.object's vtable copies."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::DeletingDestructorThunk10"
+address = 0x005D04F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "83 E9 10 E9 08 07 00 00"
+source = "Name ours. Holder slot 22: this - 0x10, then the deleting destructor."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::DeletingDestructorThunk3C"
+address = 0x005D0510
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "83 E9 3C E9 E8 06 00 00"
+source = "Name ours. The model part's slot 0: this - 0x3C, then the deleting destructor."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::SetCompletion"
+address = 0x005CA8D0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this, const float* fraction)"
+expect = "57 8B F9 8B 4F 6C 85 C9"
+source = "Name ours, not analysed. When the building's completion (its slot 9) differs: sets it (slot 10) and sends message 0x2977AE2F with the building. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::UpdateDrawn"
+address = 0x005CA960
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this)"
+expect = "51 53 56 57 8B F1 8B 0D"
+source = "Name ours, not analysed. Flag 2 of the occupant and the model in or out of the renderer, by whether the view's filter shows the occupant. Drawing. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::AllocateGeometry"
+address = 0x005CAD60
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this)"
+expect = "81 EC B8 00 00 00 53 55"
+source = "Name ours, not analysed. The vertex buffers (+0xDC to +0xF4) allocated and the boxes and heights worked out from the building's box and the terrain. Drawing. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Setup5CB9F0"
+address = 0x005CB9F0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this, void* records)"
+expect = "83 EC 3C 56 57 8B F9 8B"
+source = "Name ours, not analysed. SetLot's first setup step with the eight 0x18-byte records (asks the lot and the city). Drawing. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Setup5CBC10"
+address = 0x005CBC10
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this)"
+expect = "83 EC 14 53 55 56 57 68"
+source = "Name ours, not analysed. A setup step of SetLot: makes a 0x94-byte visual effect prop. Drawing. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::SendMessage"
+address = 0x005CBD20
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this, uint32_t id, uint32_t value)"
+expect = "57 6A 2C 8B F9 E8 B0 76"
+source = "Name ours, not analysed. Sends a message with the given ID (0x49E7B1E2, 0xC9E7B1E8) about the occupant through the message server. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Setup5CBE10"
+address = 0x005CBE10
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this, float angle)"
+expect = "D9 44 24 04 83 EC 54 D8"
+source = "Name ours, not analysed. A setup step of SetLot when +0x104 is set, with the float at +0x178 (an angle, wrapped). Drawing. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::SetHeight"
+address = 0x005CC020
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this, float height)"
+expect = "8B 44 24 04 83 EC 4C 56"
+source = "Name ours, not analysed. The scaffolding's height (+0xD0) and the geometry that follows from it. Drawing. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Setup5CE360"
+address = 0x005CE360
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this, void* records)"
+expect = "51 56 8B F1 8B 4E 6C C6"
+source = "Name ours, not analysed. A setup step of SetLot (reads the building's exemplar). Drawing. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Setup5CEC20"
+address = 0x005CEC20
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this)"
+expect = "83 EC 1C 55 8B E9 D9 85"
+source = "Name ours, not analysed. A setup step of SetLot (makes an effect prop). Drawing. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Setup5CF380"
+address = 0x005CF380
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this)"
+expect = "83 EC 54 53 55 56 8B F1"
+source = "Name ours, not analysed. The last setup step of SetLot (asks the terrain). Drawing. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Setup5CF790"
+address = 0x005CF790
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this, void* records)"
+expect = "83 EC 64 53 8B 1D A0 2F"
+source = "Name ours, not analysed. A setup step of SetLot; draws from the class's random generator at 0x00B22FB0. Drawing. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Setup5CFA60"
+address = 0x005CFA60
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this, void* records, float* box)"
+expect = "83 EC 30 A1 C4 3C B4 00"
+source = "Name ours, not analysed. A setup step of SetLot, only at a detail preference of 3 or more; draws from the generator at 0x00B22FB0. Drawing. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Setup5CFC40"
+address = 0x005CFC40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this, float* box)"
+expect = "83 EC 34 53 55 56 57 8B"
+source = "Name ours, not analysed. A setup step of SetLot with a copy of the box at +0xC0; draws from the generator at 0x00B22FB0. Drawing. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::MoveEffects"
+address = 0x005CFE20
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4ConstructionOccupant* this)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours, not analysed. Each object of the vector at +0x130 gets a new random place in the box at +0xC0 (generator 0x00B22FB0) and is started (its slot 7). Drawing. Left the game's; ours call it at its address."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::Pool"
+address = 0x00B0A808
+kind = "data"
+source = "Name ours. The pool of the 0x1A0-byte construction occupants (+4, 0x00B0A80C, the current page; pages of 32 KB at address & 0xFFFF8000 with the free list at +8 and the used count at +0xC, 78 items each; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at count 0x4000003A)."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::DefaultFloat"
+address = 0x00B22F98
+kind = "data"
+source = "Name ours. A float the constructor copies into the transform, the boxes and the vector at +0x108 before it sets them (read as the game does)."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::StartCompletion"
+address = 0x00B22F94
+kind = "data"
+source = "Name ours. The float SetLot hands to SetCompletion at a construction's start."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::EndCompletion"
+address = 0x00B0A7F0
+kind = "data"
+source = "Name ours. The float Step hands to SetCompletion at a construction's end (1.0 in the exe's image)."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::DaysPerHeight"
+address = 0x00B0A7D8
+kind = "data"
+source = "Name ours. float: days per unit of height for the first stage and of the float at 0x00B0A7C8 for the stage between floors (1.0 in the image)."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::DaysPerHeightEnd"
+address = 0x00B0A7DC
+kind = "data"
+source = "Name ours. float: days per unit of height for the last stage (2.0 in the image)."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::FloorPause"
+address = 0x00B0A7C8
+kind = "data"
+source = "Name ours. float: the height the stage between floors stands for (3.0 in the image)."
+
+[[entry]]
+name = "cSC4ConstructionOccupant::RoundMagic"
+address = 0x00AA1E8C
+kind = "data"
+source = "Name ours. float 12582912.0 (1.5 * 2^23): added to a float, whose bits less 0x4B400000 are then the value rounded to an integer."
+
+[[entry]]
+name = "SC4Model::ConstructModelPart"
+address = 0x00801CF0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, int mostDerived)"
+expect = "8B C1 8B 4C 24 04 33 D2"
+source = "Name ours, not analysed. The constructor of the model part at +0x3C (vtable 0x00ABD4B4, its virtual base's 0x00ABD468). Drawing; called at its address."
+
+[[entry]]
+name = "SC4Model::DestroyModelPart"
+address = 0x00801810
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 46 04 C7 06"
+source = "Name ours, not analysed. The destructor of the model part: its own vtables back, the object at +8 released. Drawing; called at its address."
+
+[[entry]]
+name = "SC4Model::ConstructCorner"
+address = 0x00466E10
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B C1 8B 0D E8 15 B2 00"
+source = "Name ours. The constructor of a 0x18-byte record: three floats 1.0, then three copies of the float at 0x00B215E8; handed to the array constructor 0x0041D490."
+
+[[entry]]
+name = "SC4Stream::WriteTransform"
+address = 0x005DA8C0
+kind = "function"
+convention = "cdecl"
+signature = "cIGZOStream* (cIGZOStream* stream, const void* transform)"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. A 0x38-byte transform {serial, flags, matrix +4, translation +0x28, scale +0x34}: the flags byte, then the matrix with flag 4, the translation with 1, the scale with 2."
+
+[[entry]]
+name = "SC4Stream::ReadTransform"
+address = 0x005DA710
+kind = "function"
+convention = "cdecl"
+signature = "cIGZIStream* (cIGZIStream* stream, void* transform)"
+expect = "83 EC 30 53 56 57 8B 7C"
+source = "Name ours. The counterpart of WriteTransform (the transform reset to identity first when it had flags)."
+
+[[entry]]
+name = "SC4Stream::ReadMatrixAsTransform"
+address = 0x005DA930
+kind = "function"
+convention = "cdecl"
+signature = "cIGZIStream* (cIGZIStream* stream, void* transform)"
+expect = "83 EC 34 A1 44 30 B2 00"
+source = "Name ours. Nine floats into a transform's matrix, flag 4 set (the construction occupant's version 4 record)."
+
+[[entry]]
+name = "SC4Stream::WriteBox"
+address = 0x005DA600
+kind = "function"
+convention = "cdecl"
+signature = "cIGZOStream* (cIGZOStream* stream, const float* box)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Six floats."
+
+[[entry]]
+name = "SC4Stream::ReadBox"
+address = 0x005DA5B0
+kind = "function"
+convention = "cdecl"
+signature = "cIGZIStream* (cIGZIStream* stream, float* box)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Six floats."

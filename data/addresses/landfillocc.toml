@@ -1,0 +1,249 @@
+# The landfill occupant (cSC4LandfillOccupant, class ID 0x8A22BEBE, occupant type 0x6A11BD2B): code 0x00477100 to 0x00477765 (src/core/landfillocc_sim.cpp, the class map in src/core/landfillocc_sim.h). The two-argument constructor 0x00477270 and the pool allocator 0x00477320 are in landfillzone.toml.
+
+[[entry]]
+name = "cSC4LandfillOccupant::vftable"
+address = 0x00A8CE28
+kind = "vtable"
+expect = "30 71 47 00 F0 28 5E 00"
+source = "The primary cISC4LandfillOccupant vtable (10 slots, listed in src/core/landfillocc_sim.h; a pool's vtable follows at 0x00A8CE50). simulators.landfillocc.slots swaps slots 0, 3, 6 and 8; simulators.landfillocc.object copies it at the first construction."
+
+[[entry]]
+name = "cSC4LandfillOccupant::vftable_4"
+address = 0x00A8CDA0
+kind = "vtable"
+expect = "10 72 47 00 B0 29 5E 00"
+source = "Name ours. The cISC4Occupant part at +0x4 (34 slots; the base cSC4Occupant's and shared stubs except 0, 3, 9 and 10). simulators.landfillocc.slots swaps slots 0, 3, 9 and 10."
+
+[[entry]]
+name = "cSC4LandfillOccupant::vftable_8"
+address = 0x00A8CD84
+kind = "vtable"
+expect = "30 72 47 00 E0 29 5E 00"
+source = "Name ours. The cIGZSerializable part at +0x8 (6 slots: three thunks, Write 0x00477350, Read 0x00477560, GetGZCLSID 0x00477100). Slots 3 and 4 replaced by simulators.landfillocc.save, 0 and 5 by simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::vftable_C"
+address = 0x00A8CD20
+kind = "vtable"
+expect = "40 72 47 00 10 2A 5E 00"
+source = "Name ours. The property holder part at +0xC (25 slots: three thunks, the shared holder code, 22 the deleting destructor thunk 0x00477250, 23 the Write thunk 0x004774B0, 24 the Read thunk 0x004776A0). Slots 23 and 24 replaced by simulators.landfillocc.save, 0 by simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::vftable_20"
+address = 0x00A8CD08
+kind = "vtable"
+expect = "60 72 47 00 A0 06 5E 00"
+source = "Name ours. The exemplar holder part at +0x20 (cISCExemplarPropertyHolder, 5 slots: three thunks, SetPropertyExemplar 0x00458E60, the getter 0x0060CE80). Slot 0 replaced by simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::GetGZCLSID"
+address = 0x00477100
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 BE BE 22 8A C3 CC CC"
+source = "+0x8 slot 5: 0x8A22BEBE. Also called by the class registration at 0x00460832 (with the factory 0x004776B0), before any replacement is installed. Ours in simulators.landfillocc.slots (a slot swap)."
+
+[[entry]]
+name = "cSC4LandfillOccupant::QueryInterface"
+address = 0x00477130
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LandfillOccupant* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D 62 F2 15"
+source = "Primary slot 0: 0x2A15F262 the object, 1 and 0x26BB767E the object + 4, 0xE4FDA3D4 the object + 8, nothing else (the occupant base's QueryInterface is not asked: neither the class ID nor the holders' IIDs are answered). Ours in simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::Init"
+address = 0x004771B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LandfillOccupant* this)"
+expect = "83 C1 04 E9 D8 1A 17 00"
+source = "Primary slot 3: cSC4Occupant::Init on the object + 4 (a jump). Ours in simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::SetOrientation"
+address = 0x004771C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4LandfillOccupant* this, uint32_t orientation)"
+expect = "8B 44 24 04 89 41 60 B0"
+source = "Primary slot 8: +0x60 = orientation; true. Ours in simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::QueryInterfaceThunk4"
+address = 0x00477210
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4Occupant* this, uint32_t iid, void** object)"
+expect = "83 E9 04 E9 18 FF FF FF"
+source = "Name ours. +0x4 slot 0: this - 4, QueryInterface. Ours in simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::InitThunk4"
+address = 0x00477220
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4Occupant* this)"
+expect = "83 E9 04 E9 88 FF FF FF"
+source = "Name ours. +0x4 slot 3: this - 4, Init 0x004771B0 (which adds the 4 again). Ours in simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::QueryInterfaceThunk8"
+address = 0x00477230
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, uint32_t iid, void** object)"
+expect = "83 E9 08 E9 F8 FE FF FF"
+source = "Name ours. +0x8 slot 0 (and the word after the holder part's vtable): this - 8, QueryInterface. Ours in simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::QueryInterfaceThunkC"
+address = 0x00477240
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISCPropertyHolder* this, uint32_t iid, void** object)"
+expect = "83 E9 0C E9 E8 FE FF FF"
+source = "Name ours. +0xC slot 0: this - 0xC, QueryInterface. Ours in simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::DeletingDestructorThunk"
+address = 0x00477250
+kind = "function"
+convention = "thiscall"
+signature = "void* (cISCPropertyHolder* this, uint32_t flags)"
+expect = "83 E9 0C E9 98 04 00 00"
+source = "Name ours. +0xC slot 22: this - 0xC, the deleting destructor 0x004776F0; the only way to it (the base's Release calls the slot at the last reference). Ours in simulators.landfillocc.object's vtable copy."
+
+[[entry]]
+name = "cSC4LandfillOccupant::QueryInterfaceThunk20"
+address = 0x00477260
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISCExemplarPropertyHolder* this, uint32_t iid, void** object)"
+expect = "83 E9 20 E9 C8 FE FF FF"
+source = "Name ours. +0x20 slot 0: this - 0x20, QueryInterface. Ours in simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::Write"
+address = 0x00477350
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+0x8 slot 3 (this = object + 8): version 3, the occupant base's record, the tile ID, the orientation, the position, the plain flag as a byte (tools/re/save_schemas/landfillocc.py). Ours in simulators.landfillocc.save."
+
+[[entry]]
+name = "cSC4LandfillOccupant::UpdateBox"
+address = 0x004773D0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4LandfillOccupant* this)"
+expect = "D9 41 38 D8 25 FC CC A8"
+source = "Name ours. The box +0x44 to +0x58 from the position +0x38: 8 either way in x and z, from y up by 16. Only called by Read (0x004775CE); SetPosition has the same code inline. Ours as a plain function."
+
+[[entry]]
+name = "cSC4LandfillOccupant::GetBoundingBox"
+address = 0x00477420
+kind = "function"
+convention = "thiscall"
+signature = "void* (cISC4Occupant* this, float* low, float* high)"
+expect = "8B 51 40 8B 44 24 04 89"
+source = "Name ours. +0x4 slot 10: the stored box +0x44 and +0x50 copied out. Ours in simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::SetTileID"
+address = 0x00477450
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4LandfillOccupant* this, uint32_t tile)"
+expect = "83 EC 0C 53 56 8B F1 8B"
+source = "Primary slot 6: a new tile ID is stored at +0x5C and made the instance of the exemplar's resource key (exemplar slots 0x2C and 0x30 between AddRef and Release; the exemplar is not tested); the old ID is returned. Ours in simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::WriteThunk"
+address = 0x004774B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISCPropertyHolder* this, cIGZOStream* stream)"
+expect = "83 E9 04 E9 98 FE FF FF"
+source = "Name ours. +0xC slot 23: this - 4, Write. Ours in simulators.landfillocc.save."
+
+[[entry]]
+name = "cSC4LandfillOccupant::ConstructDefault"
+address = 0x004774C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LandfillOccupant* this)"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "Name ours (Ghidra's cSC4LandfillOccupant::cSC4LandfillOccupant; that name is the two-argument constructor's 0x00477270 in landfillzone.toml). The constructor without arguments: tile ID 0x02F10000, orientation 0, the flag clear, no SetFlag. Only reached by the factory's jump at 0x004776DC. Ours in simulators.landfillocc.object (a detour)."
+
+[[entry]]
+name = "cSC4LandfillOccupant::Read"
+address = 0x00477560
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "+0x8 slot 4 (this = object + 8): version 3 only; the fields Write wrote, then the box from the position. Ours in simulators.landfillocc.save."
+
+[[entry]]
+name = "cSC4LandfillOccupant::SetPosition"
+address = 0x00477600
+kind = "function"
+convention = "thiscall"
+signature = "void (cISC4Occupant* this, const float* position)"
+expect = "8B 44 24 04 8B 10 89 51"
+source = "Name ours. +0x4 slot 9: the position copied to +0x38 and the box made from it. Ours in simulators.landfillocc.slots."
+
+[[entry]]
+name = "cSC4LandfillOccupant::ReadThunk"
+address = 0x004776A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISCPropertyHolder* this, cIGZIStream* stream)"
+expect = "83 E9 04 E9 B8 FE FF FF"
+source = "Name ours. +0xC slot 24: this - 4, Read. Ours in simulators.landfillocc.save."
+
+[[entry]]
+name = "cSC4LandfillOccupant::Create"
+address = 0x004776B0
+kind = "function"
+convention = "cdecl"
+signature = "cSC4LandfillOccupant* ()"
+expect = "A1 2C 94 B0 00 8B 40 08"
+source = "The class factory (registered at 0x0046082D; a save's reader makes every saved landfill occupant with it): an item of the pool (inline), then a jump to the constructor without arguments. Ours in simulators.landfillocc.object (a detour)."
+
+[[entry]]
+name = "cSC4LandfillOccupant::DeletingDestructor"
+address = 0x004776F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4LandfillOccupant* this, uint32_t flags)"
+expect = "56 8B F1 8D 4E 04 C7 06"
+source = "Name ours. The class's vtables, cSC4Occupant::Destroy on the object + 4, and with flag 1 the item back to the pool 0x00B09428. Only reached through the thunk 0x00477250. Ours in simulators.landfillocc.object's vtable copy."
+
+[[entry]]
+name = "cSC4LandfillOccupant::Pool"
+address = 0x00B09428
+kind = "data"
+source = "Name ours. The pool of the 0x68-byte landfill occupants (vtable 0x00A8CE50, the same pool class as the props' pool 0x00B0A8E4; +4 the current page; pages of 8 KB at address & 0xFFFFE000 with the free list at +8 and the used count at +0xC; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at count 0x4000003A)."
+
+[[entry]]
+name = "cSC4LandfillOccupant::FloatZero"
+address = 0x00B21668
+kind = "data"
+source = "Name ours. The float both constructors copy into the position and the box (+0x38 to +0x58): 0.0 in the exe's image; read when used."
+
+[[entry]]
+name = "cSC4LandfillOccupant::FloatHalfTile"
+address = 0x00A8CCFC
+kind = "data"
+source = "Name ours. float 8.0: the box's half width and depth."
+
+[[entry]]
+name = "cSC4LandfillOccupant::FloatHeight"
+address = 0x00A8CD04
+kind = "data"
+source = "Name ours. float 16.0: the box's height."
