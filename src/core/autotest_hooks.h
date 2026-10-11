@@ -69,6 +69,11 @@ bool OnRunDay(const Day& day, const char* name);
 // `name`=<n>: true every n days of a run counted in days (not on its first).
 bool EveryRunDays(const Day& day, const char* name);
 
+// Runs `run(context)` with the window manager's DoModalWin replaced by one
+// that calls `player(window, depth)` and answers what it answers (as
+// ui_autotest.cpp's dialogs do). False when there is no window manager.
+bool RunModalPlayer(uint32_t (*player)(void* window, int depth), void (*run)(void* context), void* context);
+
 // A message of the given type with void 1 = object and data 2/3, to a
 // simulator's cIGZMessageTarget2 at +0x4 (its slot 3).
 void Deliver(void* simulator, uint32_t type, void* object, uint32_t data2, uint32_t data3);
