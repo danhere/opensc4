@@ -326,7 +326,24 @@ The small map in the corner is a window of class `cSC4WinMiniMap` (ID 0xCA318388
 
 `renderer.minimap.draw` is those three and the nine pixel routines under them (0x007A65D0 to 0x007A707D), translated instruction by instruction and entered with every register saved, like the data map's routines. Compare mode runs every update twice: ours, then everything it touched put back (the object, its pixels, the cell bits and both buffers' pixels), then the game's with the game's own routines under it, and the two results are compared byte for byte. An update that moves the pixels or the cells (the first, which makes them) cannot be repeated and is counted apart.
 
-Checked on the three tutorial cities, with and without the Data Views window open: 135 updates that had work to do (the rest find the picture up to date), no difference; the self-check is clean; screenshots match the game's (20 of 20 plain, 8 of 8 with the window open). The paint has no same-run comparison (it draws into the window; running it twice would draw twice), so only the screenshots check it. Eight of the twelve functions ran: three of the five row routines (0x007A6A70, 0x007A6BD0, 0x007A6EE0, for other picture scales) and the paint's pixel routine (0x007A6FB0) did not, and are written but unverified.
+Checked on the three tutorial cities, with and without the Data Views window open: 135 updates that had work to do (the rest find the picture up to date), no difference; the self-check is clean; screenshots match the game's (20 of 20 plain, 8 of 8 with the window open). The paint is compared the same way since the small windows' work (below): a window's paint draws into the window's canvas, a `cIGZBuffer` at +0x68, so the canvas is one more thing to put back and compare. A paint that makes the map's pixels cannot be repeated and is counted apart. Eight of the twelve functions ran: three of the five row routines (0x007A6A70, 0x007A6BD0, 0x007A6EE0, for other picture scales) and the paint's pixel routine (0x007A6FB0) did not, and are written but unverified.
+
+## Small windows
+
+A window's paint (window slot 88) does not go to the driver either: it draws into the window's canvas, a `cIGZBuffer` the window keeps at +0x68, which the window manager puts on screen later. So a paint can be checked like the map pictures, in the same run: ours, then the object and the pixels of its buffers put back, then the game's, and the two results compared byte for byte (`PaintCompared` in `terrain_draw.cpp`).
+
+The interface code left fourteen such functions as drawing (docs/ui.md). All are translated instruction by instruction; what could be tested decides which switch they are behind:
+
+- `renderer.windows.paints`: the loading screen's two draws (0x00777220, 0x007773B0; its picture object keeps buffers at +0xC, +0x10, +0x14 and +0x98) with the blend they use (0x00776C30), and the overlay picture's paint (0x00794100, which copies its picture at +0xE4 into the canvas). A test run reaches these. Compare mode covers the second loading draw (which calls the first and the blend) and the overlay picture.
+- `renderer.windows.paints_untested`: the paints of the progress bar (0x00797CC0), the info tip (0x00798710), the animation recorder (0x007943B0) and its frame (0x00794BF0), the pop-up menu (0x0079AA70) and its arrows (0x0079B0E0), the intro window (0x0079D490), the picture file dialog (0x0079D6B0), the advisor head view's Draw (0x004209D0) and the graph control's box (0x0076B660). No test opens these windows on screen, so this code has never run. It is in the tree so that the day a test reaches one, it can be compared at once.
+
+Checked on the three tutorial cities, with and without the Data Views window, plus a self-check; screenshots match the game's (20 of 20). What the comparison saw:
+
+- The mini map's paint: 149 paints, all of which drew, no difference.
+- The loading screen's draw: 12 calls a run, no difference, but only one a run changes anything in the object or its buffers, so this is a thin check.
+- The overlay picture's paint: thousands of calls a run, no difference, and none of them had anything to draw (the paint leaves early without a picture), so only its way out is verified.
+
+The translator learned tail calls for this (a `jmp` out of the function or through a pointer: the callee runs without our return address and its result is ours), one-operand `mul`, the sign branches and every set-on-condition.
 
 ## Water effects, sky and clouds
 

@@ -97,7 +97,7 @@ for a, mn, rest in ins:
         m = re.fullmatch(JUMP_TABLE, rest)
         tables[a] = (m.group(1), table_entries(int(m.group(2), 16), ins[0][0], ins[-1][0]))
         targets.update(tables[a][1])
-    elif mn.startswith('j'):
+    elif mn.startswith('j') and re.fullmatch(r'0x[0-9a-f]+', rest) and first <= int(rest, 16) <= last:
         targets.add(int(rest, 16))
 R32 = ('eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp', 'esp')
 R8 = {'al': ('eax', 0), 'bl': ('ebx', 0), 'cl': ('ecx', 0), 'dl': ('edx', 0), 'ah': ('eax', 8), 'bh': ('ebx', 8),
@@ -164,6 +164,8 @@ def cond(mn):
     kind = flag[0]
     if kind == 'cmp':
         a, b = flag[1], flag[2]
+        if mn in ('jns', 'js'):
+            return 'static_cast<int32_t>(%s - %s) %s 0' % (a, b, '>=' if mn == 'jns' else '<')
         s = lambda x: 'static_cast<int32_t>(%s)' % x
         return {'je': '%s == %s' % (a, b), 'jne': '%s != %s' % (a, b), 'jb': '%s < %s' % (a, b), 'jae': '%s >= %s' % (a, b),
                 'jbe': '%s <= %s' % (a, b), 'ja': '%s > %s' % (a, b), 'jl': '%s < %s' % (s(a), s(b)), 'jge': '%s >= %s' % (s(a), s(b)),
@@ -172,6 +174,7 @@ def cond(mn):
     if mn in ('je', 'jbe'): return '(%s) == 0' % v
     if mn in ('jne', 'ja'): return '(%s) != 0' % v
     if mn == 'jp': return 'Even(%s)' % v
+    if mn in ('jns', 'js'): return 'static_cast<%s>(%s) %s 0' % (flag[2], v, '>=' if mn == 'jns' else '<')
     if mn == 'jnp': return '!Even(%s)' % v
     w = flag[2]
     s = 'static_cast<%s>(%s)' % (w, v)
@@ -237,6 +240,12 @@ for a, mn, rest in ins:
             E('case %d: goto L_%x;' % (i, target))
         E('default: __debugbreak();')
         E('}')
+    elif mn == 'jmp' and (not re.fullmatch(r'0x[0-9a-f]+', rest) or not first <= int(rest, 16) <= last):
+        # A tail call: the callee returns to our caller, so it runs without
+        # our return address on the stack, and its result is ours.
+        E('esp += 4;')
+        E('DYNCALL(%s);' % (rest if rest.startswith('0x') else rd32(rest)))
+        E('return eax;')
     elif mn == 'jmp':
         E('goto L_%x;' % int(rest, 16))
     elif mn.startswith('j'):
@@ -313,14 +322,17 @@ for a, mn, rest in ins:
     elif mn == 'shrd':
         n = int(ops[2], 16)
         wr(ops[0], '(%s >> %d) | (%s << %d)' % (rd32(ops[0]), n, rd32(ops[1]), 32 - n))
+    elif mn == 'mul':
+        E('{ const uint64_t product = static_cast<uint64_t>(eax) * %s; '
+          'eax = static_cast<uint32_t>(product); edx = static_cast<uint32_t>(product >> 32); }' % rd32(ops[0]))
     elif mn == 'imul' and len(ops) == 1:
         E('{ const int64_t product = static_cast<int64_t>(static_cast<int32_t>(eax)) * static_cast<int32_t>(%s); '
           'eax = static_cast<uint32_t>(product); edx = static_cast<uint32_t>(static_cast<uint64_t>(product) >> 32); }' % rd32(ops[0]))
     elif mn in ('fidiv', 'fimul', 'fiadd', 'fisub'):
         k = mem(ops[0]); ty = 'int16_t' if k[0] == 'WORD' else 'int32_t'
         E('ST(0) = ST(0) %s static_cast<double>(M<%s>(%s));' % ({'fidiv': '/', 'fimul': '*', 'fiadd': '+', 'fisub': '-'}[mn], ty, k[1]))
-    elif mn in ('sete', 'setne'):
-        wr(ops[0], '(%s) ? 1u : 0u' % cond('je' if mn == 'sete' else 'jne'))
+    elif mn.startswith('set'):
+        wr(ops[0], '(%s) ? 1u : 0u' % cond('j' + mn[3:]))
     elif mn == 'not':
         wr(ops[0], '~%s' % rd32(ops[0]))
     elif mn == 'fsqrt': E('ST(0) = std::sqrt(ST(0));')
