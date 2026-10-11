@@ -121,6 +121,7 @@ struct Hook {
 struct Hooks {
     std::vector<Hook<FingerprintFn>> fingerprint;
     std::vector<Hook<LoadHookFn>> load;
+    std::vector<Hook<RegionHookFn>> region;
     std::vector<Hook<DayHookFn>> day;
 };
 
@@ -150,6 +151,11 @@ void RegisterFingerprintPart(const char* name, int order, FingerprintFn fn)
 void RegisterLoadHook(const char* name, int order, LoadHookFn fn)
 {
     Insert(Registry().load, name, order, fn);
+}
+
+void RegisterRegionHook(const char* name, int order, RegionHookFn fn)
+{
+    Insert(Registry().region, name, order, fn);
 }
 
 void RegisterDayHook(const char* name, int order, DayHookFn fn)
@@ -448,6 +454,9 @@ private:
             Quit(app);
             return;
         }
+
+        for (const auto& hook : Registry().region)
+            hook.fn(region);
 
         log::Write("autotest: loading %s (pop %d, tile %d,%d)", chosenPath.c_str(), chosenPopulation, x, z);
         const bool loaded = app->LoadCity(SC4String(chosenPath.c_str()), regionEntry);

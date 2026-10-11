@@ -17,6 +17,7 @@
 #include <cISC4SimGrid.h>
 
 class cISC4City;
+class cISC4Region;
 
 namespace opensc4::autotest {
 
@@ -25,6 +26,10 @@ using FingerprintFn = void (*)(cISC4City* city, std::string& line);
 
 // Runs once, right after the city has loaded.
 using LoadHookFn = void (*)(cISC4City* city);
+
+// Runs once with the region open, just before the city is loaded from it
+// (the region screen is still up then).
+using RegionHookFn = void (*)(cISC4Region* region);
 
 // The new day, in the simulator's tick. `first` is the run's start day;
 // `counted` is false when the run is timed in real seconds, not game days
@@ -39,6 +44,7 @@ using DayHookFn = void (*)(const Day& day);
 
 void RegisterFingerprintPart(const char* name, int order, FingerprintFn fn);
 void RegisterLoadHook(const char* name, int order, LoadHookFn fn);
+void RegisterRegionHook(const char* name, int order, RegionHookFn fn);
 void RegisterDayHook(const char* name, int order, DayHookFn fn);
 
 struct FingerprintPart {
@@ -46,6 +52,9 @@ struct FingerprintPart {
 };
 struct LoadHook {
     LoadHook(const char* name, int order, LoadHookFn fn) { RegisterLoadHook(name, order, fn); }
+};
+struct RegionHook {
+    RegionHook(const char* name, int order, RegionHookFn fn) { RegisterRegionHook(name, order, fn); }
 };
 struct DayHook {
     DayHook(const char* name, int order, DayHookFn fn) { RegisterDayHook(name, order, fn); }
