@@ -2622,6 +2622,67 @@ uint32_t __fastcall BeginByMode(char* self, void*, uint32_t again)
 }
 OPENSC4_THUNK(TSC4Effect_Begin, BeginByMode, 4)
 
+// An effect's render state by its kind (0x005B2260; taking a description
+// calls it with the description's kind, 0 to 7; other values do nothing):
+// the packed state at +0x1C is filled by SC4RenderState::Init from one of
+// eight rows of fourteen values, written here as the game pushes them (the
+// twelfth is a float: 0, 0.9 or 0.5).
+uint32_t SetEffectKindState(char* self, uint32_t kind)
+{
+    static const uint32_t kRows[8][14] = {
+        {1, 0, 1, 1, 1, 1, 0, 3, 4, 5, 4, 0, 1, 0xFFFFFFFF},
+        {1, 0, 1, 1, 1, 1, 0, 4, 4, 5, 4, 0, 1, 0xFFFFFFFF},
+        {1, 0, 0, 1, 1, 1, 0, 0xFFFFFFFF, 4, 5, 4, 0, 1, 0xFFFFFFFF},
+        {1, 1, 1, 1, 1, 1, 0, 3, 4, 5, 4, 0x3F666666, 1, 0xFFFFFFFF},
+        {1, 1, 1, 1, 1, 1, 0, 3, 4, 5, 4, 0x3F000000, 1, 0xFFFFFFFF},
+        {1, 0, 1, 1, 1, 1, 0, 3, 4, 1, 4, 0, 1, 0xFFFFFFFF},
+        {1, 0, 0, 1, 1, 1, 0, 0xFFFFFFFF, 4, 1, 4, 0, 1, 0xFFFFFFFF},
+        {1, 0, 1, 1, 1, 1, 0, 3, 0, 2, 4, 0, 1, 0xFFFFFFFF},
+    };
+    if (kind > 7)
+        return kind;
+    const uint32_t* const r = kRows[kind];
+    return CallThis<uint32_t>(addr::SC4RenderState_Init, self + 0x1C, r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7],
+                              r[8], r[9], r[10], r[11], r[12], r[13]);
+}
+
+StepMode g_kindStateMode = StepMode::Original;
+Call1Fn g_SC4Effect_SetKindState = nullptr;
+uint64_t g_kindStatesCompared = 0;
+
+// It writes only the effect: ours, what it left kept, the effect put back,
+// the game's.
+uint32_t __fastcall KindStateByMode(char* self, void*, uint32_t kind)
+{
+    if (g_kindStateMode == StepMode::Original)
+        return g_SC4Effect_SetKindState(self, nullptr, kind);
+    if (g_kindStateMode == StepMode::Ours)
+        return SetEffectKindState(self, kind);
+    char before[kEffectSize], mine[kEffectSize];
+    std::memcpy(before, self, kEffectSize);
+    SetEffectKindState(self, kind);
+    std::memcpy(mine, self, kEffectSize);
+    std::memcpy(self, before, kEffectSize);
+    const uint32_t result = g_SC4Effect_SetKindState(self, nullptr, kind);
+    ++g_kindStatesCompared;
+    if ((g_kindStatesCompared & (g_kindStatesCompared - 1)) == 0)
+        log::Write("water effects: effects.kind_state: %llu calls compared so far",
+                   static_cast<unsigned long long>(g_kindStatesCompared));
+    const bool same = std::memcmp(self, mine, kEffectSize) == 0;
+    char text[32];
+    std::snprintf(text, sizeof text, "kind %u ", kind);
+    // One name a kind, so the totals show which kinds a city has.
+    static const char* const kIds[9] = {
+        "effects.kind_state.0", "effects.kind_state.1", "effects.kind_state.2", "effects.kind_state.3",
+        "effects.kind_state.4", "effects.kind_state.5", "effects.kind_state.6", "effects.kind_state.7",
+        "effects.kind_state.other",
+    };
+    compare::Record(kIds[kind < 8 ? kind : 8], same, same ? std::string() : text + Hex(self + 0x1C, 8),
+                    same ? std::string() : text + Hex(mine + 0x1C, 8));
+    return result;
+}
+OPENSC4_THUNK(TSC4Effect_SetKindState, KindStateByMode, 4)
+
 // --- The particle pool ---------------------------------------------------------------------
 
 // Particles are kept on a free list (0x00B0A688, linked through each one's
@@ -4216,6 +4277,30 @@ const bool g_registeredBegin = registry::Register({
     "(docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallBegin,
+});
+
+bool InstallKindState(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4Effect_SetKindState ||
+          Detour(addr::SC4Effect_SetKindState, &TSC4Effect_SetKindState, &g_SC4Effect_SetKindState)))
+        return false;
+    g_kindStateMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects' render state by kind %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredKindState = registry::Register({
+    "renderer.effects.kind_state",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_SetKindState,
+    "An effect's render state by the kind of its description, one of eight rows of values; compare mode runs ours "
+    "and the game's on the same effect (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallKindState,
 });
 
 bool InstallGround(registry::Mode mode)
