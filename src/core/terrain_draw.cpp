@@ -4521,6 +4521,157 @@ void __cdecl DataMapResizeRows(EntryFrame* frame)
 }
 DATAMAP_ENTRY(TDataMapResizeRows, DataMapResizeRows, g_dataMapResizeRows, 4)
 
+// Seven more routines of the map picture (0x0079DC00 to 0x0079F61D): the
+// blended pixel, fill and ring, two coordinate setters, the blit of an icon
+// into the picture and the marking of the cells a simulator picks. Entered like the pixel
+// routines above.
+void* g_dataMapBlendPixel;
+void __cdecl DataMapBlendPixel(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "BlendPixel");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_blendpixel.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("data map: BlendPixel left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TDataMapBlendPixel, DataMapBlendPixel, g_dataMapBlendPixel, 0)
+
+void* g_dataMapSetCoordinate;
+void __cdecl DataMapSetCoordinate(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "SetCoordinate");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_setcoordinate.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("data map: SetCoordinate left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TDataMapSetCoordinate, DataMapSetCoordinate, g_dataMapSetCoordinate, 0)
+
+void* g_dataMapScaleCoordinate;
+void __cdecl DataMapScaleCoordinate(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "ScaleCoordinate");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_scalecoordinate.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("data map: ScaleCoordinate left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TDataMapScaleCoordinate, DataMapScaleCoordinate, g_dataMapScaleCoordinate, 0)
+
+void* g_dataMapBlendFill;
+void __cdecl DataMapBlendFill(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "BlendFill");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_blendfill.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("data map: BlendFill left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TDataMapBlendFill, DataMapBlendFill, g_dataMapBlendFill, 0)
+
+void* g_dataMapBlendRing;
+void __cdecl DataMapBlendRing(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "BlendRing");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_blendring.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("data map: BlendRing left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TDataMapBlendRing, DataMapBlendRing, g_dataMapBlendRing, 0)
+
+void* g_dataMapBlitIcon;
+void __cdecl DataMapBlitIcon(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "BlitIcon");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_bliticon.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("data map: BlitIcon left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TDataMapBlitIcon, DataMapBlitIcon, g_dataMapBlitIcon, 0)
+
+void* g_dataMapMarkCells;
+void __cdecl DataMapMarkCells(EntryFrame* frame)
+{
+    static bool seen = false;
+    DataMapPainterSeen(seen, "MarkCells");
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/datamap_markcells.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("data map: MarkCells left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TDataMapMarkCells, DataMapMarkCells, g_dataMapMarkCells, 4)
+
+bool InstallDataMapHelpers(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    const bool installed = Detour(addr::DataMap_BlendPixel, &TDataMapBlendPixel, &g_dataMapBlendPixel)
+                           && Detour(addr::DataMap_SetCoordinate, &TDataMapSetCoordinate, &g_dataMapSetCoordinate)
+                           && Detour(addr::DataMap_ScaleCoordinate, &TDataMapScaleCoordinate, &g_dataMapScaleCoordinate)
+                           && Detour(addr::DataMap_BlendFill, &TDataMapBlendFill, &g_dataMapBlendFill)
+                           && Detour(addr::DataMap_BlendRing, &TDataMapBlendRing, &g_dataMapBlendRing)
+                           && Detour(addr::DataMap_BlitIcon, &TDataMapBlitIcon, &g_dataMapBlitIcon)
+                           && Detour(addr::DataMap_MarkCells, &TDataMapMarkCells, &g_dataMapMarkCells);
+    if (installed)
+        log::Write("data map: helpers ours");
+    return installed;
+}
+
+const bool g_registeredDataMapHelpers = registry::Register({
+    "renderer.datamap.helpers",
+    "renderer/datamap",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::DataMap_BlendRing,
+    "Seven more routines of the map picture: the blended pixel, fill and ring, coordinate setters, the icon blit and "
+    "the cell marks; compared through renderer.datamap.picture's compare mode (docs/renderer.md, \"The data map\")",
+    true,
+    InstallDataMapHelpers,
+});
+
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),
 // translated instruction by instruction: the window's paint (0x007A79B0),
 // the terrain's pixels (0x007A7FF0), the picture brought up to date
