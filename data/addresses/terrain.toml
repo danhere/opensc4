@@ -1645,3 +1645,51 @@ kind = "function"
 convention = "thiscall"
 expect = "A1 50 C7 B4 00 53 8B 5C"
 source = "Name ours. (side, index, height, sea level): sets one edge vertex's heights in that side's skirt arrays. (docs/renderer.md, \"The terrain's messages\")."
+
+[[entry]]
+name = "cSTETerrainView3D::Draw"
+address = 0x0075BFD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 46 38"
+source = "Name ours. (render context): the terrain view's draw, called for each of its two passes. Reads two values from the terrain (+0x64, +0x68), gets the driver's dynamic buffers (0x0075CD40), sets the depth offset to -3 and the view's render state (0x00B4C800, set up on the first call), then runs the land frame (0x0075BEE0) or, when the context's +0x50 is set, the water pass (0x007572A0); puts the depth offset back; a debug draw (0x00759A80) follows when 0x00B4BC5C is set. (docs/renderer.md, \"The terrain view's draw\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DrawLandFrame"
+address = 0x0075BEE0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 57"
+source = "Name ours. (render context, dynamic buffers): a frame of the land: the rows brought up to date (0x00756750), the water rows when the view's +0xB8 asks, the textures dropped when the terrain's detail setting changed (0x00756CA0, 0x007571D0), the texture coordinates redone when the zoom or the rotation changed (0x007574D0, 0x007566C0), the skirt colours when +0x31 is clear, then the land pass, the land skirts and the grid. (docs/renderer.md, \"The terrain view's draw\")."
+
+[[entry]]
+name = "cSTETerrainView3D::OnZoomChanged"
+address = 0x007574D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 57 8B 7C 24"
+source = "Name ours. (render context): the zoom differs from the one kept at 0x00B4C70C: picks the zoom's textures (0x007571D0), redoes the texture coordinates and marks everything changed. (docs/renderer.md, \"The terrain view's draw\")."
+
+[[entry]]
+name = "cSTETerrainView3D::OnRotationChanged"
+address = 0x007566C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 8B 5C 24 18"
+source = "Name ours. (render context): the rotation differs from the one kept at 0x00B4C708: redoes the texture coordinates. (docs/renderer.md, \"The terrain view's draw\")."
+
+[[entry]]
+name = "cSTETerrainView3D::PickZoomTextures"
+address = 0x007571D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 55 8B 6C 24 18"
+source = "Name ours. (zoom): keeps the zoom at 0x00B4C70C and picks that zoom's values. (docs/renderer.md, \"The terrain view's draw\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DropTextures"
+address = 0x00756CA0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 33 C0 57 89"
+source = "Name ours. (): releases the terrain's textures (0x008090E0) and clears their pointers. (docs/renderer.md, \"The terrain view's draw\")."
