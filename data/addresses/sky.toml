@@ -322,7 +322,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, int32_t value)"
 expect = "8B 44 24 04 89 81 8C 01"
-source = "Name ours. Slot 4 of the base effect class (vtable 0x00AA0EA0): stores the value at +0x18C and passes whether it is 0 to the sub-object's 0x005B9E70. The stream emitter calls it with 0 (0x005B8B29)."
+source = "Name ours. Slot 4 of the base effect class (vtable 0x00AA0EA0): stores the value at +0x18C and passes whether it is 0 to the sub-object's 0x005B9E70. The stream emitter calls it with 0 (0x005B8B29). Ours in renderer.effects.ending."
 
 [[entry]]
 name = "SC4EffectB::SetStopped"
@@ -331,7 +331,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, int32_t value)"
 expect = "56 8B F1 8B 8E 78 02 00"
-source = "Name ours, not analysed. Slot 4 of the second effect class (vtable 0x00AA0C58)."
+source = "Name ours. Slot 4 of the second effect class (vtable 0x00AA0C58): an effect with an object at +0x278 and nothing at +0x18 passes the value to that object's slot 4, then SC4Effect::SetStopped. Ours in renderer.effects.ending."
 
 [[entry]]
 name = "SC4EffectBase::SetEnding"
@@ -340,7 +340,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4EffectBase* this, bool a, bool b)"
 expect = "56 8B F1 8A 46 05 32 C9"
-source = "Name ours, not analysed. Slot 0x20 of both effect classes' sub-objects (vtables 0x00AA0E58, 0x00AA0C10): stores its two arguments at +0xC and +0xD when the byte at +5 is set. SC4EffectBase::Finish calls it with (0, 0) (0x005B9D57)."
+source = "Name ours. Slot 0x20 of both effect classes' sub-objects (vtables 0x00AA0E58, 0x00AA0C10), for an effect whose byte +5 is set: the first argument kept at +0xC; set, the second kept at +0xD (and slot 4 called when that is set too), answer false; clear, the bytes +5 and +0xD cleared, every particle given back (slot 0x40), the list emptied, answer true. SC4EffectBase::Finish calls it with (0, 0) (0x005B9D57). Ours in renderer.effects.ending."
 
 [[entry]]
 name = "SC4EffectBase::LetGo"
