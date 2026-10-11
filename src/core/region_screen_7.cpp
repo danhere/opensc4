@@ -229,7 +229,7 @@ char* __fastcall RecordsErase(char* vector, void*, char* first, char* last)
 char* __fastcall Construct(char* self, void*)
 {
     This<void*>(addr::GZWin_Construct, self);
-    At<std::uintptr_t>(self, screen::kInterface) = addr::SC4RegionScreen_BaseVtableD8;
+    At<std::uintptr_t>(self, screen::kInterface) = addr::SC4KeyFilter_BaseVtable;
     At<std::uintptr_t>(self, screen::kTarget) = addr::cSC4TrafficSimulator_VtableBase4;
     At<std::uintptr_t>(self, 0x0) = addr::SC4RegionScreen_Vtable;
     At<std::uintptr_t>(self, screen::kInterface) = addr::SC4RegionScreen_VtableD8;
@@ -258,8 +258,8 @@ char* __fastcall Construct(char* self, void*)
     At<uint32_t>(self, 0x1F8) = 0;
     At<uint8_t>(self, 0x1FC) = 0;
     At<uint8_t>(self, 0x1FD) = 0;
-    This<uint32_t>(addr::GZWin_SetFlag, self, uint32_t{0x200000}, uint32_t{1});
-    This<uint32_t>(addr::GZWin_SetFlag, self, uint32_t{0x10000}, uint32_t{0});
+    This<uint32_t>(addr::GZWin_SetFlagDirect, self, uint32_t{0x200000}, uint32_t{1});
+    This<uint32_t>(addr::GZWin_SetFlagDirect, self, uint32_t{0x10000}, uint32_t{0});
     At<uint32_t>(self, screen::kClassId) = kWindowClass;
     // The seventeen message IDs the target will listen for.
     This<uint8_t>(addr::SC4MessageIdSet_InsertRange, messages,
@@ -590,8 +590,8 @@ void __fastcall BuildRecords(char* self, void*)
 
     char* const recordsEnd = At<char*>(self, screen::kRecords + 0x4);
     for (char* item = At<char*>(self, screen::kRecords); item != recordsEnd; item += record::kSize)
-        This<void>(addr::SC4RegionView_F7B5D50, At<void*>(self, screen::kMapWindow), item);
-    This<void>(addr::SC4RegionView_F7B5E20, At<void*>(self, screen::kMapWindow), uint32_t{0}, uint32_t{0});
+        This<void>(addr::cSC4WinRegionView_AddRecord, At<void*>(self, screen::kMapWindow), item);
+    This<void>(addr::cSC4WinRegionView_SetLabelLayout, At<void*>(self, screen::kMapWindow), uint32_t{0}, uint32_t{0});
     This<void>(addr::cSC4WinRegionScreen_LayOutMap, self);
 
     if (tiles.begin)

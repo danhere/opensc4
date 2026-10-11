@@ -250,7 +250,7 @@ void __fastcall MakeTerrainFromPicture(char* self, void*)
     void* const memory = Cdecl<void*>(addr::SC4_operator_new, uint32_t{0xF0});
     void* dialog = nullptr;
     if (memory) {
-        dialog = This<void*>(addr::SC4PictureFileDialog_Construct, memory);
+        dialog = This<void*>(addr::SC4UI_F79D810, memory);
         if (dialog)
             AddRef(dialog);
     }
@@ -270,7 +270,7 @@ void __fastcall MakeTerrainFromPicture(char* self, void*)
     Virtual<void>(Global<void*>(addr::SC4_Service43CE0), 0x28, dialog, uint32_t{1});
     if (Virtual<int32_t>(At<void*>(self, screen::kWinManager), 0xA4, dialog) != 0) { // DoModalWin
         uint32_t selection[5]; // filled by the dialog's file list; +8 is the path
-        if (This<uint8_t>(addr::SC4PictureFileDialog_GetSelection, dialog, static_cast<void*>(selection))) {
+        if (This<uint8_t>(addr::SC4UI_F79D650, dialog, static_cast<void*>(selection))) {
             Virtual<void*>(&path, 0x34, reinterpret_cast<void*>(selection[2])); // the string's Copy
             picked = 1;
         }
@@ -547,7 +547,7 @@ uint8_t __fastcall DoCommand(char* self, void*, uint32_t command, void* input, v
         break;
     }
     case kCmdViewDrop:
-        This<void>(addr::SC4RegionView_F7B5DB0, At<void*>(self, screen::kRegionView));
+        This<void>(addr::cSC4WinRegionView_Unpick, At<void*>(self, screen::kRegionView));
         break;
     case kCmdQuit: {
         void* const value = Virtual<void*>(input, params::kAt, uint32_t{0});

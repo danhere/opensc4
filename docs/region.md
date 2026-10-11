@@ -12,7 +12,7 @@ About 93 KB of game code in five parts (survey of 2026-10-10: vtables, the exe's
 | Regional city, `cSC4RegionalCity` (class 0x6A037C24, main vtable 0x00A8FB20): what the region knows of one city without loading it (name, position, size, population, neighbour connections and deals) | 0x004A74E0 to 0x004ADC00 | 25 KB, 115 functions | ours (`region.city.*`), below |
 | City files and pictures: opening a city file as a regional city (0x005DC220), file names (0x005DC400, 0x005DC790), serial numbers (0x005DBD40), the pictures a city file carries for the region map (resource type 0x8A2482B9) | 0x005DBC10 to 0x005DEA50 | 10 KB, 32 functions | ours (`region.files.*`) but the one drawing function, below |
 | Region screen window, `cSC4WinRegionScreen` (window ID 0xEA659793, vtable 0x00AB9260), with its scroll window, flat terrain map, tile records and sort, picture helpers: opening and closing a region, the controls and commands, the terrain made from a region picture | 0x007AA2A0 to 0x007B2440 | 31 KB, 121 functions | ours (`region.screen.*`) but the overlay's draw, below |
-| Region map window, `cSC4WinRegionView` (window class 0x2BA6BB97; vtables 0x00AB9698 and 0x00AB9664): the map the cities are picked on | 0x007B2440 to 0x007B7B00 | 22 KB | the game's |
+| Region map window, `cSC4WinRegionView` (window ID 0x2BA6BB97, vtable 0x00AB9658), with its picture grid and label procedure; and the region screen's overlay window (drifting marks, vtable 0x00AB88C0) | 0x007B2440 to 0x007B62D0, 0x007A9880 to 0x007AA2A0 | 18 KB, about 70 functions | ours (`region.view.*`) but two functions that draw, below |
 
 The application's own region code (choosing and loading the region at start, around 0x00497D00 to 0x00499700) belongs to `cSC4App`. The map is one large picture composed on the CPU from the cities' thumbnails ([ui-scaling.md](ui-scaling.md), "Text and the region view").
 
@@ -220,3 +220,41 @@ Unattended runs load their city from the start screen, so the region screen neve
 Not reached: everything that opens a dialog (region and city dialogs, import, delete, the picture import with `MakeTerrainFromPicture`), a real click on a tile and the open-city control, key messages, the glide of `Paint` with a target, scrolling by the pointer at the screen's edge.
 
 Parity (2026-10-10, the region, regional city, file and screen groups all on, the three switches, twelve saves for two days): the `scr` checksums of ours equal the original's in every run of every save. Whole-city verdicts: 10 of 12 same. Making Money day 90 differed in two runs of ours; run on its own the original gave two outcomes and ours one of them. Big City day 0 differed only in the second run of the first pair, with a lot checksum no earlier run had given; a control with the original on both sides gave the same value at the same place in the run order, so it comes from the order of the runs.
+
+## The region map window
+
+`cSC4WinRegionView` (0x128 bytes, window ID 0x2BA6BB97, made by the region screen's Init and kept at screen +0xE0; main vtable 0x00AB9658, a painter interface 0x00AB9644 at +0xD8) is the map the cities are picked on. What follows it from 0x007B62D0 is a family of menu and option dialogs the city screen uses as well, not region code.
+
+- **The map is a grid of cached pictures**, not one large picture: the picture grid (0x44 bytes, interface 0xC989F960, at window +0x10C) keeps cells of 256 by 256 pixels, enough for the window plus one, each with a "stale" byte. The 3D view calls the grid in its draw pass (`SC4RegionViewGrid::Draw` 0x007B28B0), which has stale cells composed again and copies them to the screen picture. Moving the view (`SetViewPlace`, from the screen's `Paint`) shifts the cells with wrap-around and marks the ones that wrapped stale.
+- **Composing a cell** (`PaintArea` 0x007B4150, the painter's slot 3): the background picture tiled, then every tile record whose picture meets the cell. A record's map picture (+0x2C) is made on its first use: the city picture copied and tinted along the border runs (`CopyAndTint`), then outlined, each not fully opaque pixel laid over its neighbours below and to the right, with the runs where a row changes collected (`OutlineAndCollect`). The map picture is laid on by its runs (`BlendRuns`: whole runs copied where opaque, the rest blended pixel by pixel). Then city and mayor names through the game's text engine, the map-mode marks (airports and seaports), and the picked tile's outline (`TintRuns`).
+- **Picking:** `TileAt(x, y)` goes through the records from last to first: the point must be inside the picture's area and inside a run of the mask (binary search). `PickAt` and `Unpick` keep the picked record at +0xE4 and renew the labels. A record's label is a small window loaded from a layout (`MakeLabel`; `FillPanel` fills its controls: names, difficulty marks, population and jobs, budget, or the price of an empty tile).
+- **Markers:** `PlaceMarkers` gives a tile a marker picture and a running effect ('region_airport', 'region_seaport') per point of interest of its city.
+- **The overlay window** (`SC4RegionOverlayWin`, 0x140 bytes, window ID 0x6A0AF41D, at screen +0xE4) is a layer of drifting textured marks over the map, most likely the clouds: a list of marks with place, speed, one of four textures and an alpha, new ones made with a chance of 0.003 a frame, filled at start by area (`SetBounds`).
+
+### Replacements
+
+| Group | Functions |
+|---|---|
+| `region.view.part1` | the grid's MarkStale and Paint, Invalidate, BlendRuns, TintRuns, TilePlace, TileArea, the mode and flag setters, the label procedure, cell range helpers (16; [region_view_1.cpp](../src/core/region_view_1.cpp)) |
+| `region.view.part2` | the constructor, CopyAndTint, OutlineAndCollect, TileAt, the grid's MoveTo, ForgetRecords, the label procedure's object, cell vector helpers, thunks (18; [region_view_2.cpp](../src/core/region_view_2.cpp)) |
+| `region.view.part3` | PaintArea, SetViewPlace, FillPanel (3; [region_view_3.cpp](../src/core/region_view_3.cpp)) |
+| `region.view.part4` | Init, Shutdown, SetArea, the destructors, the grid's SetUp and Shutdown, PlaceMarkers, MakeLabel, TouchRecord, AddRecord, PickAt, Unpick, SetLabelLayout (15; [region_view_4.cpp](../src/core/region_view_4.cpp)) |
+| `region.view.overlay` | the overlay window but its paint: construct, Init, Shutdown, SetBounds, MakeMark, the setters; the two picture filter helpers 0x007AA0E0 and 0x007AA110 (12; [region_view_overlay.cpp](../src/core/region_view_overlay.cpp)) |
+
+Left the game's, for the renderer work: the grid's `Draw` (0x007B28B0: it sets the viewport and copies the grid to the screen picture inside the 3D view's draw pass) and the overlay's `Paint` (0x007A9D60: render states and vertices; it also steps the marks, so that step stays with it). Also left: two cell vector instances that copy a stack leftover into new cells, a generic service holder, a function of the next class. `BlendRuns`, `TintRuns` and `CopyAndTint` take arguments in registers and sit behind small assembly entries.
+
+### Odd things in the original, kept
+
+- `CopyAndTint` asks the source picture for its area twice and never the target, and never unlocks the source.
+- `PaintArea` tests a tile's visibility in its first loop with the picture's own area, not its place on the map.
+- `BlendRuns` decides by a run's first pixel whether the whole run is copied or blended.
+- `Init` returns 0 when the grid cannot be set up but leaves the window started.
+- The label procedure's turn is 6.28318, not two pi.
+
+### How it is tested
+
+With the region screen up (`OPENSC4_TEST_REGION_SCREEN=1`) and `OPENSC4_TEST_REGION_DRIVE=1`, the test's `map` checksum has: every record's place and area on the map; the tile found under a grid of points; the map composed through the grid into a picture of the test's own and read pixel by pixel, as it stands, with a tile picked (labels made and filled), and in each of the three modes; the view moved to three places and back, with the grid's state after each. The screen's start and the city load with the screen up run the window's Init, the records' hand-over, Shutdown and the destructors.
+
+Not reached: markers and their effects (the tutorial region's cities have no airports or seaports), the label of the tutorial tile and its flashing, the overlay's marks beyond their set-up (its paint is the game's and random by frame).
+
+Parity (2026-10-10, all 23 region groups on, the three switches, twelve saves for two days): the `scr` and `map` checksums of ours equal the original's in every run of every save. Whole-city verdicts: 11 of 12 same. Making Money day 365 gave two outcomes with ours and one with the original in this batch; the second outcome (one more job in one group, another lot checksum) is one the original itself gave on this save in the batch before.
