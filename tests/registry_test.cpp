@@ -21,6 +21,7 @@ bool ApplyA(Mode) { ++g_appliedA; return true; }
 bool ApplyB(Mode mode) { ++g_appliedB; g_modeB = mode; return true; }
 bool ApplyC(Mode) { ++g_appliedC; return false; } // e.g. its target was already patched
 bool ApplyLate(Mode) { ++g_appliedLate; return true; }
+bool ApplyOn(Mode) { return true; }
 
 int Fail(const char* what)
 {
@@ -75,7 +76,15 @@ int main()
     if (g_appliedLate != 1 || registry::ModeOf("test.late") != Mode::Ours)
         return Fail("test.late should be applied in its own phase");
 
-    // Compare is refused for replacements that do not support it.
+    // On by default: ours with nothing configured, original when the
+    // configuration says so.
+    registry::Register({"default.on", "default", Kind::Detour, Phase::LateInit, 0x8000, "on", false, ApplyOn, true});
+    registry::Register({"default.off", "default", Kind::Detour, Phase::LateInit, 0x9000, "off", false, ApplyOn, true});
+    SetEnvironmentVariableW(L"OPENSC4_REPLACE", L"default.off=original");
+    registry::Apply(Phase::LateInit, ini);
+    if (registry::ModeOf("default.on") != Mode::Ours || registry::ModeOf("default.off") != Mode::Original)
+        return Fail("a replacement that is on by default should be ours unless configured as original");
+
     registry::ResetForTests();
     SetEnvironmentVariableW(L"OPENSC4_REPLACE", L"test.a=compare,test.b=compare");
     WritePrivateProfileStringW(L"replacements", nullptr, nullptr, ini);
