@@ -13,6 +13,7 @@ add_library(opensc4_core_support STATIC
   interface_counter.cpp
   log.cpp
   registry.cpp
+  growify_command.cpp
   seed_code.cpp
   settings.cpp)
 target_link_libraries(opensc4_core_support
@@ -217,6 +218,7 @@ add_library(opensc4_core SHARED
   director.cpp
   fixed_seed.cpp
   game_autosave.cpp
+  game_growify.cpp
   game_seed.cpp
   game_timelapse.cpp
   gd/d3d11_backend.cpp
