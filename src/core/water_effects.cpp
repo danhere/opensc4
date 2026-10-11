@@ -727,12 +727,8 @@ uint32_t EmitterWatched(uint32_t target, Fn original, char* self, uint32_t step)
     return original(self, nullptr, step);
 }
 
-uint32_t __fastcall DEmitBurst(char* self, void*, uint32_t step)
-{
-    return EmitterWatched(addr::SC4Effect_EmitBurst, g_emitBurst, self, step);
-}
 void TEmitToCount();
-OPENSC4_THUNK(TEmitBurst, DEmitBurst, 4)
+void TEmitBurst();
 void TEmitStream();
 
 uint32_t __fastcall EmitByMode(char* self, void*)
@@ -1110,6 +1106,62 @@ uint32_t EmitStream(char* self, uint32_t step)
 #undef FCOM
 }
 
+// The emitter that emits in bursts (0x005B8B50, for descriptions with flag
+// 2 and not 4), translated instruction by instruction. It calls what the
+// stream emitter calls: a particle taken, stepped, added or given back, a
+// random number drawn, the effect's slot 4.
+uint32_t EmitBurst(char* self, uint32_t step)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = step;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_emit_burst.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+EmitMode g_emitBurstMode = EmitMode::Original;
+
+uint32_t __fastcall EmitBurstByMode(char* self, void*, uint32_t step)
+{
+    if (g_emitBurstMode == EmitMode::Original || g_effectRecord || g_effectReplay)
+        return g_emitBurst(self, nullptr, step);
+    if (g_emitBurstMode == EmitMode::Ours)
+        return EmitBurst(self, step);
+    struct Arguments {
+        char* self;
+        uint32_t step;
+    } arguments{self, step};
+    return RecordAndReplay(
+        "effects.emit_burst", self, false, [&] { return g_emitBurst(self, nullptr, step); },
+        [](void* a) {
+            const Arguments& args = *static_cast<Arguments*>(a);
+            return EmitBurst(args.self, args.step);
+        },
+        &arguments);
+}
+
+uint32_t __fastcall DEmitBurst(char* self, void*, uint32_t step)
+{
+    return EmitterWatched(addr::SC4Effect_EmitBurst, &EmitBurstByMode, self, step);
+}
+OPENSC4_THUNK(TEmitBurst, DEmitBurst, 4)
+
 EmitMode g_emitStreamMode = EmitMode::Original;
 
 uint32_t __fastcall EmitStreamByMode(char* self, void*, uint32_t step)
@@ -1388,6 +1440,36 @@ bool HookPool()
     return g_poolHooked;
 }
 
+bool HookEmitBurst()
+{
+    return g_emitBurst || Detour(addr::SC4Effect_EmitBurst, &TEmitBurst, &g_emitBurst);
+}
+
+bool InstallEmitBurst(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookEmitBurst())
+        return false;
+    if (mode == registry::Mode::Compare && !(HookFrees() && HookPool() && HookStepParticle()))
+        return false;
+    g_emitBurstMode = mode == registry::Mode::Compare ? EmitMode::Compare : EmitMode::Ours;
+    log::Write("water effects: burst emitter %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredEmitBurst = registry::Register({
+    "renderer.effects.emit_burst",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_EmitBurst,
+    "The emitter that emits particles in bursts (taking, stepping, adding and giving back particles still the "
+    "game's); compare mode records the game's run and replays ours, as renderer.effects.effect "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallEmitBurst,
+});
+
 bool HookEmitStream()
 {
     return g_emitStream || Detour(addr::SC4Effect_EmitStream, &TEmitStream, &g_emitStream);
@@ -1460,7 +1542,7 @@ bool InstallEmit(registry::Mode mode)
         return false;
     if (mode == registry::Mode::Compare &&
         !(HookEmitToCount() &&
-          Detour(addr::SC4Effect_EmitBurst, &TEmitBurst, &g_emitBurst) &&
+          HookEmitBurst() &&
           HookEmitStream()))
         return false;
     g_emitMode = mode == registry::Mode::Compare ? EmitMode::Compare : EmitMode::Ours;
