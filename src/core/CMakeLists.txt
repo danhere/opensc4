@@ -236,7 +236,9 @@ add_library(opensc4_core SHARED
   camera_control.cpp
   photo_mode.cpp
   terrain_view.cpp
+  terrain_autotest.cpp
   terrain_draw.cpp
+  terrain_queries.cpp
   view_objects.cpp
   water_effects.cpp
   d3d7_probe.cpp
