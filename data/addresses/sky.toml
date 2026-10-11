@@ -367,7 +367,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, SC4Particle* particle)"
 expect = "55 8B EC 83 E4 F8 83 EC"
-source = "Name ours, not analysed (477 instructions). Gives a particle just taken from the pool its first values from the effect and its description. Called by SC4EffectBase::TakeParticle (0x005B7C84) with the effect (the sub-object - 4)."
+source = "Name ours (477 instructions). Gives a particle just taken from the pool its first values: marked as running, age 0, a random life, and position, velocity and the rest up to +0x40 from the effect, its description and random numbers (generator 0x00B22DF8); descriptions with a flag of the mask at 0x00B22E18 go on to 0x005B71E0, which places the particle on the ground or ends it. Called by SC4EffectBase::TakeParticle (0x005B7C84) with the effect (the sub-object - 4). Ours in renderer.effects.start (src/core/effect_start.inc)."
 
 [[entry]]
 name = "SC4Particle::Clear"
