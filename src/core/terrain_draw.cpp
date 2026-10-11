@@ -5944,7 +5944,7 @@ std::vector<TerrainSlot> g_terrainSlots;
 constexpr uint32_t kTerrainGlobals = 0x120;
 
 // The globals and every block as they are now, for a comparison that puts
-// them back (empty until a build of ours has run in compare mode).
+// them back (empty until a build of ours has run: renderer.terrain.buffers).
 std::vector<Region> TerrainBufferRegions()
 {
     char* const globals = reinterpret_cast<char*>(0x00B4C6A0);
@@ -5990,10 +5990,6 @@ void __cdecl TerrainBuildBuffersOurs(EntryFrame* frame)
 // byte.
 void __cdecl TerrainBuildBuffers(EntryFrame* frame)
 {
-    if (!g_compareTerrainBuffers) {
-        TerrainBuildBuffersOurs(frame);
-        return;
-    }
     std::vector<TerrainSlot>& slots = g_terrainSlots;
     char* const globals = reinterpret_cast<char*>(0x00B4C6A0);
     constexpr uint32_t kGlobals = kTerrainGlobals;
@@ -6081,6 +6077,10 @@ void __cdecl TerrainBuildBuffers(EntryFrame* frame)
     // game's twice. A byte that differs between the game's two (a pointer to
     // something outside these blocks that each build makes anew) says nothing
     // and is left out.
+    // Without compare mode the build is done here: the blocks are known for
+    // the comparisons of the code that works on them.
+    if (!g_compareTerrainBuffers)
+        return;
     if (g_selfCheck) {
         clear();
         game();
@@ -6417,6 +6417,197 @@ const bool g_registeredTerrainMessages = registry::Register({
     "\"The terrain's messages\")",
     true,
     InstallTerrainMessages,
+});
+
+// The terrain view's own draw (docs/renderer.md, "The terrain view's draw"):
+// the function the 3D render calls for each of the view's passes, the land's
+// frame under it and four small helpers. Translated instruction by
+// instruction and entered like the pixel routines above.
+bool g_compareTerrainViewDraw;
+
+void* g_terrainViewDraw;
+void __cdecl TerrainViewDrawOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view draw: Draw call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainview_draw.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view draw: Draw left %d values on the x87 stack", top + 1);
+}
+
+// Compare mode: the whole draw twice in the same frame, like a pass. The
+// passes under it run the game's own code in both runs (as nested passes
+// always do), so this checks the draw and the land frame themselves.
+void __cdecl TerrainViewDraw(EntryFrame* frame)
+{
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    char* const context = reinterpret_cast<char*>(frame->arguments[0]);
+    if (!g_compareTerrainViewDraw || g_depth > 0) {
+        TerrainViewDrawOurs(frame);
+        return;
+    }
+    char* const terrain = At<char*>(self, 0x20);
+    if (terrain && Virtual<uint32_t>(terrain, 0xA8) != Global<uint32_t>(0x00B0D6FC)) {
+        compare::Record("terrain.viewdraw.unrepeatable", true, "", "");
+        TerrainViewDrawOurs(frame);
+        return;
+    }
+    // A frame that brings things up to date (the zoom or the rotation
+    // changed, the water rows or the colours are due) loads textures and
+    // rebuilds lists, and does not come out the same twice even in the
+    // game's own code: such frames are not repeated.
+    if (Global<uint32_t>(0x00B4C70C) != At<uint32_t>(context, 0x14) || Global<uint32_t>(0x00B4C708) != At<uint32_t>(context, 0x18) ||
+        At<uint8_t>(self, 0xB8) != 0 || At<uint8_t>(self, 0x31) == 0) {
+        compare::Record("terrain.viewdraw.unrepeatable", true, "", "");
+        TerrainViewDrawOurs(frame);
+        return;
+    }
+    std::vector<Region> regions = PassRegions(self, context);
+    regions.push_back({"terrain globals", reinterpret_cast<char*>(0x00B4C6A0), 0x1A0});
+    using DrawFn = uint32_t(__fastcall*)(char*, void*, char*);
+    const EntryFrame entry = *frame;
+    DrawCompared(g_selfCheck ? "terrain.viewdraw.selfcheck" : "terrain.viewdraw", regions,
+                 [&] {
+                     if (g_selfCheck) {
+                         g_dataMapGameRun = true;
+                         reinterpret_cast<DrawFn>(g_terrainViewDraw)(self, nullptr, context);
+                         g_dataMapGameRun = false;
+                     } else {
+                         *frame = entry;
+                         TerrainViewDrawOurs(frame);
+                     }
+                 },
+                 [&] {
+                     g_dataMapGameRun = true;
+                     frame->eax = reinterpret_cast<DrawFn>(g_terrainViewDraw)(self, nullptr, context);
+                     g_dataMapGameRun = false;
+                 });
+}
+DATAMAP_ENTRY(TTerrainViewDraw, TerrainViewDraw, g_terrainViewDraw, 4)
+
+void* g_terrainViewDrawLandFrame;
+void __cdecl TerrainViewDrawLandFrame(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view draw: DrawLandFrame call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainview_drawlandframe.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view draw: DrawLandFrame left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainViewDrawLandFrame, TerrainViewDrawLandFrame, g_terrainViewDrawLandFrame, 8)
+
+void* g_terrainViewOnZoomChanged;
+void __cdecl TerrainViewOnZoomChanged(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view draw: OnZoomChanged call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainview_onzoomchanged.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view draw: OnZoomChanged left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainViewOnZoomChanged, TerrainViewOnZoomChanged, g_terrainViewOnZoomChanged, 4)
+
+void* g_terrainViewOnRotationChanged;
+void __cdecl TerrainViewOnRotationChanged(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view draw: OnRotationChanged call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainview_onrotationchanged.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view draw: OnRotationChanged left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainViewOnRotationChanged, TerrainViewOnRotationChanged, g_terrainViewOnRotationChanged, 4)
+
+void* g_terrainViewPickZoomTextures;
+void __cdecl TerrainViewPickZoomTextures(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view draw: PickZoomTextures call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainview_pickzoomtextures.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view draw: PickZoomTextures left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainViewPickZoomTextures, TerrainViewPickZoomTextures, g_terrainViewPickZoomTextures, 0)
+
+void* g_terrainViewDropTextures;
+void __cdecl TerrainViewDropTextures(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view draw: DropTextures call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainview_droptextures.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view draw: DropTextures left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainViewDropTextures, TerrainViewDropTextures, g_terrainViewDropTextures, 0)
+
+bool InstallTerrainViewDraw(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareTerrainViewDraw = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::cSTETerrainView3D_Draw, &TTerrainViewDraw, &g_terrainViewDraw)
+                           && Detour(addr::cSTETerrainView3D_DrawLandFrame, &TTerrainViewDrawLandFrame, &g_terrainViewDrawLandFrame)
+                           && Detour(addr::cSTETerrainView3D_OnZoomChanged, &TTerrainViewOnZoomChanged, &g_terrainViewOnZoomChanged)
+                           && Detour(addr::cSTETerrainView3D_OnRotationChanged, &TTerrainViewOnRotationChanged, &g_terrainViewOnRotationChanged)
+                           && Detour(addr::cSTETerrainView3D_PickZoomTextures, &TTerrainViewPickZoomTextures, &g_terrainViewPickZoomTextures)
+                           && Detour(addr::cSTETerrainView3D_DropTextures, &TTerrainViewDropTextures, &g_terrainViewDropTextures);
+    if (installed)
+        log::Write("terrain view draw: %s", g_compareTerrainViewDraw ? "compared with the game's" : "ours");
+    return installed;
+}
+
+const bool g_registeredTerrainViewDraw = registry::Register({
+    "renderer.terrain.viewdraw",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_Draw,
+    "The terrain view's own draw: the function the render calls for its passes, the land's frame and four helpers; "
+    "compare mode as renderer.terrain.land (docs/renderer.md, \"The terrain view's draw\")",
+    true,
+    InstallTerrainViewDraw,
 });
 
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),
