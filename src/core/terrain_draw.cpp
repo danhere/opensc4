@@ -6716,6 +6716,492 @@ const bool g_registeredTerrainPick = registry::Register({
     InstallTerrainPick,
 });
 
+// A texture on a single cell (docs/renderer.md, "A cell's own texture"):
+// setting and clearing it, and the helpers that keep each row's records.
+// Translated instruction by instruction and entered like the pixel routines.
+bool g_compareCellTexture;
+
+void* g_terrainCellSetCellTexture;
+void __cdecl TerrainCellSetCellTextureOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: SetCellTexture call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_set.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: SetCellTexture left %d values on the x87 stack", top + 1);
+}
+
+// Compare mode for setting and clearing. Both change a row's two vectors,
+// which may move to a new block, so a run cannot simply be put back. Before
+// ours runs, the row's vectors are copied into blocks of the same capacity
+// from the game's allocator. After ours, the result is taken (the globals
+// and every buffer block with this row's vector pointers blanked, the
+// vectors' sizes and contents, the cell's flag byte), everything is put back
+// as it was but with the row's vectors now the copies, ours' vectors are
+// freed, and the game's runs from the same start. Needs our buffer build to
+// have run (renderer.terrain.buffers), which knows the blocks.
+template <typename Ours, typename Game>
+void CellTextureCompared(const char* id, char* self, uint32_t x, uint32_t z, Ours&& ours, Game&& game)
+{
+    const std::vector<Region> regions = TerrainBufferRegions();
+    const uint32_t columns = Global<uint32_t>(0x00B4C74C), rows = Global<uint32_t>(0x00B4C750);
+    char* const cells = self ? At<char*>(self, 0x14) : nullptr;
+    char* const cellData = cells ? At<char*>(cells, 0x6C) : nullptr;
+    if (regions.empty() || x >= columns || z >= rows || !cellData) {
+        compare::Record((std::string(id) + ".notcompared").c_str(), true, "", "");
+        ours();
+        return;
+    }
+    using AllocateFn = void*(__cdecl*)(size_t);
+    using FreeFn = void(__cdecl*)(void*);
+    const AllocateFn allocate = reinterpret_cast<AllocateFn>(addr::SC4_stl_allocate);
+    const FreeFn release = reinterpret_cast<FreeFn>(addr::SC4_Free);
+    struct Vector
+    {
+        char *begin, *end, *capacity;
+    };
+    Vector* const vectors[2] = {reinterpret_cast<Vector*>(Global<char*>(0x00B4C6B0) + z * 12),
+                                reinterpret_cast<Vector*>(Global<char*>(0x00B4C6AC) + z * 12)};
+    uint8_t* const flag = reinterpret_cast<uint8_t*>(cellData + 0x22 + (columns * z + x) * 0x24);
+    char* const extra = reinterpret_cast<char*>(0x00B4C7C0);
+    constexpr size_t kExtra = 0x40;
+    const auto snapshot = [&] {
+        std::vector<char> bytes;
+        for (const Region& region : regions)
+            bytes.insert(bytes.end(), region.data, region.data + region.size);
+        bytes.insert(bytes.end(), extra, extra + kExtra);
+        bytes.push_back(static_cast<char>(*flag));
+        return bytes;
+    };
+    // The result: the snapshot with this row's two vectors' pointers
+    // blanked, then each vector's size, capacity and contents.
+    const auto result = [&] {
+        std::vector<char> bytes = snapshot();
+        size_t at = 0;
+        for (const Region& region : regions) {
+            for (Vector* const vector : vectors) {
+                char* const where = reinterpret_cast<char*>(vector);
+                if (where >= region.data && where + 12 <= region.data + region.size)
+                    std::memset(bytes.data() + at + (where - region.data), 0, 12);
+            }
+            at += region.size;
+        }
+        for (const Vector* const vector : vectors) {
+            const uint32_t sizes[2] = {static_cast<uint32_t>(vector->end - vector->begin),
+                                       static_cast<uint32_t>(vector->capacity - vector->begin)};
+            bytes.insert(bytes.end(), reinterpret_cast<const char*>(sizes), reinterpret_cast<const char*>(sizes + 2));
+            bytes.insert(bytes.end(), vector->begin, vector->end);
+        }
+        return bytes;
+    };
+    const std::vector<char> before = snapshot();
+    Vector copies[2] = {};
+    for (int i = 0; i < 2; ++i) {
+        const size_t capacity = static_cast<size_t>(vectors[i]->capacity - vectors[i]->begin);
+        const size_t size = static_cast<size_t>(vectors[i]->end - vectors[i]->begin);
+        if (capacity) {
+            copies[i].begin = static_cast<char*>(allocate(capacity));
+            std::memcpy(copies[i].begin, vectors[i]->begin, size);
+            copies[i].end = copies[i].begin + size;
+            copies[i].capacity = copies[i].begin + capacity;
+        }
+    }
+    if (g_selfCheck)
+        game();
+    else
+        ours();
+    const std::vector<char> first = result();
+    // Back to the start, on the copies.
+    const Vector made[2] = {*vectors[0], *vectors[1]};
+    size_t at = 0;
+    for (const Region& region : regions) {
+        std::memcpy(region.data, before.data() + at, region.size);
+        at += region.size;
+    }
+    std::memcpy(extra, before.data() + at, kExtra);
+    *flag = static_cast<uint8_t>(before[at + kExtra]);
+    for (int i = 0; i < 2; ++i) {
+        if (made[i].begin)
+            release(made[i].begin);
+        *vectors[i] = copies[i];
+    }
+    game();
+    const std::vector<char> second = result();
+    size_t differing = first.size() == second.size() ? 0 : 1, firstAt = 0;
+    for (size_t i = 0; i < first.size() && i < second.size(); ++i)
+        if (first[i] != second[i] && !differing++)
+            firstAt = i;
+    char detail[160];
+    std::snprintf(detail, sizeof detail, "cell %u, %u: %zu of %zu and %zu bytes differ (first at %zu)", x, z, differing, first.size(),
+                  second.size(), firstAt);
+    static uint32_t logged = 0;
+    if (differing && logged++ < 12)
+        log::Write("cell texture: %s: %s", id, detail);
+    const std::string name = std::string(id) + (g_selfCheck ? ".selfcheck" : "");
+    compare::Record(name.c_str(), !differing, "the game's result", detail);
+}
+
+void __cdecl TerrainCellSetCellTexture(EntryFrame* frame)
+{
+    if (!g_compareCellTexture) {
+        TerrainCellSetCellTextureOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const uint32_t x = frame->arguments[0], z = frame->arguments[1], texture = frame->arguments[2];
+    const EntryFrame entry = *frame;
+    using SetFn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t);
+    CellTextureCompared("terrain.celltexture.set", self, x, z,
+                        [&] {
+                            *frame = entry;
+                            TerrainCellSetCellTextureOurs(frame);
+                        },
+                        [&] {
+                            g_dataMapGameRun = true;
+                            frame->eax = reinterpret_cast<SetFn>(g_terrainCellSetCellTexture)(self, nullptr, x, z, texture);
+                            g_dataMapGameRun = false;
+                        });
+}
+DATAMAP_ENTRY(TTerrainCellSetCellTexture, TerrainCellSetCellTexture, g_terrainCellSetCellTexture, 12)
+
+void* g_terrainCellClearCellTexture;
+void __cdecl TerrainCellClearCellTextureOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: ClearCellTexture call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_clear.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: ClearCellTexture left %d values on the x87 stack", top + 1);
+}
+
+void __cdecl TerrainCellClearCellTexture(EntryFrame* frame)
+{
+    if (!g_compareCellTexture) {
+        TerrainCellClearCellTextureOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const uint32_t x = frame->arguments[0], z = frame->arguments[1];
+    const EntryFrame entry = *frame;
+    using ClearFn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t);
+    CellTextureCompared("terrain.celltexture.clear", self, x, z,
+                        [&] {
+                            *frame = entry;
+                            TerrainCellClearCellTextureOurs(frame);
+                        },
+                        [&] {
+                            g_dataMapGameRun = true;
+                            frame->eax = reinterpret_cast<ClearFn>(g_terrainCellClearCellTexture)(self, nullptr, x, z);
+                            g_dataMapGameRun = false;
+                        });
+}
+DATAMAP_ENTRY(TTerrainCellClearCellTexture, TerrainCellClearCellTexture, g_terrainCellClearCellTexture, 8)
+
+void* g_terrainCellInsertRecord;
+void __cdecl TerrainCellInsertRecord(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: InsertRecord call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_insertrecord.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: InsertRecord left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellInsertRecord, TerrainCellInsertRecord, g_terrainCellInsertRecord, 8)
+
+void* g_terrainCellGrowRecords;
+void __cdecl TerrainCellGrowRecords(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: GrowRecords call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_growrecords.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: GrowRecords left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellGrowRecords, TerrainCellGrowRecords, g_terrainCellGrowRecords, 20)
+
+void* g_terrainCellFillRecordVertices;
+void __cdecl TerrainCellFillRecordVertices(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: FillRecordVertices call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_fillvertices.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: FillRecordVertices left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellFillRecordVertices, TerrainCellFillRecordVertices, g_terrainCellFillRecordVertices, 12)
+
+void* g_terrainCellFillRecordColours;
+void __cdecl TerrainCellFillRecordColours(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: FillRecordColours call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_fillcolours.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: FillRecordColours left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellFillRecordColours, TerrainCellFillRecordColours, g_terrainCellFillRecordColours, 12)
+
+void* g_terrainCellBlankRecord;
+void __cdecl TerrainCellBlankRecord(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: BlankRecord call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_blankrecord.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: BlankRecord left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellBlankRecord, TerrainCellBlankRecord, g_terrainCellBlankRecord, 0)
+
+void* g_terrainCellCopyRecord;
+void __cdecl TerrainCellCopyRecord(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: CopyRecord call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_copyrecord.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: CopyRecord left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellCopyRecord, TerrainCellCopyRecord, g_terrainCellCopyRecord, 4)
+
+void* g_terrainCellCopyRecords;
+void __cdecl TerrainCellCopyRecords(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: CopyRecords call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_copyrecords.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: CopyRecords left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellCopyRecords, TerrainCellCopyRecords, g_terrainCellCopyRecords, 0)
+
+void* g_terrainCellFillRecords;
+void __cdecl TerrainCellFillRecords(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: FillRecords call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_fillrecords.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: FillRecords left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellFillRecords, TerrainCellFillRecords, g_terrainCellFillRecords, 0)
+
+void* g_terrainCellEraseRecord;
+void __cdecl TerrainCellEraseRecord(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: EraseRecord call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_eraserecord.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: EraseRecord left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellEraseRecord, TerrainCellEraseRecord, g_terrainCellEraseRecord, 4)
+
+void* g_terrainCellEraseEntry;
+void __cdecl TerrainCellEraseEntry(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: EraseEntry call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_eraseentry.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: EraseEntry left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellEraseEntry, TerrainCellEraseEntry, g_terrainCellEraseEntry, 4)
+
+void* g_terrainCellUpdateCellIndices;
+void __cdecl TerrainCellUpdateCellIndices(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: UpdateCellIndices call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_cellindices.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: UpdateCellIndices left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellUpdateCellIndices, TerrainCellUpdateCellIndices, g_terrainCellUpdateCellIndices, 8)
+
+void* g_terrainCellMoveRecordsUp;
+void __cdecl TerrainCellMoveRecordsUp(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: MoveRecordsUp call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_moveup.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: MoveRecordsUp left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellMoveRecordsUp, TerrainCellMoveRecordsUp, g_terrainCellMoveRecordsUp, 0)
+
+void* g_terrainCellMoveRecordsDown;
+void __cdecl TerrainCellMoveRecordsDown(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: MoveRecordsDown call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_movedown.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: MoveRecordsDown left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellMoveRecordsDown, TerrainCellMoveRecordsDown, g_terrainCellMoveRecordsDown, 0)
+
+void* g_terrainCellAssignRecord;
+void __cdecl TerrainCellAssignRecord(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("cell texture: AssignRecord call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terraincell_assignrecord.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("cell texture: AssignRecord left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainCellAssignRecord, TerrainCellAssignRecord, g_terrainCellAssignRecord, 4)
+
+bool InstallCellTexture(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareCellTexture = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::cSTETerrainView3D_SetCellTexture, &TTerrainCellSetCellTexture, &g_terrainCellSetCellTexture)
+                           && Detour(addr::cSTETerrainView3D_ClearCellTexture, &TTerrainCellClearCellTexture, &g_terrainCellClearCellTexture)
+                           && Detour(addr::cSTETerrainView3D_InsertRecord, &TTerrainCellInsertRecord, &g_terrainCellInsertRecord)
+                           && Detour(addr::cSTETerrainView3D_GrowRecords, &TTerrainCellGrowRecords, &g_terrainCellGrowRecords)
+                           && Detour(addr::cSTETerrainView3D_FillRecordVertices, &TTerrainCellFillRecordVertices, &g_terrainCellFillRecordVertices)
+                           && Detour(addr::cSTETerrainView3D_FillRecordColours, &TTerrainCellFillRecordColours, &g_terrainCellFillRecordColours)
+                           && Detour(addr::cSTETerrainView3D_BlankRecord, &TTerrainCellBlankRecord, &g_terrainCellBlankRecord)
+                           && Detour(addr::cSTETerrainView3D_CopyRecord, &TTerrainCellCopyRecord, &g_terrainCellCopyRecord)
+                           && Detour(addr::cSTETerrainView3D_CopyRecords, &TTerrainCellCopyRecords, &g_terrainCellCopyRecords)
+                           && Detour(addr::cSTETerrainView3D_FillRecords, &TTerrainCellFillRecords, &g_terrainCellFillRecords)
+                           && Detour(addr::cSTETerrainView3D_EraseRecord, &TTerrainCellEraseRecord, &g_terrainCellEraseRecord)
+                           && Detour(addr::cSTETerrainView3D_EraseEntry, &TTerrainCellEraseEntry, &g_terrainCellEraseEntry)
+                           && Detour(addr::cSTETerrainView3D_UpdateCellIndices, &TTerrainCellUpdateCellIndices, &g_terrainCellUpdateCellIndices)
+                           && Detour(addr::cSTETerrainView3D_MoveRecordsUp, &TTerrainCellMoveRecordsUp, &g_terrainCellMoveRecordsUp)
+                           && Detour(addr::cSTETerrainView3D_MoveRecordsDown, &TTerrainCellMoveRecordsDown, &g_terrainCellMoveRecordsDown)
+                           && Detour(addr::cSTETerrainView3D_AssignRecord, &TTerrainCellAssignRecord, &g_terrainCellAssignRecord);
+    if (installed)
+        log::Write("cell texture: %s", g_compareCellTexture ? "compared with the game's" : "ours");
+    return installed;
+}
+
+const bool g_registeredCellTexture = registry::Register({
+    "renderer.terrain.celltexture",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_SetCellTexture,
+    "A texture of its own on a single cell: set, clear and the row record helpers; compare mode needs "
+    "renderer.terrain.buffers, runs each set and clear twice from the same start and compares the buffers and the "
+    "row's records (docs/renderer.md, \"A cell's own texture\")",
+    true,
+    InstallCellTexture,
+});
+
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),
 // translated instruction by instruction: the window's paint (0x007A79B0),
 // the terrain's pixels (0x007A7FF0), the picture brought up to date
