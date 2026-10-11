@@ -9,6 +9,14 @@ The game's own interface classes, rewritten piece by piece like the simulators (
 | The MySim home and job tools (0x00437AF0 to 0x00439380) | 15 functions | ours (`ui.mysim_tools.part1`) |
 | The MySim dispatch and move-in tools (0x00439380 to 0x0043AA30) | 21 functions | ours (`ui.mysim_tools.part2`) |
 | The MySim picker's list of Sims and the import from The Sims (0x0043AA30 to 0x0043D0F0) | 19 functions | ours (`ui.mysim_tools.part2`, `part3`) |
+| What was left of the MySim's interface side (0x00424F30 to 0x0042C8E0, scattered): the two tool makers, Find, ShowResidence, ShowLocation, the picture buffer, the home filter, the MySim's advice class, two script setters | 11 functions | ours (`ui.mysim_panel.sim`) |
+| The paced head view (0x0054A5F0 to 0x0054A740): the advisor's head with a stopwatch, used by the advice popup | 5 functions | ours (`ui.mysim_panel.sim`) |
+| The MySim panel's tail (0x00771440 to 0x007723F0): the two advice lists, the MySim shown, a place selected, the recount, its window procedure and message handler | 8 functions; the panel's first part (0x0076E6B0 to 0x00771440) is still the game's | ours (`ui.mysim_panel.part1`) |
+| The news ticker of the city view (0x007723F0 to 0x00774450) and the five command buttons next to it | 20 functions | ours (`ui.mysim_panel.part1`, `part2`) |
+| The MySim picker dialog (0x00774560 to 0x00776BF0) | 19 functions | ours (`ui.mysim_dialog.part1`, `part2`, two in `ui.mysim_panel.part2`) |
+| A picture class of the city view (0x00776BF0 to 0x00777220), four functions of it | its blend routine (0x00776C30) is drawing code and stays the game's, as does the rest of the class | ours (`ui.mysim_dialog.part2`) |
+| The advice popup (0x00762BA0 to 0x00763790) | 12 functions | ours (`ui.dialogs.base`) |
+| The two budget windows (0x007637F0 to 0x00764820), two functions of a gauge control and six thunks shared by the dialogs | 27 functions | ours (`ui.dialogs.base`) |
 
 Still the game's in these ranges: generic string, list and smart-pointer code with callers all over the exe, and functions the compiler folded with unrelated classes.
 
@@ -18,6 +26,13 @@ None of this runs unless a window is open or the player clicks, so the usual par
 
 - `OPENSC4_TEST_ADVICE_WINDOW=<day>` (token `advwin`): for each of the seven advisors the controller's worst mood and advice list; the rows it hands the list control, caught by a stand-in list (three image strings, the message and the title as HTML, the flag, the advice); the head view made, given each mood, its models loaded, advanced and dropped, with no window; then the controller driven through its screens (shown, each advisor's advice and news, the overview, hidden), its state compared after every step. `OPENSC4_TEST_ADVISOR_DUMP=1` logs each step.
 - `OPENSC4_TEST_MYSIM_TOOLS=<day>` (token `mstools`): the picker's list of Sims; then for the MySim in the first place the home tool, the job tool and the dispatch tool, each made as its panel button makes it, swept over a grid of screen points, clicked on the first building it accepted, and ended. The MySims' own fields are in the fingerprint already, so a move or a new job shows there.
+
+- `OPENSC4_TEST_TICKER=<day>` (token `ticker`): a news ticker of the test's own making, with no window: every advice of the city added (the list is kept by priority), the news list's rows and the ticker's three rows caught by the stand-in list, the ticker moved on twelve times, the inactive advices purged, some removed. The advice window's switch does the same with the controller's list (`all` in its token), so both row builders see every advice of the city, a few thousand rows, not only the ones on show.
+- `OPENSC4_TEST_MYSIM_DIALOG=<day>` (token `msdlg`): the picker dialog run as the MySim panel runs it (made, Run, Close, released), with a stand-in for the window manager's modal loop that plays the player: the list sorted each way, rows picked, the name checked, a page button, the page strip's arrows and a picture button pressed through the window procedure. It does not press Accept.
+- `OPENSC4_TEST_BUDGET_WINDOWS=<day>` (token `budwin`): the two budget windows made as the budget simulator makes them and worked through their window procedures. In the game as shipped neither layout loads (the token reports 0 windows on both sides), so this compares the constructors' failed path only.
+- The tools' switch also calls the MySim's own panel methods: its picture buffer, Find (the camera sent to it), and the info tips over its home and its place, each put away again.
+
+Two workers translated the ticker's message handler (0x00772B60) independently, because it lay across their ranges; the two readings agreed call for call, and one was kept.
 
 What a function leaves in EAX by accident is not compared: `Show` and `Hide` return whatever their last call left (a reference count), and the first version of the test, which hashed it, differed on every save for that reason alone.
 
@@ -54,6 +69,18 @@ The home, job and move-in tools show a "yes" or "no" picture at the cursor and a
 
 Things the original does that ours keeps: the info tip's bar level for a lot value outside 1 to 3 comes from a stack slot that happens to hold 0; the dispatch tool's highlight takes two references on a figure and gives one back; a record made from an exemplar that lacks a property keeps stack garbage in that field.
 
+## The news ticker, the popup and the picker dialog
+
+The **news ticker** (0x84 bytes; the city view keeps it at +0x2DC) listens for the advisors' four advice messages and keeps the advices in a list by priority. It fills the news list with one row per advice (a twin of the advisor window's rows; a mood 0 title is plain red here and blinks only in the ticker) and shows up to three titles on a line that a timer scrolls: three seconds at rest, then a pixel every 40 ms for one line's height.
+
+The **advice popup** (0x18 bytes) queues the urgent advices it hears of and shows them one at a time in a modal window with the advisor's head: the page as HTML in the mood's colours, the window grown to the text (at most 450) and centred. It shows nothing while a mouse button is down, a modal window is up or the option is off.
+
+The **MySim picker dialog** (0x64 bytes) is what the MySim panel opens for an empty place: 21 pictures a page of the Sims from the picker's list, sortable by kind, sign or name, a name and biography box and a sign list; Accept moves the Sim in. Its Run loads the window, fills it and sits in the window manager's modal loop until Accept or Cancel.
+
+The **budget windows** (0x28 and 0x60 bytes; budget simulator slot 24 makes one or the other) show seven department sliders and three tax spinners. Their layouts (0x691A0FB4, 0xE91A0FA3) do not load in the game as shipped, so they look like leftovers of development; the game's real budget panel is other code.
+
+Things the original does that ours keeps: opening the large budget window overwrites the simulator's income totals until a spinner is moved; the ticker's scroll length is not set by its constructor; the page-number buttons of the dialog do not check their range.
+
 ## Parity
 
 Everything on this page on, with the script and MySim simulator groups (2026-10-10; folders `ui4-*`, `ui6-*`, `ui7-*` under `%LOCALAPPDATA%\opensc4\parity\`):
@@ -68,12 +95,25 @@ In every run of these legs the `advwin` and `mstools` tokens of ours are ones th
 
 One run died: a B run of an earlier batch with the MySim simulator ours and the interface code still the game's, with heap corruption on a free ten game days after its one tools drive. It did not happen again in 46 later runs (16 of them with 24 drives each, in the same configuration), on either side.
 
-A run of the original with the coverage meter and both switches (Big City with MySims, 8 days, no move-in; `analysis\cov-ui`) reaches 70 of the 95 functions. Not reached:
+**Second round** (everything on this page on; `ui9-*`, `ui11-*`):
 
-- the controller: QueryInterface and its thunk, and the two that add and remove an advice while the window is up (0x0041DA00, 0x0041D9B0). Its window procedure and message handler do run;
-- the head view: QueryInterface, its thunk and the frame-tick handler (0x00420100);
-- the dispatch tool: its occupant filter, the highlight, SetMySim, the pick under the cursor and the click (pick up, put down, double click), and Escape;
-- the move-in tool: nothing in that run. The move-in leg runs its constructor, Init and destructor; its mouse handlers are never called, since the test moves the MySim in without the tool's click;
-- the import from The Sims past "not installed" (file decoding, portrait masking, the zodiac lookup, the record copies): it needs that game's files or a made-up tree of them, and it rewrites `MySims.dat`.
+| Leg | Result |
+| --- | --- |
+| 12 saves, 7 days: the picker dialog, the advice window, the ticker and the budget windows driven | 10 same, 2 partly (a first B run off in the lots' token; both repeats matched) |
+| 12 saves, 7 days: a MySim moved in, then the tools, the dialog, the advice window and the ticker | 11 same; Rush Hour d0365 with six different saves from six runs, the original's three among them, and the same fingerprints every day |
+| `saves-mysim`, 30 days: the tools on ten days in a row, the dialog, the ticker | 3 same; Making Money m0060 with one token off on one day (below) |
 
-The list's rows are thinly compared: the runs looked at handed over one row in all.
+In every run of every leg the five interface tokens of ours are ones the original gave, and in the last two legs the original's own were the same in all of its runs. The ticker and the advice window each built 2,815 rows in Big City, the same on both sides.
+
+Making Money m0060 on day 25: the MySims' query hash had one value in the original's three runs and another in ours. In two earlier batches the original gave both of those values on that save and day (once in the same batch), with a MySim travelling by car; so it is the known noise, but this run alone does not show it.
+
+`Find` (the camera sent to the MySim) is behind `OPENSC4_TEST_MYSIM_FIND=1`: the camera travels on frame time, and with it on, the sweeps of later days stopped repeating even for the original. It ran in one leg with a single drive, where the tools' token still matched on all 12 saves.
+
+A run of the original with the coverage meter and every switch (Big City with MySims, 8 days; `analysis\cov-ui2`) reaches 129 of the 201 functions. Not reached:
+
+- the budget windows beyond their constructors: neither layout loads in the game as shipped;
+- the MySim panel's own eight functions: the test has no hold on the city view's live panel;
+- the advice popup's fill, close and window handler (no urgent advice comes up in the test cities), the gauge and the paced head view;
+- the dialog's Accept and its number formatter, and its destructor (the object outlives the test's release, on both sides);
+- the MySim's advice script hook; `Find`, the info tips and the picture buffer were added to the tools' switch after this run;
+- from the first round: the controller's and the head view's QueryInterface and the head's frame tick; the dispatch tool's filter, highlight, pick and click, and Escape; the move-in tool outside the move-in leg, and its mouse handlers always; the import from The Sims past "not installed" (it needs that game's files and rewrites `MySims.dat`).

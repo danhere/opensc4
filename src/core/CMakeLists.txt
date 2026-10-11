@@ -257,10 +257,17 @@ add_library(opensc4_core SHARED
   agent_order.cpp
   trace.cpp
   ui_advice_text_1.cpp
+  ui_autotest.cpp
+  ui_dialogs_base.cpp
   ui_advice_text_2.cpp
   ui_mysim_tools_1.cpp
   ui_mysim_tools_2.cpp
   ui_mysim_tools_3.cpp
+  ui_mysim_dialog_1.cpp
+  ui_mysim_dialog_2.cpp
+  ui_mysim_sim.cpp
+  ui_mysim_panel_1.cpp
+  ui_mysim_panel_2.cpp
   multi_instance.cpp)
 target_link_libraries(opensc4_core PRIVATE opensc4_core_support opensc4_dbpf opensc4_gzcom user32)
 set_target_properties(opensc4_core PROPERTIES OUTPUT_NAME core)

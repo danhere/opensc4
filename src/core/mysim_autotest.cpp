@@ -8,6 +8,8 @@
 
 #include <cISC4City.h>
 
+#include <windows.h>
+
 #include <cstdint>
 #include <cstdio>
 
@@ -396,6 +398,28 @@ void Tools(const Day& day)
                 Virtual<uint8_t>(tool, 0x38, uint32_t{0x1B}, uint32_t{0});
         }
     }
+    // The MySim's own panel methods: its picture, the camera sent to it,
+    // the info tip over its home and its place on the map, each put away
+    // again.
+    if (sim) {
+        void* picture = nullptr;
+        const uint8_t has = Virtual<uint8_t>(sim, 0x60, &picture); // GetBitmapBuffer
+        tools.Add(has);
+        tools.Add(picture != nullptr);
+        if (has && picture)
+            Virtual<uint32_t>(picture, 0x8);
+        // Find moves the camera, which travels on frame time: after it the
+        // sweeps of later days, and anything that depends on the view, no
+        // longer repeat. So only with OPENSC4_TEST_MYSIM_FIND=1.
+        if (EnvInt("OPENSC4_TEST_MYSIM_FIND", 0) &&
+            !(At<int32_t>(sim, 0x8) == 3 && !At<void*>(sim, 0x28) && At<void*>(sim, 0x2C)))
+            Virtual<void>(sim, 0x7C);
+        Virtual<void>(sim, 0x80);     // ShowResidence
+        Virtual<void>(sim, 0x84);     // HideResidence
+        Virtual<void>(sim, 0x88);     // ShowLocation
+        Virtual<void>(sim, 0x8C);     // HideLocation
+        tools.Add(At<int32_t>(sim, 0x8));
+    }
     std::snprintf(g_toolsToken, sizeof g_toolsToken, " mstools %d %08X sim %d clicks %d %08X", records, picker.h,
                   sim ? 1 : 0, clicks, tools.h);
     log::Write("autotest: MySim tools driven:%s", g_toolsToken);
@@ -405,6 +429,108 @@ void ToolsFingerprint(cISC4City*, std::string& line)
 {
     line += g_toolsToken;
 }
+
+// --- OPENSC4_TEST_MYSIM_DIALOG (docs/ui.md) ----------------------------------
+
+char g_dialogToken[120];
+char* g_dialog = nullptr;
+Fnv g_dialogHash;
+int g_dialogCount = -1;
+
+void AddDialogState(Fnv& f, char* dialog)
+{
+    const uint32_t count = At<uint32_t>(dialog, 0x40);
+    f.Add(count);
+    if (const uint32_t* const order = At<uint32_t*>(dialog, 0x14))
+        for (uint32_t i = 0; i < count && i < 4096; ++i)
+            f.Add(order[i]);
+    for (std::size_t at : {std::size_t{0x18}, std::size_t{0x20}, std::size_t{0x3C}, std::size_t{0x44}, std::size_t{0x48}})
+        f.Add(At<uint32_t>(dialog, at));
+    f.Add(At<uint8_t>(dialog, 0x1C));
+    f.Text(dialog + 0x28);
+}
+
+// What stands in for the window manager's modal loop while the dialog
+// runs: the player's part. The list sorted each way, rows picked, the name
+// checked, and a few buttons pressed through the dialog's window procedure
+// (a page, the page strip's arrows, a picture). Then it returns, as the loop
+// does when the dialog is closed.
+void __fastcall DialogPlayer(void*, void*, void*)
+{
+    char* const dialog = g_dialog;
+    Fnv& f = g_dialogHash;
+    g_dialogCount = At<int32_t>(dialog, 0x40);
+    AddDialogState(f, dialog);
+    using ByteFn = void(__thiscall*)(void*, uint32_t);
+    const struct {
+        std::uintptr_t sort;
+        uint32_t way;
+    } sorts[] = {{addr::SC4UI_F7753A0, 1}, {addr::SC4UI_F775410, 1}, {addr::SC4UI_F775410, 0},
+                 {addr::SC4UI_F7754B0, 1}, {addr::SC4UI_F7754B0, 0}, {addr::SC4UI_F7753A0, 0}};
+    for (const auto& sort : sorts) {
+        reinterpret_cast<ByteFn>(sort.sort)(dialog, sort.way);
+        AddDialogState(f, dialog);
+    }
+    for (const uint32_t row : {0u, 5u, 20u, 2u}) {
+        if (At<uint32_t>(dialog, 0x3C) + row >= At<uint32_t>(dialog, 0x40))
+            continue;
+        reinterpret_cast<ByteFn>(addr::SC4UI_F7757F0)(dialog, row);
+        AddDialogState(f, dialog);
+        f.Add(reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::SC4UI_F774FC0)(dialog));
+    }
+    void* const window = Virtual<void*>(At<void*>(dialog, 0x10), 0xC);
+    const uint32_t picture = Global<uint32_t>(0x00AB5208 + 4 * 3); // the fourth of the 21 picture buttons
+    for (const uint32_t id : {0x12345001u, 0x12345000u, 0xCA243E04u, 0x2A243DFAu, picture, 0x12345002u}) {
+        uint32_t message[4] = {3, 0x287259F6, id, 0};
+        f.Add(Virtual<uint8_t>(dialog + 0x8, 0xC, window, &message[0]));
+        AddDialogState(f, dialog);
+    }
+}
+
+// On that run day the MySim picker dialog is run as the MySim panel runs
+// it (made, Run, Close, released), with DialogPlayer in place of the
+// window manager's modal loop for the time of the run.
+void Dialog(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_MYSIM_DIALOG") || !game::IsBuild641())
+        return;
+    void* const manager = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_GetWinManager)();
+    char* const memory = static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x64));
+    if (!manager || !memory)
+        return;
+    char* const dialog = reinterpret_cast<char*(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F776560)(memory, 1);
+    Virtual<uint32_t>(dialog, 0x4);
+    void** const slot = &(*static_cast<void***>(manager))[0xA4 / sizeof(void*)]; // DoModalWin
+    void* const loop = *slot;
+    DWORD old = 0;
+    if (!VirtualProtect(slot, sizeof *slot, PAGE_READWRITE, &old)) {
+        Virtual<uint32_t>(dialog, 0x8);
+        return;
+    }
+    *slot = reinterpret_cast<void*>(&DialogPlayer);
+    g_dialog = dialog;
+    g_dialogHash = Fnv{};
+    g_dialogCount = -1;
+    reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4UI_F775CC0)(dialog); // Run
+    *slot = loop;
+    VirtualProtect(slot, sizeof *slot, old, &old);
+    AddDialogState(g_dialogHash, dialog);
+    reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4UI_F7766A0)(dialog); // Close
+    g_dialogHash.Add(At<void*>(dialog, 0x10) != nullptr);
+    g_dialogHash.Add(At<uint8_t>(dialog, 0x24));
+    Virtual<uint32_t>(dialog, 0x8);
+    g_dialog = nullptr;
+    std::snprintf(g_dialogToken, sizeof g_dialogToken, " msdlg %d %08X", g_dialogCount, g_dialogHash.h);
+    log::Write("autotest: MySim dialog driven:%s", g_dialogToken);
+}
+
+void DialogFingerprint(cISC4City*, std::string& line)
+{
+    line += g_dialogToken;
+}
+
+const FingerprintPart kDialogFingerprint{"mysim.dialog", 87, &DialogFingerprint};
+const DayHook kDialog{"mysim.dialog", 87, &Dialog};
 
 const FingerprintPart kToolsFingerprint{"mysim.tools", 86, &ToolsFingerprint};
 const DayHook kTools{"mysim.tools", 86, &Tools};
