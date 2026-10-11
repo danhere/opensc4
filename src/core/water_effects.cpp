@@ -464,7 +464,9 @@ bool Recorded(uint32_t target)
            (target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle ||
             target == addr::SC4EffectBase_AddParticle || target == addr::SC4EffectBase_GiveBackParticle ||
             target == addr::SC4EffectBaseB_GiveBackParticle || target == addr::SC4Effect_SpawnFromParticle ||
-            target == addr::SC4Effect_SetStopped || target == addr::SC4EffectB_SetStopped);
+            target == addr::SC4Effect_SetStopped || target == addr::SC4EffectB_SetStopped ||
+            target == addr::SC4EffectBase_SetEnding || target == addr::SC4EffectBase_LetGo ||
+            target == addr::SC4EffectBaseB_LetGo);
 }
 
 template <typename... Args>
@@ -1211,7 +1213,8 @@ uint32_t __fastcall DSC4Effect_PathVelocity(char* self, void*)
 }
 OPENSC4_THUNK(TSC4Effect_PathVelocity, DSC4Effect_PathVelocity, 0)
 OPENSC4_EFFECT_HOOK0(SC4Effect_StepFlag80000000)
-OPENSC4_EFFECT_HOOK0(SC4EffectBase_Finish)
+Call0Fn g_SC4EffectBase_Finish = nullptr;
+void TSC4EffectBase_Finish();
 // An effect's wandering (0x005B2730; the effect's draw calls it last for
 // descriptions with flag 0x800000, unless the effect has just ended),
 // translated instruction by instruction: a timer (+0x148) is lowered by the
@@ -1309,6 +1312,9 @@ OPENSC4_EFFECT_HOOK1(SC4EffectBaseB_GiveBackParticle)
 OPENSC4_EFFECT_HOOK1(SC4Effect_SpawnFromParticle)
 OPENSC4_EFFECT_HOOK1(SC4Effect_SetStopped)
 OPENSC4_EFFECT_HOOK1(SC4EffectB_SetStopped)
+OPENSC4_EFFECT_HOOK2(SC4EffectBase_SetEnding)
+OPENSC4_EFFECT_HOOK0(SC4EffectBase_LetGo)
+OPENSC4_EFFECT_HOOK0(SC4EffectBaseB_LetGo)
 
 // A particle effect's draw (0x005B8540, slot 0x24 of both effect classes),
 // translated instruction by instruction: the step added to the effect's
@@ -1430,9 +1436,15 @@ uint32_t RecordAndReplay(const char* id, char* self, bool checkResult, Game&& ga
     g_effectTaken.clear();
     g_effectChanges.clear();
     g_effectThread = GetCurrentThreadId();
+    // The function compared may itself be reached through a recording
+    // detour, which counts as one level of nesting: the calls it makes are
+    // the ones to record.
+    const int nested = g_effectNested;
+    g_effectNested = 0;
     g_effectRecord = true;
     const uint32_t result = game();
     g_effectRecord = false;
+    g_effectNested = nested;
     const std::vector<char> after = SaveEffect();
     const std::vector<char*> gameNodes = EffectNodes(self);
     g_effectClock = At<float>(self, 0x1FC);
@@ -1725,6 +1737,45 @@ uint32_t __fastcall DEmitToCount(char* self, void*, uint32_t step)
 }
 OPENSC4_THUNK(TEmitToCount, DEmitToCount, 4)
 
+// Whether an effect is over (0x005B9D40, on the sub-object at the effect's
+// +4; the effect's draw asks it last): with a particle left (+0x14) it is
+// not. With none, an effect marked at +0xC has its two marks cleared (its
+// slot 0x20 with two zeros), and one marked only at +0xD lets go of what it
+// holds (slot 0x14) and is released (slot 8); either way the answer is true.
+uint32_t FinishEffect(char* base)
+{
+    if (At<int32_t>(base, 0x14) != 0)
+        return 0;
+    if (At<uint8_t>(base, 0xC)) {
+        CallThisTraced(At<uint32_t>(At<char*>(base, 0), 0x20), base, 0u, 0u);
+        return 1;
+    }
+    if (!At<uint8_t>(base, 0xD))
+        return 0;
+    CallThisTraced(At<uint32_t>(At<char*>(base, 0), 0x14), base);
+    CallThisTraced(At<uint32_t>(At<char*>(base, 0), 0x8), base);
+    return 1;
+}
+
+StepMode g_finishMode = StepMode::Original;
+
+uint32_t __fastcall FinishByMode(char* base, void*)
+{
+    if (g_finishMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4EffectBase_Finish(base, nullptr);
+    if (g_finishMode == StepMode::Ours)
+        return FinishEffect(base);
+    return RecordAndReplay(
+        "effects.finish", base - 4, true, [&] { return g_SC4EffectBase_Finish(base, nullptr); },
+        [](void* b) { return FinishEffect(static_cast<char*>(b)); }, base);
+}
+
+uint32_t __fastcall DSC4EffectBase_Finish(char* base, void*)
+{
+    return EffectRecorded(addr::SC4EffectBase_Finish, &FinishByMode, base);
+}
+OPENSC4_THUNK(TSC4EffectBase_Finish, DSC4EffectBase_Finish, 0)
+
 uint32_t __fastcall DEffectDraw(char* self, void*, uint32_t step, uint32_t context)
 {
     if (g_trace != Trace::Off) {
@@ -1941,13 +1992,47 @@ bool HookPool()
                &g_SC4EffectBaseB_GiveBackParticle) &&
         Detour(addr::SC4Effect_SpawnFromParticle, &TSC4Effect_SpawnFromParticle, &g_SC4Effect_SpawnFromParticle) &&
         Detour(addr::SC4Effect_SetStopped, &TSC4Effect_SetStopped, &g_SC4Effect_SetStopped) &&
-        Detour(addr::SC4EffectB_SetStopped, &TSC4EffectB_SetStopped, &g_SC4EffectB_SetStopped);
+        Detour(addr::SC4EffectB_SetStopped, &TSC4EffectB_SetStopped, &g_SC4EffectB_SetStopped) &&
+        Detour(addr::SC4EffectBase_SetEnding, &TSC4EffectBase_SetEnding, &g_SC4EffectBase_SetEnding) &&
+        Detour(addr::SC4EffectBase_LetGo, &TSC4EffectBase_LetGo, &g_SC4EffectBase_LetGo) &&
+        Detour(addr::SC4EffectBaseB_LetGo, &TSC4EffectBaseB_LetGo, &g_SC4EffectBaseB_LetGo);
     if (g_poolHooked) {
         const addr::Entry* const uniform = addr_check::Find(addr::SC4Random_Uniform);
         g_poolHooked = uniform && hook::Install(*uniform, &DUniform, &g_uniform);
     }
     return g_poolHooked;
 }
+
+bool HookFinish()
+{
+    return g_SC4EffectBase_Finish ||
+           Detour(addr::SC4EffectBase_Finish, &TSC4EffectBase_Finish, &g_SC4EffectBase_Finish);
+}
+
+bool InstallFinish(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookFinish())
+        return false;
+    if (mode == registry::Mode::Compare && !(HookFrees() && HookPool()))
+        return false;
+    g_finishMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effect end check %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredFinish = registry::Register({
+    "renderer.effects.finish",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectBase_Finish,
+    "Whether an effect is over: with no particle left, a marked effect is ended or released; compare mode records "
+    "the game's run and replays ours, as renderer.effects.effect (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallFinish,
+});
 
 bool HookWander()
 {
@@ -2287,7 +2372,9 @@ bool InstallEffect(registry::Mode mode)
             ok = HookPull() && ok;
         bit <<= 1;
         hook(addr::SC4Effect_StepFlag80000000, &TSC4Effect_StepFlag80000000, &g_SC4Effect_StepFlag80000000);
-        hook(addr::SC4EffectBase_Finish, &TSC4EffectBase_Finish, &g_SC4EffectBase_Finish);
+        if (bits & bit)
+            ok = HookFinish() && ok;
+        bit <<= 1;
         if (bits & bit)
             ok = HookWander() && ok;
         bit <<= 1;
