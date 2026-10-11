@@ -362,6 +362,32 @@ Checked on the three tutorial cities: screenshots match the game's (20 of 20 eac
 
 For this the translator learned `adc` after an `add`, and to carry the flags of a jump to its target when the code above cannot fall into it; it reports where flags of different kinds meet and are then read. No branch of the translations already in the tree changes under the new rule.
 
+## The region view
+
+The region screen's code is the Region work's (docs/region.md), which left its four draw functions to the renderer. Unlike the windows above these do go to the driver, so they are compared like the terrain passes, in the same frame (`DrawCompared`).
+
+- **The picture grid** (`SC4RegionViewGrid::Draw`, 0x007B28B0): called in the 3D view's draw pass, it copies the grid of cached map pictures to the screen.
+- **The terrain overlay** (`SC4RegionOverlay::Draw`, 0x007AB630): a render state, four vertices on its stack and one draw through the render context it is given.
+- **The overlay window's paint** (`SC4RegionOverlayWin::Paint`, 0x007A9D60): the marks that drift over the region. Every frame it sets the driver up and draws each mark as a textured quad, then steps the marks by the time since the last frame, makes a new one with a chance of 0.003, and frees those past the right bound.
+- **The mask of a city's picture** (`SC4CityFiles::DrawPictureMask`, 0x005DCCF0).
+
+`renderer.region.draw` has the first three; `renderer.region.draw_untested` has the mask, which no test reaches, so that code has never run.
+
+The region screen is not drawn in an unattended run: the test puts it up and loads the city at once. `OPENSC4_TEST_REGION_HOLD=<ms>` (with `OPENSC4_TEST_REGION_SCREEN=1`) keeps it on screen for that long first.
+
+The overlay window's paint does not repeat by itself, so its comparison takes three steps:
+
+- The marks' nodes are put back with the window between the two runs, and a frame that would free a mark is not repeated (counted as unrepeatable).
+- The window's stopwatch keeps the clock's reading of its last restart, and the step moves every mark by the real time since then. Both are put back for the second run but cannot be compared byte for byte, since the second run starts later. The step is checked by its shape instead: in each run every mark must have moved by its speed times one same time.
+- A frame in which a mark is made ends with a new node at a different address in each run. Such a frame shows as a divergence in the list's links. They are counted on their own, and the self-check has them too.
+
+Checked with the region screen held for 20 seconds, three runs and a self-check:
+
+- The overlay window's paint: 50,897 frames compared. The drawing, the window and the marks are the same in all but 144 of them, and exactly 144 frames made a mark; the self-check has 54 of each in 18,029 frames. The step has the right shape in every frame. 280 frames freed a mark and were not repeated.
+- The picture grid and the terrain overlay are drawn once a run (the region's 3D view only redraws when something changes): no difference in the three runs, which is a thin check.
+
+There is no screenshot harness for the region screen, so the picture on screen is not compared.
+
 ## Water effects, sky and clouds
 
 **What draws after the models.** Besides the models, the 3D render calls objects that registered for one of four passes (`cSC43DRender::AddViewObject`, 0x007C5D90: pass 0 and 2 around the static pass, 3 and 5 around the moving-objects pass; each object's slot 0xC with the render context, in the order number's order). `diagnostics.trace.viewobjects` logs every registration; `OPENSC4_VIEWOBJECT_SKIP=<draw function>` leaves an object out, to see in a screenshot what it draws. In a loaded city (2026-10-10):
