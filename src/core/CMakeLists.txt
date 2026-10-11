@@ -180,6 +180,8 @@ add_library(opensc4_core SHARED
   bldgocc_sim.cpp
   occbase_autotest.cpp
   occbase_sim.cpp
+  propocc_autotest.cpp
+  propocc_sim.cpp
   landfill_sim.cpp
   seaport_autotest.cpp
   seaport_sim.cpp
