@@ -180,6 +180,21 @@ Left alone until Dan decides to take the project public (Dan, 2026-10-10: buildi
 
 - [ ] CI: a Windows reference build on every push. The workflow exists but is paused (manual trigger only, never run green); re-enable it and get it green
 
+## Improvements: the rules
+
+Decided (Dan, 2026-10-11): it is our game, so we improve it, but classic mode stays intact. These rules cover every "Beyond the original" section below.
+
+- **Behind a setting.** Each improvement is an option; with it off, the game behaves exactly like SC4, so the parity tests keep working.
+- **Saves and mods keep loading.** Old cities and NAM-style plugins still load. Anything that needs new save data (bigger maps, for one) is a new save format, not a change to the old one.
+- **Parity first.** An area is improved only after ours matches the original there, since "better" cannot be measured before that.
+- **Only assets we have rights to.** New or better textures and models are made by us or the community, never edited copies of EA's files.
+
+Ideas, not commitments (Dan may do some, all or none):
+- Faster, better rendering
+- Better textures (under the asset rule above; see modern asset formats below)
+- Larger maps (see bigger city tiles below)
+- New features (see ideas from newer games below)
+
 ## Beyond the original: bigger city tiles
 
 Asked by Dan (2026-10-08). Findings and plan: [docs/city-size.md](docs/city-size.md).
