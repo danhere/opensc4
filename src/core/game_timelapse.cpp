@@ -11,6 +11,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/save_app.h"
 #include "core/settings.h"
 
 #include <GZServPtrs.h>
@@ -93,7 +94,7 @@ SaveFn g_save = nullptr;
 // game's state, so no SEH guard (crash.h).
 bool __fastcall SaveCity(void* self, void* edx, const cIGZString& path, bool fast)
 {
-    const bool ok = g_save(self, edx, path, fast);
+    const bool ok = saves::SaveCity(reinterpret_cast<void*>(g_save), self, edx, &path, fast);
     // The city's own file: the game saves there whatever path it is given
     // (the autotest found SaveCity(path) saving in place).
     cISC4AppPtr app;
