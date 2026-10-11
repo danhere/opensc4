@@ -13,6 +13,8 @@
 #include "core/registry.h"
 #include "core/thunk.h"
 
+#include <windows.h>
+
 #include "core/gd/gd.h"
 
 #include <opensc4/addresses.h>
@@ -23,6 +25,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -355,9 +358,401 @@ uint32_t __fastcall DAfterDraw(char* self, void*)
     return Traced(4, g_afterDraw, self);
 }
 
+// --- An effect -----------------------------------------------------------------------------
+
+// The effect's draw changes the effect and frees memory, so it cannot run
+// twice. Its comparison runs the game's for real with the functions it calls
+// recorded (which, on what, with what, and what the two that steer it
+// answered), puts the effect back as it was, and runs ours with every call
+// only recorded and answered from the game's record; then the two records
+// and the two effects are compared, and the effect is put back as the game
+// left it.
+struct EffectCall {
+    uint32_t target, self, args[2];
+    bool operator==(const EffectCall& other) const
+    {
+        return target == other.target && self == other.self && args[0] == other.args[0] && args[1] == other.args[1];
+    }
+};
+bool g_effectRecord = false, g_effectReplay = false;
+int g_effectNested = 0;
+std::vector<EffectCall> g_effectGameCalls, g_effectOurCalls;
+std::vector<uint8_t> g_effectAnswers;
+std::size_t g_effectAnswer = 0;
+float g_effectClock = 0;
+
+// What a recorded call changed in the effect and its list nodes (the bytes
+// that differ after it, by their place in the saved copy), which the replay
+// applies at the same call: the effect's draw goes by what its steps leave
+// in the effect.
+constexpr std::size_t kEffectSize = 0x220;
+char* g_effectSelf = nullptr;
+std::vector<char*> g_effectNodes;
+std::vector<std::vector<std::pair<uint32_t, char>>> g_effectChanges;
+
+// The saved copy: the effect, then 13 bytes per list node (the head first):
+// the node and the first byte of its particle, which says whether the
+// particle is still running (the step clears it when the particle ends).
+char g_noParticle = 0;
+std::vector<char*> g_effectParticles;
+std::unordered_set<char*> g_effectNodeSet;
+
+char* EffectByte(std::size_t at)
+{
+    if (at < kEffectSize)
+        return g_effectSelf + at;
+    const std::size_t node = (at - kEffectSize) / 13, offset = (at - kEffectSize) % 13;
+    if (offset < 12)
+        return g_effectNodes[node] + offset;
+    return g_effectParticles[node];
+}
+
+std::vector<char> SaveEffect()
+{
+    std::vector<char> bytes(kEffectSize + g_effectNodes.size() * 13);
+    for (std::size_t at = 0; at < bytes.size(); ++at)
+        bytes[at] = *EffectByte(at);
+    return bytes;
+}
+
+void RestoreEffect(const std::vector<char>& bytes)
+{
+    for (std::size_t at = 0; at < bytes.size(); ++at)
+        *EffectByte(at) = bytes[at];
+}
+
+// The functions of the effect the comparison records in the game's run.
+bool Recorded(uint32_t target)
+{
+    for (const uint32_t address :
+         {addr::SC4Effect_StepParticle, addr::SC4Effect_Emit, addr::SC4Effect_BeforeParticles,
+          addr::SC4Effect_DrawParticlesTextured, addr::SC4Effect_DrawParticles, addr::SC4EffectB_DrawParticles,
+          addr::SC4Effect_NotDrawn, addr::SC4EffectB_NotDrawn, addr::SC4Effect_StepFlag2000,
+          addr::SC4Effect_PathVelocity, addr::SC4Effect_StepFlag80000000, addr::SC4EffectBase_Finish,
+          addr::SC4Effect_StepFlag800000}) {
+        if (target == address)
+            return true;
+    }
+    return false;
+}
+
+bool Steers(uint32_t target)
+{
+    return target == addr::SC4Effect_StepParticle || target == addr::SC4EffectBase_Finish;
+}
+
+template <typename... Args>
+uint32_t CallThisTraced(uint32_t target, void* self, Args... args)
+{
+    if (!g_effectReplay)
+        return reinterpret_cast<uint32_t(__thiscall*)(void*, Args...)>(target)(self, args...);
+    if (Recorded(target)) {
+        EffectCall call{target, reinterpret_cast<uint32_t>(self), {0, 0}};
+        std::size_t n = 0;
+        ((call.args[n++] = args), ...);
+        if (g_effectOurCalls.size() < g_effectChanges.size()) {
+            for (const auto& [at, value] : g_effectChanges[g_effectOurCalls.size()])
+                *EffectByte(at) = value;
+        }
+        g_effectOurCalls.push_back(call);
+    }
+    if (Steers(target))
+        return g_effectAnswer < g_effectAnswers.size() ? g_effectAnswers[g_effectAnswer++] : 0u;
+    return 0;
+}
+
+double CallFloatTraced(uint32_t target, void* self)
+{
+    if (!g_effectReplay)
+        return reinterpret_cast<double(__thiscall*)(void*)>(target)(self);
+    return g_effectClock;
+}
+
+uint32_t CallPlainTraced(uint32_t target, uint32_t argument)
+{
+    if (!g_effectReplay)
+        return reinterpret_cast<uint32_t(__cdecl*)(uint32_t)>(target)(argument);
+    return 0;
+}
+
+template <typename Fn, typename... Args>
+uint32_t EffectRecorded(uint32_t target, Fn original, char* self, Args... args)
+{
+    const bool record = g_effectRecord && g_effectNested == 0;
+    if (record) {
+        EffectCall call{target, reinterpret_cast<uint32_t>(self), {0, 0}};
+        std::size_t n = 0;
+        ((call.args[n++] = args), ...);
+        g_effectGameCalls.push_back(call);
+    }
+    const std::vector<char> before = record ? SaveEffect() : std::vector<char>();
+    ++g_effectNested;
+    const uint32_t result = original(self, nullptr, args...);
+    --g_effectNested;
+    if (record) {
+        // Nodes the call added to the list join the saved copy, whole: the
+        // game's run may free them again before it ends.
+        char* const head = g_effectNodes[0];
+        for (char* node = At<char*>(head, 0); node != head; node = At<char*>(node, 0)) {
+            if (g_effectNodeSet.insert(node).second) {
+                g_effectNodes.push_back(node);
+                g_effectParticles.push_back(At<char*>(node, 8));
+            }
+        }
+        const std::vector<char> after = SaveEffect();
+        std::vector<std::pair<uint32_t, char>> changes;
+        for (std::size_t at = 0; at < after.size(); ++at) {
+            if (at >= before.size() || after[at] != before[at])
+                changes.push_back({static_cast<uint32_t>(at), after[at]});
+        }
+        g_effectChanges.push_back(std::move(changes));
+        if (Steers(target))
+            g_effectAnswers.push_back(static_cast<uint8_t>(result));
+    }
+    return result;
+}
+
+#define OPENSC4_EFFECT_HOOK0(Name)                                                                                     \
+    Call0Fn g_##Name = nullptr;                                                                                        \
+    uint32_t __fastcall D##Name(char* self, void*) { return EffectRecorded(addr::Name, g_##Name, self); }              \
+    OPENSC4_THUNK(T##Name, D##Name, 0)
+#define OPENSC4_EFFECT_HOOK1(Name)                                                                                     \
+    Call1Fn g_##Name = nullptr;                                                                                        \
+    uint32_t __fastcall D##Name(char* self, void*, uint32_t a) { return EffectRecorded(addr::Name, g_##Name, self, a); } \
+    OPENSC4_THUNK(T##Name, D##Name, 4)
+#define OPENSC4_EFFECT_HOOK2(Name)                                                                                     \
+    Call2Fn g_##Name = nullptr;                                                                                        \
+    uint32_t __fastcall D##Name(char* self, void*, uint32_t a, uint32_t b)                                             \
+    {                                                                                                                  \
+        return EffectRecorded(addr::Name, g_##Name, self, a, b);                                                       \
+    }                                                                                                                  \
+    OPENSC4_THUNK(T##Name, D##Name, 8)
+
+OPENSC4_EFFECT_HOOK2(SC4Effect_StepParticle)
+OPENSC4_EFFECT_HOOK0(SC4Effect_Emit)
+OPENSC4_EFFECT_HOOK1(SC4Effect_BeforeParticles)
+OPENSC4_EFFECT_HOOK1(SC4Effect_DrawParticlesTextured)
+OPENSC4_EFFECT_HOOK1(SC4Effect_DrawParticles)
+OPENSC4_EFFECT_HOOK1(SC4EffectB_DrawParticles)
+OPENSC4_EFFECT_HOOK0(SC4Effect_NotDrawn)
+OPENSC4_EFFECT_HOOK0(SC4EffectB_NotDrawn)
+OPENSC4_EFFECT_HOOK1(SC4Effect_StepFlag2000)
+OPENSC4_EFFECT_HOOK0(SC4Effect_PathVelocity)
+OPENSC4_EFFECT_HOOK0(SC4Effect_StepFlag80000000)
+OPENSC4_EFFECT_HOOK0(SC4EffectBase_Finish)
+OPENSC4_EFFECT_HOOK1(SC4Effect_StepFlag800000)
+
+// A particle effect's draw (0x005B8540, slot 0x24 of both effect classes),
+// translated instruction by instruction: the step added to the effect's
+// clock (+0x110), its velocity worked out (+0x13C), each particle of the
+// list at +0x14 stepped (the class's slot 0x50; one that ends is unlinked
+// and released), new ones emitted (slot 0x3C), then with a render context
+// and particles the drawing (slot 0x38, the render state at +0x1C, slot 0x48
+// or 0x44), else slot 0x4C. Everything it calls is still the game's.
+uint32_t DrawEffect(char* self, uint32_t step, uint32_t context)
+{
+    uint32_t stackmem[160] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = step;
+    M<uint32_t>(esp + 8) = context;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_draw.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// While the game's run is recorded, what it frees is only noted and freed
+// once the comparison is over: until then the replay reads and writes the
+// nodes the game let go of, and nothing else may be given their memory.
+using FreeFn = void(__cdecl*)(void*);
+FreeFn g_free = nullptr, g_delete = nullptr;
+std::vector<std::pair<FreeFn*, void*>> g_effectFreed;
+DWORD g_effectThread = 0;
+
+// Other threads free memory too while the draw runs; only the drawing
+// thread's frees are held back.
+void __cdecl DFree(void* p)
+{
+    if (g_effectRecord && GetCurrentThreadId() == g_effectThread)
+        g_effectFreed.push_back({&g_free, p});
+    else
+        g_free(p);
+}
+
+void __cdecl DDelete(void* p)
+{
+    if (g_effectRecord && GetCurrentThreadId() == g_effectThread)
+        g_effectFreed.push_back({&g_delete, p});
+    else
+        g_delete(p);
+}
+
+void FreeNoted()
+{
+    for (const auto& [release, p] : g_effectFreed)
+        (*release)(p);
+    g_effectFreed.clear();
+}
+
+// The replay behind a guard: a fault in it (ours going another way than the
+// game's record) is reported as a divergence instead of ending the game.
+__declspec(noinline) bool TryDrawEffect(char* self, uint32_t step, uint32_t context, uint32_t* result)
+{
+    __try {
+        *result = DrawEffect(self, step, context);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+enum class EffectMode { Original, Ours, Compare };
+EffectMode g_effectMode = EffectMode::Original;
+
+// The effect's particle list: the head node (+0x14) and each node (next,
+// previous, the particle).
+std::vector<char*> EffectNodes(char* self)
+{
+    char* const head = At<char*>(self, 0x14);
+    std::vector<char*> nodes{head};
+    for (char* node = At<char*>(head, 0); node != head; node = At<char*>(node, 0)) {
+        // A broken list (a null or endless chain) is given back empty.
+        if (!node || nodes.size() > 100000)
+            return {};
+        nodes.push_back(node);
+    }
+    return nodes;
+}
+
+uint32_t EffectDraw(char* self, uint32_t step, uint32_t context)
+{
+    if (g_effectMode == EffectMode::Original || g_effectRecord || g_effectReplay)
+        return g_effectDraw(self, nullptr, step, context);
+    if (g_effectMode == EffectMode::Ours)
+        return DrawEffect(self, step, context);
+    const char* const id = "effects.effect";
+    g_effectSelf = self;
+    g_effectNodes = EffectNodes(self);
+    if (g_effectNodes.empty())
+        return g_effectDraw(self, nullptr, step, context);
+    g_effectParticles.assign(1, &g_noParticle);
+    for (std::size_t i = 1; i < g_effectNodes.size(); ++i)
+        g_effectParticles.push_back(At<char*>(g_effectNodes[i], 8));
+    g_effectNodeSet.clear();
+    g_effectNodeSet.insert(g_effectNodes.begin(), g_effectNodes.end());
+    const std::vector<char> before = SaveEffect();
+    g_effectGameCalls.clear();
+    g_effectAnswers.clear();
+    g_effectChanges.clear();
+    g_effectThread = GetCurrentThreadId();
+    g_effectRecord = true;
+    const uint32_t result = g_effectDraw(self, nullptr, step, context);
+    g_effectRecord = false;
+    const std::vector<char> after = SaveEffect();
+    const std::vector<char*> gameNodes = EffectNodes(self);
+    g_effectClock = At<float>(self, 0x1FC);
+    RestoreEffect(before);
+    g_effectOurCalls.clear();
+    g_effectAnswer = 0;
+    g_effectReplay = true;
+    uint32_t ourResult = 0;
+    const bool finished = TryDrawEffect(self, step, context, &ourResult);
+    g_effectReplay = false;
+    if (!finished) {
+        RestoreEffect(after);
+        FreeNoted();
+        char fault[160];
+        const std::size_t at = g_effectOurCalls.size();
+        const EffectCall last = at ? g_effectOurCalls[at - 1] : EffectCall{};
+        const EffectCall same = at && at <= g_effectGameCalls.size() ? g_effectGameCalls[at - 1] : EffectCall{};
+        std::snprintf(fault, sizeof fault, "fault after call %zu of %zu: %08X on %08X (%08X, %08X)", at,
+                      g_effectGameCalls.size(), last.target, last.self, last.args[0], last.args[1]);
+        const std::string ours = fault;
+        std::snprintf(fault, sizeof fault, "call %zu: %08X on %08X (%08X, %08X)", at, same.target, same.self,
+                      same.args[0], same.args[1]);
+        compare::Record(id, false, fault, ours);
+        return result;
+    }
+    const std::vector<char> mine(self, self + kEffectSize);
+    const std::vector<char*> ourNodes = EffectNodes(self);
+    RestoreEffect(after);
+    FreeNoted();
+    ++g_passesCompared;
+    g_drawsCompared += g_effectGameCalls.size();
+    if ((g_passesCompared & (g_passesCompared - 1)) == 0)
+        log::Write("water effects: %s: %llu draws, %llu calls compared so far", id,
+                   static_cast<unsigned long long>(g_passesCompared), static_cast<unsigned long long>(g_drawsCompared));
+    char text[96];
+    if (g_effectOurCalls != g_effectGameCalls) {
+        std::size_t at = 0;
+        while (at < g_effectOurCalls.size() && at < g_effectGameCalls.size() &&
+               g_effectOurCalls[at] == g_effectGameCalls[at])
+            ++at;
+        const auto describe = [&](const std::vector<EffectCall>& calls) {
+            if (at < calls.size())
+                std::snprintf(text, sizeof text, "call %zu of %zu: %08X on %08X (%08X, %08X)", at, calls.size(),
+                              calls[at].target, calls[at].self, calls[at].args[0], calls[at].args[1]);
+            else
+                std::snprintf(text, sizeof text, "%zu calls", calls.size());
+            return std::string(text);
+        };
+        const std::string game = describe(g_effectGameCalls);
+        compare::Record(id, false, game, describe(g_effectOurCalls));
+        return result;
+    }
+    if (gameNodes.empty() || ourNodes.empty()) {
+        std::string calls;
+        for (const EffectCall& call : g_effectGameCalls) {
+            std::snprintf(text, sizeof text, " %X", call.target);
+            if (calls.size() < 400)
+                calls += text;
+        }
+        compare::Record(id, false, (gameNodes.empty() ? "list broken;" : "list whole;") + calls,
+                        ourNodes.empty() ? "list broken" : "list whole");
+        return result;
+    }
+    if ((result & 0xFF) != (ourResult & 0xFF) || gameNodes != ourNodes) {
+        std::snprintf(text, sizeof text, "result %u, %zu particles", result & 0xFF, gameNodes.size() - 1);
+        const std::string game = text;
+        std::snprintf(text, sizeof text, "result %u, %zu particles", ourResult & 0xFF, ourNodes.size() - 1);
+        compare::Record(id, false, game, text);
+        return result;
+    }
+    if (std::memcmp(after.data(), mine.data(), kEffectSize) != 0) {
+        std::size_t at = 0;
+        while (after[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "effect+%zX ", at);
+        compare::Record(id, false, text + Hex(after.data() + at, 8), text + Hex(mine.data() + at, 8));
+        return result;
+    }
+    compare::Record(id, true, std::string(), std::string());
+    return result;
+}
+
 uint32_t __fastcall DEffectDraw(char* self, void*, uint32_t step, uint32_t context)
 {
-    return Traced(5, g_effectDraw, self, step, context);
+    if (g_trace != Trace::Off) {
+        g_calls.insert(g_calls.end(), {5u, reinterpret_cast<uint32_t>(self), step, context});
+        if (g_trace == Trace::Record)
+            return 0;
+    }
+    return EffectDraw(self, step, context);
 }
 
 uint32_t __fastcall DDecalDraw(char* self, void*, uint32_t step)
@@ -502,6 +897,75 @@ const bool g_registeredShore = registry::Register({
     InstallShore,
 });
 
+// The effect's draw has one detour, which the manager's comparison and the
+// effect's replacement share.
+bool HookEffectDraw()
+{
+    return g_effectDraw || Detour(addr::SC4Effect_Draw, &TEffectDraw, &g_effectDraw);
+}
+
+bool InstallEffect(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    if (mode == registry::Mode::Compare) {
+        // OPENSC4_EFFECT_HOOKS=<bits, hex> leaves recording hooks out (to
+        // find one that disturbs the game); OPENSC4_EFFECT_NOCOMPARE=1
+        // installs them without comparing.
+        const char* const pick = std::getenv("OPENSC4_EFFECT_HOOKS");
+        const uint32_t bits = pick ? std::strtoul(pick, nullptr, 16) : 0xFFFFFFFFu;
+        uint32_t bit = 1;
+        bool ok = true;
+        const auto hook = [&](std::uintptr_t address, void (*thunk)(), auto* original) {
+            if (bits & bit)
+                ok = Detour(address, thunk, original) && ok;
+            bit <<= 1;
+        };
+        hook(addr::SC4Effect_StepParticle, &TSC4Effect_StepParticle, &g_SC4Effect_StepParticle);
+        hook(addr::SC4Effect_Emit, &TSC4Effect_Emit, &g_SC4Effect_Emit);
+        hook(addr::SC4Effect_BeforeParticles, &TSC4Effect_BeforeParticles, &g_SC4Effect_BeforeParticles);
+        hook(addr::SC4Effect_DrawParticlesTextured, &TSC4Effect_DrawParticlesTextured,
+             &g_SC4Effect_DrawParticlesTextured);
+        hook(addr::SC4Effect_DrawParticles, &TSC4Effect_DrawParticles, &g_SC4Effect_DrawParticles);
+        hook(addr::SC4EffectB_DrawParticles, &TSC4EffectB_DrawParticles, &g_SC4EffectB_DrawParticles);
+        hook(addr::SC4Effect_NotDrawn, &TSC4Effect_NotDrawn, &g_SC4Effect_NotDrawn);
+        hook(addr::SC4EffectB_NotDrawn, &TSC4EffectB_NotDrawn, &g_SC4EffectB_NotDrawn);
+        hook(addr::SC4Effect_StepFlag2000, &TSC4Effect_StepFlag2000, &g_SC4Effect_StepFlag2000);
+        hook(addr::SC4Effect_PathVelocity, &TSC4Effect_PathVelocity, &g_SC4Effect_PathVelocity);
+        hook(addr::SC4Effect_StepFlag80000000, &TSC4Effect_StepFlag80000000, &g_SC4Effect_StepFlag80000000);
+        hook(addr::SC4EffectBase_Finish, &TSC4EffectBase_Finish, &g_SC4EffectBase_Finish);
+        hook(addr::SC4Effect_StepFlag800000, &TSC4Effect_StepFlag800000, &g_SC4Effect_StepFlag800000);
+        const addr::Entry* const release = addr_check::Find(addr::SC4_Free);
+        const addr::Entry* const destroy = addr_check::Find(addr::SC4_operator_delete);
+        if (!ok || !release || !destroy || !hook::Install(*release, &DFree, &g_free) ||
+            !hook::Install(*destroy, &DDelete, &g_delete))
+            return false;
+        const char* const off = std::getenv("OPENSC4_EFFECT_NOCOMPARE");
+        if (off && *off == '1') {
+            log::Write("water effects: effect hooks %08X installed, no comparison", bits);
+            return true;
+        }
+    }
+    if (!HookEffectDraw())
+        return false;
+    g_effectMode = mode == registry::Mode::Compare ? EffectMode::Compare : EffectMode::Ours;
+    log::Write("water effects: effect draw %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredEffect = registry::Register({
+    "renderer.effects.effect",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_Draw,
+    "A particle effect's draw: its clock, its particles stepped and ended, new ones emitted, then the drawing (the "
+    "steps themselves still the game's); compare mode runs the game's with its calls recorded, puts the effect "
+    "back, then ours answered from the record (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallEffect,
+});
+
 bool InstallEffects(registry::Mode mode)
 {
     if (!game::IsBuild641())
@@ -512,7 +976,7 @@ bool InstallEffects(registry::Mode mode)
           Detour(addr::SC4EffectsManager_DrawFlash, &TDrawFlash, &g_drawFlash) &&
           Detour(addr::SC4EffectsManager_StepShake, &TStepShake, &g_stepShake) &&
           Detour(addr::SC4EffectsManager_AfterDraw, &TAfterDraw, &g_afterDraw) &&
-          Detour(addr::SC4Effect_Draw, &TEffectDraw, &g_effectDraw) &&
+          HookEffectDraw() &&
           Detour(addr::SC4EffectDecal_Draw, &TDecalDraw, &g_decalDraw)))
         return false;
     if (!Detour(addr::SC4EffectsManager_Draw, &TEffects, &g_effects))
