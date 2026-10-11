@@ -282,6 +282,7 @@ add_library(opensc4_core SHARED
   cityview_autotest.cpp
   window_paint_autotest.cpp
   minimap_autotest.cpp
+  cityview_draw_autotest.cpp
   civic_autotest.cpp
   civic_init.cpp
   civic_object.cpp
