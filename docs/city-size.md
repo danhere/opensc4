@@ -184,6 +184,7 @@ Big-city saves differ from the game's in these records (the 16-bit sets, the lin
 ## Compatibility
 
 - **Record streams** ([save-format.md](save-format.md), "The record streams"): the vector and row readers refuse counts of 1,000,000 or more. A 512 by 512 grid has 262,144 cells, a 1024 by 1024 grid 1,048,576: over the limit if it is saved as one vector. The row writers only work for square grids.
+- **Serializer** ([save-format.md](save-format.md), "The serializer and the segment streams"): a saved object over 250,000 bytes gets a checksum of its first 250,000 bytes only (it still loads); a class with 10,000,000 objects or more does not load.
 - **Old saves:** unaffected. Standard sizes stay as they are.
 - **Bigger cities in vanilla SC4:** will not open. They need a new region marker and a save flag so the original game refuses them cleanly instead of crashing.
 - **Regions:** bigger tiles stay on the 1 km grid, so they mix with small, medium and large neighbours. Neighbour connections should work if they are made per edge cell (not checked); the region view and the thumbnails need the new size.
