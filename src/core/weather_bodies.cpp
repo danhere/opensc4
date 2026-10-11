@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 namespace opensc4::weather_sim {
 namespace {
@@ -64,13 +65,27 @@ double HeightAt(void* terrain, uint32_t x, uint32_t z)
 
 // 0x007283D0: rectangles of cells below the water level, grown along x
 // then z, at least `minimum` by `maximum` (either way round); marked in a
-// 256 by 256 scratch so no cell is taken twice. True when any was found.
+// scratch so no cell is taken twice. True when any was found. The game's
+// scratch is 256 by 256 on the stack, so a city past 256 cells overruns it
+// (docs/city-size.md, failure 1); ours keeps that layout for standard sizes
+// and grows for bigger ones.
 uint8_t __cdecl FindWaterBodies(void* terrain, BodyVector* bodies, uint32_t a, uint32_t b, uint32_t cellsX,
                                 uint32_t cellsZ, uint32_t widthX, uint32_t widthZ, const int32_t* rect)
 {
     static bool logged = false;
     FirstCall("FindWaterBodies", logged);
-    static uint8_t scratch[256][256];
+    static std::vector<uint8_t> cells(256 * 256);
+    static uint32_t stride = 256;
+    if (cellsX > cells.size() / stride || cellsZ > stride) {
+        const uint32_t rows = cellsX > 256 ? cellsX : 256;
+        stride = cellsZ > stride ? cellsZ : stride;
+        cells.assign(static_cast<std::size_t>(rows) * stride, 0);
+    }
+    struct {
+        uint8_t* base;
+        uint32_t stride;
+        uint8_t* operator[](uint32_t x) const { return base + static_cast<std::size_t>(x) * stride; }
+    } const scratch{cells.data(), stride};
     const uint32_t lo = b < a ? b : a;
     const uint32_t hi = a < b ? b : a;
     uint32_t xStart, zStart, xEnd, zEnd;

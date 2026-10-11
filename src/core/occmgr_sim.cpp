@@ -128,9 +128,10 @@ bool BigCities()
         if (!settings::GetBool("improvements", "big_cities", false))
             return false;
         for (const char* id : {"simulators.occmgr.cells", "simulators.occmgr.edit", "simulators.occmgr.queries",
-                               "simulators.occmgr.init", "simulators.occmgr.save", "simulators.occmgr.object"}) {
+                               "simulators.occmgr.init", "simulators.occmgr.save", "simulators.occmgr.object",
+                               "simulators.weather.bodies"}) {
             if (registry::ModeOf(id) != registry::Mode::Ours) {
-                log::Write("big cities: off, %s is not ours (the game's slots know only 192 cells)", id);
+                log::Write("big cities: off, %s is not ours (the game's own code knows only 256 cells)", id);
                 return false;
             }
         }
