@@ -179,11 +179,42 @@ def cond(mn):
     w = flag[2]
     s = 'static_cast<%s>(%s)' % (w, v)
     return {'jge': '%s >= 0' % s, 'jl': '%s < 0' % s, 'jle': '%s <= 0' % s, 'jg': '%s > 0' % s}[mn]
+FLAG_SETTERS = ('cmp', 'test', 'add', 'sub', 'and', 'or', 'xor', 'inc', 'dec', 'neg', 'shl', 'shr', 'sar', 'imul', 'mul',
+                'adc', 'sbb', 'idiv', 'div', 'shrd', 'call')
+def reads_flags_first(address):
+    # Whether the code from `address` on uses the flags before setting them.
+    for a2, mn2, _ in ins:
+        if a2 < address:
+            continue
+        if mn2 in ('adc', 'sbb') or mn2.startswith('set') or (mn2.startswith('j') and mn2 != 'jmp'):
+            return True
+        if mn2 in FLAG_SETTERS or mn2 in ('jmp', 'ret'):
+            return False
+    return False
+def note_jump(target):
+    # Forward: remember the flags for the label. Backward: the label was
+    # emitted with some flags already; a different kind is reported.
+    if target in seen_labels:
+        was = seen_labels[target]
+        if flag is not None and was is not None and flag[0] != was[0] and reads_flags_first(target):
+            print('note: jump back to %x with flags of another kind' % target, file=sys.stderr)
+    else:
+        label_flag.setdefault(target, flag)
 last_neg = neg_nonzero = a_now = None
+label_flag, seen_labels, falls_through = {}, {}, True
 for a, mn, rest in ins:
     a_prev, a_now = a_now, a
     if a in targets:
         out.append('L_%x:;' % a)
+        # The flags at a label are those of the jump that came here when the
+        # code above cannot fall into it; kinds that disagree are reported.
+        if a in label_flag:
+            if not falls_through:
+                flag = label_flag[a]
+            elif flag is not None and label_flag[a] is not None and flag[0] != label_flag[a][0] and reads_flags_first(a):
+                print('note: flags of different kinds meet at %x' % a, file=sys.stderr)
+        seen_labels[a] = flag
+    falls_through = mn not in ('jmp', 'ret')
     ops = [o.strip() for o in re.split(r',(?![^\[]*\])', rest)] if rest else []
     bare_type = 'uint8_t' if any(o in R8 for o in ops) else 'uint32_t'
     if mn == 'mov' and ops[0] == ops[1]: pass  # padding
@@ -208,9 +239,16 @@ for a, mn, rest in ins:
             E('fa = %s; fb = %s;' % (rd32(ops[0]), rd32(ops[1])))
             wr(ops[0], 'fa - fb'); flag = ('cmp', 'fa', 'fb')
         else:
+            src_before = rd32(ops[1])
+            if mn == 'add' and ops[0] != 'esp' and ops[1] == ops[0]:
+                E('fb = %s;' % rd32(ops[1])); src_before = 'fb'
             wr(ops[0], '%s %s %s' % (rd32(ops[0]), sym, rd32(ops[1])))
             if ops[0] != 'esp':
-                E('fa = %s;' % rd32(ops[0])); flag = ('test', 'fa', 'int32_t')
+                if mn == 'add':
+                    # fb keeps the operand: the add's carry is "result below operand".
+                    E('fb = %s; fa = %s;' % (src_before, rd32(ops[0]))); flag = ('test', 'fa', 'int32_t', 'add')
+                else:
+                    E('fa = %s;' % rd32(ops[0])); flag = ('test', 'fa', 'int32_t')
     elif mn in ('inc', 'dec'):
         wr(ops[0], '%s %s 1' % (rd32(ops[0]), '+' if mn == 'inc' else '-')); E('fa = %s;' % rd32(ops[0])); flag = ('test', 'fa', 'int32_t')
     elif mn in ('shl', 'shr', 'sar'):
@@ -247,8 +285,10 @@ for a, mn, rest in ins:
         E('DYNCALL(%s);' % (rest if rest.startswith('0x') else rd32(rest)))
         E('return eax;')
     elif mn == 'jmp':
+        note_jump(int(rest, 16))
         E('goto L_%x;' % int(rest, 16))
     elif mn.startswith('j'):
+        note_jump(int(rest, 16))
         E('if (%s) goto L_%x;' % (cond(mn), int(rest, 16)))
     elif mn == 'ret':
         E('return eax;')
@@ -319,6 +359,10 @@ for a, mn, rest in ins:
     elif mn == 'rep' and rest.startswith('movs'):
         size, ty = (4, 'uint32_t') if 'DWORD' in rest else (1, 'uint8_t')
         E('for (; ecx; --ecx) { M<%s>(edi) = M<%s>(esi); edi += %d; esi += %d; }' % (ty, ty, size, size))
+    elif mn == 'adc':
+        assert flag and len(flag) == 4 and flag[3] == 'add', 'adc at %x without an add setting the flags before it' % a
+        wr(ops[0], '%s + %s + (fa < fb ? 1u : 0u)' % (rd32(ops[0]), rd32(ops[1])))
+        E('fa = %s;' % rd32(ops[0])); flag = ('test', 'fa', 'int32_t')
     elif mn == 'shrd':
         n = int(ops[2], 16)
         wr(ops[0], '(%s >> %d) | (%s << %d)' % (rd32(ops[0]), n, rd32(ops[1]), 32 - n))
