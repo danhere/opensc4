@@ -1533,3 +1533,19 @@ kind = "function"
 convention = "cdecl"
 expect = "83 EC 24 8B 0D EC 3C B4"
 source = "Name ours. (buffer): for every cell the simulator at 0x00B43DA8 picks (its slot 0x40), blits one picture (resource key at 0x00B0DB80) there with 0x0079E600. Called twice by the map picture (at 0x007A3487 and 0x007A3D86). (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "WindowPaint::GraphBox"
+address = 0x0076B660
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 1C 8B 4C 24 18"
+source = "Name ours. The graph control's box (seven arguments). (docs/renderer.md, \"Small windows\")."
+
+[[entry]]
+name = "WindowPaint::CityPictureBlend"
+address = 0x00776C30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 6C 53 55 8B D9 8B"
+source = "Name ours. A blend routine of the city picture class; called by the loading screen's draw (at 0x00777503). (docs/renderer.md, \"Small windows\")."
