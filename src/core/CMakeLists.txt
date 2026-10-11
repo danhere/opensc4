@@ -292,6 +292,10 @@ add_library(opensc4_core SHARED
   aura_sim.cpp
   cityview_autotest.cpp
   window_paint_autotest.cpp
+  save_streams_1.cpp
+  save_streams_2.cpp
+  save_streams_3.cpp
+  save_autotest.cpp
   minimap_autotest.cpp
   datamap_autotest.cpp
   cityview_draw_autotest.cpp
