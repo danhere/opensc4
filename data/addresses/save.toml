@@ -1,0 +1,424 @@
+# City save and load: the record streams, the serializer and the save itself (docs/save-format.md).
+# Build 1.1.641. Names marked as placeholders are ours until the code says what the function is.
+
+[[entry]]
+name = "SC4Save::F5D9430"
+address = 0x005D9430
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 46 04 8B"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9490"
+address = 0x005D9490
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 F4 2A AA"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D94C0"
+address = 0x005D94C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 56 8B F1 8B"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 192 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9580"
+address = 0x005D9580
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 00 2B AA"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D95B0"
+address = 0x005D95B0
+kind = "function"
+convention = "thiscall"
+expect = "66 8B 44 24 14 83 EC 0C"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 192 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9690"
+address = 0x005D9690
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 4C 24 08 8B 01 53"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D96C0"
+address = 0x005D96C0
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 10 85 F6 74"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D97A0"
+address = 0x005D97A0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 56 8B 74 24 1C"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9820"
+address = 0x005D9820
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 10 85 F6 74"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9890"
+address = 0x005D9890
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 4C 24 0C 85 C9 56"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9940"
+address = 0x005D9940
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 4C 24 08 8B 01 8D"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9A20"
+address = 0x005D9A20
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 56 8B F1 8B"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9A60"
+address = 0x005D9A60
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 F4 2A AA"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9AA0"
+address = 0x005D9AA0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4C 24 0C"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9B20"
+address = 0x005D9B20
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 0C 56 8B F1 8B"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9B60"
+address = 0x005D9B60
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 00 2B AA"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9BA0"
+address = 0x005D9BA0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4C 24 0C"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9C90"
+address = 0x005D9C90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 57 8B 7C"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 192 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9DB0"
+address = 0x005D9DB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 57 8B 7C 24"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9EE0"
+address = 0x005D9EE0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 48 FD FF FF"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5D9F80"
+address = 0x005D9F80
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 C8 FD FF FF"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DA0D0"
+address = 0x005DA0D0
+kind = "function"
+convention = "cdecl"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DA120"
+address = 0x005DA120
+kind = "function"
+convention = "cdecl"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DA650"
+address = 0x005DA650
+kind = "function"
+convention = "cdecl"
+expect = "53 55 56 8B 74 24 14 57"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DA680"
+address = 0x005DA680
+kind = "function"
+convention = "cdecl"
+expect = "53 55 56 8B 74 24 14 57"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DA6B0"
+address = 0x005DA6B0
+kind = "function"
+convention = "cdecl"
+expect = "53 55 56 8B 74 24 14 57"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DA6E0"
+address = 0x005DA6E0
+kind = "function"
+convention = "cdecl"
+expect = "53 55 56 8B 74 24 14 57"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DAA80"
+address = 0x005DAA80
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DAAE0"
+address = 0x005DAAE0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 10 8B 54 24 14"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DAD50"
+address = 0x005DAD50
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 8B 4B 04"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DAEA0"
+address = 0x005DAEA0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 8B 4B 04"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DAEF0"
+address = 0x005DAEF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 256 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DB040"
+address = 0x005DB040
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DB070"
+address = 0x005DB070
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DB0C0"
+address = 0x005DB0C0
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 04 56 8B 74 24"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DB110"
+address = 0x005DB110
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B F1"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 128 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DB190"
+address = 0x005DB190
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 8B 4C 24 14 53"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DB220"
+address = 0x005DB220
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DB250"
+address = 0x005DB250
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DB350"
+address = 0x005DB350
+kind = "function"
+convention = "cdecl"
+expect = "51 57 8B 7C 24 0C 8B 07"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DB490"
+address = 0x005DB490
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 54 24 08 8D 04 24"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DB4B0"
+address = 0x005DB4B0
+kind = "function"
+convention = "cdecl"
+expect = "51 57 8B 7C 24 0C 8B 07"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DB5D0"
+address = 0x005DB5D0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 56 8B 74 24 1C"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 192 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DB6F0"
+address = 0x005DB6F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B D9 8B 03"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 272 bytes with padding."
+
+[[entry]]
+name = "SC4Save::F5DB940"
+address = 0x005DB940
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 59 04 56 8B 74 24"
+source = "Placeholder name (docs/save-format.md): a function of the city save code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4RecordReader::Vtable"
+address = 0x00AA2AF4
+kind = "data"
+source = "Vtable of the save code's record reader (0x10 bytes on the stack: +4 cIGZPersistDBSegment, +8 cIGZPersistDBSerialRecord, +0xC version): slot 0 deleting destructor 0x005D9A60, slot 1 Close 0x005D9430, slot 2 0x00449550 (shared)."
+
+[[entry]]
+name = "SC4RecordWriter::Vtable"
+address = 0x00AA2B00
+kind = "data"
+source = "Vtable of the save code's record writer (same layout as the reader): slot 0 deleting destructor 0x005D9B60, slot 1 0x00449550 (shared), slot 2 Close 0x005D9430."
+
+[[entry]]
+name = "SC4SegmentIStream::Vtable"
+address = 0x00AA2B0C
+kind = "data"
+source = "Vtable of the segment input stream holder (0x10 bytes: +4 cISC4DBSegment, +8 cISC4DBSegmentIStream, +0xC version): one slot, the deleting destructor 0x005D9EE0."
+
+[[entry]]
+name = "SC4SegmentOStream::Vtable"
+address = 0x00AA2B10
+kind = "data"
+source = "Vtable of the segment output stream holder (0x10 bytes: +4 cISC4DBSegment, +8 cISC4DBSegmentOStream, +0xC version): one slot, the deleting destructor 0x005D9F80."
+
+[[entry]]
+name = "SC4Stopwatch::GetMode"
+address = 0x0088FEF8
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 C3 8B 41 08 0B 41"
+source = "Name ours. No arguments, three bytes (mov eax,[ecx]; ret): returns the stopwatch's mode dword at +0. SC4Stream::WriteStopwatch (0x005DA240) calls it and writes the low byte (docs/save-format.md)."
+
+[[entry]]
+name = "SC4Save::ZeroB23044"
+address = 0x00B23044
+kind = "data"
+source = "Name ours. A dword past the initialised part of .data (zero at start) that no instruction writes: SC4Stream::ReadTransform (0x005DA710) and ReadMatrixAsTransform (0x005DA930), its only readers, fill their temporary rotation and translation with it before reading (float 0)."
+
+[[entry]]
+name = "SC4Uint16Vector::Resize"
+address = 0x00465710
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 56 8B F1 8B"
+source = "Name ours. (uint32_t count, uint16_t const* value), ret 8: resize of a vector of 16-bit values: erases the tail (0x00407A50) or inserts count - size copies of the value at the end (0x00465760). The tract walk reader 0x005DB280 sizes its vector with it (docs/save-format.md)."
+
+[[entry]]
+name = "SC4Vector2Vector::EraseRange"
+address = 0x00710B40
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B 71 04"
+source = "Name ours. (float* first, float* last), ret 8: erase of a range from a vector of 8-byte float pairs: moves the pairs from last on down to first and sets the end. The curve reader 0x005DB5D0 has a call to it that cannot run (docs/save-format.md)."
+
+[[entry]]
+name = "SC4Vector2Vector::InsertN"
+address = 0x00638E80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 8B 4C"
+source = "Name ours. (float* where, uint32_t count, float const* value), ret 0xC: inserts count copies of an 8-byte float pair into a vector of pairs, in place or through new storage. The curve reader 0x005DB5D0 makes room for its points with it (docs/save-format.md)."
