@@ -2031,15 +2031,15 @@ uint32_t StepParticleFull(char* self, uint32_t particle, uint32_t step)
 // Its comparison: two of the functions it calls do more than write the
 // particle (0x005B8DC0 may start another effect, 0x005B8020 makes objects),
 // so the game's runs for real with each call of the two noted (what it was
-// given, what it answered and what the particle and the effect were after
-// it); then the particle and the effect are put back and ours runs with
-// those calls answered from the notes. The calls, the answers and what is
+// given, what it answered and which bytes of the particle and the effect
+// it changed); then the particle and the effect are put back and ours runs
+// with those calls answered from the notes and only those bytes set. The calls, the answers and what is
 // left of the particle and the effect must be the same.
 struct FullStepCall {
     uint32_t target, particle;
     char point[12];
     uint32_t step, result;
-    std::vector<char> after;
+    std::vector<std::pair<uint32_t, char>> changes;
     bool operator==(const FullStepCall& other) const
     {
         return target == other.target && particle == other.particle && step == other.step &&
@@ -2235,14 +2235,23 @@ uint32_t FullStepCallee(uint32_t target, uint32_t particle, const void* point, u
         g_fullOurCalls.push_back(std::move(call));
         if (at >= g_fullGameCalls.size())
             return 0;
-        RestoreFullStep(g_fullGameCalls[at].after);
+        // Only the bytes the game's call changed are given to ours: what
+        // ours has worked out so far stays, and is compared at the end.
+        for (const auto& [offset, value] : g_fullGameCalls[at].changes)
+            (offset < kStartParticleBytes ? g_fullParticle + offset : g_fullSelf + (offset - kStartParticleBytes))[0] =
+                value;
         return g_fullGameCalls[at].result;
     }
     // What the call itself steps is not part of this record.
+    const std::vector<char> before = SaveFullStep();
     ++g_fullNested;
     call.result = real();
     --g_fullNested;
-    call.after = SaveFullStep();
+    const std::vector<char> after = SaveFullStep();
+    for (std::size_t offset = 0; offset < after.size(); ++offset) {
+        if (after[offset] != before[offset])
+            call.changes.push_back({static_cast<uint32_t>(offset), after[offset]});
+    }
     g_fullGameCalls.push_back(std::move(call));
     return g_fullGameCalls.back().result;
 }
