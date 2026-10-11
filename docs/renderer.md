@@ -259,7 +259,26 @@ Compare mode has to cope with the vectors moving to new blocks, which rules out 
 
 Checked with cities running: the three tutorial cities for 30 days and Big City with a volcano for 20: 7,093 sets and 1,265 clears, no difference; the self-check is clean; ours alone with every terrain replacement runs 30 days in the release build, and screenshots match the game's (20 of 20 on Big City and Rush Hour). 15 of the 16 functions ran; the one that fills a run with copies of a record (0x00756690) did not.
 
-**What is left of the terrain view.** Its code runs from 0x00751C40 to 0x0075D5B0: 146 functions, 45.8 KB. Counting what can still be reached when our replacements are on, about 70 functions are still the game's, and 30 more are only called from code that is ours already, so they no longer run (the row drawing variants at 0x007543C0 to 0x00755700 and the dynamic vertex buffer path at 0x0075C9F0 to 0x0075CB50 are among them: our passes do that work themselves). What is left: the view's start, shutdown and static set-up (0x0075C420, 0x007560F0, 0x0075C0C0, 0x00758BC0), the single-cell draw (0x00752870), a command parser (0x0075A770), the debug draw (0x00759A80), the row layer list helpers (0x0075AD10 to 0x0075BBE0), and many small getters and setters. They come next, a part at a time.
+### The terrain view's set-up
+
+The first terrain view that starts runs a one-time set-up (0x0075C0C0; the byte at 0x00B4C740 says it has run):
+
+- It registers its own undoing (0x00758BC0) with the framework, to run when the game closes.
+- It loads the view's tuning (0x00758990, with a table through 0x00757300) and gets the texture factory (kept at 0x00B4C704).
+- It makes five arrays of dwords (0x00B4C670 on), each as long as the size at 0x00B4BC44, and loads the terrain's textures.
+- It makes the **row layer lists**: a vector at 0x00B4C7E0 of lists, one a row, which the land pass fills with spans of columns for each texture layer ("Row layer lists" above). And the **dirty row bits** at 0x00B4C7EC, one a row.
+
+The undoing frees the buffers, releases the textures and arrays and clears the byte, so the set-up can run again.
+
+`renderer.terrain.setup` is the set-up, its undoing, the tuning loaders and the seven row layer list helpers a run uses, translated instruction by instruction. `renderer.terrain.rowlists_untested` has seven more helpers of those lists (copies, assignment, erasing a run of nodes) that no test reaches, so that code has never run.
+
+**Big cities.** The game makes 0x100 row layer lists and 0x100 dirty row bits, as literals in the set-up (at 0x0075C36F, 0x0075C37A, 0x0075C3B2 and 0x0075C3D8): the rows of the largest standard city. A bigger city has more rows and would use lists that do not exist (docs/city-size.md). With `[improvements] big_cities` on, ours makes as many as the size at 0x00B4BC44 when that is more than 0x100; otherwise, and always with the setting off, 0x100 as the game does. The four lines are changed by hand in the generated file, which says so at its top.
+
+Compare mode uses the undoing: ours sets up and its result is taken; then twice the game's undoing and the game's set-up run and theirs is taken. The result is the view's globals (0x00B4C600 to 0x00B4C840), the tuning, the five arrays' contents, the number of nodes in every row layer list and the spacing of the dirty bits' pointers. A global that holds three different addresses is left out, as is anything the game's own two results disagree on.
+
+Checked on the three tutorial cities: 1,540 dwords, no difference; the self-check is clean; the same with the big cities setting on (a standard city, so the capacity stays 0x100); ours alone with every terrain replacement runs Big City for 30 days with a volcano in the release build; screenshots after the camera workout match the game's (20 of 20). The set-up runs once a run, so this is one comparison each. The path that makes more than 0x100 lists has not run: no test has a bigger terrain yet.
+
+**What is left of the terrain view.** Its code runs from 0x00751C40 to 0x0075D5B0: 146 functions, 45.8 KB. Counting what can still be reached when our replacements are on, about 50 functions are still the game's, and 30 more are only called from code that is ours already, so they no longer run (the row drawing variants at 0x007543C0 to 0x00755700 and the dynamic vertex buffer path at 0x0075C9F0 to 0x0075CB50 are among them: our passes do that work themselves). What is left: the view's start and shutdown for a city (0x0075C420, 0x007560F0), the single-cell draw (0x00752870), a command parser (0x0075A770), the debug draw (0x00759A80), and many small getters and setters. They come next, a part at a time.
 
 ## The overlays
 
