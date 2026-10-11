@@ -1309,3 +1309,75 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 2C 8B 44 24 30 8B"
 source = "Name ours. (rows, buffer, float, float): turns rows of float cells into byte rows (truncated) and paints them with the row painter. One of the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::ResampleRows"
+address = 0x0079EB40
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 3C 8B 44 24 44 8B"
+source = "Name ours. (out rows, rows): resamples a map's byte rows to the city's size; cdecl. Called by the row painter when the window's +0x94C is set. One of the routines under the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::PaintPixels"
+address = 0x0079ED90
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 30 8B 54 24 38 53"
+source = "Name ours. (rows, row count, row length, buffer, width, height, colour table, flag): the pixel loop of the row painter: each buffer pixel takes its cell's colour from the table; cdecl. One of the routines under the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::ResampleRows2"
+address = 0x0079EFD0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 3C 8B 44 24 44 8B"
+source = "Name ours. (out rows, rows): the resampler of the second row painter (0x007A2740); cdecl. One of the routines under the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::PaintPixels2"
+address = 0x0079F230
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 30 8B 54 24 38 53"
+source = "Name ours. (rows, row count, row length, buffer, width, height, ...): the pixel loop of the second row painter; cdecl. One of the routines under the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::SmoothRows"
+address = 0x0079FEF0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 18 53 55 56 8B 35"
+source = "Name ours. (out rows, rows, value, value): smooths a map's byte rows (used when the window's +0x94D is set); cdecl. One of the routines under the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::SmoothRows2"
+address = 0x007A00B0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 1C 53 55 56 8B 35"
+source = "Name ours. (out rows, rows, value, value): the smoother of the second row painter; cdecl. One of the routines under the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::CollectOutlines"
+address = 0x007A1020
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 83 EC 14 53"
+source = "Name ours. (rows, row count, row length, table, value, out list, out list): collects a map's outlines for the city view (used when the window's +0x141 is set); cdecl. One of the routines under the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::CollectOutlines2"
+address = 0x007A1120
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 83 EC 14 53"
+source = "Name ours. (rows, row count, row length, table, value, out list, out list): the outline collector of the second row painter; cdecl. One of the routines under the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "DataMap::ResizeRows"
+address = 0x007A1310
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 33 ED"
+source = "Name ours. (count): sizes a vector of rows (`this`); thiscall. One of the routines under the map picture's painters (docs/renderer.md, \"The data map\")."
