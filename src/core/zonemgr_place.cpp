@@ -55,6 +55,7 @@
 // `ret 4` helper: one argument) and the message servers.
 #include "core/zonemgr_sim.h"
 
+#include "core/game_dezone.h"
 #include "core/log.h"
 #include "core/registry.h"
 
@@ -285,6 +286,9 @@ uint8_t __fastcall PlaceZone(char* self, void*, int32_t* region, uint32_t type, 
 {
     static bool logged = false;
     FirstCall("PlaceZone", logged);
+    // An improvement beyond the original: nothing unless the de-zone tool
+    // calls with Shift held (docs/dezone.md).
+    game_dezone::KeepRoads(region, type, customZoning, __builtin_return_address(0));
     uint8_t result = 1;
     const int64_t funds = Virtual<int64_t>(At<void*>(self, field::kBudget), 0x18);
     CellVector cells{nullptr, nullptr, nullptr};

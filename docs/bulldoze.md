@@ -1,11 +1,6 @@
 # Bulldozer modes
 
-Three more ways to use the bulldozer, chosen by the keys held while it works. An improvement beyond the original ([ROADMAP](../ROADMAP.md), "Improvements: the rules"): off by default, and with it off nothing changes.
-
-```ini
-[replacements]
-game.bulldoze = ours
-```
+Three more ways to use the bulldozer, chosen by the keys held while it works. An improvement beyond the original that is simply part of the game (Dan, 2026-10-11): with no key held the bulldozer is the original's, so there is nothing to switch on. `game.bulldoze = original` under `[replacements]` in `opensc4.ini` takes it out.
 
 | Held | The bulldozer removes |
 |---|---|

@@ -222,6 +222,7 @@ add_library(opensc4_core SHARED
   game_bulldoze.cpp
   game_bulldoze_autotest.cpp
   game_date_sync.cpp
+  game_dezone.cpp
   game_growify.cpp
   game_seed.cpp
   game_timelapse.cpp

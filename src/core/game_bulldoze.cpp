@@ -1,6 +1,7 @@
 // game.bulldoze: three more ways to use the bulldozer, chosen by the keys
-// held while it works (docs/bulldoze.md). An improvement beyond the original,
-// off by default.
+// held while it works (docs/bulldoze.md). An improvement beyond the original
+// and part of the game as it comes: with no key held the bulldozer is the
+// original's, so there is no setting to turn it on.
 //
 //   Ctrl          only trees and other flora
 //   Shift         only roads, rails and the other transport networks
@@ -150,6 +151,7 @@ const bool g_registered = registry::Register({
     "Bulldozer modes by held keys: flora only, transport networks only, all but networks",
     false,
     Install,
+    true, // nothing changes until a key is held
 });
 
 } // namespace

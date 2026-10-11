@@ -17,16 +17,21 @@ Early development. Working today, inside SC4 Deluxe build 1.1.641:
 
 Not yet playable as a standalone game. Roughly 15-20% of the way to a full rewrite; measured stats and per-area estimates are in [ROADMAP.md, "Progress"](ROADMAP.md#progress), refreshed weekly.
 
-## Improvements over SC4
+## Improvements over the original
 
-Beyond the original, under the rules in [ROADMAP.md, "Improvements: the rules"](ROADMAP.md#improvements-the-rules). Plain tools are always there; changes to how the game plays are settings, off by default.
+Things OpenSC4 adds to the game. Classic behaviour stays: an addition that changes how the game plays is an option in `opensc4.ini`, off until you turn it on; one that does nothing until you ask for it is simply there.
 
-| Improvement | How to use | Docs |
+| Improvement | How to get it | Details |
 |---|---|---|
-| Auto save | setting `game.autosave = ours` | [docs/autosave.md](docs/autosave.md) |
-| Shareable seeds | setting `game.seed = ours`, cheat `seed` | [docs/seeds.md](docs/seeds.md) |
-| Growify: plopped buildings to growable lots | cheat `growify <zone> <density>` | [docs/growify.md](docs/growify.md) |
-| City date sync: a region's cities share one date | setting `game.date_sync = ours` | [docs/date-sync.md](docs/date-sync.md) |
+| Bulldozer modes: only trees (hold Ctrl), only roads and rails (hold Shift), everything but those (hold both) | always there | [docs/bulldoze.md](docs/bulldoze.md) |
+| De-zoning that keeps the roads inside the area (hold Shift) | always there | [docs/dezone.md](docs/dezone.md) |
+| Growify: plopped buildings turned into growable lots of a zone, with the `growify <zone> <density>` cheat | always there | [docs/growify.md](docs/growify.md) |
+| Auto save every few minutes of play, with the last few saves kept as copies | `game.autosave = ours` | [docs/autosave.md](docs/autosave.md) |
+| Timelapse: a dated copy of the city at every save, rendered into a video | `game.timelapse = ours` | [docs/timelapse.md](docs/timelapse.md) |
+| City date sync: a city loaded with an earlier date than the last one saved in its region moves forward to it | `game.date_sync = ours` | [docs/date-sync.md](docs/date-sync.md) |
+| One seed per city, shown in the title and set with the `seed` cheat | `game.seed = ours` | [docs/seeds.md](docs/seeds.md) |
+| D3D11 renderer: resolutions past 2048 px, windowed and borderless modes, a scaled interface | `renderer.d3d11 = ours` | [docs/renderer.md](docs/renderer.md), [docs/ui-scaling.md](docs/ui-scaling.md) |
+| 8 km city tiles (an experiment: such a city cannot be saved yet) | `[improvements] big_cities = on` | [docs/city-size.md](docs/city-size.md) |
 
 ## Documents
 
