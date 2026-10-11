@@ -11780,3 +11780,357 @@ kind = "function"
 convention = "thiscall"
 expect = "53 56 8B F1 E8 E7 A1 F9"
 source = "Placeholder name. (uint32 number), ret 4, returns this: constructor of a view input control of 0x90 bytes (vtable 0x00AAAF20). The city view's menu command 0x4A2B2467 makes it for the values 0x6A470000 to 0x6A47FFFF, with the low word."
+
+[[entry]]
+name = "SC4UI::F4E08C0"
+address = 0x004E08C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D AA 94 22"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E0900"
+address = 0x004E0900
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 18 01 00 00 C3 CC"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E0910"
+address = 0x004E0910
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 86 50 01"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E0960"
+address = 0x004E0960
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 F0 00 00 00 C3 CC"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E0970"
+address = 0x004E0970
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 B9 B2 4B 00"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 256 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E0A70"
+address = 0x004E0A70
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B 7C 24 14"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 320 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E0BB0"
+address = 0x004E0BB0
+kind = "function"
+convention = "thiscall"
+expect = "81 7C 24 04 C9 96 94 2A"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E0C20"
+address = 0x004E0C20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 EC 00 00"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E0DD0"
+address = 0x004E0DD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 EC 00 00"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E0EB0"
+address = 0x004E0EB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E0EE0"
+address = 0x004E0EE0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 4F CA 4B"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 256 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E0FE0"
+address = 0x004E0FE0
+kind = "function"
+convention = "thiscall"
+expect = "81 E9 D8 00 00 00 E9 D5"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E0FF0"
+address = 0x004E0FF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 28 2F A9"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E1060"
+address = 0x004E1060
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 56 8B F1 E8 C6"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 672 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4E1300"
+address = 0x004E1300
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 E8 FC FF FF"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F454370"
+address = 0x00454370
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 50 85 C0"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4543B0"
+address = 0x004543B0
+kind = "function"
+convention = "thiscall"
+expect = "51 8A 44 24 08 84 C0 56"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 272 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4544C0"
+address = 0x004544C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 48 84 C0"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F454510"
+address = 0x00454510
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 56 57 8B F9 68"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4545D0"
+address = 0x004545D0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F454620"
+address = 0x00454620
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 57 8B 7C 24"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4546B0"
+address = 0x004546B0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 6A 01 6A 01 6A 01"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 336 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F454800"
+address = 0x00454800
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 53 8B"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4548B0"
+address = 0x004548B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 56 8B F1 8B 4E"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 352 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F454A10"
+address = 0x00454A10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 54 06 00"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F454A60"
+address = 0x00454A60
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 46 5C 32"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 192 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F454B20"
+address = 0x00454B20
+kind = "function"
+convention = "thiscall"
+expect = "56 57 68 DC 01 00 00 8B"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 144 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F454BB0"
+address = 0x00454BB0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 74 05"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F454C10"
+address = 0x00454C10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 56 6A 01 6A 01"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 400 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F454DA0"
+address = 0x00454DA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 56 8B F1 8B"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F454E50"
+address = 0x00454E50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 53 55 57 33 DB"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 528 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F455060"
+address = 0x00455060
+kind = "function"
+convention = "cdecl"
+expect = "81 EC AC 00 00 00 53 33"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 720 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F455330"
+address = 0x00455330
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 53 56 8B F1 33"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 416 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F4559E0"
+address = 0x004559E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 57 8B 7C 24"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 256 bytes with padding."
+
+[[entry]]
+name = "SC4UI::F455AE0"
+address = 0x00455AE0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 94 00 00 00 53 56"
+source = "Placeholder name (docs/ui.md): a function of the interface code, 192 bytes with padding."
+
+[[entry]]
+name = "cSC4App::CityMessage"
+address = 0x00449AF0
+kind = "function"
+convention = "thiscall"
+expect = "57 8B 3D CC 3C B4 00 85"
+source = "Name ours. (city, message type, a, b, bool post), ret 0x14; this is not used. With a message server (0x00B43CCC): makes a framework message of the type, gives it the city through its slots 12 (+0x30) and 33 (+0x84), a through slot 16 (+0x40) and b through slot 21 (+0x54), then sends it at once (server slot 3) or, with post, queues it (server slot 4 with 0), and releases it. The application sends the messages around a city's Init and Shutdown with it (0x26D31EC0 to 0x26D31EC3 and others)."
+
+[[entry]]
+name = "SC4TimedScope::Construct"
+address = 0x005F8630
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 57"
+source = "Name ours, a guess. (milliseconds), ret 4: starts a 0x20-byte scope object: the number at +0 and a stopwatch at +8 (made by 0x0088FEDF with 4, started by 0x008905C4); returns this. The application wraps making a city, loading and saving in one of 1000 ms."
+
+[[entry]]
+name = "SC4TimedScope::Destruct"
+address = 0x005F90D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 08 8B"
+source = "Name ours, a guess. No arguments: ends the scope of SC4TimedScope::Construct: when the stopwatch has run at least the number of milliseconds, calls slot 19 (+0x4C) of the window manager (0x00913C46) and stops the stopwatch; then destroys the stopwatch."
+
+[[entry]]
+name = "cRZIniFile::ConstructEmpty"
+address = 0x0091CE6E
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 04 C7 06"
+source = "Name ours. No arguments: constructor of the ini file reader (0x3C bytes, vtable 0x00ACF150) with no path yet; returns this. The application's terrain file dialog (0x00455060) makes one on the stack and names the file with cRZIniFile::SetPath."
+
+[[entry]]
+name = "cRZIniFile::SetPath"
+address = 0x0091CB95
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 80 7E 19 00 74"
+source = "Name ours. (cIGZString const* path), ret 4: when the byte at +0x19 is set calls the reader's own slot 5 (+0x14) first, then copies the path into the string at +4 (cRZBaseString::Assign)."
+
+[[entry]]
+name = "RZFile::GetFileName"
+address = 0x0091A93D
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 81 EC 2C 03 00"
+source = "Name ours. (cIGZString const* path, cIGZString* out, bool withExtension), caller cleans up 0xC bytes: splits the path (0x00917BCB) and sets out to the file's name, with its extension when the third argument is set; true when the name is not empty. cSC4App's RequestSaveCity (0x00455AE0) names the saved file in its message window with it."
+
+[[entry]]
+name = "SC4MainWindow::Vtable"
+address = 0x00A92F28
+kind = "data"
+source = "Name ours. Vtable of the application's main window (0x158 bytes, constructor 0x004E0EE0; 151 slots in the window base's layout: QueryInterface 0x004E08C0, the window message handler 0x004E0A70 at slot 3, Init 0x004E1060, Shutdown 0x004E0970, the frame counter 0x004E0910 at slot 88, the deleting destructor 0x004E1300 at slot 148)."
+
+[[entry]]
+name = "SC4MainWindow::TargetVtable"
+address = 0x00A92F18
+kind = "data"
+source = "Name ours. Vtable of the main window's message target at +0xD8 (4 slots: QueryInterface 0x004E0FE0, AddRef 0x007BE550, Release 0x007BE560, the message handler 0x004E0EB0, which runs the cheat box for message 0x2A9496C9)."
+
+[[entry]]
+name = "SC4UI::Construct7BE4E0"
+address = 0x007BE4E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 4F F4 1D"
+source = "Placeholder name, not analysed. No arguments: constructor of a screen window of 0x118 bytes (vtable 0x00AB9EB8, message target 0x00AB9EA4 at +0xD8); returns this. SC4MainWindow::ShowScreen118 0x004E0CB0 makes one."
+
+[[entry]]
+name = "SC4::CheatNameShowTime"
+address = 0x00B097F0
+kind = "data"
+source = "Name ours. A pointer to the text 'ShowTime' (0x00A92F0C): the cheat word the main window registers under 0xEA5EDB88 and answers by showing the clock."

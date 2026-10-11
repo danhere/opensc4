@@ -341,6 +341,9 @@ add_library(opensc4_core SHARED
   ui_cityview_5.cpp
   ui_cityview_6.cpp
   ui_cityview_7.cpp
+  ui_app_2.cpp
+  ui_app_4.cpp
+  ui_app_5.cpp
   ui_advice_text_2.cpp
   ui_mysim_tools_1.cpp
   ui_mysim_tools_2.cpp

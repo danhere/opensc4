@@ -1490,6 +1490,83 @@ void DriveCityView(const Day& day)
 const DayHook kCityView{"ui.city_view", 104, &DriveCityView};
 
 
+// --- The main window and the application's prompts -------------------------------
+
+char g_appToken[160];
+
+// OPENSC4_TEST_APP=<day>: the main window asked for its city view and its
+// message target, its four screen makers called while a screen is up
+// (each must refuse), a made-up window message and a made-up cheat box
+// request given to it, and the cheat box run with a player that leaves it
+// at once. Then the application's prompts, each run with a player that
+// answers cancel: go to the region view, quit; the terrain picture browser
+// left without a choice; (not "quit from the region": in a city its window
+// does not load, and a window that did not run counts as a yes, in the
+// original as in ours: the game quits); and the new city window's
+// button handler given a window that is not its own. Nothing is saved, left
+// or quit.
+void DriveApp(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_APP") || !game::IsBuild641())
+        return;
+    cISC4AppPtr appPtr;
+    cIGZWin* const mainWindow = appPtr ? appPtr->GetMainWindow() : nullptr;
+    char* const main = reinterpret_cast<char*>(mainWindow);
+    char* const app = Global<char*>(addr::SC4_Service43C94);
+    if (!main || !app) {
+        log::Write("autotest: app: no main window");
+        return;
+    }
+    Fnv window, prompts;
+    using ByteFn = uint8_t(__thiscall*)(void*);
+
+    window.Add(reinterpret_cast<char*(__thiscall*)(void*)>(addr::SC4UI_F4E0960)(main) == View());
+    for (const uint32_t iid : {0x452294AAu, 0x12345678u}) {
+        char* out = nullptr;
+        window.Add(Virtual<uint8_t>(main, 0x0, iid, &out));
+        window.Add(out ? static_cast<int32_t>(out - main) : -1);
+        if (out)
+            Virtual<uint32_t>(main, 0x8);
+    }
+    for (const std::uintptr_t maker : {std::uintptr_t{addr::SC4UI_F4E0C20}, std::uintptr_t{addr::SC4MainWindow_ShowScreen118},
+                                       std::uintptr_t{addr::SC4MainWindow_ShowScreen200}, std::uintptr_t{addr::SC4UI_F4E0DD0}})
+        window.Add(reinterpret_cast<ByteFn>(maker)(main));
+    window.Add(At<void*>(main, 0xEC) != nullptr);
+    {
+        uint32_t message[4] = {0x12345678, 0, 0, 0};
+        window.Add(Virtual<uint8_t>(main, 0xC, &message[0]));
+    }
+    using BoxFn = uint8_t(__thiscall*)(void*, uint32_t);
+    window.Add(reinterpret_cast<BoxFn>(addr::SC4UI_F4E0BB0)(main, 0x12345678));
+    g_played = Fnv{};
+    g_answer = 0;
+    RunModal(&PlayAnswer, [&] { window.Add(reinterpret_cast<BoxFn>(addr::SC4UI_F4E0BB0)(main, 0x2A9496C9)); });
+    window.Add(g_played.h);
+
+    g_played = Fnv{};
+    g_answer = 0x8A921F70; // cancel
+    RunModal(&PlayAnswer, [&] { prompts.Add(Virtual<uint8_t>(app, 0x30, uint32_t{1})); });               // to the region view?
+    RunModal(&PlayAnswer, [&] { prompts.Add(Virtual<uint8_t>(app, 0x28, uint32_t{1}, uint32_t{0})); }); // quit?
+    g_answer = 0;
+    {
+        OwnString path("");
+        RunModal(&PlayAnswer, [&] {
+            prompts.Add(reinterpret_cast<uint8_t(__cdecl*)(void*)>(addr::SC4UI_F455060)(&path.bytes[0]));
+        });
+        AddText(prompts, &path.bytes[0]);
+        uint32_t message[4] = {3, 0x287259F6, 0x20, 0};
+        prompts.Add(reinterpret_cast<uint8_t(__thiscall*)(void*, void*, uint32_t*)>(addr::SC4UI_F4559E0)(app - 0x4, main, &message[0]));
+    }
+    prompts.Add(g_played.h);
+    prompts.Add(At<void*>(app, 0x50) != nullptr); // the city is still there
+
+    std::snprintf(g_appToken, sizeof g_appToken, " app window %08X prompts %08X", window.h, prompts.h);
+    log::Write("autotest: app driven:%s", g_appToken);
+}
+
+const DayHook kApp{"ui.app", 105, &DriveApp};
+
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     line += g_budgetToken;
@@ -1497,6 +1574,7 @@ void Fingerprint(cISC4City*, std::string& line)
     line += g_windowsToken;
     line += g_panelsToken;
     line += g_cityViewToken;
+    line += g_appToken;
     line += g_panelToken;
     line += g_cityPanelsToken;
     line += g_mapToken;
