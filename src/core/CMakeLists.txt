@@ -105,6 +105,8 @@ add_library(opensc4_core SHARED
   region_city_4.cpp
   region_city_5.cpp
   region_data_1.cpp
+  region_files_1.cpp
+  region_files_2.cpp
   region_data_2.cpp
   region_data_3.cpp
   residential_autotest.cpp

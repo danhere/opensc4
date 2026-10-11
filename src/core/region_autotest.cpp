@@ -317,6 +317,160 @@ std::string DriveCreate()
     return text;
 }
 
+// One of the game's own strings, empty, and its end.
+struct GameText {
+    std::uintptr_t vtable = addr::SC4String_Vtable;
+    char* begin = nullptr;
+    char* end = nullptr;
+    char* capacity = nullptr;
+    uint32_t zero = 0;
+
+    GameText()
+    {
+        begin = end = reinterpret_cast<char*(__cdecl*)(uint32_t)>(addr::SC4_stl_allocate)(8);
+        capacity = begin + 8;
+        *begin = 0;
+    }
+    ~GameText()
+    {
+        if (begin)
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(begin);
+    }
+    GameText(const GameText&) = delete;
+    GameText& operator=(const GameText&) = delete;
+    std::string FileName() const
+    {
+        const std::string text(begin, end);
+        return text.substr(text.find_last_of('\\') + 1);
+    }
+};
+
+// The city file helpers (0x005DBC10 on; docs/region.md) on the file of the
+// first tile's city: opened as a segment, its version, its name text, its
+// regional city record's bytes, closed; read as a regional city; the file
+// names the game would give a city of that name with its serial number, with
+// none and with another; a new serial number without its random bits.
+std::string DriveFiles(void* region)
+{
+    int32_t* const tile = At<int32_t*>(region, 0x44);
+    void** const holder = tile != At<int32_t*>(region, 0x48) ? Virtual<void**>(region, 0x2C, tile[0], tile[1]) : nullptr;
+    if (!holder || !*holder)
+        return " files none";
+    void* const city = *holder;
+    GameText path, name;
+    Virtual<void>(city, 0x7C, static_cast<void*>(&path));
+    Virtual<void>(city, 0x84, static_cast<void*>(&name));
+    const uint32_t serial = Virtual<uint32_t>(city, 0x6C);
+
+    Fnv f;
+    if (void* const segment =
+            reinterpret_cast<void*(__cdecl*)(void*, uint32_t, uint32_t)>(addr::SC4CityFiles_OpenSegment)(&path, 0, 1)) {
+        f.Add(reinterpret_cast<uint32_t(__cdecl*)(void*)>(addr::SC4CityFiles_GetVersion)(segment));
+        GameText text;
+        f.Add(reinterpret_cast<uint8_t(__cdecl*)(void*, uint32_t, uint32_t, void*)>(addr::SC4Resource_LoadText)(
+            segment, 0x6AAEE931, 0, &text));
+        f.Bytes(text.begin, text.end - text.begin);
+        uint32_t key[3] = {0xCA027EDB, 0xCA027EE1, 0};
+        char* bytes[3] = {};
+        f.Add(reinterpret_cast<uint8_t(__cdecl*)(void*, uint32_t*, void*, uint32_t)>(addr::SC4CityFiles_ReadRecordToVector)(
+            segment, key, bytes, 0x100000));
+        f.Bytes(bytes[0], bytes[1] - bytes[0]);
+        f.Add(static_cast<uint32_t>(bytes[1] - bytes[0]));
+        if (bytes[0])
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(bytes[0]);
+        f.Add(reinterpret_cast<uint8_t(__cdecl*)(void*)>(addr::SC4CityFiles_CloseSegment)(segment));
+    } else {
+        f.Add(uint8_t{0xEE});
+    }
+
+    void* loaded = nullptr;
+    f.Add(reinterpret_cast<uint8_t(__cdecl*)(void*, void**)>(addr::SC4RegionalCity_LoadFromFile)(&path, &loaded));
+    if (loaded) {
+        AddCity(f, loaded);
+        Virtual<uint32_t>(loaded, 0x10);
+        Virtual<uint32_t>(loaded, 0x8);
+    }
+
+    std::string names;
+    for (const uint32_t number : {serial, uint32_t{0}, serial + 16}) {
+        GameText out;
+        f.Add(reinterpret_cast<uint8_t(__cdecl*)(void*, uint32_t, void*)>(addr::SC4RegionalCity_MakeSavePath)(
+            &name, number, &out));
+        const std::string file = out.FileName();
+        f.Bytes(file.data(), file.size());
+        names += " '" + file + "'";
+    }
+    const uint32_t fresh = reinterpret_cast<uint32_t(__cdecl*)()>(addr::SC4_NewCitySerial)();
+    log::Write("autotest: region files of '%s':%s, new serial %08X", path.FileName().c_str(), names.c_str(), fresh);
+    return " files " + std::to_string(f.h) + " " + std::to_string(fresh >> 4);
+}
+
+// A picture (the game's image buffer) into a checksum: its area and every
+// pixel.
+void AddPicture(Fnv& f, void* picture)
+{
+    f.Add(picture != nullptr);
+    if (!picture)
+        return;
+    const int32_t* const area = Virtual<int32_t*>(picture, 0x30);
+    f.Bytes(area, 16);
+    if (Virtual<uint8_t>(picture, 0x18, uint32_t{0x40})) {
+        for (int32_t y = area[1]; y < area[3]; ++y)
+            for (int32_t x = area[0]; x < area[2]; ++x)
+                f.Add(Virtual<uint32_t>(picture, 0x54, x, y));
+        Virtual<uint8_t>(picture, 0x1C, uint32_t{0x40});
+    }
+}
+
+// The region pictures of the first tile's city file (0x005DCA10 on;
+// docs/region.md): all four read, then the first two only, and the average
+// of the first with itself and, when they are one size, with the second.
+std::string DrivePictures(void* region)
+{
+    int32_t* const tile = At<int32_t*>(region, 0x44);
+    void** const holder = tile != At<int32_t*>(region, 0x48) ? Virtual<void**>(region, 0x2C, tile[0], tile[1]) : nullptr;
+    if (!holder || !*holder)
+        return " pics none";
+    GameText path;
+    Virtual<void>(*holder, 0x7C, static_cast<void*>(&path));
+    using LoadFn = uint8_t(__cdecl*)(void*, void**, void**, void**, void**);
+    using AverageFn = void*(__cdecl*)(void**);
+    Fnv f;
+    void* pictures[4] = {};
+    f.Add(reinterpret_cast<LoadFn>(addr::SC4_LoadSavePictures)(&path, &pictures[0], &pictures[1], &pictures[2],
+                                                               &pictures[3]));
+    for (void* const picture : pictures)
+        AddPicture(f, picture);
+    void* two[2] = {};
+    f.Add(reinterpret_cast<LoadFn>(addr::SC4_LoadSavePictures)(&path, &two[0], &two[1], nullptr, nullptr));
+    for (void* const picture : two)
+        AddPicture(f, picture);
+    if (pictures[0]) {
+        void* same[4] = {pictures[0], pictures[0], pictures[0], pictures[0]};
+        void* const averaged = reinterpret_cast<AverageFn>(addr::SC4CityFiles_AveragePictures)(same);
+        AddPicture(f, averaged);
+        if (averaged)
+            Virtual<uint32_t>(averaged, 0x8);
+        if (pictures[1] &&
+            std::memcmp(Virtual<int32_t*>(pictures[0], 0x30), Virtual<int32_t*>(pictures[1], 0x30), 16) == 0) {
+            void* mixed[4] = {pictures[0], pictures[1], pictures[1], pictures[0]};
+            void* const blend = reinterpret_cast<AverageFn>(addr::SC4CityFiles_AveragePictures)(mixed);
+            AddPicture(f, blend);
+            if (blend)
+                Virtual<uint32_t>(blend, 0x8);
+        }
+    }
+    const int count = (pictures[0] != nullptr) + (pictures[1] != nullptr) + (pictures[2] != nullptr) +
+                      (pictures[3] != nullptr);
+    for (void* const picture : pictures)
+        if (picture)
+            Virtual<uint32_t>(picture, 0x8);
+    for (void* const picture : two)
+        if (picture)
+            Virtual<uint32_t>(picture, 0x8);
+    return " pics " + std::to_string(count) + " " + std::to_string(f.h);
+}
+
 // The open city's own regional city (the application's slot 0x90): its
 // checksum as the load left it, and again after its figures are taken from
 // the city once more (slot 24) and after a fresh object from the class's
@@ -346,7 +500,7 @@ void Loaded(cISC4City* city)
         return;
     g_token = " | rgn " + Describe(region, "at load");
     if (Env("OPENSC4_TEST_REGION_DRIVE") == "1")
-        g_token += DriveOpenCity(city) + DriveSecond(region);
+        g_token += DriveOpenCity(city) + DriveSecond(region) + DriveFiles(region) + DrivePictures(region);
     if (Env("OPENSC4_TEST_REGION_CREATE") == "1")
         g_token += DriveCreate();
 }
