@@ -446,8 +446,7 @@ void __fastcall WriteRoute(void* /*self*/, void*, WaterNode* end, ByteVector* ro
     push(0);
     auto x = static_cast<uint32_t>(KeyX(nodes.begin[0]->cell));
     auto z = static_cast<uint32_t>(KeyZ(nodes.begin[0]->cell));
-    push(static_cast<uint8_t>(x));
-    push(static_cast<uint8_t>(z));
+    PushRouteCell(push, static_cast<int32_t>(x), static_cast<int32_t>(z));
     uint8_t steps[0x40] = {};
     uint32_t pending = 0;
     auto insertSteps = [&](const uint8_t* last) {
