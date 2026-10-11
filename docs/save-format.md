@@ -19,6 +19,46 @@ Objects embedded in a record repeat this header. **References** between objects 
 
 Stream types follow `cIGZIStream`/`cIGZOStream` (little-endian; strings are a 32-bit length and the characters).
 
+## The record streams (0x005D9430 to 0x005DBC10)
+
+The library every serialisable class writes and reads its record with. `saves.streams.part1` to `part3` replace it ([save_streams_1.cpp](../src/core/save_streams_1.cpp) to `_3.cpp`, off by default): 86 functions. It is the first piece of the save and load rewrite; the serializer, the save and load themselves and the file container are still the game's.
+
+**Four holders**, 0x10 bytes each, built on the caller's stack: +0 vtable, +4 the segment, +8 the record or stream, +0xC a 16-bit version (0xFFFF until something is open).
+
+- The segment input and output streams (vtables 0x00AA2B0C and 0x00AA2B10) open one record of a save file's segment (`cISC4DBSegment`, interface 0x499899DA) by its key; the output stream takes the record's version and writes it first, the input stream reads it into +0xC. What the entries call `Close` (0x005D9C30, 0x005D9D50) are their destructors.
+- The record reader and writer (vtables 0x00AA2AF4 and 0x00AA2B00) do the same on a plain `cIGZPersistDBSegment` and its serial record; only the application uses them.
+
+**References.** `WriteReference` (0x005D99A0) asks the stream for the segment output stream interface (0x6999A8FB) and hands it the object's serialisable part (its slot 0x68); `ReadReference` (0x005D9730) does the reverse through 0x4999A8F5 with the interface wanted. On any other stream both answer false and move nothing. A reference list is a 32-bit count and the references; the reader takes up to 10,000,000 and appends a node for a reference that did not resolve too.
+
+**Typed helpers** are all `cdecl (stream, value)` and return the stream, not a bool (several older address entries say bool; no caller reads the result). They never look at a stream call's result: every call is made whatever failed before.
+
+| Value | Bytes in the record |
+| --- | --- |
+| bool | 1 |
+| rectangle | four int32 |
+| resource key | type, group, instance |
+| date | the day number, uint32 |
+| stopwatch | mode byte, elapsed uint64, running byte |
+| random generator | two uint32, an int32, a float64 |
+| the two cell iterators | 0x20 bytes of state field by field |
+| vectors of 2 and 3 floats, box | 2, 3 and 6 float32 |
+| transform | a flags byte, then only the parts it names: 9 floats of rotation (4), 3 of translation (1), the scale (2). An older form (0x005DA930, 0x005DAA80) always has all three and ends in a uint32 |
+| tract walk | 8 fields, a count and that many uint16, three int32 |
+| vectors of float, uint32, byte | a uint32 count and the values |
+| byte rows, bit rows | row count, the first row's length, then the bytes (bit rows: one byte per bit) |
+| curve | a count and the points as float pairs |
+
+**Limits and oddities, all kept.**
+
+- The vector readers refuse a count of 1,000,000 or more (the vector stays as it was), the row readers a row count or length of 1,000,000 or more. The tract walk and the curve have no limit.
+- The row writers (0x005DADE0, 0x005DAC40) write as many values of each row as there are rows, whatever the row's length; the readers read length-many. The two only agree for square grids, which is all the game has. A city that is not square would not save its weather grids right ([city-size.md](city-size.md)).
+- Readers keep their temporaries in argument slots, so a read that fails can leave a pointer's bytes in the value (the date, the generator's third field, a transform's flags and scale, a vector's count). The byte vector's reader starts its count from whatever the caller had in ECX; ours enters through a small assembly stub to pass that on.
+- The float vector's reader moves each value through the x87, which quiets a signalling NaN; ours sets the bit by hand.
+
+**Left the game's:** three container helpers shared with code that is not save code (the bit copy 0x005DAAE0, the bit row's copy constructor 0x005DB110, the bit row vector's destroy 0x005DB590) and a vector resize only the framework calls (0x005DB490).
+
+**Checked** (2026-10-11). `OPENSC4_TEST_SAVE_STREAMS=<day>` ([save_autotest.cpp](../src/core/save_autotest.cpp), token `svstreams`) feeds every helper that works on a plain stream fixed data through streams of the test's own: the bytes each writer produces and the memory each reader leaves, whole, cut short and over the limit, 29 steps. And every parity run loads a city through the readers and saves it through the writers. Twelve saves, seven days, full saves, the original against all three groups: the test's token equal in all 120 runs; eight saves the same on the first or second pair, four that part on days and in ways the original parts from itself (the first pair's second run, or a save whose original runs give three outcomes in four); the 63 record types the tools decode identical wherever the days agree. A whole-file comparison around moved addresses (`savediff.py --pointers`) shows ours against the original differing in the records two runs of the original differ in (the traffic network map, the two pictures and two more frame-driven records on a week of Making Money). A fault planted in one writer (a box written as five floats) changed the token.
+
 ## cSC4PollutionSimulator (0x8990C065)
 
 `Write` 0x006E3380 (writes version 4), `Read` 0x006E5270 (reads versions 2 to 4), `GetGZCLSID` 0x006E2CC0; the `cIGZSerializable` vtable is 0x00AB25E8, at object offset +0xC. Field names are ours except where a getter confirms them; offsets are the object's. (`sc4save.py` names fields by `Write`'s offsets, 0xC lower, so `avg_water` there is +0x104 here.)
