@@ -297,6 +297,11 @@ add_library(opensc4_core SHARED
   ui_windows_4.cpp
   ui_windows_5.cpp
   ui_windows_6.cpp
+  ui_department_1.cpp
+  ui_department_2.cpp
+  ui_department_3.cpp
+  ui_department_4.cpp
+  ui_department_5.cpp
   ui_advice_text_2.cpp
   ui_mysim_tools_1.cpp
   ui_mysim_tools_2.cpp
