@@ -216,7 +216,7 @@ for a, mn, rest in ins:
         seen_labels[a] = flag
     falls_through = mn not in ('jmp', 'ret')
     ops = [o.strip() for o in re.split(r',(?![^\[]*\])', rest)] if rest else []
-    bare_type = 'uint8_t' if any(o in R8 for o in ops) else 'uint32_t'
+    bare_type = 'uint8_t' if any(o in R8 for o in ops) else 'uint16_t' if any(o in R16 for o in ops) else 'uint32_t'
     if mn == 'mov' and ops[0] == ops[1]: pass  # padding
     elif mn == 'mov': wr(ops[0], rd32(ops[1]))
     elif mn == 'movzx': wr(ops[0], rd32(ops[1]))
@@ -246,7 +246,11 @@ for a, mn, rest in ins:
             if ops[0] != 'esp':
                 if mn == 'add':
                     # fb keeps the operand: the add's carry is "result below operand".
-                    E('fb = %s; fa = %s;' % (src_before, rd32(ops[0]))); flag = ('test', 'fa', 'int32_t', 'add')
+                    if src_before == 'fb':
+                        E('fa = %s;' % rd32(ops[0]))
+                    else:
+                        E('fb = %s; fa = %s;' % (src_before, rd32(ops[0])))
+                    flag = ('test', 'fa', 'int32_t', 'add')
                 else:
                     E('fa = %s;' % rd32(ops[0])); flag = ('test', 'fa', 'int32_t')
     elif mn in ('inc', 'dec'):
