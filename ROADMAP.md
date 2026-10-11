@@ -207,7 +207,9 @@ Decided (Dan, 2026-10-09): bigger cities land with P8, when the classes that blo
 - [x] Size census (`tools/ghidra/CitySizeCensus.java`): found the region `config.bmp` decode (three sizes, stored as log2 km), the occupant manager's fixed 192x192 world grid (256-cell margin, max 256-cell city), `cSC4City::GetCitySizeType` and the per-size tables and art it indexes; 169 functions read the size instead
 - [ ] Find where terrain gets its heightmap size (terrain classes unnamed, not seen by the census)
 - [ ] Coverage run that opens the region view (region code never ran under the meter)
-- [ ] Spike: an 8 km (512x512) city in a test region, recording where the 32-bit game fails (expect the occupant manager first)
+- [x] Spike: an 8 km (512x512) city in a test region, behind `[improvements] big_cities` (white in `config.bmp`; the occupant manager's grid sized from the city). An empty 8 km city is made and runs 19 months with two crashes bypassed locally, cannot be saved yet; 411 MB peak. Results in [docs/city-size.md](docs/city-size.md), "Results"
+- [ ] Fix what the spike hit, none of which reads the city size: weather's 256x256 water-body scratch (ours too), traffic's 16-bit cell keys (`x << 8 | z`, 30+ places), the terrain view's 257-float row buffers (ours too) and its literal 256 row lists, and the save picture's 8-bit cells (0x0060ACD0)
+- [ ] Second census for size limits that do not read the size: 0x100/0x101 array sizes, `<< 8` cell keys, 0x400 and 0x10000-byte stack frames
 - [ ] Size-aware replacements for the census list: occupant manager world grid and size type (P8 lots/buildings), region decode, per-size art and tables (P8 region view), render initial extent (P1)
 - [ ] Keep every replacement size-agnostic (sizes from the city or the save, never constants); add a check to new simulator work
 - [ ] Region layout and region view with a fourth size, and a save flag so vanilla SC4 refuses bigger cities cleanly
