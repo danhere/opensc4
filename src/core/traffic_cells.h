@@ -14,12 +14,12 @@
 // take 10 bits a coordinate (cities up to 1024 cells, 16 km) and the type at
 // bit 20; the top byte stays where it was. Standard sizes keep the game's
 // keys bit for bit. Route bytes give a big city's cells two bytes a
-// coordinate. Ferries are not covered yet (docs/city-size.md, "Traffic cell
-// keys").
+// coordinate, and ferries key by an id per cell (FerryKey).
 #pragma once
 
 #include "core/game_access.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -139,6 +139,84 @@ inline int32_t LinkedX(const char* node)
 inline int32_t LinkedZ(const char* node)
 {
     return g_wideCells ? reinterpret_cast<const WideLink*>(node)->z : static_cast<uint8_t>(node[9]);
+}
+
+// Ferries. The game keys its ferry index (+0xDC, +0xF0) and the links
+// between ferry entries (+0x10 of an entry, the key at +0) by 16-bit cells,
+// x << 8 | z. A big city's use a 16-bit id per cell instead, given out when
+// an entry is indexed and saved with the record; a cell without one gets
+// kNoFerryKey, which matches nothing.
+inline constexpr uint16_t kNoFerryKey = 0xFFFF;
+
+inline std::map<uint32_t, uint16_t>& FerryIds()
+{
+    static std::map<uint32_t, uint16_t> ids;
+    return ids;
+}
+
+inline uint16_t FerryKey(int32_t x, int32_t z, bool make = false)
+{
+    if (!g_wideCells)
+        return static_cast<uint16_t>(((static_cast<uint32_t>(x) & 0xFF) << 8) | static_cast<uint32_t>(z));
+    auto& ids = FerryIds();
+    const uint32_t cell = CellKey(x, z);
+    const auto it = ids.find(cell);
+    if (it != ids.end())
+        return it->second;
+    if (!make || ids.size() >= kNoFerryKey)
+        return kNoFerryKey;
+    const auto id = static_cast<uint16_t>(ids.size());
+    ids.emplace(cell, id);
+    return id;
+}
+
+// A ferry entry's cells (the list at +0x104, an entry at node + 8): `which`
+// 0 its own (+0, +1), 1 the far one (+2, +3), 2 its water cell (+4, +5),
+// 3 its lot (+0x1C, +0x1D), each as bytes. A big city's are also kept whole
+// here, by entry.
+inline std::map<const char*, int32_t[8]>& WideFerryCells()
+{
+    static std::map<const char*, int32_t[8]> cells;
+    return cells;
+}
+
+inline constexpr std::size_t kFerryCellOffset[4] = {0, 2, 4, 0x1C};
+
+inline int32_t FerryCellX(const char* entry, int which)
+{
+    if (g_wideCells) {
+        const auto it = WideFerryCells().find(entry);
+        if (it != WideFerryCells().end())
+            return it->second[2 * which];
+    }
+    return static_cast<uint8_t>(entry[kFerryCellOffset[which]]);
+}
+
+inline int32_t FerryCellZ(const char* entry, int which)
+{
+    if (g_wideCells) {
+        const auto it = WideFerryCells().find(entry);
+        if (it != WideFerryCells().end())
+            return it->second[2 * which + 1];
+    }
+    return static_cast<uint8_t>(entry[kFerryCellOffset[which] + 1]);
+}
+
+inline void SetFerryCell(char* entry, int which, int32_t x, int32_t z)
+{
+    entry[kFerryCellOffset[which]] = static_cast<char>(x);
+    entry[kFerryCellOffset[which] + 1] = static_cast<char>(z);
+    if (g_wideCells) {
+        int32_t* const cells = WideFerryCells()[entry];
+        cells[2 * which] = x;
+        cells[2 * which + 1] = z;
+    }
+}
+
+// The key of an entry's own cell, as its links and the index know it.
+inline uint16_t EntryKey(const char* entry, bool make = false)
+{
+    return FerryKey(FerryCellX(entry, 0), FerryCellZ(entry, 0), make);
 }
 
 inline char* CellRecord(void* simulator, int32_t x, int32_t z)

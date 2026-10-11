@@ -331,7 +331,7 @@ uint32_t __fastcall Search(void* self, void*)
 
             const uint8_t special = At<uint8_t>(record, 0x2C);
             if (special) {
-                const auto key = static_cast<uint16_t>(((x & 0xFF) << 8) | z);
+                const uint16_t key = FerryKey(x, z);
                 auto find = [key](void* table) -> char* {
                     char** const buckets = At<char**>(table, 4);
                     const auto count = static_cast<uint32_t>(At<char**>(table, 8) - buckets);
@@ -1026,8 +1026,8 @@ uint8_t __fastcall AddStartNodes(void* self, void*)
                 const uint32_t bit = 1u << type;
                 if (!(types & bit) || !(At<uint16_t>(item, 0x14) & bit))
                     continue;
-                const auto cx = static_cast<uint8_t>(item[0xA]);
-                const auto cz = static_cast<uint8_t>(item[0xB]);
+                const int32_t cx = FerryCellX(item + 8, 1);
+                const int32_t cz = FerryCellZ(item + 8, 1);
                 const uint32_t key = TypedCellKey(0x10, type, cx, cz);
                 OpenStart(self, key, static_cast<double>(costs[type]) + At<float>(end, 0x10), 0, cx, cz);
                 added = 1;

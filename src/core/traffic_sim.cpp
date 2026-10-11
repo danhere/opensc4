@@ -94,6 +94,8 @@ void ClearWideSets()
     for (std::size_t offset : {0x7B8u, 0x7CCu, 0x7ECu, 0x800u})
         WideSet(offset).clear();
     WideLinks().clear();
+    WideFerryCells().clear();
+    FerryIds().clear();
 }
 
 // A chained hash table keyed by a cell (x << 8 | z, 16 bits): whether the
@@ -540,13 +542,6 @@ bool InCity(void* self, int32_t x, int32_t z)
            z <= At<int32_t>(self, 0x198);
 }
 
-// The ferry index's 16-bit key (+0xDC, +0xF0). Not traffic_cells.h's
-// CellKey, which this name would hide below here.
-uint16_t FerryKey(int32_t x, int32_t z)
-{
-    return static_cast<uint16_t>(((x & 0xFF) << 8) | z);
-}
-
 // The entry of a connection object's list at +0x14 whose cell pair at
 // `offset` (0 or 4) is (x, z).
 char* FindConnectionEnd(char* object, std::size_t offset, int32_t x, int32_t z)
@@ -664,7 +659,7 @@ char* __fastcall GetFerryRouteBetweenTiles(void* self, void*, int32_t x1, int32_
         entry = FindConnectionEnd(object, 0, x2, z2);
     } else if (char* const second = FindCellNode(base + 0xF0, FerryKey(x2, z2))) {
         char* const target = At<char*>(second, 8) + 8;
-        entry = FindConnection(object, static_cast<uint16_t>(At<uint8_t>(target, 0) << 8 | At<uint8_t>(target, 1)));
+        entry = FindConnection(object, EntryKey(target));
     } else {
         entry = FindConnectionEnd(object, 4, x2, z2);
     }
@@ -733,8 +728,8 @@ uint8_t __fastcall GetTransitSwitchQueryData(void* self, void*, int32_t x, int32
     char* const head = At<char*>(self, 0x104);
     char* node = At<char*>(head, 0);
     for (; node != head; node = At<char*>(node, 0)) {
-        const int32_t cx = At<uint8_t>(node, 0x24);
-        const int32_t cz = At<uint8_t>(node, 0x25);
+        const int32_t cx = FerryCellX(node + 8, 3);
+        const int32_t cz = FerryCellZ(node + 8, 3);
         if (cx >= rect[0] && cz >= rect[1] && cx <= rect[2] && cz <= rect[3])
             break;
     }
@@ -2157,7 +2152,7 @@ uint8_t __fastcall Phase6(void* self, void*, void* parent)
     }
     char* const list = At<char*>(self, 0x104);
     for (char* node = At<char*>(list, 0); node != list; node = At<char*>(node, 0))
-        ClearDensities(self, static_cast<uint8_t>(node[0xA]), static_cast<uint8_t>(node[0xB]));
+        ClearDensities(self, FerryCellX(node + 8, 1), FerryCellZ(node + 8, 1));
     EndSliced(deadline);
     return 1;
 }
@@ -3287,6 +3282,14 @@ uint8_t __fastcall Write(void* serializable, void*, void* stream)
         u32(At<uint32_t*>(self, 0x430)[i]);
     }
     u32(field(0x43C));
+    // A big city's ferry ids (FerryKey) come first: cell and id.
+    if (g_wideCells) {
+        u32(static_cast<uint32_t>(FerryIds().size()));
+        for (const auto& [cell, id] : FerryIds()) {
+            u32(cell);
+            u16(id);
+        }
+    }
     char* const routes = At<char*>(self, 0x104);
     u32(ListCount(routes));
     for (char* route = At<char*>(routes, 0); route != routes; route = At<char*>(route, 0)) {
@@ -3297,6 +3300,12 @@ uint8_t __fastcall Write(void* serializable, void*, void* stream)
         u16(At<uint16_t>(route, 0x22));
         u8(At<uint8_t>(route, 0x24));
         u8(At<uint8_t>(route, 0x25));
+        if (g_wideCells) { // a big city's: the four cells whole
+            for (int which = 0; which < 4; ++which) {
+                u16(static_cast<uint16_t>(FerryCellX(route + 8, which)));
+                u16(static_cast<uint16_t>(FerryCellZ(route + 8, which)));
+            }
+        }
         char* const first = At<char*>(route, 0x18);
         u32(ListCount(first));
         for (char* entry = At<char*>(first, 0); entry != first; entry = At<char*>(entry, 0)) {
@@ -3827,6 +3836,18 @@ uint8_t __fastcall Read(void* serializable, void*, void* stream)
     if (version > 0x26)
         u32(at(0x434));
     if (version > 0x1D) {
+        FerryIds().clear();
+        if (g_wideCells) { // as Write writes a big city's
+            uint32_t ids = 0;
+            u32(&ids);
+            for (uint32_t i = 0; i < ids; ++i) {
+                uint32_t cell = 0;
+                uint16_t id = 0;
+                u32(&cell);
+                u16(&id);
+                FerryIds()[cell] = id;
+            }
+        }
         uint32_t routes = 0;
         u32(&routes);
         for (uint32_t r = 0; r < routes; ++r) {
@@ -3869,6 +3890,12 @@ uint8_t __fastcall Read(void* serializable, void*, void* stream)
             } else {
                 route[0x1C] = route[0];
                 route[0x1D] = route[1];
+            }
+            for (int which = 0; g_wideCells && which < 4; ++which) {
+                uint16_t x = 0, z = 0;
+                u16(&x);
+                u16(&z);
+                SetFerryCell(route, which, x, z);
             }
             const auto append = [&stlNew](char* sentinel, std::size_t size, const char* value, std::size_t vectors) {
                 char* const entry = static_cast<char*>(stlNew(size));
@@ -3922,9 +3949,9 @@ uint8_t __fastcall Read(void* serializable, void*, void* stream)
                     stlFree(bytes);
             }
             char* const routeNode = route - 8;
-            uint32_t key = static_cast<uint32_t>(static_cast<uint8_t>(route[0])) << 8 | static_cast<uint8_t>(route[1]);
+            uint32_t key = EntryKey(route, true);
             *reinterpret_cast<char**>(reinterpret_cast<AtFn>(addr::SC4RouteIndex_At)(at(0xD4), &key)) = routeNode;
-            key = static_cast<uint32_t>(static_cast<uint8_t>(route[2])) << 8 | static_cast<uint8_t>(route[3]);
+            key = FerryKey(FerryCellX(route, 1), FerryCellZ(route, 1), true);
             *reinterpret_cast<char**>(reinterpret_cast<AtFn>(addr::SC4RouteIndex_At)(at(0xE8), &key)) = routeNode;
             const auto ferry = At<int32_t>(route, 0x8);
             if (ferry >= 0 && ferry < 2)
@@ -4956,8 +4983,7 @@ void __fastcall RecordRouteImpl(void* self, void*, char* trip, uint32_t value, R
         const bool alongX = a == rect[0] - 1 || a == rect[2] + 1;
         const bool alongZ = b == rect[1] - 1 || b == rect[3] + 1;
         if (alongX == alongZ) {
-            const auto key = static_cast<uint16_t>(((a & 0xFF) << 8) | static_cast<uint16_t>(b));
-            if (char* const node = FindCellNode(static_cast<char*>(self) + 0xF0, key)) {
+            if (char* const node = FindCellNode(static_cast<char*>(self) + 0xF0, FerryKey(a, b))) {
                 char* const object = At<char*>(node, 8) + 8;
                 if (char* const entry = FindConnectionPair(object, static_cast<int16_t>(rect[0]), static_cast<int16_t>(rect[1]))) {
                     const float v = step.type == 1 ? weighted : count;
@@ -5051,7 +5077,7 @@ void __fastcall RecordRouteImpl(void* self, void*, char* trip, uint32_t value, R
 
             // The next cell is a connection's: the trips go to it.
             if (!last && next.joined) {
-                const auto cellKey = static_cast<uint16_t>(((cx & 0xFF) << 8) | cz);
+                const uint16_t cellKey = FerryKey(cx, cz);
                 if (char* const node = FindCellNode(static_cast<char*>(self) + 0xDC, cellKey)) {
                     char* const object = At<char*>(node, 8);
                     At<uint16_t>(object, 0x22) += static_cast<uint16_t>(amount);
@@ -5059,10 +5085,10 @@ void __fastcall RecordRouteImpl(void* self, void*, char* trip, uint32_t value, R
                     if (kind == 2)
                         At<uint16_t>(object, 0x22) += static_cast<uint16_t>(amount);
                     char* const own = object + 8;
-                    const auto nextKey = static_cast<uint16_t>(((next.x & 0xFF) << 8) | static_cast<uint16_t>(next.z));
+                    const uint16_t nextKey = FerryKey(next.x, next.z);
                     if (char* const other = FindCellNode(static_cast<char*>(self) + 0xF0, nextKey)) {
                         char* const target = At<char*>(other, 8) + 8;
-                        const auto targetKey = static_cast<uint16_t>(At<uint8_t>(target, 0) << 8 | At<uint8_t>(target, 1));
+                        const uint16_t targetKey = EntryKey(target);
                         char* const entry = FindConnection(own, targetKey);
                         if (entry && kind == 1) {
                             At<uint16_t>(entry, 0x1E) += static_cast<uint16_t>(amount);
@@ -6227,7 +6253,7 @@ void __fastcall RouteToCell19(void* self, void*, char* entry, int32_t x, int32_t
     uint8_t* route[3] = {};
     uint8_t* second[3] = {};
     const bool found = reinterpret_cast<FindFn>(addr::SC4WaterRouteFinder_Find)(
-        At<void*>(self, 0x108), At<uint8_t>(entry, 4), At<uint8_t>(entry, 5), edgeX, edgeZ, &cost, route, second);
+        At<void*>(self, 0x108), FerryCellX(entry, 2), FerryCellZ(entry, 2), edgeX, edgeZ, &cost, route, second);
     if (found) {
         char* record;
         if (node == head) {
@@ -6428,8 +6454,8 @@ void __fastcall LinkRoutes19(void* self, void*, char* a, char* b)
                                         void* back);
     using AssignFn = void(__thiscall*)(void* to, const void* from);
     using FreeFn = void(__cdecl*)(void* memory);
-    const auto keyB = static_cast<uint16_t>(At<uint8_t>(b, 0) << 8 | At<uint8_t>(b, 1));
-    const auto keyA = static_cast<uint16_t>(At<uint8_t>(a, 0) << 8 | At<uint8_t>(a, 1));
+    const uint16_t keyB = EntryKey(b, true);
+    const uint16_t keyA = EntryKey(a, true);
     auto find = [](char* entry, uint16_t key) {
         char* const head = At<char*>(entry, 0x10);
         char* node = At<char*>(head, 0);
@@ -6442,20 +6468,20 @@ void __fastcall LinkRoutes19(void* self, void*, char* a, char* b)
     int32_t cost = 0;
     uint8_t* forward[3] = {};
     uint8_t* backward[3] = {};
-    if (reinterpret_cast<FindFn>(addr::SC4WaterRouteFinder_Find)(At<void*>(self, 0x108), At<uint8_t>(a, 4), At<uint8_t>(a, 5),
-                                                                At<uint8_t>(b, 4), At<uint8_t>(b, 5), &cost, forward, backward)) {
+    if (reinterpret_cast<FindFn>(addr::SC4WaterRouteFinder_Find)(At<void*>(self, 0x108), FerryCellX(a, 2), FerryCellZ(a, 2),
+                                                                FerryCellX(b, 2), FerryCellZ(b, 2), &cost, forward, backward)) {
         const auto scaled = static_cast<float>(static_cast<double>(cost) * Global<float>(addr::SC4Traffic_FerryCostScale));
         char* record = FerryLink(a, toB);
         At<uint16_t>(record, 0) = keyB;
         At<float>(record, 8) = scaled;
-        At<uint16_t>(record, 2) = At<uint8_t>(b, 2);
-        At<uint16_t>(record, 4) = At<uint8_t>(b, 3);
+        At<uint16_t>(record, 2) = static_cast<uint16_t>(FerryCellX(b, 1));
+        At<uint16_t>(record, 4) = static_cast<uint16_t>(FerryCellZ(b, 1));
         reinterpret_cast<AssignFn>(addr::SC4ByteVector_Assign)(record + 0xC, forward);
         record = FerryLink(b, toA);
         At<uint16_t>(record, 0) = keyA;
         At<float>(record, 8) = scaled;
-        At<uint16_t>(record, 2) = At<uint8_t>(a, 2);
-        At<uint16_t>(record, 4) = At<uint8_t>(a, 3);
+        At<uint16_t>(record, 2) = static_cast<uint16_t>(FerryCellX(a, 1));
+        At<uint16_t>(record, 4) = static_cast<uint16_t>(FerryCellZ(a, 1));
         reinterpret_cast<AssignFn>(addr::SC4ByteVector_Assign)(record + 0xC, backward);
     } else {
         if (toB != At<char*>(a, 0x10))
@@ -7006,8 +7032,8 @@ void __fastcall OnTransitLotRemoved(void* self, void*, void* lot)
     char* const ferries = At<char*>(self, 0x104);
     char* ferry = At<char*>(ferries, 0);
     while (ferry != At<char*>(self, 0x104)) {
-        const int32_t fx = At<uint8_t>(ferry, 0x24);
-        const int32_t fz = At<uint8_t>(ferry, 0x25);
+        const int32_t fx = FerryCellX(ferry + 8, 3);
+        const int32_t fz = FerryCellZ(ferry + 8, 3);
         if (fx >= rect[0] && fz >= rect[1] && fx <= rect[2] && fz <= rect[3])
             break;
         ferry = At<char*>(ferry, 0);
@@ -7016,7 +7042,7 @@ void __fastcall OnTransitLotRemoved(void* self, void*, void* lot)
         int32_t& terminals = At<int32_t>(self, 0x128 + 4 * At<uint32_t>(ferry, 0x10));
         if (--terminals < 0)
             terminals = 0;
-        const auto key = static_cast<uint16_t>(At<uint8_t>(ferry, 8) << 8 | At<uint8_t>(ferry, 9));
+        const uint16_t key = EntryKey(ferry + 8);
         char* const links = At<char*>(ferry, 0x18);
         for (char* link = At<char*>(links, 0); link != links; link = At<char*>(link, 0)) {
             char* const other = *reinterpret_cast<IndexFn>(addr::SC4RouteIndex_At)(base + 0xDC, link + 8);
@@ -7043,7 +7069,7 @@ void __fastcall OnTransitLotRemoved(void* self, void*, void* lot)
                 At<char*>(self, 0x110) = At<char*>(ferry, 0);
         }
         reinterpret_cast<KeyEraseFn>(addr::SC4LinkTable_Erase)(base + 0xDC, &key);
-        const auto cellKey = static_cast<uint16_t>(At<uint8_t>(ferry, 0xA) << 8 | At<uint8_t>(ferry, 0xB));
+        const uint16_t cellKey = FerryKey(FerryCellX(ferry + 8, 1), FerryCellZ(ferry + 8, 1));
         reinterpret_cast<KeyEraseFn>(addr::SC4LinkTable_Erase)(base + 0xF0, &cellKey);
         At<char*>(At<char*>(ferry, 4), 0) = At<char*>(ferry, 0);
         At<char*>(At<char*>(ferry, 0), 4) = At<char*>(ferry, 4);
@@ -7062,6 +7088,7 @@ void __fastcall OnTransitLotRemoved(void* self, void*, void* lot)
         At<char*>(At<char*>(ferry, 0x18), 4) = At<char*>(ferry, 0x18);
         if (At<void*>(ferry, 0x18))
             reinterpret_cast<FreeFn>(addr::SC4_Free)(At<void*>(ferry, 0x18));
+        WideFerryCells().erase(ferry + 8);
         reinterpret_cast<FreeFn>(addr::SC4_Free)(ferry);
     }
     for (int32_t cx = rect[0]; cx <= rect[2]; ++cx) {
@@ -7106,6 +7133,9 @@ void __fastcall OnFerryTerminal(void* self, void*, void* occupant)
     Virtual<uint32_t>(occupant, 0x54, &cellX, &cellZ);
     entry[0x1D] = static_cast<char>(cellZ);
     entry[0x1C] = static_cast<char>(cellX);
+    int32_t cells[8] = {}; // whole, for a big city (SetFerryCell's order)
+    cells[6] = cellX;
+    cells[7] = cellZ;
     bool found[3] = {};
     void* list = nullptr;
     char* const head = Virtual<char*>(ListNodeAllocator(), 0xC, 12u);
@@ -7130,10 +7160,14 @@ void __fastcall OnFerryTerminal(void* self, void*, void* occupant)
                 if (kind == 0x2C520000) {
                     entry[0] = static_cast<char>(cx);
                     entry[1] = static_cast<char>(cz);
+                    cells[0] = cx;
+                    cells[1] = cz;
                     found[0] = true;
                 } else if (kind == 0x2C530000) {
                     entry[2] = static_cast<char>(cx);
                     entry[3] = static_cast<char>(cz);
+                    cells[2] = cx;
+                    cells[3] = cz;
                     found[1] = true;
                 } else {
                     for (uint32_t side = 0; side < 4; ++side) {
@@ -7144,6 +7178,8 @@ void __fastcall OnFerryTerminal(void* self, void*, void* occupant)
                         if (Virtual<uint8_t>(Global<void*>(addr::SC4_Terrain), 0x88, nx, nz)) {
                             entry[4] = static_cast<char>(nx);
                             entry[5] = static_cast<char>(nz);
+                            cells[4] = nx;
+                            cells[5] = nz;
                             found[2] = true;
                             break;
                         }
@@ -7160,9 +7196,11 @@ void __fastcall OnFerryTerminal(void* self, void*, void* occupant)
         ++At<int32_t>(self, 0x128 + 4 * At<uint32_t>(entry, 8));
         char* const added = At<char*>(At<char*>(self, 0x104), 4);
         char* const mine = added + 8;
-        uint32_t key = static_cast<uint32_t>(At<uint8_t>(added, 8) << 8 | At<uint8_t>(added, 9));
+        for (int which = 0; which < 4; ++which)
+            SetFerryCell(mine, which, cells[2 * which], cells[2 * which + 1]);
+        uint32_t key = EntryKey(mine, true);
         *reinterpret_cast<IndexFn>(addr::SC4RouteIndex_At)(base + 0xDC, &key) = added;
-        key = static_cast<uint32_t>(At<uint8_t>(mine, 2) << 8 | At<uint8_t>(mine, 3));
+        key = FerryKey(FerryCellX(mine, 1), FerryCellZ(mine, 1), true);
         *reinterpret_cast<IndexFn>(addr::SC4RouteIndex_At)(base + 0xF0, &key) = added;
         char* const ferries = At<char*>(self, 0x104);
         for (char* other = At<char*>(ferries, 0); other != ferries; other = At<char*>(other, 0)) {
@@ -7835,8 +7873,8 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
     char* const ferries = At<char*>(self, 0x104);
     for (char* ferry = At<char*>(ferries, 0); ferry != ferries; ferry = At<char*>(ferry, 0)) {
         const uint16_t travel = At<uint16_t>(ferry, 0x14);
-        const int32_t ax = At<uint8_t>(ferry, 8);
-        const int32_t az = At<uint8_t>(ferry, 9);
+        const int32_t ax = FerryCellX(ferry + 8, 0);
+        const int32_t az = FerryCellZ(ferry + 8, 0);
         if (ax >= xs && ax <= xe && az >= zs && az <= ze) {
             CellRecord(self, ax, az)[0x2C] |= 4;
             for (uint32_t network = 0; network <= 1; ++network) {
@@ -7874,8 +7912,8 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
                 }
             }
         }
-        const int32_t bx = At<uint8_t>(ferry, 0xA);
-        const int32_t bz = At<uint8_t>(ferry, 0xB);
+        const int32_t bx = FerryCellX(ferry + 8, 1);
+        const int32_t bz = FerryCellZ(ferry + 8, 1);
         if (bx < xs || bx > xe || bz < zs || bz > ze)
             continue;
         for (uint32_t d = 0; d < 4; ++d) {
