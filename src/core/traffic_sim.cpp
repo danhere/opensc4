@@ -540,7 +540,9 @@ bool InCity(void* self, int32_t x, int32_t z)
            z <= At<int32_t>(self, 0x198);
 }
 
-uint16_t CellKey(int32_t x, int32_t z)
+// The ferry index's 16-bit key (+0xDC, +0xF0). Not traffic_cells.h's
+// CellKey, which this name would hide below here.
+uint16_t FerryKey(int32_t x, int32_t z)
 {
     return static_cast<uint16_t>(((x & 0xFF) << 8) | z);
 }
@@ -647,20 +649,20 @@ char* __fastcall GetFerryRouteBetweenTiles(void* self, void*, int32_t x1, int32_
     FirstCall("GetFerryRouteBetweenTiles", logged);
     char* const base = static_cast<char*>(self);
     if (!InCity(self, x1, z1)) {
-        char* const node = FindCellNode(base + 0xF0, CellKey(x2, z2));
+        char* const node = FindCellNode(base + 0xF0, FerryKey(x2, z2));
         if (!node)
             return nullptr;
         char* const entry = FindConnectionEnd(At<char*>(node, 8) + 8, 0, x1, z1);
         return entry ? entry + 0x18 : nullptr;
     }
-    char* const first = FindCellNode(base + 0xDC, CellKey(x1, z1));
+    char* const first = FindCellNode(base + 0xDC, FerryKey(x1, z1));
     if (!first)
         return nullptr;
     char* const object = At<char*>(first, 8) + 8;
     char* entry;
     if (!InCity(self, x2, z2)) {
         entry = FindConnectionEnd(object, 0, x2, z2);
-    } else if (char* const second = FindCellNode(base + 0xF0, CellKey(x2, z2))) {
+    } else if (char* const second = FindCellNode(base + 0xF0, FerryKey(x2, z2))) {
         char* const target = At<char*>(second, 8) + 8;
         entry = FindConnection(object, static_cast<uint16_t>(At<uint8_t>(target, 0) << 8 | At<uint8_t>(target, 1)));
     } else {
