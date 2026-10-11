@@ -1,6 +1,6 @@
-// game.growify: a "growify" cheat that turns plopped buildings into growable
-// lots of a zone (docs/growify.md). An improvement beyond the original, off
-// by default.
+// A "growify" cheat that turns plopped buildings into growable lots of a zone
+// (docs/growify.md). A tool beyond the original, always there: it does
+// nothing until typed, so it needs no setting.
 //
 // The cheat, its command and the conversion (every plopped lot of a building
 // whose exemplar Purpose matches gets the zone on each of its cells, then
@@ -31,9 +31,10 @@
 //
 // The answer comes in a Windows message box, as for the "seed" cheat, where
 // the mod uses the game's notification dialog.
+#include "core/game_growify.h"
+
 #include "core/growify_command.h"
 #include "core/log.h"
-#include "core/registry.h"
 
 #include <GZCLSIDDefs.h>
 #include <GZServPtrs.h>
@@ -257,25 +258,14 @@ private:
 
 Listener g_listener;
 
-bool Install(registry::Mode)
+} // namespace
+
+void Start()
 {
     cIGZMessageServer2Ptr server;
     const bool ok = server && server->AddNotification(&g_listener, kMsgPostCityInit);
     log::Write("growify: city messages %s", ok ? "subscribed" : "NOT subscribed");
     g_listener.RegisterCheat();
-    return ok;
 }
 
-const bool g_registered = registry::Register({
-    "game.growify",
-    "game",
-    registry::Kind::Api,
-    registry::Phase::PostAppInit,
-    0,
-    "A \"growify\" cheat that turns plopped buildings into growable lots of a zone",
-    false,
-    Install,
-});
-
-} // namespace
 } // namespace opensc4::game_growify

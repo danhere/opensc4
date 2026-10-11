@@ -1,11 +1,6 @@
 # Growify
 
-A cheat that turns plopped buildings into growable lots of a zone, so a plopped house or shop becomes part of the zoned city around it. An improvement beyond the original ([ROADMAP](../ROADMAP.md), "Improvements: the rules"): off by default, and with it off nothing changes.
-
-```ini
-[replacements]
-game.growify = ours
-```
+A cheat that turns plopped buildings into growable lots of a zone, so a plopped house or shop becomes part of the zoned city around it. A tool beyond the original, always there with no setting: it does nothing until typed, so the game plays exactly like SC4 without it (Dan, 2026-10-11: plain tools are base game).
 
 ## Using it
 
@@ -23,7 +18,7 @@ Examples: `growify Commercial Medium`, `growify r h`, `growify I M false`. The a
 
 ## What it does
 
-`game.growify` ([src/core/game_growify.cpp](../src/core/game_growify.cpp)) registers the cheat with the game's cheat manager. For each building in the city whose exemplar `Purpose` (property 0x27812833) matches the zone type, it looks at the building's lot, and if the lot is plopped (zone type 15), it:
+[src/core/game_growify.cpp](../src/core/game_growify.cpp) registers the cheat with the game's cheat manager. For each building in the city whose exemplar `Purpose` (property 0x27812833) matches the zone type, it looks at the building's lot, and if the lot is plopped (zone type 15), it:
 
 1. writes the new zone into the zone grid on every cell of the lot,
 2. asks the lot to refresh its zone type from the grid (`cISC4Lot::UpdateZoneType`),

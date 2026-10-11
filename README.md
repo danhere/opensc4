@@ -17,6 +17,17 @@ Early development. Working today, inside SC4 Deluxe build 1.1.641:
 
 Not yet playable as a standalone game. Roughly 15-20% of the way to a full rewrite; measured stats and per-area estimates are in [ROADMAP.md, "Progress"](ROADMAP.md#progress), refreshed weekly.
 
+## Improvements over SC4
+
+Beyond the original, under the rules in [ROADMAP.md, "Improvements: the rules"](ROADMAP.md#improvements-the-rules). Plain tools are always there; changes to how the game plays are settings, off by default.
+
+| Improvement | How to use | Docs |
+|---|---|---|
+| Auto save | setting `game.autosave = ours` | [docs/autosave.md](docs/autosave.md) |
+| Shareable seeds | setting `game.seed = ours`, cheat `seed` | [docs/seeds.md](docs/seeds.md) |
+| Growify: plopped buildings to growable lots | cheat `growify <zone> <density>` | [docs/growify.md](docs/growify.md) |
+| City date sync: a region's cities share one date | setting `game.date_sync = ours` | [docs/date-sync.md](docs/date-sync.md) |
+
 ## Documents
 
 | Document | Contents |
