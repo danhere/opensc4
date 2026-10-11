@@ -464,7 +464,9 @@ bool Recorded(uint32_t target)
            (target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle ||
             target == addr::SC4EffectBase_AddParticle || target == addr::SC4EffectBase_GiveBackParticle ||
             target == addr::SC4EffectBaseB_GiveBackParticle || target == addr::SC4Effect_SpawnFromParticle ||
-            target == addr::SC4Effect_SetStopped || target == addr::SC4EffectB_SetStopped);
+            target == addr::SC4Effect_SetStopped || target == addr::SC4EffectB_SetStopped ||
+            target == addr::SC4EffectBase_SetEnding || target == addr::SC4EffectBase_LetGo ||
+            target == addr::SC4EffectBaseB_LetGo);
 }
 
 template <typename... Args>
@@ -1211,7 +1213,8 @@ uint32_t __fastcall DSC4Effect_PathVelocity(char* self, void*)
 }
 OPENSC4_THUNK(TSC4Effect_PathVelocity, DSC4Effect_PathVelocity, 0)
 OPENSC4_EFFECT_HOOK0(SC4Effect_StepFlag80000000)
-OPENSC4_EFFECT_HOOK0(SC4EffectBase_Finish)
+Call0Fn g_SC4EffectBase_Finish = nullptr;
+void TSC4EffectBase_Finish();
 // An effect's wandering (0x005B2730; the effect's draw calls it last for
 // descriptions with flag 0x800000, unless the effect has just ended),
 // translated instruction by instruction: a timer (+0x148) is lowered by the
@@ -1301,14 +1304,297 @@ uint32_t __fastcall DSC4Effect_StepFlag800000(char* self, void*, uint32_t step)
     return EffectRecorded(addr::SC4Effect_StepFlag800000, &WanderByMode, self, step);
 }
 OPENSC4_THUNK(TSC4Effect_StepFlag800000, DSC4Effect_StepFlag800000, 4)
-OPENSC4_EFFECT_HOOK0(SC4EffectBase_TakeParticle)
+
+// A particle's start (0x005B7580; taking a particle from the pool calls it
+// with the effect), translated instruction by instruction: the particle is
+// marked as running (its first byte), its age (+4) is 0 and its life (+8) a
+// random time between two values of the description, and its position,
+// velocity and the rest up to +0x40 come from the effect, its description
+// and random numbers of the generator at 0x00B22DF8. For descriptions with
+// a flag of the mask at 0x00B22E18 the game's 0x005B71E0 then places the
+// particle on the ground, and may end it at once.
+uint32_t StartParticle(char* self, uint32_t particle)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = particle;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_start.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+StepMode g_startMode = StepMode::Original;
+Call1Fn g_startParticle = nullptr;
+uint64_t g_startsCompared = 0;
+constexpr std::size_t kStartParticleBytes = 0x44;
+
+// It writes the particle and draws random numbers, so the comparison runs
+// ours, keeps the particle, the effect and the generator it left, puts all
+// three back and runs the game's: the two then draw the same numbers.
+uint32_t __fastcall StartByMode(char* self, void*, uint32_t particle)
+{
+    if (g_startMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_startParticle(self, nullptr, particle);
+    if (g_startMode == StepMode::Ours)
+        return StartParticle(self, particle);
+    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
+    char* const bytes = reinterpret_cast<char*>(particle);
+    constexpr std::size_t kTotal = kStartParticleBytes + kEffectSize + kGeneratorSize;
+    char before[kTotal], mine[kTotal], game[kTotal];
+    const auto save = [&](char* to) {
+        std::memcpy(to, bytes, kStartParticleBytes);
+        std::memcpy(to + kStartParticleBytes, self, kEffectSize);
+        std::memcpy(to + kStartParticleBytes + kEffectSize, generator, kGeneratorSize);
+    };
+    save(before);
+    if (g_selfCheck)
+        g_startParticle(self, nullptr, particle);
+    else
+        StartParticle(self, particle);
+    save(mine);
+    std::memcpy(bytes, before, kStartParticleBytes);
+    std::memcpy(self, before + kStartParticleBytes, kEffectSize);
+    std::memcpy(generator, before + kStartParticleBytes + kEffectSize, kGeneratorSize);
+    const uint32_t result = g_startParticle(self, nullptr, particle);
+    save(game);
+    const char* const id = g_selfCheck ? "effects.start.selfcheck" : "effects.start";
+    ++g_startsCompared;
+    if ((g_startsCompared & (g_startsCompared - 1)) == 0)
+        log::Write("water effects: %s: %llu calls compared so far", id,
+                   static_cast<unsigned long long>(g_startsCompared));
+    if (std::memcmp(game, mine, kTotal) == 0) {
+        compare::Record(id, true, std::string(), std::string());
+    } else {
+        std::size_t at = 0;
+        while (game[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        const std::size_t effectAt = kStartParticleBytes, generatorAt = kStartParticleBytes + kEffectSize;
+        char text[40];
+        std::snprintf(text, sizeof text, "%s+%zX ",
+                      at < effectAt ? "particle" : at < generatorAt ? "effect" : "generator",
+                      at < effectAt ? at : at < generatorAt ? at - effectAt : at - generatorAt);
+        compare::Record(id, false, text + Hex(game + at, 8), text + Hex(mine + at, 8));
+    }
+    return result;
+}
+// --- The particle pool ---------------------------------------------------------------------
+
+// Particles are kept on a free list (0x00B0A688, linked through each one's
+// first four bytes) of the pool at 0x00B0A67C. Three functions of the base
+// effect class's sub-object (the effect + 4) use it, written here by hand.
+constexpr std::uintptr_t kParticleFree = 0x00B0A688, kParticlePool = 0x00B0A67C, kFloatZero = 0x00B22D70;
+constexpr std::size_t kParticleBytes = 0x44;
+StepMode g_poolMode = StepMode::Original;
+uint64_t g_poolCompared = 0;
+
+void PoolCompared(const char* id, bool same, const std::string& game, const std::string& ours)
+{
+    ++g_poolCompared;
+    if ((g_poolCompared & (g_poolCompared - 1)) == 0)
+        log::Write("water effects: effects.pool: %llu calls compared so far",
+                   static_cast<unsigned long long>(g_poolCompared));
+    compare::Record(id, same, same ? std::string() : game, same ? std::string() : ours);
+}
+
+// Adding a particle to the effect's list (0x005B9F80, slot 0x2C): a new
+// 12-byte node at the end of the list (+0x10), the count (+0x14) raised.
+uint32_t AddParticle(char* base, uint32_t particle)
+{
+    char* const head = At<char*>(base, 0x10);
+    char* const node = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(12);
+    At<uint32_t>(node, 8) = particle;
+    char* const last = At<char*>(head, 4);
+    At<char*>(node, 0) = head;
+    At<char*>(node, 4) = last;
+    At<char*>(last, 0) = node;
+    At<char*>(head, 4) = node;
+    return static_cast<uint32_t>(++At<int32_t>(base, 0x14));
+}
+
+// Giving a particle back (0x005B2240, slot 0x40): onto the free list.
+uint32_t GiveBackParticle(uint32_t particle)
+{
+    if (particle) {
+        M<uint32_t>(particle) = Global<uint32_t>(kParticleFree);
+        Global<uint32_t>(kParticleFree) = particle;
+    }
+    return particle;
+}
+
+// Taking a particle (0x005B7C20, slot 0x3C): the first of the free list
+// (after the pool has grown, 0x005A61B0, when the list is empty), cleared
+// (0x005B9DF0), six of its floats set to zero, and started by the effect
+// (0x005B7580), which the comparison only notes.
+bool g_takeReplay = false;
+uint32_t g_takeStarted = 0;
+
+uint32_t TakeParticle(char* base)
+{
+    if (!Global<uint32_t>(kParticleFree))
+        CallThis<void>(addr::SC4ParticlePool_Grow, reinterpret_cast<void*>(kParticlePool));
+    const uint32_t particle = Global<uint32_t>(kParticleFree);
+    Global<uint32_t>(kParticleFree) = M<uint32_t>(particle);
+    CallThis<void>(addr::SC4Particle_Clear, reinterpret_cast<void*>(particle));
+    for (const uint32_t offset : {0x1Cu, 0x20u, 0x24u, 0x38u, 0x3Cu, 0x40u})
+        M<uint32_t>(particle + offset) = Global<uint32_t>(kFloatZero);
+    if (g_takeReplay)
+        g_takeStarted = particle;
+    else
+        CallThis<void>(addr::SC4Effect_StartParticle, base - 4, particle);
+    return particle;
+}
+
+Call0Fn g_SC4EffectBase_TakeParticle = nullptr;
+Call1Fn g_SC4EffectBase_AddParticle = nullptr, g_SC4EffectBase_GiveBackParticle = nullptr;
+
+// The comparison of the take: the game's runs for real, and a detour on the
+// start of the particle keeps the particle and the free list as they were on
+// entry; then the free list and the particle are put back as before the
+// take, ours runs up to that same point, the two states are compared, and
+// what the game left is put back.
+bool g_takeWatch = false;
+uint32_t g_takeGameParticle = 0, g_takeGameFree = 0;
+char g_takeGameBytes[kParticleBytes];
+
+uint32_t __fastcall DStartParticle(char* effect, void*, uint32_t particle)
+{
+    if (g_takeWatch && !g_takeGameParticle) {
+        g_takeGameParticle = particle;
+        g_takeGameFree = Global<uint32_t>(kParticleFree);
+        std::memcpy(g_takeGameBytes, reinterpret_cast<char*>(particle), kParticleBytes);
+    }
+    return StartByMode(effect, nullptr, particle);
+}
+OPENSC4_THUNK(TStartParticle, DStartParticle, 4)
+
+uint32_t __fastcall TakeByMode(char* base, void*)
+{
+    const uint32_t first = Global<uint32_t>(kParticleFree);
+    if (g_poolMode == StepMode::Original || g_effectReplay || (g_poolMode == StepMode::Compare && !first))
+        return g_SC4EffectBase_TakeParticle(base, nullptr);
+    if (g_poolMode == StepMode::Ours)
+        return TakeParticle(base);
+    char before[kParticleBytes], after[kParticleBytes], mine[kParticleBytes];
+    char* const bytes = reinterpret_cast<char*>(first);
+    std::memcpy(before, bytes, kParticleBytes);
+    g_takeGameParticle = 0;
+    g_takeWatch = true;
+    const uint32_t result = g_SC4EffectBase_TakeParticle(base, nullptr);
+    g_takeWatch = false;
+    std::memcpy(after, bytes, kParticleBytes);
+    const uint32_t freeAfter = Global<uint32_t>(kParticleFree);
+    std::memcpy(bytes, before, kParticleBytes);
+    Global<uint32_t>(kParticleFree) = first;
+    g_takeStarted = 0;
+    g_takeReplay = true;
+    const uint32_t ourResult = TakeParticle(base);
+    g_takeReplay = false;
+    std::memcpy(mine, bytes, kParticleBytes);
+    const uint32_t ourFree = Global<uint32_t>(kParticleFree);
+    std::memcpy(bytes, after, kParticleBytes);
+    Global<uint32_t>(kParticleFree) = freeAfter;
+    const bool same = result == ourResult && g_takeStarted == g_takeGameParticle && ourFree == g_takeGameFree &&
+                      std::memcmp(mine, g_takeGameBytes, kParticleBytes) == 0;
+    char text[64];
+    std::snprintf(text, sizeof text, "particle %08X, started %08X, free %08X ", result, g_takeGameParticle,
+                  g_takeGameFree);
+    const std::string game = text + Hex(g_takeGameBytes, kParticleBytes);
+    std::snprintf(text, sizeof text, "particle %08X, started %08X, free %08X ", ourResult, g_takeStarted, ourFree);
+    PoolCompared("effects.pool.take", same, game, text + Hex(mine, kParticleBytes));
+    return result;
+}
+
+// The comparison of the add: ours adds a node, what the list then looks
+// like is noted, the node is taken off again and freed, and the game's adds
+// its own; the two shapes are compared (the nodes' addresses may differ).
+std::string ListEnd(char* base, uint32_t particle, const char* lastBefore)
+{
+    char* const head = At<char*>(base, 0x10);
+    char* const node = At<char*>(head, 4);
+    char text[96];
+    std::snprintf(text, sizeof text, "count %d, particle %d, next %d, previous %d, linked %d", At<int32_t>(base, 0x14),
+                  At<uint32_t>(node, 8) == particle, At<char*>(node, 0) == head, At<char*>(node, 4) == lastBefore,
+                  At<char*>(const_cast<char*>(lastBefore), 0) == node);
+    return text;
+}
+
+uint32_t __fastcall AddByMode(char* base, void*, uint32_t particle)
+{
+    if (g_poolMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4EffectBase_AddParticle(base, nullptr, particle);
+    if (g_poolMode == StepMode::Ours)
+        return AddParticle(base, particle);
+    char* const head = At<char*>(base, 0x10);
+    char* const last = At<char*>(head, 4);
+    AddParticle(base, particle);
+    const std::string ours = ListEnd(base, particle, last);
+    char* const node = At<char*>(head, 4);
+    At<char*>(last, 0) = head;
+    At<char*>(head, 4) = last;
+    --At<int32_t>(base, 0x14);
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(node);
+    const uint32_t result = g_SC4EffectBase_AddParticle(base, nullptr, particle);
+    const std::string game = ListEnd(base, particle, last);
+    PoolCompared("effects.pool.add", game == ours, game, ours);
+    return result;
+}
+
+uint32_t __fastcall GiveBackByMode(char* base, void*, uint32_t particle)
+{
+    if (g_poolMode == StepMode::Original || g_effectReplay || !particle)
+        return g_SC4EffectBase_GiveBackParticle(base, nullptr, particle);
+    if (g_poolMode == StepMode::Ours)
+        return GiveBackParticle(particle);
+    const uint32_t freeBefore = Global<uint32_t>(kParticleFree), linkBefore = M<uint32_t>(particle);
+    GiveBackParticle(particle);
+    const uint32_t ourFree = Global<uint32_t>(kParticleFree), ourLink = M<uint32_t>(particle);
+    Global<uint32_t>(kParticleFree) = freeBefore;
+    M<uint32_t>(particle) = linkBefore;
+    const uint32_t result = g_SC4EffectBase_GiveBackParticle(base, nullptr, particle);
+    char text[48];
+    std::snprintf(text, sizeof text, "free %08X, link %08X", Global<uint32_t>(kParticleFree), M<uint32_t>(particle));
+    const std::string game = text;
+    std::snprintf(text, sizeof text, "free %08X, link %08X", ourFree, ourLink);
+    PoolCompared("effects.pool.giveback", game == text, game, text);
+    return result;
+}
+
+uint32_t __fastcall DSC4EffectBase_TakeParticle(char* base, void*)
+{
+    return EffectRecorded(addr::SC4EffectBase_TakeParticle, &TakeByMode, base);
+}
+uint32_t __fastcall DSC4EffectBase_AddParticle(char* base, void*, uint32_t particle)
+{
+    return EffectRecorded(addr::SC4EffectBase_AddParticle, &AddByMode, base, particle);
+}
+uint32_t __fastcall DSC4EffectBase_GiveBackParticle(char* base, void*, uint32_t particle)
+{
+    return EffectRecorded(addr::SC4EffectBase_GiveBackParticle, &GiveBackByMode, base, particle);
+}
+OPENSC4_THUNK(TSC4EffectBase_TakeParticle, DSC4EffectBase_TakeParticle, 0)
+OPENSC4_THUNK(TSC4EffectBase_AddParticle, DSC4EffectBase_AddParticle, 4)
+OPENSC4_THUNK(TSC4EffectBase_GiveBackParticle, DSC4EffectBase_GiveBackParticle, 4)
 OPENSC4_EFFECT_HOOK0(SC4EffectBaseB_TakeParticle)
-OPENSC4_EFFECT_HOOK1(SC4EffectBase_AddParticle)
-OPENSC4_EFFECT_HOOK1(SC4EffectBase_GiveBackParticle)
 OPENSC4_EFFECT_HOOK1(SC4EffectBaseB_GiveBackParticle)
 OPENSC4_EFFECT_HOOK1(SC4Effect_SpawnFromParticle)
-OPENSC4_EFFECT_HOOK1(SC4Effect_SetStopped)
-OPENSC4_EFFECT_HOOK1(SC4EffectB_SetStopped)
+OPENSC4_EFFECT_HOOK0(SC4EffectBase_LetGo)
+OPENSC4_EFFECT_HOOK0(SC4EffectBaseB_LetGo)
 
 // A particle effect's draw (0x005B8540, slot 0x24 of both effect classes),
 // translated instruction by instruction: the step added to the effect's
@@ -1430,9 +1716,15 @@ uint32_t RecordAndReplay(const char* id, char* self, bool checkResult, Game&& ga
     g_effectTaken.clear();
     g_effectChanges.clear();
     g_effectThread = GetCurrentThreadId();
+    // The function compared may itself be reached through a recording
+    // detour, which counts as one level of nesting: the calls it makes are
+    // the ones to record.
+    const int nested = g_effectNested;
+    g_effectNested = 0;
     g_effectRecord = true;
     const uint32_t result = game();
     g_effectRecord = false;
+    g_effectNested = nested;
     const std::vector<char> after = SaveEffect();
     const std::vector<char*> gameNodes = EffectNodes(self);
     g_effectClock = At<float>(self, 0x1FC);
@@ -1725,6 +2017,179 @@ uint32_t __fastcall DEmitToCount(char* self, void*, uint32_t step)
 }
 OPENSC4_THUNK(TEmitToCount, DEmitToCount, 4)
 
+// Whether an effect is over (0x005B9D40, on the sub-object at the effect's
+// +4; the effect's draw asks it last): with a particle left (+0x14) it is
+// not. With none, an effect marked at +0xC has its two marks cleared (its
+// slot 0x20 with two zeros), and one marked only at +0xD lets go of what it
+// holds (slot 0x14) and is released (slot 8); either way the answer is true.
+uint32_t FinishEffect(char* base)
+{
+    if (At<int32_t>(base, 0x14) != 0)
+        return 0;
+    if (At<uint8_t>(base, 0xC)) {
+        CallThisTraced(At<uint32_t>(At<char*>(base, 0), 0x20), base, 0u, 0u);
+        return 1;
+    }
+    if (!At<uint8_t>(base, 0xD))
+        return 0;
+    CallThisTraced(At<uint32_t>(At<char*>(base, 0), 0x14), base);
+    CallThisTraced(At<uint32_t>(At<char*>(base, 0), 0x8), base);
+    return 1;
+}
+
+StepMode g_finishMode = StepMode::Original;
+
+uint32_t __fastcall FinishByMode(char* base, void*)
+{
+    if (g_finishMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4EffectBase_Finish(base, nullptr);
+    if (g_finishMode == StepMode::Ours)
+        return FinishEffect(base);
+    return RecordAndReplay(
+        "effects.finish", base - 4, true, [&] { return g_SC4EffectBase_Finish(base, nullptr); },
+        [](void* b) { return FinishEffect(static_cast<char*>(b)); }, base);
+}
+
+uint32_t __fastcall DSC4EffectBase_Finish(char* base, void*)
+{
+    return EffectRecorded(addr::SC4EffectBase_Finish, &FinishByMode, base);
+}
+OPENSC4_THUNK(TSC4EffectBase_Finish, DSC4EffectBase_Finish, 0)
+
+// An effect told to go on or to end (0x005B9E70, slot 0x20 of both classes'
+// sub-objects; nothing for one whose byte +5 is clear). The first argument
+// is kept at +0xC. Set, the second is kept at +0xD and, when set as well,
+// the sub-object's slot 4 is called; the answer is false. Clear, the effect
+// loses its particles at once: the bytes +5 and +0xD are cleared, every
+// particle of the list (+0x10) is given back (slot 0x40) with the count
+// (+0x14) taken down first, the nodes are freed and the list is left empty;
+// the answer is true.
+uint32_t SetEffectEnding(char* base, uint32_t goOn, uint32_t whenEmpty)
+{
+    if (!At<uint8_t>(base, 5))
+        return 0;
+    At<uint8_t>(base, 0xC) = static_cast<uint8_t>(goOn);
+    if (static_cast<uint8_t>(goOn)) {
+        At<uint8_t>(base, 0xD) = static_cast<uint8_t>(whenEmpty);
+        if (static_cast<uint8_t>(whenEmpty))
+            CallThisTraced(At<uint32_t>(At<char*>(base, 0), 0x4), base);
+        return 0;
+    }
+    At<uint8_t>(base, 5) = 0;
+    At<uint8_t>(base, 0xD) = 0;
+    for (char* node = At<char*>(At<char*>(base, 0x10), 0); node != At<char*>(base, 0x10); node = At<char*>(node, 0)) {
+        --At<int32_t>(base, 0x14);
+        CallThisTraced(At<uint32_t>(At<char*>(base, 0), 0x40), base, At<uint32_t>(node, 8));
+    }
+    for (char* node = At<char*>(At<char*>(base, 0x10), 0); node != At<char*>(base, 0x10);) {
+        char* const next = At<char*>(node, 0);
+        CallPlainTraced(addr::SC4_Free, reinterpret_cast<uint32_t>(node));
+        node = next;
+    }
+    char* const head = At<char*>(base, 0x10);
+    At<char*>(head, 0) = head;
+    At<char*>(head, 4) = head;
+    return 1;
+}
+
+// An effect stopped or started again (0x005B21E0, slot 4 of the base
+// class): the value is kept at +0x18C, and the sub-object is told to go on
+// when it is 0 and to end otherwise. The game passes the whole register
+// with only its low byte set to the flag, and so does this.
+uint32_t SetEffectStopped(char* self, uint32_t value)
+{
+    At<uint32_t>(self, 0x18C) = value;
+    return CallThisTraced(addr::SC4EffectBase_SetEnding, self + 4, value ? value & ~0xFFu : 1u, 0u);
+}
+
+// The same for the second class (0x005AC190): an effect with an object at
+// +0x278 and nothing at +0x18 passes the value to that object's slot 4
+// first.
+uint32_t SetEffectStoppedB(char* self, uint32_t value)
+{
+    char* const object = At<char*>(self, 0x278);
+    if (object && At<uint32_t>(self, 0x18) == 0)
+        CallThisTraced(At<uint32_t>(At<char*>(object, 0), 0x4), object, value);
+    return CallThisTraced(addr::SC4Effect_SetStopped, self, value);
+}
+
+StepMode g_endingMode = StepMode::Original;
+Call1Fn g_SC4Effect_SetStopped = nullptr, g_SC4EffectB_SetStopped = nullptr;
+Call2Fn g_SC4EffectBase_SetEnding = nullptr;
+
+uint32_t __fastcall SetEndingByMode(char* base, void*, uint32_t goOn, uint32_t whenEmpty)
+{
+    if (g_endingMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4EffectBase_SetEnding(base, nullptr, goOn, whenEmpty);
+    if (g_endingMode == StepMode::Ours)
+        return SetEffectEnding(base, goOn, whenEmpty);
+    struct Arguments {
+        char* base;
+        uint32_t goOn, whenEmpty;
+    } arguments{base, goOn, whenEmpty};
+    return RecordAndReplay(
+        static_cast<uint8_t>(goOn) ? "effects.ending" : "effects.ending.clear", base - 4, true, [&] { return g_SC4EffectBase_SetEnding(base, nullptr, goOn, whenEmpty); },
+        [](void* a) {
+            const Arguments& args = *static_cast<Arguments*>(a);
+            return SetEffectEnding(args.base, args.goOn, args.whenEmpty);
+        },
+        &arguments);
+}
+
+// The two below answer with what the sub-object answered, which the replay
+// does not have: their answers are not compared.
+uint32_t StoppedCompared(const char* id, Call1Fn game, uint32_t (*ours)(char*, uint32_t), char* self, uint32_t value)
+{
+    struct Arguments {
+        uint32_t (*ours)(char*, uint32_t);
+        char* self;
+        uint32_t value;
+    } arguments{ours, self, value};
+    return RecordAndReplay(
+        id, self, false, [&] { return game(self, nullptr, value); },
+        [](void* a) {
+            const Arguments& args = *static_cast<Arguments*>(a);
+            return args.ours(args.self, args.value);
+        },
+        &arguments);
+}
+
+uint32_t __fastcall SetStoppedByMode(char* self, void*, uint32_t value)
+{
+    if (g_endingMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Effect_SetStopped(self, nullptr, value);
+    if (g_endingMode == StepMode::Ours)
+        return SetEffectStopped(self, value);
+    return StoppedCompared("effects.ending.stopped", g_SC4Effect_SetStopped, &SetEffectStopped, self, value);
+}
+
+uint32_t __fastcall SetStoppedBByMode(char* self, void*, uint32_t value)
+{
+    if (g_endingMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4EffectB_SetStopped(self, nullptr, value);
+    if (g_endingMode == StepMode::Ours)
+        return SetEffectStoppedB(self, value);
+    return StoppedCompared("effects.ending.stopped_b", g_SC4EffectB_SetStopped, &SetEffectStoppedB, self, value);
+}
+
+uint32_t __fastcall DSC4EffectBase_SetEnding(char* base, void*, uint32_t goOn, uint32_t whenEmpty)
+{
+    return EffectRecorded(addr::SC4EffectBase_SetEnding, &SetEndingByMode, base, goOn, whenEmpty);
+}
+OPENSC4_THUNK(TSC4EffectBase_SetEnding, DSC4EffectBase_SetEnding, 8)
+
+uint32_t __fastcall DSC4Effect_SetStopped(char* self, void*, uint32_t value)
+{
+    return EffectRecorded(addr::SC4Effect_SetStopped, &SetStoppedByMode, self, value);
+}
+OPENSC4_THUNK(TSC4Effect_SetStopped, DSC4Effect_SetStopped, 4)
+
+uint32_t __fastcall DSC4EffectB_SetStopped(char* self, void*, uint32_t value)
+{
+    return EffectRecorded(addr::SC4EffectB_SetStopped, &SetStoppedBByMode, self, value);
+}
+OPENSC4_THUNK(TSC4EffectB_SetStopped, DSC4EffectB_SetStopped, 4)
+
 uint32_t __fastcall DEffectDraw(char* self, void*, uint32_t step, uint32_t context)
 {
     if (g_trace != Trace::Off) {
@@ -1941,13 +2406,124 @@ bool HookPool()
                &g_SC4EffectBaseB_GiveBackParticle) &&
         Detour(addr::SC4Effect_SpawnFromParticle, &TSC4Effect_SpawnFromParticle, &g_SC4Effect_SpawnFromParticle) &&
         Detour(addr::SC4Effect_SetStopped, &TSC4Effect_SetStopped, &g_SC4Effect_SetStopped) &&
-        Detour(addr::SC4EffectB_SetStopped, &TSC4EffectB_SetStopped, &g_SC4EffectB_SetStopped);
+        Detour(addr::SC4EffectB_SetStopped, &TSC4EffectB_SetStopped, &g_SC4EffectB_SetStopped) &&
+        Detour(addr::SC4EffectBase_SetEnding, &TSC4EffectBase_SetEnding, &g_SC4EffectBase_SetEnding) &&
+        Detour(addr::SC4EffectBase_LetGo, &TSC4EffectBase_LetGo, &g_SC4EffectBase_LetGo) &&
+        Detour(addr::SC4EffectBaseB_LetGo, &TSC4EffectBaseB_LetGo, &g_SC4EffectBaseB_LetGo);
     if (g_poolHooked) {
         const addr::Entry* const uniform = addr_check::Find(addr::SC4Random_Uniform);
         g_poolHooked = uniform && hook::Install(*uniform, &DUniform, &g_uniform);
     }
     return g_poolHooked;
 }
+
+bool HookStart()
+{
+    return g_startParticle || Detour(addr::SC4Effect_StartParticle, &TStartParticle, &g_startParticle);
+}
+
+bool InstallStart(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookStart())
+        return false;
+    g_startMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: particle start %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredStart = registry::Register({
+    "renderer.effects.start",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StartParticle,
+    "A particle's start: its life, position, velocity and the rest from the effect, its description and random "
+    "numbers; compare mode runs ours and the game's on the same particle and generator (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallStart,
+});
+
+bool InstallPool(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookPool())
+        return false;
+    if (mode == registry::Mode::Compare && !HookStart())
+        return false;
+    g_poolMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: particle pool %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredPool = registry::Register({
+    "renderer.effects.pool",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectBase_TakeParticle,
+    "The base effect class's use of the particle pool: taking a particle, adding it to the effect's list and "
+    "giving it back; compare mode runs ours and the game's from the same state (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallPool,
+});
+
+bool InstallEnding(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookPool())
+        return false;
+    if (mode == registry::Mode::Compare && !HookFrees())
+        return false;
+    g_endingMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects' stopping and ending %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredEnding = registry::Register({
+    "renderer.effects.ending",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectBase_SetEnding,
+    "An effect stopped, started again or ended: both classes' stop setters and the sub-object's routine that keeps "
+    "the marks or gives every particle back; compare mode records the game's run and replays ours, as "
+    "renderer.effects.effect (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallEnding,
+});
+
+bool HookFinish()
+{
+    return g_SC4EffectBase_Finish ||
+           Detour(addr::SC4EffectBase_Finish, &TSC4EffectBase_Finish, &g_SC4EffectBase_Finish);
+}
+
+bool InstallFinish(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookFinish())
+        return false;
+    if (mode == registry::Mode::Compare && !(HookFrees() && HookPool()))
+        return false;
+    g_finishMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effect end check %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredFinish = registry::Register({
+    "renderer.effects.finish",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectBase_Finish,
+    "Whether an effect is over: with no particle left, a marked effect is ended or released; compare mode records "
+    "the game's run and replays ours, as renderer.effects.effect (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallFinish,
+});
 
 bool HookWander()
 {
@@ -2287,7 +2863,9 @@ bool InstallEffect(registry::Mode mode)
             ok = HookPull() && ok;
         bit <<= 1;
         hook(addr::SC4Effect_StepFlag80000000, &TSC4Effect_StepFlag80000000, &g_SC4Effect_StepFlag80000000);
-        hook(addr::SC4EffectBase_Finish, &TSC4EffectBase_Finish, &g_SC4EffectBase_Finish);
+        if (bits & bit)
+            ok = HookFinish() && ok;
+        bit <<= 1;
         if (bits & bit)
             ok = HookWander() && ok;
         bit <<= 1;
