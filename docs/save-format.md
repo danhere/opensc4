@@ -21,7 +21,7 @@ Stream types follow `cIGZIStream`/`cIGZOStream` (little-endian; strings are a 32
 
 ## The record streams (0x005D9430 to 0x005DBC10)
 
-The library every serialisable class writes and reads its record with. `saves.streams.part1` to `part3` replace it ([save_streams_1.cpp](../src/core/save_streams_1.cpp) to `_3.cpp`, off by default): 86 functions. It is the first piece of the save and load rewrite; the serializer, the save and load themselves and the file container are still the game's.
+The library every serialisable class writes and reads its record with. `saves.streams.part1` to `part3` replace it ([save_streams_1.cpp](../src/core/save_streams_1.cpp) to `_3.cpp`, off by default): 86 functions. It is the first piece of the save and load rewrite.
 
 **Four holders**, 0x10 bytes each, built on the caller's stack: +0 vtable, +4 the segment, +8 the record or stream, +0xC a 16-bit version (0xFFFF until something is open).
 
@@ -58,6 +58,43 @@ The library every serialisable class writes and reads its record with. `saves.st
 **Left the game's:** three container helpers shared with code that is not save code (the bit copy 0x005DAAE0, the bit row's copy constructor 0x005DB110, the bit row vector's destroy 0x005DB590) and a vector resize only the framework calls (0x005DB490).
 
 **Checked** (2026-10-11). `OPENSC4_TEST_SAVE_STREAMS=<day>` ([save_autotest.cpp](../src/core/save_autotest.cpp), token `svstreams`) feeds every helper that works on a plain stream fixed data through streams of the test's own: the bytes each writer produces and the memory each reader leaves, whole, cut short and over the limit, 29 steps. And every parity run loads a city through the readers and saves it through the writers. Twelve saves, seven days, full saves, the original against all three groups: the test's token equal in all 120 runs; eight saves the same on the first or second pair, four that part on days and in ways the original parts from itself (the first pair's second run, or a save whose original runs give three outcomes in four); the 63 record types the tools decode identical wherever the days agree. A whole-file comparison around moved addresses (`savediff.py --pointers`) shows ours against the original differing in the records two runs of the original differ in (the traffic network map, the two pictures and two more frame-driven records on a week of Making Money). A fault planted in one writer (a box written as five floats) changed the token.
+
+## The serializer and the segment streams (0x005D1520 to 0x005D4AB0)
+
+What stands between an object's `Read` and `Write` and the file. `saves.serializer.part1` to `part3` replace it ([save_serializer_1.cpp](../src/core/save_serializer_1.cpp) to `_3.cpp`, off by default): 102 functions, the second piece of the rewrite. The framework's packed file underneath (index, compression, 0x0096Dxxx to 0x00979xxx) is still the game's.
+
+**Three objects.**
+
+- **The save segment** (`cSC4DBSegmentPackedFile`, 0x1DC bytes, constructor 0x005D3740): +0 the `cISC4DBSegment` interface (vtable 0x00AA2654, 14 slots), +4 and +8 the framework's packed file with its two vtables, +0x1CC the serializer, +0x1D0 a message target for progress, +0x1D8 the percentage done. Opening it (0x005D2110) opens the packed file and starts the serializer in mode 1 (read) or 2 (write); closing it (0x005D2170) saves every object, stops the serializer and closes the file, and returns false when the save step failed although the file is closed all the same. Its destructor runs the same save on a segment still open. Progress only rises, and a message (0xC9E30725) goes out at each new even percent.
+- **The segment stream** (0x1C bytes; input vtable 0x00AA2280, interface 0x4999A8F5; output 0x00AA2310, 0x6999A8FB): what `Read` and `Write` get. A "good" byte, the record, the segment. Every typed call forwards to the record while the stream is good and makes the stream bad when the record refuses; after that nothing reaches the record. `GetError` is "not good". Slot 0x68 reads or writes a reference through the serializer, slot 0x70 a variant. The output stream's Open (0x005D2410, the entry named `cSC4COMSerializer::StreamOpen`) takes the existing record or makes a new one and seeks to its start or its end; it never cuts a record short. The output stream's `SetUint8` always answers false, though it writes the byte.
+- **The serializer** (`cSC4COMSerializer`, 0x44 bytes, its interface 0x699899EA at +8 with vtable 0x00AA268C): a map from class ID to a map from object ID to object, the mode, a count of objects, and a buffer for checksums.
+
+**Saving** (`SaveClassObjects`, 0x005D3DE0). Nothing is written when an object's `Write` runs first: `WriteReference` (0x005D4810) writes the target's address as its ID and its class ID (a null reference is one zero dword) and registers the target under its class (0x005D43F0). The first time a class is registered, its record in the file is deleted: that is how the old contents go. At the end the serializer walks a copy of the class map until every registered object has been written, objects registered during the walk included. Per class it opens the class's record to append; per object it writes two zero dwords, the ID, the object's `Write`, then goes back to fill in the size and a CRC-32 of at most 250,000 bytes of the object (0x00932FCF). A `Write` that fails or throws puts the record back to the object's start and the save goes on. Last comes the index record: version 1, the class count, the object count, then each class ID with its count.
+
+**Loading** (`LoadClassObjects`, 0x005D38D0) reads the index, then each class's record: per object the size, the checksum, the ID; the object is found or made through the class factory (0x005D2DD0) and its `Read` runs. `ReadReference` (0x005D4880) reads an ID and class ID and hands back the object of that ID, making it if it is not there yet, so objects exist before their own record is read.
+
+What goes wrong, and what the original does about it, all kept:
+
+| Case | Outcome |
+| --- | --- |
+| A class's record does not open | the class is skipped, the load does not fail |
+| A count of 10,000,000 or more, or a size beyond the record | the load fails for that class and the rest of its record is not read |
+| Checksum mismatch | the same: the object and every later object of that class are lost |
+| `Read` throws, or crashes | the object stays as far as it was read, the rest of the class's record is not read |
+| A class nothing can make | that object is stepped over |
+| An ID seen twice | `Read` runs again on the same object |
+| `Read` consumed more or less than the size | the position is set right, silently |
+| Fewer objects made than the index says | the load fails |
+
+The "throws, or crashes" row is a property of the original's compiler: its catch of everything also takes an access violation. Ours runs `Read` and `Write` inside a structured handler for the same effect.
+
+**Limits for bigger cities** ([city-size.md](city-size.md)): an object of more than 250,000 bytes is saved with a checksum of its first 250,000 only, and loads; a class of 10,000,000 objects or more does not load.
+
+**Left the game's:** the tree iterator and two map inserts shared with the ordinance code, three folded getters and thunks, and four functions at the end of the range that are not save code.
+
+With `diagnostics.prop_pox` on, which watches `StreamOpen` and `LoadClassObjects` with detours of its own, those two stay the game's.
+
+**Checked** (2026-10-11). All six `saves.*` groups on against the original. Twelve saves, seven days, full saves: every city loads through our loader and saves through our saver; eight saves the same, four that part where the original parts from itself (in each the original alone gives two or three outcomes); the stream test's token equal in all 120 runs. A whole-file comparison of a week of Making Money shows ours differing from the original in the five records two runs of the original differ in, and in nothing else. Five saves damaged on purpose (scratch tool: a class's record stored uncompressed, then one object's checksum or size spoiled, among the props, the lots, the buildings and one more class): the original and ours lose the same objects and run the same for three days; the spoiled size among the lots leaves 200 of 433 lots on both sides. Nine saves written by ours load in the original and run as they do with ours (six the same, three partly through the first pair's second run, which a control with the original on both sides shows too). Not reached by any test: a `Read` or `Write` that throws.
 
 ## cSC4PollutionSimulator (0x8990C065)
 
