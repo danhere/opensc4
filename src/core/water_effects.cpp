@@ -2541,6 +2541,87 @@ uint32_t __fastcall TransformByMode(char* self, void*, uint32_t block, uint32_t 
 }
 OPENSC4_THUNK(TSC4Effect_SetTransform, TransformByMode, 8)
 
+// An effect started (0x005B3000, slot 0 of both classes, with one word),
+// translated instruction by instruction. Nothing when the word is set and
+// the description has a count at +0x18 without flag 8, or when the
+// sub-object cannot be set going again (0x005B9CF0). Else the effect's
+// clocks (+0x110, +0x120) and counts are set back, its pull (+0x13C) is
+// the description's, and by the description's flags: a random delay and
+// speed (flag 0x800000, with the wander run once), nothing at all on a
+// cell of the wrong kind (the terrain's object at 0x00B43CEC, as for a
+// new particle), and random values for the emitter's clocks. The random
+// numbers come from the generator at 0x00B22DF8.
+uint32_t BeginEffect(char* self, uint32_t again)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = again;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_begin.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+StepMode g_beginMode = StepMode::Original;
+Call1Fn g_SC4Effect_Begin = nullptr;
+uint64_t g_beginsCompared = 0;
+
+// It writes the effect and draws random numbers: ours runs, the effect and
+// the generator it left are kept, both are put back and the game's runs.
+uint32_t __fastcall BeginByMode(char* self, void*, uint32_t again)
+{
+    if (g_beginMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Effect_Begin(self, nullptr, again);
+    if (g_beginMode == StepMode::Ours)
+        return BeginEffect(self, again);
+    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
+    constexpr std::size_t kTotal = kEffectSize + kGeneratorSize;
+    char before[kTotal], mine[kTotal], theirs[kTotal];
+    const auto save = [&](char* to) {
+        std::memcpy(to, self, kEffectSize);
+        std::memcpy(to + kEffectSize, generator, kGeneratorSize);
+    };
+    save(before);
+    BeginEffect(self, again);
+    save(mine);
+    std::memcpy(self, before, kEffectSize);
+    std::memcpy(generator, before + kEffectSize, kGeneratorSize);
+    const uint32_t result = g_SC4Effect_Begin(self, nullptr, again);
+    save(theirs);
+    ++g_beginsCompared;
+    if ((g_beginsCompared & (g_beginsCompared - 1)) == 0)
+        log::Write("water effects: effects.begin: %llu calls compared so far",
+                   static_cast<unsigned long long>(g_beginsCompared));
+    if (std::memcmp(theirs, mine, kTotal) == 0) {
+        compare::Record("effects.begin", true, std::string(), std::string());
+    } else {
+        std::size_t at = 0;
+        while (theirs[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        char text[40];
+        std::snprintf(text, sizeof text, "%s+%zX ", at < kEffectSize ? "effect" : "generator",
+                      at < kEffectSize ? at : at - kEffectSize);
+        compare::Record("effects.begin", false, text + Hex(theirs + at, 8), text + Hex(mine + at, 8));
+    }
+    return result;
+}
+OPENSC4_THUNK(TSC4Effect_Begin, BeginByMode, 4)
+
 // --- The particle pool ---------------------------------------------------------------------
 
 // Particles are kept on a free list (0x00B0A688, linked through each one's
@@ -4112,6 +4193,29 @@ const bool g_registeredTransform = registry::Register({
     "and clouds\")",
     true,
     InstallTransform,
+});
+
+bool InstallBegin(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4Effect_Begin || Detour(addr::SC4Effect_Begin, &TSC4Effect_Begin, &g_SC4Effect_Begin)))
+        return false;
+    g_beginMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects' start %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredBegin = registry::Register({
+    "renderer.effects.begin",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_Begin,
+    "An effect started: its clocks and counts set back, its pull, and the random delays and speeds its "
+    "description asks for; compare mode runs ours and the game's on the same effect and generator "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallBegin,
 });
 
 bool InstallGround(registry::Mode mode)
