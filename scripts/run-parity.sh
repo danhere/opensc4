@@ -48,6 +48,9 @@ export OPENSC4_TEST_QUICK="${OPENSC4_TEST_QUICK:-1}"
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 base="determinism.fixed_seed=ours,determinism.virtual_clock=ours,determinism.fixed_ticks=ours,determinism.agent_order=ours,determinism.zero_alloc=ours,determinism.sim_timers=ours,resources.stale_record_fix=ours"
+# Improvements on by default that change the game by themselves are turned
+# off, so both runs play classic SC4 (game.date_sync: docs/date-sync.md).
+base="$base,game.date_sync=original"
 # Parallel jobs: several copies of the game at once (harness.multi_instance
 # lets them start; run-autotest.sh then kills only its own on a timeout).
 if [ "$jobs" != 1 ]; then
@@ -66,6 +69,9 @@ mkdir -p "$out"
 for side in a b; do
     list="$replace_a"
     [ "$side" = b ] && list="$replace_b"
+    # game.no_kickout is on by default and changes the simulation: each side
+    # runs it as the original unless its list names it (docs/no-kickout.md).
+    case "$list" in *game.no_kickout=*) ;; *) list="$list,game.no_kickout=original" ;; esac
     { echo "[replacements]"; echo "$list" | tr ',' '\n'; } >"$out/$side.ini"
 done
 
