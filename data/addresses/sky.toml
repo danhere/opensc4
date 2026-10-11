@@ -233,3 +233,30 @@ convention = "thiscall"
 signature = "void (SC4Effect* this, float step)"
 expect = "55 8B EC 83 E4 F8 83 EC"
 source = "Name ours, not analysed. Called at the end of SC4Effect::Draw for descriptions with flag 0x800000 when SC4EffectBase::Finish answered false (0x005B879E)."
+
+[[entry]]
+name = "SC4Effect::EmitToCount"
+address = 0x005B3CF0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, float step)"
+expect = "D9 44 24 04 8B 81 28 01"
+source = "Name ours. The emitter for descriptions with flag 4: adds the step times a rate (+0x130) to a double at +0x120 and, when that has passed +0x128, brings the number of particles (+0x18) up to a count from the description's +0x88, taking each from the sub-object (slot 0x3C) and adding it (slot 0x2C) or giving it back (slot 0x40). Called by SC4Effect::Emit (0x005B9768)."
+
+[[entry]]
+name = "SC4Effect::EmitBurst"
+address = 0x005B8B50
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, float step)"
+expect = "D9 44 24 04 83 EC 0C 56"
+source = "Name ours, not analysed. The emitter for descriptions with flag 2 (and not 4). Called by SC4Effect::Emit (0x005B9779)."
+
+[[entry]]
+name = "SC4Effect::EmitStream"
+address = 0x005B87B0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, float step)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours, not analysed. The emitter for descriptions with neither flag 4 nor flag 2. Called by SC4Effect::Emit (0x005B9784)."

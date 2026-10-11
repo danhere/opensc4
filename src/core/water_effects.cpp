@@ -607,7 +607,141 @@ uint32_t __fastcall DSC4Effect_StepParticle(char* self, void*, uint32_t particle
 }
 OPENSC4_THUNK(TSC4Effect_StepParticle, DSC4Effect_StepParticle, 8)
 
-OPENSC4_EFFECT_HOOK0(SC4Effect_Emit)
+// An effect's emit (0x005B96E0, slot 0x3C of both effect classes),
+// translated instruction by instruction: nothing when +0x10 is set; a
+// countdown at +0x190 is lowered by the step (+0x108), and while it is above
+// zero nothing is emitted; then the step (what the countdown went below zero
+// by, at most a value from the description's +0x1C) goes to one of three
+// emitters by the description's flags: 4, 2, or neither.
+bool g_emitReplay = false;
+uint32_t g_emitTarget = 0, g_emitStep = 0;
+
+uint32_t CallEmitter(uint32_t target, void* self, uint32_t step)
+{
+    if (!g_emitReplay)
+        return reinterpret_cast<uint32_t(__thiscall*)(void*, uint32_t)>(target)(self, step);
+    g_emitTarget = target;
+    g_emitStep = step;
+    return 0;
+}
+
+uint32_t EmitParticles(char* self)
+{
+    uint32_t stackmem[160] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_emit.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+enum class EmitMode { Original, Ours, Compare };
+EmitMode g_emitMode = EmitMode::Original;
+Call0Fn g_SC4Effect_Emit = nullptr;
+Call1Fn g_emitToCount = nullptr, g_emitBurst = nullptr, g_emitStream = nullptr;
+uint64_t g_emitsCompared = 0;
+
+// The comparison: everything the emit does itself comes before its one call
+// to an emitter. Ours runs with that call only noted; the effect it left is
+// kept and the effect put back; then the game's runs for real, and a detour
+// on each emitter notes which was called, with what, and the effect as it
+// was on entry (or, when none was called, as the emit left it).
+bool g_emitWatch = false;
+uint32_t g_emitGameTarget = 0, g_emitGameStep = 0;
+char g_emitSeen[kEffectSize];
+char* g_emitSelf = nullptr;
+
+template <typename Fn>
+uint32_t EmitterWatched(uint32_t target, Fn original, char* self, uint32_t step)
+{
+    if (g_emitWatch && self == g_emitSelf && !g_emitGameTarget) {
+        g_emitGameTarget = target;
+        g_emitGameStep = step;
+        std::memcpy(g_emitSeen, self, kEffectSize);
+    }
+    return original(self, nullptr, step);
+}
+
+uint32_t __fastcall DEmitToCount(char* self, void*, uint32_t step)
+{
+    return EmitterWatched(addr::SC4Effect_EmitToCount, g_emitToCount, self, step);
+}
+uint32_t __fastcall DEmitBurst(char* self, void*, uint32_t step)
+{
+    return EmitterWatched(addr::SC4Effect_EmitBurst, g_emitBurst, self, step);
+}
+uint32_t __fastcall DEmitStream(char* self, void*, uint32_t step)
+{
+    return EmitterWatched(addr::SC4Effect_EmitStream, g_emitStream, self, step);
+}
+OPENSC4_THUNK(TEmitToCount, DEmitToCount, 4)
+OPENSC4_THUNK(TEmitBurst, DEmitBurst, 4)
+OPENSC4_THUNK(TEmitStream, DEmitStream, 4)
+
+uint32_t __fastcall EmitByMode(char* self, void*)
+{
+    if (g_emitMode == EmitMode::Original || g_emitWatch)
+        return g_SC4Effect_Emit(self, nullptr);
+    if (g_emitMode == EmitMode::Ours)
+        return EmitParticles(self);
+    char before[kEffectSize], mine[kEffectSize];
+    std::memcpy(before, self, kEffectSize);
+    g_emitTarget = g_emitStep = 0;
+    g_emitReplay = true;
+    EmitParticles(self);
+    g_emitReplay = false;
+    std::memcpy(mine, self, kEffectSize);
+    std::memcpy(self, before, kEffectSize);
+    g_emitGameTarget = g_emitGameStep = 0;
+    g_emitSelf = self;
+    g_emitWatch = true;
+    const uint32_t result = g_SC4Effect_Emit(self, nullptr);
+    g_emitWatch = false;
+    if (!g_emitGameTarget)
+        std::memcpy(g_emitSeen, self, kEffectSize);
+    ++g_emitsCompared;
+    if ((g_emitsCompared & (g_emitsCompared - 1)) == 0)
+        log::Write("water effects: effects.emit: %llu emits compared so far",
+                   static_cast<unsigned long long>(g_emitsCompared));
+    char text[96];
+    if (g_emitTarget != g_emitGameTarget || g_emitStep != g_emitGameStep) {
+        std::snprintf(text, sizeof text, "emitter %08X, step %08X", g_emitGameTarget, g_emitGameStep);
+        const std::string game = text;
+        std::snprintf(text, sizeof text, "emitter %08X, step %08X", g_emitTarget, g_emitStep);
+        compare::Record("effects.emit", false, game, text);
+    } else if (std::memcmp(g_emitSeen, mine, kEffectSize) != 0) {
+        std::size_t at = 0;
+        while (g_emitSeen[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "effect+%zX ", at);
+        compare::Record("effects.emit", false, text + Hex(g_emitSeen + at, 8), text + Hex(mine + at, 8));
+    } else {
+        compare::Record("effects.emit", true, std::string(), std::string());
+    }
+    return result;
+}
+
+uint32_t __fastcall DSC4Effect_Emit(char* self, void*)
+{
+    return EffectRecorded(addr::SC4Effect_Emit, &EmitByMode, self);
+}
+OPENSC4_THUNK(TSC4Effect_Emit, DSC4Effect_Emit, 0)
+
 OPENSC4_EFFECT_HOOK1(SC4Effect_BeforeParticles)
 OPENSC4_EFFECT_HOOK1(SC4Effect_DrawParticlesTextured)
 OPENSC4_EFFECT_HOOK1(SC4Effect_DrawParticles)
@@ -1012,6 +1146,38 @@ const bool g_registeredStep = registry::Register({
     InstallStep,
 });
 
+bool HookEmit()
+{
+    return g_SC4Effect_Emit || Detour(addr::SC4Effect_Emit, &TSC4Effect_Emit, &g_SC4Effect_Emit);
+}
+
+bool InstallEmit(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookEmit())
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(Detour(addr::SC4Effect_EmitToCount, &TEmitToCount, &g_emitToCount) &&
+          Detour(addr::SC4Effect_EmitBurst, &TEmitBurst, &g_emitBurst) &&
+          Detour(addr::SC4Effect_EmitStream, &TEmitStream, &g_emitStream)))
+        return false;
+    g_emitMode = mode == registry::Mode::Compare ? EmitMode::Compare : EmitMode::Ours;
+    log::Write("water effects: emit %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredEmit = registry::Register({
+    "renderer.effects.emit",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_Emit,
+    "An effect's emit: the countdown to the next emission and the choice of emitter (the three emitters still the "
+    "game's); compare mode runs ours with the emitter only noted, then the game's (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallEmit,
+});
+
 bool InstallEffect(registry::Mode mode)
 {
     if (!game::IsBuild641())
@@ -1032,7 +1198,9 @@ bool InstallEffect(registry::Mode mode)
         if (bits & bit)
             ok = HookStepParticle() && ok;
         bit <<= 1;
-        hook(addr::SC4Effect_Emit, &TSC4Effect_Emit, &g_SC4Effect_Emit);
+        if (bits & bit)
+            ok = HookEmit() && ok;
+        bit <<= 1;
         hook(addr::SC4Effect_BeforeParticles, &TSC4Effect_BeforeParticles, &g_SC4Effect_BeforeParticles);
         hook(addr::SC4Effect_DrawParticlesTextured, &TSC4Effect_DrawParticlesTextured,
              &g_SC4Effect_DrawParticlesTextured);
