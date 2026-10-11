@@ -5197,7 +5197,7 @@ void __cdecl PaintLoadingDraw2(EntryFrame* frame)
 DATAMAP_ENTRY(TPaintLoadingDraw2, PaintLoadingDraw2, g_paintLoadingDraw2, 0)
 
 void* g_paintAdvisorHead;
-void __cdecl PaintAdvisorHead(EntryFrame* frame)
+void __cdecl PaintAdvisorHeadOurs(EntryFrame* frame)
 {
     static bool seen = false;
     if (!seen)
@@ -5212,6 +5212,32 @@ void __cdecl PaintAdvisorHead(EntryFrame* frame)
     frame->edx = edx;
     if (top >= 0)
         log::Write("window paints: AdvisorHead left %d values on the x87 stack", top + 1);
+}
+// The advisor head view's Draw goes to the driver through the 3D render (the
+// object at 0x00B43DD0), outside a frame. Compared like a pass: the head view
+// (0xF8 bytes), the render's context and camera, and what reaches the driver.
+bool g_compareAdvisorHead;
+void __cdecl PaintAdvisorHead(EntryFrame* frame)
+{
+    char* const render = Global<char*>(0x00B43DD0);
+    if (!g_compareAdvisorHead || !render) {
+        PaintAdvisorHeadOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    std::vector<Region> regions = RenderRegions(render);
+    regions.push_back({"head view", self, 0xF8});
+    const EntryFrame entry = *frame;
+    DrawCompared(g_selfCheck ? "paint.advisorhead.selfcheck" : "paint.advisorhead", regions,
+                 [&] {
+                     if (g_selfCheck) {
+                         CallThis<void>(reinterpret_cast<std::uintptr_t>(g_paintAdvisorHead), self);
+                     } else {
+                         *frame = entry;
+                         PaintAdvisorHeadOurs(frame);
+                     }
+                 },
+                 [&] { frame->eax = CallThis<uint32_t>(reinterpret_cast<std::uintptr_t>(g_paintAdvisorHead), self); });
 }
 DATAMAP_ENTRY(TPaintAdvisorHead, PaintAdvisorHead, g_paintAdvisorHead, 0)
 
@@ -5307,8 +5333,9 @@ bool InstallWindowPaints(registry::Mode mode)
 {
     if (!game::IsBuild641())
         return false;
-    g_compareWindowPaints = mode == registry::Mode::Compare;
-    const bool installed = Detour(addr::SC4UI_F777220, &TPaintLoadingDraw, &g_paintLoadingDraw)
+    g_compareWindowPaints = g_compareAdvisorHead = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::SC4UI_F4209D0, &TPaintAdvisorHead, &g_paintAdvisorHead)
+                           && Detour(addr::SC4UI_F777220, &TPaintLoadingDraw, &g_paintLoadingDraw)
                            && Detour(addr::SC4UI_F7773B0, &TPaintLoadingDraw2, &g_paintLoadingDraw2)
                            && Detour(addr::WindowPaint_CityPictureBlend, &TPaintCityPictureBlend, &g_paintCityPictureBlend)
                            && Detour(addr::SC4UI_F794100, &TPaintOverlayPicture, &g_paintOverlayPicture)
@@ -5333,32 +5360,10 @@ const bool g_registeredWindowPaints = registry::Register({
     registry::Phase::PostAppInit,
     addr::SC4UI_F7773B0,
     "The paints and draws of the small windows: loading screen, overlay picture, progress bar, info tip, animation "
-    "recorder and its frame, pop-up menu and its arrows, intro, picture file dialog, graph box; compare mode runs each "
-    "twice, ours and the game's, and compares the object and its pictures (docs/renderer.md, \"Small windows\")",
+    "recorder and its frame, pop-up menu and its arrows, intro, picture file dialog, graph box, advisor head; compare mode "
+    "runs each twice, ours and the game's, and compares the object and its pictures (docs/renderer.md, \"Small windows\")",
     true,
     InstallWindowPaints,
-});
-
-// The advisor head view's Draw goes through the 3D render outside a frame and
-// has no comparison yet.
-bool InstallWindowPaintsUntested(registry::Mode)
-{
-    if (!game::IsBuild641() || !Detour(addr::SC4UI_F4209D0, &TPaintAdvisorHead, &g_paintAdvisorHead))
-        return false;
-    log::Write("window paints: the advisor head's draw ours (no comparison)");
-    return true;
-}
-
-const bool g_registeredWindowPaintsUntested = registry::Register({
-    "renderer.windows.paints_untested",
-    "renderer/windows",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4UI_F4209D0,
-    "The advisor head view's Draw: a test reaches it, but it has no same-run comparison (docs/renderer.md, \"Small "
-    "windows\")",
-    true,
-    InstallWindowPaintsUntested,
 });
 
 // A same-run comparison for a function whose results land in other objects
@@ -5629,7 +5634,7 @@ bool g_compareRegionDraw;
 // the picture grid copied to the screen, and the overlay window's paint.
 // Translated instruction by instruction and entered like the pixel routines.
 void* g_regionDrawPictureMask;
-void __cdecl RegionDrawPictureMask(EntryFrame* frame)
+void __cdecl RegionDrawPictureMaskOurs(EntryFrame* frame)
 {
     static uint32_t calls = 0;
     if (++calls == 1 || (calls & (calls - 1)) == 0)
@@ -5643,6 +5648,31 @@ void __cdecl RegionDrawPictureMask(EntryFrame* frame)
     frame->edx = edx;
     if (top >= 0)
         log::Write("region draw: PictureMask left %d values on the x87 stack", top + 1);
+}
+// The mask of a city's picture is drawn when a city is saved, through the 3D
+// render (0x00B43DD0), with no arguments. Compared like a pass: the render's
+// context and camera and what reaches the driver; its vertices are on its
+// stack, so the driver's vertex pointer is left out.
+bool g_compareRegionMask;
+void __cdecl RegionDrawPictureMask(EntryFrame* frame)
+{
+    char* const render = Global<char*>(0x00B43DD0);
+    if (!g_compareRegionMask || !render) {
+        RegionDrawPictureMaskOurs(frame);
+        return;
+    }
+    const EntryFrame entry = *frame;
+    using MaskFn = uint32_t(__cdecl*)();
+    DrawCompared(g_selfCheck ? "region.picturemask.selfcheck" : "region.picturemask", RenderRegions(render),
+                 [&] {
+                     if (g_selfCheck) {
+                         reinterpret_cast<MaskFn>(g_regionDrawPictureMask)();
+                     } else {
+                         *frame = entry;
+                         RegionDrawPictureMaskOurs(frame);
+                     }
+                 },
+                 [&] { frame->eax = reinterpret_cast<MaskFn>(g_regionDrawPictureMask)(); }, true);
 }
 DATAMAP_ENTRY(TRegionDrawPictureMask, RegionDrawPictureMask, g_regionDrawPictureMask, 0)
 
@@ -5863,12 +5893,13 @@ bool InstallRegionDrawing(registry::Mode mode)
 {
     if (!game::IsBuild641())
         return false;
-    g_compareRegionDraw = mode == registry::Mode::Compare;
-    const bool installed = Detour(addr::SC4RegionOverlay_Draw, &TRegionDrawTerrainOverlay, &g_regionDrawTerrainOverlay)
+    g_compareRegionDraw = g_compareRegionMask = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::SC4CityFiles_DrawPictureMask, &TRegionDrawPictureMask, &g_regionDrawPictureMask)
+                           && Detour(addr::SC4RegionOverlay_Draw, &TRegionDrawTerrainOverlay, &g_regionDrawTerrainOverlay)
                            && Detour(addr::SC4RegionViewGrid_Draw, &TRegionDrawGrid, &g_regionDrawGrid)
                            && Detour(addr::SC4RegionOverlayWin_Paint, &TRegionDrawOverlayPaint, &g_regionDrawOverlayPaint);
     if (installed)
-        log::Write("region draw: terrain overlay, picture grid and overlay window %s", g_compareRegionDraw ? "compared with the game's" : "ours");
+        log::Write("region draw: terrain overlay, picture grid, overlay window and picture mask %s", g_compareRegionDraw ? "compared with the game's" : "ours");
     return installed;
 }
 
@@ -5878,31 +5909,10 @@ const bool g_registeredRegionDrawing = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::SC4RegionViewGrid_Draw,
-    "The region view's drawing: terrain overlay, picture grid, overlay window's paint; compare mode as "
-    "renderer.terrain.land (docs/renderer.md, \"The region view\")",
+    "The region view's drawing: terrain overlay, picture grid, overlay window's paint, the mask of a city's picture; "
+    "compare mode as renderer.terrain.land (docs/renderer.md, \"The region view\")",
     true,
     InstallRegionDrawing,
-});
-
-// The mask of a city's picture: no test reaches it yet, so it has never run.
-bool InstallRegionDrawingUntested(registry::Mode)
-{
-    if (!game::IsBuild641() || !Detour(addr::SC4CityFiles_DrawPictureMask, &TRegionDrawPictureMask, &g_regionDrawPictureMask))
-        return false;
-    log::Write("region draw: the untested picture mask ours");
-    return true;
-}
-
-const bool g_registeredRegionDrawingUntested = registry::Register({
-    "renderer.region.draw_untested",
-    "renderer/region",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4CityFiles_DrawPictureMask,
-    "The mask of a city's picture for the region map: no test reaches it yet, so never run (docs/renderer.md, \"The "
-    "region view\")",
-    true,
-    InstallRegionDrawingUntested,
 });
 
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),
