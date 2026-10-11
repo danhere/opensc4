@@ -94,6 +94,16 @@ These adapt to the size by construction. The only risk is what they allocate nex
 
 Make the region offer an 8 km (512x512) city: patch the `config.bmp` colour decode for one test region (for example, accept white, code 7, as index 3; the tile vector already stores log2 of the side), create a new city there, and record where it fails. Expect the occupant manager's world grid to fail first. Each failure is one entry on the list above. This runs inside the 32-bit game, so it also shows how far 512 gets before memory is the problem.
 
+## The 8 km spike
+
+Started 2026-10-11. The region data class is ours now (`region.data.*`, [region.md](region.md)), so the layout decode needs no patch: with `[improvements] big_cities = on` in `opensc4.ini` (and `region.data.*` on), our `DecodeLayout` reads a white square (all three channels at 255) as an 8 km tile, stored as log2 index 3. Off by default; with it off the decode is the game's.
+
+The occupant manager is ours too ([occmgr.md](occmgr.md)), but still sized for 256 cells: a 192-cell world grid with the city at 64 to 127. A 512-cell city needs 128 world cells; with a 64-cell margin each side the grid is 256 cells, indices 0 to 255, just inside the one-byte rectangles. That change belongs to the occupant manager's owner.
+
+To run: a test region whose `config.bmp` has one 8x8 white square, then create a city there and record each failure below.
+
+Results: not run yet.
+
 ## Compatibility
 
 - **Old saves:** unaffected. Standard sizes stay as they are.
