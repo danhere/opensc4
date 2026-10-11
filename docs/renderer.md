@@ -332,16 +332,22 @@ Checked on the three tutorial cities, with and without the Data Views window ope
 
 A window's paint (window slot 88) does not go to the driver either: it draws into the window's canvas, a `cIGZBuffer` the window keeps at +0x68, which the window manager puts on screen later. So a paint can be checked like the map pictures, in the same run: ours, then the object and the pixels of its buffers put back, then the game's, and the two results compared byte for byte (`PaintCompared` in `terrain_draw.cpp`).
 
-The interface code left fourteen such functions as drawing (docs/ui.md). All are translated instruction by instruction; what could be tested decides which switch they are behind:
+The interface code left fourteen such functions as drawing (docs/ui.md). All are translated instruction by instruction, and all but one are behind `renderer.windows.paints`:
 
-- `renderer.windows.paints`: the loading screen's two draws (0x00777220, 0x007773B0; its picture object keeps buffers at +0xC, +0x10, +0x14 and +0x98) with the blend they use (0x00776C30), and the overlay picture's paint (0x00794100, which copies its picture at +0xE4 into the canvas). A test run reaches these. Compare mode covers the second loading draw (which calls the first and the blend) and the overlay picture.
-- `renderer.windows.paints_untested`: the paints of the progress bar (0x00797CC0), the info tip (0x00798710), the animation recorder (0x007943B0) and its frame (0x00794BF0), the pop-up menu (0x0079AA70) and its arrows (0x0079B0E0), the intro window (0x0079D490), the picture file dialog (0x0079D6B0), the advisor head view's Draw (0x004209D0) and the graph control's box (0x0076B660). No test opens these windows on screen, so this code has never run. It is in the tree so that the day a test reaches one, it can be compared at once.
+- The loading screen's two draws (0x00777220, 0x007773B0; its picture object keeps buffers at +0xC, +0x10, +0x14 and +0x98) with the blend they use (0x00776C30), and the overlay picture's paint (0x00794100, which copies its picture at +0xE4 into the canvas). A plain test run reaches these.
+- The paints of the progress bar (0x00797CC0), the info tip (0x00798710), the animation recorder (0x007943B0) and its frame (0x00794BF0), the pop-up menu (0x0079AA70) and its arrows (0x0079B0E0), the intro window (0x0079D490) and the picture file dialog (0x0079D6B0), and the graph control's box (0x0076B660, a line function that forwards its seven arguments to the game's line drawing). Nothing puts these windows on screen in an unattended run; `OPENSC4_TEST_WINDOW_PAINTS=<day>` with `OPENSC4_TEST_TUTORIAL_OFF=1` (`src/core/window_paint_autotest.cpp`) brings each one up and has it painted, on the screen's canvas and again on a canvas of its own, which is a picture in memory.
 
-Checked on the three tutorial cities, with and without the Data Views window, plus a self-check; screenshots match the game's (20 of 20). What the comparison saw:
+`renderer.windows.paints_untested` is left with the advisor head view's Draw (0x004209D0): the test reaches it, but it draws through the 3D render outside a frame and has no same-run comparison.
+
+A window that makes its pictures anew in a paint (the info tip builds its text and its bubble when it is stale, at +0x140 and +0x144; the arrows build a strip) cannot simply be put back: the old picture is gone. `PaintComparedRebuilt` leaves such pointers as the run made them, puts back the rest of the object and the pixels of the buffers that stayed, and compares the rebuilt pictures by their size and pixels, not their address.
+
+Checked on the three tutorial cities, with a self-check; screenshots match the game's (20 of 20). What the comparison saw:
 
 - The mini map's paint: 149 paints, all of which drew, no difference.
+- The eight window paints the test brings up (progress bar, info tip, recorder and frame, pop-up menu and arrows, intro, picture file dialog): 32 paints a run, 96 in all, no difference; 22 of the 32 change the object or a picture (the rest are the paints on the screen's canvas, which is not a picture in memory). The intro is never started in the test, so its paint only counts down a field: only the object is compared.
 - The loading screen's draw: 12 calls a run, no difference, but only one a run changes anything in the object or its buffers, so this is a thin check.
 - The overlay picture's paint: thousands of calls a run, no difference, and none of them had anything to draw (the paint leaves early without a picture), so only its way out is verified.
+- The graph box is not compared in the same run: the picture it is given is of another buffer class (vtable 0x00AC1550), which the comparison does not read. Its check is the test's own: the graph's canvas has the same checksum with the game's code and with ours, in separate runs.
 
 The translator learned tail calls for this (a `jmp` out of the function or through a pointer: the callee runs without our return address and its result is ours), one-operand `mul`, the sign branches and every set-on-condition.
 
