@@ -2699,9 +2699,197 @@ uint32_t __fastcall DEffectDraw(char* self, void*, uint32_t step, uint32_t conte
     return EffectDraw(self, step, context);
 }
 
+// A decal's step (0x00582920, slot 0x24 of the class 0x00A9EE78, the
+// objects of the manager's fourth list), translated instruction by
+// instruction. Nothing for a decal without a handle (+0x70 is -1). Its
+// time (+0x114) grows by the step, and the time times +0x118 is where it
+// is in its life: a looping decal (+0x15 is 1) wraps, one past its end
+// that is of kind 2 ends itself (its slot 4 with 0) and any other stays at
+// the end. Then the description's curves (three vectors of floats from
+// +0x34, and one of positions at +0x40) are read at that point and given
+// to the owner (+0x120) for the handle: by the flags at +0xC only an
+// opacity (slot 0x44), or a block of nine values (slot 0x34) and the
+// opacity, and last a position (slot 0x48).
+uint32_t StepDecal(char* self, uint32_t step)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = step;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_decal.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Its comparison: what it does is its own time and the calls it makes, to
+// its owner and to its own slot 4. For the length of the comparison the
+// decal is given a stand-in owner and a copy of its table of functions
+// with slot 4 replaced, which note each call (the slot, the handle and the
+// values behind the pointers). Ours runs first with the calls only noted;
+// the decal is put back and the game's runs with the calls noted and
+// passed on. The calls and what is left of the decal must be the same. A
+// decal that ends itself is compared as it is when it asks to.
+enum class DecalMode { Original, Ours, Compare };
+DecalMode g_decalMode = DecalMode::Original;
+constexpr std::uintptr_t kDecalVtable = 0x00A9EE78;
+constexpr std::size_t kDecalBytes = 0x124, kDecalOwner = 0x120, kDecalSlots = 64;
+struct DecalCall {
+    uint32_t slot, handle;
+    char data[0x24];
+    bool operator==(const DecalCall& other) const
+    {
+        return slot == other.slot && handle == other.handle && std::memcmp(data, other.data, sizeof data) == 0;
+    }
+};
+std::vector<DecalCall> g_decalOurCalls, g_decalGameCalls;
+bool g_decalForward = false, g_decalEnded = false;
+char* g_decalSelf = nullptr;
+char* g_decalRealOwner = nullptr;
+char g_decalAtEnd[kDecalBytes];
+uint32_t g_decalFakeVtable[kDecalSlots], g_decalSelfVtable[kDecalSlots];
+uint32_t* g_decalFakeOwner = g_decalFakeVtable;
+uint64_t g_decalsCompared = 0, g_decalCallsCompared = 0;
+
+void NoteDecalCall(uint32_t slot, uint32_t handle, const void* data, std::size_t size)
+{
+    DecalCall call{slot, handle, {}};
+    std::memcpy(call.data, data, size);
+    (g_decalForward ? g_decalGameCalls : g_decalOurCalls).push_back(call);
+}
+
+void UnswapDecal()
+{
+    At<uint32_t>(g_decalSelf, 0) = kDecalVtable;
+    At<char*>(g_decalSelf, kDecalOwner) = g_decalRealOwner;
+}
+
+uint32_t __fastcall DecalOwnerBlock(void*, void*, uint32_t handle, uint32_t block)
+{
+    NoteDecalCall(0x34, handle, reinterpret_cast<const void*>(block), 0x24);
+    return g_decalForward
+               ? CallThis<uint32_t>(At<uint32_t>(At<char*>(g_decalRealOwner, 0), 0x34), g_decalRealOwner, handle, block)
+               : 0;
+}
+
+uint32_t __fastcall DecalOwnerOpacity(void*, void*, uint32_t handle, uint32_t value)
+{
+    NoteDecalCall(0x44, handle, &value, 4);
+    return g_decalForward
+               ? CallThis<uint32_t>(At<uint32_t>(At<char*>(g_decalRealOwner, 0), 0x44), g_decalRealOwner, handle, value)
+               : 0;
+}
+
+uint32_t __fastcall DecalOwnerPlace(void*, void*, uint32_t handle, uint32_t place)
+{
+    NoteDecalCall(0x48, handle, reinterpret_cast<const void*>(place), 12);
+    return g_decalForward
+               ? CallThis<uint32_t>(At<uint32_t>(At<char*>(g_decalRealOwner, 0), 0x48), g_decalRealOwner, handle, place)
+               : 0;
+}
+
+uint32_t __fastcall DecalEnd(char* self, void*, uint32_t value)
+{
+    NoteDecalCall(0x4, value, &value, 0);
+    std::memcpy(g_decalAtEnd, self, kDecalBytes);
+    g_decalEnded = true;
+    if (!g_decalForward)
+        return 0;
+    // The decal may be gone when this returns: it is given its own back
+    // first, and not touched again.
+    UnswapDecal();
+    return CallThis<uint32_t>(Global<uint32_t>(kDecalVtable + 4), self, value);
+}
+
+uint32_t __fastcall DecalByMode(char* self, void*, uint32_t step)
+{
+    if (g_decalMode == DecalMode::Original)
+        return g_decalDraw(self, nullptr, step);
+    if (g_decalMode == DecalMode::Ours)
+        return StepDecal(self, step);
+    if (At<uint32_t>(self, 0) != kDecalVtable || g_decalSelf)
+        return g_decalDraw(self, nullptr, step);
+    g_decalSelf = self;
+    g_decalRealOwner = At<char*>(self, kDecalOwner);
+    std::memcpy(g_decalSelfVtable, reinterpret_cast<const void*>(kDecalVtable), sizeof g_decalSelfVtable);
+    g_decalSelfVtable[1] = reinterpret_cast<uint32_t>(&DecalEnd);
+    std::memset(g_decalFakeVtable, 0, sizeof g_decalFakeVtable);
+    g_decalFakeVtable[0x34 / 4] = reinterpret_cast<uint32_t>(&DecalOwnerBlock);
+    g_decalFakeVtable[0x44 / 4] = reinterpret_cast<uint32_t>(&DecalOwnerOpacity);
+    g_decalFakeVtable[0x48 / 4] = reinterpret_cast<uint32_t>(&DecalOwnerPlace);
+    At<uint32_t*>(self, 0) = g_decalSelfVtable;
+    At<uint32_t**>(self, kDecalOwner) = &g_decalFakeOwner;
+    char before[kDecalBytes], mine[kDecalBytes], theirs[kDecalBytes];
+    std::memcpy(before, self, kDecalBytes);
+    g_decalOurCalls.clear();
+    g_decalGameCalls.clear();
+    g_decalForward = false;
+    g_decalEnded = false;
+    StepDecal(self, step);
+    std::memcpy(mine, g_decalEnded ? g_decalAtEnd : self, kDecalBytes);
+    std::memcpy(self, before, kDecalBytes);
+    g_decalForward = true;
+    g_decalEnded = false;
+    const uint32_t result = g_decalDraw(self, nullptr, step);
+    if (g_decalEnded) {
+        std::memcpy(theirs, g_decalAtEnd, kDecalBytes);
+    } else {
+        std::memcpy(theirs, self, kDecalBytes);
+        UnswapDecal();
+    }
+    g_decalSelf = nullptr;
+    ++g_decalsCompared;
+    g_decalCallsCompared += g_decalGameCalls.size();
+    if ((g_decalsCompared & (g_decalsCompared - 1)) == 0)
+        log::Write("water effects: effects.decal: %llu steps, %llu calls compared so far",
+                   static_cast<unsigned long long>(g_decalsCompared),
+                   static_cast<unsigned long long>(g_decalCallsCompared));
+    char text[80];
+    if (!(g_decalGameCalls == g_decalOurCalls)) {
+        std::size_t at = 0;
+        while (at < g_decalGameCalls.size() && at < g_decalOurCalls.size() &&
+               g_decalGameCalls[at] == g_decalOurCalls[at])
+            ++at;
+        const auto describe = [&](const std::vector<DecalCall>& calls) {
+            if (at >= calls.size()) {
+                std::snprintf(text, sizeof text, "%zu calls", calls.size());
+                return std::string(text);
+            }
+            std::snprintf(text, sizeof text, "call %zu of %zu: slot %X (%08X) ", at, calls.size(), calls[at].slot,
+                          calls[at].handle);
+            return text + Hex(calls[at].data, sizeof calls[at].data);
+        };
+        const std::string game = describe(g_decalGameCalls);
+        compare::Record("effects.decal", false, game, describe(g_decalOurCalls));
+    } else if (std::memcmp(theirs, mine, kDecalBytes) != 0) {
+        std::size_t at = 0;
+        while (theirs[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "decal+%zX ", at);
+        compare::Record("effects.decal", false, text + Hex(theirs + at, 4), text + Hex(mine + at, 4));
+    } else {
+        compare::Record("effects.decal", true, std::string(), std::string());
+    }
+    return result;
+}
+
 uint32_t __fastcall DDecalDraw(char* self, void*, uint32_t step)
 {
-    return Traced(6, g_decalDraw, self, step);
+    return Traced(6, &DecalByMode, self, step);
 }
 
 
@@ -3503,6 +3691,33 @@ const bool g_registeredEffect = registry::Register({
     InstallEffect,
 });
 
+bool HookDecalDraw()
+{
+    return g_decalDraw || Detour(addr::SC4EffectDecal_Draw, &TDecalDraw, &g_decalDraw);
+}
+
+bool InstallDecal(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookDecalDraw())
+        return false;
+    g_decalMode = mode == registry::Mode::Compare ? DecalMode::Compare : DecalMode::Ours;
+    log::Write("water effects: decals' step %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDecal = registry::Register({
+    "renderer.effects.decal",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDecal_Draw,
+    "A decal's step: its time, and the opacity, values and position its curves give at that time, passed to its "
+    "owner; compare mode notes the calls of ours and of the game's through a stand-in owner (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallDecal,
+});
+
 bool InstallEffects(registry::Mode mode)
 {
     if (!game::IsBuild641())
@@ -3514,7 +3729,7 @@ bool InstallEffects(registry::Mode mode)
           Detour(addr::SC4EffectsManager_StepShake, &TStepShake, &g_stepShake) &&
           Detour(addr::SC4EffectsManager_AfterDraw, &TAfterDraw, &g_afterDraw) &&
           HookEffectDraw() &&
-          Detour(addr::SC4EffectDecal_Draw, &TDecalDraw, &g_decalDraw)))
+          HookDecalDraw()))
         return false;
     if (!Detour(addr::SC4EffectsManager_Draw, &TEffects, &g_effects))
         return false;
