@@ -162,7 +162,7 @@ Parity method (from P4): short-window exact comparison against the original from
 ## P7: Networks and traffic (only together with the NAM team)
 
 - [ ] RUL0/1/2 engine and network tools, either implemented jointly or preserving the NAM DLL's hook points
-- [ ] Traffic simulator
+- [ ] Traffic simulator: the vanilla model, plus our own "Improved traffic" option (see ideas from newer games)
 
 ## P8: Remaining world systems
 
@@ -244,7 +244,7 @@ Brainstormed with Dan (2026-10-09), from Cities: Skylines, SimCity (2013) and ot
 Wanted:
 - [ ] In-game mod manager: enable and disable plugins and see conflicts without leaving the game (P3 resources/DBPF)
 - [~] Photo mode: the game's angles with the interface hidden, any fine zoom, full-resolution PNG captures (docs/photo-mode.md). Free camera and tilt need our own building and tree models (Dan, 2026-10-09: game angles only for now). Still to do: pictures larger than the window, depth of field (P1 renderer)
-- [ ] Improved traffic: lane-aware, junctions that back up; the "our own" traffic option (P7, with NAM)
+- [ ] Improved traffic: lane-aware, junctions that back up; the "our own" traffic option (P7). Decided (Dan, 2026-10-11): we build our own, after NAM's ideas (fastest route, intersection delays, capacity presets, the commuter loop fix), with our own numbers tuned per city size; we do not bundle NAM's traffic settings. NAM's roads and models stay a plugin players install themselves. Design: commuter groups choosing car, bike, walk or transit, parking for cars and bikes, fare and parking levers ([design doc](https://claude.ai/code/artifact/c7a15df8-2813-43bb-b97f-98d81b404a5a))
 - [ ] Transit lines: draw bus and rail routes, stats per line (P7)
 - [ ] Shared regional services: buses, schools, ambulances across city borders, so small towns can feed a big city (P8 region view)
 - [ ] City chronicle: an auto-written history of the city's milestones and disasters, building on the news ticker
