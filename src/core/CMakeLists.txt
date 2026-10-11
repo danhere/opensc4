@@ -192,6 +192,7 @@ add_library(opensc4_core SHARED
   dbpf_survey.cpp
   plugin_loader.cpp
   stale_record_fix.cpp
+  prop_pox_diag.cpp
   pin_plugin_dlls.cpp
   puzzle_piece_fix.cpp
   single_core.cpp

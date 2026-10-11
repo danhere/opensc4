@@ -48,3 +48,39 @@ convention = "thiscall"
 signature = "void (void* map, void* node)"
 expect = "56 8B F1 8B 06 8D 48 0C"
 source = "Name ours. Erases one node of the open-record multimap (node by value): unlinks and rebalances (0x0040DAF0), frees the node (0x0090CF63), decrements the count; the record is not touched. The segment's close does Release then this (0x00971A3A). RET 4."
+
+[[entry]]
+name = "cSC4COMSerializer::StreamOpen"
+address = 0x005D2410
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* segment, const cGZPersistResourceKey* key, bool fromStart)"
+expect = "57 8B F9 8B 07 FF 50 58 84 C0 75 04 5F C2 0C 00"
+source = "Name ours. The save's record stream open (docs/crashes.md, Prop pox): opens the record for write, existing before new; after success the record is at this+8. fromStart true seeks to 0, false to the record's size (append). RET 0xC. Hooked read-only by diagnostics.prop_pox."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::WriteRecordSetFieldVoid"
+address = 0x00970F0F
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* data, uint32_t len)"
+expect = "55 8B EC 83 EC 1C 53 56 33 DB 8B F1 66 39 5E 0A"
+source = "Name ours. Write of a packed-file write record (vtable 0x00AD8628): flags word +0x0A, key +0x0C, buffer +0x44/+0x48, position +0x50, temp file +0x54, spilled +0x58; moves the buffer to a temp file when the write reaches 2,000,000 bytes. RET 8. Hooked read-only by diagnostics.prop_pox."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::DeleteRecord"
+address = 0x00971A55
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZPersistDBSegment* this, const cGZPersistResourceKey* key)"
+expect = "55 8B EC 83 EC 14 53 56 8B F1 8B 46 18 A8 03 57"
+source = "Name ours. Slot +0x98 of the packed-file segment's interface; does nothing unless the segment is open for write (flags +0x18 & 3 and & 2) and silently refuses while the key is in the open map (+0xD4). RET 4. Hooked read-only by diagnostics.prop_pox."
+
+[[entry]]
+name = "cSC4COMSerializer::LoadClassObjects"
+address = 0x005D38D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 6A FF 68 C0 EF A6 00 64 A1 00 00 00 00"
+source = "Name ours. Reads the class objects of a save (docs/crashes.md, Prop pox); returns early unless the state at this+0x20 is 1. The class map is at this+0x14 ({header*, count}; node: class ID +0x10, expected count +0x14, registered count +0x18). Has an SEH frame. Hooked read-only by diagnostics.prop_pox."
