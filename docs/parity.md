@@ -102,6 +102,7 @@ The test cities never edit their networks, so parity alone would not reach the c
 | `OPENSC4_TEST_OCCMGR=1` | each day, a few hundred questions put to the occupant manager's slots and to the game's own functions on the same index; the fingerprint has how many days they agreed ([occmgr.md](occmgr.md)). `OPENSC4_TEST_OCCMGR_TYPES=1` logs the entries per occupant type |
 | `OPENSC4_TEST_BLDGOCC=1` (2: the frame-driven fields too) | each day, the building occupants' query slots on a fifth of the buildings, into the fingerprint ([bldgocc.md](bldgocc.md)) |
 | `OPENSC4_TEST_OCCBASE=1` (2: counts per flag bit too) | each day, the occupant base class's query functions on a seventh of the occupants, into the fingerprint ([occbase.md](occbase.md)) |
+| `OPENSC4_TEST_PROPOCC=1` (2: counts of the frame-driven fields too) | each day, the prop occupants' query slots on an eleventh of the props, into the fingerprint ([propocc.md](propocc.md)) |
 | `OPENSC4_TEST_ZONE=1` | each day, the lot manager's and zone developer's pure queries on a lattice of cells, into the fingerprint ([zone.md](zone.md)) |
 | `OPENSC4_TEST_CRIME_QUERIES=1` | each day, the crime queries only the UI and the automata make, into the fingerprint ([crime.md](crime.md)) |
 | `OPENSC4_TEST_MYSIM_QUERIES=1` | each day, what the MySim panel and balloons ask every MySim, into the fingerprint ([mysim-agents.md](mysim-agents.md)) |
