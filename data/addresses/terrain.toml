@@ -1549,3 +1549,19 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 6C 53 55 8B D9 8B"
 source = "Name ours. A blend routine of the city picture class; called by the loading screen's draw (at 0x00777503). (docs/renderer.md, \"Small windows\")."
+
+[[entry]]
+name = "CityView::Paint"
+address = 0x007F6200
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B F1 8A 86"
+source = "Name ours (class cSC4View3DWin). (): the city view window's paint (window slot 88). (docs/renderer.md, \"The city view window\")."
+
+[[entry]]
+name = "CityView::SetScrolling"
+address = 0x007F64F0
+kind = "function"
+convention = "thiscall"
+expect = "53 8A 5C 24 08 56 8B F1"
+source = "Name ours (class cSC4View3DWin). (bool scrolling, x, y): starts (0x007F6410) or ends (0x007F6160) the view's scrolling and keeps the flag at +0x330 and the two values at +0x328 and +0x32C; clears +0x339. (docs/renderer.md, \"The city view window\")."

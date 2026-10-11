@@ -345,6 +345,23 @@ Checked on the three tutorial cities, with and without the Data Views window, pl
 
 The translator learned tail calls for this (a `jmp` out of the function or through a pointer: the callee runs without our return address and its result is ours), one-operand `mul`, the sign branches and every set-on-condition.
 
+## The city view window
+
+The window the city is shown in (`cSC4View3DWin`) is the interface code's, but five of its functions draw and were left to the renderer (docs/ui.md):
+
+- **Paint** (0x007F6200, window slot 88) runs once a frame. It reads its stopwatch for the time since the last paint, steps a scroll in progress (0x007CD330), stores the time in what slot 0x28 of the object at +0xE8 gives (at +0x1C) and calls that object's slot 0x54, then takes one pending item off the list at +0x140. That the object at +0xE8 is the 3D render and slot 0x54 its draw is inferred from the slot numbers, not traced.
+- **The mayor rating meter** (0x007E8510) loads the meter's picture, copies its rows up to the rating's level into a new buffer, hands that to the meter's window and places and shows the arrows beside it.
+- **The lighting time** (0x007E6E40) turns the clock's hours and minutes into a float, gives it to the lighting manager and asks for a full redraw (a tail call).
+- **The cost indicator's amount** (0x007EAC70) and **SetScrolling** (0x007F64F0).
+
+All five are translated instruction by instruction. `renderer.cityview.draw` has the first three, which a test run reaches; `renderer.cityview.draw_untested` has the last two, which no test reaches, so that code has never run.
+
+The paint cannot be run twice (it is a frame, on real time), so screenshots are its check, as for the render's own pass runner. The meter and the lighting time put their results into other objects, and give the same result when run again, so they have a new kind of same-run comparison (`EffectCompared`): ours runs first and notes every object it calls into; the first 128 bytes of each object that starts with a vtable are copied, and for a picture buffer its size and a sum of its pixels; then the game's runs twice. Bytes that differ between the game's two runs (addresses of things made anew, counts) are left out; the rest must be the same after ours as after the game's.
+
+Checked on the three tutorial cities: screenshots match the game's (20 of 20 each); with the city running for 30 days the meter is compared twice a run and the lighting time once, over 14 and 4 objects, with no difference, and the self-check is clean. That is few calls: the meter only changes with the rating, and the lighting only when the clock's time is handed over.
+
+For this the translator learned `adc` after an `add`, and to carry the flags of a jump to its target when the code above cannot fall into it; it reports where flags of different kinds meet and are then read. No branch of the translations already in the tree changes under the new rule.
+
 ## Water effects, sky and clouds
 
 **What draws after the models.** Besides the models, the 3D render calls objects that registered for one of four passes (`cSC43DRender::AddViewObject`, 0x007C5D90: pass 0 and 2 around the static pass, 3 and 5 around the moving-objects pass; each object's slot 0xC with the render context, in the order number's order). `diagnostics.trace.viewobjects` logs every registration; `OPENSC4_VIEWOBJECT_SKIP=<draw function>` leaves an object out, to see in a screenshot what it draws. In a loaded city (2026-10-10):
