@@ -187,9 +187,11 @@ Left alone until Dan decides to take the project public (Dan, 2026-10-10: buildi
 
 ## Improvements: the rules
 
+What is already in: [README.md](README.md#improvements-over-the-original). Add a line there with each improvement that lands.
+
 Decided (Dan, 2026-10-11): it is our game, so we improve it, but classic mode stays intact. These rules cover every "Beyond the original" section below.
 
-- **Behind a setting.** Each improvement is an option; with it off, the game behaves exactly like SC4, so the parity tests keep working.
+- **Behind a setting.** Each improvement is an option; with it off, the game behaves exactly like SC4, so the parity tests keep working. The exception (Dan, 2026-10-11): an addition that does nothing until the player asks for it, such as a tool mode on a held key, is simply part of the game and needs no setting.
 - **Saves and mods keep loading.** Old cities and NAM-style plugins still load. Anything that needs new save data (bigger maps, for one) is a new save format, not a change to the old one.
 - **Parity first.** An area is improved only after ours matches the original there, since "better" cannot be measured before that.
 - **Only assets we have rights to.** New or better textures and models are made by us or the community, never edited copies of EA's files.
@@ -250,7 +252,7 @@ Wanted:
 - [ ] Colorblind-friendly data views, as a UI add-on (P2)
 - [ ] Multi-threaded simulation, tabled until P9 and the 64-bit build
 - [ ] Crash-safe autosave: keep the last few saves, restore with one click (P4 save format). First part done: `game.autosave` saves every few minutes of play and keeps the last few saves as copies ([docs/autosave.md](docs/autosave.md), after the MIT-licensed sc4-auto-save); restoring is still by hand. Finding why the game crashes, as simulators are replaced, should make it needed less often
-- [ ] Bulldozer extras, after the Bulldoze Extensions plugin (our own code): first part done, `game.bulldoze` bulldozes only flora, only transport networks, or everything but networks by held keys ([docs/bulldoze.md](docs/bulldoze.md)). Still to do: diagonal bulldozing, de-zoning that keeps roads
+- [ ] Bulldozer extras, after the Bulldoze Extensions plugin (our own code): first part done and on as the game comes, `game.bulldoze` bulldozes only flora, only transport networks, or everything but networks by held keys ([docs/bulldoze.md](docs/bulldoze.md)). Still to do: diagonal bulldozing, de-zoning that keeps roads
 - [ ] Real-world terrain import: build a region from real elevation data (P8 terrain)
 - [ ] A switch to turn off the MySim mode (the player's own Sims who move into a city, `cSC4MySim`): kept in the rewrite for completeness, but Dan sees no use for it (2026-10-09), so a config option to hide and skip it. It is already inactive until a player moves a MySim in
 - [ ] Seasons and weather: snow, autumn trees, rain (P1 renderer)

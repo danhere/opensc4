@@ -17,6 +17,19 @@ Early development. Working today, inside SC4 Deluxe build 1.1.641:
 
 Not yet playable as a standalone game. Roughly 15-20% of the way to a full rewrite; measured stats and per-area estimates are in [ROADMAP.md, "Progress"](ROADMAP.md#progress), refreshed weekly.
 
+## Improvements over the original
+
+Things OpenSC4 adds to the game. Classic behaviour stays: an addition that changes how the game plays is an option in `opensc4.ini`, off until you turn it on; one that does nothing until you ask for it is simply there.
+
+| Improvement | How to get it | Details |
+|---|---|---|
+| Bulldozer modes: only trees (hold Ctrl), only roads and rails (hold Shift), everything but those (hold both) | always there | [docs/bulldoze.md](docs/bulldoze.md) |
+| Auto save every few minutes of play, with the last few saves kept as copies | `game.autosave = ours` | [docs/autosave.md](docs/autosave.md) |
+| Timelapse: a dated copy of the city at every save, rendered into a video | `game.timelapse = ours` | [docs/timelapse.md](docs/timelapse.md) |
+| One seed per city, shown in the title and set with the `seed` cheat | `game.seed = ours` | [docs/seeds.md](docs/seeds.md) |
+| D3D11 renderer: resolutions past 2048 px, windowed and borderless modes, a scaled interface | `renderer.d3d11 = ours` | [docs/renderer.md](docs/renderer.md), [docs/ui-scaling.md](docs/ui-scaling.md) |
+| 8 km city tiles (an experiment: such a city cannot be saved yet) | `[improvements] big_cities = on` | [docs/city-size.md](docs/city-size.md) |
+
 ## Documents
 
 | Document | Contents |

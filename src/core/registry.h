@@ -48,6 +48,10 @@ struct Replacement {
     // Applies the replacement in `mode` (never called with Mode::Original).
     // Returns false if it could not be applied; the game then keeps the original.
     bool (*apply)(Mode mode);
+    // Ours unless the configuration says otherwise: for additions to the
+    // game that do nothing until the player asks for them (ROADMAP,
+    // "Improvements: the rules"). Everything else starts as the original.
+    bool onByDefault = false;
 };
 
 // Adds a replacement. Returns true so it can initialise a static:
