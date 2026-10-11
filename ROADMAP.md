@@ -273,7 +273,6 @@ Content with little or no new art (Dan, 2026-10-09, all wanted). Reuses the game
 - [ ] Deeper garbage: landfills fill up, recycling targets, waste exports (P5 pollution)
 - [ ] Region dashboard: the region's population, budget and trade on one screen (P8 region view)
 - [ ] Sandbox panel: sliders for demand, money and disaster frequency
-- [ ] New sounds and soundtracks (Dan, 2026-10-11: noted, not to start yet). Music is plain files in the Radio folders, so dropping in MP3s already works; once the audio classes are ours: more stations, OGG/FLAC, playlists per situation (disaster, night, region view). Brand-new sound effects: a small mixer of our own playing WAV/OGG at the points where the game triggers sounds, rather than authoring EA's bank format (estimate: a couple of weeks; needs listening tests, parity cannot hear). Builds on the sound system rewrite
 
 Not now:
 - Building add-ons (SimCity 2013 modules): would need a lot of new art, and Dan does not want AI-generated assets
