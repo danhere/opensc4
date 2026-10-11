@@ -116,3 +116,120 @@ convention = "thiscall"
 signature = "void (SC4EffectDecal* this, float step)"
 expect = "83 EC 50 55 56 8B F1 8B"
 source = "Class name ours, not analysed. Slot 0x24 of the vtable 0x00A9EE78, the class of the objects in the manager's fourth list (interface +0xBC0), which SC4EffectsManager::Draw draws after the sorted effects (diagnostics.trace.effects)."
+
+[[entry]]
+name = "SC4Effect::StepParticle"
+address = 0x005B9BA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Effect* this, SC4Particle* particle, float step)"
+expect = "83 EC 20 8B 41 24 8B 10"
+source = "Class name ours. Slot 0x50 of both effect classes (vtables 0x00AA0EA0, 0x00AA0C58). Steps one particle: its age (+4) against its life (+8), its position (+0x1C) by the effect's velocity (+0x13C); false (and the particle's first byte cleared) when it ends. Jumps to 0x005B9790 for descriptions with a flag of 0x00B22E14. Called by SC4Effect::Draw (0x005B86C5)."
+
+[[entry]]
+name = "SC4Effect::Emit"
+address = 0x005B96E0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this)"
+expect = "51 8A 41 10 84 C0 0F 85"
+source = "Class name ours. Slot 0x3C of both effect classes. Unless +0x10 is set, counts +0x190 down by the step and then calls one of three emitters by the description's flags (0x005B3CF0 flag 4, 0x005B8B50 flag 2, else 0x005B87B0). Called by SC4Effect::Draw unless +0x21A is set (0x005B870A)."
+
+[[entry]]
+name = "SC4Effect::BeforeParticles"
+address = 0x005B3B90
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4RenderContext* context)"
+expect = "8B 54 24 04 8B 42 18 83"
+source = "Name ours, not analysed. Slot 0x38 of both effect classes; SC4Effect::Draw calls it before drawing the particles (0x005B8721)."
+
+[[entry]]
+name = "SC4Effect::DrawParticlesTextured"
+address = 0x005B4B90
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4RenderContext* context)"
+expect = "55 8B EC 6A FF 68 F8 0E"
+source = "Name ours, not analysed. Slot 0x48 of both effect classes; SC4Effect::Draw draws with it when +0x1EC is set (0x005B8759)."
+
+[[entry]]
+name = "SC4Effect::DrawParticles"
+address = 0x005B3DA0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4RenderContext* context)"
+expect = "81 EC 9C 01 00 00 55 56"
+source = "Name ours, not analysed. Slot 0x44 of the base effect class (vtable 0x00AA0EA0); SC4Effect::Draw draws with it when +0x1EC is clear (0x005B8760)."
+
+[[entry]]
+name = "SC4EffectB::DrawParticles"
+address = 0x005ADD50
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4RenderContext* context)"
+expect = "81 EC FC 00 00 00 B8 00"
+source = "Name ours, not analysed. Slot 0x44 of the second effect class (vtable 0x00AA0C58)."
+
+[[entry]]
+name = "SC4Effect::NotDrawn"
+address = 0x005B6390
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this)"
+expect = "B8 00 00 80 3F 89 81 A0"
+source = "Name ours, not analysed. Slot 0x4C of the base effect class; SC4Effect::Draw calls it when there is no render context or no particle (0x005B8778)."
+
+[[entry]]
+name = "SC4EffectB::NotDrawn"
+address = 0x005AE6E0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this)"
+expect = "81 EC 9C 00 00 00 B8 00"
+source = "Name ours, not analysed. Slot 0x4C of the second effect class (vtable 0x00AA0C58)."
+
+[[entry]]
+name = "SC4Effect::StepFlag2000"
+address = 0x005B7030
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, int32_t zero)"
+expect = "8B 41 24 8B 10 83 EC 0C"
+source = "Name ours, not analysed. Called by SC4Effect::Draw for descriptions with flag 0x2000 (0x005B85A5)."
+
+[[entry]]
+name = "SC4Effect::PathVelocity"
+address = 0x005B6C40
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this)"
+expect = "83 EC 6C 56 8B F1 8B 46"
+source = "Name ours, not analysed. Called by SC4Effect::Draw when the description has entries from +0x1A4 to +0x1A8 and its +0x1B0 is above 0 (0x005B85D0); else the three floats at +0x16C are cleared."
+
+[[entry]]
+name = "SC4Effect::StepFlag80000000"
+address = 0x005B8410
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this)"
+expect = "83 EC 08 53 55 8B E9 8B"
+source = "Name ours, not analysed. Called by SC4Effect::Draw for descriptions with flag 0x80000000 (0x005B86A0)."
+
+[[entry]]
+name = "SC4EffectBase::Finish"
+address = 0x005B9D40
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4EffectBase* this)"
+expect = "56 8B F1 8B 46 14 85 C0"
+source = "Name ours. On the sub-object at the effect's +4: with no particle left (+0x14), an effect marked at +0xC or +0xD is ended through its own slots; true when it did. Called at the end of SC4Effect::Draw (0x005B877E)."
+
+[[entry]]
+name = "SC4Effect::StepFlag800000"
+address = 0x005B2730
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, float step)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours, not analysed. Called at the end of SC4Effect::Draw for descriptions with flag 0x800000 when SC4EffectBase::Finish answered false (0x005B879E)."
