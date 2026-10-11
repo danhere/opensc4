@@ -302,6 +302,13 @@ add_library(opensc4_core SHARED
   ui_department_3.cpp
   ui_department_4.cpp
   ui_department_5.cpp
+  ui_panels_1.cpp
+  ui_panels_2.cpp
+  ui_panels_3.cpp
+  ui_panels_4.cpp
+  ui_panels_5.cpp
+  ui_panels_6.cpp
+  ui_panels_7.cpp
   ui_advice_text_2.cpp
   ui_mysim_tools_1.cpp
   ui_mysim_tools_2.cpp

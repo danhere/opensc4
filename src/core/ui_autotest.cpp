@@ -913,8 +913,10 @@ void DriveWindows(const Day& day)
     }
     // Three small classes, as far as they go with no window of their own on
     // show: the HTML control's link handler made, asked for its interface,
-    // started, stopped and deleted; the tips window's search for tips and
-    // its key list; the clock made and deleted, then shown (it runs on the
+    // started, stopped and deleted; the tips window's two answers (was it
+    // shown, are there tips; its key list is not asked for: that reads every
+    // exemplar again, and twice in some 110 runs the game then crashed on a freed
+    // resource record, the original as well as ours); the clock made and deleted, then shown (it runs on the
     // computer's time, so its text is not compared).
     Fnv small;
     using NewFn = void*(__cdecl*)(std::size_t);
@@ -932,17 +934,6 @@ void DriveWindows(const Day& day)
     }
     small.Add(reinterpret_cast<uint8_t(__cdecl*)()>(addr::SC4UI_F78C760)());
     small.Add(reinterpret_cast<uint8_t(__cdecl*)()>(addr::SC4UI_F78CCE0)());
-    {
-        char tips[0x24] = {};
-        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4UI_F78CC70)(&tips[0]);
-        const char* const begin = At<char*>(&tips[0], 0x8);
-        const std::size_t size = static_cast<std::size_t>(At<char*>(&tips[0], 0xC) - begin);
-        small.Add(static_cast<uint32_t>(size));
-        if (begin) {
-            small.Bytes(begin, size);
-            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(At<void*>(&tips[0], 0x8));
-        }
-    }
     if (char* const clock = static_cast<char*>(reinterpret_cast<NewFn>(addr::SC4_operator_new)(0x38))) {
         reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4UI_F78C340)(clock);
         small.Add(At<uint32_t>(clock, 0x4));
@@ -960,11 +951,354 @@ void DriveWindows(const Day& day)
 
 const DayHook kWindows{"ui.windows", 102, &DriveWindows};
 
+// --- Shared helpers, menus, the advice list and small windows ------------------
+
+char g_panelsToken[240];
+
+// A game string (0x14 bytes: vtable, begin, end, capacity, a zero) made
+// from text by the game's constructor and freed as the game frees one.
+struct OwnString {
+    char bytes[0x14];
+    explicit OwnString(const char* text)
+    {
+        reinterpret_cast<void*(__thiscall*)(void*, const char*)>(addr::SC4String_FromText)(&bytes[0], text);
+    }
+    ~OwnString()
+    {
+        if (void* const buffer = At<void*>(&bytes[0], 0x4))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(buffer);
+    }
+    OwnString(const OwnString&) = delete;
+    OwnString& operator=(const OwnString&) = delete;
+};
+
+void AddText(Fnv& f, char* string)
+{
+    const WindowString& text = *reinterpret_cast<const WindowString*>(string);
+    if (text.begin)
+        f.Bytes(text.begin, static_cast<std::size_t>(text.end - text.begin));
+    f.Add(uint8_t{0});
+}
+
+// The graphics options dialog's player: a button of each choice group
+// pressed through the window procedure, the boxes read back by the
+// dialog's own fill. Nothing is accepted: the settings stay as they are.
+char* g_graphics = nullptr;
+
+uint32_t PlayGraphics(void*, int)
+{
+    char* const dialog = g_graphics;
+    void* const gen = At<void*>(dialog, 0x4);
+    void* const window = gen ? Virtual<void*>(gen, 0xC) : nullptr;
+    g_played.Add(window != nullptr);
+    if (!window)
+        return 0;
+    for (const uint32_t button : {0x6A57DA4Au, 0x6A57DA4Du, 0x6A57DA50u, 0x2AB6C374u, 0xAB81DED6u, 0x2B85CF9Fu}) {
+        uint32_t message[4] = {3, 0x287259F6, button, 0};
+        g_played.Add(Virtual<uint8_t>(dialog, 0xC, window, &message[0]));
+    }
+    reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4UI_F78FFC0)(dialog); // the boxes from the settings again
+    g_played.Bytes(dialog + 0x10, 0xF);
+    return 0;
+}
+
+// OPENSC4_TEST_PANELS=<day>: the interface's shared helpers and small
+// windows called directly, with no window of their own on show: a colour
+// ramp; the child under a few points of the main window; the main
+// window's children collected into a set; a link followed that leads
+// nowhere; a build menu made from the game's exemplars (its items' names,
+// descriptions, commands and IDs) and worked (found, chosen, sized, the
+// others switched off); the advice list control made through the class
+// factory, given rows and emptied; an info tip's texts, place and meter;
+// the progress bar's share; the frame window's edge test over a grid; the
+// cheat box, the intro window and the picture file dialog made and
+// deleted; the message, question and plain modal windows run with a player
+// that answers; the graphics options dialog started, a button of each
+// group pressed, left without accepting. Nothing changes the city or the
+// settings. Use with OPENSC4_TEST_TUTORIAL_OFF=1.
+void DrivePanels(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_PANELS") || !game::IsBuild641())
+        return;
+    using NewFn = void*(__cdecl*)(std::size_t);
+    using ThisFn = void(__thiscall*)(void*);
+    const auto make = [](std::size_t size) {
+        char* const memory = static_cast<char*>(reinterpret_cast<NewFn>(addr::SC4_operator_new)(size));
+        if (memory)
+            std::memset(memory, 0, size);
+        return memory;
+    };
+    cISC4AppPtr app;
+    cIGZWin* const main = app ? app->GetMainWindow() : nullptr;
+    Fnv helpers, menus, lists, tips, small, modal;
+    int did = 0;
+
+    {
+        uint32_t ramp[256] = {};
+        const uint32_t pairs[8] = {16, 0xFF102030, 96, 0xFF80C0E0, 160, 0x00FFFFFF, 240, 0xFF000000};
+        reinterpret_cast<void(__cdecl*)(uint32_t*, int32_t, const uint32_t*, int32_t)>(addr::SC4UI_F78D520)(&ramp[0], 256, &pairs[0],
+                                                                                                             8);
+        helpers.Bytes(&ramp[0], sizeof ramp);
+        OwnString action("sc4://action/1?x"), nothing("sc4://nothing/1"), plain("plain");
+        char none = 0;
+        for (OwnString* link : {&action, &nothing, &plain})
+            helpers.Add(reinterpret_cast<uint8_t(__thiscall*)(void*, void*, uint32_t)>(addr::SC4UI_FollowLink)(&none, &link->bytes[0],
+                                                                                                                 0));
+        if (main) {
+            using AtFn = void*(__cdecl*)(void*, int32_t, int32_t);
+            for (const int32_t x : {8, 200, 500, 900})
+                for (const int32_t y : {8, 300, 700}) {
+                    void* const child = reinterpret_cast<AtFn>(addr::SC4UI_F78D6E0)(main, x, y);
+                    void* const deepest = reinterpret_cast<AtFn>(addr::SC4UI_F78D720)(main, x, y);
+                    helpers.Add(child ? Virtual<uint32_t>(child, 0xFC) : 0u);
+                    helpers.Add(deepest ? Virtual<uint32_t>(deepest, 0xFC) : 0u);
+                }
+            struct Set {
+                char* head;
+                uint32_t count;
+            } set{};
+            set.head = static_cast<char*>(reinterpret_cast<void*(__cdecl*)(uint32_t)>(addr::SC4_stl_allocate)(0x14));
+            std::memset(set.head, 0, 0x14);
+            At<char*>(set.head, 0x8) = set.head;
+            At<char*>(set.head, 0xC) = set.head;
+            helpers.Add(reinterpret_cast<uint32_t(__cdecl*)(void*, void*)>(addr::SC4UIWindows_Collect)(main, &set));
+            helpers.Add(set.count);
+            helpers.Add(reinterpret_cast<uint32_t(__cdecl*)(void*, void*)>(addr::SC4UIWindows_Collect)(main, &set));
+        }
+        ++did;
+    }
+
+    using MenuFn = char*(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t);
+    char* advice = nullptr;
+    if (char* const menu = reinterpret_cast<MenuFn>(addr::SC4UI_F78F100)(0x2A3858E4, 0x12345678, 0, 0)) {
+        Virtual<uint32_t>(menu, 0x4);
+        char** const begin = At<char**>(menu, 0xDC);
+        char** const end = At<char**>(menu, 0xE0);
+        const uint32_t count = static_cast<uint32_t>(end - begin);
+        menus.Add(count);
+        uint32_t firstId = 0;
+        for (char** item = begin; item != end; ++item) {
+            AddText(menus, *item + 0x4);
+            AddText(menus, *item + 0x18);
+            menus.Add(At<uint32_t>(*item, 0x34));
+            menus.Add(At<uint32_t>(*item, 0x38));
+            menus.Add(At<uint8_t>(*item, 0x40));
+            if (item == begin)
+                firstId = At<uint32_t>(*item, 0x38);
+        }
+        reinterpret_cast<void(__thiscall*)(void*, int32_t, int32_t, int32_t)>(addr::SC4UI_F79A0E0)(menu, 180, 22, 2);
+        int32_t size[2] = {};
+        reinterpret_cast<int32_t*(__thiscall*)(void*, int32_t*, uint32_t)>(addr::SC4UI_F79A620)(menu, &size[0], 5);
+        menus.Bytes(&size[0], sizeof size);
+        if (count) {
+            void* const found = reinterpret_cast<void*(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F79A3F0)(menu, firstId);
+            menus.Add(found == *begin);
+            reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F79A850)(menu, firstId);
+            menus.Add(reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::SC4UI_F79A820)(menu) == firstId);
+            reinterpret_cast<void(__thiscall*)(void*, uint32_t, uint32_t)>(addr::SC4UI_F79A430)(menu, firstId, 0);
+            for (char** item = begin; item != end; ++item)
+                menus.Add(At<uint8_t>(*item, 0x40));
+        }
+        menus.Add(reinterpret_cast<void*(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F79A3F0)(menu, 0xFFFFFFF0) != nullptr);
+        Virtual<uint32_t>(menu, 0x8);
+        ++did;
+    }
+    if ((advice = make(0x44)) != nullptr) { // a menu item of the test's own: a counted object for the list's rows to hold
+        reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4UI_F79B6B0)(advice);
+        Virtual<uint32_t>(advice, 0x4);
+        menus.Add(At<uint8_t>(advice, 0x40));
+        reinterpret_cast<void(__thiscall*)(void*, uint8_t)>(addr::SC4UI_F79B740)(advice, 0);
+        menus.Add(At<uint8_t>(advice, 0x40));
+        menus.Add(At<uint32_t>(advice, 0x3C));
+    }
+
+    if (advice) {
+        using CreateFn = char*(__cdecl*)();
+        if (char* const part = reinterpret_cast<CreateFn>(addr::SC4UI_F793D20)()) {
+            Virtual<uint32_t>(part, 0x4);
+            char* const window = part - 0xD8;
+            OwnString open("open.png"), shut("shut.png"), close("close.png"), message("<b>message</b>"), title("Title"), other("Other");
+            const auto add = [&](OwnString& theTitle, uint8_t isOpen, uint8_t isPlain, uint32_t background) {
+                Virtual<void>(part, 0x10, static_cast<void*>(&open.bytes[0]), static_cast<void*>(&shut.bytes[0]),
+                              static_cast<void*>(&message.bytes[0]), static_cast<void*>(&theTitle.bytes[0]), uint32_t{isOpen},
+                              static_cast<void*>(advice), static_cast<void*>(&close.bytes[0]), uint32_t{isPlain}, background);
+            };
+            const auto rows = [&] {
+                char* const head = At<char*>(window, 0xE0);
+                int count = 0;
+                for (char* node = At<char*>(head, 0x0); node != head && count < 64; node = At<char*>(node, 0x0), ++count) {
+                    char* const row = node + 0x8;
+                    for (std::size_t at : {std::size_t{0}, std::size_t{0x14}, std::size_t{0x28}, std::size_t{0x3C}, std::size_t{0x50}})
+                        AddText(lists, row + at);
+                    lists.Add(At<uint8_t>(row, 0x64));
+                    lists.Add(At<void*>(row, 0x68) == static_cast<void*>(advice));
+                    lists.Add(At<uint8_t>(row, 0x6C));
+                }
+                lists.Add(count);
+                lists.Add(At<uint32_t>(window, 0xE4));
+            };
+            add(title, 1, 0, 0x11111111);
+            add(other, 0, 1, 0x22222222);
+            add(title, 0, 0, 0x33333333);
+            rows();
+            Virtual<void>(part, 0x1C); // Clear
+            rows();
+            add(other, 1, 1, 0x44444444);
+            rows();
+            Virtual<uint32_t>(part, 0x8);
+            ++did;
+        }
+        lists.Add(At<uint32_t>(advice, 0x3C));
+        Virtual<uint32_t>(advice, 0x8);
+    }
+
+    if (char* const tip = make(0x1B4)) {
+        reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4InfoTip_Construct)(tip);
+        Virtual<uint32_t>(tip, 0x4);
+        OwnString title("A title"), text("Some text of the tip");
+        const auto state = [&] {
+            AddText(tips, Virtual<char*>(tip, 0x1C));
+            AddText(tips, Virtual<char*>(tip, 0x24));
+            tips.Bytes(Virtual<char*>(tip, 0x40), 8);
+            tips.Bytes(Virtual<char*>(tip, 0x48), 16);
+            tips.Bytes(Virtual<char*>(tip, 0x50), 16);
+            tips.Add(At<uint32_t>(tip, 0x12C));
+            tips.Add(At<uint32_t>(tip, 0x14C));
+            tips.Add(At<uint32_t>(tip, 0x150));
+        };
+        state();
+        Virtual<void>(tip, 0x18, static_cast<void*>(&title.bytes[0]));
+        Virtual<void>(tip, 0x20, static_cast<void*>(&text.bytes[0]));
+        state();
+        const int32_t point[2] = {120, 80};
+        const int32_t clear[4] = {100, 60, 140, 100};
+        const int32_t bounds[4] = {16, 16, 1000, 740};
+        Virtual<void>(tip, 0x3C, &point[0]);
+        Virtual<void>(tip, 0x44, &clear[0]);
+        Virtual<void>(tip, 0x4C, &bounds[0]);
+        state();
+        Virtual<void>(tip, 0x3C, &point[0]); // the same again
+        state();
+        Virtual<void>(tip, 0x10, static_cast<void*>(nullptr), int32_t{-1}, int32_t{-1}); // the frame's margins
+        for (const float share : {-1.0f, 0.5f, 2.0f}) {
+            Virtual<void>(tip, 0x38, static_cast<void*>(nullptr), uint32_t{3}, share);
+            state();
+        }
+        Virtual<uint32_t>(tip, 0x8);
+        ++did;
+    }
+
+    using CreateFn = char*(__cdecl*)();
+    if (char* const bar = reinterpret_cast<CreateFn>(addr::SC4UI_F797F20)()) {
+        Virtual<uint32_t>(bar, 0x4);
+        small.Bytes(bar + 0x8, 8);
+        for (const double share : {-1.0, 0.25, 2.0}) {
+            Virtual<void>(bar, 0x10, share);
+            small.Bytes(bar + 0x8, 8);
+        }
+        void* out = nullptr;
+        small.Add(Virtual<uint8_t>(bar, 0x0, 0x4A5D1208u, &out));
+        small.Add(out == static_cast<void*>(bar));
+        if (out)
+            Virtual<uint32_t>(bar, 0x8);
+        Virtual<uint32_t>(bar, 0x8);
+    }
+    if (char* const frame = make(0xFC)) {
+        reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4UI_F794430)(frame);
+        Virtual<uint32_t>(frame, 0x4);
+        Virtual<void>(frame, 0xDC, int32_t{100}, int32_t{100}, int32_t{260}, int32_t{220}); // its area
+        reinterpret_cast<void(__thiscall*)(void*, uint8_t, uint8_t)>(addr::SC4UI_F794260)(frame, 1, 1);
+        for (const int32_t x : {-3, 0, 2, 80, 157, 159, 163})
+            for (const int32_t y : {-3, 0, 2, 60, 117, 119, 123}) {
+                uint32_t edge = 0, cursor = 0;
+                small.Add(reinterpret_cast<uint8_t(__thiscall*)(void*, int32_t, int32_t, uint32_t*, uint32_t*)>(addr::SC4UI_F7944C0)(
+                    frame, x, y, &edge, &cursor));
+                small.Add(edge);
+                small.Add(cursor);
+            }
+        Virtual<uint32_t>(frame, 0x8);
+    }
+    if (char* const box = make(0x120)) { // the cheat box
+        reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4UI_F79BD00)(box);
+        small.Bytes(box + 0x110, 0x10);
+        small.Add(reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t, uint32_t)>(addr::SC4UI_F79C400)(box, 0x41, 0));
+        reinterpret_cast<void*(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F79BD80)(box, 1);
+    }
+    if (char* const intro = make(0x108)) {
+        reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4UI_F79CED0)(intro);
+        void* out = nullptr;
+        small.Add(reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t, void**)>(addr::SC4UI_F79CF20)(intro, 0x2A3832AA, &out));
+        small.Add(out == static_cast<void*>(intro));
+        reinterpret_cast<ThisFn>(addr::SC4UI_F79D400)(intro); // Skip: nothing to skip
+        small.Add(reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t, uint32_t)>(addr::SC4UI_F79D470)(intro, 0x1B, 0));
+        small.Bytes(intro + 0xD8, 0xC);
+        if (out)
+            Virtual<uint32_t>(intro, 0x8);
+        else
+            reinterpret_cast<void*(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F79D610)(intro, 1);
+    }
+    if (char* const picker = make(0xF0)) { // the picture file dialog
+        reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4UI_F79D810)(picker);
+        Virtual<uint32_t>(picker, 0x4);
+        OwnString path("C:\\pictures\\one.png"), read("");
+        reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4UI_F79DBB0)(picker, &path.bytes[0]);
+        reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4UI_F79DB60)(picker, &read.bytes[0]);
+        AddText(small, &read.bytes[0]);
+        reinterpret_cast<ThisFn>(addr::SC4UI_F79D670)(picker); // Shutdown with no browser
+        Virtual<uint32_t>(picker, 0x8);
+    }
+    ++did;
+
+    g_played = Fnv{};
+    if (main) {
+        OwnString title("A title"), text("A text"), yes("Yes"), no("No");
+        g_answer = 0;
+        RunModal(&PlayAnswer, [&] {
+            reinterpret_cast<void(__cdecl*)(void*, void*)>(addr::SC4UI_MessageDialog)(&title.bytes[0], &text.bytes[0]);
+        });
+        using AskFn = uint8_t(__cdecl*)(void*, void*, void*, void*);
+        for (const uint32_t answer : {0u, 0x8A8DFD4Eu}) {
+            g_answer = answer;
+            RunModal(&PlayAnswer, [&] {
+                modal.Add(reinterpret_cast<AskFn>(addr::SC4UI_QuestionDialog)(&title.bytes[0], &text.bytes[0], &yes.bytes[0],
+                                                                              &no.bytes[0]));
+            });
+        }
+        g_answer = 0x1234;
+        RunModal(&PlayAnswer, [&] {
+            modal.Add(reinterpret_cast<uint32_t(__cdecl*)(uint32_t, uint32_t)>(addr::SC4UI_F78E2F0)(0xCA8CBF0F, 0xAA8DEF97));
+        });
+        if (char* const dialog = make(0x20)) {
+            reinterpret_cast<void*(__thiscall*)(void*)>(addr::SC4UI_F791360)(dialog);
+            Virtual<uint32_t>(dialog, 0x4);
+            modal.Add(Virtual<uint8_t>(dialog, 0x14, uint32_t{0})); // Init
+            modal.Bytes(dialog + 0x10, 0xF);
+            if (At<void*>(dialog, 0x4)) {
+                g_graphics = dialog;
+                RunModal(&PlayGraphics, [&] { modal.Add(reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::SC4UI_F7913A0)(dialog)); });
+                g_graphics = nullptr;
+            }
+            modal.Add(At<void*>(dialog, 0x4) != nullptr);
+            Virtual<uint32_t>(dialog, 0x8);
+        }
+        modal.Add(g_played.h);
+        ++did;
+    }
+
+    std::snprintf(g_panelsToken, sizeof g_panelsToken, " panels %d helpers %08X menus %08X lists %08X tips %08X small %08X modal %08X",
+                  did, helpers.h, menus.h, lists.h, tips.h, small.h, modal.h);
+    log::Write("autotest: panels driven:%s", g_panelsToken);
+}
+
+const DayHook kPanels{"ui.panels", 103, &DrivePanels};
+
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     line += g_budgetToken;
     line += g_dialogsToken;
     line += g_windowsToken;
+    line += g_panelsToken;
     line += g_panelToken;
     line += g_cityPanelsToken;
     line += g_mapToken;
