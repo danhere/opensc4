@@ -4755,6 +4755,102 @@ void PaintCompared(const char* id, char* self, size_t objectSize, std::initializ
         compare::Record((name + ".working").c_str(), !differing, "the game's result", detail);
 }
 
+bool LooksLikeObject(uint32_t address, size_t size);
+
+// PaintCompared for a window that may make its pictures anew in a paint (the
+// info tip builds its text and bubble when it is stale): the pointers at
+// `rebuilt` may change in a run. Such a pointer is left as the run made it,
+// the rest of the object and the pixels of the buffers that stayed are put
+// back, and the two results are compared with the rebuilt pictures taken by
+// their size and pixels, not by their address. Only pointers to the game's
+// picture buffer class (vtable 0x00AC1400) are read as pictures.
+template <typename Ours, typename Game>
+void PaintComparedRebuilt(const char* id, char* self, size_t objectSize, std::initializer_list<size_t> buffers,
+                          std::initializer_list<size_t> rebuilt, Ours&& ours, Game&& game)
+{
+    struct Picture
+    {
+        void* buffer;
+        char* bits;
+        size_t size;
+    };
+    const auto pictures = [&] {
+        std::vector<Picture> all;
+        const auto add = [&](size_t offset, bool checkClass) {
+            void* const buffer = At<void*>(self, offset);
+            Picture picture{buffer, nullptr, 0};
+            const bool readable = buffer && (!checkClass || (LooksLikeObject(reinterpret_cast<uint32_t>(buffer), 4) &&
+                                                             *reinterpret_cast<uint32_t*>(buffer) == 0x00AC1400));
+            if (readable) {
+                char* const bits = Virtual<char*>(buffer, 0x88);
+                const uint32_t stride = Virtual<uint32_t>(buffer, 0x8C), height = Virtual<uint32_t>(buffer, 0x28);
+                if (bits && stride && height && height <= 4096 && stride <= 4096 * 4)
+                    picture.bits = bits, picture.size = size_t{stride} * height;
+            }
+            all.push_back(picture);
+        };
+        for (const size_t offset : buffers)
+            add(offset, false);
+        for (const size_t offset : rebuilt)
+            add(offset, true);
+        return all;
+    };
+    // The object with the rebuilt pointers blanked, then every picture's
+    // size and pixels.
+    const auto result = [&](const std::vector<Picture>& all) {
+        std::vector<char> bytes(self, self + objectSize);
+        for (const size_t offset : rebuilt)
+            std::memset(bytes.data() + offset, 0, sizeof(uint32_t));
+        for (const Picture& picture : all) {
+            const uint32_t size = static_cast<uint32_t>(picture.size);
+            bytes.insert(bytes.end(), reinterpret_cast<const char*>(&size), reinterpret_cast<const char*>(&size) + 4);
+            if (picture.bits)
+                bytes.insert(bytes.end(), picture.bits, picture.bits + picture.size);
+        }
+        return bytes;
+    };
+    const std::vector<char> object(self, self + objectSize);
+    const std::vector<Picture> before = pictures();
+    const std::vector<char> start = result(before);
+    std::vector<std::vector<char>> pixels;
+    for (const Picture& picture : before)
+        pixels.emplace_back(picture.bits, picture.bits + picture.size);
+    if (g_selfCheck)
+        game();
+    else
+        ours();
+    const std::vector<Picture> afterFirst = pictures();
+    const std::vector<char> first = result(afterFirst);
+    // Back to the start, but for what the run made anew.
+    for (size_t offset = 0; offset < objectSize; ++offset) {
+        bool keep = false;
+        for (const size_t slot : rebuilt)
+            keep = keep || (offset >= slot && offset < slot + 4 && std::memcmp(self + slot, object.data() + slot, 4) != 0);
+        if (!keep)
+            self[offset] = object[offset];
+    }
+    for (size_t i = 0; i < before.size(); ++i)
+        if (before[i].bits && afterFirst[i].buffer == before[i].buffer && afterFirst[i].bits == before[i].bits &&
+            afterFirst[i].size == before[i].size)
+            std::memcpy(before[i].bits, pixels[i].data(), before[i].size);
+    game();
+    const std::vector<char> second = result(pictures());
+    size_t differing = first.size() == second.size() ? 0 : 1, firstAt = 0;
+    for (size_t i = 0; i < first.size() && i < second.size(); ++i)
+        if (first[i] != second[i] && !differing++)
+            firstAt = i;
+    const std::string name = std::string(id) + (g_selfCheck ? ".selfcheck" : "");
+    char detail[160];
+    std::snprintf(detail, sizeof detail, "%zu of %zu and %zu bytes differ (first at %zu; the object is the first %zu)", differing,
+                  first.size(), second.size(), firstAt, objectSize);
+    if (differing)
+        log::Write("paint compare: %s: %s", name.c_str(), detail);
+    compare::Record(name.c_str(), !differing, "the game's result", detail);
+    // The paints that did something: the object or a picture changed.
+    if (start != second)
+        compare::Record((name + ".working").c_str(), !differing, "the game's result", detail);
+}
+
 bool g_compareWindowPaints;
 
 // The paints and draws of small windows (window slot 88 and the like), left
@@ -4762,7 +4858,7 @@ bool g_compareWindowPaints;
 // drawing"), translated instruction by instruction and entered like the
 // pixel routines above.
 void* g_paintProgressBar;
-void __cdecl PaintProgressBar(EntryFrame* frame)
+void __cdecl PaintProgressBarOurs(EntryFrame* frame)
 {
     static bool seen = false;
     if (!seen)
@@ -4778,10 +4874,23 @@ void __cdecl PaintProgressBar(EntryFrame* frame)
     if (top >= 0)
         log::Write("window paints: ProgressBar left %d values on the x87 stack", top + 1);
 }
+void __cdecl PaintProgressBar(EntryFrame* frame)
+{
+    if (!g_compareWindowPaints) {
+        PaintProgressBarOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    PaintComparedRebuilt("paint.progressbar", self, 0xD8, {0x68}, {}, [&] { PaintProgressBarOurs(frame); }, [&] {
+        g_dataMapGameRun = true;
+        CallThis<void>(reinterpret_cast<std::uintptr_t>(g_paintProgressBar), self);
+        g_dataMapGameRun = false;
+    });
+}
 DATAMAP_ENTRY(TPaintProgressBar, PaintProgressBar, g_paintProgressBar, 0)
 
 void* g_paintInfoTip;
-void __cdecl PaintInfoTip(EntryFrame* frame)
+void __cdecl PaintInfoTipOurs(EntryFrame* frame)
 {
     static bool seen = false;
     if (!seen)
@@ -4796,6 +4905,19 @@ void __cdecl PaintInfoTip(EntryFrame* frame)
     frame->edx = edx;
     if (top >= 0)
         log::Write("window paints: InfoTip left %d values on the x87 stack", top + 1);
+}
+void __cdecl PaintInfoTip(EntryFrame* frame)
+{
+    if (!g_compareWindowPaints) {
+        PaintInfoTipOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    PaintComparedRebuilt("paint.infotip", self, 0x148, {0x68}, {0x140, 0x144}, [&] { PaintInfoTipOurs(frame); }, [&] {
+        g_dataMapGameRun = true;
+        CallThis<void>(reinterpret_cast<std::uintptr_t>(g_paintInfoTip), self);
+        g_dataMapGameRun = false;
+    });
 }
 DATAMAP_ENTRY(TPaintInfoTip, PaintInfoTip, g_paintInfoTip, 0)
 
@@ -4832,7 +4954,7 @@ void __cdecl PaintOverlayPicture(EntryFrame* frame)
 DATAMAP_ENTRY(TPaintOverlayPicture, PaintOverlayPicture, g_paintOverlayPicture, 0)
 
 void* g_paintRecorder;
-void __cdecl PaintRecorder(EntryFrame* frame)
+void __cdecl PaintRecorderOurs(EntryFrame* frame)
 {
     static bool seen = false;
     if (!seen)
@@ -4848,10 +4970,23 @@ void __cdecl PaintRecorder(EntryFrame* frame)
     if (top >= 0)
         log::Write("window paints: Recorder left %d values on the x87 stack", top + 1);
 }
+void __cdecl PaintRecorder(EntryFrame* frame)
+{
+    if (!g_compareWindowPaints) {
+        PaintRecorderOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    PaintComparedRebuilt("paint.recorder", self, 0xD8, {0x68}, {}, [&] { PaintRecorderOurs(frame); }, [&] {
+        g_dataMapGameRun = true;
+        CallThis<void>(reinterpret_cast<std::uintptr_t>(g_paintRecorder), self);
+        g_dataMapGameRun = false;
+    });
+}
 DATAMAP_ENTRY(TPaintRecorder, PaintRecorder, g_paintRecorder, 0)
 
 void* g_paintRecorderFrame;
-void __cdecl PaintRecorderFrame(EntryFrame* frame)
+void __cdecl PaintRecorderFrameOurs(EntryFrame* frame)
 {
     static bool seen = false;
     if (!seen)
@@ -4867,10 +5002,23 @@ void __cdecl PaintRecorderFrame(EntryFrame* frame)
     if (top >= 0)
         log::Write("window paints: RecorderFrame left %d values on the x87 stack", top + 1);
 }
+void __cdecl PaintRecorderFrame(EntryFrame* frame)
+{
+    if (!g_compareWindowPaints) {
+        PaintRecorderFrameOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    PaintComparedRebuilt("paint.recorderframe", self, 0xD8, {0x68}, {}, [&] { PaintRecorderFrameOurs(frame); }, [&] {
+        g_dataMapGameRun = true;
+        CallThis<void>(reinterpret_cast<std::uintptr_t>(g_paintRecorderFrame), self);
+        g_dataMapGameRun = false;
+    });
+}
 DATAMAP_ENTRY(TPaintRecorderFrame, PaintRecorderFrame, g_paintRecorderFrame, 0)
 
 void* g_paintPopupMenu;
-void __cdecl PaintPopupMenu(EntryFrame* frame)
+void __cdecl PaintPopupMenuOurs(EntryFrame* frame)
 {
     static bool seen = false;
     if (!seen)
@@ -4886,10 +5034,23 @@ void __cdecl PaintPopupMenu(EntryFrame* frame)
     if (top >= 0)
         log::Write("window paints: PopupMenu left %d values on the x87 stack", top + 1);
 }
+void __cdecl PaintPopupMenu(EntryFrame* frame)
+{
+    if (!g_compareWindowPaints) {
+        PaintPopupMenuOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    PaintComparedRebuilt("paint.popupmenu", self, 0xD8, {0x68}, {}, [&] { PaintPopupMenuOurs(frame); }, [&] {
+        g_dataMapGameRun = true;
+        CallThis<void>(reinterpret_cast<std::uintptr_t>(g_paintPopupMenu), self);
+        g_dataMapGameRun = false;
+    });
+}
 DATAMAP_ENTRY(TPaintPopupMenu, PaintPopupMenu, g_paintPopupMenu, 0)
 
 void* g_paintPopupArrows;
-void __cdecl PaintPopupArrows(EntryFrame* frame)
+void __cdecl PaintPopupArrowsOurs(EntryFrame* frame)
 {
     static bool seen = false;
     if (!seen)
@@ -4905,10 +5066,23 @@ void __cdecl PaintPopupArrows(EntryFrame* frame)
     if (top >= 0)
         log::Write("window paints: PopupArrows left %d values on the x87 stack", top + 1);
 }
+void __cdecl PaintPopupArrows(EntryFrame* frame)
+{
+    if (!g_compareWindowPaints) {
+        PaintPopupArrowsOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    PaintComparedRebuilt("paint.popuparrows", self, 0x118, {0x68}, {0xD8, 0xDC}, [&] { PaintPopupArrowsOurs(frame); }, [&] {
+        g_dataMapGameRun = true;
+        CallThis<void>(reinterpret_cast<std::uintptr_t>(g_paintPopupArrows), self);
+        g_dataMapGameRun = false;
+    });
+}
 DATAMAP_ENTRY(TPaintPopupArrows, PaintPopupArrows, g_paintPopupArrows, 0)
 
 void* g_paintIntro;
-void __cdecl PaintIntro(EntryFrame* frame)
+void __cdecl PaintIntroOurs(EntryFrame* frame)
 {
     static bool seen = false;
     if (!seen)
@@ -4924,10 +5098,23 @@ void __cdecl PaintIntro(EntryFrame* frame)
     if (top >= 0)
         log::Write("window paints: Intro left %d values on the x87 stack", top + 1);
 }
+void __cdecl PaintIntro(EntryFrame* frame)
+{
+    if (!g_compareWindowPaints) {
+        PaintIntroOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    PaintComparedRebuilt("paint.intro", self, 0x104, {}, {}, [&] { PaintIntroOurs(frame); }, [&] {
+        g_dataMapGameRun = true;
+        CallThis<void>(reinterpret_cast<std::uintptr_t>(g_paintIntro), self);
+        g_dataMapGameRun = false;
+    });
+}
 DATAMAP_ENTRY(TPaintIntro, PaintIntro, g_paintIntro, 0)
 
 void* g_paintPictureFileDialog;
-void __cdecl PaintPictureFileDialog(EntryFrame* frame)
+void __cdecl PaintPictureFileDialogOurs(EntryFrame* frame)
 {
     static bool seen = false;
     if (!seen)
@@ -4942,6 +5129,19 @@ void __cdecl PaintPictureFileDialog(EntryFrame* frame)
     frame->edx = edx;
     if (top >= 0)
         log::Write("window paints: PictureFileDialog left %d values on the x87 stack", top + 1);
+}
+void __cdecl PaintPictureFileDialog(EntryFrame* frame)
+{
+    if (!g_compareWindowPaints) {
+        PaintPictureFileDialogOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    PaintComparedRebuilt("paint.picturefiledialog", self, 0xD8, {0x68}, {}, [&] { PaintPictureFileDialogOurs(frame); }, [&] {
+        g_dataMapGameRun = true;
+        CallThis<void>(reinterpret_cast<std::uintptr_t>(g_paintPictureFileDialog), self);
+        g_dataMapGameRun = false;
+    });
 }
 DATAMAP_ENTRY(TPaintPictureFileDialog, PaintPictureFileDialog, g_paintPictureFileDialog, 0)
 
@@ -4997,7 +5197,7 @@ void __cdecl PaintLoadingDraw2(EntryFrame* frame)
 DATAMAP_ENTRY(TPaintLoadingDraw2, PaintLoadingDraw2, g_paintLoadingDraw2, 0)
 
 void* g_paintAdvisorHead;
-void __cdecl PaintAdvisorHead(EntryFrame* frame)
+void __cdecl PaintAdvisorHeadOurs(EntryFrame* frame)
 {
     static bool seen = false;
     if (!seen)
@@ -5013,10 +5213,36 @@ void __cdecl PaintAdvisorHead(EntryFrame* frame)
     if (top >= 0)
         log::Write("window paints: AdvisorHead left %d values on the x87 stack", top + 1);
 }
+// The advisor head view's Draw goes to the driver through the 3D render (the
+// object at 0x00B43DD0), outside a frame. Compared like a pass: the head view
+// (0xF8 bytes), the render's context and camera, and what reaches the driver.
+bool g_compareAdvisorHead;
+void __cdecl PaintAdvisorHead(EntryFrame* frame)
+{
+    char* const render = Global<char*>(0x00B43DD0);
+    if (!g_compareAdvisorHead || !render) {
+        PaintAdvisorHeadOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    std::vector<Region> regions = RenderRegions(render);
+    regions.push_back({"head view", self, 0xF8});
+    const EntryFrame entry = *frame;
+    DrawCompared(g_selfCheck ? "paint.advisorhead.selfcheck" : "paint.advisorhead", regions,
+                 [&] {
+                     if (g_selfCheck) {
+                         CallThis<void>(reinterpret_cast<std::uintptr_t>(g_paintAdvisorHead), self);
+                     } else {
+                         *frame = entry;
+                         PaintAdvisorHeadOurs(frame);
+                     }
+                 },
+                 [&] { frame->eax = CallThis<uint32_t>(reinterpret_cast<std::uintptr_t>(g_paintAdvisorHead), self); });
+}
 DATAMAP_ENTRY(TPaintAdvisorHead, PaintAdvisorHead, g_paintAdvisorHead, 0)
 
 void* g_paintGraphBox;
-void __cdecl PaintGraphBox(EntryFrame* frame)
+void __cdecl PaintGraphBoxOurs(EntryFrame* frame)
 {
     static bool seen = false;
     if (!seen)
@@ -5031,6 +5257,56 @@ void __cdecl PaintGraphBox(EntryFrame* frame)
     frame->edx = edx;
     if (top >= 0)
         log::Write("window paints: GraphBox left %d values on the x87 stack", top + 1);
+}
+// The graph control's box is a line function: seven arguments, the picture
+// buffer first, forwarded to the game's line drawing. Compared on the
+// picture's pixels.
+void __cdecl PaintGraphBox(EntryFrame* frame)
+{
+    void* const buffer = reinterpret_cast<void*>(frame->arguments[0]);
+    char* bits = nullptr;
+    size_t size = 0;
+    if (g_compareWindowPaints && buffer && LooksLikeObject(frame->arguments[0], 4) && *reinterpret_cast<uint32_t*>(buffer) == 0x00AC1400) {
+        bits = Virtual<char*>(buffer, 0x88);
+        const uint32_t stride = Virtual<uint32_t>(buffer, 0x8C), height = Virtual<uint32_t>(buffer, 0x28);
+        size = bits && stride && height && height <= 4096 && stride <= 4096 * 4 ? size_t{stride} * height : 0;
+    }
+    if (!size) {
+        if (g_compareWindowPaints) {
+            static bool told = false;
+            if (!told)
+                log::Write("paint compare: graph box: first argument %08X (vtable %08X) is not read as a picture", frame->arguments[0],
+                           buffer && LooksLikeObject(frame->arguments[0], 4) ? *reinterpret_cast<uint32_t*>(buffer) : 0);
+            told = true;
+            compare::Record("paint.graphbox.notcompared", true, "", "");
+        }
+        PaintGraphBoxOurs(frame);
+        return;
+    }
+    using BoxFn = uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    const auto game = [&] {
+        const uint32_t* const a = frame->arguments;
+        return reinterpret_cast<BoxFn>(g_paintGraphBox)(reinterpret_cast<void*>(frame->ecx), nullptr, a[0], a[1], a[2], a[3], a[4], a[5], a[6]);
+    };
+    const std::vector<char> before(bits, bits + size);
+    const EntryFrame entry = *frame;
+    if (g_selfCheck)
+        game();
+    else
+        PaintGraphBoxOurs(frame);
+    const std::vector<char> first(bits, bits + size);
+    std::memcpy(bits, before.data(), size);
+    *frame = entry;
+    frame->eax = game();
+    size_t differing = 0;
+    for (size_t i = 0; i < size; ++i)
+        differing += first[i] != bits[i];
+    char detail[80];
+    std::snprintf(detail, sizeof detail, "%zu of %zu bytes differ", differing, size);
+    const std::string name = std::string("paint.graphbox") + (g_selfCheck ? ".selfcheck" : "");
+    compare::Record(name.c_str(), !differing, "the game's picture", detail);
+    if (std::memcmp(before.data(), bits, size))
+        compare::Record((name + ".working").c_str(), !differing, "the game's picture", detail);
 }
 DATAMAP_ENTRY(TPaintGraphBox, PaintGraphBox, g_paintGraphBox, 28)
 
@@ -5057,13 +5333,23 @@ bool InstallWindowPaints(registry::Mode mode)
 {
     if (!game::IsBuild641())
         return false;
-    g_compareWindowPaints = mode == registry::Mode::Compare;
-    const bool installed = Detour(addr::SC4UI_F777220, &TPaintLoadingDraw, &g_paintLoadingDraw)
+    g_compareWindowPaints = g_compareAdvisorHead = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::SC4UI_F4209D0, &TPaintAdvisorHead, &g_paintAdvisorHead)
+                           && Detour(addr::SC4UI_F777220, &TPaintLoadingDraw, &g_paintLoadingDraw)
                            && Detour(addr::SC4UI_F7773B0, &TPaintLoadingDraw2, &g_paintLoadingDraw2)
                            && Detour(addr::WindowPaint_CityPictureBlend, &TPaintCityPictureBlend, &g_paintCityPictureBlend)
-                           && Detour(addr::SC4UI_F794100, &TPaintOverlayPicture, &g_paintOverlayPicture);
+                           && Detour(addr::SC4UI_F794100, &TPaintOverlayPicture, &g_paintOverlayPicture)
+                           && Detour(addr::SC4UI_F797CC0, &TPaintProgressBar, &g_paintProgressBar)
+                           && Detour(addr::SC4UI_F798710, &TPaintInfoTip, &g_paintInfoTip)
+                           && Detour(addr::SC4UI_F7943B0, &TPaintRecorder, &g_paintRecorder)
+                           && Detour(addr::SC4UI_F794BF0, &TPaintRecorderFrame, &g_paintRecorderFrame)
+                           && Detour(addr::SC4UI_F79AA70, &TPaintPopupMenu, &g_paintPopupMenu)
+                           && Detour(addr::SC4UI_F79B0E0, &TPaintPopupArrows, &g_paintPopupArrows)
+                           && Detour(addr::SC4UI_F79D490, &TPaintIntro, &g_paintIntro)
+                           && Detour(addr::SC4UI_F79D6B0, &TPaintPictureFileDialog, &g_paintPictureFileDialog)
+                           && Detour(addr::WindowPaint_GraphBox, &TPaintGraphBox, &g_paintGraphBox);
     if (installed)
-        log::Write("window paints: loading screen and overlay picture %s", g_compareWindowPaints ? "compared with the game's" : "ours");
+        log::Write("window paints: %s", g_compareWindowPaints ? "compared with the game's" : "ours");
     return installed;
 }
 
@@ -5073,42 +5359,11 @@ const bool g_registeredWindowPaints = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::SC4UI_F7773B0,
-    "The loading screen's two draws with their blend, and the overlay picture's paint; compare mode runs each twice, "
-    "ours and the game's, and compares the object and its buffers (docs/renderer.md, \"Small windows\")",
+    "The paints and draws of the small windows: loading screen, overlay picture, progress bar, info tip, animation "
+    "recorder and its frame, pop-up menu and its arrows, intro, picture file dialog, graph box, advisor head; compare mode "
+    "runs each twice, ours and the game's, and compares the object and its pictures (docs/renderer.md, \"Small windows\")",
     true,
     InstallWindowPaints,
-});
-
-// Ten more paints no test reaches yet: translated the same way, never run.
-bool InstallWindowPaintsUntested(registry::Mode)
-{
-    if (!game::IsBuild641())
-        return false;
-    const bool installed = Detour(addr::SC4UI_F797CC0, &TPaintProgressBar, &g_paintProgressBar)
-                           && Detour(addr::SC4UI_F798710, &TPaintInfoTip, &g_paintInfoTip)
-                           && Detour(addr::SC4UI_F7943B0, &TPaintRecorder, &g_paintRecorder)
-                           && Detour(addr::SC4UI_F794BF0, &TPaintRecorderFrame, &g_paintRecorderFrame)
-                           && Detour(addr::SC4UI_F79AA70, &TPaintPopupMenu, &g_paintPopupMenu)
-                           && Detour(addr::SC4UI_F79B0E0, &TPaintPopupArrows, &g_paintPopupArrows)
-                           && Detour(addr::SC4UI_F79D490, &TPaintIntro, &g_paintIntro)
-                           && Detour(addr::SC4UI_F79D6B0, &TPaintPictureFileDialog, &g_paintPictureFileDialog)
-                           && Detour(addr::SC4UI_F4209D0, &TPaintAdvisorHead, &g_paintAdvisorHead)
-                           && Detour(addr::WindowPaint_GraphBox, &TPaintGraphBox, &g_paintGraphBox);
-    if (installed)
-        log::Write("window paints: the ten untested ones ours");
-    return installed;
-}
-
-const bool g_registeredWindowPaintsUntested = registry::Register({
-    "renderer.windows.paints_untested",
-    "renderer/windows",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4UI_F798710,
-    "Ten paints no test reaches yet, so never run: progress bar, info tip, animation recorder and its frame, pop-up "
-    "menu and its arrows, intro, picture file dialog, advisor head, graph box (docs/renderer.md, \"Small windows\")",
-    true,
-    InstallWindowPaintsUntested,
 });
 
 // A same-run comparison for a function whose results land in other objects
@@ -5370,6 +5625,294 @@ const bool g_registeredCityViewDrawingUntested = registry::Register({
     "view window\")",
     true,
     InstallCityViewDrawingUntested,
+});
+
+bool g_compareRegionDraw;
+
+// The region view's drawing, left to the renderer by the region screen's
+// code (docs/region.md): the mask of a city's picture, the terrain overlay,
+// the picture grid copied to the screen, and the overlay window's paint.
+// Translated instruction by instruction and entered like the pixel routines.
+void* g_regionDrawPictureMask;
+void __cdecl RegionDrawPictureMaskOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("region draw: PictureMask call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/regiondraw_picturemask.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("region draw: PictureMask left %d values on the x87 stack", top + 1);
+}
+// The mask of a city's picture is drawn when a city is saved, through the 3D
+// render (0x00B43DD0), with no arguments. Compared like a pass: the render's
+// context and camera and what reaches the driver; its vertices are on its
+// stack, so the driver's vertex pointer is left out.
+bool g_compareRegionMask;
+void __cdecl RegionDrawPictureMask(EntryFrame* frame)
+{
+    char* const render = Global<char*>(0x00B43DD0);
+    if (!g_compareRegionMask || !render) {
+        RegionDrawPictureMaskOurs(frame);
+        return;
+    }
+    const EntryFrame entry = *frame;
+    using MaskFn = uint32_t(__cdecl*)();
+    DrawCompared(g_selfCheck ? "region.picturemask.selfcheck" : "region.picturemask", RenderRegions(render),
+                 [&] {
+                     if (g_selfCheck) {
+                         reinterpret_cast<MaskFn>(g_regionDrawPictureMask)();
+                     } else {
+                         *frame = entry;
+                         RegionDrawPictureMaskOurs(frame);
+                     }
+                 },
+                 [&] { frame->eax = reinterpret_cast<MaskFn>(g_regionDrawPictureMask)(); }, true);
+}
+DATAMAP_ENTRY(TRegionDrawPictureMask, RegionDrawPictureMask, g_regionDrawPictureMask, 0)
+
+void* g_regionDrawTerrainOverlay;
+void __cdecl RegionDrawTerrainOverlayOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("region draw: TerrainOverlay call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/regiondraw_terrainoverlay.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("region draw: TerrainOverlay left %d values on the x87 stack", top + 1);
+}
+// Compared in the same frame like the terrain passes: its `this` and the
+// render context it is given. Its four vertices are on its stack, so the
+// driver's vertex pointer is left out.
+void __cdecl RegionDrawTerrainOverlay(EntryFrame* frame)
+{
+    if (!g_compareRegionDraw) {
+        RegionDrawTerrainOverlayOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    char* const context = reinterpret_cast<char*>(frame->arguments[0]);
+    std::vector<Region> regions = ContextRegions(context);
+    regions.push_back({"overlay", self, 0x20});
+    const EntryFrame entry = *frame;
+    DrawCompared(g_selfCheck ? "region.terrainoverlay.selfcheck" : "region.terrainoverlay", regions,
+                 [&] {
+                     if (g_selfCheck) {
+                         CallThis<void>(reinterpret_cast<std::uintptr_t>(g_regionDrawTerrainOverlay), self, context);
+                     } else {
+                         *frame = entry;
+                         RegionDrawTerrainOverlayOurs(frame);
+                     }
+                 },
+                 [&] { frame->eax = CallThis<uint32_t>(reinterpret_cast<std::uintptr_t>(g_regionDrawTerrainOverlay), self, context); }, true);
+}
+DATAMAP_ENTRY(TRegionDrawTerrainOverlay, RegionDrawTerrainOverlay, g_regionDrawTerrainOverlay, 4)
+
+void* g_regionDrawGrid;
+void __cdecl RegionDrawGridOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("region draw: Grid call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/regiondraw_grid.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("region draw: Grid left %d values on the x87 stack", top + 1);
+}
+// Compared in the same frame: the grid object (0x44 bytes) and what reaches
+// the driver.
+void __cdecl RegionDrawGrid(EntryFrame* frame)
+{
+    if (!g_compareRegionDraw) {
+        RegionDrawGridOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const uint32_t argument = frame->arguments[0];
+    const std::vector<Region> regions{{"grid", self, 0x44}};
+    const EntryFrame entry = *frame;
+    DrawCompared(g_selfCheck ? "region.grid.selfcheck" : "region.grid", regions,
+                 [&] {
+                     if (g_selfCheck) {
+                         CallThis<void>(reinterpret_cast<std::uintptr_t>(g_regionDrawGrid), self, argument);
+                     } else {
+                         *frame = entry;
+                         RegionDrawGridOurs(frame);
+                     }
+                 },
+                 [&] { frame->eax = CallThis<uint32_t>(reinterpret_cast<std::uintptr_t>(g_regionDrawGrid), self, argument); });
+}
+DATAMAP_ENTRY(TRegionDrawGrid, RegionDrawGrid, g_regionDrawGrid, 4)
+
+void* g_regionDrawOverlayPaint;
+void __cdecl RegionDrawOverlayPaintOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("region draw: OverlayPaint call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/regiondraw_overlaypaint.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("region draw: OverlayPaint left %d values on the x87 stack", top + 1);
+}
+// Compared in the same frame. The paint draws the window's marks and then
+// steps them (a list whose sentinel node is at +0x114; a node is 0x20 bytes:
+// next, previous, then the mark's x, y, speed x, speed y, texture, alpha),
+// freeing those at or past the right bound (+0x100).
+//
+// - The drawing, the window, its random generator (+0x128) and the nodes are
+//   compared like any draw; a frame that would free a mark is not repeated.
+// - The stopwatch (+0xD8, 0x18 bytes) keeps the clock's reading of its last
+//   restart and the step moves each mark by the real time since then, which
+//   no two runs share. Both are put back for the second run but not compared
+//   byte for byte; the step is checked by its shape instead: every mark must
+//   have moved by its speed times one same time, in ours as in the game's.
+void __cdecl RegionDrawOverlayPaint(EntryFrame* frame)
+{
+    if (!g_compareRegionDraw) {
+        RegionDrawOverlayPaintOurs(frame);
+        return;
+    }
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    std::vector<Region> regions{{"overlay window", self, 0xD8}, {"overlay window from +0xF0", self + 0xF0, 0x50}};
+    char stopwatch[0x18];
+    std::memcpy(stopwatch, self + 0xD8, sizeof stopwatch);
+    std::vector<char*> nodes;
+    bool frees = false;
+    if (char* const sentinel = At<char*>(self, 0x114)) {
+        regions.push_back({"marks", sentinel, 0x20});
+        for (char* node = At<char*>(sentinel, 0); node && node != sentinel && nodes.size() < 4096; node = At<char*>(node, 0)) {
+            nodes.push_back(node);
+            regions.push_back({"mark links", node, 8});
+            regions.push_back({"mark speed and look", node + 0x10, 0x10});
+            frees = frees || !(At<float>(node, 8) < At<float>(self, 0x100));
+        }
+    }
+    if (frees) {
+        compare::Record("region.overlaypaint.unrepeatable", true, "", "");
+        if (g_selfCheck)
+            frame->eax = CallThis<uint32_t>(reinterpret_cast<std::uintptr_t>(g_regionDrawOverlayPaint), self);
+        else
+            RegionDrawOverlayPaintOurs(frame);
+        return;
+    }
+    struct Place
+    {
+        float x, y;
+    };
+    const auto places = [&] {
+        std::vector<Place> all;
+        for (char* const node : nodes)
+            all.push_back({At<float>(node, 8), At<float>(node, 0xC)});
+        return all;
+    };
+    const std::vector<Place> before = places();
+    std::vector<Place> first;
+    const EntryFrame entry = *frame;
+    DrawCompared(g_selfCheck ? "region.overlaypaint.selfcheck" : "region.overlaypaint", regions,
+                 [&] {
+                     if (g_selfCheck) {
+                         CallThis<void>(reinterpret_cast<std::uintptr_t>(g_regionDrawOverlayPaint), self);
+                     } else {
+                         *frame = entry;
+                         RegionDrawOverlayPaintOurs(frame);
+                     }
+                     first = places();
+                 },
+                 [&] {
+                     std::memcpy(self + 0xD8, stopwatch, sizeof stopwatch);
+                     for (size_t i = 0; i < nodes.size(); ++i)
+                         At<Place>(nodes[i], 8) = before[i];
+                     frame->eax = CallThis<uint32_t>(reinterpret_cast<std::uintptr_t>(g_regionDrawOverlayPaint), self);
+                 },
+                 true);
+    // A frame in which a mark is made (a chance of 0.003) ends with a new
+    // node, at one address after ours and another after the game's: such
+    // frames show as divergences in the list's links and are counted here.
+    size_t length = 0;
+    if (char* const sentinel = At<char*>(self, 0x114))
+        for (char* node = At<char*>(sentinel, 0); node && node != sentinel && length < 8192; node = At<char*>(node, 0))
+            ++length;
+    if (length != nodes.size())
+        compare::Record(g_selfCheck ? "region.overlaypaint.madeamark.selfcheck" : "region.overlaypaint.madeamark", true, "", "");
+    // The step: each run's moves divided by the speeds give that run's time,
+    // the same for every mark and both axes.
+    const std::vector<Place> second = places();
+    const auto oneTime = [&](const std::vector<Place>& after, double& time) {
+        bool same = true, have = false;
+        for (size_t i = 0; i < nodes.size(); ++i) {
+            const double speed[2] = {At<float>(nodes[i], 0x10), At<float>(nodes[i], 0x14)};
+            const double moved[2] = {double{after[i].x} - before[i].x, double{after[i].y} - before[i].y};
+            for (int axis = 0; axis < 2; ++axis) {
+                if (std::fabs(speed[axis]) < 1.0) {
+                    same = same && std::fabs(moved[axis]) < 0.5;
+                    continue;
+                }
+                const double t = moved[axis] / speed[axis];
+                if (!have)
+                    time = t, have = true;
+                // Positions are floats in the hundreds: a move is known to about 1e-4.
+                same = same && std::fabs(t - time) * std::fabs(speed[axis]) < 2e-3;
+            }
+        }
+        return same;
+    };
+    double ourTime = 0, gameTime = 0;
+    const bool ourShape = oneTime(first, ourTime), gameShape = oneTime(second, gameTime);
+    char detail[120];
+    std::snprintf(detail, sizeof detail, "%zu marks, ours one time %d (%.4f s), the game's one time %d (%.4f s)", nodes.size(), ourShape, ourTime,
+                  gameShape, gameTime);
+    if (!nodes.empty())
+        compare::Record(g_selfCheck ? "region.overlaypaint.step.selfcheck" : "region.overlaypaint.step", ourShape && gameShape,
+                        "every mark moved by its speed times one time", detail);
+}
+DATAMAP_ENTRY(TRegionDrawOverlayPaint, RegionDrawOverlayPaint, g_regionDrawOverlayPaint, 0)
+
+bool InstallRegionDrawing(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareRegionDraw = g_compareRegionMask = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::SC4CityFiles_DrawPictureMask, &TRegionDrawPictureMask, &g_regionDrawPictureMask)
+                           && Detour(addr::SC4RegionOverlay_Draw, &TRegionDrawTerrainOverlay, &g_regionDrawTerrainOverlay)
+                           && Detour(addr::SC4RegionViewGrid_Draw, &TRegionDrawGrid, &g_regionDrawGrid)
+                           && Detour(addr::SC4RegionOverlayWin_Paint, &TRegionDrawOverlayPaint, &g_regionDrawOverlayPaint);
+    if (installed)
+        log::Write("region draw: terrain overlay, picture grid, overlay window and picture mask %s", g_compareRegionDraw ? "compared with the game's" : "ours");
+    return installed;
+}
+
+const bool g_registeredRegionDrawing = registry::Register({
+    "renderer.region.draw",
+    "renderer/region",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4RegionViewGrid_Draw,
+    "The region view's drawing: terrain overlay, picture grid, overlay window's paint, the mask of a city's picture; "
+    "compare mode as renderer.terrain.land (docs/renderer.md, \"The region view\")",
+    true,
+    InstallRegionDrawing,
 });
 
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),

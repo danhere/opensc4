@@ -322,7 +322,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, int32_t value)"
 expect = "8B 44 24 04 89 81 8C 01"
-source = "Name ours. Slot 4 of the base effect class (vtable 0x00AA0EA0): stores the value at +0x18C and passes whether it is 0 to the sub-object's 0x005B9E70. The stream emitter calls it with 0 (0x005B8B29)."
+source = "Name ours. Slot 4 of the base effect class (vtable 0x00AA0EA0): stores the value at +0x18C and passes whether it is 0 to the sub-object's 0x005B9E70. The stream emitter calls it with 0 (0x005B8B29). Ours in renderer.effects.ending."
 
 [[entry]]
 name = "SC4EffectB::SetStopped"
@@ -331,4 +331,58 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, int32_t value)"
 expect = "56 8B F1 8B 8E 78 02 00"
-source = "Name ours, not analysed. Slot 4 of the second effect class (vtable 0x00AA0C58)."
+source = "Name ours. Slot 4 of the second effect class (vtable 0x00AA0C58): an effect with an object at +0x278 and nothing at +0x18 passes the value to that object's slot 4, then SC4Effect::SetStopped. Ours in renderer.effects.ending."
+
+[[entry]]
+name = "SC4EffectBase::SetEnding"
+address = 0x005B9E70
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectBase* this, bool a, bool b)"
+expect = "56 8B F1 8A 46 05 32 C9"
+source = "Name ours. Slot 0x20 of both effect classes' sub-objects (vtables 0x00AA0E58, 0x00AA0C10), for an effect whose byte +5 is set: the first argument kept at +0xC; set, the second kept at +0xD (and slot 4 called when that is set too), answer false; clear, the bytes +5 and +0xD cleared, every particle given back (slot 0x40), the list emptied, answer true. SC4EffectBase::Finish calls it with (0, 0) (0x005B9D57). Ours in renderer.effects.ending."
+
+[[entry]]
+name = "SC4EffectBase::LetGo"
+address = 0x005B2440
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectBase* this)"
+expect = "56 8B F1 8B 8E EC 01 00"
+source = "Name ours, not analysed. Slot 0x14 of the base effect class's sub-object (vtable 0x00AA0E58): releases what the effect holds. SC4EffectBase::Finish calls it before the release (0x005B9D69)."
+
+[[entry]]
+name = "SC4EffectBaseB::LetGo"
+address = 0x005AC140
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectBase* this)"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours, not analysed. Slot 0x14 of the second effect class's sub-object (vtable 0x00AA0C10)."
+
+[[entry]]
+name = "SC4Effect::StartParticle"
+address = 0x005B7580
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4Particle* particle)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours (477 instructions). Gives a particle just taken from the pool its first values: marked as running, age 0, a random life, and position, velocity and the rest up to +0x40 from the effect, its description and random numbers (generator 0x00B22DF8); descriptions with a flag of the mask at 0x00B22E18 go on to 0x005B71E0, which places the particle on the ground or ends it. Called by SC4EffectBase::TakeParticle (0x005B7C84) with the effect (the sub-object - 4). Ours in renderer.effects.start (src/core/effect_start.inc)."
+
+[[entry]]
+name = "SC4Particle::Clear"
+address = 0x005B9DF0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Particle* this)"
+expect = "A1 20 2E B2 00 56 8B F1"
+source = "Name ours, not analysed (16 instructions). Sets a particle's fields from constants. Called by SC4EffectBase::TakeParticle (0x005B7C47)."
+
+[[entry]]
+name = "SC4ParticlePool::Grow"
+address = 0x005A61B0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4ParticlePool* this)"
+expect = "56 8B F1 8B 46 04 83 C0"
+source = "Name ours, not analysed. On the pool at 0x00B0A67C: more particles for the free list (0x00B0A688). Called by SC4EffectBase::TakeParticle when the list is empty (0x005B7C33)."
