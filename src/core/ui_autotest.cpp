@@ -699,10 +699,200 @@ void DriveDialogs(const Day& day)
 
 const DayHook kDialogs{"ui.dialogs", 101, &DriveDialogs};
 
+// --- The region view's dialogs, the loading picture, the department pages -----
+
+char g_windowsToken[220];
+char* g_pickDialog = nullptr;
+uint32_t g_answer = 0;
+
+// The player of the dialogs run through their makers: nothing is pressed
+// (the dialog's object is the maker's own), the run ends with g_answer.
+uint32_t PlayAnswer(void* window, int depth)
+{
+    g_played.Add(depth);
+    g_played.Add(window && Virtual<void*>(window, 0x8C, uint32_t{0x1000}) != nullptr);
+    return g_answer;
+}
+
+// The pick-one dialog's player: the rows its list got, then OK with nothing
+// chosen and cancel, pressed through the dialog's window procedure.
+uint32_t PlayRegionPick(void* window, int)
+{
+    char* const dialog = g_pickDialog;
+    g_played.Add(At<void*>(dialog, 0xC) != nullptr);
+    char* const head = At<char*>(dialog, 0x24);
+    int rows = 0;
+    for (char* node = At<char*>(head, 0x0); node != head && rows < 4096; node = At<char*>(node, 0x0), ++rows)
+        g_played.Bytes(node + 0x8, 0xC);
+    g_played.Add(rows);
+    if (At<void*>(dialog, 0xC))
+        for (const uint32_t button : {0x8A5B9959u, 0xCA5B9966u}) {
+            uint32_t message[4] = {3, 0x287259F6, button, 0};
+            g_played.Add(Virtual<uint8_t>(dialog, 0xC, window, &message[0]));
+        }
+    return 0;
+}
+
+void AddDepartmentState(Fnv& f, char* dialog)
+{
+    for (std::size_t at : {std::size_t{0x20}, std::size_t{0x24}, std::size_t{0x28}, std::size_t{0x80}, std::size_t{0x84},
+                           std::size_t{0x88}, std::size_t{0x98}, std::size_t{0x9C}, std::size_t{0xA0}, std::size_t{0x11C},
+                           std::size_t{0x120}, std::size_t{0x124}, std::size_t{0x128}, std::size_t{0x134}})
+        f.Add(At<uint32_t>(dialog, at));
+    f.Bytes(dialog + 0x90, 8);
+    for (std::size_t at : {std::size_t{0x2C}, std::size_t{0x38}, std::size_t{0x44}, std::size_t{0x50}, std::size_t{0x5C},
+                           std::size_t{0x68}, std::size_t{0x74}})
+        f.Add(static_cast<uint32_t>(At<char*>(dialog, at + 4) - At<char*>(dialog, at)));
+    for (std::size_t at : {std::size_t{0x5C}, std::size_t{0x74}})
+        if (const char* const begin = At<char*>(dialog, at))
+            f.Bytes(begin, static_cast<std::size_t>(At<char*>(dialog, at + 4) - begin));
+    const uint32_t count = At<uint32_t>(dialog, 0xA0);
+    if (count && count < 4096) {
+        if (const char* const ids = At<char*>(dialog, 0xA4))
+            f.Bytes(ids, count * 4);
+        if (const char* const on = At<char*>(dialog, 0xA8))
+            f.Bytes(on, count * 2);
+    }
+}
+
+// A department dialog's player. Its window procedure (slot 4) takes the
+// message apart: (window, type, three numbers). The window's start message
+// (0xA2BF8AD0), which builds the page, comes from the modal loop in the
+// game, which also puts the window under the main window; the player does
+// both. The closing is left to the game: the dialog posts its own end when
+// the run is over, and the stop message follows from that. After the start:
+// the page's state as built, the four scroll arrows pressed when the page
+// has them, the page filled again, the funding rows refreshed.
+uint32_t PlayDepartment(void*, int)
+{
+    char* const dialog = At<char*>(g_budgetPanel, 0x18);
+    void* const window = dialog ? At<void*>(dialog, 0xC) : nullptr;
+    if (!window)
+        return 0;
+    const auto send = [&](uint32_t type, uint32_t first, uint32_t second) {
+        return Virtual<uint8_t>(dialog, 0x10, window, type, first, second, uint32_t{0});
+    };
+    cISC4AppPtr app;
+    cIGZWin* const main = app ? app->GetMainWindow() : nullptr;
+    if (!main)
+        return 0;
+    Virtual<uint32_t>(dialog, 0x4);
+    const bool added = Virtual<void*>(window, 0x2C) == nullptr && Virtual<uint8_t>(main, 0x38, window); // ChildAdd
+    if (!At<uint8_t>(dialog, 0x8))
+        g_played.Add(send(0xA2BF8AD0, 0, 0));
+    AddDepartmentState(g_played, dialog);
+    const uint32_t kind = At<uint32_t>(dialog, 0x20);
+    if (Virtual<void*>(window, 0x8C, uint32_t{0x451})) {
+        for (const uint32_t button : {0x452u, 0x454u, 0x451u, 0x453u}) {
+            g_played.Add(send(3, 0x287259F6, button));
+            AddDepartmentState(g_played, dialog);
+        }
+        if (kind == 1)
+            reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4UI_F77ADA0)(dialog, window);
+        else if (kind == 2)
+            reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::SC4UI_F781C90)(dialog, window);
+        AddDepartmentState(g_played, dialog);
+    }
+    reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4UI_F77AB40)(dialog);
+    g_played.Add(added);
+    Virtual<uint32_t>(dialog, 0x8);
+    return 0;
+}
+
+// OPENSC4_TEST_WINDOWS=<day>: the loading screen's picture made, readied
+// and shut down (its shuffled lines); the region view's five dialogs run
+// under the main window with players in place of the modal loop (new
+// region and load region left with cancel, the two questions answered no
+// and yes, the pick-one dialog with its list of the region's cities, OK and
+// cancel pressed); and the budget panel's ordinance, deals and department
+// pages with their arrows pressed and filled again. Nothing is made,
+// deleted or changed. Use with OPENSC4_TEST_TUTORIAL_OFF=1.
+void DriveWindows(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_WINDOWS") || !game::IsBuild641())
+        return;
+    Fnv picture, region, pages;
+    int did = 0;
+
+    if (char* const memory = static_cast<char*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0xC0))) {
+        const int32_t area[4] = {0, 0, 800, 600};
+        char* const loading =
+            reinterpret_cast<char*(__thiscall*)(void*, const int32_t*, uint8_t)>(addr::SC4UI_F776F90)(memory, &area[0], 0);
+        Virtual<uint32_t>(loading, 0x4);
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4UI_F7778D0)(loading); // Init
+        picture.Add(At<uint8_t>(loading, 0xB8));
+        picture.Add(At<uint32_t>(loading, 0x94));
+        const char* const begin = At<char*>(loading, 0x20);
+        const char* const end = At<char*>(loading, 0x24);
+        picture.Add(static_cast<uint32_t>(end - begin));
+        for (const char* line = begin; line && line < end; line += 0x14) {
+            const WindowString& text = *reinterpret_cast<const WindowString*>(line);
+            picture.Bytes(text.begin, static_cast<std::size_t>(text.end - text.begin));
+        }
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4UI_F777760)(loading); // Shutdown
+        picture.Add(At<uint8_t>(loading, 0xB8));
+        Virtual<uint32_t>(loading, 0x8);
+        ++did;
+    }
+
+    cISC4AppPtr app;
+    g_played = Fnv{};
+    if (cIGZWin* const main = app ? app->GetMainWindow() : nullptr) {
+        using IndexFn = int32_t(__cdecl*)(void*);
+        using YesFn = uint8_t(__cdecl*)(void*);
+        g_answer = 0xFFFFFFFF;
+        RunModal(&PlayAnswer, [&] { region.Add(reinterpret_cast<IndexFn>(addr::SC4UI_F777FF0)(main)); });
+        RunModal(&PlayAnswer, [&] { region.Add(reinterpret_cast<IndexFn>(addr::SC4UI_F7780C0)(main)); });
+        for (const uint32_t answer : {0u, 1u}) {
+            g_answer = answer;
+            RunModal(&PlayAnswer, [&] { region.Add(reinterpret_cast<YesFn>(addr::SC4UI_F778130)(main)); });
+            RunModal(&PlayAnswer, [&] { region.Add(reinterpret_cast<YesFn>(addr::SC4UI_F778220)(main)); });
+        }
+        if (void* const memory = reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x68)) {
+            char* const dialog =
+                reinterpret_cast<char*(__thiscall*)(void*, uint32_t, uint32_t)>(addr::SC4UI_F778C10)(memory, 1, 1);
+            Virtual<uint32_t>(dialog, 0x4);
+            g_pickDialog = dialog;
+            RunModal(&PlayRegionPick, [&] { region.Add(Virtual<int32_t>(dialog, 0x14, static_cast<void*>(main))); });
+            g_pickDialog = nullptr;
+            Virtual<uint32_t>(dialog, 0x8);
+        }
+        uint32_t out[3] = {};
+        g_answer = 0;
+        RunModal(&PlayAnswer, [&] {
+            region.Add(reinterpret_cast<uint8_t(__cdecl*)(void*, uint32_t, uint32_t, uint32_t*, uint32_t*, uint32_t*, void*)>(
+                addr::SC4UI_F778D80)(main, 2, 2, &out[0], &out[1], &out[2], nullptr));
+        });
+        region.Add(g_played.h);
+        ++did;
+    }
+
+    g_played = Fnv{};
+    char* const view = View();
+    if (char* const panel = view ? At<char*>(view, 0x2E8) : nullptr; panel && At<void*>(panel, 0x10)) {
+        g_budgetPanel = panel;
+        for (const uint32_t which : {1u, 2u, 0x0A5A72D1u, 0xAA369059u, 0x4A357B40u}) {
+            RunModal(&PlayDepartment,
+                     [&] { reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F768460)(panel, which); });
+            pages.Add(g_played.h);
+            log::Write("autotest: windows: department %08X played %08X", which, g_played.h);
+        }
+        Virtual<void>(panel, 0x1C); // all hidden
+        g_budgetPanel = nullptr;
+        ++did;
+    }
+    std::snprintf(g_windowsToken, sizeof g_windowsToken, " windows %d picture %08X region %08X pages %08X", did, picture.h,
+                  region.h, pages.h);
+    log::Write("autotest: windows driven:%s", g_windowsToken);
+}
+
+const DayHook kWindows{"ui.windows", 102, &DriveWindows};
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     line += g_budgetToken;
     line += g_dialogsToken;
+    line += g_windowsToken;
     line += g_panelToken;
     line += g_cityPanelsToken;
     line += g_mapToken;

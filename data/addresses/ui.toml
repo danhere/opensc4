@@ -5595,7 +5595,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 192 b
 name = "SC4UI::F777700"
 address = 0x00777700
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "53 8B 5C 24 08 55 8B 6C"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 96 bytes with padding."
 
@@ -5739,7 +5739,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 176 b
 name = "SC4UI::F777FF0"
 address = 0x00777FF0
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "56 57 6A 1C E8 E7 D5 E6"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 112 bytes with padding."
 
@@ -5755,7 +5755,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 96 by
 name = "SC4UI::F7780C0"
 address = 0x007780C0
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "56 57 6A 1C E8 17 D5 E6"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 112 bytes with padding."
 
@@ -5763,7 +5763,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 112 b
 name = "SC4UI::F778130"
 address = 0x00778130
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "53 56 6A 1C E8 A7 D4 E6"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 112 bytes with padding."
 
@@ -5779,7 +5779,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 128 b
 name = "SC4UI::F778220"
 address = 0x00778220
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "53 56 6A 1C E8 B7 D3 E6"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 112 bytes with padding."
 
@@ -5856,14 +5856,6 @@ expect = "51 55 8B 6C 24 0C 56 8B"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 64 bytes with padding."
 
 [[entry]]
-name = "SC4UI::F778A00"
-address = 0x00778A00
-kind = "function"
-convention = "thiscall"
-expect = "2B 06 83 F8 01 89 44 24"
-source = "Placeholder name (docs/ui.md): a function of the interface code, 176 bytes with padding."
-
-[[entry]]
 name = "SC4UI::F778AB0"
 address = 0x00778AB0
 kind = "function"
@@ -5931,7 +5923,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 176 b
 name = "SC4UI::F778D80"
 address = 0x00778D80
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "56 6A 68 E8 58 C8 E6 FF"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 112 bytes with padding."
 
@@ -6027,7 +6019,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 432 b
 name = "SC4UI::F779FE0"
 address = 0x00779FE0
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "53 8B 5C 24 0C 56 8B 74"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 80 bytes with padding."
 
@@ -6035,7 +6027,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 80 by
 name = "SC4UI::F77A030"
 address = 0x0077A030
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "8B 44 24 08 85 C0 56 8B"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 80 bytes with padding."
 
@@ -6043,7 +6035,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 80 by
 name = "SC4UI::F77A080"
 address = 0x0077A080
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "8B 4C 24 08 53 8B 5C 24"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 160 bytes with padding."
 
@@ -6051,7 +6043,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 160 b
 name = "SC4UI::F77A120"
 address = 0x0077A120
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "8B 44 24 08 8B 4C 24 04"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 128 bytes with padding."
 
@@ -6107,7 +6099,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 224 b
 name = "SC4UI::F77AC20"
 address = 0x0077AC20
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "53 8B 5C 24 0C 56 8B 74"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 64 bytes with padding."
 
@@ -6115,7 +6107,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 64 by
 name = "SC4UI::F77AC60"
 address = 0x0077AC60
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "8B 44 24 08 85 C0 56 8B"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 64 bytes with padding."
 
@@ -6123,7 +6115,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 64 by
 name = "SC4UI::F77ACA0"
 address = 0x0077ACA0
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "53 8B 5C 24 0C 56 8B 74"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 64 bytes with padding."
 
@@ -6131,7 +6123,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 64 by
 name = "SC4UI::F77ACE0"
 address = 0x0077ACE0
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "8B 44 24 08 85 C0 56 8B"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 64 bytes with padding."
 
@@ -6139,7 +6131,7 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 64 by
 name = "SC4UI::F77AD20"
 address = 0x0077AD20
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "8B 4C 24 08 53 8B 5C 24"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 128 bytes with padding."
 
@@ -6174,14 +6166,6 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 4C 56 8D 54 24 04"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 160 bytes with padding."
-
-[[entry]]
-name = "SC4UI::F77BD30"
-address = 0x0077BD30
-kind = "function"
-convention = "thiscall"
-expect = "D9 5C 24 3C 6A 00 E9 29"
-source = "Placeholder name (docs/ui.md): a function of the interface code, 393 bytes with padding."
 
 [[entry]]
 name = "SC4UI::F77BEC0"
@@ -6264,14 +6248,6 @@ expect = "81 EC 9C 00 00 00 8B 0D"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 1552 bytes with padding."
 
 [[entry]]
-name = "SC4UI::F77E0C0"
-address = 0x0077E0C0
-kind = "function"
-convention = "thiscall"
-expect = "6A 01 68 3A 9B 57 AA 68"
-source = "Placeholder name (docs/ui.md): a function of the interface code, 896 bytes with padding."
-
-[[entry]]
 name = "SC4UI::F77E440"
 address = 0x0077E440
 kind = "function"
@@ -6304,25 +6280,183 @@ expect = "81 EC 44 01 00 00 53 33"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 2000 bytes with padding."
 
 [[entry]]
-name = "SC4UI::F77EDD0"
-address = 0x0077EDD0
-kind = "function"
-convention = "thiscall"
-expect = "C7 44 24 48 00 00 00 00"
-source = "Placeholder name (docs/ui.md): a function of the interface code, 366 bytes with padding."
-
-[[entry]]
-name = "SC4UI::F77EF40"
-address = 0x0077EF40
-kind = "function"
-convention = "thiscall"
-expect = "33 ED 8B 4E 5C 3B CF 8B"
-source = "Placeholder name (docs/ui.md): a function of the interface code, 11600 bytes with padding."
-
-[[entry]]
 name = "SC4UI::F781C90"
 address = 0x00781C90
 kind = "function"
 convention = "thiscall"
 expect = "81 EC 38 01 00 00 55 33"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 879 bytes with padding."
+
+[[entry]]
+name = "SC4UI::DepartmentDialogVtable"
+address = 0x00AB5494
+kind = "data"
+source = "Name ours. Vtable of the budget panel's department dialog (0x140 bytes, 6 slots: 0x004F1F30, 0x005F47F0, 0x00769400, 0x0062C980, 0x0078BCA0 and the deleting destructor 0x0077E420); written by the constructor 0x007862B0 and the destructor body 0x0077C4C0 (docs/ui.md)."
+
+[[entry]]
+name = "SC4RefPairVector::Destroy"
+address = 0x005FF0C0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. No arguments: destroys a vector of 8-byte records {dword, reference}: releases each record's reference (+4) and frees the buffer. Shared container code; the department dialog's destructor calls it for its vectors at +0x2C, +0x38 and +0x68. Left the game's."
+
+[[entry]]
+name = "SC4RegionDialog::Vtable"
+address = 0x00AB5314
+kind = "data"
+source = "Name ours. The main vtable (11 slots) of the base of the region view's small modal dialogs (0x1C bytes): QueryInterface 0x007B23A0, AddRef, Release, slot 3 the window message handler 0x00777BD0, slot 4 a stub, slot 5 Run 0x00777D60 (parent window; loads the layout, runs it modal, returns the result), slots 6 and 7 window came and went (stubs), slot 8 a button's ID 0x00777C90, slot 9 cancel 0x00777CF0, slot 10 OK 0x00777D10."
+
+[[entry]]
+name = "SC4RegionDialog::CountedVtable"
+address = 0x00AB5300
+kind = "data"
+source = "Name ours. The vtable of the dialog base's counted part at +4 (slot 0 the deleting destructor's thunk 0x00777CE0)."
+
+[[entry]]
+name = "SC4NewRegionDialog::Vtable"
+address = 0x00AB5340
+kind = "data"
+source = "Name ours. The main vtable of the new region dialog (factory 0x00777FF0; layout 0x8A5AB1CB, window 0xEA5BA0D1): own slots 3 (0x00778450), 6 (0x00778630), 8 (0x00777F40), 9 (0x00777CC0) and 10 (0x00778470)."
+
+[[entry]]
+name = "SC4NewRegionDialog::CountedVtable"
+address = 0x00AB536C
+kind = "data"
+source = "Name ours. The vtable of the new region dialog's counted part at +4 (slot 0 is 0x00777F10)."
+
+[[entry]]
+name = "SC4LoadRegionDialog::Vtable"
+address = 0x00AB5380
+kind = "data"
+source = "Name ours. The main vtable of the load region dialog (factory 0x007780C0; layout 0x8A5AB1CC, window 0x4A5BA0E7): own slots 6 (0x00778810), 9 (0x00777CC0) and 10 (0x00778060)."
+
+[[entry]]
+name = "SC4LoadRegionDialog::CountedVtable"
+address = 0x00AB53AC
+kind = "data"
+source = "Name ours. The vtable of the load region dialog's counted part at +4."
+
+[[entry]]
+name = "SC4DeleteRegionDialog::Vtable"
+address = 0x00AB53C0
+kind = "data"
+source = "Name ours. The main vtable of the delete region question (factory 0x00778130; layout 0x8A5AB1CE, window 0x6A5BA20C): own slot 6 (0x00778420)."
+
+[[entry]]
+name = "SC4DeleteRegionDialog::CountedVtable"
+address = 0x00AB53EC
+kind = "data"
+source = "Name ours. The vtable of the delete region question's counted part at +4."
+
+[[entry]]
+name = "SC4QuestionDialog::Vtable"
+address = 0x00AB5400
+kind = "data"
+source = "Name ours. The main vtable of the region view's plain question (factory 0x00778220; layout and window 0x8A5AB1D0): every slot the base's."
+
+[[entry]]
+name = "SC4QuestionDialog::CountedVtable"
+address = 0x00AB542C
+kind = "data"
+source = "Name ours. The vtable of the plain question's counted part at +4."
+
+[[entry]]
+name = "SC4PickDialog::Vtable"
+address = 0x00AB5454
+kind = "data"
+source = "Name ours. The main vtable of the region view's pick-one dialog (0x68 bytes, constructor 0x00778C10, factory 0x00778D80; layout 0x8A5AB1CD, window 0x0A5BA192): own slots 6 (0x00779060), 7 (0x007781A0) and 10 (0x00778CD0)."
+
+[[entry]]
+name = "SC4PickDialog::CountedVtable"
+address = 0x00AB5440
+kind = "data"
+source = "Name ours. The vtable of the pick-one dialog's counted part at +4 (slot 0 is 0x00778CC0)."
+
+[[entry]]
+name = "SC4Scope891D9A::Construct"
+address = 0x00891D9A
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C6 06 00 E8 A1"
+source = "Name ours, not analysed. (uint32_t value), ret 4: clears the object's one byte, then, when the singleton 0x00913C46 gives an object through its slot 32 (+0x80), stores in the byte what that object's slot 12 (+0x30) answers for the value; returns this. The dialogs' Run (0x00777D60) wraps the hand-over of the window procedure in it with value 0xF."
+
+[[entry]]
+name = "SC4Scope891D9A::Destruct"
+address = 0x00891DCA
+kind = "function"
+convention = "thiscall"
+expect = "80 39 00 74 1E E8 72 1E"
+source = "Name ours, not analysed. No arguments: when the object's byte is set, calls slot 13 (+0x34) of the same object the constructor asked."
+
+[[entry]]
+name = "SC4StringVector::Erase"
+address = 0x004863F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Name ours. (SC4String* first, SC4String* last), ret 8: erases a range from a vector of game strings (moves the tail down through 0x0051FF00, destroys what is left over through slot 28); returns first. The loading screen's picture empties its lines with it."
+
+[[entry]]
+name = "SC4StringVector::PushBack"
+address = 0x004522F0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 77 04 3B"
+source = "Name ours. (const SC4String* text), ret 4: appends a copy to a vector of game strings (grows through 0x0044EDA0)."
+
+[[entry]]
+name = "SC4String::Swap"
+address = 0x00662BE0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 56 57 8B 7C 24"
+source = "Name ours. (SC4String* a, SC4String* b), caller cleans up 8 bytes: swaps two game strings through a temporary."
+
+[[entry]]
+name = "SC4UI::LoadWindowChild"
+address = 0x005F9390
+kind = "function"
+convention = "cdecl"
+expect = "51 C7 04 24 00 00 00 00"
+source = "Name ours. (const uint32_t key[3], parent window, uint32_t window ID), caller cleans up 12 bytes: asks the framework service 0x5A356E15 (interface 0xFA3562FA) and returns what its slot 4 (+0x10) makes of the three; null when there is no service. The region view's small dialogs load their windows with it (0x00777D60)."
+
+[[entry]]
+name = "SC4::IsValidFileName"
+address = 0x0091977C
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 28 53 56"
+source = "Name ours, a guess. (const SC4String* name, uint32_t file system; 0 means 'FAT'), caller cleans up 8 bytes: a byte, true when the text is at most 0x100 long, every character passes 0x009180D4 and the rest of its checks pass. The new region dialog greys OK with it."
+
+[[entry]]
+name = "SC4StringBody::AssignChars"
+address = 0x0044D3A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 55 8B 6C"
+source = "Name ours. (const char* first, const char* last), ret 8, returns this; this is a string's body (begin, end, capacity). Assigns the characters of [first, last), growing through 0x0040EBC0 when they do not fit. The import dialog's tree filler uses it for the fallback title 'Downloads' (src/core/ui_windows_2.cpp)."
+
+[[entry]]
+name = "SC4ScriptNumber::FromVoidPtr"
+address = 0x00915CB7
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8B C1 33 C9"
+source = "Name ours. (uint32_t value), ret 4, returns this: a 0x14-byte variant (vtable 0x00ACECD0) of type 0xF holding one 32-bit value, read back through its slot 51 (+0xCC). The built dialogs keep a value on a child window with it (window parameter 0x4BFEE088; src/core/ui_windows_2.cpp)."
+
+[[entry]]
+name = "GZWinBMP::Construct"
+address = 0x009BC4BA
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 76 14 FE FF"
+source = "Name ours. No arguments, returns this: the constructor of the framework's picture window (0xFC bytes; the window base 0x0099D938, main vtable 0x00ADF6A0, its own interface at +0xD8 with vtable 0x00ADF66C: slot 4 sets the image, slot 11 a flag). The built dialogs make their pictures with it (src/core/ui_windows_2.cpp)."
+
+[[entry]]
+name = "SC4UI::F77E420"
+address = 0x0077E420
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 98 E0 FF FF"
+source = "Placeholder name (docs/ui.md). (uint32_t flags), ret 4, returns this. The department dialog deleting destructor (slot 5 of vtable 0x00AB5494): the destructor 0x0077C4C0, then operator delete when flags has bit 0."

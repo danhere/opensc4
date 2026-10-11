@@ -23,6 +23,9 @@ The game's own interface classes, rewritten piece by piece like the simulators (
 | The rest of the options dialog and the graphs window of the city view with its chart feeding (0x0076B110 to 0x0076E500) | 33 functions; the graph control's box drawing (0x0076B660) and the framework graph's own thunks stay the game's | ours (`ui.dialogs.part5`, `part6`) |
 | The map window of the city view, the data views (0x0079E400 to 0x007A6590): start and shutdown, the layers' occupant filter, the legend, the marks on buildings, the view switching, the buttons | 51 functions | ours (`ui.map.part1` to `part5`) |
 | The small map of the city (cSC4WinMiniMap, 0x007A6580 to 0x007A9240): flags, colours, marked blocks, colour ramps, the mouse, start and messages | 35 functions | ours (`ui.map.part5`, `part6`) |
+| The rest of the loading screen's picture (0x00777220 to 0x00777BB0): the shuffled lines of text, the status, start and shutdown | 6 functions; its two draws (0x00777220, 0x007773B0) stay the game's | ours (`ui.windows.part1`) |
+| The region view's five dialogs and their shared base (0x00777BB0 to 0x007794E0): new region, load region, the delete question, a plain question, and the pick-a-city dialog with its tree of regions and cities | 40 functions | ours (`ui.windows.part1`, `part2`) |
+| The budget panel's department dialog (0x007794E0 to 0x00785740): the window made in code, the controls it adds (texts, buttons, check boxes, pictures, combo boxes, sliders), the three page backgrounds, the ordinance page and its refill, the neighbour deals page (0x0077E600, 14 KB) and its refill (0x00781C90, 15 KB), the funding rows and a building's funding, stop and the destructor | 37 functions | ours (`ui.windows.part2` to `part6`) |
 
 Still the game's in these ranges: generic string, list and smart-pointer code with callers all over the exe, and functions the compiler folded with unrelated classes.
 
@@ -30,7 +33,7 @@ Still the game's in these ranges: generic string, list and smart-pointer code wi
 
 The map's picture belongs to the renderer work and is not touched: its drawing 0x007A2F60 (which runs to 0x007A4884, with jump tables to 0x007A49B0), the functions it calls (0x007A2380, 0x007A2740, 0x007A1310, 0x007A1120, 0x007A00B0; the grid converters 0x007A2AE0, 0x007A2C70, 0x007A2E00; the point collector 0x007A1020 and the mapper 0x007A2080), and the scalers, painters and blenders only it uses (0x0079E600, 0x0079EB40, 0x0079ED90, 0x0079EFD0, 0x0079F230, 0x0079F4D0, 0x0079FEF0). None of these is rewritten, hooked or named in the address database. The controls that ask for a redraw (the view switch 0x007A49B0, the timed tick in 0x007A54D0, two buttons in 0x007A56E0) call 0x007A2F60 by its address, as the original does.
 
-Left the same way, as drawing of other pictures: the small map's paint (0x007A79B0), its two picture builders (0x007A7FF0, 0x007A8640) and their nine pixel routines (0x007A65D0 to 0x007A6FB0); the advisor head view's Draw (0x004209D0); the graph control's box (0x0076B660); a blend routine of the city picture class (0x00776C30).
+Left the same way, as drawing of other pictures: the loading screen's two draws (0x00777220, 0x007773B0; its `Update` is ours and calls the draw by address); the small map's paint (0x007A79B0), its two picture builders (0x007A7FF0, 0x007A8640) and their nine pixel routines (0x007A65D0 to 0x007A6FB0); the advisor head view's Draw (0x004209D0); the graph control's box (0x0076B660); a blend routine of the city picture class (0x00776C30).
 
 ## How interface code is tested
 
@@ -50,6 +53,8 @@ None of this runs unless a window is open or the player clicks, so the usual par
   - `OPENSC4_TEST_MAP_WINDOW=<day>` (token `mapwin`): the legend built for sixteen views; the marks collected for each kind, as a set; each view chosen in turn with the fields and the two colour tables it sets (this runs the game's own picture drawing, whose result is not compared), the plain view put back; and a small map of the test's own with no window: flags, colours, marked blocks, colour ramps.
 
 - `OPENSC4_TEST_DIALOGS=<day>` (token `dialogs`): the dialogs that only a button opens, opened and worked by pressing their buttons through their window procedures, with a player in place of the window manager's modal loop: the budget panel's tax window (two rates changed, applied when the dialog ends), its loan dialog (the list scrolled, a loan taken) and five department dialogs; the options dialog (both pages, the text page it opens inside itself, Accept); the MySim panel's dialog for a car and for a figure (a choice pressed, then yes); and the map window's controls readied, a button of each row pressed, hidden again. Used with `OPENSC4_TEST_TUTORIAL_OFF=1`, since a tutorial city holds button presses back. The rates, the loan and the car change the city, alike on both sides: the funds in the budget's own fingerprint rise by the loan.
+
+- `OPENSC4_TEST_WINDOWS=<day>` (token `windows`): a loading screen picture of the test's own made, readied and shut down, its shuffled lines compared (not drawn); the region view's dialogs run under the main window with players: new region and load region left with cancel, the two questions answered no and yes, the pick-a-city dialog made twice (its list of the region's cities compared, OK with nothing chosen and cancel pressed); and the budget panel's five department dialogs with their pages built, the scroll arrows pressed where a page has them, the ordinance page filled again and the funding rows refreshed. Nothing is made, deleted or changed. For the department dialogs the player has to do two things the modal loop does in the game: put the window under the main window, and send it the start message (0xA2BF8AD0) that builds the page. It leaves the closing to the game: the dialog posts its own end after the run, and the stop message and the destructor follow from the game's message pump. (A first version sent the stop message itself; the game then hung on exit.)
 
 Two workers translated the ticker's message handler (0x00772B60) independently, because it lay across their ranges; the two readings agreed call for call, and one was kept.
 
@@ -99,6 +104,24 @@ The **MySim picker dialog** (0x64 bytes) is what the MySim panel opens for an em
 The **budget windows** (0x28 and 0x60 bytes; budget simulator slot 24 makes one or the other) show seven department sliders and three tax spinners. Their layouts (0x691A0FB4, 0xE91A0FA3) do not load in the game as shipped, so they look like leftovers of development; the game's real budget panel is other code.
 
 Things the original does that ours keeps: opening the large budget window overwrites the simulator's income totals until a spinner is moved; the ticker's scroll length is not set by its constructor; the page-number buttons of the dialog do not check their range.
+
+## The region dialogs and the department dialog
+
+The region view's dialogs share a base of 0x1C bytes (vtable 0x00AB5314, counted part at +4): the window at +0xC, the layout's instance at +0x10, the window ID at +0x14, the child that gets the keyboard at +0x18. Its slots: 3 the window's messages, 5 Run (the layout loaded under a parent, run as a modal window, destroyed; the answer is the number the run ended with), 6 and 7 the window came and went, 8 a button's ID, 9 cancel, 10 OK. Every dialog has OK 0x8A5B9959 and cancel 0xCA5B9966. The region view calls a maker function per dialog and acts on the answer itself (loading, deleting), so calling a maker alone changes nothing; only the new region dialog's OK does work of its own (it makes the region).
+
+| Dialog | Maker | Layout, window ID | Answer |
+| --- | --- | --- | --- |
+| New region | 0x00777FF0 | 0x8A5AB1CB, 0xEA5BA0D1 | the new region's index, -1 on cancel |
+| Load region | 0x007780C0 | 0x8A5AB1CC, 0x4A5BA0E7 | the list's choice, -1 on cancel |
+| Delete region question | 0x00778130 | 0x8A5AB1CE, 0x6A5BA20C | yes or no |
+| Plain question | 0x00778220 | 0x8A5AB1D0, 0x8A5AB1D0 | yes or no |
+| Pick a city (0x68 bytes) | 0x00778D80 | 0x8A5AB1CD, 0x0A5BA192 | yes with the chosen record (three numbers and a path) |
+
+The pick dialog fills a tree with every region of the nation and its cities of one size, then the downloads folder; it starts and shuts down every region but the current one to list it (disk reads, nothing written).
+
+The department dialog (0x140 bytes, vtable 0x00AB5494, constructor 0x007862B0) is the budget panel's one dialog for three kinds of page, chosen by the number at +0x20: 1 the ordinances, 2 the neighbour deals, otherwise a department's buildings with funding rows. Its window is made in code (0x00779E50), not loaded from a layout, and every control is added by a small method that takes a parent, an ID and a place. Its window procedure (slot 4, 0x0078BCA0, not yet ours) takes the message apart into five arguments, unlike the other dialogs' two. The start message 0xA2BF8AD0 builds the page (0x007876B0, not yet ours, which calls the page builders that are); 0xA2BF8AD1 stops it. The service at 0x00B43D90, entered in the address database without a name, is the ordinance simulator: its slots match gzcom-dll's `cISC4OrdinanceSimulator`.
+
+The deals page is two functions of 14 and 15 KB, each six copies of one row block (types 0x4773FFE0 to E5: power, water and garbage, bought and sold). They differ in small ways that are kept: which copies grow their vectors inline, when a row's cost is read, which list bumps its IDs after the blank row. Heading rows carry two dwords of stack garbage in the original (never written, copied into the row vector); ours stores zeros, and nothing was found that reads them.
 
 ## Parity
 
@@ -152,3 +175,17 @@ A run of the original with the coverage meter and every switch (Big City with My
 - the dispatch tool's click and the move-in tool's mouse handlers; the import from The Sims past "not installed".
 
 **The dialogs pressed** (`ui16-*`, all 25 groups): 12 of 12 on the usual saves; 3 of 4 on `saves-mysim` with the car and figure dialog, the fourth off by one in the harness's own tick count in a first B run. The `dialogs` token of ours is the original's in every run. With this switch a coverage run (`analysis\cov-ui4`) reaches 29 more functions, 305 in all: the tax window, the loan dialog, the department dialogs' opening, the text page and options dialogs, the pick-one dialog's run, the map's three button rows and its controls. Still not reached: the new city name dialog (its layout comes from its maker, not traced), the dispatch and move-in clicks, the import from The Sims, and the windows that need an urgent advice or a layout the game does not ship.
+
+**The region dialogs and the department dialog** (`ui18-*`, all 31 `ui.*` groups on, 2026-10-10):
+
+| Leg | Result |
+| --- | --- |
+| 12 saves, 7 days: the dialogs pressed, then the windows test | 10 same, 2 partly (a first B run off in the lots' token on Big City d0000 and by one harness tick on Rush Hour d0000; the repeats matched) |
+| `saves-mysim`, 30 days: the windows test | 3 same, 1 partly, on a save where the original's own runs differ |
+
+The `windows` and `dialogs` tokens of ours are the original's in every run: the loading picture's shuffled lines, the region dialogs' answers and the pick dialog's list, the five department pages with their fields after every arrow press and refill.
+
+The first batch failed on every save, which is what the test is for: the load region dialog passed 1 to a getter of the nation (slot 7, no arguments) where the 1 is the second argument of the list call after it, an argument pushed early. Found by switching hooks on in halves; the nation's and the window class's calls in all six files were then checked against each target's `ret N` (169 window calls), and every call on a deal and on the neighbours simulator likewise, since no test city has a neighbour deal.
+
+A coverage run (`analysis\cov-ui5`) reaches 59 of this range's 83 functions, 364 of 502 in all. Not reached here: the deals page's rows, sliders and its refill (0x00781C90 whole; the tutorial cities have no deals, so only the "no deals" message runs), a building's funding being set and the pending changes written (they change the city), the new region dialog's OK (it makes a region), the load region dialog's OK, the combo box and two text makers, and the copy helpers of vectors that never grew.
+
