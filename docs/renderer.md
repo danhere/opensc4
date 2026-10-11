@@ -278,7 +278,32 @@ Compare mode uses the undoing: ours sets up and its result is taken; then twice 
 
 Checked on the three tutorial cities: 1,540 dwords, no difference; the self-check is clean; the same with the big cities setting on (a standard city, so the capacity stays 0x100); ours alone with every terrain replacement runs Big City for 30 days with a volcano in the release build; screenshots after the camera workout match the game's (20 of 20). The set-up runs once a run, so this is one comparison each. The path that makes more than 0x100 lists has not run: no test has a bigger terrain yet.
 
-**What is left of the terrain view.** Its code runs from 0x00751C40 to 0x0075D5B0: 146 functions, 45.8 KB. Counting what can still be reached when our replacements are on, about 50 functions are still the game's, and 30 more are only called from code that is ours already, so they no longer run (the row drawing variants at 0x007543C0 to 0x00755700 and the dynamic vertex buffer path at 0x0075C9F0 to 0x0075CB50 are among them: our passes do that work themselves). What is left: the view's start and shutdown for a city (0x0075C420, 0x007560F0), the single-cell draw (0x00752870), a command parser (0x0075A770), the debug draw (0x00759A80), and many small getters and setters. They come next, a part at a time.
+### The terrain view's start and stop
+
+The view is started for a city (0x0075C420, with the terrain) and stopped when the city closes (0x007560F0). The byte at +0x18 says it is started.
+
+The start:
+
+- runs the one-time set-up when it has not run (above);
+- keeps the terrain (+0x20) and two more services of the city (+0x1C, +0x24), each with a reference;
+- sets the size (0x007595A0, cdecl, cells across and down): when it differs from the one kept at 0x00B4C744 and 0x00B4C748, the counts derived from it are kept (vertex columns and rows, the vertex count, the index steps from 0x00B4C710 on), the drawing buffers are freed and built again ("The terrain's buffers");
+- drops the textures and picks the zoom's again, and resets the kept rotation and zoom (0x00B4C708 = 4, 0x00B4C70C = 5, values no camera has, so the first frame redoes the texture coordinates);
+- makes the view's parts: the overlay manager (+0x6C), the cell marks (+0x70) and four render passes (+0x78 to +0x84);
+- fills the heights of every vertex, land and water (0x007569F0, 0x00756B00), sets every row's dirty bit (0x00755ED0) and redoes every cell's indices (0x00755FB0);
+- forgets every cell's own texture: the counts at 0x00B4C6B8 are zeroed and each row's two vectors emptied ("A cell's own texture");
+- subscribes to six messages and gives the passes to the 3D render (slot 0x80, nine calls).
+
+The stop takes the passes back from the render (slot 0x84, eight calls), unsubscribes from the six messages, destroys the parts and releases what the start kept. The buffers and the size stay, so a next city of the same size does not build them again.
+
+`renderer.terrain.viewinit` is the start, the stop and the three helpers (the size, the rows' dirty bits, every cell's indices), translated instruction by instruction.
+
+**Size limits.** Nothing here has a literal size: the start takes the cells across and down from the terrain and everything follows from them. The limits are in what it calls: the row layer lists and dirty bits of the set-up (0x100 rows, above), and the buffers' 16-bit indices and counts ("The terrain's buffers").
+
+Compare mode stops and starts the view again: ours starts it and its result is taken, ours stops it and that result is taken; then twice the game's start and the game's stop run and theirs are taken, and the game's start leaves the view started. Before each of the game's starts the kept size is forgotten, so the game frees and builds the buffers as it does for a first city. A result is the view (0x100 bytes), the globals from 0x00B4C600 to 0x00B4C840 and, when `renderer.terrain.buffers` is on, every buffer block. A dword that holds three mapped addresses, not all the same, is a pointer to something each start makes anew and is left out, as is anything the game's own two results disagree on.
+
+Checked on the three tutorial cities: 349,215 dwords (1.4 MB) after the start and after the stop, no difference, with 176 to 256 bytes left out, nearly all of them pointers; the self-check is clean; ours alone with every terrain replacement runs Big City for 30 days with a volcano in the release build and stops the view at the end; screenshots after the camera workout match the game's (20 of 20). The start runs once a city, so this is one comparison a run. What the comparison does not see is inside the parts the start makes (they are made by the game's constructors in both runs) and the render's own list of passes.
+
+**What is left of the terrain view.** Its code runs from 0x00751C40 to 0x0075D5B0: 146 functions, 45.8 KB. Counting what can still be reached when our replacements are on, about 45 functions are still the game's, and 30 more are only called from code that is ours already, so they no longer run (the row drawing variants at 0x007543C0 to 0x00755700 and the dynamic vertex buffer path at 0x0075C9F0 to 0x0075CB50 are among them: our passes do that work themselves). What is left: the single-cell draw (0x00752870), a command parser (0x0075A770), the debug draw (0x00759A80), and many small getters and setters. They come next, a part at a time.
 
 ## The overlays
 

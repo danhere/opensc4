@@ -7699,6 +7699,234 @@ const bool g_registeredTerrainRowListsUntested = registry::Register({
     InstallTerrainRowListsUntested,
 });
 
+// The terrain view's start and stop for a city (docs/renderer.md, "The
+// terrain view's start and stop"). Translated instruction by instruction and
+// entered like the pixel routines above.
+bool g_compareTerrainViewInit;
+
+void* g_terrainLifeInit;
+void __cdecl TerrainLifeInitOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view start: Init call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainlife_init.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view start: Init left %d values on the x87 stack", top + 1);
+}
+void* g_terrainLifeShutdown;
+
+// Compare mode: a started view can be stopped and started again, so ours
+// starts it and its result is taken, then ours stops it and that result is
+// taken; then twice the game's start and the game's stop run and theirs are
+// taken, and the game's start leaves the view started. The size the buffers
+// were built for is forgotten before each of the game's starts, so the game
+// builds them again as it does for a first city. A result is the view
+// (0x100 bytes), the terrain globals (0x00B4C600 to 0x00B4C840) and, when
+// our buffer build has run, every buffer block. A dword that holds mapped
+// addresses, not all the same, in the three results is a pointer to
+// something each start makes anew and is left out, as is anything the game's
+// own two results disagree on.
+void TerrainLifeCompare(const char* name, const std::vector<char>& first, const std::vector<char>& second, const std::vector<char>& third)
+{
+    const auto word = [](const std::vector<char>& bytes, size_t at) {
+        uint32_t value;
+        std::memcpy(&value, bytes.data() + at, 4);
+        return value;
+    };
+    const auto mapped = [](uint32_t address) {
+        MEMORY_BASIC_INFORMATION info{};
+        return address >= 0x10000 && VirtualQuery(reinterpret_cast<void*>(address), &info, sizeof info) && info.State == MEM_COMMIT &&
+               !(info.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+    };
+    size_t differing = first.size() == second.size() && second.size() == third.size() ? 0 : 1, firstAt = 0, unsettled = 0, pointers = 0;
+    for (size_t i = 0; i + 4 <= first.size() && i + 4 <= second.size() && i + 4 <= third.size(); i += 4) {
+        const uint32_t a = word(first, i), b = word(second, i), c = word(third, i);
+        if ((a != b || b != c) && mapped(a) && mapped(b) && mapped(c)) {
+            unsettled += 4;
+            pointers += 4;
+        } else if (b != c) {
+            unsettled += 4;
+        } else if (a != b && !differing++) {
+            firstAt = i;
+        }
+    }
+    char detail[200];
+    std::snprintf(detail, sizeof detail, "%zu of %zu dwords differ (first at %zu; the view is the first 64), %zu bytes left out, %zu of them pointers",
+                  differing, first.size() / 4, firstAt, unsettled, pointers);
+    log::Write("terrain view start: compared %s: %s", name, detail);
+    compare::Record((std::string("terrain.view") + name + (g_selfCheck ? ".selfcheck" : "")).c_str(), !differing, "the game's", detail);
+}
+
+void __cdecl TerrainLifeShutdown(EntryFrame* frame);
+
+void __cdecl TerrainLifeInit(EntryFrame* frame)
+{
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const uint32_t terrain = frame->arguments[0];
+    if (!g_compareTerrainViewInit || At<uint8_t>(self, 0x18) != 0) {
+        TerrainLifeInitOurs(frame);
+        return;
+    }
+    using InitFn = uint32_t(__fastcall*)(char*, void*, uint32_t);
+    using StopFn = uint32_t(__fastcall*)(char*, void*);
+    const auto result = [&] {
+        std::vector<char> bytes(self, self + 0x100);
+        bytes.insert(bytes.end(), reinterpret_cast<char*>(0x00B4C600), reinterpret_cast<char*>(0x00B4C840));
+        for (const Region& region : TerrainBufferRegions())
+            bytes.insert(bytes.end(), region.data, region.data + region.size);
+        while (bytes.size() % 4)
+            bytes.push_back(0);
+        return bytes;
+    };
+    const auto start = [&] {
+        // The size kept from the last start would make the game's skip the
+        // buffers; forgotten, they are freed and built again.
+        Global<uint32_t>(0x00B4C744) = 0xFFFFFFFF;
+        g_dataMapGameRun = true;
+        const uint32_t answer = reinterpret_cast<InitFn>(g_terrainLifeInit)(self, nullptr, terrain);
+        g_dataMapGameRun = false;
+        return answer;
+    };
+    const auto stop = [&] {
+        g_dataMapGameRun = true;
+        reinterpret_cast<StopFn>(g_terrainLifeShutdown)(self, nullptr);
+        g_dataMapGameRun = false;
+    };
+    const EntryFrame entry = *frame;
+    if (g_selfCheck) {
+        start();
+    } else {
+        TerrainLifeInitOurs(frame);
+    }
+    const std::vector<char> started1 = result();
+    if (g_selfCheck) {
+        stop();
+    } else {
+        EntryFrame stopFrame = entry;
+        TerrainLifeShutdown(&stopFrame);
+    }
+    const std::vector<char> stopped1 = result();
+    start();
+    const std::vector<char> started2 = result();
+    stop();
+    const std::vector<char> stopped2 = result();
+    start();
+    const std::vector<char> started3 = result();
+    stop();
+    const std::vector<char> stopped3 = result();
+    *frame = entry;
+    frame->eax = start();
+    TerrainLifeCompare("init", started1, started2, started3);
+    TerrainLifeCompare("shutdown", stopped1, stopped2, stopped3);
+}
+DATAMAP_ENTRY(TTerrainLifeInit, TerrainLifeInit, g_terrainLifeInit, 4)
+
+void __cdecl TerrainLifeShutdown(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view start: Shutdown call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainlife_shutdown.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view start: Shutdown left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainLifeShutdown, TerrainLifeShutdown, g_terrainLifeShutdown, 0)
+
+void* g_terrainLifeMarkRowsDirty;
+void __cdecl TerrainLifeMarkRowsDirty(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view start: MarkRowsDirty call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainlife_markrowsdirty.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view start: MarkRowsDirty left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainLifeMarkRowsDirty, TerrainLifeMarkRowsDirty, g_terrainLifeMarkRowsDirty, 8)
+
+void* g_terrainLifeUpdateAllCellIndices;
+void __cdecl TerrainLifeUpdateAllCellIndices(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view start: UpdateAllCellIndices call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainlife_updateallcellindices.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view start: UpdateAllCellIndices left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainLifeUpdateAllCellIndices, TerrainLifeUpdateAllCellIndices, g_terrainLifeUpdateAllCellIndices, 0)
+
+void* g_terrainLifeSetSize;
+void __cdecl TerrainLifeSetSize(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view start: SetSize call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainlife_setsize.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view start: SetSize left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainLifeSetSize, TerrainLifeSetSize, g_terrainLifeSetSize, 0)
+
+bool InstallTerrainViewInit(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareTerrainViewInit = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::cSTETerrainView3D_Init, &TTerrainLifeInit, &g_terrainLifeInit)
+                           && Detour(addr::cSTETerrainView3D_Shutdown, &TTerrainLifeShutdown, &g_terrainLifeShutdown)
+                           && Detour(addr::cSTETerrainView3D_MarkRowsDirty, &TTerrainLifeMarkRowsDirty, &g_terrainLifeMarkRowsDirty)
+                           && Detour(addr::cSTETerrainView3D_UpdateAllCellIndices, &TTerrainLifeUpdateAllCellIndices, &g_terrainLifeUpdateAllCellIndices)
+                           && Detour(addr::cSTETerrainView3D_SetSize, &TTerrainLifeSetSize, &g_terrainLifeSetSize);
+    if (installed)
+        log::Write("terrain view start: %s", g_compareTerrainViewInit ? "compared with the game's" : "ours");
+    return installed;
+}
+
+const bool g_registeredTerrainViewInit = registry::Register({
+    "renderer.terrain.viewinit",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_Init,
+    "The terrain view's start and stop for a city, with three helpers; compare mode stops and starts the view again "
+    "with the game's and compares the view, the globals and the buffers (docs/renderer.md, \"The terrain view's start "
+    "and stop\")",
+    true,
+    InstallTerrainViewInit,
+});
+
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),
 // translated instruction by instruction: the window's paint (0x007A79B0),
 // the terrain's pixels (0x007A7FF0), the picture brought up to date
