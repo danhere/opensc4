@@ -1,0 +1,213 @@
+# The flora occupant (cSC4FloraOccupant, class ID 0xA9C05C85, occupant type 0x74758926): code 0x00472900 to 0x00472DBD (src/core/floraocc_sim.cpp, the class map in src/core/floraocc_sim.h). The constructor 0x00472B30 and the pool allocator 0x00472960 are in flora.toml.
+
+[[entry]]
+name = "cSC4FloraOccupant::vftable"
+address = 0x00A88608
+kind = "vtable"
+expect = "10 29 47 00 F0 28 5E 00"
+source = "The primary cISC4FloraOccupant vtable (15 slots, listed in src/core/floraocc_sim.h). simulators.floraocc.slots swaps slots 0, 12, 13 and 14; simulators.floraocc.object copies it at the first construction."
+
+[[entry]]
+name = "cSC4FloraOccupant::vftable_4"
+address = 0x00A88580
+kind = "vtable"
+expect = "C0 2B 47 00 B0 29 5E 00"
+source = "Name ours. The cISC4Occupant part at +0x4 (34 slots; the base cSC4Occupant's and shared stubs except 0, 10 and 27). simulators.floraocc.slots swaps slots 0, 10 and 27."
+
+[[entry]]
+name = "cSC4FloraOccupant::vftable_8"
+address = 0x00A88564
+kind = "vtable"
+expect = "D0 2B 47 00 E0 29 5E 00"
+source = "Name ours. The cIGZSerializable part at +0x8 (6 slots: three thunks, Write 0x00472990, Read 0x00472A20, GetGZCLSID 0x00472900). Slots 3 and 4 replaced by simulators.floraocc.save, 0 and 5 by simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::vftable_C"
+address = 0x00A88500
+kind = "vtable"
+expect = "E0 2B 47 00 10 2A 5E 00"
+source = "Name ours. The property holder part at +0xC (25 slots: three thunks, the shared holder code, 22 the deleting destructor thunk 0x00472BF0, 23 the Write thunk 0x00472C10, 24 the Read thunk 0x00472C20). Slots 23 and 24 replaced by simulators.floraocc.save, 0 by simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::vftable_20"
+address = 0x00A884E8
+kind = "vtable"
+expect = "00 2C 47 00 A0 06 5E 00"
+source = "Name ours. The exemplar holder part at +0x20 (cISCExemplarPropertyHolder, 5 slots: three thunks, SetPropertyExemplar 0x00458E60, the getter 0x0060CE80). Slot 0 replaced by simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::GetGZCLSID"
+address = 0x00472900
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 85 5C C0 A9 C3 CC CC"
+source = "Returns the class ID 0xA9C05C85 (+8 slot 5; also called by the class registration at 0x004607D8). Ours in simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::QueryInterface"
+address = 0x00472910
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4FloraOccupant* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D 85 5C C0"
+source = "Slot 0: IIDs 0xA9C05C85 and 0xC83DD057 give the object; every other goes to the occupant base's 0x005E89C0 with this + 4. Ours in simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::GetLotTag"
+address = 0x00472940
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4Occupant* this, uint32_t* tag)"
+expect = "8B 41 38 83 F8 FF 75 05"
+source = "Name ours. +4 slot 27 (this = object + 4): the dword at object + 0x3C into *tag and true, unless it is 0xFFFFFFFF (false, *tag untouched). The setter is the shared stub 0x006CE240 (slot 28). Ours in simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::Write"
+address = 0x00472990
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+8 slot 3 (this = object + 8): version 3, the occupant base's record (0x005E8CD0), the flora type, position, birth and last seeding dates, state, orientation, lot tag; when the base fails the class's fields are left out and the result is still the stream's state. Ours in simulators.floraocc.save."
+
+[[entry]]
+name = "cSC4FloraOccupant::Read"
+address = 0x00472A20
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+8 slot 4 (this = object + 8): the reverse of 0x00472990, version 3 only. Ours in simulators.floraocc.save."
+
+[[entry]]
+name = "cSC4FloraOccupant::GetBoundingBox"
+address = 0x00472AB0
+kind = "function"
+convention = "thiscall"
+signature = "void (cISC4Occupant* this, float* low, float* high)"
+expect = "56 8B F1 8B 46 50 85 C0"
+source = "+4 slot 10 (this = object + 4): without a type record it asks the flora simulator (0x00B43D80 slot 7) for the type's and sets it (primary slot 14); the box is the position less and plus the record's radius (+0x38) in x and z, from the position's y up by the record's height (+0x44); 1.0 for both without a record. Ours in simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::GetOrientation"
+address = 0x00472BA0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4FloraOccupant* this)"
+expect = "0F B6 41 59 C3 CC CC CC"
+source = "Slot 12: the byte at +0x59, zero extended. Ours in simulators.floraocc.slots (a slot swap: five bytes of code)."
+
+[[entry]]
+name = "cSC4FloraOccupant::SetOrientation"
+address = 0x00472BB0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4FloraOccupant* this, uint32_t orientation)"
+expect = "8A 44 24 04 88 41 59 C2"
+source = "Slot 13: the low byte into +0x59 (no clamp). Ours in simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::QueryInterfaceThunk4"
+address = 0x00472BC0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 04 E9 48 FD FF FF"
+source = "Name ours. +4 slot 0: this - 4 to QueryInterface. Ours in simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::QueryInterfaceThunk8"
+address = 0x00472BD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 08 E9 38 FD FF FF"
+source = "Name ours. +8 slot 0: this - 8 to QueryInterface. Ours in simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::QueryInterfaceThunkC"
+address = 0x00472BE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 0C E9 28 FD FF FF"
+source = "Name ours. +0xC slot 0: this - 0xC to QueryInterface. Ours in simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::DeletingDestructorThunk"
+address = 0x00472BF0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* part, uint32_t flags)"
+expect = "83 E9 0C E9 38 01 00 00"
+source = "Name ours. +0xC slot 22: this - 0xC to the deleting destructor 0x00472D30. Ours (in the vtable copy) in simulators.floraocc.object."
+
+[[entry]]
+name = "cSC4FloraOccupant::QueryInterfaceThunk20"
+address = 0x00472C00
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 20 E9 08 FD FF FF"
+source = "Name ours. +0x20 slot 0: this - 0x20 to QueryInterface. Ours in simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::WriteThunk"
+address = 0x00472C10
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZOStream* stream)"
+expect = "83 E9 04 E9 78 FD FF FF"
+source = "Name ours. +0xC slot 23: this - 4 to Write. Ours in simulators.floraocc.save."
+
+[[entry]]
+name = "cSC4FloraOccupant::ReadThunk"
+address = 0x00472C20
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZIStream* stream)"
+expect = "83 E9 04 E9 F8 FD FF FF"
+source = "Name ours. +0xC slot 24: this - 4 to Read. Ours in simulators.floraocc.save."
+
+[[entry]]
+name = "cSC4FloraOccupant::Create"
+address = 0x00472C30
+kind = "function"
+convention = "cdecl"
+signature = "cSC4FloraOccupant* ()"
+expect = "A1 CC 7F B0 00 8B 40 08"
+source = "The class factory (registered at 0x004607D4): an item of the pool 0x00B07FC8, then a jump to the constructor 0x00472B30. A save's reader makes every tree with it. Ours in simulators.floraocc.object."
+
+[[entry]]
+name = "cSC4StaticFloraData::Release"
+address = 0x00472C70
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4StaticFloraData* this)"
+expect = "56 8B F1 8B 86 70 01 00"
+source = "Name ours. Drops a reference to a flora type record (count +0x170): above 1 it counts down; else the exemplar +0x168 is released (cleared first, then tested and released again if set), the family list +0x154 freed (0x0090CF63) and the record deleted (0x005E5620); EAX is zero then. Called by SetStaticFloraData (0x00472CF0), the destructor (0x00472D5F) and the flora simulator (0x006B15B4); none keeps a register across it. Ours by a detour in simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::SetStaticFloraData"
+address = 0x00472CD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4FloraOccupant* this, cSC4StaticFloraData* data)"
+expect = "56 8B F1 8B 46 54 57 8B"
+source = "Slot 14: when the record differs, the new one counted (+0x170), the old released (0x00472C70), +0x54 set, then a tail jump to the exemplar part's slot 3 (SetPropertyExemplar) with the record's exemplar (+0x168) or null. Ours in simulators.floraocc.slots."
+
+[[entry]]
+name = "cSC4FloraOccupant::DeletingDestructor"
+address = 0x00472D30
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4FloraOccupant* this, uint32_t flags)"
+expect = "56 8B F1 8B 4E 54 85 C9"
+source = "Name ours. The five vtables set, the type record released and cleared, the occupant base destroyed (0x005E8C40), with flag 1 the memory back to the pool 0x00B07FC8. Reached only through the thunk 0x00472BF0. Ours in simulators.floraocc.object."
+
+[[entry]]
+name = "cSC4FloraOccupant::Pool"
+address = 0x00B07FC8
+kind = "data"
+source = "Name ours. The pool of the 0x5C-byte flora occupants (vtable 0x00A88644; +4 the current page; pages of 8 KB at address & 0xFFFFE000 with the free list at +8 and the used count at +0xC; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at count 0x40000042)."
