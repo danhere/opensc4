@@ -277,7 +277,7 @@ kind = "function"
 convention = "thiscall"
 signature = "SC4Particle* (SC4EffectBase* this)"
 expect = "83 EC 10 A1 CC A5 B0 00"
-source = "Name ours, not analysed. Slot 0x3C of the second effect class's sub-object (vtable 0x00AA0C10)."
+source = "Name ours. Slot 0x3C of the second effect class's sub-object (vtable 0x00AA0C10): the first particle (0x54 bytes) of the free list 0x00B0A5CC (pool 0x00B0A5C0, grown by 0x005A61B0), cleared (0x005ADCB0) and started (SC4Effect::StartParticle); a running one gets +0x48 and +0x4C zeroed, an angle at +0x50 and, when the description names one (+0x160), an effect of its own at +0x44 made by the effects manager (0x00B43D1C slot 0x1C). Ours in renderer.effects.pool_b (src/core/effect_take_b.inc)."
 
 [[entry]]
 name = "SC4EffectBase::AddParticle"
