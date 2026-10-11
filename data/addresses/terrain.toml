@@ -1263,22 +1263,6 @@ expect = "55 8B EC 83 E4 F8 81 EC"
 source = "Name ours (class from the exe's ID table, 0x28C5A41F). (): builds the Data Views window's map picture in a new cIGZBuffer (class 0xC470D325) the size of the window's picture control (child 0x4203) and hands it to the control; a switch over the map at +0x144; does nothing while +0x142 is 0. Called by the window's set-map function 0x007A49B0 and its message handler 0x007A54D0 (docs/renderer.md, \"The data map\")."
 
 [[entry]]
-name = "cSC4WinMapView::SetMap"
-address = 0x007A49B0
-kind = "function"
-convention = "thiscall"
-expect = "83 EC 20 53 57 8B F9 8A"
-source = "Name ours. (map): shows a map in the Data Views window: 0 for none, else the data view 0x4A0B6800 + map (kept at +0x9CC); sets up the view's occupant filter and paints the picture (0x007A2F60). Refuses (returns 0) while +0x142 is 0. Called for the window's list (docs/renderer.md, \"The data map\")."
-
-[[entry]]
-name = "cSC4WinMapView::DoMessage"
-address = 0x007A54D0
-kind = "function"
-convention = "thiscall"
-expect = "53 55 56 57 8B 7C 24 14"
-source = "Name ours. (message): the window's message handler, `this` is the window + 4; repaints the picture on message 0x86AD10EE when it is marked changed (+0x9D5) and the last one is 1000 ms old (250 ms for map type 0x4C) (docs/renderer.md, \"The data map\")."
-
-[[entry]]
 name = "cSC4WinMapView::FillGrid"
 address = 0x007A2080
 kind = "function"
