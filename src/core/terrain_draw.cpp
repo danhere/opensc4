@@ -6610,6 +6610,112 @@ const bool g_registeredTerrainViewDraw = registry::Register({
     InstallTerrainViewDraw,
 });
 
+// The terrain view's pick (docs/renderer.md, "Picking"): where a ray meets
+// the terrain. Translated instruction by instruction and entered like the
+// pixel routines above.
+bool g_compareTerrainPick;
+void* g_terrainViewPick;
+void __cdecl TerrainViewPickOurs(EntryFrame* frame)
+{
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainview_pick.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain pick: left %d values on the x87 stack", top + 1);
+}
+
+// Compare mode: the pick changes nothing but what its two out arguments point
+// at, so both run on the same arguments and the answers (the result byte and
+// 16 bytes at each out pointer) are compared. While the view's +0x24 is set
+// a hit also marks its cell (STECellMarks::SetColour); such a pick is not run
+// twice.
+void __cdecl TerrainViewPick(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain pick: call %u", calls);
+    const uint32_t* const a = frame->arguments;
+    if (!g_compareTerrainPick || At<uint8_t>(reinterpret_cast<char*>(frame->ecx), 0x24) != 0) {
+        if (g_compareTerrainPick)
+            compare::Record("terrain.pick.marking", true, "", "");
+        TerrainViewPickOurs(frame);
+        return;
+    }
+    const auto mapped = [](uint32_t address, size_t size) {
+        MEMORY_BASIC_INFORMATION info{};
+        return address >= 0x10000 && VirtualQuery(reinterpret_cast<void*>(address), &info, sizeof info) && info.State == MEM_COMMIT &&
+               !(info.Protect & (PAGE_GUARD | PAGE_NOACCESS)) &&
+               address + size <= reinterpret_cast<uintptr_t>(info.BaseAddress) + info.RegionSize;
+    };
+    struct Out
+    {
+        char* at;
+        char before[16], ours[16];
+    };
+    std::vector<Out> outs;
+    for (const uint32_t pointer : {a[2], a[3]})
+        if (mapped(pointer, 16)) {
+            Out out{reinterpret_cast<char*>(pointer), {}, {}};
+            std::memcpy(out.before, out.at, 16);
+            outs.push_back(out);
+        }
+    using PickFn = uint32_t(__fastcall*)(uint32_t, void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    const EntryFrame entry = *frame;
+    const auto game = [&] { return reinterpret_cast<PickFn>(g_terrainViewPick)(entry.ecx, nullptr, a[0], a[1], a[2], a[3], a[4]); };
+    uint32_t first;
+    if (g_selfCheck) {
+        first = game();
+    } else {
+        TerrainViewPickOurs(frame);
+        first = frame->eax;
+    }
+    for (Out& out : outs) {
+        std::memcpy(out.ours, out.at, 16);
+        std::memcpy(out.at, out.before, 16);
+    }
+    *frame = entry;
+    const uint32_t second = game();
+    frame->eax = second;
+    bool same = (first & 0xFF) == (second & 0xFF);
+    for (const Out& out : outs)
+        same = same && std::memcmp(out.ours, out.at, 16) == 0;
+    char detail[160];
+    std::snprintf(detail, sizeof detail, "hit %u and %u, out %s | %s", first & 0xFF, second & 0xFF,
+                  outs.empty() ? "" : Hex(outs.back().ours, 16).c_str(), outs.empty() ? "" : Hex(outs.back().at, 16).c_str());
+    const std::string name = std::string("terrain.pick") + (g_selfCheck ? ".selfcheck" : "");
+    compare::Record(name.c_str(), same, "the game's answer", detail);
+    if (second & 0xFF)
+        compare::Record((name + ((a[4] & 0xFF) ? ".hits.water" : ".hits.land")).c_str(), same, "the game's answer", detail);
+}
+DATAMAP_ENTRY(TTerrainViewPick, TerrainViewPick, g_terrainViewPick, 20)
+
+bool InstallTerrainPick(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareTerrainPick = mode == registry::Mode::Compare;
+    if (!Detour(addr::cSTETerrainView3D_Pick, &TTerrainViewPick, &g_terrainViewPick))
+        return false;
+    log::Write("terrain pick: %s", g_compareTerrainPick ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredTerrainPick = registry::Register({
+    "renderer.terrain.pick",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_Pick,
+    "Where a ray meets the terrain; compare mode asks ours and the game's the same question and compares the answers "
+    "(docs/renderer.md, \"Picking\")",
+    true,
+    InstallTerrainPick,
+});
+
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),
 // translated instruction by instruction: the window's paint (0x007A79B0),
 // the terrain's pixels (0x007A7FF0), the picture brought up to date
