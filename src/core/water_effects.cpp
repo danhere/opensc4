@@ -1338,61 +1338,112 @@ uint32_t StartParticle(char* self, uint32_t particle)
 #undef FCOM
 }
 
-StepMode g_startMode = StepMode::Original;
-Call1Fn g_startParticle = nullptr;
+StepMode g_startMode = StepMode::Original, g_groundMode = StepMode::Original;
+Call1Fn g_startParticle = nullptr, g_SC4Effect_PlaceOnGround = nullptr;
 uint64_t g_startsCompared = 0;
 constexpr std::size_t kStartParticleBytes = 0x44;
 
-// It writes the particle and draws random numbers, so the comparison runs
-// ours, keeps the particle, the effect and the generator it left, puts all
-// three back and runs the game's: the two then draw the same numbers.
+// The comparison of a function that writes a particle and draws random
+// numbers: ours runs, the particle, the effect and the generator it left
+// are kept, all three are put back and the game's runs: the two then draw
+// the same numbers. The answers are compared by their low byte.
+uint32_t ParticleCompared(const char* name, Call1Fn game, uint32_t (*ours)(char*, uint32_t), char* self,
+                          uint32_t particle)
+{
+    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
+    char* const bytes = reinterpret_cast<char*>(particle);
+    constexpr std::size_t kEffectAt = kStartParticleBytes, kGeneratorAt = kEffectAt + kEffectSize,
+                          kResultAt = kGeneratorAt + kGeneratorSize, kTotal = kResultAt + 4;
+    char before[kTotal] = {}, mine[kTotal] = {}, theirs[kTotal] = {};
+    const auto save = [&](char* to) {
+        std::memcpy(to, bytes, kStartParticleBytes);
+        std::memcpy(to + kEffectAt, self, kEffectSize);
+        std::memcpy(to + kGeneratorAt, generator, kGeneratorSize);
+    };
+    save(before);
+    mine[kResultAt] = static_cast<char>(g_selfCheck ? game(self, nullptr, particle) : ours(self, particle));
+    save(mine);
+    std::memcpy(bytes, before, kStartParticleBytes);
+    std::memcpy(self, before + kEffectAt, kEffectSize);
+    std::memcpy(generator, before + kGeneratorAt, kGeneratorSize);
+    const uint32_t result = game(self, nullptr, particle);
+    theirs[kResultAt] = static_cast<char>(result);
+    save(theirs);
+    const std::string id = std::string(name) + (g_selfCheck ? ".selfcheck" : "");
+    ++g_startsCompared;
+    if ((g_startsCompared & (g_startsCompared - 1)) == 0)
+        log::Write("water effects: %s: %llu particle calls compared so far", id.c_str(),
+                   static_cast<unsigned long long>(g_startsCompared));
+    if (std::memcmp(theirs, mine, kTotal) == 0) {
+        compare::Record(id.c_str(), true, std::string(), std::string());
+    } else {
+        std::size_t at = 0;
+        while (theirs[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        char text[40];
+        std::snprintf(text, sizeof text, "%s+%zX ",
+                      at < kEffectAt ? "particle" : at < kGeneratorAt ? "effect" : at < kResultAt ? "generator" : "result",
+                      at < kEffectAt ? at : at < kGeneratorAt ? at - kEffectAt : at < kResultAt ? at - kGeneratorAt : 0);
+        compare::Record(id.c_str(), false, text + Hex(theirs + at, 4), text + Hex(mine + at, 4));
+    }
+    return result;
+}
+
+// A new particle put on the ground (0x005B71E0; the start calls it for
+// descriptions with a flag of the mask at 0x00B22E18), translated
+// instruction by instruction: the particle's position is taken to the
+// terrain's grid, and the particle is ended (its first byte cleared, the
+// answer false) when that is off the map, when the height the terrain
+// answers (the object at +0x1F0, slot 0x34) is outside two values of the
+// description (flag 0x10000) or when the cell is of the wrong kind (flags
+// of the mask at 0x00B22E1C and 0x20000, asked of the object at
+// 0x00B43CEC). Else, for flags 0x4000 and 0x8000, the particle is put at
+// that height or the effect's own (+0x1FC) plus a random amount, and the
+// answer is true.
+uint32_t PlaceOnGround(char* self, uint32_t particle)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = particle;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_ground.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
 uint32_t __fastcall StartByMode(char* self, void*, uint32_t particle)
 {
     if (g_startMode == StepMode::Original || g_effectRecord || g_effectReplay)
         return g_startParticle(self, nullptr, particle);
     if (g_startMode == StepMode::Ours)
         return StartParticle(self, particle);
-    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
-    char* const bytes = reinterpret_cast<char*>(particle);
-    constexpr std::size_t kTotal = kStartParticleBytes + kEffectSize + kGeneratorSize;
-    char before[kTotal], mine[kTotal], game[kTotal];
-    const auto save = [&](char* to) {
-        std::memcpy(to, bytes, kStartParticleBytes);
-        std::memcpy(to + kStartParticleBytes, self, kEffectSize);
-        std::memcpy(to + kStartParticleBytes + kEffectSize, generator, kGeneratorSize);
-    };
-    save(before);
-    if (g_selfCheck)
-        g_startParticle(self, nullptr, particle);
-    else
-        StartParticle(self, particle);
-    save(mine);
-    std::memcpy(bytes, before, kStartParticleBytes);
-    std::memcpy(self, before + kStartParticleBytes, kEffectSize);
-    std::memcpy(generator, before + kStartParticleBytes + kEffectSize, kGeneratorSize);
-    const uint32_t result = g_startParticle(self, nullptr, particle);
-    save(game);
-    const char* const id = g_selfCheck ? "effects.start.selfcheck" : "effects.start";
-    ++g_startsCompared;
-    if ((g_startsCompared & (g_startsCompared - 1)) == 0)
-        log::Write("water effects: %s: %llu calls compared so far", id,
-                   static_cast<unsigned long long>(g_startsCompared));
-    if (std::memcmp(game, mine, kTotal) == 0) {
-        compare::Record(id, true, std::string(), std::string());
-    } else {
-        std::size_t at = 0;
-        while (game[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        const std::size_t effectAt = kStartParticleBytes, generatorAt = kStartParticleBytes + kEffectSize;
-        char text[40];
-        std::snprintf(text, sizeof text, "%s+%zX ",
-                      at < effectAt ? "particle" : at < generatorAt ? "effect" : "generator",
-                      at < effectAt ? at : at < generatorAt ? at - effectAt : at - generatorAt);
-        compare::Record(id, false, text + Hex(game + at, 8), text + Hex(mine + at, 8));
-    }
-    return result;
+    return ParticleCompared("effects.start", g_startParticle, &StartParticle, self, particle);
 }
+
+uint32_t __fastcall GroundByMode(char* self, void*, uint32_t particle)
+{
+    if (g_groundMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Effect_PlaceOnGround(self, nullptr, particle);
+    if (g_groundMode == StepMode::Ours)
+        return PlaceOnGround(self, particle);
+    return ParticleCompared("effects.ground", g_SC4Effect_PlaceOnGround, &PlaceOnGround, self, particle);
+}
+OPENSC4_THUNK(TSC4Effect_PlaceOnGround, GroundByMode, 4)
 // --- The particle pool ---------------------------------------------------------------------
 
 // Particles are kept on a free list (0x00B0A688, linked through each one's
@@ -2442,6 +2493,30 @@ const bool g_registeredStart = registry::Register({
     "effects, sky and clouds\")",
     true,
     InstallStart,
+});
+
+bool InstallGround(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4Effect_PlaceOnGround ||
+          Detour(addr::SC4Effect_PlaceOnGround, &TSC4Effect_PlaceOnGround, &g_SC4Effect_PlaceOnGround)))
+        return false;
+    g_groundMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: particles' placing on the ground %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredGround = registry::Register({
+    "renderer.effects.ground",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_PlaceOnGround,
+    "A new particle put on the ground or ended, by the terrain's height and the kind of its cell; compare mode runs "
+    "ours and the game's on the same particle and generator (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallGround,
 });
 
 bool InstallPool(registry::Mode mode)
