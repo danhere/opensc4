@@ -473,7 +473,7 @@ void __fastcall FilterDeals(char* self, void*, ListNode** source, ListNode** tar
     const auto remember = [&stale, &end, &node]() {
         if (end == stale.capacity) {
             uint8_t tag = 0;
-            This<void>(addr::SC4PtrVector_InsertOverflow, &stale, end, &node, &tag, uint32_t{1}, uint32_t{1});
+            This<void>(addr::SC4Uint32Vector_InsertN2, &stale, end, &node, &tag, uint32_t{1}, uint32_t{1});
             end = stale.end;
         } else {
             if (end)
