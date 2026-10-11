@@ -1,0 +1,563 @@
+# Build 641 addresses. The region (cSC4Region: the region's folder, layout and list of cities; docs/region.md).
+# Format and rules: data/addresses/README.md.
+
+[[entry]]
+name = "cSC4Region::vftable"
+address = 0x00A8FA40
+kind = "vtable"
+expect = "E0 44 4A 00 00 DF 4B 00"
+source = "Name ours. cISC4Region, 26 slots (the deleting destructor in slot 25) (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::QueryInterface"
+address = 0x004A44E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "Name ours. Slot 0: ID 1 or 0x89D2BE26 gives the object, referenced (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::SetName"
+address = 0x004A4510
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 83 C1 0C FF 60"
+source = "Name ours. Slot 4: copies a string into the name (+0xC) (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::SetDirectoryName"
+address = 0x004A4520
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 20 83 C1 20 FF 60"
+source = "Name ours. Slot 6: copies a string into the folder name (+0x20) (docs/region.md)."
+
+[[entry]]
+name = "SC4List::Transfer"
+address = 0x004A4530
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 4C 24 0C"
+source = "Name ours. (where, first, last): moves a run of list nodes; generic, called from unrelated code only, left the game's (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::Release"
+address = 0x004A4570
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 08 83 F8"
+source = "Name ours. Slot 2: at the last reference Shutdown and the deleting destructor (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::GetBoundingRect"
+address = 0x004A45A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 44 55 8B 69 48 3B"
+source = "Name ours. Slot 24: the smallest and largest tile x and y into four ints (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::CellMapFind"
+address = 0x004A46A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 8B 59 08"
+source = "Name ours. The cell map's node for a cell {x, y}, or null (docs/region.md)."
+
+[[entry]]
+name = "SC4BitVector::Initialize"
+address = 0x004A46F0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 57 8D"
+source = "Name ours. (bits): storage for a bit vector; generic, also called from unrelated code, left the game's (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::CellMapErase"
+address = 0x004A4760
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B 6C 24 0C 8B 45"
+source = "Name ours. Removes the cell map's nodes for a cell; returns how many (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::CellMapResize"
+address = 0x004A4830
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 44 24 18 53"
+source = "Name ours. Grows the cell map's buckets to the next prime and rehashes (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::GetCity"
+address = 0x004A4930
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 44 24 0C 8B"
+source = "Name ours. Slot 11 (x, y): the holder of the city at the cell, or null (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::CityCellsTaken"
+address = 0x004A4970
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 57 8B"
+source = "Name ours. (city): whether any cell under the city is in the cell map (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::CellMapInsert"
+address = 0x004A4AD0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8B 46 10"
+source = "Name ours. Adds a node {x, y, holder} to the cell map; returns the node's value part (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::RemoveCity"
+address = 0x004A4B50
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Slot 13 (holder*&): takes the city's cells out of the map, shuts the city down, frees the holder (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::GetCityLocations"
+address = 0x004A4C20
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 44 51 8B 4C 24 08"
+source = "Name ours. Slot 23 (vector&): a copy of the layout tiles (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::Destruct"
+address = 0x004A4C30
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 50 8B"
+source = "Name ours. The destructor (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::GetBaseTerrainHeight"
+address = 0x004A4CA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 34 8B 04 85 B0 17"
+source = "Name ours. Slot 20: the table at 0x00B217B0 by terrain type (+0x34) (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::SetBaseTerrainType"
+address = 0x004A4CB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 41 34 C2"
+source = "Name ours. Slot 19: sets +0x34 (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::GetWaterPrefs"
+address = 0x004A4CC0
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 38 8B 54 24 04 88"
+source = "Name ours. Slot 21 (uint8*, uint8*): the low bytes of +0x38 and +0x3C (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::GetAllCities"
+address = 0x004A4CE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 55 56 8B F1"
+source = "Name ours. Slot 17 (list&): every city of the cell map once, in pointer order, referenced (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::InsertCity"
+address = 0x004A4F00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 55 56 8B 74 24"
+source = "Name ours. Slot 12 (city): a new holder for the city in every cell under it (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::ReloadCity"
+address = 0x004A5030
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 56 33 DB 57"
+source = "Name ours. Slot 15 (holder*&): removes the city, reads it from its file again and inserts it (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::DeleteCity"
+address = 0x004A5120
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 8B 6C 24"
+source = "Name ours. Slot 14 (holder*&): removes the city and deletes its file (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::MoveCitiesAway"
+address = 0x004A51C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 57 8B F9 8B 47"
+source = "Name ours. Empties the list of cities that fit no tile (+0x40): each shut down and its file moved out of the region folder (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::DeletingDestructor"
+address = 0x004A53E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 48 F8 FF FF"
+source = "Name ours. Slot 25 (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::ResetTutorialCity"
+address = 0x004A5400
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 44 83"
+source = "Name ours. Slot 22 (tutorial ID): writes the game's own copy of the tutorial city over its file and reloads it (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::DecodeLayout"
+address = 0x004A5640
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 53 55 8B 6C 24"
+source = "Name ours. (image): refills the layout tiles (+0x44) from the config.bmp picture (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::ScanFolderForCities"
+address = 0x004A58D0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 7C 53 55 56 8B B4"
+source = "Name ours. (list*, folder path): a regional city for every .sc4 file in the folder; also called by interface code at 0x0077940B (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::Construct"
+address = 0x004A5B30
+kind = "function"
+convention = "thiscall"
+expect = "53 33 DB 56 8B F1 C7 06"
+source = "Name ours. The constructor (0x64 bytes) (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::Shutdown"
+address = 0x004A5BE0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 84 00 00 00 56 8B"
+source = "Name ours. Slot 9: removes every city and writes region.ini (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::MatchCities"
+address = 0x004A6330
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 55 8B E9 8B"
+source = "Name ours. Scans the folder and inserts each city not yet in the region that sits exactly on a layout tile; the rest go to the list at +0x40 (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::Delete"
+address = 0x004A65A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 50 53 55 56 8B F1"
+source = "Name ours. Slot 10: deletes every city, region.ini, config.bmp and the folder, then shuts down (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::Create"
+address = 0x004A67B0
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D 94 3C B4 00 8B 01"
+source = "Name ours. (name): a new region object and folder with one of the built-in layout pictures (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::CreateUnnamed"
+address = 0x004A6AC0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 20 56 8D 4C 24 04"
+source = "Name ours. Create with an empty name (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::LoadLayout"
+address = 0x004A6B00
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 90 00 00 00 53 55"
+source = "Name ours. Loads config.bmp from the folder, or the built-in picture, and decodes it (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::Init"
+address = 0x004A6C80
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 8: on first use LoadConfig, LoadLayout, MatchCities, MoveCitiesAway (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::LoadConfig"
+address = 0x004A6CD0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC A4 00 00 00 53 55"
+source = "Name ours. Slot 7: reads name, terrain type and water settings from region.ini (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::MoveCity"
+address = 0x004A7200
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 58 8B 44 24 5C 53"
+source = "Name ours. Slot 16 (target region, city, x, y): moves a city's file to another tile (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::TerrainHeights"
+address = 0x00B217B0
+kind = "data"
+source = "Name ours. A table of dwords by the region's base terrain type (region +0x34), read by GetBaseTerrainHeight 0x004A4CA0; zero in the file, filled at run time (docs/region.md)."
+
+[[entry]]
+name = "SC4RegionalCity::LoadFromFile"
+address = 0x005DC220
+kind = "function"
+convention = "cdecl"
+expect = "53 56 68 DC 01 00 00 32"
+source = "Name ours. (cIGZString const* path, cISC4RegionalCity** out): opens the city file (a 0x1DC-byte packed file object), checks its version (0x3E to 0x41) and reads the regional city from it; true when it did (docs/region.md)."
+
+[[entry]]
+name = "SC4RegionalCity::MakeFilePath"
+address = 0x005DC400
+kind = "function"
+convention = "cdecl"
+expect = "81 EC 90 00 00 00 53 55"
+source = "Name ours. (cIGZString* directory, cIGZString* cityName, uint32_t serial, cIGZString* out): makes a city file path in the directory from the name, checking files already there against the serial number (docs/region.md)."
+
+[[entry]]
+name = "RZFile::Copy"
+address = 0x0091A2F9
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 2C 53 33"
+source = "Name ours. (cIGZString const* from, cIGZString const* to, bool overwrite): copies the file (the Win32 call's last argument is overwrite == 0); true when it did."
+
+[[entry]]
+name = "SC4String::ConcatChar"
+address = 0x0044D440
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 10 56 8B 74 24 1C"
+source = "Name ours. (string body* out, const string body* text, char c): makes out the text with the character added; returns out. The caller frees out's buffer (docs/region.md)."
+
+[[entry]]
+name = "cSC4TutorialRegistry::SetFlag"
+address = 0x004B5D80
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 56 E8"
+source = "Name ours. (uint32_t tutorial ID, bool on), ret 8: sets the byte at +0x10 of the tutorial's record (found by 0x004B5D10) when it differs, takes the ID out of (on) or puts it into (off) the preferences' table of 256 IDs at +0xF34 and has the application save (slot 17); returns whether anything changed. `this` is what the application's slot 49 (GetTutorialRegistry) returns. The region calls it with 1 after resetting a tutorial city (docs/region.md)."
+
+[[entry]]
+name = "SC4Resource::WriteToFile"
+address = 0x005DBDC0
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 0D A8 3C B4 00 56"
+source = "Name ours. (const uint32_t key[3] type/group/instance, cIGZString const* path): finds the record's package through the resource manager (0x00B43CA8 slot 32) and writes the record's bytes to a new file at path (0x005DBC40); returns the number of bytes, -1 on failure (docs/region.md)."
+
+[[entry]]
+name = "SC4Vector12::Copy"
+address = 0x006143E0
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 08 8B 4C 24 04"
+source = "Name ours. STL copy for 12-byte records (first, last, destination; two more arguments pushed by callers are not read): returns the end of the destination. cSC4Region uses it to empty its tile vector (docs/region.md)."
+
+[[entry]]
+name = "RZFile::Extension"
+address = 0x00918417
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 81 EC 04 03 00"
+source = "Name ours. (cIGZString const* path, cIGZString* out): splits the path (0x00917BCB) and puts its extension into out; returns whether there is one (docs/region.md)."
+
+[[entry]]
+name = "RZFile::HasAttributes"
+address = 0x00919F17
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 81 EC 1C 01 00"
+source = "Name ours. (cIGZString const* path, uint32_t flags): tests the file's attributes against the flags (2: not read-only, 8: a folder, 0x20: archive, 0x40: hidden, 0x80: system); returns bool (docs/region.md)."
+
+[[entry]]
+name = "RZFile::SetAttributes"
+address = 0x0091A035
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 28 53 56"
+source = "Name ours. (cIGZString const* path, uint32_t flags, bool on): changes the file's attributes (flag 2 with on clears read-only); returns bool (docs/region.md)."
+
+[[entry]]
+name = "cRZDirectory::EntryAt"
+address = 0x0091AD83
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 8B 49 04 8B 00 33"
+source = "Name ours. (uint32_t index), ret 4: the index-th entry of the folder listing (a list node: +4 the entry's name, a string; +0x18 its kind, 8 a file, 4 a folder), null past the end (docs/region.md)."
+
+[[entry]]
+name = "cRZIniFile::SetNumber"
+address = 0x0091C6B3
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. (cIGZString const* section, cIGZString const* key, uint32_t value), ret 0xC: sets a number in the ini file; not read further than its arguments (docs/region.md)."
+
+[[entry]]
+name = "cRZIniFile::Destruct"
+address = 0x0091CDE3
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 34 C7 06"
+source = "Name ours. Destructor of the ini file reader (0x3C bytes, vtable 0x00ACF150), no arguments (docs/region.md)."
+
+[[entry]]
+name = "cRZIniFile::SetString"
+address = 0x0091D168
+kind = "function"
+convention = "thiscall"
+expect = "55 8D 6C 24 94 81 EC D8"
+source = "Name ours. (cIGZString const* section, cIGZString const* key, cIGZString const* value), ret 0xC: sets a text in the ini file; not read further than its arguments (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::IniFileName"
+address = 0x00B0954C
+kind = "data"
+source = "Name ours. const char* to 'region.ini' (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::IniSection"
+address = 0x00B09550
+kind = "data"
+source = "Name ours. const char* to 'Regional Settings', the section of region.ini (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::IniNameKey"
+address = 0x00B09554
+kind = "data"
+source = "Name ours. const char* to 'Name', a key of region.ini (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::IniTerrainKey"
+address = 0x00B09558
+kind = "data"
+source = "Name ours. const char* to 'Terrain type', a key of region.ini (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::IniWaterMinKey"
+address = 0x00B0955C
+kind = "data"
+source = "Name ours. const char* to 'Water Min', a key of region.ini (docs/region.md)."
+
+[[entry]]
+name = "cSC4Region::IniWaterMaxKey"
+address = 0x00B09560
+kind = "data"
+source = "Name ours. const char* to 'Water Max', a key of region.ini (docs/region.md)."
+
+[[entry]]
+name = "SC4::CityFileExtension"
+address = 0x00B09568
+kind = "data"
+source = "Name ours. const char* to '.sc4', the extension of city files (docs/region.md)."
+
+[[entry]]
+name = "SC4String::CollapseSpaces"
+address = 0x005F9BF0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 2C 53 55 56 33 DB"
+source = "Name ours. (cIGZString const* source, cIGZString* out): out = source with every pair of spaces made one, then 0x0090E8A6 on it (a trim, by its use); the region's folder name is made from its name with it."
+
+[[entry]]
+name = "SC4::NewCitySerial"
+address = 0x005DBD40
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 3C 56 57 33 F6 56"
+source = "Name ours. No arguments: a city serial number made from the clock (seconds since a date in 2003 shifted left 4) and four random bits."
+
+[[entry]]
+name = "SC4RegionalCity::MakeSavePath"
+address = 0x005DC790
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 2C 8B 0D 94 3C B4"
+source = "Name ours. (cIGZString const* cityName, uint32_t serial, cIGZString* out): the path of a city's save file in the folder of the nation's current region (0x005DC400 names the file)."
+
+[[entry]]
+name = "SC4RegionalCity::SaveToFile"
+address = 0x005DC2E0
+kind = "function"
+convention = "cdecl"
+expect = "53 56 68 DC 01 00 00 32"
+source = "Name ours. (cIGZString const* path, cISC4RegionalCity* city): opens the save file for writing and writes the regional city's record; true when it did."
+
+[[entry]]
+name = "RZFile::Exists"
+address = 0x00919E96
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 14 83 3D"
+source = "Name ours. (cIGZString const* path): the file exists (its attributes can be read)."
+
+[[entry]]
+name = "RZFile::Move"
+address = 0x0091A225
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 28 53 56"
+source = "Name ours. (cIGZString const* from, cIGZString const* to): moves the file (MoveFileEx, copy allowed); true when it did."
+
+[[entry]]
+name = "RZDirectory::Remove"
+address = 0x0091BF93
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 81 EC 84 00 00"
+source = "Name ours. (cIGZString const* path, bool withContents): removes the folder; with the flag, a folder that is not empty is emptied first."
+
+[[entry]]
+name = "cRZIniFile::GetString"
+address = 0x0091CBB3
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 64 53 57"
+source = "Name ours. (cIGZString const* section, cIGZString const* key, cIGZString* out), ret 0xC: the value's text; false when the file or the key is missing."
+
+[[entry]]
+name = "cRZIniFile::GetInt"
+address = 0x0091C8D2
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 56 8B"
+source = "Name ours. (cIGZString const* section, cIGZString const* key, int32_t* out), ret 0xC: the value read as a decimal number (slot 6, then sscanf); false when missing or not a number."
+
+[[entry]]
+name = "cSC4Region::Random"
+address = 0x00B217C0
+kind = "data"
+source = "Name ours. The random generator object (LCG, SC4Random::BelowLcg) a new region draws its layout picture with."
+
+[[entry]]
+name = "cSC4Region::AnyInitialised"
+address = 0x00B217B8
+kind = "data"
+source = "Name ours. A byte set to 1 by the first cSC4Region::Init."
+
+[[entry]]
+name = "cSC4Region::LayoutFileName"
+address = 0x00B09564
+kind = "data"
+source = "Name ours. const char* 'config.bmp'."
