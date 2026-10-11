@@ -278,6 +278,9 @@ for a, mn, rest in ins:
         E('{ const int64_t dividend = static_cast<int64_t>((static_cast<uint64_t>(edx) << 32) | eax); '
           'const int32_t divisor = static_cast<int32_t>(%s); eax = static_cast<uint32_t>(dividend / divisor); '
           'edx = static_cast<uint32_t>(dividend %% divisor); }' % rd32(ops[0]))
+    elif mn == 'div':
+        E('{ const uint64_t dividend = (static_cast<uint64_t>(edx) << 32) | eax; const uint32_t divisor = %s; '
+          'eax = static_cast<uint32_t>(dividend / divisor); edx = static_cast<uint32_t>(dividend %% divisor); }' % rd32(ops[0]))
     elif mn == 'neg':
         wr(ops[0], '0u - %s' % rd32(ops[0])); flag = ('test', rd32(ops[0]), 'int32_t')
     elif mn == 'imul' and len(ops) == 3:
