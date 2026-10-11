@@ -463,7 +463,8 @@ bool Recorded(uint32_t target)
     return g_poolHooked &&
            (target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle ||
             target == addr::SC4EffectBase_AddParticle || target == addr::SC4EffectBase_GiveBackParticle ||
-            target == addr::SC4EffectBaseB_GiveBackParticle);
+            target == addr::SC4EffectBaseB_GiveBackParticle || target == addr::SC4Effect_SpawnFromParticle ||
+            target == addr::SC4Effect_SetStopped || target == addr::SC4EffectB_SetStopped);
 }
 
 template <typename... Args>
@@ -494,6 +495,19 @@ uint32_t CallThisTraced(uint32_t target, void* self, Args... args)
     }
     ++g_effectAnswer;
     return answer;
+}
+
+// A random number (SC4Random::Uniform, 0x00913761: the generator, two
+// doubles as four words): in the replay the one the game's run drew.
+std::vector<double> g_effectRandoms;
+std::size_t g_effectRandom = 0;
+
+double CallRandomTraced(uint32_t target, void* self, uint32_t a, uint32_t b, uint32_t c, uint32_t d)
+{
+    if (!g_effectReplay)
+        return reinterpret_cast<double(__thiscall*)(void*, uint32_t, uint32_t, uint32_t, uint32_t)>(target)(self, a, b,
+                                                                                                           c, d);
+    return g_effectRandom < g_effectRandoms.size() ? g_effectRandoms[g_effectRandom++] : 0.0;
 }
 
 double CallFloatTraced(uint32_t target, void* self)
@@ -717,13 +731,9 @@ uint32_t __fastcall DEmitBurst(char* self, void*, uint32_t step)
 {
     return EmitterWatched(addr::SC4Effect_EmitBurst, g_emitBurst, self, step);
 }
-uint32_t __fastcall DEmitStream(char* self, void*, uint32_t step)
-{
-    return EmitterWatched(addr::SC4Effect_EmitStream, g_emitStream, self, step);
-}
 void TEmitToCount();
 OPENSC4_THUNK(TEmitBurst, DEmitBurst, 4)
-OPENSC4_THUNK(TEmitStream, DEmitStream, 4)
+void TEmitStream();
 
 uint32_t __fastcall EmitByMode(char* self, void*)
 {
@@ -791,6 +801,9 @@ OPENSC4_EFFECT_HOOK0(SC4EffectBaseB_TakeParticle)
 OPENSC4_EFFECT_HOOK1(SC4EffectBase_AddParticle)
 OPENSC4_EFFECT_HOOK1(SC4EffectBase_GiveBackParticle)
 OPENSC4_EFFECT_HOOK1(SC4EffectBaseB_GiveBackParticle)
+OPENSC4_EFFECT_HOOK1(SC4Effect_SpawnFromParticle)
+OPENSC4_EFFECT_HOOK1(SC4Effect_SetStopped)
+OPENSC4_EFFECT_HOOK1(SC4EffectB_SetStopped)
 
 // A particle effect's draw (0x005B8540, slot 0x24 of both effect classes),
 // translated instruction by instruction: the step added to the effect's
@@ -907,6 +920,8 @@ uint32_t RecordAndReplay(const char* id, char* self, bool checkResult, Game&& ga
     const std::vector<char> before = SaveEffect();
     g_effectGameCalls.clear();
     g_effectAnswers.clear();
+    g_effectRandoms.clear();
+    g_effectRandom = 0;
     g_effectTaken.clear();
     g_effectChanges.clear();
     g_effectThread = GetCurrentThreadId();
@@ -1048,6 +1063,79 @@ uint32_t EmitToCount(char* self, uint32_t step)
 #undef POP
 #undef FCOM
 }
+
+// The random numbers the recorded function itself draws (not those its
+// callees draw) are noted for the replay.
+using UniformFn = double(__fastcall*)(void*, void*, double, double);
+UniformFn g_uniform = nullptr;
+
+double __fastcall DUniform(void* self, void*, double low, double high)
+{
+    const double value = g_uniform(self, nullptr, low, high);
+    if (g_effectRecord && g_effectNested == 0 && GetCurrentThreadId() == g_effectThread)
+        g_effectRandoms.push_back(value);
+    return value;
+}
+
+// The emitter that emits a steady stream (0x005B87B0, for descriptions with
+// neither flag 4 nor flag 2), translated instruction by instruction: for
+// each particle due in the time it is given, one is taken from the
+// sub-object; when its first byte is set it is stepped by the time since it
+// was due (the class's slot 0x50) and, when it is still running, added to
+// the list (after 0x005B84C0 for descriptions with flag 0x80000000), else it
+// is given back. What is left of the time, less a random delay for some
+// descriptions, becomes the countdown at +0x190.
+uint32_t EmitStream(char* self, uint32_t step)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = step;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_emit_stream.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+EmitMode g_emitStreamMode = EmitMode::Original;
+
+uint32_t __fastcall EmitStreamByMode(char* self, void*, uint32_t step)
+{
+    if (g_emitStreamMode == EmitMode::Original || g_effectRecord || g_effectReplay)
+        return g_emitStream(self, nullptr, step);
+    if (g_emitStreamMode == EmitMode::Ours)
+        return EmitStream(self, step);
+    struct Arguments {
+        char* self;
+        uint32_t step;
+    } arguments{self, step};
+    return RecordAndReplay(
+        "effects.emit_stream", self, false, [&] { return g_emitStream(self, nullptr, step); },
+        [](void* a) {
+            const Arguments& args = *static_cast<Arguments*>(a);
+            return EmitStream(args.self, args.step);
+        },
+        &arguments);
+}
+
+uint32_t __fastcall DEmitStream(char* self, void*, uint32_t step)
+{
+    return EmitterWatched(addr::SC4Effect_EmitStream, &EmitStreamByMode, self, step);
+}
+OPENSC4_THUNK(TEmitStream, DEmitStream, 4)
 
 EmitMode g_emitCountMode = EmitMode::Original;
 
@@ -1289,9 +1377,47 @@ bool HookPool()
         Detour(addr::SC4EffectBase_GiveBackParticle, &TSC4EffectBase_GiveBackParticle,
                &g_SC4EffectBase_GiveBackParticle) &&
         Detour(addr::SC4EffectBaseB_GiveBackParticle, &TSC4EffectBaseB_GiveBackParticle,
-               &g_SC4EffectBaseB_GiveBackParticle);
+               &g_SC4EffectBaseB_GiveBackParticle) &&
+        Detour(addr::SC4Effect_SpawnFromParticle, &TSC4Effect_SpawnFromParticle, &g_SC4Effect_SpawnFromParticle) &&
+        Detour(addr::SC4Effect_SetStopped, &TSC4Effect_SetStopped, &g_SC4Effect_SetStopped) &&
+        Detour(addr::SC4EffectB_SetStopped, &TSC4EffectB_SetStopped, &g_SC4EffectB_SetStopped);
+    if (g_poolHooked) {
+        const addr::Entry* const uniform = addr_check::Find(addr::SC4Random_Uniform);
+        g_poolHooked = uniform && hook::Install(*uniform, &DUniform, &g_uniform);
+    }
     return g_poolHooked;
 }
+
+bool HookEmitStream()
+{
+    return g_emitStream || Detour(addr::SC4Effect_EmitStream, &TEmitStream, &g_emitStream);
+}
+
+bool InstallEmitStream(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookEmitStream())
+        return false;
+    // The stream emitter steps each new particle: that call is recorded too.
+    if (mode == registry::Mode::Compare && !(HookFrees() && HookPool() && HookStepParticle()))
+        return false;
+    g_emitStreamMode = mode == registry::Mode::Compare ? EmitMode::Compare : EmitMode::Ours;
+    log::Write("water effects: stream emitter %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredEmitStream = registry::Register({
+    "renderer.effects.emit_stream",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_EmitStream,
+    "The emitter that emits a steady stream of particles (taking, stepping, adding and giving back particles "
+    "still the game's); compare mode records the game's run and replays ours, as renderer.effects.effect "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallEmitStream,
+});
 
 bool HookEmitToCount()
 {
@@ -1335,7 +1461,7 @@ bool InstallEmit(registry::Mode mode)
     if (mode == registry::Mode::Compare &&
         !(HookEmitToCount() &&
           Detour(addr::SC4Effect_EmitBurst, &TEmitBurst, &g_emitBurst) &&
-          Detour(addr::SC4Effect_EmitStream, &TEmitStream, &g_emitStream)))
+          HookEmitStream()))
         return false;
     g_emitMode = mode == registry::Mode::Compare ? EmitMode::Compare : EmitMode::Ours;
     log::Write("water effects: emit %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
