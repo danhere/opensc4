@@ -2920,14 +2920,6 @@ expect = "8A 44 24 04 88 81 16 01"
 source = "Placeholder name (docs/region.md): a function of the region screen code, 10 bytes with padding."
 
 [[entry]]
-name = "SC4UI::LoadWindowPlain"
-address = 0x005F9390
-kind = "function"
-convention = "cdecl"
-expect = "51 C7 04 24 00 00 00 00"
-source = "Name ours. cIGZWin* (const uint32_t key[3], cIGZWin* parent, uint32_t id): with the framework's service 0x5A356E15 (interface 0xFA3562FA), its slot 4 (+0x10) with the same three arguments: makes the window 'id' of the UI resource 'key' under 'parent' and returns it with a reference for the caller, or null. The region screen loads its two side panels with it (0x007B0470)."
-
-[[entry]]
 name = "SC4Win::GetSiblingAs"
 address = 0x009AFCDE
 kind = "function"
@@ -2952,7 +2944,7 @@ expect = "8B 81 E4 00 00 00 C3 CC"
 source = "Name ours. No arguments: the dword at +0xE4 (a getter shared through code folding, in three unrelated vtables). The region screen reads the region map window's picked tile record with it (x at +8, y at +0xC, a size byte 0 to 2 at +0x18)."
 
 [[entry]]
-name = "SC4RegionView::F7B30D0"
+name = "cSC4WinRegionView::SetNames"
 address = 0x007B30D0
 kind = "function"
 convention = "thiscall"
@@ -2960,7 +2952,7 @@ expect = "8A 44 24 04 88 81 13 01"
 source = "Placeholder name. (byte on), ret 4: stores the byte at the region map window's +0x113 (city names shown) and calls 0x007B29E0."
 
 [[entry]]
-name = "SC4RegionView::F7B30F0"
+name = "cSC4WinRegionView::SetMode"
 address = 0x007B30F0
 kind = "function"
 convention = "thiscall"
@@ -2968,7 +2960,7 @@ expect = "8B 44 24 04 89 81 18 01"
 source = "Placeholder name. (uint32_t mode), ret 4: stores the dword at the region map window's +0x118 (the map mode, 0 to 2) and calls 0x007B29E0."
 
 [[entry]]
-name = "SC4RegionView::F7B5430"
+name = "cSC4WinRegionView::PlaceMarkers"
 address = 0x007B5430
 kind = "function"
 convention = "thiscall"
@@ -3006,22 +2998,6 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 14 53 55 56 57 33"
 source = "Placeholder name, not analysed. (uint32_t), ret 4: called on the window 0x007BDD60 returned, with 0."
-
-[[entry]]
-name = "SC4UI::F791360"
-address = 0x00791360
-kind = "function"
-convention = "thiscall"
-expect = "8B C1 33 C9 C7 00 F8 55"
-source = "Placeholder name. No arguments: the constructor of a 0x20-byte dialog object (vtable 0x00AB55F8); returns this. The region screen makes one for control 0x098F4F6C, calls its slot 0x14 with 0 and then 0x007913A0."
-
-[[entry]]
-name = "SC4UI::F7913A0"
-address = 0x007913A0
-kind = "function"
-convention = "thiscall"
-expect = "83 EC 08 53 8B D9 8B 43"
-source = "Placeholder name, not analysed. No arguments: runs the dialog of 0x00791360 (a modal guard around it)."
 
 [[entry]]
 name = "SC4UI::F4F2450"
@@ -3108,22 +3084,6 @@ kind = "data"
 source = "Name ours. Four floats (90.51, 18.75, -37.49, 45.25 in the file): the map picture place of a tile per km of x and y; the first two are also the direction the region screen's Init (0x007B1900) gives its overlay window (docs/region.md)."
 
 [[entry]]
-name = "SC4PictureFileDialog::Construct"
-address = 0x0079D810
-kind = "function"
-convention = "thiscall"
-expect = "53 56 8B F1 E8 1F 01 20"
-source = "Name ours. No arguments, returns this: the constructor of the picture file dialog (0xF0 bytes, window class 0xEA9660F3, vtable 0x00AB7B58; a window with a file list of class 0x1AA52EA4 at +0xD8 that shows *.bmp, *.png, *.gif, *.jpg, *.jpeg and *.tga files, and a string at +0xDC). The region screen's terrain command 0x007AEDD0 and the application (0x00455182) run it through the window manager's DoModalWin (docs/region.md)."
-
-[[entry]]
-name = "SC4PictureFileDialog::GetSelection"
-address = 0x0079D650
-kind = "function"
-convention = "thiscall"
-expect = "8B 81 D8 00 00 00 85 C0"
-source = "Name ours. bool (void* out), ret 4: hands out to slot 0x48 of the dialog's file list at +0xD8 (false when there is none); out is 0x14 bytes, the first dword a kind (2 for a file) and the dword at +8 a cIGZString* with the picked path. 0x007AEDD0 copies that path (docs/region.md)."
-
-[[entry]]
 name = "SC4ScriptNumber::FromString"
 address = 0x00915CDE
 kind = "function"
@@ -3132,7 +3092,7 @@ expect = "33 C0 56 8B F1 57 8B 7C"
 source = "Name ours. void* (cIGZString const* text), ret 4: constructs a 0x14-byte script value (vtable 0x00ACECD0) holding the text (its characters and length handed to 0x0091545E); returns this. The region screen's command handler 0x007AF720 answers the open city command with the city's name in one (docs/region.md)."
 
 [[entry]]
-name = "SC4RegionView::F7B5DB0"
+name = "cSC4WinRegionView::Unpick"
 address = 0x007B5DB0
 kind = "function"
 convention = "thiscall"
@@ -3178,15 +3138,7 @@ expect = "E9 CD C3 B5 FF 56 8B F1"
 source = "Name ours. No arguments: the set's destructor (a jump to the tree's destructor 0x0046F9D0). The region screen's destructor (0x007B1200) calls it on +0x10C."
 
 [[entry]]
-name = "GZWin::SetFlag"
-address = 0x0099DB6B
-kind = "function"
-convention = "thiscall"
-expect = "53 8B 5C 24 0C 84 DB 56"
-source = "Name ours. uint32_t (uint32_t flag, bool on), ret 8: slot 68 (+0x110) of the window base class: sets or clears bits of the flags at +0xC8 (flag 1 shows or hides the window) and returns the flags. The region screen's constructor calls it directly with (0x200000, 1) and (0x10000, 0) (docs/region.md)."
-
-[[entry]]
-name = "SC4RegionView::F7B5D50"
+name = "cSC4WinRegionView::AddRecord"
 address = 0x007B5D50
 kind = "function"
 convention = "thiscall"
@@ -3194,7 +3146,7 @@ expect = "56 8B F1 8B 86 04 01 00"
 source = "Placeholder name, not analysed. (tile record*), ret 4: appends the record's address to the region map window's vector at +0x100 and calls 0x007B5CA0 and 0x007B5430 with it. The region screen's 0x007B13C0 gives the map every city record with it (docs/region.md)."
 
 [[entry]]
-name = "SC4RegionView::F7B5E20"
+name = "cSC4WinRegionView::SetLabelLayout"
 address = 0x007B5E20
 kind = "function"
 convention = "thiscall"
@@ -3218,12 +3170,6 @@ name = "SC4RegionScreen::VtableDC"
 address = 0x00AB923C
 kind = "data"
 source = "Name ours. Vtable of the region screen's message target at +0xDC (four slots: QueryInterface 0x007B0E30, AddRef 0x007B0E40, Release 0x007B0E50, DoMessage 0x007B0AF0)."
-
-[[entry]]
-name = "SC4RegionScreen::BaseVtableD8"
-address = 0x00A86864
-kind = "data"
-source = "Name ours. The abstract interface's vtable (pure call slots) the region screen's constructor writes at +0xD8 before its own."
 
 [[entry]]
 name = "SC4RegionScreen::Messages"
@@ -3272,7 +3218,7 @@ expect = "83 3D 38 9D BB 00 00 0F"
 source = "The exe's statically linked C runtime floor (the SSE2 entry; its x87 fallback is 0x009FB0FA): double (double), the result on the x87 stack. The region screen's 0x007AE510 takes the fraction of a tile's map position with it (docs/region.md)."
 
 [[entry]]
-name = "SC4RegionView::F7B5DD0"
+name = "cSC4WinRegionView::PickAt"
 address = 0x007B5DD0
 kind = "function"
 convention = "thiscall"
@@ -3280,7 +3226,7 @@ expect = "8B 44 24 08 56 57 8B F1"
 source = "Placeholder name. (x, y), ret 8: a method of the region map window (cSC4WinRegionView): finds the tile record under the point (0x007B3A80) and, when it is not the one at +0xE4, stores it there and calls 0x007B5CA0 for the new and the old one. The region screen's mouse move slot (0x007AB760) calls it on its map window (docs/region.md)."
 
 [[entry]]
-name = "SC4RegionView::F7B30B0"
+name = "cSC4WinRegionView::SetFlags114"
 address = 0x007B30B0
 kind = "function"
 convention = "thiscall"
@@ -3302,14 +3248,6 @@ kind = "function"
 convention = "thiscall"
 expect = "8A 44 24 04 8A 54 24 08"
 source = "Name ours. (byte, byte), ret 8: stores the two bytes at the overlay window's +0x110 and +0x111. The region screen's tuning (0x007ABF10) gives it the two bytes of property 0xCA383CB1 (docs/region.md)."
-
-[[entry]]
-name = "GZWin::DoWinMsg"
-address = 0x0099CCF0
-kind = "function"
-convention = "thiscall"
-expect = "55 8B EC 51 53 56 8B F1"
-source = "Name ours. (message*), ret 4, returns a bool: slot 3 of the window base class's main vtable (the message handler, a jump table over the message type). The region screen's handler (0x007AB9F0) ends with a jump to it (docs/region.md)."
 
 [[entry]]
 name = "SC4::strncpy"
@@ -3350,7 +3288,7 @@ kind = "data"
 source = "Name ours. Vtable of the counted base at +4 of the region screen's terrain overlay: 0x005BCB50, 0x005BE420, 0x005BCB60, 0x007AAB00, 0x0090D981, 0x009D7E63 (docs/region.md)."
 
 [[entry]]
-name = "SC4RegionView::F7B4A60"
+name = "cSC4WinRegionView::SetViewPlace"
 address = 0x007B4A60
 kind = "function"
 convention = "thiscall"
@@ -3358,7 +3296,7 @@ expect = "83 EC 14 8B 91 E8 00 00"
 source = "Placeholder name, not analysed. (int32_t x, int32_t y), ret 8: when the pair differs from the region map window's +0xE8 and +0xEC it is stored there and the window's tile records (the vector at +0x100) are placed again. The region screen's paint slot (0x007AC830) hands it the view's place on screen (docs/region.md)."
 
 [[entry]]
-name = "SC4RegionView::F7B3A80"
+name = "cSC4WinRegionView::TileAt"
 address = 0x007B3A80
 kind = "function"
 convention = "thiscall"
@@ -3366,7 +3304,7 @@ expect = "83 EC 10 53 55 8B E9 8B"
 source = "Placeholder name, not analysed. (int32_t x, int32_t y), ret 8: the region map window's tile record under a point (searched from the last record of the vector at +0x100 down), or null. The region screen's left button slot (0x007ACAD0) asks it for the tile under the pointer."
 
 [[entry]]
-name = "SC4RegionView::F7B3110"
+name = "cSC4WinRegionView::TileArea"
 address = 0x007B3110
 kind = "function"
 convention = "thiscall"
@@ -3430,23 +3368,579 @@ expect = "80 7C 24 08 00 8B 44 24"
 source = "Name ours. (cursor object, bool update), ret 8: stores the cursor at window +0x74 without counting it and, when update is set, calls the window's slot 0x150. The region screen's scroll window sets its drag cursors with it (0x007AAF20)."
 
 [[entry]]
-name = "SC4::AppWindow"
-address = 0x00B43CBC
+name = "cSC4WinRegionView::PointIsOwn"
+address = 0x007B2440
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 8D 4C 24"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4ServiceHolder::Fetch"
+address = 0x007B2480
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 00 00 00"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4ServiceHolder::Release"
+address = 0x007B24B0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 80 F0"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewLabelProc::DoWinProc"
+address = 0x007B2500
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 8B 00 83 EC"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 288 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::MarkStale"
+address = 0x007B2620
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 2C 83 EC 10 53 8B"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 336 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::Paint"
+address = 0x007B2770
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 8B 44 24 28 56"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 320 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::Draw"
+address = 0x007B28B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 89 4C 24 08"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 304 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::Invalidate"
+address = 0x007B29E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 0C 01 00 00 8B 42"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 80 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::BlendRuns"
+address = 0x007B2A30
+kind = "function"
+convention = "custom"
+expect = "83 EC 60 53 55 8B D9 8B"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 928 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::TintRuns"
+address = 0x007B2DD0
+kind = "function"
+convention = "custom"
+expect = "83 EC 4C 57 8B F8 8B 44"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 608 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::TilePlace"
+address = 0x007B3030
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 D9"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 128 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::BlankFlaggedTutorialText"
+address = 0x007B3170
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D 94 3C B4 00 8B 01"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::FillCellRange"
+address = 0x007B31D0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::CopyCellRange"
+address = 0x007B3220
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 55 8B 6C 24"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::CopyCellRangeBackward"
+address = 0x007B3290
+kind = "function"
+convention = "cdecl"
+expect = "55 8B 6C 24 0C 56 8B 74"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 100 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::CopyAndTint"
+address = 0x007B3300
+kind = "function"
+convention = "custom"
+expect = "83 EC 1C 53 55 8B 6C 24"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 608 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewLabelProc::Construct"
+address = 0x007B3560
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewLabelProc::DeletingDestructorThunk"
+address = 0x007B3590
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 08 00 00 00"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewLabelProc::DeletingDestructor"
+address = 0x007B35A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewLabelProc::Destruct"
+address = 0x007B35C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 10 85 C9"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 48 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::UninitializedCopyCells"
+address = 0x007B35F0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 64 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::UninitializedFillCells"
+address = 0x007B3630
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 64 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::OutlineAndCollect"
+address = 0x007B3670
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 3C 53 8B 5C 24 44"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 1040 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::ConstructCells"
+address = 0x007B3B60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 57 8B"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::DestroyCells"
+address = 0x007B3BD0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 64 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::ForgetRecords"
+address = 0x007B3C10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B D1 8B 82 04"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 176 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::EraseCells"
+address = 0x007B3D30
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::InsertCellsGrowing"
+address = 0x007B3D80
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 224 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::QueryInterfaceThunk"
+address = 0x007B3E60
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 78 E5 FF FF"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::DeletingDestructorThunk"
+address = 0x007B3E70
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 88 14 00 00"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 16 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::MoveTo"
+address = 0x007B3E80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 8B 5C 24 3C"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 528 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::PainterQueryInterfaceThunk"
+address = 0x007B4140
+kind = "function"
+convention = "thiscall"
+expect = "81 E9 D8 00 00 00 E9 05"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 6 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::PaintArea"
+address = 0x007B4150
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 8C 00 00 00 53 55"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 2320 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::FillPanel"
+address = 0x007B4B80
+kind = "function"
+convention = "thiscall"
+expect = "81 EC A8 00 00 00 DD 05"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 1613 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::FillInsertCells"
+address = 0x007B51D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 83 EC 08 85"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 304 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::DeletingDestructor"
+address = 0x007B5300
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 C7"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 80 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::Shutdown"
+address = 0x007B5350
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B F9 8B 77"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 80 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::Shutdown"
+address = 0x007B53A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 89 68 1E 00"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 144 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::MakeLabel"
+address = 0x007B59B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 55 56 57 8B"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 656 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::Destruct"
+address = 0x007B5C40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 58 96 AB"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 96 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::TouchRecord"
+address = 0x007B5CA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 8B 6C 24"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 176 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::DeletingDestructor"
+address = 0x007B5E70
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 C8 FD FF FF"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::ResizeCells"
+address = 0x007B5E90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 11 8B 44 24"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4RegionViewGrid::SetUp"
+address = 0x007B5EF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 368 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::Init"
+address = 0x007B6060
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 68 53 55 56 57 8B"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 208 bytes with padding."
+
+[[entry]]
+name = "cSC4WinRegionView::SetArea"
+address = 0x007B6240
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 10 8B 54 24 08"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 96 bytes with padding."
+
+[[entry]]
+name = "SC4Win::EnableChildById"
+address = 0x007B62A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Placeholder name (docs/region.md): a function of the region map window code, 38 bytes with padding."
+
+[[entry]]
+name = "SC4RegionOverlayWin::Shutdown"
+address = 0x007A9880
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 A9 23 1F 00"
+source = "Placeholder name (docs/region.md): a function of the region overlay window code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4RegionOverlayWin::MakeMark"
+address = 0x007A98E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 D9 86 F8 00"
+source = "Placeholder name (docs/region.md): a function of the region overlay window code, 160 bytes with padding."
+
+[[entry]]
+name = "SC4RegionOverlayWin::Init"
+address = 0x007A99C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 E8 66"
+source = "Placeholder name (docs/region.md): a function of the region overlay window code, 288 bytes with padding."
+
+[[entry]]
+name = "SC4RegionOverlayWin::Destruct"
+address = 0x007A9B90
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 C7 07 C0"
+source = "Placeholder name (docs/region.md): a function of the region overlay window code, 112 bytes with padding."
+
+[[entry]]
+name = "SC4RegionOverlayWin::DeletingDestructor"
+address = 0x007A9C00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 88 FF FF FF"
+source = "Placeholder name (docs/region.md): a function of the region overlay window code, 32 bytes with padding."
+
+[[entry]]
+name = "SC4RegionOverlayWin::Paint"
+address = 0x007A9D60
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 80 00 00 00 53 8B"
+source = "Placeholder name (docs/region.md): a function of the region overlay window code, 896 bytes with padding."
+
+[[entry]]
+name = "SC4RegionOverlayWin::Vtable"
+address = 0x00AB88C0
 kind = "data"
-source = "Name ours. The application's window object (also the application's +0x44): it keeps the region screen, or the city screen, at +0xEC (0x004E0D40 makes the region screen there) (docs/region.md)."
+source = "Name ours. Main vtable (151 slots, the window base class's layout) of the region screen's overlay window (0x140 bytes, constructor 0x007A9AE0): own slots 0x10 Init 0x007A99C0, 0x14 Shutdown 0x007A9880, 0x160 the paint slot 0x007A9D60 and 0x250 the deleting destructor 0x007A9C00 (docs/region.md)."
 
 [[entry]]
-name = "SC4AppWindow::RemoveScreen"
-address = 0x004E0E70
+name = "GZWin::SetInitialized"
+address = 0x0099BC3F
 kind = "function"
 convention = "thiscall"
-expect = "56 8B F1 8B 86 EC 00 00"
-source = "Name ours. No arguments: deletes the screen the application's window keeps at +0xEC (start screen, region screen or city screen), if any; true when there was one (docs/region.md)."
+expect = "FF 74 24 04 8B 01 68 00"
+source = "Name ours. (bool on), ret 4: the window base class sets or clears its flag 0x4000 through its own slot 0x110 (flag, on); the twin of GZWin::IsInitialized 0x0099BC31. The base class's Init and Shutdown and the region overlay window's Shutdown and destructor call it (docs/region.md)."
 
 [[entry]]
-name = "SC4AppWindow::ShowRegionScreen"
-address = 0x004E0D40
+name = "SC4TextureBinding::Release"
+address = 0x008090E0
 kind = "function"
 convention = "thiscall"
-expect = "56 8B F1 8B 86 EC 00 00"
-source = "Name ours. No arguments: when no screen is kept, makes the region screen (0x200 bytes, constructor 0x007B0C00), keeps it at +0xEC, adds it as a child and starts it (slot 0x114); true when it did. The start screen calls it after RemoveScreen (0x0079D381) (docs/region.md)."
+expect = "8B 41 0C 8B 51 08 48 85"
+source = "Name ours. No arguments, plain ret: drops one count of a texture binding (count at +0xC, its factory at +8): at 1 left with a factory it hands itself to the factory's slot 0x48 and returns 1, at 0 it frees itself (0x005E5620) and returns 0, else returns the count. The region overlay window releases its four textures with it (docs/region.md)."
+
+[[entry]]
+name = "SC4DwordVector::ConstructZeroed"
+address = 0x0048C290
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 8B 7C 24"
+source = "Name ours. (count), ret 4: makes a vector of dwords (begin, end, capacity) with count zeros; returns this. Generic container code, used by the region map window's outline pass (0x007B3670)."
+
+[[entry]]
+name = "SC4DwordVector::FillRange"
+address = 0x0046FE60
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 4C 24 08"
+source = "Name ours. (first, last, value pointer): stores the dword the pointer gives in every slot of the range. Generic container code."
+
+[[entry]]
+name = "SC4Win::QueryInterfaceJump"
+address = 0x00682050
+kind = "function"
+convention = "thiscall"
+expect = "E9 1F 97 31 00 CC CC CC"
+source = "Name ours. A jump to the window base class's QueryInterface (0x0099B774; (iid, out), ret 8); slot 0 of four window vtables (0x00AAE270, 0x00AAE630, 0x00AAF510 and the region map window's 0x00AB9658)."
+
+[[entry]]
+name = "cSC4WinRegionView::Vtable"
+address = 0x00AB9658
+kind = "data"
+source = "Name ours. Main vtable of the region map window (151 slots, the window base class's; its own: 4 Init 0x007B6060, 5 Shutdown 0x007B53A0, 55 0x007B6240, 148 0x007B5E70, 149 0x007B2440), stored by the constructor 0x007B4090."
+
+[[entry]]
+name = "cSC4WinRegionView::PainterVtable"
+address = 0x00AB9644
+kind = "data"
+source = "Name ours. Vtable of the region map window's cell painter interface at +0xD8 (4 slots: QueryInterface thunk 0x007B4140, 0x007BE550, 0x007BE560, the painter 0x007B4150)."
+
+[[entry]]
+name = "cSC4WinRegionView::PainterBaseVtable"
+address = 0x00AB95E0
+kind = "data"
+source = "Name ours. The base vtable (four pure slots, 0x005D4A10) the region map window's constructor stores at +0xD8 before the painter interface's own."
+
+[[entry]]
+name = "SC4RegionViewLabelProc::Vtable"
+address = 0x00AB95F0
+kind = "data"
+source = "Name ours. Main vtable (5 slots: 0x007B23A0, 0x005BE3E0, 0x005BE3F0, 0x007B2500, 0x0041D4C0) of the window procedure object the region map window gives a tile's name label (0x14 bytes, constructor 0x007B3560)."
+
+[[entry]]
+name = "SC4RegionViewLabelProc::CountVtable"
+address = 0x00AB9604
+kind = "data"
+source = "Name ours. Vtable of the counted base at +4 of the region map window's label procedure object (5 slots; slot 0 is the deleting destructor's thunk 0x007B3590)."
+
+[[entry]]
+name = "cSC4TutorialRegistry::FindForRegion"
+address = 0x004B6140
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 8B E9 8B"
+source = "Name ours. (cISC4Region* region), ret 4: looks the region's name up among the tutorials and returns a pointer to the found record's first dword (the tutorial's ID) or null; walks the records with 0x004B5E50. `this` is what the application's slot 49 (GetTutorialRegistry) returns. The region map window's label maker (0x007B59B0) asks it for the open region (docs/region.md)."
+
+[[entry]]
+name = "cSC4TutorialRegistry::CityOf"
+address = 0x004B5E50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 8B 0D 94 3C B4"
+source = "Name ours. (uint32_t tutorial ID), ret 4: the regional city of a tutorial in the open region, or null. The region map window's label maker (0x007B59B0) asks the city for its position (slot 5) to mark the tutorial's tile (docs/region.md)."
+
+[[entry]]
+name = "SC4RefVector::Resize"
+address = 0x004C1390
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 11 8B 44 24 08 56"
+source = "Name ours. (uint32_t count), ret 4: STL resize of a vector of counted pointers: erases the tail (0x00527180) or appends null pointers (0x004BFF30). The region map window's Init (0x007B6060) sizes its two marker pictures with it."
+
+[[entry]]
+name = "SC4RegionViewHelper::Vtable"
+address = 0x00AB9630
+kind = "data"
+source = "Name ours. Main vtable of the region map window's picture helper (0x44 bytes, interface 0xC989F960; five slots: QueryInterface 0x007B23E0, AddRef 0x005BE3E0, Release 0x005BCB30, 0x007B28B0, 0x00735290)."
+
+[[entry]]
+name = "SC4RegionViewHelper::UnknownVtable"
+address = 0x00AB9618
+kind = "data"
+source = "Name ours. Vtable of the counted base at +4 of the region map window's picture helper (QueryInterface thunk 0x007B3E60, AddRef 0x005BE420, Release 0x005BCB60, the deleting destructor's thunk 0x007B3E70)."
+
+[[entry]]
+name = "SC4RegionView::MarkerMatrix"
+address = 0x00B0DBBC
+kind = "data"
+source = "Name ours. Six floats (0.0884, 0.0183, 0, -0.0828, -0.0366, 0.0442 in the file): map picture pixels across and down per metre of x, of y and of z; the region map window places a city's airport and seaport markers with them (0x007B5430)."
+
+[[entry]]
+name = "SC4RenderContext::F7D5230"
+address = 0x007D5230
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 68 53 55 56 8B F1"
+source = "Placeholder name. No arguments, plain ret: for every 0x68-byte entry of the vector at +0xE0 clears the driver's texture stage (driver slots 0xCC, 0xD4, 0xD0) and sets it up again (0x007D3B10), then applies the state word at +0x88 again (0x007D4530). The region map's picture grid calls it after painting the map onto the screen picture (0x007B28B0; docs/region.md). Renderer code, not analysed further."
+
+[[entry]]
+name = "cSC4TutorialRegistry::Find"
+address = 0x004B5D10
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 19 8B 53 08 3B D3"
+source = "Name ours. (uint32_t tutorial ID), ret 4: walks the registry's tree and each node's list (+0x24) for the record with that ID and returns it, or null; the record's byte at +0x10 is the flag SetFlag 0x004B5D80 changes. `this` is what the application's slot 49 (GetTutorialRegistry) returns (docs/region.md)."
+
+[[entry]]
+name = "SC4RegionView::FlashPerMillisecond"
+address = 0x00AB95D8
+kind = "data"
+source = "Name ours. double 1/1500 (bits 0x3F45D867C3ECE2A5): the bobbing window procedure 0x007B2500 multiplies the milliseconds into its 1.5 second turn by it (docs/region.md)."
+
+[[entry]]
+name = "SC4RegionView::FlashTurn"
+address = 0x00AB95D0
+kind = "data"
+source = "Name ours. double 6.28318 (bits 0x401921F9F01B866E, not the nearest double to two pi): the full turn the bobbing window procedure 0x007B2500 multiplies by before taking the sine (docs/region.md)."
+
+[[entry]]
+name = "GZBuffer::TileBlit"
+address = 0x008D8BC0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 4C 8B 44 24 5C 53"
+source = "Name ours. (target picture, source picture, source area*, target area*, int shift x, int shift y, clip area* or null), caller cleans 0x1C, returns a bool in AL: covers the target area with repeats of the source picture, shifted; a 1 by 1 source fills with its pixel, a target with the interface 0xAB300B2B is drawn through that. The region map window's painter (0x007B4150) lays its background with it (docs/region.md)."
