@@ -12,7 +12,9 @@
 #include "core/game_access.h"
 #include "core/hook.h"
 #include "core/log.h"
+#include "core/occmgr_sim.h"
 #include "core/registry.h"
+#include "core/traffic_cells.h"
 #include "core/virtual_clock.h"
 
 #include <opensc4/addresses.h>
@@ -4182,13 +4184,24 @@ uint8_t __fastcall Init(void* object, void*)
     }
     // 65,536 records of 46 bytes: nine words 0, nine words 0xFFFF, the rest
     // 0 (the game's template leaves eight of those bytes as its stack held them).
+    // With big cities, enough for the city when it is past 256 cells a side
+    // (traffic_cells.h).
     {
-        char* const records = static_cast<char*>(operatorNew(0x2E0000));
+        int32_t rows = 256;
+        g_recordStride = 256;
+        if (occmgr_sim::BigCities()) {
+            if (width > rows)
+                rows = width;
+            if (height > g_recordStride)
+                g_recordStride = height;
+        }
+        const std::size_t bytes = 0x2E * static_cast<std::size_t>(rows) * static_cast<std::size_t>(g_recordStride);
+        char* const records = static_cast<char*>(operatorNew(bytes));
         At<char*>(self, 0x58) = records;
         char record[0x2E] = {};
         for (std::size_t i = 0; i < 9; ++i)
             At<uint16_t>(record, 0x12 + 2 * i) = 0xFFFF;
-        for (std::size_t offset = 0; offset < 0x2E0000; offset += 0x2E)
+        for (std::size_t offset = 0; offset < bytes; offset += 0x2E)
             std::memcpy(records + offset, record, 0x2E);
     }
     if (!At<void*>(self, 0x6FC)) {
@@ -5593,7 +5606,7 @@ uint8_t __fastcall CellHasTraffic(void* self, void*, int32_t x, int32_t z)
     const int32_t side = EdgeSide(self, nullptr, x, z, &edgeX, &edgeZ);
     if (side == -1)
         return 0;
-    const auto* const record = reinterpret_cast<const uint16_t*>(At<char*>(self, 0x58) + 0x2E * ((edgeX << 8) | edgeZ));
+    const auto* const record = reinterpret_cast<const uint16_t*>(CellRecord(self, edgeX, edgeZ));
     for (int type = 0; type < 9; ++type) {
         for (int commute = 0; commute < 4; ++commute) {
             if (record[type] & (1u << ((side + 4 * commute) & 31)))
@@ -7271,26 +7284,18 @@ char* __fastcall GetOrCreateEdge(void* self, void*, uint32_t network, int32_t x,
     return edge;
 }
 
-// A cell's 46-byte record (+0x58): uint16 ways by travel type (bit to +
-// 4 x from), uint16 change nibbles by type at +0x12, side words at +0x24,
-// flags at +0x2C.
-char* CellRecord46(void* self, int32_t x, int32_t z)
-{
-    return At<char*>(self, 0x58) + 0x2E * ((x << 8) | z);
-}
-
 // 0x0070EAB0: a way through a cell for a travel type; for road travel also
 // the neighbour's mark on the side facing it.
 void __fastcall SetWay(void* self, void*, int32_t x, int32_t z, uint32_t from, uint32_t to, uint32_t type)
 {
-    At<uint16_t>(CellRecord46(self, x, z), 2 * type) |= static_cast<uint16_t>(1u << ((to + 4 * from) & 31));
+    At<uint16_t>(CellRecord(self, x, z), 2 * type) |= static_cast<uint16_t>(1u << ((to + 4 * from) & 31));
     if (reinterpret_cast<const uint32_t*>(addr::SC4Traffic_NetworkOfTravelType)[type] != 1)
         return;
     const int32_t nx = x + reinterpret_cast<const int32_t*>(addr::SC4Traffic_SideDX)[to];
     const int32_t nz = z + reinterpret_cast<const int32_t*>(addr::SC4Traffic_SideDZ)[to];
     if (!InCity(self, nx, nz))
         return;
-    At<uint16_t>(CellRecord46(self, nx, nz), 0x24 + 2 * ((to + 2) & 3)) |=
+    At<uint16_t>(CellRecord(self, nx, nz), 0x24 + 2 * ((to + 2) & 3)) |=
         reinterpret_cast<const uint16_t*>(addr::SC4Traffic_RoadSideMask)[from];
 }
 
@@ -7384,7 +7389,7 @@ void __fastcall OnRoadPiece(void* self, void*, int32_t x, int32_t z, void* piece
                             if (ends[0])
                                 reinterpret_cast<FreeFn>(addr::SC4_Free)(ends[0]);
                         }
-                        uint16_t& word = At<uint16_t>(CellRecord46(self, x, z), 0x24 + 2 * from);
+                        uint16_t& word = At<uint16_t>(CellRecord(self, x, z), 0x24 + 2 * from);
                         const uint32_t shift = (to * 4) & 31;
                         word = static_cast<uint16_t>((word & ~(0xFu << shift)) | (sides << ((to << 2) & 0xFF & 31)));
                     }
@@ -7440,7 +7445,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
         for (int32_t z = zs; z <= ze; ++z) {
             for (uint32_t network = 0; network < 6; ++network)
                 reinterpret_cast<RemoveFn>(addr::cSC4TrafficSimulator_RemoveEdge)(self, network, x, z);
-            char* const cell = CellRecord46(self, x, z);
+            char* const cell = CellRecord(self, x, z);
             for (uint32_t t = 0; t < 9; ++t) {
                 At<uint16_t>(cell, 2 * t) = 0;
                 At<uint16_t>(cell, 0x12 + 2 * t) = 0xFFFF;
@@ -7479,7 +7484,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
             Virtual<uint32_t>(occupant, 0x20, position);
             int32_t cx = 0, cz = 0;
             Virtual<uint32_t>(At<void*>(self, 0x14), 0x17C, position[0], position[2], &cx, &cz);
-            char* const cell = CellRecord46(self, cx, cz);
+            char* const cell = CellRecord(self, cx, cz);
             void* piece = nullptr;
             for (uint32_t index = 0; index < 6; ++index) {
                 const uint32_t networkType = reinterpret_cast<const uint32_t*>(addr::SC4Traffic_NetworkTypeOfIndex)[index];
@@ -7576,7 +7581,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
             char* const record = reinterpret_cast<CostFn>(addr::SC4CostTable_At)(base + 0x70C, &id);
             char* const parts = At<char*>(record, 0x1C);
             const auto partCount = static_cast<int32_t>((At<char*>(record, 0x20) - parts) / 10);
-            char* const cell = CellRecord46(self, x, z);
+            char* const cell = CellRecord(self, x, z);
             for (uint32_t t = 0; t < 9; ++t) {
                 if (t == 6)
                     continue;
@@ -7601,7 +7606,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
                     continue;
                 }
                 const uint32_t side = SideOf(nx, nz, x, z);
-                char* const neighbour = CellRecord46(self, nx, nz);
+                char* const neighbour = CellRecord(self, nx, nz);
                 for (int32_t i = 0; i < partCount; ++i) {
                     const char* const part = parts + 10 * i;
                     if (!part[1 + d])
@@ -7671,7 +7676,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
     for (int32_t x = xs; x <= xe; ++x) {
         for (int32_t z = zs; z <= ze; ++z) {
             if (FindCellNode(base + 0xC8, static_cast<uint16_t>((x << 8) | z)))
-                CellRecord46(self, x, z)[0x2C] |= 2;
+                CellRecord(self, x, z)[0x2C] |= 2;
         }
     }
 
@@ -7681,7 +7686,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
         const int32_t ax = At<uint8_t>(ferry, 8);
         const int32_t az = At<uint8_t>(ferry, 9);
         if (ax >= xs && ax <= xe && az >= zs && az <= ze) {
-            CellRecord46(self, ax, az)[0x2C] |= 4;
+            CellRecord(self, ax, az)[0x2C] |= 4;
             for (uint32_t network = 0; network <= 1; ++network) {
                 char* edge = GridCell<char*>(base + field::kEdges, ax, az);
                 while (edge && At<uint8_t>(edge, 6) != network)
@@ -7699,7 +7704,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
                 const int32_t nz = az + stepZ[d];
                 if (!InCity(self, nx, nz))
                     continue;
-                char* const neighbour = CellRecord46(self, nx, nz);
+                char* const neighbour = CellRecord(self, nx, nz);
                 const uint32_t side = SideOf(nx, nz, ax, az);
                 for (uint32_t t = 0; t < 9; ++t) {
                     uint16_t& ways = At<uint16_t>(neighbour, 2 * t);
@@ -7726,7 +7731,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
             const int32_t nz = bz + stepZ[d];
             if (!InCity(self, nx, nz))
                 continue;
-            char* const neighbour = CellRecord46(self, nx, nz);
+            char* const neighbour = CellRecord(self, nx, nz);
             const uint32_t side = SideOf(nx, nz, bx, bz);
             for (uint32_t t = 0; t < 9; ++t) {
                 uint16_t& ways = At<uint16_t>(neighbour, 2 * t);
@@ -7884,7 +7889,7 @@ void __fastcall UpdatePendingRect(void* self, void*, int32_t x0, int32_t z0, int
                         }
                     }
                     bool go = false;
-                    const char* const cell = At<char*>(self, 0x58) + 0x2E * ((cx << 8) | cz);
+                    const char* const cell = CellRecord(self, cx, cz);
                     if (!stop && depth < limit && !(cell[0x2C] & 2)) {
                         while (way < 4) {
                             bool open = false;
@@ -7959,7 +7964,7 @@ void __fastcall SpreadFromEdge(void* self, void*, int32_t startX, int32_t startZ
             node = At<char*>(node, 0x14);
         return node;
     };
-    auto record = [self](int32_t x, int32_t z) { return At<char*>(self, 0x58) + 0x2E * ((x << 8) | z); };
+    auto record = [self](int32_t x, int32_t z) { return CellRecord(self, x, z); };
     auto ways = [word](const char* cell) { return At<uint16_t>(const_cast<char*>(cell), 2 * word); };
     auto stamp = [](char* edge, uint32_t side) -> uint16_t& { return At<uint16_t>(edge, 0xC + 2 * side); };
 
@@ -8109,7 +8114,7 @@ uint8_t __fastcall RouteStillOpen(void* self, void*, char* route)
     if (!reinterpret_cast<NextFn>(addr::SC4RouteIterator_Next)(iterator, &step))
         return 0;
     auto record = [self](int32_t x, int32_t z) {
-        return reinterpret_cast<const uint8_t*>(At<char*>(self, 0x58) + 0x2E * ((x << 8) | z));
+        return reinterpret_cast<const uint8_t*>(CellRecord(self, x, z));
     };
     auto changeNibble = [](const uint8_t* cell, uint8_t type, uint8_t side) {
         uint16_t nibbles;
