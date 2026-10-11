@@ -1,0 +1,149 @@
+# cSTETerrain (build 641), piece 3: the brushes and the shaping machinery (src/core/terrain_brush.cpp).
+# New names only; the functions piece 2 named (terrainsim2.toml) are reused.
+
+[[entry]]
+name = "cSTETerrain::ApplyBrush"
+address = 0x0074F0E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t brush, tBrushParameters* parameters)"
+expect = "53 56 8B 74 24 10 57 8B"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 57: sets the parameters' applied rectangle (+0x24) to the empty one (0x00B0D698), finds the brush record in the map 0x00B4BD58 (AL 0 for none), runs its layers (0x0074D730 with the record and the parameters) and, with the redisplay byte (+0x14) set and the applied rectangle not empty, redisplays it (slot 68 with 1, 1, the rectangle, the dword at +0x20); AL 1. The terraform tool calls it at 0x004D9920. Ours in simulators.terrain.brush (src/core/terrain_brush.cpp)."
+
+[[entry]]
+name = "cSTETerrain::ApplyBrushLayers"
+address = 0x0074D730
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, void* record, tBrushParameters* parameters)"
+expect = "83 EC 68 D9 05 88 D6 B0"
+source = "Name ours. The body of ApplyBrush: nothing for a position outside the grid; the brush's rotation (+0x68, a draw below 5 of the generator 0x00B4BC78 when the record's byte +4 is set) and direction (+0x6C, FPATAN of the stroke) angles; then each layer (0x4C bytes, the vector at record +0x18/+0x1C): its picture loaded on first use through the resource manager, the per-vertex routine of its kind (0 to 10, table 0x0074DB64) run over the picture's footprint (0x00742180) or a square (0x00742440); the touched rectangle is joined into the parameters' applied rectangle. The game's (not rewritten); ours calls it at its address."
+
+[[entry]]
+name = "cSTETerrain::WaterNeighbour"
+address = 0x00741680
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSTETerrain* this, uint32_t index)"
+expect = "53 8B 59 38 55 56 8B 74"
+source = "Name ours. The first of a vertex's four straight neighbours (west, north, east, south; tables 0x00AB3B80 and 0x00AB3BA4) inside the grid that is below the sea level; -1 for none. The row is index / +0x3C (the row COUNT, not the row length: the game's, the same on a square map). Only 0x00749FA0 calls it; ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::ShoreCliffRun"
+address = 0x00744220
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, void* records)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Shapes one run of shore records (7 vertex indices each; a vector): a level = sea level + a uniform draw between the floats 0x00B0D618 and 0x00B0D61C (generator 0x00B4BC78), then for up to 0x00B0D610 records: flag 4 on the first two vertices, a Gaussian draw between 0 and 2 added to or taken from the level for the shore vertex, and five uniform draws between -8 and 8 added to that for the inland vertices, each through slot 50. Only 0x00749FA0 calls it; ours has its own copy."
+
+[[entry]]
+name = "SC4Record28Vector::InsertN"
+address = 0x00748F20
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, void* where, const void* value, void* tag, uint32_t count, bool atEnd)"
+expect = "83 EC 08 53 8B D9 8B 13"
+source = "Name ours. The growing insert of a std::vector of 28-byte records (begin, end, capacity), storage from the STL allocator; RET 0x14. Also called from outside the terrain (0x0055393E, 0x0080854F, 0x00886824, 0x00886AFB, 0x0098CE25). The game's; 0x00749FA0 and ours call it when the vector is full."
+
+[[entry]]
+name = "cSTETerrain::FlatMinCount"
+address = 0x00B0D5F0
+kind = "data"
+source = "Name ours. uint32_t in .data: 401 in the exe; 0x00749660 flattens a gathered area only when it has more vertices than this."
+
+[[entry]]
+name = "cSTETerrain::SmoothStraightLimit"
+address = 0x00B4BCF4
+kind = "data"
+source = "Name ours. float in .bss (set at run time): the altitude difference 0x00745020 allows between straight neighbours (even entries of the +0x84 table)."
+
+[[entry]]
+name = "cSTETerrain::SmoothDiagonalLimit"
+address = 0x00B4BCF0
+kind = "data"
+source = "Name ours. float in .bss (set at run time): the altitude difference 0x00745020 allows between diagonal neighbours (odd entries)."
+
+[[entry]]
+name = "cSTETerrain::SmoothFactor"
+address = 0x00B4B40C
+kind = "data"
+source = "Name ours. float (set at run time): the share of the excess difference 0x00745020 moves each of the two vertices by."
+
+[[entry]]
+name = "cSTETerrain::ShoreMinRun"
+address = 0x00B0D60C
+kind = "data"
+source = "Name ours. uint32_t in .data: 4 in the exe; 0x00749FA0 wants a shore line of at least this many vertices and shapes only runs longer than it."
+
+[[entry]]
+name = "cSTETerrain::ShoreMaxRun"
+address = 0x00B0D610
+kind = "data"
+source = "Name ours. uint32_t in .data: 70 in the exe; 0x00744220 shapes at most this many records of a run."
+
+[[entry]]
+name = "cSTETerrain::ShoreMinHeightSum"
+address = 0x00B0D614
+kind = "data"
+source = "Name ours. float in .data: 15.0 in the exe; a shore vertex and its five inland vertices must together be more than this above the sea level (0x00749FA0)."
+
+[[entry]]
+name = "cSTETerrain::ShoreCliffLow"
+address = 0x00B0D618
+kind = "data"
+source = "Name ours. float in .data: 40.1 in the exe; low end of a cliff run's level above the sea (0x00744220)."
+
+[[entry]]
+name = "cSTETerrain::ShoreCliffHigh"
+address = 0x00B0D61C
+kind = "data"
+source = "Name ours. float in .data: 50.1 in the exe; high end of it."
+
+[[entry]]
+name = "cSTETerrain::ShoreInlandLow"
+address = 0x00AB3CB0
+kind = "data"
+source = "Name ours. double in .rdata: -8.0; low end of the uniform draw for a cliff's inland vertices (0x00744220)."
+
+[[entry]]
+name = "cSTETerrain::ShoreInlandHigh"
+address = 0x00AB3CB8
+kind = "data"
+source = "Name ours. double in .rdata: 8.0; high end of it."
+
+[[entry]]
+name = "cSTETerrain::Random"
+address = 0x00B4BC78
+kind = "data"
+source = "Name ours. The terrain's random generator (cRZRandom, LCG): 0x00744220 draws the shore cliffs with it (0x00913761, 0x0091381F) and 0x0074D730 a brush's rotation (0x009136B1 with 5)."
+
+[[entry]]
+name = "cSTETerrain::StraightDX"
+address = 0x00AB3CE0
+kind = "data"
+source = "Name ours. int32_t[4] in .rdata: -1, 0, 1, 0: the x steps to the four straight neighbours (0x00749660)."
+
+[[entry]]
+name = "cSTETerrain::StraightDZ"
+address = 0x00AB3CD0
+kind = "data"
+source = "Name ours. int32_t[4] in .rdata: 0, -1, 0, 1: the z steps."
+
+[[entry]]
+name = "cSTETerrain::AroundDX"
+address = 0x00AB3B80
+kind = "data"
+source = "Name ours. int32_t[8] in .rdata: -1, -1, 0, 1, 1, 1, 0, -1: the x steps to the eight neighbours, from the west clockwise through the north (0x0074AD20, 0x0074AB60, 0x00741680)."
+
+[[entry]]
+name = "cSTETerrain::AroundDZ"
+address = 0x00AB3BA4
+kind = "data"
+source = "Name ours. int32_t[8] in .rdata: 0, -1, -1, -1, 0, 1, 1, 1: the z steps."
+
+[[entry]]
+name = "cSTETerrain::EmptyRect"
+address = 0x00B0D698
+kind = "data"
+source = "Name ours. int32_t[4] in .data: 0x7FFFFFFF twice, 0x80000000 twice: the empty rectangle ApplyBrush (0x0074F0E0) starts the applied area from."
