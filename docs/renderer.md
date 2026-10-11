@@ -243,7 +243,23 @@ Checked on the three tutorial cities with the camera workout, and once with the 
 
 Checked on the three tutorial cities with the camera workout and on a running city with a volcano: 9,706 picks, of which 3,370 hit the land and 878 the water's surface, the same answer every time; the self-check is clean, and screenshots after the camera workout with every terrain replacement on match the game's (20 of 20).
 
-**What is left of the terrain view.** Its code runs from 0x00751C40 to 0x0075D5B0: 146 functions, 45.8 KB. Counting what can still be reached when our replacements are on, about 90 functions are still the game's, and 30 more are only called from code that is ours already, so they no longer run (the row drawing variants at 0x007543C0 to 0x00755700 and the dynamic vertex buffer path at 0x0075C9F0 to 0x0075CB50 are among them: our passes do that work themselves). What is left: the view's start, shutdown and static set-up (0x0075C420, 0x007560F0, 0x0075C0C0, 0x00758BC0), setting and clearing a cell's overlay texture (0x00759750, 0x00758620, with the row record helpers under them), the single-cell draw (0x00752870), a command parser (0x0075A770), the debug draw (0x00759A80), the row layer list helpers (0x0075AD10 to 0x0075BBE0), and many small getters and setters. They come next, a part at a time.
+### A cell's own texture
+
+A cell can be given a texture of its own (what the passes then draw there is in "The land pass"). The view keeps this by row:
+
+- 0x00B4C6B8: for every row, a 16-bit count for each column and one more: how many cells before that column have a texture of their own. Two neighbouring counts differ where a cell has one.
+- 0x00B4C6B0: for every row a vector (begin, end, capacity) of 0x80-byte records, one for each such cell in column order: the cell's four vertices with their colours.
+- 0x00B4C6AC: for every row a second vector of 8-byte entries in the same order; the texture is at +4.
+
+`SetCellTexture` (0x00759750: x, z, texture) puts a cell into its row when it is not there yet: the counts after it go up by one, a blank record (0x00755DD0) goes into the record vector (0x00759680, which grows the vector through 0x00758D40) and an entry into the other. Then it sets the entry's texture, fills the record's vertices and colours (0x00756350, 0x007564F0), sets the cell's flag bits 0x60 and redoes the cell's six indices in the row's index list (0x00752AF0). `ClearCellTexture` (0x00758620: x, z) does the opposite. In a running city this happens all the time: about 2,800 sets in 30 days of Big City.
+
+`renderer.terrain.celltexture` is those two and the fourteen helpers under them (the record copies, moves, fills and erases), translated instruction by instruction.
+
+Compare mode has to cope with the vectors moving to new blocks, which rules out simply putting things back. Before ours runs, the row's two vectors are copied into blocks of the same capacity from the game's allocator. After ours, the result is taken (the globals and every buffer block with this row's vector pointers blanked, both vectors' sizes, capacities and contents, the cell's flag byte); everything is put back as it was but with the row's vectors now the copies; ours' vectors are freed; and the game's runs from the same start with its own helpers. It needs `renderer.terrain.buffers` on, which knows the blocks.
+
+Checked with cities running: the three tutorial cities for 30 days and Big City with a volcano for 20: 7,093 sets and 1,265 clears, no difference; the self-check is clean; ours alone with every terrain replacement runs 30 days in the release build, and screenshots match the game's (20 of 20 on Big City and Rush Hour). 15 of the 16 functions ran; the one that fills a run with copies of a record (0x00756690) did not.
+
+**What is left of the terrain view.** Its code runs from 0x00751C40 to 0x0075D5B0: 146 functions, 45.8 KB. Counting what can still be reached when our replacements are on, about 70 functions are still the game's, and 30 more are only called from code that is ours already, so they no longer run (the row drawing variants at 0x007543C0 to 0x00755700 and the dynamic vertex buffer path at 0x0075C9F0 to 0x0075CB50 are among them: our passes do that work themselves). What is left: the view's start, shutdown and static set-up (0x0075C420, 0x007560F0, 0x0075C0C0, 0x00758BC0), the single-cell draw (0x00752870), a command parser (0x0075A770), the debug draw (0x00759A80), the row layer list helpers (0x0075AD10 to 0x0075BBE0), and many small getters and setters. They come next, a part at a time.
 
 ## The overlays
 
