@@ -1137,6 +1137,104 @@ uint32_t __fastcall DSC4Effect_NotDrawn(char* self, void*)
 }
 OPENSC4_THUNK(TSC4Effect_NotDrawn, DSC4Effect_NotDrawn, 0)
 
+// The block of a particle of the second effect class (0x005ACA30; the
+// class's draw and its step out of view call it with the particle, a
+// word, a scale, a pointer to three floats and the block to fill),
+// translated instruction by instruction. The block is two bytes and
+// thirteen floats: a matrix of the particle's turning and size and its
+// place. How the particle is turned goes by the description's kind
+// (+0xD5): kinds 2 to 4 face the camera in one of three ways (the game's
+// 0x0080B910, 0x0080B530, 0x0080B830), the others turn about an angle
+// kept in the particle (+0x50), which follows the particle's velocity for
+// some descriptions. The effect's box (+0x1A0) is widened to hold the
+// particle.
+uint32_t ParticleBlockB(char* self, uint32_t particle, uint32_t a, uint32_t scale, uint32_t vector, uint32_t block)
+{
+    uint32_t stackmem[320] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[224]);
+    M<uint32_t>(esp + 4) = particle;
+    M<uint32_t>(esp + 8) = a;
+    M<uint32_t>(esp + 12) = scale;
+    M<uint32_t>(esp + 16) = vector;
+    M<uint32_t>(esp + 20) = block;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_block_b.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// It writes the particle, the effect's box, the block and perhaps the
+// three floats, and only does arithmetic, so the comparison runs ours,
+// keeps what it left, puts all four back and runs the game's.
+using Call5Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+StepMode g_blockModeB = StepMode::Original;
+Call5Fn g_SC4EffectB_ParticleBlock = nullptr;
+uint64_t g_blocksBCompared = 0;
+
+uint32_t __fastcall BlockBByMode(char* self, void*, uint32_t particle, uint32_t a, uint32_t scale, uint32_t vector,
+                                 uint32_t block)
+{
+    if (g_blockModeB == StepMode::Original)
+        return g_SC4EffectB_ParticleBlock(self, nullptr, particle, a, scale, vector, block);
+    if (g_blockModeB == StepMode::Ours)
+        return ParticleBlockB(self, particle, a, scale, vector, block);
+    constexpr std::size_t kParticleSize = 0x54, kEffectSize2 = 0x27C, kBlockSize = 0x38, kVectorSize = 12;
+    constexpr std::size_t kEffectAt = kParticleSize, kBlockAt = kEffectAt + kEffectSize2,
+                          kVectorAt = kBlockAt + kBlockSize, kTotal = kVectorAt + kVectorSize;
+    char before[kTotal], mine[kTotal], theirs[kTotal];
+    const auto save = [&](char* to) {
+        std::memcpy(to, reinterpret_cast<const void*>(particle), kParticleSize);
+        std::memcpy(to + kEffectAt, self, kEffectSize2);
+        std::memcpy(to + kBlockAt, reinterpret_cast<const void*>(block), kBlockSize);
+        std::memcpy(to + kVectorAt, reinterpret_cast<const void*>(vector), kVectorSize);
+    };
+    save(before);
+    ParticleBlockB(self, particle, a, scale, vector, block);
+    save(mine);
+    std::memcpy(reinterpret_cast<void*>(particle), before, kParticleSize);
+    std::memcpy(self, before + kEffectAt, kEffectSize2);
+    std::memcpy(reinterpret_cast<void*>(block), before + kBlockAt, kBlockSize);
+    std::memcpy(reinterpret_cast<void*>(vector), before + kVectorAt, kVectorSize);
+    const uint32_t result = g_SC4EffectB_ParticleBlock(self, nullptr, particle, a, scale, vector, block);
+    save(theirs);
+    ++g_blocksBCompared;
+    if ((g_blocksBCompared & (g_blocksBCompared - 1)) == 0)
+        log::Write("water effects: effects.block_b: %llu blocks compared so far",
+                   static_cast<unsigned long long>(g_blocksBCompared));
+    if (std::memcmp(theirs, mine, kTotal) == 0) {
+        compare::Record("effects.block_b", true, std::string(), std::string());
+    } else {
+        std::size_t at = 0;
+        while (theirs[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        const char* const part =
+            at < kEffectAt ? "particle" : at < kBlockAt ? "effect" : at < kVectorAt ? "block" : "vector";
+        const std::size_t offset =
+            at < kEffectAt ? at : at < kBlockAt ? at - kEffectAt : at < kVectorAt ? at - kBlockAt : at - kVectorAt;
+        char text[40];
+        std::snprintf(text, sizeof text, "%s+%zX ", part, offset);
+        compare::Record("effects.block_b", false, text + Hex(theirs + at, 8), text + Hex(mine + at, 8));
+    }
+    return result;
+}
+#define OPENSC4_REPUSH_20 OPENSC4_PUSH(20) OPENSC4_PUSH(20) OPENSC4_PUSH(20) OPENSC4_PUSH(20) OPENSC4_PUSH(20)
+OPENSC4_THUNK(TSC4EffectB_ParticleBlock, BlockBByMode, 20)
+
 // The second effect class's step when it is not drawn (0x005AE6E0, slot
 // 0x4C), translated instruction by instruction. The effect's box (+0x1A0)
 // is started again, and every particle of the list takes part in it. A
@@ -3716,6 +3814,31 @@ const bool g_registeredDrawB = registry::Register({
     "(docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallDrawB,
+});
+
+bool InstallBlockB(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4EffectB_ParticleBlock ||
+          Detour(addr::SC4EffectB_ParticleBlock, &TSC4EffectB_ParticleBlock, &g_SC4EffectB_ParticleBlock)))
+        return false;
+    g_blockModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: second effect class's particle block %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredBlockB = registry::Register({
+    "renderer.effects.block_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectB_ParticleBlock,
+    "The block of a particle of the second effect class: its turning, size and place as a matrix, and the "
+    "effect's box widened; compare mode runs ours and the game's from the same particle, effect and block "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallBlockB,
 });
 
 bool InstallGround(registry::Mode mode)
