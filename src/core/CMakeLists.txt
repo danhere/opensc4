@@ -226,6 +226,7 @@ add_library(opensc4_core SHARED
   game_growify.cpp
   game_no_kickout.cpp
   game_phantom_budget.cpp
+  game_quiet.cpp
   game_seed.cpp
   game_timelapse.cpp
   gd/d3d11_backend.cpp
