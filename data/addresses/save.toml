@@ -1468,3 +1468,43 @@ name = "cSC4DBSegmentPackedFile::BaseVtable"
 address = 0x00AA239C
 kind = "data"
 source = "The abstract vtable (every slot 0x005D4A10) the save segment's constructor stores at +0x0 before its own (docs/save-format.md)."
+
+[[entry]]
+name = "SC4SystemKeysGuard::Construct"
+address = 0x005F88A0
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 01 8B F1 E8 26 FF"
+source = "Name ours. No arguments: calls 0x005F87D0(1) and returns this; the object has no fields (4 bytes of frame). 0x005F87D0 counts at 0x00B43C24 and at the first user switches the system keys off: a low-level keyboard hook (procedure 0x005F86E0, handle at 0x00B43C20) on Windows 5 and later, else SystemParametersInfo(0x61, 1). cSC4App::SaveCity holds one for its whole length."
+
+[[entry]]
+name = "SC4SystemKeysGuard::Destruct"
+address = 0x005F88C0
+kind = "function"
+convention = "thiscall"
+expect = "6A 00 E8 09 FF FF FF 59"
+source = "Name ours. No arguments, this is not used: calls 0x005F87D0(0), which at the last user takes the keyboard hook off again (or SystemParametersInfo(0x61, 0))."
+
+[[entry]]
+name = "RZVersion::Construct"
+address = 0x008915C1
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "Name ours. No arguments: starts a 0x24-byte object that reads the exe's version resource (vtable 0x00AC51FC, a string at +4, the version block at +0x1C read on first use by 0x00891610); returns this."
+
+[[entry]]
+name = "RZVersion::GetNumber"
+address = 0x008916AB
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. (uint32_t which), ret 4: one number of the exe's file version from the fixed version info: 0 major, 1 minor, 2 build, 3 revision (words at +0xA, +0x8, +0xE, +0xC); -1 when the version cannot be read or which is above 3. cSC4App::SaveCity writes the four as the save's game version record."
+
+[[entry]]
+name = "RZVersion::Destruct"
+address = 0x008915EC
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 1C 85 C0"
+source = "Name ours. No arguments: frees the version block at +0x1C and destroys the string at +4."
