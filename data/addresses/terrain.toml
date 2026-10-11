@@ -1237,3 +1237,19 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 20 55 8B E9 8A 85"
 source = "Name ours. (): works through the render's list of changes (+0x1C4 to +0x1C8) before a frame, by kind through a jump table (docs/renderer.md, \"Models and lots\")."
+
+[[entry]]
+name = "STECellMarks::Draw"
+address = 0x007514F0
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 87 9C 00 00"
+source = "Class name ours (unnamed; vtable 0x00AB42F8, code 0x007504F0 to 0x00751C40; a view object of the 3D render's pass 5). (render context): the marks on terrain cells, with a depth offset of 4: the coloured ones (0x00750FC0, a hash table at +0xB0 of cell to colour index) and the textured ones (0x00750CF0, +0x9C) (docs/renderer.md, \"Cell marks\")."
+
+[[entry]]
+name = "STECellMarks::SetColour"
+address = 0x007516D0
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 0C 84 C0 53 56"
+source = "Name ours. (vector of {x, z} cells, colour index, bool refresh): marks cells with one of the colours (docs/renderer.md, \"Cell marks\")."
