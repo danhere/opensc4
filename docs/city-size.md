@@ -102,7 +102,46 @@ The occupant manager is ours too ([occmgr.md](occmgr.md)), but still sized for 2
 
 To run: a test region whose `config.bmp` has one 8x8 white square, then create a city there and record each failure below.
 
-Results: not run yet.
+### Results
+
+Run on 2026-10-11 with the debug build of `3d63f0c`, unattended, Steam 1.1.641, default 2 GB address space.
+
+**Setup.** An isolated `-UserDir` with a region `Spike8km`: a 16x16 `config.bmp` with an 8x8 white square at 0,0 and a 4x4 blue square at 8,0 as the control, nothing else. `opensc4.ini`: `[improvements] big_cities = on`, `region.data.* = ours`. The run used test code that is not in the repo: a switch that opens the region, makes the regional city of an empty tile as the region screen does (0x007AEA00) and calls `cISC4App::RequestNewCity`; a log of every fatal exception in game code with the stack's code addresses; a memory line every 2 s. Each failure below was passed with a local change (not committed) so the next one could show.
+
+**What worked.**
+
+- The white square decodes as a tile: the region's tile list has `0,0 side 8 km (log 3)` next to `8,0 side 4 km (log 2)`, and the regional city made for it reports 8 x 8. Seen in the region's data, not on the region screen (the unattended run does not show it).
+- With failures 1 and 2 passed, the city is made: `CellCountX/Z` 512 x 512, `GetCitySizeType` 2 (large). The empty city ran 19 game months at speed 2 and quit cleanly.
+- The control (a new 4 km city on the blue tile, same switch) is made, runs and saves.
+
+**Failures, in the order met.**
+
+| # | When | Crash site | What it is | Passed by |
+|---|---|---|---|---|
+| 1 | Making the city | Write past the top of the stack at 0x007284E1 (the stack is wiped; neither the game nor we write a report) | `cSC4WeatherSimulator::FindWaterBodies` 0x007283D0: a 256 x 256 byte scratch on the stack. Our own version ([weather.md](weather.md), `simulators.weather.bodies`) has the same 256 x 256 array. | Our version with a bigger array |
+| 2 | Making the city | Write past a heap block at 0x0071A966, called from `OnCityInited` 0x00720430 | `cSC4TrafficSimulator::OnCellsChanged` 0x0071A860 resets the 46-byte cell records at +0x58, indexed `(x << 8) \| z`: a table of 65,536 cells. Not one site: the traffic simulator and path finder pack a cell into 16 bits (`x << 8 \| z`) for the cell table, hash keys, edge and density keys and route bytes ([traffic.md](traffic.md); 30 or more places in `traffic_sim.cpp`). The same table failed again through `CellHasTraffic` 0x0070FA40 (read past the block), asked for a cell on the far edge. | Both clamped to cells below 256 (traffic then knows a quarter of the city) |
+| 3 | Saving (the redraw before the pictures) | Return to a garbage address (0xC5ACD91C, a float); a hardware watchpoint on the return slot gave the writer, 0x00751F47 | `cSTETerrainView3D::LandRowThresholds` 0x00751EE0 writes one float per terrain row in view into a 257-float buffer on the stack of `LandRowVisibility` 0x007535A0 (frame 0x424). `WaterRowVisibility` 0x007539D0 has the same buffer. Any drawn row above 256 overwrites the frame. Our version (`renderer.terrain.rows`) has the same `float[257]`. | Our version with a bigger buffer |
+| 4 | Saving, drawing the terrain | Read of a garbage list at 0x007598A7 (`STE::ClearRowLayers`), from `RebuildRowLayers` 0x0075ABA0, `DrawLandLayers`, `DrawLand`, `cSC43DRender::Draw`, `SC4CityFiles::MakePictures` 0x005DDEC0 | The terrain view's set-up 0x0075C0C0 sizes the per-row layer lists (0x00B4C7E0) and the dirty row bits (0x00B4C7EC) to a literal 0x100. The other arrays it makes there take their size from 0x00B4BC44. | Both grown to 1024 from the test |
+| 5 | Saving (also a quick save) | Read past a heap block at 0x0060B0E4 | 0x0060ACD0 (5 KB, unnamed class with vtable 0x00AA75E8), called from 0x0060C0A0, from the map window's `ShowView` 0x007A49B0 (pushed by 0x007A61E0), from `MakePictures`. It packs cells as `(x * 0x100 + z) * 0x100 + 1 + n`: 8-bit coordinates again. | Not passed; the spike stopped here |
+
+**Not reached.**
+
+- No 8 km city was saved, so loading one is untested.
+- The occupant manager's 192-cell world grid did not fail, against the expectation above: an empty city puts nothing beyond cell 255. It needs something built or planted out there, which needs traffic (2) and the save (5) first.
+- Read in the code, not run: the region screen's terrain import (0x007AEDD0) takes a tile's side as `0x100 >> (2 - log)`, which is 0 for log 3; `GetCitySizeType` gives 2 for 512, so everything indexed by size type treats the city as large (`MakePictures` among them).
+
+**Memory** (debug build, peak commit of the game process; 2,047 MB of address space, about 1,500 MB free before a city is open).
+
+| Run | Peak commit | Address space left |
+|---|---|---|
+| Region open, no city | 133 MB | 1,506 MB |
+| New 4 km city, 19 months, empty | 229 MB | 1,404 MB |
+| New 8 km city, 19 months, empty | 293 MB | 1,328 MB |
+| New 8 km city at failure 5 (full save, pictures being made) | 411 MB | 1,242 MB |
+
+An empty 8 km city costs about 190 MB over the region screen against about 125 MB for an empty 4 km one. Memory is nowhere near the limit for an empty city; this says nothing yet about a built one.
+
+**What it means for the plan.** Four of the five are 256-cell assumptions that the census did not find, because none reads the city size: two stack buffers, one literal array size, and the 8-bit cell packing in traffic and in the class behind the map picture. The census looked for 64/128/256 next to size reads; the next pass should look for 0x100 and 0x101 array sizes, `<< 8` cell keys and frames of 0x400 and 0x10000 bytes. Traffic is the large item: its cell keys need a wider format in the simulator, the path finder and the save record.
 
 ## Compatibility
 
