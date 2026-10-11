@@ -302,6 +302,12 @@ for a, mn, rest in ins:
     elif mn == 'div':
         E('{ const uint64_t dividend = (static_cast<uint64_t>(edx) << 32) | eax; const uint32_t divisor = %s; '
           'eax = static_cast<uint32_t>(dividend / divisor); edx = static_cast<uint32_t>(dividend %% divisor); }' % rd32(ops[0]))
+    elif mn == 'rep' and rest.startswith('stos'):
+        size, ty, val = (4, 'uint32_t', 'eax') if 'DWORD' in rest else (1, 'uint8_t', 'static_cast<uint8_t>(eax)')
+        E('for (; ecx; --ecx) { M<%s>(edi) = %s; edi += %d; }' % (ty, val, size))
+    elif mn == 'rep' and rest.startswith('movs'):
+        size, ty = (4, 'uint32_t') if 'DWORD' in rest else (1, 'uint8_t')
+        E('for (; ecx; --ecx) { M<%s>(edi) = M<%s>(esi); edi += %d; esi += %d; }' % (ty, ty, size, size))
     elif mn == 'shrd':
         n = int(ops[2], 16)
         wr(ops[0], '(%s >> %d) | (%s << %d)' % (rd32(ops[0]), n, rd32(ops[1]), 32 - n))
