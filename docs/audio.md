@@ -163,7 +163,7 @@ Each of these is reproduced as the original does it. They come from the comments
 
 Both tests are in `src/core/audio_autotest.cpp`. They call the game's audio functions by address, so a run with the `audio` replacements on and one with them off can be compared, and what they leave goes into the daily fingerprint line. Neither test starts or stops a sound.
 
-`OPENSC4_TEST_AUDIO=<day>` adds the token ` audio <hash>`. The hash is made of nine sub-hashes, which are written to two log lines that begin `autotest: audio:` (the first has mover, fade, clusters and handlers with their step counts; the second ambience, private, sound, listener and music). Compare the sub-hashes to see which part parted. What each does:
+`OPENSC4_TEST_AUDIO=<day>` adds the token ` audio <hash>`. The hash is made of ten sub-hashes, which are written to three log lines that begin `autotest: audio:` (the first has mover, fade, clusters and handlers with their step counts; the second ambience, private, sound with the master level, listener and music; the third conditions with their call counts). Compare the sub-hashes to see which part parted. What each does:
 
 | Section | What the test calls and compares |
 | --- | --- |
@@ -171,9 +171,10 @@ Both tests are in `src/core/audio_autotest.cpp`. They call the game's audio func
 | fade | the fade stepped until it is there and once more |
 | clusters | a cluster set: points under keys 1 to 20 that join one of five centres or begin their own, joiners moved close, to another cluster and far away, points taken out, a missing key, a second set and the merges, clear, drop empty clusters, add again, free. The state of the set (clusters, map, per cluster the count, peak, place and radius) and the nodes `Collect` makes are hashed |
 | handlers | the 65 event handler factories (30 of 0x10 bytes, 13 and 22 of 0x14): the object's fields, its reference count, QueryInterface for an unknown ID and for 0x4A40074C and 0xCA400757, and the final Release |
+| conditions | 82 condition handlers (30 occupant, 36 cell and 16 state conditions) made through their factories: Init, QueryInterface for the condition interface, the test function (slot 5), Shutdown and the last Release. The test function is called for a sample of up to 300 of the city's occupants (taken by walking the cells in a fixed order), for a grid of up to 1,000 cells, and once for the state conditions. The low bytes of the answers are hashed; a city gives about 25,000 to 33,000 calls. One handler is left out (factory 0x004EB6B0, function 0x004E2A40): without the property it tests, the original returns the low byte of the occupant's address |
 | ambience | the live ambience manager read, read again, and read after its tuning is read (the layers' with their own instance, the layers' freshness scores, the manager's, 0x004E91D0). Per layer: its fields, filters, vectors and curves; the filter table at 0x00B21958 bucket by bucket |
 | private | a second ambience manager made by its factory (0x004EB0C0), its fields, lists and one Release |
-| sound | the live sound manager's level, limits and curve, then 0x004F9250, then the same again |
+| sound | the live sound manager's limits and curve, then 0x004F9250, then the same again. The master level (+0x14) is logged before and after (` level <before>/<after>` on the second line) and not hashed: a posted message sets it and the sound service delivers that in real time, and the section's hash was two-valued in the original while the level was included |
 | listener | the live listener's four vectors and two floats, the height table at 0x00B21A20, with the tuning reader (0x004F1A80, only if both vectors already hold five floats) and the height table (0x004F18C0) called in between |
 | music | 0x004F2D40, both music lists (index, ID, exemplar instance, the tracks, the file name list), lookup by index (-1, 0, 1, 2), the volume tuning (0x004F22C0) and the slider conversion 0x004F1F90 at five positions for both lists |
 
@@ -185,7 +186,7 @@ Both run on one day of the run (hooks `audio` and `audio.dialog`) and need build
 
 - **Playback itself.** It is real time and goes to the sound library. Nothing that is heard is compared, and nothing that starts or stops a sound is called by the tests.
 - **The tick (0x004EA150) and the sweep (0x004E94E0).** They run on stopwatches, which are real time. What a layer holds after a tick depends on how many ticks the run had.
-- **Voices.** They end in real time. The sound manager's clock is the sound service's tick, which is real time, and so are the fades, the 50 millisecond rule for a sound started twice and whether the framework says a sound still plays. The test hashes only the level, the limits and the curve.
+- **Voices.** They end in real time. The sound manager's clock is the sound service's tick, which is real time, and so are the fades, the 50 millisecond rule for a sound started twice and whether the framework says a sound still plays. The test hashes only the limits and the curve; the level is logged.
 - **The listener's position.** It follows the camera, frame by frame, so it is left out of the hash.
 - **Pointer sounds.** They use the time stamp the event carries, which is real time as the window system gives it.
 - **The scape manager's leaving clusters.** OnTick counts them down on a stopwatch, so when a cluster goes is real time.
@@ -207,21 +208,23 @@ No run log of the 76 shows a crash, a watchdog or a timeout; every run ended nor
 ### Where the partly saves part
 
 - **Big City d0000, both legs.** The original's own runs part on fingerprint line 2, in `citylot` (two outcomes). The first B run also has other `flam` numbers from line 2 (sum 9483/180, cells 31, against 8986/172, cells 29). This is before the sound test runs (day 3; its token first shows on line 5), and it is the first-pair noise of that save known from earlier batches (see parity.md, load noise).
-- **Big City d0365.** The only difference of the first B run is the tail of the fingerprint log line. The log cuts a line at 4,094 characters; the run's process ID had five digits where the others had six, so one more character of the last part (`checks`) was visible. No named part differs. The cut also means that the last parts of the line, `sim` and `checks`, are partly outside the log comparison on days where the line is that long. That is a property of the harness's logging, not of the sound code.
+- **Big City d0365.** The only difference of the first B run is the tail of the fingerprint log line. The log cut a line at 4,093 characters (plus the line end); the number in the log prefix is the thread ID, not the process ID, and it had five digits where the others had six, so one more character of the last part (`checks`) was visible. The log now writes long lines whole, so that cut no longer happens from this change on. No named part differs. The cut also means that the last parts of the line, `sim` and `checks`, are partly outside the log comparison on days where the line is that long. That is a property of the harness's logging, not of the sound code.
 
 ### The test's tokens
 
-In the audio leg, 11 of 12 saves have one ` audio` token on both sides (it differs from save to save). ` audiodlg 1 AC67D7CF` is in every run of both sides. In the plop leg every B token is among the original's.
+In the au1 audio leg, 11 of 12 saves have one ` audio` token on both sides (it differs from save to save). ` audiodlg 1 AC67D7CF` is in every run of both sides. In the plop leg every B token is among the original's.
+
+### Batch au2
+
+Batch `au2` (2026-10-11) ran the same 108 groups and the same legs (audio and plop) after the conditions section and the logger fix (c2bdf34) were in. First pair: 11 of 12 saves same in the audio leg and 2 of 3 in the plop leg. No crash, watchdog or timeout in the 40 run logs, and every fingerprint line is complete (the longest is 4,067 characters without the prefix).
+
+- **Big City d0000.** Partly after three pairs. The original's first run and the first B run each stand alone, parting on fingerprint line 2 (`citylot`, `flam`), before the test runs; the other four runs agree.
+- **saves-plopped p0000.** Partly. The first B run differs from the other five runs only in the sound test's token, in the sound manager section only.
+- **Conditions.** The section agrees between the original and ours on all 15 saves. For example Big City d0000: 33,352 calls, 5,120 true; Making Money d0000: 25,582 calls, 2,968 true; Rush Hour d0000: 25,552 calls, 3,167 true.
 
 ### The exception
 
-The test has a rare second outcome in which two sections change together, the ambience manager's and the sound manager's (sound sub-hash 48CEBA38, where the usual one is 86832618). It was seen three times:
-
-- in the original, on a trial run (Big City m0010);
-- in the original, on saves-plopped p0000 (first run);
-- once with our code, on Big City d0000 (the first B run, the same run whose `flam` already differed on line 2).
-
-Every time it was the first run of a series. Twelve further runs of the original on Big City d0000 and thirteen on m0010 gave only the usual value. So the original has both outcomes, but on Big City d0000 itself the second one was seen only with our code on, and the cause is not found. The sound manager's hashed fields are its master level (+0x14), three limits and the curve. The master level is set by a posted message that the sound service delivers in real time, which is the likeliest source; this is not confirmed.
+The test has a rare second outcome in which two sections change together, the ambience manager's and the sound manager's (sound sub-hash 48CEBA38, where the usual one is 86832618). With both batches it was seen six times: three times in the original (a trial run on Big City m0010, saves-plopped p0000 in au1, Big City d0090 in au2) and three times with our code (Big City d0000 in au1 and in au2, saves-plopped p0000 in au2). It was mostly the first run of a series. In two of the six the ambience manager's section changed with it. So the original has both outcomes. Twelve further runs of the original on Big City d0000 and thirteen on m0010 gave only the usual value, so on Big City d0000 the second one was seen only with our code on; on other saves it was seen in the original. The cause is not found. The sound manager's fields were its master level (+0x14), three limits and the curve. The master level is set by a posted message that the sound service delivers in real time, which is the likeliest source. After au2 the level was taken out of the hash and is logged instead. Whether that removes the second outcome is not yet known from a batch, and the ambience section's rarer change is not explained.
 
 ### What this batch shows and what it does not
 
@@ -247,7 +250,7 @@ Three coverage runs of the original with both test switches on (Big City d0000 f
 
 The fire run adds 15 functions of the scape manager. What was not entered:
 
-- The condition classes (0x004E2570 to 0x004E3F00) and the seven filters of part 2 that work the same way: 81 functions. Their objects are made, but nothing called their tests in these runs, and the test does not call them yet. They are small and alike, and a sweep over a city's occupants and cells would compare them.
+- The condition classes (0x004E2570 to 0x004E3F00) and the seven filters of part 2 that work the same way: 81 functions. Nothing called their tests in these three runs. The conditions section of the test now enters them (not re-measured; expected 81 fewer unentered functions, less the one skipped).
 - Start-up code, which the meter cannot see (it is armed after start-up) and which a run does not reach as ours either: the event system's bank loading, constructors and Init of the seven objects, the director's own functions.
 - Code that needs a person or a real event: pointer sounds, clicks outside a window, the tool, occupant and placed-sound messages of the event handler, the play and track functions of the options dialog, the sound manager's ask and let-go calls.
 
