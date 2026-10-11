@@ -183,7 +183,18 @@ void RowThresholds(char* self, char* context, const Pass& p, float* out)
 // threshold, and the row ranges for drawing them.
 void RowVisibility(char* self, char* context, const Pass& p)
 {
-    float thresholds[257];
+    // The game keeps one float a row in a buffer of 257 on this function's
+    // stack, which is every row of the largest standard city (256 cells and
+    // one). A bigger terrain has more rows than that (docs/city-size.md), so
+    // the buffer is sized from the terrain's rows; up to 257 it is the same
+    // stack buffer as before.
+    float standard[257];
+    std::vector<float> more;
+    float* thresholds = standard;
+    if (Rows() > 257) {
+        more.resize(Rows());
+        thresholds = more.data();
+    }
     RowThresholds(self, context, p, thresholds);
     int32_t& first = I(self, p.first);
     int32_t& end = I(self, p.first + 4);
