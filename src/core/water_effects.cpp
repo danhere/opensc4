@@ -2321,6 +2321,154 @@ uint32_t __fastcall FullStepByMode(char* self, void*, uint32_t particle, uint32_
     return result;
 }
 OPENSC4_THUNK(TSC4Effect_StepParticleFull, FullStepByMode, 8)
+// --- The effect's small functions ------------------------------------------------------------
+
+// Five of the effect's functions that only read or write a few of its
+// fields, written by hand. The box asked for (0x005B26F0: six floats from
+// +0x1A0) and three floats from +0x34 (0x005B2B00) are copied to where the
+// caller says; the answer is that place, as the game's leaves it.
+uint32_t EffectBox(char* self, uint32_t out)
+{
+    std::memcpy(reinterpret_cast<void*>(out), self + 0x1A0, 24);
+    return out;
+}
+
+uint32_t EffectPlace(char* self, uint32_t out)
+{
+    std::memcpy(reinterpret_cast<void*>(out), self + 0x34, 12);
+    return out;
+}
+
+// The word at +0x1E8 set (0x005B2220, slot 0x34 of both classes).
+uint32_t SetEffectField1E8(char* self, uint32_t value)
+{
+    At<uint32_t>(self, 0x1E8) = value;
+    return value;
+}
+
+// One more holder of the effect (0x005AF940): the count at +0x204.
+uint32_t HoldEffect(char* self)
+{
+    return ++At<uint32_t>(self, 0x204);
+}
+
+// The sub-object set going again (0x005B9CF0, slot 0x18 of both classes'
+// sub-objects): unless it is going and not told to go on (+5 set, +0xC
+// clear) or is marked to end when empty (+0xD), the two marks are cleared
+// and +5 set; true when it did.
+uint32_t RestartEffect(char* base)
+{
+    if ((At<uint8_t>(base, 5) && !At<uint8_t>(base, 0xC)) || At<uint8_t>(base, 0xD))
+        return 0;
+    At<uint8_t>(base, 0xC) = 0;
+    At<uint8_t>(base, 0xD) = 0;
+    At<uint8_t>(base, 5) = 1;
+    return 1;
+}
+
+StepMode g_smallMode = StepMode::Original;
+Call1Fn g_SC4Effect_GetBox = nullptr, g_SC4Effect_GetPlace = nullptr, g_SC4Effect_SetField1E8 = nullptr;
+Call0Fn g_SC4Effect_Hold = nullptr, g_SC4EffectBase_Restart = nullptr;
+uint64_t g_smallCompared = 0;
+// What is held is not an effect: only the bytes up to its count are known to be its own.
+constexpr std::size_t kHeldSize = 0x208;
+
+// Their comparison: ours on the effect, what it left and what it wrote for
+// the caller kept, the effect put back, the game's; the two must have left
+// the same bytes and given the same answer (as a whole word, or as a byte
+// for the one that answers true or false).
+template <typename Ours, typename Game>
+uint32_t SmallCompared(const char* id, char* self, std::size_t size, uint32_t out, std::size_t outSize,
+                       bool byteAnswer, Ours&& ours, Game&& game)
+{
+    char before[kEffectSize], mine[kEffectSize], outMine[24] = {}, outBefore[24] = {};
+    std::memcpy(before, self, size);
+    if (outSize)
+        std::memcpy(outBefore, reinterpret_cast<const void*>(out), outSize);
+    const uint32_t ourResult = ours();
+    std::memcpy(mine, self, size);
+    if (outSize) {
+        std::memcpy(outMine, reinterpret_cast<const void*>(out), outSize);
+        std::memcpy(reinterpret_cast<void*>(out), outBefore, outSize);
+    }
+    std::memcpy(self, before, size);
+    const uint32_t result = game();
+    const uint32_t mask = byteAnswer ? 0xFFu : 0xFFFFFFFFu;
+    const bool same = (result & mask) == (ourResult & mask) && std::memcmp(self, mine, size) == 0 &&
+                      (!outSize || std::memcmp(reinterpret_cast<const void*>(out), outMine, outSize) == 0);
+    ++g_smallCompared;
+    if ((g_smallCompared & (g_smallCompared - 1)) == 0)
+        log::Write("water effects: effects.small: %llu calls compared so far",
+                   static_cast<unsigned long long>(g_smallCompared));
+    char text[48];
+    std::snprintf(text, sizeof text, "answer %08X", result & mask);
+    const std::string theirs = text;
+    std::snprintf(text, sizeof text, "answer %08X", ourResult & mask);
+    compare::Record(id, same, same ? std::string() : theirs, same ? std::string() : std::string(text));
+    return result;
+}
+
+uint32_t __fastcall GetBoxByMode(char* self, void*, uint32_t out)
+{
+    if (g_smallMode == StepMode::Original)
+        return g_SC4Effect_GetBox(self, nullptr, out);
+    if (g_smallMode == StepMode::Ours)
+        return EffectBox(self, out);
+    return SmallCompared(
+        "effects.small.box", self, kEffectSize, out, 24, false, [&] { return EffectBox(self, out); },
+        [&] { return g_SC4Effect_GetBox(self, nullptr, out); });
+}
+OPENSC4_THUNK(TSC4Effect_GetBox, GetBoxByMode, 4)
+
+uint32_t __fastcall GetPlaceByMode(char* self, void*, uint32_t out)
+{
+    if (g_smallMode == StepMode::Original)
+        return g_SC4Effect_GetPlace(self, nullptr, out);
+    if (g_smallMode == StepMode::Ours)
+        return EffectPlace(self, out);
+    return SmallCompared(
+        "effects.small.place", self, kEffectSize, out, 12, false, [&] { return EffectPlace(self, out); },
+        [&] { return g_SC4Effect_GetPlace(self, nullptr, out); });
+}
+OPENSC4_THUNK(TSC4Effect_GetPlace, GetPlaceByMode, 4)
+
+uint32_t __fastcall SetField1E8ByMode(char* self, void*, uint32_t value)
+{
+    if (g_smallMode == StepMode::Original)
+        return g_SC4Effect_SetField1E8(self, nullptr, value);
+    if (g_smallMode == StepMode::Ours)
+        return SetEffectField1E8(self, value);
+    return SmallCompared(
+        "effects.small.field", self, kEffectSize, 0, 0, false, [&] { return SetEffectField1E8(self, value); },
+        [&] { return g_SC4Effect_SetField1E8(self, nullptr, value); });
+}
+OPENSC4_THUNK(TSC4Effect_SetField1E8, SetField1E8ByMode, 4)
+
+uint32_t __fastcall HoldByMode(char* self, void*)
+{
+    if (g_smallMode == StepMode::Original)
+        return g_SC4Effect_Hold(self, nullptr);
+    if (g_smallMode == StepMode::Ours)
+        return HoldEffect(self);
+    return SmallCompared(
+        "effects.small.hold", self, kHeldSize, 0, 0, false, [&] { return HoldEffect(self); },
+        [&] { return g_SC4Effect_Hold(self, nullptr); });
+}
+OPENSC4_THUNK(TSC4Effect_Hold, HoldByMode, 0)
+
+// The sub-object is at the effect's +4.
+uint32_t __fastcall RestartByMode(char* base, void*)
+{
+    if (g_smallMode == StepMode::Original)
+        return g_SC4EffectBase_Restart(base, nullptr);
+    if (g_smallMode == StepMode::Ours)
+        return RestartEffect(base);
+    return SmallCompared(
+        "effects.small.restart", base - 4, kEffectSize, 0, 0, true, [&] { return RestartEffect(base); },
+        [&] { return g_SC4EffectBase_Restart(base, nullptr); });
+}
+OPENSC4_THUNK(TSC4EffectBase_Restart, RestartByMode, 0)
+
 // --- The particle pool ---------------------------------------------------------------------
 
 // Particles are kept on a free list (0x00B0A688, linked through each one's
@@ -3839,6 +3987,34 @@ const bool g_registeredBlockB = registry::Register({
     "(docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallBlockB,
+});
+
+bool InstallSmall(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4Effect_GetBox, &TSC4Effect_GetBox, &g_SC4Effect_GetBox) &&
+          Detour(addr::SC4Effect_GetPlace, &TSC4Effect_GetPlace, &g_SC4Effect_GetPlace) &&
+          Detour(addr::SC4Effect_SetField1E8, &TSC4Effect_SetField1E8, &g_SC4Effect_SetField1E8) &&
+          Detour(addr::SC4Effect_Hold, &TSC4Effect_Hold, &g_SC4Effect_Hold) &&
+          Detour(addr::SC4EffectBase_Restart, &TSC4EffectBase_Restart, &g_SC4EffectBase_Restart)))
+        return false;
+    g_smallMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: five small functions of the effect %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredSmall = registry::Register({
+    "renderer.effects.small",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_GetBox,
+    "Five small functions of an effect: its box and its place read, a field set, a holder counted, the sub-object "
+    "set going again; compare mode runs ours and the game's on the same effect (docs/renderer.md, \"Water effects, "
+    "sky and clouds\")",
+    true,
+    InstallSmall,
 });
 
 bool InstallGround(registry::Mode mode)
