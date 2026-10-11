@@ -16,17 +16,25 @@ annotation are worked out: the argument bytes from the callee's first `ret N`,
 or from an `add esp,N` right after the call (then the caller cleans up), and a
 float result when the next instruction uses the x87 stack's top. The guesses
 are listed on stderr. A `jmp [reg*4+table]` becomes a switch over the table's
-entries, read from the exe. 0x009EEF04 (the C runtime's _ftol2) is built in. Anything
+entries, read from the exe. With dyn=1 every call without an annotation becomes
+DYNCALL(target): the including code runs the callee on a copy of the emulated
+stack's top with the emulated registers loaded, and reads back the registers,
+how many bytes the callee took off the stack and whether it left a result on
+the x87 stack, so nothing about the callee has to be known. 0x009EEF04 (the C runtime's _ftol2) is built in. Anything
 not handled stops with an error.
 """
 import re, subprocess, sys
 first, last = int(sys.argv[2], 16), int(sys.argv[3], 16)
 calls = {}
 exe = None
+dyn = False
 for a in sys.argv[4:]:
     k, v = a.split('=', 1)
     if k == 'exe':
         exe = v
+        continue
+    if k == 'dyn':
+        dyn = v == '1'
         continue
     assert k == 'call'
     addr, nbytes, cleanup, ret = v.split(':')
@@ -50,7 +58,7 @@ USES_TOP = ('fstp', 'fst', 'fmul', 'fadd', 'fsub', 'fdiv', 'fsubr', 'fdivr', 'fc
             'faddp', 'fsubp', 'fmulp', 'fdivp')
 if exe:
     for i, (a, mn, rest) in enumerate(ins):
-        if mn != 'call' or not rest.startswith('0x') or rest.lower() in calls or rest.lower() == '0x9eef04':
+        if dyn or mn != 'call' or not rest.startswith('0x') or rest.lower() in calls or rest.lower() == '0x9eef04':
             continue
         nxt = ins[i + 1] if i + 1 < len(ins) else (0, '', '')
         m = re.fullmatch(r'esp,0x([0-9a-f]+)', nxt[2]) if nxt[1] == 'add' else None
@@ -161,8 +169,8 @@ def cond(mn):
                 'jbe': '%s <= %s' % (a, b), 'ja': '%s > %s' % (a, b), 'jl': '%s < %s' % (s(a), s(b)), 'jge': '%s >= %s' % (s(a), s(b)),
                 'jle': '%s <= %s' % (s(a), s(b)), 'jg': '%s > %s' % (s(a), s(b))}[mn]
     v = flag[1]
-    if mn == 'je': return '(%s) == 0' % v
-    if mn == 'jne': return '(%s) != 0' % v
+    if mn in ('je', 'jbe'): return '(%s) == 0' % v
+    if mn in ('jne', 'ja'): return '(%s) != 0' % v
     if mn == 'jp': return 'Even(%s)' % v
     if mn == 'jnp': return '!Even(%s)' % v
     w = flag[2]
@@ -190,10 +198,16 @@ for a, mn, rest in ins:
         m = re.fullmatch(r'\[(.+)\]', ops[1]); wr(ops[0], addr_expr(m.group(1)))
     elif mn in ('add', 'sub', 'and', 'or', 'xor', 'imul') and len(ops) == 2:
         sym = {'add': '+', 'sub': '-', 'and': '&', 'or': '|', 'xor': '^', 'imul': '*'}[mn]
-        wr(ops[0], '%s %s %s' % (rd32(ops[0]), sym, rd32(ops[1])))
-        flag = ('test', rd32(ops[0]), 'int32_t')
+        if mn == 'sub' and ops[0] != 'esp':
+            # The flags of a subtraction are a comparison's.
+            E('fa = %s; fb = %s;' % (rd32(ops[0]), rd32(ops[1])))
+            wr(ops[0], 'fa - fb'); flag = ('cmp', 'fa', 'fb')
+        else:
+            wr(ops[0], '%s %s %s' % (rd32(ops[0]), sym, rd32(ops[1])))
+            if ops[0] != 'esp':
+                E('fa = %s;' % rd32(ops[0])); flag = ('test', 'fa', 'int32_t')
     elif mn in ('inc', 'dec'):
-        wr(ops[0], '%s %s 1' % (rd32(ops[0]), '+' if mn == 'inc' else '-')); flag = ('test', rd32(ops[0]), 'int32_t')
+        wr(ops[0], '%s %s 1' % (rd32(ops[0]), '+' if mn == 'inc' else '-')); E('fa = %s;' % rd32(ops[0])); flag = ('test', 'fa', 'int32_t')
     elif mn in ('shl', 'shr', 'sar'):
         v = rd32(ops[0]); n = rd32(ops[1]) if len(ops) > 1 else '1'
         wr(ops[0], {'shl': '%s << %s', 'shr': '%s >> %s', 'sar': 'static_cast<uint32_t>(static_cast<int32_t>(%s) >> %s)'}[mn] % (v, n))
@@ -225,6 +239,8 @@ for a, mn, rest in ins:
     elif mn == 'call' and rest.lower() == '0x9eef04':
         E('{ const int64_t truncated = static_cast<int64_t>(ST(0)); POP(); eax = static_cast<uint32_t>(truncated); '
           'edx = static_cast<uint32_t>(static_cast<uint64_t>(truncated) >> 32); }')
+    elif mn == 'call' and dyn and (rest.lower() if rest.startswith('0x') else '@%x' % a) not in calls:
+        E('DYNCALL(%s);' % (rest if rest.startswith('0x') else rd32(rest)))
     elif mn == 'call':
         key = rest.lower() if rest.startswith('0x') else '@%x' % a
         assert key in calls, 'call at %x: %s (key %s)' % (a, rest, key)
@@ -281,6 +297,19 @@ for a, mn, rest in ins:
     elif mn == 'div':
         E('{ const uint64_t dividend = (static_cast<uint64_t>(edx) << 32) | eax; const uint32_t divisor = %s; '
           'eax = static_cast<uint32_t>(dividend / divisor); edx = static_cast<uint32_t>(dividend %% divisor); }' % rd32(ops[0]))
+    elif mn == 'shrd':
+        n = int(ops[2], 16)
+        wr(ops[0], '(%s >> %d) | (%s << %d)' % (rd32(ops[0]), n, rd32(ops[1]), 32 - n))
+    elif mn == 'imul' and len(ops) == 1:
+        E('{ const int64_t product = static_cast<int64_t>(static_cast<int32_t>(eax)) * static_cast<int32_t>(%s); '
+          'eax = static_cast<uint32_t>(product); edx = static_cast<uint32_t>(static_cast<uint64_t>(product) >> 32); }' % rd32(ops[0]))
+    elif mn in ('fidiv', 'fimul', 'fiadd', 'fisub'):
+        k = mem(ops[0]); ty = 'int16_t' if k[0] == 'WORD' else 'int32_t'
+        E('ST(0) = ST(0) %s static_cast<double>(M<%s>(%s));' % ({'fidiv': '/', 'fimul': '*', 'fiadd': '+', 'fisub': '-'}[mn], ty, k[1]))
+    elif mn in ('sete', 'setne'):
+        wr(ops[0], '(%s) ? 1u : 0u' % cond('je' if mn == 'sete' else 'jne'))
+    elif mn == 'not':
+        wr(ops[0], '~%s' % rd32(ops[0]))
     elif mn == 'neg':
         wr(ops[0], '0u - %s' % rd32(ops[0])); flag = ('test', rd32(ops[0]), 'int32_t')
     elif mn == 'imul' and len(ops) == 3:

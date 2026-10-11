@@ -1253,3 +1253,75 @@ kind = "function"
 convention = "thiscall"
 expect = "8A 44 24 0C 84 C0 53 56"
 source = "Name ours. (vector of {x, z} cells, colour index, bool refresh): marks cells with one of the colours (docs/renderer.md, \"Cell marks\")."
+
+[[entry]]
+name = "cSC4WinMapView::PaintPicture"
+address = 0x007A2F60
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours (class from the exe's ID table, 0x28C5A41F). (): builds the Data Views window's map picture in a new cIGZBuffer (class 0xC470D325) the size of the window's picture control (child 0x4203) and hands it to the control; a switch over the map at +0x144; does nothing while +0x142 is 0. Called by the window's set-map function 0x007A49B0 and its message handler 0x007A54D0 (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "cSC4WinMapView::SetMap"
+address = 0x007A49B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 57 8B F9 8A"
+source = "Name ours. (map): shows a map in the Data Views window: 0 for none, else the data view 0x4A0B6800 + map (kept at +0x9CC); sets up the view's occupant filter and paints the picture (0x007A2F60). Refuses (returns 0) while +0x142 is 0. Called for the window's list (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "cSC4WinMapView::DoMessage"
+address = 0x007A54D0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B 7C 24 14"
+source = "Name ours. (message): the window's message handler, `this` is the window + 4; repaints the picture on message 0x86AD10EE when it is marked changed (+0x9D5) and the last one is 1000 ms old (250 ms for map type 0x4C) (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "cSC4WinMapView::FillGrid"
+address = 0x007A2080
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8B 86 B8"
+source = "Name ours. (a simulator): on first use makes a cSC4SimGridSint16 at +0x9B8, then fills it from two of the simulator's maps (0x0068C270, 0x006B4710). One of the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "cSC4WinMapView::PaintRows"
+address = 0x007A2380
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 53 55 8B D9 8B"
+source = "Name ours. (rows, buffer, float, float): paints a map given as a vector of byte rows into the buffer through the window's colour table at +0x54C (pixel loop 0x0079ED90); resamples to the city's size first when +0x94C is set (calling itself), smooths when +0x94D is set (0x0079FEF0), and collects outlines when +0x141 is set (0x007A1020). One of the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "cSC4WinMapView::PaintRows2"
+address = 0x007A2740
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 55 8B D9 8B"
+source = "Name ours. (rows, buffer, float, float): the row painter's twin for the first map type, with its own pixel loop (0x0079F230), resampler (0x0079EFD0), smoother (0x007A00B0) and outlines (0x007A1120). One of the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "cSC4WinMapView::PaintWords"
+address = 0x007A2AE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 8B 44 24 2C 8B"
+source = "Name ours. (rows, buffer, float, float): turns rows of unsigned 16-bit cells into byte rows (times the 64-bit factor at +0x958, shifted right 16, capped at 255) and paints them with the row painter. One of the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "cSC4WinMapView::PaintShorts"
+address = 0x007A2C70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 8B 44 24 2C 8B"
+source = "Name ours. (rows, buffer, float, float): turns rows of signed 16-bit cells into byte rows (times the 64-bit factor at +0x960, shifted, plus 0x80, clamped to 0..255) and paints them with the row painter. One of the map picture's painters (docs/renderer.md, \"The data map\")."
+
+[[entry]]
+name = "cSC4WinMapView::PaintFloats"
+address = 0x007A2E00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 8B 44 24 30 8B"
+source = "Name ours. (rows, buffer, float, float): turns rows of float cells into byte rows (truncated) and paints them with the row painter. One of the map picture's painters (docs/renderer.md, \"The data map\")."
