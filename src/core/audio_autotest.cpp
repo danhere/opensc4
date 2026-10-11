@@ -5,7 +5,9 @@
 // our own functions.
 //
 //   OPENSC4_TEST_AUDIO=<day>         token "audio": the mover and fade
-//     arithmetic, a cluster set, the 65 event handler factories, the live
+//     arithmetic, a cluster set, the 65 event handler factories, the 82
+//     condition handlers (the 65, minus one skipped, plus 18 made by other
+//     factories) asked about the city's occupants and cells, the live
 //     ambience manager read, read again and read after its tuning is read,
 //     a private ambience manager, the sound manager's and the listener's
 //     tuning, the music lists and the volume tuning. Each part has its own
@@ -25,10 +27,12 @@
 #include <opensc4/addresses.h>
 
 #include <cstddef>
+#include <cstdlib>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <vector>
 
 namespace opensc4::autotest {
 namespace {
@@ -429,6 +433,165 @@ void DriveHandlers(Fnv& f, int& made)
         DriveHandler(f, 0x004EBAA0 + 0x30 * static_cast<std::uintptr_t>(i), true, made);
 }
 
+// --- 3b. The conditions ----------------------------------------------------------------------
+
+// The conditions behind the handlers: slot 5 (byte offset 0x14) of the
+// object answers one question for the ambience layers. An occupant condition
+// (interface 0xCA400753, the 0x10-byte handlers) takes an occupant, as the
+// layer's offer (0x004E5670) and the manager's filter (0x004EA970) pass it
+// on; a cell condition (0xCA400757, the 0x14-byte ones) takes the cell's two
+// coordinates (0x004E5370); a state condition (0xEA40074F, 8 bytes, made by
+// the factories at 0x004EC3D0 and 0x004EC6F0) takes nothing (0x004E5110).
+// Slots 3 and 4 (Init, Shutdown) are the same two functions for all of them:
+// no arguments, answer 1, nothing done. Each handler is asked through the
+// interface the layer asks for, and the low byte of every answer is hashed.
+// The occupants come from the city by cell in a fixed order: the occupant
+// manager's first occupant of a cell (slot 33, the call the game's cell
+// test 0x004E3100 makes) and the building of the cell's lot (lot slot 48,
+// the building's slot 3, as 0x004E3F00 reads it). No pointer is hashed.
+constexpr int kMostOccupants = 300;
+constexpr int kMostCells = 1000;
+
+struct Occupants {
+    std::vector<void*> chosen;
+    std::vector<void*> held; // references the occupant manager gave
+};
+
+void Collect(Occupants& out, int sizeX, int sizeZ)
+{
+    void* const manager = Global<void*>(addr::SC4_NetworkService);
+    void* const lots = Global<void*>(addr::SC4_LotManager);
+    if (!manager || !lots)
+        return;
+    std::vector<void*> all;
+    const auto add = [&all](void* occupant) {
+        if (!occupant)
+            return;
+        for (void* const known : all)
+            if (known == occupant)
+                return;
+        all.push_back(occupant);
+    };
+    for (int z = 0; z < sizeZ && all.size() < 3000; z += 4) {
+        for (int x = 0; x < sizeX && all.size() < 3000; x += 4) {
+            void* found = nullptr;
+            if (Virtual<uint8_t>(manager, 0x84, &found, x, z, uint32_t{0}) && found) {
+                out.held.push_back(found);
+                add(found);
+            }
+            if (void* const lot = Virtual<void*>(lots, 0x18, x, z, uint32_t{0})) {
+                if (void* const building = Virtual<void*>(lot, 0xC0))
+                    add(Virtual<void*>(building, 0xC));
+            }
+        }
+    }
+    const std::size_t count = all.size();
+    const std::size_t take = count < static_cast<std::size_t>(kMostOccupants) ? count : static_cast<std::size_t>(kMostOccupants);
+    for (std::size_t i = 0; i < take; ++i)
+        out.chosen.push_back(all[i * count / take]);
+}
+
+enum class Kind { Occupant, Cell, State };
+
+struct ConditionResult {
+    int calls = 0;
+    int yes = 0;
+};
+
+// One handler: made, held, started, asked through its interface, stopped and
+// let go.
+void DriveCondition(Fnv& f, std::uintptr_t factory, Kind kind, const Occupants& occupants, const std::vector<int>& cells,
+                    ConditionResult& total, int& handlers)
+{
+    char* const handler = Cdecl<char*>(factory);
+    if (!handler) {
+        f.Missing();
+        return;
+    }
+    ++handlers;
+    Virtual<uint32_t>(handler, 0x4); // one reference, as section 3 takes
+    Virtual<uint8_t>(handler, 0xC);  // Init
+    const uint32_t iid = kind == Kind::Occupant ? 0xCA400753u : kind == Kind::Cell ? 0xCA400757u : 0xEA40074Fu;
+    void* condition = nullptr;
+    const uint8_t has = Virtual<uint8_t>(handler, 0x0, iid, &condition);
+    Fnv mine;
+    mine.Add(has);
+    if (has && condition) {
+        const auto note = [&](uint8_t answer) {
+            mine.Add(answer);
+            ++total.calls;
+            if (answer)
+                ++total.yes;
+        };
+        if (kind == Kind::Occupant) {
+            for (void* const occupant : occupants.chosen)
+                note(Virtual<uint8_t>(condition, 0x14, occupant));
+        } else if (kind == Kind::Cell) {
+            for (std::size_t i = 0; i + 1 < cells.size(); i += 2)
+                note(Virtual<uint8_t>(condition, 0x14, static_cast<int32_t>(cells[i]), static_cast<int32_t>(cells[i + 1])));
+        } else {
+            note(Virtual<uint8_t>(condition, 0x14));
+        }
+        Virtual<uint32_t>(condition, 0x8); // the reference the answer took
+    }
+    Virtual<uint8_t>(handler, 0x10); // Shutdown
+    Virtual<uint32_t>(handler, 0x8); // the last one: freed
+    f.Add(mine.h);
+    if (std::getenv("OPENSC4_TEST_AUDIO_CONDITION_LOG"))
+        log::Write("autotest: audio: condition %08X %08X", static_cast<uint32_t>(factory), mine.h);
+}
+
+void DriveConditions(Fnv& f, int& handlers, ConditionResult& total, std::string& skipped)
+{
+    void* const city = Global<void*>(addr::SC4_City);
+    int sizeX = 0, sizeZ = 0;
+    if (city) {
+        sizeX = Virtual<int32_t>(city, 0x174);
+        sizeZ = Virtual<int32_t>(city, 0x178);
+    }
+    if (sizeX <= 0 || sizeZ <= 0 || sizeX > 4096 || sizeZ > 4096) {
+        f.Missing();
+        sizeX = sizeZ = 0;
+    }
+    Occupants occupants;
+    Collect(occupants, sizeX, sizeZ);
+    f.Add(static_cast<uint32_t>(occupants.chosen.size()));
+    std::vector<int> cells;
+    int step = 4;
+    while (((sizeX + step - 1) / step) * ((sizeZ + step - 1) / step) > kMostCells)
+        ++step;
+    for (int z = 0; z < sizeZ; z += step) {
+        for (int x = 0; x < sizeX; x += step) {
+            cells.push_back(x);
+            cells.push_back(z);
+        }
+    }
+    f.Add(static_cast<uint32_t>(cells.size()));
+    for (int i = 0; i < 30; ++i) {
+        const std::uintptr_t factory = 0x004EB260 + 0x30 * static_cast<std::uintptr_t>(i);
+        // 0x004EB6B0 (0x004E2A40): without the property the answer is the
+        // low byte of the occupant's address, so it is not asked.
+        if (factory == 0x004EB6B0) {
+            char text[16];
+            std::snprintf(text, sizeof text, " %08X", static_cast<uint32_t>(factory));
+            skipped += text;
+            continue;
+        }
+        DriveCondition(f, factory, Kind::Occupant, occupants, cells, total, handlers);
+    }
+    DriveCondition(f, 0x004EC600, Kind::Occupant, occupants, cells, total, handlers);
+    for (int i = 0; i < 13; ++i)
+        DriveCondition(f, 0x004EB800 + 0x30 * static_cast<std::uintptr_t>(i), Kind::Cell, occupants, cells, total, handlers);
+    for (int i = 0; i < 22; ++i)
+        DriveCondition(f, 0x004EBAA0 + 0x30 * static_cast<std::uintptr_t>(i), Kind::Cell, occupants, cells, total, handlers);
+    DriveCondition(f, 0x004EC650, Kind::Cell, occupants, cells, total, handlers);
+    for (int i = 0; i < 15; ++i)
+        DriveCondition(f, 0x004EC3D0 + 0x20 * static_cast<std::uintptr_t>(i), Kind::State, occupants, cells, total, handlers);
+    DriveCondition(f, 0x004EC6F0, Kind::State, occupants, cells, total, handlers);
+    for (void* const held : occupants.held)
+        Virtual<uint32_t>(held, 0x8);
+}
+
 // --- 4. The ambience manager ----------------------------------------------------------------
 
 void AddLayer(Fnv& f, char* layer)
@@ -584,23 +747,26 @@ void AddCurve(Fnv& f, char* curve)
 
 void AddSoundManager(Fnv& f, char* manager)
 {
-    f.Add(At<uint32_t>(manager, 0x14));
+    // The master level (+0x14) is not hashed: a posted message sets it, and
+    // that is delivered in real time. DriveSoundManager logs it.
     f.Add(At<uint32_t>(manager, 0x64));
     f.Add(At<uint32_t>(manager, 0x68));
     f.Add(At<uint32_t>(manager, 0x6C));
     AddCurve(f, manager + 0x70);
 }
 
-void DriveSoundManager(Fnv& f)
+void DriveSoundManager(Fnv& f, uint32_t& levelBefore, uint32_t& levelAfter)
 {
     char* const manager = At<char*>(Director(), 0x60);
     if (!manager) {
         f.Missing();
         return;
     }
+    levelBefore = At<uint32_t>(manager, 0x14);
     AddSoundManager(f, manager);
     f.Add(static_cast<uint8_t>(This<uint8_t>(0x004F9250, manager)));
     AddSoundManager(f, manager);
+    levelAfter = At<uint32_t>(manager, 0x14);
 }
 
 // --- 7. The listener --------------------------------------------------------------------------------------
@@ -687,24 +853,31 @@ void DriveAudio(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_AUDIO") || !game::IsBuild641())
         return;
-    Fnv movers, fades, clusters, handlers, ambience, privateManager, sounds, listener, music;
+    Fnv movers, fades, clusters, handlers, conditions, ambience, privateManager, sounds, listener, music;
     int moverSteps = 0, fadeSteps = 0, clusterSteps = 0, handlersMade = 0, layers = 0, tracks = 0;
     DriveMovers(movers, moverSteps);
     DriveFades(fades, fadeSteps);
     DriveClusters(clusters, clusterSteps);
     DriveHandlers(handlers, handlersMade);
+    ConditionResult asked;
+    int conditionHandlers = 0;
+    std::string skipped;
+    DriveConditions(conditions, conditionHandlers, asked, skipped);
     DriveAmbience(ambience, layers);
     DrivePrivateManager(privateManager);
-    DriveSoundManager(sounds);
+    uint32_t levelBefore = 0, levelAfter = 0;
+    DriveSoundManager(sounds, levelBefore, levelAfter);
     DriveListener(listener);
     DriveMusic(music, tracks);
     log::Write("autotest: audio: mover %08X (%d steps) fade %08X (%d) clusters %08X (%d) handlers %08X (%d made)", movers.h, moverSteps,
                fades.h, fadeSteps, clusters.h, clusterSteps, handlers.h, handlersMade);
-    log::Write("autotest: audio: ambience %08X (%d layers) private %08X sound %08X listener %08X music %08X (%d tracks)", ambience.h,
-               layers, privateManager.h, sounds.h, listener.h, music.h, tracks);
+    log::Write("autotest: audio: ambience %08X (%d layers) private %08X sound %08X level %08X/%08X listener %08X music %08X (%d tracks)",
+               ambience.h, layers, privateManager.h, sounds.h, levelBefore, levelAfter, listener.h, music.h, tracks);
+    log::Write("autotest: audio: conditions %08X (%d calls, %d true) handlers %d skipped%s", conditions.h, asked.calls, asked.yes,
+               conditionHandlers, skipped.empty() ? " none" : skipped.c_str());
     // One short hash: the game cuts the daily fingerprint line at 4093 characters.
     Fnv all;
-    for (const uint32_t h : {movers.h, fades.h, clusters.h, handlers.h, ambience.h, privateManager.h, sounds.h, listener.h, music.h})
+    for (const uint32_t h : {movers.h, fades.h, clusters.h, handlers.h, conditions.h, ambience.h, privateManager.h, sounds.h, listener.h, music.h})
         all.Add(h);
     std::snprintf(g_audioToken, sizeof g_audioToken, " audio %08X", all.h);
 }
