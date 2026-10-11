@@ -32,6 +32,7 @@ Things OpenSC4 adds to the game. Classic behaviour stays: an addition that chang
 | One seed per city, shown in the title and set with the `seed` cheat | `game.seed = ours` | [docs/seeds.md](docs/seeds.md) |
 | D3D11 renderer: resolutions past 2048 px, windowed and borderless modes, a scaled interface | `renderer.d3d11 = ours` | [docs/renderer.md](docs/renderer.md), [docs/ui-scaling.md](docs/ui-scaling.md) |
 | 8 km city tiles (an experiment: such a city cannot be saved yet) | `[improvements] big_cities = on` | [docs/city-size.md](docs/city-size.md) |
+| No demolition animation, no smoke when a lot is placed, no sounds from road and rail construction crews: three options, each off until turned on (after sc4-disable-demolition-animation, sc4-disable-lot-plop-smoke and sc4-disable-network-construction-sounds by Nicholas Hayes, MIT License) | `game.quiet.demolish = ours`, `game.quiet.plop = ours`, `game.quiet.network = ours` | [docs/quiet.md](docs/quiet.md) |
 
 ## Documents
 
