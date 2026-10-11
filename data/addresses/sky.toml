@@ -332,3 +332,30 @@ convention = "thiscall"
 signature = "void (SC4Effect* this, int32_t value)"
 expect = "56 8B F1 8B 8E 78 02 00"
 source = "Name ours, not analysed. Slot 4 of the second effect class (vtable 0x00AA0C58)."
+
+[[entry]]
+name = "SC4EffectBase::SetEnding"
+address = 0x005B9E70
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectBase* this, bool a, bool b)"
+expect = "56 8B F1 8A 46 05 32 C9"
+source = "Name ours, not analysed. Slot 0x20 of both effect classes' sub-objects (vtables 0x00AA0E58, 0x00AA0C10): stores its two arguments at +0xC and +0xD when the byte at +5 is set. SC4EffectBase::Finish calls it with (0, 0) (0x005B9D57)."
+
+[[entry]]
+name = "SC4EffectBase::LetGo"
+address = 0x005B2440
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectBase* this)"
+expect = "56 8B F1 8B 8E EC 01 00"
+source = "Name ours, not analysed. Slot 0x14 of the base effect class's sub-object (vtable 0x00AA0E58): releases what the effect holds. SC4EffectBase::Finish calls it before the release (0x005B9D69)."
+
+[[entry]]
+name = "SC4EffectBaseB::LetGo"
+address = 0x005AC140
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectBase* this)"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours, not analysed. Slot 0x14 of the second effect class's sub-object (vtable 0x00AA0C10)."
