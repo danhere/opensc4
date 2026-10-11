@@ -61,6 +61,24 @@ Slot 65 (`IsGoodWaveProducerLocation`) only reads too but is left with the wave 
 
 Calls into the view, the redisplay (slot 68) and the water object stay calls.
 
+## The shaping machinery (`simulators.terrain.brush`, first part)
+
+What flat areas, shore cliffs and the brushes share ([src/core/terrain_brush.cpp](../src/core/terrain_brush.cpp)): slot 57 `ApplyBrush`'s own code (the brush looked up, the body called, the applied rectangle redisplayed) and, by detours because the game's remaining code calls them directly, ten internal functions and five small callbacks:
+
+| Address | What it does |
+|---|---|
+| 0x00749660 | flatten around a vertex: a flood fill over straight neighbours that are unflagged, above the sea and within a tolerance of the start's height; more than 401 gathered are all set to that height, fewer are let go |
+| 0x00743210 | spread marks outward from marked vertices by a distance, with two callbacks deciding |
+| 0x00745020 | smooth a rectangle: for each vertex and each of its 8 neighbours, the excess of the height difference over a limit (one for straight, one for diagonal) times a factor moves from the higher to the lower; locks, clamps, water follows |
+| 0x007409B0, 0x00740A20, 0x00741DE0 | clear flags in a rectangle, the bounds of flagged vertices, flag vertices by a callback |
+| 0x00740F70 | recompute the least and greatest height |
+| 0x0074AD20, 0x0074AB60 | walk the shore line both ways from a vertex, gathering it into a deque |
+| 0x00749FA0 | turn a gathered shore line into cliffs (with 0x00741680 and 0x00744220 inside it); the only random draws here, from the generator at 0x00B4BC78, in the game's order |
+
+Two of the detours go through thunks that keep ECX, which callers at 0x0074215E, 0x0074290D, 0x00748E6E and 0x0074C31A rely on. With this group on, piece 2's flat areas and shore cliffs run on our code all the way down.
+
+Still the game's under the brushes: the brush body 0x0074D730 and its per-layer routines (they use the x87 sine, cosine and arctangent), the brush loader, erosion and the flood.
+
 ## Tests
 
 The fingerprint part `terrain` reads the object's memory directly: the grid, the cell width, the sea level, the height limits, and checksums of every altitude, flags word, water depth and sediment, and normal, plus the water vertex count. Any change of the land between two runs shows there.
@@ -68,6 +86,8 @@ The fingerprint part `terrain` reads the object's memory directly: the grid, the
 `OPENSC4_TEST_TERRAIN=1` compares, inside one run, every one of the 54 slots as the object has it with the game's own function at its address, bit for bit (floats by their bits, ST0 as a double, whole out-buffers): the getters; vertices and cells on every edge, a hashed part of the interior and outside on every side; about 4,600 positions a day on vertices, lines, diagonals and half cells; rectangles inside, empty, reversed and over the edge. It prints `q<agree>/<asked>`. It does not ask what would make the game itself read outside its arrays (the lerped slots on the far edges, rectangles outside the grid for the slots without a range test).
 
 `OPENSC4_TEST_TERRAIN_EDIT=<n>` runs, on the n-th day, 46 calls of the setters on the live terrain in a fixed order at a place picked from the terrain itself: raise and lower by all three forms, under water, on locked vertices, hide and show, flags, gather and refresh, scrub begin and end, the display states; each call logs its answer and a checksum of the state. `OPENSC4_TEST_TERRAIN_SEA=<n>` does the whole-map ones: sea level refused and accepted, terrain level up and down, flat areas, shore cliffs. Both leave the land changed, so the `terrain` fingerprint part shows the result for the rest of the run.
+
+`OPENSC4_TEST_TERRAIN_BRUSH=<n>` applies, on the n-th day, every brush kind at four places picked from the land (inland, shore, map edge, under water) at two strengths, three applications each, inside scrub begin and end as the terraform tool does, then flat areas and shore cliffs; each call logs its answer, the applied rectangle, a checksum of the whole map and the random generator's state.
 
 ## Checked
 
@@ -77,10 +97,11 @@ The fingerprint part `terrain` reads the object's memory directly: the grid, the
 - Parity, the original against `simulators.terrain.queries=ours` with the comparison on: the 12 saves over 7 days, 10 same; Big City d0000 partly (two outcomes each side, the first-day traffic noise of that save, [parity.md](parity.md); its terrain part is the same in all eight runs); Big City d1095 failed once, see below. The plopped city over 30 days: 3 of 3 same. The volcano runs do not repeat in the original either and are judged by the in-run comparison only.
 - The failed run: our side crashed while the city was loading, before any game day, at 0x00975CC8 (a framework object's constructor at 0x00975CB5 storing its vtable 0x00AD8D88 through a bad pointer), on another thread than the main one. Four more runs of that save with ours loaded and ran; no query of ours is in that code. Counted with the game's rare load crashes ([parity.md](parity.md)).
 - The setters (`simulators.terrain.edit` with the queries, the comparison on): the edit test's 46 calls and the whole-map test's 15 log the same answer and state after every call with the original (twice) and with ours, and the `terrain` part is the same afterwards. Parity with the edits on day 2: 12 of 12 saves the same over 7 days. With the whole-map test on day 2: 11 of 12 the same, Big City d0090 partly, the land and the per-call lines the same in all eight runs and the difference an advisor checksum on the last day. The original against itself with the same test gives 9 and 8 of 12 the same in two batches, with that same advisor value in one of its runs: after the sea is moved under a built city the original does not repeat, more so under load. The plopped city with both tests over 30 days: 2 of 3 the same, the third partly with three outcomes of the original alone.
+- The shaping machinery (`simulators.terrain.brush` with the other two groups): the brush test's calls (191 on Big City and Rush Hour, 107 on Making Money, 208 with the whole-map test on the plopped city) log the same answer, map checksum and random state after every call, and the `terrain` part is the same afterwards, in every run of all 12 saves and the three plopped ones, original and ours. Whole-city parity after the brushes cannot be judged on the 12 saves: the original does not repeat itself there (two runs of the original part from the third day in the flora occupants' checksum, on every save); the plopped city came out 3 of 3 the same over 10 days. An independent reading against the disassembly found no difference, including in the shore cliff code whose random draws the test did not reach, and confirmed call site by call site that only the two thunked functions need ECX kept.
 - An independent reading of the 24 setters against the disassembly found no difference on any branch, including the ones the tests do not take. Slot 50's clamp in the game is dead code (the height is compared with itself), so ours has none.
 - An independent reading of all 54 against the disassembly found no difference in results. It listed what our C++ cannot repeat and no caller was found to use: the upper bits of EAX where the game sets only AL (nine of the tests leave part of a count there on the out-of-range path), and ECX and EDX, which the game's small getters happen to leave untouched. These are virtual calls, so a caller cannot count on registers being kept.
 - Resting on the build, not checked by a test: no fused multiply-add and no x87 code from the compiler (clang-cl's SSE2 default), and the FPU control word 0x027F wherever the game calls these (measured in the simulator tick only).
 
 ## Still the game's
 
-The brushes and the machinery under them, erosion, the flood, Init, Shutdown, save and load, the object itself, and the drawing side (the view, lighting, redisplay, wave producers). They follow piece by piece.
+The brush body and loader, erosion, the flood, Init, Shutdown, save and load, the object itself, and the drawing side (the view, lighting, redisplay, wave producers). They follow piece by piece.
