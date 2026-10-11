@@ -15,6 +15,8 @@
 #include <cISC4View3DWin.h>
 #include <cRZAutoRefCount.h>
 
+#include <windows.h>
+
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -467,9 +469,240 @@ void DriveMapWindow(const Day& day)
     log::Write("autotest: map window driven:%s", g_mapToken);
 }
 
+// --- Modal dialogs with a player in place of the modal loop ------------------
+
+// While a dialog runs, the window manager's DoModalWin (slot 0xA4) is this:
+// it calls the player with the window and how deep the dialogs are nested,
+// and answers what the player answers, as the loop answers the dialog's
+// result when it is closed.
+using PlayerFn = uint32_t (*)(void* window, int depth);
+PlayerFn g_player = nullptr;
+int g_depth = 0;
+
+uint32_t __fastcall ModalStandIn(void*, void*, void* window)
+{
+    ++g_depth;
+    const uint32_t answer = g_player ? g_player(window, g_depth) : 0;
+    --g_depth;
+    return answer;
+}
+
+template <typename F>
+bool RunModal(PlayerFn player, F run)
+{
+    void* const manager = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_GetWinManager)();
+    if (!manager)
+        return false;
+    void** const slot = &(*static_cast<void***>(manager))[0xA4 / sizeof(void*)];
+    void* const loop = *slot;
+    DWORD old = 0;
+    if (!VirtualProtect(slot, sizeof *slot, PAGE_READWRITE, &old))
+        return false;
+    *slot = reinterpret_cast<void*>(&ModalStandIn);
+    g_player = player;
+    run();
+    g_player = nullptr;
+    *slot = loop;
+    VirtualProtect(slot, sizeof *slot, old, &old);
+    return true;
+}
+
+char g_dialogsToken[220];
+Fnv g_played;
+char* g_budgetPanel = nullptr;
+char* g_options = nullptr;
+char* g_pickPanel = nullptr;
+
+uint8_t PanelSend(uint32_t type, uint32_t a, uint32_t b)
+{
+    uint32_t message[4] = {type, a, b, 0};
+    void* const window = Virtual<void*>(At<void*>(g_budgetPanel, 0x10), 0xC);
+    return Virtual<uint8_t>(g_budgetPanel + 0x8, 0xC, window, &message[0]);
+}
+
+// The tax window's player: two spinners moved (residential low wealth to
+// 8.5 percent, commercial medium to 6.5), then the window left open, so
+// the rates are applied when the loop ends.
+uint32_t PlayTaxes(void*, int)
+{
+    g_played.Add(PanelSend(0x682876C9, 0x200, 85));
+    g_played.Add(PanelSend(0x682876C9, 0x204, 65));
+    g_played.Bytes(g_budgetPanel + 0x150, 0x30);
+    return 0;
+}
+
+// The loan dialog's player: the list scrolled down and up, the amount set,
+// a loan taken.
+uint32_t PlayLoans(void*, int)
+{
+    g_played.Add(PanelSend(3, 0x287259F6, 0xAA4C339C));
+    g_played.Add(PanelSend(3, 0x287259F6, 0x2A4C33A6));
+    g_played.Add(PanelSend(0x682876C9, 0x8A4C34D4, At<uint32_t>(g_budgetPanel, 0x190)));
+    g_played.Bytes(g_budgetPanel + 0x180, 0x14);
+    g_played.Add(PanelSend(3, 0x287259F6, 0xAA4C33E6));
+    g_played.Bytes(g_budgetPanel + 0x180, 0x14);
+    return 0;
+}
+
+uint32_t PlayNothing(void*, int)
+{
+    g_played.Add(uint8_t{0xD1});
+    return 0;
+}
+
+// The options dialog's player: its two pages, the text page it opens (a
+// dialog inside the dialog, left at once), then Accept.
+uint32_t PlayOptions(void*, int depth)
+{
+    if (depth != 1) {
+        g_played.Add(uint8_t{0xD2});
+        return 0;
+    }
+    void* const window = Virtual<void*>(At<void*>(g_options, 0x4), 0xC);
+    for (const uint32_t button : {0xEA57DB7Eu, 0xEA5E99D9u, 0xEA57DB7Eu, 0x0A57DA65u, 0xEA57DA59u}) {
+        uint32_t message[4] = {3, 0x287259F6, button, 0};
+        g_played.Add(Virtual<uint8_t>(g_options, 0xC, window, &message[0]));
+        g_played.Add(At<void*>(g_options, 0x4) != nullptr);
+        if (!At<void*>(g_options, 0x4))
+            break;
+    }
+    return 0;
+}
+
+// The pick-one dialog's player: the third choice pressed, then yes.
+uint32_t PlayPick(void* window, int)
+{
+    uint32_t message[4] = {3, 0x287259F6, 0x34560002, 0};
+    g_played.Add(Virtual<uint8_t>(g_pickPanel, 0xC, window, &message[0]));
+    for (std::size_t at : {std::size_t{0x5C}, std::size_t{0x60}, std::size_t{0x64}, std::size_t{0x6C}, std::size_t{0x70}})
+        g_played.Add(At<uint32_t>(g_pickPanel, at));
+    return 1;
+}
+
+// OPENSC4_TEST_DIALOGS=<day>: the dialogs that only a button opens, opened
+// and worked by pressing their buttons through their window procedures,
+// with the players above in place of the window manager's modal loop: the
+// budget panel's tax window (two rates changed and applied), its loan dialog
+// (a loan taken) and five department dialogs; the options dialog (pages, the
+// text page inside it, Accept); the MySim panel's dialog for a car and for a
+// figure (one picked); and the map window's controls readied, a button of
+// each row pressed, hidden. Use with OPENSC4_TEST_TUTORIAL_OFF=1: a tutorial
+// holds button presses back. The tax rates, the loan and the car change the
+// city, alike on both sides.
+void DriveDialogs(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_DIALOGS") || !game::IsBuild641())
+        return;
+    char* const view = View();
+    if (!view) {
+        log::Write("autotest: dialogs: no city view");
+        return;
+    }
+    using ThisFn = void(__thiscall*)(void*);
+    Fnv budget, options, pick, rows;
+    int did = 0;
+
+    g_played = Fnv{};
+    if (char* const panel = At<char*>(view, 0x2E8); panel && At<void*>(panel, 0x10)) {
+        g_budgetPanel = panel;
+        void* const simulator = Virtual<void*>(day.city, 0xD0);
+        RunModal(&PlayTaxes, [&] { reinterpret_cast<ThisFn>(addr::SC4UI_F768130)(panel); });
+        if (simulator)
+            for (int32_t group = 0; group < 12; ++group)
+                budget.Add(static_cast<float>(Virtual<double>(simulator, 0x90, group)));
+        RunModal(&PlayLoans, [&] { reinterpret_cast<ThisFn>(addr::SC4UI_F765C30)(panel); });
+        if (simulator)
+            budget.Add(Virtual<int64_t>(simulator, 0xA4));
+        for (const uint32_t which : {1u, 2u, 0x0A5A72D1u, 0xAA369059u, 0x4A357B40u}) {
+            RunModal(&PlayNothing,
+                     [&] { reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F768460)(panel, which); });
+            budget.Add(At<void*>(panel, 0x18) != nullptr);
+        }
+        Virtual<void>(panel, 0x1C); // all hidden
+        budget.Bytes(panel + 0x180, 0x1F);
+        budget.Add(g_played.h);
+        g_budgetPanel = nullptr;
+        ++did;
+    }
+
+    g_played = Fnv{};
+    if (void* const memory = reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x10)) {
+        char* const dialog = reinterpret_cast<char*(__thiscall*)(void*)>(addr::SC4UI_F76AB30)(memory);
+        Virtual<uint32_t>(dialog, 0x4);
+        Virtual<uint8_t>(dialog, 0x14, uint32_t{0}); // Init
+        if (At<void*>(dialog, 0x4)) {
+            g_options = dialog;
+            RunModal(&PlayOptions, [&] { reinterpret_cast<ThisFn>(addr::SC4UI_F76AB50)(dialog); });
+            g_options = nullptr;
+            ++did;
+        }
+        options.Add(At<void*>(dialog, 0x4) != nullptr);
+        if (char* const settings = Global<char*>(0x00B43CD8)) {
+            options.Bytes(settings + 0xF08, 4);
+            options.Add(At<uint8_t>(settings, 0x4EC));
+        }
+        options.Add(g_played.h);
+        Virtual<uint32_t>(dialog, 0x8);
+    }
+
+    g_played = Fnv{};
+    if (char* const panel = At<char*>(view, 0x2E4)) {
+        reinterpret_cast<ThisFn>(addr::SC4UI_F76FCE0)(panel); // Show
+        for (int32_t place = 0; place < 5; ++place) {
+            if (!At<void*>(panel, 0x1C + 4 * static_cast<std::size_t>(place)))
+                continue;
+            reinterpret_cast<void(__thiscall*)(void*, int32_t, uint32_t, uint32_t)>(addr::SC4UI_F771940)(panel, place, 1, 0);
+            g_pickPanel = panel;
+            for (const uint32_t figures : {0u, 1u}) {
+                RunModal(&PlayPick,
+                         [&] { reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F770420)(panel, figures); });
+                pick.Add(At<void*>(panel, 0x78) != nullptr);
+                pick.Add(At<uint8_t>(panel, 0x74));
+            }
+            g_pickPanel = nullptr;
+            ++did;
+            break;
+        }
+        reinterpret_cast<ThisFn>(addr::SC4UI_F76E8E0)(panel); // Hide
+        pick.Add(g_played.h);
+    }
+
+    void* const window = At<void*>(view, 0x300);
+    char* map = nullptr;
+    if (window)
+        Virtual<uint8_t>(window, 0x0, 0x67C5BEDEu, &map);
+    if (map) {
+        Virtual<uint32_t>(map, 0x8);
+        const auto state = [&] {
+            for (std::size_t at : {std::size_t{0x9A0}, std::size_t{0x9A4}, std::size_t{0x9A8}, std::size_t{0x9AC},
+                                   std::size_t{0x9CC}, std::size_t{0x9D4}})
+                rows.Add(At<uint32_t>(map, at));
+            rows.Add(At<uint8_t>(map, 0x9D8));
+        };
+        reinterpret_cast<ThisFn>(addr::SC4UI_F7A6290)(map + 0x8); // the controls readied
+        state();
+        for (const uint32_t button : {0x5002u, 0x5005u, 0x6003u, 0x8004u, 0x8100u, 0x8101u, 0x5108u, 0x5001u}) {
+            uint32_t message[4] = {3, 0x287259F6, button, 0};
+            rows.Add(static_cast<uint8_t>(
+                reinterpret_cast<uint32_t(__thiscall*)(void*, uint32_t*)>(addr::SC4UI_F7A56E0)(map + 0x8, &message[0])));
+            state();
+        }
+        reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4UI_F7A6270)(map, 0); // the plain view again
+        reinterpret_cast<ThisFn>(addr::SC4UI_F7A64D0)(map + 0x8);                         // hidden
+        state();
+        ++did;
+    }
+    std::snprintf(g_dialogsToken, sizeof g_dialogsToken, " dialogs %d budget %08X options %08X pick %08X rows %08X", did,
+                  budget.h, options.h, pick.h, rows.h);
+    log::Write("autotest: dialogs driven:%s", g_dialogsToken);
+}
+
+const DayHook kDialogs{"ui.dialogs", 101, &DriveDialogs};
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     line += g_budgetToken;
+    line += g_dialogsToken;
     line += g_panelToken;
     line += g_cityPanelsToken;
     line += g_mapToken;
