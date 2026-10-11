@@ -98,6 +98,10 @@ add_library(opensc4_core SHARED
   mysim_sim.cpp
   commercial_autotest.cpp
   commercial_sim.cpp
+  region_autotest.cpp
+  region_data_1.cpp
+  region_data_2.cpp
+  region_data_3.cpp
   residential_autotest.cpp
   residential_messages.cpp
   residential_object.cpp
