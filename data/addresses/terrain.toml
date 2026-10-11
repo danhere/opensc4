@@ -1693,3 +1693,11 @@ kind = "function"
 convention = "thiscall"
 expect = "51 53 55 56 33 C0 57 89"
 source = "Name ours. (): releases the terrain's textures (0x008090E0) and clears their pointers. (docs/renderer.md, \"The terrain view's draw\")."
+
+[[entry]]
+name = "cSTETerrainView3D::Pick"
+address = 0x0075A230
+kind = "function"
+convention = "thiscall"
+expect = "81 EC A8 00 00 00 A1 34"
+source = "Name ours. (ray origin, ray direction, unused here, out point, bool water): where a ray meets the terrain: the ray against the terrain's box (0x005D6580), then the cells along it (0x00649820), each cell's two triangles tested (0x005D6FF0), split along the diagonal the cell's flags give. With the last argument set the corners are raised by the water above them, so the ray meets the water's surface. While the view's +0x24 is set a hit also marks its cell (STECellMarks::SetColour). Returns whether it hit (docs/renderer.md, \"Picking\")."
