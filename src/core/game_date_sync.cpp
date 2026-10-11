@@ -1,5 +1,7 @@
 // game.date_sync: keeps the cities of a region on the same date
-// (docs/date-sync.md). An improvement beyond the original, off by default.
+// (docs/date-sync.md). A fix beyond the original, on by default: neighbours
+// drifting years apart is a flaw of the game (Dan, 2026-10-11);
+// game.date_sync = original turns it off.
 //
 // Saving an established city remembers its date; loading another
 // established city of the same region whose date is earlier moves it
@@ -172,6 +174,7 @@ const bool g_registered = registry::Register({
     "moves forward to it",
     false,
     Install,
+    true, // a fix, on unless turned off
 });
 
 } // namespace
