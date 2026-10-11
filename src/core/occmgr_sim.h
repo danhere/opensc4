@@ -151,8 +151,11 @@ inline constexpr int32_t kWorldCells = 0xC0;
 inline constexpr int32_t kCityOrigin = 0x40;
 
 // An improvement beyond the original (docs/city-size.md, "The 8 km spike"):
-// with [improvements] big_cities = on and every simulators.occmgr group ours
-// (the game's own slots know only 192), a new city's grid is sized from the
+// with [improvements] big_cities = on, every simulators.occmgr group ours
+// (the game's own slots know only 192), simulators.weather.bodies ours
+// (the game's scratch is 256 by 256 on the stack) and every
+// simulators.traffic group ours (the game's cell table holds 256 a side;
+// traffic_cells.h), a new city's grid is sized from the
 // city, with the same 64-cell margin on both sides, at most 255 a side: an
 // occupant keeps its cells as bytes and a first byte of 0xFF means "not in
 // the manager". Tiles are square, so one count serves both axes. Off (the
