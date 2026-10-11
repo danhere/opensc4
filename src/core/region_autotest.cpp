@@ -336,6 +336,15 @@ struct GameText {
         if (begin)
             reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(begin);
     }
+    explicit GameText(const char* text) : GameText()
+    {
+        const std::size_t size = std::strlen(text);
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(begin);
+        begin = reinterpret_cast<char*(__cdecl*)(uint32_t)>(addr::SC4_stl_allocate)(static_cast<uint32_t>(size + 1));
+        std::memcpy(begin, text, size + 1);
+        end = begin + size;
+        capacity = end + 1;
+    }
     GameText(const GameText&) = delete;
     GameText& operator=(const GameText&) = delete;
     std::string FileName() const
@@ -505,13 +514,185 @@ void Loaded(cISC4City* city)
         g_token += DriveCreate();
 }
 
+std::string g_screenToken;
+
+// The region screen window (cSC4WinRegionScreen, window ID 0xEA659793;
+// docs/region.md): the application's window object keeps it at +0xEC while
+// a region is up (the city screen is there otherwise).
+void* RegionScreen()
+{
+    void* const owner = Global<void*>(addr::SC4_AppWindow);
+    void* const screen = owner ? At<void*>(owner, 0xEC) : nullptr;
+    return screen && At<uint32_t>(screen, 0x10) == 0xEA659793 ? screen : nullptr;
+}
+
+uint32_t Bits(float value)
+{
+    uint32_t bits;
+    std::memcpy(&bits, &value, sizeof bits);
+    return bits;
+}
+
+// What the region screen holds once its region is up: its plain members
+// (not the paint countdown at +0x1E8), which of its parts exist, every tile
+// record (cells, place in the map picture, size, its pictures pixel by pixel
+// after their shift, the mask's runs and centre), the scroll window's
+// tuning, and what the flat terrain map answers.
+uint32_t DescribeScreen(void* screen)
+{
+    Fnv f;
+    char* const s = static_cast<char*>(screen);
+    f.Bytes(s + 0x178, 0x18);
+    f.Bytes(s + 0x198, 0x14);
+    f.Bytes(s + 0x1EC, 8);
+    f.Bytes(s + 0x1FC, 2);
+    for (std::size_t offset = 0xE0; offset < 0x178; offset += 4)
+        if (offset < 0x10C || offset >= 0x124)
+            f.Add(At<void*>(screen, offset) != nullptr);
+    char* const first = At<char*>(screen, 0x118);
+    char* const last = At<char*>(screen, 0x11C);
+    f.Add(static_cast<uint32_t>((last - first) / 0x80));
+    for (char* record = first; record != last; record += 0x80) {
+        f.Bytes(record, 0x19);
+        for (const std::size_t offset : {0x1Cu, 0x24u})
+            AddPicture(f, At<void*>(record, offset));
+        for (const std::size_t offset : {0x20u, 0x28u, 0x2Cu, 0x30u})
+            f.Add(At<void*>(record, offset) != nullptr);
+        for (const std::size_t offset : {0x38u, 0x44u, 0x50u, 0x5Cu}) {
+            char* const begin = At<char*>(record, offset);
+            char* const end = At<char*>(record, offset + 4);
+            f.Add(static_cast<uint32_t>(end - begin));
+            f.Bytes(begin, end - begin);
+        }
+        f.Bytes(record + 0x68, 8);
+    }
+    if (char* const scroll = At<char*>(screen, 0x174)) {
+        f.Bytes(scroll + 0xEC, 0x1C);
+        f.Bytes(scroll + 0x110, 0x10);
+    }
+    if (void* const terrain = Global<void*>(addr::SC4_RegionTerrain)) {
+        f.Bytes(static_cast<char*>(terrain) + 0xC, 0x19);
+        for (const float x : {-1.0f, 0.0f, 63.999f, 64.0f, 64.001f, 1000.5f, 65536.0f})
+            for (const float z : {-0.5f, 0.0f, 128.0f, 4095.9f}) {
+                f.Add(Virtual<uint32_t>(terrain, 0x2C, x, z));
+                f.Add(Virtual<uint32_t>(terrain, 0x64, x, z));
+            }
+        f.Add(Virtual<uint32_t>(terrain, 0x24, int32_t{3}, int32_t{5}));
+        int32_t x = 0, z = 0;
+        Virtual<void>(terrain, 0x28, uint32_t{1234}, &x, &z);
+        f.Add(x);
+        f.Add(z);
+    }
+    return f.h;
+}
+
+// OPENSC4_TEST_REGION_DRIVE=1, on the region screen before the city loads:
+// the map laid out and the mode applied again; the eight scroll commands
+// through the command handler; the three map modes through the control
+// handler and back; the scroll window's drag at four pointer places and its
+// end; a region and a city asked for by names nothing has.
+uint32_t DriveScreen(void* screen)
+{
+    Fnv f;
+    using Plain = uint32_t(__thiscall*)(void*);
+    reinterpret_cast<Plain>(addr::cSC4WinRegionScreen_LayOutMap)(screen);
+    f.Bytes(static_cast<char*>(screen) + 0x180, 0x10);
+    reinterpret_cast<Plain>(addr::cSC4WinRegionScreen_ApplyMode)(screen);
+    char* const map = At<char*>(screen, 0xE0);
+    if (map) {
+        f.Bytes(map + 0xF0, 8);
+        f.Bytes(map + 0x110, 7);
+    }
+    f.Add(At<uint8_t>(screen, 0x1A0));
+
+    if (char* const scroll = At<char*>(screen, 0x174)) {
+        using CommandFn = uint32_t(__thiscall*)(void*, uint32_t, void*, void*);
+        const float speed = At<float>(scroll, 0x104);
+        At<float>(scroll, 0x104) = 37.5f;
+        for (const uint32_t command : {0x6A935CD8u, 0x2A948275u, 0x6A935CE0u, 0x2A94826Eu, 0x6A935CDDu, 0x2A948272u,
+                                       0x6A935CE2u, 0x2A94826Bu}) {
+            reinterpret_cast<CommandFn>(addr::cSC4WinRegionScreen_DoCommand)(screen, command, nullptr, nullptr);
+            f.Add(Bits(At<float>(scroll, 0xFC)));
+            f.Add(Bits(At<float>(scroll, 0x100)));
+        }
+        At<float>(scroll, 0x104) = speed;
+        At<float>(scroll, 0xFC) = 0.0f;
+        At<float>(scroll, 0x100) = 0.0f;
+
+        const int32_t anchor[2] = {At<int32_t>(scroll, 0xDC), At<int32_t>(scroll, 0xE0)};
+        At<int32_t>(scroll, 0xDC) = 100;
+        At<int32_t>(scroll, 0xE0) = 100;
+        const int32_t places[4][2] = {{100, 100}, {105, 100}, {120, 110}, {160, 60}};
+        for (const auto& place : places) {
+            f.Add(Virtual<uint8_t>(scroll, 0x228, place[0], place[1], uint32_t{0}));
+            f.Bytes(scroll + 0xF4, 8);
+            f.Add(At<uint32_t>(scroll, 0xD8));
+        }
+        f.Add(Virtual<uint8_t>(scroll, 0x224, int32_t{160}, int32_t{60}, uint32_t{0}));
+        f.Bytes(scroll + 0xF4, 8);
+        f.Add(At<uint8_t>(scroll, 0x109));
+        At<int32_t>(scroll, 0xDC) = anchor[0];
+        At<int32_t>(scroll, 0xE0) = anchor[1];
+    }
+
+    if (map) {
+        static const uint32_t kModes[3] = {0xABA290E1, 0xCBA290EC, 0xABA290F6};
+        const uint32_t mode = At<uint32_t>(map, 0x118);
+        for (const uint32_t id : kModes) {
+            f.Add(Virtual<uint8_t>(screen, 0x23C, uint32_t{0x287259F6}, id));
+            f.Add(At<uint32_t>(map, 0x118));
+        }
+        if (mode < 3)
+            Virtual<uint8_t>(screen, 0x23C, uint32_t{0x287259F6}, kModes[mode]);
+        f.Add(At<uint32_t>(map, 0x118));
+    }
+
+    GameText nowhere("OpenSC4 no such place");
+    GameText out;
+    f.Add(reinterpret_cast<uint8_t(__thiscall*)(void*, void*)>(addr::cSC4WinRegionScreen_GoToRegionNamed)(screen, &nowhere));
+    f.Add(reinterpret_cast<uint8_t(__thiscall*)(void*, void*, uint32_t, void*, uint32_t)>(
+        addr::cSC4WinRegionScreen_OpenCityByNameOrSize)(screen, &nowhere, 3, &out, 0));
+    f.Bytes(out.begin, out.end - out.begin);
+    return f.h;
+}
+
+// OPENSC4_TEST_REGION_SCREEN=1: unattended runs load their city from the
+// start screen, so the region screen never comes up. With the switch the
+// test puts it up first, as the start screen does when the player goes on
+// (0x0079D381: the kept screen removed, the region screen made and started),
+// and describes it; with OPENSC4_TEST_REGION_DRIVE=1 it also works it.
+void AtRegion(cISC4Region*)
+{
+    if (Env("OPENSC4_TEST_REGION_SCREEN") != "1" || !game::IsBuild641())
+        return;
+    void* const owner = Global<void*>(addr::SC4_AppWindow);
+    if (owner && !RegionScreen()) {
+        reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::SC4AppWindow_RemoveScreen)(owner);
+        reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::SC4AppWindow_ShowRegionScreen)(owner);
+    }
+    void* const screen = RegionScreen();
+    if (!screen) {
+        g_screenToken = " scr none";
+        log::Write("autotest: region screen did not come up");
+        return;
+    }
+    g_screenToken = " scr " + std::to_string(DescribeScreen(screen));
+    if (Env("OPENSC4_TEST_REGION_DRIVE") == "1") {
+        g_screenToken += " " + std::to_string(DriveScreen(screen));
+        g_screenToken += " " + std::to_string(DescribeScreen(screen));
+    }
+    log::Write("autotest: region screen:%s", g_screenToken.c_str());
+}
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     line += g_token;
+    line += g_screenToken;
 }
 
 const FingerprintPart kFingerprint{"region", 98, &Fingerprint};
 const LoadHook kLoaded{"region", 98, &Loaded};
+const RegionHook kAtRegion{"region", 98, &AtRegion};
 
 } // namespace
 } // namespace opensc4::autotest
