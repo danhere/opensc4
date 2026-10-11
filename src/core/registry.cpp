@@ -185,7 +185,7 @@ void Apply(Phase phase, const std::wstring& iniPath)
     for (const Replacement& r : replacements) {
         if (r.phase != phase)
             continue;
-        Mode mode = Mode::Original;
+        Mode mode = r.onByDefault ? Mode::Ours : Mode::Original;
         const char* note = "";
         if (const auto it = Lookup(configured, r.id); it != configured.end()) {
             if (const auto parsed = ParseMode(it->second)) {
