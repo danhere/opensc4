@@ -305,3 +305,30 @@ convention = "thiscall"
 signature = "void (SC4EffectBase* this, SC4Particle* particle)"
 expect = "81 EC D8 00 00 00 55 8B"
 source = "Name ours, not analysed. Slot 0x40 of the second effect class's sub-object (vtable 0x00AA0C10)."
+
+[[entry]]
+name = "SC4Effect::SpawnFromParticle"
+address = 0x005B84C0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4Particle* particle)"
+expect = "51 8B 44 24 08 8B D1 8A"
+source = "Name ours, not analysed. For a running particle, walks the description's table at +0x1CC (0x10 bytes each) and calls 0x005B8290 with each entry whose +0xC is 0 and the particle's position. The emitters call it for descriptions with flag 0x80000000."
+
+[[entry]]
+name = "SC4Effect::SetStopped"
+address = 0x005B21E0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, int32_t value)"
+expect = "8B 44 24 04 89 81 8C 01"
+source = "Name ours. Slot 4 of the base effect class (vtable 0x00AA0EA0): stores the value at +0x18C and passes whether it is 0 to the sub-object's 0x005B9E70. The stream emitter calls it with 0 (0x005B8B29)."
+
+[[entry]]
+name = "SC4EffectB::SetStopped"
+address = 0x005AC190
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, int32_t value)"
+expect = "56 8B F1 8B 8E 78 02 00"
+source = "Name ours, not analysed. Slot 4 of the second effect class (vtable 0x00AA0C58)."
