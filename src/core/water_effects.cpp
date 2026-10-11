@@ -1504,9 +1504,6 @@ OPENSC4_THUNK(TSC4EffectBase_GiveBackParticle, DSC4EffectBase_GiveBackParticle, 
 OPENSC4_EFFECT_HOOK0(SC4EffectBaseB_TakeParticle)
 OPENSC4_EFFECT_HOOK1(SC4EffectBaseB_GiveBackParticle)
 OPENSC4_EFFECT_HOOK1(SC4Effect_SpawnFromParticle)
-OPENSC4_EFFECT_HOOK1(SC4Effect_SetStopped)
-OPENSC4_EFFECT_HOOK1(SC4EffectB_SetStopped)
-OPENSC4_EFFECT_HOOK2(SC4EffectBase_SetEnding)
 OPENSC4_EFFECT_HOOK0(SC4EffectBase_LetGo)
 OPENSC4_EFFECT_HOOK0(SC4EffectBaseB_LetGo)
 
@@ -1970,6 +1967,140 @@ uint32_t __fastcall DSC4EffectBase_Finish(char* base, void*)
 }
 OPENSC4_THUNK(TSC4EffectBase_Finish, DSC4EffectBase_Finish, 0)
 
+// An effect told to go on or to end (0x005B9E70, slot 0x20 of both classes'
+// sub-objects; nothing for one whose byte +5 is clear). The first argument
+// is kept at +0xC. Set, the second is kept at +0xD and, when set as well,
+// the sub-object's slot 4 is called; the answer is false. Clear, the effect
+// loses its particles at once: the bytes +5 and +0xD are cleared, every
+// particle of the list (+0x10) is given back (slot 0x40) with the count
+// (+0x14) taken down first, the nodes are freed and the list is left empty;
+// the answer is true.
+uint32_t SetEffectEnding(char* base, uint32_t goOn, uint32_t whenEmpty)
+{
+    if (!At<uint8_t>(base, 5))
+        return 0;
+    At<uint8_t>(base, 0xC) = static_cast<uint8_t>(goOn);
+    if (static_cast<uint8_t>(goOn)) {
+        At<uint8_t>(base, 0xD) = static_cast<uint8_t>(whenEmpty);
+        if (static_cast<uint8_t>(whenEmpty))
+            CallThisTraced(At<uint32_t>(At<char*>(base, 0), 0x4), base);
+        return 0;
+    }
+    At<uint8_t>(base, 5) = 0;
+    At<uint8_t>(base, 0xD) = 0;
+    for (char* node = At<char*>(At<char*>(base, 0x10), 0); node != At<char*>(base, 0x10); node = At<char*>(node, 0)) {
+        --At<int32_t>(base, 0x14);
+        CallThisTraced(At<uint32_t>(At<char*>(base, 0), 0x40), base, At<uint32_t>(node, 8));
+    }
+    for (char* node = At<char*>(At<char*>(base, 0x10), 0); node != At<char*>(base, 0x10);) {
+        char* const next = At<char*>(node, 0);
+        CallPlainTraced(addr::SC4_Free, reinterpret_cast<uint32_t>(node));
+        node = next;
+    }
+    char* const head = At<char*>(base, 0x10);
+    At<char*>(head, 0) = head;
+    At<char*>(head, 4) = head;
+    return 1;
+}
+
+// An effect stopped or started again (0x005B21E0, slot 4 of the base
+// class): the value is kept at +0x18C, and the sub-object is told to go on
+// when it is 0 and to end otherwise. The game passes the whole register
+// with only its low byte set to the flag, and so does this.
+uint32_t SetEffectStopped(char* self, uint32_t value)
+{
+    At<uint32_t>(self, 0x18C) = value;
+    return CallThisTraced(addr::SC4EffectBase_SetEnding, self + 4, value ? value & ~0xFFu : 1u, 0u);
+}
+
+// The same for the second class (0x005AC190): an effect with an object at
+// +0x278 and nothing at +0x18 passes the value to that object's slot 4
+// first.
+uint32_t SetEffectStoppedB(char* self, uint32_t value)
+{
+    char* const object = At<char*>(self, 0x278);
+    if (object && At<uint32_t>(self, 0x18) == 0)
+        CallThisTraced(At<uint32_t>(At<char*>(object, 0), 0x4), object, value);
+    return CallThisTraced(addr::SC4Effect_SetStopped, self, value);
+}
+
+StepMode g_endingMode = StepMode::Original;
+Call1Fn g_SC4Effect_SetStopped = nullptr, g_SC4EffectB_SetStopped = nullptr;
+Call2Fn g_SC4EffectBase_SetEnding = nullptr;
+
+uint32_t __fastcall SetEndingByMode(char* base, void*, uint32_t goOn, uint32_t whenEmpty)
+{
+    if (g_endingMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4EffectBase_SetEnding(base, nullptr, goOn, whenEmpty);
+    if (g_endingMode == StepMode::Ours)
+        return SetEffectEnding(base, goOn, whenEmpty);
+    struct Arguments {
+        char* base;
+        uint32_t goOn, whenEmpty;
+    } arguments{base, goOn, whenEmpty};
+    return RecordAndReplay(
+        static_cast<uint8_t>(goOn) ? "effects.ending" : "effects.ending.clear", base - 4, true, [&] { return g_SC4EffectBase_SetEnding(base, nullptr, goOn, whenEmpty); },
+        [](void* a) {
+            const Arguments& args = *static_cast<Arguments*>(a);
+            return SetEffectEnding(args.base, args.goOn, args.whenEmpty);
+        },
+        &arguments);
+}
+
+// The two below answer with what the sub-object answered, which the replay
+// does not have: their answers are not compared.
+uint32_t StoppedCompared(const char* id, Call1Fn game, uint32_t (*ours)(char*, uint32_t), char* self, uint32_t value)
+{
+    struct Arguments {
+        uint32_t (*ours)(char*, uint32_t);
+        char* self;
+        uint32_t value;
+    } arguments{ours, self, value};
+    return RecordAndReplay(
+        id, self, false, [&] { return game(self, nullptr, value); },
+        [](void* a) {
+            const Arguments& args = *static_cast<Arguments*>(a);
+            return args.ours(args.self, args.value);
+        },
+        &arguments);
+}
+
+uint32_t __fastcall SetStoppedByMode(char* self, void*, uint32_t value)
+{
+    if (g_endingMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Effect_SetStopped(self, nullptr, value);
+    if (g_endingMode == StepMode::Ours)
+        return SetEffectStopped(self, value);
+    return StoppedCompared("effects.ending.stopped", g_SC4Effect_SetStopped, &SetEffectStopped, self, value);
+}
+
+uint32_t __fastcall SetStoppedBByMode(char* self, void*, uint32_t value)
+{
+    if (g_endingMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4EffectB_SetStopped(self, nullptr, value);
+    if (g_endingMode == StepMode::Ours)
+        return SetEffectStoppedB(self, value);
+    return StoppedCompared("effects.ending.stopped_b", g_SC4EffectB_SetStopped, &SetEffectStoppedB, self, value);
+}
+
+uint32_t __fastcall DSC4EffectBase_SetEnding(char* base, void*, uint32_t goOn, uint32_t whenEmpty)
+{
+    return EffectRecorded(addr::SC4EffectBase_SetEnding, &SetEndingByMode, base, goOn, whenEmpty);
+}
+OPENSC4_THUNK(TSC4EffectBase_SetEnding, DSC4EffectBase_SetEnding, 8)
+
+uint32_t __fastcall DSC4Effect_SetStopped(char* self, void*, uint32_t value)
+{
+    return EffectRecorded(addr::SC4Effect_SetStopped, &SetStoppedByMode, self, value);
+}
+OPENSC4_THUNK(TSC4Effect_SetStopped, DSC4Effect_SetStopped, 4)
+
+uint32_t __fastcall DSC4EffectB_SetStopped(char* self, void*, uint32_t value)
+{
+    return EffectRecorded(addr::SC4EffectB_SetStopped, &SetStoppedBByMode, self, value);
+}
+OPENSC4_THUNK(TSC4EffectB_SetStopped, DSC4EffectB_SetStopped, 4)
+
 uint32_t __fastcall DEffectDraw(char* self, void*, uint32_t step, uint32_t context)
 {
     if (g_trace != Trace::Off) {
@@ -2221,6 +2352,31 @@ const bool g_registeredPool = registry::Register({
     "effects, sky and clouds\")",
     true,
     InstallPool,
+});
+
+bool InstallEnding(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookPool())
+        return false;
+    if (mode == registry::Mode::Compare && !HookFrees())
+        return false;
+    g_endingMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects' stopping and ending %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredEnding = registry::Register({
+    "renderer.effects.ending",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectBase_SetEnding,
+    "An effect stopped, started again or ended: both classes' stop setters and the sub-object's routine that keeps "
+    "the marks or gives every particle back; compare mode records the game's run and replays ours, as "
+    "renderer.effects.effect (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallEnding,
 });
 
 bool HookFinish()
