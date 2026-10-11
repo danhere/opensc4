@@ -174,6 +174,8 @@ add_library(opensc4_core SHARED
   occmgr_edit.cpp
   occmgr_queries.cpp
   occmgr_sim.cpp
+  bldgocc_autotest.cpp
+  bldgocc_sim.cpp
   landfill_sim.cpp
   seaport_autotest.cpp
   seaport_sim.cpp
