@@ -275,6 +275,7 @@ add_library(opensc4_core SHARED
   aura_init.cpp
   aura_object.cpp
   aura_sim.cpp
+  cityview_autotest.cpp
   civic_autotest.cpp
   civic_init.cpp
   civic_object.cpp
