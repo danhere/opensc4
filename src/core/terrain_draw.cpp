@@ -4451,7 +4451,7 @@ uint32_t __fastcall DDataMapMessage(char* target, void*, void* message)
 {
     if (g_dataMapPick >= 0) {
         char* const window = target - 4;
-        const uint32_t done = CallThis<uint32_t>(addr::cSC4WinMapView_SetMap, window, static_cast<uint32_t>(g_dataMapPick));
+        const uint32_t done = CallThis<uint32_t>(addr::SC4UI_F7A49B0, window, static_cast<uint32_t>(g_dataMapPick));
         log::Write("data map: test picked map %d: %s, the window's map type %u", g_dataMapPick, (done & 0xFF) ? "set" : "refused",
                    At<uint32_t>(window, 0x144));
         g_dataMapPick = -1;
@@ -4465,10 +4465,17 @@ const bool g_registeredDataMapSelect = registry::Register({
     "diagnostics",
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
-    addr::cSC4WinMapView_DoMessage,
+    addr::SC4UI_F7A54D0,
     "Lets a test pick the Data Views window's map (OPENSC4_TEST_DATA_MAP; docs/renderer.md, \"The data map\")",
     false,
-    [](registry::Mode) { return game::IsBuild641() && Detour(addr::cSC4WinMapView_DoMessage, &TDataMapMessage, &g_dataMapMessage); },
+    [](registry::Mode) {
+        // ui.map.part4 replaces the same handler; the two cannot both be on.
+        if (registry::ModeOf("ui.map.part4") != registry::Mode::Original) {
+            log::Write("data map: diagnostics.datamap_select is off while ui.map.part4 is on (same function)");
+            return false;
+        }
+        return game::IsBuild641() && Detour(addr::SC4UI_F7A54D0, &TDataMapMessage, &g_dataMapMessage);
+    },
 });
 
 } // namespace

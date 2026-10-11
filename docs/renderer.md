@@ -310,7 +310,7 @@ Compare mode paints ours, copies the picture out of the control, puts back what 
 
 Checked on the three tutorial cities with every map number from 1 to 87: 44 of them are maps (the rest `SetMap` refuses), giving 33 map types (1, 2, 4, 6 to 11, 20 to 30, 64 to 76), and every picture is the game's pixel for pixel, 132 pictures in all with no difference; the self-check is clean too, and screenshots with both replacements on match the game's. Five of the six painters ran; the grid filler (0x007A2080) did not, and neither did the map types the list's numbers do not give, so those paths are written but unverified.
 
-To see it in a test: `OPENSC4_TEST_DATA_MAP=<n>[,<n>...]` with `diagnostics.datamap_select=ours`. Before the first shot the autotest sends the advisors' script command for the window (`{0x6A5BDFCD, 0}` on the queue of the object at 0x00B43DC4), which opens it; that command's number does not pick a map, so from the second shot on the pick goes to `SetMap` from inside the window's own message handler.
+To see it in a test: `OPENSC4_TEST_DATA_MAP=<n>[,<n>...]` with `diagnostics.datamap_select=ours` (not together with `ui.map.part4`, which replaces the same message handler; the two functions are `SC4UI::F7A49B0` and `SC4UI::F7A54D0` in the address database). Before the first shot the autotest sends the advisors' script command for the window (`{0x6A5BDFCD, 0}` on the queue of the object at 0x00B43DC4), which opens it; that command's number does not pick a map, so from the second shot on the pick goes to `SetMap` from inside the window's own message handler.
 
 ## Water effects, sky and clouds
 
