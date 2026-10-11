@@ -561,3 +561,1011 @@ name = "cSC4Region::LayoutFileName"
 address = 0x00B09564
 kind = "data"
 source = "Name ours. const char* 'config.bmp'."
+
+[[entry]]
+name = "cSC4RegionalCity::QueryInterface"
+address = 0x004A74E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 1D BE D2"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 128 bytes with padding."
+
+[[entry]]
+name = "SC4Stream::WriteFloat64"
+address = 0x004A7560
+kind = "function"
+convention = "cdecl"
+expect = "DD 44 24 08 56 8B 74 24"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetTaxRate"
+address = 0x004A7580
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 20 33 00"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 192 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetBudget"
+address = 0x004A7640
+kind = "function"
+convention = "thiscall"
+expect = "DD 81 70 01 00 00 C3 CC"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetBudget"
+address = 0x004A7650
+kind = "function"
+convention = "thiscall"
+expect = "DD 44 24 04 DD 99 70 01"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetIncome"
+address = 0x004A7660
+kind = "function"
+convention = "thiscall"
+expect = "DD 81 78 01 00 00 C3 CC"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetIncome"
+address = 0x004A7670
+kind = "function"
+convention = "thiscall"
+expect = "DD 44 24 04 DD 99 78 01"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetCommodityBalance"
+address = 0x004A7680
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 57 8B 7C 24"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 96 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::IsTutorial"
+address = 0x004A76E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 FF 90 04 01 00 00"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SortInsertBackward"
+address = 0x004A7700
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 1C 56 57 8B"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 112 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SortPushHeap"
+address = 0x004A7770
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 8D 43 FF"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 144 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::Release"
+address = 0x004A7800
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 83 F8"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 48 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::Init"
+address = 0x004A7830
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 0C 84 C0 75 62 C6"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 112 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetupPreferences"
+address = 0x004A78A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 D4 00 00 00 56 57"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 64 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::ConnectionRecordBefore"
+address = 0x004A78E0
+kind = "function"
+convention = "cdecl"
+expect = "53 55 8B 6C 24 0C 8B 45"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 48 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::CommodityEraseTree"
+address = 0x004A79E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 64 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SortInsertion"
+address = 0x004A7A20
+kind = "function"
+convention = "cdecl"
+expect = "53 56 8B 74 24 0C 57 8B"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 80 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SortAdjustHeap"
+address = 0x004A7A70
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 08 55 8B 6C"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 208 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::FindConnection"
+address = 0x004A7B40
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 8B D9 8B 83 90"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 112 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SortPartition"
+address = 0x004A7BB0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 10 53 55 56 8B 74"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 192 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SortMakeHeap"
+address = 0x004A7C70
+kind = "function"
+convention = "cdecl"
+expect = "53 55 8B 6C 24 0C 56 57"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 160 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::Write"
+address = 0x004A7D10
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 1680 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::CommodityInsertNode"
+address = 0x004A83A0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 14 8B D9"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 208 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::Shutdown"
+address = 0x004A8470
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8A 43 0C 84 C0"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 144 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetPopulationByType"
+address = 0x004A8500
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8D 71 3C 8D 44 24"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 48 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetExtrapolatedPopulation"
+address = 0x004A8530
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 8B F9 8D 44 24"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 64 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::RecordsClear"
+address = 0x004A8570
+kind = "function"
+convention = "thiscall"
+expect = "51 56 6A 00 8B F1 8B 0E"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 48 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::CommodityInsertUnique"
+address = 0x004A85A0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 192 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::DealsEraseRange"
+address = 0x004A8660
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 57 8B 7C"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 144 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::DealsInsertRange"
+address = 0x004A8790
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 0C 53 56 57 8B"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 160 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SortLinearInsert"
+address = 0x004A8830
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 80 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SortHeap"
+address = 0x004A88C0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 83 EC 10 53"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 160 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetupCity"
+address = 0x004A8960
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 8B 74"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 224 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetPointsOfInterest"
+address = 0x004A8A40
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8D B1 94 01 00 00"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 64 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::CommodityInsertHint"
+address = 0x004A8A80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 176 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SortInsertionRange"
+address = 0x004A8C90
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 55 56 57"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 96 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SortPartial"
+address = 0x004A8CF0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 10 53 8B 5C 24 1C"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 192 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetAllConnections"
+address = 0x004A8DB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 64 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::ChangeSymmetricConnection"
+address = 0x004A8DF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 56 8B 74 24"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 208 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::FilterDeals"
+address = 0x004A8EC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 A1 EC 3C B4 00"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 480 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetLocalDeals"
+address = 0x004A90D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D BE 90 01"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 64 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::UpdateLocalDeals"
+address = 0x004A9110
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 01 8D 81 90 01"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 64 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::CollectNeighbourConnections"
+address = 0x004A9220
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 55 56 8B 35 8C"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 864 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::CollectOwnConnections"
+address = 0x004A9580
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 55 56 8B E9"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 416 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::NotifyConnections"
+address = 0x004A9720
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 57 8B F9 8B"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 256 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetAllowableExtrapolation"
+address = 0x004A9820
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F1 8D 44 24 0C"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 64 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::ExtrapolateGrowth"
+address = 0x004A9860
+kind = "function"
+convention = "thiscall"
+expect = "56 8D 44 24 08 50 83 C1"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 48 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetAllowableGrowth"
+address = 0x004A9890
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 55 8B E9 8B 45"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 224 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::ResetExtrapolation"
+address = 0x004A9970
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B E9 8B 45 3C 56"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 128 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetPosition"
+address = 0x004A99F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 8B 54 24 10 56"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 336 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::CommodityAt"
+address = 0x004A9B40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 58 53 8B D9 8B 0B"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 192 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::PointsEraseTree"
+address = 0x004A9C00
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 80 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::PointsInsertNode"
+address = 0x004A9C50
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 55 8B 6C"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 208 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::PointsInsertUnique"
+address = 0x004A9D20
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 192 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SortIntroLoop"
+address = 0x004A9DE0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 55 56 57"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 256 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetExported"
+address = 0x004A9EE0
+kind = "function"
+convention = "thiscall"
+expect = "8D 44 24 04 50 81 C1 80"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetExported"
+address = 0x004A9F00
+kind = "function"
+convention = "thiscall"
+expect = "DD 44 24 08 DC 1D 90 09"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 64 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetImported"
+address = 0x004A9F40
+kind = "function"
+convention = "thiscall"
+expect = "8D 44 24 04 50 81 C1 80"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetImported"
+address = 0x004A9F60
+kind = "function"
+convention = "thiscall"
+expect = "DD 44 24 08 DC 1D 90 09"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 64 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetProduced"
+address = 0x004A9FA0
+kind = "function"
+convention = "thiscall"
+expect = "8D 44 24 04 50 81 C1 80"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetProduced"
+address = 0x004A9FC0
+kind = "function"
+convention = "thiscall"
+expect = "DD 44 24 08 DC 1D 90 09"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 64 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetDemanded"
+address = 0x004AA000
+kind = "function"
+convention = "thiscall"
+expect = "8D 44 24 04 50 81 C1 80"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetDemanded"
+address = 0x004AA020
+kind = "function"
+convention = "thiscall"
+expect = "DD 44 24 08 DC 1D 90 09"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 64 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetCostPerUnit"
+address = 0x004AA060
+kind = "function"
+convention = "thiscall"
+expect = "8D 44 24 04 50 81 C1 80"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetCostPerUnit"
+address = 0x004AA080
+kind = "function"
+convention = "thiscall"
+expect = "DD 44 24 08 DC 1D 90 09"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 64 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetLocalDeals"
+address = 0x004AA0C0
+kind = "function"
+convention = "thiscall"
+expect = "81 C1 90 01 00 00 51 8B"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::AddDealToCommodityTotals"
+address = 0x004AA0E0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 144 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::UpdateImportExport"
+address = 0x004AA200
+kind = "function"
+convention = "thiscall"
+expect = "DD 05 90 09 A8 00 56 57"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 224 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::CommodityInsertUniqueHint"
+address = 0x004AA2E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 176 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::ApplyPreferences"
+address = 0x004AA4F0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC B0 00 00 00 53 56"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 480 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::ApplyConnectionChanges"
+address = 0x004AA6D0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 4384 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::Destruct"
+address = 0x004AB7F0
+kind = "function"
+convention = "thiscall"
+expect = "55 56 8B F1 57 8D BE 80"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 624 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetGZCLSID"
+address = 0x004ABA60
+kind = "function"
+convention = "thiscall"
+expect = "B8 24 7C 03 6A C3 CC CC"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetPosition"
+address = 0x004ABA70
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 14 8B 54 24 04 89"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetCitySize"
+address = 0x004ABA90
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 1C 8B 54 24 04 89"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetCitySize"
+address = 0x004ABAB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetIndustrialJobs"
+address = 0x004ABAD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 2C C3 CC CC CC CC"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetCitySerialNumber"
+address = 0x004ABAE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 81 A4 00"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetOriginalLanguageAndCountry"
+address = 0x004ABAF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 A8 00 00 00 8B 54"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetLastLanguageAndCountry"
+address = 0x004ABB10
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 B0 00 00 00 8B 54"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetCitySaveFilePath"
+address = 0x004ABB30
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetCitySaveFilePath"
+address = 0x004ABB50
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 BC 00 00 00 81 C1"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetCityName"
+address = 0x004ABB60
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetCityName"
+address = 0x004ABB80
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 D0 00 00 00 81 C1"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetMayorName"
+address = 0x004ABB90
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetMayorName"
+address = 0x004ABBB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 F8 00 00 00 81 C1"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetUtilityAdvisorName"
+address = 0x004ABBC0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetUtilityAdvisorName"
+address = 0x004ABBE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 54 01 00 00 81 C1"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetCityDescription"
+address = 0x004ABBF0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetCityDescription"
+address = 0x004ABC10
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 20 01 00 00 81 C1"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetBirthDate"
+address = 0x004ABC20
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 B8 00 00 00 C3 CC"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetBirthDate"
+address = 0x004ABC30
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 81 B8 00"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetEstablished"
+address = 0x004ABC40
+kind = "function"
+convention = "thiscall"
+expect = "8A 91 68 01 00 00 33 C0"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetEstablished"
+address = 0x004ABC50
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 88 81 68 01"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetWorldPosition"
+address = 0x004ABC60
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 48 01 00 00 8B 54"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetWorldPosition"
+address = 0x004ABC80
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetWorldBaseElevation"
+address = 0x004ABCA0
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 50 01 00 00 C3 CC"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetWorldBaseElevation"
+address = 0x004ABCB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 81 50 01"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetWorldHemisphere"
+address = 0x004ABCC0
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 4C 01 00 00 D8 1D"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::GetTutorialGUID"
+address = 0x004ABCE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 6C 01 00 00 C3 CC"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::SetTutorialGUID"
+address = 0x004ABCF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 81 6C 01"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::QueryInterfaceFromTarget"
+address = 0x004ABD00
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 D8 B7 FF FF"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::QueryInterfaceFromRecord"
+address = 0x004ABD10
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 C8 B7 FF FF"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::ReleaseFromTarget"
+address = 0x004ABD20
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 D8 BA FF FF"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::ReleaseFromRecord"
+address = 0x004ABD30
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 C8 BA FF FF"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 16 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::DoMessage"
+address = 0x004ABD40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B 74"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 288 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::PointsAt"
+address = 0x004ABF90
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 83 EC 1C 55"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 176 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::Construct"
+address = 0x004AC040
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 1360 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::DeletingDestructor"
+address = 0x004AC590
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 58 F2 FF FF"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::Read"
+address = 0x004AC5B0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC C4 00 00 00 53 55"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 3296 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::UpdateCityCache"
+address = 0x004AD290
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C 53 55 56 8B F1"
+source = "Placeholder name (docs/region.md): a function of the regional city code, 1808 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::Create"
+address = 0x004AD9A0
+kind = "function"
+convention = "cdecl"
+expect = "68 A0 01 00 00 E8 36 7C"
+source = "Name from the exe's own tables through the Ghidra export, not analysed (docs/region.md); 32 bytes with padding."
+
+[[entry]]
+name = "cSC4RegionalCity::ClassStarted"
+address = 0x00B217D8
+kind = "data"
+source = "A byte the regional city's Init sets to 1 on the first call of any city; nothing in the class reads it again"
+
+[[entry]]
+name = "cSC4RegionalCity::Vtable"
+address = 0x00A8FB20
+kind = "data"
+source = "Main vtable of the regional city, 74 slots (docs/region.md)."
+
+[[entry]]
+name = "cSC4RegionalCity::VtableMessageTarget"
+address = 0x00A8FB10
+kind = "data"
+source = "The regional city's message target vtable at +4: QueryInterface and Release thunks, the shared AddRef thunk 0x0068D230, DoMessage 0x004ABD40."
+
+[[entry]]
+name = "cSC4RegionalCity::VtableSerializable"
+address = 0x00A8FAF8
+kind = "data"
+source = "The regional city's save record vtable at +8: QueryInterface, AddRef and Release thunks, 0x004A7D10, 0x004AC5B0, the class ID getter 0x004ABA60."
+
+[[entry]]
+name = "SC4Vector12::CopyConstruct"
+address = 0x00624D60
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B 03 56"
+source = "Name ours. Copy constructor of a vector of 12-byte items: Vector* (Vector* this, const Vector* source), ret 4; allocates with SC4::stl_allocate and copies through 0x00623FA0."
+
+[[entry]]
+name = "cSC4TutorialRegistry::UpgradeGuid"
+address = 0x004B5C20
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 75 08"
+source = "Name ours. uint32_t (uint32_t id), ret 4, on the tutorial registry (cISC4App slot 49): 0 gives 0x8A5B7A6C and 1 gives 0xEA5D6DC8 (the two tutorials old saves number), anything else comes back unchanged; does not use 'this'. Callers 0x0043F312 and the regional city's Read."
+
+[[entry]]
+name = "SC4Resource::LoadText"
+address = 0x005DBE20
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 8B 44 24 14 8B"
+source = "Name ours. bool (file*, uint32_t group, uint32_t instance, cIGZString* out): opens the record of type 0x2026960B (text) with that group and instance in the file object (slot 0x54 with the key, a record pointer and 1), asks the record for interface 0xC56B8F08 and has it fill the string (slot 0x60), closes and releases the record; true when the text was read. No check of the file pointer. The regional city's Read gets its city and mayor names in the game's language with it (groups 0x6AAEE931 and 0x6AAEE932, instance = language)."
+
+[[entry]]
+name = "cSC4RegionalCity::CityFileExtension"
+address = 0x00B09574
+kind = "data"
+source = "Name ours. const char* to '.sc4' (the text at 0x00A87054); the regional city's SetupCity ends the save file's name with it (a second pointer beside SC4::CityFileExtension) (docs/region.md)."
+
+[[entry]]
+name = "cRZFileSpec::GetDriveAndDirectory"
+address = 0x0091C52A
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 03 8B F1 E8 3A FF"
+source = "Name ours. cRZString* (cRZFileSpec* this, cRZString* result), ret 4: builds the path's drive and folder (parts mask 3 through 0x0091C46E) and constructs result as a copy of it (0x00408BE0); returns result. The caller destroys result (docs/region.md)."
+
+[[entry]]
+name = "SC4Vector16::Copy"
+address = 0x007257C0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "Name ours. STL copy for 16-byte records (first, last, destination; two more arguments pushed by callers are not read): returns the end of the destination. cSC4RegionalCity uses it to erase one connection change (docs/region.md)."
+
+[[entry]]
+name = "SC4::TuningFlag49BE9565"
+address = 0x00B21CC1
+kind = "data"
+source = "Name ours. A byte loaded from property 0x49BE9565 by 0x00513220; the regional city's connection pass (0x004AA6D0) flips the one-way direction of highway and avenue connections when it is 0 (docs/region.md)."
+
+[[entry]]
+name = "SC4OccupantFilterByKind::vftable"
+address = 0x00A8FAD4
+kind = "data"
+source = "Name ours. Main vtable of a 16-byte occupant filter derived from SC4::OccupantFilterBase: slot 3 (0x005E9E40) passes an occupant whose kind (0x005E9CA0) equals the dword at +0xC; deleting destructor 0x006C4A00. The regional city's connection pass demolishes through it (docs/region.md)."
+
+[[entry]]
+name = "SC4OccupantFilterByKind::vftable_4"
+address = 0x00A8FABC
+kind = "data"
+source = "Name ours. The second vtable (at +4) of the occupant filter by kind (main 0x00A8FAD4)."
+
+[[entry]]
+name = "SC4Vector16::InsertOverflow"
+address = 0x00638C60
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 46"
+source = "Name ours. STLport _M_insert_overflow for a vector of 16-byte PODs: (item* position, const item* value, const tag*, uint32_t count, bool atEnd), ret 0x14; reallocates to twice the size (at least count more) and inserts. The regional city's push_back of a connection record calls it when the vector at +0x94 is full (docs/region.md). Generic container code, left the game's."
+
+[[entry]]
+name = "SC4PtrVector::InsertOverflow"
+address = 0x005BFE60
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B D9 8B 43 04 55"
+source = "Name ours. STLport _M_insert_overflow for a vector of 4-byte items: (item* position, const item* value, const tag*, uint32_t count, bool atEnd), ret 0x14. The regional city's deal filter 0x004A8EC0 calls it for its local vector of list nodes (docs/region.md). Generic container code, left the game's."
+
+[[entry]]
+name = "cSC4NeighborsSimulator::CellAcross"
+address = 0x006CEBA0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 8B 0D 94 3C B4"
+source = "Name ours, not analysed in full. (cISC4RegionalCity* other, int32_t x, int32_t z, int32_t* outX, int32_t* outZ): takes a cell just past an edge of the other city (the edge from the other city's size) and gives the matching cell in the coordinates of the open regional city (service 0x00B43C94 slot 36), one of the two set to -1 or past the far edge; zeroes both first; returns bool. The twin of 0x006CE920; the regional city's 0x004A9220 calls it (docs/region.md)."

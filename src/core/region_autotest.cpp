@@ -10,6 +10,10 @@
 
 #include <GZServPtrs.h>
 #include <cISC4App.h>
+class cIGZVariant;
+#include <cIGZOStream.h>
+#include <cIGZSerializable.h>
+#include <cIGZString.h>
 #include <cISC4City.h>
 #include <cRZBaseString.h>
 
@@ -36,6 +40,115 @@ struct Fnv {
         Bytes(&value, sizeof value);
     }
 };
+
+// An output stream that keeps only a checksum and a count of what a save
+// record writes to it.
+class SumStream final : public cIGZOStream {
+public:
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    void Flush() override {}
+    bool SetSint8(int8_t v) override { return Put(v); }
+    bool SetUint8(uint8_t v) override { return Put(v); }
+    bool SetSint16(int16_t v) override { return Put(v); }
+    bool SetUint16(uint16_t v) override { return Put(v); }
+    bool SetSint32(int32_t v) override { return Put(v); }
+    bool SetUint32(uint32_t v) override { return Put(v); }
+    bool SetSint64(int64_t v) override { return Put(v); }
+    bool SetUint64(uint64_t v) override { return Put(v); }
+    bool SetFloat32(float v) override { return Put(v); }
+    bool SetFloat64(double v) override { return Put(v); }
+    bool SetRZCharStr(char const* text) override { return SetVoid(text, static_cast<uint32_t>(std::strlen(text))); }
+    bool SetGZStr(cIGZString const& text) override
+    {
+        const uint32_t length = text.Strlen();
+        Put(length);
+        return SetVoid(text.ToChar(), length);
+    }
+    bool SetGZSerializable(cIGZSerializable const& object) override
+    {
+        return const_cast<cIGZSerializable&>(object).Write(*this);
+    }
+    bool SetVoid(void const* data, uint32_t size) override
+    {
+        sum.Bytes(data, size);
+        bytes += size;
+        return true;
+    }
+    int32_t GetError() override { return 0; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+
+    Fnv sum;
+    uint32_t bytes = 0;
+
+private:
+    template <typename T>
+    bool Put(const T& value)
+    {
+        return SetVoid(&value, sizeof value);
+    }
+};
+
+// A regional city (cSC4RegionalCity; docs/region.md) into a checksum: its
+// save record as its own Write gives it (through the serialisable part,
+// interface 0xE4FDA3D4), and what its getters answer: the three interfaces,
+// population by type (slot 9) and its extrapolation (17), tax rates (16),
+// budget, income and the commodity balances (50, 52, 64), the tutorial
+// flag (67), names and the file's name (31 to 39), hemisphere (49) and the
+// number of connections (21).
+void AddCity(Fnv& f, void* city)
+{
+    static const uint32_t kTypes[] = {0x1010, 0x1020, 0x1030, 0x3110, 0x3120, 0x3130, 0x3320,
+                                      0x3330, 0x4100, 0x4200, 0x4300, 0x4400, 0x9999};
+    for (const uint32_t id : {0x69D2BE1Du, 0x452294AAu, 0xE4FDA3D4u, 0x12345678u}) {
+        void* part = nullptr;
+        const uint8_t ok = Virtual<uint8_t>(city, 0x0, id, &part);
+        f.Add(ok);
+        if (ok && part) {
+            f.Add(static_cast<int32_t>(static_cast<char*>(part) - static_cast<char*>(city)));
+            if (id == 0xE4FDA3D4u) {
+                SumStream stream;
+                f.Add(Virtual<uint8_t>(part, 0xC, static_cast<cIGZOStream*>(&stream)));
+                f.Add(Virtual<uint32_t>(part, 0x14));
+                f.Add(stream.sum.h);
+                f.Add(stream.bytes);
+            }
+            Virtual<uint32_t>(city, 0x8);
+        }
+    }
+    for (const uint32_t type : kTypes) {
+        f.Add(Virtual<int32_t>(city, 0x24, type));
+        f.Add(Virtual<int32_t>(city, 0x44, type));
+        f.Add(Virtual<double>(city, 0x40, type));
+    }
+    f.Add(Virtual<double>(city, 0xC8));
+    f.Add(Virtual<double>(city, 0xD0));
+    for (uint32_t commodity = 1; commodity <= 3; ++commodity)
+        f.Add(Virtual<double>(city, 0x100, commodity));
+    f.Add(Virtual<uint8_t>(city, 0x10C));
+    f.Add(Virtual<uint32_t>(city, 0xC4));
+    for (const std::size_t slot : {0x7Cu, 0x84u, 0x8Cu, 0x94u, 0x9Cu}) {
+        cRZBaseString text;
+        Virtual<void>(city, slot, static_cast<cIGZString*>(&text));
+        std::string value = text.ToChar() ? text.ToChar() : "";
+        if (slot == 0x7C)
+            value.erase(0, value.find_last_of('\\') + 1);
+        f.Bytes(value.data(), value.size());
+    }
+    void** const sentinel = static_cast<void**>(Virtual<void*>(NodeAllocatorAt(addr::SC4List_NodeAllocator3), 0xC, 0xCu));
+    sentinel[0] = sentinel;
+    sentinel[1] = sentinel;
+    void* connections = sentinel;
+    Virtual<void>(city, 0x54, &connections);
+    uint32_t count = 0;
+    for (void** node = static_cast<void**>(sentinel[0]); node != connections; node = static_cast<void**>(node[0]))
+        ++count;
+    f.Add(count);
+    reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4List_ClearReleasing)(&connections);
+    Virtual<void>(NodeAllocatorAt(addr::SC4List_NodeAllocator3), 0x10, connections);
+}
 
 // The text of one of the game's strings (begin at +4, end at +8).
 std::string Text(void* string)
@@ -139,6 +252,11 @@ std::string DriveSecond(void* open)
     const uint32_t started = Virtual<uint32_t>(region, 0x20) & 0xFF;
     std::string text = " 2nd " + std::to_string(BytesChecksum(made.data(), made.size())) + " " +
                        std::to_string(started) + " " + Describe(region, "second, started");
+    Fnv citySum;
+    for (int32_t* tile = At<int32_t*>(region, 0x44); tile != At<int32_t*>(region, 0x48); tile += 3)
+        if (void** const holder = Virtual<void**>(region, 0x2C, tile[0], tile[1]); holder && *holder)
+            AddCity(citySum, *holder);
+    text += " city " + std::to_string(citySum.h);
 
     void** const sentinel = static_cast<void**>(Virtual<void*>(NodeAllocatorAt(addr::SC4List_NodeAllocator4), 0xC, 0xCu));
     sentinel[0] = sentinel;
@@ -199,14 +317,36 @@ std::string DriveCreate()
     return text;
 }
 
-void Loaded(cISC4City*)
+// The open city's own regional city (the application's slot 0x90): its
+// checksum as the load left it, and again after its figures are taken from
+// the city once more (slot 24) and after a fresh object from the class's
+// factory is described too.
+std::string DriveOpenCity(cISC4City* city)
+{
+    cISC4AppPtr app;
+    void* const regional = Virtual<void*>(static_cast<cISC4App*>(app), 0x90);
+    if (!regional)
+        return " open none";
+    Fnv before, after, fresh;
+    AddCity(before, regional);
+    Virtual<void>(regional, 0x60, city);
+    AddCity(after, regional);
+    if (void* const made = reinterpret_cast<void*(__cdecl*)()>(addr::cSC4RegionalCity_Create)()) {
+        Virtual<uint32_t>(made, 0x4);
+        AddCity(fresh, made);
+        Virtual<uint32_t>(made, 0x8);
+    }
+    return " open " + std::to_string(before.h) + " " + std::to_string(after.h) + " " + std::to_string(fresh.h);
+}
+
+void Loaded(cISC4City* city)
 {
     void* const region = Region();
     if (!region)
         return;
     g_token = " | rgn " + Describe(region, "at load");
     if (Env("OPENSC4_TEST_REGION_DRIVE") == "1")
-        g_token += DriveSecond(region);
+        g_token += DriveOpenCity(city) + DriveSecond(region);
     if (Env("OPENSC4_TEST_REGION_CREATE") == "1")
         g_token += DriveCreate();
 }

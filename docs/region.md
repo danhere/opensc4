@@ -9,7 +9,7 @@ About 93 KB of game code in five parts (survey of 2026-10-10: vtables, the exe's
 | Part | Code | Size | State |
 |---|---|---|---|
 | Region data, `cSC4Region`: the open region's folder, `region.ini`, the `config.bmp` layout, the cities found in the folder | 0x004A44E0 to 0x004A74E0 | 12 KB, 41 functions | ours (`region.data.*`), below |
-| Regional city, `cSC4RegionalCity` (class 0x6A037C24, main vtable 0x00A8FB20): what the region knows of one city without loading it (name, position, size, population, neighbour connections and deals) | 0x004A74E0 to 0x004ADC00 | 25 KB, 129 functions | the game's |
+| Regional city, `cSC4RegionalCity` (class 0x6A037C24, main vtable 0x00A8FB20): what the region knows of one city without loading it (name, position, size, population, neighbour connections and deals) | 0x004A74E0 to 0x004ADC00 | 25 KB, 115 functions | ours (`region.city.*`), below |
 | City files and thumbnails: opening a city file as a regional city (0x005DC220), file names (0x005DC400, 0x005DC790), serial numbers (0x005DBD40), the saved pictures of a city (resource type 0x8A2482B9; 0x005DCA10 to 0x005DEA60) | 0x005DBC10 to 0x005DEA60 | 10 KB | the game's |
 | Region screen window, `cSC4WinRegionScreen` (window class 0xEA659793; vtables 0x00AB92A0 and 0x00AB926C): opening and closing a region, the commands `LoadRegion` and `RegionBitmapLoad`, the terrain made from a region bitmap (0x007AEDD0), the panels | 0x007AC5C0 to 0x007B2440 | 24 KB | the game's |
 | Region map window, `cSC4WinRegionView` (window class 0x2BA6BB97; vtables 0x00AB9698 and 0x00AB9664): the map the cities are picked on | 0x007B2440 to 0x007B7B00 | 22 KB | the game's |
@@ -71,3 +71,72 @@ Every unattended run opens a region before it loads a city, so Init, the layout,
 Not reached: DeleteCity, MoveCity, MoveCitiesAway with a city to move and ResetTutorialCity with a real tutorial (they delete or overwrite city files), and SetName.
 
 Parity (2026-10-10, all three groups on, both switches, twelve saves for two days): the region part of the fingerprint is identical in all 34 runs, original and ours. Whole-city verdicts: 11 of 12 same; Big City day 365 differed in traffic cells in one run of ours while the original itself gave two outcomes there under load, and was same on the first pair when run on its own.
+
+## The regional city
+
+`cSC4RegionalCity` (0x1A0 bytes, class 0x6A037C24, factory 0x004AD9A0) is what the region knows of one city without loading it. The region makes one per city file (0x005DC220 opens the file and has the object read its record); the application keeps the open city's as its regional city (slot 0x90). Three vtables: main 0x00A8FB20 (74 slots, interface 0x69D2BE1D), message target 0x00A8FB10 at +4 (0x452294AA), save record 0x00A8FAF8 at +8 (0xE4FDA3D4). The code runs from 0x004A74E0 to 0x004AD9C0; what follows to 0x004ADC00 is `cSC4ToxicOccupant` (disasters).
+
+| Offset | Content |
+|---|---|
+| +0x0C | started (byte) |
+| +0x10 | reference count |
+| +0x14, +0x18 | position in the region, km |
+| +0x1C, +0x20 | size, km |
+| +0x24, +0x28, +0x2C | population, commercial jobs, industrial jobs |
+| +0x30 | workforce share (float) |
+| +0x34 | mayor rating (signed byte) |
+| +0x38 | difficulty |
+| +0x3C, +0x48, +0x54 | maps from a population type to its number, its extrapolated number and the limit of that |
+| +0x60 | twelve tax rates (floats; 7.0 for types it does not have) |
+| +0x90 | list of neighbour connections |
+| +0x94 | vector of pending connection changes, 16 bytes each: type, x, z, made or removed |
+| +0xA0 | moved (byte) |
+| +0xA4 | serial number |
+| +0xA8 to +0xB4 | original and last language and country |
+| +0xB8 | birth date |
+| +0xBC, +0xD0, +0xF8, +0x120, +0x154 | strings: save file path, city name, mayor name, description, utility advisor name (+0xE4, +0x10C, +0x134: three more) |
+| +0x148 to +0x150 | world position (two floats), base elevation |
+| +0x168 | established (byte) |
+| +0x16C | tutorial ID, -1 for none |
+| +0x170, +0x178 | budget, income (doubles) |
+| +0x180 | map from a commodity (1 power, 2 water, 3 garbage) to five doubles: produced, demanded, exported, imported, cost per unit |
+| +0x18C, +0x190 | all neighbour deals; the deals with the open city |
+| +0x194 | map from a kind (0 airports, 1 seaports) to a vector of points (three floats) |
+
+What the class does:
+
+- **The save record** (`Write` 0x004A7D10, `Read` 0x004AC5B0; version 13, reads older ones) holds everything above but the file path and the pending changes. After the record, `Read` takes the name of a city not yet established from the game's texts, and the names of a city file that carries its own text records from those.
+- **From a loaded city** (`UpdateCityCache`, slot 24): population and jobs by type from the demand simulator, tax rates, budget, the connections, airports and seaports. **Into a city** (`SetupCity`, slot 26): names, difficulty, file path and size. `ApplyPreferences` (slot 25; the exe's table calls it SetupCity) takes names and difficulty from the new city dialog's values and renames the file path.
+- **Growth of a city that is not open:** `ExtrapolateGrowth` (slot 19) adds to the extrapolated population of a type, and `GetAllowableExtrapolation` (slot 18) answers how much room is left under the limit: 1.1 times the saved population, at least 1,000 (`SetAllowableGrowth`, from the message handler on 0x26C63343, which also sets the extrapolated numbers back to the saved ones).
+- **Neighbour connections:** when the open city starts running (message 0xCA63D517) the regional city collects what its neighbours made or removed at the shared edge (`CollectNeighbourConnections`, `CollectOwnConnections`), sorts the changes and carries them into the city (`ApplyConnectionChanges` 0x004AA6D0): the road, rail or pipe stub is drawn or cleared at the edge and the neighbors simulator's connection made or deleted.
+- **Deals:** the two lists, kept in step with the open city (`SetLocalDeals`, `UpdateLocalDeals`), and the commodity totals worked out from them (`UpdateImportExport`, slot 71).
+
+The gzcom-dll header is off for this class in places: budget, income and the commodity figures are doubles, slot 9 is the population by type, slot 16 the tax rate, and slots 25 and 26 are as described here.
+
+### Replacements
+
+| Group | Functions |
+|---|---|
+| `region.city.part1` | QueryInterface, Release, Init, Shutdown, `Write`, tax rate, budget, income, commodity balance, population lookups, FindConnection, SetupPreferences, the ordering of connection changes (17; [region_city_1.cpp](../src/core/region_city_1.cpp)) |
+| `region.city.part2` | `SetupCity`, SetPosition, connections and deals lists, the collectors of connection changes, extrapolation, the commodity getters and setters, points of interest, the class's own map and sort instances (34; [region_city_2.cpp](../src/core/region_city_2.cpp)) |
+| `region.city.part3` | `ApplyConnectionChanges`, UpdateImportExport, `ApplyPreferences`, the destructor (5; [region_city_3.cpp](../src/core/region_city_3.cpp)) |
+| `region.city.part4` | the constructor, the message handler, the plain getters and setters, the thunks of the two other interfaces (35; [region_city_4.cpp](../src/core/region_city_4.cpp)) |
+| `region.city.part5` | `Read`, `UpdateCityCache`, the factory (3; [region_city_5.cpp](../src/core/region_city_5.cpp)) |
+
+Left the game's: the sort helpers the changes are sorted with (eight instances of the STL sort; the ordering they call is ours), map and list helpers, the stream helper 0x004A7560, the folded getters.
+
+### Odd things in the original, kept
+
+- `Read` puts both saved runs of deals on the first list (+0x18C); `Write` saves the two lists apart.
+- `Write` counts a connection that fails its interface query but does not write it.
+- `UpdateCityCache` releases only the ports that answer yes, and does not empty the connection list before filling it.
+- `Release` never lowers the count below 1 before destroying the object.
+- The last three bytes of a pending change, and four padding bytes of a new commodity entry, are stack leftovers in the original and zero in ours. Nothing reads them.
+
+### How it is tested
+
+Every regional city is read from its file when the region opens, and the open city's handles its messages in every run. With `OPENSC4_TEST_REGION_DRIVE=1` the fingerprint also has, for every city of the second region object, a checksum of its save record as its own `Write` gives it (into a stream that only sums) and of what its getters answer (the three interfaces, population and its extrapolation by type, tax rates, budget, income, commodity balances, names, hemisphere, number of connections); and for the open city's regional city the same before and after another `UpdateCityCache`, and for a fresh object from the factory.
+
+Not reached: connection changes from a neighbour and deals (the tutorial region has neither), `SetupCity`, `ApplyPreferences`, SetPosition with a move, the setters.
+
+Parity (2026-10-10, the region and regional city groups all on, both switches, twelve saves for two days): 12 of 12 same on the first pair, and the region and city checksums of ours equal the original's in every run.

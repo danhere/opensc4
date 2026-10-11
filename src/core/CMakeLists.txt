@@ -99,6 +99,11 @@ add_library(opensc4_core SHARED
   commercial_autotest.cpp
   commercial_sim.cpp
   region_autotest.cpp
+  region_city_1.cpp
+  region_city_2.cpp
+  region_city_3.cpp
+  region_city_4.cpp
+  region_city_5.cpp
   region_data_1.cpp
   region_data_2.cpp
   region_data_3.cpp
