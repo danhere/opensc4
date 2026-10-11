@@ -320,7 +320,7 @@ void __fastcall GetFerryRoutesInUse(void* self, void*, char* out)
 
     char* const connections = At<char*>(self, 0x104);
     for (char* item = At<char*>(connections, 0); item != connections; item = At<char*>(item, 0)) {
-        const auto key = static_cast<uint16_t>(static_cast<uint8_t>(item[8]) << 8 | static_cast<uint8_t>(item[9]));
+        const uint16_t key = EntryKey(item + 8);
         uint32_t result[2];
         reinterpret_cast<InsertFn>(addr::SC4Uint16TreeSet_Insert)(&seen, result, &key);
 
@@ -357,10 +357,10 @@ void __fastcall GetFerryRoutesInUse(void* self, void*, char* out)
             route->outside = 0;
             route->x = -2;
             route->z = -2;
-            Hold(route->from, Virtual<void*>(lots, 0x18, static_cast<uint32_t>(static_cast<uint8_t>(item[0x24])),
-                                             static_cast<uint32_t>(static_cast<uint8_t>(item[0x25])), 0u));
-            Hold(route->to, Virtual<void*>(lots, 0x18, static_cast<uint32_t>(static_cast<uint8_t>(terminal[0x1C])),
-                                           static_cast<uint32_t>(static_cast<uint8_t>(terminal[0x1D])), 0u));
+            Hold(route->from, Virtual<void*>(lots, 0x18, static_cast<uint32_t>(FerryCellX(item + 8, 3)),
+                                             static_cast<uint32_t>(FerryCellZ(item + 8, 3)), 0u));
+            Hold(route->to, Virtual<void*>(lots, 0x18, static_cast<uint32_t>(FerryCellX(terminal, 3)),
+                                           static_cast<uint32_t>(FerryCellZ(terminal, 3)), 0u));
             char* const backs = At<char*>(terminal, 0x10);
             char* back = At<char*>(backs, 0);
             while (back != backs && At<uint16_t>(back, 8) != key)
@@ -387,8 +387,8 @@ void __fastcall GetFerryRoutesInUse(void* self, void*, char* out)
             assign(route->back, way + 0x20);
             route->outside = 1;
             route->id = At<uint32_t>(item, 0x10);
-            Hold(route->from, Virtual<void*>(lots, 0x18, static_cast<uint32_t>(static_cast<uint8_t>(item[0x24])),
-                                             static_cast<uint32_t>(static_cast<uint8_t>(item[0x25])), 0u));
+            Hold(route->from, Virtual<void*>(lots, 0x18, static_cast<uint32_t>(FerryCellX(item + 8, 3)),
+                                             static_cast<uint32_t>(FerryCellZ(item + 8, 3)), 0u));
             if (void* const to = route->to) {
                 route->to = nullptr;
                 Virtual<uint32_t>(to, 0x8);
