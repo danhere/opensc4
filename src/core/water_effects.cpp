@@ -2469,6 +2469,78 @@ uint32_t __fastcall RestartByMode(char* base, void*)
 }
 OPENSC4_THUNK(TSC4EffectBase_Restart, RestartByMode, 0)
 
+// An effect's transform set (0x005B3430, slot 0xC of both classes; two
+// blocks of two bytes and thirteen floats, as the second class makes for
+// its particles), translated instruction by instruction. The first block
+// is kept at +0x90 and the second at +0xC8, each with a count of the
+// times it was set (+0x8C, +0xC4) and the block's second byte (+0x8D,
+// +0xC5). An effect without +0x21A whose
+// description has flag 0x1000 takes no place from the first block. Then
+// the effect's own values that go by the transform are worked out again,
+// up to its box (+0x194 to +0x1B4).
+uint32_t SetEffectTransform(char* self, uint32_t block, uint32_t back)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = block;
+    M<uint32_t>(esp + 8) = back;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_transform.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+StepMode g_transformMode = StepMode::Original;
+Call2Fn g_SC4Effect_SetTransform = nullptr;
+uint64_t g_transformsCompared = 0;
+
+// It reads the two blocks and writes only the effect: ours runs, what it
+// left is kept, the effect is put back and the game's runs.
+uint32_t __fastcall TransformByMode(char* self, void*, uint32_t block, uint32_t back)
+{
+    if (g_transformMode == StepMode::Original)
+        return g_SC4Effect_SetTransform(self, nullptr, block, back);
+    if (g_transformMode == StepMode::Ours)
+        return SetEffectTransform(self, block, back);
+    char before[kEffectSize], mine[kEffectSize];
+    std::memcpy(before, self, kEffectSize);
+    SetEffectTransform(self, block, back);
+    std::memcpy(mine, self, kEffectSize);
+    std::memcpy(self, before, kEffectSize);
+    const uint32_t result = g_SC4Effect_SetTransform(self, nullptr, block, back);
+    ++g_transformsCompared;
+    if ((g_transformsCompared & (g_transformsCompared - 1)) == 0)
+        log::Write("water effects: effects.transform: %llu calls compared so far",
+                   static_cast<unsigned long long>(g_transformsCompared));
+    if (std::memcmp(self, mine, kEffectSize) == 0) {
+        compare::Record("effects.transform", true, std::string(), std::string());
+    } else {
+        std::size_t at = 0;
+        while (self[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        char text[40];
+        std::snprintf(text, sizeof text, "effect+%zX ", at);
+        compare::Record("effects.transform", false, text + Hex(self + at, 8), text + Hex(mine + at, 8));
+    }
+    return result;
+}
+OPENSC4_THUNK(TSC4Effect_SetTransform, TransformByMode, 8)
+
 // --- The particle pool ---------------------------------------------------------------------
 
 // Particles are kept on a free list (0x00B0A688, linked through each one's
@@ -4015,6 +4087,31 @@ const bool g_registeredSmall = registry::Register({
     "sky and clouds\")",
     true,
     InstallSmall,
+});
+
+bool InstallTransform(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4Effect_SetTransform ||
+          Detour(addr::SC4Effect_SetTransform, &TSC4Effect_SetTransform, &g_SC4Effect_SetTransform)))
+        return false;
+    g_transformMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects' transform %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredTransform = registry::Register({
+    "renderer.effects.transform",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_SetTransform,
+    "An effect's transform set: the two blocks kept, and the effect's values that go by them worked out again, up "
+    "to its box; compare mode runs ours and the game's on the same effect (docs/renderer.md, \"Water effects, sky "
+    "and clouds\")",
+    true,
+    InstallTransform,
 });
 
 bool InstallGround(registry::Mode mode)
