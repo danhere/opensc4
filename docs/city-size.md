@@ -143,6 +143,30 @@ An empty 8 km city costs about 190 MB over the region screen against about 125 M
 
 **What it means for the plan.** Four of the five are 256-cell assumptions that the census did not find, because none reads the city size: two stack buffers, one literal array size, and the 8-bit cell packing in traffic and in the class behind the map picture. The census looked for 64/128/256 next to size reads; the next pass should look for 0x100 and 0x101 array sizes, `<< 8` cell keys and frames of 0x400 and 0x10000 bytes. Traffic is the large item: its cell keys need a wider format in the simulator, the path finder and the save record.
 
+## Lifting the spike's failures
+
+Work behind `[improvements] big_cities`; standard sizes keep the game's layouts. `BigCities()` (occmgr_sim.h) now also needs `simulators.weather.bodies` and every `simulators.traffic` group ours, since the game's own versions overrun at 512.
+
+| # | Status | Owner |
+|---|---|---|
+| 1 | Done: our `FindWaterBodies` scratch keeps 256 x 256 for standard sizes and grows with the city. | weather (this work) |
+| 2 | Part done: the cell record table (+0x58) is sized from the city and indexed through `CellRecord` ([traffic_cells.h](../src/core/traffic_cells.h)), stride 256 for standard sizes. The 16-bit cell keys are still `x & 0xFF`, so cells past 255 alias cells on the near side: see "Traffic cell keys" below. | traffic (this work) |
+| 3 | Open: `renderer.terrain.rows` has the game's `float[257]` in `LandRowThresholds` and `WaterRowVisibility`; size it from the terrain's rows (cells + 1). | Renderer (terrain drawing) |
+| 4 | Open: the terrain view's set-up 0x0075C0C0 sizes the row layer lists (0x00B4C7E0) and dirty row bits (0x00B4C7EC) to a literal 0x100; take the size from 0x00B4BC44 as its other arrays do. | Renderer (terrain drawing) |
+| 5 | Open: 0x0060ACD0 (behind `MakePictures`' map picture) packs cells as `(x * 0x100 + z) * 0x100 + 1 + n`. Also on the save path: `MakePictures`' size-type tables ({32, 64, 128}, {128, 256, 512}) treat 512 as large, and the record streams refuse counts of 1,000,000 or more. | Save rewrite |
+| - | Open, read not run: the region screen's terrain import 0x007AEDD0 takes a side as `0x100 >> (2 - log)`, 0 for log 3. | Region view |
+| - | Nothing failed yet: the terrain simulator's heightmap size is still unchecked (census, "Still open"). | Lot and zone (terrain simulator) |
+
+### Traffic cell keys
+
+Still 8 bits a coordinate (about 60 sites, [traffic.md](traffic.md)):
+
+- **16-bit cell keys** (`x << 8 | z`): the cell hash tables (damaged roads, rail crossings, links, ferries), connection lookups and the water-route search nodes.
+- **32-bit keys with a type**: path finder nodes (`sides << 24 | type << 16 | x << 8 | z`, bit 31 outside), edge density and cost keys (`evening << 24 | type << 16 | x << 8 | z`) and the deque items of the cell walk.
+- **Route bytes**: trips and ferries store a cell as two bytes, and the save record carries them.
+
+The plan: one key helper, as `CellRecord` did for the table, that packs as now for standard sizes and with 10 bits a coordinate for big cities (x and z in 20 bits leaves 12 for type, sides and the outside bit). The route bytes and the save record need a wider form only for big cities, so standard saves stay byte for byte the game's.
+
 ## Compatibility
 
 - **Record streams** ([save-format.md](save-format.md), "The record streams"): the vector and row readers refuse counts of 1,000,000 or more. A 512 by 512 grid has 262,144 cells, a 1024 by 1024 grid 1,048,576: over the limit if it is saved as one vector. The row writers only work for square grids.
