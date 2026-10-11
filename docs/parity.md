@@ -109,6 +109,7 @@ The test cities never edit their networks, so parity alone would not reach the c
 | `OPENSC4_TEST_WALLOCC=1` | each day, the retaining walls' query slots and edge hashes on a third of them, into the fingerprint ([wallocc.md](wallocc.md)) |
 | `OPENSC4_TEST_CONSTROCC=1` | each day, the construction sites' query slots on half of them, into the fingerprint ([constrocc.md](constrocc.md)) |
 | `OPENSC4_TEST_TEXOCC=1` | each day, the lot base textures' query slots on a third of them, into the fingerprint ([texocc.md](texocc.md)). `OPENSC4_TEST_PROPOCC_DUMP=<n>` logs every prop's hashed fields at the n-th fingerprint of a run |
+| `OPENSC4_TEST_FIREOCC=1` | each day, the fire occupants' query slots on half the fires, into the fingerprint ([fireocc.md](fireocc.md)); fires come from the disaster switches |
 | `OPENSC4_TEST_ZONE=1` | each day, the lot manager's and zone developer's pure queries on a lattice of cells, into the fingerprint ([zone.md](zone.md)) |
 | `OPENSC4_TEST_CRIME_QUERIES=1` | each day, the crime queries only the UI and the automata make, into the fingerprint ([crime.md](crime.md)) |
 | `OPENSC4_TEST_MYSIM_QUERIES=1` | each day, what the MySim panel and balloons ask every MySim, into the fingerprint ([mysim-agents.md](mysim-agents.md)) |

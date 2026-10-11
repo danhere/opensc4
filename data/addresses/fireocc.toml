@@ -1,0 +1,297 @@
+# The fire occupant (cSC4FireOccupant, class ID 0x29D25F1D, occupant type 0x69D25C5F): one fire burning on a building, lot object or tree (src/core/fireocc_sim.cpp, the class map in src/core/fireocc_sim.h). The constructor 0x004711C0 (cSC4FireOccupant::Construct), the end time's 0x0046FE00 (CheckBurnOut), 0x00470250 (SetView) and 0x00472790 (Refresh) are in disasters.toml.
+
+[[entry]]
+name = "cSC4FireOccupant::vftable"
+address = 0x00A88460
+kind = "vtable"
+expect = "30 FE 46 00 F0 28 5E 00"
+source = "The primary cISC4FireOccupant vtable (15 slots, listed in src/core/fireocc_sim.h). simulators.fireocc.slots swaps slots 0, 4, 8 and 12; simulators.fireocc.object copies it at the first construction."
+
+[[entry]]
+name = "cSC4FireOccupant::vftable_4"
+address = 0x00A883D8
+kind = "vtable"
+expect = "30 12 47 00 B0 29 5E 00"
+source = "Name ours. The cISC4Occupant part at +0x4 (34 slots; the base cSC4Occupant's and shared stubs except 0, 3, 4, 8 and 10, which simulators.fireocc.slots swaps)."
+
+[[entry]]
+name = "cSC4FireOccupant::vftable_8"
+address = 0x00A883BC
+kind = "vtable"
+expect = "40 12 47 00 E0 29 5E 00"
+source = "Name ours. The cIGZSerializable part at +0x8 (6 slots: three thunks, Write 0x00470130, Read 0x00471A70, GetGZCLSID 0x0046FDC0). Slots 3 and 4 replaced by simulators.fireocc.save, 0 and 5 by simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::vftable_C"
+address = 0x00A88358
+kind = "vtable"
+expect = "50 12 47 00 10 2A 5E 00"
+source = "Name ours. The property holder part at +0xC (25 slots: three thunks, the shared holder code, 22 the deleting destructor thunk 0x00471260, 23 the Write thunk 0x00471280, 24 the Read thunk 0x00471B90). Slots 23 and 24 replaced by simulators.fireocc.save, 0 by simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::vftable_20"
+address = 0x00A88344
+kind = "vtable"
+expect = "70 12 47 00 A0 06 5E 00"
+source = "Name ours. The exemplar holder part at +0x20 (cISCExemplarPropertyHolder, 5 slots: three thunks, SetPropertyExemplar 0x00458E60, the getter 0x0060CE80). Slot 0 replaced by simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::GetGZCLSID"
+address = 0x0046FDC0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 1D 5F D2 29 C3 CC CC"
+source = "Returns the class ID 0x29D25F1D (+8 slot 5; also called by the class registration at 0x004606EE). Ours in simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::SetHosed"
+address = 0x0046FDD0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FireOccupant* this, int32_t change)"
+expect = "8B 44 24 04 85 C0 7D 1D"
+source = "Slot 12: adds the argument to the hosed count at +0x4C; a negative one takes off at most what there is. Ours in simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::QueryInterface"
+address = 0x0046FE30
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4FireOccupant* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D 60 5C D2"
+source = "Slot 0: IID 0x69D25C60 gives the object; every other goes to the occupant base's 0x005E89C0 with this + 4. Ours in simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::ReadFlame"
+address = 0x004700A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* flame, cIGZIStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. A flame's record (versions 2 and 3): the kind, the turn, the spot, the transform. Only Read calls it (0x00471B2A); ours inside simulators.fireocc.save."
+
+[[entry]]
+name = "cSC4FireOccupant::Write"
+address = 0x00470130
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "+8 slot 3 (this = object + 8): version 3, the occupant base's record, the heat, the stage, the stage count, the target's reference, the flames. Ours in simulators.fireocc.save."
+
+[[entry]]
+name = "cSC4FireOccupant::GetPosition"
+address = 0x00470210
+kind = "function"
+convention = "thiscall"
+signature = "float* (cISC4Occupant* this, float* position)"
+expect = "8B 41 50 85 C0 74 07 8B"
+source = "+4 slot 8: the target's position (a jump to its slot 8), without a target the base's 0x005E8A20. Ours in simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::GetBoundingBox"
+address = 0x00470230
+kind = "function"
+convention = "thiscall"
+signature = "float* (cISC4Occupant* this, float* low, float* high)"
+expect = "8B 41 50 85 C0 74 07 8B"
+source = "+4 slot 10: the target's box (a jump to its slot 10), without a target the base's 0x005E8A40. Ours in simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::ConstructFlame"
+address = 0x00470BC0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* flame)"
+expect = "8B C1 C6 40 01 01 53 33"
+source = "Name ours. A flame's constructor (0x50 bytes; the layout is in src/core/fireocc_sim.h). Callers: Read 0x00471B18 and the placing 0x00472420, 0x00472527. Our Read has its own copy; the placing keeps the game's."
+
+[[entry]]
+name = "cSC4FireOccupant::UpdateFlameEffect"
+address = 0x00470CA0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* flame)"
+expect = "8B C1 8B 48 4C 83 EC 4C"
+source = "Name ours. Drawing, left the game's: builds a transform from the flame's turn and spot and gives it to the flame's effect (slot 7), when it has one."
+
+[[entry]]
+name = "cSC4FireOccupant::Shutdown"
+address = 0x00470DC0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4Occupant* this)"
+expect = "57 8B F9 8B 07 FF 50 14"
+source = "+4 slot 4: the flames' effects stopped and released, the flames deleted, the target's burning property and removal flag cleared, its automata controllers removed, the target released, the base's Shutdown. Ours in simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::StartFlame"
+address = 0x004710D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* flame, int32_t stage)"
+expect = "53 8B D9 8B 4B 4C 85 C9"
+source = "Name ours. Drawing, left the game's: stops and releases the flame's effect, makes the stage's effect by name (the tables 0x00B07F90 and 0x00B07FA4 by the flame's kind) with the effects manager 0x00B43D1C's slot 7, places it and starts it when the flame is shown. Called by Init and SetStage (ours call it at its address)."
+
+[[entry]]
+name = "cSC4FireOccupant::Init"
+address = 0x00471170
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4Occupant* this)"
+expect = "57 8B F9 8B 07 FF 50 14"
+source = "+4 slot 3: once; the base's Init, occupant group 0x5005, every flame already there started. Ours in simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::QueryInterfaceThunk4"
+address = 0x00471230
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 04 E9 F8 EB FF FF"
+source = "Name ours. +4 slot 0: this - 4 to QueryInterface. Ours in simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::QueryInterfaceThunk8"
+address = 0x00471240
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 08 E9 E8 EB FF FF"
+source = "Name ours. +8 slot 0: this - 8 to QueryInterface. Ours in simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::QueryInterfaceThunkC"
+address = 0x00471250
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 0C E9 D8 EB FF FF"
+source = "Name ours. +0xC slot 0: this - 0xC to QueryInterface. Ours in simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::DeletingDestructorThunk"
+address = 0x00471260
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* part, uint32_t flags)"
+expect = "83 E9 0C E9 98 03 00 00"
+source = "Name ours. +0xC slot 22: this - 0xC to the deleting destructor 0x00471600. Ours (in the vtable copy) in simulators.fireocc.object."
+
+[[entry]]
+name = "cSC4FireOccupant::QueryInterfaceThunk20"
+address = 0x00471270
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 20 E9 B8 EB FF FF"
+source = "Name ours. +0x20 slot 0: this - 0x20 to QueryInterface. Ours in simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::WriteThunk"
+address = 0x00471280
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZOStream* stream)"
+expect = "83 E9 04 E9 A8 EE FF FF"
+source = "Name ours. +0xC slot 23: this - 4 to Write. Ours in simulators.fireocc.save."
+
+[[entry]]
+name = "cSC4FireOccupant::Destroy"
+address = 0x00471290
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FireOccupant* this)"
+expect = "56 8B F1 57 8D 7E 04 C7"
+source = "Name ours. The destructor: the vtables, the flame list's memory freed, the target released, the base's 0x005E8C40. Only the deleting destructor calls it (0x00471603). Ours inside simulators.fireocc.object's deleting destructor."
+
+[[entry]]
+name = "cSC4FireOccupant::Create"
+address = 0x004715E0
+kind = "function"
+convention = "cdecl"
+signature = "cSC4FireOccupant* ()"
+expect = "6A 6C E8 F9 3F 17 00 83"
+source = "The factory the class registration holds (pushed at 0x004606E9): 0x6C bytes of operator new, then a jump to the constructor; returns the object itself. Detoured by simulators.fireocc.object."
+
+[[entry]]
+name = "cSC4FireOccupant::DeletingDestructor"
+address = 0x00471600
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4FireOccupant* this, uint32_t flags)"
+expect = "56 8B F1 E8 88 FC FF FF"
+source = "Name ours. The destructor, then operator delete with flag 1. Reached only through the holder part's slot 22 (0x00471260). Ours (in the vtable copy) in simulators.fireocc.object."
+
+[[entry]]
+name = "cSC4FireOccupant::SetTarget"
+address = 0x00471900
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4FireOccupant* this, cISC4Occupant* target)"
+expect = "83 EC 38 53 56 8B F1 8B"
+source = "Slot 4: takes the target, reads its stage count (property 0x49BEDA31), works the two flame numbers out of its box with the curves at 0x00B21638, marks it burning and not removable, and for a building asks the automata controller manager for the fire_occupant controllers. Ours in simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::Read"
+address = 0x00471A70
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "83 EC 08 53 8B D9 56 8B"
+source = "+8 slot 4 (this = object + 8): version 3 only; the counterpart of Write, the flames made new. Ours in simulators.fireocc.save."
+
+[[entry]]
+name = "cSC4FireOccupant::ReadThunk"
+address = 0x00471B90
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZIStream* stream)"
+expect = "83 E9 04 E9 D8 FE FF FF"
+source = "Name ours. +0xC slot 24: this - 4 to Read. Ours in simulators.fireocc.save."
+
+[[entry]]
+name = "cSC4FireOccupant::FindFlameSpots"
+address = 0x00471CF0
+kind = "function"
+convention = "cdecl"
+signature = "bool (uint32_t count, cISC4Occupant* target, void* spots)"
+expect = "81 EC DC 00 00 00 8B 8C"
+source = "Name ours. Model code, left the game's: walks the triangles of the target's model object (its slot 19) and draws count spots on them with a generator of its own (seeded -1) into a vector of 0x14-byte spots {place, kind, turn}; false without a model. Called by the placing and by Refresh."
+
+[[entry]]
+name = "cSC4FireOccupant::PlaceFlames"
+address = 0x00472380
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FireOccupant* this)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Drawing, left the game's: makes the fire's flames, at the model's spots (+0x64 then set) or, without a model, one more than the two flame numbers' sum at places drawn inside the box with the class's generator 0x00B21648; each shown or not by the view 0x00B43DC4's slot 22. Called by SetStage for a fire without flames (ours calls it at its address)."
+
+[[entry]]
+name = "cSC4FireOccupant::SetStage"
+address = 0x004728B0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4FireOccupant* this, int32_t stage)"
+expect = "53 8B 5C 24 08 57 8B F9"
+source = "Slot 8: a new stage is stored, a fire without flames gets them placed, every flame gets the stage's effect. Ours in simulators.fireocc.slots."
+
+[[entry]]
+name = "cSC4FireOccupant::ControllerName"
+address = 0x00A8849C
+kind = "data"
+source = "Name ours. The text \"fire_occupant\" SetTarget gives the automata controller manager (it follows the primary vtable)."
+
+[[entry]]
+name = "cSC4FireOccupant::ZeroFloat"
+address = 0x00B21640
+kind = "data"
+source = "Name ours. A float the flame's constructor copies into the spot (and the spot search into its results) before setting them: read, not assumed zero."
+
+[[entry]]
+name = "cSC4FireOccupant::Random"
+address = 0x00B21648
+kind = "data"
+source = "Name ours. The class's own random generator: the placing's draws for a target without a model. Not touched by our code."
