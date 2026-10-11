@@ -1525,6 +1525,156 @@ void RestoreFullStep(const std::vector<char>& bytes)
     std::memcpy(g_fullSelf, bytes.data() + kStartParticleBytes, kEffectSize);
 }
 
+// A particle meeting the water or the ground (0x005B8DC0; the other step
+// calls it for descriptions with flag 0x100 or 0x400, with the particle,
+// its place on the terrain's grid and the part of the step), translated
+// instruction by instruction. A particle at or below the water's height
+// (the effect's +0x1FC) may end there, by a random number against the
+// description's +0x154, and an effect with its +0x219 set starts another
+// effect there ("_water", through 0x005B8290). Otherwise the terrain is
+// asked (the service 0x00B43D1C's interface 0x0A5EAA1A and the object at
+// +0x1F0) for the height and the slope under the particle: a particle that
+// reached the ground bounces (its velocity turned about the ground's
+// normal and scaled by values of the description), slides, stays, or ends
+// (an effect with +0x218 set starts "_terrain" there), and some
+// descriptions scale the effect's own velocity (+0x150). False ends the
+// particle.
+uint32_t HitGround(char* self, uint32_t particle, uint32_t point, uint32_t step)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = particle;
+    M<uint32_t>(esp + 8) = point;
+    M<uint32_t>(esp + 12) = step;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_hit.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Its comparison: it writes the particle and the effect, draws random
+// numbers and asks the terrain, all of which can be done twice, but the
+// effect it may start cannot. So the game's runs for real with each start
+// noted (which, and where); the particle, the effect and the generator are
+// put back, and ours runs with the starts only noted. The starts, the
+// answer and what is left of the three must be the same.
+struct HitStart {
+    uint32_t which;
+    char place[12];
+    bool operator==(const HitStart& other) const
+    {
+        return which == other.which && std::memcmp(place, other.place, sizeof place) == 0;
+    }
+};
+StepMode g_hitMode = StepMode::Original;
+Call2Fn g_SC4Effect_StartNamed = nullptr;
+bool g_hitRecord = false, g_hitReplay = false;
+std::vector<HitStart> g_hitGameStarts, g_hitOurStarts;
+uint64_t g_hitsCompared = 0, g_hitStartsCompared = 0;
+
+uint32_t __fastcall DSC4Effect_StartNamed(char* self, void*, uint32_t which, uint32_t place)
+{
+    if (!g_hitRecord && !g_hitReplay)
+        return g_SC4Effect_StartNamed(self, nullptr, which, place);
+    HitStart start{which, {}};
+    std::memcpy(start.place, reinterpret_cast<const void*>(place), sizeof start.place);
+    if (g_hitReplay) {
+        g_hitOurStarts.push_back(start);
+        return 0;
+    }
+    g_hitGameStarts.push_back(start);
+    g_hitRecord = false;
+    const uint32_t result = g_SC4Effect_StartNamed(self, nullptr, which, place);
+    g_hitRecord = true;
+    return result;
+}
+OPENSC4_THUNK(TSC4Effect_StartNamed, DSC4Effect_StartNamed, 8)
+
+uint32_t HitByMode(char* self, uint32_t particle, uint32_t point, uint32_t step)
+{
+    if (g_hitMode == StepMode::Original || g_effectRecord || g_effectReplay || g_hitRecord || g_hitReplay)
+        return g_SC4Effect_StepFlag100(self, nullptr, particle, point, step);
+    if (g_hitMode == StepMode::Ours)
+        return HitGround(self, particle, point, step);
+    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
+    char* const bytes = reinterpret_cast<char*>(particle);
+    constexpr std::size_t kEffectAt = kStartParticleBytes, kGeneratorAt = kEffectAt + kEffectSize,
+                          kTotal = kGeneratorAt + kGeneratorSize;
+    char before[kTotal], mine[kTotal], theirs[kTotal];
+    const auto save = [&](char* to) {
+        std::memcpy(to, bytes, kStartParticleBytes);
+        std::memcpy(to + kEffectAt, self, kEffectSize);
+        std::memcpy(to + kGeneratorAt, generator, kGeneratorSize);
+    };
+    const auto restore = [&](const char* from) {
+        std::memcpy(bytes, from, kStartParticleBytes);
+        std::memcpy(self, from + kEffectAt, kEffectSize);
+        std::memcpy(generator, from + kGeneratorAt, kGeneratorSize);
+    };
+    // The place is the caller's, and the same for both runs.
+    char place[12];
+    std::memcpy(place, reinterpret_cast<const void*>(point), sizeof place);
+    save(before);
+    g_hitGameStarts.clear();
+    g_hitRecord = true;
+    const uint32_t result = g_SC4Effect_StepFlag100(self, nullptr, particle, point, step);
+    g_hitRecord = false;
+    save(theirs);
+    char placeAfter[12];
+    std::memcpy(placeAfter, reinterpret_cast<const void*>(point), sizeof placeAfter);
+    restore(before);
+    std::memcpy(reinterpret_cast<void*>(point), place, sizeof place);
+    g_hitOurStarts.clear();
+    g_hitReplay = true;
+    const uint32_t ourResult = HitGround(self, particle, point, step);
+    g_hitReplay = false;
+    save(mine);
+    const bool samePlace = std::memcmp(reinterpret_cast<const void*>(point), placeAfter, sizeof placeAfter) == 0;
+    restore(theirs);
+    std::memcpy(reinterpret_cast<void*>(point), placeAfter, sizeof placeAfter);
+    ++g_hitsCompared;
+    g_hitStartsCompared += g_hitGameStarts.size();
+    if ((g_hitsCompared & (g_hitsCompared - 1)) == 0)
+        log::Write("water effects: effects.hit: %llu calls, %llu starts compared so far",
+                   static_cast<unsigned long long>(g_hitsCompared),
+                   static_cast<unsigned long long>(g_hitStartsCompared));
+    char text[64];
+    if (!(g_hitGameStarts == g_hitOurStarts)) {
+        std::snprintf(text, sizeof text, "%zu starts", g_hitGameStarts.size());
+        const std::string game = text;
+        std::snprintf(text, sizeof text, "%zu starts", g_hitOurStarts.size());
+        compare::Record("effects.hit", false, game, text);
+    } else if ((result & 0xFF) != (ourResult & 0xFF) || !samePlace || std::memcmp(theirs, mine, kTotal) != 0) {
+        std::size_t at = 0;
+        while (at < kTotal && theirs[at] == mine[at])
+            ++at;
+        at = at < kTotal ? at & ~std::size_t{3} : 0;
+        const char* const part = at < kEffectAt ? "particle" : at < kGeneratorAt ? "effect" : "generator";
+        const std::size_t offset = at < kEffectAt ? at : at < kGeneratorAt ? at - kEffectAt : at - kGeneratorAt;
+        std::snprintf(text, sizeof text, "%u%s %s+%zX ", result & 0xFF, samePlace ? "" : " place", part, offset);
+        const std::string game = text + Hex(theirs + at, 8);
+        std::snprintf(text, sizeof text, "%u%s %s+%zX ", ourResult & 0xFF, samePlace ? "" : " place", part, offset);
+        compare::Record("effects.hit", false, game, text + Hex(mine + at, 8));
+    } else {
+        compare::Record("effects.hit", true, std::string(), std::string());
+    }
+    return result;
+}
+
 template <typename Real>
 uint32_t FullStepCallee(uint32_t target, uint32_t particle, const void* point, uint32_t step, Real&& real)
 {
@@ -1553,7 +1703,7 @@ uint32_t FullStepCallee(uint32_t target, uint32_t particle, const void* point, u
 uint32_t __fastcall DSC4Effect_StepFlag100(char* self, void*, uint32_t particle, uint32_t point, uint32_t step)
 {
     return FullStepCallee(addr::SC4Effect_StepFlag100, particle, reinterpret_cast<const void*>(point), step,
-                          [&] { return g_SC4Effect_StepFlag100(self, nullptr, particle, point, step); });
+                          [&] { return HitByMode(self, particle, point, step); });
 }
 OPENSC4_THUNK(TSC4Effect_StepFlag100, DSC4Effect_StepFlag100, 12)
 
@@ -2704,6 +2854,35 @@ const bool g_registeredFullStep = registry::Register({
     "effects, sky and clouds\")",
     true,
     InstallFullStep,
+});
+
+bool InstallHit(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4Effect_StepFlag100 ||
+          Detour(addr::SC4Effect_StepFlag100, &TSC4Effect_StepFlag100, &g_SC4Effect_StepFlag100)))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(g_SC4Effect_StartNamed ||
+          Detour(addr::SC4Effect_StartNamed, &TSC4Effect_StartNamed, &g_SC4Effect_StartNamed)))
+        return false;
+    g_hitMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: particles meeting the water or the ground %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredHit = registry::Register({
+    "renderer.effects.hit",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StepFlag100,
+    "A particle meeting the water or the ground: it ends, bounces, slides or stays, and may start another effect "
+    "there; compare mode runs the game's with those starts noted and ours with them held back (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallHit,
 });
 
 bool InstallGround(registry::Mode mode)
