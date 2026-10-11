@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <initializer_list>
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
@@ -1065,7 +1066,6 @@ uint32_t __fastcall DSC4Effect_DrawParticles(char* self, void*, uint32_t context
     return EffectRecorded(addr::SC4Effect_DrawParticles, &ParticlesByMode, self, context);
 }
 OPENSC4_THUNK(TSC4Effect_DrawParticles, DSC4Effect_DrawParticles, 4)
-OPENSC4_EFFECT_HOOK1(SC4EffectB_DrawParticles)
 // What the base effect class does instead of drawing, when it has no render
 // context or no particle (0x005B6390, slot 0x4C), translated instruction by
 // instruction: the box around its particles (+0x1A0 to +0x1B4) is worked
@@ -1346,6 +1346,238 @@ uint32_t __fastcall NotDrawnBByMode(char* self, void*)
     }
     return result;
 }
+
+// The second effect class's draw (0x005ADD50, slot 0x44), translated
+// instruction by instruction. Its particles are drawn as one model each:
+// the effect keeps a model instance (+0x220) and the model (+0x224). The
+// box is kept as in the step out of view. Each particle in view (the
+// game's 0x005AD890 says, for descriptions with flag 2 of their third
+// word) gets its block from 0x005ACA30, scaled by a curve of the
+// description; the instance is given the block (slot 0x28) and the
+// particle's colour and opacity in the block the instance itself gave at
+// the start (slots 0x3C and 0x40), the model is set to the frame the
+// particle's own clock (+0x48) has reached (slot 0x28; the clock runs by
+// the effect's step or by the particle's speed), or the effect's timer
+// (+0x228) is used, and the instance is drawn (slot 0x30 with the
+// context). A particle's own effect is then told where it is, as out of
+// view. Last the context's colour is reset (0x007D3290).
+uint32_t DrawParticlesB(char* self, uint32_t context)
+{
+    uint32_t stackmem[320] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[224]);
+    M<uint32_t>(esp + 4) = context;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_draw_b.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Its comparison is the step's out of view, with the model instance and
+// the model given noting tables as well: what only asks (the instance's
+// slot 0x3C, the model's 0x30 and 0x44) is always passed on, and the
+// rest, the drawing of the instance among it, only when the game's runs.
+std::map<uint32_t, std::vector<uint32_t>> g_instanceTables, g_modelTables;
+StepMode g_drawModeB = StepMode::Original;
+Call1Fn g_SC4EffectB_DrawParticles = nullptr;
+uint64_t g_drawsBCompared = 0, g_drawBCallsCompared = 0;
+
+uint32_t __fastcall InstanceInfo(char* object, void*, uint32_t out)
+{
+    const uint32_t result = CallThis<uint32_t>(ChildSlot(object, 0x3C), object, out);
+    ChildCall call{0x3C, reinterpret_cast<uint32_t>(object), 0, 0, {}};
+    std::memcpy(call.data, reinterpret_cast<const void*>(result), 0x14);
+    NoteChildCall(call);
+    return result;
+}
+
+uint32_t __fastcall InstanceBlock(char* object, void*, uint32_t block)
+{
+    ChildCall call{0x28, reinterpret_cast<uint32_t>(object), 0, 0, {}};
+    CopyBlock(call.data, block);
+    NoteChildCall(call);
+    return g_childForward ? CallThis<uint32_t>(ChildSlot(object, 0x28), object, block) : 0;
+}
+
+uint32_t __fastcall InstanceSetInfo(char* object, void*, uint32_t info)
+{
+    ChildCall call{0x40, reinterpret_cast<uint32_t>(object), 0, 0, {}};
+    std::memcpy(call.data, reinterpret_cast<const void*>(info), 0x14);
+    NoteChildCall(call);
+    return g_childForward ? CallThis<uint32_t>(ChildSlot(object, 0x40), object, info) : 0;
+}
+
+uint32_t __fastcall InstanceDraw(char* object, void*, uint32_t context, uint32_t flag)
+{
+    NoteChildCall({0x30, reinterpret_cast<uint32_t>(object), context, flag, {}});
+    return g_childForward ? CallThis<uint32_t>(ChildSlot(object, 0x30), object, context, flag) : 0;
+}
+
+uint32_t __fastcall ModelFrames(char* object, void*)
+{
+    const uint32_t result = CallThis<uint32_t>(ChildSlot(object, 0x30), object);
+    NoteChildCall({0x130, reinterpret_cast<uint32_t>(object), result, 0, {}});
+    return result;
+}
+
+uint32_t __fastcall ModelInfo(char* object, void*)
+{
+    const uint32_t result = CallThis<uint32_t>(ChildSlot(object, 0x44), object);
+    NoteChildCall({0x144, reinterpret_cast<uint32_t>(object), M<uint16_t>(result + 2), 0, {}});
+    return result;
+}
+
+uint32_t __fastcall ModelSetFrame(char* object, void*, uint32_t frame)
+{
+    NoteChildCall({0x128, reinterpret_cast<uint32_t>(object), frame, 0, {}});
+    return g_childForward ? CallThis<uint32_t>(ChildSlot(object, 0x28), object, frame) : 0;
+}
+
+// The effect's part at +0x228 keeps memory of its own, so its two
+// functions the draw calls cannot run twice from the same bytes: during a
+// comparison they are noted as the calls above, and run only for the
+// game's.
+constexpr std::size_t kEffectPartB = 0x228, kEffectPartEndB = 0x26C;
+char* g_drawBPart = nullptr;
+Call2Fn g_SC4EffectPartB_Start = nullptr;
+Call1Fn g_SC4EffectPartB_Step = nullptr;
+
+uint32_t __fastcall DSC4EffectPartB_Start(char* part, void*, uint32_t a, uint32_t b)
+{
+    if (part != g_drawBPart)
+        return g_SC4EffectPartB_Start(part, nullptr, a, b);
+    NoteChildCall({0x803E10, 0, a, b, {}});
+    return g_childForward ? g_SC4EffectPartB_Start(part, nullptr, a, b) : 0;
+}
+OPENSC4_THUNK(TSC4EffectPartB_Start, DSC4EffectPartB_Start, 8)
+
+uint32_t __fastcall DSC4EffectPartB_Step(char* part, void*, uint32_t step)
+{
+    if (part != g_drawBPart)
+        return g_SC4EffectPartB_Step(part, nullptr, step);
+    NoteChildCall({0x5AC200, 0, step, 0, {}});
+    return g_childForward ? g_SC4EffectPartB_Step(part, nullptr, step) : 0;
+}
+OPENSC4_THUNK(TSC4EffectPartB_Step, DSC4EffectPartB_Step, 4)
+
+void SwapOne(char* object, std::map<uint32_t, std::vector<uint32_t>>& tables,
+             std::initializer_list<std::pair<uint32_t, uint32_t>> slots)
+{
+    if (!object || g_childReal.count(object))
+        return;
+    const uint32_t real = At<uint32_t>(object, 0);
+    std::vector<uint32_t>& table = tables[real];
+    if (table.empty()) {
+        table.assign(reinterpret_cast<const uint32_t*>(real), reinterpret_cast<const uint32_t*>(real) + kChildSlots);
+        for (const auto& [slot, function] : slots)
+            table[slot / 4] = function;
+    }
+    g_childReal[object] = real;
+    At<uint32_t*>(object, 0) = table.data();
+}
+
+uint32_t __fastcall DrawBByMode(char* self, void*, uint32_t context)
+{
+    if (g_drawModeB == StepMode::Original || g_effectRecord || g_effectReplay || !g_childReal.empty())
+        return g_SC4EffectB_DrawParticles(self, nullptr, context);
+    if (g_drawModeB == StepMode::Ours)
+        return DrawParticlesB(self, context);
+    char before[kEffectSizeB], mine[kEffectSizeB];
+    std::memcpy(before, self, kEffectSizeB);
+    std::vector<char*> particles;
+    char* const head = At<char*>(self, 0x14);
+    for (char* node = At<char*>(head, 0); node != head; node = At<char*>(node, 0))
+        particles.push_back(At<char*>(node, 8));
+    const auto saveParticles = [&] {
+        std::vector<char> bytes(particles.size() * kParticleBytesB);
+        for (std::size_t i = 0; i < particles.size(); ++i)
+            std::memcpy(bytes.data() + i * kParticleBytesB, particles[i], kParticleBytesB);
+        return bytes;
+    };
+    const std::vector<char> particlesBefore = saveParticles();
+    SwapChildren(self, true);
+    SwapOne(At<char*>(self, 0x220), g_instanceTables,
+            {{0x3C, reinterpret_cast<uint32_t>(&InstanceInfo)},
+             {0x28, reinterpret_cast<uint32_t>(&InstanceBlock)},
+             {0x40, reinterpret_cast<uint32_t>(&InstanceSetInfo)},
+             {0x30, reinterpret_cast<uint32_t>(&InstanceDraw)}});
+    SwapOne(At<char*>(self, 0x224), g_modelTables,
+            {{0x30, reinterpret_cast<uint32_t>(&ModelFrames)},
+             {0x44, reinterpret_cast<uint32_t>(&ModelInfo)},
+             {0x28, reinterpret_cast<uint32_t>(&ModelSetFrame)}});
+    g_drawBPart = self + kEffectPartB;
+    g_childOurCalls.clear();
+    g_childGameCalls.clear();
+    g_childForward = false;
+    DrawParticlesB(self, context);
+    std::memcpy(mine, self, kEffectSizeB);
+    const std::vector<char> particlesMine = saveParticles();
+    std::memcpy(self, before, kEffectSizeB);
+    for (std::size_t i = 0; i < particles.size(); ++i)
+        std::memcpy(particles[i], particlesBefore.data() + i * kParticleBytesB, kParticleBytesB);
+    g_childForward = true;
+    const uint32_t result = g_SC4EffectB_DrawParticles(self, nullptr, context);
+    SwapChildren(self, false);
+    g_drawBPart = nullptr;
+    const bool sameParticles = saveParticles() == particlesMine;
+    // The part is the game's alone: ours is given what the game's left.
+    std::memcpy(mine + kEffectPartB, self + kEffectPartB, kEffectPartEndB - kEffectPartB);
+    ++g_drawsBCompared;
+    g_drawBCallsCompared += g_childGameCalls.size();
+    if ((g_drawsBCompared & (g_drawsBCompared - 1)) == 0)
+        log::Write("water effects: effects.draw_b: %llu draws, %llu calls compared so far",
+                   static_cast<unsigned long long>(g_drawsBCompared),
+                   static_cast<unsigned long long>(g_drawBCallsCompared));
+    char text[80];
+    if (!(g_childGameCalls == g_childOurCalls)) {
+        std::size_t at = 0;
+        while (at < g_childGameCalls.size() && at < g_childOurCalls.size() &&
+               g_childGameCalls[at] == g_childOurCalls[at])
+            ++at;
+        const auto describe = [&](const std::vector<ChildCall>& calls) {
+            if (at >= calls.size()) {
+                std::snprintf(text, sizeof text, "%zu calls", calls.size());
+                return std::string(text);
+            }
+            std::snprintf(text, sizeof text, "call %zu of %zu: slot %X on %08X (%X, %X) ", at, calls.size(),
+                          calls[at].slot, calls[at].child, calls[at].a, calls[at].b);
+            return text + Hex(calls[at].data, sizeof calls[at].data);
+        };
+        const std::string game = describe(g_childGameCalls);
+        compare::Record("effects.draw_b", false, game, describe(g_childOurCalls));
+    } else if (!sameParticles) {
+        compare::Record("effects.draw_b", false, "particles", "particles differ");
+    } else if (std::memcmp(self, mine, kEffectSizeB) != 0) {
+        std::size_t at = 0;
+        while (self[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "effect+%zX ", at);
+        compare::Record("effects.draw_b", false, text + Hex(self + at, 4), text + Hex(mine + at, 4));
+    } else {
+        compare::Record("effects.draw_b", true, std::string(), std::string());
+    }
+    return result;
+}
+
+uint32_t __fastcall DSC4EffectB_DrawParticles(char* self, void*, uint32_t context)
+{
+    return EffectRecorded(addr::SC4EffectB_DrawParticles, &DrawBByMode, self, context);
+}
+OPENSC4_THUNK(TSC4EffectB_DrawParticles, DSC4EffectB_DrawParticles, 4)
 
 uint32_t __fastcall DSC4EffectB_NotDrawn(char* self, void*)
 {
@@ -3455,6 +3687,37 @@ const bool g_registeredNotDrawnB = registry::Register({
     InstallNotDrawnB,
 });
 
+bool InstallDrawB(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4EffectB_DrawParticles ||
+          Detour(addr::SC4EffectB_DrawParticles, &TSC4EffectB_DrawParticles, &g_SC4EffectB_DrawParticles)))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !((g_SC4EffectPartB_Start ||
+           Detour(addr::SC4EffectPartB_Start, &TSC4EffectPartB_Start, &g_SC4EffectPartB_Start)) &&
+          (g_SC4EffectPartB_Step ||
+           Detour(addr::SC4EffectPartB_Step, &TSC4EffectPartB_Step, &g_SC4EffectPartB_Step))))
+        return false;
+    g_drawModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: second effect class's draw %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDrawB = registry::Register({
+    "renderer.effects.draw_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectB_DrawParticles,
+    "The second effect class's draw: each particle in view drawn as the effect's model, at the frame its clock "
+    "has reached; compare mode notes the calls of ours and of the game's through stand-in tables of functions "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallDrawB,
+});
+
 bool InstallGround(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
@@ -3870,7 +4133,7 @@ bool InstallEffect(registry::Mode mode)
         bool ok = true;
         const auto hook = [&](std::uintptr_t address, void (*thunk)(), auto* original) {
             if (bits & bit)
-                ok = Detour(address, thunk, original) && ok;
+                ok = (*original || Detour(address, thunk, original)) && ok;
             bit <<= 1;
         };
         if (bits & bit)
