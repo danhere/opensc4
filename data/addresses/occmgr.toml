@@ -1,0 +1,699 @@
+# The occupant manager (cSC4OccupantManager, class ID 0x098F964D; src/core/occmgr_sim.h has the class map): code 0x0049D8B0 to 0x004A1D20 (src/core/occmgr_sim.cpp, occmgr_edit.cpp, occmgr_queries.cpp). Its global pointer 0x00B43D0C is SC4::NetworkService in core.toml (an old name, kept).
+
+[[entry]]
+name = "cSC4OccupantManager::InitOccupant"
+address = 0x0049D900
+kind = "function"
+convention = "cdecl"
+signature = "bool (cISC4Occupant* occupant, void* context)"
+expect = "8B 4C 24 04 8B 01 FF 50"
+source = "Name ours. The callback Init hands to IterateOccupants (slot 44) after a load: the occupant's Init (slot 3); true. Ours passes its own (simulators.occmgr.init)."
+
+[[entry]]
+name = "cSC4OccupantManager::QueryInterface"
+address = 0x0049D910
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D 34 83 BB"
+source = "Slot 0: IIDs 1 and 0xC6BB8334 the object, 0xE4FDA3D4 (cIGZSerializable) +0x4, 0x452294AA (cIGZMessageTarget2) +0x8. Ours in simulators.occmgr.object."
+
+[[entry]]
+name = "cSC4OccupantManager::GetOccupantManagerCellSizes"
+address = 0x0049D990
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4OccupantManager* this, float* x, float* z)"
+expect = "8B 44 24 04 8B 4C 24 08"
+source = "Slot 6: 64.0 and 64.0, constants. Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::GetWorldCellCount"
+address = 0x0049D9B0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4OccupantManager* this, int32_t* x, int32_t* z)"
+expect = "8B 44 24 04 8B 4C 24 08"
+source = "Slot 7: 192 and 192, constants. Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::GetOccupantManagerCellCount"
+address = 0x0049D9D0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4OccupantManager* this, int32_t* x, int32_t* z)"
+expect = "8B 41 24 8B 54 24 04 89"
+source = "Slot 8: +0x24 and +0x28 (the city size / 64). Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::WorldCellToOccupantManagerCell"
+address = 0x0049D9F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4OccupantManager* this, int32_t x, int32_t z, int32_t* outX, int32_t* outZ)"
+expect = "8B 44 24 04 8B 4C 24 0C"
+source = "Slot 10: minus 64 each. Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::OccupantManagerCellToWorldCell"
+address = 0x0049DA10
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4OccupantManager* this, int32_t x, int32_t z, int32_t* outX, int32_t* outZ)"
+expect = "8B 44 24 04 8B 4C 24 0C"
+source = "Slot 11: plus 64 each. Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::WorldCellToStandardCityCell"
+address = 0x0049DA30
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4OccupantManager* this, int32_t x, int32_t z, int32_t* outX, int32_t* outZ)"
+expect = "8B 44 24 08 8B 54 24 0C"
+source = "Slot 12, with the game's bug copied: *outX = z * 4 - 256 and *outZ is multiplied by four in place; x is not read. Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::StandardCityCellToWorldCell"
+address = 0x0049DA50
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4OccupantManager* this, int32_t x, int32_t z, int32_t* outX, int32_t* outZ)"
+expect = "8B 44 24 04 8B 4C 24 0C"
+source = "Slot 13: each / 4 (toward zero) + 64. Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::WorldCellToPosition"
+address = 0x0049DA80
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4OccupantManager* this, int32_t x, int32_t z, float* outX, float* outZ)"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Slot 14: (cell - 64) * 64 as float. Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::PositionToCellBytes"
+address = 0x0049DAC0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4OccupantManager* this, float x, float z, uint8_t* outX, uint8_t* outZ)"
+expect = "8B 01 8D 54 24 04 52 8D"
+source = "Name ours. Not virtual: PositionToWorldCell (through slot 15), each cell's low byte stored. InsertOccupant and MoveOccupant use it for the bounding cells. Ours inline (simulators.occmgr.edit)."
+
+[[entry]]
+name = "cSC4OccupantManager::OccupantManagerCellToPosition"
+address = 0x0049DAF0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4OccupantManager* this, int32_t x, int32_t z, float* outX, float* outZ)"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Slot 16: cell * 64 as float. Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::StandardCityCellToPosition"
+address = 0x0049DB20
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4OccupantManager* this, int32_t x, int32_t z, float* outX, float* outZ)"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Slot 18: cell * 16 as float. Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::GetOccupantManagerCellBounds"
+address = 0x0049DB50
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4OccupantManager* this, int32_t* minX, int32_t* minZ, int32_t* maxX, int32_t* maxZ)"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Slot 9: 64, 64, +0x24 + 63, +0x28 + 63 (world cells of the city). Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::RemoveOccupantsByType"
+address = 0x0049DB80
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, uint32_t type, bool shutdown, uint32_t data)"
+expect = "8B 41 34 8B 54 24 04 89"
+source = "Name ours. Slot 23: the type put in the manager's own filter (+0x34), then slot 22 with it (a tail jump; no initialized test). Ours in simulators.occmgr.edit."
+
+[[entry]]
+name = "cSC4OccupantManager::GetBoundingCells"
+address = 0x0049DBA0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4OccupantManager* this, int32_t x, int32_t z, int32_t* cells, int32_t* count)"
+expect = "56 8B 74 24 08 83 FE 01"
+source = "Slot 26: the up to eight neighbours of a world cell inside the 192 x 192 grid, as (x, z) pairs; returns the count. Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::GetFirstOccupantByPositionByType"
+address = 0x0049DC80
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, cISC4Occupant** out, float x, float z, uint32_t type)"
+expect = "8A 41 0C 84 C0 74 16 8B"
+source = "Name ours. Slot 29: false before Init; else the type put in the manager's own filter (+0x34) and slot 28 with it (a tail jump). Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::GetFirstOccupantByType"
+address = 0x0049DCB0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, cISC4Occupant** out, int32_t x, int32_t z, uint32_t type)"
+expect = "8A 41 0C 84 C0 74 16 8B"
+source = "Name ours. Slot 31: false before Init; else the type put in the manager's own filter (+0x34) and slot 30 with it (a tail jump). Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::GetFirstOccupantByStandardCityCellByType"
+address = 0x0049DCE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, cISC4Occupant** out, int32_t x, int32_t z, uint32_t type)"
+expect = "8A 41 0C 84 C0 74 19 8B"
+source = "Name ours. Slot 33: false before Init; else the type put in the manager's own filter (+0x34) and slot 32 with it (a tail jump). Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::GetFirstOccupantByStandardCityCellsByType"
+address = 0x0049DD10
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, cISC4Occupant** out, const int32_t* low, const int32_t* high, uint32_t type)"
+expect = "8A 41 0C 84 C0 74 19 8B"
+source = "Name ours. Slot 35: false before Init; else the type put in the manager's own filter (+0x34) and slot 34 with it (a tail jump). Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::GetOccupantsByBBoxByType"
+address = 0x0049DD40
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, SC4List* list, const float* low, const float* high, uint32_t type, uint32_t limit)"
+expect = "8A 41 0C 84 C0 74 2D 8B"
+source = "Name ours. Slot 37: false before Init; else slot 36 with the manager's own filter (+0x34) set to the type, or with no filter for type 0 (a tail jump). Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::GetOccupantsByOccupantManagerCellsByType"
+address = 0x0049DD80
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, SC4List* list, const int32_t* low, const int32_t* high, uint32_t type, uint32_t limit)"
+expect = "8A 41 0C 84 C0 74 2D 8B"
+source = "Name ours. Slot 39: false before Init; else slot 38 with the manager's own filter (+0x34) set to the type, or with no filter for type 0 (a tail jump). Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::GetOccupantsByStandardCityCellsByType"
+address = 0x0049DDC0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, SC4List* list, const int32_t* low, const int32_t* high, uint32_t type, uint32_t limit)"
+expect = "8A 41 0C 84 C0 74 2D 8B"
+source = "Name ours. Slot 41: false before Init; else slot 40 with the manager's own filter (+0x34) set to the type, or with no filter for type 0 (a tail jump). Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::IterateOccupantsByBBoxByType"
+address = 0x0049DE00
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, void* callback, void* context, const float* low, const float* high, uint32_t type)"
+expect = "8A 41 0C 84 C0 74 2D 8B"
+source = "Name ours. Slot 43: false before Init; else slot 42 with the manager's own filter (+0x34) set to the type, or with no filter for type 0 (a tail jump). Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::IterateOccupantsByType"
+address = 0x0049DE40
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, void* callback, void* context, const int32_t* low, const int32_t* high, uint32_t type)"
+expect = "8A 41 0C 84 C0 74 2D 8B"
+source = "Name ours. Slot 45: false before Init; else slot 44 with the manager's own filter (+0x34) set to the type, or with no filter for type 0 (a tail jump). Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::IterateOccupantsByStandardCityCellByType"
+address = 0x0049DE80
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, void* callback, void* context, const int32_t* low, const int32_t* high, uint32_t type)"
+expect = "8A 41 0C 84 C0 74 2D 8B"
+source = "Name ours. Slot 46: false before Init; else slot 47 with the manager's own filter (+0x34) set to the type, or with no filter for type 0 (a tail jump). Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::ClampCell"
+address = 0x0049DEC0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4OccupantManager* this, int32_t* x, int32_t* z)"
+expect = "8B 44 24 04 83 38 00 7D"
+source = "Name ours. Not virtual: both into 0..191. Ours inline."
+
+[[entry]]
+name = "cSC4OccupantManager::ClampCells"
+address = 0x0049DF00
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4OccupantManager* this, int32_t* x0, int32_t* z0, int32_t* x1, int32_t* z1)"
+expect = "8B 44 24 04 83 38 00 7D"
+source = "Name ours. Not virtual: all four into 0..191. Ours inline."
+
+[[entry]]
+name = "cSC4OccupantManager::AddRef"
+address = 0x0049DF80
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4OccupantManager* this)"
+expect = "56 8B F1 8B 46 14 57 8D"
+source = "Slot 1: the count +0x10 up, under the lock +0x14. Ours in simulators.occmgr.object."
+
+[[entry]]
+name = "cSC4OccupantManager::Release"
+address = 0x0049DFB0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4OccupantManager* this)"
+expect = "56 8B F1 8B 46 14 57 8D"
+source = "Slot 2: under the lock the count down while above 1 (unsigned); at the last reference Shutdown (slot 4) and the deleting destructor (slot 49), 0. Ours in simulators.occmgr.object."
+
+[[entry]]
+name = "cSC4OccupantManager::Shutdown"
+address = 0x0049E000
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this)"
+expect = "56 8B F1 8B 46 14 57 8D"
+source = "Slot 4: when initialized, every occupant removed and shut down (slot 22: no filter, true, 0), the filter +0x34 released, the flag cleared; true. Ours in simulators.occmgr.init."
+
+[[entry]]
+name = "cSC4OccupantManager::SetCitySize"
+address = 0x0049E050
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, float x, float z)"
+expect = "56 8B F1 8B 46 14 57 8D"
+source = "Slot 5: false once initialized; else the size at +0x1C/+0x20, its 64ths at +0x24/+0x28 and its 16ths at +0x2C/+0x30 (ftol). Ours in simulators.occmgr.edit."
+
+[[entry]]
+name = "cSC4OccupantManager::PositionToWorldCell"
+address = 0x0049E0E0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4OccupantManager* this, float x, float z, int32_t* outX, int32_t* outZ)"
+expect = "D9 44 24 04 8B 4C 24 0C"
+source = "Slot 15: (x + 4096) / 64 - 0.499 rounded to nearest by the 12582912.0 trick (stored as float, the bits minus 0x4B400000). No range test. Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::PositionToOccupantManagerCell"
+address = 0x0049E150
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4OccupantManager* this, float x, float z, int32_t* outX, int32_t* outZ)"
+expect = "D9 44 24 04 8B 4C 24 0C"
+source = "Slot 17: x / 64 - 0.499 rounded as slot 15. Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::PositionToStandardCityCell"
+address = 0x0049E1B0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4OccupantManager* this, float x, float z, int32_t* outX, int32_t* outZ)"
+expect = "D9 44 24 04 D8 0D 74 E1"
+source = "Slot 19: x / 16 - 0.5 rounded as slot 15, one more when x / 16 is exactly that. EAX at return is the FPU status word (not a result). Ours in simulators.occmgr.cells."
+
+[[entry]]
+name = "cSC4OccupantManager::GetOccupantsByStandardCityCells"
+address = 0x0049E250
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, SC4List* list, const int32_t* low, const int32_t* high, cISC4OccupantFilter* filter, uint32_t limit)"
+expect = "83 EC 18 56 8B F1 8A 46"
+source = "Slot 40: the cells clamped to the city (+0x2C/+0x30; no upper corner = the size itself), turned into a box shrunk by 0.1 with every height, then slot 36. No lock of its own. Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::IterateOccupantsByStandardCityCell"
+address = 0x0049E370
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, void* callback, void* context, const int32_t* low, const int32_t* high, cISC4OccupantFilter* filter)"
+expect = "83 EC 18 56 8B F1 8A 46"
+source = "Slot 47: as slot 40, then slot 42. Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::IsCellEmpty"
+address = 0x0049E490
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, int32_t x, int32_t z)"
+expect = "8B 44 24 04 85 C0 7C 32"
+source = "Slot 25: true outside 0..191 or for a cell without a list or with an empty one. Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::GetFirstOccupantByPosition"
+address = 0x0049E4D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, cISC4Occupant** out, float x, float z, cISC4OccupantFilter* filter)"
+expect = "83 EC 2C 55 56 8B F1 8B"
+source = "Slot 28: the first occupant in the position's world cell (no range test) that the filter takes and whose box holds the point (min <= p < max in x and z); referenced. Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::GetFirstOccupant"
+address = 0x0049E5E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, cISC4Occupant** out, int32_t x, int32_t z, cISC4OccupantFilter* filter)"
+expect = "83 EC 0C 55 56 8B F1 8B"
+source = "Slot 30: the first occupant of a world cell (0..191 tested) that the filter takes; referenced. Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::GetFirstOccupantByStandardCityCell"
+address = 0x0049E690
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, cISC4Occupant** out, int32_t x, int32_t z, cISC4OccupantFilter* filter)"
+expect = "83 EC 3C 55 56 8B F1 8B"
+source = "Slot 32: the first occupant in the world cell of the city cell's low corner + 0.1 (no range test) whose box overlaps the cell shrunk by 0.1 in x and z. Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::GetFirstOccupantByStandardCityCells"
+address = 0x0049E800
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, cISC4Occupant** out, const int32_t* low, const int32_t* high, cISC4OccupantFilter* filter)"
+expect = "83 EC 4C 53 55 56 8B F1"
+source = "Slot 34: as slot 32 for a rectangle of city cells (clamped to the city), the world cells walked x then z. Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::WriteRecord"
+address = 0x0049ECF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "83 EC 0C 53 56 8B 74 24"
+source = "Name ours. +0x4 slot 3 (Write): version 1, the size, the four cell counts, then every column and cell of the grid with its occupants as references (tools/re/save_schemas/occmgr.py). Ours in simulators.occmgr.save."
+
+[[entry]]
+name = "cSC4OccupantManager::GetCell"
+address = 0x0049EE80
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4OccupantManager* this, int32_t x, int32_t z, bool create)"
+expect = "51 8B 44 24 08 85 C0 53"
+source = "Name ours. Not virtual: the list of a world cell (clamped to 0..191), made when asked and missing: 4 bytes from operator new holding the head node (0xC bytes from the STL allocator). MoveOccupant's. Ours inline."
+
+[[entry]]
+name = "cSC4OccupantManager::ReleaseOccupantList"
+address = 0x0049EF30
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4OccupantManager* this, SC4List* list)"
+expect = "53 8B 5C 24 08 56 57 8B"
+source = "Slot 48: every occupant of a list released, then the list emptied (0x00413E60). Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::InsertOccupant"
+address = 0x0049EF60
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, cISC4Occupant* occupant, uint32_t data)"
+expect = "83 EC 38 53 55 8B 6C 24"
+source = "Slot 20: an occupant without flag 1 is referenced, initialized, given its bounding cells (its box shrunk by 0.1 where wider than 1) and put at the FRONT of each cell's list (bit 0 of the entry = it has one cell only); then flag 1 and message 0x99EF1142. Ours in simulators.occmgr.edit."
+
+[[entry]]
+name = "cSC4OccupantManager::RemoveOccupant"
+address = 0x0049F240
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, cISC4Occupant* occupant, bool shutdown, uint32_t data)"
+expect = "83 EC 0C 53 55 56 8B 74"
+source = "Slot 21: an occupant with flag 1 taken out of the cells it recorded (empty lists freed), message 0x99EF1143, flag 1 cleared, released; then its Shutdown when asked. Ours in simulators.occmgr.edit."
+
+[[entry]]
+name = "cSC4OccupantManager::MoveOccupant"
+address = 0x0049F3C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, cISC4Occupant* occupant, bool notify)"
+expect = "83 EC 38 53 55 56 8B 74"
+source = "Slot 24: the bounding cells again; the entry leaves the cells no longer covered, joins the new ones (at the front) and has its one-cell bit updated in those kept; message 0x99EF1146 when asked. Ours in simulators.occmgr.edit."
+
+[[entry]]
+name = "cSC4OccupantManager::FindCell"
+address = 0x0049F7C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4OccupantManager* this, cISC4Occupant* occupant, int32_t* x, int32_t* z)"
+expect = "83 EC 1C 53 55 56 8B 74"
+source = "Name ours. Not virtual: the list of an occupant's first cell (its recorded cells, else the cell of its box's low corner). FindOccupant's. Ours inline."
+
+[[entry]]
+name = "SC4VisitedSet::DestroyDeque"
+address = 0x0049F8A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* deque)"
+expect = "83 EC 14 53 55 56 8B F1"
+source = "Name ours. Destructor of the set's deque (at +0x20 of the set): its blocks (0x006DA8D0) and map. Kept the game's."
+
+[[entry]]
+name = "SC4VisitedSet::Construct"
+address = 0x0049FA80
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* set)"
+expect = "83 EC 08 33 C0 56 8B F1"
+source = "Name ours. Constructor of the 0x58-byte set of pointers the occupant manager uses to report an occupant of several cells once (+0x44, and a local one in the iterate slots): a count, two pointer vectors and a deque of (next, key) pairs with 18 preallocated entries (0x0049EB90, 0x0049EC50); up to 17 keys are kept in a plain vector, more in a hash table (0x004A01C0, 0x004A0290). Only this class uses it; kept the game's so its allocations stay the same."
+
+[[entry]]
+name = "cSC4OccupantManager::FindOccupant"
+address = 0x0049FB30
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, cISC4Occupant* occupant, bool searchAll, int32_t* x, int32_t* z)"
+expect = "83 EC 14 53 55 56 8B F1"
+source = "Slot 27: whether the occupant is in its first cell; else, when asked, every cell searched and the cell found written (only then). No initialized test. Ours in simulators.occmgr.edit."
+
+[[entry]]
+name = "cSC4OccupantManager::RemoveOccupants"
+address = 0x0049FCD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, cISC4OccupantFilter* filter, bool shutdown, uint32_t data)"
+expect = "83 EC 44 53 55 56 8B E9"
+source = "Slot 22: cell by cell (x then z), the occupants the filter takes are collected, taken out of all their cells and flag 1 cleared; after the lock each gets message 0x99EF1143, Shutdown when asked, and is released. True. Ours in simulators.occmgr.edit."
+
+[[entry]]
+name = "SC4VisitedSet::Insert"
+address = 0x004A03B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* set, void* key)"
+expect = "83 EC 18 53 56 8B F1 8B"
+source = "Name ours. Adds a pointer; false when it was there (ret 4). Kept the game's (see SC4VisitedSet::Construct)."
+
+[[entry]]
+name = "cSC4OccupantManager::cSC4OccupantManager"
+address = 0x004A0540
+kind = "function"
+convention = "thiscall"
+signature = "cSC4OccupantManager* (cSC4OccupantManager* this)"
+expect = "53 56 8B F1 C7 46 04 84"
+source = "The constructor (0x9C bytes), reached only by the jump from the factory 0x004A18A0. Detoured by simulators.occmgr.object (no register assumptions: the factory is called by the class registry)."
+
+[[entry]]
+name = "cSC4OccupantManager::GetGZCLSID"
+address = 0x004A05B0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 4D 96 8F 09 C3 CC CC"
+source = "Returns the class ID 0x098F964D (+0x4 slot 5). Ours in simulators.occmgr.object."
+
+[[entry]]
+name = "cSC4OccupantManager::QueryInterface_4"
+address = 0x004A05C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, uint32_t iid, void** object)"
+expect = "83 E9 04 E9 48 D3 FF FF"
+source = "Name ours. Adjustor (this - 4) to QueryInterface."
+
+[[entry]]
+name = "cSC4OccupantManager::QueryInterface_8"
+address = 0x004A05D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZMessageTarget2* this, uint32_t iid, void** object)"
+expect = "83 E9 08 E9 38 D3 FF FF"
+source = "Name ours. Adjustor (this - 8) to QueryInterface."
+
+[[entry]]
+name = "cSC4OccupantManager::AddRef_4"
+address = 0x004A05E0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "83 E9 04 E9 98 D9 FF FF"
+source = "Name ours. Adjustor (this - 4) to AddRef."
+
+[[entry]]
+name = "cSC4OccupantManager::Release_4"
+address = 0x004A05F0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "83 E9 04 E9 B8 D9 FF FF"
+source = "Name ours. Adjustor (this - 4) to Release."
+
+[[entry]]
+name = "cSC4OccupantManager::AddRef_8"
+address = 0x004A0600
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZMessageTarget2* this)"
+expect = "83 E9 08 E9 78 D9 FF FF"
+source = "Name ours. Adjustor (this - 8) to AddRef."
+
+[[entry]]
+name = "cSC4OccupantManager::Release_8"
+address = 0x004A0610
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZMessageTarget2* this)"
+expect = "83 E9 08 E9 98 D9 FF FF"
+source = "Name ours. Adjustor (this - 8) to Release."
+
+[[entry]]
+name = "cSC4OccupantManager::Destroy"
+address = 0x004A0620
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4OccupantManager* this)"
+expect = "56 8B F1 8D 4E 64 C7 06"
+source = "Name ours. The destructor: the visited set's deque (0x0049F8A0) and two vectors, the grid's columns (0x004638B0; the cells' lists are Shutdown's), the lock. Ours in simulators.occmgr.object."
+
+[[entry]]
+name = "cSC4OccupantManager::GetOccupantsByBBox"
+address = 0x004A0670
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, SC4List* list, const float* low, const float* high, cISC4OccupantFilter* filter, uint32_t limit)"
+expect = "83 EC 58 53 55 8B E9 8B"
+source = "Slot 36: the occupants whose box overlaps a box (strictly, in x, y and z), appended referenced, cells x then z, each list front to back, an occupant of several cells once (the visited set +0x44); up to limit (0: false). Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::GetOccupantsByOccupantManagerCells"
+address = 0x004A0A70
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, SC4List* list, const int32_t* low, const int32_t* high, cISC4OccupantFilter* filter, uint32_t limit)"
+expect = "83 EC 24 53 55 8B E9 8B"
+source = "Slot 38: as slot 36 for a rectangle of world cells (clamped to 0..191; the city by default), without a box test. Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::IterateOccupantsByBBox"
+address = 0x004A0D70
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, void* callback, void* context, const float* low, const float* high, cISC4OccupantFilter* filter)"
+expect = "81 EC B8 00 00 00 53 55"
+source = "Slot 42: as slot 36, cell by cell: the cell's matches collected under the lock, then the callback (cdecl: occupant, context) for each outside it until one returns false. True, also before Init. Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::IterateOccupants"
+address = 0x004A1360
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this, void* callback, void* context, const int32_t* low, const int32_t* high, cISC4OccupantFilter* filter)"
+expect = "81 EC 84 00 00 00 53 55"
+source = "Slot 44: as slot 42 for a rectangle of world cells given as (x, -, z) triples, without a box test; the lock stays held across the callbacks. Ours in simulators.occmgr.queries."
+
+[[entry]]
+name = "cSC4OccupantManager::Create"
+address = 0x004A18A0
+kind = "function"
+convention = "cdecl"
+signature = "cSC4OccupantManager* ()"
+expect = "68 9C 00 00 00 E8 36 3D"
+source = "The factory registered for class 0x098F964D: SC4::operator_new(0x9C) and a jump to the constructor. Left the game's."
+
+[[entry]]
+name = "cSC4OccupantManager::DeletingDestructor"
+address = 0x004A18C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4OccupantManager* this, uint32_t flags)"
+expect = "56 8B F1 E8 58 ED FF FF"
+source = "Slot 49: the destructor, then operator delete (0x005E5620) when flags & 1. Ours in simulators.occmgr.object."
+
+[[entry]]
+name = "cSC4OccupantManager::Init"
+address = 0x004A18E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4OccupantManager* this)"
+expect = "83 EC 1C 53 56 8B F1 8B"
+source = "Slot 3: once: the type filter +0x34 made (0x10 bytes), then either the empty 192 x 192 grid or, after a load, every occupant's Init through slot 44; true. Ours in simulators.occmgr.init."
+
+[[entry]]
+name = "cSC4OccupantManager::ReadRecord"
+address = 0x004A1A20
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "83 EC 40 53 8B 5C 24 48"
+source = "Name ours. +0x4 slot 4 (Read): version 1 only; the grid rebuilt in the saved order, an occupant of several cells keeping one reference. Ours in simulators.occmgr.save."
+
+[[entry]]
+name = "RZCriticalSection::Destroy"
+address = 0x00930B02
+kind = "function"
+convention = "thiscall"
+signature = "void (void* section)"
+expect = "56 8B 71 04 56 C7 01 F4"
+source = "Name ours. Destructor of the lock object: DeleteCriticalSection and free."
+
+[[entry]]
+name = "RZCriticalSection::Construct"
+address = 0x00930B91
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* section)"
+expect = "56 8B F1 83 66 04 00 6A"
+source = "Name ours. Constructor of the 8-byte lock object (vtable 0x00AD1EF4, a CRITICAL_SECTION from malloc): slot 1 enters, slot 2 leaves."
+
+[[entry]]
+name = "cSC4OccupantManager::TypeFilter_vftable_4"
+address = 0x00A8F784
+kind = "vtable"
+expect = "E0 4E 42 00 00 05 5C 00"
+source = "Name ours. The second vtable (+0x4) of the 0x10-byte occupant filter by type the occupant manager's Init makes at +0x34 (base 0x005EA080; the type at +0xC): shared code only."
+
+[[entry]]
+name = "cSC4OccupantManager::TypeFilter_vftable"
+address = 0x00A8F79C
+kind = "vtable"
+expect = "D0 95 5E 00 00 DF 4B 00"
+source = "Name ours. Primary vtable (7 slots) of the occupant manager's filter by type: slot 3 (0x004BDF90) asks slot 4 about the occupant's type; all shared code, left the game's."
+
+[[entry]]
+name = "cSC4OccupantManager::vftable_8"
+address = 0x00A8F7C4
+kind = "vtable"
+expect = "D0 05 4A 00 00 06 4A 00"
+source = "Name ours. The cIGZMessageTarget2 part at +0x8 (4 slots): thunks 0x004A05D0, 0x004A0600, 0x004A0610 and the shared DoMessage 0x006B8AA0 that only returns true (left the game's)."
+
+[[entry]]
+name = "cSC4OccupantManager::vftable_4"
+address = 0x00A8F7D4
+kind = "vtable"
+expect = "C0 05 4A 00 E0 05 4A 00"
+source = "Name ours. The cIGZSerializable part at +0x4 (6 slots): thunks 0x004A05C0, 0x004A05E0, 0x004A05F0, Write 0x0049ECF0, Read 0x004A1A20, GetGZCLSID 0x004A05B0. Slots 3 and 4 replaced by simulators.occmgr.save."
+
+[[entry]]
+name = "cSC4OccupantManager::vftable"
+address = 0x00A8F7F0
+kind = "vtable"
+expect = "10 D9 49 00 80 DF 49 00"
+source = "The primary cISC4OccupantManager vtable (50 slots, the deleting destructor last; the map in src/core/occmgr_sim.h). Slots replaced by simulators.occmgr.{cells,edit,queries,init}; our object copies all of it."
+
+[[entry]]
+name = "SC4::PointerArrayAllocator"
+address = 0x00B21750
+kind = "data"
+source = "Name ours. Another cached pointer to the allocator service (framework slot 5, 0x3AE4BEA3/0x3AE4BEAB), used for arrays of pointers: the occupant manager's RemoveOccupants collects a cell's occupants in a vector grown through it (slot 3 allocates, slot 4 frees)."
