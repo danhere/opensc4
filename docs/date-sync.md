@@ -1,10 +1,10 @@
 # City date sync
 
-Keeps the cities of a region on the same date: play a city to 2015, save, open its neighbour still in 2003, and the neighbour starts in 2015 too. An improvement beyond the original ([ROADMAP](../ROADMAP.md), "Improvements: the rules"): off by default, and with it off nothing changes.
+Keeps the cities of a region on the same date: play a city to 2015, save, open its neighbour still in 2003, and the neighbour starts in 2015 too. A fix beyond the original, on by default: cities of one region drifting years apart is a flaw of the game, not a way to play it (Dan, 2026-10-11). To turn it off:
 
 ```ini
 [replacements]
-game.date_sync = ours
+game.date_sync = original
 ```
 
 ## What it does
