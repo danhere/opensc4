@@ -25,6 +25,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <map>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -1134,7 +1136,222 @@ uint32_t __fastcall DSC4Effect_NotDrawn(char* self, void*)
     return EffectRecorded(addr::SC4Effect_NotDrawn, &BoxByMode, self);
 }
 OPENSC4_THUNK(TSC4Effect_NotDrawn, DSC4Effect_NotDrawn, 0)
-OPENSC4_EFFECT_HOOK0(SC4EffectB_NotDrawn)
+
+// The second effect class's step when it is not drawn (0x005AE6E0, slot
+// 0x4C), translated instruction by instruction. The effect's box (+0x1A0)
+// is started again, and every particle of the list takes part in it. A
+// particle whose own effect (+0x44) is there and says so (its slot 0x14)
+// gives that effect where it is: a block of two bytes and thirteen floats
+// made from the particle and the effect's matrix (0x005ACA30, still the
+// game's), one value of the description's curve at the particle's age
+// (slot 0x30 with 3), and the block (slot 0x20), or for descriptions with
+// flag 8 of their third word a second block with its turning left out
+// (slot 0x1C). Last the box is widened by the effect's +0x274.
+uint32_t NotDrawnB(char* self)
+{
+    uint32_t stackmem[256] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[160]);
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_notdrawn_b.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Its comparison: what it does is the effect's box and the calls to the
+// particles' own effects. For the length of the comparison every such
+// effect is given a copy of its table of functions with the four slots
+// replaced, which note each call (the slot, the effect, and the values
+// behind the pointer, without the block's two unset bytes). Slot 0x14 only
+// asks, and is always passed on. Ours runs first with the other calls only
+// noted; the effect is put back and the game's runs with them passed on.
+// The calls and the effect must be the same.
+struct ChildCall {
+    uint32_t slot, child, a, b;
+    char data[0x38];
+    bool operator==(const ChildCall& other) const
+    {
+        return slot == other.slot && child == other.child && a == other.a && b == other.b &&
+               std::memcmp(data, other.data, sizeof data) == 0;
+    }
+};
+constexpr std::size_t kChildSlots = 64, kEffectSizeB = 0x27C;
+constexpr std::size_t kParticleBytesB = 0x54, kParticleChild = 0x44;
+std::map<uint32_t, std::vector<uint32_t>> g_childTables;
+std::unordered_map<char*, uint32_t> g_childReal;
+std::vector<ChildCall> g_childOurCalls, g_childGameCalls;
+bool g_childForward = false;
+StepMode g_notDrawnModeB = StepMode::Original;
+Call0Fn g_SC4EffectB_NotDrawn = nullptr;
+uint64_t g_notDrawnBCompared = 0, g_childCallsCompared = 0;
+
+uint32_t ChildSlot(char* child, uint32_t slot)
+{
+    return M<uint32_t>(g_childReal[child] + slot);
+}
+
+void NoteChildCall(const ChildCall& call)
+{
+    (g_childForward ? g_childGameCalls : g_childOurCalls).push_back(call);
+}
+
+void CopyBlock(char* to, uint32_t block)
+{
+    const char* const from = reinterpret_cast<const char*>(block);
+    std::memcpy(to, from, 2);
+    std::memcpy(to + 4, from + 4, 0x34);
+}
+
+uint32_t __fastcall ChildRunning(char* child, void*)
+{
+    const uint32_t result = CallThis<uint32_t>(ChildSlot(child, 0x14), child) & 0xFF;
+    NoteChildCall({0x14, reinterpret_cast<uint32_t>(child), result, 0, {}});
+    return result;
+}
+
+uint32_t __fastcall ChildValue(char* child, void*, uint32_t which, uint32_t values, uint32_t count)
+{
+    ChildCall call{0x30, reinterpret_cast<uint32_t>(child), which, count, {}};
+    std::memcpy(call.data, reinterpret_cast<const void*>(values), count <= 14 ? count * 4 : 0);
+    NoteChildCall(call);
+    return g_childForward ? CallThis<uint32_t>(ChildSlot(child, 0x30), child, which, values, count) : 0;
+}
+
+uint32_t __fastcall ChildBlockPlain(char* child, void*, uint32_t block)
+{
+    ChildCall call{0x1C, reinterpret_cast<uint32_t>(child), 0, 0, {}};
+    CopyBlock(call.data, block);
+    NoteChildCall(call);
+    return g_childForward ? CallThis<uint32_t>(ChildSlot(child, 0x1C), child, block) : 0;
+}
+
+uint32_t __fastcall ChildBlock(char* child, void*, uint32_t block)
+{
+    ChildCall call{0x20, reinterpret_cast<uint32_t>(child), 0, 0, {}};
+    CopyBlock(call.data, block);
+    NoteChildCall(call);
+    return g_childForward ? CallThis<uint32_t>(ChildSlot(child, 0x20), child, block) : 0;
+}
+
+// Every particle's own effect gets the noting table, or its own back.
+void SwapChildren(char* self, bool in)
+{
+    if (!in) {
+        for (const auto& [child, table] : g_childReal)
+            At<uint32_t>(child, 0) = table;
+        g_childReal.clear();
+        return;
+    }
+    char* const head = At<char*>(self, 0x14);
+    for (char* node = At<char*>(head, 0); node != head; node = At<char*>(node, 0)) {
+        char* const child = At<char*>(At<char*>(node, 8), kParticleChild);
+        if (!child || g_childReal.count(child))
+            continue;
+        const uint32_t real = At<uint32_t>(child, 0);
+        std::vector<uint32_t>& table = g_childTables[real];
+        if (table.empty()) {
+            table.assign(reinterpret_cast<const uint32_t*>(real), reinterpret_cast<const uint32_t*>(real) + kChildSlots);
+            table[0x14 / 4] = reinterpret_cast<uint32_t>(&ChildRunning);
+            table[0x30 / 4] = reinterpret_cast<uint32_t>(&ChildValue);
+            table[0x1C / 4] = reinterpret_cast<uint32_t>(&ChildBlockPlain);
+            table[0x20 / 4] = reinterpret_cast<uint32_t>(&ChildBlock);
+        }
+        g_childReal[child] = real;
+        At<uint32_t*>(child, 0) = table.data();
+    }
+}
+
+uint32_t __fastcall NotDrawnBByMode(char* self, void*)
+{
+    if (g_notDrawnModeB == StepMode::Original || g_effectRecord || g_effectReplay || !g_childReal.empty())
+        return g_SC4EffectB_NotDrawn(self, nullptr);
+    if (g_notDrawnModeB == StepMode::Ours)
+        return NotDrawnB(self);
+    char before[kEffectSizeB], mine[kEffectSizeB];
+    std::memcpy(before, self, kEffectSizeB);
+    // The game's 0x005ACA30 turns the particles as it goes (+0x48 to
+    // +0x50), so they are kept and put back as well.
+    std::vector<char*> particles;
+    char* const head = At<char*>(self, 0x14);
+    for (char* node = At<char*>(head, 0); node != head; node = At<char*>(node, 0))
+        particles.push_back(At<char*>(node, 8));
+    const auto saveParticles = [&] {
+        std::vector<char> bytes(particles.size() * kParticleBytesB);
+        for (std::size_t i = 0; i < particles.size(); ++i)
+            std::memcpy(bytes.data() + i * kParticleBytesB, particles[i], kParticleBytesB);
+        return bytes;
+    };
+    const std::vector<char> particlesBefore = saveParticles();
+    SwapChildren(self, true);
+    g_childOurCalls.clear();
+    g_childGameCalls.clear();
+    g_childForward = false;
+    NotDrawnB(self);
+    std::memcpy(mine, self, kEffectSizeB);
+    const std::vector<char> particlesMine = saveParticles();
+    std::memcpy(self, before, kEffectSizeB);
+    for (std::size_t i = 0; i < particles.size(); ++i)
+        std::memcpy(particles[i], particlesBefore.data() + i * kParticleBytesB, kParticleBytesB);
+    g_childForward = true;
+    const uint32_t result = g_SC4EffectB_NotDrawn(self, nullptr);
+    SwapChildren(self, false);
+    const bool sameParticles = saveParticles() == particlesMine;
+    ++g_notDrawnBCompared;
+    g_childCallsCompared += g_childGameCalls.size();
+    if ((g_notDrawnBCompared & (g_notDrawnBCompared - 1)) == 0)
+        log::Write("water effects: effects.notdrawn_b: %llu steps, %llu calls compared so far",
+                   static_cast<unsigned long long>(g_notDrawnBCompared),
+                   static_cast<unsigned long long>(g_childCallsCompared));
+    char text[80];
+    if (!(g_childGameCalls == g_childOurCalls)) {
+        std::size_t at = 0;
+        while (at < g_childGameCalls.size() && at < g_childOurCalls.size() &&
+               g_childGameCalls[at] == g_childOurCalls[at])
+            ++at;
+        const auto describe = [&](const std::vector<ChildCall>& calls) {
+            if (at >= calls.size()) {
+                std::snprintf(text, sizeof text, "%zu calls", calls.size());
+                return std::string(text);
+            }
+            std::snprintf(text, sizeof text, "call %zu of %zu: slot %X on %08X (%X, %X) ", at, calls.size(),
+                          calls[at].slot, calls[at].child, calls[at].a, calls[at].b);
+            return text + Hex(calls[at].data, sizeof calls[at].data);
+        };
+        const std::string game = describe(g_childGameCalls);
+        compare::Record("effects.notdrawn_b", false, game, describe(g_childOurCalls));
+    } else if (!sameParticles) {
+        compare::Record("effects.notdrawn_b", false, "particles", "particles differ");
+    } else if (std::memcmp(self, mine, kEffectSizeB) != 0) {
+        std::size_t at = 0;
+        while (self[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "effect+%zX ", at);
+        compare::Record("effects.notdrawn_b", false, text + Hex(self + at, 4), text + Hex(mine + at, 4));
+    } else {
+        compare::Record("effects.notdrawn_b", true, std::string(), std::string());
+    }
+    return result;
+}
+
+uint32_t __fastcall DSC4EffectB_NotDrawn(char* self, void*)
+{
+    return EffectRecorded(addr::SC4EffectB_NotDrawn, &NotDrawnBByMode, self);
+}
+OPENSC4_THUNK(TSC4EffectB_NotDrawn, DSC4EffectB_NotDrawn, 0)
 OPENSC4_EFFECT_HOOK1(SC4Effect_StepFlag2000)
 // The pull on an effect's particles from outside (0x005B6C40; called by the
 // effect's draw when its description lists any, +0x1A4), translated
@@ -2008,7 +2225,6 @@ uint32_t TakeParticleB(char* base)
 }
 
 constexpr std::uintptr_t kParticleFreeB = 0x00B0A5CC;
-constexpr std::size_t kParticleBytesB = 0x54, kParticleChild = 0x44;
 StepMode g_poolModeB = StepMode::Original;
 Call0Fn g_SC4EffectBaseB_TakeParticle = nullptr;
 
@@ -3212,6 +3428,31 @@ const bool g_registeredPoolB = registry::Register({
     "effects, sky and clouds\")",
     true,
     InstallPoolB,
+});
+
+bool InstallNotDrawnB(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4EffectB_NotDrawn ||
+          Detour(addr::SC4EffectB_NotDrawn, &TSC4EffectB_NotDrawn, &g_SC4EffectB_NotDrawn)))
+        return false;
+    g_notDrawnModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: second effect class's step out of view %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredNotDrawnB = registry::Register({
+    "renderer.effects.notdrawn_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectB_NotDrawn,
+    "The second effect class's step when it is not drawn: its box, and where each particle's own effect is; "
+    "compare mode notes the calls of ours and of the game's through stand-in tables of functions "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallNotDrawnB,
 });
 
 bool InstallGround(registry::Mode mode)
