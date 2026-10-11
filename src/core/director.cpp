@@ -16,6 +16,7 @@
 #include "core/game_seed.h"
 #include "core/gdriver_proxy.h"
 #include "core/log.h"
+#include "core/prop_pox_diag.h"
 #include "core/registry.h"
 
 #include <cIGZFrameWork.h>
@@ -92,6 +93,7 @@ public:
         opensc4::compare::LogStats();
         opensc4::gdriver_proxy::LogCallCounts("PreAppShutdown");
         opensc4::d3d7_probe::LogCounts();
+        opensc4::prop_pox_diag::LogSummary();
         opensc4::diagnostics::OnShutdown();
         opensc4::fixed_ticks::LogPace();
         return true;
