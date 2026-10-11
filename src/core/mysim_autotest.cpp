@@ -408,16 +408,19 @@ void Tools(const Day& day)
         tools.Add(picture != nullptr);
         if (has && picture)
             Virtual<uint32_t>(picture, 0x8);
-        // Find moves the camera, which travels on frame time: after it the
-        // sweeps of later days, and anything that depends on the view, no
-        // longer repeat. So only with OPENSC4_TEST_MYSIM_FIND=1.
-        if (EnvInt("OPENSC4_TEST_MYSIM_FIND", 0) &&
-            !(At<int32_t>(sim, 0x8) == 3 && !At<void*>(sim, 0x28) && At<void*>(sim, 0x2C)))
-            Virtual<void>(sim, 0x7C);
-        Virtual<void>(sim, 0x80);     // ShowResidence
-        Virtual<void>(sim, 0x84);     // HideResidence
-        Virtual<void>(sim, 0x88);     // ShowLocation
-        Virtual<void>(sim, 0x8C);     // HideLocation
+        // Find and the two info tips move or steer the camera (the place
+        // shown follows a travelling MySim), and the camera travels on frame
+        // time: after them the sweeps of later days and the view-dependent
+        // parts of a save no longer repeat. So only with
+        // OPENSC4_TEST_MYSIM_FIND=1.
+        if (EnvInt("OPENSC4_TEST_MYSIM_FIND", 0)) {
+            if (!(At<int32_t>(sim, 0x8) == 3 && !At<void*>(sim, 0x28) && At<void*>(sim, 0x2C)))
+                Virtual<void>(sim, 0x7C); // Find
+            Virtual<void>(sim, 0x80);     // ShowResidence
+            Virtual<void>(sim, 0x84);     // HideResidence
+            Virtual<void>(sim, 0x88);     // ShowLocation
+            Virtual<void>(sim, 0x8C);     // HideLocation
+        }
         tools.Add(At<int32_t>(sim, 0x8));
     }
     std::snprintf(g_toolsToken, sizeof g_toolsToken, " mstools %d %08X sim %d clicks %d %08X", records, picker.h,
