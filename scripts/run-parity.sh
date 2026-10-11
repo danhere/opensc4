@@ -66,6 +66,9 @@ mkdir -p "$out"
 for side in a b; do
     list="$replace_a"
     [ "$side" = b ] && list="$replace_b"
+    # game.no_kickout is on by default and changes the simulation: each side
+    # runs it as the original unless its list names it (docs/no-kickout.md).
+    case "$list" in *game.no_kickout=*) ;; *) list="$list,game.no_kickout=original" ;; esac
     { echo "[replacements]"; echo "$list" | tr ',' '\n'; } >"$out/$side.ini"
 done
 
