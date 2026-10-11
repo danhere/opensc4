@@ -370,6 +370,51 @@ expect = "D9 44 24 08 83 EC 60 56"
 source = "Name ours. The particle's step for descriptions with a flag of the mask at 0x00B22E14 (SC4Effect::StepParticle jumps to it): the age and the end as there, then the step in parts of at most the float at 0x00AA0CF4, each moving the particle (flag 0x10000000: 0x005B6600), changing its velocity, and ending it off the map (flag 0x800) or when 0x005B8DC0 answers false (flags 0x100, 0x400); last 0x005B8020 for bit 0 of the description's second word of flags. Ours in renderer.effects.step_full (src/core/effect_step_full.inc)."
 
 [[entry]]
+name = "SC4Effect::GetBox"
+address = 0x005B26F0
+kind = "function"
+convention = "thiscall"
+signature = "float* (SC4Effect* this, float* out)"
+expect = "8B 91 A0 01 00 00 8B 44"
+source = "Name ours. Copies the effect's box, six floats from +0x1A0, to the caller's; SC4EffectsManager::Draw calls it for every effect. Ours in renderer.effects.small."
+
+[[entry]]
+name = "SC4Effect::GetPlace"
+address = 0x005B2B00
+kind = "function"
+convention = "thiscall"
+signature = "float* (SC4Effect* this, float* out)"
+expect = "8B 51 34 8B 44 24 04 89"
+source = "Name ours. Copies three floats from the effect's +0x34 to the caller's. Ours in renderer.effects.small."
+
+[[entry]]
+name = "SC4Effect::SetField1E8"
+address = 0x005B2220
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, uint32_t value)"
+expect = "8B 44 24 04 89 81 E8 01"
+source = "Name ours. Slot 0x34 of both effect classes (vtables 0x00AA0EA0, 0x00AA0C58): sets the word at +0x1E8 (the description's, read by the second class's in-view test as an object). Ours in renderer.effects.small."
+
+[[entry]]
+name = "SC4Effect::Hold"
+address = 0x005AF940
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 81 04 02 00 00 40 89"
+source = "Name ours. Raises the count at +0x204 of the object it is called on and answers it; 0x005B1C80 lowers it and destroys the object at 0. Ours in renderer.effects.small."
+
+[[entry]]
+name = "SC4EffectBase::Restart"
+address = 0x005B9CF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4EffectBase* this)"
+expect = "8A 51 05 32 C0 3A D0 74"
+source = "Name ours. Slot 0x18 of both effect classes' sub-objects (vtables 0x00AA0E58, 0x00AA0C10): unless the sub-object is going and not told to go on (+5 set, +0xC clear) or is marked at +0xD, clears +0xC and +0xD, sets +5 and answers true. Ours in renderer.effects.small."
+
+[[entry]]
 name = "SC4EffectB::ParticleBlock"
 address = 0x005ACA30
 kind = "function"
