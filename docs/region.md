@@ -11,7 +11,7 @@ About 93 KB of game code in five parts (survey of 2026-10-10: vtables, the exe's
 | Region data, `cSC4Region`: the open region's folder, `region.ini`, the `config.bmp` layout, the cities found in the folder | 0x004A44E0 to 0x004A74E0 | 12 KB, 41 functions | ours (`region.data.*`), below |
 | Regional city, `cSC4RegionalCity` (class 0x6A037C24, main vtable 0x00A8FB20): what the region knows of one city without loading it (name, position, size, population, neighbour connections and deals) | 0x004A74E0 to 0x004ADC00 | 25 KB, 115 functions | ours (`region.city.*`), below |
 | City files and pictures: opening a city file as a regional city (0x005DC220), file names (0x005DC400, 0x005DC790), serial numbers (0x005DBD40), the pictures a city file carries for the region map (resource type 0x8A2482B9) | 0x005DBC10 to 0x005DEA50 | 10 KB, 32 functions | ours (`region.files.*`) but the one drawing function, below |
-| Region screen window, `cSC4WinRegionScreen` (window class 0xEA659793; vtables 0x00AB92A0 and 0x00AB926C): opening and closing a region, the commands `LoadRegion` and `RegionBitmapLoad`, the terrain made from a region bitmap (0x007AEDD0), the panels | 0x007AC5C0 to 0x007B2440 | 24 KB | the game's |
+| Region screen window, `cSC4WinRegionScreen` (window ID 0xEA659793, vtable 0x00AB9260), with its scroll window, flat terrain map, tile records and sort, picture helpers: opening and closing a region, the controls and commands, the terrain made from a region picture | 0x007AA2A0 to 0x007B2440 | 31 KB, 121 functions | ours (`region.screen.*`) but the overlay's draw, below |
 | Region map window, `cSC4WinRegionView` (window class 0x2BA6BB97; vtables 0x00AB9698 and 0x00AB9664): the map the cities are picked on | 0x007B2440 to 0x007B7B00 | 22 KB | the game's |
 
 The application's own region code (choosing and loading the region at start, around 0x00497D00 to 0x00499700) belongs to `cSC4App`. The map is one large picture composed on the CPU from the cities' thumbnails ([ui-scaling.md](ui-scaling.md), "Text and the region view").
@@ -174,3 +174,49 @@ The save path needs a full save (`OPENSC4_TEST_QUICK=0`; quick saves leave the p
 Not reached, or not known to be: SaveToFile on its own, SetVersion, the wait-and-retry of `MakePictures` and the stock pictures (the saved pictures were real ones).
 
 Parity (2026-10-10, the region, regional city and file groups all on, both switches, twelve saves for two days): 11 of 12 same, and the `files` and `pics` checksums of ours equal the original's in every run. Big City day 0 gave "partly" in the batch, with both of its outcomes ones the original gave in the earlier batches (its first-day traffic varies under load); run on its own it was same on the first pair.
+
+## The region screen
+
+The application's window object (global 0x00B43CBC) keeps one screen at +0xEC: the start screen, the region screen or the city screen. `SC4AppWindow::ShowRegionScreen` (0x004E0D40) makes the region screen, a window of 0x200 bytes (`cSC4WinRegionScreen`, ID 0xEA659793; main vtable 0x00AB9260 with 151 slots, its own interface 0xC6AE7085 at +0xD8, a message target at +0xDC). The first survey had its vtables 16 slots off; the table at the top has the right addresses.
+
+What is in the range:
+
+- **The screen** itself. `Init` (slot 4, 0x007B1900) posts 0xABB5BB44, loads the key table, sets up the 3D view (`SetUpView`: tick manager, a flat terrain map, camera and camera control, renderer, effects manager), makes the back window, the map window (`cSC4WinRegionView`, at +0xE0), the scroll window and the overlay window, loads twelve stock pictures, builds the tile records (`BuildCityRecords`), reads its tuning (exemplar 0x6534284A / 0x690F693F / 0xAA383BFE), registers fourteen commands, sets up the side panels and their buttons (`SetUpControls`), starts the effect 'region_global' and posts 0xCBB5BB45. `Shutdown` (slot 5) undoes it between 0x8BB5BB46 and 0x8BB5BB4B.
+- **Tile records** (0x80 bytes, vector at screen +0x118), one per layout tile: cells, place in the map picture (x and y in km times the four floats at 0x00B0DBA4), size, the city's pictures from its file or stock ones, shifted by the fraction of a pixel of their place (`ShiftPicture`, bilinear with 14-bit weights), the mask merged into the alpha channel, the mask's runs per row for three channels (`CollectRuns`) and its centre. The tiles are sorted by `(1 << size) + x + y`, then x, with the STL sort.
+- **The controls** (`OnControl`, slot 143): the three side panels, the names and borders check boxes, the three map modes, open the picked city, import a city or move one to the picked tile, delete the picked city, the region dialogs (open, new, delete), quit. **The commands** (`DoCommand`): LoadRegion and LoadCity by name, RegionBitmapLoad, the eight scroll commands, Cancel, QuitGame, SetExpandedToolTips.
+- **`MakeTerrainFromPicture`** (0x007AEDD0, the command RegionBitmapLoad): asks for a picture file, checks it is the region's size in km times 64 plus 1 each way, deletes every city of the region and makes a new city per tile with that part of the picture as its terrain.
+- **The scroll window** (0x138 bytes, vtable 0x00AB8CD0, at screen +0x174): right-button drag scrolling with a marker where the drag began, key and edge scrolling, with speeds that decay. **The flat terrain map** (0x28 bytes, vtable 0x00AB8C00, the interface of the city's terrain map): the 3D view's ground under the region, altitude 270 everywhere. **The back window** (0xDC bytes, vtable 0x00AB8F50) paints the 3D view.
+- `Paint` (slot 88) glides the view to its target by elapsed time, clamps it and tells the map window and the overlay where the view is.
+
+### Replacements
+
+| Group | Functions |
+|---|---|
+| `region.screen.part1` | the flat terrain map, the scroll window (construct, start, drag, tick), the back window, the tile ordering and sort pieces, picture helpers (blend rows, scaled table, opaque centre), the screen's QueryInterface (43; [region_screen_1.cpp](../src/core/region_screen_1.cpp)) |
+| `region.screen.part2` | mouse slots, window messages, LayOutMap, stock pictures, MergeMask, SelectPanel, LoadTuning, ApplyMode, CenterCamera, saving the region choice and view position, ShutDownView, the scroll window's marker and destructor (20; [region_screen_2.cpp](../src/core/region_screen_2.cpp)) |
+| `region.screen.part3` | Paint, left click, SetUpView, CollectRuns, GoToRegionNamed, OpenCity, the tile record's destructor, sort pieces (13; [region_screen_3.cpp](../src/core/region_screen_3.cpp)) |
+| `region.screen.part4` | the tile record's copies, ShiftPixels, ShiftPicture, PrepareTilePictures, CityAtTile, ShowPopulation, the sort's entry and loop (14; [region_screen_4.cpp](../src/core/region_screen_4.cpp)) |
+| `region.screen.part5` | MakeTerrainFromPicture, OpenCityByNameOrSize, DoCommand (3; [region_screen_5.cpp](../src/core/region_screen_5.cpp)) |
+| `region.screen.part6` | OnControl, SetUpControls (2; [region_screen_6.cpp](../src/core/region_screen_6.cpp)) |
+| `region.screen.part7` | the constructor, destructor, Shutdown, the message target, BuildCityRecords, the record vector (9; [region_screen_7.cpp](../src/core/region_screen_7.cpp)) |
+| `region.screen.part8` | Init, the deleting destructor, the button target callback, three small functions of the map window (6; [region_screen_8.cpp](../src/core/region_screen_8.cpp)) |
+
+Left the game's: the terrain overlay's draw (0x007AB630: a render state, four vertices, a draw call; renderer code), three 4-byte getters too short to hook, folded thunks and getters, generic list and vector helpers. Functions that take an argument in a register (`OpaqueCentre` in EAX, `CollectRuns` in ESI) sit behind small assembly entries.
+
+### Odd things in the original, kept
+
+- Several bool arguments are pushed as a whole register with only the low byte set (the upper bytes are a pointer's or leftovers); the callees read a byte. Where the upper bytes are deterministic ours passes the same.
+- `BuildCityRecords` appends and never clears: a second call would double the records.
+- `ShiftPicture` returns true on most failures, and `PrepareTilePictures` ignores its result.
+- `CollectRuns` locks its picture and never unlocks it.
+- `Paint` divides by the distance to the glide target with no zero check.
+- `SetUpControls` uses a panel after releasing it and calls into it even when it did not load.
+- `Init` returns 1 whatever failed.
+
+### How it is tested
+
+Unattended runs load their city from the start screen, so the region screen never comes up on its own. `OPENSC4_TEST_REGION_SCREEN=1` puts it up first as the start screen does when the player goes on (the kept screen removed, `ShowRegionScreen`), through a new hook of the test harness that runs with the region open, before the city is loaded. The fingerprint's `scr` part has the screen's plain members, which of its parts exist, every tile record (cells, place, size, both pictures pixel by pixel after their shift, the runs and centre of the mask), the scroll window's tuning and what the flat terrain map answers at chosen points. With `OPENSC4_TEST_REGION_DRIVE=1` the screen is also worked: the map laid out and the mode applied again, the eight scroll commands through `DoCommand`, the three map modes through `OnControl` and back, a drag of the scroll window at four pointer places and its end, a region and a city asked for by names nothing has; and described again (the same as before the drive). The city is then loaded with the region screen up, which shuts the screen down.
+
+Not reached: everything that opens a dialog (region and city dialogs, import, delete, the picture import with `MakeTerrainFromPicture`), a real click on a tile and the open-city control, key messages, the glide of `Paint` with a target, scrolling by the pointer at the screen's edge.
+
+Parity (2026-10-10, the region, regional city, file and screen groups all on, the three switches, twelve saves for two days): the `scr` checksums of ours equal the original's in every run of every save. Whole-city verdicts: 10 of 12 same. Making Money day 90 differed in two runs of ours; run on its own the original gave two outcomes and ours one of them. Big City day 0 differed only in the second run of the first pair, with a lot checksum no earlier run had given; a control with the original on both sides gave the same value at the same place in the run order, so it comes from the order of the runs.
