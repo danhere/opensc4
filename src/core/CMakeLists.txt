@@ -334,6 +334,13 @@ add_library(opensc4_core SHARED
   ui_panels_5.cpp
   ui_panels_6.cpp
   ui_panels_7.cpp
+  ui_cityview_1.cpp
+  ui_cityview_2.cpp
+  ui_cityview_3.cpp
+  ui_cityview_4.cpp
+  ui_cityview_5.cpp
+  ui_cityview_6.cpp
+  ui_cityview_7.cpp
   ui_advice_text_2.cpp
   ui_mysim_tools_1.cpp
   ui_mysim_tools_2.cpp

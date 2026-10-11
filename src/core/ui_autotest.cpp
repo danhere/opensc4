@@ -1293,12 +1293,210 @@ void DrivePanels(const Day& day)
 const DayHook kPanels{"ui.panels", 103, &DrivePanels};
 
 
+// --- The city view itself -------------------------------------------------------
+
+char g_cityViewToken[240];
+
+// OPENSC4_TEST_CITY_VIEW=<day>: the live city view worked through its own
+// interface and handlers, keeping to what neither moves the view (its
+// rectangle is saved with the city) nor pauses the simulator (every zoom and
+// rotation holds it for two real seconds) nor opens a window. `ids`: its
+// four parts asked for by interface ID, the plain getters. `state`: the last
+// selected building and lot set and read back (and put back); a made-up
+// global effect trigger asserted twice, asked for, retracted twice; the
+// cost indicator set both ways and cleared; the level set to 2 and back; the
+// filter read and set again; the keyboard scrolling killed and a scroll
+// stopped; the mouse reported in and out. `texts`: two cursor texts set,
+// the list read back, both cleared. `tools`: commands and menu commands
+// that take up a tool, the tool stack counted and the tool's ID read after
+// each, Escape putting it away; commands that do nothing. `panel`: the
+// control panel's texts refreshed, the data view left, the interface
+// minimized and restored, the ground under one point of the view picked.
+// The view's record is written by every save of the run.
+void DriveCityView(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_CITY_VIEW") || !game::IsBuild641())
+        return;
+    char* const view = View();
+    if (!view) {
+        log::Write("autotest: city view: none");
+        return;
+    }
+    char* const window = view + 0xC;
+    using ThisFn = void(__thiscall*)(void*);
+    Fnv ids, state, texts, tools, panel;
+
+    for (const uint32_t iid : {1u, 0xFA47B3F9u, 0x452294AAu, 0xC6AE7085u, 0x22BA0121u, 0x12345678u}) {
+        char* out = nullptr;
+        ids.Add(Virtual<uint8_t>(view, 0x0, iid, &out));
+        ids.Add(out ? static_cast<int32_t>(out - view) : -1);
+        if (out)
+            Virtual<uint32_t>(view, 0x8);
+    }
+    ids.Add(Virtual<uint8_t>(view, 0x30)); // can zoom in
+    ids.Add(Virtual<uint8_t>(view, 0x34)); // can zoom out
+    ids.Add(Virtual<uint32_t>(view, 0x58)); // the level
+    ids.Add(Virtual<uint8_t>(view, 0x9C));  // terrain query
+    ids.Add(Virtual<char*>(view, 0xC4) == view + 0x3E4);
+    ids.Add(reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t, uint32_t)>(addr::SC4UI_F7E5960)(view, 0x4A2B2467, 0x299237BF));
+
+    {
+        const uint32_t keptBuilding = At<uint32_t>(view, 0x43C), keptLot = At<uint32_t>(view, 0x440);
+        const uint8_t keptFlags[2] = {At<uint8_t>(view, 0x444), At<uint8_t>(view, 0x445)};
+        state.Add(Virtual<uint32_t>(view, 0xCC));
+        state.Add(Virtual<uint32_t>(view, 0xD0));
+        Virtual<void>(view, 0xD4, 0x11112222u);
+        Virtual<void>(view, 0xD8, 0x33334444u);
+        state.Add(Virtual<uint32_t>(view, 0xCC));
+        state.Add(Virtual<uint32_t>(view, 0xD0));
+        At<uint32_t>(view, 0x43C) = keptBuilding;
+        At<uint32_t>(view, 0x440) = keptLot;
+        At<uint8_t>(view, 0x444) = keptFlags[0];
+        At<uint8_t>(view, 0x445) = keptFlags[1];
+
+        constexpr uint32_t kTrigger = 0x7E57AB1E;
+        const uint32_t triggers = At<uint32_t>(view, 0x438);
+        Virtual<void>(view, 0xBC, kTrigger);
+        state.Add(Virtual<uint8_t>(view, 0xB8, kTrigger));
+        state.Add(At<uint32_t>(view, 0x438) - triggers);
+        Virtual<void>(view, 0xBC, kTrigger);
+        Virtual<void>(view, 0xC0, kTrigger);
+        state.Add(Virtual<uint8_t>(view, 0xB8, kTrigger));
+        Virtual<void>(view, 0xC0, kTrigger);
+        state.Add(Virtual<uint8_t>(view, 0xB8, kTrigger));
+        state.Add(At<uint32_t>(view, 0x438) - triggers);
+
+        const auto cost = [&] {
+            for (std::size_t at : {std::size_t{0x3B0}, std::size_t{0x3B4}, std::size_t{0x3B8}})
+                state.Add(At<uint32_t>(view, at));
+        };
+        Virtual<void>(view, 0xA8, uint32_t{100}, uint32_t{0}); // a cost, no price
+        cost();
+        Virtual<void>(view, 0xAC, uint32_t{250}); // one number
+        cost();
+        Virtual<void>(view, 0xB0, uint32_t{0}); // cleared at once
+        cost();
+
+        Virtual<void>(view, 0x5C, uint32_t{2});
+        state.Add(Virtual<uint32_t>(view, 0x58));
+        Virtual<void>(view, 0x5C, uint32_t{1});
+        state.Add(Virtual<uint32_t>(view, 0x58));
+        void* filter = nullptr;
+        Virtual<void>(view, 0x48, &filter);
+        state.Add(filter != nullptr);
+        if (filter) {
+            Virtual<void>(view, 0x4C, &filter);
+            Virtual<uint32_t>(filter, 0x8);
+        }
+        Virtual<void>(view, 0x8C); // keyboard scrolling killed
+        Virtual<void>(view, 0x88); // a scroll stopped
+        state.Bytes(view + 0x348, 0x10);
+        for (const uint32_t type : {0x13u, 0x14u}) {
+            uint32_t message[4] = {type, 0, 0, 0};
+            state.Add(Virtual<uint8_t>(window, 0xC, &message[0]));
+            state.Add(At<uint8_t>(view, 0x118));
+        }
+        Virtual<void>(view, 0xE0, uint32_t{0}); // no mission panel to show
+        state.Add(At<void*>(view, 0x40C) != nullptr);
+    }
+
+    {
+        OwnString title("A title"), body("The body of a cursor text"), other("Another");
+        const auto list = [&] {
+            char* const head = At<char*>(view, 0x3DC);
+            int count = 0;
+            for (char* node = At<char*>(head, 0x0); node != head && count < 64; node = At<char*>(node, 0x0), ++count) {
+                texts.Add(At<uint32_t>(node, 0x8));
+                texts.Add(At<uint32_t>(node, 0xC));
+                AddText(texts, node + 0x10);
+                AddText(texts, node + 0x24);
+            }
+            texts.Add(count);
+        };
+        list();
+        Virtual<void>(view, 0xA0, 0x7E570001u, uint32_t{5}, static_cast<void*>(&title.bytes[0]), static_cast<void*>(&body.bytes[0]),
+                      static_cast<void*>(nullptr));
+        Virtual<void>(view, 0xA0, 0x7E570002u, uint32_t{9}, static_cast<void*>(&other.bytes[0]), static_cast<void*>(&body.bytes[0]),
+                      static_cast<void*>(nullptr));
+        list();
+        Virtual<void>(view, 0xA0, 0x7E570001u, uint32_t{5}, static_cast<void*>(&other.bytes[0]), static_cast<void*>(nullptr),
+                      static_cast<void*>(nullptr));
+        list();
+        Virtual<void>(view, 0xA4, 0x7E570001u);
+        Virtual<void>(view, 0xA4, 0x7E570002u);
+        Virtual<void>(view, 0xA4, 0x7E570003u); // not there
+        list();
+    }
+
+    {
+        const auto stack = [&] {
+            const uint32_t count = static_cast<uint32_t>(At<char*>(view, 0x138) - At<char*>(view, 0x134)) / 4;
+            tools.Add(count);
+            void* const tool = Virtual<void*>(view, 0x60);
+            tools.Add(tool ? Virtual<uint32_t>(tool, 0x14) : 0u);
+            tools.Add(static_cast<uint32_t>(At<char*>(view, 0x144) - At<char*>(view, 0x140)) / 4);
+        };
+        const auto command = [&](uint32_t id) { tools.Add(Virtual<uint8_t>(view, 0x1C, id, static_cast<void*>(nullptr), uint32_t{0})); };
+        using MenuFn = void(__thiscall*)(void*, uint32_t, uint32_t, uint32_t);
+        const auto menu = [&](uint32_t id, uint32_t value) { reinterpret_cast<MenuFn>(addr::SC4UI_F7E9FA0)(view, id, value, 0); };
+        stack();
+        command(0x2A94826B); // a scroll key let go
+        command(0x6A9391A0); // redraw
+        command(0x12345678); // not a command
+        stack();
+        for (const uint32_t tool : {0x6A935DC0u, 0x6A935DC5u, 0x6A935CF7u, 0x6A935D0Eu}) {
+            command(tool);
+            stack();
+            command(0x6A935CF1); // Escape
+            stack();
+        }
+        menu(0x12345678, 0);
+        menu(0x4A2B2467, 0);
+        stack();
+        menu(0x4A2B2467, 0x29);
+        stack();
+        tools.Add(Virtual<uint8_t>(view, 0x68, uint32_t{1})); // the current tool removed
+        stack();
+        tools.Add(Virtual<uint8_t>(view, 0x68, uint32_t{1}));
+        tools.Bytes(view + 0x348, 8);
+    }
+
+    {
+        for (const std::uintptr_t refresh : {std::uintptr_t{addr::SC4UI_F7EA6E0}, std::uintptr_t{addr::SC4UI_F7EA810},
+                                             std::uintptr_t{addr::SC4UI_F7EA970}, std::uintptr_t{addr::SC4UI_F7EAAA0},
+                                             std::uintptr_t{addr::SC4UI_F7EAB60}, std::uintptr_t{addr::SC4UI_F7E59B0},
+                                             std::uintptr_t{addr::SC4UI_F7E5B00}, std::uintptr_t{addr::SC4UI_F7E8A90}})
+            reinterpret_cast<ThisFn>(refresh)(view);
+        using CommandFn = void(__thiscall*)(void*, void*, uint32_t*);
+        for (const uint32_t id : {0x4BB92C20u, 0x09D27EB0u, 0x12345678u}) {
+            uint32_t message[4] = {3, 0x287259F6, id, 0};
+            reinterpret_cast<CommandFn>(addr::SC4UI_F7F4690)(view, nullptr, &message[0]);
+            panel.Add(At<uint32_t>(view, 0x370));
+            panel.Add(At<uint32_t>(view, 0x374));
+        }
+        Virtual<void>(view, 0xDC, uint32_t{1}); // the interface minimized
+        Virtual<void>(view, 0xDC, uint32_t{0}); // and back
+        float ground[3] = {};
+        panel.Add(Virtual<uint8_t>(view, 0x90, int32_t{400}, int32_t{300}, &ground[0], uint32_t{0}));
+        panel.Bytes(&ground[0], sizeof ground);
+        panel.Add(At<uint32_t>(view, 0x1F4));
+    }
+
+    std::snprintf(g_cityViewToken, sizeof g_cityViewToken, " cityview ids %08X state %08X texts %08X tools %08X panel %08X", ids.h,
+                  state.h, texts.h, tools.h, panel.h);
+    log::Write("autotest: cityview driven:%s", g_cityViewToken);
+}
+
+const DayHook kCityView{"ui.city_view", 104, &DriveCityView};
+
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     line += g_budgetToken;
     line += g_dialogsToken;
     line += g_windowsToken;
     line += g_panelsToken;
+    line += g_cityViewToken;
     line += g_panelToken;
     line += g_cityPanelsToken;
     line += g_mapToken;
