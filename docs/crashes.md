@@ -34,6 +34,18 @@ Not fixed: sc4fix's "vaccine" does not change what the save does. It replaces cS
 
 The load side (LoadClassObjects, 0x005D38D0) is where objects are lost: a CRC mismatch skips the object and stops reading the rest of that class's record; a size that disagrees with what Read consumed is silently realigned; an exception in Read keeps the half-read object; an object ID seen twice makes Read run again on the existing object. Finding which objects write records that do not read back (the props' own Write and Read) is the next step.
 
+## Multicore crash
+
+**What players do:** run the game on one core, through Task Manager's affinity or the game's own `-CPUCount:1`. The game's handling of that option (0x0044FC3B in the command-line code) calls 0x005F8CD0, which sets the process affinity to CPUs 0 to N-1; without it the game never sets affinity. Why more cores crash is not established; the game's reference counts are plain increments with no lock (see 0x0096DA20), which threads on two cores can race.
+
+**Fix:** `fixes.single_core = ours` ([src/core/single_core.cpp](../src/core/single_core.cpp), off by default) sets the affinity to one core when core.dll attaches, before the game creates any thread, so it needs no shortcut or command line. The core is `[fixes] core` in opensc4.ini (default: the first core the process may use).
+
+## Out of memory
+
+**Cause.** The Steam exe (1.1.641, Characteristics 0x010F) is not large-address-aware, so the game gets 2 GB of address space; large plugin folders and big cities run out. Players apply the community's 4GB patch, which sets the flag in the exe itself (Steam's file check can undo it).
+
+**Fix:** `opensc4 --large-address` ([src/launcher/mirror.cpp](../src/launcher/mirror.cpp), [src/launcher/pe_patch.cpp](../src/launcher/pe_patch.cpp)). The flag is read when the process is created, so it has to be in the exe that is started. The launcher keeps a mirror of the install in `%LOCALAPPDATA%\opensc4\laa`: every top-level folder but Apps as a directory junction, every top-level file as a hard link (a copy where a link is refused), and an Apps folder of its own with copies of the Apps files (not its subfolders; it has none) and of the exe with the flag set and the checksum recomputed. The install is only read, and no admin rights are needed. The mirror is rebuilt when the exe's size or time changes, and only a folder that is empty or carries the mirror's stamp is ever cleared. The hard links give the install's top-level files a second name (link count 2); with Steam on another drive than `%LOCALAPPDATA%` they cannot be links and are copied (about the install's size, untested). Tested on the Steam install (2026-10-10): every top-level file linked, the mirror takes about 8 MB of its own, Steam's DRM stub accepts the copy, the game finds its data through the junctions, and the process has the full 4 GB (free address space above 0x7FFEB000). core.dll logs the address space at attach (`address space: ... MB`). `OPENSC4_LAUNCHER_ARGS=--large-address` passes it through `run-autotest.sh`.
+
 ## Still to look at
 
-From the community: the multicore crash (players set one core) and running out of memory with large plugin folders (the 4GB patch). Other rare crashes the parity harness has hit: 0x00975CC8, 0x0080105D, 0x0075FEEE, 0x005A62A2 ([parity.md](parity.md)). Already fixed by the D3D11 driver: the crash above 2048 px and the start-up crash when no display mode matches ([renderer.md](renderer.md)).
+Other rare crashes the parity harness has hit: 0x00975CC8, 0x0080105D, 0x0075FEEE, 0x005A62A2 ([parity.md](parity.md)). Already fixed by the D3D11 driver: the crash above 2048 px and the start-up crash when no display mode matches ([renderer.md](renderer.md)).
