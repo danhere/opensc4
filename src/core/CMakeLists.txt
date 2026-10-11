@@ -219,6 +219,8 @@ add_library(opensc4_core SHARED
   director.cpp
   fixed_seed.cpp
   game_autosave.cpp
+  game_bulldoze.cpp
+  game_bulldoze_autotest.cpp
   game_date_sync.cpp
   game_growify.cpp
   game_seed.cpp
