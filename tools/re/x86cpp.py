@@ -176,7 +176,9 @@ def cond(mn):
     w = flag[2]
     s = 'static_cast<%s>(%s)' % (w, v)
     return {'jge': '%s >= 0' % s, 'jl': '%s < 0' % s, 'jle': '%s <= 0' % s, 'jg': '%s > 0' % s}[mn]
+last_neg = neg_nonzero = a_now = None
 for a, mn, rest in ins:
+    a_prev, a_now = a_now, a
     if a in targets:
         out.append('L_%x:;' % a)
     ops = [o.strip() for o in re.split(r',(?![^\[]*\])', rest)] if rest else []
@@ -288,10 +290,10 @@ for a, mn, rest in ins:
     elif mn == 'fabs': E('ST(0) = std::fabs(ST(0));')
     elif mn == 'fxch':
         i = re.search(r'\d', rest).group(0) if rest else '1'; E('std::swap(ST(0), ST(%s));' % i)
-    elif mn in ('fcom', 'fcomp'):
+    elif mn in ('fcom', 'fcomp', 'fucom', 'fucomp'):
         E('FCOM(%s);' % (fsrc(ops[0]) if ops else 'ST(1)'))
-        if mn == 'fcomp': E('POP();')
-    elif mn == 'fcompp':
+        if mn in ('fcomp', 'fucomp'): E('POP();')
+    elif mn in ('fcompp', 'fucompp'):
         E('FCOM(ST(1)); POP(); POP();')
     elif mn == 'cdq':
         E('edx = static_cast<int32_t>(eax) < 0 ? 0xFFFFFFFFu : 0u;')
@@ -321,8 +323,14 @@ for a, mn, rest in ins:
         wr(ops[0], '(%s) ? 1u : 0u' % cond('je' if mn == 'sete' else 'jne'))
     elif mn == 'not':
         wr(ops[0], '~%s' % rd32(ops[0]))
+    elif mn == 'fsqrt': E('ST(0) = std::sqrt(ST(0));')
+    elif mn == 'sbb' and ops[0] == ops[1]:
+        # Only right after a neg, whose carry is "the operand was not zero".
+        assert last_neg is not None and last_neg == a_prev, 'sbb at %x without a neg before it' % a
+        wr(ops[0], '(%s) != 0 ? 0xFFFFFFFFu : 0u' % neg_nonzero)
     elif mn == 'neg':
         wr(ops[0], '0u - %s' % rd32(ops[0])); flag = ('test', rd32(ops[0]), 'int32_t')
+        last_neg = a; neg_nonzero = rd32(ops[0])
     elif mn == 'imul' and len(ops) == 3:
         wr(ops[0], '%s * %s' % (rd32(ops[1]), rd32(ops[2])))
     elif mn == 'fnstsw': E('eax = (eax & 0xFFFF0000) | (status << 8);')
