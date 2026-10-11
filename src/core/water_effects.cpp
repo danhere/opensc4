@@ -1444,6 +1444,186 @@ uint32_t __fastcall GroundByMode(char* self, void*, uint32_t particle)
     return ParticleCompared("effects.ground", g_SC4Effect_PlaceOnGround, &PlaceOnGround, self, particle);
 }
 OPENSC4_THUNK(TSC4Effect_PlaceOnGround, GroundByMode, 4)
+
+// A particle's step for descriptions with a flag of the mask at 0x00B22E14
+// (0x005B9790; the plain step jumps to it), translated instruction by
+// instruction: the particle's age (+4) grows by the step and past its life
+// (+8) the particle ends; else the step is done in parts of at most the
+// float at 0x00AA0CF4, each moving the particle (flag 0x10000000 through
+// the game's 0x005B6600), changing its velocity by the effect's and the
+// description's values, and ending it when it leaves the map (flag 0x800)
+// or when the game's 0x005B8DC0 says so (flags 0x100 and 0x400, on the
+// map); last, descriptions with bit 0 of their second word of flags go to
+// the game's 0x005B8020.
+uint32_t StepParticleFull(char* self, uint32_t particle, uint32_t step)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = particle;
+    M<uint32_t>(esp + 8) = step;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_step_full.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Its comparison: two of the functions it calls do more than write the
+// particle (0x005B8DC0 may start another effect, 0x005B8020 makes objects),
+// so the game's runs for real with each call of the two noted (what it was
+// given, what it answered and what the particle and the effect were after
+// it); then the particle and the effect are put back and ours runs with
+// those calls answered from the notes. The calls, the answers and what is
+// left of the particle and the effect must be the same.
+struct FullStepCall {
+    uint32_t target, particle;
+    char point[12];
+    uint32_t step, result;
+    std::vector<char> after;
+    bool operator==(const FullStepCall& other) const
+    {
+        return target == other.target && particle == other.particle && step == other.step &&
+               std::memcmp(point, other.point, sizeof point) == 0;
+    }
+};
+using Call3Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t);
+StepMode g_fullStepMode = StepMode::Original;
+Call2Fn g_SC4Effect_StepParticleFull = nullptr;
+Call3Fn g_SC4Effect_StepFlag100 = nullptr;
+Call1Fn g_SC4Effect_StepFlagB1 = nullptr;
+bool g_fullRecord = false, g_fullReplay = false;
+int g_fullNested = 0;
+char* g_fullSelf = nullptr;
+char* g_fullParticle = nullptr;
+std::vector<FullStepCall> g_fullGameCalls, g_fullOurCalls;
+uint64_t g_fullStepsCompared = 0, g_fullCallsCompared = 0;
+
+std::vector<char> SaveFullStep()
+{
+    std::vector<char> bytes(kStartParticleBytes + kEffectSize);
+    std::memcpy(bytes.data(), g_fullParticle, kStartParticleBytes);
+    std::memcpy(bytes.data() + kStartParticleBytes, g_fullSelf, kEffectSize);
+    return bytes;
+}
+
+void RestoreFullStep(const std::vector<char>& bytes)
+{
+    std::memcpy(g_fullParticle, bytes.data(), kStartParticleBytes);
+    std::memcpy(g_fullSelf, bytes.data() + kStartParticleBytes, kEffectSize);
+}
+
+template <typename Real>
+uint32_t FullStepCallee(uint32_t target, uint32_t particle, const void* point, uint32_t step, Real&& real)
+{
+    if ((!g_fullRecord && !g_fullReplay) || g_fullNested)
+        return real();
+    FullStepCall call{target, particle, {}, step, 0, {}};
+    if (point)
+        std::memcpy(call.point, point, sizeof call.point);
+    if (g_fullReplay) {
+        const std::size_t at = g_fullOurCalls.size();
+        g_fullOurCalls.push_back(std::move(call));
+        if (at >= g_fullGameCalls.size())
+            return 0;
+        RestoreFullStep(g_fullGameCalls[at].after);
+        return g_fullGameCalls[at].result;
+    }
+    // What the call itself steps is not part of this record.
+    ++g_fullNested;
+    call.result = real();
+    --g_fullNested;
+    call.after = SaveFullStep();
+    g_fullGameCalls.push_back(std::move(call));
+    return g_fullGameCalls.back().result;
+}
+
+uint32_t __fastcall DSC4Effect_StepFlag100(char* self, void*, uint32_t particle, uint32_t point, uint32_t step)
+{
+    return FullStepCallee(addr::SC4Effect_StepFlag100, particle, reinterpret_cast<const void*>(point), step,
+                          [&] { return g_SC4Effect_StepFlag100(self, nullptr, particle, point, step); });
+}
+OPENSC4_THUNK(TSC4Effect_StepFlag100, DSC4Effect_StepFlag100, 12)
+
+uint32_t __fastcall DSC4Effect_StepFlagB1(char* self, void*, uint32_t particle)
+{
+    return FullStepCallee(addr::SC4Effect_StepFlagB1, particle, nullptr, 0,
+                          [&] { return g_SC4Effect_StepFlagB1(self, nullptr, particle); });
+}
+OPENSC4_THUNK(TSC4Effect_StepFlagB1, DSC4Effect_StepFlagB1, 4)
+
+uint32_t __fastcall FullStepByMode(char* self, void*, uint32_t particle, uint32_t step)
+{
+    if (g_fullStepMode == StepMode::Original || g_effectRecord || g_effectReplay || g_fullRecord || g_fullReplay)
+        return g_SC4Effect_StepParticleFull(self, nullptr, particle, step);
+    if (g_fullStepMode == StepMode::Ours)
+        return StepParticleFull(self, particle, step);
+    g_fullSelf = self;
+    g_fullParticle = reinterpret_cast<char*>(particle);
+    const std::vector<char> before = SaveFullStep();
+    g_fullGameCalls.clear();
+    g_fullRecord = true;
+    const uint32_t result = g_SC4Effect_StepParticleFull(self, nullptr, particle, step);
+    g_fullRecord = false;
+    const std::vector<char> after = SaveFullStep();
+    RestoreFullStep(before);
+    g_fullOurCalls.clear();
+    g_fullReplay = true;
+    const uint32_t ourResult = StepParticleFull(self, particle, step);
+    g_fullReplay = false;
+    const std::vector<char> mine = SaveFullStep();
+    RestoreFullStep(after);
+    ++g_fullStepsCompared;
+    g_fullCallsCompared += g_fullGameCalls.size();
+    if ((g_fullStepsCompared & (g_fullStepsCompared - 1)) == 0)
+        log::Write("water effects: effects.step_full: %llu steps, %llu calls compared so far",
+                   static_cast<unsigned long long>(g_fullStepsCompared),
+                   static_cast<unsigned long long>(g_fullCallsCompared));
+    char text[96];
+    if (!(g_fullOurCalls == g_fullGameCalls)) {
+        std::size_t at = 0;
+        while (at < g_fullOurCalls.size() && at < g_fullGameCalls.size() && g_fullOurCalls[at] == g_fullGameCalls[at])
+            ++at;
+        const auto describe = [&](const std::vector<FullStepCall>& calls) {
+            if (at < calls.size())
+                std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X, step %08X) ", at, calls.size(),
+                              calls[at].target, calls[at].particle, calls[at].step);
+            else
+                std::snprintf(text, sizeof text, "%zu calls", calls.size());
+            return at < calls.size() ? text + Hex(calls[at].point, sizeof calls[at].point) : std::string(text);
+        };
+        const std::string game = describe(g_fullGameCalls);
+        compare::Record("effects.step_full", false, game, describe(g_fullOurCalls));
+    } else if ((result & 0xFF) != (ourResult & 0xFF) || after != mine) {
+        std::size_t at = 0;
+        while (at < after.size() && after[at] == mine[at])
+            ++at;
+        at = at < after.size() ? at & ~std::size_t{3} : 0;
+        std::snprintf(text, sizeof text, "%u %s+%zX ", result & 0xFF, at < kStartParticleBytes ? "particle" : "effect",
+                      at < kStartParticleBytes ? at : at - kStartParticleBytes);
+        const std::string game = text + Hex(after.data() + at, 8);
+        std::snprintf(text, sizeof text, "%u %s+%zX ", ourResult & 0xFF,
+                      at < kStartParticleBytes ? "particle" : "effect",
+                      at < kStartParticleBytes ? at : at - kStartParticleBytes);
+        compare::Record("effects.step_full", false, game, text + Hex(mine.data() + at, 8));
+    } else {
+        compare::Record("effects.step_full", true, std::string(), std::string());
+    }
+    return result;
+}
+OPENSC4_THUNK(TSC4Effect_StepParticleFull, FullStepByMode, 8)
 // --- The particle pool ---------------------------------------------------------------------
 
 // Particles are kept on a free list (0x00B0A688, linked through each one's
@@ -2425,7 +2605,7 @@ const bool g_registeredStep = registry::Register({
     registry::Phase::PostAppInit,
     addr::SC4Effect_StepParticle,
     "A particle's step: its age, its end, its velocity and position (the other step, for flagged descriptions, "
-    "still the game's); compare mode runs ours and the game's on the same particle (docs/renderer.md, \"Water "
+    "is renderer.effects.step_full); compare mode runs ours and the game's on the same particle (docs/renderer.md, \"Water "
     "effects, sky and clouds\")",
     true,
     InstallStep,
@@ -2493,6 +2673,37 @@ const bool g_registeredStart = registry::Register({
     "effects, sky and clouds\")",
     true,
     InstallStart,
+});
+
+bool InstallFullStep(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4Effect_StepParticleFull ||
+          Detour(addr::SC4Effect_StepParticleFull, &TSC4Effect_StepParticleFull, &g_SC4Effect_StepParticleFull)))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !((g_SC4Effect_StepFlag100 ||
+           Detour(addr::SC4Effect_StepFlag100, &TSC4Effect_StepFlag100, &g_SC4Effect_StepFlag100)) &&
+          (g_SC4Effect_StepFlagB1 ||
+           Detour(addr::SC4Effect_StepFlagB1, &TSC4Effect_StepFlagB1, &g_SC4Effect_StepFlagB1))))
+        return false;
+    g_fullStepMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: particles' other step %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredFullStep = registry::Register({
+    "renderer.effects.step_full",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StepParticleFull,
+    "A particle's step for flagged descriptions: done in parts, with the effect's pull, the map's edge and the "
+    "ground; compare mode runs the game's with two of its calls noted and replays ours (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallFullStep,
 });
 
 bool InstallGround(registry::Mode mode)
