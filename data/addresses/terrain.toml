@@ -1597,3 +1597,51 @@ kind = "function"
 convention = "cdecl"
 expect = "A1 58 C7 B4 00 55 33 ED"
 source = "Name ours. (): frees the terrain's drawing buffers and clears their pointers. (docs/renderer.md, \"The terrain's buffers\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DoMessage"
+address = 0x00757560
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 57 8B 7C 24"
+source = "Name ours. (message): the terrain view's message handler (`this` is the view + 4). Land changed in an area (0x278E6003): 0x007569F0; water changed (0x678E6E3A): 0x00756B00; both mark the view (+0xA8). 0x277A9364 and 0xC9DA96EA call slots of the view. (docs/renderer.md, \"The terrain's messages\")."
+
+[[entry]]
+name = "cSTETerrainView3D::MessageArea"
+address = 0x007523F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. (message, out rect): the cell rectangle a message carries. (docs/renderer.md, \"The terrain's messages\")."
+
+[[entry]]
+name = "cSTETerrainView3D::UpdateLandHeights"
+address = 0x007569F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 49 20 8B 41"
+source = "Name ours. (rect): copies the heights of an area's vertices from the terrain into the land vertices, and into the skirts for vertices on an edge (0x00755B60). (docs/renderer.md, \"The terrain's messages\")."
+
+[[entry]]
+name = "cSTETerrainView3D::UpdateWaterHeights"
+address = 0x00756B00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B C1 8B 48 20"
+source = "Name ours. (rect): sets the water vertices' heights in an area (the sea level, or the land plus the water's depth), redoes the four water skirts and their colours, and adds the area to the view's changed rectangle (0x00756000). (docs/renderer.md, \"The terrain's messages\")."
+
+[[entry]]
+name = "cSTETerrainView3D::AddChangedArea"
+address = 0x00756000
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 10 85"
+source = "Name ours. (rect or null): adds an area (null: everything) to the view's changed rectangle at +0x4C; +0x48 says it is empty. (docs/renderer.md, \"The terrain's messages\")."
+
+[[entry]]
+name = "cSTETerrainView3D::UpdateSkirtVertex"
+address = 0x00755B60
+kind = "function"
+convention = "thiscall"
+expect = "A1 50 C7 B4 00 53 8B 5C"
+source = "Name ours. (side, index, height, sea level): sets one edge vertex's heights in that side's skirt arrays. (docs/renderer.md, \"The terrain's messages\")."

@@ -5932,6 +5932,38 @@ const bool g_registeredRegionDrawing = registry::Register({
 // pixel routines above.
 bool g_compareTerrainBuffers;
 
+// A block of the terrain's buffers, known by where its pointer is kept: a
+// global from 0x00B4C6A0 on, or a place in another block.
+struct TerrainSlot
+{
+    int parent;     // -1: the globals
+    uint32_t offset, size;
+    uint32_t ahead; // the kept pointer is this far into the block (0, or 4 past a count)
+};
+std::vector<TerrainSlot> g_terrainSlots;
+constexpr uint32_t kTerrainGlobals = 0x120;
+
+// The globals and every block as they are now, for a comparison that puts
+// them back (empty until a build of ours has run in compare mode).
+std::vector<Region> TerrainBufferRegions()
+{
+    char* const globals = reinterpret_cast<char*>(0x00B4C6A0);
+    std::vector<Region> regions;
+    if (g_terrainSlots.empty())
+        return regions;
+    regions.push_back({"terrain globals", globals, kTerrainGlobals});
+    std::vector<char*> at(g_terrainSlots.size(), nullptr);
+    for (size_t i = 0; i < g_terrainSlots.size(); ++i) {
+        const TerrainSlot& slot = g_terrainSlots[i];
+        char* const base = slot.parent < 0 ? globals : at[static_cast<size_t>(slot.parent)];
+        char* const kept = base ? *reinterpret_cast<char**>(base + slot.offset) : nullptr;
+        at[i] = kept ? kept - slot.ahead : nullptr;
+        if (at[i])
+            regions.push_back({"terrain block", at[i], slot.size});
+    }
+    return regions;
+}
+
 void* g_terrainBuildBuffers;
 void __cdecl TerrainBuildBuffersOurs(EntryFrame* frame)
 {
@@ -5962,15 +5994,9 @@ void __cdecl TerrainBuildBuffers(EntryFrame* frame)
         TerrainBuildBuffersOurs(frame);
         return;
     }
-    struct Slot
-    {
-        int parent;     // -1: the globals
-        uint32_t offset, size;
-        uint32_t ahead; // the kept pointer is this far into the block (0, or 4 past a count)
-    };
-    static std::vector<Slot> slots;
+    std::vector<TerrainSlot>& slots = g_terrainSlots;
     char* const globals = reinterpret_cast<char*>(0x00B4C6A0);
-    constexpr uint32_t kGlobals = 0x120;
+    constexpr uint32_t kGlobals = kTerrainGlobals;
     const EntryFrame entry = *frame;
     using BuildFn = uint32_t(__fastcall*)(uint32_t, uint32_t);
     const auto game = [&] {
@@ -6179,6 +6205,218 @@ const bool g_registeredTerrainBuffers = registry::Register({
     "blocks, and compares them byte for byte (docs/renderer.md, \"The terrain's buffers\")",
     true,
     InstallTerrainBuffers,
+});
+
+// The terrain view's messages (docs/renderer.md, "The terrain's messages"):
+// the handler and the functions that bring the buffers up to date when the
+// land or the water changes in an area. Translated instruction by instruction
+// and entered like the pixel routines above.
+bool g_compareTerrainMessages;
+
+void* g_terrainMsgDoMessage;
+void __cdecl TerrainMsgDoMessageOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain messages: DoMessage call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrain_domessage.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain messages: DoMessage left %d values on the x87 stack", top + 1);
+}
+
+// Compare mode, for the two messages that change the buffers: ours handles
+// the message, the view, the globals and every block are copied and put back,
+// the game's handles it with the game's own functions, and the results are
+// compared byte for byte. Other messages call into the view and are not run
+// twice.
+void __cdecl TerrainMsgDoMessage(EntryFrame* frame)
+{
+    char* const target = reinterpret_cast<char*>(frame->ecx);
+    void* const message = reinterpret_cast<void*>(frame->arguments[0]);
+    const uint32_t type = message ? Virtual<uint32_t>(message, 0x10) : 0;
+    std::vector<Region> regions;
+    if (g_compareTerrainMessages && (type == 0x278E6003 || type == 0x678E6E3A))
+        regions = TerrainBufferRegions();
+    if (regions.empty()) {
+        if (g_compareTerrainMessages)
+            compare::Record(type == 0x278E6003 || type == 0x678E6E3A ? "terrain.messages.nobuffers" : "terrain.messages.other", true, "", "");
+        TerrainMsgDoMessageOurs(frame);
+        return;
+    }
+    regions.push_back({"terrain view", target - 4, kViewSize});
+    const auto copy = [&] {
+        std::vector<char> bytes;
+        for (const Region& region : regions)
+            bytes.insert(bytes.end(), region.data, region.data + region.size);
+        return bytes;
+    };
+    const auto restore = [&](const std::vector<char>& bytes) {
+        size_t at = 0;
+        for (const Region& region : regions) {
+            std::memcpy(region.data, bytes.data() + at, region.size);
+            at += region.size;
+        }
+    };
+    using HandlerFn = uint32_t(__fastcall*)(char*, void*, void*);
+    const auto game = [&] {
+        g_dataMapGameRun = true;
+        const uint32_t result = reinterpret_cast<HandlerFn>(g_terrainMsgDoMessage)(target, nullptr, message);
+        g_dataMapGameRun = false;
+        return result;
+    };
+    const EntryFrame entry = *frame;
+    const std::vector<char> before = copy();
+    if (g_selfCheck)
+        game();
+    else
+        TerrainMsgDoMessageOurs(frame);
+    const std::vector<char> first = copy();
+    restore(before);
+    *frame = entry;
+    frame->eax = game();
+    const std::vector<char> second = copy();
+    size_t differing = 0, firstAt = 0, changed = 0;
+    for (size_t i = 0; i < first.size(); ++i) {
+        if (first[i] != second[i] && !differing++)
+            firstAt = i;
+        changed += before[i] != second[i];
+    }
+    char detail[160];
+    std::snprintf(detail, sizeof detail, "message %08X: %zu of %zu bytes differ (first at %zu); the game's changed %zu", type, differing,
+                  first.size(), firstAt, changed);
+    static uint32_t logged = 0;
+    if (differing || logged++ < 8)
+        log::Write("terrain messages: compared: %s", detail);
+    const std::string name = std::string(type == 0x278E6003 ? "terrain.messages.land" : "terrain.messages.water") + (g_selfCheck ? ".selfcheck" : "");
+    compare::Record(name.c_str(), !differing, "the game's buffers", detail);
+    if (changed)
+        compare::Record((name + ".working").c_str(), !differing, "the game's buffers", detail);
+}
+DATAMAP_ENTRY(TTerrainMsgDoMessage, TerrainMsgDoMessage, g_terrainMsgDoMessage, 4)
+
+void* g_terrainMsgMessageArea;
+void __cdecl TerrainMsgMessageArea(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain messages: MessageArea call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrain_messagearea.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain messages: MessageArea left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainMsgMessageArea, TerrainMsgMessageArea, g_terrainMsgMessageArea, 0)
+
+void* g_terrainMsgUpdateLandHeights;
+void __cdecl TerrainMsgUpdateLandHeights(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain messages: UpdateLandHeights call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrain_updatelandheights.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain messages: UpdateLandHeights left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainMsgUpdateLandHeights, TerrainMsgUpdateLandHeights, g_terrainMsgUpdateLandHeights, 4)
+
+void* g_terrainMsgUpdateWaterHeights;
+void __cdecl TerrainMsgUpdateWaterHeights(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain messages: UpdateWaterHeights call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrain_updatewaterheights.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain messages: UpdateWaterHeights left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainMsgUpdateWaterHeights, TerrainMsgUpdateWaterHeights, g_terrainMsgUpdateWaterHeights, 4)
+
+void* g_terrainMsgAddChangedArea;
+void __cdecl TerrainMsgAddChangedArea(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain messages: AddChangedArea call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrain_addchangedarea.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain messages: AddChangedArea left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainMsgAddChangedArea, TerrainMsgAddChangedArea, g_terrainMsgAddChangedArea, 4)
+
+void* g_terrainMsgUpdateSkirtVertex;
+void __cdecl TerrainMsgUpdateSkirtVertex(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain messages: UpdateSkirtVertex call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrain_updateskirtvertex.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain messages: UpdateSkirtVertex left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainMsgUpdateSkirtVertex, TerrainMsgUpdateSkirtVertex, g_terrainMsgUpdateSkirtVertex, 0)
+
+bool InstallTerrainMessages(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareTerrainMessages = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::cSTETerrainView3D_DoMessage, &TTerrainMsgDoMessage, &g_terrainMsgDoMessage)
+                           && Detour(addr::cSTETerrainView3D_MessageArea, &TTerrainMsgMessageArea, &g_terrainMsgMessageArea)
+                           && Detour(addr::cSTETerrainView3D_UpdateLandHeights, &TTerrainMsgUpdateLandHeights, &g_terrainMsgUpdateLandHeights)
+                           && Detour(addr::cSTETerrainView3D_UpdateWaterHeights, &TTerrainMsgUpdateWaterHeights, &g_terrainMsgUpdateWaterHeights)
+                           && Detour(addr::cSTETerrainView3D_AddChangedArea, &TTerrainMsgAddChangedArea, &g_terrainMsgAddChangedArea)
+                           && Detour(addr::cSTETerrainView3D_UpdateSkirtVertex, &TTerrainMsgUpdateSkirtVertex, &g_terrainMsgUpdateSkirtVertex);
+    if (installed)
+        log::Write("terrain messages: %s", g_compareTerrainMessages ? "compared with the game's" : "ours");
+    return installed;
+}
+
+const bool g_registeredTerrainMessages = registry::Register({
+    "renderer.terrain.messages",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_DoMessage,
+    "The terrain view's message handler and the buffer updates for land and water changed in an area; compare mode "
+    "needs renderer.terrain.buffers=compare too, handles each message twice and compares the buffers (docs/renderer.md, "
+    "\"The terrain's messages\")",
+    true,
+    InstallTerrainMessages,
 });
 
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),
