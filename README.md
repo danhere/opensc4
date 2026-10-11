@@ -34,6 +34,7 @@ Things OpenSC4 adds to the game. Classic behaviour stays: an addition that chang
 | 8 km city tiles (an experiment: such a city cannot be saved yet) | `[improvements] big_cities = on` | [docs/city-size.md](docs/city-size.md) |
 | Buildings keep their occupants when a wealthier group wants in; it changes how cities grow (after sc4-no-kick-out by Nicholas Hayes, MIT License) | on (`game.no_kickout = original` turns it off) | [docs/no-kickout.md](docs/no-kickout.md) |
 | No demolition animation, no smoke when a lot is placed, no sounds from road and rail construction crews: three options, each off until turned on (after sc4-disable-demolition-animation, sc4-disable-lot-plop-smoke and sc4-disable-network-construction-sounds by Nicholas Hayes, MIT License) | `game.quiet.demolish = ours`, `game.quiet.plop = ours`, `game.quiet.network = ours` | [docs/quiet.md](docs/quiet.md) |
+| Fix for a game bug: lots offer their $$ and $$$ jobs even when the count is close to their $ jobs, so high-tech industry gets its $$$ jobs | on (`fixes.travel_jobs = original` turns it off) | [docs/citylot.md](docs/citylot.md#travel-jobs-the-games-bug-and-the-fix) |
 | The cheat `RemovePhantomBudgetItems <category> [all]`: takes budget rows of buildings that are gone, usually after a plugin was removed, out of a department; part of the game (after sc4-remove-phantom-budget-items by Nicholas Hayes, MIT License) | always there | [docs/phantom-budget.md](docs/phantom-budget.md) |
 
 ## Documents
