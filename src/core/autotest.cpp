@@ -397,6 +397,13 @@ private:
             return;
         }
 
+        // OPENSC4_TEST_REGION_HOLD=<ms>: the region view (with whatever the
+        // region hooks put up, such as the region screen) stays on screen for
+        // that long before the city is loaded, so that it is drawn.
+        const ULONGLONG hold = static_cast<ULONGLONG>(std::atoi(Env("OPENSC4_TEST_REGION_HOLD").c_str()));
+        if (regionHooksRun_ && now - regionHoldStart_ < hold)
+            return;
+
         app->EnableFullGamePauseOnAppFocusLoss(false);
         app->SetPopupDialogsEnabled(false);
 
@@ -455,8 +462,14 @@ private:
             return;
         }
 
-        for (const auto& hook : Registry().region)
-            hook.fn(region);
+        if (!regionHooksRun_) {
+            for (const auto& hook : Registry().region)
+                hook.fn(region);
+            regionHooksRun_ = true;
+            regionHoldStart_ = now;
+            if (hold)
+                return;
+        }
 
         log::Write("autotest: loading %s (pop %d, tile %d,%d)", chosenPath.c_str(), chosenPopulation, x, z);
         const bool loaded = app->LoadCity(SC4String(chosenPath.c_str()), regionEntry);
@@ -879,6 +892,8 @@ private:
     }
 
     State state_ = State::WaitForRegion;
+    bool regionHooksRun_ = false;
+    ULONGLONG regionHoldStart_ = 0;
     ULONGLONG stateStart_ = GetTickCount64();
     ULONGLONG lastReport_ = 0;
     int runSeconds_ = 180;
