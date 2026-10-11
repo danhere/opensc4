@@ -1,0 +1,486 @@
+# The building occupant (cSC4BuildingOccupant, class ID 0xA9BD882D, occupant type 0x278128A0): code 0x004587C0 to 0x004592FB (src/core/bldgocc_sim.cpp, the class map in src/core/bldgocc_sim.h). The constructor 0x00458E90 and the pool allocator 0x00458A60 are in development.toml.
+
+[[entry]]
+name = "cSC4BuildingOccupant::vftable"
+address = 0x00A872C0
+kind = "vtable"
+expect = "D0 87 45 00 F0 28 5E 00"
+source = "The primary cISC4BuildingOccupant vtable (20 slots, listed in src/core/bldgocc_sim.h). simulators.bldgocc.slots swaps slots 0 and 8-19; simulators.bldgocc.object copies it at the first construction."
+
+[[entry]]
+name = "cSC4BuildingOccupant::vftable_4"
+address = 0x00A87238
+kind = "vtable"
+expect = "F0 89 45 00 B0 29 5E 00"
+source = "Name ours. The cISC4Occupant part at +0x4 (34 slots; the base cSC4Occupant's except 0, 4, 5, 8, 9, 10, 15, 16). simulators.bldgocc.slots swaps slots 0, 4, 5, 8, 9, 10, 15, 16."
+
+[[entry]]
+name = "cSC4BuildingOccupant::vftable_8"
+address = 0x00A8721C
+kind = "vtable"
+expect = "00 8A 45 00 E0 29 5E 00"
+source = "Name ours. The cIGZSerializable part at +0x8 (6 slots: three thunks, Write 0x00458A90, Read 0x00458B10, GetGZCLSID 0x004587C0). Slots 3 and 4 replaced by simulators.bldgocc.save, 0 and 5 by simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::vftable_C"
+address = 0x00A871B8
+kind = "vtable"
+expect = "10 8A 45 00 10 2A 5E 00"
+source = "Name ours. The property holder part at +0xC (25 slots: three thunks, the shared holder code, 22 the deleting destructor thunk 0x00458A20, 23 the Write thunk 0x00458E40, 24 the Read thunk 0x00458E50). Slots 23 and 24 replaced by simulators.bldgocc.save, 0 by simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::vftable_20"
+address = 0x00A871A0
+kind = "vtable"
+expect = "30 8A 45 00 A0 06 5E 00"
+source = "Name ours. The exemplar holder part at +0x20 (cISCExemplarPropertyHolder, 5 slots: three thunks, SetPropertyExemplar 0x00458E60, the getter 0x0060CE80). Slots 0 and 3 replaced by simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::GetGZCLSID"
+address = 0x004587C0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 2D 88 BD A9 C3 CC CC"
+source = "Returns the class ID 0xA9BD882D (+8 slot 5; also called by the class registration at 0x00460694). Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::QueryInterface"
+address = 0x004587D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4BuildingOccupant* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D A9 A3 DD"
+source = "Slot 0: IID 0x87DDA3A9 gives the object; every other goes to the occupant base's 0x005E89C0 with this + 4. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::ShutdownThunk"
+address = 0x00458800
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4Occupant* this)"
+expect = "E9 7B 01 19 00 CC CC CC"
+source = "Name ours. +4 slot 4: a jump to the occupant base's Shutdown 0x005E8980. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::GetCompletionPercent"
+address = 0x00458810
+kind = "function"
+convention = "thiscall"
+signature = "float* (cSC4BuildingOccupant* this)"
+expect = "8D 41 58 C3 CC CC CC CC"
+source = "Slot 9: the address of +0x58. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::SetCompletionPercent"
+address = 0x00458820
+kind = "function"
+convention = "thiscall"
+signature = "const float* (cSC4BuildingOccupant* this, const float* percent)"
+expect = "8B 44 24 04 8B 10 89 51"
+source = "Slot 10: +0x58 from the pointed value. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::GetOrientation"
+address = 0x00458830
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4BuildingOccupant* this)"
+expect = "0F BE 41 54 C3 CC CC CC"
+source = "Slot 14: the signed byte +0x54. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::SetOrientation"
+address = 0x00458840
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4BuildingOccupant* this, int32_t orientation)"
+expect = "8B 44 24 04 85 C0 7D 0A"
+source = "Slot 15: +0x54, clamped to 0-3. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::IsLit"
+address = 0x00458870
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4BuildingOccupant* this)"
+expect = "33 C0 8A 41 55 83 E0 01"
+source = "Slot 16: bit 0 of +0x55. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::SetName"
+address = 0x00458880
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4BuildingOccupant* this, cIGZString* name)"
+expect = "56 57 8B F9 8B 47 0C 8D"
+source = "Slot 18: the property 0x899AFBAD set or added, then occupant message 0x99EF1145. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::GetName"
+address = 0x004588F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4BuildingOccupant* this, cIGZString* name)"
+expect = "56 8B F1 85 F6 57 74 05"
+source = "Slot 19: the property 0x899AFBAD, else the text of the key 0x8A416A99, else the property 0x20. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::QueryInterfaceThunk4"
+address = 0x004589F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 04 E9 D8 FD FF FF"
+source = "Name ours. +4 slot 0: this - 4 to QueryInterface. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::QueryInterfaceThunk8"
+address = 0x00458A00
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 08 E9 C8 FD FF FF"
+source = "Name ours. +8 slot 0: this - 8 to QueryInterface. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::QueryInterfaceThunkC"
+address = 0x00458A10
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 0C E9 B8 FD FF FF"
+source = "Name ours. +0xC slot 0: this - 0xC to QueryInterface. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::DeletingDestructorThunk"
+address = 0x00458A20
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* part, uint32_t flags)"
+expect = "83 E9 0C E9 58 05 00 00"
+source = "Name ours. +0xC slot 22: this - 0xC to the deleting destructor 0x00458F80 (the occupant base's Release 0x005E8DF0 calls it with 1). Ours in the vtable copies of simulators.bldgocc.object."
+
+[[entry]]
+name = "cSC4BuildingOccupant::QueryInterfaceThunk20"
+address = 0x00458A30
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 20 E9 98 FD FF FF"
+source = "Name ours. +0x20 slot 0: this - 0x20 to QueryInterface. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::IsInitialized"
+address = 0x00458A40
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cISC4Occupant* this)"
+expect = "33 C0 8A 41 2E 83 E0 01"
+source = "+4 slot 5: bit 0 of the occupant's +0x2E. The occupant base's inline code, folded: 57 occupant vtables hold it. Ours in this class's vtable only (simulators.bldgocc.slots)."
+
+[[entry]]
+name = "cSC4BuildingOccupant::GetHighlight"
+address = 0x00458A50
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cISC4Occupant* this)"
+expect = "0F B6 41 2E C1 E8 04 C3"
+source = "+4 slot 16: the high four bits of the occupant's +0x2E. Folded like 0x00458A40. Ours in this class's vtable only (simulators.bldgocc.slots)."
+
+[[entry]]
+name = "cSC4BuildingOccupant::Write"
+address = 0x00458A90
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+8 slot 3 (this = object + 8): version 2, the occupant base's record (0x005E8CD0), the building type, lit, the box, orientation, completion. Ours in simulators.bldgocc.save."
+
+[[entry]]
+name = "cSC4BuildingOccupant::Read"
+address = 0x00458B10
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "+8 slot 4 (this = object + 8): version 2 only; the reverse of Write. Ours in simulators.bldgocc.save."
+
+[[entry]]
+name = "cSC4BuildingOccupant::GetPosition"
+address = 0x00458BA0
+kind = "function"
+convention = "thiscall"
+signature = "float* (cISC4Occupant* this, float* position)"
+expect = "D9 41 44 8B 44 24 04 D8"
+source = "Name from the interface. +4 slot 8: the box's centre in x and z, its low y. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::SetPosition"
+address = 0x00458BD0
+kind = "function"
+convention = "thiscall"
+signature = "const float* (cISC4Occupant* this, const float* position)"
+expect = "51 D9 41 44 8B 44 24 08"
+source = "Name from the interface. +4 slot 9: the box moved to the position keeping its size. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::GetBoundingBox"
+address = 0x00458C30
+kind = "function"
+convention = "thiscall"
+signature = "float* (cISC4Occupant* this, float* low, float* high)"
+expect = "8B 51 38 8B 44 24 04 89"
+source = "Name from the interface. +4 slot 10: the box +0x3C, +0x48 copied out. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::SetBoundingBox"
+address = 0x00458C60
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4BuildingOccupant* this, const float* low, const float* high)"
+expect = "8B 44 24 04 8B 10 89 51"
+source = "Name from the interface. Slot 8: the box +0x3C, +0x48 copied in. Folded with the prop occupants' (seven more vtables hold it). Ours in this class's vtable only (simulators.bldgocc.slots)."
+
+[[entry]]
+name = "cSC4BuildingOccupant::SetLit"
+address = 0x00458C90
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4BuildingOccupant* this, bool lit)"
+expect = "8A 54 24 04 57 8B F9 8A"
+source = "Slot 17: bit 0 of +0x55 flipped when it differs and message 0x09D8E0B6 posted with the occupant. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::PostOccupantMessage"
+address = 0x00458D10
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cISC4Occupant* this, uint32_t id, uint32_t data)"
+expect = "53 55 8B 6C 24 10 57 8B"
+source = "Name from the interface. +4 slot 15: the base's 0x005E9010, then for 0x99EF1142/3 a second message 0x8B8B2CED/E. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::WriteThunk"
+address = 0x00458E40
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZOStream* stream)"
+expect = "83 E9 04 E9 48 FC FF FF"
+source = "Name ours. +0xC slot 23: this - 4 to Write. Ours in simulators.bldgocc.save."
+
+[[entry]]
+name = "cSC4BuildingOccupant::ReadThunk"
+address = 0x00458E50
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZIStream* stream)"
+expect = "83 E9 04 E9 B8 FC FF FF"
+source = "Name ours. +0xC slot 24: this - 4 to Read. Ours in simulators.bldgocc.save."
+
+[[entry]]
+name = "cSC4BuildingOccupant::SetPropertyExemplar"
+address = 0x00458E60
+kind = "function"
+convention = "thiscall"
+signature = "void (void* part, cIGZUnknown* exemplar)"
+expect = "53 56 8B 74 24 0C 8B D9"
+source = "Name ours. +0x20 slot 3: the referenced pointer at part + 4 exchanged. The holder base's inline code, folded: every occupant class's +0x20 vtable holds it. Ours in this class's vtable only (simulators.bldgocc.slots)."
+
+[[entry]]
+name = "cSC4BuildingOccupant::Create"
+address = 0x00458F40
+kind = "function"
+convention = "cdecl"
+signature = "cSC4BuildingOccupant* ()"
+expect = "A1 20 7F B0 00 8B 40 08"
+source = "The class factory (registered at 0x0046068F): an item of the pool 0x00B07F1C, then a jump to the constructor. Ours in simulators.bldgocc.object."
+
+[[entry]]
+name = "cSC4BuildingOccupant::DeletingDestructor"
+address = 0x00458F80
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4BuildingOccupant* this, uint32_t flags)"
+expect = "56 8B F1 8D 4E 04 C7 06"
+source = "Name ours. The five vtables set, the occupant base destroyed (0x005E8C40), with flag 1 the memory back to the pool 0x00B07F1C. Reached only through the thunk 0x00458A20. Ours in simulators.bldgocc.object."
+
+[[entry]]
+name = "cSC4BuildingOccupant::GetExemplarName"
+address = 0x00459050
+kind = "function"
+convention = "thiscall"
+signature = "cIGZString* (cSC4BuildingOccupant* this)"
+expect = "A1 68 3D B4 00 53 33 DB"
+source = "Slot 13: the development simulator's slot 37 for the building type; without the simulator a static empty string. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::GetBuildingName"
+address = 0x004590E0
+kind = "function"
+convention = "thiscall"
+signature = "cIGZString* (cSC4BuildingOccupant* this)"
+expect = "A1 68 3D B4 00 53 33 DB"
+source = "Slot 12: the development simulator's slot 38 for the building type; without the simulator a static empty string. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::GetBuildingProfile"
+address = 0x00459250
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4BuildingOccupant* this)"
+expect = "8B D1 8B 0D 68 3D B4 00"
+source = "Slot 11: the development simulator's slot 39 for the building type; without the simulator a static empty profile. Ours in simulators.bldgocc.slots."
+
+[[entry]]
+name = "cSC4BuildingOccupant::Pool"
+address = 0x00B07F1C
+kind = "data"
+source = "Name ours. The pool of the 0x5C-byte building occupants (vtable 0x00A87310; +4 the current page; pages of 8 KB at address & 0xFFFFE000 with the free list at +8 and the used count at +0xC; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at count 0x40000042)."
+
+[[entry]]
+name = "cSC4BuildingOccupant::DefaultCompletion"
+address = 0x00B07F18
+kind = "data"
+source = "Name ours. The float the constructor copies into +0x58 (1.0)."
+
+[[entry]]
+name = "cSC4BuildingOccupant::EmptyExemplarName"
+address = 0x00B2147C
+kind = "data"
+source = "Name ours. GetExemplarName's static empty string (0x14 bytes; guard bit 0 of 0x00B21490, destroyed at exit by 0x00A7ADA0)."
+
+[[entry]]
+name = "cSC4BuildingOccupant::EmptyBuildingName"
+address = 0x00B21494
+kind = "data"
+source = "Name ours. GetBuildingName's static empty string (0x14 bytes; guard bit 0 of 0x00B214A8, destroyed at exit by 0x00A7ADC0)."
+
+[[entry]]
+name = "cSC4BuildingOccupant::EmptyProfile"
+address = 0x00B214B0
+kind = "data"
+source = "Name ours. GetBuildingProfile's static empty profile (0x40 bytes; guard bit 0 of 0x00B214F0, destroyed at exit by 0x00A7ADE0)."
+
+[[entry]]
+name = "cSC4BuildingOccupant::EmptyExemplarNameAtExit"
+address = 0x00A7ADA0
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "A1 80 14 B2 00 85 C0 C7"
+source = "Name ours. Destroys the static string 0x00B2147C at exit."
+
+[[entry]]
+name = "cSC4BuildingOccupant::EmptyBuildingNameAtExit"
+address = 0x00A7ADC0
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "A1 98 14 B2 00 85 C0 C7"
+source = "Name ours. Destroys the static string 0x00B21494 at exit."
+
+[[entry]]
+name = "cSC4BuildingOccupant::EmptyProfileAtExit"
+address = 0x00A7ADE0
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "51 8B 0D C0 14 B2 00 8B"
+source = "Name ours. Destroys the static profile 0x00B214B0 at exit."
+
+[[entry]]
+name = "cSC4Occupant::cSC4Occupant"
+address = 0x005E9220
+kind = "function"
+convention = "thiscall"
+signature = "cSC4Occupant* (cSC4Occupant* this)"
+expect = "56 8B F1 57 8D 7E 08 C7"
+source = "Name ours. The occupant base's constructor (0x34 bytes: the cISC4Occupant vtable, the serializable part +4, the property holder +8 with its exemplar holder part +0x1C, the type +0x24, flags). The game's; every occupant class runs it."
+
+[[entry]]
+name = "cSC4Occupant::Destroy"
+address = 0x005E8C40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4Occupant* this)"
+expect = "56 8D 71 08 C7 01 D8 41"
+source = "Name ours. The occupant base's destructor: its vtables, the placeable object +0x30 released, the holder destroyed (0x005FF220). The game's."
+
+[[entry]]
+name = "cSC4Occupant::QueryInterface"
+address = 0x005E89C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Occupant* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "The occupant base's QueryInterface: 1 and 0x26BB767E give the occupant, 0xE4FDA3D4 its +4, the rest the holder's 0x005FD310. The game's."
+
+[[entry]]
+name = "cSC4Occupant::Shutdown"
+address = 0x005E8980
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Occupant* this)"
+expect = "56 8B F1 8B 06 FF 50 14"
+source = "The occupant base's Shutdown: when initialized, bit 0 of +0x2E cleared and occupant message 0x99EF1141. The game's."
+
+[[entry]]
+name = "cSC4Occupant::Write"
+address = 0x005E8CD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. The occupant base's record (this = occupant + 4): version 4, the removal counts, highlight, flags & 0xDD, type, the manager's box, the exemplar holder (0x005FE070). The game's."
+
+[[entry]]
+name = "cSC4Occupant::Read"
+address = 0x005E8D60
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "51 53 8B D9 56 8B 74 24"
+source = "Name ours. The reverse of 0x005E8CD0 (version 4 only; the holder by 0x005FF420). The game's."
+
+[[entry]]
+name = "cSC4Occupant::PostOccupantMessage"
+address = 0x005E9010
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4Occupant* this, uint32_t id, uint32_t data)"
+expect = "A1 94 31 B2 00 85 C0 56"
+source = "Name ours. The occupant base's message post (a cGZMessage with the occupant, its flag 4, type and the data, through the server cached at 0x00B23194). The game's."
+
+[[entry]]
+name = "cSC4Occupant::MessageServer"
+address = 0x00B23194
+kind = "data"
+source = "Name ours. The occupants' cached copy of the message server pointer 0x00B43CCC (taken on first use)."
+
+[[entry]]
+name = "SC4Stream::WriteVector3"
+address = 0x005DA580
+kind = "function"
+convention = "cdecl"
+signature = "cIGZOStream* (cIGZOStream* stream, const float* vector)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Three SetFloat32 (stream slot 12)."
+
+[[entry]]
+name = "SC4Stream::ReadVector3"
+address = 0x005DA550
+kind = "function"
+convention = "cdecl"
+signature = "cIGZIStream* (cIGZIStream* stream, float* vector)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Three GetFloat32 (stream slot 12)."
+
+[[entry]]
+name = "SC4::GetPropertyText"
+address = 0x00603220
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZString* text, cISCPropertyHolder* holder, uint32_t property, uint32_t unknown)"
+expect = "83 EC 0C 8B 4C 24 18 8B"
+source = "Name ours. The localized text whose resource key the holder's property gives (0x005FD5B0, then 0x00603040); the building's name from its property 0x8A416A99."
