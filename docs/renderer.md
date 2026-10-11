@@ -208,7 +208,20 @@ The first batch found a bug this way: with ours alone Big City crashed on a jump
 
 **Size limits.** Nothing in the build is sized by a constant: every count comes from the terrain's own (0x00B4C744 cells a row and 0x00B4C748 rows, 128 in the tutorial cities). Two things in it are 16 bits wide and so bound a bigger city: the indices (a draw can only reach 65,536 vertices; the passes draw two rows at a time, which is 1,026 vertices for a 512-cell city, so this holds), and the six small counters at 0x00B4C6DC to 0x00B4C6F2. The 256-row limits found for bigger cities (docs/city-size.md) are not here but in the row code: `LandRowThresholds` and `WaterRowThresholds` (0x00751EE0, 0x00751FF0) write one float a row in view into a 257-float buffer on the stack of `LandRowVisibility` and `WaterRowVisibility` (0x007535A0, 0x007539D0). Ours (`renderer.terrain.rows`) keeps the same `float[257]` on purpose; those two are the places to change when cities grow.
 
-**What is left of the terrain view.** Its code runs from 0x00751C40 to 0x0075D5B0: 146 functions, 45.8 KB. With this, the passes, rows, grid, skirts, cell marks and buffers are ours; about 100 functions (some 30 KB) are still the game's: the view's start, shutdown and message handler (0x0075C420, 0x007560F0, 0x00757560), its static set-up (0x0075C0C0), the row drawing variants (0x007543C0, 0x00754910, 0x00754C60, 0x00754F10, 0x00755560, 0x00755700), the single-cell draw (0x00752870), the pick ray (0x0075A230), the row layer list helpers and the dynamic buffer set (0x0075AD10 to 0x0075D540), and many small getters. They come next, a part at a time.
+### The terrain's messages
+
+The terrain view hears about changes through its message handler (0x00757560; `this` is the view + 4). Two messages change the buffers, each for the rectangle of cells the message carries (0x007523F0 reads it):
+
+- **Land changed** (0x278E6003): `UpdateLandHeights` (0x007569F0) copies the heights of the area's vertices from the terrain into the land vertices, and for a vertex on an edge of the city also into that side's skirt (0x00755B60, which keeps the skirt's lower heights from going under their floor).
+- **Water changed** (0x678E6E3A): `UpdateWaterHeights` (0x00756B00) sets each vertex's water height in the area (the sea level, or the land plus the water's depth where there is water above it), redoes the four water skirts with their colours, and adds the area to the view's changed rectangle (0x00756000, at +0x4C).
+
+Both mark the view (+0xA8). Two more messages (0x277A9364, 0xC9DA96EA) call slots of the view and set a field.
+
+`renderer.terrain.messages` is the handler and those five functions, translated instruction by instruction. Compare mode (with `renderer.terrain.buffers=compare`, which is what knows the buffers' blocks and sizes) handles each of the two messages twice: ours, then the view, the globals and every block put back, then the game's with the game's own functions, and the results compared byte for byte. The other messages are not run twice.
+
+Checked with the cities running: the three tutorial cities for 30 days, and for land changes a volcano on Big City and an earthquake on Rush Hour for 20 days. 4,741 water messages (308 of which changed something) and 86 land messages (59), no difference; the self-check on the volcano run is clean; ours alone runs the volcano in the release build, and screenshots with every terrain replacement on match the game's (20 of 20). All six functions ran. The seven other messages seen were handled by ours without a comparison.
+
+**What is left of the terrain view.** Its code runs from 0x00751C40 to 0x0075D5B0: 146 functions, 45.8 KB. Counting what can still be reached when our replacements are on: 96 functions (about 19 KB) are still the game's, and 30 more (14 KB) are only called from code that is ours already, so they no longer run (the row drawing variants at 0x007543C0 to 0x00755700 are among them: the overlay and land passes draw their rows with our own code). What is left: the view's start, shutdown and static set-up (0x0075C420, 0x007560F0, 0x0075C0C0), the single-cell draw (0x00752870), the pick ray (0x0075A230), a command parser (0x0075A770), the row layer list helpers and the dynamic buffer set (0x0075AD10 to 0x0075D540), and many small getters and setters. They come next, a part at a time.
 
 ## The overlays
 
