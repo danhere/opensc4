@@ -8,6 +8,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/traffic_cells.h"
 
 #include <opensc4/addresses.h>
 
@@ -298,11 +299,12 @@ uint8_t __fastcall DoMessage(void* self, void*, void* message)
 
 // --- The search ---------------------------------------------------------------------
 
-// A search node (0x1C bytes): its cell (x << 8 | z), the parent, g, f,
-// open and closed flags, the next node of the open list and of its bucket.
+// A search node (0x1C bytes): its cell (x << 8 | z, a uint16 followed by
+// padding in the game's; CellKey, which needs the whole word for a big
+// city), the parent, g, f, open and closed flags, the next node of the open
+// list and of its bucket.
 struct WaterNode {
-    uint16_t cell;
-    uint16_t padding;
+    uint32_t cell;
     WaterNode* parent;
     float g;
     float f;
@@ -318,8 +320,8 @@ static_assert(sizeof(WaterNode) == 0x1C);
 WaterNode* __fastcall FindOrCreateNode(void* hash, void*, uint32_t key)
 {
     using PushBackFn = void(__thiscall*)(void* vector, void* const* value);
-    const auto cell = static_cast<uint16_t>(key);
-    const uint32_t bucket = (static_cast<uint32_t>(cell) * 0x9E3779B1u) % pool::kBuckets;
+    const uint32_t cell = g_wideCells ? key : key & 0xFFFF;
+    const uint32_t bucket = (cell * 0x9E3779B1u) % pool::kBuckets;
     WaterNode** const head = &At<WaterNode*>(hash, 4 * bucket);
     for (WaterNode* node = *head; node; node = node->chain)
         if (node->cell == cell)
@@ -442,8 +444,8 @@ void __fastcall WriteRoute(void* /*self*/, void*, WaterNode* end, ByteVector* ro
             *--slot = at;
     }
     push(0);
-    uint32_t x = nodes.begin[0]->cell >> 8;
-    uint32_t z = nodes.begin[0]->cell & 0xFF;
+    auto x = static_cast<uint32_t>(KeyX(nodes.begin[0]->cell));
+    auto z = static_cast<uint32_t>(KeyZ(nodes.begin[0]->cell));
     push(static_cast<uint8_t>(x));
     push(static_cast<uint8_t>(z));
     uint8_t steps[0x40] = {};
@@ -452,8 +454,8 @@ void __fastcall WriteRoute(void* /*self*/, void*, WaterNode* end, ByteVector* ro
         reinterpret_cast<RangeFn>(addr::SC4ByteVector_InsertRange)(route, route->end, steps, last, &allocator);
     };
     for (WaterNode** slot = nodes.begin + 1; slot != nodes.end; ++slot) {
-        const uint32_t nx = (*slot)->cell >> 8;
-        const uint32_t nz = (*slot)->cell & 0xFF;
+        const auto nx = static_cast<uint32_t>(KeyX((*slot)->cell));
+        const auto nz = static_cast<uint32_t>(KeyZ((*slot)->cell));
         const auto dx = static_cast<int16_t>(nx - x);
         const auto dz = static_cast<int16_t>(nz - z);
         x = nx;
@@ -518,7 +520,7 @@ uint8_t __fastcall Find(void* self, void*, int32_t x0, int32_t z0, int32_t x1, i
     At<char*>(hash, pool::kPageEnd) = first + pool::kPageBytes;
     At<uint32_t>(hash, pool::kPage) = 0;
     std::memset(hash, 0, 4 * pool::kBuckets);
-    WaterNode* const start = FindOrCreateNode(hash, nullptr, ((static_cast<uint32_t>(x0) & 0xFF) << 8) | static_cast<uint32_t>(z0));
+    WaterNode* const start = FindOrCreateNode(hash, nullptr, CellKey(x0, z0));
     if (!start)
         return 0;
     const int32_t sx = x0 - x1;
@@ -530,8 +532,8 @@ uint8_t __fastcall Find(void* self, void*, int32_t x0, int32_t z0, int32_t x1, i
     while (*open) {
         WaterNode* const node = *open;
         *open = node->next;
-        const int32_t x = node->cell >> 8;
-        const int32_t z = node->cell & 0xFF;
+        const int32_t x = KeyX(node->cell);
+        const int32_t z = KeyZ(node->cell);
         if (x == x1 && z == z1) {
             if (there)
                 WriteRoute(self, nullptr, node, there, count, 0);
@@ -549,8 +551,8 @@ uint8_t __fastcall Find(void* self, void*, int32_t x0, int32_t z0, int32_t x1, i
             const uint8_t depth = reinterpret_cast<uint8_t*>(static_cast<char***>(grid)[0][3 * nx])[nz];
             if (depth == 0 && !(nx == x1 && nz == z1))
                 continue;
-            const uint32_t cell = ((static_cast<uint32_t>(nx) & 0xFF) << 8) | static_cast<uint32_t>(nz);
-            if (node->parent && node->parent->cell == static_cast<uint16_t>(cell))
+            const uint32_t cell = CellKey(nx, nz);
+            if (node->parent && node->parent->cell == cell)
                 continue;
             const auto g = static_cast<float>(((40.0 - depth * static_cast<double>(0.2f)) * static_cast<double>(0.1f) +
                                                node->g) + 1.0);

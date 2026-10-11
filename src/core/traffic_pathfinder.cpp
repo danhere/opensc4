@@ -29,7 +29,7 @@ namespace {
 
 // A search node (0x24 bytes, in pages of 0x24000 at +0x3148).
 struct Node {
-    uint32_t key;     // (parent side x 4 | side) << 24 | type << 16 | x << 8 | z, bit 31 outside the city
+    uint32_t key;     // (parent side x 4 | side) << 24 | type << 16 | x << 8 | z, bit 31 outside the city (TypedCellKey)
     Node* parent;
     float g;          // cost so far
     float f;          // g + estimate: the heap's key
@@ -455,9 +455,9 @@ struct Heap {
 // its side.
 void __cdecl DecodeKey(uint32_t key, uint8_t* type, int16_t* x, int16_t* z)
 {
-    *type = static_cast<uint8_t>(key >> 16);
-    *x = static_cast<int16_t>((key >> 8) & 0xFF);
-    *z = static_cast<int16_t>(key & 0xFF);
+    *type = static_cast<uint8_t>(KeyType(key));
+    *x = static_cast<int16_t>(KeyX(key));
+    *z = static_cast<int16_t>(KeyZ(key));
     if (key & 0x80000000) {
         const uint32_t side = (key >> 24) & 3;
         *x = static_cast<int16_t>(*x + Global<int32_t>(addr::TrafficPathfinder_SideDX + 4 * side));
@@ -584,8 +584,7 @@ void __fastcall AddNodeImpl(void* self, void*, int32_t x, int32_t z, uint32_t si
     uint8_t& blocked = At<uint8_t>(self, field::kBlockedTypes);
     if (blocked & static_cast<uint8_t>(1u << (t & 31)))
         return;
-    uint32_t key = ((static_cast<uint32_t>(parent->side) << 2 | (side & 0xFF)) << 24) | t << 16 |
-                   (static_cast<uint32_t>(x) & 0xFF) << 8 | (static_cast<uint32_t>(z) & 0xFF);
+    uint32_t key = TypedCellKey(static_cast<uint32_t>(parent->side) << 2 | (side & 0xFF), t, x, z);
     if (outside & 0xFF)
         key |= 0x80000000;
     if (parent->parent && parent->parent->key == key)
@@ -1003,8 +1002,7 @@ uint8_t __fastcall AddStartNodes(void* self, void*)
                         for (uint32_t side = 0; side < 4; ++side) {
                             if (!Global<uint8_t>(sides + side) || !(At<uint16_t>(record, 2 * type) & (0xFu << (4 * side))))
                                 continue;
-                            const uint32_t key = ((side | 0x10) << 24) | type << 16 |
-                                                 (static_cast<uint32_t>(x) & 0xFF) << 8 | (static_cast<uint32_t>(z) & 0xFF);
+                            const uint32_t key = TypedCellKey(side | 0x10, type, x, z);
                             OpenStart(self, key, costs[type], static_cast<uint8_t>(side), x, z);
                             added = 1;
                         }
@@ -1030,7 +1028,7 @@ uint8_t __fastcall AddStartNodes(void* self, void*)
                     continue;
                 const auto cx = static_cast<uint8_t>(item[0xA]);
                 const auto cz = static_cast<uint8_t>(item[0xB]);
-                const uint32_t key = (0x10u << 24) | type << 16 | static_cast<uint32_t>(cx) << 8 | cz;
+                const uint32_t key = TypedCellKey(0x10, type, cx, cz);
                 OpenStart(self, key, static_cast<double>(costs[type]) + At<float>(end, 0x10), 0, cx, cz);
                 added = 1;
             }
@@ -1469,8 +1467,11 @@ void __fastcall RecordRoute(void* self, void*, uint32_t kind)
     float weighted = count;
     if (Virtual<uint8_t>(Global<void*>(addr::SC4_Service43D90), 0x20, 0xA2BF1DDCu))
         weighted = static_cast<float>(std::ceil(static_cast<double>(count) * static_cast<double>(0.8f)));
-    auto previousX = static_cast<uint8_t>(At<int32_t>(self, field::kFound));
-    auto previousZ = static_cast<uint8_t>(At<int32_t>(self, field::kFound + 4));
+    // The game keeps the previous cell as bytes (an outside -1 reads as
+    // 255); a big city's keeps its key's bits.
+    const auto narrow = [](int32_t v) { return static_cast<int32_t>(static_cast<uint32_t>(v) & ((1u << CellBits()) - 1)); };
+    int32_t previousX = narrow(At<int32_t>(self, field::kFound));
+    int32_t previousZ = narrow(At<int32_t>(self, field::kFound + 4));
     float time = 0.0f;
     for (; node; node = node->parent) {
         const int32_t x = node->x;
@@ -1515,14 +1516,13 @@ void __fastcall RecordRoute(void* self, void*, uint32_t kind)
                 const uint32_t value = word + rounded;
                 word = static_cast<uint16_t>(value > 0xFFFF ? 0xFFFF : value);
             };
-            const uint32_t cell = (static_cast<uint32_t>(x) & 0xFF) << 8 | (static_cast<uint32_t>(z) & 0xFF);
-            add(static_cast<uint32_t>(kind == 1) << 24 | static_cast<uint32_t>(node->type) << 16 | cell);
+            add(TypedCellKey(kind == 1 ? 1u : 0u, node->type, x, z));
             if (kind == 2)
-                add((0x100u | node->type) << 16 | cell);
+                add(TypedCellKey(1, node->type, x, z));
             time = static_cast<float>(static_cast<double>(trips) * At<float>(simulator, 0xBA4 + 4 * node->type) + time);
         }
-        previousX = static_cast<uint8_t>(x);
-        previousZ = static_cast<uint8_t>(z);
+        previousX = narrow(x);
+        previousZ = narrow(z);
     }
     At<double>(simulator, 0x790) = static_cast<double>(time) + At<double>(simulator, 0x790);
 }
