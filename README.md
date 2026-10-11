@@ -24,6 +24,7 @@ Things OpenSC4 adds to the game. Classic behaviour stays: an addition that chang
 | Improvement | How to get it | Details |
 |---|---|---|
 | Bulldozer modes: only trees (hold Ctrl), only roads and rails (hold Shift), everything but those (hold both) | always there | [docs/bulldoze.md](docs/bulldoze.md) |
+| De-zoning that keeps the roads inside the area (hold Shift) | always there | [docs/dezone.md](docs/dezone.md) |
 | Auto save every few minutes of play, with the last few saves kept as copies | `game.autosave = ours` | [docs/autosave.md](docs/autosave.md) |
 | Timelapse: a dated copy of the city at every save, rendered into a video | `game.timelapse = ours` | [docs/timelapse.md](docs/timelapse.md) |
 | One seed per city, shown in the title and set with the `seed` cheat | `game.seed = ours` | [docs/seeds.md](docs/seeds.md) |
