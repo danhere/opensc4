@@ -1,0 +1,397 @@
+# The prop occupant (cSC4PropOccupant, class ID 0x2977AA47, occupant type 0xA823821E): code 0x005EC960 to 0x005EF4E0 among its derived classes' (src/core/propocc_sim.cpp, the class map in src/core/propocc_sim.h).
+
+[[entry]]
+name = "cSC4PropOccupant::vftable"
+address = 0x00AA4900
+kind = "vtable"
+expect = "60 C9 5E 00 C0 91 64 00"
+source = "The primary cISC4PropOccupant vtable (24 slots, listed in src/core/propocc_sim.h; the pools' vtables follow it at 0x00AA4960). simulators.propocc.slots swaps slot 18; simulators.propocc.object copies it at the first construction."
+
+[[entry]]
+name = "cSC4PropOccupant::vftable_4"
+address = 0x00AA48F0
+kind = "vtable"
+expect = "F0 E0 5E 00 70 DD 64 00"
+source = "Name ours. The cIGZMessageTarget2 part at +0x4 (4 slots: three thunks, DoMessage 0x005ECFB0). Copied by simulators.propocc.object."
+
+[[entry]]
+name = "cSC4PropOccupant::vftable_8"
+address = 0x00AA4868
+kind = "vtable"
+expect = "00 E1 5E 00 90 DD 64 00"
+source = "Name ours. The cISC4Occupant part at +0x8 (34 slots; the base cSC4Occupant's except 0, 4, 8, 9, 10, 27, 28). Copied by simulators.propocc.object."
+
+[[entry]]
+name = "cSC4PropOccupant::vftable_C"
+address = 0x00AA484C
+kind = "vtable"
+expect = "10 E1 5E 00 B0 DD 64 00"
+source = "Name ours. The cIGZSerializable part at +0xC (6 slots: three thunks, Write 0x005ECE90, Read 0x005EF360, GetGZCLSID 0x005EE0E0). simulators.propocc.slots swaps slot 5."
+
+[[entry]]
+name = "cSC4PropOccupant::vftable_10"
+address = 0x00AA47E8
+kind = "vtable"
+expect = "20 E1 5E 00 D0 DD 64 00"
+source = "Name ours. The property holder part at +0x10 (25 slots: three thunks, the shared holder code, 22 the deleting destructor thunk 0x005EE130, 23 the Write thunk 0x005EE150, 24 the Read thunk 0x005EFC70). Copied by simulators.propocc.object, slot 22 ours there."
+
+[[entry]]
+name = "cSC4PropOccupant::vftable_24"
+address = 0x00AA47D0
+kind = "vtable"
+expect = "40 E1 5E 00 00 DE 64 00"
+source = "Name ours. The exemplar holder part at +0x24 (5 slots: three thunks, SetPropertyExemplar 0x00458E60, the getter 0x0060CE80). Copied by simulators.propocc.object."
+
+[[entry]]
+name = "cSC4PropOccupant::DerivedVftable_AA4730"
+address = 0x00AA4730
+kind = "vtable"
+expect = "B0 D5 5E 00 C0 D5 5E 00"
+source = "Name ours. A derived class's cISC4PropOccupant vtable: the terrain decal's prop part (cSC4PropOccupantTerrainDecal, constructor 0x005EE360, prop at +4). Its slot 18 holds the prop's GetRandomChance 0x005ED570 (four bytes, too short for a detour): swapped by simulators.propocc.slots."
+
+[[entry]]
+name = "cSC4PropOccupant::DerivedVftable_AA4B30"
+address = 0x00AA4B30
+kind = "vtable"
+expect = "60 CC 5E 00 C0 91 64 00"
+source = "Name ours. A derived class's cISC4PropOccupant vtable: the burnt building's (constructor 0x005EF810, prop at +0). Its slot 18 holds the prop's GetRandomChance 0x005ED570 (four bytes, too short for a detour): swapped by simulators.propocc.slots."
+
+[[entry]]
+name = "cSC4PropOccupant::DerivedVftable_AA4CC8"
+address = 0x00AA4CC8
+kind = "vtable"
+expect = "50 FE 5E 00 C0 D5 5E 00"
+source = "Name ours. A derived class's cISC4PropOccupant vtable: the class constructed at 0x005EFDB0 (prop at +4). Its slot 18 holds the prop's GetRandomChance 0x005ED570 (four bytes, too short for a detour): swapped by simulators.propocc.slots."
+
+[[entry]]
+name = "cSC4PropOccupant::DerivedVftable_AA4E78"
+address = 0x00AA4E78
+kind = "vtable"
+expect = "C0 02 5F 00 C0 D5 5E 00"
+source = "Name ours. A derived class's cISC4PropOccupant vtable: the visual effect prop's (constructor 0x005F0210, prop at +4). Its slot 18 holds the prop's GetRandomChance 0x005ED570 (four bytes, too short for a detour): swapped by simulators.propocc.slots."
+
+[[entry]]
+name = "cSC4PropOccupant::DerivedVftable_AA5418"
+address = 0x00AA5418
+kind = "vtable"
+expect = "50 59 5F 00 C0 D5 5E 00"
+source = "Name ours. A derived class's cISC4PropOccupant vtable: the class constructed around 0x005F5510 (prop at +4). Its slot 18 holds the prop's GetRandomChance 0x005ED570 (four bytes, too short for a detour): swapped by simulators.propocc.slots."
+
+[[entry]]
+name = "cSC4PropOccupant::DerivedVftable_AA5620"
+address = 0x00AA5620
+kind = "vtable"
+expect = "40 84 5F 00 C0 D5 5E 00"
+source = "Name ours. A derived class's cISC4PropOccupant vtable: the class constructed at 0x005F8300 (prop at +4). Its slot 18 holds the prop's GetRandomChance 0x005ED570 (four bytes, too short for a detour): swapped by simulators.propocc.slots."
+
+[[entry]]
+name = "cSC4PropOccupant::QueryInterface"
+address = 0x005EC960
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PropOccupant* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D 65 3A 79"
+source = "Slot 0: IIDs 0xE9793A65 and 0x2977AA47 give the object, 0x452294AA the object + 4; every other goes to the occupant base's 0x005E89C0 with this + 8. Six derived QueryInterfaces jump here. Ours in simulators.propocc.slots (a detour: the six classes derived from the prop hold it in their vtables too)."
+
+[[entry]]
+name = "cSC4PropOccupant::GetOrientation"
+address = 0x005EC9D0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSC4PropOccupant* this)"
+expect = "0F BE 41 61 C3 CC CC CC"
+source = "Slot 9: +0x61, sign extended. Ours in simulators.propocc.slots (a detour: the six classes derived from the prop hold it in their vtables too)."
+
+[[entry]]
+name = "cSC4PropOccupant::SetOrientation"
+address = 0x005EC9E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PropOccupant* this, int32_t orientation)"
+expect = "8B 44 24 04 85 C0 7D 0A"
+source = "Slot 10: clamped to 0-3. Ours in simulators.propocc.slots (a detour: the six classes derived from the prop hold it in their vtables too)."
+
+[[entry]]
+name = "cSC4PropOccupant::GetTimeOfDayRange"
+address = 0x005ECA10
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropOccupant* this, float* start, float* end)"
+expect = "51 0F B6 41 5E 8B 54 24"
+source = "Slot 14: +0x5E and +0x5F times 0.1. Ours in simulators.propocc.timers (a detour: the derived classes' vtables hold it too)."
+
+[[entry]]
+name = "cSC4PropOccupant::SetPropTimerState"
+address = 0x005ECA50
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropOccupant* this, uint8_t mask, bool on)"
+expect = "8A 54 24 08 56 8B F1 8A"
+source = "Slot 21: the bits of +0x60; when the low four become all set a draw below 100 from the generator 0x00B231B0 under the chance +0x62 sets state 0, when they stop being all set state 1 (slot 11). Ours in simulators.propocc.timers (a detour: the derived classes' vtables hold it too)."
+
+[[entry]]
+name = "cSC4PropOccupant::GetLotTag"
+address = 0x005ECAC0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4Occupant* this, uint32_t* tag)"
+expect = "8B 41 50 83 F8 FF 75 05"
+source = "Name ours. The occupant part's slot 27: +0x58 when it is not -1. Ours in simulators.propocc.slots (a detour: the six classes derived from the prop hold it in their vtables too)."
+
+[[entry]]
+name = "cSC4PropOccupant::SetPropUsage"
+address = 0x005ECAE0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropOccupant* this, uint8_t usage)"
+expect = "8A 44 24 04 88 41 64 C2"
+source = "Slot 23: +0x64. Ours in simulators.propocc.slots (a detour: the six classes derived from the prop hold it in their vtables too)."
+
+[[entry]]
+name = "cSC4PropOccupant::Allocate"
+address = 0x005ECE60
+kind = "function"
+convention = "cdecl"
+signature = "void* (size_t size)"
+expect = "A1 E8 A8 B0 00 8B 40 08"
+source = "Name ours. An item of the prop pool 0x00B0A8E4 (the size, 0x68, is not read); the prop manager calls it at 0x004A2550 and 0x004A309D before the constructor. Ours in simulators.propocc.object."
+
+[[entry]]
+name = "cSC4PropOccupant::Write"
+address = 0x005ECE90
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZOStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+0xC slot 3: version 6 (tools/re/save_schemas/propocc.py). Six derived Writes call it. Ours in simulators.propocc.save (a detour)."
+
+[[entry]]
+name = "cSC4PropOccupant::DoMessage"
+address = 0x005ECFB0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZMessageTarget2* this, cIGZMessage2* message)"
+expect = "83 EC 2C 56 57 8B 7C 24"
+source = "+0x4 slot 3: message 0x86AD10EE (a frame) gives the models of the placeable object their slot 15 with data 3 (a float) times the simulator's animation time dilation. Derived DoMessages call it. Ours in simulators.propocc.timers (a detour: the derived classes' vtables hold it too)."
+
+[[entry]]
+name = "cSC4PropOccupant::SetPlaceableFlag"
+address = 0x005ED170
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PropOccupant* this, bool on)"
+expect = "53 8B 5C 24 08 57 8B F9"
+source = "Name ours. Base flag 2 with the placeable object's slot 8; setting it puts the prop into the occupant manager first. Called only by 0x005EE1A0. Ours with simulators.propocc.slots (a plain function there)."
+
+[[entry]]
+name = "cSC4PropOccupant::GetPosition"
+address = 0x005ED1F0
+kind = "function"
+convention = "thiscall"
+signature = "void (cISC4Occupant* this, float* position)"
+expect = "D9 41 40 8B 44 24 04 D8"
+source = "The occupant part's slot 8: the middle of the box in x and z, its low y. Ours in simulators.propocc.slots (a detour: the six classes derived from the prop hold it in their vtables too)."
+
+[[entry]]
+name = "cSC4PropOccupant::SetSize"
+address = 0x005ED220
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropOccupant* this, const float* size)"
+expect = "83 EC 0C A1 A0 31 B2 00"
+source = "Name ours. The box becomes (0, 0, 0) to the size, moved back to the position it had (occupant slots 8 and 9). Called by two derived classes (0x005EF65A, 0x005EFFDB). Ours in simulators.propocc.slots (a detour: the six classes derived from the prop hold it in their vtables too)."
+
+[[entry]]
+name = "cSC4PropOccupant::GetPropType"
+address = 0x005ED280
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4PropOccupant* this)"
+expect = "0F B7 41 5C 8B 0D A4 31"
+source = "Slot 7: the ID at index +0x5C (16 bits) of the table 0x00B231A4. Ours in simulators.propocc.slots (a detour: the six classes derived from the prop hold it in their vtables too)."
+
+[[entry]]
+name = "cSC4PropOccupant::SetState"
+address = 0x005ED290
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropOccupant* this, uint32_t state)"
+expect = "83 EC 2C 53 8B 5C 24 34"
+source = "Slot 11: +0x63; when it changes, message 0xE9C86DDB for an initialized prop, and with property 0x4A70D491 the placeable object's models get the state (their slot 10). Ours in simulators.propocc.timers (a detour: the derived classes' vtables hold it too)."
+
+[[entry]]
+name = "cSC4PropOccupant::SetTimeOfDayRange"
+address = 0x005ED400
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropOccupant* this, float start, float end)"
+expect = "D9 44 24 04 83 EC 0C D8"
+source = "Slot 13: tenths of hours into +0x5E and +0x5F; for two different hours not below zero timer bit 1 is set from the clock (0x00B43DBC: hour + minute / 60 within start to end). Ours in simulators.propocc.timers (a detour: the derived classes' vtables hold it too)."
+
+[[entry]]
+name = "cSC4PropOccupant::GetState"
+address = 0x005ED560
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4PropOccupant* this)"
+expect = "0F B6 41 63 C3 CC CC CC"
+source = "Slot 12: +0x63. Ours in simulators.propocc.slots (a detour: the six classes derived from the prop hold it in their vtables too)."
+
+[[entry]]
+name = "cSC4PropOccupant::GetRandomChance"
+address = 0x005ED570
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (cSC4PropOccupant* this)"
+expect = "8A 41 62 C3 CC CC CC CC"
+source = "Slot 18: +0x62 (AL only). Four bytes long: simulators.propocc.slots swaps the slot in the prop's and the six derived vtables instead of a detour."
+
+[[entry]]
+name = "cSC4PropOccupant::GetPropTimerBitfield"
+address = 0x005ED580
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4PropOccupant* this)"
+expect = "0F B6 41 60 C3 CC CC CC"
+source = "Slot 19: +0x60. Ours in simulators.propocc.timers (a detour: the derived classes' vtables hold it too)."
+
+[[entry]]
+name = "cSC4PropOccupant::GetPropTimerState"
+address = 0x005ED590
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PropOccupant* this, uint8_t mask)"
+expect = "8A 41 60 22 44 24 04 F6"
+source = "Slot 20: whether any bit of the mask is set in +0x60 (0 or 1 in EAX). Ours in simulators.propocc.timers (a detour: the derived classes' vtables hold it too)."
+
+[[entry]]
+name = "cSC4PropOccupant::SetPosition"
+address = 0x005EDE00
+kind = "function"
+convention = "thiscall"
+signature = "void (cISC4Occupant* this, const float* position)"
+expect = "51 D9 41 40 8B 44 24 08"
+source = "The occupant part's slot 9: the box moved, its size kept. Two derived classes call it (0x005F500E, 0x005F7ABC). Ours in simulators.propocc.slots (a detour: the six classes derived from the prop hold it in their vtables too)."
+
+[[entry]]
+name = "cSC4PropOccupant::cSC4PropOccupant"
+address = 0x005EE050
+kind = "function"
+convention = "thiscall"
+signature = "cSC4PropOccupant* (cSC4PropOccupant* this)"
+expect = "56 8B F1 57 8D 7E 08 C7"
+source = "The constructor (0x68 bytes; the base's 0x005E9220 on this + 8). Called by the prop manager (0x004A255E, 0x004A30AB), the factory and six derived constructors, which then store their own vtables. Ours in simulators.propocc.object."
+
+[[entry]]
+name = "cSC4PropOccupant::GetGZCLSID"
+address = 0x005EE0E0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cIGZSerializable* this)"
+expect = "B8 47 AA 77 29 C3 CC CC"
+source = "Returns the class ID 0x2977AA47 (+0xC slot 5; also called by the class registration at 0x0046077E). Ours in simulators.propocc.slots (a slot swap)."
+
+[[entry]]
+name = "cSC4PropOccupant::Shutdown"
+address = 0x005EE160
+kind = "function"
+convention = "thiscall"
+signature = "bool (cISC4Occupant* this)"
+expect = "56 57 8B F9 8B 77 4C 85"
+source = "The occupant part's slot 4: frees the date range (+0x54), then the base's 0x005E8980. Two derived Shutdowns call it (0x005F5EDA, 0x005F77AD). Ours in simulators.propocc.slots (a detour: the six classes derived from the prop hold it in their vtables too)."
+
+[[entry]]
+name = "cSC4PropOccupant::SetInManager"
+address = 0x005EE1A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4PropOccupant* this, bool in)"
+expect = "8A 54 24 04 53 56 8B F1"
+source = "Name ours. Base flag 1: the prop inserted into the occupant manager (its slot 20) or removed from it (slot 21, after the placeable flag is cleared). Called by 0x005ED170, the terrain decal (0x005EE64A) and 0x0075EED9. Ours in simulators.propocc.slots (a detour: the six classes derived from the prop hold it in their vtables too)."
+
+[[entry]]
+name = "cSC4PropOccupant::TickSimulatorDate"
+address = 0x005EE230
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropOccupant* this, const cIGZDate* date)"
+expect = "83 EC 10 56 8B F1 8B 46"
+source = "Slot 16: with a date range, timer bit 2 goes on at the start date (which moves on by the interval, or to the same day next year for 365) and off at the end date (which becomes start + duration). Ours in simulators.propocc.timers (a detour: the derived classes' vtables hold it too)."
+
+[[entry]]
+name = "cSC4PropOccupant::Create"
+address = 0x005EEF50
+kind = "function"
+convention = "cdecl"
+signature = "cSC4PropOccupant* ()"
+expect = "A1 E8 A8 B0 00 8B 40 08"
+source = "The class factory of 0x2977AA47: an item of the pool, then a jump to the constructor. Ours in simulators.propocc.object."
+
+[[entry]]
+name = "cSC4PropOccupant::DeletingDestructor"
+address = 0x005EEF90
+kind = "function"
+convention = "thiscall"
+signature = "cSC4PropOccupant* (cSC4PropOccupant* this, uint32_t flags)"
+expect = "56 8B F1 85 F6 74 05 8D"
+source = "The occupant base destroyed (0x005E8C40 on this + 8), and with flag 1 the memory back to the pool. Reached through the holder part's slot 22 (thunk 0x005EE130). Ours in simulators.propocc.object."
+
+[[entry]]
+name = "cSC4PropOccupant::SetSimulatorDateRange"
+address = 0x005EEFF0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropOccupant* this, uint32_t interval, uint32_t duration, uint8_t month, uint8_t day)"
+expect = "83 EC 10 53 8B 5C 24 18"
+source = "Slot 15: interval 0 frees the range; else the range (0x28 bytes at +0x54) gets the interval, the duration (at least 1), the start (month, day of this year, or of next year when that is past) and the end, and timer bit 2 says whether today is inside. Ours in simulators.propocc.timers (a detour: the derived classes' vtables hold it too)."
+
+[[entry]]
+name = "cSC4PropOccupant::TypeIndex"
+address = 0x005EF2E0
+kind = "function"
+convention = "cdecl"
+signature = "uint16_t (uint32_t type)"
+expect = "51 8B 0D A8 31 B2 00 8B"
+source = "Name ours. The index of a prop type ID in the table 0x00B231A4, appended when new; the index is returned in 16 bits. Called by Read and SetPropType only. Ours with those (a plain function)."
+
+[[entry]]
+name = "cSC4PropOccupant::Read"
+address = 0x005EF360
+kind = "function"
+convention = "thiscall"
+signature = "bool (cIGZSerializable* this, cIGZIStream* stream)"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "+0xC slot 4: the version is read and not tested (above 5: the timer byte is in the record, else it becomes 0xF). Derived Reads call it. Ours in simulators.propocc.save (a detour)."
+
+[[entry]]
+name = "cSC4PropOccupant::SetPropType"
+address = 0x005EF4C0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4PropOccupant* this, uint32_t type)"
+expect = "8B 44 24 04 56 50 8B F1"
+source = "Slot 8: +0x5C = the type's index in the table (0x005EF2E0). Ours in simulators.propocc.slots (a detour: the six classes derived from the prop hold it in their vtables too)."
+
+[[entry]]
+name = "cSC4PropOccupant::Pool"
+address = 0x00B0A8E4
+kind = "data"
+source = "Name ours. The pool of the 0x68-byte props (vtable 0x00A8CE50; +4 the current page; pages of 8 KB at address & 0xFFFFE000 with the free list at +8 and the used count at +0xC; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at count 0x4000003A)."
+
+[[entry]]
+name = "cSC4PropOccupant::TypeTable"
+address = 0x00B231A4
+kind = "data"
+source = "Name ours. A vector of uint32 (begin, end 0x00B231A8, capacity 0x00B231AC): the prop type IDs met in this session; a prop keeps a 16-bit index into it at +0x5C."
+
+[[entry]]
+name = "cSC4PropOccupant::Random"
+address = 0x00B231B0
+kind = "data"
+source = "Name ours. The generator SetPropTimerState draws from (0x00913A06 with 100)."
+
+[[entry]]
+name = "cSC4PropOccupant::Zero"
+address = 0x00B231A0
+kind = "data"
+source = "Name ours. A float the class reads as zero (0x005ED220; also the placement properties' constructor 0x005ED0C0)."
