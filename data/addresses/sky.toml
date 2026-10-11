@@ -361,6 +361,15 @@ expect = "56 8B F1 8A 46 04 84 C0"
 source = "Name ours, not analysed. Slot 0x14 of the second effect class's sub-object (vtable 0x00AA0C10)."
 
 [[entry]]
+name = "SC4Effect::PlaceOnGround"
+address = 0x005B71E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Effect* this, SC4Particle* particle)"
+expect = "83 EC 18 53 55 56 8B F1"
+source = "Name ours. Called by SC4Effect::StartParticle (0x005B793D) for descriptions with a flag of the mask at 0x00B22E18: takes the particle's position to the terrain's grid and ends the particle (first byte cleared, false) when it is off the map, when the terrain's height there (object +0x1F0, slot 0x34) is outside the description's +0x158..+0x15C (flag 0x10000) or when the cell is of the wrong kind (mask 0x00B22E1C, flag 0x20000; object 0x00B43CEC slots 0x17C, 0x130, then slot 0x40); else puts it at a height (flags 0x4000, 0x8000) plus a random amount and answers true. Ours in renderer.effects.ground (src/core/effect_ground.inc)."
+
+[[entry]]
 name = "SC4Effect::StartParticle"
 address = 0x005B7580
 kind = "function"
