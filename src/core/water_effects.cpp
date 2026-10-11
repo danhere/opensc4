@@ -1304,6 +1304,95 @@ uint32_t __fastcall DSC4Effect_StepFlag800000(char* self, void*, uint32_t step)
     return EffectRecorded(addr::SC4Effect_StepFlag800000, &WanderByMode, self, step);
 }
 OPENSC4_THUNK(TSC4Effect_StepFlag800000, DSC4Effect_StepFlag800000, 4)
+
+// A particle's start (0x005B7580; taking a particle from the pool calls it
+// with the effect), translated instruction by instruction: the particle is
+// marked as running (its first byte), its age (+4) is 0 and its life (+8) a
+// random time between two values of the description, and its position,
+// velocity and the rest up to +0x40 come from the effect, its description
+// and random numbers of the generator at 0x00B22DF8. For descriptions with
+// a flag of the mask at 0x00B22E18 the game's 0x005B71E0 then places the
+// particle on the ground, and may end it at once.
+uint32_t StartParticle(char* self, uint32_t particle)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = particle;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_start.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+StepMode g_startMode = StepMode::Original;
+Call1Fn g_startParticle = nullptr;
+uint64_t g_startsCompared = 0;
+constexpr std::size_t kStartParticleBytes = 0x44;
+
+// It writes the particle and draws random numbers, so the comparison runs
+// ours, keeps the particle, the effect and the generator it left, puts all
+// three back and runs the game's: the two then draw the same numbers.
+uint32_t __fastcall StartByMode(char* self, void*, uint32_t particle)
+{
+    if (g_startMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_startParticle(self, nullptr, particle);
+    if (g_startMode == StepMode::Ours)
+        return StartParticle(self, particle);
+    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
+    char* const bytes = reinterpret_cast<char*>(particle);
+    constexpr std::size_t kTotal = kStartParticleBytes + kEffectSize + kGeneratorSize;
+    char before[kTotal], mine[kTotal], game[kTotal];
+    const auto save = [&](char* to) {
+        std::memcpy(to, bytes, kStartParticleBytes);
+        std::memcpy(to + kStartParticleBytes, self, kEffectSize);
+        std::memcpy(to + kStartParticleBytes + kEffectSize, generator, kGeneratorSize);
+    };
+    save(before);
+    if (g_selfCheck)
+        g_startParticle(self, nullptr, particle);
+    else
+        StartParticle(self, particle);
+    save(mine);
+    std::memcpy(bytes, before, kStartParticleBytes);
+    std::memcpy(self, before + kStartParticleBytes, kEffectSize);
+    std::memcpy(generator, before + kStartParticleBytes + kEffectSize, kGeneratorSize);
+    const uint32_t result = g_startParticle(self, nullptr, particle);
+    save(game);
+    const char* const id = g_selfCheck ? "effects.start.selfcheck" : "effects.start";
+    ++g_startsCompared;
+    if ((g_startsCompared & (g_startsCompared - 1)) == 0)
+        log::Write("water effects: %s: %llu calls compared so far", id,
+                   static_cast<unsigned long long>(g_startsCompared));
+    if (std::memcmp(game, mine, kTotal) == 0) {
+        compare::Record(id, true, std::string(), std::string());
+    } else {
+        std::size_t at = 0;
+        while (game[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        const std::size_t effectAt = kStartParticleBytes, generatorAt = kStartParticleBytes + kEffectSize;
+        char text[40];
+        std::snprintf(text, sizeof text, "%s+%zX ",
+                      at < effectAt ? "particle" : at < generatorAt ? "effect" : "generator",
+                      at < effectAt ? at : at < generatorAt ? at - effectAt : at - generatorAt);
+        compare::Record(id, false, text + Hex(game + at, 8), text + Hex(mine + at, 8));
+    }
+    return result;
+}
 // --- The particle pool ---------------------------------------------------------------------
 
 // Particles are kept on a free list (0x00B0A688, linked through each one's
@@ -1372,7 +1461,7 @@ uint32_t TakeParticle(char* base)
 }
 
 Call0Fn g_SC4EffectBase_TakeParticle = nullptr;
-Call1Fn g_SC4EffectBase_AddParticle = nullptr, g_SC4EffectBase_GiveBackParticle = nullptr, g_startParticle = nullptr;
+Call1Fn g_SC4EffectBase_AddParticle = nullptr, g_SC4EffectBase_GiveBackParticle = nullptr;
 
 // The comparison of the take: the game's runs for real, and a detour on the
 // start of the particle keeps the particle and the free list as they were on
@@ -1390,7 +1479,7 @@ uint32_t __fastcall DStartParticle(char* effect, void*, uint32_t particle)
         g_takeGameFree = Global<uint32_t>(kParticleFree);
         std::memcpy(g_takeGameBytes, reinterpret_cast<char*>(particle), kParticleBytes);
     }
-    return g_startParticle(effect, nullptr, particle);
+    return StartByMode(effect, nullptr, particle);
 }
 OPENSC4_THUNK(TStartParticle, DStartParticle, 4)
 
@@ -2328,12 +2417,38 @@ bool HookPool()
     return g_poolHooked;
 }
 
+bool HookStart()
+{
+    return g_startParticle || Detour(addr::SC4Effect_StartParticle, &TStartParticle, &g_startParticle);
+}
+
+bool InstallStart(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookStart())
+        return false;
+    g_startMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: particle start %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredStart = registry::Register({
+    "renderer.effects.start",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StartParticle,
+    "A particle's start: its life, position, velocity and the rest from the effect, its description and random "
+    "numbers; compare mode runs ours and the game's on the same particle and generator (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallStart,
+});
+
 bool InstallPool(registry::Mode mode)
 {
     if (!game::IsBuild641() || !HookPool())
         return false;
-    if (mode == registry::Mode::Compare && !g_startParticle &&
-        !Detour(addr::SC4Effect_StartParticle, &TStartParticle, &g_startParticle))
+    if (mode == registry::Mode::Compare && !HookStart())
         return false;
     g_poolMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: particle pool %s",
