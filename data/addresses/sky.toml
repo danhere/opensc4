@@ -361,6 +361,33 @@ expect = "56 8B F1 8A 46 04 84 C0"
 source = "Name ours, not analysed. Slot 0x14 of the second effect class's sub-object (vtable 0x00AA0C10)."
 
 [[entry]]
+name = "SC4Effect::StepParticleFull"
+address = 0x005B9790
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Effect* this, SC4Particle* particle, float step)"
+expect = "D9 44 24 08 83 EC 60 56"
+source = "Name ours. The particle's step for descriptions with a flag of the mask at 0x00B22E14 (SC4Effect::StepParticle jumps to it): the age and the end as there, then the step in parts of at most the float at 0x00AA0CF4, each moving the particle (flag 0x10000000: 0x005B6600), changing its velocity, and ending it off the map (flag 0x800) or when 0x005B8DC0 answers false (flags 0x100, 0x400); last 0x005B8020 for bit 0 of the description's second word of flags. Ours in renderer.effects.step_full (src/core/effect_step_full.inc)."
+
+[[entry]]
+name = "SC4Effect::StepFlag100"
+address = 0x005B8DC0
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Effect* this, SC4Particle* particle, const float* point, float step)"
+expect = "83 EC 1C 53 8B 5C 24 28"
+source = "Name ours, not analysed. Called by SC4Effect::StepParticleFull (0x005B9B38) for a particle on the map, descriptions with flag 0x100 or 0x400, with the particle's place on the terrain's grid; false ends the particle. Compares the point's second float with the effect's +0x1FC, draws a random number (0x0091372E) against the description's +0x154 and may start another effect (0x005B8290)."
+
+[[entry]]
+name = "SC4Effect::StepFlagB1"
+address = 0x005B8020
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4Particle* particle)"
+expect = "83 EC 54 53 55 8B 6C 24"
+source = "Name ours, not analysed. Called last by SC4Effect::StepParticleFull (0x005B9B86) for descriptions with bit 0 of their second word of flags (+4)."
+
+[[entry]]
 name = "SC4Effect::PlaceOnGround"
 address = 0x005B71E0
 kind = "function"
