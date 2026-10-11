@@ -1,0 +1,19 @@
+# The bulldoze tool's hooks for game.bulldoze (src/core/game_bulldoze.cpp, docs/bulldoze.md).
+
+[[entry]]
+name = "cSC4Demolition::DemolishRegion"
+address = 0x00468410
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4Demolition* this, bool demolish, const SC4CellRegion* region, int32_t privilege, uint32_t flags, bool clearZoned, cISC4OccupantFilter* filter, int64_t* cost, void* demolishedSet, cISC4Occupant* occupant, int32_t a, int32_t b)"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name from gzcom-dll (cISC4Demolition slot 6, vtable 0x00A88004). Walks the region's cells; the filter, when given, is put in the default filter's +0x2C for the call. The bulldoze tool calls it with no filter (0x004B9D04 on mouse up: demolish, privilege 1, flags 1). The game's; game.bulldoze wraps it to pass a filter."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::IsOccupantShown"
+address = 0x004B8880
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cISC4Occupant* occupant)"
+expect = "56 8B 74 24 08 8B 06 8B"
+source = "Name ours. The bulldoze tool's test of an occupant by type (flora 0x74758926, building 0x278128A0, 0x2890D4DE, prop 0xA823821E, 0xC772BF98; networks by flag 0x1F4F); this unused, ret 4. The game's; game.bulldoze wraps it so the tool's preview follows the mode."
