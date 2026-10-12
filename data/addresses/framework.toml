@@ -1400,3 +1400,195 @@ kind = "function"
 convention = "cdecl"
 expect = "55 8B EC 83 EC 20 8B 45"
 source = "The exe's statically linked C runtime _snprintf (buffer, count, format, ...): a negative result when the text does not fit. cRZBaseString::Sprintf formats its floating point values with it (0x0090F8CA)."
+
+[[entry]]
+name = "cRZBaseString::CutThroughChar"
+address = 0x0090E5DC
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 00 FF 74 24 0C 8D"
+source = "Name ours. `ret 4` (char): finds the character (0x0044AA00); found, the text through it is erased and the result is true; not found, the whole text is erased and the result is false. 14 callers. Ours in framework.string.split."
+
+[[entry]]
+name = "cRZBaseString::LTrim"
+address = 0x0090E869
+kind = "function"
+convention = "thiscall"
+expect = "56 8D 71 04 6A 00 68 3C"
+source = "Name ours. No arguments: erases up to the first character that is not a space or a tab (0x005C6610 with the two characters at 0x00ACE73C). 50 callers. Ours in framework.string.split."
+
+[[entry]]
+name = "cRZBaseString::RTrim"
+address = 0x0090E887
+kind = "function"
+convention = "thiscall"
+expect = "56 6A FF 8D 71 04 6A FF"
+source = "Name ours. No arguments: erases after the last character that is not a space or a tab (0x0090E7C5). 20 callers. Ours in framework.string.split."
+
+[[entry]]
+name = "cRZBaseString::Mid"
+address = 0x0090EA57
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 18 8B 41"
+source = "Name ours. `ret 0xC` (out, position, count): builds in `out` the part from the position, at most count characters; empty when the position is at or past the end. Returns out. 17 callers. Ours in framework.string.helpers."
+
+[[entry]]
+name = "cRZBaseString::MakeUpper"
+address = 0x0090EB8E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 81 EC 14 02 00"
+source = "Name ours. No arguments: as MakeLower (0x0090EAC5) with islower, toupper and towupper. 20 callers. Ours in framework.string.case."
+
+[[entry]]
+name = "cRZBaseString::AssignToBody"
+address = 0x0090F31B
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B C8 83 C0"
+source = "Name ours. (const string* source, body* target): the target body takes the source's text (0x00408C40); returns the target. 21 callers. Ours in framework.string.helpers."
+
+[[entry]]
+name = "cRZBaseString::AssignLimited"
+address = 0x0090F430
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 57 56 8B"
+source = "Name ours. `ret 8` (const char* text, uint32_t most): the text's first `most` characters, or all of it when it is shorter; returns this. 2 callers. Ours in framework.string.helpers."
+
+[[entry]]
+name = "cRZBaseString::AssignFromRange"
+address = 0x0090FBE5
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 14 FF 75"
+source = "Name ours. (const range* text, string* target): a temporary string from the range (0x00408B90), given to the target's operator= (0x00424380), then freed. 14 callers. Ours in framework.string.helpers."
+
+[[entry]]
+name = "cRZBaseString::FromWideAscii"
+address = 0x0090E901
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 53 8B 5D 0C 56"
+source = "Name ours. (const wide body* source, string* target): the target emptied, then one character for each wide one: itself up to 0x7F, else a question mark. 2 callers. Ours in framework.string.helpers."
+
+[[entry]]
+name = "cRZBaseString::ToWideSigned"
+address = 0x0090E953
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 53 56 57 33"
+source = "Name ours. (const string* source, wide body* target): the target emptied (0x0090E7E6), then each byte sign-extended to a wide character (0x0090E818). 1 caller. Ours in framework.string.helpers."
+
+[[entry]]
+name = "SC4StringBody::FindFirstNotOf"
+address = 0x005C6610
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B C3"
+source = "Name ours. `ret 8` (const char* set, position): STLport's find_first_not_of on a string body."
+
+[[entry]]
+name = "SC4StringBody::AssignBody"
+address = 0x0044ED40
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 46"
+source = "Name ours. `ret 0xC` (const body* source, position, count): STLport's assign of part of another body."
+
+[[entry]]
+name = "SC4StringBody::FindFirstNotOfChar"
+address = 0x0090E4F1
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 8B 31 57"
+source = "Name ours. `ret 8` (char, position): the first position at or after `position` whose character differs; -1 when none or the position is past the end."
+
+[[entry]]
+name = "SC4StringBody::FindLastNotOf"
+address = 0x0090E7C5
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 08 8B F1 E8"
+source = "Name ours. `ret 8` (const char* set, position): STLport's find_last_not_of on a string body."
+
+[[entry]]
+name = "SC4WideStringBody::Resize"
+address = 0x0090E7E6
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 56 8B 31 57"
+source = "Name ours. `ret 8` (count, wide character): STLport's resize on a wide string body."
+
+[[entry]]
+name = "SC4WideStringBody::PushBack"
+address = 0x0090E818
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. `ret 4` (wide character): STLport's push_back on a wide string body."
+
+[[entry]]
+name = "SC4WideVector::Allocate"
+address = 0x0049D0C0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 54 24 08 8D 04 24"
+source = "Name ours. `ret 4` (count): a vector of wide characters takes room for count of them; MakeLower and MakeUpper use it for texts above 256 characters."
+
+[[entry]]
+name = "CRT::isupper"
+address = 0x009EF5A9
+kind = "function"
+convention = "cdecl"
+expect = "E8 56 80 00 00 8B 40 64"
+source = "The exe's statically linked C runtime isupper (int)."
+
+[[entry]]
+name = "CRT::tolower"
+address = 0x009F0543
+kind = "function"
+convention = "cdecl"
+expect = "E8 BC 70 00 00 8B 40 64"
+source = "The exe's statically linked C runtime tolower (int)."
+
+[[entry]]
+name = "CRT::islower"
+address = 0x009EF5E3
+kind = "function"
+convention = "cdecl"
+expect = "E8 1C 80 00 00 8B 40 64"
+source = "The exe's statically linked C runtime islower (int)."
+
+[[entry]]
+name = "CRT::toupper"
+address = 0x009F0CB6
+kind = "function"
+convention = "cdecl"
+expect = "E8 49 69 00 00 8B 40 64"
+source = "The exe's statically linked C runtime toupper (int)."
+
+[[entry]]
+name = "CRT::towlower"
+address = 0x009F4C35
+kind = "function"
+convention = "cdecl"
+expect = "E8 CA 29 00 00 8B 40 64"
+source = "The exe's statically linked C runtime towlower (wide character)."
+
+[[entry]]
+name = "CRT::towupper"
+address = 0x009F4CE1
+kind = "function"
+convention = "cdecl"
+expect = "E8 1E 29 00 00 8B 40 64"
+source = "The exe's statically linked C runtime towupper (wide character)."
+
+[[entry]]
+name = "cRZBaseString::AppendText"
+address = 0x0090EA42
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 08 8B F1 8D"
+source = "Name ours. `ret 4` (const char* text): appends the text to the body (0x00410F00); returns this. 54 callers. Ours in framework.string.helpers."

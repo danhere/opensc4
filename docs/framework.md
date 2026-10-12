@@ -528,3 +528,52 @@ All 30 framework groups on against the original (the service start trace on both
 | `OPENSC4_TEST_STRING_FORMAT=2` | 12 same | 12 same |
 
 All on the first pair. The `fmt` part was the same in all 48 runs of the test's leg and its control.
+
+## The string's helpers
+
+Next to the interface's methods the string class has helpers that game code calls directly, in the same stretch of code (0x0090E242 to 0x0090FC12, 43 functions that were still the game's). Read one by one they are three kinds:
+
+- **20 real helpers**, which are ours now (below).
+- **2 too small to detour safely**, left: Strlen (0x0090E4B6, 7 bytes, 99 callers: a detour needs 5 of them and every caller would pay for it) and a 5-byte jump to the interface's slot 10 (0x0090E242).
+- **21 that are not the class's own code**, left: 15 are STLport's string body generated for this use (searches 0x0090E3F6, 0x0090E4BD, 0x0090E4F1, 0x0090E529, 0x0090E60F, 0x0090E63C, 0x0090E657, 0x0090E7C5, insert 0x0090E8B6, and the wide string body's 0x0090E2A7, 0x0090E3BF, 0x0090E6BC, 0x0090E732, 0x0090E7E6, 0x0090E818), and 6 are the formatter's buffer and digit helpers, which our formatter does not call. The range has no constructors or destructor: the string's are inlines elsewhere in the game's code.
+
+What the helpers do:
+
+- **BeginsWith, EndsWith** compare the first or last `length` characters with a text, with case; false when the string is shorter. **AppendText** appends a C text; **AssignLimited** takes at most so many characters of one.
+- **Mid, Left, Right** build a new string in memory the caller gives. Mid past the end gives an empty string; Left and Right asked for more than the string has give all of it.
+- **LTrim, RTrim, Trim** remove spaces and tabs, nothing else.
+- **CutThroughChar** erases the text through the first occurrence of a character; when the character is not there it erases everything and answers false.
+- **SplitOff** builds the text before a separator (a text) and removes it and the separator from the string. Without the separator in the text the result is empty and the string keeps everything; a null or empty separator gives a copy.
+- **SplitAtChar** moves the text before a character to another string. Without the character the other string takes everything and the answer is false.
+- **SplitToken** gives the next token between runs of a character: leading separators are dropped, the separators after the token go with it, the last token takes the rest, and an empty string has none.
+- **MakeLower, MakeUpper** change bytes below 0x7F in place through the C runtime's test and table. At the first byte from 0x7F up the whole text goes to wide characters (256 on the stack, a heap block for longer texts), through the C runtime's wide table, and back.
+- Four small ones: a body takes a string's text (0x0090F31B), a string takes a range of characters through a temporary (0x0090FBE5), and the two conversions between a string and a wide string (to a string: wide characters above 0x7F become question marks; to wide: each byte is sign-extended).
+
+`src/core/framework_stringhelpers.cpp`, entry detours, off by default:
+
+| Replacement | Functions |
+|---|---|
+| `framework.string.helpers` | BeginsWith 0x0090E443, EndsWith 0x0090E478, AppendText 0x0090EA42, AssignLimited 0x0090F430, Mid 0x0090EA57, Left 0x0090F45F, Right 0x0090F4B3, the assigning helpers 0x0090F31B and 0x0090FBE5, the wide conversions 0x0090E901 and 0x0090E953 |
+| `framework.string.split` | LTrim 0x0090E869, RTrim 0x0090E887, Trim 0x0090E8A6, CutThroughChar 0x0090E5DC, SplitOff 0x0090E98C, SplitAtChar 0x0090F335, SplitToken 0x0090F39D |
+| `framework.string.case` | MakeLower 0x0090EAC5, MakeUpper 0x0090EB8E |
+
+20 functions, 667 direct callers between them (SplitOff 158, MakeLower 154, AppendText 54, LTrim 50, Trim 47). The methods are entered through thunks that keep ECX and EDX. Temporaries are made and freed in the game's order, so the heap sees the same requests.
+
+Still the game's: the string body's operations (find, erase, assign, append, swap, the constructors), the C runtime's character tests and case tables (isupper, tolower, islower, toupper, towlower, towupper), and the two conversions between the string's text and wide characters that the case changes use (0x009113EF, 0x00911358).
+
+### Testing
+
+`OPENSC4_TEST_STRING_HELPERS=<day>` calls every helper at its address on game strings, over 14 texts: empty, padded with spaces and tabs, only padding, with separators and runs of separators, mixed case with punctuation, accented letters in UTF-8 and in single bytes, the byte 0x7F, and one of about 1,200 bytes with accents (past the case changes' stack buffer). Mid, Left and Right run over positions and counts around both ends; the splits run repeatedly on the same string until nothing is left; SplitOff with 10 separators (null, empty, one and two characters, one that is not there). The length and bytes of every result go into the fingerprint's `shlp` part.
+
+With the test on, the coverage meter shows all 20 functions reached in the original; a city run without it reaches 15.
+
+### Parity
+
+All 33 framework groups on against the original (the service start trace on both sides), 12 saves, 7 days, two jobs, 2026-10-12, each leg with a control (the original on both sides):
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 12 same | 12 same |
+| `OPENSC4_TEST_STRING_HELPERS=2` | 12 same | 12 same |
+
+All on the first pair. The `shlp` part was the same in all 48 runs of the test's leg and its control.

@@ -1619,6 +1619,222 @@ void StringFormatFingerprint(cISC4City*, std::string& line)
     line += text;
 }
 
+// The string helpers test (OPENSC4_TEST_STRING_HELPERS).
+bool g_helpersOn = false;
+uint32_t g_helpersHash = 2166136261u;
+
+// A string's length and bytes into the helpers' hash.
+void MixString(const char* object)
+{
+    const char* const begin = *reinterpret_cast<const char* const*>(object + 0x4);
+    const char* const end = *reinterpret_cast<const char* const*>(object + 0x8);
+    MixInto(g_helpersHash, static_cast<uint32_t>(end - begin));
+    uint32_t sum = 0;
+    for (const char* c = begin; c != end; ++c)
+        sum = sum * 31 + static_cast<uint8_t>(*c);
+    MixInto(g_helpersHash, sum);
+}
+
+// A string a helper built in raw memory: hashed, then ended.
+void MixBuilt(char* object)
+{
+    MixString(object);
+    reinterpret_cast<void(__thiscall*)(char*)>(addr::SC4String_Destroy)(object);
+}
+
+// OPENSC4_TEST_STRING_HELPERS=<day>: the string class's helpers called at
+// their addresses on game strings, over texts with padding, separators,
+// runs of separators, mixed case, accented letters, the byte 0x7F and one
+// longer than the case changes' buffer: BeginsWith and EndsWith against
+// several texts, AppendText, AssignLimited, Mid, Left and Right over
+// positions and counts around the ends, the trims, CutThroughChar, SplitOff
+// with several separators, SplitAtChar, SplitToken until it finds no more,
+// MakeLower and MakeUpper, and the assigning and wide character helpers.
+// Every result goes into the fingerprint's `shlp` part.
+void DriveStringHelpers(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_STRING_HELPERS") || !game::IsBuild641())
+        return;
+    g_helpersOn = true;
+    uint32_t& h = g_helpersHash;
+    using PartFn = uint8_t(__thiscall*)(char*, const char*, uint32_t);
+    using TextFn = char*(__thiscall*)(char*, const char*);
+    using LimitedFn = char*(__thiscall*)(char*, const char*, uint32_t);
+    using MidFn = char*(__thiscall*)(char*, char*, uint32_t, uint32_t);
+    using SideFn = char*(__thiscall*)(char*, char*, uint32_t);
+    using PlainFn = void(__thiscall*)(char*);
+    using CutFn = uint8_t(__thiscall*)(char*, uint32_t);
+    using SplitOffFn = char*(__thiscall*)(char*, char*, const char*);
+    using SplitCharFn = uint8_t(__thiscall*)(char*, uint32_t, char*);
+    const auto beginsWith = reinterpret_cast<PartFn>(addr::cRZBaseString_BeginsWith);
+    const auto endsWith = reinterpret_cast<PartFn>(addr::cRZBaseString_EndsWith);
+    const auto appendText = reinterpret_cast<TextFn>(addr::cRZBaseString_AppendText);
+    const auto assignLimited = reinterpret_cast<LimitedFn>(addr::cRZBaseString_AssignLimited);
+    const auto mid = reinterpret_cast<MidFn>(addr::cRZBaseString_Mid);
+    const auto left = reinterpret_cast<SideFn>(addr::cRZBaseString_Left);
+    const auto right = reinterpret_cast<SideFn>(addr::cRZBaseString_Right);
+    const auto lTrim = reinterpret_cast<PlainFn>(addr::cRZBaseString_LTrim);
+    const auto rTrim = reinterpret_cast<PlainFn>(addr::cRZBaseString_RTrim);
+    const auto trim = reinterpret_cast<PlainFn>(addr::cRZBaseString_Trim);
+    const auto cutThrough = reinterpret_cast<CutFn>(addr::cRZBaseString_CutThroughChar);
+    const auto splitOff = reinterpret_cast<SplitOffFn>(addr::SC4String_SplitOff);
+    const auto splitAtChar = reinterpret_cast<SplitCharFn>(addr::SC4String_SplitAtChar);
+    const auto splitToken = reinterpret_cast<SplitCharFn>(addr::SC4String_SplitToken);
+    const auto makeLower = reinterpret_cast<PlainFn>(addr::cRZBaseString_MakeLower);
+    const auto makeUpper = reinterpret_cast<PlainFn>(addr::cRZBaseString_MakeUpper);
+
+    std::string longText;
+    for (int i = 0; i < 40; ++i)
+        longText += "Long TEXT with \xC3\x89 and \xC3\xA9, ";
+    const std::string texts[] = {
+        "",
+        "abc",
+        "  \t padded \t ",
+        "\t\t  ",
+        "key=value=more",
+        "a,b,,c,",
+        ",,,lead",
+        "h\xC3\xA9llo W\xC3\x96RLD",
+        "MiXeD Case 123 [\\]^_`{|}~",
+        "x\x7Fy UPPER lower",
+        "\xE9t\xE9 \xC0\xC9\xCE",
+        "::",
+        "token  token2   token3 ",
+        longText,
+    };
+    static const char* const kParts[] = {"", "a", "abc", "  ", "ke", "more", "c,", "zz", "Long", ", "};
+    static const char* const kSeparators[] = {nullptr, "", "=", ",", "==", ",,", "lue", "zz", " ", "\xC3"};
+    static const char kChars[] = {'=', ',', ' ', 'z', ':', 'a', '\t'};
+    char built[0x14];
+
+    for (const std::string& text : texts) {
+        const char* const t = text.c_str();
+        const uint32_t size = static_cast<uint32_t>(text.size());
+        GameString whole(t, size);
+        for (const char* const part : kParts)
+            for (const uint32_t length : {uint32_t{0}, uint32_t{1}, static_cast<uint32_t>(std::strlen(part))}) {
+                if (length > std::strlen(part))
+                    continue;
+                MixInto(h, beginsWith(whole.object, part, length) & 0xFF);
+                MixInto(h, endsWith(whole.object, part, length) & 0xFF);
+            }
+        MixInto(h, beginsWith(whole.object, t, size) & 0xFF);
+        MixInto(h, endsWith(whole.object, t, size) & 0xFF);
+        {
+            GameString copy(t, size);
+            MixInto(h, appendText(copy.object, "+tail") == copy.object ? 1 : 0);
+            appendText(copy.object, "");
+            MixString(copy.object);
+            for (const uint32_t most : {uint32_t{0}, uint32_t{1}, uint32_t{3}, size, size + 1, uint32_t{0xFFFFFFFF}}) {
+                MixInto(h, assignLimited(copy.object, t, most) == copy.object ? 1 : 0);
+                MixString(copy.object);
+            }
+        }
+        for (const uint32_t position : {uint32_t{0}, uint32_t{1}, uint32_t{3}, size - 1, size, size + 1, uint32_t{100000}})
+            for (const uint32_t count : {uint32_t{0}, uint32_t{1}, uint32_t{2}, size, uint32_t{100000}, uint32_t{0xFFFFFFFF}}) {
+                MixInto(h, mid(whole.object, built, position, count) == built ? 1 : 0);
+                MixBuilt(built);
+            }
+        for (const uint32_t count : {uint32_t{0}, uint32_t{1}, uint32_t{3}, size - 1, size, size + 1, uint32_t{0xFFFFFFFF}}) {
+            MixInto(h, left(whole.object, built, count) == built ? 1 : 0);
+            MixBuilt(built);
+            MixInto(h, right(whole.object, built, count) == built ? 1 : 0);
+            MixBuilt(built);
+        }
+        for (const PlainFn change : {lTrim, rTrim, trim, makeLower, makeUpper}) {
+            GameString copy(t, size);
+            change(copy.object);
+            MixString(copy.object);
+            change(copy.object);
+            MixString(copy.object);
+        }
+        for (const char c : kChars) {
+            GameString copy(t, size);
+            MixInto(h, cutThrough(copy.object, static_cast<uint32_t>(c)) & 0xFF);
+            MixString(copy.object);
+            MixInto(h, cutThrough(copy.object, static_cast<uint32_t>(c)) & 0xFF);
+            MixString(copy.object);
+
+            GameString source(t, size);
+            GameString target("what the target held");
+            for (int round = 0; round < 3; ++round) {
+                MixInto(h, splitAtChar(source.object, static_cast<uint32_t>(c), target.object) & 0xFF);
+                MixString(source.object);
+                MixString(target.object);
+            }
+            GameString tokens(t, size);
+            GameString token("what the token held");
+            for (int round = 0; round < 12; ++round) {
+                const uint32_t found = splitToken(tokens.object, static_cast<uint32_t>(c), token.object) & 0xFF;
+                MixInto(h, found);
+                MixString(tokens.object);
+                MixString(token.object);
+                if (!found)
+                    break;
+            }
+        }
+        for (const char* const separator : kSeparators) {
+            GameString copy(t, size);
+            for (int round = 0; round < 3; ++round) {
+                MixInto(h, splitOff(copy.object, built, separator) == built ? 1 : 0);
+                MixBuilt(built);
+                MixString(copy.object);
+            }
+        }
+
+        // The assigning helpers.
+        {
+            GameString target("replaced");
+            using ToBodyFn = void*(__cdecl*)(char*, char*);
+            const void* const result =
+                reinterpret_cast<ToBodyFn>(addr::cRZBaseString_AssignToBody)(whole.object, target.object + 0x4);
+            MixInto(h, result == target.object + 0x4 ? 1 : 0);
+            MixString(target.object);
+            GameString second("replaced too");
+            using FromRangeFn = void(__cdecl*)(char*, char*);
+            reinterpret_cast<FromRangeFn>(addr::cRZBaseString_AssignFromRange)(whole.object + 0x4, second.object);
+            MixString(second.object);
+        }
+        // To wide characters and back: the wide body is made here as the
+        // game's are (a block from its allocator, ended by a zero).
+        {
+            struct {
+                uint16_t* begin;
+                uint16_t* end;
+                uint16_t* capacity;
+            } wide;
+            wide.begin = static_cast<uint16_t*>(reinterpret_cast<void*(__cdecl*)(uint32_t)>(addr::SC4_stl_allocate)(8));
+            wide.end = wide.begin;
+            wide.capacity = wide.begin + 4;
+            *wide.begin = 0;
+            using ToWideFn = void(__cdecl*)(char*, void*);
+            reinterpret_cast<ToWideFn>(addr::cRZBaseString_ToWideSigned)(whole.object, &wide);
+            MixInto(h, static_cast<uint32_t>(wide.end - wide.begin));
+            for (const uint16_t* w = wide.begin; w != wide.end; ++w)
+                MixInto(h, *w);
+            // Some above 0x7F for the way back.
+            for (uint16_t* w = wide.begin; w != wide.end; ++w)
+                if ((w - wide.begin) % 5 == 4)
+                    *w = static_cast<uint16_t>(*w + 0x100);
+            GameString narrow("narrow before");
+            using FromWideFn = void(__cdecl*)(void*, char*);
+            reinterpret_cast<FromWideFn>(addr::cRZBaseString_FromWideAscii)(&wide, narrow.object);
+            MixString(narrow.object);
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(wide.begin);
+        }
+    }
+    log::Write("autotest: string helpers driven (hash %08X)", h);
+}
+
+void StringHelpersFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_helpersOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | shlp %08X", g_helpersHash);
+    line += text;
+}
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     if (!g_on)
@@ -1658,6 +1874,8 @@ const FingerprintPart kLocksFingerprint{"locks", 4, &LocksFingerprint};
 const DayHook kDriveLocks{"locks", 4, &DriveLocks};
 const FingerprintPart kStringFormatFingerprint{"string_format", 4, &StringFormatFingerprint};
 const DayHook kDriveStringFormat{"string_format", 4, &DriveStringFormat};
+const FingerprintPart kStringHelpersFingerprint{"string_helpers", 4, &StringHelpersFingerprint};
+const DayHook kDriveStringHelpers{"string_helpers", 4, &DriveStringHelpers};
 
 } // namespace
 } // namespace opensc4::autotest
