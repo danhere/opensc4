@@ -329,6 +329,10 @@ add_library(opensc4_core SHARED
   save_app.cpp
   save_app_1.cpp
   save_app_2.cpp
+  save_file_1.cpp
+  save_file_2.cpp
+  save_file_3.cpp
+  save_file_4.cpp
   minimap_autotest.cpp
   datamap_autotest.cpp
   cityview_draw_autotest.cpp
