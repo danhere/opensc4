@@ -752,3 +752,139 @@ kind = "function"
 convention = "thiscall"
 expect = "8A 44 24 04 88 41 18 C2"
 source = "Slot 7 of the system service base (in 48 vtables); `ret 4`: the byte at +0x18. The game's; diagnostics.trace.service_start records the calls through it."
+
+[[entry]]
+name = "GZFrameWork::Run"
+address = 0x0087B0B9
+kind = "function"
+convention = "cdecl"
+expect = "FF 74 24 08 FF 74 24 08"
+source = "Name ours. (command line, quit by flag): Init (0x0087AF13), on success the run phase (0x0087957A), always the shutdown (0x0087AB07); the exit code (0x00B540A8). One caller, 0x0044C221 in WinMain's helper. Ours in framework.run.sequence."
+
+[[entry]]
+name = "GZFrameWork::Init"
+address = 0x0087AF13
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 A1 AC 40 B5"
+source = "Name ours. (command line, quit by flag): the framework's start-up, states 0 to 6 (docs/framework.md). Ours in framework.run.sequence."
+
+[[entry]]
+name = "GZFrameWork::RunPhase"
+address = 0x0087957A
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D AC 40 B5 00 8B 01"
+source = "Name ours. State 7: the app's GZRun (its slot 8), and when that says no the main loop (the framework's slot 48). Ours in framework.run.sequence."
+
+[[entry]]
+name = "GZFrameWork::Shutdown"
+address = 0x0087AB07
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D AC 40 B5 00 8B 01"
+source = "Name ours. The framework's shutdown, states 8 to 14. Ours in framework.run.sequence."
+
+[[entry]]
+name = "GZFrameWork::ReleaseGlobals"
+address = 0x008794CC
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D B4 40 B5 00 85 C9"
+source = "Name ours. Releases and clears the app (0x00B540B4) and the framework's two pointers (0x00B540AC, 0x00B540B0). Ours in framework.run.sequence."
+
+[[entry]]
+name = "cGZFrameWork::EmptyServices"
+address = 0x0087AA81
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. No arguments: the idle and tick lists and their parked lists, the services' table and tree emptied under the lock. Ours in framework.run.sequence."
+
+[[entry]]
+name = "cGZFrameWork::EmptyHooks"
+address = 0x00879922
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. No arguments: the hooks' list emptied under the lock. Ours in framework.run.sequence."
+
+[[entry]]
+name = "cGZFrameWork::ShutdownCOM"
+address = 0x008793FD
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. No arguments: the COM object's RealShutdown (its slot 10) under the framework's lock. Ours in framework.run.sequence."
+
+[[entry]]
+name = "cGZFrameWork::MainLoop"
+address = 0x008795BD
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 1C 53 56"
+source = "Name ours. Slot 48 of the vtable 0x00AC3090; no arguments. Windows messages until there are none, then OnIdle (slot 16) when the tick is on; ends on WM_QUIT or the quit flag. Ours in framework.run.loop."
+
+[[entry]]
+name = "cGZFrameWork::CopyCommandLine"
+address = 0x0087AEE1
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. `ret 4`: the command line copied into the object at +0xE8 under the lock. Called by ours; still the game's."
+
+[[entry]]
+name = "RZCmdLine::Prepare"
+address = 0x0091479D
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 81 EC 68 02 00"
+source = "Name ours (purpose not read). (command line object, 0); called once by the framework's Init on its copy of the command line. Called by ours; still the game's."
+
+[[entry]]
+name = "GZFrameWork::ExitCode"
+address = 0x00B540A8
+kind = "data"
+source = "The program's exit code: -1 when the start-up fails, WM_QUIT's wParam or the quit code when the main loop ends."
+
+[[entry]]
+name = "GZFrameWork::Instance"
+address = 0x00B540AC
+kind = "data"
+source = "The framework (what RZGetFramework returns); 0x00B540B0 holds the same pointer again."
+
+[[entry]]
+name = "GZFrameWork::Instance2"
+address = 0x00B540B0
+kind = "data"
+source = "The framework's second pointer."
+
+[[entry]]
+name = "GZFrameWork::App"
+address = 0x00B540B4
+kind = "data"
+source = "The app (cIGZApp), set by the framework's SetApplication."
+
+[[entry]]
+name = "User32::DispatchMessageA"
+address = 0x00A80524
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "User32::TranslateMessage"
+address = 0x00A80528
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "User32::WaitMessage"
+address = 0x00A8052C
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "User32::PeekMessageA"
+address = 0x00A80530
+kind = "data"
+source = "The exe's import slot."
