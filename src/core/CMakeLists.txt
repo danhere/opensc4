@@ -241,6 +241,9 @@ add_library(opensc4_core SHARED
   terrain_draw.cpp
   terrain_brush.cpp
   terrain_brush_autotest.cpp
+  terrain_brushbody.cpp
+  terrain_brushbody_autotest.cpp
+  terrain_brushload.cpp
   terrain_edit.cpp
   terrain_edit_autotest.cpp
   terrain_erode.cpp
@@ -260,6 +263,9 @@ add_library(opensc4_core SHARED
   packed_file_2.cpp
   packed_file_3.cpp
   packed_file_4.cpp
+  gzcom_libraries_diag.cpp
+  plugin_dlls_1.cpp
+  plugin_dlls_2.cpp
   prop_pox_diag.cpp
   pin_plugin_dlls.cpp
   puzzle_piece_fix.cpp
@@ -288,6 +294,7 @@ add_library(opensc4_core SHARED
   protection_autotest.cpp
   flammability_autotest.cpp
   framework_autotest.cpp
+  framework_messagequeue.cpp
   framework_messageserver.cpp
   protection_sim.cpp
   fire_sim.cpp
@@ -303,6 +310,7 @@ add_library(opensc4_core SHARED
   traffic_water.cpp
   traffic_walks.cpp
   water_autotest.cpp
+  utilities_autotest.cpp
   water_object.cpp
   water_sim.cpp
   aura_autotest.cpp

@@ -33,6 +33,16 @@ The save record is version 8 (every lot of the city in one record): the configur
 
 Still the game's: the lot occupant filter (a small class of its own used by the occupants' query), the pool, the business unit's constructor, generic map, vector and list helpers other classes share. Copied on purpose from the game and commented in the code: occupancy divides by zero on a capacity map without entries; looking a population up inserts a zero entry; the vacate reason of a new lot is whatever the pool's memory held; fields of a new trip record the game never writes are zeros in ours.
 
+## Travel jobs: the game's bug, and the fix
+
+A lot tells the traffic simulator how many jobs it offers by wealth ($, $$, $$$) as the trip capacities 0, 1 and 2 of its holder. The game's 0x006BF6A0 rounds each of the three counts and sends it only when it is more than a tenth off the current value, but it always asks the current value of capacity 0, the $ jobs. So a $$ or $$$ count within a tenth of the $ count is never sent and stays at what it was, usually 0.
+
+High-tech industry splits its jobs 10/80/10 (per the community fix, not read from the game files here; the split is the demand exemplar 6534284A-C7BB4816-00004401, property 0x47BB3F30, read by the demand simulator's slot 8), so its $$$ jobs equal its $ jobs on every lot and are never offered: the community's "IH Missing Jobs" problem. Their fix, a plugin that changes the split to 10/78/12, works because 12 is the first share far enough from 10. Other lots are hit the same way when two of their counts come close.
+
+`fixes.travel_jobs` (on by default, [src/core/citylot_object.cpp](../src/core/citylot_object.cpp)) asks each capacity's own value, so every count is sent once it moves. It installs our 0x006BF6A0 by itself when `simulators.citylot.slots` is off, and turns the same switch on in it when that is on. `fixes.travel_jobs = original` keeps the game's behaviour; the parity script turns it off, since it changes the city.
+
+Found by reading the code (2026-10-11). Checked 2026-10-12 on Making Money d0000 over 30 days, with the parity script's determinism switches: a manufacturing lot with 7/6/1 jobs offered 6/0/1 with the fix off and 6/6/1 with it on; Big City d1095 has no lot it changes. Not checked yet: high-tech industry itself, which no test save has (ROADMAP P6).
+
 ## Test cities
 
 The fingerprint's `citylot` part walks the lot manager's list: the lot count, how many are initialised, the count per state, the total population, and the sum and XOR of a hash over every lot's fields (not the vacate reason). `OPENSC4_TEST_CITYLOT=1` adds a checksum of the pure query slots on every 7th lot. The zoning and ports switches ([zone.md](zone.md), [ports.md](ports.md)) make and remove lots mid-run.

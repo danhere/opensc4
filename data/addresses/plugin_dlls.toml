@@ -1,0 +1,542 @@
+# How the game loads GZCOM plugin DLLs (docs/plugin-dlls.md): the COM object and library record code at
+# 0x0087B23D to 0x0087C114 and the application scan of the Plugins folders. Placeholder names until read.
+
+[[entry]]
+name = "cGZCOM::F87B23D"
+address = 0x0087B23D
+kind = "function"
+convention = "thiscall"
+expect = "6A 08 68 A8 32 AC 00 E8"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 57 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B276"
+address = 0x0087B276
+kind = "function"
+convention = "thiscall"
+expect = "6A 08 68 B8 32 AC 00 E8"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 57 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B2AF"
+address = 0x0087B2AF
+kind = "function"
+convention = "thiscall"
+expect = "6A 08 68 C8 32 AC 00 E8"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 44 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B2DB"
+address = 0x0087B2DB
+kind = "function"
+convention = "thiscall"
+expect = "6A 08 68 D8 32 AC 00 E8"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 62 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B319"
+address = 0x0087B319
+kind = "function"
+convention = "thiscall"
+expect = "81 7C 24 04 2E 92 D4 07"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 37 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B33E"
+address = 0x0087B33E
+kind = "function"
+convention = "thiscall"
+expect = "FF 49 08 8B 41 08 C3 8B"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 7 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B345"
+address = 0x0087B345
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 18 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B357"
+address = 0x0087B357
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 04 C3 81 7C 24 04"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 4 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B35B"
+address = 0x0087B35B
+kind = "function"
+convention = "thiscall"
+expect = "81 7C 24 04 0D 33 41 42"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 34 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B37D"
+address = 0x0087B37D
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 08 8B 01 FF 60 10"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 8 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B385"
+address = 0x0087B385
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 04 E9 04 2A 0A 00"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 8 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B38D"
+address = 0x0087B38D
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 8B"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 38 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B3B3"
+address = 0x0087B3B3
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 33 DB 38 5E"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 47 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B3E2"
+address = 0x0087B3E2
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 45 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B40F"
+address = 0x0087B40F
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 55 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B446"
+address = 0x0087B446
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 74 14"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 29 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B463"
+address = 0x0087B463
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 56 68"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 93 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B4C0"
+address = 0x0087B4C0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 114 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B532"
+address = 0x0087B532
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 140 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B5BE"
+address = 0x0087B5BE
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 7E 04 00 74"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 41 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B5E7"
+address = 0x0087B5E7
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 7E 04 00 74"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 41 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B610"
+address = 0x0087B610
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 26 00 6A 1C"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 22 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B626"
+address = 0x0087B626
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8D 5E 24 8B"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 85 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B67B"
+address = 0x0087B67B
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8D 5F 24"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 73 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B6C4"
+address = 0x0087B6C4
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 44 53 56 8B 74 24"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 75 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B70F"
+address = 0x0087B70F
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 04 00 74 2B 56"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 53 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B744"
+address = 0x0087B744
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 72 FE FF FF"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 23 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B75B"
+address = 0x0087B75B
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 84 FE FF FF"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 23 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B772"
+address = 0x0087B772
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 56 8D 45 0B"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 51 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B7A5"
+address = 0x0087B7A5
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 0C 8B F1 E8"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 42 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B7CF"
+address = 0x0087B7CF
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 0C 8B F1 E8"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 42 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B7F9"
+address = 0x0087B7F9
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 8B 45 14 53 8B"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 136 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B881"
+address = 0x0087B881
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 8D"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 59 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B8BC"
+address = 0x0087B8BC
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 97 FA FF FF"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 8 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B8C4"
+address = 0x0087B8C4
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 B1 FA FF FF"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 8 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B8CC"
+address = 0x0087B8CC
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 B1 FA FF FF"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 8 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B8D4"
+address = 0x0087B8D4
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 7F FA FF FF"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 8 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B8DC"
+address = 0x0087B8DC
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 99 FA FF FF"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 8 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B8E4"
+address = 0x0087B8E4
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 26 01 00 00"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 8 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B8EC"
+address = 0x0087B8EC
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 80 7E 2C 00 74"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 24 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B904"
+address = 0x0087B904
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 56 8D 45 FF"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 25 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B91D"
+address = 0x0087B91D
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 53 8B D9 8B 0B"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 132 bytes."
+
+[[entry]]
+name = "cGZCOM::F87B9A1"
+address = 0x0087B9A1
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8D 4E 24 C7"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 113 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BA12"
+address = 0x0087BA12
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 67 FE FF FF"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 28 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BA2E"
+address = 0x0087BA2E
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 10 C7 06"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 37 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BA53"
+address = 0x0087BA53
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 08 8B F1 83"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 43 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BA7E"
+address = 0x0087BA7E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 30 53 56"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 521 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BC87"
+address = 0x0087BC87
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 86 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BCDD"
+address = 0x0087BCDD
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 56 8B"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 116 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BD51"
+address = 0x0087BD51
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 85 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BDA6"
+address = 0x0087BDA6
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 8B"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 57 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BDDF"
+address = 0x0087BDDF
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 57 8B F9"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 77 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BE2C"
+address = 0x0087BE2C
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B D9 57 8B 3B 8B"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 73 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BE75"
+address = 0x0087BE75
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 53 56 57 8B F9"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 111 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BEE4"
+address = 0x0087BEE4
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 61 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BF21"
+address = 0x0087BF21
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 38 E8 2B 10 09 00"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 33 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BF42"
+address = 0x0087BF42
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 53 8B 5D 10 56"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 146 bytes."
+
+[[entry]]
+name = "cGZCOM::F87BFD4"
+address = 0x0087BFD4
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 53 56 8B D9"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 138 bytes."
+
+[[entry]]
+name = "cGZCOM::F87C05E"
+address = 0x0087C05E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 FF 75 0C"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 35 bytes."
+
+[[entry]]
+name = "cGZCOM::F87C081"
+address = 0x0087C081
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 30 53 56"
+source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 147 bytes."
+
+[[entry]]
+name = "cSC4App::ScanPluginDlls"
+address = 0x00451260
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 60 01 00 00 8B 84"
+source = "Name ours. The scan of a Plugins folder for GZCOM DLLs (docs/plugin-dlls.md): (cRZString const* folder), RET 4, returns the number of AddLibrary calls; an empty folder string scans the install and the user Plugins folders."
+
+[[entry]]
+name = "cSC4App::PluginDllPattern"
+address = 0x00B07EDC
+kind = "data"
+source = "Pointer to the text '*.dll' (0x00A867C0), the file pattern cSC4App::ScanPluginDlls gives the folder listing."
+
+[[entry]]
+name = "cGZCOMLibrary::Vtable"
+address = 0x00AC33A0
+kind = "data"
+source = "Vtable of the GZCOM library record (8 slots: QueryInterface 0x0087B319, AddRef, Release, GetPath 0x0087B345, GetDirector, GetHandle, IsLoaded 0x0087B357, deleting destructor 0x0087BA2E)"
+
+[[entry]]
+name = "cGZCOM::ClassMapNewNode"
+address = 0x009A8A74
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 1C E8 D8 44 F6 FF"
+source = "(const entry*), ret 4, this unused: a new tree node of 0x1C bytes (SC4::stl_allocate) with a copy of a 12-byte value {class ID, version, library record} at +0x10; shared with a second map of the same shape (callers 0x009A8B44, 0x009A8B5D, 0x009A95F9)"
+
+[[entry]]
+name = "SC4String::RangeLess"
+address = 0x004B5CA0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 8B 44 24 04"
+source = "(const range* a, const range* b), each a pointer to {begin, end} of a byte string (a game string + 4): 1 in EAX when a sorts before b (bytes as unsigned, a prefix first), else 0"
+
+[[entry]]
+name = "RZString::ConvertEncoding"
+address = 0x0091152F
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 81 EC 08 02 00"
+source = "(const string* from, string* to, int encoding), three arguments: copies or converts a game string's text into another; encoding -1 = the system default (0x00910014), -2 or 8 = plain copy; answers a bool in AL"
+
+[[entry]]
+name = "RZString::ConvertToBuffer"
+address = 0x009113EF
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 8B 45 14 83 F8"
+source = "(const string* from, void* buffer, uint32_t* length, int encoding), four arguments: converts a game string's text into a caller's buffer (0x10 = UTF-16 units) through 0x00910E18; *length is read and written; answers a count"
+
+[[entry]]
+name = "cGZCOM::ClassMapFind"
+address = 0x0098129C
+kind = "function"
+convention = "thiscall"
+expect = "8B 11 8B 4A 04 85 C9 57"
+source = "Name ours. Lower bound in a tree keyed by a uint32 at node +0x10 (map, const uint32_t* key), RET 4: the node with that key, or the header. The COM object's class map lookup (0x0087BE75, 0x0087BD51); shared with about 80 callers across the framework (docs/plugin-dlls.md)."

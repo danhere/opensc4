@@ -195,3 +195,202 @@ address = 0x00A8CAFC
 kind = "vtable"
 expect = "91 D0 92 00 6F 05 93 00"
 source = "The game's subclass (constructor 0x00472EB0): slot 3 is its own MessageSend 0x004737E0, the rest is the base's."
+
+[[entry]]
+name = "cGZMessageQueue::QueryInterface"
+address = 0x0092CF85
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 04 01 74 0E 81"
+source = "Slot 0; `ret 8`. Answers 1 and 0xA52294CD. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::Release"
+address = 0x0092CFAA
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 18 83 F8 01 76 05"
+source = "Slot 2. The count at +0x18; at 1 or less the deleting destructor (slot 23) with flag 1, result 0. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::PushBack"
+address = 0x0092DDD2
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. Slot 3; `ret 4`. What the message server's MessagePost calls. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::PushFront"
+address = 0x0092DE2C
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. Slot 4; `ret 4`. MessagePost with high priority. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::RemoveFirstOfType"
+address = 0x0092D78B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. Slot 5; `ret 4`. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::RemoveFirstEqual"
+address = 0x0092D66F
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. Slot 6; `ret 4`. Equal by the queued message's slot 6 (operator==). Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::RemoveLastOfType"
+address = 0x0092D7E6
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. Slot 7; `ret 4`. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::RemoveLastEqual"
+address = 0x0092D6CC
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. Slot 8; `ret 4`. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::RemoveAllOfType"
+address = 0x0092D842
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. Slot 9; `ret 4`; the number removed. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::RemoveAllEqual"
+address = 0x0092D72A
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. Slot 10; `ret 4`; the number removed. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::Clear"
+address = 0x0092DB79
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. Slot 11; the number removed. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::FrontType"
+address = 0x0092D313
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. Slot 12; 0 when empty. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::BackType"
+address = 0x0092D34B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. Slot 13; 0 when empty. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::HasType"
+address = 0x0092D384
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 57"
+source = "Name ours. Slot 14; `ret 4`. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::PeekFront"
+address = 0x0092D3CE
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. Slot 15; `ret 4` (out). Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::PeekBack"
+address = 0x0092D414
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. Slot 16; `ret 4` (out). Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::FindEqual"
+address = 0x0092D45B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 57"
+source = "Name ours. Slot 17; `ret 8` (message, out). Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::PopFront"
+address = 0x0092D8A1
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. Slot 18; `ret 4` (out). What the message server's OnTick calls. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::PopBack"
+address = 0x0092D8F0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. Slot 19; `ret 4` (out). Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::WaitPopFront"
+address = 0x0092CFC1
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 08 8B F1 8B"
+source = "Name ours. Slot 20; `ret 4` (out). Slot 18 again and again, waiting on the event at +0x10 (its slot 3, 1000000) between tries. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::WaitPopBack"
+address = 0x0092CFF7
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 08 8B F1 8B"
+source = "Name ours. Slot 21; `ret 4` (out). As slot 20 with slot 19. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::Size"
+address = 0x0092F821
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. Slot 22: the nodes counted under the lock. Folded with slot 28 of the vtable 0x00AD1C60 (the same code on the same layout). What GetMessageQueueSize calls. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::TakeEqual"
+address = 0x0092D940
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. Slot 24; `ret 8` (message, out): the first equal message out of the queue. Ours in framework.messagequeue (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageQueue::cGZMessageQueue"
+address = 0x0092DD7E
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8D 44 24 07"
+source = "Name ours (the class's name is not known). The constructor: vtable 0x00AD1AD0, an empty list at +4, a lock at +8, an event at +0x10, the reference count 0 at +0x18; 0x20 bytes. Called by the message server's constructor (0x0092EB73), the older server's (0x0092E321) and 0x00968094. The game's; the test makes a queue of its own with it."
+
+[[entry]]
+name = "cGZMessageQueue::Vtable"
+address = 0x00AD1AD0
+kind = "vtable"
+expect = "85 CF 92 00 9F EC 93 00"
+source = "25 slots; stored by the constructor 0x0092DD7E."
