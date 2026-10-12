@@ -140,3 +140,15 @@ Control runs (original against itself, `scripts/run-parity.sh`):
 | with it in the harness's base list, both sides: `saves-mysim` (30 days), the usual 12 (7 days), `saves-plopped` (7 days), `saves-mm2` (90 days) | 4 of 4, 12 of 12, 3 of 3, 2 of 2 |
 
 With a MySim, the traffic network map and frame-level random draws (automata, particles) differ from the first day as without one ([../traffic-map.md](../traffic-map.md)); the MySim's car moves on frame time.
+
+## The cycle clock in parity runs (2026-10-12)
+
+Under load from other games on the machine, a save could give an outcome that differed from the usual one only in the lots' checksums, a day in. It first looked like a traffic parity gap: on Making Money d1095 with every traffic replacement on, 6 of 17 runs gave it and none of 9 runs of the original. With the load made equal (four games at once, 24 runs each) the original gave it as often: 8 of 24, against 6 of 24 with the traffic replacements, with the same fingerprints.
+
+In those runs the traffic simulator's lot walk (+0x90C in its record) had stopped at another lot (61, 64, 100 or 104), and its counters were one or two off: a time-boxed phase had got a little further or less far in a step. A trace of every clock read (`OPENSC4_VCLOCK_TRACE`) showed the same in other simulators: the demand step (0x006A7020) and the land value walk (0x006BE7B0) took 223, 224 or 226 deadline checks in one call on the first day in three runs, two of them with the same outcome.
+
+The cause is the cycle clock's estimate (0x005D9370), which the simulator makes again at every slice: a moving average of cycles per millisecond, which every deadline (0x0068BF50) is made with. It starts from a value measured in real time before the virtual clock takes over, and moves towards the virtual clock's 3 GHz along a path that depends on how many clock reads came between slices while the city loaded, which load changes (4,100 to 8,800 reads before the first day in four traced runs). Until it has settled, a deadline of 4 ms is a slightly different number of checks from run to run.
+
+`determinism.fixed_ticks` already held the estimate at the value it converges to for paced play ([../seeds.md](../seeds.md)); it now does so whenever it is on, so in every parity run (`OPENSC4_FREE_CYCLES=1` leaves the game's estimate alone). With it, under the same load: none of 24 runs of the original and none of 24 with the traffic replacements gave a lot-walk outcome (14 of 48 before). Results made before this change are not comparable with new ones run for run: the first days' deadlines differ.
+
+What is left on those saves is a second pair of outcomes that the original gives as often as any replacement (Making Money d1095: 13 and 11 of 24 runs; Big City d1095: 5 and 11 of 16): the flammability grid and walk and the weather record differ from the first day, with the traffic record the same. It is not the clock: the two kinds read the clock in the same order, read for read, from the first day on. Not looked into further.
