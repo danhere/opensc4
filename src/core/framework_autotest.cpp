@@ -1292,6 +1292,96 @@ void MessagePoolFingerprint(cISC4City*, std::string& line)
     line += text;
 }
 
+// The lock test (OPENSC4_TEST_LOCKS).
+bool g_locksOn = false;
+uint32_t g_locksHash = 2166136261u;
+
+// OPENSC4_TEST_LOCKS=<day>: a lock object made by the game's constructor
+// and taken through its vtable slots: locked three times and unlocked, with
+// the wrapper's count and Windows' own count of entries (the
+// CRITICAL_SECTION's RecursionCount at +8) read after each step; TryLock on
+// a free lock and on one this thread holds; the handle; the destructor;
+// then one on the heap ended through Release, and the lookup of
+// TryEnterCriticalSection run again. Everything goes into the fingerprint's
+// `lock` part.
+void DriveLocks(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_LOCKS") || !game::IsBuild641())
+        return;
+    g_locksOn = true;
+    const auto construct = reinterpret_cast<void*(__thiscall*)(void*)>(addr::RZCriticalSection_Construct);
+    const auto destroy = reinterpret_cast<void(__thiscall*)(void*)>(addr::RZCriticalSection_Destroy);
+    using SectionFn = void(__stdcall*)(void*);
+
+    char object[8] = {};
+    MixInto(g_locksHash, construct(object) == object ? 1 : 0);
+    MixInto(g_locksHash, *reinterpret_cast<uint32_t*>(object) == addr::RZCriticalSection_Vtable ? 1 : 0);
+    char* const section = *reinterpret_cast<char**>(object + 4);
+    // The wrapper's count through slot 5, and Windows' count of entries.
+    const auto state = [&object, section] {
+        MixInto(g_locksHash, Virtual<uint32_t>(object, 0x14));
+        MixInto(g_locksHash, *reinterpret_cast<uint32_t*>(section + 0x18));
+        MixInto(g_locksHash, *reinterpret_cast<uint32_t*>(section + 0x8));
+    };
+    state();
+    for (int i = 0; i < 3; ++i) {
+        MixInto(g_locksHash, Virtual<uint32_t>(object, 0x4));
+        state();
+    }
+    for (int i = 0; i < 3; ++i) {
+        MixInto(g_locksHash, Virtual<uint32_t>(object, 0x8));
+        state();
+    }
+    void* handle = nullptr;
+    const uint32_t gotHandle = Virtual<uint32_t>(object, 0x1C, &handle);
+    MixInto(g_locksHash, gotHandle);
+    MixInto(g_locksHash, handle == section ? 1 : 0);
+    MixInto(g_locksHash, Virtual<uint32_t>(object, 0x10) & 0xFF);
+
+    // TryLock on a free lock, again while held, then both given back. A
+    // successful try enters the section twice, so after the unlocks the
+    // thread still holds it; the extra entries are left here by hand.
+    MixInto(g_locksHash, Virtual<uint32_t>(object, 0xC));
+    state();
+    const uint32_t entriesAfterTry = *reinterpret_cast<uint32_t*>(section + 0x8);
+    MixInto(g_locksHash, Virtual<uint32_t>(object, 0xC));
+    state();
+    MixInto(g_locksHash, Virtual<uint32_t>(object, 0x8));
+    MixInto(g_locksHash, Virtual<uint32_t>(object, 0x8));
+    state();
+    for (uint32_t left = *reinterpret_cast<uint32_t*>(section + 0x8); left > 0; --left)
+        Global<SectionFn>(addr::Kernel32_LeaveCriticalSection)(section);
+    state();
+    *reinterpret_cast<uint32_t*>(object) = 0;
+    destroy(object);
+    MixInto(g_locksHash, *reinterpret_cast<uint32_t*>(object) == addr::RZCriticalSection_Vtable ? 1 : 0);
+
+    // One on the heap, locked and unlocked, ended through Release.
+    void* const memory = reinterpret_cast<void*(__cdecl*)(uint32_t)>(addr::SC4_operator_new)(8);
+    void* const heaped = construct(memory);
+    MixInto(g_locksHash, Virtual<uint32_t>(heaped, 0x4));
+    MixInto(g_locksHash, Virtual<uint32_t>(heaped, 0x8));
+    MixInto(g_locksHash, Virtual<uint32_t>(heaped, 0x0));
+
+    // The lookup again: the function is found on this Windows.
+    char dummy[4] = {};
+    const auto lookup = reinterpret_cast<void*(__thiscall*)(void*)>(addr::RZCriticalSection_FindTryEnter);
+    MixInto(g_locksHash, lookup(dummy) == dummy ? 1 : 0);
+    MixInto(g_locksHash, Global<void*>(addr::RZCriticalSection_TryEnterFunction) ? 1 : 0);
+    MixInto(g_locksHash, Global<void*>(addr::RZCriticalSection_Kernel32Module) ? 1 : 0);
+    log::Write("autotest: locks driven (hash %08X; Windows counted %u entries after one TryLock)", g_locksHash,
+               entriesAfterTry);
+}
+
+void LocksFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_locksOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | lock %08X", g_locksHash);
+    line += text;
+}
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     if (!g_on)
@@ -1327,6 +1417,8 @@ const FingerprintPart kMessageObjectFingerprint{"message_object", 4, &MessageObj
 const DayHook kDriveMessageObject{"message_object", 4, &DriveMessageObject};
 const FingerprintPart kMessagePoolFingerprint{"message_pool", 4, &MessagePoolFingerprint};
 const DayHook kDriveMessagePool{"message_pool", 4, &DriveMessagePool};
+const FingerprintPart kLocksFingerprint{"locks", 4, &LocksFingerprint};
+const DayHook kDriveLocks{"locks", 4, &DriveLocks};
 
 } // namespace
 } // namespace opensc4::autotest
