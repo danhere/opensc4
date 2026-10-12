@@ -1064,3 +1064,194 @@ kind = "function"
 convention = "thiscall"
 expect = "56 FF 74 24 08 8B F1 8B"
 source = "Slot 13 (operator=); `ret 4`: Copy through slot 14, the result is this. Ours in framework.string.modify."
+
+[[entry]]
+name = "cGZMessage::QueryInterface"
+address = 0x00913292
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 7D 08 01 74"
+source = "Slot 0 of the vtable 0x00ACEC00 (gzcom-dll cIGZMessage2Standard); `ret 8`. Answers 1, 0x65297976 and 0xA52294B4. Shared by the message's subclasses' vtables. Ours in framework.message.interface."
+
+[[entry]]
+name = "cGZMessage::Release"
+address = 0x009132C1
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 83 F8 01 76 05"
+source = "Slot 2: the count at +4; at 1 or less the deleting destructor (slot 37) with flag 1, result 0. Ours in framework.message.interface."
+
+[[entry]]
+name = "cGZMessage::Create"
+address = 0x009134FF
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 2C 8B F9 E8 D0"
+source = "Slot 3; `ret 8` (interface ID, out): a new message asked for the interface and given this one's type. Ours in framework.message.interface."
+
+[[entry]]
+name = "cGZMessage::SetType"
+address = 0x009132DB
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 89 41"
+source = "Slot 5; `ret 4`: the type (+0xC) and bit 0 of the flags (+8) when it is not 0. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::IsSameType"
+address = 0x0091337A
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "Slot 6 (operator==); `ret 4`: the other message's type equals this one's. Ours in framework.message.interface."
+
+[[entry]]
+name = "cGZMessage::IsLowerType"
+address = 0x00913394
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "Slot 7 (operator<); `ret 4`: this type below the other's, unsigned. Ours in framework.message.interface."
+
+[[entry]]
+name = "cGZMessage::GetHasData1"
+address = 0x009132F3
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 8A 41 08 D1 E8 83"
+source = "Slot 8: bit 1 of the flags. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::GetHasData2"
+address = 0x009132FE
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 8A 41 08 C1 E8 02"
+source = "Slot 13: bit 2. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::GetHasData3"
+address = 0x0091330A
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 8A 41 08 C1 E8 03"
+source = "Slot 18: bit 3. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::GetHasData4"
+address = 0x00913316
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 8A 41 08 C1 E8 04"
+source = "Slot 23: bit 4. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::SetData1"
+address = 0x00913322
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 80 49 08 02"
+source = "Slots 11 and 12 (SetData1, SetVoid1); `ret 4`: +0x10 and bit 1. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::SetData2"
+address = 0x00913330
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 80 49 08 04"
+source = "Slots 16 and 17; `ret 4`: +0x14 and bit 2. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::SetData3"
+address = 0x0091333E
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 80 49 08 08"
+source = "Slots 21 and 22; `ret 4`: +0x18 and bit 3. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::SetData4"
+address = 0x0091334C
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 80 49 08 10"
+source = "Slots 26 and 27; `ret 4`: +0x1C and bit 4. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::GetHasString"
+address = 0x0091335A
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 8A 41 08 C1 E8 06"
+source = "Slot 28: bit 6. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::GetString"
+address = 0x00913438
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 70"
+source = "Slot 29; `ret 8` (interface ID, out): the string (+0x20) asked for the interface when there is one. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::SetString"
+address = 0x00913452
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 04 00 74 06 80"
+source = "Slot 30; `ret 4`: +0x20 (a counted reference) and bit 6 when it is not null. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::GetHasIGZUnknown"
+address = 0x00913366
+kind = "function"
+convention = "thiscall"
+expect = "0F B6 41 08 C1 E8 07 C3"
+source = "Slot 31: bit 7. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::SetIGZUnknown"
+address = 0x0091346B
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 04 00 74 06 80"
+source = "Slot 33; `ret 4`: +0x24 and bit 7. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::GetHasExtra"
+address = 0x0091336E
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 8A 41 08 C1 E8 05"
+source = "Slot 34: bit 5. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::GetExtra"
+address = 0x00913484
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 90 88"
+source = "Slot 35; `ret 8` (interface ID, out): the extra object (+0x28) asked for the interface when there is one. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::SetExtra"
+address = 0x009134A1
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 04 00 74 06 80"
+source = "Slot 36; `ret 4`: +0x28 and bit 5. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::DeletingDestructor"
+address = 0x009134BA
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 E9 FE FF FF"
+source = "Slot 37; `ret 4`: the destructor (0x009133AB), and with flag 1 the memory back to the message pool (0x00913409). Ours in framework.message.interface."
+
+[[entry]]
+name = "cGZMessage::Vtable"
+address = 0x00ACEC00
+kind = "vtable"
+expect = "92 32 91 00 60 8B 96 00"
+source = "The standard message's vtable, 38 slots; stored by the constructor 0x009134D6 (0x2C bytes)."
