@@ -6280,6 +6280,85 @@ const bool g_registeredCtor = registry::Register({
 // zero in ours, and is read over at once.
 constexpr uint32_t kListInsertA = 0x005B05A0, kListInsertB = 0x005B0700, kListFill = 0x00B22D54;
 
+// The inserts (0x005B05A0 for records of 0x1C bytes, 0x005B0700 for 0x20;
+// (where, count, record), ret 0xC), written by hand as one: with room for
+// them the records from `where` on move up and `count` copies of the
+// record go in; without, the game's growing insert does it all (0x0059BBA0,
+// 0x0059B570). Compared by running ours on a copy of the list in memory of
+// the same size and the game's on the list.
+constexpr uint32_t kListGrowA = 0x0059BBA0, kListGrowB = 0x0059B570;
+using ListInsertFn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t);
+ListInsertFn g_SC4EffectDescription_InsertListA = nullptr, g_SC4EffectDescription_InsertListB = nullptr;
+
+void InsertRecords(char* list, char* where, uint32_t count, uint32_t record, std::size_t size, uint32_t grow)
+{
+    if (!count)
+        return;
+    char* const end = At<char*>(list, 4);
+    if (static_cast<uint32_t>((At<char*>(list, 8) - end) / static_cast<std::ptrdiff_t>(size)) < count) {
+        CallThis<uint32_t>(grow, list, where, record, reinterpret_cast<uint32_t>(&record), count, 0u);
+        return;
+    }
+    char value[0x20];
+    std::memcpy(value, reinterpret_cast<const void*>(record), size);
+    std::memmove(where + count * size, where, end - where);
+    for (uint32_t i = 0; i < count; ++i)
+        std::memcpy(where + i * size, value, size);
+    At<char*>(list, 4) = end + count * size;
+}
+
+StepMode g_listsMode = StepMode::Original;
+
+uint32_t InsertByMode(const char* id, char* list, uint32_t where, uint32_t count, uint32_t record, std::size_t size,
+                      uint32_t grow, ListInsertFn game)
+{
+    if (g_listsMode == StepMode::Original)
+        return game(list, nullptr, where, count, record);
+    if (g_listsMode == StepMode::Ours) {
+        InsertRecords(list, reinterpret_cast<char*>(where), count, record, size, grow);
+        return 0;
+    }
+    char* const begin = At<char*>(list, 0);
+    const std::size_t used = At<char*>(list, 4) - begin, room = At<char*>(list, 8) - begin;
+    char* mine[3] = {nullptr, nullptr, nullptr};
+    if (room) {
+        mine[0] = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(room);
+        std::memcpy(mine[0], begin, used);
+        mine[1] = mine[0] + used;
+        mine[2] = mine[0] + room;
+    }
+    char value[0x20];
+    std::memcpy(value, reinterpret_cast<const void*>(record), size);
+    InsertRecords(reinterpret_cast<char*>(mine), mine[0] + (reinterpret_cast<char*>(where) - begin), count,
+                  reinterpret_cast<uint32_t>(value), size, grow);
+    const uint32_t result = game(list, nullptr, where, count, record);
+    const std::size_t theirUsed = At<char*>(list, 4) - At<char*>(list, 0), ourUsed = mine[1] - mine[0];
+    const bool same = theirUsed == ourUsed &&
+                      static_cast<std::size_t>(At<char*>(list, 8) - At<char*>(list, 0)) ==
+                          static_cast<std::size_t>(mine[2] - mine[0]) &&
+                      (ourUsed == 0 || std::memcmp(At<char*>(list, 0), mine[0], ourUsed) == 0);
+    if (mine[0])
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(mine[0]);
+    compare::Record(room >= used + count * size ? (std::string(id) + ".room").c_str() : id, same,
+                    same ? std::string() : std::to_string(theirUsed / size) + " records",
+                    same ? std::string() : std::to_string(ourUsed / size) + " records");
+    return result;
+}
+
+uint32_t __fastcall DInsertListA(char* list, void*, uint32_t where, uint32_t count, uint32_t record)
+{
+    return InsertByMode("effects.lists.insert.a", list, where, count, record, 0x1C, kListGrowA,
+                        g_SC4EffectDescription_InsertListA);
+}
+OPENSC4_THUNK(TSC4EffectDescription_InsertListA, DInsertListA, 12)
+
+uint32_t __fastcall DInsertListB(char* list, void*, uint32_t where, uint32_t count, uint32_t record)
+{
+    return InsertByMode("effects.lists.insert.b", list, where, count, record, 0x20, kListGrowB,
+                        g_SC4EffectDescription_InsertListB);
+}
+OPENSC4_THUNK(TSC4EffectDescription_InsertListB, DInsertListB, 12)
+
 void ResizeListA(char* list, uint32_t count, uint32_t record)
 {
     char* const begin = At<char*>(list, 0);
@@ -6350,7 +6429,6 @@ uint32_t ReadListB(uint32_t stream, uint32_t list)
 // resizes are the game's, in ours' ours.
 using ListReadFn = uint32_t(__cdecl*)(uint32_t, uint32_t);
 using ListResizeAFn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t);
-StepMode g_listsMode = StepMode::Original;
 ListReadFn g_SC4EffectDescription_ReadListA = nullptr, g_SC4EffectDescription_ReadListB = nullptr;
 ListResizeAFn g_SC4EffectDescription_ResizeListA = nullptr;
 Call1Fn g_SC4EffectDescription_ResizeListB = nullptr;
@@ -6495,6 +6573,112 @@ uint32_t __fastcall DResizeListB(char* list, void*, uint32_t count)
 }
 OPENSC4_THUNK(TSC4EffectDescription_ResizeListB, DResizeListB, 4)
 
+// A description's constructor (0x005B0FE0, the first thing the whole
+// object's constructor 0x005B1660 calls), translated instruction by
+// instruction: the first values of its fields, an empty string (eight
+// bytes of the game's memory), and one value put in each of seven lists
+// (the game's growing inserts 0x00676CC0 and 0x0050C3B0 for a list with
+// no room, which is every one here).
+uint32_t ConstructDescription(char* self)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_desc_ctor.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Its comparison: ours on the object's memory, what it left kept, the
+// memory put back as it was, and the game's. Where the two differ, the
+// words must be the three pointers of a list or string (begin, end, end
+// of the memory) of the same length and room and with the same bytes;
+// ours' memory is then freed.
+constexpr std::size_t kDescriptionCtorSize = 0x200;
+StepMode g_descCtorMode = StepMode::Original;
+Call0Fn g_SC4EffectDescription_Construct = nullptr;
+
+uint32_t __fastcall DescriptionCtorByMode(char* self, void*)
+{
+    if (g_descCtorMode == StepMode::Original)
+        return g_SC4EffectDescription_Construct(self, nullptr);
+    if (g_descCtorMode == StepMode::Ours)
+        return ConstructDescription(self);
+    uint32_t before[kDescriptionCtorSize / 4], mine[kDescriptionCtorSize / 4];
+    std::memcpy(before, self, sizeof before);
+    const uint32_t ourResult = ConstructDescription(self);
+    std::memcpy(mine, self, sizeof mine);
+    std::memcpy(self, before, sizeof before);
+    const uint32_t result = g_SC4EffectDescription_Construct(self, nullptr);
+    const uint32_t* const theirs = reinterpret_cast<const uint32_t*>(self);
+    bool same = result == ourResult;
+    std::size_t lists = 0, wrongAt = 0;
+    for (std::size_t i = 0; i < kDescriptionCtorSize / 4; ++i) {
+        if (mine[i] == theirs[i])
+            continue;
+        const bool list = i + 2 < kDescriptionCtorSize / 4 && mine[i] && theirs[i] &&
+                          mine[i + 1] - mine[i] == theirs[i + 1] - theirs[i] &&
+                          mine[i + 2] - mine[i] == theirs[i + 2] - theirs[i] && mine[i + 1] - mine[i] <= 0x100 &&
+                          std::memcmp(reinterpret_cast<const void*>(mine[i]), reinterpret_cast<const void*>(theirs[i]),
+                                      mine[i + 1] - mine[i] ? mine[i + 1] - mine[i] : 1) == 0;
+        if (!list) {
+            if (same)
+                wrongAt = i * 4;
+            same = false;
+            continue;
+        }
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(reinterpret_cast<void*>(mine[i]));
+        ++lists;
+        i += 2;
+    }
+    char text[48];
+    std::snprintf(text, sizeof text, "differs at +%zX", wrongAt);
+    compare::Record(lists == 8 ? "effects.description_ctor" : "effects.description_ctor.lists", same && lists == 8,
+                    same && lists == 8 ? std::string() : std::string("8 lists"),
+                    same && lists == 8 ? std::string() : (same ? std::to_string(lists) + " lists" : std::string(text)));
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectDescription_Construct, DescriptionCtorByMode, 0)
+
+bool InstallDescriptionCtor(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !Detour(addr::SC4EffectDescription_Construct, &TSC4EffectDescription_Construct,
+                &g_SC4EffectDescription_Construct))
+        return false;
+    g_descCtorMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: a description's constructor %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDescriptionCtor = registry::Register({
+    "renderer.effects.description_ctor",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDescription_Construct,
+    "An effect description's constructor: its fields' first values, an empty string and one value in each of seven "
+    "lists; compare mode runs ours and the game's on the same memory (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallDescriptionCtor,
+});
+
 bool InstallLists(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
@@ -6505,7 +6689,11 @@ bool InstallLists(registry::Mode mode)
           Detour(addr::SC4EffectDescription_ResizeListA, &TSC4EffectDescription_ResizeListA,
                  &g_SC4EffectDescription_ResizeListA) &&
           Detour(addr::SC4EffectDescription_ResizeListB, &TSC4EffectDescription_ResizeListB,
-                 &g_SC4EffectDescription_ResizeListB)))
+                 &g_SC4EffectDescription_ResizeListB) &&
+          Detour(addr::SC4EffectDescription_InsertListA, &TSC4EffectDescription_InsertListA,
+                 &g_SC4EffectDescription_InsertListA) &&
+          Detour(addr::SC4EffectDescription_InsertListB, &TSC4EffectDescription_InsertListB,
+                 &g_SC4EffectDescription_InsertListB)))
         return false;
     g_listsMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: a description's lists' reading %s",
@@ -6519,8 +6707,9 @@ const bool g_registeredLists = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::SC4EffectDescription_ReadListA,
-    "A description's two lists of floats read from the effects file, and their resizing; compare mode notes what "
-    "the game's reads from the stream and has ours read the same into a copy of the list (docs/renderer.md, "
+    "A description's two lists of floats read from the effects file, their resizing and the inserts under it; "
+    "compare mode notes what the game's reads from the stream and has ours read the same into a copy of the list, "
+    "and runs the inserts on a copy (docs/renderer.md, "
     "\"Water effects, sky and clouds\")",
     true,
     InstallLists,
