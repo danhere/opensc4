@@ -7075,6 +7075,475 @@ const bool g_registeredDescriptionRead = registry::Register({
     InstallDescriptionRead,
 });
 
+// --- The compound descriptions read from the effects file -----------------------------------
+//
+// Four more kinds of object are read from the stream by functions of
+// their own ((stream, object), by hand here). The first, which this
+// file calls a compound description (what the game calls it is not
+// known), is read 1,154 times at the start:
+// - 0x005ABF50, 0x38 bytes: a word of nine bits, a word, a list of
+//   records of 0x6C bytes (+8, reader 0x005ABE30, each record by
+//   0x005AB690), a list of records of 0x18 bytes (+0x14, reader
+//   0x005ABEC0), a string (+0x2C) and three words (+0x20);
+// - 0x005AB760: a word and a string (+4);
+// - 0x005AB860: a list of points (0x005A4AD0), a list of floats (+0xC,
+//   0x005DB4B0) and a float (+0x18);
+// - 0x005AB2F0: a 16-bit word that is dropped, a list of floats and four
+//   floats (+0xC).
+// A record of 0x6C bytes is a string, then numbers (0x005DA930 reads
+// those from +0x14 to +0x4C); one of 0x18 bytes a word of four bits, a
+// string (+4), a float and a word. The two lists are resized by
+// 0x005ABCE0 and 0x005ABD50 (with a record to fill with; 0x005ABDC0 makes
+// the second's), which cut the list short (0x005ABC20, 0x005ABC80) or
+// insert at the end (0x005AB970, 0x005ABAD0), and the inserts are the
+// game's containers': without room the game's growing insert, with room
+// the record copied, the later records moved up and the copies assigned,
+// by the game's helpers for these records.
+struct RecordOps {
+    std::size_t size, stringAt;
+    uint32_t copy, copyNew, copyBack, fill, fillNew, grow;
+    bool fillNewTagged;
+};
+constexpr RecordOps kModelRecord{0x6C, 0, 0x005888A0, 0x00589490, 0x005AB790, 0x005AB890, 0x005AB660, 0x0059EDC0, false};
+constexpr RecordOps kModelRecordB{0x18, 4, 0x00588A00, 0x005894C0, 0x005AB7E0, 0x005AB8C0, 0x005AB600, 0x005A07B0, true};
+constexpr uint32_t kModelRecordCtor = 0x005997B0, kModelErase = 0x005ABC20, kModelEraseB = 0x005ABC80,
+                   kStreamPoints = 0x005A4AD0, kStreamFloats = 0x005DB4B0, kStreamNumbers = 0x005DA930;
+StepMode g_compoundMode = StepMode::Original;
+
+bool ModelGames()
+{
+    return g_compoundMode == StepMode::Original || g_listGame ||
+           (g_compoundMode == StepMode::Compare && !g_listReplay);
+}
+
+void InsertWith(const RecordOps& ops, char* list, uint32_t where, uint32_t count, uint32_t record)
+{
+    if (!count)
+        return;
+    const uint32_t end = At<uint32_t>(list, 4);
+    uint32_t tag = 0;
+    const uint32_t tagAt = reinterpret_cast<uint32_t>(&tag);
+    const int32_t size = static_cast<int32_t>(ops.size);
+    if (static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(list, 8) - end) / size) < count) {
+        CallThis<uint32_t>(ops.grow, list, where, record, tagAt, count, 0u);
+        return;
+    }
+    uint32_t value[0x6C / 4];
+    CallThis<uint32_t>(ops.copy, reinterpret_cast<char*>(value), record);
+    const uint32_t mine = reinterpret_cast<uint32_t>(value);
+    const uint32_t after = static_cast<uint32_t>(static_cast<int32_t>(end - where) / size);
+    const NamedCopyFn copyNew = reinterpret_cast<NamedCopyFn>(ops.copyNew);
+    const auto fill = reinterpret_cast<uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t)>(ops.fill);
+    if (after > count) {
+        const uint32_t bytes = count * ops.size, from = end - bytes;
+        copyNew(from, end, end, tagAt);
+        At<uint32_t>(list, 4) += bytes;
+        reinterpret_cast<uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(ops.copyBack)(
+            where, from, end, tagAt, 0);
+        fill(where, where + bytes, mine);
+    } else {
+        if (ops.fillNewTagged)
+            reinterpret_cast<NamedCopyFn>(ops.fillNew)(end, count - after, mine, tagAt);
+        else
+            reinterpret_cast<uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t)>(ops.fillNew)(end, count - after, mine);
+        const uint32_t filled = At<uint32_t>(list, 4) + (count - after) * ops.size;
+        At<uint32_t>(list, 4) = filled;
+        copyNew(where, end, filled, tagAt);
+        At<uint32_t>(list, 4) += after * ops.size;
+        fill(where, end, mine);
+    }
+    if (value[ops.stringAt / 4])
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(reinterpret_cast<void*>(value[ops.stringAt / 4]));
+}
+
+ListInsertFn g_SC4EffectCompound_InsertRecords = nullptr, g_SC4EffectCompound_InsertRecordsB = nullptr;
+ListResizeAFn g_SC4EffectCompound_ResizeRecords = nullptr, g_SC4EffectCompound_ResizeRecordsB = nullptr;
+Call1Fn g_SC4EffectCompound_ResizeRecordsDefaultB = nullptr;
+ListReadFn g_SC4EffectCompound_ReadRecord = nullptr, g_SC4EffectCompound_ReadRecords = nullptr,
+           g_SC4EffectCompound_ReadRecordsB = nullptr, g_SC4EffectCompound_Read = nullptr,
+           g_SC4EffectCompound_ReadNamed = nullptr, g_SC4EffectCompound_ReadCurve = nullptr,
+           g_SC4EffectCompound_ReadFloats = nullptr;
+
+uint32_t __fastcall DModelInsert(char* list, void*, uint32_t where, uint32_t count, uint32_t record)
+{
+    if (ModelGames())
+        return g_SC4EffectCompound_InsertRecords(list, nullptr, where, count, record);
+    InsertWith(kModelRecord, list, where, count, record);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectCompound_InsertRecords, DModelInsert, 12)
+
+uint32_t __fastcall DModelInsertB(char* list, void*, uint32_t where, uint32_t count, uint32_t record)
+{
+    if (ModelGames())
+        return g_SC4EffectCompound_InsertRecordsB(list, nullptr, where, count, record);
+    InsertWith(kModelRecordB, list, where, count, record);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectCompound_InsertRecordsB, DModelInsertB, 12)
+
+uint32_t __fastcall DModelResize(char* list, void*, uint32_t count, uint32_t record)
+{
+    if (ModelGames())
+        return g_SC4EffectCompound_ResizeRecords(list, nullptr, count, record);
+    const uint32_t begin = At<uint32_t>(list, 0), end = At<uint32_t>(list, 4);
+    const uint32_t size = static_cast<uint32_t>(static_cast<int32_t>(end - begin) / 0x6C);
+    if (count < size)
+        return CallThis<uint32_t>(kModelErase, list, begin + count * 0x6C, end);
+    return DModelInsert(list, nullptr, end, count - size, record);
+}
+OPENSC4_THUNK(TSC4EffectCompound_ResizeRecords, DModelResize, 8)
+
+uint32_t __fastcall DModelResizeB(char* list, void*, uint32_t count, uint32_t record)
+{
+    if (ModelGames())
+        return g_SC4EffectCompound_ResizeRecordsB(list, nullptr, count, record);
+    const uint32_t begin = At<uint32_t>(list, 0), end = At<uint32_t>(list, 4);
+    const uint32_t size = static_cast<uint32_t>(static_cast<int32_t>(end - begin) / 0x18);
+    if (count < size)
+        return CallThis<uint32_t>(kModelEraseB, list, begin + count * 0x18, end);
+    return DModelInsertB(list, nullptr, end, count - size, record);
+}
+OPENSC4_THUNK(TSC4EffectCompound_ResizeRecordsB, DModelResizeB, 8)
+
+uint32_t __fastcall DModelResizeDefaultB(char* list, void*, uint32_t count)
+{
+    if (ModelGames())
+        return g_SC4EffectCompound_ResizeRecordsDefaultB(list, nullptr, count);
+    char* const text = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(8);
+    text[0] = 0;
+    uint32_t record[6] = {0, reinterpret_cast<uint32_t>(text), reinterpret_cast<uint32_t>(text),
+                          reinterpret_cast<uint32_t>(text) + 8, 0, 0xFFFFFFFF};
+    DModelResizeB(list, nullptr, count, reinterpret_cast<uint32_t>(record));
+    if (record[1])
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(reinterpret_cast<void*>(record[1]));
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectCompound_ResizeRecordsDefaultB, DModelResizeDefaultB, 4)
+
+uint32_t StreamHelper(uint32_t helper, uint32_t stream, uint32_t to)
+{
+    return reinterpret_cast<uint32_t(__cdecl*)(uint32_t, uint32_t)>(helper)(stream, to);
+}
+
+uint32_t __cdecl DModelReadRecord(uint32_t stream, uint32_t record)
+{
+    if (ModelGames())
+        return g_SC4EffectCompound_ReadRecord(stream, record);
+    StreamHelper(kStreamString, stream, record);
+    uint32_t scratch = stream;
+    StreamRead(stream, 0x14, reinterpret_cast<uint32_t>(&scratch));
+    M<uint32_t>(record + 0xC) = scratch & 0xFF;
+    uint32_t word = record;
+    StreamRead(stream, 0x24, reinterpret_cast<uint32_t>(&word));
+    M<uint32_t>(record + 0x10) = word & 3;
+    StreamHelper(kStreamNumbers, stream, record + 0x14);
+    StreamRead(stream, 0x14, record + 0x4C);
+    StreamRead(stream, 0x14, record + 0x4D);
+    StreamRead(stream, 0x1C, record + 0x4E);
+    StreamRead(stream, 0x1C, record + 0x50);
+    StreamRead(stream, 0x30, record + 0x54);
+    StreamRead(stream, 0x30, record + 0x58);
+    StreamRead(stream, 0x30, record + 0x5C);
+    StreamRead(stream, 0x30, record + 0x60);
+    StreamRead(stream, 0x1C, record + 0x64);
+    StreamRead(stream, 0x1C, record + 0x66);
+    return StreamRead(stream, 0x20, record + 0x68);
+}
+
+uint32_t __cdecl DModelReadRecords(uint32_t stream, uint32_t list)
+{
+    if (ModelGames())
+        return g_SC4EffectCompound_ReadRecords(stream, list);
+    uint32_t count = 0;
+    StreamRead(stream, 0x24, reinterpret_cast<uint32_t>(&count));
+    uint32_t record[0x6C / 4];
+    CallThis<uint32_t>(kModelRecordCtor, reinterpret_cast<char*>(record));
+    DModelResize(reinterpret_cast<char*>(list), nullptr, count, reinterpret_cast<uint32_t>(record));
+    if (record[0])
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(reinterpret_cast<void*>(record[0]));
+    for (uint32_t i = 0; i < count; ++i)
+        DModelReadRecord(stream, M<uint32_t>(list) + i * 0x6C);
+    return stream;
+}
+
+uint32_t __cdecl DModelReadRecordsB(uint32_t stream, uint32_t list)
+{
+    if (ModelGames())
+        return g_SC4EffectCompound_ReadRecordsB(stream, list);
+    uint32_t count = 0;
+    StreamRead(stream, 0x24, reinterpret_cast<uint32_t>(&count));
+    DModelResizeDefaultB(reinterpret_cast<char*>(list), nullptr, count);
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t at = M<uint32_t>(list) + i * 0x18;
+        uint32_t word = 0;
+        StreamRead(stream, 0x24, reinterpret_cast<uint32_t>(&word));
+        M<uint32_t>(at) = word & 0xF;
+        StreamHelper(kStreamString, stream, at + 4);
+        StreamRead(stream, 0x30, at + 0x10);
+        StreamRead(stream, 0x24, at + 0x14);
+    }
+    return stream;
+}
+
+uint32_t ReadModel(uint32_t stream, uint32_t object)
+{
+    uint32_t word = 0;
+    StreamRead(stream, 0x24, reinterpret_cast<uint32_t>(&word));
+    M<uint32_t>(object) = word & 0x1FF;
+    StreamRead(stream, 0x24, object + 4);
+    DModelReadRecords(stream, object + 8);
+    DModelReadRecordsB(stream, object + 0x14);
+    StreamHelper(kStreamString, stream, object + 0x2C);
+    StreamRead(stream, 0x24, object + 0x20);
+    StreamRead(stream, 0x24, object + 0x24);
+    return StreamRead(stream, 0x24, object + 0x28);
+}
+
+uint32_t ReadModelNamed(uint32_t stream, uint32_t object)
+{
+    StreamRead(stream, 0x24, object);
+    return StreamHelper(kStreamString, stream, object + 4);
+}
+
+uint32_t ReadModelCurve(uint32_t stream, uint32_t object)
+{
+    StreamHelper(kStreamPoints, stream, object);
+    StreamHelper(kStreamFloats, stream, object + 0xC);
+    return StreamRead(stream, 0x30, object + 0x18);
+}
+
+uint32_t ReadModelFloats(uint32_t stream, uint32_t object)
+{
+    uint32_t dropped = stream;
+    StreamRead(stream, 0x1C, reinterpret_cast<uint32_t>(&dropped));
+    StreamHelper(kStreamFloats, stream, object);
+    StreamRead(stream, 0x30, object + 0xC);
+    StreamRead(stream, 0x30, object + 0x10);
+    StreamRead(stream, 0x30, object + 0x14);
+    return StreamRead(stream, 0x30, object + 0x18);
+}
+
+// Their comparison is the description's, without a constructor to make a
+// new object with: ours reads into a copy of the object as it was. A
+// list of plain numbers is copied; a list of records must have been
+// empty with no memory and a string empty (the copy gets an empty one of
+// its own), else the game's alone reads. What the two then hold is compared
+// field by field and ours' memory freed. The bytes of a 0x6C record that
+// nothing ever writes (+0x16, +0x17, +0x52, +0x53) are left out.
+struct ModelField {
+    enum Kind { Words, Plain, String, Records, RecordsB } kind;
+    std::size_t at, size;
+};
+
+bool SameText(uint32_t a, uint32_t b)
+{
+    const uint32_t length = M<uint32_t>(a + 4) - M<uint32_t>(a);
+    return length == M<uint32_t>(b + 4) - M<uint32_t>(b) &&
+           (length == 0 || std::memcmp(M<void*>(a), M<void*>(b), length) == 0);
+}
+
+void FreeAt(uint32_t pointerAt)
+{
+    if (M<uint32_t>(pointerAt))
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(M<void*>(pointerAt));
+}
+
+bool SameModelField(const ModelField& field, uint32_t theirs, uint32_t ours)
+{
+    const uint32_t a = theirs + field.at, b = ours + field.at;
+    if (field.kind == ModelField::Words)
+        return std::memcmp(reinterpret_cast<const void*>(a), reinterpret_cast<const void*>(b), field.size) == 0;
+    if (field.kind == ModelField::String)
+        return SameText(a, b);
+    const uint32_t used = M<uint32_t>(a + 4) - M<uint32_t>(a);
+    if (used != M<uint32_t>(b + 4) - M<uint32_t>(b) || M<uint32_t>(a + 8) - M<uint32_t>(a) != M<uint32_t>(b + 8) - M<uint32_t>(b))
+        return false;
+    if (field.kind == ModelField::Plain)
+        return used == 0 || std::memcmp(M<void*>(a), M<void*>(b), used) == 0;
+    for (uint32_t offset = 0; offset < used; offset += field.size) {
+        const uint32_t p = M<uint32_t>(a) + offset, q = M<uint32_t>(b) + offset;
+        if (field.kind == ModelField::RecordsB) {
+            if (M<uint32_t>(p) != M<uint32_t>(q) || !SameText(p + 4, q + 4) || M<uint32_t>(p + 0x10) != M<uint32_t>(q + 0x10) ||
+                M<uint32_t>(p + 0x14) != M<uint32_t>(q + 0x14))
+                return false;
+            continue;
+        }
+        if (!SameText(p, q))
+            return false;
+        for (uint32_t i = 0xC; i < 0x6C; ++i) {
+            if (i != 0x16 && i != 0x17 && i != 0x52 && i != 0x53 && M<uint8_t>(p + i) != M<uint8_t>(q + i))
+                return false;
+        }
+    }
+    return true;
+}
+
+uint32_t ModelCompared(const char* id, uint32_t stream, uint32_t object, std::size_t size,
+                       std::initializer_list<ModelField> fields, ListReadFn game, uint32_t (*ours)(uint32_t, uint32_t))
+{
+    uint32_t mine[0x38 / 4];
+    std::memcpy(mine, reinterpret_cast<const void*>(object), size);
+    const uint32_t mineAt = reinterpret_cast<uint32_t>(mine);
+    bool asNew = true;
+    for (const ModelField& field : fields) {
+        if (field.kind == ModelField::String)
+            asNew = asNew && M<uint32_t>(object + field.at) == M<uint32_t>(object + field.at + 4);
+        else if (field.kind == ModelField::Records || field.kind == ModelField::RecordsB)
+            asNew = asNew && M<uint32_t>(object + field.at) == 0;
+    }
+    if (!asNew) {
+        compare::Record((std::string(id) + ".not_new").c_str(), true, std::string(), std::string());
+        return game(stream, object);
+    }
+    for (const ModelField& field : fields) {
+        const uint32_t from = object + field.at, room = M<uint32_t>(from + 8) - M<uint32_t>(from);
+        if (field.kind == ModelField::Plain && room) {
+            char* const copy = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(room);
+            const uint32_t used = M<uint32_t>(from + 4) - M<uint32_t>(from);
+            std::memcpy(copy, M<const void*>(from), used);
+            M<char*>(mineAt + field.at) = copy;
+            M<char*>(mineAt + field.at + 4) = copy + used;
+            M<char*>(mineAt + field.at + 8) = copy + room;
+        }
+        if (field.kind != ModelField::String)
+            continue;
+        char* const text = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(8);
+        text[0] = 0;
+        M<char*>(mineAt + field.at) = text;
+        M<char*>(mineAt + field.at + 4) = text;
+        M<char*>(mineAt + field.at + 8) = text + 8;
+    }
+    const std::vector<uint32_t>& table = ListStreamNoted(stream);
+    M<const uint32_t*>(stream) = table.data();
+    g_listGame = true;
+    const uint32_t result = game(stream, object);
+    g_listGame = false;
+    g_listReplay = true;
+    const uint32_t ourResult = ours(stream, mineAt);
+    g_listReplay = false;
+    M<uint32_t>(stream) = g_listStreamReal;
+    bool same = !g_listWrong && g_listReplayed == g_listReads.size() && result == ourResult;
+    std::size_t wrongAt = 0;
+    for (const ModelField& field : fields) {
+        if (same && !SameModelField(field, object, mineAt)) {
+            same = false;
+            wrongAt = field.at;
+        }
+    }
+    for (const ModelField& field : fields) {
+        const uint32_t at = mineAt + field.at;
+        if (field.kind == ModelField::Words)
+            continue;
+        if (field.kind == ModelField::Records || field.kind == ModelField::RecordsB) {
+            for (uint32_t p = M<uint32_t>(at); p < M<uint32_t>(at + 4); p += field.size)
+                FreeAt(p + (field.kind == ModelField::RecordsB ? 4 : 0));
+        }
+        FreeAt(at);
+    }
+    char text[64];
+    std::snprintf(text, sizeof text, "%zu reads", g_listReads.size());
+    const std::string theirs = text;
+    std::snprintf(text, sizeof text, "%zu reads%s, differs at +%zX", g_listReplayed, g_listWrong ? " then another" : "",
+                  wrongAt);
+    compare::Record(id, same, same ? std::string() : theirs, same ? std::string() : std::string(text));
+    return result;
+}
+
+bool ModelPassed()
+{
+    return g_compoundMode == StepMode::Original || g_listGame || g_listReplay;
+}
+
+uint32_t __cdecl ReadModelByMode(uint32_t stream, uint32_t object)
+{
+    if (ModelPassed())
+        return g_SC4EffectCompound_Read(stream, object);
+    if (g_compoundMode == StepMode::Ours)
+        return ReadModel(stream, object);
+    return ModelCompared("effects.compound_read", stream, object, 0x38,
+                         {{ModelField::Words, 0, 8},
+                          {ModelField::Records, 8, 0x6C},
+                          {ModelField::RecordsB, 0x14, 0x18},
+                          {ModelField::Words, 0x20, 0xC},
+                          {ModelField::String, 0x2C, 0}},
+                         g_SC4EffectCompound_Read, &ReadModel);
+}
+
+uint32_t __cdecl ReadModelNamedByMode(uint32_t stream, uint32_t object)
+{
+    if (ModelPassed())
+        return g_SC4EffectCompound_ReadNamed(stream, object);
+    if (g_compoundMode == StepMode::Ours)
+        return ReadModelNamed(stream, object);
+    return ModelCompared("effects.compound_read.named", stream, object, 0x10,
+                         {{ModelField::Words, 0, 4}, {ModelField::String, 4, 0}}, g_SC4EffectCompound_ReadNamed,
+                         &ReadModelNamed);
+}
+
+uint32_t __cdecl ReadModelCurveByMode(uint32_t stream, uint32_t object)
+{
+    if (ModelPassed())
+        return g_SC4EffectCompound_ReadCurve(stream, object);
+    if (g_compoundMode == StepMode::Ours)
+        return ReadModelCurve(stream, object);
+    return ModelCompared("effects.compound_read.curve", stream, object, 0x1C,
+                         {{ModelField::Plain, 0, 0}, {ModelField::Plain, 0xC, 0}, {ModelField::Words, 0x18, 4}},
+                         g_SC4EffectCompound_ReadCurve, &ReadModelCurve);
+}
+
+uint32_t __cdecl ReadModelFloatsByMode(uint32_t stream, uint32_t object)
+{
+    if (ModelPassed())
+        return g_SC4EffectCompound_ReadFloats(stream, object);
+    if (g_compoundMode == StepMode::Ours)
+        return ReadModelFloats(stream, object);
+    return ModelCompared("effects.compound_read.floats", stream, object, 0x1C,
+                         {{ModelField::Plain, 0, 0}, {ModelField::Words, 0xC, 0x10}}, g_SC4EffectCompound_ReadFloats,
+                         &ReadModelFloats);
+}
+
+bool InstallModelDescription(registry::Mode mode)
+{
+    const auto plain = [](auto function) { return reinterpret_cast<void (*)()>(function); };
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4EffectCompound_Read, plain(&ReadModelByMode), &g_SC4EffectCompound_Read) &&
+          Detour(addr::SC4EffectCompound_ReadNamed, plain(&ReadModelNamedByMode), &g_SC4EffectCompound_ReadNamed) &&
+          Detour(addr::SC4EffectCompound_ReadCurve, plain(&ReadModelCurveByMode), &g_SC4EffectCompound_ReadCurve) &&
+          Detour(addr::SC4EffectCompound_ReadFloats, plain(&ReadModelFloatsByMode), &g_SC4EffectCompound_ReadFloats) &&
+          Detour(addr::SC4EffectCompound_ReadRecord, plain(&DModelReadRecord), &g_SC4EffectCompound_ReadRecord) &&
+          Detour(addr::SC4EffectCompound_ReadRecords, plain(&DModelReadRecords), &g_SC4EffectCompound_ReadRecords) &&
+          Detour(addr::SC4EffectCompound_ReadRecordsB, plain(&DModelReadRecordsB), &g_SC4EffectCompound_ReadRecordsB) &&
+          Detour(addr::SC4EffectCompound_ResizeRecords, &TSC4EffectCompound_ResizeRecords,
+                 &g_SC4EffectCompound_ResizeRecords) &&
+          Detour(addr::SC4EffectCompound_ResizeRecordsB, &TSC4EffectCompound_ResizeRecordsB,
+                 &g_SC4EffectCompound_ResizeRecordsB) &&
+          Detour(addr::SC4EffectCompound_ResizeRecordsDefaultB, &TSC4EffectCompound_ResizeRecordsDefaultB,
+                 &g_SC4EffectCompound_ResizeRecordsDefaultB) &&
+          Detour(addr::SC4EffectCompound_InsertRecords, &TSC4EffectCompound_InsertRecords,
+                 &g_SC4EffectCompound_InsertRecords) &&
+          Detour(addr::SC4EffectCompound_InsertRecordsB, &TSC4EffectCompound_InsertRecordsB,
+                 &g_SC4EffectCompound_InsertRecordsB)))
+        return false;
+    g_compoundMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the compound descriptions' reading %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredModelDescription = registry::Register({
+    "renderer.effects.compound_read",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectCompound_Read,
+    "The compound descriptions and three smaller objects read from the effects file, with their two lists of "
+    "records, the lists' resizes and inserts; compare mode notes what the game's reads from the stream and has ours "
+    "read the same into a copy of the object (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallModelDescription,
+});
+
 bool InstallLists(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
