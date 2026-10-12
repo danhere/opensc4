@@ -321,6 +321,7 @@ add_library(opensc4_core SHARED
   framework_run.cpp
   framework_services.cpp
   framework_string.cpp
+  framework_stringformat.cpp
   protection_sim.cpp
   fire_sim.cpp
   police_sim.cpp

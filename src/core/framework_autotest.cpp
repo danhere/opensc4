@@ -1382,6 +1382,243 @@ void LocksFingerprint(cISC4City*, std::string& line)
     line += text;
 }
 
+// The string format test (OPENSC4_TEST_STRING_FORMAT).
+bool g_formatOn = false;
+uint32_t g_formatHash = 2166136261u;
+uint32_t g_formatCalls = 0;
+uint32_t g_formatWritten = 0;
+
+constexpr unsigned kFormatVariants = 8;
+const uint32_t kFormatInts[kFormatVariants] = {0, 1, 0xFFFFFFFF, 42, 0xFFFFFFD6, 0x7FFFFFFF, 0x80000000, 0x1234ABCD};
+const uint64_t kFormatLongs[kFormatVariants] = {0,
+                                                1,
+                                                0xFFFFFFFFFFFFFFFFull,
+                                                0x100000000ull,
+                                                0xFFFFFFFF00000000ull,
+                                                0x7FFFFFFFFFFFFFFFull,
+                                                0x8000000000000000ull,
+                                                0x0123456789ABCDEFull};
+const uint32_t kFormatShorts[kFormatVariants] = {0, 1, 0xFFFF, 0x7FFF, 0x8000, 0x1FFFB, 0xABCD8000, 300};
+const double kFormatDoubles[kFormatVariants] = {0.0, -0.0, 1.0, -1.0, 3.14159265358979, -2.5e-7, 123456789.125, 1e100};
+const char* const kFormatTexts[kFormatVariants] = {
+    "",
+    "abc",
+    "h\xC3\xA9llo w\xC3\xB6rld",
+    "\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E text",
+    // Cut short: the formatter takes the first byte's word for the length.
+    "ab\xE0\x80\0Z",
+    "a longer text that is wider than any width the test asks for, to be cut by a precision or not at all",
+    "\xC3",
+    "0123456789",
+};
+const uint32_t kFormatChars[kFormatVariants] = {'A', 'z', 0xE9, ' ', '%', '0', 0x141, 0x7F};
+const int kFormatWidths[kFormatVariants] = {7, 0, -7, 1, 12, 3, 40, 2};
+const int kFormatPrecisions[kFormatVariants] = {4, 0, -1, 1, 9, 2, 20, 3};
+
+// One call of the game's formatter. The arguments are laid out as the
+// format asks (read here the way the formatter reads it), in a block of
+// slots that is always passed whole.
+void FormatOne(void* string, const char* format, unsigned variant)
+{
+    uint32_t slots[48] = {};
+    unsigned used = 0;
+    const auto put = [&slots, &used](uint32_t value) {
+        if (used < 48)
+            slots[used++] = value;
+    };
+    const auto isDigit = [](char c) { return c >= '0' && c <= '9'; };
+    for (const char* p = format; *p;) {
+        if (*p++ != '%')
+            continue;
+        char b = *p++;
+        while (b == '-' || b == '+' || b == ' ' || b == '0' || b == '#')
+            b = *p++;
+        if (b == '%')
+            continue;
+        if (b == '*') {
+            put(static_cast<uint32_t>(kFormatWidths[variant]));
+            b = *p++;
+        } else {
+            while (isDigit(b))
+                b = *p++;
+        }
+        if (b == '.') {
+            b = *p++;
+            if (b == '*') {
+                put(static_cast<uint32_t>(kFormatPrecisions[variant]));
+                b = *p++;
+            } else {
+                while (isDigit(b))
+                    b = *p++;
+            }
+        }
+        int size = 1;
+        if (b == 'I') {
+            if (p[0] == '6' && p[1] == '4') {
+                p += 2;
+                b = *p++;
+                size = 3;
+            }
+        } else if (b == 'h') {
+            b = *p++;
+            size = 0;
+        } else if (b == 'l') {
+            b = *p++;
+            size = 2;
+            if (b == 'l') {
+                b = *p++;
+                size = 3;
+            }
+        }
+        switch (b) {
+        case 'd':
+        case 'i':
+        case 'o':
+        case 'u':
+        case 'x':
+        case 'X':
+            if (size == 3) {
+                put(static_cast<uint32_t>(kFormatLongs[variant]));
+                put(static_cast<uint32_t>(kFormatLongs[variant] >> 32));
+            } else {
+                put(size == 0 ? kFormatShorts[variant] : kFormatInts[variant]);
+            }
+            break;
+        case 'e':
+        case 'f':
+        case 'g':
+        case 'E':
+        case 'G': {
+            uint32_t halves[2];
+            std::memcpy(halves, &kFormatDoubles[variant], 8);
+            put(halves[0]);
+            put(halves[1]);
+            break;
+        }
+        case 's':
+            put(reinterpret_cast<uint32_t>(kFormatTexts[variant]));
+            break;
+        case 'c':
+            put(kFormatChars[variant]);
+            break;
+        case 'p':
+            put(kFormatInts[variant]);
+            break;
+        case 'n':
+            put(reinterpret_cast<uint32_t>(&g_formatWritten));
+            break;
+        default:
+            // Not a conversion: the formatter reads the character again.
+            --p;
+            break;
+        }
+    }
+    using Fn = void*(__cdecl*)(void*, const char*, ...);
+    const uint32_t* const a = slots;
+    const void* const result = reinterpret_cast<Fn>(addr::cRZBaseString_Sprintf)(
+        string, format, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14],
+        a[15], a[16], a[17], a[18], a[19], a[20], a[21], a[22], a[23], a[24], a[25], a[26], a[27], a[28], a[29], a[30],
+        a[31], a[32], a[33], a[34], a[35], a[36], a[37], a[38], a[39], a[40], a[41], a[42], a[43], a[44], a[45], a[46],
+        a[47]);
+    uint32_t& h = g_formatHash;
+    MixInto(h, result == string ? 1 : 0);
+    const char* const begin = *reinterpret_cast<const char* const*>(static_cast<char*>(string) + 0x4);
+    const char* const end = *reinterpret_cast<const char* const*>(static_cast<char*>(string) + 0x8);
+    MixInto(h, static_cast<uint32_t>(end - begin));
+    uint32_t sum = 0;
+    for (const char* c = begin; c != end; ++c)
+        sum = sum * 31 + static_cast<uint8_t>(*c);
+    MixInto(h, sum);
+    ++g_formatCalls;
+}
+
+// OPENSC4_TEST_STRING_FORMAT=<day>: the string class's formatter with
+// every specifier shape the game's own format strings use, then every
+// combination of flags, width, precision and size with each conversion,
+// over values that reach the signs, the limits, UTF-8 texts cut by a
+// precision and results longer than the formatter's buffers; %n, %%, and
+// things that are not conversions. Every result goes into the
+// fingerprint's `fmt` part.
+void DriveStringFormat(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_STRING_FORMAT") || !game::IsBuild641())
+        return;
+    g_formatOn = true;
+    GameString out("previous text");
+    const auto all = [&out](const char* format) {
+        for (unsigned variant = 0; variant < kFormatVariants; ++variant)
+            FormatOne(out.Self(), format, variant);
+    };
+
+    // The shapes the game's formats use.
+    static const char* const kGameShapes[] = {
+        "%d",   "%s",    "%08x",  "%u",    "%%",    "%02x",    "%04x", "%02X", "%3.2f", "%08X",
+        "%x",   "%.0f",  "%.1f",  "%f",    "%08lx", "%.2u",    "%X",   "%.2f", "%02d",  "%05u",
+        "%8x",  "%3d",   "%0X",   "%3.0f", "%2.0f", "%03d",    "%I64d", "%02.2d", "%hs", "%lld",
+        "%c",   "%p",    "%02.2f", "%4x",  "%ld",   "%10u",    "%-18.18s", "%I64u", "%g",
+        "%s=(%u,%u,%u)(%u,%u,%u) ", "%d,%d,%08x,%s,%s,%08x", "%s %.0f%% (%.0f%%), ", "%c%c%s[ %d, %d, %d ]= ",
+    };
+    for (const char* const shape : kGameShapes)
+        all(shape);
+
+    static const char* const kFlags[] = {"", "-", "+", " ", "0", "#", "-+", "+0", " 0", "-0", "#0", "+ ", "-#", "+#0"};
+    static const char* const kWidths[] = {"", "1", "6", "14", "*"};
+    static const char* const kPrecisions[] = {"", ".", ".0", ".3", ".11", ".*"};
+    static const char* const kSizes[] = {"", "h", "l", "ll", "I64"};
+    char format[64];
+    for (const char* const flags : kFlags)
+        for (const char* const width : kWidths)
+            for (const char* const precision : kPrecisions) {
+                for (const char* const size : kSizes)
+                    for (const char conversion : {'d', 'i', 'u', 'o', 'x', 'X'}) {
+                        std::snprintf(format, sizeof format, "[%%%s%s%s%s%c]", flags, width, precision, size,
+                                      conversion);
+                        all(format);
+                    }
+                for (const char conversion : {'e', 'f', 'g', 'E', 'G', 's', 'c', 'p'}) {
+                    std::snprintf(format, sizeof format, "[%%%s%s%s%c]", flags, width, precision, conversion);
+                    all(format);
+                }
+                // Not conversions.
+                for (const char conversion : {'z', 'C', 'S', 'I', '%'}) {
+                    std::snprintf(format, sizeof format, "[%%%s%s%s%c|", flags, width, precision, conversion);
+                    FormatOne(out.Self(), format, 0);
+                }
+            }
+
+    // Results past the scratch buffer (64 bytes, then doubling) and the
+    // output buffer (1,024 bytes).
+    for (const char* const big :
+         {"%.70f", "%.200f", "%.300e", "%#.120g", "%2000d", "%-1500s|", "%01100x", "%.1030d", "%s%s%s%s%s%s%s%s%s%s%s%s",
+          "%f %f %.90f %f", "%1023d", "%1024d", "%1025d", "%*.*f"})
+        all(big);
+    std::string longFormat(3000, 'x');
+    longFormat += "%d";
+    longFormat.append(3000, 'y');
+    all(longFormat.c_str());
+
+    // %n: the length the string had before the call.
+    for (const char* const counted : {"ab%ncd", "%n", "%d%n%d"}) {
+        g_formatWritten = 0xFFFFFFFF;
+        FormatOne(out.Self(), counted, 3);
+        MixInto(g_formatHash, g_formatWritten);
+    }
+    // Ends and oddities.
+    for (const char* const odd : {"", "%", "abc%", "%5", "%-", "%.", "%5.", "%l", "%ll", "%h", "%I6d", "%I32d", "%I", "100%%",
+                                  "%%%%", "%-%", "% d% d", "%+d%+d", "%hd|%hu|%hx", "%.s|", "%.d|", "%.f|"})
+        all(odd);
+    log::Write("autotest: string format driven (%u calls, hash %08X)", g_formatCalls, g_formatHash);
+}
+
+void StringFormatFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_formatOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | fmt %08X", g_formatHash);
+    line += text;
+}
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     if (!g_on)
@@ -1419,6 +1656,8 @@ const FingerprintPart kMessagePoolFingerprint{"message_pool", 4, &MessagePoolFin
 const DayHook kDriveMessagePool{"message_pool", 4, &DriveMessagePool};
 const FingerprintPart kLocksFingerprint{"locks", 4, &LocksFingerprint};
 const DayHook kDriveLocks{"locks", 4, &DriveLocks};
+const FingerprintPart kStringFormatFingerprint{"string_format", 4, &StringFormatFingerprint};
+const DayHook kDriveStringFormat{"string_format", 4, &DriveStringFormat};
 
 } // namespace
 } // namespace opensc4::autotest
