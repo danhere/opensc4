@@ -61,7 +61,7 @@ The library every serialisable class writes and reads its record with. `saves.st
 
 ## The serializer and the segment streams (0x005D1520 to 0x005D4AB0)
 
-What stands between an object's `Read` and `Write` and the file. `saves.serializer.part1` to `part3` replace it ([save_serializer_1.cpp](../src/core/save_serializer_1.cpp) to `_3.cpp`, off by default): 102 functions, the second piece of the rewrite. The framework's packed file underneath (index, compression, 0x0096Dxxx to 0x00979xxx) is still the game's.
+What stands between an object's `Read` and `Write` and the file. `saves.serializer.part1` to `part3` replace it ([save_serializer_1.cpp](../src/core/save_serializer_1.cpp) to `_3.cpp`, off by default): 102 functions, the second piece of the rewrite. The framework's packed file underneath (0x0096Dxxx to 0x00972xxx) is ours on its read side (`resources.packed_file.*`, [resources.md](resources.md)); its write side (index and directory writing, compression) is still the game's.
 
 **Three objects.**
 
