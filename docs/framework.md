@@ -338,3 +338,42 @@ The same trace as above (`diagnostics.trace.service_start` on both sides): a run
 
 All nineteen framework groups on against the original, the trace on both sides, 12 saves, 7 days, two jobs, 2026-10-12: 12 of 12 the same on the first pair, and the control (the original on both sides) 12 of 12. The `start` part and the logged stops were the same in all 24 runs.
 
+## The string class
+
+`cRZBaseString` (vtable 0x00A80810, 29 slots; 0x14 bytes) is what the game's `cIGZString` objects are: the paths, names and texts handed across interfaces. The object is a vtable, a string body at +4 (STLport's basic_string: first character, one past the last, end of the block) and a reference count at +0x10. Four more vtables (0x00A812F8, 0x00A85478, 0x00A86258, 0x00ADA4F0) are subclasses that share its code.
+
+The class is a thin layer over the body, and that layer is what is ours:
+
+- **Changing the text.** FromChar (a null pointer gives the empty string), Copy and operator= (the other string's Data and length, through this string's own slot 3), Resize (filled with zeros), Append, Insert, Replace (`length` characters at the position give way to the text) and Erase each pick one body operation and its arguments; the forms that take a string ask it for its text and length through its interface, so a string of any class works.
+- **Comparing.** IsEqual is false at different lengths; with case it is strncmp, without it both sides are copied and lowered and the copies compared with memcmp (and their lengths once more: lowering text that is not ASCII can change it). CompareTo compares the common part the same two ways and, when that is equal, answers the difference of the lengths. Find and RFind are the body's searches, without case in lowered copies.
+- **The interface.** QueryInterface answers 1 and 0x089B7DC8; Release deletes the string with its last reference.
+
+`src/core/framework_string.cpp`, entry detours, off by default:
+
+| Replacement | Functions |
+|---|---|
+| `framework.string.modify` | FromChar 0x0090F50F and 0x0090F546, operator= 0x0090E230, Copy 0x0090E20A, Resize 0x0090F042, Append 0x0090F06C and 0x0090F053, Insert 0x0090F0B0 and 0x0090F093, Replace 0x0090FC30 and 0x0090FC13, Erase 0x0090E4D8 |
+| `framework.string.compare` | IsEqual 0x0090EC57 and 0x0090ED5D, CompareTo 0x0090EE61 and 0x0090EF5B, Find 0x0090F16C and 0x0090F0DB, RFind 0x0090F28C and 0x0090F1FB |
+| `framework.string.interface` | QueryInterface 0x0090E1D1, Release 0x0090E1F3 |
+
+22 functions. Game code calls many of them directly (Find 23 times, IsEqual 24, Append 14), and code built with whole-program optimisation may keep ECX and EDX across such a call, so every detour is entered through a thunk that keeps both.
+
+Still the game's: the body's operations (STLport: assign 0x0044D3A0, resize 0x00442E90, append 0x004D8650, insert 0x0090E8B6, replace 0x005C2EB0, erase 0x004425C0, find 0x00442850, reverse find 0x005C2620), the lowering (0x0090EAC5: ASCII through the C runtime, anything else through the language's wide characters), the constructors and destructor, the C runtime's strlen, strncmp and memcmp (their exact results are CompareTo's answers), Sprintf (0x0090F574, a formatter of 1,649 bytes with 463 callers), and the three getters (ToChar and Data are one function shared with other classes; Strlen is seven bytes with 99 direct callers).
+
+### Testing
+
+`OPENSC4_TEST_STRINGS=<day>` makes game strings with the game's constructor and calls the methods through their vtable slots: every pair of eight texts (empty, mixed case, accented letters, one longer than the lowering's own buffer) compared and searched with and without case, by string and by characters, from several positions; then one string changed step by step through every changing method, with a copy from a string of another class; then the interfaces and the count of one made on the heap, down to its end. Every result and every text go into the fingerprint's `str` part.
+
+With the test on, the coverage meter shows all 22 functions reached in the original.
+
+### Parity
+
+All 22 framework groups on against the original (the service start trace on both sides), 12 saves, 7 days, two jobs, 2026-10-12, each leg with a control (the original on both sides):
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 12 same | 12 same |
+| `OPENSC4_TEST_STRINGS=2` | 12 same | 12 same |
+
+All on the first pair. The `str` part was the same in all 24 runs of the test's leg.
+

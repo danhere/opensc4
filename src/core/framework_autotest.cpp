@@ -20,6 +20,9 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include <string>
 
 #include <opensc4/addresses.h>
 
@@ -884,6 +887,163 @@ void StartFingerprint(cISC4City*, std::string& line)
     line += text;
 }
 
+// The strings test (OPENSC4_TEST_STRINGS).
+bool g_stringsOn = false;
+uint32_t g_stringHash = 2166136261u;
+
+// A game string (0x14 bytes, the game's constructor and destructor) for
+// the test to call through its vtable.
+struct GameString {
+    char object[0x14];
+
+    GameString(const char* text, uint32_t length)
+    {
+        using Fn = void*(__thiscall*)(char*, const char*, uint32_t);
+        reinterpret_cast<Fn>(addr::SC4String_FromBytes)(object, text, length);
+    }
+    explicit GameString(const char* text) : GameString(text, static_cast<uint32_t>(std::strlen(text))) {}
+    ~GameString() { reinterpret_cast<void(__thiscall*)(char*)>(addr::SC4String_Destroy)(object); }
+    GameString(const GameString&) = delete;
+    GameString& operator=(const GameString&) = delete;
+
+    void* Self() { return object; }
+    const char* Begin() const { return *reinterpret_cast<const char* const*>(object + 0x4); }
+    uint32_t Size() const
+    {
+        return static_cast<uint32_t>(*reinterpret_cast<const char* const*>(object + 0x8) - Begin());
+    }
+    // The text and its length into the hash.
+    void Mix() const
+    {
+        MixInto(g_stringHash, Size());
+        MixInto(g_stringHash, BytesChecksum(Begin(), Size()));
+    }
+};
+
+// OPENSC4_TEST_STRINGS=<day>: game strings taken through the string
+// class's methods by their vtable slots: every pair of a set of texts
+// (empty, mixed case, accented letters, one longer than the lowering's
+// own buffer) compared and searched with and without case, by string and
+// by characters; then a string changed step by step (FromChar, Append,
+// Insert, Replace, Erase, Resize, Copy from a string of another class,
+// operator=), and the interfaces and reference count of one made on the
+// heap. Every result and every text go into the fingerprint's `str` part.
+void DriveStrings(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_STRINGS") || !game::IsBuild641())
+        return;
+    g_stringsOn = true;
+    uint32_t& h = g_stringHash;
+
+    std::string longText;
+    for (int i = 0; i < 40; ++i)
+        longText += "Stra\xDF" "e \xC9t\xE9 ";
+    const std::string texts[] = {"",          "Hello World", "hello world", "HELLO",
+                                 "h\xE9llo w\xF6rld", "H\xC9LLO W\xD6RLD", "Hello Worlds", longText};
+    for (const std::string& left : texts) {
+        GameString a(left.data(), static_cast<uint32_t>(left.size()));
+        for (const std::string& right : texts) {
+            GameString b(right.data(), static_cast<uint32_t>(right.size()));
+            for (uint8_t withCase = 0; withCase < 2; ++withCase) {
+                MixInto(h, Virtual<bool>(a.Self(), 0x28, b.Self(), withCase) ? 1 : 0);
+                MixInto(h, Virtual<bool>(a.Self(), 0x24, b.Self(), withCase) ? 1 : 0);
+                MixInto(h, Virtual<bool>(a.Self(), 0x20, right.c_str(), static_cast<uint32_t>(right.size()), withCase)
+                               ? 1
+                               : 0);
+                MixInto(h, Virtual<bool>(a.Self(), 0x20, right.c_str(), 0xFFFFFFFFu, withCase) ? 1 : 0);
+                MixInto(h, static_cast<uint32_t>(Virtual<int32_t>(a.Self(), 0x30, b.Self(), withCase)));
+                MixInto(h, static_cast<uint32_t>(Virtual<int32_t>(a.Self(), 0x2C, right.c_str(),
+                                                                  static_cast<uint32_t>(right.size()), withCase)));
+                MixInto(h, static_cast<uint32_t>(
+                               Virtual<int32_t>(a.Self(), 0x2C, right.c_str(), 0xFFFFFFFFu, withCase)));
+                for (const uint32_t position : {0u, 3u}) {
+                    if (position > a.Size())
+                        continue;
+                    MixInto(h, static_cast<uint32_t>(Virtual<int32_t>(a.Self(), 0x5C, b.Self(), position, withCase)));
+                    MixInto(h, static_cast<uint32_t>(
+                                   Virtual<int32_t>(a.Self(), 0x60, right.c_str(), position, withCase)));
+                }
+                for (const uint32_t position : {0xFFFFFFFFu, 4u}) {
+                    MixInto(h, static_cast<uint32_t>(Virtual<int32_t>(a.Self(), 0x64, b.Self(), position, withCase)));
+                    MixInto(h, static_cast<uint32_t>(
+                                   Virtual<int32_t>(a.Self(), 0x68, right.c_str(), position, withCase)));
+                }
+            }
+        }
+        for (const char* needle : {"o", "O", "wor", "\xC9", "zz"})
+            for (uint8_t withCase = 0; withCase < 2; ++withCase) {
+                MixInto(h, static_cast<uint32_t>(Virtual<int32_t>(a.Self(), 0x60, needle, uint32_t{0}, withCase)));
+                MixInto(h,
+                        static_cast<uint32_t>(Virtual<int32_t>(a.Self(), 0x68, needle, 0xFFFFFFFFu, withCase)));
+            }
+    }
+
+    // A string changed step by step.
+    GameString s("abc");
+    GameString other("XYZ12");
+    cRZBaseString foreign("from another class");
+    s.Mix();
+    Virtual<void>(s.Self(), 0x10, "The quick brown fox");
+    s.Mix();
+    Virtual<void>(s.Self(), 0xC, "jumps over", uint32_t{5});
+    s.Mix();
+    MixInto(h, Virtual<void*>(s.Self(), 0x44, " and", uint32_t{4}) == s.Self() ? 1 : 0);
+    s.Mix();
+    Virtual<void*>(s.Self(), 0x40, other.Self());
+    s.Mix();
+    Virtual<void*>(s.Self(), 0x4C, uint32_t{0}, ">>", uint32_t{2});
+    s.Mix();
+    Virtual<void*>(s.Self(), 0x4C, s.Size(), "<<", uint32_t{2});
+    s.Mix();
+    Virtual<void*>(s.Self(), 0x48, uint32_t{4}, other.Self());
+    s.Mix();
+    Virtual<void*>(s.Self(), 0x54, uint32_t{2}, "0123456789", uint32_t{3});
+    s.Mix();
+    Virtual<void*>(s.Self(), 0x50, uint32_t{1}, other.Self());
+    s.Mix();
+    Virtual<void*>(s.Self(), 0x58, uint32_t{3}, uint32_t{4});
+    s.Mix();
+    Virtual<void*>(s.Self(), 0x58, uint32_t{0}, uint32_t{1});
+    s.Mix();
+    Virtual<void*>(s.Self(), 0x3C, uint32_t{4});
+    s.Mix();
+    Virtual<void*>(s.Self(), 0x3C, uint32_t{9});
+    s.Mix();
+    Virtual<void>(s.Self(), 0x38, static_cast<cIGZString*>(&foreign));
+    s.Mix();
+    MixInto(h, Virtual<void*>(s.Self(), 0x34, other.Self()) == s.Self() ? 1 : 0);
+    s.Mix();
+    Virtual<void>(s.Self(), 0x10, static_cast<const char*>(nullptr));
+    s.Mix();
+    Virtual<void>(other.Self(), 0xC, static_cast<const char*>(nullptr), uint32_t{3});
+    other.Mix();
+    MixInto(h, Virtual<uint32_t>(s.Self(), 0x1C));
+
+    // One on the heap: its interfaces and its count down to the end.
+    void* const memory = reinterpret_cast<void*(__cdecl*)(uint32_t)>(addr::SC4_operator_new)(0x14);
+    void* const heap =
+        reinterpret_cast<void*(__thiscall*)(void*, const char*, uint32_t)>(addr::SC4String_FromBytes)(memory, "heap", 4);
+    MixInto(h, Virtual<uint32_t>(heap, 0x4));
+    void* same = nullptr;
+    MixInto(h, Virtual<bool>(heap, 0x0, uint32_t{0x089B7DC8}, &same) ? 1 : 0);
+    MixInto(h, same == heap ? 1 : 0);
+    MixInto(h, Virtual<bool>(heap, 0x0, uint32_t{1}, &same) ? 1 : 0);
+    MixInto(h, Virtual<bool>(heap, 0x0, uint32_t{0x7E570DFE}, &same) ? 1 : 0);
+    MixInto(h, Virtual<uint32_t>(heap, 0x8));
+    MixInto(h, Virtual<uint32_t>(heap, 0x8));
+    MixInto(h, Virtual<uint32_t>(heap, 0x8));
+    log::Write("autotest: strings driven (hash %08X)", h);
+}
+
+void StringsFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_stringsOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | str %08X", g_stringHash);
+    line += text;
+}
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     if (!g_on)
@@ -913,6 +1073,8 @@ const DayHook kDriveServices{"services", 4, &DriveServices};
 const FingerprintPart kClassesFingerprint{"classes", 4, &ClassesFingerprint};
 const DayHook kDriveClasses{"classes", 4, &DriveClasses};
 const FingerprintPart kStartFingerprint{"service_start", 4, &StartFingerprint};
+const FingerprintPart kStringsFingerprint{"strings", 4, &StringsFingerprint};
+const DayHook kDriveStrings{"strings", 4, &DriveStrings};
 
 } // namespace
 } // namespace opensc4::autotest
