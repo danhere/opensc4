@@ -1,4 +1,4 @@
-# The view input controls for bulldozing, placing lots and zoning: the entries our translations hook (src/core/tool_bulldoze.cpp, tool_zone.cpp).
+# The view input controls for bulldozing, placing lots and zoning (the plop tool included): the entries our translations hook (src/core/tool_bulldoze.cpp, tool_zone.cpp).
 
 [[entry]]
 name = "cSC4ViewInputControlDemolish::Vtable"
@@ -473,3 +473,451 @@ kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8B 4E 2C 85 C9"
 source = "Name ours. No arguments: the cheat tool's destructor body (0x004D7AA0, its deleting destructor, calls it): releases the models at +0x2C and +0x28, then the base destructor. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4PlaceLotOccupantFilter::Vtable"
+address = 0x00A906A4
+kind = "vtable"
+expect = "D0 95 5E 00 00 DF 4B 00"
+source = "Name ours. Main vtable of the occupant filter the plop tool's PlaceLot makes on its stack (derived from SC4::OccupantFilterBase; slot 3 the shared 0x004BDF90, slot 4 the type test 0x004BDFB0, slot 6 the shared deleting destructor 0x006C4A00). Its vtable at +4 is 0x00A9068C."
+
+[[entry]]
+name = "cSC4PlaceLotOccupantFilter::Vtable4"
+address = 0x00A9068C
+kind = "vtable"
+expect = "E0 4E 42 00 00 05 5C 00"
+source = "Name ours. Vtable at +4 of the plop tool's occupant filter (the serializable part of the filter base, 6 slots)."
+
+[[entry]]
+name = "cSC4PlaceLotOccupantFilter::cSC4PlaceLotOccupantFilter"
+address = 0x004BDF70
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 08 C1 12 00"
+source = "Name ours. No arguments, returns this: the base constructor 0x005EA080, then the vtables 0x00A906A4 and 0x00A9068C. Called by PlaceLot (0x004C1A2C). Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4PlaceLotOccupantFilter::IsOccupantTypeIncluded"
+address = 0x004BDFB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D DE D4 90"
+source = "Name ours. Slot 4 of the plop tool's occupant filter, ret 4, this unused: true for every type except 0x2890D4DE and 0x0990B2EA. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4PlaceLotConfigFilter::Vtable"
+address = 0x00A906C0
+kind = "vtable"
+expect = "70 96 48 00 F0 47 5F 00"
+source = "Name ours. Vtable of the plop tool's first lot configuration filter (5 slots on the base filter 0x00A8EC1C: the test 0x004BEDD0 at slot 3, the shared destructor 0x0072A730 at slot 4)."
+
+[[entry]]
+name = "cSC4PlaceLotConfigFilter::cSC4PlaceLotConfigFilter"
+address = 0x004BE0C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 88 B9 FC FF"
+source = "Name ours. (byte acceptAll), ret 4, returns this: the base filter 0x00489A50, the byte at +0xC, vtable 0x00A906C0, and the services 0x00B43D18 (+0x10), 0x00B43CA8 (+0x14) and 0x00B43D68 (+0x18). Called by the tool's Init (0x004C14C0). Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4PlaceLotConfigFilter::Test"
+address = 0x004BEDD0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 55 56 57 8B"
+source = "Name ours. Slot 3 of the first filter, ret 4 (the lot configuration): true when the byte at +0xC is set, the configuration has no primary building object, or none of that object's building exemplars has the bool property 0x2781283F. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4PlaceLotTypeFilter::Vtable"
+address = 0x00A906D4
+kind = "vtable"
+expect = "70 96 48 00 F0 47 5F 00"
+source = "Name ours. Vtable of the plop tool's second lot configuration filter (the test 0x004BE130 at slot 3)."
+
+[[entry]]
+name = "cSC4PlaceLotTypeFilter::cSC4PlaceLotTypeFilter"
+address = 0x004BE100
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 48 B9 FC FF"
+source = "Name ours. (uint32 buildingType), ret 4, returns this: the base filter 0x00489A50, the type at +8, vtable 0x00A906D4, the service 0x00B43D18 at +0xC. Called by the tool's Init (0x004C15B6). Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4PlaceLotTypeFilter::Test"
+address = 0x004BE130
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 48 0C 8B 40 08"
+source = "Name ours. Slot 3 of the second filter, ret 4 (the configuration): the lot configuration manager's LotConfigurationHasBuildingType (slot 17) with the configuration, the type at +8 and 0. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::Vtable"
+address = 0x00A90738
+kind = "vtable"
+expect = "10 DF 4B 00 00 DF 4B 00"
+source = "Name ours. Main vtable of the plop tool (0x158 bytes, constructor 0x004C0430): QueryInterface 0x004BDF10 (shared with the network lot tool), AddRef 0x004BDF00, Release 0x004B9E20, Init 0x004C13E0, Shutdown 0x004C0300, then the base class slots, the mouse handlers and the deleting destructor 0x004C0070 at slot 26."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::MessageVtable"
+address = 0x00A90728
+kind = "vtable"
+expect = "00 FB 4B 00 10 FB 4B 00"
+source = "Name ours. Vtable of the plop tool's message target at +0x28 (4 slots: the adjustor thunks 0x004BFB00, 0x004BFB10 and 0x004BFB20, which subtract 0x28 and jump, and DoMessage 0x004C2F20)."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::CursorByKind"
+address = 0x00A90650
+kind = "data"
+source = "Name ours. Table of cursor IDs by network kind, read at kind 0, 2, 6 and 0xC (0xEBF9A440, 0x8BF9B356, 0xABF9A45C, 0x2BF9B222); FitNetworkPiece hands one out."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::StepX"
+address = 0x00A90718
+kind = "data"
+source = "Name ours. Four int32: the x step of each of the four connection bits (-1, 0, 1, 0), read by FloodCheck."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::StepZ"
+address = 0x00A90708
+kind = "data"
+source = "Name ours. Four int32: the z step of each of the four connection bits (0, -1, 0, 1), read by FloodCheck."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::LotCaption"
+address = 0x00A906E8
+kind = "data"
+source = "Name ours. The characters Lot Plop (8, no terminator counted): the caption of the lot choosing window 0x004BEEF0."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::BuildingCaption"
+address = 0x00A906F4
+kind = "data"
+source = "Name ours. The characters Building Selection (18): the caption of the building choosing window 0x004BF2F0."
+
+[[entry]]
+name = "SC4::UnsetFloat"
+address = 0x00B2183C
+kind = "data"
+source = "Name ours. A float word that is zero when the game runs and never written by code seen; the plop tool starts its position floats and FitRotation its point from it."
+
+[[entry]]
+name = "SC4::FloatEight"
+address = 0x00A8E178
+kind = "data"
+source = "Name ours. The float 8.0 (half a cell)."
+
+[[entry]]
+name = "SC4::FloatSixteen"
+address = 0x00A8D45C
+kind = "data"
+source = "Name ours. The float 16.0 (a cell)."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::ClearOverlay"
+address = 0x004BE0A0
+kind = "function"
+convention = "thiscall"
+expect = "C6 81 18 01 00 00 00 8B"
+source = "Name ours. No arguments: the byte at +0x118 cleared, then the view's slot 0xC4 object (the overlay) through 0x007D20E0 by a jump. Called by DoMessage (0x004C2F53, message 0x49D5B83F). Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::GroundEffect"
+address = 0x004BE150
+kind = "function"
+convention = "stdcall"
+expect = "8B 4C 24 04 8B 01 83 EC"
+source = "Name ours. (occupant), ret 4, no this: the occupant's position (slot 0x20) handed to the service at 0x00B43D60 slot 6 with 2. Called by PlaceLot (0x004C1C27). Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::MovePreview"
+address = 0x004BE180
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 68 A1 0C 3D B4 00"
+source = "Name ours. (float* position, value, flag byte), ret 0xC: the preview at +0xE4 and every record of the vector at +0x144 go to the position moved by their offsets and turns, into the city (prop manager slot 19, occupant manager MoveOccupant) or out of it. Called by 0x004C0680 and 0x004C2660. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::ScoreSide"
+address = 0x004BE5D0
+kind = "function"
+convention = "stdcall"
+expect = "83 EC 18 8B 0D EC 3C B4"
+source = "Name ours. (int32 rect[4], lot configuration, unused, rotation), ret 0x10, ECX unused: counts the network cells along the side of the rectangle that faces the rotation (4 for flag 0x40, 2 for flag 1, 1 for 0x408). Only caller: FitRotation. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::SnapFootprint"
+address = 0x004BE750
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 1D F4 3C"
+source = "Name ours. (rotation, float x, float z, float* snapped x, float* snapped z, int32 rect[4]), ret 0x18: the cell rectangle of the configuration at +0x30 round the point and the point snapped to a cell middle or corner; false when it leaves the terrain. Called by FitRotation, PlaceLot, 0x004C1110, 0x004C2090 and 0x004C3300. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::CopyRange"
+address = 0x004BE8F0
+kind = "function"
+convention = "cdecl"
+expect = "55 8B 6C 24 0C 56 8B 74"
+source = "Name ours. (first, last, dest, tag), 0x14-byte records of the tool's vector: copies [first, last) to dest, skipping a null dest; returns the end of dest. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::FillRecords"
+address = 0x004BE950
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. (dest, count, source, tag): count copies of a 0x14-byte record; returns the end of dest. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::CopyForward"
+address = 0x004BE9A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 55 56 8B 74"
+source = "Name ours. (first, last, dest, tag, 0) on 0x14-byte records: copies forward; returns the end of dest. ClearPreview erases the record vector with first = last = end. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::PriceDemolition"
+address = 0x004BEAB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 8B 44 24 38 53"
+source = "Name ours. (unused, unused, unused, int32 rect[4], int64* price), ret 0x14: DemolishRegion of the demolition service (0x00B43D00 slot 6) over the rectangle with demolish false, privilege 1, flags 0x2800 (0x800 when the cursor at +0x140 is 0xF2). Called by FitRotation, 0x004C1110. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::FitRotation"
+address = 0x004BEB70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 68 B8 18 FC FF FF"
+source = "Name ours. (lot configuration, float box[3], int32* rotation, int32 rect[4]), ret 0x10: tries the four rotations (SnapFootprint, lot manager slot 21, PriceDemolition, ScoreSide) and answers the best one or the preferred one at +0x38. Called by OnMouseMove (0x004C345E). Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::FloodCheck"
+address = 0x004BF6B0
+kind = "function"
+convention = "stdcall"
+expect = "83 EC 1C 8B 4C 24 28 B8"
+source = "Name ours. (int32 rect[4], depth, side), ret 0xC, ECX unused: walks the network cells connected to the rectangle's cells (service 0x00B43D54 slot 8, group 0x1045, connection bits at slot 0xA0) up to depth steps; false when a cell reached answers slot 9 true for the mask of all sides but side. Called by FitNetworkPiece. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::InsertOverflow"
+address = 0x004BF8E0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. (position, record, tag, fill count, at end), ret 0x14: the reallocating insert of the vector of 0x14-byte records (STLport). Only caller: PushBack. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::Destruct"
+address = 0x004BF9E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 38 07 A9"
+source = "Name ours. No arguments: the destructor body (vtables back, the record vector, buffers, windows, preview released, the hash set cleared) ending in the base class destructor by a jump. Called by the deleting destructor. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::FitNetworkPiece"
+address = 0x004BFB30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 44 24 14 53"
+source = "Name ours. (uint32* cursor, uint32* width, float point[3], int32 rect[4]), ret 0x10: snaps the point to the city cell, reads the network piece there (service 0x00B43D54) and answers the cursor, the width, the rectangle and FloodCheck of it. Called by PlaceLot (0x004C186C) and 0x004C3415. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::PushBack"
+address = 0x004BFED0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 3B 46"
+source = "Name ours. (record), ret 4: push_back on the vector of 0x14-byte records (InsertOverflow when full). Called by 0x004C0E21. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::DeletingDestructor"
+address = 0x004C0070
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 68 F9 FF FF"
+source = "Name ours. (flags), ret 4, slot 26: Destruct, then the allocator's delete when bit 0 of flags is set; returns this. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::ClearPreview"
+address = 0x004C0090
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B F1"
+source = "Name ours. No arguments: shuts down and releases the three windows, the texture, the vectors of preview objects, the preview (taken out of the prop manager first) and the records. Called by Shutdown, 0x004C1360 and PlaceLot. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::Shutdown"
+address = 0x004C0300
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 04 33"
+source = "Name ours. Slot 4: with the base flag at +4 set, clears the overlay, gives the cursor back, ClearPreview, lets go of the services at +0x68 and +0x4C, takes the six messages off the message server and ends in the base Shutdown. Always true. Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::ChooseLotConfiguration"
+address = 0x004BEEF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 53 55 56 57 89"
+source = "Name ours. (default ID), ret 4: the modal window that lists the configurations of the hash set at +0x54 (ID and name per row) and answers the ID picked or the default. Called by Init (0x004C150A, 0x004C1617). Ours in ui.tools.plop1."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::ChooseBuilding"
+address = 0x004BF2F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 53 55 56 57 89"
+source = "Name ours. (default ID), ret 4: the same window for the building IDs of the vector at +0x6C, the names from the service at +0x68 slot 0x94. Called by Init (0x004C1575). Ours in ui.tools.plop1."
+
+[[entry]]
+name = "SC4ViewMarkers::F7D20E0"
+address = 0x007D20E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 57 8D"
+source = "Name ours, not analysed. No arguments, plain ret: a method of the object the city view gives at slot 0xC4 (the overlay markers); the plop tool calls it when it hides its cursor overlay."
+
+[[entry]]
+name = "SC4ViewMarkers::F7D1D10"
+address = 0x007D1D10
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 08 53"
+source = "Name ours, not analysed. (value), ret 4: a method of the object the city view gives at slot 0xC4; stores the value at +0x14 and walks the markers. Shutdown calls it with 0."
+
+[[entry]]
+name = "SC4PtrVector::CopyForward"
+address = 0x00568BA0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 55 8B 6C 24"
+source = "Name ours, not analysed. (first, last, dest, tag, 0): the pointer vector's copy; with first = last = end it returns dest, which erases a vector when the caller sets its end to the result."
+
+[[entry]]
+name = "SC4UI::ListControlConstruct"
+address = 0x009ABC95
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 53 56 8B F1 57"
+source = "Name ours, not analysed. (uint32 window ID), ret 4: constructor of the list control of 0x2E8 bytes (vtable 0x00ADD578, a second interface at +4) that the plop tool's choosing windows use."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::Init"
+address = 0x004C13E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 55 56 8B F1 8A"
+source = "Name ours. Slot 17 of the plop tool (vtable 0x00A90738), no arguments, a bool. Does nothing but answer true once +4 is set; else sets the tool IDs 0x88F154FB and 0x88E70B76 at +0xC and +0x10, the base Init 0x005FB1D0, six message registrations for the part at +0x28 (0x277A9364, 0x99EF1142, 0x99EF1143, 0x49D5B83F, 0xA6B79602, 0xC9F775BB), the lot configuration manager (0x00B43D18) at +0x4C and the building development simulator (0x00B43D68) at +0x68, works out the configuration ID at +0x30 (or the key ID at +0x34 when +0x2C is set) from the menu's choice with two filters and two window functions, reads the base cost from the building at +0x128, makes the preview and the effect at +0xD8. False after Shutdown when the choice leaves nothing. Ours in ui.tools.plop2 (src/core/tool_plop_2.cpp)."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::SetConfiguration"
+address = 0x004C1360
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 30 57 8B"
+source = "Name ours. (id), ret 4, no result used: when it differs from +0x30 the preview is released (0x004C0090), +0x30 set and the preview built (0x004C0680). Only caller 0x004C342E (mouse move). Ours in ui.tools.plop2 (src/core/tool_plop_2.cpp)."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::TestPlacement"
+address = 0x004C1110
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 53 8B 5C 24 48"
+source = "Name ours. (const float position[3], rotation, int32 rect[4] out, uint8 ok out, int64 cost out, int32 verdict out, game string reason out), ret 0x1C, a bool. Snaps the position to cells (0x004BE750), false outside the footprint function's answer or inside the last footprint box (+0x78); else cost = base cost (+0x128) plus the demolition cost of the rectangle (building development slot 0x90 object, slot 32), the lot manager's CanCreatePloppedLot (slot 21) verdict 8 = fits (then the ground check 0x004BEAB0 adds its cost), any other verdict 0-7 sets the reason text (localized string group 0x0A419226). Only callers PlaceLot and 0x004C3300. Ours in ui.tools.plop2 (src/core/tool_plop_2.cpp)."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::BuildPreview"
+address = 0x004C0680
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 8C 00 00 00 53 55"
+source = "Name ours. No arguments, no result: the lot configuration's model and cursor flags at +0x108..+0x124 and the footprint picture (a framed white pixel buffer made through 0x00B43C9C slot 3 and uploaded as a texture at +0x100, sized to a power of two up to 0x100). Drawing: left the game's, called by address. Callers Init, SetConfiguration, PlaceLot."
+
+[[entry]]
+name = "SC4::TutorialAllowsPlacement"
+address = 0x00441B20
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 4C 24 08"
+source = "Name ours. (area, int32 rect[4]), a bool in AL: with the area from the tutorial system's object (city slot 82, then slot 10 and its slot 5). Called here by address."
+
+[[entry]]
+name = "SC4PlopOccupantA::Construct"
+address = 0x006483C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 56 8B"
+source = "Name ours, class not identified. (flag), ret 4: constructor of a 0x250-byte occupant made by PlaceLot when the building's exemplar has property 0x88ED3303; returns this. Called here by address."
+
+[[entry]]
+name = "SC4PlopOccupantB::Construct"
+address = 0x00652C30
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 56 8B"
+source = "Name ours, class not identified. (flag), ret 4: constructor of a 0x250-byte occupant made by PlaceLot when the network manager (city slot 0x98 object, slot 9) says yes to the building's holder; returns this. Called here by address."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::DoMessage"
+address = 0x004C2F20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "Name ours. Slot 3 of the plop tool's message target (vtable 0x00A90728 at object + 0x28, so this is the object + 0x28), ret 4, always false: 0x49D5B83F clears the hover (0x004BE0A0); 0x277A9364 shows or hides the overlay holder at +0xAC by the service 0x00B43CF4 object's slot 0x50; 0x99EF1142 and 0x99EF1143 empty the view's map; 0xA6B79602 and 0xC9F775BB let go of both overlay objects and update the preview. Ours in ui.tools.plop3 (src/core/tool_plop_3.cpp)."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::OnKeyDown"
+address = 0x004C3060
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 E8 27 81 13"
+source = "Name ours. Slot 14 of the plop tool's vtable 0x00A90738 (OnKeyDown), ret 8: (key, modifiers). When the tool is current, the view's key accelerator turns the key into a command; rotate right 0x6A935CD5 and left 0x6A935CD1 turn the lot, the mouse move runs for the last position, the preview is updated. Ours in ui.tools.plop3."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::OnMouseDownL"
+address = 0x004C3120
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 56 8B F1 8B 4E"
+source = "Name ours. Slot 16 (OnMouseDownL), ret 0xC: (x, z, modifiers). Picks the terrain and calls PlaceLot (0x004C1740) with smoke 1 at 0x004C318B; after a placement keeps the lot bounds, clears the overlays and the cost indicator, counts +0x154 down; a refusal plays the sound 0xAA62C9D5. Returns whether a lot was placed. Ours in ui.tools.plop3."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::OnMouseMove"
+address = 0x004C3300
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 48 53 55 56 8B F1"
+source = "Name ours. Slot 20 (OnMouseMove), ret 0xC: (x, z, modifiers). Picks the point, tests the placement (0x004BE750, 0x004BFB30 or 0x004BEB70), builds the cursor text and the cost (0x004C1110), sets the cursor text 0xE9C877FA and the cost indicator, updates the preview when anything changed. Always true. Ours in ui.tools.plop3."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::OnMouseExit"
+address = 0x004C36C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 33 C9 8A 8E 94"
+source = "Name ours. Slot 22 (OnMouseExit), no arguments: hides the preview, empties the cursor text, clears it and the cost indicator on the view. Always true. Ours in ui.tools.plop3."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::UpdatePreview"
+address = 0x004C2660
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 08 83 EC 6C 84"
+source = "Name ours. (allowed byte, shown byte, float* point), ret 0xC. Moves, makes and hides the cursor overlay objects (arrow, footprint rectangles and tint) through the effects service 0x00B43D1C with inline vertex arithmetic, and when the allowed byte differs from +0x94 sets the cursor (slot 8) to 0x88E70B76 or 0x417EE2CB. Drawing: left the game, called at its address by ui.tools.plop3."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::UpdateFootprint"
+address = 0x004C2090
+kind = "function"
+convention = "thiscall"
+expect = "81 EC A4 00 00 00 55 8B"
+source = "Name ours. (float* point), ret 4. Builds the footprint's overlay rectangles into the vectors at +0xE8 and +0xF4 from the placement test 0x004BE750. Drawing: left the game's; only caller is UpdatePreview."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::PositionEpsilon"
+address = 0x00A90688
+kind = "data"
+source = "Name ours. float 0.0001: the plop tool's mouse move updates the preview when the picked point moved by this much or more."

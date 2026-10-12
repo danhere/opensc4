@@ -58,6 +58,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/tool_plop.h"
 
 #include <GZCLSIDDefs.h>
 #include <GZServPtrs.h>
@@ -111,9 +112,13 @@ PlaceLotFn g_placeLot = nullptr;
 uint8_t __fastcall PlaceLot(void* self, void* edx, void* a1, void* a2, uint32_t smoke, void* a4)
 {
     ++g_placeLotCalls;
-    if (reinterpret_cast<std::uintptr_t>(_ReturnAddress()) == kLotToolReturn) {
+    // The game's tool returns to kLotToolReturn; our translation of the tool
+    // (tool_plop.h) marks its call.
+    const bool gameTool = reinterpret_cast<std::uintptr_t>(_ReturnAddress()) == kLotToolReturn;
+    if (gameTool || tool_plop::InToolPlaceLot()) {
         if (g_placeLotQuiet++ == 0)
-            log::Write("quiet: first lot placed by the lot tool without smoke (the tool asked for %u)", smoke);
+            log::Write("quiet: first lot placed by the lot tool without smoke (%s; the tool asked for %u)",
+                       gameTool ? "return address in the game's tool" : "marked call of our tool", smoke);
         smoke = 0;
     }
     return g_placeLot(self, edx, a1, a2, smoke, a4);
@@ -281,7 +286,13 @@ bool InstallDemolish(registry::Mode)
 bool InstallPlop(registry::Mode)
 {
     const addr::Entry* const entry = addr_check::Find(addr::cSC4ViewInputControlPlaceLot_PlaceLot);
-    g_plopOn = entry && hook::Install(*entry, &PlaceLot, &g_placeLot);
+    // On our translation when ui.tools.plop2 has put it at the game's entry
+    // (tool_plop.h), else on the game's entry.
+    const bool ours = tool_plop::PlaceLotIsOurs();
+    log::Write("quiet: lot placing wrapper sits on %s", ours ? "our translation" : "the game's entry");
+    g_plopOn = entry && (ours ? hook::InstallAt(entry->name, tool_plop::PlaceLotEntry(), nullptr, 0, &PlaceLot,
+                                                &g_placeLot)
+                              : hook::Install(*entry, &PlaceLot, &g_placeLot));
     log::Write("quiet: lot placing smoke %s", g_plopOn ? "off" : "NOT turned off (hook failed)");
     if (g_plopOn)
         Listen();

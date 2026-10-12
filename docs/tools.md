@@ -6,7 +6,7 @@ The view input controls that the city view makes current while the player holds 
 | --- | --- |
 | Bulldoze | ours (`ui.tools.bulldoze`, below) |
 | Zone | ours (`ui.tools.zone`, below) |
-| Lot (plop) | translated, being merged |
+| Lot (plop) | ours (`ui.tools.plop1` to `ui.tools.plop3`, below) |
 
 ## The bulldoze tool
 
@@ -176,6 +176,19 @@ No run failed. In every B log the group is `ours`. In the zt and plop legs the w
 
 Big City d1095 (leg zt): all six runs have identical fingerprint lines on all eight days and identical ` zonetool` tokens and test lines (lots 3539 to 3547 after the zoning, to 2589 after the de-zoning; funds the same on both sides). Two of the three B runs differ from the A runs only in the prop developer's saved record, where two references in its lists carry the neighbouring class IDs 0x2977AA47 and 0x2977AA49 the other way round (8 of 59 and 42 of 340 entries). In the ztk leg the original's own two runs of this save differ from each other in exactly that way, so the original produces both orders. The same was seen in batches dm5 and pm9 (see [demolition.md](demolition.md) and [propmgr.md](propmgr.md)); what decides the order is not found.
 
+Lot tool, batch `tp9`
+
+2026-10-13: all groups pushed so far plus `ui.tools.plop1` to `ui.tools.plop3` on side B (123 groups), 7 game days per save. The leg with the commit runs with the tutorial off on both sides.
+
+| Leg | Saves | Test switches | Result |
+|---|---|---|---|
+| plain | 12 | none | 12 same on the first pair |
+| pt | 12 | `OPENSC4_TEST_PLOP_TOOL=3 OPENSC4_TEST_PLOP_TOOL_COMMIT=1 OPENSC4_TEST_TUTORIAL_OFF=1` | 12 same |
+| vm | 12 | `OPENSC4_TEST_VIEW_MENUS=3` (the menu test, which makes this tool) | 12 same |
+| plop | 3 (`saves-plopped`) | `OPENSC4_TEST_PLOP_TOOL=3 OPENSC4_TEST_PLOP_TOOL_COMMIT=1` | 3 same |
+
+All 39 first pairs are the same, so no retries ran and no run failed. A first pair that is the same has identical fingerprint lines on every day, the ` ploptool` token and the city after the placed lot included. Quiet plop was not part of this batch; it was compared in the trial runs above.
+
 ## The zone tool
 
 `cSC4ViewInputControlZone` (our name): 0x98 bytes, control ID 0xA766C101, vtable 0x00A92CA8, message target vtable 0x00A92C94 at +0x28, code 0x004DA5A0 to 0x004DC1A0 (src/core/tool_zone.cpp, header tool_zone.h). The constructor is 0x004DAE80 (`SC4ViewTool::Construct4DAE80`); the city view makes it in 0x007E6DA0 with a zone type from 0 to 15, 0 being de-zoning. One group, `ui.tools.zone`, PostAppInit, off by default: 25 hooks, the tool's functions except OnMouseMove (0x004DBE40, slot 20: it builds the outline model's transform inline and stays the game's), plus four functions of the cheat tool before it (vtable 0x00A92AC0: Init 0x004D9E50, constructor 0x004D9E80, Shutdown 0x004D9EA0, destructor body 0x004DA180).
@@ -220,4 +233,146 @@ Keep roads, de-zone commit over the middle half, tutorial off: on Big City d0000
 
 ## The lot (plop) tool
 
-Translated, being merged. Section to follow.
+`cSC4ViewInputControlPlaceLot` (our name): 0x158 bytes, main vtable 0x00A90738, message target vtable 0x00A90728 at +0x28, code 0x004BDF70 to about 0x004C36C0 (src/core/tool_plop_1.cpp, tool_plop_2.cpp, tool_plop_3.cpp, header tool_plop.h). The constructor is 0x004C0430, with four arguments: mode (0 places a lot configuration, else a building), configuration ID, building ID, accept-all. The tool places the lot or building the player picked from a menu.
+
+What it does:
+
+1. Init (slot 17, 0x004C13E0) registers the message target for six messages, takes the lot configuration manager (0x00B43D18) and the building development simulator (0x00B43D68), and works out the lot configuration to place. With a configuration ID it takes that. Without one it fills a set with the configurations the first filter lets through and asks the chooser window (0x004BEEF0) for one, offering the first of the set as the default. In building mode it takes the building ID the same way (chooser 0x004BF2F0), fills the set with the configurations of that building type, and asks the first chooser for one. It then reads the base cost from the building, builds the preview and starts the cursor effect. It returns false, after Shutdown, when the choice leaves nothing.
+2. A move picks the point under the cursor, snaps the footprint to cells, fits the rotation to the roads and builds the cursor text and the cost. The cost indicator shows the price when it is above 0. The preview moves when anything changed (the point by 0.0001 or more).
+3. The placement test (TestPlacement, 0x004C1110) snaps the position to cells, adds the demolition price of what stands in the rectangle to the base cost, and asks the lot manager (slot 21, CanCreatePloppedLot) for a verdict. Verdict 8 means it fits; the ground check (PriceDemolition, 0x004BEAB0) then adds its own price. Verdicts 0 to 7 give a refusal text from the language group 0x0A419226. A position inside the box of the last placed lot (+0x78) is refused without a text and with the cost left at 0.
+4. A press asks PlaceLot (0x004C1740) when the move said the place is allowed. PlaceLot checks the funds, demolishes the footprint (flags 0x2000, with the tool's occupant filter), zones it empty and then with zone type 0xF (0xB or 0xC for some building kinds), makes the lot through the lot manager (slot 22), has the building development simulator build on it, and takes the cost from the budget. It adds marker occupants for two kinds of building (constructors 0x006483C0 and 0x00652C30) and, when the smoke argument is set, starts two smoke effects, the first chosen by the lot's size. A refusal plays the sound 0xAA62C9D5.
+5. After a placement the tool counts +0x154 down and puts itself away below 1 (it starts at 1000).
+6. Exit hides the preview and clears the cursor text and the cost indicator.
+7. The rotate keys go through the view's key accelerator: the commands 0x6A935CD5 (right) and 0x6A935CD1 (left) turn the lot a quarter, and the move runs again for the last mouse position.
+
+PlaceLot has a second caller outside the tool: the function at 0x005C5380 (call at 0x005C5554) builds a tool on the stack with the constructor, points it at a lot configuration and places a lot by code, with a smoke flag of its own. One translation of PlaceLot serves both callers.
+
+Nothing in it reads a clock or draws a random number. The picking goes through the view (slot 0x90), a function of the camera and the terrain.
+
+### Pieces
+
+Three groups, off by default, 36 functions in all.
+
+| Group | File | Functions | Phase | What |
+| --- | --- | --- | --- | --- |
+| `ui.tools.plop1` | tool_plop_1.cpp | 27 | PostAppInit | The tool's occupant filter (constructor, type test), the two lot configuration filters (constructors, tests), MovePreview, SnapFootprint, ScoreSide, PriceDemolition, FitRotation, FloodCheck, FitNetworkPiece, GroundEffect, ClearOverlay, the record vector and its helpers (CopyRange, FillRecords, CopyForward, InsertOverflow, PushBack), the constructor, the destructor body, the deleting destructor, ClearPreview, Shutdown, the two chooser windows |
+| `ui.tools.plop2` | tool_plop_2.cpp | 4 | PreAppInit | Init, SetConfiguration (0x004C1360), TestPlacement, PlaceLot |
+| `ui.tools.plop3` | tool_plop_3.cpp | 5 | PostAppInit | DoMessage (0x004C2F20), OnKeyDown (0x004C3060), OnMouseDownL (0x004C3120), OnMouseMove (0x004C3300), OnMouseExit (0x004C36C0) |
+
+The hook tables hold 27, 3 and 5 entries. PlaceLot is installed separately in part 2, so that `game.quiet.plop` can wrap it (see "With quiet plop"). Part 2 installs at PreAppInit, one phase before the other two and before the wrapper.
+
+### Fields
+
+Offsets from the start of the object. The three files name some of them differently (see the note under the table).
+
+| Offset | Field |
+| --- | --- |
+| +0x04 | initialised (set by the base Init) |
+| +0x0C, +0x10 | the tool's IDs 0x88F154FB and 0x88E70B76 |
+| +0x1C | the city view |
+| +0x20 | an object released after a move |
+| +0x28 | the message target part |
+| +0x2C | mode: 0 places a lot configuration, else a building |
+| +0x30 | the lot configuration ID |
+| +0x34 | the building ID |
+| +0x38, +0x3C | the rotation the player chose, the rotation in use (0 to 3) |
+| +0x40 | the rotation at the last preview update (-1 at construction) |
+| +0x44, +0x48 | the last mouse position, in screen pixels |
+| +0x4C | the lot configuration manager (referenced) |
+| +0x50 | accept-all byte, given to the first configuration filter |
+| +0x54 | a hash set of the configuration IDs the filter let through (0x14 bytes, count at +0x64) |
+| +0x68 | the building development simulator (referenced) |
+| +0x6C | a vector of building IDs |
+| +0x78 to +0x84 | the bounds of the last placed lot, four ints |
+| +0x88 to +0x90 | the picked point, three floats |
+| +0x94, +0x95 | the placement is allowed; the preview is shown |
+| +0x98 | the cursor text (a game string, characters at +0x9C) |
+| +0xAC | an overlay holder |
+| +0xB0, +0xC4 | game strings: the names of the cursor effect and of the smoke effect |
+| +0xD8 | the cursor effect made from +0xB0 |
+| +0xDC, +0xE0 | the cursor overlay objects, let go on a placement |
+| +0xE4 | the preview (referenced) |
+| +0xE8, +0xF4 | two vectors of preview objects |
+| +0x100 | a texture binding |
+| +0x108 to +0x114 | a rotation offset byte; the preview's offset, three floats (the game's "unset" float at the start) |
+| +0x118 | a byte: the cursor overlay is shown; PlaceLot sets it when it starts the smoke |
+| +0x120 | a float, the scale of the smoke effect |
+| +0x128 | the base cost, 64 bits |
+| +0x138 | the cached cost, 64 bits, -100000 for none |
+| +0x140 | the cursor ID in use (0 for none) |
+| +0x144 | a vector of 0x14-byte records, each moved with the preview |
+| +0x150 | a byte: the special mode, set by Init when the configuration ID is the cursor 0xEBF9A440 |
+| +0x154 | placements left (1000 at construction) |
+
+The files' constant names differ for +0x40 (cell flags in part 1), +0x50 (accept-all in part 1, filter flag in part 2), +0x68 (zone service in part 1, development simulator in part 2), +0x118 (overlay shown in part 1, marker in part 2, byte 118 in part 3), +0x154 (tuning in part 1, placements left in part 3) and +0xD8 to +0xE0 (three windows in part 1, the effect at +0xD8 and the overlays at +0xDC and +0xE0 in parts 2 and 3). The table gives the meaning the code supports.
+
+### The placement test and the cost
+
+TestPlacement works the cost out once per rectangle change and the answer is kept at +0x138. PlaceLot recomputes it only while it is -100000. The answer of PlaceLot is true when the cost was worked out in that call and nothing was placed, and otherwise the result of the placement or its failure.
+
+### With quiet plop
+
+`game.quiet.plop` ([quiet.md](quiet.md)) detours PlaceLot and clears the smoke argument for the tool's own call, recognised by the return address 0x004C3190 (after the call at 0x004C318B in OnMouseDownL). Our OnMouseDownL calls PlaceLot from core.dll, so the return address the wrapper sees is ours. Two things make it work:
+
+- Our PlaceLot installs at the game's entry at PreAppInit. The wrapper (PostAppInit) hooks our function when ours is in place, and the game's entry otherwise. The log says which: `quiet: lot placing wrapper sits on our translation` or `... on the game's entry`.
+- The wrapper's test also accepts a call our tool marks (`InToolPlaceLot`, `PlaceLotCallSite`, set around the call in OnMouseDownL). The call from 0x005C5554 returns elsewhere and keeps its own smoke flag.
+
+The wrapper logs once which kind it saw: "return address in the game's tool" or "marked call of our tool".
+
+The smoke flag is not display only. Placing with it off changes the `occbase` and `occmgr` parts of the daily fingerprint, on the original as with ours.
+
+### Left the game's
+
+- UpdatePreview (0x004C2660) and its footprint builder (0x004C2090): drawing, the cursor's overlay objects (the arrow, the footprint rectangles and their tint), built with inline vertex arithmetic through the effects service.
+- BuildPreview (0x004C0680): it mixes logic with building the preview texture.
+- The shared helpers 0x004BDF10 (QueryInterface, also the network lot tool's), 0x004BDF90 (the filter slot), 0x004BDFD0 (RotateRectangle), 0x004BFF30 (the reference vector's fill insert), 0x004C1390, 0x004C3730, 0x004C3750 and 0x004C37A0.
+- The adjustor thunks 0x004BFB00, 0x004BFB10 and 0x004BFB20 (the network lot tool's message vtable shares them).
+- The view input control base class.
+
+### Two slips found at the merge
+
+The tool was translated by three people in parallel, one part each. Two mistakes showed at the merge and were fixed against the disassembly before the first run: in OnMouseMove the call to the placement test passed the allowed-flag slot where the picked point belongs as the position, and the rectangle scratch was initialised four bytes off from where the callees read it.
+
+### Oddities of the original, kept
+
+- A position inside the last placed lot's box is refused with no text and a cost of 0.
+- Init's building path reads the view's slot 0xD0 without testing the view for null.
+- OnMouseMove and the marker code reuse stack slots for other values (the marker's position vector is the x, the cost's high word and the height), and the frame is kept so the callees see what they saw.
+- PlaceLot passes the zone manager a whole stack word where the callee reads a byte; ours passes the byte.
+- PlaceLot returns true when it only worked out the cost.
+
+### How it is tested
+
+`OPENSC4_TEST_PLOP_TOOL=<day>` (src/core/tool_plop_autotest.cpp, token ` ploptool`). It calls only the game's addresses and the tool's vtable slots, never our functions, so a run with the groups on and one with them off compare. Pointers are left out of the hashes.
+
+1. The configuration: the first lot, scanning the cells from the north-west, whose configuration the lot configuration manager knows and which fits in 6x6 cells. This is 0x30000B61 on Big City d0000 and the plopped save, and 0x30000B51 on Making Money d0090. A tool made with a configuration ID never opens a chooser window.
+2. Made: the tool as the city view makes it (constructor with mode 0, the configuration, no building, accept-all 0; then the view's SetCurrentViewInputControl, slot 0x64, which runs Init). Its plain fields.
+3. Checks: three spots (a free place, a place on lots, a place on water or off the map, found with the lot manager's CanCreateLot), each with the four rotations: SnapFootprint, FitRotation, PriceDemolition and TestPlacement. Their returns, rectangles, snapped points, prices, verdicts and refusal texts.
+4. Handlers: OnKeyDown with 14 keys, DoMessage with four messages that open no window (three of the tool's and one unknown), OnMouseExit.
+5. Away: the view's slot 0x68; the view's current control is null again.
+
+`OPENSC4_TEST_PLOP_TOOL_COMMIT=1` adds one real placement. A new tool is made and the mouse is moved (OnMouseMove) over a grid of screen points in a fixed order (rows from z = 60 to 700 in steps of 40, columns from x = 40 to 980 in steps of 60) until the tool reports placing allowed (+0x94). Then OnMouseDownL goes to that point, picks the terrain again and asks PlaceLot. The pick is reproducible with the camera untouched. The point, the return and the fields after are hashed. The lot count and the funds before and after are only logged; the daily fingerprint shows the rest. A tutorial city holds the placing back, so the commit runs with `OPENSC4_TEST_TUTORIAL_OFF=1` there.
+
+What the test does not reach, 13 of the 36 functions (23 run as ours, by first-call logging in a run with the commit and quiet plop on Big City d0000): the two chooser windows (never triggered on purpose), FitNetworkPiece and FloodCheck (the special mode), SetConfiguration, the two lot configuration filter classes, four container helpers, and the rotate keys: no key tried produced a rotate command, and the accelerator's mapping is not known. They rest on reading the code.
+
+### Trial results
+
+2026-10-13, single runs of 7 days on Big City d0000, Making Money d0090 and plopped p0000. The original twice and ours once per case.
+
+| Case | Result |
+| --- | --- |
+| No test; the menu test; the port plopping test | 9 of 9 identical |
+| The new test alone; with commit; with commit and quiet plop; after the menu test | 12 of 12 identical |
+| Unchanged-city check, no commit switch | identical on all three saves |
+
+The commit:
+
+| Save | Screen point | Tries | Result |
+| --- | --- | --- | --- |
+| Big City d0000 | (280,140) | 37 | funds 1,035,332 to 1,035,240 |
+| Making Money d0090 | (340,220) | 70 | lots 429 to 430 |
+| Plopped p0000 | (40,60) | 1 | lots 3518 to 3519; funds 1,261,124 to 1,261,032 |
+
+Quiet plop: the wrapper's line reads "return address in the game's tool" on the original and "marked call of our tool" on ours. Both count one lot placed without smoke.
+
+One B run of the no-test case on Big City d0000 differed in the `adv` part from day 2 while a build ran on the machine. The repeat was identical to both A runs.
