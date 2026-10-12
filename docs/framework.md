@@ -395,7 +395,7 @@ All on the first pair. The `str` part was the same in all 24 runs of the test's 
 
 23 functions. Some have direct callers in game code, so every detour is entered through a thunk that keeps ECX and EDX.
 
-Still the game's: the constructor (0x009134D6, 283 direct callers), the destructor (0x009133AB), the pool's allocate and free (0x009133DA, 0x00913409), and the getters of the type, the data values and the unknown, which are small functions shared with unrelated classes.
+Still the game's: the getters of the type, the data values and the unknown, which are small functions shared with unrelated classes.
 
 ### Testing
 
@@ -413,3 +413,31 @@ All 25 framework groups on against the original (the service start trace on both
 | `OPENSC4_TEST_MESSAGE_OBJECT=2` | 12 same | 12 same |
 
 All on the first pair. The `mobj` part was the same in all 48 runs of the test's leg and its control.
+
+### The constructor, the destructor and the pool
+
+A message's memory comes from a pool of its own (0x00B627E0), through two functions that 280 places in the game call directly before the constructor. The pool has nine block allocators, for blocks of 8, 16, 32 and so on up to 2,048 bytes. A request gets four more bytes in front for a header and goes to the first allocator whose block holds it; the header is the allocator's number in the top byte and the size with the header below it. What no allocator holds (more than 2,044 bytes) comes from the C runtime, with the top bit set in the header. The free reads the header's top byte to give the block back where it came from, and does nothing for a null pointer. Both hold the pool's lock (0x00B62870) while they work.
+
+The constructor makes an empty message without a reference. The destructor sets the vtable back to the standard message's (a subclass's destructor ends in it) and releases the extra object, the unknown and the string, in that order.
+
+`src/core/framework_messagepool.cpp`, entry detours, off by default:
+
+| Replacement | Functions |
+|---|---|
+| `framework.message.lifetime` | the constructor 0x009134D6, the destructor 0x009133AB |
+| `framework.message.pool` | allocate 0x009133DA, free 0x00913409 |
+
+4 functions. The game's constructor returns the message in EAX, leaves ECX at 0 and keeps every other register, and its 282 callers may count on any of that, so ours is entered through a thunk of its own that leaves the registers the same way.
+
+Still the game's: the block allocators (the pool's allocate 0x005B9FC0 and free 0x00505190 are a class other pools share, so their logic is written out in ours instead of hooked; the allocators' own slots give and take the blocks) and the C runtime's malloc and free.
+
+`OPENSC4_TEST_MESSAGE_POOL=<day>` takes blocks of every size class from the pool, at each class's upper edge and one byte past it, and two sizes only the C runtime holds; reads their headers, writes and reads back their bytes and frees them, with a null pointer too. Then it builds a message with the constructor on memory filled with a pattern and reads every byte, and ends a message that has a foreign vtable and holds a string and two counted objects, reading the vtable and the reference counts after. The results go into the fingerprint's `mpool` part. All four functions run in every city without the test.
+
+All 27 framework groups on against the original (the service start trace on both sides), 12 saves, 7 days, two jobs, 2026-10-12, each leg with a control (the original on both sides):
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 12 same | 12 same |
+| `OPENSC4_TEST_MESSAGE_POOL=2` | 12 same | 12 same |
+
+All on the first pair. The `mpool` part was the same in all 48 runs of the test's leg and its control.
