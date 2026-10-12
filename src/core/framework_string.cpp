@@ -24,7 +24,8 @@
 // append, insert, replace, erase, find), the lowering (it goes through the
 // language's wide characters for text that is not ASCII), the three
 // constructors used for the copies, the C runtime's strlen, strncmp and
-// memcmp, Sprintf (0x0090F574) and the destructor are still the game's.
+// memcmp and the destructor are still the game's; Sprintf (0x0090F574) is in
+// framework_stringformat.cpp.
 //
 // Game code calls many of these directly, and may keep ECX and EDX across
 // the call: every detour is entered through a thunk that keeps both.

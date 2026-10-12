@@ -1392,3 +1392,11 @@ name = "Kernel32::DeleteCriticalSection"
 address = 0x00A80230
 kind = "data"
 source = "The exe's import slot."
+
+[[entry]]
+name = "CRT::_snprintf"
+address = 0x009F2108
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 20 8B 45"
+source = "The exe's statically linked C runtime _snprintf (buffer, count, format, ...): a negative result when the text does not fit. cRZBaseString::Sprintf formats its floating point values with it (0x0090F8CA)."
