@@ -8,7 +8,12 @@ from .common import header
 # types 0xC7CC75F1 and 0x496E5783: vehicles, pedestrians, animals). They move
 # by frames, and their saved number and cells differed between runs of the
 # original in the parity batches.
-AUTOMATA = {0x896E714A, 0x4A5B69ED, 0xCBB32B0A, 0x896E75AF}
+AUTOMATA = {0x896E714A, 0x4A5B69ED, 0xCBB32B0A, 0x896E75AF,
+            # A train (cSC4Train, registered with the four above): a city
+            # with a rail line and a station was saved with or without a
+            # train in it, from run to run of the original (saves-networks,
+            # docs/experiments/determinism.md).
+            0x8A41625A}
 
 
 def occupant_manager(r):
