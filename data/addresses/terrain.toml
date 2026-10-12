@@ -1829,3 +1829,427 @@ kind = "function"
 convention = "thiscall"
 expect = "8B C1 8B 4C 24 04 8B 11"
 source = "Name ours. (from): assigns a 0x80-byte record. (docs/renderer.md, \"A cell's own texture\")."
+
+[[entry]]
+name = "STE::SetUp"
+address = 0x0075C0C0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 4C 53 55 6A 08 E8"
+source = "Name ours. (): the terrain view's one-time set-up, run by the first view that starts (0x00B4C740 says it has run): registers the shutdown (0x00758BC0) with the framework, loads the tuning (0x00758990), gets the texture factory (0x00B4C704), makes five arrays of 0x00B4BC44 dwords (0x00B4C670), loads textures, makes the row layer lists (a vector of lists at 0x00B4C7E0, 0x100 of them) and the dirty row bits (0x00B4C7EC, 0x100 bits). (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::ShutDownStatics"
+address = 0x00758BC0
+kind = "function"
+convention = "cdecl"
+expect = "A0 40 C7 B4 00 53 33 DB"
+source = "Name ours. (): undoes the set-up: unregisters itself, frees the buffers (0x00758750), releases the textures and the arrays, clears 0x00B4C740. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::LoadTuning"
+address = 0x00758990
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 1C 8B 0D A8 3C B4"
+source = "Name ours. (): reads the terrain view's tuning values. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::LoadTuningTable"
+address = 0x00757300
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 1C 8B 0D 38 C7 B4"
+source = "Name ours. (): reads a table of the tuning. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsInsert"
+address = 0x0075BBE0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. (place, count, list): puts copies of a list into the vector of row layer lists. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsGrow"
+address = 0x0075B340
+kind = "function"
+convention = "cdecl"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. (place, list, ?, count, bool): moves the vector of row layer lists to a bigger block. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsDestroy"
+address = 0x0075AE90
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. (first, last): destroys a run of row layer lists. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListConstruct"
+address = 0x0075AEC0
+kind = "function"
+convention = "cdecl"
+expect = "56 57 8B F1 6A 10 C7 06"
+source = "Name ours. (from): makes a row layer list as a copy of another. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsDestroyRange"
+address = 0x0075AF00
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. (first, last): destroys a run of lists (another instance). (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsCopy"
+address = 0x0075AF30
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 57 8B 7C 24"
+source = "Name ours. (first, last, to): assigns a run of lists. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsCopyConstruct"
+address = 0x0075AF70
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 53 55"
+source = "Name ours. (first, last, to): copies a run of lists into raw memory. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsCopyBackward"
+address = 0x0075AFD0
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. (first, last, end): assigns a run of lists, last first. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListsFill"
+address = 0x0075B170
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 55 56 8B"
+source = "Name ours. (to, count, list): fills raw memory with copies of a list. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListInsertRange"
+address = 0x0075A9D0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 0C 53 55 56 57"
+source = "Name ours. (place, first, last): puts a run of nodes into a list. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListAssign"
+address = 0x0075AE00
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 53 55 8B E9"
+source = "Name ours. (from): assigns one list to another. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListInsertNode"
+address = 0x00758700
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 10 56 8B 74"
+source = "Name ours. (out place, place, value): puts one node into a list. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListInsertNodes"
+address = 0x00758E20
+kind = "function"
+convention = "cdecl"
+expect = "53 55 8B D9 8B 4C 24 0C"
+source = "Name ours. (...): puts nodes into a list. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "STE::RowListErase"
+address = 0x00759A10
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 55 8B 6C"
+source = "Name ours. (out place, first, last): takes a run of nodes out of a list of row layers and frees them, with each node's own list. (docs/renderer.md, \"The terrain view's set-up\")."
+
+[[entry]]
+name = "cSTETerrainView3D::Init"
+address = 0x0075C420
+kind = "function"
+convention = "thiscall"
+expect = "A0 40 C7 B4 00 83 EC 18"
+source = "Name ours. (terrain): starts the view for a city (+0x18 says it is started): runs the one-time set-up if needed (0x0075C0C0), keeps the terrain (+0x20) and the terrain's cells (+0x1C), frees and rebuilds the drawing buffers, makes the view's parts (the overlay manager, the cell marks, the shore and others, kept from +0x78 on) and gives them to the 3D render, fills the heights of every vertex (0x007569F0, 0x00756B00) and picks the zoom's textures. (docs/renderer.md, \"The terrain view's start and stop\")."
+
+[[entry]]
+name = "cSTETerrainView3D::Shutdown"
+address = 0x007560F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 18 33"
+source = "Name ours. (): stops the view (+0x18 cleared): takes its parts back from the 3D render (slot 0x84), destroys them and releases what Init kept. (docs/renderer.md, \"The terrain view's start and stop\")."
+
+[[entry]]
+name = "cSTETerrainView3D::MarkRowsDirty"
+address = 0x00755ED0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. (first row, last row): sets the dirty bits of those rows (0x00B4C7EC, bit offset 0x00B4C7F0). (docs/renderer.md, \"The terrain view's start and stop\")."
+
+[[entry]]
+name = "cSTETerrainView3D::UpdateAllCellIndices"
+address = 0x00755FB0
+kind = "function"
+convention = "thiscall"
+expect = "A1 48 C7 B4 00 53 57 33"
+source = "Name ours. (): redoes the indices of every cell, row by row (0x00752AF0). (docs/renderer.md, \"The terrain view's start and stop\")."
+
+[[entry]]
+name = "cSTETerrainView3D::SetSize"
+address = 0x007595A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 39 0D 44 C7"
+source = "Name ours. (cells across, cells down), cdecl: when the size differs from the one kept (0x00B4C744, 0x00B4C748) keeps it with the values derived from it (vertex columns and rows 0x00B4C74C, 0x00B4C750, vertex count 0x00B4C754, the index steps from 0x00B4C710 on), frees the drawing buffers (0x00758750) and builds them again (0x00758EA0). (docs/renderer.md, \"The terrain view's start and stop\")."
+
+[[entry]]
+name = "cSTETerrainView3D::Create"
+address = 0x00757470
+kind = "function"
+convention = "cdecl"
+expect = "68 E8 00 00 00 E8 66 E1"
+source = "Name ours. (): the class's factory: allocates 0xE8 bytes, constructs the view (0x007567C0) and returns its interface at +0xC. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::Construct"
+address = 0x007567C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "Name ours. (): the constructor: the five vtables (+0 0x00AB4480, +4 0x00AB4468, +0xC 0x00AB4410, +0x10 0x00AB4400, +0x14 0x00AB43E8), the fields cleared, +0x31, +0x48, +0x49 and +0xB8 set, the height range at +0x64 and +0x68 set to the largest and smallest float. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::Destruct"
+address = 0x00756980
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 18 84"
+source = "Name ours. (): the destructor: stops the view when it is started (0x007560F0), releases the texture at +0x88 and the four drawables at +0x78 to +0x84. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DeletingDestruct"
+address = 0x00757540
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 38 F4 FF FF"
+source = "Name ours. (flags): the destructor (0x00756980), then frees the object when bit 0 is set. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::DeletingDestructThunk"
+address = 0x00756900
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 38 0C 00 00"
+source = "Name ours. (flags): the deleting destructor for the part at +4. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::QueryInterface"
+address = 0x00752730
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 60 F9 89"
+source = "Name ours. (interface ID, out): 0x6771477D gives the part at +0xC, 0x452294AA the part at +0x10, 0xE4FDA3D4 the part at +0x14, 0xC989F960 and 0xC9B84E10 the object; anything else goes to the base at +4 (0x009457C6). Adds a reference. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::QueryInterfaceThunk4"
+address = 0x007568F0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 38 BE FF FF"
+source = "Name ours. (interface ID, out): QueryInterface for the part at +4. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::QueryInterfaceThunkC"
+address = 0x00756910
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 18 BE FF FF"
+source = "Name ours. (interface ID, out): QueryInterface for the part at +0xC. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::QueryInterfaceThunk10"
+address = 0x00756920
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 10 E9 08 BE FF FF"
+source = "Name ours. (interface ID, out): QueryInterface for the part at +0x10. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::QueryInterfaceThunk14"
+address = 0x00756950
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 14 E9 D8 BD FF FF"
+source = "Name ours. (interface ID, out): QueryInterface for the part at +0x14. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::AddRefThunk10"
+address = 0x00756930
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 10 E9 A8 7A E6 FF"
+source = "Name ours. (): AddRef for the part at +0x10 (shared code 0x005BE3E0). (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::ReleaseThunk10"
+address = 0x00756940
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 10 E9 E8 61 E6 FF"
+source = "Name ours. (): Release for the part at +0x10 (shared code 0x005BCB30). (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::AddRefThunk14"
+address = 0x00756960
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 14 E9 78 7A E6 FF"
+source = "Name ours. (): AddRef for the part at +0x14 (shared code 0x005BE3E0). (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::ReleaseThunk14"
+address = 0x00756970
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 14 E9 B8 61 E6 FF"
+source = "Name ours. (): Release for the part at +0x14 (shared code 0x005BCB30). (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::GetClassID"
+address = 0x007523E0
+kind = "function"
+convention = "thiscall"
+expect = "B8 10 4E B8 C9 C3 CC CC"
+source = "Name ours. (): 0xC9B84E10. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::GetDrawable"
+address = 0x007558A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 44 81 6C"
+source = "Name ours. (n): one of the four drawables the start makes (the view's +0x78 to +0x84); `this` is the part at +0xC. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::AddColourChangedArea"
+address = 0x00755F30
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 10 85"
+source = "Name ours. (rect or null): adds an area (null: every cell) to the rectangle at the view's +0x34; the view's +0x31 says it is empty. `this` is the part at +0xC. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::SetDetail"
+address = 0x007574A0
+kind = "function"
+convention = "cdecl"
+expect = "A1 FC D6 B0 00 56 8B 74"
+source = "Name ours. (detail): when it differs from the one kept at 0x00B0D6FC, drops the textures (0x00756CA0), keeps it and picks the zoom's textures again (0x007571D0). (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::GetSavedFlag"
+address = 0x00752AE0
+kind = "function"
+convention = "thiscall"
+expect = "A0 41 C7 B4 00 C3 CC CC"
+source = "Name ours. (): the byte at 0x00B4C741, which the view saves and loads. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::PickNoWater"
+address = 0x00752700
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 10 8B 41 0C 6A"
+source = "Name ours. (four arguments): Pick (slot 0xC of the same part) with a last argument of 0. `this` is the part at +0xC. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::CellMarksForward0"
+address = 0x00751ED0
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 60 85 C9 74 05 E9"
+source = "Name ours. (): when the view has cell marks (+0x6C) goes on to their 0x00750CA0. `this` is the part at +0xC. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::CellMarksSetColour"
+address = 0x00752660
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 60 85 C9 74 05 E9"
+source = "Name ours. (cells, colour, refresh): when the view has cell marks goes on to STECellMarks::SetColour (0x007516D0), else returns false. `this` is the part at +0xC. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::CellMarksForward1"
+address = 0x00752680
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 60 85 C9 74 05 E9"
+source = "Name ours. (three arguments): the same for the cell marks' 0x00751780. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::CellMarksForward2"
+address = 0x007526A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 60 85 C9 74 05 E9"
+source = "Name ours. (three arguments): the same for the cell marks' 0x00751910. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::CellMarksForward3"
+address = 0x007526C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 60 85 C9 74 05 E9"
+source = "Name ours. (seven arguments): the same for the cell marks' 0x007519A0. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::CellMarksForward4"
+address = 0x007526E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 60 85 C9 74 05 E9"
+source = "Name ours. (seven arguments): the same for the cell marks' 0x00751A70. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::SetPickMarks"
+address = 0x00752860
+kind = "function"
+convention = "thiscall"
+expect = "8A 54 24 04 8A 41 24 88"
+source = "Name ours. (bool): sets the view's +0x30 (while set, a pick's hit marks its cell) and returns the old value. `this` is the part at +0xC. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::GetOption49"
+address = 0x007568E0
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 3D C3 CC CC CC CC"
+source = "Name ours. (): the view's byte at +0x49. `this` is the part at +0xC. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "cSTETerrainView3D::SetOption49"
+address = 0x00756080
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 8A 51 3D 83"
+source = "Name ours. (bool): when it differs, keeps it at the view's +0x49 and adds every cell to the changed rectangle at +0x4C. `this` is the part at +0xC. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "STE::MergeSpan"
+address = 0x00758B10
+kind = "function"
+convention = "stdcall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. (a layer node's span list, {first, last}), stdcall: adds a span to a layer's list, which is kept in order: every span it overlaps is taken out and the new one widened to cover it, then the new one is put in before the first span that lies beyond it. (docs/renderer.md, \"Row layer lists\")."

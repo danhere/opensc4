@@ -42,7 +42,7 @@ constexpr struct {
 } kOwners[] = {
     {0x00424B00, 0x0042E300}, // cSC4MySim
     {0x00433000, 0x00434800}, // cSC4MySimDispatch
-    {0x0043A050, 0x0043EBA0}, // cSC4MyStreetSim
+    {0x0043A050, 0x0043EBA0}, // the MySim tools (0x0043A050 to 0x0043D0F0) and cSC4MyStreetSim with its tool (0x0043D0F0 to 0x0043EB90)
     {0x00552BD0, 0x00552D00}, // the MySim balloon timer
     {0x0041A990, 0x0041B240}, // cSC4AdvisorSystem: runs its advisors (MySims among them) every 500 ms
 };

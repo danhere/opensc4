@@ -13,6 +13,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/settings.h"
 #include "core/thunk.h"
 
 #include "core/gd/frame_trace.h"
@@ -2674,11 +2675,38 @@ OPENSC4_THUNK(TGrid, DGrid, 8)
 using RebuildFn = void(__fastcall*)(char*, void*, int32_t);
 RebuildFn g_rebuild;
 bool g_compareRebuild = false;
+bool g_compareRowSpans = false; // renderer.terrain.rowspans in compare mode
+extern bool g_dataMapGameRun;
 
 void __fastcall DRebuild(char* self, void*, int32_t row)
 {
     if (g_depth > 0)
         return g_rebuild(self, nullptr, row);
+    if (g_compareRowSpans) {
+        // The row's lists as built through our span functions, then as the
+        // game's rebuild builds them with the game's own.
+        RebuildRowLayers(self, row);
+        const std::vector<uint32_t> mine = RowLayerList(row);
+        g_dataMapGameRun = true;
+        g_rebuild(self, nullptr, row);
+        g_dataMapGameRun = false;
+        const std::vector<uint32_t> theirs = RowLayerList(row);
+        const bool same = mine == theirs;
+        char text[64] = "", mineText[64] = "";
+        if (!same) {
+            std::snprintf(text, sizeof(text), "row %d: %zu values", row, theirs.size());
+            std::snprintf(mineText, sizeof(mineText), "row %d: %zu values", row, mine.size());
+        }
+        size_t layers = 0;
+        for (const uint32_t value : theirs)
+            layers += value == 0xFFFFFFFF;
+        compare::Record("terrain.rowspans", same, text, mineText);
+        if (layers)
+            compare::Record("terrain.rowspans.withlayers", same, text, mineText);
+        if (theirs.size() > layers * 4)
+            compare::Record("terrain.rowspans.severalspans", same, text, mineText);
+        return;
+    }
     if (!g_compareRebuild)
         return RebuildRowLayers(self, row);
     const int32_t index = Global<int32_t>(addr::STE_DirtyRowBase) + row;
@@ -7200,6 +7228,1565 @@ const bool g_registeredCellTexture = registry::Register({
     "row's records (docs/renderer.md, \"A cell's own texture\")",
     true,
     InstallCellTexture,
+});
+
+// The terrain view's one-time set-up and its undoing (docs/renderer.md, "The
+// terrain view's set-up"), with the helpers of the row layer lists.
+// Translated instruction by instruction and entered like the pixel routines.
+bool g_compareTerrainSetUp;
+
+// How many row layer lists and dirty row bits the set-up makes. The game
+// makes 0x100, the rows of the largest standard city. With [improvements]
+// big_cities on it is the size the set-up's other arrays have (0x00B4BC44),
+// and never fewer than 0x100 (docs/city-size.md).
+uint32_t TerrainRowCapacity()
+{
+    static const bool bigCities = settings::GetBool("improvements", "big_cities", false);
+    const uint32_t size = Global<uint32_t>(0x00B4BC44);
+    return bigCities && size > 0x100 ? size : 0x100;
+}
+
+void* g_terrainSetUpSetUp;
+void* g_terrainSetUpShutDownStatics;
+void __cdecl TerrainSetUpSetUpOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: SetUp call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const uint32_t rowCapacity = TerrainRowCapacity();
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_setup.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: SetUp left %d values on the x87 stack", top + 1);
+}
+
+// Compare mode: the set-up can be undone and done again (that is what its
+// shutdown is for), so ours runs, its result is taken, and then twice the
+// game's shutdown and the game's set-up run and theirs is taken. The result
+// is the view's globals (0x00B4C600 to 0x00B4C840), the tuning (0x00B4BE00)
+// and the lengths of the vectors made; a global that holds three addresses,
+// not all the same, points at something each set-up makes anew and is left
+// out, as is a byte the game's own two results disagree on.
+void __cdecl TerrainSetUpSetUp(EntryFrame* frame)
+{
+    if (!g_compareTerrainSetUp) {
+        TerrainSetUpSetUpOurs(frame);
+        return;
+    }
+    using PlainFn = uint32_t(__cdecl*)();
+    const auto result = [] {
+        std::vector<char> bytes(reinterpret_cast<char*>(0x00B4C600), reinterpret_cast<char*>(0x00B4C840));
+        bytes.insert(bytes.end(), reinterpret_cast<char*>(0x00B4BE00), reinterpret_cast<char*>(0x00B4BE20));
+        const uint32_t lengths[3] = {Global<uint32_t>(0x00B4C7E4) - Global<uint32_t>(0x00B4C7E0),
+                                     Global<uint32_t>(0x00B4C7E8) - Global<uint32_t>(0x00B4C7E0), Global<uint32_t>(0x00B4BC44)};
+        bytes.insert(bytes.end(), reinterpret_cast<const char*>(lengths), reinterpret_cast<const char*>(lengths + 3));
+        // What the pointers lead to, so that a wrong pointer shows: the five
+        // arrays' contents, how many nodes each row layer list has, and how
+        // far apart the dirty row bits' pointers are.
+        const uint32_t size = Global<uint32_t>(0x00B4BC44);
+        for (uint32_t i = 0; i < 5; ++i) {
+            const char* const array = Global<const char*>(0x00B4C670 + 4 * i);
+            if (array && size <= 0x10000)
+                bytes.insert(bytes.end(), array, array + size * 4);
+        }
+        const uint32_t* const lists = Global<const uint32_t*>(0x00B4C7E0);
+        for (uint32_t i = 0; lists && i < lengths[0] / 4 && i < 0x10000; ++i) {
+            uint32_t nodes = 0;
+            const uint32_t sentinel = lists[i];
+            for (uint32_t node = sentinel ? *reinterpret_cast<const uint32_t*>(sentinel) : 0; node && node != sentinel && nodes < 100000;
+                 node = *reinterpret_cast<const uint32_t*>(node))
+                ++nodes;
+            bytes.insert(bytes.end(), reinterpret_cast<const char*>(&nodes), reinterpret_cast<const char*>(&nodes) + 4);
+        }
+        for (uint32_t at = 0x00B4C7F0; at < 0x00B4C800; at += 4) {
+            const uint32_t apart = Global<uint32_t>(at) - Global<uint32_t>(0x00B4C7EC);
+            bytes.insert(bytes.end(), reinterpret_cast<const char*>(&apart), reinterpret_cast<const char*>(&apart) + 4);
+        }
+        while (bytes.size() % 4)
+            bytes.push_back(0);
+        return bytes;
+    };
+    const auto redo = [] {
+        g_dataMapGameRun = true;
+        reinterpret_cast<PlainFn>(g_terrainSetUpShutDownStatics)();
+        const uint32_t answer = reinterpret_cast<PlainFn>(g_terrainSetUpSetUp)();
+        g_dataMapGameRun = false;
+        return answer;
+    };
+    if (g_selfCheck) {
+        g_dataMapGameRun = true;
+        frame->eax = reinterpret_cast<PlainFn>(g_terrainSetUpSetUp)();
+        g_dataMapGameRun = false;
+    } else {
+        TerrainSetUpSetUpOurs(frame);
+    }
+    const std::vector<char> first = result();
+    redo();
+    const std::vector<char> second = result();
+    frame->eax = redo();
+    const std::vector<char> third = result();
+    const auto word = [](const std::vector<char>& bytes, size_t at) {
+        uint32_t value;
+        std::memcpy(&value, bytes.data() + at, 4);
+        return value;
+    };
+    const auto mapped = [](uint32_t address) {
+        MEMORY_BASIC_INFORMATION info{};
+        return address >= 0x10000 && VirtualQuery(reinterpret_cast<void*>(address), &info, sizeof info) && info.State == MEM_COMMIT;
+    };
+    size_t differing = first.size() == second.size() && second.size() == third.size() ? 0 : 1, firstAt = 0, unsettled = 0;
+    for (size_t i = 0; i + 4 <= first.size() && i + 4 <= second.size() && i + 4 <= third.size(); i += 4) {
+        const uint32_t a = word(first, i), b = word(second, i), c = word(third, i);
+        if ((a != b || b != c) && mapped(a) && mapped(b) && mapped(c))
+            unsettled += 4;
+        else if (b != c)
+            unsettled += 4;
+        else if (a != b && !differing++)
+            firstAt = i;
+    }
+    char detail[160];
+    std::snprintf(detail, sizeof detail, "%zu of %zu dwords differ, %zu bytes left out as unsettled (first at %zu), row capacity %u",
+                  differing, first.size() / 4, unsettled, firstAt, TerrainRowCapacity());
+    log::Write("terrain set-up: compared: %s", detail);
+    compare::Record(g_selfCheck ? "terrain.setup.selfcheck" : "terrain.setup", !differing, "the game's set-up", detail);
+}
+DATAMAP_ENTRY(TTerrainSetUpSetUp, TerrainSetUpSetUp, g_terrainSetUpSetUp, 0)
+
+void __cdecl TerrainSetUpShutDownStatics(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: ShutDownStatics call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_shutdownstatics.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: ShutDownStatics left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpShutDownStatics, TerrainSetUpShutDownStatics, g_terrainSetUpShutDownStatics, 0)
+
+void* g_terrainSetUpLoadTuning;
+void __cdecl TerrainSetUpLoadTuning(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: LoadTuning call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_loadtuning.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: LoadTuning left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpLoadTuning, TerrainSetUpLoadTuning, g_terrainSetUpLoadTuning, 0)
+
+void* g_terrainSetUpLoadTuningTable;
+void __cdecl TerrainSetUpLoadTuningTable(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: LoadTuningTable call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_loadtuningtable.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: LoadTuningTable left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpLoadTuningTable, TerrainSetUpLoadTuningTable, g_terrainSetUpLoadTuningTable, 0)
+
+void* g_terrainSetUpRowListsInsert;
+void __cdecl TerrainSetUpRowListsInsert(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListsInsert call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlistsinsert.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListsInsert left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListsInsert, TerrainSetUpRowListsInsert, g_terrainSetUpRowListsInsert, 12)
+
+void* g_terrainSetUpRowListsGrow;
+void __cdecl TerrainSetUpRowListsGrow(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListsGrow call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlistsgrow.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListsGrow left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListsGrow, TerrainSetUpRowListsGrow, g_terrainSetUpRowListsGrow, 20)
+
+void* g_terrainSetUpRowListsDestroy;
+void __cdecl TerrainSetUpRowListsDestroy(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListsDestroy call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlistsdestroy.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListsDestroy left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListsDestroy, TerrainSetUpRowListsDestroy, g_terrainSetUpRowListsDestroy, 0)
+
+void* g_terrainSetUpRowListConstruct;
+void __cdecl TerrainSetUpRowListConstruct(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListConstruct call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlistconstruct.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListConstruct left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListConstruct, TerrainSetUpRowListConstruct, g_terrainSetUpRowListConstruct, 4)
+
+void* g_terrainSetUpRowListsDestroyRange;
+void __cdecl TerrainSetUpRowListsDestroyRange(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListsDestroyRange call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlistsdestroyrange.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListsDestroyRange left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListsDestroyRange, TerrainSetUpRowListsDestroyRange, g_terrainSetUpRowListsDestroyRange, 0)
+
+void* g_terrainSetUpRowListsCopy;
+void __cdecl TerrainSetUpRowListsCopy(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListsCopy call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlistscopy.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListsCopy left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListsCopy, TerrainSetUpRowListsCopy, g_terrainSetUpRowListsCopy, 0)
+
+void* g_terrainSetUpRowListsCopyConstruct;
+void __cdecl TerrainSetUpRowListsCopyConstruct(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListsCopyConstruct call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlistscopyconstruct.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListsCopyConstruct left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListsCopyConstruct, TerrainSetUpRowListsCopyConstruct, g_terrainSetUpRowListsCopyConstruct, 0)
+
+void* g_terrainSetUpRowListsCopyBackward;
+void __cdecl TerrainSetUpRowListsCopyBackward(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListsCopyBackward call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlistscopybackward.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListsCopyBackward left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListsCopyBackward, TerrainSetUpRowListsCopyBackward, g_terrainSetUpRowListsCopyBackward, 0)
+
+void* g_terrainSetUpRowListsFill;
+void __cdecl TerrainSetUpRowListsFill(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListsFill call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlistsfill.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListsFill left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListsFill, TerrainSetUpRowListsFill, g_terrainSetUpRowListsFill, 0)
+
+void* g_terrainSetUpRowListInsertRange;
+void __cdecl TerrainSetUpRowListInsertRange(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListInsertRange call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlistinsertrange.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListInsertRange left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListInsertRange, TerrainSetUpRowListInsertRange, g_terrainSetUpRowListInsertRange, 16)
+
+void* g_terrainSetUpRowListAssign;
+void __cdecl TerrainSetUpRowListAssign(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListAssign call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlistassign.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListAssign left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListAssign, TerrainSetUpRowListAssign, g_terrainSetUpRowListAssign, 4)
+
+void* g_terrainSetUpRowListInsertNode;
+void __cdecl TerrainSetUpRowListInsertNode(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListInsertNode call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlistinsertnode.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListInsertNode left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListInsertNode, TerrainSetUpRowListInsertNode, g_terrainSetUpRowListInsertNode, 16)
+
+void* g_terrainSetUpRowListInsertNodes;
+void __cdecl TerrainSetUpRowListInsertNodes(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListInsertNodes call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlistinsertnodes.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListInsertNodes left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListInsertNodes, TerrainSetUpRowListInsertNodes, g_terrainSetUpRowListInsertNodes, 4)
+
+void* g_terrainSetUpRowListErase;
+void __cdecl TerrainSetUpRowListErase(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain set-up: RowListErase call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainsetup_rowlisterase.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain set-up: RowListErase left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainSetUpRowListErase, TerrainSetUpRowListErase, g_terrainSetUpRowListErase, 12)
+
+bool InstallTerrainSetUp(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareTerrainSetUp = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::STE_SetUp, &TTerrainSetUpSetUp, &g_terrainSetUpSetUp)
+                           && Detour(addr::STE_ShutDownStatics, &TTerrainSetUpShutDownStatics, &g_terrainSetUpShutDownStatics)
+                           && Detour(addr::STE_LoadTuning, &TTerrainSetUpLoadTuning, &g_terrainSetUpLoadTuning)
+                           && Detour(addr::STE_LoadTuningTable, &TTerrainSetUpLoadTuningTable, &g_terrainSetUpLoadTuningTable)
+                           && Detour(addr::STE_RowListsInsert, &TTerrainSetUpRowListsInsert, &g_terrainSetUpRowListsInsert)
+                           && Detour(addr::STE_RowListsGrow, &TTerrainSetUpRowListsGrow, &g_terrainSetUpRowListsGrow)
+                           && Detour(addr::STE_RowListsDestroy, &TTerrainSetUpRowListsDestroy, &g_terrainSetUpRowListsDestroy)
+                           && Detour(addr::STE_RowListsCopyConstruct, &TTerrainSetUpRowListsCopyConstruct, &g_terrainSetUpRowListsCopyConstruct)
+                           && Detour(addr::STE_RowListsFill, &TTerrainSetUpRowListsFill, &g_terrainSetUpRowListsFill)
+                           && Detour(addr::STE_RowListInsertRange, &TTerrainSetUpRowListInsertRange, &g_terrainSetUpRowListInsertRange)
+                           && Detour(addr::STE_RowListInsertNode, &TTerrainSetUpRowListInsertNode, &g_terrainSetUpRowListInsertNode);
+    if (installed)
+        log::Write("terrain set-up: %s, row capacity %u", g_compareTerrainSetUp ? "compared with the game's" : "ours", TerrainRowCapacity());
+    return installed;
+}
+
+const bool g_registeredTerrainSetUp = registry::Register({
+    "renderer.terrain.setup",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::STE_SetUp,
+    "The terrain view's one-time set-up, its shutdown, the tuning and the row layer list helpers it uses; with "
+    "[improvements] big_cities the row lists and dirty row bits are sized from the terrain's own size; compare mode "
+    "redoes the set-up with the game's and compares the results (docs/renderer.md, \"The terrain view's set-up\")",
+    true,
+    InstallTerrainSetUp,
+});
+
+// Seven more helpers of the row layer lists that no test reaches: translated
+// the same way, never run.
+bool InstallTerrainRowListsUntested(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    const bool installed = Detour(addr::STE_RowListConstruct, &TTerrainSetUpRowListConstruct, &g_terrainSetUpRowListConstruct)
+                           && Detour(addr::STE_RowListsDestroyRange, &TTerrainSetUpRowListsDestroyRange, &g_terrainSetUpRowListsDestroyRange)
+                           && Detour(addr::STE_RowListsCopy, &TTerrainSetUpRowListsCopy, &g_terrainSetUpRowListsCopy)
+                           && Detour(addr::STE_RowListsCopyBackward, &TTerrainSetUpRowListsCopyBackward, &g_terrainSetUpRowListsCopyBackward)
+                           && Detour(addr::STE_RowListAssign, &TTerrainSetUpRowListAssign, &g_terrainSetUpRowListAssign)
+                           && Detour(addr::STE_RowListInsertNodes, &TTerrainSetUpRowListInsertNodes, &g_terrainSetUpRowListInsertNodes)
+                           && Detour(addr::STE_RowListErase, &TTerrainSetUpRowListErase, &g_terrainSetUpRowListErase);
+    if (installed)
+        log::Write("terrain set-up: the seven untested row list helpers ours");
+    return installed;
+}
+
+const bool g_registeredTerrainRowListsUntested = registry::Register({
+    "renderer.terrain.rowlists_untested",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::STE_RowListErase,
+    "Seven helpers of the row layer lists (copy, assign, erase and their kin) that no test reaches, so never run "
+    "(docs/renderer.md, \"The terrain view's set-up\")",
+    true,
+    InstallTerrainRowListsUntested,
+});
+
+// The terrain view's start and stop for a city (docs/renderer.md, "The
+// terrain view's start and stop"). Translated instruction by instruction and
+// entered like the pixel routines above.
+bool g_compareTerrainViewInit;
+
+void* g_terrainLifeInit;
+void __cdecl TerrainLifeInitOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view start: Init call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainlife_init.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view start: Init left %d values on the x87 stack", top + 1);
+}
+void* g_terrainLifeShutdown;
+
+// Compare mode: a started view can be stopped and started again, so ours
+// starts it and its result is taken, then ours stops it and that result is
+// taken; then twice the game's start and the game's stop run and theirs are
+// taken, and the game's start leaves the view started. The size the buffers
+// were built for is forgotten before each of the game's starts, so the game
+// builds them again as it does for a first city. A result is the view
+// (0x100 bytes), the terrain globals (0x00B4C600 to 0x00B4C840) and, when
+// our buffer build has run, every buffer block. A dword that holds mapped
+// addresses, not all the same, in the three results is a pointer to
+// something each start makes anew and is left out, as is anything the game's
+// own two results disagree on.
+void TerrainLifeCompare(const char* name, const std::vector<char>& first, const std::vector<char>& second, const std::vector<char>& third)
+{
+    const auto word = [](const std::vector<char>& bytes, size_t at) {
+        uint32_t value;
+        std::memcpy(&value, bytes.data() + at, 4);
+        return value;
+    };
+    const auto mapped = [](uint32_t address) {
+        MEMORY_BASIC_INFORMATION info{};
+        return address >= 0x10000 && VirtualQuery(reinterpret_cast<void*>(address), &info, sizeof info) && info.State == MEM_COMMIT &&
+               !(info.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+    };
+    size_t differing = first.size() == second.size() && second.size() == third.size() ? 0 : 1, firstAt = 0, unsettled = 0, pointers = 0;
+    for (size_t i = 0; i + 4 <= first.size() && i + 4 <= second.size() && i + 4 <= third.size(); i += 4) {
+        const uint32_t a = word(first, i), b = word(second, i), c = word(third, i);
+        if ((a != b || b != c) && mapped(a) && mapped(b) && mapped(c)) {
+            unsettled += 4;
+            pointers += 4;
+        } else if (b != c) {
+            unsettled += 4;
+        } else if (a != b && !differing++) {
+            firstAt = i;
+        }
+    }
+    char detail[200];
+    std::snprintf(detail, sizeof detail, "%zu of %zu dwords differ (first at %zu; the view is the first 64), %zu bytes left out, %zu of them pointers",
+                  differing, first.size() / 4, firstAt, unsettled, pointers);
+    log::Write("terrain view start: compared %s: %s", name, detail);
+    compare::Record((std::string("terrain.view") + name + (g_selfCheck ? ".selfcheck" : "")).c_str(), !differing, "the game's", detail);
+}
+
+void __cdecl TerrainLifeShutdown(EntryFrame* frame);
+
+void __cdecl TerrainLifeInit(EntryFrame* frame)
+{
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const uint32_t terrain = frame->arguments[0];
+    if (!g_compareTerrainViewInit || At<uint8_t>(self, 0x18) != 0) {
+        TerrainLifeInitOurs(frame);
+        return;
+    }
+    using InitFn = uint32_t(__fastcall*)(char*, void*, uint32_t);
+    using StopFn = uint32_t(__fastcall*)(char*, void*);
+    const auto result = [&] {
+        std::vector<char> bytes(self, self + 0x100);
+        bytes.insert(bytes.end(), reinterpret_cast<char*>(0x00B4C600), reinterpret_cast<char*>(0x00B4C840));
+        for (const Region& region : TerrainBufferRegions())
+            bytes.insert(bytes.end(), region.data, region.data + region.size);
+        while (bytes.size() % 4)
+            bytes.push_back(0);
+        return bytes;
+    };
+    const auto start = [&] {
+        // The size kept from the last start would make the game's skip the
+        // buffers; forgotten, they are freed and built again.
+        Global<uint32_t>(0x00B4C744) = 0xFFFFFFFF;
+        g_dataMapGameRun = true;
+        const uint32_t answer = reinterpret_cast<InitFn>(g_terrainLifeInit)(self, nullptr, terrain);
+        g_dataMapGameRun = false;
+        return answer;
+    };
+    const auto stop = [&] {
+        g_dataMapGameRun = true;
+        reinterpret_cast<StopFn>(g_terrainLifeShutdown)(self, nullptr);
+        g_dataMapGameRun = false;
+    };
+    const EntryFrame entry = *frame;
+    if (g_selfCheck) {
+        start();
+    } else {
+        TerrainLifeInitOurs(frame);
+    }
+    const std::vector<char> started1 = result();
+    if (g_selfCheck) {
+        stop();
+    } else {
+        EntryFrame stopFrame = entry;
+        TerrainLifeShutdown(&stopFrame);
+    }
+    const std::vector<char> stopped1 = result();
+    start();
+    const std::vector<char> started2 = result();
+    stop();
+    const std::vector<char> stopped2 = result();
+    start();
+    const std::vector<char> started3 = result();
+    stop();
+    const std::vector<char> stopped3 = result();
+    *frame = entry;
+    frame->eax = start();
+    TerrainLifeCompare("init", started1, started2, started3);
+    TerrainLifeCompare("shutdown", stopped1, stopped2, stopped3);
+}
+DATAMAP_ENTRY(TTerrainLifeInit, TerrainLifeInit, g_terrainLifeInit, 4)
+
+void __cdecl TerrainLifeShutdown(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view start: Shutdown call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainlife_shutdown.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view start: Shutdown left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainLifeShutdown, TerrainLifeShutdown, g_terrainLifeShutdown, 0)
+
+void* g_terrainLifeMarkRowsDirty;
+void __cdecl TerrainLifeMarkRowsDirty(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view start: MarkRowsDirty call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainlife_markrowsdirty.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view start: MarkRowsDirty left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainLifeMarkRowsDirty, TerrainLifeMarkRowsDirty, g_terrainLifeMarkRowsDirty, 8)
+
+void* g_terrainLifeUpdateAllCellIndices;
+void __cdecl TerrainLifeUpdateAllCellIndices(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view start: UpdateAllCellIndices call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainlife_updateallcellindices.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view start: UpdateAllCellIndices left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainLifeUpdateAllCellIndices, TerrainLifeUpdateAllCellIndices, g_terrainLifeUpdateAllCellIndices, 0)
+
+void* g_terrainLifeSetSize;
+void __cdecl TerrainLifeSetSize(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view start: SetSize call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainlife_setsize.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+    if (top >= 0)
+        log::Write("terrain view start: SetSize left %d values on the x87 stack", top + 1);
+}
+DATAMAP_ENTRY(TTerrainLifeSetSize, TerrainLifeSetSize, g_terrainLifeSetSize, 0)
+
+bool InstallTerrainViewInit(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareTerrainViewInit = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::cSTETerrainView3D_Init, &TTerrainLifeInit, &g_terrainLifeInit)
+                           && Detour(addr::cSTETerrainView3D_Shutdown, &TTerrainLifeShutdown, &g_terrainLifeShutdown)
+                           && Detour(addr::cSTETerrainView3D_MarkRowsDirty, &TTerrainLifeMarkRowsDirty, &g_terrainLifeMarkRowsDirty)
+                           && Detour(addr::cSTETerrainView3D_UpdateAllCellIndices, &TTerrainLifeUpdateAllCellIndices, &g_terrainLifeUpdateAllCellIndices)
+                           && Detour(addr::cSTETerrainView3D_SetSize, &TTerrainLifeSetSize, &g_terrainLifeSetSize);
+    if (installed)
+        log::Write("terrain view start: %s", g_compareTerrainViewInit ? "compared with the game's" : "ours");
+    return installed;
+}
+
+const bool g_registeredTerrainViewInit = registry::Register({
+    "renderer.terrain.viewinit",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_Init,
+    "The terrain view's start and stop for a city, with three helpers; compare mode stops and starts the view again "
+    "with the game's and compares the view, the globals and the buffers (docs/renderer.md, \"The terrain view's start "
+    "and stop\")",
+    true,
+    InstallTerrainViewInit,
+});
+
+// The terrain view's object (docs/renderer.md, "The terrain view's object"):
+// its factory, constructor and destructor, QueryInterface with the parts'
+// thunks and the small methods of its interface. Translated instruction by
+// instruction and entered like the pixel routines above.
+bool g_compareTerrainObject;
+
+void TerrainObjectSideBySide();
+void* g_terrainObjectCreate;
+void __cdecl TerrainObjectCreateOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: Create call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_create.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+void __cdecl TerrainObjectCreate(EntryFrame* frame)
+{
+    if (g_compareTerrainObject)
+        TerrainObjectSideBySide();
+    TerrainObjectCreateOurs(frame);
+}
+DATAMAP_ENTRY(TTerrainObjectCreate, TerrainObjectCreate, g_terrainObjectCreate, 0)
+
+void* g_terrainObjectConstruct;
+void __cdecl TerrainObjectConstruct(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: Construct call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_construct.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectConstruct, TerrainObjectConstruct, g_terrainObjectConstruct, 0)
+
+void* g_terrainObjectDestruct;
+void __cdecl TerrainObjectDestruct(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: Destruct call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_destruct.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+// Compare mode, at the factory: two blocks of our own, filled alike with a
+// byte the constructor never writes, are constructed, one by ours and one by
+// the game's, and compared whole; then one is destructed by ours and one by
+// the game's and they are compared again. A view that was never started
+// holds nothing, so its destructor reaches nothing outside the block.
+void TerrainObjectSideBySide()
+{
+    using Fn = void*(__fastcall*)(char*, void*);
+    alignas(8) char first[kViewSize], second[kViewSize];
+    std::memset(first, 0xA5, sizeof first);
+    std::memset(second, 0xA5, sizeof second);
+    const auto ours = [&](void(__cdecl* body)(EntryFrame*), void* original) {
+        if (g_selfCheck) {
+            g_dataMapGameRun = true;
+            reinterpret_cast<Fn>(original)(first, nullptr);
+            g_dataMapGameRun = false;
+        } else {
+            EntryFrame frame{};
+            frame.ecx = reinterpret_cast<uint32_t>(first);
+            body(&frame);
+        }
+    };
+    const auto theirs = [&](void* original) {
+        g_dataMapGameRun = true;
+        reinterpret_cast<Fn>(original)(second, nullptr);
+        g_dataMapGameRun = false;
+    };
+    const auto check = [&](const char* name) {
+        size_t differing = 0, firstAt = 0, written = 0;
+        for (size_t i = 0; i < sizeof first; ++i) {
+            if (first[i] != second[i] && !differing++)
+                firstAt = i;
+            written += second[i] != static_cast<char>(0xA5);
+        }
+        char detail[160];
+        std::snprintf(detail, sizeof detail, "%zu of %zu bytes differ (first at %zu); at least %zu written", differing, sizeof first, firstAt,
+                      written);
+        log::Write("terrain view object: compared %s: %s", name, detail);
+        compare::Record((std::string("terrain.object.") + name + (g_selfCheck ? ".selfcheck" : "")).c_str(), !differing, "the game's", detail);
+    };
+    ours(TerrainObjectConstruct, g_terrainObjectConstruct);
+    theirs(g_terrainObjectConstruct);
+    check("construct");
+    ours(TerrainObjectDestruct, g_terrainObjectDestruct);
+    theirs(g_terrainObjectDestruct);
+    check("destruct");
+}
+DATAMAP_ENTRY(TTerrainObjectDestruct, TerrainObjectDestruct, g_terrainObjectDestruct, 0)
+
+void* g_terrainObjectDeletingDestruct;
+void __cdecl TerrainObjectDeletingDestruct(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: DeletingDestruct call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_deletingdestruct.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectDeletingDestruct, TerrainObjectDeletingDestruct, g_terrainObjectDeletingDestruct, 4)
+
+void* g_terrainObjectDeletingDestructThunk;
+void __cdecl TerrainObjectDeletingDestructThunk(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: DeletingDestructThunk call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_deletingdestructthunk.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectDeletingDestructThunk, TerrainObjectDeletingDestructThunk, g_terrainObjectDeletingDestructThunk, 4)
+
+void* g_terrainObjectQueryInterface;
+void __cdecl TerrainObjectQueryInterfaceOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: QueryInterface call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_queryinterface.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+// Compare mode: the game's answers the same question after ours; what it
+// handed out is released again.
+void __cdecl TerrainObjectQueryInterface(EntryFrame* frame)
+{
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const uint32_t id = frame->arguments[0];
+    void** const out = reinterpret_cast<void**>(frame->arguments[1]);
+    TerrainObjectQueryInterfaceOurs(frame);
+    if (!g_compareTerrainObject || !out)
+        return;
+    using Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, void**);
+    void* theirs = nullptr;
+    g_dataMapGameRun = true;
+    const uint32_t answer = reinterpret_cast<Fn>(g_terrainObjectQueryInterface)(self, nullptr, id, &theirs);
+    if (theirs)
+        Virtual<uint32_t>(theirs, 0x8);
+    g_dataMapGameRun = false;
+    const bool same = (answer & 0xFF) == (frame->eax & 0xFF) && theirs == *out;
+    char detail[120];
+    std::snprintf(detail, sizeof detail, "interface %08X: ours %u %p, the game's %u %p", id, frame->eax & 0xFF, *out, answer & 0xFF, theirs);
+    if (!same)
+        log::Write("terrain view object: QueryInterface differs: %s", detail);
+    compare::Record("terrain.object.queryinterface", same, "the game's", detail);
+    compare::Record(theirs ? "terrain.object.queryinterface.found" : "terrain.object.queryinterface.notfound", same, "the game's", detail);
+}
+DATAMAP_ENTRY(TTerrainObjectQueryInterface, TerrainObjectQueryInterface, g_terrainObjectQueryInterface, 8)
+
+void* g_terrainObjectQueryInterfaceThunk4;
+void __cdecl TerrainObjectQueryInterfaceThunk4(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: QueryInterfaceThunk4 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_queryinterfacethunk4.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectQueryInterfaceThunk4, TerrainObjectQueryInterfaceThunk4, g_terrainObjectQueryInterfaceThunk4, 8)
+
+void* g_terrainObjectQueryInterfaceThunkC;
+void __cdecl TerrainObjectQueryInterfaceThunkC(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: QueryInterfaceThunkC call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_queryinterfacethunkc.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectQueryInterfaceThunkC, TerrainObjectQueryInterfaceThunkC, g_terrainObjectQueryInterfaceThunkC, 8)
+
+void* g_terrainObjectQueryInterfaceThunk10;
+void __cdecl TerrainObjectQueryInterfaceThunk10(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: QueryInterfaceThunk10 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_queryinterfacethunk10.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectQueryInterfaceThunk10, TerrainObjectQueryInterfaceThunk10, g_terrainObjectQueryInterfaceThunk10, 8)
+
+void* g_terrainObjectQueryInterfaceThunk14;
+void __cdecl TerrainObjectQueryInterfaceThunk14(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: QueryInterfaceThunk14 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_queryinterfacethunk14.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectQueryInterfaceThunk14, TerrainObjectQueryInterfaceThunk14, g_terrainObjectQueryInterfaceThunk14, 8)
+
+void* g_terrainObjectAddRefThunk10;
+void __cdecl TerrainObjectAddRefThunk10(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: AddRefThunk10 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_addrefthunk10.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectAddRefThunk10, TerrainObjectAddRefThunk10, g_terrainObjectAddRefThunk10, 0)
+
+void* g_terrainObjectReleaseThunk10;
+void __cdecl TerrainObjectReleaseThunk10(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: ReleaseThunk10 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_releasethunk10.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectReleaseThunk10, TerrainObjectReleaseThunk10, g_terrainObjectReleaseThunk10, 0)
+
+void* g_terrainObjectAddRefThunk14;
+void __cdecl TerrainObjectAddRefThunk14(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: AddRefThunk14 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_addrefthunk14.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectAddRefThunk14, TerrainObjectAddRefThunk14, g_terrainObjectAddRefThunk14, 0)
+
+void* g_terrainObjectReleaseThunk14;
+void __cdecl TerrainObjectReleaseThunk14(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: ReleaseThunk14 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_releasethunk14.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectReleaseThunk14, TerrainObjectReleaseThunk14, g_terrainObjectReleaseThunk14, 0)
+
+void* g_terrainObjectGetClassID;
+void __cdecl TerrainObjectGetClassIDOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: GetClassID call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_getclassid.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+void __cdecl TerrainObjectGetClassID(EntryFrame* frame)
+{
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const EntryFrame entry = *frame;
+    TerrainObjectGetClassIDOurs(frame);
+    if (!g_compareTerrainObject)
+        return;
+    using Fn = uint32_t(__fastcall*)(char*, void*);
+    g_dataMapGameRun = true;
+    const uint32_t theirs = reinterpret_cast<Fn>(g_terrainObjectGetClassID)(self, nullptr);
+    g_dataMapGameRun = false;
+    const bool same = (theirs & 0xFFFFFFFF) == (frame->eax & 0xFFFFFFFF);
+    char detail[80];
+    std::snprintf(detail, sizeof detail, "argument %08X: ours %08X, the game's %08X", entry.arguments[0], frame->eax & 0xFFFFFFFF, theirs & 0xFFFFFFFF);
+    if (!same)
+        log::Write("terrain view object: GetClassID differs: %s", detail);
+    compare::Record("terrain.object.getclassid", same, "the game's", detail);
+}
+DATAMAP_ENTRY(TTerrainObjectGetClassID, TerrainObjectGetClassID, g_terrainObjectGetClassID, 0)
+
+void* g_terrainObjectGetDrawable;
+void __cdecl TerrainObjectGetDrawableOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: GetDrawable call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_getdrawable.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+void __cdecl TerrainObjectGetDrawable(EntryFrame* frame)
+{
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const EntryFrame entry = *frame;
+    TerrainObjectGetDrawableOurs(frame);
+    if (!g_compareTerrainObject)
+        return;
+    using Fn = uint32_t(__fastcall*)(char*, void*, uint32_t);
+    g_dataMapGameRun = true;
+    const uint32_t theirs = reinterpret_cast<Fn>(g_terrainObjectGetDrawable)(self, nullptr, frame->arguments[0]);
+    g_dataMapGameRun = false;
+    const bool same = (theirs & 0xFFFFFFFF) == (frame->eax & 0xFFFFFFFF);
+    char detail[80];
+    std::snprintf(detail, sizeof detail, "argument %08X: ours %08X, the game's %08X", entry.arguments[0], frame->eax & 0xFFFFFFFF, theirs & 0xFFFFFFFF);
+    if (!same)
+        log::Write("terrain view object: GetDrawable differs: %s", detail);
+    compare::Record("terrain.object.getdrawable", same, "the game's", detail);
+}
+DATAMAP_ENTRY(TTerrainObjectGetDrawable, TerrainObjectGetDrawable, g_terrainObjectGetDrawable, 4)
+
+void* g_terrainObjectAddColourChangedArea;
+void __cdecl TerrainObjectAddColourChangedAreaOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: AddColourChangedArea call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_addcolourchangedarea.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+// Compare mode: the view is copied, ours adds the area, the result is kept
+// and the copy put back, the game's adds it, and the two views are compared.
+void __cdecl TerrainObjectAddColourChangedArea(EntryFrame* frame)
+{
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    if (!g_compareTerrainObject) {
+        TerrainObjectAddColourChangedAreaOurs(frame);
+        return;
+    }
+    char* const view = self - 0xC;
+    char before[kViewSize], first[kViewSize];
+    std::memcpy(before, view, kViewSize);
+    using Fn = void(__fastcall*)(char*, void*, uint32_t);
+    const EntryFrame entry = *frame;
+    const auto game = [&] {
+        g_dataMapGameRun = true;
+        reinterpret_cast<Fn>(g_terrainObjectAddColourChangedArea)(self, nullptr, entry.arguments[0]);
+        g_dataMapGameRun = false;
+    };
+    if (g_selfCheck)
+        game();
+    else
+        TerrainObjectAddColourChangedAreaOurs(frame);
+    std::memcpy(first, view, kViewSize);
+    std::memcpy(view, before, kViewSize);
+    game();
+    const bool same = std::memcmp(first, view, kViewSize) == 0;
+    const bool changed = std::memcmp(before, view, kViewSize) != 0;
+    if (!same)
+        log::Write("terrain view object: AddColourChangedArea differs");
+    const std::string name = std::string("terrain.object.addcolourchangedarea") + (g_selfCheck ? ".selfcheck" : "");
+    compare::Record(name.c_str(), same, "the game's view", "");
+    if (changed)
+        compare::Record((name + ".working").c_str(), same, "the game's view", "");
+    compare::Record((name + (entry.arguments[0] ? ".rect" : ".all")).c_str(), same, "the game's view", "");
+}
+DATAMAP_ENTRY(TTerrainObjectAddColourChangedArea, TerrainObjectAddColourChangedArea, g_terrainObjectAddColourChangedArea, 4)
+
+void* g_terrainObjectSetDetail;
+void __cdecl TerrainObjectSetDetailOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: SetDetail call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_setdetail.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+// A change of detail drops and picks textures and cannot run twice; a call
+// with the detail already kept does nothing in either.
+void __cdecl TerrainObjectSetDetail(EntryFrame* frame)
+{
+    if (g_compareTerrainObject)
+        compare::Record(frame->arguments[0] == Global<uint32_t>(0x00B0D6FC) ? "terrain.object.setdetail.same" : "terrain.object.setdetail.unrepeatable", true, "",
+                        "");
+    TerrainObjectSetDetailOurs(frame);
+}
+DATAMAP_ENTRY(TTerrainObjectSetDetail, TerrainObjectSetDetail, g_terrainObjectSetDetail, 0)
+
+void* g_terrainObjectGetSavedFlag;
+void __cdecl TerrainObjectGetSavedFlagOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: GetSavedFlag call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_getsavedflag.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+void __cdecl TerrainObjectGetSavedFlag(EntryFrame* frame)
+{
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const EntryFrame entry = *frame;
+    TerrainObjectGetSavedFlagOurs(frame);
+    if (!g_compareTerrainObject)
+        return;
+    using Fn = uint32_t(__fastcall*)(char*, void*);
+    g_dataMapGameRun = true;
+    const uint32_t theirs = reinterpret_cast<Fn>(g_terrainObjectGetSavedFlag)(self, nullptr);
+    g_dataMapGameRun = false;
+    const bool same = (theirs & 0xFF) == (frame->eax & 0xFF);
+    char detail[80];
+    std::snprintf(detail, sizeof detail, "argument %08X: ours %08X, the game's %08X", entry.arguments[0], frame->eax & 0xFF, theirs & 0xFF);
+    if (!same)
+        log::Write("terrain view object: GetSavedFlag differs: %s", detail);
+    compare::Record("terrain.object.getsavedflag", same, "the game's", detail);
+}
+DATAMAP_ENTRY(TTerrainObjectGetSavedFlag, TerrainObjectGetSavedFlag, g_terrainObjectGetSavedFlag, 0)
+
+void* g_terrainObjectPickNoWater;
+void __cdecl TerrainObjectPickNoWater(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: PickNoWater call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_picknowater.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectPickNoWater, TerrainObjectPickNoWater, g_terrainObjectPickNoWater, 16)
+
+void* g_terrainObjectCellMarksForward0;
+void __cdecl TerrainObjectCellMarksForward0(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: CellMarksForward0 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_cellmarksforward0.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectCellMarksForward0, TerrainObjectCellMarksForward0, g_terrainObjectCellMarksForward0, 0)
+
+void* g_terrainObjectCellMarksSetColour;
+void __cdecl TerrainObjectCellMarksSetColour(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: CellMarksSetColour call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_cellmarkssetcolour.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectCellMarksSetColour, TerrainObjectCellMarksSetColour, g_terrainObjectCellMarksSetColour, 12)
+
+void* g_terrainObjectCellMarksForward1;
+void __cdecl TerrainObjectCellMarksForward1(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: CellMarksForward1 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_cellmarksforward1.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectCellMarksForward1, TerrainObjectCellMarksForward1, g_terrainObjectCellMarksForward1, 12)
+
+void* g_terrainObjectCellMarksForward2;
+void __cdecl TerrainObjectCellMarksForward2(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: CellMarksForward2 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_cellmarksforward2.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectCellMarksForward2, TerrainObjectCellMarksForward2, g_terrainObjectCellMarksForward2, 12)
+
+void* g_terrainObjectCellMarksForward3;
+void __cdecl TerrainObjectCellMarksForward3(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: CellMarksForward3 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_cellmarksforward3.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectCellMarksForward3, TerrainObjectCellMarksForward3, g_terrainObjectCellMarksForward3, 28)
+
+void* g_terrainObjectCellMarksForward4;
+void __cdecl TerrainObjectCellMarksForward4(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: CellMarksForward4 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_cellmarksforward4.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectCellMarksForward4, TerrainObjectCellMarksForward4, g_terrainObjectCellMarksForward4, 28)
+
+void* g_terrainObjectSetPickMarks;
+void __cdecl TerrainObjectSetPickMarks(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: SetPickMarks call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_setpickmarks.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectSetPickMarks, TerrainObjectSetPickMarks, g_terrainObjectSetPickMarks, 4)
+
+void* g_terrainObjectGetOption49;
+void __cdecl TerrainObjectGetOption49(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: GetOption49 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_getoption49.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectGetOption49, TerrainObjectGetOption49, g_terrainObjectGetOption49, 0)
+
+void* g_terrainObjectSetOption49;
+void __cdecl TerrainObjectSetOption49(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: SetOption49 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_setoption49.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectSetOption49, TerrainObjectSetOption49, g_terrainObjectSetOption49, 4)
+
+bool InstallTerrainObject(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareTerrainObject = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::cSTETerrainView3D_Create, &TTerrainObjectCreate, &g_terrainObjectCreate)
+                           && Detour(addr::cSTETerrainView3D_Construct, &TTerrainObjectConstruct, &g_terrainObjectConstruct)
+                           && Detour(addr::cSTETerrainView3D_Destruct, &TTerrainObjectDestruct, &g_terrainObjectDestruct)
+                           && Detour(addr::cSTETerrainView3D_DeletingDestruct, &TTerrainObjectDeletingDestruct, &g_terrainObjectDeletingDestruct)
+                           && Detour(addr::cSTETerrainView3D_DeletingDestructThunk, &TTerrainObjectDeletingDestructThunk, &g_terrainObjectDeletingDestructThunk)
+                           && Detour(addr::cSTETerrainView3D_QueryInterface, &TTerrainObjectQueryInterface, &g_terrainObjectQueryInterface)
+                           && Detour(addr::cSTETerrainView3D_QueryInterfaceThunkC, &TTerrainObjectQueryInterfaceThunkC, &g_terrainObjectQueryInterfaceThunkC)
+                           && Detour(addr::cSTETerrainView3D_QueryInterfaceThunk14, &TTerrainObjectQueryInterfaceThunk14, &g_terrainObjectQueryInterfaceThunk14)
+                           && Detour(addr::cSTETerrainView3D_AddRefThunk10, &TTerrainObjectAddRefThunk10, &g_terrainObjectAddRefThunk10)
+                           && Detour(addr::cSTETerrainView3D_ReleaseThunk10, &TTerrainObjectReleaseThunk10, &g_terrainObjectReleaseThunk10)
+                           && Detour(addr::cSTETerrainView3D_AddRefThunk14, &TTerrainObjectAddRefThunk14, &g_terrainObjectAddRefThunk14)
+                           && Detour(addr::cSTETerrainView3D_ReleaseThunk14, &TTerrainObjectReleaseThunk14, &g_terrainObjectReleaseThunk14)
+                           && Detour(addr::cSTETerrainView3D_GetDrawable, &TTerrainObjectGetDrawable, &g_terrainObjectGetDrawable)
+                           && Detour(addr::cSTETerrainView3D_AddColourChangedArea, &TTerrainObjectAddColourChangedArea, &g_terrainObjectAddColourChangedArea)
+                           && Detour(addr::cSTETerrainView3D_SetDetail, &TTerrainObjectSetDetail, &g_terrainObjectSetDetail);
+    if (installed)
+        log::Write("terrain view object: %s", g_compareTerrainObject ? "compared with the game's" : "ours");
+    return installed;
+}
+
+const bool g_registeredTerrainObject = registry::Register({
+    "renderer.terrain.object",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_Create,
+    "The terrain view's object: factory, constructor, destructor, QueryInterface with the parts' thunks and three small methods; compare mode constructs and destructs two blocks side by side and runs each query twice (docs/renderer.md, \"The terrain view's object\")",
+    true,
+    InstallTerrainObject,
+});
+
+bool InstallTerrainObjectUntested(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    (void)mode;
+    const bool installed = Detour(addr::cSTETerrainView3D_QueryInterfaceThunk4, &TTerrainObjectQueryInterfaceThunk4, &g_terrainObjectQueryInterfaceThunk4)
+                           && Detour(addr::cSTETerrainView3D_QueryInterfaceThunk10, &TTerrainObjectQueryInterfaceThunk10, &g_terrainObjectQueryInterfaceThunk10)
+                           && Detour(addr::cSTETerrainView3D_GetClassID, &TTerrainObjectGetClassID, &g_terrainObjectGetClassID)
+                           && Detour(addr::cSTETerrainView3D_GetSavedFlag, &TTerrainObjectGetSavedFlag, &g_terrainObjectGetSavedFlag)
+                           && Detour(addr::cSTETerrainView3D_PickNoWater, &TTerrainObjectPickNoWater, &g_terrainObjectPickNoWater)
+                           && Detour(addr::cSTETerrainView3D_CellMarksForward0, &TTerrainObjectCellMarksForward0, &g_terrainObjectCellMarksForward0)
+                           && Detour(addr::cSTETerrainView3D_CellMarksSetColour, &TTerrainObjectCellMarksSetColour, &g_terrainObjectCellMarksSetColour)
+                           && Detour(addr::cSTETerrainView3D_CellMarksForward1, &TTerrainObjectCellMarksForward1, &g_terrainObjectCellMarksForward1)
+                           && Detour(addr::cSTETerrainView3D_CellMarksForward2, &TTerrainObjectCellMarksForward2, &g_terrainObjectCellMarksForward2)
+                           && Detour(addr::cSTETerrainView3D_CellMarksForward3, &TTerrainObjectCellMarksForward3, &g_terrainObjectCellMarksForward3)
+                           && Detour(addr::cSTETerrainView3D_CellMarksForward4, &TTerrainObjectCellMarksForward4, &g_terrainObjectCellMarksForward4)
+                           && Detour(addr::cSTETerrainView3D_SetPickMarks, &TTerrainObjectSetPickMarks, &g_terrainObjectSetPickMarks)
+                           && Detour(addr::cSTETerrainView3D_GetOption49, &TTerrainObjectGetOption49, &g_terrainObjectGetOption49)
+                           && Detour(addr::cSTETerrainView3D_SetOption49, &TTerrainObjectSetOption49, &g_terrainObjectSetOption49);
+    if (installed)
+        log::Write("terrain view object (untested): %s", "ours");
+    return installed;
+}
+
+const bool g_registeredTerrainObjectUntested = registry::Register({
+    "renderer.terrain.object_untested",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_QueryInterfaceThunk4,
+    "Fourteen more small methods of the terrain view's interface that no test reaches, so this code has never run (docs/renderer.md, \"The terrain view's object\")",
+    true,
+    InstallTerrainObjectUntested,
+});
+
+// The span functions under the row layer lists (docs/renderer.md, "Row layer
+// lists"): emptying a row's lists, adding a span to a layer and merging a
+// span into a layer's ordered list. Translated instruction by instruction and
+// entered like the pixel routines above. Compare mode is in the row layer
+// rebuild's detour (DRebuild).
+void* g_terrainSpansClearRowLayers;
+void __cdecl TerrainSpansClearRowLayers(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain row spans: ClearRowLayers call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainspans_clearrowlayers.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainSpansClearRowLayers, TerrainSpansClearRowLayers, g_terrainSpansClearRowLayers, 0)
+
+void* g_terrainSpansAddRowLayerSpan;
+void __cdecl TerrainSpansAddRowLayerSpan(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain row spans: AddRowLayerSpan call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainspans_addrowlayerspan.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainSpansAddRowLayerSpan, TerrainSpansAddRowLayerSpan, g_terrainSpansAddRowLayerSpan, 16)
+
+void* g_terrainSpansMergeSpan;
+void __cdecl TerrainSpansMergeSpan(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain row spans: MergeSpan call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainspans_mergespan.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainSpansMergeSpan, TerrainSpansMergeSpan, g_terrainSpansMergeSpan, 8)
+
+bool InstallTerrainRowSpans(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareRowSpans = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::STE_ClearRowLayers, &TTerrainSpansClearRowLayers, &g_terrainSpansClearRowLayers)
+                           && Detour(addr::cSTETerrainView3D_AddRowLayerSpan, &TTerrainSpansAddRowLayerSpan, &g_terrainSpansAddRowLayerSpan)
+                           && Detour(addr::STE_MergeSpan, &TTerrainSpansMergeSpan, &g_terrainSpansMergeSpan);
+    if (installed)
+        log::Write("terrain row spans: %s", g_compareRowSpans ? "compared with the game's (needs renderer.terrain.rowlayers on)" : "ours");
+    return installed;
+}
+
+const bool g_registeredTerrainRowSpans = registry::Register({
+    "renderer.terrain.rowspans",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_AddRowLayerSpan,
+    "The span functions under the row layer lists: empty a row's lists, add a span to a layer, merge a span into a layer's "
+    "list; compare mode needs renderer.terrain.rowlayers on and rebuilds each row a second time with the game's "
+    "(docs/renderer.md, \"Row layer lists\")",
+    true,
+    InstallTerrainRowSpans,
 });
 
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),

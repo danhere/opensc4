@@ -5,7 +5,12 @@
 //     mid-function;
 //   - the entry's expected bytes must still be there: if another DLL already
 //     patched the function, or this is a different build, the hook is refused
-//     and the owner of the foreign patch is logged.
+//     and the owner of the foreign patch is logged;
+//   - if another DLL patched a known site inside the function
+//     (foreign_sites.h), nothing is installed: the game's function, with
+//     that DLL's change, keeps running, `original` receives the function
+//     itself, and the call reports success so the rest of a replacement
+//     still applies.
 #pragma once
 
 #include <opensc4/addresses.h>

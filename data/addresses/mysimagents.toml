@@ -2228,3 +2228,625 @@ name = "MySim::ConnectionKinds"
 address = 0x00B07DD0
 kind = "data"
 source = "Name ours. The neighbour connection kinds ValidConnection tries (3, 0xC, 8, 2, 0xA, 1, 7, 0xB, 6), ended by 0xD."
+
+[[entry]]
+name = "cSC4MyStreetSim::QueryInterface"
+address = 0x0043D0F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 81 FA 9F 06"
+source = "Name ours. (uint32_t iid, void** out), ret 8: 0x0BF6069F gives the object, 0x0BF61276 the interface at +0x2B8, anything else the base's cSC4MySim::QueryInterface. Agent part (object start)."
+
+[[entry]]
+name = "cSC4MyStreetSim::Init"
+address = 0x0043D170
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 50 8B F1"
+source = "Name ours. The advisor part's (+8) slot 3, (void* argument), ret 4: cSC4MySim::Init, then LoadLuaContext if the script table reference at +0x164 of the object is 0."
+
+[[entry]]
+name = "cSC4MyStreetSim::Write"
+address = 0x0043D1B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 56 E8 E5"
+source = "Name ours. The serializable part's (+0xC) Write, (stream* out), ret 4: cSC4MySim::Write, then the result is the stream slot 0x48 inverted (eax 0 or 1)."
+
+[[entry]]
+name = "cSC4MyStreetSim::Read"
+address = 0x0043D1D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 56 E8 B5"
+source = "Name ours. The serializable part's (+0xC) Read, (stream* in), ret 4: cSC4MySim::Read, then the result is the stream slot 0x48 inverted (eax 0 or 1)."
+
+[[entry]]
+name = "cSC4MyStreetSim::GetGZCLSID"
+address = 0x0043D220
+kind = "function"
+convention = "thiscall"
+expect = "B8 A5 06 F6 0B C3 CC CC"
+source = "Name ours. Returns the class ID 0x0BF606A5."
+
+[[entry]]
+name = "cSC4MyStreetSim::Update"
+address = 0x0043D330
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 F8 00 00"
+source = "Name ours. Agent slot 6, the advisor system's turn: only while an automaton is followed (+0xF8), ActivateLuaContext (cISC4MySim slot 0x110) then cSC4MySim::Think(0)."
+
+[[entry]]
+name = "cSC4MyStreetSim::ProcessEvents"
+address = 0x0043D360
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 F8 00 00"
+source = "Name ours. Agent slot 7: while following, ActivateLuaContext then a tail call of cSC4MySim::ProcessAdviceEvents; returns 0 otherwise."
+
+[[entry]]
+name = "cSC4MyStreetSim::MonthPassed"
+address = 0x0043D390
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 F8 00 00 00 85 C0"
+source = "Name ours. Agent slot 8: a tail call of cSC4MySim::MonthPassed only while following."
+
+[[entry]]
+name = "cSC4MyStreetSim::Stop"
+address = 0x0043D3A0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8B 8E 40"
+source = "Name ours. The +0x2B8 interface's slot 4 (this = object + 0x2B8), no arguments: queries 0x8B99EE7C on the followed automaton, removes our callback (automaton slot 0xA0), releases it (+0xF8), state +0xC0 = 0, takes the marker (+0x150) off the overlay manager (service 0x00B43D04 slot 0x58, SC4OverlayManager::Remove), marker -1, following byte +0x210 = 0; returns 1."
+
+[[entry]]
+name = "cSC4MyStreetSim::HideLocation"
+address = 0x0043D450
+kind = "function"
+convention = "thiscall"
+expect = "51 55 56 57 8B F9 8B 77"
+source = "Name ours. cISC4MySim slot 0x8C override (this = object + 0xB8), no arguments: with a stored automaton (this+0x40) calls Stop, clears the view's tool (service 0x00B43DC4 slot 0x68) if it has ID 0xCC23D564, and stores the automaton again (Stop cleared it) so that ShowLocation can follow it."
+
+[[entry]]
+name = "cSC4MyStreetSim::ShowLocation"
+address = 0x0043D4F0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 77 40 85"
+source = "Name ours. cISC4MySim slot 0x88 override (this = object + 0xB8), no arguments: Follow on the stored automaton (this+0x40), through the +0x2B8 interface slot 3."
+
+[[entry]]
+name = "cSC4MyStreetSim::MakeTool"
+address = 0x0043D520
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 30 8B F9 E8 B5"
+source = "Name ours. The +0x2B8 interface's slot 5 (this = object + 0x2B8), no arguments: makes the Microphone Tool (0x30 bytes), gives it the street sim and makes it the view's tool (service 0x00B43DC4 slot 0x64, kind 2); returns 1, or 0 when the tool refuses."
+
+[[entry]]
+name = "cSC4MyStreetSim::DeletingDestructor"
+address = 0x0043D590
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 D0 5E A8"
+source = "Name ours. Slot 3 of the agent vtable, (uint8_t flags), ret 4: sets the six vtables back, releases the landmark name (+0x2C0), runs cSC4MySim::Destruct, frees the object with flag bit 1."
+
+[[entry]]
+name = "cSC4MyStreetSim::cSC4MyStreetSim"
+address = 0x0043D5F0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B F1 E8 95"
+source = "Name ours. Constructor of the 0x2C8-byte object: cSC4MySim::cSC4MySim, the vtables, +0x12C = 0x0BFA331E, +0x150 = -1, an empty counted string (0x14 bytes, SC4String vtable) at +0x2C0. Returns this."
+
+[[entry]]
+name = "cSC4MyStreetSim::UpdateGlobals"
+address = 0x0043D6C0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 9C 00 00 00 55 8B"
+source = "Name ours. No arguments, object start: publishes the trip facts of the followed automaton's cell and the square around it (+0x240 cells) to the script: traffic, time ratio, pollution, crime, mayor rating, EQ, HQ, distress and wealth shares, landmark, disasters nearby. Callers: Follow and DoMessage."
+
+[[entry]]
+name = "cSC4MyStreetSim::Create"
+address = 0x0043DFA0
+kind = "function"
+convention = "cdecl"
+expect = "68 C8 02 00 00 E8 36 76"
+source = "Name ours. The class factory, no arguments: allocates 0x2C8 bytes, constructs, returns the interface at +0x2B8 (or 0)."
+
+[[entry]]
+name = "cSC4MyStreetSim::Follow"
+address = 0x0043E0E0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. The +0x2B8 interface's slot 3, (automaton* ), ret 4: stops, then follows the automaton and publishes its state (neighbouring file)."
+
+[[entry]]
+name = "SC4MicrophoneTool::SC4MicrophoneTool"
+address = 0x0043E760
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 B8 CB 1B 00"
+source = "Name ours. Constructor of the Microphone Tool (0x30 bytes, vtable 0x00A85F40), no arguments; returns this."
+
+[[entry]]
+name = "SC4MicrophoneTool::SetStreetSim"
+address = 0x0043E790
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 03 FF 50 0C"
+source = "Name ours. (street sim object start), ret 4: stores the street sim interface at +0x28; returns a bool."
+
+[[entry]]
+name = "cSC4MyStreetSim::Vtable"
+address = 0x00A85ED0
+kind = "data"
+source = "Name ours. The agent vtable at +0 (17 slots): QueryInterface 0x0043D0F0, deleting destructor 0x0043D590, Update 0x0043D330, ProcessEvents 0x0043D360, MonthPassed 0x0043D390, the rest the base's."
+
+[[entry]]
+name = "cSC4MyStreetSim::AdvisorVtable"
+address = 0x00A85E78
+kind = "data"
+source = "Name ours. The advisor part's vtable at +8 (21 slots): thunks, Init 0x0043D170, Shutdown a jump to the base's."
+
+[[entry]]
+name = "cSC4MyStreetSim::SerializableVtable"
+address = 0x00A85E5C
+kind = "data"
+source = "Name ours. The cIGZSerializable part's vtable at +0xC: thunks, Write 0x0043D1B0, Read 0x0043D1D0, GetGZCLSID 0x0043D220."
+
+[[entry]]
+name = "cSC4MyStreetSim::MessageVtable"
+address = 0x00A85E4C
+kind = "data"
+source = "Name ours. The message target's vtable at +0x10: thunks and DoMessage 0x0043DFD0."
+
+[[entry]]
+name = "cSC4MyStreetSim::MySimVtable"
+address = 0x00A85D38
+kind = "data"
+source = "Name ours. The cISC4MySim part's vtable at +0xB8 (69 slots): the base's but ShowLocation 0x0043D4F0 and HideLocation 0x0043D450."
+
+[[entry]]
+name = "cSC4MyStreetSim::StreetVtable"
+address = 0x00A85D20
+kind = "data"
+source = "Name ours. The interface vtable at +0x2B8 (6 slots): three thunks, Follow 0x0043E0E0, Stop 0x0043D3A0, MakeTool 0x0043D520."
+
+[[entry]]
+name = "cSC4MyStreetSim::DoMessage"
+address = 0x0043DFD0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 0C 8B 45"
+source = "Name ours. (message), ret 4, this = the message target (object + 0x10): the automaton event 0x09D92FC3 (value 2, 3, 5) stops the follow; the frame message 0x86AD10EE while paused (simulator slot 0x48) and the stopwatch at +0x280 above 2 ms refreshes the globals and thinks; 0x4BC42C48 for the street interface does the same; always ends in cSC4MySim::DoMessage (docs/mysim-agents.md)."
+
+[[entry]]
+name = "SC4MicrophoneTool::Init"
+address = 0x0043E740
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 68 62 C9"
+source = "Name ours. No arguments, slot 3 of the Microphone Tool (vtable 0x00A85F40): the idle cursor 0xEBF9C962, then SC4ViewInputControl::Init by a jump; returns its result."
+
+[[entry]]
+name = "SC4MicrophoneTool::Shutdown"
+address = 0x0043E7E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 28 85 C9"
+source = "Name ours. No arguments, slot 4: lets go of the street interface at +0x28, then SC4ViewInputControl::Shutdown; returns true."
+
+[[entry]]
+name = "SC4MicrophoneTool::OnMouseDownL"
+address = 0x0043E810
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4E 1C 8B"
+source = "Name ours. (x, y, flags), ret 0xC, slot 16: for the view's current tool, Follow the hovered automaton (+0x2C) unless its exemplar has the bool property 0x1BC42C49 (presence tested); false for another tool."
+
+[[entry]]
+name = "SC4MicrophoneTool::DeletingDestructor"
+address = 0x0043E870
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 40 5F A8"
+source = "Name ours. (flags), ret 4, slot 26: releases +0x2C and +0x28, the base destructor, operator delete when flags has bit 0; returns this."
+
+[[entry]]
+name = "SC4MicrophoneTool::OnMouseMove"
+address = 0x0043E8B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 53 55 8B E9 8B"
+source = "Name ours. (x, y, flags), ret 0xC, slot 20: drops the hover, picks the occupant under the cursor (view slot 0x94), else the first pedestrian in a 6 by 14 by 6 box around the 3D point (view slot 0x90, occupant manager slot 0x94); sets the cursor 0xEBF9C971 or 0xEBF9C962; returns true."
+
+[[entry]]
+name = "SC4MicrophoneTool::Vtable"
+address = 0x00A85F40
+kind = "data"
+source = "Name ours. The Microphone Tool's vtable, 30 slots: Init 0x0043E740, Shutdown 0x0043E7E0, OnMouseDownL 0x0043E810, OnMouseMove 0x0043E8B0, deleting destructor 0x0043E870."
+
+[[entry]]
+name = "SC4MicrophoneTool::BoxHeight"
+address = 0x00A85FB8
+kind = "data"
+source = "Name ours. A float, 7: the half height of the box around the 3D point the Microphone Tool searches for pedestrians (the half width and depth are Budget::Three)."
+
+[[entry]]
+name = "SC4MicrophoneTool::UnsetPoint"
+address = 0x00B20E84
+kind = "data"
+source = "Name ours. A float the Microphone Tool fills a point with before asking the view for the 3D point under the cursor."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::GetGZCLSID"
+address = 0x0042F6D0
+kind = "function"
+convention = "thiscall"
+expect = "B8 AD EF 70 6B C3 CC CC"
+source = "Name ours. Returns the class ID 0x6B70EFAD (slot 5 of the serialisable part, vtable 0x00A8561C)."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::IsTriggered"
+address = 0x0042F700
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8B 87 C0"
+source = "Name ours. No arguments, main slot 8: false while the balloon part's flag 4 is set; else, when the part's flag 2 or the advice's flag 2 is set, the base class's test (0x00408970)."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::AsAdvice"
+address = 0x0042F750
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 40 FF FF FF C3 CC"
+source = "Name ours. No arguments, slots 3 and 4 of the balloon part (vtable 0x00A855E0): `this` is the object plus 0xC0; returns the object."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::GetSoundKey"
+address = 0x0042F760
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 74 06"
+source = "Name ours. (male flag byte), ret 4, slot 10 of the balloon part: the sound key at object +0xF8 for a non-zero flag, else the one at +0xFC."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::SetPartFlags"
+address = 0x0042F780
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 08 84 C0 74 35"
+source = "Name ours. (mask, set byte), ret 8, slot 13 of the balloon part: sets or clears bits in the part flags (object +0xF4); setting bit 2 with the advice's flag 0x10 set calls main slot 30 (reload texts)."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::HasPartFlags"
+address = 0x0042F7D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 34 23 44 24 04 F7"
+source = "Name ours. (mask), ret 4, slot 14 of the balloon part: 1 when any of the bits is set in the part flags, else 0."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::QueryInterface"
+address = 0x0042F7E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 71 2C 72"
+source = "Name ours. (iid, void** out), ret 8, main slot 0: 0x2B722C71 gives the object, 0x6B70E6D9 the balloon part (object +0xC0), both counted; the rest goes to SC4Advice::QueryInterface."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::GetIconCount"
+address = 0x0042F880
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 8B 51 08 2B D0"
+source = "Name ours. No arguments, slot 7 of the balloon part: the number of icon holders (0x30 bytes each) in the vector at object +0xC4."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::GetIcon"
+address = 0x0042F8A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 8B 51 08 2B D0"
+source = "Name ours. (index), ret 4, slot 8 of the balloon part: the loaded image of that icon holder, or 0 out of range."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::GetIconInstance"
+address = 0x0042F8E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 56"
+source = "Name ours. (index), ret 4, slot 9 of the balloon part: the third dword (the instance) of that icon holder's image key, or 0 out of range."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::Destruct"
+address = 0x0042F950
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 C7 07 50 56 A8"
+source = "Name ours. No arguments: writes the vtables again, frees the message text and the icon holders and their vector, then SC4Advice::Destruct."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::Construct"
+address = 0x0042FA70
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 56 8B"
+source = "Name ours. No arguments, returns this: SC4Advice::Construct, the vtables (0x00A85650 at +0, 0x00A85634 at +4, 0x00A8561C at +0xC, 0x00A855E0 at +0xC0), an empty icon vector at +0xC4, the message localised string at +0xD0 and the zeroed sound fields."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::DeletingDestruct"
+address = 0x0042FAF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 58 FE FF FF"
+source = "Name ours. (flags), ret 4, main slot 3 through the thunk 0x0042FA00: Destruct, then operator delete when flags & 1; returns this."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::Create"
+address = 0x0042FB10
+kind = "function"
+convention = "cdecl"
+expect = "68 04 01 00 00 E8 C6 5A"
+source = "Name ours. No arguments, the class factory (its address is stored at 0x00460CBF for the class registration): a new 0x104-byte object, constructed; returns the balloon part (object +0xC0) or 0."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::Init"
+address = 0x0042FE60
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 88 00 00 00 56 8B"
+source = "Name ours. (script index), ret 4, main slot 3: SC4Advice::Init, then the script table's balloon_message (text key at +0xD0), balloon_icon1 to balloon_icon9 (images of type 0x856DDBAC group 0xAB7E5421, magenta as transparent colour) into the icon vector at +0xC4, balloon_sound / _m / _f / _chance into +0xF8, +0xFC, +0x100, and the message text into the base's text vector. True when the base succeeded and there is an icon or a message."
+
+[[entry]]
+name = "SC4ImageLoader::CopyConstruct"
+address = 0x0042FB40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. (source holder), ret 4: copy constructor of the 0x30-byte image holder (vtable 0x00A856CC): the image counted, the key, the file name copied through SC4String::CopyBuffer, mode and flag; returns this. Used only by the balloon advice's icon vector."
+
+[[entry]]
+name = "SC4ImageLoader::DeletingDestruct"
+address = 0x0042FBB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 28 30 1D 00"
+source = "Name ours. (flags), ret 4, slot 0 of the holder's vtable 0x00A856CC: SC4ImageLoader::Destruct, then operator delete when flags & 1; returns this."
+
+[[entry]]
+name = "SC4ImageLoader::Assign"
+address = 0x0042FD30
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. (source holder), ret 4: assignment of the holder: image (new one counted, old one released), key, file name through SC4String::AssignRange, mode and flag; returns this."
+
+[[entry]]
+name = "SC4ImageLoaderVector::UninitializedCopy"
+address = 0x0042FBD0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. (first, last, destination, tag), the caller pops: copy constructs the holders [first, last) at the destination; returns the end of the destination."
+
+[[entry]]
+name = "SC4ImageLoaderVector::InsertOverflow"
+address = 0x0042FC00
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B D9 8B 03 8B 4B"
+source = "Name ours. (position, value, tag, count, at-end flag), ret 0x14, this = the vector (begin, end, capacity): reallocates to size + max(size, count) holders, copies the ones before the position, count copies of the value, and unless at-end the rest; destroys the old holders and frees the old block."
+
+[[entry]]
+name = "SC4ImageLoaderVector::AssignRange"
+address = 0x0042FDC0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. (first, last, destination, two arguments not read), the caller pops: assigns the holders [first, last) to the destination with SC4ImageLoader::Assign; returns the end of the destination."
+
+[[entry]]
+name = "SC4ImageLoaderVector::Erase"
+address = 0x0042FE10
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Name ours. (first, last), ret 8, this = the vector: assigns the holders after the range down, destroys the leftover holders at the end, moves the end; returns first."
+
+[[entry]]
+name = "SC4ImageLoader::GetKey"
+address = 0x006026D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 08 8B 44 24 04 89"
+source = "Name ours. (uint32_t out[3]), ret 4: copies the holder's image key (+8, +0xC, +0x10: type, group, instance) to the array."
+
+[[entry]]
+name = "SC4ImageLoader::Vtable"
+address = 0x00A856CC
+kind = "data"
+source = "Name ours. Vtable of the 0x30-byte image holder (SC4ImageLoader): slot 0 the deleting destructor 0x0042FBB0."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::Vtable"
+address = 0x00A85650
+kind = "data"
+source = "Name ours. Main vtable of the MySim balloon advice (31 slots, the advice's with Init 0x0042FE60 at slot 3 and the trigger test 0x0042F700 at slot 8)."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::Vtable4"
+address = 0x00A85634
+kind = "data"
+source = "Name ours. Vtable of the balloon advice's counted part at +4 (6 slots: thunks 0x0042F9D0 to 0x0042FA00)."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::VtableC"
+address = 0x00A8561C
+kind = "data"
+source = "Name ours. Vtable of the balloon advice's serialisable part at +0xC (6 slots; GetGZCLSID 0x0042F6D0 at slot 5)."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::VtableImages"
+address = 0x00A855E0
+kind = "data"
+source = "Name ours. Vtable of the balloon part at +0xC0 (15 slots: icon count 0x0042F880, icon 0x0042F8A0, icon instance 0x0042F8E0, sound key 0x0042F760, part flags 0x0042F780 and 0x0042F7D0)."
+
+[[entry]]
+name = "cSC4MySimBalloonAdvice::VtableConstruct"
+address = 0x00A855A4
+kind = "data"
+source = "Name ours. A vtable the constructor writes at +0xC0 before the real one (0x00A855E0); its first fifteen slots are pure-call stubs."
+
+[[entry]]
+name = "SC4BalloonNames::Advices"
+address = 0x00B07DB4
+kind = "data"
+source = "Name ours. const char* to 'advices' (0x00A806D0), the script table the balloon advice's Init opens (a second pointer to the same text as SC4AdviceNames::Advices)."
+
+[[entry]]
+name = "SC4BalloonNames::Message"
+address = 0x00A85728
+kind = "data"
+source = "Name ours. The text 'balloon_message' itself: the balloon advice's Init reads this field and stores this address in the base's text vector."
+
+[[entry]]
+name = "cSC4MySimDispatch::GetTargetPlace"
+address = 0x00431290
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 AC 00 00 00 C3 CC"
+source = "Name ours. No arguments, seven bytes (lea eax,[ecx+0xAC]): the place a MySim goes to (SC4MySimPlace, 0x28 bytes) inside the dispatch object. Nine callers, all in cSC4MySim code; ours in simulators.mysim_agents.leftovers behind a thunk that keeps ECX and EDX."
+
+[[entry]]
+name = "cSC4MySimDispatch::GetHomePlace"
+address = 0x004312A0
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 84 00 00 00 C3 CC"
+source = "Name ours. No arguments, seven bytes (lea eax,[ecx+0x84]): the home place inside the dispatch object. Five callers, all in cSC4MySim code; ours in simulators.mysim_agents.leftovers."
+
+[[entry]]
+name = "cSC4MySimDispatch::GetWorkPlace"
+address = 0x004312B0
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 D4 00 00 00 C3 CC"
+source = "Name ours. No arguments, seven bytes (lea eax,[ecx+0xD4]): the work place inside the dispatch object. Six callers, all in cSC4MySim code; ours in simulators.mysim_agents.leftovers."
+
+[[entry]]
+name = "cSC4MySimDispatch::Create"
+address = 0x00434620
+kind = "function"
+convention = "cdecl"
+expect = "68 8C 01 00 00 E8 B6 0F"
+source = "Name ours. No arguments: the class factory of the dispatch class (class 0xCBC14674; registered at 0x00460D97 next to GetGZCLSID 0x00433D40): 0x18C bytes from SC4::operator_new, the constructor with a null owner, and the pointer to the serializable part (object + 0xC); null when the allocation fails. Ours in simulators.mysim_agents.leftovers."
+
+[[entry]]
+name = "SC4CameraView::WorldToView"
+address = 0x007F78E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 56 E8 E5"
+source = "Name ours, the camera view is the renderer's code (called by address only). (float point[3]), ret 4, this the view in the global 0x00B43DD8: turns a place in the city into a place in the view, in place (x and y; z is left). Also called from audio and city view code by address."
+
+[[entry]]
+name = "SC4::FloatFive"
+address = 0x00A84D28
+kind = "data"
+source = "Name ours. A float 5.0 (read-only). cSC4MySim::ResidenceScreenPoint takes it off the left edge."
+
+[[entry]]
+name = "SC4MySimBalloon::Vtable"
+address = 0x00A8576C
+kind = "data"
+source = "Name ours. The MySim balloon object's main vtable at +0 (IID 0x22E85D8E, 18 slots in the three vtables that follow each other from 0x00A85744): QueryInterface 0x00430250, AddRef and Release thunks (to the counted base at +8), slot 3 the window procedure 0x00430A40 (paints), slots 5 and 6 the setters 0x004302C0 (+0x50) and 0x004302D0 (+0x4C)."
+
+[[entry]]
+name = "SC4MySimBalloon::TargetVtable"
+address = 0x00A8575C
+kind = "data"
+source = "Name ours. The balloon object's message target at +4 (IID 0x452294AA): three thunks and the message handler 0x00430F70 at slot 3."
+
+[[entry]]
+name = "SC4MySimBalloon::BaseVtable"
+address = 0x00A85744
+kind = "data"
+source = "Name ours. The balloon object's counted base at +8 (reference count at +0xC): thunks to QueryInterface 0x00430250 and the deleting destructor 0x00430CC0."
+
+[[entry]]
+name = "SC4MySimBalloon::QueryInterface"
+address = 0x00430250
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "Name ours. (iid, void** out), ret 8: 0x22E85D8E gives the object, 0x452294AA the message target (+4), both counted; any other IID goes to the counted base at +8 (cRZBaseUnknown::QueryInterface1). Slot 0 of the main vtable, reached by adjustor thunks for the other two."
+
+[[entry]]
+name = "SC4MySimBalloon::StartSound"
+address = 0x00430360
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 56 8B F1 C7 44"
+source = "Name ours. No arguments. For the current advice: the advice's sound key for the MySim's sex, one draw (2 to 100) from the advisor system's generator (city slot 81, its slot 9: advisor system +0x30) against the advice's chance (advice part slot 0x2C), the MySim's RequestToPlaySound; then the sound service (0x23CECBA0, slot 0x2C) plays the key (command 1) and gets the MySim's screen position truncated (command 0xCA45190F), and +0x55 is set. Called by DoMessage in state 1."
+
+[[entry]]
+name = "SC4MySimBalloon::StopSound"
+address = 0x004304C0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 C7 44 24 04"
+source = "Name ours. (bool flag), ret 4: when the sound plays (+0x55), tells the sound service (slot 0x2C, command 2, the MySim, flag) and clears +0x55."
+
+[[entry]]
+name = "SC4MySimBalloon::PostHeartbeat"
+address = 0x00430590
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 85 F6 57"
+source = "Name ours. (message or null), ret 4: queues a heartbeat message (type 0xCB7CB509, a new one when none is given, no reference taken) through the message server (slot 7, PostToTarget) for the balloon's message target (+4), or for nobody when this is null."
+
+[[entry]]
+name = "SC4MySimBalloon::Sync"
+address = 0x004305F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 54 84 C0"
+source = "Name ours. No arguments, returns bool (state not hidden). When the window is made (+0x54): an active MySim (cISC4MySim slot 20) in state 5 makes it 4 and restarts the clock (+0x30); an inactive one in another state hides the window (window slots 0x11C test and 0x118), makes it 5 and stops the clock."
+
+[[entry]]
+name = "SC4MySimBalloon::Destruct"
+address = 0x00430C60
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 08 8D"
+source = "Name ours. The destructor: the vtables put back, the clock destroyed, the icon vector emptied, the window generator, the MySim and the advice released, the counted base destroyed. Called by the deleting destructor 0x00430CC0 only."
+
+[[entry]]
+name = "SC4MySimBalloon::DeletingDestruct"
+address = 0x00430CC0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 98 FF FF FF"
+source = "Name ours. (flags), ret 4: the destructor, then SC4::operator_delete when bit 0 is set; returns this. Reached through the adjustor thunk 0x00430C50 (counted base slot 3)."
+
+[[entry]]
+name = "SC4MySimBalloon::UpdateQueue"
+address = 0x00430CE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B F1"
+source = "Name ours. No arguments, returns bool (icons held). Drops the current advice (its balloon part, slot 0x34 with 4/1 then 2/0) and the icon vector, then takes the MySim's next event advice (cISC4MySim slot 0xF4) when it has icons, else the next ordinary advice (slot 0xF0); keeps the advice counted and its icons; sizes the window (window slots 0xA4, 0xA8, 0xD4) to the largest icon."
+
+[[entry]]
+name = "SC4MySimBalloon::DoMessage"
+address = 0x00430F70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 57 8B 7C"
+source = "Name ours. (cIGZMessage2*), ret 4: slot 3 of the message target at +4. Handles heartbeat 0xCB7CB509: posts it again, Sync, and when not hidden positions the window over the MySim's screen position and runs the state machine on the clock (states 1 to 4; see src/core/mysim_balloon.cpp). Returns true for the heartbeat."

@@ -317,14 +317,14 @@ uint32_t __fastcall GetModelButtonBitmapID(char* self, void*, uint8_t pedestrian
     return At<uint32_t>(self, pedestrian ? field::kCarButton : field::kPedestrianButton);
 }
 
-void __fastcall GetNextBalloonAdvice(char* self, void*)
+void* __fastcall GetNextBalloonAdvice(char* self, void*)
 {
-    reinterpret_cast<ThisIdFn>(addr::cSC4MySim_NextBalloon)(Object(self), 2);
+    return reinterpret_cast<void*(__thiscall*)(void*, uint32_t)>(addr::cSC4MySim_NextBalloon)(Object(self), 2);
 }
 
-void __fastcall GetNextBalloonEventAdvice(char* self, void*)
+void* __fastcall GetNextBalloonEventAdvice(char* self, void*)
 {
-    reinterpret_cast<ThisIdFn>(addr::cSC4MySim_NextBalloon)(Object(self), 1);
+    return reinterpret_cast<void*(__thiscall*)(void*, uint32_t)>(addr::cSC4MySim_NextBalloon)(Object(self), 1);
 }
 
 // The text ID of the first balloon in a list, or 0.
