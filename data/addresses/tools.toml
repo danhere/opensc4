@@ -1,4 +1,4 @@
-# The view input controls for bulldozing, placing lots and zoning: the entries our translations hook (src/core/tool_bulldoze.cpp).
+# The view input controls for bulldozing, placing lots and zoning: the entries our translations hook (src/core/tool_bulldoze.cpp, tool_zone.cpp).
 
 [[entry]]
 name = "cSC4ViewInputControlDemolish::Vtable"
@@ -183,3 +183,293 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 14 8B 44 24 18 D9"
 source = "Name ours, not analysed. (const float* four), ret 4: takes a colour of four floats (the bulldoze tool's line colours), packs it into the overlay's fields and sets the byte +0x44."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::Vtable"
+address = 0x00A92CA8
+kind = "data"
+source = "Name ours. Main vtable of the zoning tool (a view input control of 0x98 bytes, made by 0x004DAE80): the cISC4ViewInputControl slots (Init 3, Shutdown 4, OnKeyDown 14, OnKeyUp 15, OnMouseDownL 16, OnMouseUpL 18, OnMouseMove 20 at 0x004DBE40, OnMouseExit 22, the deleting destructor 26), then CancelDrag 27 and three shared slots."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::TargetVtable"
+address = 0x00A92C94
+kind = "data"
+source = "Name ours. Vtable of the zoning tool's message target at +0x28 (4 slots: 0x00661DB0, 0x00565580, 0x00565590 and DoMessage 0x004DC110). It listens to 0x277A9364 (shows or hides the pointer model) and the frame message 0x86AD10EE (the hover timer)."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::OutlineName"
+address = 0x00A92C80
+kind = "data"
+source = "Name ours. The string local_tile_outline: the name of the outline model the zoning tool asks Service43D1C (slot 7) for."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::Cursors"
+address = 0x00A92C40
+kind = "data"
+source = "Name ours. 16 dwords indexed by zone type: the cursor ID the zoning tool takes into its +0x10."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::DownCues"
+address = 0x00A92B40
+kind = "data"
+source = "Name ours. 16 dwords indexed by zone type: the sound cue the zoning tool plays when a drag begins (0 for none)."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::PreviewCues"
+address = 0x00A92B80
+kind = "data"
+source = "Name ours. 16 dwords indexed by zone type: the sound cue the zoning tool plays when a preview is accepted (0 for none)."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::UpCues"
+address = 0x00A92BC0
+kind = "data"
+source = "Name ours. 16 dwords indexed by zone type: the sound cue the zoning tool plays when the button is let go on an accepted drag."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::FailCues"
+address = 0x00A92C00
+kind = "data"
+source = "Name ours. 16 dwords indexed by zone type: the sound cue the zoning tool plays when PlaceZone refuses (preview or placing)."
+
+[[entry]]
+name = "SC4CheatTool::Vtable"
+address = 0x00A92AC0
+kind = "data"
+source = "Name ours. Vtable of the cheat tool the view makes for the cheat 0x0BFD8064 (0x38 bytes, constructor 0x004D9E80): Init 0x004D9E50 at slot 3, Shutdown 0x004D9EA0 at slot 4, OnMouseMove 0x004DA1B0 at slot 20, the deleting destructor 0x004D7AA0 at slot 26. It shows a building footprint model (building_footprint_ptrt_nt_ok or the not ok one) over the lot configuration under the pointer."
+
+[[entry]]
+name = "SC4ViewTool::UnsetPoint"
+address = 0x00B21930
+kind = "data"
+source = "Name ours. A float the view tools copy into the three floats they hand the view's PickTerrain (slot 36) to see whether it wrote them; zero in the running game."
+
+[[entry]]
+name = "SC4::Service43D38"
+address = 0x00B43D38
+kind = "data"
+source = "Name ours. A city service (the city's slot 0x148, global set at 0x00601D66) the zoning tool asks before placing: slot 8 (0x20) says whether it is active, slot 10 (0x28) gives an object whose slot 5 gives a rectangle (first number below zero for none); slot 18 (0x48) with 1 is told a request was held back."
+
+[[entry]]
+name = "SC4ViewModel::Construct"
+address = 0x005FB290
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 C7 00 00 00 00 00"
+source = "Name ours. No arguments: sets the holder's model pointer to null (a holder is one pointer; the view tools keep one at +0x90 and another at +0x94)."
+
+[[entry]]
+name = "SC4ViewModel::Reset"
+address = 0x005FB2A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 0E 85 C9 74"
+source = "Name ours. No arguments: hides the held model if it is shown (slot 5 asked, slot 4 with 0), clears the holder and releases the model."
+
+[[entry]]
+name = "SC4ViewModel::Show"
+address = 0x005FB2D0
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 56 8B"
+source = "Name ours. One argument, a byte, ret 4: with 1 shows the held model (slot 3 with 0) unless it is shown already; with 0 hides it (slot 4 with 0) when it is shown. Nothing without a model."
+
+[[entry]]
+name = "SC4ViewModel::Make"
+address = 0x005FB340
+kind = "function"
+convention = "thiscall"
+expect = "83 39 00 75 12 A1 1C 3D"
+source = "Name ours. No arguments: when the holder is empty, asks Service43D1C (slot 7) for the model named at 0x00AA66D0 (local_grid) and keeps it in the holder."
+
+[[entry]]
+name = "SC4LotSet::EraseNodes"
+address = 0x004676E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. One argument (a node), ret 4; this is the set (header pointer, count): frees the subtree of the node, releasing each node's lot (the object at +0x10). Called by the demolition service and by the view tools to empty a set of lots."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::Shutdown"
+address = 0x004DA5A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 04 33"
+source = "Name ours. Slot 4 of the zoning tool: when inited, CancelDrag (slot 27), clears the cursor text and cost indicator, takes the state message off the message server, releases the sound, lot manager, zone manager and overlay, hides and releases the models, then the base Shutdown. Returns true. Ours in ui.tools.zone (src/core/tool_zone.cpp)."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::FindCellRange"
+address = 0x004DA680
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. (out, first, last, value, an unused fifth): searches the list nodes from first up to last (next at +0, cell x at +8, z at +0xC) for the cell value[0..1]; stores the node or last in *out. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::Init"
+address = 0x004DA6C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 3 of the zoning tool: base Init, the terrain's cell size (slot 6) into +0x6C and its overlay (slot 66) into +0x2C, the pointer model, the zone and lot managers, the state message, the outline model local_tile_outline, the sound service. Returns true. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::Place"
+address = 0x004DA7A0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 56 57 8B"
+source = "Name ours. (type, region, fromHover, skipSize, cost out, error out), ret 0x18: PlaceZone with place = 1 (custom zoning 1, funds test on, whole lots when the tool's type is not 0, no lot set), unless Service43D38 holds the request back (then it is told 1 and the answer is 0). With fromHover set and no service the region's rectangle becomes the drag's start and end. Its PlaceZone call is at 0x004DA846. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::FindCell"
+address = 0x004DA850
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 10 8B 54 24 0C"
+source = "Name ours. (out, first, last, value): FindCellRange, giving back out. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::CanAddCell"
+address = 0x004DA880
+kind = "function"
+convention = "thiscall"
+expect = "51 55 56 8B 74 24 10 8B"
+source = "Name ours. (cell, origin, reach, list), ret 0x10: whether the cell joins the hover list grown from origin: de-zoning takes zoned cells (not types 0, 0xB, 0xC, 0xF), zoning takes unzoned cells the lot manager answers 8 to (slot 20); both only if the cell is not in the list yet and less than reach from the origin on both axes. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::OnMouseExit"
+address = 0x004DA9B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 98 07 12 00"
+source = "Name ours. Slot 22 of the zoning tool: releases the pointer, hides the outline and pointer models, empties the cursor text and clears the cursor text and cost indicator. Returns true. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::BuildHoverRegion"
+address = 0x004DAA20
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 53 55 56 8B 35"
+source = "Name ours. (x, z), ret 8: grows a list of cells from (x, z) with CanAddCell, four neighbours each, and makes a 0x24-byte cell region of their bounding rectangle with the cells set; null if none. The caller frees it. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::ClearPreview"
+address = 0x004DAD40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 55 56 8B E9 8B"
+source = "Name ours. No arguments: takes the highlight off every lot of the +0x84 set (lot slot 48, then 3, then 17 with 0, 0), erases the set and shows an empty region of the tool's type to Service43DB0 (slot 5). Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::DeletingDestructor"
+address = 0x004DAF70
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. Slot 26 of the zoning tool, ret 4: Destruct, then frees the object when bit 0 of the argument is set. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::Destruct"
+address = 0x004DAF90
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 8F 94 00 00"
+source = "Name ours. No arguments: releases the outline model, destroys the model holder, erases and frees the lot set, frees the text buffer and runs the base destructor. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::CancelDrag"
+address = 0x004DB020
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 40 84 C0"
+source = "Name ours. Slot 27 of the zoning tool: gives up a drag. Lets go of the pointer and the frame timer, frees the grown region, clears the cursor text and the preview, hides the pointer model, the overlay's slot 9. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::SetTipText"
+address = 0x004DB0D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 81 EC A0 00"
+source = "Name ours. (error, string), ret 8, this unused: error 0 empties the string; 1 to 5 (funds, landfill on water, too small, too large, landfill blocked) copy the localized text of group 0x0A419226 into it. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::UpdatePreview"
+address = 0x004DB240
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. No arguments, returns whether PlaceZone accepted: orders the drag's rectangle (+0x5C to +0x68), clears the preview, asks PlaceZone with place = 0 (call site 0x004DB312), highlights the lots it would demolish (+0x84), shows the cells through the overlay (slot 5) or Service43DB0 (slot 5), sets the cost indicator and the cursor text. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::OnKeyDown"
+address = 0x004DB8B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 D8 F8 11 00"
+source = "Name ours. Slot 14 of the zoning tool (key, modifiers), ret 8: Escape during a drag calls CancelDrag; another key during a drag passes the modifiers to Service43DB0 (slot 7) and previews. Only for the current control; false except for Escape. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::OnKeyUp"
+address = 0x004DB920
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 68 F8 11 00"
+source = "Name ours. Slot 15 of the zoning tool (key, modifiers), ret 8: during a drag passes the modifiers on and previews. Returns false. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::OnMouseDownL"
+address = 0x004DB980
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 8B 44 24 18 53"
+source = "Name ours. Slot 16 of the zoning tool (x, z, modifiers), ret 0xC: passes the modifiers on, picks the terrain (view slot 36), hides the outline and begins a drag there (cue, capture, cells, overlay state, preview, frame timer 0xC0). False without a view, true otherwise. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::OnMouseUpL"
+address = 0x004DBAF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 0C 83 EC 40 53"
+source = "Name ours. Slot 18 of the zoning tool (x, z, modifiers), ret 0xC: ends a drag: picks the end, previews, and when accepted places (Place) the grown region or the rectangle; plays the cue; clears text and preview, puts the models and overlay back, lets go of the timer and the pointer. False when no drag. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::UpdateHover"
+address = 0x004DBD40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 55 56 8B F1 8B"
+source = "Name ours. No arguments: when the pointer rests on the drag's first cell for more than 750 of frame time and no region is grown, grows one (BuildHoverRegion), shows it to Service43DB0 (slot 5, which may give another), and previews; when the pointer has left, resets the timer and frees the region. Ours in ui.tools.zone."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::DoMessage"
+address = 0x004DC110
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 DC 84 C0"
+source = "Name ours. Slot 3 of the message target at +0x28 (ecx = this + 0x28), ret 4: 0x277A9364 shows the pointer model when the overlay is idle (slot 20 zero) and no drag is on; the frame message 0x86AD10EE adds its frame time to the hover timer (+0x54) and runs UpdateHover. Nothing before the tool is inited. Ours in ui.tools.zone."
+
+[[entry]]
+name = "SC4CheatTool::Init"
+address = 0x004D9E50
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 3 of the cheat tool (vtable 0x00A92AC0): unless inited, the IDs 0x8BFC65A7 and 0x88E70B76, the base Init and the mode at +0x30 set to 1. Returns true. Ours in ui.tools.zone."
+
+[[entry]]
+name = "SC4CheatTool::Shutdown"
+address = 0x004D9EA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 4 of the cheat tool: when inited, hides and releases the model at +0x2C, then the base Shutdown. Returns true. Ours in ui.tools.zone."
+
+[[entry]]
+name = "SC4CheatTool::Destruct"
+address = 0x004DA180
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 2C 85 C9"
+source = "Name ours. No arguments: the cheat tool's destructor body (0x004D7AA0, its deleting destructor, calls it): releases the models at +0x2C and +0x28, then the base destructor. Ours in ui.tools.zone."

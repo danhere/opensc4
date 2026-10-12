@@ -14,6 +14,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/tool_zone.h"
 
 #include <windows.h>
 
@@ -25,8 +26,9 @@ namespace opensc4::game_dezone {
 namespace {
 
 // The zoning tool's code that calls PlaceZone (constructor 0x004DAE80): the
-// previews at 0x004DB312, 0x004DB40A, 0x004DB764 and 0x004DBA3E and the
-// placing at 0x004DA846.
+// preview at 0x004DB312 and the placing at 0x004DA846. With the tool's
+// translation on (ui.tools.zone) those calls come from core.dll; the tool
+// marks them (tool_zone::PlaceZoneSite()).
 constexpr std::uintptr_t kToolBegin = 0x004DA7A0, kToolEnd = 0x004DC1A0;
 // Every transport network; not water pipes (4), power lines (5), subway (7).
 constexpr uint32_t kNetworkMask = 0x1F4F;
@@ -80,7 +82,16 @@ void KeepRoads(int32_t* region, uint32_t type, uint32_t customZoning, const void
         return;
     if (!g_test) {
         const auto from = reinterpret_cast<std::uintptr_t>(caller);
-        if (!static_cast<uint8_t>(customZoning) || from < kToolBegin || from >= kToolEnd || GetKeyState(VK_SHIFT) >= 0)
+        const bool fromTool = (from >= kToolBegin && from < kToolEnd) || tool_zone::PlaceZoneSite() != 0;
+        if (!static_cast<uint8_t>(customZoning) || !fromTool)
+            return;
+        static bool logged = false;
+        if (!logged) {
+            logged = true;
+            log::Write("dezone: PlaceZone call from the zone tool recognised (%s)",
+                       tool_zone::PlaceZoneSite() ? "marked call of our tool" : "return address in the game's tool");
+        }
+        if (GetKeyState(VK_SHIFT) >= 0)
             return;
     }
     void* const city = Global<void*>(addr::SC4_City);

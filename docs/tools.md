@@ -5,7 +5,7 @@ The view input controls that the city view makes current while the player holds 
 | Tool | State |
 | --- | --- |
 | Bulldoze | ours (`ui.tools.bulldoze`, below) |
-| Zone | translated, being merged |
+| Zone | ours (`ui.tools.zone`, below) |
 | Lot (plop) | translated, being merged |
 
 ## The bulldoze tool
@@ -163,9 +163,60 @@ Bulldoze tool, batch `tb9` (2026-10-12): all groups pushed so far plus `ui.tools
 
 All 39 first pairs are the same, so no retries ran and no run failed. A first pair that is the same has identical fingerprint lines on every day, the ` bulldozetool` token and the city after the committed drag included.
 
+Zone tool, batch `tz9` (2026-10-13): all groups pushed so far plus `ui.tools.zone` on side B (120 groups), 7 game days per save. The legs with the commit run with the tutorial off on both sides, because the tutorial holds zoning back in the tutorial cities.
+
+| Leg | Saves | Test switches | Result |
+|---|---|---|---|
+| plain | 12 | none | 12 same on the first pair |
+| zt | 12 | `OPENSC4_TEST_ZONE_TOOL=3 OPENSC4_TEST_ZONE_TOOL_COMMIT=1 OPENSC4_TEST_TUTORIAL_OFF=1` | 11 same; Big City d1095 partly |
+| ztk | 12 | the zt switches and `OPENSC4_TEST_DEZONE_KEEP=1` | 12 same |
+| plop | 3 (`saves-plopped`) | `OPENSC4_TEST_ZONE_TOOL=3 OPENSC4_TEST_ZONE_TOOL_COMMIT=1` | 3 same |
+
+No run failed. In every B log the group is `ours`. In the zt and plop legs the wrapper's line "PlaceZone call from the zone tool recognised" reads "return address in the game's tool" on side A and "marked call of our tool" on side B. In the ztk leg that line is absent on both sides, because the keep-roads test switch skips the caller test.
+
+Big City d1095 (leg zt): all six runs have identical fingerprint lines on all eight days and identical ` zonetool` tokens and test lines (lots 3539 to 3547 after the zoning, to 2589 after the de-zoning; funds the same on both sides). Two of the three B runs differ from the A runs only in the prop developer's saved record, where two references in its lists carry the neighbouring class IDs 0x2977AA47 and 0x2977AA49 the other way round (8 of 59 and 42 of 340 entries). In the ztk leg the original's own two runs of this save differ from each other in exactly that way, so the original produces both orders. The same was seen in batches dm5 and pm9 (see [demolition.md](demolition.md) and [propmgr.md](propmgr.md)); what decides the order is not found.
+
 ## The zone tool
 
-Translated, being merged. Section to follow.
+`cSC4ViewInputControlZone` (our name): 0x98 bytes, control ID 0xA766C101, vtable 0x00A92CA8, message target vtable 0x00A92C94 at +0x28, code 0x004DA5A0 to 0x004DC1A0 (src/core/tool_zone.cpp, header tool_zone.h). The constructor is 0x004DAE80 (`SC4ViewTool::Construct4DAE80`); the city view makes it in 0x007E6DA0 with a zone type from 0 to 15, 0 being de-zoning. One group, `ui.tools.zone`, PostAppInit, off by default: 25 hooks, the tool's functions except OnMouseMove (0x004DBE40, slot 20: it builds the outline model's transform inline and stays the game's), plus four functions of the cheat tool before it (vtable 0x00A92AC0: Init 0x004D9E50, constructor 0x004D9E80, Shutdown 0x004D9EA0, destructor body 0x004DA180).
+
+What it does: a press picks a cell and starts a drag; every change asks the zone manager's PlaceZone (slot 11) with place = 0 what the rectangle would do (price on the cost indicator, lots in the way highlighted, cells shown through the terrain overlay, a text for the buildings lost or the error); the release asks with place = 1. When the pointer rests for 750 on the cell the drag began on, the frame message grows a region of up to 8 cells around it and previews that.
+
+Fields (from the start): +0x10 cursor ID (table 0x00A92C40), +0x1C the view, +0x24 the overlay's state before the drag, +0x28 the message target, +0x2C overlay, +0x30 zone manager, +0x34 lot manager, +0x38 sound service, +0x3C zone type, +0x40 drag flag, +0x44 start cell, +0x4C current cell, +0x54 hover time (float), +0x58 grown region (0x24 bytes) or null, +0x5C ordered rectangle, +0x6C cell size (float), +0x70 cursor text (a game string), +0x84 set of lots that would go, +0x88 its count, +0x90 pointer model, +0x94 outline model.
+
+### With game.dezone
+
+`game.dezone` ([dezone.md](dezone.md)) acts on PlaceZone calls whose return address is in the tool's range. Only two of the five call sites it listed are PlaceZone calls: 0x004DB312 (UpdatePreview) and 0x004DA846 (Place); the other three (0x004DB40A, 0x004DB764, 0x004DBA3E) call the sound service, whose slot 11 has the same offset 0x2C. Our tool's calls return into core.dll, so every PlaceZone call goes through one helper that records the original site for its length (`tool_zone::PlaceZoneSite()`), and `KeepRoads` accepts a call from the tool's range or a marked one. No function of the zone tool is wrapped by anything, so no entry accessors are needed (unlike the bulldoze tool). PlaceZone is reached through the zone manager's vtable slot 0x2C: with `simulators.zonemgr.place` on, the slot holds our function, which calls `KeepRoads` itself with its caller's return address; with it off, the slot holds the game's entry, which the wrapper has detoured. Both work with the marked call. The first recognised call writes `dezone: PlaceZone call from the zone tool recognised (...)` to the log.
+
+### Left the game's
+
+OnMouseMove; the view input control base class; the cell region's constructor and destructor, the overlay's methods, the string helpers, the operator new and delete.
+
+### How it is tested
+
+`OPENSC4_TEST_ZONE_TOOL=<day>` (src/core/tool_zone_autotest.cpp, token ` zonetool`). It calls only the game's addresses and the tool's vtable slots, for three tools in turn (zone type 1 low density residential, 8 medium industry, 0 de-zone):
+
+1. Made by the view's maker 0x007E6DA0 (constructor, then the view's SetCurrentViewInputControl, which runs Init): ID, cursor, type, plain fields, which service pointers are set.
+2. Prices: three drags set through the fields (a free 6x4 rectangle, a 5x5 over lots, a 5x5 over a road, found with the lot manager's CanCreateLot), each followed by UpdatePreview: its return, the ordered rectangle, the lot count, the cursor text, and the fields after CancelDrag. The price goes to the cost indicator and cannot be read back.
+3. Keys: OnKeyDown with Escape in a drag and with another key, OnKeyUp, OnMouseExit.
+4. Cells: BuildHoverRegion from a free cell, a lot's cell and a road cell (rectangle and bits of the region), CanAddCell for the same.
+5. Tips: SetTipText for the error codes 0 to 5.
+6. Away: the view's slot 0x68; the view's current control is null again.
+
+`OPENSC4_TEST_ZONE_TOOL_COMMIT=1` adds two real drags through OnMouseUpL: zone type 1 over a free 6x4 rectangle found from the south-east corner, and the de-zone tool over the middle half of the city (where the roads are). The screen point (-1000, -1000) fails the pick and the end cell stays as set (0x004DBB6C leaves the cell fields alone when the pick answers false). A tutorial city holds the placing back (the tutorial service 0x00B43D38, in Place); with `OPENSC4_TEST_TUTORIAL_OFF=1` the placing happens (lots 3569 to 3577 and then 2621 on Big City d0000). Lots and funds are logged; the daily fingerprint shows the rest.
+
+Not reached by the test, 7 of the 25 functions: OnMouseDownL, UpdateHover, DoMessage (the frame message does not arrive inside the day hook) and the four cheat tool functions. They rest on reading the code.
+
+### Trial results
+
+2026-10-12, single runs of 7 days on Big City d0000, Making Money d0090 and plopped p0000 (A = original twice, B = `ui.tools.zone=ours`).
+
+| Case | Result |
+| --- | --- |
+| No switches; `OPENSC4_TEST_ZONING=2 OPENSC4_TEST_DEZONING=3`; the same with `OPENSC4_TEST_DEZONE_KEEP=1` | 9 of 9 identical (one B run of the first case exited during the load and was repeated; it was identical) |
+| Test alone; with commit; commit and keep-roads; commit with the tutorial off; that and keep-roads | 15 of 15 identical |
+
+Keep roads, de-zone commit over the middle half, tutorial off: on Big City d0000 the de-zone costs 92,920 plain (funds 1,035,092 to 942,172) and 91,941 with `OPENSC4_TEST_DEZONE_KEEP=1` (to 943,151), on both sides alike; Making Money d0090 (47,946 to 36,049 and 36,211) and the plopped save (1,260,884 to 1,172,707 and 1,173,632) likewise. The switch bypasses the caller test; that the tool's calls are recognised without it is shown by the log line `dezone: PlaceZone call from the zone tool recognised`, which appears in the original run (return address) and in ours (marked call) with the switch off.
 
 ## The lot (plop) tool
 

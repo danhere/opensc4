@@ -41,7 +41,7 @@ Estimates by area (a judgment from the checklists below, not a measurement):
 | Region view (P8) | ~95% | All five parts ours (332 functions); four drawing functions stay with the renderer |
 | Networks (P7) | ~0% | Not started; only together with the NAM team |
 | Terrain (P8) | ~100% | `cSTETerrain` is ours, 259 functions in seventeen groups ([docs/terrain.md](docs/terrain.md)) |
-| Lots and growth (P5, P8) | the classes are ours | The lot, occupant, zone, development and growth classes, the demolition service, the prop manager and the occupant filters are ours (see their items); the bulldoze tool is ours; the zone and lot (plop) tools are in progress; left: the derived prop classes with drawing |
+| Lots and growth (P5, P8) | the classes are ours | The lot, occupant, zone, development and growth classes, the demolition service, the prop manager and the occupant filters are ours (see their items); the bulldoze and zone tools are ours; the lot (plop) tool is in progress; left: the derived prop classes with drawing |
 | Audio (P8) | the game's audio classes | The game's audio classes (0x004E1320 to 0x004FA6A0), 575 functions in nine groups, are ours ([docs/audio.md](docs/audio.md)); EA's sound library (AEMS) and the framework's sound service stay the game's. The harness compares state, not what is heard, so playback is untested |
 | Framework and exe independence (P9) | ~5% | Surveyed; the message server, its queue, the framework's service lists and tick, the directors' class lookup, the string class with its formatter, the standard message and the critical section wrapper are ours (150 of about 300 framework functions, plus the COM object from the plugin DLL loader) |
 
@@ -178,7 +178,7 @@ Decided (Dan, 2026-10-11): we go ahead without waiting for the NAM team; NAM sta
   - [x] The prop manager ([docs/propmgr.md](docs/propmgr.md))
   - [x] The occupant filters ([docs/occfilters.md](docs/occfilters.md)) (the string specification filter stays the game's)
   - [x] The bulldoze tool ([docs/tools.md](docs/tools.md))
-  - [ ] The zone tool (in progress)
+  - [x] The zone tool ([docs/tools.md](docs/tools.md))
   - [ ] The lot (plop) tool (in progress)
   - [ ] The derived prop classes, with their drawing (renderer)
 - [x] Terrain (`cSTETerrain`, 259 functions, [docs/terrain.md](docs/terrain.md)): ours in seventeen groups `simulators.terrain.*`: the queries, the setters, the shaping machinery, Init, the messages, save and load, the object, erosion, the flood, the water distance map, the normals, the brush body and loader, the neighbour edge matching, a new city's terrain, the three startup table loaders. Left as the game's: its drawing side (the Renderer's). Read but never run in the game: the edge matching past its search, a new city's path, the cheat commands
