@@ -433,6 +433,15 @@ expect = "8B 41 24 8B 00 8B C8 C1"
 source = "Name ours, not analysed. Slot 0x40 of both effect classes: calls 0x005EC7C0 on the batch with (0, 4, 6, 10) and one of three functions by the description's flags 0x40000000 and 0x20000000 (0x005EC510, 0x005EC570, 0x005EC4B0) and 0x005EC430. SC4Effect::SetDescription calls it with the effect's +0x28."
 
 [[entry]]
+name = "SC4EffectBase::Stop"
+address = 0x005B9CC0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectBase* this)"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. On the sub-object at the effect's +4: for one in use (+4), clears +0xC and +0xD, calls its slot 0x20 with (0, 0) (SC4EffectBase::SetEnding: every particle given back) and clears +4. SC4EffectBase::LetGo ends in a jump to it (0x005B248B). Ours in renderer.effects.stop."
+
+[[entry]]
 name = "SC4Effect::GetBox"
 address = 0x005B26F0
 kind = "function"

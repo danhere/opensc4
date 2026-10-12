@@ -3665,6 +3665,37 @@ uint32_t __fastcall DSC4EffectBase_Finish(char* base, void*)
 }
 OPENSC4_THUNK(TSC4EffectBase_Finish, DSC4EffectBase_Finish, 0)
 
+// An effect stopped outright (0x005B9CC0, on the sub-object; letting go of
+// what an effect holds ends in it): for one that is in use (+4), the two
+// marks are cleared, it is told to end (slot 0x20 with two zeros, which
+// gives every particle back) and +4 is cleared.
+uint32_t StopEffect(char* base)
+{
+    if (!At<uint8_t>(base, 4))
+        return 0;
+    At<uint8_t>(base, 0xC) = 0;
+    At<uint8_t>(base, 0xD) = 0;
+    const uint32_t result = CallThisTraced(At<uint32_t>(At<char*>(base, 0), 0x20), base, 0u, 0u);
+    At<uint8_t>(base, 4) = 0;
+    return result;
+}
+
+StepMode g_stopMode = StepMode::Original;
+Call0Fn g_SC4EffectBase_Stop = nullptr;
+
+uint32_t __fastcall StopByMode(char* base, void*)
+{
+    if (g_stopMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4EffectBase_Stop(base, nullptr);
+    if (g_stopMode == StepMode::Ours)
+        return StopEffect(base);
+    return RecordAndReplay(
+        At<uint8_t>(base, 4) ? "effects.stop" : "effects.stop.unused", base - 4, false,
+        [&] { return g_SC4EffectBase_Stop(base, nullptr); },
+        [](void* b) { return StopEffect(static_cast<char*>(b)); }, base);
+}
+OPENSC4_THUNK(TSC4EffectBase_Stop, StopByMode, 0)
+
 // An effect told to go on or to end (0x005B9E70, slot 0x20 of both classes'
 // sub-objects; nothing for one whose byte +5 is clear). The first argument
 // is kept at +0xC. Set, the second is kept at +0xD and, when set as well,
@@ -4613,6 +4644,32 @@ const bool g_registeredEnding = registry::Register({
     "renderer.effects.effect (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallEnding,
+});
+
+bool InstallStop(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4EffectBase_Stop || Detour(addr::SC4EffectBase_Stop, &TSC4EffectBase_Stop, &g_SC4EffectBase_Stop)))
+        return false;
+    if (mode == registry::Mode::Compare && !(HookFrees() && HookPool()))
+        return false;
+    g_stopMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects stopped outright %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredStop = registry::Register({
+    "renderer.effects.stop",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectBase_Stop,
+    "An effect stopped outright: its marks cleared, every particle given back, no longer in use; compare mode "
+    "records the game's run and replays ours, as renderer.effects.effect (docs/renderer.md, \"Water effects, sky "
+    "and clouds\")",
+    true,
+    InstallStop,
 });
 
 bool HookFinish()
