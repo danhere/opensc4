@@ -15,7 +15,7 @@ Early development. Working today, inside SC4 Deluxe build 1.1.641:
 - **DBPF reader:** byte-identical to the game's own reading of every record in a clean install.
 - **Determinism and parity harness:** runs from the same save agree for a year; replacement simulators are compared exactly against the original.
 
-Not yet playable as a standalone game. Roughly 15-20% of the way to a full rewrite; measured stats and per-area estimates are in [ROADMAP.md, "Progress"](ROADMAP.md#progress), refreshed weekly.
+Not yet playable as a standalone game. Roughly 20-25% of the way to a full rewrite; measured stats and per-area estimates are in [ROADMAP.md, "Progress"](ROADMAP.md#progress), refreshed weekly.
 
 ## Improvements over the original
 
