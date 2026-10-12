@@ -47,7 +47,7 @@ start_pause="${OPENSC4_PARITY_PAUSE:-$([ "$jobs" = 1 ] && echo 20 || echo 0)}"
 export OPENSC4_TEST_QUICK="${OPENSC4_TEST_QUICK:-1}"
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-base="determinism.fixed_seed=ours,determinism.virtual_clock=ours,determinism.fixed_ticks=ours,determinism.agent_order=ours,determinism.zero_alloc=ours,determinism.sim_timers=ours,resources.stale_record_fix=ours"
+base="determinism.fixed_seed=ours,determinism.virtual_clock=ours,determinism.fixed_ticks=ours,determinism.agent_order=ours,determinism.zero_alloc=ours,determinism.sim_timers=ours,determinism.lights_at_once=ours,resources.stale_record_fix=ours"
 # Improvements on by default that change the game by themselves are turned
 # off, so both runs play classic SC4 (game.date_sync: docs/date-sync.md;
 # fixes.travel_jobs: docs/citylot.md).
