@@ -22,6 +22,7 @@
 #include <opensc4/addresses.h>
 
 #include <cstdint>
+#include <string>
 
 namespace opensc4::lights_at_once {
 namespace {
@@ -54,6 +55,26 @@ void Finish()
     reinterpret_cast<FinishFn>(addr::cSC4LotDeveloper_FinishNightBuildings)(developer, state);
 }
 
+// The prop developer (the city's slot 41) steps its timed props the same
+// way after a turn (0x006F0EC0: +0xA34 props every 200 ms of the frame
+// timer, +0xA2C the next one, +0xA30 the state, +0xA38 the milliseconds, all
+// saved). Nothing of its own starts the stepping that could be replaced, so
+// it is finished from outside with the game's function that switches every
+// timed prop at once (0x006F10E0), and the milliseconds are cleared.
+void FinishProps()
+{
+    void* const city = Global<void*>(addr::SC4_City);
+    char* const props = city ? Virtual<char*>(city, 0xA4) : nullptr;
+    if (!props)
+        return;
+    const uint32_t state = At<uint32_t>(props, 0xA30);
+    if (state != 1 && state != 2)
+        return;
+    using SetFn = void(__thiscall*)(void* self, uint8_t on);
+    reinterpret_cast<SetFn>(addr::cSC4PropDeveloper_SetTimedProps)(props, state == 1 ? 1 : 0);
+    At<uint32_t>(props, 0xA38) = 0;
+}
+
 void __cdecl Shuffle(DequeIterator, DequeIterator)
 {
     static bool logged = false;
@@ -62,6 +83,7 @@ void __cdecl Shuffle(DequeIterator, DequeIterator)
         log::Write("lights_at_once: first turn of the view's day; every building at once");
     }
     Finish();
+    FinishProps();
 }
 
 bool Install(registry::Mode)
@@ -74,8 +96,19 @@ bool Install(registry::Mode)
 // A city saved while its lights were being stepped.
 void OnLoad(cISC4City*)
 {
-    if (g_on && game::IsBuild641())
+    if (g_on && game::IsBuild641()) {
         Finish();
+        FinishProps();
+    }
+}
+
+// At every daily fingerprint, the last of which comes just before the save:
+// the timed props a turn since the last one left in steps. Adds nothing to
+// the line.
+void OnFingerprint(cISC4City*, std::string&)
+{
+    if (g_on && game::IsBuild641())
+        FinishProps();
 }
 
 const bool g_registered = registry::Register({
@@ -90,6 +123,7 @@ const bool g_registered = registry::Register({
 });
 
 const autotest::LoadHook kLoad{"lights_at_once", 20, &OnLoad};
+const autotest::FingerprintPart kFingerprint{"lights_at_once", 1, &OnFingerprint};
 
 } // namespace
 } // namespace opensc4::lights_at_once
