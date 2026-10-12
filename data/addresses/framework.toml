@@ -1,0 +1,197 @@
+# The game framework (GZCOM): the message server, so far (src/core/framework_messageserver.cpp, docs/framework.md).
+
+[[entry]]
+name = "cSC4MessageServer2::MessageSend"
+address = 0x004737E0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 00 EF"
+source = "Name ours (the class is the game's subclass of cGZMessageServer2, made with new at 0x004505D3 by the constructor 0x00472EB0 when the byte 0x00B21428 is set; vtable 0x00A8CAFC). Not reached in our runs: the byte is clear and the server is the base class. Slot 3; `ret 4`. The base's MessageSend with the targets' delivery inside a try block whose handler frees the list and throws again. Ours in framework.messageserver.send (docs/framework.md)."
+
+[[entry]]
+name = "cGZMessageServer2::MessageSend"
+address = 0x0092EA65
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 1C 53 56"
+source = "Slot 3 of the vtable 0x00AD1BF4 (gzcom-dll cIGZMessageServer2); `ret 4`. The one that runs (coverage meter, 2026-10-11). Ours in framework.messageserver.send."
+
+[[entry]]
+name = "cGZMessageServer2::ApplyPendingNotifications"
+address = 0x0092E8B5
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 3C 83 65"
+source = "Name ours. No arguments, plain ret; called by the two MessageSend only (0x0047381D, 0x0092EA87). Applies the list at +0x68 (changes asked for while a change or a collection was under way) to the table at +0x6C and empties it. Ours in framework.messageserver.send."
+
+[[entry]]
+name = "cGZMessageServer2::AddNotification"
+address = 0x0092E795
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 1C 83 65"
+source = "Slot 5; `ret 8` (target, message type). Ours in framework.messageserver.notify."
+
+[[entry]]
+name = "cGZMessageServer2::RemoveNotification"
+address = 0x0092E560
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 1C 53 56"
+source = "Slot 6; `ret 8` (target, message type). Ours in framework.messageserver.notify."
+
+[[entry]]
+name = "cGZMessageServer2::FlushPendingNotifications"
+address = 0x0092DF35
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. No arguments, plain ret; called at the end of AddNotification and RemoveNotification (0x0092E62C, 0x0092E89F). Replays the list at +0x68 through slots 5 and 6 unless a replay is under way (flag 0x00B629F2) or the server is busy (+0x64). Ours in framework.messageserver.notify."
+
+[[entry]]
+name = "cGZMessageServer2::MessagePost"
+address = 0x0092D0BB
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Slot 4; `ret 8` (message, high priority). Ours in framework.messageserver.queue."
+
+[[entry]]
+name = "cGZMessageServer2::OnTick"
+address = 0x0092E040
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 83 65"
+source = "Slot 9; `ret 4`. Reached from the framework's tick through the service part's slot 10 (thunk 0x00473000). Ours in framework.messageserver.queue."
+
+[[entry]]
+name = "cGZMessageServer2::GetMessageQueueSize"
+address = 0x0092D0F4
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Slot 10; plain ret. Ours in framework.messageserver.queue."
+
+[[entry]]
+name = "cGZMessageServer2::SetAlwaysClearQueueOnTick"
+address = 0x0092D11F
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 88 41 60 C2"
+source = "Slot 11; `ret 4`. Stores the byte at +0x60. Ours in framework.messageserver.queue."
+
+[[entry]]
+name = "cGZMessageServer2::CreateMessage"
+address = 0x0092D1FE
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 81 7D 08 E7 45"
+source = "Slot 13; `ret 0xC` (class ID, interface ID, out). Makes a cGZMessage (0x2C bytes, 0x009133DA + 0x009134D6) for class 0x46DF45E7 only. Ours in framework.messageserver.queue."
+
+[[entry]]
+name = "cGZMessageServer2::GeneralMessagePostToTarget"
+address = 0x0092EA00
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 56 8B"
+source = "Slot 7; `ret 8` (message, target). Ours in framework.messageserver.direct."
+
+[[entry]]
+name = "cGZMessageServer2::CancelGeneralMessagePostsToTarget"
+address = 0x0092E642
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 4C 53 56"
+source = "Slot 8; `ret 4`. Ours in framework.messageserver.direct."
+
+[[entry]]
+name = "cGZMessageServer2::DispatchGeneralMessages"
+address = 0x0092DFA3
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. No arguments, plain ret; called by OnTick only (0x0092E0F0). Delivers the posts of the list at +0x84. Ours in framework.messageserver.direct."
+
+[[entry]]
+name = "cGZMessageServer2::QueryInterface"
+address = 0x0092D091
+kind = "function"
+convention = "thiscall"
+expect = "81 7C 24 04 C7 94 22 65"
+source = "Slot 0; `ret 8`. Answers 0x652294C7 itself, the rest goes to the service part (0x0091DD67 on this + 4). Ours in framework.messageserver.interface."
+
+[[entry]]
+name = "cGZMessageServer2::GetRefCount"
+address = 0x0092D0B3
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 08 8B 01 FF 60 14"
+source = "Slot 12 (gzcom-dll name): a jump to slot 5 of the part at +8 (0x009D7E63: its +4, the reference count at the object's +0xC). Ours in framework.messageserver.interface."
+
+[[entry]]
+name = "cGZMessageServer2::Init"
+address = 0x0092D05B
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 89 C3 F4 FF"
+source = "Slot 8 of the service part (this = object + 4): the framework's AddToTick (its slot 9) with the service. Ours in framework.messageserver.interface (runs before PostAppInit, so ours is reached only by a later Init)."
+
+[[entry]]
+name = "cGZMessageServer2::Shutdown"
+address = 0x0092D076
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 6E C3 F4 FF"
+source = "Slot 9 of the service part (this = object + 4): the framework's RemoveFromTick (its slot 10). Ours in framework.messageserver.interface."
+
+[[entry]]
+name = "cGZMessageServer2::TargetTable_Insert"
+address = 0x0092FDD8
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 40 50"
+source = "Name ours. The hash table's insert for a new message type: grows the table for one more (0x009978AF), then inserts {type, list} (0x00968E31); `ret 8` (result, value); the result is 9 bytes (node, table, inserted). Called by ours; still the game's (a container helper)."
+
+[[entry]]
+name = "cGZMessageServer2::DirectQueue_PushBackAux"
+address = 0x0092E216
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 FF 75"
+source = "Name ours. The direct posts' deque: push_back when the last block is full (a new 0x80-byte block); `ret 4` (the pair). Called by ours; still the game's."
+
+[[entry]]
+name = "cGZMessageServer2::DirectQueue_Erase"
+address = 0x0092E162
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. The direct posts' deque: erase of one element; `ret 0x14` (result iterator, then the position by value, 16 bytes). Called by ours; still the game's."
+
+[[entry]]
+name = "SC4RefPairDeque::PopFrontAux"
+address = 0x00473290
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 3E 8B 4F"
+source = "Name ours. A deque of pairs of counted references: pop_front when the first block has one element left (frees the block); no arguments. Called by ours; still the game's."
+
+[[entry]]
+name = "cGZMessageServer2::ReplayingPending"
+address = 0x00B629F2
+kind = "data"
+source = "Name ours. A byte, 1 while FlushPendingNotifications replays the list (one flag for every server)."
+
+[[entry]]
+name = "cGZMessageServer2::Vtable"
+address = 0x00AD1BF4
+kind = "vtable"
+expect = "91 D0 92 00 6F 05 93 00"
+source = "The class's primary vtable, 14 slots (gzcom-dll cIGZMessageServer2). Stored by the constructor 0x0092EB23 (0xB0 bytes; service ID 0x04FA845B, priority 5000000) and the factory 0x0092EBB7 (class 0x252294E9)."
+
+[[entry]]
+name = "cSC4MessageServer2::Vtable"
+address = 0x00A8CAFC
+kind = "vtable"
+expect = "91 D0 92 00 6F 05 93 00"
+source = "The game's subclass (constructor 0x00472EB0): slot 3 is its own MessageSend 0x004737E0, the rest is the base's."
