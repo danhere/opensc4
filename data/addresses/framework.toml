@@ -394,3 +394,178 @@ address = 0x00AD1AD0
 kind = "vtable"
 expect = "85 CF 92 00 9F EC 93 00"
 source = "25 slots; stored by the constructor 0x0092DD7E."
+
+[[entry]]
+name = "cGZFrameWork::AddSystemService"
+address = 0x0087AC3C
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 28 53 56"
+source = "Slot 3 of the vtable 0x00AC3090 (gzcom-dll cIGZFrameWork); `ret 4`. Ours in framework.services.registry."
+
+[[entry]]
+name = "cGZFrameWork::RemoveSystemService"
+address = 0x0087A90E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 53 56"
+source = "Slot 4; `ret 4`. Ours in framework.services.registry."
+
+[[entry]]
+name = "cGZFrameWork::GetSystemService"
+address = 0x0087A0AC
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Slot 5; `ret 0xC` (service ID, interface ID, out). Ours in framework.services.registry."
+
+[[entry]]
+name = "cGZFrameWork::EnumSystemServices"
+address = 0x0087A106
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 56 57 8D 45"
+source = "Slot 6; `ret 0xC` (an enumerator object whose slot 3 is called with each service, and two values passed on). Left the game's: called in a running city it stalls after 32 services, so a replacement could not be compared (docs/framework.md)."
+
+[[entry]]
+name = "cGZFrameWork::ListServicesByPriority"
+address = 0x00879ACE
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 53 56"
+source = "Name ours. `ret 8` (a list, ascending): the services in priority order, lowest first when the flag is set, into the list. Called by EnumSystemServices (0x0087A122) and by the six functions that start and stop the services in bands (0x00879F6A, 0x00879FDB, 0x0087A063, 0x0087A4D7, 0x0087A548, 0x0087A5C0). Ours in framework.services.registry."
+
+[[entry]]
+name = "cGZFrameWork::AddToTick"
+address = 0x00879BB9
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 18 53 56"
+source = "Slot 9; `ret 4`. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::RemoveFromTick"
+address = 0x00879C6C
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Slot 10; `ret 4`. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::AddToOnIdle"
+address = 0x00879D21
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Slot 11; `ret 4`. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::RemoveFromOnIdle"
+address = 0x00879DB3
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Slot 12; `ret 4`. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::GetOnIdleInterval"
+address = 0x0087946C
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 BC 00 00 00 C3 A1"
+source = "Slot 13: the value at +0xBC. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::SetOnIdleInterval"
+address = 0x0087944F
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 7E 08"
+source = "Slot 14; `ret 4`: +0xBC, or 1 for a value below 1. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::OnTick"
+address = 0x0087A74B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Slot 15; `ret 4` (the frame number). The one that runs (the game's subclass overrides it; see cSC4FrameWork::OnTick). Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::OnIdle"
+address = 0x0087A812
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 56 8B"
+source = "Slot 16; no arguments. Called by the main loop (0x008795BD) once per pass. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::AddHook"
+address = 0x0087A1F4
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Slot 7; `ret 4`. Ours in framework.services.hooks."
+
+[[entry]]
+name = "cGZFrameWork::RemoveHook"
+address = 0x008798AA
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Slot 8; `ret 4`. Ours in framework.services.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CopyHooks"
+address = 0x0087A178
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 53 56"
+source = "Name ours. `ret 4` (a list): the hooks appended to the list under the lock. Called by the seven functions that call the hooks (0x0087A2AA ... 0x0087A48A). Ours in framework.services.hooks."
+
+[[entry]]
+name = "cSC4FrameWork::OnTick"
+address = 0x00473440
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 E0 EE"
+source = "Name ours (the game's subclass of the framework, vtable 0x00A8C970, chosen by the byte 0x00B21428, which is clear in our runs). Slot 15; `ret 4`: the base's OnTick in a try block. Ours in framework.services.tick."
+
+[[entry]]
+name = "cSC4FrameWork::OnIdle"
+address = 0x004735F0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 F0 EE"
+source = "Name ours. Slot 16 of the subclass: the base's OnIdle in a try block. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::ServiceTree_Insert"
+address = 0x00879E91
+kind = "function"
+convention = "thiscall"
+expect = "8B 11 8B 42 04 85 C0 57"
+source = "Name ours. The services-by-priority tree's insert (equal keys allowed, a new one after its equals); `ret 8` (result, value {priority, service}). Called by ours; still the game's (a container helper)."
+
+[[entry]]
+name = "cGZFrameWork::ServiceTree_Erase"
+address = 0x00968D88
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 07 8D 48"
+source = "Name ours. A tree's erase of one node (rebalance 0x0040DAF0, the node's reference released, the count down); `ret 4`. Shared template code. Called by ours; still the game's."
+
+[[entry]]
+name = "cGZFrameWork::ServiceTable_Insert"
+address = 0x0087A66F
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 40 50"
+source = "Name ours. The services-by-ID hash table's insert: grows the table for one more (0x009978AF), then inserts {ID, service} (0x0087999F); `ret 8` (result, value). Called by ours; still the game's."
+
+[[entry]]
+name = "cGZFrameWork::Vtable"
+address = 0x00AC3090
+kind = "vtable"
+expect = "1B 93 87 00 55 93 87 00"
+source = "The framework's primary vtable, 49 slots (docs/framework.md)."
