@@ -1044,6 +1044,149 @@ void StringsFingerprint(cISC4City*, std::string& line)
     line += text;
 }
 
+// The message object test (OPENSC4_TEST_MESSAGE_OBJECT).
+bool g_messageObjectOn = false;
+uint32_t g_messageObjectHash = 2166136261u;
+
+// OPENSC4_TEST_MESSAGE_OBJECT=<day>: standard messages made with the
+// game's constructor and taken through their vtable slots: the "has"
+// answers of a fresh message, the type set and cleared, the four data
+// values (a zero too), a string, an unknown and an extra object set, read
+// back through GetString and GetExtra (with and without the interface) and
+// cleared, the two comparisons by type, Create (found and not), the
+// interfaces, and the count down to the message's end, after which the
+// objects it held have their references back. Everything goes into the
+// fingerprint's `mobj` part.
+void DriveMessageObject(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_MESSAGE_OBJECT") || !game::IsBuild641())
+        return;
+    g_messageObjectOn = true;
+    uint32_t& h = g_messageObjectHash;
+    const auto make = [] {
+        void* const memory = reinterpret_cast<void*(__cdecl*)(uint32_t)>(addr::RZ_operator_new)(0x2C);
+        void* const message = reinterpret_cast<void*(__thiscall*)(void*)>(addr::cGZMessage_cGZMessage)(memory);
+        Virtual<uint32_t>(message, 0x4);
+        return message;
+    };
+    // Every "has" answer, the type and the four values.
+    const auto state = [](void* message) {
+        uint32_t& h = g_messageObjectHash;
+        for (const std::size_t slot : {0x20u, 0x34u, 0x48u, 0x5Cu, 0x70u, 0x7Cu, 0x88u})
+            MixInto(h, Virtual<uint32_t>(message, slot) & 0xFF);
+        MixInto(h, Virtual<uint32_t>(message, 0x10));
+        for (const std::size_t slot : {0x24u, 0x38u, 0x4Cu, 0x60u})
+            MixInto(h, Virtual<uint32_t>(message, slot));
+    };
+    void* const m = make();
+    void* const n = make();
+    state(m);
+    Virtual<uint32_t>(m, 0x14, uint32_t{0x7E570E01});
+    state(m);
+    Virtual<uint32_t>(m, 0x14, uint32_t{0});
+    state(m);
+    Virtual<uint32_t>(m, 0x14, uint32_t{0x7E570E02});
+    Virtual<uint32_t>(m, 0x2C, uint32_t{11});
+    state(m);
+    Virtual<uint32_t>(m, 0x40, uint32_t{0});
+    state(m);
+    Virtual<uint32_t>(m, 0x54, uint32_t{33});
+    Virtual<uint32_t>(m, 0x68, uint32_t{44});
+    state(m);
+    Virtual<uint32_t>(m, 0x30, uint32_t{55});
+    Virtual<uint32_t>(m, 0x6C, uint32_t{66});
+    state(m);
+
+    // The three objects: test targets serve as counted objects, a game
+    // string as the string.
+    GameString text("a message's text");
+    Virtual<uint32_t>(text.Self(), 0x4);
+    Target& unknown = g_targets[0];
+    Target& extra = g_targets[1];
+    const uint32_t unknownBefore = unknown.refs();
+    const uint32_t extraBefore = extra.refs();
+    Virtual<void*>(m, 0x78, text.Self());
+    Virtual<void*>(m, 0x84, static_cast<void*>(&unknown));
+    Virtual<void*>(m, 0x90, static_cast<void*>(&extra));
+    state(m);
+    MixInto(h, *reinterpret_cast<uint32_t*>(text.object + 0x10));
+    MixInto(h, unknown.refs() - unknownBefore);
+    MixInto(h, extra.refs() - extraBefore);
+    MixInto(h, Virtual<void*>(m, 0x80) == static_cast<void*>(&unknown) ? 1 : 0);
+    void* out = nullptr;
+    MixInto(h, Virtual<bool>(m, 0x74, uint32_t{0x089B7DC8}, &out) ? 1 : 0);
+    MixInto(h, out == text.Self() ? 1 : 0);
+    if (out)
+        Virtual<uint32_t>(out, 0x8);
+    out = nullptr;
+    MixInto(h, Virtual<bool>(m, 0x74, uint32_t{0x7E570EFE}, &out) ? 1 : 0);
+    out = nullptr;
+    MixInto(h, Virtual<bool>(m, 0x8C, uint32_t{0x452294AA}, &out) ? 1 : 0);
+    MixInto(h, out == static_cast<void*>(&extra) ? 1 : 0);
+    if (out)
+        extra.Release();
+    out = nullptr;
+    MixInto(h, Virtual<bool>(m, 0x8C, uint32_t{0x7E570EFE}, &out) ? 1 : 0);
+    MixInto(h, Virtual<bool>(n, 0x74, uint32_t{0x089B7DC8}, &out) ? 1 : 0);
+    MixInto(h, Virtual<bool>(n, 0x8C, uint32_t{0x452294AA}, &out) ? 1 : 0);
+    // The same object again, another one, then none.
+    Virtual<void*>(m, 0x84, static_cast<void*>(&unknown));
+    MixInto(h, unknown.refs() - unknownBefore);
+    Virtual<void*>(m, 0x84, static_cast<void*>(&extra));
+    MixInto(h, unknown.refs() - unknownBefore);
+    MixInto(h, extra.refs() - extraBefore);
+    Virtual<void*>(m, 0x84, static_cast<void*>(nullptr));
+    Virtual<void*>(m, 0x78, static_cast<void*>(nullptr));
+    state(m);
+    MixInto(h, *reinterpret_cast<uint32_t*>(text.object + 0x10));
+    MixInto(h, extra.refs() - extraBefore);
+    Virtual<void*>(m, 0x78, text.Self());
+
+    // By type: equal and lower, both ways.
+    Virtual<uint32_t>(n, 0x14, uint32_t{0x7E570E02});
+    MixInto(h, Virtual<uint32_t>(m, 0x18, n) & 0xFF);
+    MixInto(h, Virtual<uint32_t>(m, 0x1C, n));
+    Virtual<uint32_t>(n, 0x14, uint32_t{0x7E570E03});
+    MixInto(h, Virtual<uint32_t>(m, 0x18, n) & 0xFF);
+    MixInto(h, Virtual<uint32_t>(m, 0x1C, n));
+    MixInto(h, Virtual<uint32_t>(n, 0x1C, m));
+
+    // Create: a new message with this one's type and nothing else.
+    void* created = nullptr;
+    MixInto(h, Virtual<bool>(m, 0xC, uint32_t{0x65297976}, &created) ? 1 : 0);
+    if (created) {
+        state(created);
+        MixInto(h, Virtual<uint32_t>(created, 0x8));
+    }
+    created = nullptr;
+    MixInto(h, Virtual<bool>(m, 0xC, uint32_t{0x7E570EFE}, &created) ? 1 : 0);
+
+    // The interfaces, then the end: the string and the extra object get
+    // their references back.
+    void* same = nullptr;
+    MixInto(h, Virtual<bool>(m, 0x0, uint32_t{0xA52294B4}, &same) ? 1 : 0);
+    MixInto(h, same == m ? 1 : 0);
+    MixInto(h, Virtual<bool>(m, 0x0, uint32_t{1}, &same) ? 1 : 0);
+    MixInto(h, Virtual<bool>(m, 0x0, uint32_t{0x7E570EFE}, &same) ? 1 : 0);
+    MixInto(h, Virtual<uint32_t>(m, 0x8));
+    MixInto(h, Virtual<uint32_t>(m, 0x8));
+    MixInto(h, Virtual<uint32_t>(m, 0x8));
+    MixInto(h, Virtual<uint32_t>(n, 0x8));
+    MixInto(h, *reinterpret_cast<uint32_t*>(text.object + 0x10));
+    MixInto(h, extra.refs() - extraBefore);
+    MixInto(h, unknown.refs() - unknownBefore);
+    log::Write("autotest: message object driven (hash %08X)", h);
+}
+
+void MessageObjectFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_messageObjectOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | mobj %08X", g_messageObjectHash);
+    line += text;
+}
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     if (!g_on)
@@ -1075,6 +1218,8 @@ const DayHook kDriveClasses{"classes", 4, &DriveClasses};
 const FingerprintPart kStartFingerprint{"service_start", 4, &StartFingerprint};
 const FingerprintPart kStringsFingerprint{"strings", 4, &StringsFingerprint};
 const DayHook kDriveStrings{"strings", 4, &DriveStrings};
+const FingerprintPart kMessageObjectFingerprint{"message_object", 4, &MessageObjectFingerprint};
+const DayHook kDriveMessageObject{"message_object", 4, &DriveMessageObject};
 
 } // namespace
 } // namespace opensc4::autotest
