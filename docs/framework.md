@@ -377,3 +377,39 @@ All 22 framework groups on against the original (the service start trace on both
 
 All on the first pair. The `str` part was the same in all 24 runs of the test's leg.
 
+## The standard message
+
+`cGZMessage` (vtable 0x00ACEC00, 38 slots; 0x2C bytes, from the message pool) is the message object the message servers and the message queue pass around. It holds a reference count at +4, a byte of flags at +8, a type at +0xC, four data values from +0x10, and three counted references: a string at +0x20, an unknown at +0x24 and an extra object at +0x28. The flags say what the message has: bit 0 a type, bits 1 to 4 the data values, bit 5 the extra object, bit 6 the string, bit 7 the unknown. The message's subclasses share these functions through their own vtables.
+
+- **The type and the data values.** SetType stores the type; a type of 0 clears the flag, so such a message has no type. A data value's setter stores the value and sets its flag whatever the value: once set, a value cannot be taken back.
+- **The three objects.** A setter sets the flag by whether the object is null, then, when the object is not the one already held, adds a reference to the new one, stores it and releases the old one. GetString and GetExtra first ask the message itself whether it has the object (through its own slots, so a subclass can answer) and then ask the object for the interface.
+- **The interface.** QueryInterface answers 1, 0xA52294B4 and 0x65297976. Release deletes the message with its last reference, through the deleting destructor's slot. Create makes a new standard message, asks it for the interface and gives it this message's type and nothing else of it; without the interface the new message is deleted again. The two comparisons (same type, lower type) read the other message's type through its slot.
+
+`src/core/framework_message.cpp`, entry detours, off by default:
+
+| Replacement | Functions |
+|---|---|
+| `framework.message.data` | SetType 0x009132DB, the data values' setters 0x00913322, 0x00913330, 0x0091333E, 0x0091334C and "has" answers 0x009132F3, 0x009132FE, 0x0091330A, 0x00913316 |
+| `framework.message.objects` | SetString 0x00913452, SetIGZUnknown 0x0091346B, SetExtra 0x009134A1, their "has" answers 0x0091335A, 0x00913366, 0x0091336E, GetString 0x00913438, GetExtra 0x00913484 |
+| `framework.message.interface` | QueryInterface 0x00913292, Release 0x009132C1, Create 0x009134FF, the comparisons 0x0091337A and 0x00913394, the deleting destructor 0x009134BA |
+
+23 functions. Some have direct callers in game code, so every detour is entered through a thunk that keeps ECX and EDX.
+
+Still the game's: the constructor (0x009134D6, 283 direct callers), the destructor (0x009133AB), the pool's allocate and free (0x009133DA, 0x00913409), and the getters of the type, the data values and the unknown, which are small functions shared with unrelated classes.
+
+### Testing
+
+`OPENSC4_TEST_MESSAGE_OBJECT=<day>` makes messages with the game's constructor and calls the methods through their vtable slots: the type set, cleared and set again; each data value set, one of them to 0; a game string, and two counted test objects as the unknown and the extra object, set, set again, exchanged and cleared, with the objects' reference counts read after each step; GetString and GetExtra with an interface the object has and one it does not, and on a message without the object; the interfaces; Create, with and without an interface the new message has; the two comparisons; and the reference count down to the message's end. Every result goes into the fingerprint's `mobj` part.
+
+With the test on, the coverage meter shows all 23 functions reached in the original.
+
+### Parity
+
+All 25 framework groups on against the original (the service start trace on both sides), 12 saves, 7 days, two jobs, 2026-10-12, each leg with a control (the original on both sides):
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 12 same | 12 same |
+| `OPENSC4_TEST_MESSAGE_OBJECT=2` | 12 same | 12 same |
+
+All on the first pair. The `mobj` part was the same in all 48 runs of the test's leg and its control.
