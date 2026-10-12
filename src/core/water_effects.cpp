@@ -2815,6 +2815,44 @@ uint32_t DescCallee(uint32_t target, uint32_t a, const std::function<uint32_t()>
     return g_descGameCalls.back().result;
 }
 
+// A description let go (0x005B1C80), written by hand: its count of holders
+// (+0x204) goes down by one, and at none it is destroyed (0x0059ECB0) and
+// its memory freed (0x005E5620). The answer is the count left. Compared by
+// running both on the count while a holder is left; the last letting go
+// is the game's in compare mode.
+StepMode g_releaseMode = StepMode::Original;
+
+uint32_t ReleaseDescription(char* self)
+{
+    const int32_t left = --At<int32_t>(self, 0x204);
+    if (left != 0)
+        return static_cast<uint32_t>(left);
+    CallThis<uint32_t>(0x0059ECB0, self);
+    reinterpret_cast<void(__cdecl*)(void*)>(0x005E5620)(self);
+    return 0;
+}
+
+uint32_t __fastcall ReleaseByMode(char* self, void*)
+{
+    if (g_releaseMode == StepMode::Original)
+        return g_SC4EffectDescription_Release(self, nullptr);
+    if (g_releaseMode == StepMode::Ours)
+        return ReleaseDescription(self);
+    const int32_t before = At<int32_t>(self, 0x204);
+    if (before == 1) {
+        compare::Record("effects.release.last", true, std::string(), std::string());
+        return g_SC4EffectDescription_Release(self, nullptr);
+    }
+    const uint32_t mine = ReleaseDescription(self);
+    const int32_t left = At<int32_t>(self, 0x204);
+    At<int32_t>(self, 0x204) = before;
+    const uint32_t result = g_SC4EffectDescription_Release(self, nullptr);
+    const bool same = mine == result && left == At<int32_t>(self, 0x204);
+    compare::Record("effects.release", same, same ? std::string() : std::to_string(result),
+                    same ? std::string() : std::to_string(mine));
+    return result;
+}
+
 uint32_t __fastcall DSC4EffectDescription_Release(char* self, void*)
 {
     if (BNoting())
@@ -2823,7 +2861,7 @@ uint32_t __fastcall DSC4EffectDescription_Release(char* self, void*)
     if (DescNoting())
         return DescCallee(addr::SC4EffectDescription_Release, reinterpret_cast<uint32_t>(self),
                           [&] { return g_SC4EffectDescription_Release(self, nullptr); });
-    return EffectRecorded(addr::SC4EffectDescription_Release, g_SC4EffectDescription_Release, self);
+    return EffectRecorded(addr::SC4EffectDescription_Release, &ReleaseByMode, self);
 }
 OPENSC4_THUNK(TSC4EffectDescription_Release, DSC4EffectDescription_Release, 0)
 
@@ -6224,6 +6262,293 @@ const bool g_registeredCtor = registry::Register({
     "effects, sky and clouds\")",
     true,
     InstallCtor,
+});
+
+// --- A description's lists read from the effects file ---------------------------------------
+//
+// A description keeps some of its values in lists (begin, end and end of
+// the memory, as the game's own containers have them): one of records of
+// seven floats (0x1C bytes), one of records of eight (0x20). Each is read
+// from a stream by a function of its own (0x005B0930, 0x005B09D0, both
+// (stream, list) answering the stream): the count (the stream's slot
+// 0x24), the list resized to it (0x005B0840 with the record to fill with,
+// 0x005B08A0 which fills with the float at 0x00B22D54 six times and two
+// zeroes), then every float of every record (slot 0x30). The resize cuts
+// the list short or has the game's insert (0x005B05A0, 0x005B0700) add
+// the records. All four are written by hand; the first float of the
+// record the first reader fills with is whatever was on the game's stack,
+// zero in ours, and is read over at once.
+constexpr uint32_t kListInsertA = 0x005B05A0, kListInsertB = 0x005B0700, kListFill = 0x00B22D54;
+
+void ResizeListA(char* list, uint32_t count, uint32_t record)
+{
+    char* const begin = At<char*>(list, 0);
+    char* const end = At<char*>(list, 4);
+    const uint32_t size = static_cast<uint32_t>((end - begin) / 0x1C);
+    if (count < size)
+        At<char*>(list, 4) = begin + count * 0x1C;
+    else
+        CallThis<uint32_t>(kListInsertA, list, end, count - size, record);
+}
+
+void ResizeListB(char* list, uint32_t count)
+{
+    char* const begin = At<char*>(list, 0);
+    char* const end = At<char*>(list, 4);
+    const uint32_t size = static_cast<uint32_t>((end - begin) >> 5);
+    if (count < size) {
+        At<char*>(list, 4) = begin + count * 0x20;
+        return;
+    }
+    const uint32_t fill = M<uint32_t>(kListFill);
+    uint32_t record[8] = {fill, fill, fill, fill, fill, fill, 0, 0};
+    CallThis<uint32_t>(kListInsertB, list, end, count - size, record);
+}
+
+void ResizeListAByMode(char* list, uint32_t count, uint32_t record);
+void ResizeListBByMode(char* list, uint32_t count);
+
+uint32_t StreamRead(uint32_t stream, uint32_t slot, uint32_t to)
+{
+    return CallThis<uint32_t>(M<uint32_t>(M<uint32_t>(stream) + slot), reinterpret_cast<char*>(stream), to);
+}
+
+uint32_t ReadListA(uint32_t stream, uint32_t list)
+{
+    uint32_t count = 0;
+    StreamRead(stream, 0x24, reinterpret_cast<uint32_t>(&count));
+    const uint32_t fill = M<uint32_t>(kListFill);
+    uint32_t record[7] = {0, fill, fill, fill, fill, fill, fill};
+    ResizeListAByMode(reinterpret_cast<char*>(list), count, reinterpret_cast<uint32_t>(record));
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t at = M<uint32_t>(list) + i * 0x1C;
+        for (uint32_t offset = 0; offset < 0x1C; offset += 4)
+            StreamRead(stream, 0x30, at + offset);
+    }
+    return stream;
+}
+
+uint32_t ReadListB(uint32_t stream, uint32_t list)
+{
+    uint32_t count = 0;
+    StreamRead(stream, 0x24, reinterpret_cast<uint32_t>(&count));
+    ResizeListBByMode(reinterpret_cast<char*>(list), count);
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t at = M<uint32_t>(list) + i * 0x20;
+        for (uint32_t offset = 0; offset < 0x20; offset += 4)
+            StreamRead(stream, 0x30, at + offset);
+    }
+    return stream;
+}
+
+// Their comparison: the game's reads the list, with the stream's two
+// slots seen through a copy of its table of functions that notes each
+// read and the four bytes it gave; then ours reads into a copy of the list
+// as it was before (in memory of the same size), the stream's copy giving
+// back the noted values in order. The reads must be the same ones, and
+// the two lists the same in length, room and bytes. In the game's run the
+// resizes are the game's, in ours' ours.
+using ListReadFn = uint32_t(__cdecl*)(uint32_t, uint32_t);
+using ListResizeAFn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t);
+StepMode g_listsMode = StepMode::Original;
+ListReadFn g_SC4EffectDescription_ReadListA = nullptr, g_SC4EffectDescription_ReadListB = nullptr;
+ListResizeAFn g_SC4EffectDescription_ResizeListA = nullptr;
+Call1Fn g_SC4EffectDescription_ResizeListB = nullptr;
+struct ListRead {
+    uint32_t slot, value, result;
+};
+std::vector<ListRead> g_listReads;
+std::size_t g_listReplayed = 0;
+bool g_listGame = false, g_listReplay = false, g_listWrong = false;
+uint32_t g_listStreamReal = 0;
+DWORD g_listThread = 0;
+std::map<uint32_t, std::vector<uint32_t>> g_listTables;
+
+uint32_t ListStreamRead(char* stream, uint32_t slot, uint32_t to)
+{
+    uint32_t real = g_listStreamReal;
+    if (!(g_listGame || g_listReplay) || GetCurrentThreadId() != g_listThread) {
+        for (const auto& [table, copy] : g_listTables) {
+            if (At<uint32_t*>(stream, 0) == copy.data())
+                real = table;
+        }
+        return CallThis<uint32_t>(M<uint32_t>(real + slot), stream, to);
+    }
+    if (g_listGame) {
+        const uint32_t result = CallThis<uint32_t>(M<uint32_t>(real + slot), stream, to);
+        g_listReads.push_back({slot, M<uint32_t>(to), result});
+        return result;
+    }
+    if (g_listReplayed >= g_listReads.size() || g_listReads[g_listReplayed].slot != slot) {
+        g_listWrong = true;
+        return 0;
+    }
+    M<uint32_t>(to) = g_listReads[g_listReplayed].value;
+    return g_listReads[g_listReplayed++].result;
+}
+
+uint32_t __fastcall ListStreamCount(char* stream, void*, uint32_t to)
+{
+    return ListStreamRead(stream, 0x24, to);
+}
+
+uint32_t __fastcall ListStreamFloat(char* stream, void*, uint32_t to)
+{
+    return ListStreamRead(stream, 0x30, to);
+}
+
+uint32_t ListCompared(const char* id, uint32_t stream, uint32_t list, std::size_t record, ListReadFn game,
+                      uint32_t (*ours)(uint32_t, uint32_t))
+{
+    char* const begin = M<char*>(list);
+    const std::size_t used = M<char*>(list + 4) - begin, room = M<char*>(list + 8) - begin;
+    uint32_t mine[3] = {0, 0, 0};
+    if (room) {
+        mine[0] = reinterpret_cast<uint32_t>(
+            reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(room));
+        std::memcpy(reinterpret_cast<void*>(mine[0]), begin, used);
+        mine[1] = mine[0] + used;
+        mine[2] = mine[0] + room;
+    }
+    g_listStreamReal = M<uint32_t>(stream);
+    std::vector<uint32_t>& table = g_listTables[g_listStreamReal];
+    if (table.empty()) {
+        table.assign(reinterpret_cast<const uint32_t*>(g_listStreamReal),
+                     reinterpret_cast<const uint32_t*>(g_listStreamReal) + kBSlots);
+        table[0x24 / 4] = reinterpret_cast<uint32_t>(&ListStreamCount);
+        table[0x30 / 4] = reinterpret_cast<uint32_t>(&ListStreamFloat);
+    }
+    g_listThread = GetCurrentThreadId();
+    g_listReads.clear();
+    g_listReplayed = 0;
+    g_listWrong = false;
+    M<const uint32_t*>(stream) = table.data();
+    g_listGame = true;
+    const uint32_t result = game(stream, list);
+    g_listGame = false;
+    g_listReplay = true;
+    const uint32_t ourResult = ours(stream, reinterpret_cast<uint32_t>(mine));
+    g_listReplay = false;
+    M<uint32_t>(stream) = g_listStreamReal;
+    const std::size_t theirUsed = M<uint32_t>(list + 4) - M<uint32_t>(list),
+                      ourUsed = mine[1] - mine[0];
+    const bool same = !g_listWrong && g_listReplayed == g_listReads.size() && result == ourResult &&
+                      theirUsed == ourUsed && M<uint32_t>(list + 8) - M<uint32_t>(list) == mine[2] - mine[0] &&
+                      (ourUsed == 0 || std::memcmp(M<void*>(list), reinterpret_cast<void*>(mine[0]), ourUsed) == 0);
+    if (mine[0])
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(reinterpret_cast<void*>(mine[0]));
+    char text[64];
+    std::snprintf(text, sizeof text, "%zu reads, %zu records", g_listReads.size(), theirUsed / record);
+    const std::string theirs = text;
+    std::snprintf(text, sizeof text, "%zu reads%s, %zu records", g_listReplayed, g_listWrong ? " then another" : "",
+                  ourUsed / record);
+    compare::Record(theirUsed ? id : (std::string(id) + ".empty").c_str(), same, same ? std::string() : theirs,
+                    same ? std::string() : std::string(text));
+    return result;
+}
+
+uint32_t __cdecl ReadListAByMode(uint32_t stream, uint32_t list)
+{
+    if (g_listsMode == StepMode::Original || g_listGame || g_listReplay)
+        return g_SC4EffectDescription_ReadListA(stream, list);
+    if (g_listsMode == StepMode::Ours)
+        return ReadListA(stream, list);
+    return ListCompared("effects.lists.a", stream, list, 0x1C, g_SC4EffectDescription_ReadListA, &ReadListA);
+}
+
+uint32_t __cdecl ReadListBByMode(uint32_t stream, uint32_t list)
+{
+    if (g_listsMode == StepMode::Original || g_listGame || g_listReplay)
+        return g_SC4EffectDescription_ReadListB(stream, list);
+    if (g_listsMode == StepMode::Ours)
+        return ReadListB(stream, list);
+    return ListCompared("effects.lists.b", stream, list, 0x20, g_SC4EffectDescription_ReadListB, &ReadListB);
+}
+
+void ResizeListAByMode(char* list, uint32_t count, uint32_t record)
+{
+    if (g_listsMode == StepMode::Original || g_listGame || (g_listsMode == StepMode::Compare && !g_listReplay))
+        g_SC4EffectDescription_ResizeListA(list, nullptr, count, record);
+    else
+        ResizeListA(list, count, record);
+}
+
+void ResizeListBByMode(char* list, uint32_t count)
+{
+    if (g_listsMode == StepMode::Original || g_listGame || (g_listsMode == StepMode::Compare && !g_listReplay))
+        g_SC4EffectDescription_ResizeListB(list, nullptr, count);
+    else
+        ResizeListB(list, count);
+}
+
+uint32_t __fastcall DResizeListA(char* list, void*, uint32_t count, uint32_t record)
+{
+    ResizeListAByMode(list, count, record);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectDescription_ResizeListA, DResizeListA, 8)
+
+uint32_t __fastcall DResizeListB(char* list, void*, uint32_t count)
+{
+    ResizeListBByMode(list, count);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectDescription_ResizeListB, DResizeListB, 4)
+
+bool InstallLists(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4EffectDescription_ReadListA, reinterpret_cast<void (*)()>(&ReadListAByMode),
+                 &g_SC4EffectDescription_ReadListA) &&
+          Detour(addr::SC4EffectDescription_ReadListB, reinterpret_cast<void (*)()>(&ReadListBByMode),
+                 &g_SC4EffectDescription_ReadListB) &&
+          Detour(addr::SC4EffectDescription_ResizeListA, &TSC4EffectDescription_ResizeListA,
+                 &g_SC4EffectDescription_ResizeListA) &&
+          Detour(addr::SC4EffectDescription_ResizeListB, &TSC4EffectDescription_ResizeListB,
+                 &g_SC4EffectDescription_ResizeListB)))
+        return false;
+    g_listsMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: a description's lists' reading %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredLists = registry::Register({
+    "renderer.effects.lists",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDescription_ReadListA,
+    "A description's two lists of floats read from the effects file, and their resizing; compare mode notes what "
+    "the game's reads from the stream and has ours read the same into a copy of the list (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallLists,
+});
+
+bool InstallRelease(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4EffectDescription_Release ||
+          Detour(addr::SC4EffectDescription_Release, &TSC4EffectDescription_Release,
+                 &g_SC4EffectDescription_Release)))
+        return false;
+    g_releaseMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: a description's letting go %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredRelease = registry::Register({
+    "renderer.effects.release",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDescription_Release,
+    "A description let go by one of its holders, and destroyed by the last; compare mode runs ours and the game's "
+    "on the count while a holder is left (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallRelease,
 });
 
 bool InstallDtor(registry::Mode mode)
