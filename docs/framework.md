@@ -257,3 +257,43 @@ All thirteen framework groups on (services, message server, message queue) again
 - Every difference is in parts that the original also gives two values for under load: the flammability walk's sums on the first day and the lots' checksum.
 - **One save needed a closer look.** On Rush Hour d1095 the first day's flammability sum is 1303 in every run of the original (23 runs over five batches) and 1273 in about one run in six with our groups on (2 of 4 in the batch, 2 of 12 alone; none in 11 runs with one group at a time). It is a matter of timing and not of what our code does: with the same 17 functions hooked by stubs that only jump on to the original code, 1 run in 13 gave 1273 too. So something on the first day after a load races with the main thread, and a hook on these much-called functions (GetSystemService above all) is enough to tip it now and then. Ours come out a little worse than the control in both legs for that reason. Which two things race was not looked into; the load-time worker thread ([experiments/determinism.md](experiments/determinism.md)) is the first suspect.
 
+## Directors: class registration and lookup
+
+The COM object itself (GetClassObject 0x0087BE75, the libraries, the DLL scan) is ours since the plugin DLL work ([plugin-dlls.md](plugin-dlls.md), `resources.plugin_dlls.*`). What it falls back to for every class that no DLL registered is the exe's root director, and with it the director base class, which this part covers.
+
+How the base class works (layout in the survey above):
+
+- **AddCls** (0x0090E133; 0x0090E160 for factories that take the interface ID) puts {class ID, factory, type} into the director's table; a second registration of an ID is dropped. The exe calls them 464 times, all from director constructors while the app starts.
+- **AddDirector** (0x0090E0D4) gives the child this director's COM object and path (InitializeCOM), adds the child's own children to this director first and then the child, so the root's list is flat. The children are not counted references.
+- **GetClassObject** (slot 6) asks the children in order, the first that makes the object wins, then looks in its own table. A type 1 factory's object is asked for the interface; when it does not have it, it is given a reference and released, which ends it. A type 2 factory is handed the interface ID.
+- **EnumClassObjects** (slot 5) calls a function for every class of the children and then of its own table, with version 0.
+- **CanUnloadNow** (slot 7) says yes while the director is referenced, and without a reference only when every child says yes.
+
+`src/core/framework_directors.cpp`, entry detours on the game's objects, off by default:
+
+| Replacement | Functions | Goes in |
+|---|---|---|
+| `framework.directors.lookup` | GetClassObject 0x0090DFAC, EnumClassObjects 0x0090E02B, QueryInterface 0x0090DE02, RemoveRef 0x0090DE43, CanUnloadNow 0x0090DEA2, GetLibraryPath 0x0090DECD | PostAppInit |
+| `framework.directors.registration` | AddCls 0x0090E133 and 0x0090E160, AddDirector 0x0090E0D4, InitializeCOM 0x0090DE57 | when core.dll is injected (Attach), so the exe's own registrations at start-up run through ours |
+
+10 functions. The table's insert (0x0090E081, it may grow the table) is still the game's helper; so are the constructor and destructor, and the seven slots that are small functions shared with unrelated classes (AddRef, OnStart, OnUnload, RefCount, FrameWork, GZCOM, the heap size). Plugin DLLs carry their own copy of this class, so only the exe's directors (26 classes) run this code.
+
+### Testing
+
+`OPENSC4_TEST_CLASSES=<day>` makes two directors with the game's base constructor, registers three classes of the test's own on them (one twice, one with the second kind of factory), makes the second a child of the first and adds the first to the exe's root director, which takes the child as well. Then it looks the classes up through the COM object and through the directors (found, wrong interface, unknown class), enumerates them, asks for the director's interfaces, counts references down with RemoveRef, asks CanUnloadNow with and without a reference, and reads the library path. Everything goes into the fingerprint's `cls` part, with how many objects the factories made and how many ended (all of them). The two directors stay in the root's list for the rest of the run.
+
+With the test on, the coverage meter shows all 10 functions reached in the original.
+
+### Parity
+
+All fifteen framework groups on (directors, services, message server, message queue) against the original, 12 saves, 7 days, two jobs, on 2026-10-12, on main after the change that holds the cycle clock's estimate in fixed-ticks runs ([experiments/determinism.md](experiments/determinism.md)); each leg with a control run the same way:
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 11 same, 1 partly (Big City d0000) | 11 same, 1 partly (Big City d0365) |
+| `OPENSC4_TEST_CLASSES=2` | 12 same | 12 same |
+
+The `cls` part was the same in all 26 runs of the test's leg. The game starts with every class registration of the exe going through ours.
+
+**Rush Hour d1095 again.** With the cycle clock held, the first day's flammability sum on that save is two-valued in the original itself: 1273 in 11 of 14 runs and 1303 in 3. With hooks on the framework's service functions the odds turn round, whatever the hooks run: ours 12 of 20 runs at 1303, stubs that only jump on to the original code 6 of 12, the three hook-list functions alone 5 of 8. So the earlier reading holds (timing, not what our code does), and the value is no longer one that only the hooked runs show. What it is that races on the first day after a load is still not known; a batch that compares outcome sets is not disturbed by it.
+

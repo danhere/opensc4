@@ -14,6 +14,7 @@
 #include <cIGZMessageServer2.h>
 #include <cIGZMessageTarget2.h>
 #include <cIGZSystemService.h>
+#include <cRZBaseString.h>
 
 #include <cstdint>
 #include <cstdio>
@@ -628,6 +629,203 @@ void ServicesFingerprint(cISC4City*, std::string& line)
     line += text;
 }
 
+// The directors test (OPENSC4_TEST_CLASSES).
+bool g_classesOn = false;
+uint32_t g_classHash = 2166136261u;
+uint32_t g_objectsMade = 0;
+uint32_t g_objectsEnded = 0;
+
+constexpr uint32_t kClassA = 0x7E570C01;
+constexpr uint32_t kClassB = 0x7E570C02;
+constexpr uint32_t kClassC = 0x7E570C03;
+constexpr uint32_t kTestInterface = 0x7E570C10;
+
+// What the test's factories make: it has the base interface and one of
+// its own, and ends with its last reference.
+class TestObject final : public cIGZUnknown {
+public:
+    explicit TestObject(uint32_t maker) : maker_(maker) { ++g_objectsMade; }
+
+    bool QueryInterface(uint32_t riid, void** ppvObj) override
+    {
+        if (riid != GZIID_cIGZUnknown && riid != kTestInterface)
+            return false;
+        *ppvObj = this;
+        AddRef();
+        return true;
+    }
+    uint32_t AddRef() override { return ++refs_; }
+    uint32_t Release() override
+    {
+        const uint32_t left = --refs_;
+        if (left == 0) {
+            ++g_objectsEnded;
+            delete this;
+        }
+        return left;
+    }
+    uint32_t maker() const { return maker_; }
+
+private:
+    uint32_t maker_;
+    uint32_t refs_ = 0;
+};
+
+cIGZUnknown* __cdecl MakeFirst()
+{
+    return new TestObject(1);
+}
+
+cIGZUnknown* __cdecl MakeSecond()
+{
+    return new TestObject(2);
+}
+
+cIGZUnknown* __cdecl MakeThird()
+{
+    return new TestObject(3);
+}
+
+// A factory of the second kind: it is given the interface ID.
+bool __cdecl MakeWithInterface(uint32_t riid, void** ppvObj)
+{
+    auto* const object = new TestObject(4);
+    if (object->QueryInterface(riid, ppvObj))
+        return true;
+    object->AddRef();
+    object->Release();
+    return false;
+}
+
+void __cdecl MixClass(uint32_t classId, uint32_t version, void* context)
+{
+    MixInto(g_classHash, classId);
+    MixInto(g_classHash, version);
+    ++*static_cast<uint32_t*>(context);
+}
+
+// The object a lookup gave back, into the hash (who made it), and its
+// reference returned.
+void MixObject(bool found, void* out)
+{
+    MixInto(g_classHash, found ? 1 : 0);
+    if (!found || !out) {
+        MixInto(g_classHash, 0);
+        return;
+    }
+    auto* const object = static_cast<TestObject*>(static_cast<cIGZUnknown*>(out));
+    MixInto(g_classHash, object->maker());
+    object->Release();
+}
+
+// OPENSC4_TEST_CLASSES=<day>: two directors of the game's base class made
+// by the test, with three classes (one registered twice, one with the
+// second kind of factory), the second director a child of the first and
+// the first added to the exe's root director (which takes the child too).
+// Then lookups through the COM object and through the director (found,
+// wrong interface, unknown class), the classes enumerated, the director's
+// interfaces, RemoveRef, CanUnloadNow and GetLibraryPath. Everything goes
+// into the fingerprint's `cls` part. The two directors stay in the root's
+// list for the rest of the run.
+void DriveClasses(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_CLASSES") || !game::IsBuild641())
+        return;
+    void* const com = reinterpret_cast<void*(__cdecl*)()>(addr::RZGetCOM)();
+    char* const root = reinterpret_cast<char*(__cdecl*)()>(addr::RZGetCOMDllDirector)();
+    if (!com || !root)
+        return;
+    g_classesOn = true;
+    uint32_t& h = g_classHash;
+    const auto newDirector = [] {
+        void* const memory = reinterpret_cast<void*(__cdecl*)(uint32_t)>(addr::SC4_operator_new)(0x4C);
+        return static_cast<char*>(
+            reinterpret_cast<void*(__thiscall*)(void*)>(addr::cRZCOMDllDirector_Construct)(memory));
+    };
+    char* const first = newDirector();
+    char* const second = newDirector();
+    using AddClsFn = void*(__thiscall*)(char* director, uint32_t classId, void* factory);
+    const auto addCls = reinterpret_cast<AddClsFn>(addr::cRZCOMDllDirector_AddCls);
+    const auto addCls2 = reinterpret_cast<AddClsFn>(addr::cRZCOMDllDirector_AddCls_FactoryType2);
+    using AddDirectorFn = void(__thiscall*)(char* director, char* child);
+    const auto addDirector = reinterpret_cast<AddDirectorFn>(addr::cRZCOMDllDirector_AddDirector);
+
+    addCls(first, kClassA, reinterpret_cast<void*>(&MakeFirst));
+    addCls(first, kClassA, reinterpret_cast<void*>(&MakeSecond));
+    addCls2(first, kClassB, reinterpret_cast<void*>(&MakeWithInterface));
+    addCls(second, kClassC, reinterpret_cast<void*>(&MakeThird));
+
+    const auto children = [](char* director) {
+        return static_cast<uint32_t>(*reinterpret_cast<char***>(director + 0x30) -
+                                     *reinterpret_cast<char***>(director + 0x2C));
+    };
+    const uint32_t before = children(root);
+    addDirector(first, second);
+    MixInto(h, *reinterpret_cast<void**>(second + 0x24) == nullptr ? 1 : 0);
+    addDirector(root, first);
+    MixInto(h, children(root) - before);
+    MixInto(h, children(first));
+    MixInto(h, *reinterpret_cast<void**>(first + 0x24) == com ? 1 : 0);
+    MixInto(h, *reinterpret_cast<void**>(second + 0x24) == com ? 1 : 0);
+    MixInto(h, *reinterpret_cast<void**>(first + 0x28) == *reinterpret_cast<void**>(root + 0x28) ? 1 : 0);
+
+    const auto lookUp = [](void* from, std::size_t slot, uint32_t classId, uint32_t interfaceId) {
+        void* out = nullptr;
+        const bool found = Virtual<bool>(from, slot, classId, interfaceId, &out);
+        MixObject(found, out);
+    };
+    // Through the COM object: found (the first registration of A won), the
+    // wrong interface (the object ends), the second kind of factory, the
+    // child's class, an unknown class.
+    lookUp(com, 0xC, kClassA, kTestInterface);
+    lookUp(com, 0xC, kClassA, uint32_t{0x7E570CFE});
+    lookUp(com, 0xC, kClassB, kTestInterface);
+    lookUp(com, 0xC, kClassB, uint32_t{0x7E570CFE});
+    lookUp(com, 0xC, kClassC, kTestInterface);
+    lookUp(com, 0xC, uint32_t{0x7E570CFF}, kTestInterface);
+    // Through the director itself.
+    lookUp(first, 0x18, kClassC, kTestInterface);
+    lookUp(second, 0x18, kClassA, kTestInterface);
+    MixInto(h, g_objectsMade);
+    MixInto(h, g_objectsEnded);
+
+    uint32_t seen = 0;
+    Virtual<void>(first, 0x14, reinterpret_cast<void*>(&MixClass), static_cast<void*>(&seen));
+    MixInto(h, seen);
+
+    // The interfaces (each answer takes a reference), RemoveRef down to 0
+    // and once more, CanUnloadNow with and without a reference.
+    void* same = nullptr;
+    MixInto(h, Virtual<bool>(first, 0x0, uint32_t{1}, &same) ? 1 : 0);
+    MixInto(h, same == first ? 1 : 0);
+    MixInto(h, Virtual<bool>(first, 0x0, uint32_t{0xA21EE941}, &same) ? 1 : 0);
+    MixInto(h, Virtual<bool>(first, 0x0, uint32_t{0x03FA40BF}, &same) ? 1 : 0);
+    MixInto(h, same == first + 4 ? 1 : 0);
+    MixInto(h, Virtual<bool>(first, 0x0, uint32_t{0x7E570CFE}, &same) ? 1 : 0);
+    MixInto(h, Virtual<bool>(first, 0x1C) ? 1 : 0);
+    for (int i = 0; i < 4; ++i)
+        MixInto(h, Virtual<uint32_t>(first, 0x28));
+    MixInto(h, Virtual<bool>(first, 0x1C) ? 1 : 0);
+
+    cRZBaseString path;
+    MixInto(h, Virtual<bool>(first, 0x38, static_cast<cIGZString*>(&path)) ? 1 : 0);
+    cRZBaseString rootPath;
+    Virtual<bool>(root, 0x38, static_cast<cIGZString*>(&rootPath));
+    MixInto(h, path.Strlen());
+    MixInto(h, path.IsEqual(rootPath, false) ? 1 : 0);
+    log::Write("autotest: classes driven (hash %08X, %u objects made, %u ended)", h, g_objectsMade,
+               g_objectsEnded);
+}
+
+void ClassesFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_classesOn)
+        return;
+    char text[64];
+    std::snprintf(text, sizeof text, " | cls %08X %u/%u", g_classHash, g_objectsMade, g_objectsEnded);
+    line += text;
+}
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     if (!g_on)
@@ -654,6 +852,8 @@ const FingerprintPart kQueueFingerprint{"messages.queue", 4, &QueueFingerprint};
 const DayHook kDriveQueue{"messages.queue", 4, &DriveQueue};
 const FingerprintPart kServicesFingerprint{"services", 4, &ServicesFingerprint};
 const DayHook kDriveServices{"services", 4, &DriveServices};
+const FingerprintPart kClassesFingerprint{"classes", 4, &ClassesFingerprint};
+const DayHook kDriveClasses{"classes", 4, &DriveClasses};
 
 } // namespace
 } // namespace opensc4::autotest
