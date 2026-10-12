@@ -334,7 +334,8 @@ uint32_t DescCallee(uint32_t target, uint32_t a, const std::function<uint32_t()>
 // The same for the second class's version, which notes the base class's as one call.
 bool BNoting();
 bool BBusy();
-uint32_t BCallee(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real);
+uint32_t BCallee(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real,
+                 uint32_t out = 0);
 Call1Fn g_beforeDraw = nullptr, g_stepShake = nullptr, g_decalDraw = nullptr;
 Call2Fn g_drawFlash = nullptr, g_effectDraw = nullptr;
 Call0Fn g_afterDraw = nullptr;
@@ -2999,9 +3000,13 @@ OPENSC4_THUNK(TSC4Effect_SetDescription, DescriptionByMode, 4)
 // 0x00802DB0), the byte +0x26C saying whether that worked. Last the
 // effects manager is asked for effects named after this one with two
 // more suffixes (+0x26D, +0x26E).
+// What a note keeps of the values behind a pointer: so many bytes, a
+// string, or a block of two bytes and thirteen floats (its two unset bytes
+// left out).
+constexpr std::size_t kBData = 0x38, kBString = 0xFFFF, kBBlock = 0xFFFE;
 struct BCall {
-    uint32_t target, a, result;
-    char data[0x14];
+    uint32_t target, a, result, made;
+    char data[kBData];
     std::vector<std::pair<uint32_t, char>> changes;
     bool operator==(const BCall& other) const
     {
@@ -3013,6 +3018,12 @@ Call1Fn g_SC4EffectB_SetDescription = nullptr, g_SC4EffectB_LoadModel = nullptr,
         g_SC4EffectPartB_Place = nullptr, g_SC4EffectPartB_SetDescription = nullptr;
 bool g_bRecord = false, g_bReplay = false;
 int g_bNested = 0;
+// The memory whose bytes a noted call may change, one piece after another.
+struct BRegion {
+    char* at;
+    std::size_t size;
+};
+std::vector<BRegion> g_bRegions;
 char* g_bSelf = nullptr;
 DWORD g_bThread = 0;
 std::vector<BCall> g_bGameCalls, g_bOurCalls;
@@ -3028,38 +3039,70 @@ bool BBusy()
     return g_bRecord || g_bReplay;
 }
 
-uint32_t BCallee(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real)
+std::vector<char> BSaveRegions()
 {
-    BCall call{target, a, 0, {}, {}};
-    if (size)
+    std::vector<char> bytes;
+    for (const BRegion& region : g_bRegions)
+        bytes.insert(bytes.end(), region.at, region.at + region.size);
+    return bytes;
+}
+
+char* BRegionByte(std::size_t offset)
+{
+    for (const BRegion& region : g_bRegions) {
+        if (offset < region.size)
+            return region.at + offset;
+        offset -= region.size;
+    }
+    return nullptr;
+}
+
+// `out`, when given, is where the call leaves a pointer to what it made:
+// noted in the game's run and given to ours in the replay.
+uint32_t BCallee(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real,
+                 uint32_t out)
+{
+    BCall call{target, a, 0, 0, {}, {}};
+    if (size == kBString)
+        std::strncpy(call.data, reinterpret_cast<const char*>(data), kBData - 1);
+    else if (size == kBBlock)
+        CopyBlock(call.data, data);
+    else if (size)
         std::memcpy(call.data, reinterpret_cast<const void*>(data), size);
     if (g_bReplay) {
         const std::size_t at = g_bOurCalls.size();
         g_bOurCalls.push_back(call);
         if (at >= g_bGameCalls.size())
             return 0;
-        for (const auto& [offset, value] : g_bGameCalls[at].changes)
-            g_bSelf[offset] = value;
+        for (const auto& [offset, value] : g_bGameCalls[at].changes) {
+            if (char* const byte = BRegionByte(offset))
+                *byte = value;
+        }
+        if (out)
+            M<uint32_t>(out) = g_bGameCalls[at].made;
         return g_bGameCalls[at].result;
     }
-    char before[kEffectSizeB];
-    std::memcpy(before, g_bSelf, kEffectSizeB);
+    const std::vector<char> before = BSaveRegions();
     ++g_bNested;
     call.result = real();
     --g_bNested;
-    for (std::size_t offset = 0; offset < kEffectSizeB; ++offset) {
-        if (g_bSelf[offset] != before[offset])
-            call.changes.push_back({static_cast<uint32_t>(offset), g_bSelf[offset]});
+    const std::vector<char> after = BSaveRegions();
+    for (std::size_t offset = 0; offset < after.size(); ++offset) {
+        if (after[offset] != before[offset])
+            call.changes.push_back({static_cast<uint32_t>(offset), after[offset]});
     }
+    if (out)
+        call.made = M<uint32_t>(out);
     g_bGameCalls.push_back(std::move(call));
     return g_bGameCalls.back().result;
 }
 
 // What the translation's ten calls go through: the real call, or in the
 // comparison's replay the note of the game's.
-uint32_t BOurs(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real)
+uint32_t BOurs(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real,
+               uint32_t out = 0)
 {
-    return g_bReplay ? BCallee(target, a, data, size, real) : real();
+    return g_bReplay ? BCallee(target, a, data, size, real, out) : real();
 }
 
 uint32_t SetEffectDescriptionB(char* self, uint32_t description)
@@ -3160,24 +3203,32 @@ uint32_t __fastcall BInfo(char* object, void*, uint32_t info)
                    [&] { return CallThis<uint32_t>(real, object, info); });
 }
 
-void BSwap(char* object, uint32_t slot, uint32_t stub)
+// An object given a copy of its table of functions with some slots
+// replaced; `role` names the set of slots.
+void BSwapRole(char* object, uint32_t role, std::initializer_list<std::pair<uint32_t, uint32_t>> slots)
 {
     if (!object)
         return;
     const auto found = g_bReal.find(object);
     if (found != g_bReal.end()) {
-        if (found->second.slot == slot)
+        if (found->second.slot == role)
             ++found->second.times;
         return;
     }
     const uint32_t real = At<uint32_t>(object, 0);
-    std::vector<uint32_t>& table = g_bTables[{slot, real}];
+    std::vector<uint32_t>& table = g_bTables[{role, real}];
     if (table.empty()) {
         table.assign(reinterpret_cast<const uint32_t*>(real), reinterpret_cast<const uint32_t*>(real) + kBSlots);
-        table[slot / 4] = stub;
+        for (const auto& [slot, stub] : slots)
+            table[slot / 4] = stub;
     }
-    g_bReal[object] = {real, slot, 1};
+    g_bReal[object] = {real, role, 1};
     At<uint32_t*>(object, 0) = table.data();
+}
+
+void BSwap(char* object, uint32_t slot, uint32_t stub)
+{
+    BSwapRole(object, slot, {{slot, stub}});
 }
 
 // The second class loading its model (0x005AC610, slot 0x54, with the
@@ -3361,6 +3412,7 @@ uint32_t __fastcall DescriptionBByMode(char* self, void*, uint32_t description)
     }
     BSwap(At<char*>(self, 0x278), 0x20, reinterpret_cast<uint32_t>(&BEnd));
     g_bSelf = self;
+    g_bRegions = {{self, kEffectSizeB}};
     g_bThread = GetCurrentThreadId();
     g_bGameCalls.clear();
     g_bRecord = true;
@@ -3735,7 +3787,253 @@ uint32_t __fastcall DSC4EffectBaseB_TakeParticle(char* base, void*)
     return EffectRecorded(addr::SC4EffectBaseB_TakeParticle, &TakeBByMode, base);
 }
 OPENSC4_THUNK(TSC4EffectBaseB_TakeParticle, DSC4EffectBaseB_TakeParticle, 0)
-OPENSC4_EFFECT_HOOK1(SC4EffectBaseB_GiveBackParticle)
+
+// The second class given a particle back (0x005AF390, slot 0x40 of its
+// sub-object), translated instruction by instruction. An effect with an
+// object at +0x274 whose particle has not outlived its life starts the
+// particle again instead (0x005AF060). Otherwise the particle's own effect
+// is stopped (its slot 0x10 with the effect's +0x188) and released; an
+// effect with its byte +0x26A set and nothing at +0x188 has the effects
+// manager make the effect named after it with "_death" where the particle
+// was (placed by a block built from the particle and the effect's matrix,
+// its slot 0x34 called when the byte +0x26B is set, started with 0, and
+// let go); and the particle goes back on the free list (0x00B0A5CC). Last,
+// an effect with the object at +0x274, no particle left and its byte +0xC
+// set tells that object (its slot 4 with 0).
+uint32_t GiveBackParticleB(char* base, uint32_t particle)
+{
+    uint32_t stackmem[320] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(base);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[224]);
+    M<uint32_t>(esp + 4) = particle;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_giveback_b.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Its comparison is the one of the class taking a description: the game's
+// first, with its calls noted, then ours replayed from the notes. Noted
+// here: the restart (a detour), the particle's own effect stopped and
+// released, the object at +0x274 told, and the effects manager asked to
+// make an effect, all through copies of their tables of functions; the
+// effect the manager makes gets a copy too, so what is done to it is seen.
+// The bytes a noted call may change are the effect's, the particle's and
+// the free list's head.
+constexpr std::size_t kManagerSlotsB = 1024;
+std::vector<uint32_t> g_bManagerTable;
+uint32_t g_bManagerTableReal = 0, g_bManagerReal = 0;
+StepMode g_giveBackModeB = StepMode::Original;
+Call1Fn g_SC4EffectBaseB_GiveBackParticle = nullptr, g_SC4EffectB_RestartParticle = nullptr;
+uint64_t g_giveBacksBCompared = 0, g_giveBackBCallsCompared = 0;
+
+uint32_t __fastcall BChildStop(char* object, void*, uint32_t owner)
+{
+    const uint32_t real = BRealSlot(object, 0x10);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, owner);
+    return BCallee(0x10, reinterpret_cast<uint32_t>(object), reinterpret_cast<uint32_t>(&owner), 4,
+                   [&] { return CallThis<uint32_t>(real, object, owner); });
+}
+
+uint32_t __fastcall BOwnerTell(char* object, void*, uint32_t value)
+{
+    const uint32_t real = BRealSlot(object, 0x4);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, value);
+    return BCallee(0x4, reinterpret_cast<uint32_t>(object), reinterpret_cast<uint32_t>(&value), 4,
+                   [&] { return CallThis<uint32_t>(real, object, value); });
+}
+
+uint32_t __fastcall BMadeBlock(char* object, void*, uint32_t block)
+{
+    const uint32_t real = BRealSlot(object, 0x20);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, block);
+    return BCallee(0x2020, reinterpret_cast<uint32_t>(object), block, kBBlock,
+                   [&] { return CallThis<uint32_t>(real, object, block); });
+}
+
+uint32_t __fastcall BMadeValue(char* object, void*, uint32_t which, uint32_t values, uint32_t count)
+{
+    const uint32_t real = BRealSlot(object, 0x34);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, which, values, count);
+    return BCallee(0x2034, reinterpret_cast<uint32_t>(object), values, 4,
+                   [&] { return CallThis<uint32_t>(real, object, which, values, count); });
+}
+
+uint32_t __fastcall BMadeStart(char* object, void*, uint32_t owner)
+{
+    const uint32_t real = BRealSlot(object, 0xC);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, owner);
+    return BCallee(0x200C, reinterpret_cast<uint32_t>(object), reinterpret_cast<uint32_t>(&owner), 4,
+                   [&] { return CallThis<uint32_t>(real, object, owner); });
+}
+
+uint32_t __fastcall BMadeRelease(char* object, void*)
+{
+    const uint32_t real = BRealSlot(object, 0x8);
+    if (!BNoting()) {
+        BGiveBack(object, true);
+        return CallThis<uint32_t>(real, object);
+    }
+    return BCallee(0x2008, reinterpret_cast<uint32_t>(object), 0, 0, [&] {
+        BGiveBack(object, true);
+        return CallThis<uint32_t>(real, object);
+    });
+}
+
+uint32_t __fastcall BManagerMake(char* manager, void*, uint32_t name, uint32_t out)
+{
+    const uint32_t real = M<uint32_t>(g_bManagerTableReal + 0x1C);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, manager, name, out);
+    const uint32_t result = BCallee(0x1C, 0, name, kBString,
+                                    [&] { return CallThis<uint32_t>(real, manager, name, out); }, out);
+    if ((result & 0xFF) && M<char*>(out))
+        BSwapRole(M<char*>(out), 0x2000,
+                  {{0x20, reinterpret_cast<uint32_t>(&BMadeBlock)},
+                   {0x34, reinterpret_cast<uint32_t>(&BMadeValue)},
+                   {0xC, reinterpret_cast<uint32_t>(&BMadeStart)},
+                   {0x8, reinterpret_cast<uint32_t>(&BMadeRelease)}});
+    return result;
+}
+
+void BSwapManager(bool in)
+{
+    char* const manager = Global<char*>(0x00B43D1C);
+    if (!manager)
+        return;
+    if (!in) {
+        if (g_bManagerReal)
+            At<uint32_t>(manager, 0) = g_bManagerReal;
+        g_bManagerReal = 0;
+        return;
+    }
+    const uint32_t real = At<uint32_t>(manager, 0);
+    if (g_bManagerTableReal != real) {
+        g_bManagerTable.assign(reinterpret_cast<const uint32_t*>(real),
+                               reinterpret_cast<const uint32_t*>(real) + kManagerSlotsB);
+        g_bManagerTable[0x1C / 4] = reinterpret_cast<uint32_t>(&BManagerMake);
+        g_bManagerTableReal = real;
+    }
+    g_bManagerReal = real;
+    At<uint32_t*>(manager, 0) = g_bManagerTable.data();
+}
+
+uint32_t __fastcall DSC4EffectB_RestartParticle(char* self, void*, uint32_t particle)
+{
+    if (!BNoting())
+        return g_SC4EffectB_RestartParticle(self, nullptr, particle);
+    return BCallee(addr::SC4EffectB_RestartParticle, particle, 0, 0,
+                   [&] { return g_SC4EffectB_RestartParticle(self, nullptr, particle); });
+}
+OPENSC4_THUNK(TSC4EffectB_RestartParticle, DSC4EffectB_RestartParticle, 4)
+
+uint32_t __fastcall GiveBackBByMode(char* base, void*, uint32_t particle)
+{
+    if (g_giveBackModeB == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
+        BBusy())
+        return g_SC4EffectBaseB_GiveBackParticle(base, nullptr, particle);
+    if (g_giveBackModeB == StepMode::Ours)
+        return GiveBackParticleB(base, particle);
+    char* const self = base - 4;
+    char* const bytes = reinterpret_cast<char*>(particle);
+    g_bSelf = self;
+    g_bRegions = {{self, kEffectSizeB}, {bytes, kParticleBytesB}, {reinterpret_cast<char*>(kParticleFreeB), 4}};
+    g_bThread = GetCurrentThreadId();
+    const std::vector<char> before = BSaveRegions();
+    BSwapRole(At<char*>(bytes, kParticleChild), 0x1000,
+              {{0x10, reinterpret_cast<uint32_t>(&BChildStop)}, {0x8, reinterpret_cast<uint32_t>(&BRelease)}});
+    BSwap(At<char*>(base, 0x274), 0x4, reinterpret_cast<uint32_t>(&BOwnerTell));
+    BSwapManager(true);
+    g_bGameCalls.clear();
+    g_bRecord = true;
+    const uint32_t result = g_SC4EffectBaseB_GiveBackParticle(base, nullptr, particle);
+    g_bRecord = false;
+    const std::vector<char> after = BSaveRegions();
+    for (std::size_t offset = 0; offset < before.size(); ++offset)
+        *BRegionByte(offset) = before[offset];
+    g_bOurCalls.clear();
+    g_bReplay = true;
+    GiveBackParticleB(base, particle);
+    g_bReplay = false;
+    const std::vector<char> mine = BSaveRegions();
+    for (std::size_t offset = 0; offset < after.size(); ++offset)
+        *BRegionByte(offset) = after[offset];
+    BSwapManager(false);
+    for (const auto& [object, standIn] : g_bReal)
+        At<uint32_t>(object, 0) = standIn.real;
+    g_bReal.clear();
+    ++g_giveBacksBCompared;
+    g_giveBackBCallsCompared += g_bGameCalls.size();
+    if ((g_giveBacksBCompared & (g_giveBacksBCompared - 1)) == 0)
+        log::Write("water effects: effects.giveback_b: %llu calls, %llu noted calls compared so far",
+                   static_cast<unsigned long long>(g_giveBacksBCompared),
+                   static_cast<unsigned long long>(g_giveBackBCallsCompared));
+    // One name for each way it can go, so the totals show which a city has.
+    bool restarted = false, made = false;
+    for (const BCall& call : g_bGameCalls) {
+        restarted = restarted || call.target == addr::SC4EffectB_RestartParticle;
+        made = made || call.target == 0x1C;
+    }
+    const char* const id = restarted ? "effects.giveback_b.restart"
+                           : made    ? "effects.giveback_b.death"
+                                     : "effects.giveback_b";
+    char text[96];
+    if (!(g_bGameCalls == g_bOurCalls)) {
+        std::size_t at = 0;
+        while (at < g_bGameCalls.size() && at < g_bOurCalls.size() && g_bGameCalls[at] == g_bOurCalls[at])
+            ++at;
+        const auto describe = [&](const std::vector<BCall>& calls) {
+            if (at >= calls.size()) {
+                std::snprintf(text, sizeof text, "%zu calls", calls.size());
+                return std::string(text);
+            }
+            std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X) ", at, calls.size(), calls[at].target,
+                          calls[at].a);
+            return text + Hex(calls[at].data, sizeof calls[at].data);
+        };
+        const std::string game = describe(g_bGameCalls);
+        compare::Record(id, false, game, describe(g_bOurCalls));
+    } else if (after != mine) {
+        std::size_t at = 0;
+        while (after[at] == mine[at])
+            ++at;
+        const char* const part =
+            at < kEffectSizeB ? "effect" : at < kEffectSizeB + kParticleBytesB ? "particle" : "free";
+        const std::size_t offset =
+            (at < kEffectSizeB ? at : at < kEffectSizeB + kParticleBytesB ? at - kEffectSizeB : 0) & ~std::size_t{3};
+        std::snprintf(text, sizeof text, "%s+%zX %02X", part, offset, static_cast<unsigned char>(after[at]));
+        const std::string game = text;
+        std::snprintf(text, sizeof text, "%s+%zX %02X", part, offset, static_cast<unsigned char>(mine[at]));
+        compare::Record(id, false, game, text);
+    } else {
+        compare::Record(id, true, std::string(), std::string());
+    }
+    return result;
+}
+
+uint32_t __fastcall DSC4EffectBaseB_GiveBackParticle(char* base, void*, uint32_t particle)
+{
+    return EffectRecorded(addr::SC4EffectBaseB_GiveBackParticle, &GiveBackBByMode, base, particle);
+}
+OPENSC4_THUNK(TSC4EffectBaseB_GiveBackParticle, DSC4EffectBaseB_GiveBackParticle, 4)
 OPENSC4_EFFECT_HOOK1(SC4Effect_SpawnFromParticle)
 
 // A particle effect's draw (0x005B8540, slot 0x24 of both effect classes),
@@ -5395,6 +5693,33 @@ const bool g_registeredTexture = registry::Register({
     "ours and the game's for real (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallTexture,
+});
+
+bool InstallGiveBackB(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookPool())
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(g_SC4EffectB_RestartParticle ||
+          Detour(addr::SC4EffectB_RestartParticle, &TSC4EffectB_RestartParticle, &g_SC4EffectB_RestartParticle)))
+        return false;
+    g_giveBackModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: second effect class given a particle back %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredGiveBackB = registry::Register({
+    "renderer.effects.giveback_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectBaseB_GiveBackParticle,
+    "The second effect class given a particle back: started again, or its own effect stopped, a last effect made "
+    "where it was, and the particle put on the free list; compare mode runs the game's with its calls noted and "
+    "replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallGiveBackB,
 });
 
 bool InstallGround(registry::Mode mode)
