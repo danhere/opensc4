@@ -210,6 +210,12 @@ add_library(opensc4_core SHARED
   floraocc_sim.cpp
   foundocc_autotest.cpp
   foundocc_sim.cpp
+  pipeocc_autotest.cpp
+  pipeocc_sim.cpp
+  powerlineocc_autotest.cpp
+  powerlineocc_sim.cpp
+  powerpoleocc_autotest.cpp
+  powerpoleocc_sim.cpp
   netocc_autotest.cpp
   netocc_geometry.cpp
   netocc_life.cpp

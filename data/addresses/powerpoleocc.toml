@@ -1,0 +1,340 @@
+# The power pole occupant (cSC4PowerPoleOccupant, class ID 0x09C05C6A): the tower (src/core/powerpoleocc_sim.cpp, the class map in src/core/powerpoleocc_sim.h).
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::Write"
+address = 0x0064B010
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B 74 24 18"
+source = "Name ours. cIGZSerializable slot 3 (this is the object + 0xC, one argument: the stream): version 5, the occupant base record, transform, position, the wire records, the corner vectors and the bytes after them (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::Read"
+address = 0x0064EA00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 5C A0 64 67 B4 00"
+source = "Name ours. cIGZSerializable slot 4 (this is the object + 0xC, one argument: the stream): reads what Write wrote, versions 4 and up, sets up the class statics first (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::GetGZCLSID"
+address = 0x0064DD50
+kind = "function"
+convention = "thiscall"
+expect = "B8 6A 5C C0 09 C3 CC CC"
+source = "Name ours. cIGZSerializable slot 5: the class ID 0x09C05C6A, touches neither ECX nor EDX (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::QueryInterface"
+address = 0x0064A030
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 81 FF"
+source = "Name ours. Slot 0 of every part (the other parts jump here with this adjusted): the interface, the class ID and 0xA9764C8C give the object, 0x452294AA the message target, 0x26A68448 is asked of the object at +0xBC, then the occupant base and the model part (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::OccupantInit"
+address = 0x00649FA0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F1 E8 E7 EC F9"
+source = "Name ours. Occupant part slot 3 (this is the object + 8): base Init, the cell width and depth from the city into 0x00B46760 and 0x00B4675C, registers for message 0x99EF1142 once, releases the object at +0xBC (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::OnOccupantMessage"
+address = 0x0064A0F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 85 F6 74 05 8D"
+source = "Name ours. One argument, an occupant: when it is the object own occupant part the object stops listening for 0x99EF1142, then interface slot 9 runs (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::DoMessage"
+address = 0x0064A140
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Message target slot 3 (this is the object + 4, one argument: the message): message 0x99EF1142 hands its data to OnOccupantMessage (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::cSC4PowerPoleOccupant"
+address = 0x0064DB30
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 55 56 33"
+source = "Name ours. The constructor (one argument: non-zero for the most derived object, which sets the virtual base table and vtable itself): base 0x005E9220 at +8, model part 0x00801CF0 at +0x3C, the vtables, the transform, the fields (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::Destroy"
+address = 0x0064DFC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 55 56 8B F1 C7"
+source = "Name ours. The destructor: vtables, releases +0xBC and +0x114, frees the three corner vectors, destroys and frees the records, destroys the model part and the occupant base (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::DeletingDestructor"
+address = 0x0064E380
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 38 FC FF FF"
+source = "Name ours. Deleting destructor (one argument, flags): Destroy, and with flag 1 the item back to the pool 0x00B0C0C8 (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::Allocate"
+address = 0x006499D0
+kind = "function"
+convention = "cdecl"
+expect = "A1 CC C0 B0 00 8B 40 08"
+source = "Name ours. Pool allocation (the caller pushes the size 0x124 and takes it off again): an item of the pool 0x00B0C0C8, not constructed (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::Create"
+address = 0x0064E340
+kind = "function"
+convention = "cdecl"
+expect = "A1 CC C0 B0 00 8B 40 08"
+source = "Name ours. The factory: an item of the pool 0x00B0C0C8 constructed as the most derived object; returns the object start (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::GetBoundingBox"
+address = 0x00649A00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 86 C8 00 00"
+source = "Name ours. Occupant part slot 10 (this is the object + 8, two arguments: low and high corner): works out the cell bounds from the position and the wire records while they are dirty, then the two corners (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::GetPosition"
+address = 0x00649DA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 98 00 00 00 8B 44"
+source = "Name ours. Occupant part slot 8 (this is the object + 8, one argument): the three floats at +0xA0 (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::GetRecordCount"
+address = 0x00649D80
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 AC 00 00 00 8B 91"
+source = "Name ours. Interface slot 4: the number of 0x2C-byte records in the vector at +0xAC (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::GetRecordTarget"
+address = 0x006499B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 89 AC 00"
+source = "Name ours. Interface slot 7 (one argument, the index): the other tower of a record (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::GetCellPair"
+address = 0x00649210
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 C8 00 00 00 8B 54"
+source = "Name ours. Interface slot 8 (two arguments): the two integers at +0xC8 and +0xCC (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::IsFlag112"
+address = 0x00649230
+kind = "function"
+convention = "thiscall"
+expect = "8A 91 12 01 00 00 33 C0"
+source = "Name ours. Interface slot 11: whether the byte at +0x112 is not zero (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::GetByte118"
+address = 0x00649240
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 18 01 00 00 C3 CC"
+source = "Name ours. Interface slot 13: the byte at +0x118 in AL, touches neither ECX nor EDX (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::SetByte118"
+address = 0x00649250
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 88 81 18 01"
+source = "Name ours. Interface slot 14 (one argument): stores the low byte at +0x118, touches neither ECX nor EDX (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::FindRecord"
+address = 0x00649DD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 B0 00 00 00 53 56"
+source = "Name ours. Interface slot 16 (two arguments, a tower and a value): the index of the record whose other tower it is, handed with the value to interface slot 5; false when none (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::ResizeRecords"
+address = 0x0064E990
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 6A 0C 8B F1"
+source = "Name ours, not hooked. Resizes the vector of 0x2C-byte records (this is the vector, one argument: the count) with a zeroed record that owns an empty list (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::ResizeList"
+address = 0x0064BBA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 56 57 8B 39"
+source = "Name ours, not hooked. Resizes the circular list at a record +4 to a count, copying the item the second argument points to (ret 8; src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::EraseOuter"
+address = 0x0064CF40
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Name ours, not hooked. Erases a range of a vector of 12-byte vectors (first, last; ret 8) and frees the inner ones (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::InsertOuter"
+address = 0x0064D130
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 57 8B 7C 24"
+source = "Name ours, not hooked. Inserts count copies of a 12-byte vector at a position in a vector of them (position, count, pointer to the item; ret 0xC; src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::EraseTail"
+address = 0x00506280
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 08 8B 4C 24 04"
+source = "Name ours, not hooked. Five arguments (source first, source last, destination, a tag, 0): copies the range of 12-byte items down and returns the new end, used to cut a vector of three floats (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::DestroyRecords"
+address = 0x0064D450
+kind = "function"
+convention = "cdecl"
+expect = "55 8B 6C 24 0C 56 8B 74"
+source = "Name ours, not hooked. Three arguments (first, last, a tag): frees the vectors and the list of each 0x2C-byte record in the range (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::UpdateTable"
+address = 0x00649B30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 46"
+source = "Name ours, not hooked. Points the object at +0xE4 at one of two tables of four triples (0x00B0C0D8 or 0x00B0C198) by a field of its exemplar (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::InitStatics"
+address = 0x0064CC20
+kind = "function"
+convention = "cdecl"
+expect = "A0 64 67 B4 00 83 EC 18"
+source = "Name ours, not hooked. Sets up the class statics once (the byte at 0x00B46764): message server and city references, the hash tables of resources, the wire sag numbers from the tuning exemplar (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "SC4CornerVector::Resize"
+address = 0x005E1B30
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 1E 57 8B"
+source = "Name ours, not hooked. Resizes a vector of 0x18-byte corner records (this is the vector, the count and a pointer to the record to copy; ret 8; src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::Pool"
+address = 0x00B0C0C8
+kind = "data"
+source = "Name ours. The pool of the 0x124-byte power poles (table 0x00AA9CA8; +4 the current page; pages of 32 KB at address & 0xFFFF8000 with the free list at +8 and the used count at +0xC; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at count 0x40000054)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::CellWidthX"
+address = 0x00B46760
+kind = "data"
+source = "Name ours. A float: the width of a city cell, set by the occupant part Init from city slot 0x16C (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::CellWidthZ"
+address = 0x00B4675C
+kind = "data"
+source = "Name ours. A float: the depth of a city cell, set by the occupant part Init from city slot 0x170 (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::StaticsDone"
+address = 0x00B46764
+kind = "data"
+source = "Name ours. A byte: the class statics (0x0064CC20) have been set up."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::BoxTop"
+address = 0x00AA9B10
+kind = "data"
+source = "Name ours. The float 60.0 added to the position height to give the top of the bounding box (src/core/powerpoleocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::vftable"
+address = 0x00AA9EB0
+kind = "vtable"
+expect = "30 A0 64 00 C0 91 64 00"
+source = "Name ours. The power pole interface at +0x0, 19 slots (src/core/powerpoleocc_sim.h)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::vftable_4"
+address = 0x00AA9EA0
+kind = "vtable"
+expect = "F0 DE 64 00 70 DD 64 00"
+source = "Name ours. The message target at +0x4, 4 slots: DoMessage is slot 3."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::vftable_8"
+address = 0x00AA9E18
+kind = "vtable"
+expect = "00 DF 64 00 90 DD 64 00"
+source = "Name ours. The occupant part at +0x8, 34 slots (the cSC4Occupant base starts here)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::vftable_C"
+address = 0x00AA9DFC
+kind = "vtable"
+expect = "10 DF 64 00 B0 DD 64 00"
+source = "Name ours. The cIGZSerializable part at +0xC: Write 0x0064B010, Read 0x0064EA00, GetGZCLSID 0x0064DD50."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::vftable_10"
+address = 0x00AA9D98
+kind = "vtable"
+expect = "20 DF 64 00 D0 DD 64 00"
+source = "Name ours. The property holder at +0x10, 25 slots."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::vftable_24"
+address = 0x00AA9D80
+kind = "vtable"
+expect = "30 DF 64 00 00 DE 64 00"
+source = "Name ours. The exemplar holder part at +0x24, 5 slots."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::vftable_3C"
+address = 0x00AA9D7C
+kind = "vtable"
+expect = "20 DE 64 00 30 DF 64 00"
+source = "Name ours. The model part at +0x3C, 1 slot."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::vbase_vftable"
+address = 0x00AA9D30
+kind = "vtable"
+expect = "40 DF 64 00 30 DE 64 00"
+source = "Name ours. The virtual base at +0x120, 19 slots."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::vbtable"
+address = 0x00AA9EFC
+kind = "data"
+source = "Name ours. The virtual base table of the power pole: -4, then the displacement 0xE0 of the virtual base from the table pointer at +0x40."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::abstract_vftable"
+address = 0x00AA9CB8
+kind = "vtable"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The abstract class vtable the constructor stores at +0 while it runs."
