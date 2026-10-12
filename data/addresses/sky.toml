@@ -397,6 +397,42 @@ expect = "8B 44 24 04 83 F8 07 0F"
 source = "Name ours. Fills the effect's packed render state (+0x1C) with SC4RenderState::Init from one of eight rows of fourteen values, by the kind 0 to 7 (jump table 0x005B2370); other kinds do nothing. Called when an effect takes a description (0x005B7CD2). Ours in renderer.effects.kind_state."
 
 [[entry]]
+name = "SC4Effect::SetDescription"
+address = 0x005B7C90
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4EffectDescription* description)"
+expect = "83 EC 14 53 55 8B 6C 24"
+source = "Name ours (0x005B7C90 to 0x005B8010). Slot 0x28 of the base effect class (vtable 0x00AA0EA0): holds a new description and lets the old go, sets the render state by the description's kind (+0xD4), loads its texture (+0xD0), sets up the batch (slot 0x40) and the effect's values that come from the description (+0x130, +0x1CC to +0x1E4, the box, +0x200 to +0x214, +0x15C); for flag 0x100 asks the effects manager (0x00B43D1C slot 0x14) for effects named with \"_terrain\" and \"_water\" (+0x218, +0x219). Ours in renderer.effects.description (src/core/effect_description.inc)."
+
+[[entry]]
+name = "SC4EffectDescription::Release"
+address = 0x005B1C80
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (SC4EffectDescription* this)"
+expect = "56 8B F1 8B 86 04 02 00"
+source = "Name ours. Lowers the count at +0x204; at 0 destroys the object (0x0059ECB0) and frees it. The pair of SC4Effect::Hold."
+
+[[entry]]
+name = "SC4Effect::LoadTexture"
+address = 0x005B74C0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, uint32_t which)"
+expect = "51 53 57 8B F9 C7 47 68"
+source = "Name ours, not analysed. Called by SC4Effect::SetDescription (0x005B7CE3) with the description's +0xD0; sets the effect's +0x68."
+
+[[entry]]
+name = "SC4Effect::SortBatch"
+address = 0x005B7170
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, void* batch)"
+expect = "8B 41 24 8B 00 8B C8 C1"
+source = "Name ours, not analysed. Slot 0x40 of both effect classes: calls 0x005EC7C0 on the batch with (0, 4, 6, 10) and one of three functions by the description's flags 0x40000000 and 0x20000000 (0x005EC510, 0x005EC570, 0x005EC4B0) and 0x005EC430. SC4Effect::SetDescription calls it with the effect's +0x28."
+
+[[entry]]
 name = "SC4Effect::GetBox"
 address = 0x005B26F0
 kind = "function"
