@@ -505,6 +505,33 @@ expect = "53 56 8B 74 24 0C 8B D9"
 source = "Name ours. Sets the object the effect holds at +0x1EC: nothing when it is the one held; else the new one held (its slot 4), kept, and the old one let go (its slot 8). Called by the effects manager (0x00590C8B, 0x00593F0A, 0x00593F4B). Ours in renderer.effects.holders."
 
 [[entry]]
+name = "SC4EffectDescription::Construct"
+address = 0x005B0FE0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "83 EC 18 53 33 DB 55 56"
+source = "Name ours. An effect description's constructor, called first by the whole object's (0x005B1660, 0x208 bytes): the fields' first values, an empty string in 8 bytes from 0x0090CF54, and one value put in each of seven lists (0x00676CC0, 0x0050C3B0 when a list has no room). Ours in renderer.effects.description_ctor."
+
+[[entry]]
+name = "SC4EffectDescription::InsertListA"
+address = 0x005B05A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* where, uint32_t count, const void* record)"
+expect = "83 EC 1C 57 8B F9 8B 4C"
+source = "Name ours. ret 0xC: inserts count copies of a 0x1C-byte record into a list at where: in place when the list has room, else through the growing insert 0x0059BBA0. Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4EffectDescription::InsertListB"
+address = 0x005B0700
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* where, uint32_t count, const void* record)"
+expect = "83 EC 20 56 8B F1 8B 4C"
+source = "Name ours. ret 0xC: inserts count copies of a 0x20-byte record into a list at where: in place when the list has room, else through the growing insert 0x0059B570. Ours in renderer.effects.lists."
+
+[[entry]]
 name = "SC4EffectDescription::ReadListA"
 address = 0x005B0930
 kind = "function"
