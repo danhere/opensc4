@@ -73,6 +73,7 @@
 // Exception frames: 0x004EDF50 has one that swallows what the old object's
 // Release throws; ours is plain C++.
 #include "core/address_check.h"
+#include "core/fixed_seed.h"
 #include "core/game.h"
 #include "core/game_access.h"
 #include "core/hook.h"
@@ -1224,7 +1225,7 @@ uint8_t __fastcall OnOccupantMessages(char* self, void*, void* message)
                 return 1;
             }
             This<void>(addr::GZStopwatch_Start, watch);
-            const uint32_t scaled = static_cast<uint32_t>(Cdecl<int>(addr::CRT_rand)) * 3000u;
+            const uint32_t scaled = static_cast<uint32_t>(fixed_seed::SoundRand()) * 3000u;
             // The division by 32767 as the compiler wrote it.
             const uint32_t high = static_cast<uint32_t>((static_cast<uint64_t>(scaled) * 0x20005u) >> 32);
             At<uint32_t>(self, handler::kWait) = ((((scaled - high) >> 1) + high) >> 14) + 1000;
