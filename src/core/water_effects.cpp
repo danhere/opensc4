@@ -2819,12 +2819,100 @@ uint32_t __fastcall DSC4EffectDescription_Release(char* self, void*)
 }
 OPENSC4_THUNK(TSC4EffectDescription_Release, DSC4EffectDescription_Release, 0)
 
+// An effect's texture loaded (0x005B74C0; taking a description calls it
+// with the description's +0xD0), written by hand. The handle at +0x68 is
+// cleared. The framework (0x008793EC) is asked for the service 0x1AC0E11A
+// by its interface 0xFAC0E219; with it, what the effect held at +0x6C is
+// let go (0x008090E0), the service is asked for the texture by its ID into
+// +0x6C (its slot 0x14), and on success +0x68 is the word the holder's
+// first word points at. The service is released again (0x004495C0, as the
+// game's own holder of it does).
+uint32_t LoadEffectTexture(char* self, uint32_t which)
+{
+    At<uint32_t>(self, 0x68) = 0;
+    char* service = nullptr;
+    char* const framework = reinterpret_cast<char*(__cdecl*)()>(0x008793EC)();
+    if (framework)
+        CallThis<uint32_t>(At<uint32_t>(At<char*>(framework, 0), 0x14), framework, 0x1AC0E11Au, 0xFAC0E219u,
+                           &service);
+    if (service) {
+        if (char* const old = At<char*>(self, 0x6C)) {
+            At<char*>(self, 0x6C) = nullptr;
+            CallThis<uint32_t>(0x008090E0, old);
+        }
+        if (CallThis<uint32_t>(At<uint32_t>(At<char*>(service, 0), 0x14), service, which, self + 0x6C) & 0xFF)
+            At<uint32_t>(self, 0x68) = M<uint32_t>(M<uint32_t>(At<uint32_t>(self, 0x6C)));
+    }
+    return CallThis<uint32_t>(0x004495C0, &service);
+}
+
+// Its comparison runs both for real. For an effect that holds no texture
+// yet: ours, whose texture is let go again as the function itself lets an
+// old one go, then the game's. For one that holds a texture: the game's,
+// then ours on top of it. The handle, and whether a texture is held, must
+// be the same.
+StepMode g_textureMode = StepMode::Original;
+
+uint32_t LoadTextureByMode(char* self, uint32_t which)
+{
+    if (g_textureMode == StepMode::Original)
+        return g_SC4Effect_LoadTexture(self, nullptr, which);
+    if (g_textureMode == StepMode::Ours)
+        return LoadEffectTexture(self, which);
+    if (At<char*>(self, 0x6C)) {
+        // The game's lets the old texture go, which cannot be done twice:
+        // ours then runs on what the game's left, letting that one go and
+        // loading again, and must leave the same.
+        const uint32_t result = g_SC4Effect_LoadTexture(self, nullptr, which);
+        char theirs[kEffectSize], mine[kEffectSize];
+        std::memcpy(theirs, self, kEffectSize);
+        LoadEffectTexture(self, which);
+        std::memcpy(mine, self, kEffectSize);
+        const bool sameHeld = (At<char*>(theirs, 0x6C) != nullptr) == (At<char*>(mine, 0x6C) != nullptr);
+        char text[64];
+        std::snprintf(text, sizeof text, "handle %08X, held %d", At<uint32_t>(theirs, 0x68),
+                      At<char*>(theirs, 0x6C) != nullptr);
+        const std::string game = text;
+        std::snprintf(text, sizeof text, "handle %08X, held %d", At<uint32_t>(mine, 0x68),
+                      At<char*>(mine, 0x6C) != nullptr);
+        std::memset(mine + 0x6C, 0, 4);
+        std::memset(theirs + 0x6C, 0, 4);
+        const bool same = sameHeld && std::memcmp(theirs, mine, kEffectSize) == 0;
+        compare::Record("effects.texture.again", same, same ? std::string() : game,
+                        same ? std::string() : std::string(text));
+        return result;
+    }
+    char before[kEffectSize], mine[kEffectSize];
+    std::memcpy(before, self, kEffectSize);
+    LoadEffectTexture(self, which);
+    std::memcpy(mine, self, kEffectSize);
+    char* const held = At<char*>(self, 0x6C);
+    if (held)
+        CallThis<uint32_t>(0x008090E0, held);
+    std::memcpy(self, before, kEffectSize);
+    const uint32_t result = g_SC4Effect_LoadTexture(self, nullptr, which);
+    const bool sameHeld = (held != nullptr) == (At<char*>(self, 0x6C) != nullptr);
+    char theirs[kEffectSize];
+    std::memcpy(theirs, self, kEffectSize);
+    std::memset(mine + 0x6C, 0, 4);
+    std::memset(theirs + 0x6C, 0, 4);
+    const bool same = sameHeld && std::memcmp(theirs, mine, kEffectSize) == 0;
+    char text[64];
+    std::snprintf(text, sizeof text, "handle %08X, held %d", At<uint32_t>(theirs, 0x68),
+                  At<char*>(self, 0x6C) != nullptr);
+    const std::string game = text;
+    std::snprintf(text, sizeof text, "handle %08X, held %d", At<uint32_t>(mine, 0x68), held != nullptr);
+    compare::Record(At<uint32_t>(theirs, 0x68) ? "effects.texture" : "effects.texture.none", same,
+                    same ? std::string() : game, same ? std::string() : std::string(text));
+    return result;
+}
+
 uint32_t __fastcall DSC4Effect_LoadTexture(char* self, void*, uint32_t which)
 {
     if (DescNoting())
         return DescCallee(addr::SC4Effect_LoadTexture, which,
                           [&] { return g_SC4Effect_LoadTexture(self, nullptr, which); });
-    return g_SC4Effect_LoadTexture(self, nullptr, which);
+    return LoadTextureByMode(self, which);
 }
 OPENSC4_THUNK(TSC4Effect_LoadTexture, DSC4Effect_LoadTexture, 4)
 
@@ -5283,6 +5371,30 @@ const bool g_registeredModelB = registry::Register({
     "materials (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallModelB,
+});
+
+bool InstallTexture(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4Effect_LoadTexture ||
+          Detour(addr::SC4Effect_LoadTexture, &TSC4Effect_LoadTexture, &g_SC4Effect_LoadTexture)))
+        return false;
+    g_textureMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects' texture loading %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredTexture = registry::Register({
+    "renderer.effects.texture",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_LoadTexture,
+    "An effect's texture loaded: the texture service asked for it by ID and its handle kept; compare mode runs "
+    "ours and the game's for real (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallTexture,
 });
 
 bool InstallGround(registry::Mode mode)
