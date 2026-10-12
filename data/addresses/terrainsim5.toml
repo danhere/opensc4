@@ -1,0 +1,223 @@
+# cSTETerrain (build 641), piece 5: erosion, the flood, the water distance map (src/core/terrain_erode.cpp).
+# New names only; cSTETerrain::Erode, ::FloodStep and ::UpdateWaterDistances (terrainsim4.toml) are reused and
+# are ours in simulators.terrain.erode, cSTETerrain::PrepareRect (terrainsim4.toml) in simulators.terrain.erode_normals
+# (src/core/terrain_erode_2.cpp).
+
+[[entry]]
+name = "cSTETerrain::ErodePass"
+address = 0x00746AD0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* rect, int32_t iterations)"
+expect = "83 EC 30 56 8B F1 D9 46"
+source = "Name ours. Hydraulic erosion over a rectangle of vertices: the water line is the sea level less 0x00AB3CC8; depths set to line - altitude below it and 0 above, sediment 0; then per iteration rain (0x00B0D5A8 x the altitude, above the line) and the flow of each wet vertex to the neighbour 0x00744760 names (none on the rectangle's border), carrying and depositing sediment and eroding unlocked vertices; at the end the water object resets the rectangle grown by one (0x0073D180). Called by 0x00747B20 and by the brushes' erosion layer (0x00747A20). Ours in simulators.terrain.erode (src/core/terrain_erode.cpp)."
+
+[[entry]]
+name = "cSTETerrain::SmoothAll"
+address = 0x00746F40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, int32_t passes)"
+expect = "51 8B 44 24 08 85 C0 0F"
+source = "Name ours. `passes` times over every vertex: against each neighbour inside the grid (the +0x84 table's order), the excess of the altitude difference over the limit (0x00B4BCF4 straight, 0x00B4BCF0 diagonal) times 0x00B4B40C is taken from the higher and added to the lower, unless locked; clamps 0x00B0D5E0 and 0x00B0D5DC; water depth = sea level - altitude. Only 0x00747B20 calls it. Ours in simulators.terrain.erode (src/core/terrain_erode.cpp)."
+
+[[entry]]
+name = "cSTETerrain::LowestNeighbour"
+address = 0x00744760
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (cSTETerrain* this, uint32_t index)"
+expect = "83 EC 10 53 55 56 57 8B"
+source = "Name ours. The direction (0 to 7, the +0x84 table's order) of the neighbour whose surface (altitude + water depth) lies farthest below the vertex's; a diagonal one must lie deeper than the square root of 2 times the best straight drop; -1 for none. Only 0x00746AD0 and 0x007467F0 call it; ours have their own copy."
+
+[[entry]]
+name = "cSTETerrain::StartFlood"
+address = 0x00747720
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "56 57 8D 41 40 50 E8 B5"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 56: saves every water depth to the array +0xE0 (0x00744DE0), sets the counter +0x1AC to 0 and the window +0x19C to 20, 20, 40, 40, adds 0x00AB3CCC to the depth of each vertex of the window (far ends not included), sets +0xD4 and jumps to the step 0x007467F0. Ours in simulators.terrain.erode (src/core/terrain_erode.cpp)."
+
+[[entry]]
+name = "cSTETerrain::SaveWaterDepths"
+address = 0x00744DE0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* rect)"
+expect = "53 8B 5C 24 08 8B 43 0C"
+source = "Name ours. Copies the water depth of every vertex of a rectangle to the array +0xE0 (by index). Leaves ECX alone, which its only caller (slot 56, 0x00747726) counts on. Ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::RestoreWaterDepths"
+address = 0x00744D60
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* rect)"
+expect = "53 8B 5C 24 08 8B 43 0C"
+source = "Name ours. Copies the array +0xE0 back into the water depths of a rectangle. Only the flood step's end (0x0074685C) calls it; ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::UnflipMarkedCells"
+address = 0x00740900
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* rect)"
+expect = "55 56 8B F1 8B 4C 24 0C"
+source = "Name ours. For every vertex of a rectangle that carries the flag 0x0800: slot 93 with (x, z, 0), then the flag cleared. Only 0x00743B60 calls it (0x00743BDD). The game's; ours calls it at its address."
+
+[[entry]]
+name = "cSTETerrain::MarkSteepCell"
+address = 0x00742FC0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t index, bool steepFirst, bool steepSecond)"
+expect = "8A 44 24 08 8A 54 24 0C"
+source = "Name ours, not analysed in full (584 bytes). 0x00743B60 gives it each cell with a steep triangle (normal y below 0x00B0D620): with both steep it weighs the cell's two triangulations (FSQRT only) and may flip the cell (slot 93 with x, z, 1; flag 0x0800); it sets the mark 8 on the cell's vertices. Reads the low bytes of the two flags only; RET 0xC. Only 0x00743B60 calls it (0x00743D8A). The game's; ours calls it at its address."
+
+[[entry]]
+name = "SC4DistanceRows::Spread"
+address = 0x005E5180
+kind = "function"
+convention = "cdecl"
+signature = "uint8_t (void* rows, uint8_t first, uint8_t steps)"
+expect = "51 53 8B 5C 24 0C 8B 0B"
+source = "Name ours. On a vector of byte rows (12-byte vectors): for value = first, first + 1, ... (at most `steps` of them) every cell holding the value lowers its four straight neighbours (clamped to the grid) to value + 1 when they hold more (0x005E4C50, which takes the rows in EBX); stops at a value that changed nothing. Only the bytes of the two numbers are read. Only 0x007440C0 calls it (0x00744210). The game's; called at its address."
+
+[[entry]]
+name = "cSTETerrain::FloodDecay"
+address = 0x00AB3CC0
+kind = "data"
+source = "Name ours. float in .rdata: 0.01; from the step 0x00B4BD7C on the flood step takes this share of a vertex's water above its saved depth (0x00746922)."
+
+[[entry]]
+name = "cSTETerrain::FloodDecayStartFloat"
+address = 0x00AB3CC4
+kind = "data"
+source = "Name ours. float in .rdata: 350.0; its floor becomes the static 0x00B4BD7C (0x00746827)."
+
+[[entry]]
+name = "cSTETerrain::ErodeSeaMargin"
+address = 0x00AB3CC8
+kind = "data"
+source = "Name ours. float in .rdata: 15.0; the erosion pass's water line is the sea level less this (0x00746ADF)."
+
+[[entry]]
+name = "cSTETerrain::FloodStartDepth"
+address = 0x00AB3CCC
+kind = "data"
+source = "Name ours. float in .rdata: 500.0; StartFlood adds it to the water depth of each vertex of its window (0x0074778B)."
+
+[[entry]]
+name = "cSTETerrain::WaterDistanceLimit"
+address = 0x00B0D58C
+kind = "data"
+source = "Name ours. uint8_t in .data: 4 in the exe; the water distance map's byte for a vertex far from water is this + 2 (0x00744175)."
+
+[[entry]]
+name = "cSTETerrain::SmoothOnlyPasses"
+address = 0x00B0D594
+kind = "data"
+source = "Name ours. uint32_t in .data: 5 in the exe; the smoothing passes of erosion kind 1 (0x00747B94)."
+
+[[entry]]
+name = "cSTETerrain::ErodeRuns"
+address = 0x00B0D5A0
+kind = "data"
+source = "Name ours. uint32_t in .data: 1 in the exe; how many times erosion kind 0 runs the pass 0x00746AD0."
+
+[[entry]]
+name = "cSTETerrain::ErodeIterations"
+address = 0x00B0D5A4
+kind = "data"
+source = "Name ours. uint32_t in .data: 35 in the exe; the iterations of each of those runs."
+
+[[entry]]
+name = "cSTETerrain::ErodeRain"
+address = 0x00B0D5A8
+kind = "data"
+source = "Name ours. float in .data: 0.01 in the exe; the rain per iteration, times the vertex's altitude (0x00746C04)."
+
+[[entry]]
+name = "cSTETerrain::ErodeCapacity"
+address = 0x00B0D5AC
+kind = "data"
+source = "Name ours. float in .data: 5.0 in the exe; the sediment a flow can carry, per unit of water (0x00746D33)."
+
+[[entry]]
+name = "cSTETerrain::ErodeDeposit"
+address = 0x00B0D5B0
+kind = "data"
+source = "Name ours. float in .data: 0.2 in the exe; the share of its sediment a wet vertex is raised by per iteration (0x00746E6A)."
+
+[[entry]]
+name = "cSTETerrain::ErodeRateLow"
+address = 0x00B0D5B8
+kind = "data"
+source = "Name ours. float in .data: 0.02 in the exe; the erosion rate at or below the slope 0x00B0D5C0."
+
+[[entry]]
+name = "cSTETerrain::ErodeRateHigh"
+address = 0x00B0D5BC
+kind = "data"
+source = "Name ours. float in .data: 0.06 in the exe; the erosion rate from the slope 0x00B0D5C4 up."
+
+[[entry]]
+name = "cSTETerrain::ErodeSlopeLow"
+address = 0x00B0D5C0
+kind = "data"
+source = "Name ours. float in .data: 5.128 in the exe; altitude step to the neighbour (a diagonal one's divided by the square root of 2) up to which the rate is the low one."
+
+[[entry]]
+name = "cSTETerrain::ErodeSlopeHigh"
+address = 0x00B0D5C4
+kind = "data"
+source = "Name ours. float in .data: 38.14 in the exe; the step from which the rate is the high one; linear between."
+
+[[entry]]
+name = "cSTETerrain::ErodeSmoothPasses"
+address = 0x00B0D5EC
+kind = "data"
+source = "Name ours. uint32_t in .data: 1 in the exe; the smoothing passes after erosion kind 0."
+
+[[entry]]
+name = "cSTETerrain::SteepNormalY"
+address = 0x00B0D620
+kind = "data"
+source = "Name ours. float in .data: 0.3 in the exe; a triangle whose unit normal's y is below it is steep (0x00743CDE, 0x00743D5A, 0x0074306A)."
+
+[[entry]]
+name = "cSTETerrain::SqrtTwo"
+address = 0x00B4BD74
+kind = "data"
+source = "Name ours. float static of 0x00744760 (.bss): the square root of 2 (FSQRT of the double 0x00A80AC8), set on the first call under the guard 0x00B4BD78."
+
+[[entry]]
+name = "cSTETerrain::SqrtTwoGuard"
+address = 0x00B4BD78
+kind = "data"
+source = "Name ours. Guard dword of that static (bit 0)."
+
+[[entry]]
+name = "cSTETerrain::FloodDecayStart"
+address = 0x00B4BD7C
+kind = "data"
+source = "Name ours. int32_t static of 0x007467F0 (.bss): the floor of the float 0x00AB3CC4 (350), set on the first call under the guard 0x00B4BD80; the flood's water sinks from the step after it."
+
+[[entry]]
+name = "cSTETerrain::FloodDecayStartGuard"
+address = 0x00B4BD80
+kind = "data"
+source = "Name ours. Guard dword of that static (bit 0)."
+
+[[entry]]
+name = "cSTETerrain::InverseSqrtTwo"
+address = 0x00B4BD84
+kind = "data"
+source = "Name ours. float static of 0x00746AD0 (.bss): 1.0 / the square root of 2, set on the first call under the guard 0x00B4BD88; the slope to a diagonal neighbour is multiplied by it."
+
+[[entry]]
+name = "cSTETerrain::InverseSqrtTwoGuard"
+address = 0x00B4BD88
+kind = "data"
+source = "Name ours. Guard dword of that static (bit 0)."
