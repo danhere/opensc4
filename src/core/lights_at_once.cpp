@@ -1,16 +1,23 @@
-// determinism.lights_at_once: at the view's nightfall and daybreak every
-// building's lights change at once (docs/experiments/determinism.md,
-// "Nightfall and the lot developer's shuffle"). For test runs only.
+// determinism.lights_at_once: the view's day and night kept out of what a
+// test run compares (docs/experiments/determinism.md, "Nightfall and the
+// lot developer's shuffle"). For test runs only: play keeps the game's.
 //
-// When the view's clock turns to night or back the lot developer shuffles
-// its buildings (0x006C68C0, from message 0x44778234) and then changes the
-// lights of a few of them every 200 ms of the frame timer (0x006CBD60).
-// How far that has got (+0x8C, +0x9C) is saved with the city, so two runs
-// of a save in which a turn falls write different records though nothing
-// of the simulation differs. Here the shuffle is replaced: no shuffle, and
-// the game's own finish (0x006CBE50), which changes every building and
-// ends the stepping. A city saved in the middle of the stepping is
-// finished when the autotest has loaded it.
+// The view's clock runs on a stopwatch and is stepped with frames; when it
+// turns to night or back, the lot developer shuffles its buildings
+// (0x006C68C0, from message 0x44778234) and changes the lights of a few of
+// them every 200 ms of the frame timer (0x006CBD60), and the prop developer
+// does the same with its timed props (0x006F0EC0). When the turn comes and
+// how far the stepping has got (saved with the city) follow the frames, so
+// two runs of a save in which a turn falls differ though nothing of the
+// simulation does. Here:
+//   - the clock of a loaded city counts simulation ticks and is stepped at
+//     the start of each simulation day, by the autotest;
+//   - the shuffle is replaced: no shuffle, and the game's own finish
+//     (0x006CBE50), which changes every building and ends the stepping;
+//   - the timed props are finished with the game's function that switches
+//     them all (0x006F10E0);
+//   - a city saved in the middle of either stepping is finished when the
+//     autotest has loaded it.
 #include "core/address_check.h"
 #include "core/autotest_hooks.h"
 #include "core/game.h"
@@ -18,6 +25,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/sim_timers.h"
 
 #include <opensc4/addresses.h>
 
@@ -75,6 +83,63 @@ void FinishProps()
     At<uint32_t>(props, 0xA38) = 0;
 }
 
+// The view's clock (cSC424HourClock, the service at 0x00B43DBC) adds the
+// milliseconds of its stopwatch (+0x50) to its seconds of the day at every
+// frame (0x00445820) and posts the turn when the hour crosses between day
+// and night. On the clock that stopwatch follows how many frames a run
+// took, so the turn came at another point of each run. Under
+// determinism.sim_timers it counts simulation ticks instead.
+char* g_clock = nullptr; // the clock, once a city's has been taken over
+
+void ClockOnSimulationTime()
+{
+    char* const clock = Global<char*>(addr::SC4_Clock43DBC);
+    if (!clock)
+        return;
+    static bool logged = false;
+    // A GZStopwatch starts with its unit; the clock's is 3.
+    if (At<int32_t>(clock, 0x50) != 3) {
+        if (!logged)
+            log::Write("lights_at_once: no stopwatch where the view's clock keeps it; it stays on the clock");
+        logged = true;
+        return;
+    }
+    sim_timers::Claim(clock + 0x50);
+    if (!logged)
+        log::Write("lights_at_once: the view's clock counts simulation ticks, a day at a time");
+    logged = true;
+    g_clock = clock;
+}
+
+// The clock's own tick comes with frames, and a run does not have the same
+// number of frames between two simulation days each time: the seconds went
+// in at other moments and the turn with them. Once a city's clock is on
+// simulation time its tick is left out when a frame asks, and made at the
+// start of each simulation day instead.
+using TickFn = uint8_t(__fastcall*)(void* part, void* edx, uint32_t unused);
+TickFn g_tick = nullptr;
+bool g_dayTick = false;
+
+uint8_t __fastcall Tick(void* part, void*, uint32_t unused)
+{
+    if (g_clock && part == g_clock + 0xC && !g_dayTick)
+        return 1;
+    return g_tick(part, nullptr, unused);
+}
+
+void OnDay(const autotest::Day&)
+{
+    if (!g_on || !g_clock || !g_tick)
+        return;
+    g_dayTick = true;
+    g_tick(g_clock + 0xC, nullptr, 0);
+    g_dayTick = false;
+    // A turn made just now, on the run's last day, comes after the day's
+    // fingerprint and before the save.
+    Finish();
+    FinishProps();
+}
+
 void __cdecl Shuffle(DequeIterator, DequeIterator)
 {
     static bool logged = false;
@@ -90,6 +155,8 @@ bool Install(registry::Mode)
 {
     const addr::Entry* shuffle = addr_check::Find(addr::cSC4LotDeveloper_Fn_006C68C0);
     g_on = shuffle && hook::Install(*shuffle, &Shuffle, &g_shuffle);
+    if (const addr::Entry* tick = g_on ? addr_check::Find(addr::cSC424HourClock_Tick) : nullptr)
+        hook::Install(*tick, &Tick, &g_tick);
     return g_on;
 }
 
@@ -99,6 +166,7 @@ void OnLoad(cISC4City*)
     if (g_on && game::IsBuild641()) {
         Finish();
         FinishProps();
+        ClockOnSimulationTime();
     }
 }
 
@@ -117,13 +185,14 @@ const bool g_registered = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::cSC4LotDeveloper_Fn_006C68C0,
-    "Test runs: at nightfall and daybreak every building's lights change at once, not in steps on the frame timer",
+    "Test runs: the view's clock steps once a simulation day, and at its nightfall the lights change at once",
     false,
     Install,
 });
 
 const autotest::LoadHook kLoad{"lights_at_once", 20, &OnLoad};
 const autotest::FingerprintPart kFingerprint{"lights_at_once", 1, &OnFingerprint};
+const autotest::DayHook kDay{"lights_at_once", 1, &OnDay};
 
 } // namespace
 } // namespace opensc4::lights_at_once

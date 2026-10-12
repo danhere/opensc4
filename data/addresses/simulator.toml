@@ -327,3 +327,12 @@ name = "SC4Deadline::TicksPerMs"
 address = 0x00B0A83C
 kind = "data"
 source = "Name ours. float: 1 / SC4Deadline::MsPerTick, set with it (docs/simulator.md)."
+
+[[entry]]
+name = "cSC424HourClock::Tick"
+address = 0x00445820
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* servicePart, uint32_t)"
+expect = "83 EC 08 57 8B F9 8B 47"
+source = "Name ours. The view's 24-hour clock (class 0xA7E7F929, the service at 0x00B43DBC) at every frame, on its part at +0xC: unless paused (+0x24, +0x28), the milliseconds of the stopwatch +0x44 times the magnification +0x2C; above 60 they go into the seconds of the day +0x38 (at most 1,200 a call), messages 0x44778230/31 follow an hour or five minutes passed, 0x00445680 posts the day and night turn 0x44778234, and the stopwatch restarts. determinism.lights_at_once calls it at each simulation day instead (docs/experiments/determinism.md)."
