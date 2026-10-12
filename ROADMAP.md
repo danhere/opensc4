@@ -167,7 +167,7 @@ Parity method (from P4): short-window exact comparison against the original from
 
 Decided (Dan, 2026-10-11): we go ahead without waiting for the NAM team; NAM stays a plugin players install, and a function NAM's DLL patched stays the game's automatically ([architecture.md](docs/architecture.md), "Patches inside replaced functions"). Order: the NAM guard, a networks test corpus, traffic leftovers, network occupants, the network manager, network lots and construction crew, the network tool, the RUL engine, automata.
 
-- [ ] Network occupants ([docs/netocc.md](docs/netocc.md)): the pieces a network is made of (cSC4NetworkOccupant and its bridge, tunnel and pipe kinds, power lines and poles). Done so far: the base class's state and queries, 43 functions (`simulators.netocc.*`). To come: life and save, geometry and paths, the pipe and power kinds, bridge and tunnel; the drawing code is left to the renderer work
+- [ ] Network occupants ([docs/netocc.md](docs/netocc.md)): the pieces a network is made of (cSC4NetworkOccupant and its bridge, tunnel and pipe kinds, power lines and poles). Done so far: the base class's state and queries, and its life and save (constructor, destructor, factory, pool, Init, Write and Read with the record decoded), 55 functions (`simulators.netocc.*`). To come: geometry and paths, the pipe and power kinds, bridge and tunnel; the drawing code is left to the renderer work
 - [ ] RUL0/1/2 engine and network tools, keeping the NAM DLL's patch sites working
 - [ ] Traffic simulator: the vanilla model, plus our own "Improved traffic" option (see ideas from newer games)
 
