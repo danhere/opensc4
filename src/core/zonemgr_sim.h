@@ -11,8 +11,9 @@
 // The class: class ID 0x298F9B2D, 0x380 bytes, constructor 0x004DCE50 (only
 // reached by the jump from the factory 0x004DD3E0, registered at
 // 0x004603F3), destructor 0x004DCC70, deleting destructor 0x004DCF40. Code
-// 0x004DC1A0 to 0x004DE2E0 (0x004DBE40 and 0x004DC110 before it and
-// 0x004DE2E0 on are other classes'). The city makes one per city and keeps
+// 0x004DC1A0 to 0x004DE2E0 (0x004DBE40 and 0x004DC110 before it are the
+// zone tool's OnMouseMove and message handler, and 0x004DE2E0 on is other
+// classes'). The city makes one per city and keeps
 // it at +0x134; the city's slot 36 (+0x90) and the global 0x00B43D14 give
 // it.
 //

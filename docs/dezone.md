@@ -8,7 +8,7 @@ The key is read each time the tool looks at the area (as the mouse moves, and wh
 
 `cSC4ZoneManager::PlaceZone` (0x004DD780) takes the area as a cell region and already clears from the caller's region the cells that cannot take the zone. `game.dezone` ([src/core/game_dezone.cpp](../src/core/game_dezone.cpp)) clears the network cells the same way before the function runs: the traffic network's slot 8 with mask 0x1F4F, every transport network but not water pipes, power lines or subway. The game's code then never sees those cells, so nothing in the zone manager, the parcelling or the messages changes.
 
-It acts only when the zone type is 0, the call comes from the zoning tool's code (0x004DA7A0 to 0x004DC1A0, its four previews and its placing) with the player flag set, and Shift is held. Port developers, landfill and every other caller are never touched. It works with the game's PlaceZone (a detour) and with ours (`simulators.zonemgr.place` calls the same function first).
+It acts only when the zone type is 0, the call comes from the zoning tool's code (0x004DA7A0 to 0x004DC1A0: the preview at 0x004DB312 and the placing at 0x004DA846; with the zone tool translation on, `tool_zone::PlaceZoneSite()` marks those calls, which then come from core.dll) with the player flag set, and Shift is held. Port developers, landfill and every other caller are never touched. It works with the game's PlaceZone (a detour) and with ours (`simulators.zonemgr.place` calls the same function first).
 
 The idea is from the Bulldoze Extensions plugin by Nicholas Hayes (LGPL-3.0), which has a separate tool on Shift+V. None of its code is used and its source was not read.
 
