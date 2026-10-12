@@ -505,6 +505,78 @@ expect = "53 56 8B 74 24 0C 8B D9"
 source = "Name ours. Sets the object the effect holds at +0x1EC: nothing when it is the one held; else the new one held (its slot 4), kept, and the old one let go (its slot 8). Called by the effects manager (0x00590C8B, 0x00593F0A, 0x00593F4B). Ours in renderer.effects.holders."
 
 [[entry]]
+name = "SC4Effect::Destruct"
+address = 0x005A62B0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this)"
+expect = "56 8B F1 8B 8E F0 01 00"
+source = "Name ours. An effect's destructor, also jumped to by the second class's and a third's (0x005A914A): releases +0x1F0 and +0x1EC (slot 8), lets go of the texture at +0x6C (0x008090E0), destroys the batch at +0x28 (0x005EC6E0), lets go of the description at +0x24 (0x005B1C80) and destroys the sub-object at +4 (0x005B9F40). Ours in renderer.effects.dtor."
+
+[[entry]]
+name = "SC4EffectB::Destruct"
+address = 0x005AC5B0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this)"
+expect = "56 8B F1 8B 8E 78 02 00"
+source = "Name ours. The second effect class's destructor: ends the object at +0x278 (slot 0x20), lets go of the description at +0x268, destroys the part at +0x228 (0x008030A0), releases the model at +0x224 through its counting part and the instance at +0x220, then SC4Effect::Destruct. Ours in renderer.effects.dtor."
+
+[[entry]]
+name = "SC4Effect::Delete"
+address = 0x005B2FE0
+kind = "function"
+convention = "thiscall"
+signature = "SC4Effect* (SC4Effect* this, uint32_t flags)"
+expect = "56 8B F1 E8 C8 32 FF FF"
+source = "Name ours. ret 4: SC4Effect::Destruct, then with bit 0 of flags the memory freed (0x005E5620); reached from the sub-object's table through the thunk at 0x005B2FD0. Ours in renderer.effects.dtor."
+
+[[entry]]
+name = "SC4EffectB::Delete"
+address = 0x005AC590
+kind = "function"
+convention = "thiscall"
+signature = "SC4Effect* (SC4Effect* this, uint32_t flags)"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. ret 4: SC4EffectB::Destruct, then with bit 0 of flags the memory freed (0x005E5620); reached from the sub-object's table through the thunk at 0x005AC580. Ours in renderer.effects.dtor."
+
+[[entry]]
+name = "SC4EffectBatch::Destruct"
+address = 0x005EC6E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 C7 06 AC 44 AA"
+source = "Name ours. The destructor of the batch an effect keeps at +0x28: sets its table of functions (0x00AA44AC) and frees its two buffers (+0x2C, +0x14). The game's; renderer.effects.dtor notes its calls in compare mode."
+
+[[entry]]
+name = "SC4EffectBase::Destruct"
+address = 0x005B9F40
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "C7 01 48 0F AA 00 83 C1"
+source = "Name ours. The destructor of an effect's sub-object: sets its table of functions (0x00AA0F48) and frees the list at +0x10 (0x005650A0). The game's; renderer.effects.dtor notes its calls in compare mode."
+
+[[entry]]
+name = "SC4EffectPartB::Destruct"
+address = 0x008030A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "51 56 8B F1 8B 0E 85 C9"
+source = "Name ours. The destructor of the part the second effect class keeps at +0x228 (constructed by 0x00803060). The game's; renderer.effects.dtor notes its calls in compare mode."
+
+[[entry]]
+name = "SC4EffectB::Construct"
+address = 0x005AC510
+kind = "function"
+convention = "thiscall"
+signature = "SC4Effect* (SC4Effect* this)"
+expect = "53 56 57 8B F1 E8 36 66"
+source = "Name ours. The second effect class's constructor: SC4Effect::Construct, the tables of functions 0x00AA0C58 and 0x00AA0C10, +0x220 and +0x224 cleared, the part at +0x228 constructed (0x00803060) with its +0x40 cleared, and +0x26C to +0x278 cleared. Ours in renderer.effects.ctor."
+
+[[entry]]
 name = "SC4Effect::Construct"
 address = 0x005B2B50
 kind = "function"
