@@ -241,6 +241,9 @@ add_library(opensc4_core SHARED
   terrain_draw.cpp
   terrain_brush.cpp
   terrain_brush_autotest.cpp
+  terrain_brushbody.cpp
+  terrain_brushbody_autotest.cpp
+  terrain_brushload.cpp
   terrain_edit.cpp
   terrain_edit_autotest.cpp
   terrain_erode.cpp
