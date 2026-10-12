@@ -1255,3 +1255,15 @@ address = 0x00ACEC00
 kind = "vtable"
 expect = "92 32 91 00 60 8B 96 00"
 source = "The standard message's vtable, 38 slots; stored by the constructor 0x009134D6 (0x2C bytes)."
+
+[[entry]]
+name = "RZ::Pool"
+address = 0x00B627E0
+kind = "data"
+source = "Name ours. The allocator behind RZ::operator_new and RZ::operator_delete (the message pool): nine block allocators at +0x6C, one for each block size from 8 bytes to 2,048; made at 0x00A791E6 when the program starts."
+
+[[entry]]
+name = "RZ::PoolLock"
+address = 0x00B62870
+kind = "data"
+source = "Name ours. The lock RZ::operator_new and RZ::operator_delete hold around the pool (lock slot +4, unlock slot +8); made at 0x00A791FC."

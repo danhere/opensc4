@@ -26,8 +26,8 @@
 // extra object (counted references).
 //
 // The message's subclasses share these functions through their own vtables.
-// Still the game's: the constructor (it has 283 direct callers and leaves
-// ECX at 0), the destructor, the pool's allocate and free, and the getters
+// The constructor, the destructor and the pool are in
+// framework_messagepool.cpp. Still the game's: the getters
 // of the type, the data values and the unknown (small functions shared with
 // unrelated classes).
 //

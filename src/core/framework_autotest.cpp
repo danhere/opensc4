@@ -1187,6 +1187,111 @@ void MessageObjectFingerprint(cISC4City*, std::string& line)
     line += text;
 }
 
+// The message pool test (OPENSC4_TEST_MESSAGE_POOL).
+bool g_messagePoolOn = false;
+uint32_t g_messagePoolHash = 2166136261u;
+
+// OPENSC4_TEST_MESSAGE_POOL=<day>: blocks of every size class from the
+// message pool's allocate (their headers read, their bytes written and read
+// back) and given to its free, a null pointer to the free; then messages
+// built by the game's constructor on memory filled with a pattern, every
+// byte after the vtable read; and the destructor on a message with a
+// subclass's vtable that holds a string and two counted objects, and on an
+// empty one. Everything goes into the fingerprint's `mpool` part.
+void DriveMessagePool(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_MESSAGE_POOL") || !game::IsBuild641())
+        return;
+    g_messagePoolOn = true;
+    uint32_t& h = g_messagePoolHash;
+    const auto allocate = reinterpret_cast<void*(__cdecl*)(uint32_t)>(addr::RZ_operator_new);
+    const auto release = reinterpret_cast<void(__cdecl*)(void*)>(addr::RZ_operator_delete);
+    const auto construct = reinterpret_cast<void*(__thiscall*)(void*)>(addr::cGZMessage_cGZMessage);
+    const auto destruct = reinterpret_cast<void(__thiscall*)(void*)>(addr::cGZMessage_Destruct);
+
+    // Each size class at its upper edge and one past it, then sizes only
+    // the C runtime holds.
+    static const uint32_t kSizes[] = {0,    1,    4,    5,    12,   13,   28,   29,   0x2C, 60,   61,  124,
+                                      125,  252,  253,  508,  509,  1020, 1021, 2044, 2045, 4096, 70000};
+    void* blocks[sizeof kSizes / sizeof kSizes[0]] = {};
+    unsigned count = 0;
+    for (const uint32_t size : kSizes) {
+        auto* const block = static_cast<uint8_t*>(allocate(size));
+        MixInto(h, block ? 1 : 0);
+        if (!block)
+            continue;
+        MixInto(h, *reinterpret_cast<uint32_t*>(block - 4));
+        for (uint32_t i = 0; i < size; ++i)
+            block[i] = static_cast<uint8_t>(size + i);
+        blocks[count++] = block;
+    }
+    // Every block still has its own bytes and header.
+    count = 0;
+    for (const uint32_t size : kSizes) {
+        auto* const block = static_cast<uint8_t*>(blocks[count++]);
+        if (!block)
+            continue;
+        uint32_t sum = 0;
+        for (uint32_t i = 0; i < size; ++i)
+            sum = sum * 31 + block[i];
+        MixInto(h, sum);
+        MixInto(h, *reinterpret_cast<uint32_t*>(block - 4));
+    }
+    for (unsigned i = 0; i < count; i += 2)
+        release(blocks[i]);
+    for (unsigned i = 1; i < count; i += 2)
+        release(blocks[i]);
+    release(nullptr);
+
+    // The constructor on used memory.
+    auto* const memory = static_cast<uint8_t*>(allocate(0x2C));
+    for (unsigned i = 0; i < 0x2C; ++i)
+        memory[i] = 0xC5;
+    void* const message = construct(memory);
+    MixInto(h, message == memory ? 1 : 0);
+    MixInto(h, *reinterpret_cast<uint32_t*>(memory) == addr::cGZMessage_Vtable ? 1 : 0);
+    for (unsigned i = 4; i < 0x2C; ++i)
+        MixInto(h, memory[i]);
+
+    // The destructor: the message holds a string and two counted objects
+    // and has another vtable, as a subclass's would at this point.
+    GameString text("a pooled message's text");
+    Virtual<uint32_t>(text.Self(), 0x4);
+    Target& unknown = g_targets[0];
+    Target& extra = g_targets[1];
+    const uint32_t unknownBefore = unknown.refs();
+    const uint32_t extraBefore = extra.refs();
+    Virtual<void*>(message, 0x78, text.Self());
+    Virtual<void*>(message, 0x84, static_cast<void*>(&unknown));
+    Virtual<void*>(message, 0x90, static_cast<void*>(&extra));
+    MixInto(h, *reinterpret_cast<uint32_t*>(text.object + 0x10));
+    MixInto(h, unknown.refs() - unknownBefore);
+    MixInto(h, extra.refs() - extraBefore);
+    *reinterpret_cast<uint32_t*>(memory) = 0;
+    destruct(message);
+    MixInto(h, *reinterpret_cast<uint32_t*>(memory) == addr::cGZMessage_Vtable ? 1 : 0);
+    MixInto(h, *reinterpret_cast<uint32_t*>(text.object + 0x10));
+    MixInto(h, unknown.refs() - unknownBefore);
+    MixInto(h, extra.refs() - extraBefore);
+    for (unsigned i = 4; i < 0x20; ++i)
+        MixInto(h, memory[i]);
+    release(memory);
+
+    // An empty message's end, through the deleting destructor.
+    void* const empty = construct(allocate(0x2C));
+    Virtual<void*>(empty, 0x94, uint32_t{1});
+    log::Write("autotest: message pool driven (hash %08X)", h);
+}
+
+void MessagePoolFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_messagePoolOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | mpool %08X", g_messagePoolHash);
+    line += text;
+}
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     if (!g_on)
@@ -1220,6 +1325,8 @@ const FingerprintPart kStringsFingerprint{"strings", 4, &StringsFingerprint};
 const DayHook kDriveStrings{"strings", 4, &DriveStrings};
 const FingerprintPart kMessageObjectFingerprint{"message_object", 4, &MessageObjectFingerprint};
 const DayHook kDriveMessageObject{"message_object", 4, &DriveMessageObject};
+const FingerprintPart kMessagePoolFingerprint{"message_pool", 4, &MessagePoolFingerprint};
+const DayHook kDriveMessagePool{"message_pool", 4, &DriveMessagePool};
 
 } // namespace
 } // namespace opensc4::autotest
