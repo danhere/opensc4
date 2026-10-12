@@ -15,6 +15,10 @@
 #include <cIGZIStream.h>
 #include <cIGZOStream.h>
 #include <cIGZString.h>
+#include <cISC4City.h>
+#include <cRZBaseString.h>
+
+#include <windows.h>
 
 #include <cstdint>
 #include <cstdio>
@@ -431,13 +435,611 @@ void DriveStreams(const Day& day)
     log::Write("autotest: save streams driven:%s", text);
 }
 
+// OPENSC4_TEST_SAVE_BLOCK=<day>: on that run day something is put in the way
+// of the next save, to reach a row of SaveCity's file moves that a normal
+// save never takes (docs/save-format.md, "The file moves"): a folder with a
+// file in it where the backup goes (the city's file name with an
+// underscore), so the old backup cannot be removed. The save must fail and
+// the old file must stay; the run's own end reports the save's result. The
+// folder stays in the test's region afterwards: remove it by hand.
+void BlockSave(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_SAVE_BLOCK") || !game::IsBuild641())
+        return;
+    cRZBaseString path;
+    day.city->GetCitySaveFilePath(path);
+    const std::string file = path.ToChar() ? path.ToChar() : "";
+    if (file.empty()) {
+        log::Write("autotest: save block: the city has no file");
+        return;
+    }
+    const std::string folder = file + "_";
+    const bool made = CreateDirectoryA(folder.c_str(), nullptr) != 0 || GetLastError() == ERROR_ALREADY_EXISTS;
+    const HANDLE inside = CreateFileA((folder + "\\inside.txt").c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
+    if (inside != INVALID_HANDLE_VALUE)
+        CloseHandle(inside);
+    log::Write("autotest: save block %s for %s", made ? "set" : "NOT set", file.c_str());
+}
+
+std::string g_fileToken;
+
+// A whole file from disk (up to 16 MB), read by the test itself; empty when
+// it cannot be read.
+std::vector<uint8_t> ReadWholeFile(const char* name)
+{
+    std::vector<uint8_t> file;
+    const HANDLE handle = CreateFileA(name, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+    if (handle != INVALID_HANDLE_VALUE) {
+        const DWORD size = GetFileSize(handle, nullptr);
+        if (size != INVALID_FILE_SIZE && size <= 16u * 1024 * 1024) {
+            file.resize(size);
+            DWORD got = 0;
+            if (!ReadFile(handle, file.data(), size, &got, nullptr) || got != size)
+                file.clear();
+        }
+        CloseHandle(handle);
+    }
+    return file;
+}
+
+// Fixed bytes for a test record: `runs` in a row of one value, then one
+// value from a small generator, over and over. A high `runs` compresses
+// well, 0 does not compress at all.
+std::vector<uint8_t> TestBytes(std::size_t size, uint32_t seed, unsigned runs)
+{
+    std::vector<uint8_t> bytes(size);
+    uint32_t state = seed;
+    std::size_t at = 0;
+    while (at < size) {
+        state = state * 1664525u + 1013904223u;
+        const uint8_t value = static_cast<uint8_t>(state >> 24);
+        for (unsigned i = 0; i <= runs && at < size; ++i)
+            bytes[at++] = value;
+    }
+    return bytes;
+}
+
+// Bytes that compress to a chosen share: the first `noisy` of every `of`
+// bytes come from the generator, the rest are zero. A ladder of these
+// brackets the writer's rule that a record is stored compressed only when
+// that saves enough.
+std::vector<uint8_t> LadderBytes(std::size_t size, uint32_t seed, unsigned noisy, unsigned of = 100)
+{
+    std::vector<uint8_t> bytes(size);
+    uint32_t state = seed;
+    for (std::size_t at = 0; at < size; ++at) {
+        state = state * 1664525u + 1013904223u;
+        bytes[at] = at % of < noisy ? static_cast<uint8_t>(state >> 24) : uint8_t{0};
+    }
+    return bytes;
+}
+
+// OPENSC4_TEST_SAVE_FILE=<day>: on that run day a packed file is written
+// through the game's own segment class from fixed records, and the finished
+// file goes into the fingerprint byte for byte, so that the game's writer
+// and ours can be compared exactly (a real save cannot be: its records hold
+// addresses and frame-driven state). The records are chosen for the
+// writer's branches (docs/save-format.md, "The file container"): one of 10
+// bytes, and one each of 49 and 50, around the size below which nothing is
+// compressed; one that compresses well; noise, which does not; a mixed one;
+// one over the 250,000 bytes where the compressor changes mode; a ladder of
+// sixteen from mostly zero to mostly noise, to have some on each side of
+// the rule that decides whether the compressed form is kept, a finer one
+// of twelve across the place where that changes, and four that land on it
+// exactly, written once as the processor is set and once in single
+// precision. Then the
+// compressible record is deleted, which leaves a small hole; 100 bytes of
+// noise are written, which must go into that hole and leave the rest of it
+// a hole; the noise record is written again larger (its old place freed,
+// the file lengthened) and the smallest again at its old size. The file is
+// closed, read back from disk by the test, its two date fields (offsets 24
+// and 28, from the clock) taken out, and summed whole and by its parts.
+// Then the game opens it for reading and every record is read back. The
+// file is made in the system's temporary folder and removed
+// (OPENSC4_TEST_SAVE_FILE_KEEP=1 keeps it). Before the file is closed, four
+// records are written piece by piece through the game's record writer, as
+// an object's Write does it: typed values with one patched afterwards; a
+// block and single bytes; a record opened for writing a second time; and
+// one of 2,100,000 bytes, which moves into a temporary file on the way.
+// A second file is written in three stages, opened for writing again each
+// time: made, one record replaced, then most of it deleted so that the
+// writer rebuilds it (see below). Not covered: a record of no bytes, one
+// over 16,000,000, opening for writing a record that is already over
+// 2,000,000 bytes, and copying or importing records between files.
+void DriveFile(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_SAVE_FILE") || !game::IsBuild641())
+        return;
+    char folder[MAX_PATH] = {};
+    if (!GetTempPathA(sizeof folder, folder)) {
+        g_fileToken = " | svfile none";
+        return;
+    }
+    char name[MAX_PATH + 64];
+    std::snprintf(name, sizeof name, "%sopensc4-savefile-%lu.dat", folder, GetCurrentProcessId());
+    DeleteFileA(name);
+
+    struct Key {
+        uint32_t type, group, instance;
+    };
+    constexpr std::size_t kRelease = 0x8, kShutdown = 0x14, kClose = 0x20, kTest = 0x4C, kDelete = 0x6C, kRead = 0x70,
+                          kWrite = 0x74;
+    using OpenFn = void*(__cdecl*)(void* path, uint32_t write, uint32_t checkVersion);
+    char path[0x14];
+    reinterpret_cast<void*(__thiscall*)(void*, const char*)>(addr::SC4String_FromText)(&path[0], name);
+    const auto freePath = [&] {
+        if (void* const buffer = At<void*>(&path[0], 0x4))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(buffer);
+    };
+
+    Fnv answers;
+    int steps = 0;
+    void* part = reinterpret_cast<OpenFn>(addr::SC4CityFiles_OpenSegment)(&path[0], 1, 0);
+    if (!part) {
+        freePath();
+        g_fileToken = " | svfile noopen";
+        log::Write("autotest: save file: the game did not open %s for writing", name);
+        return;
+    }
+    constexpr uint32_t kGroup = 0x7E57F11E;
+    const Key small{0x7E570001, kGroup, 1}, good{0x7E570002, kGroup, 2}, raw{0x7E570003, kGroup, 3},
+        mixed{0x7E570004, kGroup, 4}, large{0x7E570005, kGroup, 5}, filler{0x7E570006, kGroup, 6},
+        under{0x7E570007, kGroup, 7}, floor{0x7E570008, kGroup, 8};
+    const auto write = [&](const Key& key, const std::vector<uint8_t>& bytes) {
+        Key copy = key;
+        answers.Add(Virtual<uint8_t>(part, kWrite, &copy, static_cast<const void*>(bytes.data()),
+                                     static_cast<uint32_t>(bytes.size())));
+        ++steps;
+    };
+    const std::vector<uint8_t> smallBytes = TestBytes(10, 1, 0), goodBytes = TestBytes(4000, 2, 40),
+                               rawBytes = TestBytes(4000, 3, 0), mixedBytes = TestBytes(60000, 4, 3),
+                               largeBytes = TestBytes(300000, 5, 12), fillerBytes = TestBytes(100, 6, 0),
+                               rawAgain = TestBytes(9000, 7, 0);
+    write(small, smallBytes);
+    write(good, goodBytes);
+    write(raw, rawBytes);
+    write(mixed, mixedBytes);
+    write(large, largeBytes);
+    // Each side of the smallest size that is compressed at all: 49 bytes
+    // and 50, both of one value.
+    write(under, std::vector<uint8_t>(49, 0x41));
+    write(floor, std::vector<uint8_t>(50, 0x41));
+    // The ladder: sixteen records of 3,000 bytes from mostly zero to mostly
+    // noise, so that some are stored compressed and some are not.
+    for (uint32_t step = 0; step < 16; ++step) {
+        const Key rung{0x7E571000 + step, kGroup, 100 + step};
+        write(rung, LadderBytes(3000, 100 + step, 50 + step * 3));
+    }
+    // A finer ladder across the share at which the compressed form stops
+    // being kept: twelve records of 8,000 bytes, 770 to 803 noisy bytes in
+    // every 1,000, which the game's compressor takes to 78 to 82 percent.
+    for (uint32_t step = 0; step < 12; ++step) {
+        const Key rung{0x7E572000 + step, kGroup, 200 + step};
+        write(rung, LadderBytes(8000, 200 + step, 770 + step * 3, 1000));
+    }
+    // Four records that the game's compressor takes to exactly four fifths
+    // of their size (5,000 bytes to 4,000; found offline with the encoder
+    // checked against the game's own files). The rule's comparison is made
+    // in floating point against a single-precision 0.8, so what happens on
+    // the line itself depends on the precision the processor is set to.
+    for (uint32_t step = 0; step < 4; ++step) {
+        static const uint32_t kSeed[4] = {20, 24, 26, 34};
+        const Key edge{0x7E573000 + step, kGroup, 300 + step};
+        write(edge, step < 3 ? LadderBytes(5000, kSeed[step], 76) : LadderBytes(5000, kSeed[step], 787, 1000));
+    }
+    // The same four again with the processor set to single precision for
+    // the length of the calls, through the game's own switch (0x008929E0;
+    // 0x00892A0A reads the setting back from the processor): there the
+    // quotient is rounded to exactly the 0.8 it is compared with.
+    {
+        const int32_t before = reinterpret_cast<int32_t(__cdecl*)()>(addr::SC4Precision_Get)();
+        reinterpret_cast<void(__cdecl*)(int32_t)>(addr::SC4Precision_Set)(0);
+        answers.Add(reinterpret_cast<int32_t(__cdecl*)()>(addr::SC4Precision_Get)());
+        for (uint32_t step = 0; step < 4; ++step) {
+            static const uint32_t kSeed[4] = {20, 24, 26, 34};
+            const Key edge{0x7E574000 + step, kGroup, 400 + step};
+            write(edge, step < 3 ? LadderBytes(5000, kSeed[step], 76) : LadderBytes(5000, kSeed[step], 787, 1000));
+        }
+        reinterpret_cast<void(__cdecl*)(int32_t)>(addr::SC4Precision_Set)(before);
+        answers.Add(before);
+    }
+    {
+        // The compressible record goes: its place, a small one, is a hole.
+        Key copy = good;
+        answers.Add(Virtual<uint8_t>(part, kDelete, &copy));
+        answers.Add(Virtual<uint8_t>(part, kTest, &copy));
+        ++steps;
+    }
+    write(filler, fillerBytes); // 100 bytes that do not compress: into the hole, the rest of it a hole again
+    write(raw, rawAgain);       // larger than before: the old place freed
+    write(small, smallBytes);   // the same size again
+    // Records written piece by piece through a stream, as every object's
+    // Write does it: the game's record writer (a holder of 0x10 bytes:
+    // vtable, segment, the serial record at +8, a version) opens the record
+    // for writing and writes the version as 16 bits; then the record's own
+    // typed sets, a seek back to patch a value written earlier and a seek to
+    // the end again, as the serializer fills in an object's size and
+    // checksum.
+    constexpr std::size_t kSetUint8 = 0x74, kSetSint8 = 0x7C, kSetUint16 = 0x84, kSetSint16 = 0x8C, kSetUint32 = 0x94,
+                          kSetSint32 = 0x9C, kSetUint64 = 0xA4, kSetSint64 = 0xAC, kSetFloat32 = 0xB4, kSetFloat64 = 0xBC,
+                          kSetVoid = 0xCC, kGetSize = 0xD0, kSeekAbsolute = 0xDC;
+    using WriterFn = char*(__thiscall*)(char* holder, void* segment, uint32_t type, uint32_t group, uint32_t instance,
+                                        uint32_t version);
+    using CloseFn = void(__thiscall*)(char* holder);
+    const auto stream = [&](const Key& key, uint32_t version, auto&& body) {
+        char holder[0x10] = {};
+        reinterpret_cast<WriterFn>(addr::SC4Save_F5D9B20)(&holder[0], part, key.type, key.group, key.instance, version);
+        void* const record = At<void*>(&holder[0], 0x8);
+        answers.Add(record != nullptr);
+        if (record) {
+            body(record);
+            answers.Add(Virtual<uint32_t>(record, kGetSize));
+        }
+        reinterpret_cast<CloseFn>(addr::SC4Save_F5D9430)(&holder[0]);
+        ++steps;
+    };
+    const Key typed{0x7E575001, kGroup, 501}, block{0x7E575002, kGroup, 502}, again{0x7E575003, kGroup, 503},
+        spill{0x7E575004, kGroup, 504};
+    const auto values = [&](void* record) {
+        answers.Add(Virtual<uint8_t>(record, kSetUint8, uint32_t{0xA1}));
+        answers.Add(Virtual<uint8_t>(record, kSetSint8, uint32_t{0xB2}));
+        answers.Add(Virtual<uint8_t>(record, kSetUint16, uint32_t{0xC3D4}));
+        answers.Add(Virtual<uint8_t>(record, kSetSint16, uint32_t{0xE5F6}));
+        answers.Add(Virtual<uint8_t>(record, kSetUint32, uint32_t{0x01020304}));
+        answers.Add(Virtual<uint8_t>(record, kSetSint32, uint32_t{0x85868788}));
+        answers.Add(Virtual<uint8_t>(record, kSetUint64, uint64_t{0x1122334455667788ull}));
+        answers.Add(Virtual<uint8_t>(record, kSetSint64, uint64_t{0x99AABBCCDDEEFF00ull}));
+        answers.Add(Virtual<uint8_t>(record, kSetFloat32, uint32_t{0x40490FDB})); // the bits of a float
+        answers.Add(Virtual<uint8_t>(record, kSetFloat64, 2.718281828459045));
+    };
+    // Under 50 bytes in all: stored as it is. A value in the middle is
+    // written over afterwards.
+    stream(typed, 7, [&](void* record) {
+        values(record);
+        const uint32_t end = Virtual<uint32_t>(record, kGetSize);
+        answers.Add(Virtual<uint8_t>(record, kSeekAbsolute, uint32_t{4}));
+        answers.Add(Virtual<uint8_t>(record, kSetUint32, uint32_t{0xCAFEF00D}));
+        answers.Add(Virtual<uint8_t>(record, kSeekAbsolute, end));
+        answers.Add(Virtual<uint8_t>(record, kSetUint8, uint32_t{0x5A}));
+    });
+    // A block in one call and then seventy single bytes (a small write at
+    // the end of the record takes a path of its own): stored compressed.
+    stream(block, 8, [&](void* record) {
+        const std::vector<uint8_t> bytes = TestBytes(3000, 21, 9);
+        answers.Add(Virtual<uint8_t>(record, kSetVoid, static_cast<const void*>(bytes.data()), uint32_t{3000}));
+        for (uint32_t i = 0; i < 70; ++i)
+            answers.Add(Virtual<uint8_t>(record, kSetUint8, uint32_t{0x30 + i % 5}));
+    });
+    // A record written, closed, opened for writing a second time (its old
+    // bytes come back from the file) and written into again.
+    stream(again, 9, values);
+    stream(again, 10, [&](void* record) {
+        const uint32_t end = Virtual<uint32_t>(record, kGetSize);
+        answers.Add(end);
+        answers.Add(Virtual<uint8_t>(record, kSeekAbsolute, end));
+        const std::vector<uint8_t> bytes = TestBytes(400, 22, 5);
+        answers.Add(Virtual<uint8_t>(record, kSetVoid, static_cast<const void*>(bytes.data()), uint32_t{400}));
+    });
+    // A record of 2,100,000 bytes, in pieces of 64,000 and a last one of
+    // 52,000: past 2,000,000 bytes a record being written moves from memory
+    // into a temporary file. Then the patch of an early value, which now
+    // lands in that file, and one more byte at the end. A large city's
+    // biggest classes are saved this way.
+    stream(spill, 11, [&](void* record) {
+        const std::vector<uint8_t> piece = TestBytes(64000, 23, 14);
+        uint32_t left = 2100000;
+        while (left) {
+            const uint32_t now = left < 64000 ? left : 64000;
+            answers.Add(Virtual<uint8_t>(record, kSetVoid, static_cast<const void*>(piece.data()), now));
+            left -= now;
+        }
+        const uint32_t end = Virtual<uint32_t>(record, kGetSize);
+        answers.Add(end);
+        answers.Add(Virtual<uint8_t>(record, kSeekAbsolute, uint32_t{6}));
+        answers.Add(Virtual<uint8_t>(record, kSetUint32, uint32_t{0xFEEDBEEF}));
+        answers.Add(Virtual<uint8_t>(record, kSeekAbsolute, end));
+        answers.Add(Virtual<uint8_t>(record, kSetUint8, uint32_t{0x77}));
+    });
+
+    answers.Add(Virtual<uint8_t>(part, kClose));
+    Virtual<uint8_t>(part, kShutdown);
+    Virtual<uint32_t>(part, kRelease);
+
+    // The file as it is on disk.
+    std::vector<uint8_t> file = ReadWholeFile(name);
+    // Summed whole, and by the file's own structure: the header, the
+    // records in index order (each with its place and size), the index
+    // table, the hole table, and the bytes nothing owns (old contents of
+    // freed places). `packed` counts the records the directory lists as
+    // stored compressed.
+    uint32_t dates[2] = {};
+    uint32_t indexAt = 0, holes = 0, packed = 0, entries = 0;
+    Fnv whole, header, records, tables, stale;
+    if (file.size() >= 0x60) {
+        std::memcpy(&dates[0], &file[24], sizeof dates);
+        std::memset(&file[24], 0, sizeof dates);
+        uint32_t fields[7]; // count, index offset, index size, hole count, hole offset, hole size, index minor
+        std::memcpy(&fields[0], &file[36], sizeof fields);
+        entries = fields[0];
+        indexAt = fields[1];
+        holes = fields[3];
+        whole.Bytes(file.data(), file.size());
+        header.Bytes(file.data(), 0x60);
+        std::vector<uint8_t> owned(file.size(), 0);
+        const auto own = [&](std::size_t from, std::size_t size) {
+            for (std::size_t at = from; at < from + size && at < owned.size(); ++at)
+                owned[at] = 1;
+        };
+        own(0, 0x60);
+        const bool indexFits = fields[2] == entries * 20u && std::size_t{indexAt} + fields[2] <= file.size();
+        if (indexFits) {
+            tables.Bytes(file.data() + indexAt, fields[2]);
+            own(indexAt, fields[2]);
+            for (uint32_t i = 0; i < entries; ++i) {
+                uint32_t entry[5]; // type, group, instance, offset, size
+                std::memcpy(&entry[0], file.data() + indexAt + i * 20u, sizeof entry);
+                if (std::size_t{entry[3]} + entry[4] > file.size())
+                    continue;
+                records.Bytes(&entry[0], sizeof entry);
+                records.Bytes(file.data() + entry[3], entry[4]);
+                own(entry[3], entry[4]);
+                if (entry[0] == 0xE86B1EEF)
+                    packed = entry[4] / 16;
+            }
+        }
+        if (std::size_t{fields[4]} + fields[5] <= file.size()) {
+            tables.Bytes(file.data() + fields[4], fields[5]);
+            own(fields[4], fields[5]);
+        }
+        for (std::size_t at = 0; at < file.size(); ++at)
+            if (!owned[at])
+                stale.Add(file[at]);
+    }
+
+    // The game reads its own file back.
+    Fnv back;
+    int read = 0;
+    part = reinterpret_cast<OpenFn>(addr::SC4CityFiles_OpenSegment)(&path[0], 0, 0);
+    if (part) {
+        std::vector<Key> keys = {small, good, raw, mixed, large, filler, under, floor};
+        for (uint32_t step = 0; step < 16; ++step)
+            keys.push_back(Key{0x7E571000 + step, kGroup, 100 + step});
+        for (uint32_t step = 0; step < 12; ++step)
+            keys.push_back(Key{0x7E572000 + step, kGroup, 200 + step});
+        for (uint32_t step = 0; step < 4; ++step)
+            keys.push_back(Key{0x7E573000 + step, kGroup, 300 + step});
+        for (uint32_t step = 0; step < 4; ++step)
+            keys.push_back(Key{0x7E574000 + step, kGroup, 400 + step});
+        for (const Key& key : {typed, block, again, spill})
+            keys.push_back(key);
+        for (const Key& key : keys) {
+            Key copy = key;
+            std::vector<uint8_t> buffer(2200000);
+            uint32_t size = static_cast<uint32_t>(buffer.size());
+            const uint8_t there = Virtual<uint8_t>(part, kTest, &copy);
+            back.Add(there);
+            if (!there)
+                continue;
+            const int32_t answer = Virtual<int32_t>(part, kRead, &copy, static_cast<void*>(buffer.data()), &size);
+            back.Add(static_cast<uint8_t>(answer != -1));
+            back.Add(size);
+            if (answer != -1 && size <= buffer.size()) {
+                back.Bytes(buffer.data(), size);
+                ++read;
+            }
+        }
+        Virtual<uint8_t>(part, kClose);
+        Virtual<uint8_t>(part, kShutdown);
+        Virtual<uint32_t>(part, kRelease);
+    }
+    freePath();
+    // OPENSC4_TEST_SAVE_FILE_KEEP=1 leaves the file for a look at it.
+    if (EnvInt("OPENSC4_TEST_SAVE_FILE_KEEP", 0))
+        log::Write("autotest: save file kept: %s", name);
+    else
+        DeleteFileA(name);
+
+    // A second file, for what happens to a file that is opened for writing
+    // again, as a neighbouring city's file is at every save. Stage 1: four
+    // records, closed. Stage 2: opened again, one record written over with
+    // other bytes of another size, closed (its old place is a hole; the
+    // tables are written again). Stage 3: opened again, the two large
+    // records deleted, closed: now the holes are many times the bytes still
+    // in use, far over the share (15 percent) at which the writer rebuilds
+    // the file through a temporary one. The file is read from disk after
+    // each stage; `holes` is the hole count the last one's header gives,
+    // which a rebuilt file has at 0.
+    char second[MAX_PATH + 64];
+    std::snprintf(second, sizeof second, "%sopensc4-savefile-%lu-b.dat", folder, GetCurrentProcessId());
+    DeleteFileA(second);
+    char secondPath[0x14];
+    reinterpret_cast<void*(__thiscall*)(void*, const char*)>(addr::SC4String_FromText)(&secondPath[0], second);
+    Fnv stages, stageAnswers;
+    uint32_t stageSize[3] = {}, lastHoles = 0xFFFFFFFF, lastEntries = 0;
+    int stagesDone = 0;
+    {
+        const Key big1{0x7E576001, kGroup, 601}, big2{0x7E576002, kGroup, 602}, kept{0x7E576003, kGroup, 603},
+            changed{0x7E576004, kGroup, 604};
+        for (int stage = 0; stage < 3; ++stage) {
+            void* const again = reinterpret_cast<OpenFn>(addr::SC4CityFiles_OpenSegment)(&secondPath[0], 1, 0);
+            stageAnswers.Add(again != nullptr);
+            if (!again)
+                break;
+            const auto put = [&](const Key& key, const std::vector<uint8_t>& bytes) {
+                Key copy = key;
+                stageAnswers.Add(Virtual<uint8_t>(again, kWrite, &copy, static_cast<const void*>(bytes.data()),
+                                                  static_cast<uint32_t>(bytes.size())));
+            };
+            if (stage == 0) {
+                put(big1, TestBytes(40000, 31, 0));
+                put(big2, TestBytes(40000, 32, 0));
+                put(kept, TestBytes(3000, 33, 20));
+                put(changed, TestBytes(500, 34, 0));
+            } else if (stage == 1) {
+                put(changed, TestBytes(900, 35, 0));
+            } else {
+                for (const Key& key : {big1, big2}) {
+                    Key copy = key;
+                    stageAnswers.Add(Virtual<uint8_t>(again, kDelete, &copy));
+                }
+            }
+            stageAnswers.Add(Virtual<uint8_t>(again, kClose));
+            Virtual<uint8_t>(again, kShutdown);
+            Virtual<uint32_t>(again, kRelease);
+            std::vector<uint8_t> bytes = ReadWholeFile(second);
+            stageSize[stage] = static_cast<uint32_t>(bytes.size());
+            if (bytes.size() >= 0x60) {
+                std::memset(&bytes[24], 0, 8); // the two dates
+                std::memcpy(&lastEntries, &bytes[36], 4);
+                std::memcpy(&lastHoles, &bytes[48], 4);
+            }
+            stages.Add(stageSize[stage]);
+            stages.Bytes(bytes.data(), bytes.size());
+            ++stagesDone;
+            if (EnvInt("OPENSC4_TEST_SAVE_FILE_KEEP", 0)) {
+                char copyName[MAX_PATH + 80];
+                std::snprintf(copyName, sizeof copyName, "%sopensc4-savefile-%lu-b%d.dat", folder, GetCurrentProcessId(),
+                              stage + 1);
+                CopyFileA(second, copyName, FALSE);
+            }
+        }
+        // The game reads the last stage back.
+        void* const reader = reinterpret_cast<OpenFn>(addr::SC4CityFiles_OpenSegment)(&secondPath[0], 0, 0);
+        stageAnswers.Add(reader != nullptr);
+        if (reader) {
+            for (const Key& key : {big1, big2, kept, changed}) {
+                Key copy = key;
+                std::vector<uint8_t> buffer(50000);
+                uint32_t size = static_cast<uint32_t>(buffer.size());
+                const uint8_t there = Virtual<uint8_t>(reader, kTest, &copy);
+                stageAnswers.Add(there);
+                if (there && Virtual<int32_t>(reader, kRead, &copy, static_cast<void*>(buffer.data()), &size) != -1 &&
+                    size <= buffer.size()) {
+                    stageAnswers.Add(size);
+                    stageAnswers.Bytes(buffer.data(), size);
+                }
+            }
+            Virtual<uint8_t>(reader, kClose);
+            Virtual<uint8_t>(reader, kShutdown);
+            Virtual<uint32_t>(reader, kRelease);
+        }
+    }
+    if (void* const buffer = At<void*>(&secondPath[0], 0x4))
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(buffer);
+    DeleteFileA(second);
+    char more[160];
+    std::snprintf(more, sizeof more, " again %d %08X sizes %u %u %u file %08X records %u holes %u", stagesDone, stageAnswers.h,
+                  stageSize[0], stageSize[1], stageSize[2], stages.h, lastEntries, lastHoles);
+
+    // OPENSC4_TEST_SAVE_FILE_BIG=1 adds a third file for two things the
+    // record code is suspected of doing wrong with large records
+    // (docs/crashes.md, "Prop pox"; docs/save-format.md, "The file
+    // container"), to see what the game really writes:
+    //  - two records of 2,100,000 bytes that do not compress, so they are
+    //    stored as they are, one at the start of the file and one after it;
+    //    each is then opened for writing again, which loads its old bytes
+    //    into a temporary file, has 100 bytes added at its end and is
+    //    closed. `sizes` are what each record says its size is on opening.
+    //  - a record that grows past 2,000,000 bytes, where it moves into a
+    //    temporary file, by a write that starts 5,000 bytes short of its
+    //    end.
+    // It is a switch of its own because it walks into the suspected faults
+    // on purpose.
+    std::string big;
+    if (EnvInt("OPENSC4_TEST_SAVE_FILE_BIG", 0)) {
+        char third[MAX_PATH + 64];
+        std::snprintf(third, sizeof third, "%sopensc4-savefile-%lu-c.dat", folder, GetCurrentProcessId());
+        DeleteFileA(third);
+        char thirdPath[0x14];
+        reinterpret_cast<void*(__thiscall*)(void*, const char*)>(addr::SC4String_FromText)(&thirdPath[0], third);
+        Fnv bigAnswers, bigFile;
+        uint32_t opened[2] = {}, grown = 0, bigSize = 0;
+        void* const large = reinterpret_cast<OpenFn>(addr::SC4CityFiles_OpenSegment)(&thirdPath[0], 1, 0);
+        if (large) {
+            const Key raw1{0x7E577001, kGroup, 701}, raw2{0x7E577002, kGroup, 702}, grow{0x7E577003, kGroup, 703};
+            const auto streamOn = [&](const Key& key, uint32_t version, auto&& body) {
+                char holder[0x10] = {};
+                reinterpret_cast<WriterFn>(addr::SC4Save_F5D9B20)(&holder[0], large, key.type, key.group, key.instance, version);
+                void* const record = At<void*>(&holder[0], 0x8);
+                bigAnswers.Add(record != nullptr);
+                if (record)
+                    body(record);
+                reinterpret_cast<CloseFn>(addr::SC4Save_F5D9430)(&holder[0]);
+            };
+            int index = 0;
+            for (const Key& key : {raw1, raw2}) {
+                Key copy = key;
+                const std::vector<uint8_t> bytes = TestBytes(2100000, 41 + static_cast<uint32_t>(index), 0);
+                bigAnswers.Add(Virtual<uint8_t>(large, kWrite, &copy, static_cast<const void*>(bytes.data()),
+                                                static_cast<uint32_t>(bytes.size())));
+                ++index;
+            }
+            index = 0;
+            for (const Key& key : {raw1, raw2}) {
+                streamOn(key, 12, [&](void* record) {
+                    opened[index] = Virtual<uint32_t>(record, kGetSize);
+                    bigAnswers.Add(Virtual<uint8_t>(record, kSeekAbsolute, opened[index]));
+                    const std::vector<uint8_t> tail = TestBytes(100, 51 + static_cast<uint32_t>(index), 0);
+                    bigAnswers.Add(Virtual<uint8_t>(record, kSetVoid, static_cast<const void*>(tail.data()), uint32_t{100}));
+                    bigAnswers.Add(Virtual<uint32_t>(record, kGetSize));
+                });
+                ++index;
+            }
+            streamOn(grow, 13, [&](void* record) {
+                const std::vector<uint8_t> piece = TestBytes(10000, 61, 14);
+                for (int i = 0; i < 199; ++i) // 2 bytes of version and 1,990,000 more
+                    bigAnswers.Add(Virtual<uint8_t>(record, kSetVoid, static_cast<const void*>(piece.data()), uint32_t{10000}));
+                const uint32_t end = Virtual<uint32_t>(record, kGetSize);
+                bigAnswers.Add(end);
+                bigAnswers.Add(Virtual<uint8_t>(record, kSeekAbsolute, end - 5000));
+                const std::vector<uint8_t> across = TestBytes(30000, 62, 7);
+                bigAnswers.Add(Virtual<uint8_t>(record, kSetVoid, static_cast<const void*>(across.data()), uint32_t{30000}));
+                grown = Virtual<uint32_t>(record, kGetSize);
+                bigAnswers.Add(grown);
+                bigAnswers.Add(Virtual<uint8_t>(record, kSetUint8, uint32_t{0x99}));
+                bigAnswers.Add(Virtual<uint32_t>(record, kGetSize));
+            });
+            bigAnswers.Add(Virtual<uint8_t>(large, kClose));
+            Virtual<uint8_t>(large, kShutdown);
+            Virtual<uint32_t>(large, kRelease);
+            std::vector<uint8_t> bytes = ReadWholeFile(third);
+            bigSize = static_cast<uint32_t>(bytes.size());
+            if (bytes.size() >= 0x60)
+                std::memset(&bytes[24], 0, 8);
+            bigFile.Bytes(bytes.data(), bytes.size());
+        }
+        if (void* const buffer = At<void*>(&thirdPath[0], 0x4))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(buffer);
+        if (EnvInt("OPENSC4_TEST_SAVE_FILE_KEEP", 0))
+            log::Write("autotest: save file kept: %s", third);
+        else
+            DeleteFileA(third);
+        char bigText[160];
+        std::snprintf(bigText, sizeof bigText, " big %08X opened %u %u grown %u size %u file %08X", bigAnswers.h, opened[0],
+                      opened[1], grown, bigSize, bigFile.h);
+        big = bigText;
+    }
+
+    char text[240];
+    std::snprintf(text, sizeof text,
+                  " | svfile %d %08X size %u file %08X header %08X records %u %08X packed %u tables %08X holes %u stale %08X back %d %08X",
+                  steps, answers.h, static_cast<unsigned>(file.size()), whole.h, header.h, entries, records.h, packed, tables.h, holes,
+                  stale.h, read, back.h);
+    g_fileToken = std::string(text) + more + big;
+    log::Write("autotest: save file driven:%s%s%s (index at %u, dates %u %u)", text, more, big.c_str(), indexAt, dates[0],
+               dates[1]);
+}
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     line += g_streamsToken;
+    line += g_fileToken;
 }
 
 const FingerprintPart kFingerprint{"saves.streams", 107, &Fingerprint};
 const DayHook kStreams{"saves.streams", 107, &DriveStreams};
+const DayHook kBlock{"saves.block", 108, &BlockSave};
+const DayHook kFile{"saves.file", 109, &DriveFile};
 
 } // namespace
 } // namespace opensc4::autotest
