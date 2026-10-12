@@ -257,6 +257,9 @@ add_library(opensc4_core SHARED
   packed_file_2.cpp
   packed_file_3.cpp
   packed_file_4.cpp
+  gzcom_libraries_diag.cpp
+  plugin_dlls_1.cpp
+  plugin_dlls_2.cpp
   prop_pox_diag.cpp
   pin_plugin_dlls.cpp
   puzzle_piece_fix.cpp
