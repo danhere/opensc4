@@ -330,6 +330,10 @@ using Call2Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t);
 // functions that have detours of their own further up; defined with it.
 bool DescNoting();
 uint32_t DescCallee(uint32_t target, uint32_t a, const std::function<uint32_t()>& real);
+// The same for the second class's version, which notes the base class's as one call.
+bool BNoting();
+bool BBusy();
+uint32_t BCallee(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real);
 Call1Fn g_beforeDraw = nullptr, g_stepShake = nullptr, g_decalDraw = nullptr;
 Call2Fn g_drawFlash = nullptr, g_effectDraw = nullptr;
 Call0Fn g_afterDraw = nullptr;
@@ -2834,7 +2838,11 @@ OPENSC4_THUNK(TSC4Effect_SortBatch, DSC4Effect_SortBatch, 4)
 
 uint32_t __fastcall DescriptionByMode(char* self, void*, uint32_t description)
 {
-    if (g_descMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay)
+    if (BNoting())
+        return BCallee(addr::SC4Effect_SetDescription, description, 0, 0,
+                       [&] { return g_SC4Effect_SetDescription(self, nullptr, description); });
+    if (g_descMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
+        BBusy())
         return g_SC4Effect_SetDescription(self, nullptr, description);
     if (g_descMode == StepMode::Ours)
         return SetEffectDescription(self, description);
@@ -2888,6 +2896,317 @@ uint32_t __fastcall DescriptionByMode(char* self, void*, uint32_t description)
     return result;
 }
 OPENSC4_THUNK(TSC4Effect_SetDescription, DescriptionByMode, 4)
+
+// The second class taking a description (0x005AEC90, its slot 0x28),
+// translated instruction by instruction; nothing for a description without
+// bit 0 of its third word of flags. After the base class's: the model
+// instance (+0x220) and the model (+0x224) are released and the object at
+// +0x278 ended (its slot 0x20), the part at +0x228 is cleared (0x008038D0
+// with 0), and a model is loaded (slot 0x54, 0x005AC610) by the
+// description's +0xD0 or one picked at random from its list at +0x1E0.
+// With a model: the instance is told when the description has flag 1 (its
+// slot 0x40), and for flags 0x100 or 4 of the third word the part is set
+// up on the instance (0x005AC110, 0x00989A60 with 10, 0x008038D0,
+// 0x00802DB0), the byte +0x26C saying whether that worked. Last the
+// effects manager is asked for effects named after this one with two
+// more suffixes (+0x26D, +0x26E).
+struct BCall {
+    uint32_t target, a, result;
+    char data[0x14];
+    std::vector<std::pair<uint32_t, char>> changes;
+    bool operator==(const BCall& other) const
+    {
+        return target == other.target && a == other.a && std::memcmp(data, other.data, sizeof data) == 0;
+    }
+};
+StepMode g_descModeB = StepMode::Original;
+Call1Fn g_SC4EffectB_SetDescription = nullptr, g_SC4EffectB_LoadModel = nullptr, g_SC4EffectPartB_Attach = nullptr,
+        g_SC4EffectPartB_Place = nullptr, g_SC4EffectPartB_SetDescription = nullptr;
+bool g_bRecord = false, g_bReplay = false;
+int g_bNested = 0;
+char* g_bSelf = nullptr;
+DWORD g_bThread = 0;
+std::vector<BCall> g_bGameCalls, g_bOurCalls;
+uint64_t g_bCompared = 0, g_bCallsCompared = 0;
+
+bool BNoting()
+{
+    return g_bRecord && g_bNested == 0 && GetCurrentThreadId() == g_bThread;
+}
+
+bool BBusy()
+{
+    return g_bRecord || g_bReplay;
+}
+
+uint32_t BCallee(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real)
+{
+    BCall call{target, a, 0, {}, {}};
+    if (size)
+        std::memcpy(call.data, reinterpret_cast<const void*>(data), size);
+    if (g_bReplay) {
+        const std::size_t at = g_bOurCalls.size();
+        g_bOurCalls.push_back(call);
+        if (at >= g_bGameCalls.size())
+            return 0;
+        for (const auto& [offset, value] : g_bGameCalls[at].changes)
+            g_bSelf[offset] = value;
+        return g_bGameCalls[at].result;
+    }
+    char before[kEffectSizeB];
+    std::memcpy(before, g_bSelf, kEffectSizeB);
+    ++g_bNested;
+    call.result = real();
+    --g_bNested;
+    for (std::size_t offset = 0; offset < kEffectSizeB; ++offset) {
+        if (g_bSelf[offset] != before[offset])
+            call.changes.push_back({static_cast<uint32_t>(offset), g_bSelf[offset]});
+    }
+    g_bGameCalls.push_back(std::move(call));
+    return g_bGameCalls.back().result;
+}
+
+// What the translation's ten calls go through: the real call, or in the
+// comparison's replay the note of the game's.
+uint32_t BOurs(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real)
+{
+    return g_bReplay ? BCallee(target, a, data, size, real) : real();
+}
+
+uint32_t SetEffectDescriptionB(char* self, uint32_t description)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = description;
+    [[maybe_unused]] double st[8] = {};
+    [[maybe_unused]] int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_description_b.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Its comparison is the base class's, the game's first, with more to
+// note. The objects it releases or ends, and the instance the loaded
+// model gives, are seen through copies of their tables of functions (one
+// slot each: 8, 0x20 or 0x40); the part's functions and the model's
+// loading through detours. The pick among the description's models is
+// made again by ours from the same generator.
+struct BStandIn {
+    uint32_t real, slot;
+    int times;
+};
+constexpr std::size_t kBSlots = 512;
+std::map<std::pair<uint32_t, uint32_t>, std::vector<uint32_t>> g_bTables;
+std::unordered_map<char*, BStandIn> g_bReal;
+
+uint32_t BRealSlot(char* object, uint32_t slot)
+{
+    const auto found = g_bReal.find(object);
+    if (found != g_bReal.end())
+        return M<uint32_t>(found->second.real + slot);
+    for (const auto& [key, table] : g_bTables) {
+        if (At<uint32_t*>(object, 0) == table.data())
+            return M<uint32_t>(key.second + slot);
+    }
+    return 0;
+}
+
+// The object gets its own table back before a call that may be its last.
+void BGiveBack(char* object, bool whole)
+{
+    const auto found = g_bReal.find(object);
+    if (found == g_bReal.end())
+        return;
+    if (!whole && --found->second.times > 0)
+        return;
+    At<uint32_t>(object, 0) = found->second.real;
+    g_bReal.erase(found);
+}
+
+uint32_t __fastcall BRelease(char* object, void*)
+{
+    const uint32_t real = BRealSlot(object, 0x8);
+    if (!BNoting()) {
+        BGiveBack(object, true);
+        return CallThis<uint32_t>(real, object);
+    }
+    return BCallee(0x8, reinterpret_cast<uint32_t>(object), 0, 0, [&] {
+        BGiveBack(object, false);
+        return CallThis<uint32_t>(real, object);
+    });
+}
+
+uint32_t __fastcall BEnd(char* object, void*)
+{
+    const uint32_t real = BRealSlot(object, 0x20);
+    if (!BNoting()) {
+        BGiveBack(object, true);
+        return CallThis<uint32_t>(real, object);
+    }
+    return BCallee(0x20, reinterpret_cast<uint32_t>(object), 0, 0, [&] {
+        BGiveBack(object, true);
+        return CallThis<uint32_t>(real, object);
+    });
+}
+
+uint32_t __fastcall BInfo(char* object, void*, uint32_t info)
+{
+    const uint32_t real = BRealSlot(object, 0x40);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, info);
+    return BCallee(0x40, reinterpret_cast<uint32_t>(object), info, 0x14,
+                   [&] { return CallThis<uint32_t>(real, object, info); });
+}
+
+void BSwap(char* object, uint32_t slot, uint32_t stub)
+{
+    if (!object)
+        return;
+    const auto found = g_bReal.find(object);
+    if (found != g_bReal.end()) {
+        if (found->second.slot == slot)
+            ++found->second.times;
+        return;
+    }
+    const uint32_t real = At<uint32_t>(object, 0);
+    std::vector<uint32_t>& table = g_bTables[{slot, real}];
+    if (table.empty()) {
+        table.assign(reinterpret_cast<const uint32_t*>(real), reinterpret_cast<const uint32_t*>(real) + kBSlots);
+        table[slot / 4] = stub;
+    }
+    g_bReal[object] = {real, slot, 1};
+    At<uint32_t*>(object, 0) = table.data();
+}
+
+uint32_t __fastcall DSC4EffectB_LoadModel(char* self, void*, uint32_t which)
+{
+    if (!BNoting() || self != g_bSelf)
+        return g_SC4EffectB_LoadModel(self, nullptr, which);
+    const uint32_t result = BCallee(addr::SC4EffectB_LoadModel, which, 0, 0,
+                                    [&] { return g_SC4EffectB_LoadModel(self, nullptr, which); });
+    BSwap(At<char*>(self, 0x220), 0x40, reinterpret_cast<uint32_t>(&BInfo));
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectB_LoadModel, DSC4EffectB_LoadModel, 4)
+
+uint32_t __fastcall DSC4EffectPartB_Attach(char* part, void*, uint32_t instance)
+{
+    if (!BNoting() || part != g_bSelf + kEffectPartB)
+        return g_SC4EffectPartB_Attach(part, nullptr, instance);
+    return BCallee(addr::SC4EffectPartB_Attach, instance, 0, 0,
+                   [&] { return g_SC4EffectPartB_Attach(part, nullptr, instance); });
+}
+OPENSC4_THUNK(TSC4EffectPartB_Attach, DSC4EffectPartB_Attach, 4)
+
+uint32_t __fastcall DSC4EffectPartB_Place(char* part, void*, uint32_t place)
+{
+    if (!BNoting() || part != g_bSelf + kEffectPartB)
+        return g_SC4EffectPartB_Place(part, nullptr, place);
+    return BCallee(addr::SC4EffectPartB_Place, 0, place, 12,
+                   [&] { return g_SC4EffectPartB_Place(part, nullptr, place); });
+}
+OPENSC4_THUNK(TSC4EffectPartB_Place, DSC4EffectPartB_Place, 4)
+
+uint32_t __fastcall DSC4EffectPartB_SetDescription(char* part, void*, uint32_t description)
+{
+    if (!BNoting() || part != g_bSelf + kEffectPartB)
+        return g_SC4EffectPartB_SetDescription(part, nullptr, description);
+    return BCallee(addr::SC4EffectPartB_SetDescription, description, 0, 0,
+                   [&] { return g_SC4EffectPartB_SetDescription(part, nullptr, description); });
+}
+OPENSC4_THUNK(TSC4EffectPartB_SetDescription, DSC4EffectPartB_SetDescription, 4)
+
+uint32_t __fastcall DescriptionBByMode(char* self, void*, uint32_t description)
+{
+    if (g_descModeB == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
+        BBusy())
+        return g_SC4EffectB_SetDescription(self, nullptr, description);
+    if (g_descModeB == StepMode::Ours)
+        return SetEffectDescriptionB(self, description);
+    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
+    char before[kEffectSizeB], after[kEffectSizeB], mine[kEffectSizeB];
+    char generatorBefore[kGeneratorSize], generatorAfter[kGeneratorSize];
+    std::memcpy(before, self, kEffectSizeB);
+    std::memcpy(generatorBefore, generator, kGeneratorSize);
+    if (char* const model = At<char*>(self, 0x224)) {
+        BSwap(At<char*>(self, 0x220), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+        BSwap(model + 4 + At<int32_t>(At<char*>(model, 4), 4), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    } else {
+        BSwap(At<char*>(self, 0x220), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    }
+    BSwap(At<char*>(self, 0x278), 0x20, reinterpret_cast<uint32_t>(&BEnd));
+    g_bSelf = self;
+    g_bThread = GetCurrentThreadId();
+    g_bGameCalls.clear();
+    g_bRecord = true;
+    const uint32_t result = g_SC4EffectB_SetDescription(self, nullptr, description);
+    g_bRecord = false;
+    std::memcpy(after, self, kEffectSizeB);
+    std::memcpy(generatorAfter, generator, kGeneratorSize);
+    std::memcpy(self, before, kEffectSizeB);
+    std::memcpy(generator, generatorBefore, kGeneratorSize);
+    g_bOurCalls.clear();
+    g_bReplay = true;
+    SetEffectDescriptionB(self, description);
+    g_bReplay = false;
+    std::memcpy(mine, self, kEffectSizeB);
+    const bool sameGenerator = std::memcmp(generator, generatorAfter, kGeneratorSize) == 0;
+    std::memcpy(self, after, kEffectSizeB);
+    std::memcpy(generator, generatorAfter, kGeneratorSize);
+    // What is still wearing a copy was not released: its own table back.
+    for (const auto& [object, standIn] : g_bReal)
+        At<uint32_t>(object, 0) = standIn.real;
+    g_bReal.clear();
+    ++g_bCompared;
+    g_bCallsCompared += g_bGameCalls.size();
+    if ((g_bCompared & (g_bCompared - 1)) == 0)
+        log::Write("water effects: effects.description_b: %llu calls, %llu noted calls compared so far",
+                   static_cast<unsigned long long>(g_bCompared), static_cast<unsigned long long>(g_bCallsCompared));
+    const char* const id = g_bGameCalls.empty() ? "effects.description_b.none" : "effects.description_b";
+    char text[96];
+    if (!(g_bGameCalls == g_bOurCalls)) {
+        std::size_t at = 0;
+        while (at < g_bGameCalls.size() && at < g_bOurCalls.size() && g_bGameCalls[at] == g_bOurCalls[at])
+            ++at;
+        const auto describe = [&](const std::vector<BCall>& calls) {
+            if (at >= calls.size()) {
+                std::snprintf(text, sizeof text, "%zu calls", calls.size());
+                return std::string(text);
+            }
+            std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X) ", at, calls.size(), calls[at].target,
+                          calls[at].a);
+            return text + Hex(calls[at].data, sizeof calls[at].data);
+        };
+        const std::string game = describe(g_bGameCalls);
+        compare::Record(id, false, game, describe(g_bOurCalls));
+    } else if (!sameGenerator) {
+        compare::Record(id, false, "generator", "generator differs");
+    } else if (std::memcmp(after, mine, kEffectSizeB) != 0) {
+        std::size_t at = 0;
+        while (after[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "effect+%zX ", at);
+        compare::Record(id, false, text + Hex(after + at, 8), text + Hex(mine + at, 8));
+    } else {
+        compare::Record(id, true, std::string(), std::string());
+    }
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectB_SetDescription, DescriptionBByMode, 4)
 
 // --- The particle pool ---------------------------------------------------------------------
 
@@ -4780,6 +5099,40 @@ const bool g_registeredDescription = registry::Register({
     "(docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallDescription,
+});
+
+bool InstallDescriptionB(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4EffectB_SetDescription ||
+          Detour(addr::SC4EffectB_SetDescription, &TSC4EffectB_SetDescription, &g_SC4EffectB_SetDescription)))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !((g_SC4Effect_SetDescription ||
+           Detour(addr::SC4Effect_SetDescription, &TSC4Effect_SetDescription, &g_SC4Effect_SetDescription)) &&
+          Detour(addr::SC4EffectB_LoadModel, &TSC4EffectB_LoadModel, &g_SC4EffectB_LoadModel) &&
+          Detour(addr::SC4EffectPartB_Attach, &TSC4EffectPartB_Attach, &g_SC4EffectPartB_Attach) &&
+          Detour(addr::SC4EffectPartB_Place, &TSC4EffectPartB_Place, &g_SC4EffectPartB_Place) &&
+          Detour(addr::SC4EffectPartB_SetDescription, &TSC4EffectPartB_SetDescription,
+                 &g_SC4EffectPartB_SetDescription)))
+        return false;
+    g_descModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: second effect class taking a description %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDescriptionB = registry::Register({
+    "renderer.effects.description_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectB_SetDescription,
+    "The second effect class taking a description: its old model released, a model loaded and its instance set "
+    "up; compare mode runs the game's with its calls noted and replays ours (docs/renderer.md, \"Water effects, "
+    "sky and clouds\")",
+    true,
+    InstallDescriptionB,
 });
 
 bool InstallGround(registry::Mode mode)
