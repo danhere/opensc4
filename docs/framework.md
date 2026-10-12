@@ -150,11 +150,27 @@ Findings:
 
 `fixes.message_cancel` (off by default) is the cancel without the fault: after an erase the walk goes on from the position the erase returns. It works alone (it then replaces that one function) or with `framework.messageserver.direct`.
 
-18 functions. The lists, the table's lookup and removal and the deque's simple cases are done in our code on the game's layouts with the game's allocator. Still the game's: the message queue object (reached through its vtable), the table's insert (it may grow the table: 0x0092FDD8), the deque's new block, block release and erase (0x0092E216, 0x00473290, 0x0092E162), the constructor, destructor and factory, and the three shared thunks for AddRef and Release.
+18 functions. The lists, the table's lookup and removal and the deque's simple cases are done in our code on the game's layouts with the game's allocator. Still the game's: the table's insert (it may grow the table: 0x0092FDD8), the deque's new block, block release and erase (0x0092E216, 0x00473290, 0x0092E162), the constructor, destructor and factory, and the three shared thunks for AddRef and Release.
 
 Differences from the game that cannot be seen from outside: the list of targets a send collects grows without the game's extra AddRef and Release of each element on a move; the subclass's try block is not there (an exception from a target passes through, as in the base class).
 
 Hooks go in at PostAppInit. The detours installed by then replace every later call; Init has already run by then, and ours is reached only if something calls it again.
+
+### The message queue
+
+The object at the server's +0x38 is a class of its own (vtable 0x00AD1AD0, 25 slots, 0x20 bytes, constructor 0x0092DD7E; its real name is not known, `cGZMessageQueue` in our address files). The older message server and one more class (0x00968094) have one too.
+
+| Offset | Member |
+|---|---|
+| +0x00 | vtable |
+| +0x04 | a list of messages (counted references) |
+| +0x08 | its lock |
+| +0x10 | an event: set when a message joins an empty queue, waited on by the two waiting pops |
+| +0x18 | the reference count |
+
+Slots (names ours): 3, 4 push at the back, at the front; 5-10 remove the first, the last or every message of a type or equal to a given message; 11 empty the queue; 12, 13 the type of the first, the last message; 14 is there a message of a type; 15, 16 the first, the last message without taking it; 17 find an equal message; 18, 19 take the first, the last; 20, 21 the same, waiting for a message when there is none; 22 the size (the nodes counted); 23 the deleting destructor; 24 take the first equal message. Two messages are equal by the queued one's own comparison (its slot 6). The message server uses four of them: 3 and 4 (MessagePost), 18 (OnTick) and 22.
+
+`src/core/framework_messagequeue.cpp`, entry detours on the game's object, off by default: `framework.messagequeue.push` (2 functions), `.pop` (4), `.peek` (7), `.remove` (8), `.interface` (QueryInterface and Release): 23 functions. Still the game's: the constructor, the destructor, AddRef (seven bytes, shared with two other classes) and the event object.
 
 ### Testing
 
@@ -162,7 +178,9 @@ Hooks go in at PostAppInit. The detours installed by then replace every later ca
 
 `OPENSC4_TEST_MESSAGE_CANCEL=<day>` runs only with `fixes.message_cancel` on (in the original the case walks past the deque's end): five direct posts, the third and the last to the second target, whose posts are then cancelled. The three to the first target arrive, none to the second, and the targets' reference counts come back; checked with the fix alone and with all of the server ours.
 
-With the test on, the coverage meter shows every function of the five groups reached in the original except the subclass's MessageSend, Init and Shutdown.
+`OPENSC4_TEST_MESSAGE_QUEUE=<day>` makes a queue of its own (the game's constructor on memory from the game's allocator, so the game's messages are not touched) and takes it through every method: pushes at both ends, every query, every removal with and without a match, the pops, the waiting pops on a queue that has a message, the emptying and the last Release, which deletes it. Every result goes into the fingerprint's `mq` part.
+
+With the tests on, the coverage meter shows every function of the ten groups reached in the original except the subclass's MessageSend, Init and Shutdown (and the server's QueryInterface, which the meter cannot see: it is not in its list of functions).
 
 ### Parity
 
@@ -178,4 +196,14 @@ All five groups on against the original, 12 saves, 7 game days, two jobs, on 202
 - The two "different" of the first batch (Making Money d0090 and d0365) were the same two-valued lots' checksum: rerun as a batch of their own, the original gave both values on each save and ours too.
 - A control in the second batch, the original on both sides with the test on, gave 9 same and 3 partly (Big City d0090, Making Money d0090 and d0365): the original against itself did no better than ours against it.
 - So no outcome was found that only ours gives, but under that load the verdict rests on outcome sets, not on a clean 12 of 12. A batch on a quiet machine should give that.
+
+With the message queue's five groups on as well (ten groups against the original, same 12 saves, 7 days, 2026-10-11 late):
+
+| Leg | Result |
+|---|---|
+| Plain | 11 same, 1 partly |
+| `OPENSC4_TEST_MESSAGES=2` and `OPENSC4_TEST_MESSAGE_QUEUE=2` | 11 same, 1 partly |
+
+- The `msg` and `mq` parts were the same in all 32 runs of the tests' leg, original and ours.
+- The two partly (Making Money d1095 plain, Big City d0365 with the tests): the original gave two outcomes on each within the batch (on Making Money d1095 the lots' checksum of day 1 takes one of two values), ours two, one of them shared. The same kind of split as above; other threads' games were running.
 

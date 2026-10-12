@@ -12,8 +12,8 @@ Roughly 15-20% of the way to a full rewrite: the simulation and region view are 
 Measured 2026-10-12:
 
 - Roadmap (P0-P9): 71 of 101 items done, 14 in progress.
-- Address database: 7358 game functions recorded, 3488 of them reimplemented (10.1% of the game's 34,556; a lower bound, vtable swaps are not all recorded).
-- Replacement toggles: 410 simulators, 87 renderer, 64 ui, 11 game, 6 resources, 5 framework.
+- Address database: 7391 game functions recorded, 3521 of them reimplemented (10.2% of the game's 34,556; a lower bound, vtable swaps are not all recorded).
+- Replacement toggles: 412 simulators, 87 renderer, 64 ui, 11 game, 10 framework, 6 resources.
 
 | Phase | Done | In progress | Not started |
 |---|---|---|---|
@@ -41,7 +41,7 @@ Estimates by area (a judgment from the checklists below, not a measurement):
 | Region view (P8) | ~95% | All five parts ours (332 functions); four drawing functions stay with the renderer |
 | Networks, lots and growth, terrain (P7, P8) | ~0% | Not started (the lot and occupant classes are ours under P5); networks only together with the NAM team |
 | Audio (P8) | the game's audio classes | The game's audio classes (0x004E1320 to 0x004FA6A0), 575 functions in nine groups, are ours ([docs/audio.md](docs/audio.md)); EA's sound library (AEMS) and the framework's sound service stay the game's. The harness compares state, not what is heard, so playback is untested |
-| Framework and exe independence (P9) | ~5% | Surveyed; the message server is ours (18 of about 300 framework functions) |
+| Framework and exe independence (P9) | ~5% | Surveyed; the message server and its queue are ours (41 of about 300 framework functions) |
 
 ## P0: Foundations
 
@@ -179,7 +179,7 @@ Decided (Dan, 2026-10-11): we go ahead without waiting for the NAM team; NAM sta
 
 ## P9: Framework and host mode (exe independence)
 
-- [~] Own GZCOM framework implementation (scion as reference). Surveyed ([docs/framework.md](docs/framework.md)): the framework object, the COM object, directors, system services, start-up order and what can be swapped during a run. Ours so far, as detours on the game's object, with parity on the 12 saves within the original's own noise under load: the message server (`framework.messageserver.*`, 18 functions). Next: the message queue, the system service lists and tick, class lookup
+- [~] Own GZCOM framework implementation (scion as reference). Surveyed ([docs/framework.md](docs/framework.md)): the framework object, the COM object, directors, system services, start-up order and what can be swapped during a run. Ours so far, as detours on the game's object, with parity on the 12 saves within the original's own noise under load: the message server and its message queue (`framework.messageserver.*`, `framework.messagequeue.*`, 41 functions), and a fix for the server's cancel of posts (`fixes.message_cancel`). Next: the system service lists and tick, class lookup
 - [ ] Host mode: our exe maps the original exe's sections, then stops needing them
 - [ ] Address shim for ecosystem DLLs that hook fixed addresses
 - [ ] **Exe independence:** the coverage meter shows zero original code executed in the regression suite
