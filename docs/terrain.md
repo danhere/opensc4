@@ -77,7 +77,7 @@ What flat areas, shore cliffs and the brushes share ([src/core/terrain_brush.cpp
 
 Two of the detours go through thunks that keep ECX, which callers at 0x0074215E, 0x0074290D, 0x00748E6E and 0x0074C31A rely on. With this group on, piece 2's flat areas and shore cliffs run on our code all the way down.
 
-Still the game's under the brushes: the brush body 0x0074D730 and its per-layer routines (they use the x87 sine, cosine and arctangent), the brush loader, erosion and the flood.
+The brush body and its loader, erosion and the flood are separate groups, below.
 
 ## Init, messages, save and load, the object
 
@@ -107,6 +107,33 @@ For bigger city tiles ([city-size.md](city-size.md)): the size comes only from t
 
 No random draws and no transcendental instructions in any of these; the square root of 2 sits in two guarded statics that ours fill the same way.
 
+## The brushes (`simulators.terrain.brushbody`, `.brushload`)
+
+[terrain_brushbody.cpp](../src/core/terrain_brushbody.cpp), [terrain_brushload.cpp](../src/core/terrain_brushload.cpp).
+
+**A brush** is an exemplar (type 0x6534284A, group 0x6A01FC2A; 30 in the game's files) read once by the loader 0x0074FDC0 into a record of 0x70 bytes in the map at 0x00B4BD58: a turn step (property 0x8A020102, in degrees; 0.5 when missing, so a brush without it turns), five widths and costs, sound and cursor IDs, and a list of **layers** (0x4C bytes each, properties from 0x8A020202 + 0x100 a layer): a kind, a picture (a grey image whose bytes are the brush's shape), widths and strengths per zoom step, a neutral byte, and per kind a decal, a turn, a limit or an effect. A turning brush draws its starting angle at load.
+
+**An application** (0x0074D730, under `ApplyBrush`): the place must be a vertex; a turning brush turns (one draw); when the stroke moved, the direction is the arctangent of the move plus a quarter turn; then each layer walks its picture over the land, turned by the brush's angle, and calls its kind's routine per vertex with the picture's byte there:
+
+| Kind | What it does |
+|---|---|
+| 0 | raise or lower by the byte's distance from neutral times the strength |
+| 1 | flora: where the byte is at least 10 and a 30% draw says so, a plant from the flora simulator at a random spot (a sound on water) |
+| 2 | smooth: the excess over the slope limit moves to each lower neighbour |
+| 3 | a decal at a random spot (no shipped brush) |
+| 4 | an effect at a random spot |
+| 5 | level towards the stroke's altitude |
+| 6 | erosion passes over a square, no walk |
+| 7 | mark vertices and queue a rectangle (no shipped brush) |
+| 8 | towards the altitude plus the byte's offset, a sixteenth at a time; never raises a wet vertex |
+| 9, 10 | the water object's (rain, lakes, springs): calls |
+
+The sine, cosine and arctangent are x87 instructions the C library cannot repeat bit for bit, so small assembly helpers execute the same instructions on the same operands; one sine stays unrounded on the FPU stack through eight multiplications in the game, and the helper does those multiplications there too.
+
+For bigger tiles: both walkers keep two stack arrays of 257 rows (0x00742277, 0x00742499; the wave counter 0x007425AB too), indexed by row: a city of more than 256 cells overruns them. Ours keeps the same 257 ([city-size.md](city-size.md)).
+
+The other three loaders Init runs once stay the game's: the texture and tuning tables from an INI resource (0x0074DC30, 0x0074C800), a tuning exemplar (0x0074B6A0) and an exemplar table (0x0074F410).
+
 ## Tests
 
 The fingerprint part `terrain` reads the object's memory directly: the grid, the cell width, the sea level, the height limits, and checksums of every altitude, flags word, water depth and sediment, and normal, plus the water vertex count. Any change of the land between two runs shows there.
@@ -121,6 +148,8 @@ The fingerprint part `terrainobj` prints the object's scalar state the `terrain`
 
 `OPENSC4_TEST_TERRAIN_ERODE=<n>` runs, on the n-th day, the normals, erosion of each kind with its redisplay, the distance map and the normals again; `OPENSC4_TEST_TERRAIN_FLOOD=<n>` starts a flood, takes 40 steps, sets the counter to 351 for 10 sinking steps and to 501 for the game's own ending step (which leaves no flood running for the timer to step on real time). Each step logs a checksum of the map, the normals and the random state.
 
+`OPENSC4_TEST_TERRAIN_BRUSHBODY=<n>` applies the brushes the brush test's seven types do not reach, by exemplar ID: the erosion brush by default (`OPENSC4_TEST_TERRAIN_BRUSHBODY_SET`: 1 land, 2 the water brushes, 4 effects; a mask), logging per application the map checksum, the random state and the brush's turn and direction.
+
 ## Checked
 
 2026-10-11.
@@ -132,6 +161,7 @@ The fingerprint part `terrainobj` prints the object's scalar state the `terrain`
 - The shaping machinery (`simulators.terrain.brush` with the other two groups): the brush test's calls (191 on Big City and Rush Hour, 107 on Making Money, 208 with the whole-map test on the plopped city) log the same answer, map checksum and random state after every call, and the `terrain` part is the same afterwards, in every run of all 12 saves and the three plopped ones, original and ours. Whole-city parity after the brushes cannot be judged on the 12 saves: the original does not repeat itself there (two runs of the original part from the third day in the flora occupants' checksum, on every save); the plopped city came out 3 of 3 the same over 10 days. An independent reading against the disassembly found no difference, including in the shore cliff code whose random draws the test did not reach, and confirmed call site by call site that only the two thunked functions need ECX kept.
 - Init, messages, save and load and the object (all seven terrain groups ours): every corpus city loads through our Read and Init, runs and saves through our Write, with our own object behind the factory. Plain parity over 7 days: 9 of 12 saves the same, 3 partly; in those three the runs differ in `checks`, `citylot` or, in the first run of ours on two saves, the first day's `flam`, never in the terrain's parts. The first two are the known noise of the original; the first-day `flam` value moves in the original too when only its heap layout is shifted (`diagnostics.heap_shift` with 300000 on Making Money d0000 gives another value; shifts up to 65536 do not), and our object and its log lines shift the layout: one of four single runs of ours had a different value, three the original's. The decoded terrain records are the same in every pair. With the messages test: the terrain's parts and the per-message lines are the same in every run of the 12 saves (one run of the original aside, whose terrain part differs from all others), and the plopped city with the edit test came out 3 of 3 over 30 days. An independent reading found no difference. Not run in the game, only read: a new city's path through Init (no saved terrain), the seven cheat commands, the edge reconciling and its dialogs, `SaveObliterated`.
 - Erosion, the flood, the distance map and the normals (all nine terrain groups ours): the erosion and flood tests' 68 lines (Big City; fewer on smaller maps) are the same after every step, and the `terrain` part afterwards, in every run of the 12 saves and the three plopped ones, original and ours. Plain parity over 7 days: 12 of 12 saves the same. After the erosion test the original does not repeat itself (2 of 12 the same over 4 days, as with the brushes); the plopped city with the flood and brush tests: 2 of 3 the same, the third partly with two outcomes of the original. An independent reading found no difference in any branch, including the NaN and equal cases of every float comparison.
+- The brushes (all eleven terrain groups ours): every brush the game ships applied by the two brush tests, 325 logged applications on the large cities and 181 on Making Money: the map, the random state and each brush's turn and direction are the same after every one, and the `terrain` and `terrainobj` parts (the latter covers the loaded brush table's size), in every run of the 12 saves, original and ours. Plain parity over 7 days: 9 of 12 saves the same, 3 partly or different in `checks`, `citylot` and the first day's `flam` only, the parts the original varies in by itself (above). An independent reading found no difference; it noted two places where the game reads stack bytes it never wrote and ours has zeros (a first layer with picture ID 0, and two pad bytes handed to an effect), neither reachable with a shipped brush. Kinds 3 and 7 and the picture-less walker are read only: no shipped brush uses them.
 - An independent reading of the 24 setters against the disassembly found no difference on any branch, including the ones the tests do not take. Slot 50's clamp in the game is dead code (the height is compared with itself), so ours has none.
 - An independent reading of all 54 against the disassembly found no difference in results. It listed what our C++ cannot repeat and no caller was found to use: the upper bits of EAX where the game sets only AL (nine of the tests leave part of a count there on the out-of-range path), and ECX and EDX, which the game's small getters happen to leave untouched. These are virtual calls, so a caller cannot count on registers being kept.
 - Resting on the build, not checked by a test: no fused multiply-add and no x87 code from the compiler (clang-cl's SSE2 default), and the FPU control word 0x027F wherever the game calls these (measured in the simulator tick only).
