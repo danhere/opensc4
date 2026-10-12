@@ -304,7 +304,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4EffectBase* this, SC4Particle* particle)"
 expect = "81 EC D8 00 00 00 55 8B"
-source = "Name ours, not analysed. Slot 0x40 of the second effect class's sub-object (vtable 0x00AA0C10)."
+source = "Name ours (0x005AF390 to 0x005AF930). Slot 0x40 of the second effect class's sub-object (vtable 0x00AA0C10): with an object at +0x274 and a particle within its life, SC4EffectB::RestartParticle; else the particle's own effect stopped (slot 0x10 with +0x188) and released, for effects with +0x26A and nothing at +0x188 the effect named with \"_death\" (0x00AA0CDC) made by the effects manager where the particle was, placed, started and let go, and the particle put on the free list 0x00B0A5CC; last the object at +0x274 told (slot 4 with 0) when no particle is left and +0xC is set. Ours in renderer.effects.giveback_b (src/core/effect_giveback_b.inc)."
 
 [[entry]]
 name = "SC4Effect::SpawnFromParticle"
@@ -485,6 +485,15 @@ convention = "thiscall"
 signature = "void (void* this, SC4EffectDescription* description)"
 expect = "53 56 8B 74 24 0C 8B D9"
 source = "Name ours. The part at the effect's +0x228 given a description at its +0x40: the new one held (SC4Effect::Hold), the old let go (SC4EffectDescription::Release). SC4EffectB::SetDescription calls it for flag 0x100 of the description's third word (0x005AEDCD)."
+
+[[entry]]
+name = "SC4EffectB::RestartParticle"
+address = 0x005AF060
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4Particle* particle)"
+expect = "81 EC 80 00 00 00 53 55"
+source = "Name ours, not analysed. SC4EffectBaseB::GiveBackParticle calls it (0x005AF3C3) in place of giving the particle back, for an effect with an object at +0x278 whose particle is within its life: the particle's age set back and a new random life, and more."
 
 [[entry]]
 name = "SC4Effect::GetBox"
