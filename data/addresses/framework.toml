@@ -640,3 +640,115 @@ address = 0x00ACE6F8
 kind = "vtable"
 expect = "02 DE 90 00 B1 C4 94 00"
 source = "The director base's vtable, 17 slots; stored by the constructor 0x0090E18D."
+
+[[entry]]
+name = "cGZFrameWork::StartFirstServices"
+address = 0x00879F15
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. Slot 41 of the vtable 0x00AC3090; no arguments. Adds the app as a system service, then Init and SetServiceRunning(true) for every service of priority above -2000000, highest first. Called once by the framework's start-up (0x0087B01E). Ours in framework.run.services."
+
+[[entry]]
+name = "cGZFrameWork::StartAppServices"
+address = 0x00879FBC
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. Slot 42: the services of priority -2999999 to -2000000 (the app itself); false when one that answers interface 0x66 fails its Init. Called once (0x0087B046). Ours in framework.run.services."
+
+[[entry]]
+name = "cGZFrameWork::StartLastServices"
+address = 0x0087A046
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8D"
+source = "Name ours. Slot 43: the services of priority below -2999999. Called once (0x0087B07F). Ours in framework.run.services."
+
+[[entry]]
+name = "cGZFrameWork::StopLastServices"
+address = 0x0087A4B6
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8D"
+source = "Name ours. Slot 44: Shutdown and SetServiceRunning(false) for the services of priority below -2999999, lowest first; false when a Shutdown fails. Ours in framework.run.services."
+
+[[entry]]
+name = "cGZFrameWork::StopAppServices"
+address = 0x0087A527
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8D"
+source = "Name ours. Slot 45: the same for priority -2999999 to -2000000. Ours in framework.run.services."
+
+[[entry]]
+name = "cGZFrameWork::StopFirstServices"
+address = 0x0087A59F
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8D"
+source = "Name ours. Slot 46: the same for priority above -2000000. Ours in framework.run.services."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksPreFrameWorkInit"
+address = 0x0087A286
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. No arguments: a copy of the hooks (0x0087A178), each one's slot 3; false while the hooks are in use. Ours in framework.run.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksPreAppInit"
+address = 0x0087A2D6
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. As 0x0087A286 with the hooks' slot 4. Ours in framework.run.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksPostAppInit"
+address = 0x0087A326
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. As 0x0087A286 with the hooks' slot 5. Ours in framework.run.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksPreAppShutdown"
+address = 0x0087A376
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. As 0x0087A286 with the hooks' slot 6. Ours in framework.run.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksPostAppShutdown"
+address = 0x0087A3C6
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. As 0x0087A286 with the hooks' slot 7. Ours in framework.run.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksPostSystemServiceShutdown"
+address = 0x0087A416
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. As 0x0087A286 with the hooks' slot 8. Ours in framework.run.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksAbortiveQuit"
+address = 0x0087A466
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. As 0x0087A286 with the hooks' slot 9; called by AbortiveQuit (slot 20). Ours in framework.run.hooks."
+
+[[entry]]
+name = "cRZBaseSystemService::SetServiceRunning"
+address = 0x0091DD91
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 88 41 18 C2"
+source = "Slot 7 of the system service base (in 48 vtables); `ret 4`: the byte at +0x18. The game's; diagnostics.trace.service_start records the calls through it."

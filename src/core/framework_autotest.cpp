@@ -1,10 +1,12 @@
 // The framework's part of the autotest (src/core/autotest_hooks.h): a drive
 // of the message server through its interface, with targets of our own
 // (docs/framework.md).
+#include "core/address_check.h"
 #include "core/autotest_hooks.h"
 #include "core/framework_containers.h"
 #include "core/game.h"
 #include "core/game_access.h"
+#include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
 
@@ -826,6 +828,62 @@ void ClassesFingerprint(cISC4City*, std::string& line)
     line += text;
 }
 
+// diagnostics.trace.service_start: the order in which the framework starts
+// and stops the system services, seen at the base class's SetServiceRunning
+// (0x0091DD91, the slot of nearly every service). Each call's service ID
+// and flag go into a hash; the fingerprint gets ` | start <hash> <calls>`,
+// and each stop is logged with the hash so far (the stops come after the
+// last fingerprint). On in both runs of a comparison: it is put in when
+// core.dll is injected, since the services start before any later phase.
+bool g_startTraceOn = false;
+uint32_t g_startHash = 2166136261u;
+uint32_t g_startCalls = 0;
+
+uint8_t __fastcall TraceSetServiceRunning(char* service, void*, uint8_t running)
+{
+    const uint32_t id = *reinterpret_cast<uint32_t*>(service + 0xC);
+    MixInto(g_startHash, id);
+    MixInto(g_startHash, running);
+    ++g_startCalls;
+    if (!running)
+        log::Write("service_start: stop %08X, hash %08X after %u calls", id, g_startHash, g_startCalls);
+    *reinterpret_cast<uint8_t*>(service + 0x18) = running;
+    return running;
+}
+
+bool InstallStartTrace(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    const addr::Entry* entry = addr_check::Find(addr::cRZBaseSystemService_SetServiceRunning);
+    void* original = nullptr;
+    if (!entry || !hook::Install(*entry, reinterpret_cast<void*>(&TraceSetServiceRunning), &original))
+        return false;
+    g_startTraceOn = true;
+    return true;
+}
+
+const bool g_startTraceRegistered = registry::Register({
+    "diagnostics.trace.service_start",
+    "diagnostics",
+    registry::Kind::Detour,
+    registry::Phase::Attach,
+    addr::cRZBaseSystemService_SetServiceRunning,
+    "Records the order in which system services are started and stopped, for the fingerprint "
+    "(docs/framework.md)",
+    false,
+    InstallStartTrace,
+});
+
+void StartFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_startTraceOn)
+        return;
+    char text[48];
+    std::snprintf(text, sizeof text, " | start %08X %u", g_startHash, g_startCalls);
+    line += text;
+}
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     if (!g_on)
@@ -854,6 +912,7 @@ const FingerprintPart kServicesFingerprint{"services", 4, &ServicesFingerprint};
 const DayHook kDriveServices{"services", 4, &DriveServices};
 const FingerprintPart kClassesFingerprint{"classes", 4, &ClassesFingerprint};
 const DayHook kDriveClasses{"classes", 4, &DriveClasses};
+const FingerprintPart kStartFingerprint{"service_start", 4, &StartFingerprint};
 
 } // namespace
 } // namespace opensc4::autotest
