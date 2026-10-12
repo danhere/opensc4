@@ -304,6 +304,7 @@ add_library(opensc4_core SHARED
   traffic_water.cpp
   traffic_walks.cpp
   water_autotest.cpp
+  utilities_autotest.cpp
   water_object.cpp
   water_sim.cpp
   aura_autotest.cpp
