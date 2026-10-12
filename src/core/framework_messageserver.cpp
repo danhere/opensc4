@@ -43,6 +43,7 @@
 // table's insert (it may grow the table), the deque's new block, block
 // release and erase are still the game's helpers.
 #include "core/address_check.h"
+#include "core/framework_containers.h"
 #include "core/game.h"
 #include "core/game_access.h"
 #include "core/hook.h"
@@ -72,62 +73,6 @@ constexpr std::size_t kDirect = 0x84;
 
 constexpr uint32_t kIID_cIGZMessageServer2 = 0x652294C7;
 constexpr uint32_t kCLSID_cRZMessage2Standard = 0x46DF45E7;
-
-void* Allocate(uint32_t size)
-{
-    return reinterpret_cast<void*(__cdecl*)(uint32_t)>(addr::SC4_stl_allocate)(size);
-}
-
-void Free(void* memory)
-{
-    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(memory);
-}
-
-void AddRef(void* object)
-{
-    if (object)
-        Virtual<uint32_t>(object, 0x4);
-}
-
-void Release(void* object)
-{
-    if (object)
-        Virtual<uint32_t>(object, 0x8);
-}
-
-// One of the three locks: held while this lives.
-struct Lock {
-    explicit Lock(void* lock) : lock_(lock) { Virtual<void>(lock_, 0x4); }
-    ~Lock() { Virtual<uint32_t>(lock_, 0x8); }
-    Lock(const Lock&) = delete;
-    Lock& operator=(const Lock&) = delete;
-
-private:
-    void* lock_;
-};
-
-// A list is a pointer to its sentinel node; a node is {next, previous,
-// value...}.
-constexpr std::size_t kNext = 0x0;
-constexpr std::size_t kPrevious = 0x4;
-constexpr std::size_t kValue = 0x8;
-
-void LinkBefore(char* position, char* node)
-{
-    char* const previous = At<char*>(position, kPrevious);
-    At<char*>(node, kNext) = position;
-    At<char*>(node, kPrevious) = previous;
-    At<char*>(previous, kNext) = node;
-    At<char*>(position, kPrevious) = node;
-}
-
-void Unlink(char* node)
-{
-    char* const next = At<char*>(node, kNext);
-    char* const previous = At<char*>(node, kPrevious);
-    At<char*>(previous, kNext) = next;
-    At<char*>(next, kPrevious) = previous;
-}
 
 // A list of targets (what the table maps a message type to): a 4-byte
 // object from operator new holding the sentinel; nodes hold one counted
