@@ -484,7 +484,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, SC4EffectDescription* description)"
 expect = "53 56 8B 74 24 0C 8B D9"
-source = "Name ours. The part at the effect's +0x228 given a description at its +0x40: the new one held (SC4Effect::Hold), the old let go (SC4EffectDescription::Release). SC4EffectB::SetDescription calls it for flag 0x100 of the description's third word (0x005AEDCD)."
+source = "Name ours. The part at the effect's +0x228 given a description at its +0x40: the new one held (SC4Effect::Hold), the old let go (SC4EffectDescription::Release). SC4EffectB::SetDescription calls it for flag 0x100 of the description's third word (0x005AEDCD). Ours in renderer.effects.holders."
 
 [[entry]]
 name = "SC4EffectB::RestartParticle"
@@ -494,6 +494,15 @@ convention = "thiscall"
 signature = "void (SC4Effect* this, SC4Particle* particle)"
 expect = "81 EC 80 00 00 00 53 55"
 source = "Name ours, not analysed. SC4EffectBaseB::GiveBackParticle calls it (0x005AF3C3) in place of giving the particle back, for an effect with an object at +0x278 whose particle is within its life: the particle's age set back and a new random life, and more."
+
+[[entry]]
+name = "SC4Effect::SetObject"
+address = 0x005B26B0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, void* object)"
+expect = "53 56 8B 74 24 0C 8B D9"
+source = "Name ours. Sets the object the effect holds at +0x1EC: nothing when it is the one held; else the new one held (its slot 4), kept, and the old one let go (its slot 8). Called by the effects manager (0x00590C8B, 0x00593F0A, 0x00593F4B). Ours in renderer.effects.holders."
 
 [[entry]]
 name = "SC4Effect::GetBox"
