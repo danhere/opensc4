@@ -211,6 +211,7 @@ add_library(opensc4_core SHARED
   foundocc_autotest.cpp
   foundocc_sim.cpp
   netocc_autotest.cpp
+  netocc_geometry.cpp
   netocc_life.cpp
   netocc_state.cpp
   landfillocc_autotest.cpp
