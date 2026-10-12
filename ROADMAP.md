@@ -40,7 +40,7 @@ Estimates by area (a judgment from the checklists below, not a measurement):
 | Script bindings (P6 Lua) | ~95% | All of the game's script code with exact parity: variables, natives, advisors, advices, script context; the Lua 5.0 library itself is still the game's |
 | Region view (P8) | ~95% | All five parts ours (332 functions); four drawing functions stay with the renderer |
 | Networks, terrain (P7, P8) | ~0% | Not started; networks only together with the NAM team. The terrain is under way (see its item in P8) |
-| Lots and growth (P5, P8) | the classes are ours | The lot, occupant, zone, development and growth classes, the demolition service and the prop manager are ours (see their items); left: the occupant filters (in progress), the bulldoze, plop and zone tools, the derived prop classes with drawing |
+| Lots and growth (P5, P8) | the classes are ours | The lot, occupant, zone, development and growth classes, the demolition service, the prop manager and the occupant filters are ours (see their items); left: the bulldoze, plop and zone tools, the derived prop classes with drawing |
 | Audio (P8) | the game's audio classes | The game's audio classes (0x004E1320 to 0x004FA6A0), 575 functions in nine groups, are ours ([docs/audio.md](docs/audio.md)); EA's sound library (AEMS) and the framework's sound service stay the game's. The harness compares state, not what is heard, so playback is untested |
 | Framework and exe independence (P9) | ~5% | Surveyed; the message server, its queue, the framework's service lists and tick and the directors' class lookup are ours (90 of about 300 framework functions, plus the COM object from the plugin DLL loader) |
 
@@ -174,7 +174,7 @@ Decided (Dan, 2026-10-11): we go ahead without waiting for the NAM team; NAM sta
 
 - [~] Lots / buildings / growth: the classes are ours, each with its own item above and docs page (the lot [docs/citylot.md](docs/citylot.md), the lot configuration [docs/lotconfig.md](docs/lotconfig.md), the zone developer and lot manager [docs/zone.md](docs/zone.md), the zone manager [docs/zonemgr.md](docs/zonemgr.md), the occupant manager [docs/occmgr.md](docs/occmgr.md), the building development simulator [docs/development.md](docs/development.md), the growth developers [docs/growth.md](docs/growth.md)). The demolition service (`cSC4Demolition`, `simulators.demolition.*`) is ours too ([docs/demolition.md](docs/demolition.md))
   - [x] The prop manager ([docs/propmgr.md](docs/propmgr.md))
-  - [ ] The occupant filters (in progress)
+  - [x] The occupant filters ([docs/occfilters.md](docs/occfilters.md)) (the string specification filter stays the game's)
   - [ ] The bulldoze, plop and zone tools (interface code; a later round)
   - [ ] The derived prop classes, with their drawing (renderer)
 - [x] Terrain (`cSTETerrain`, 259 functions, [docs/terrain.md](docs/terrain.md)): ours in seventeen groups `simulators.terrain.*`: the queries, the setters, the shaping machinery, Init, the messages, save and load, the object, erosion, the flood, the water distance map, the normals, the brush body and loader, the neighbour edge matching, a new city's terrain, the three startup table loaders. Left as the game's: its drawing side (the Renderer's). Read but never run in the game: the edge matching past its search, a new city's path, the cheat commands
