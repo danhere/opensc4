@@ -623,3 +623,139 @@ address = 0x00AA1F38
 kind = "vtable"
 expect = "10 4A 5D 00 10 4A 5D 00"
 source = "The abstract vtable the most derived constructor stores at the virtual base (+0x17C) before the base constructors."
+
+[[entry]]
+name = "cSC4NetworkOccupant::ConnectsToNeighbor"
+address = 0x00619320
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 10 8B F1"
+source = "Name ours. Slot 47, ret 8 (side, network type): false unless IsOfType; else the type's edge value (slot 38) and 0x00620EE0 on it and the side (src/core/netocc_geometry.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetPathInfo"
+address = 0x0061B510
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 8B F1 8B 86"
+source = "Name ours. Slot 49: the path information at +0x140, made on first use from the resource {0x296678F7, group 0x69668828 or 0xA966883F with a path ID override, instance from the network manager}; fills the path connection table at +0x144 (src/core/netocc_geometry.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::ReleasePathInfo"
+address = 0x00619680
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 8E 40 01 00"
+source = "Name ours. Slot 50: releases the path information at +0x140 and clears it (src/core/netocc_geometry.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::PathConnectionExists"
+address = 0x006196A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 06 57 32"
+source = "Name ours. Slot 53, ret 0xC (path type, from byte, to byte): builds the path information when flag 0x2000 is not set, then counts or tests bits in the path connection table at +0x144; 0xFF in a byte means all. gzcom-dll names slots 53 and 54 the other way round (src/core/netocc_geometry.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::AddPathConnection"
+address = 0x00619790
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 08 3C FF 56 8B"
+source = "Name ours. Slot 54, ret 0xC (path type, from byte, to byte): sets the bit of to in the byte of from for the path type and for type 0, then flag 0x2000 (src/core/netocc_geometry.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetAltitude"
+address = 0x006197F0
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 D8 A1 9C 00"
+source = "Name ours. Slot 56, ret 8 (float x, float z), answer in ST0: the height on the piece's two triangles from the four corner heights and 1/16 (src/core/netocc_geometry.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetNormal"
+address = 0x0061B6C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 D9 44 24 18 8B"
+source = "Name ours. Slot 57, ret 0xC (out vector of three words, float x, float z): y 16.0 and x and z from the corner height differences of the triangle; answers the out pointer (src/core/netocc_geometry.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetOccupiedCell"
+address = 0x0061B010
+kind = "function"
+convention = "thiscall"
+expect = "51 D9 81 9C 00 00 00 8B"
+source = "Name ours. Slot 59, ret 8 (two out pointers): the cell of corner 0, each coordinate times 1/16 floored with the 1.5 times 2 to the 23rd trick (src/core/netocc_geometry.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetBoundingBox"
+address = 0x00619360
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 20 01 00 00 8B 44"
+source = "Name ours. The occupant part's slot 10 (this is the object + 4), ret 8 (two out pointers): copies the box at the object + 0x124 and + 0x130 (src/core/netocc_geometry.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetRotationAndFlip"
+address = 0x00604DF0
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 88 81 04 01"
+source = "Name ours. Slot 74, ret 4: stores the byte at +0x104 (rotation in bits 0 to 6, flip in bit 7) (src/core/netocc_geometry.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetPosition"
+address = 0x006193D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 C7 42 08 00"
+source = "Name ours. Slot 75, ret 4 (out vector of three floats); the occupant part's slot 8 (0x00604E40) forwards here: average x and z of the four corners and the highest corner y (src/core/netocc_geometry.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::ComputeBoundingBox"
+address = 0x0061A430
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 57 8B"
+source = "Name ours. Slot 80, ret 8 (low and high out pointers): the position (occupant part slot 8) widened by the four corners and the three points of each path record; the interface's Init calls it with +0x124 and +0x130 (src/core/netocc_geometry.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::EdgeActive"
+address = 0x00620EE0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 8B 44 24 04"
+source = "Name ours. (edge value, side): whether the low two bits of byte side of the value are non-zero (the shift is 8 times side modulo 32); answers 0 or 1."
+
+[[entry]]
+name = "cSC4EdgeConnectionStore::Assign"
+address = 0x006199D0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 43 0C 85 C0"
+source = "Name ours. ret 4: copies another edge store (the count, the dwords at +4 and +8, a new array of the further entries) after freeing the array; answers this; the adjustor thunk 0x00604E00 (slot 44 of the network occupant) jumps to it (src/core/netocc_geometry.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::ResourceManager"
+address = 0x00B45254
+kind = "data"
+source = "Name ours. The pointer to the resource manager whose slot 3 (GetResource, five arguments) GetPathInfo asks for the path resource (class 0xA9667793)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::AltitudeScale"
+address = 0x00B0B384
+kind = "data"
+source = "Name ours. The float 1/16 GetAltitude multiplies the interpolated height difference with."
+
+[[entry]]
+name = "cSC4NetworkOccupant::PositionFloor"
+address = 0x00AA7D74
+kind = "data"
+source = "Name ours. The float -3.4028235e38 (the lowest float) GetPosition compares corner 0's height with."
+
+[[entry]]
+name = "cSC4NetworkOccupant::PositionScale"
+address = 0x00A8821C
+kind = "data"
+source = "Name ours. The float 0.25 GetPosition multiplies the summed x and z of the four corners with."
