@@ -568,6 +568,114 @@ expect = "83 EC 10 55 8B 6C 24 1C"
 source = "Name ours. ret 0xC: inserts count copies of a 0x10-byte record (a string and a float) into a list at where: in place when the list has room, else through the growing insert 0x005A17F0. Ours in renderer.effects.lists."
 
 [[entry]]
+name = "SC4EffectCompound::Read"
+address = 0x005ABF50
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* stream, void* object)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Reads a 0x38-byte object from a stream: a word of nine bits, a word, the list of 0x6C-byte records at +8 (0x005ABE30), the list of 0x18-byte records at +0x14 (0x005ABEC0), the string at +0x2C (0x005811F0) and three words at +0x20. Ours in renderer.effects.compound_read."
+
+[[entry]]
+name = "SC4EffectCompound::ReadNamed"
+address = 0x005AB760
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* stream, void* object)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Reads a word and a string (+4) from a stream. Ours in renderer.effects.compound_read."
+
+[[entry]]
+name = "SC4EffectCompound::ReadCurve"
+address = 0x005AB860
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* stream, void* object)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. Reads a list of points (0x005A4AD0), a list of floats at +0xC (0x005DB4B0) and a float at +0x18 from a stream. Ours in renderer.effects.compound_read."
+
+[[entry]]
+name = "SC4EffectCompound::ReadFloats"
+address = 0x005AB2F0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* stream, void* object)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Reads a 16-bit word that is dropped, a list of floats (0x005DB4B0) and four floats at +0xC from a stream. Ours in renderer.effects.compound_read."
+
+[[entry]]
+name = "SC4EffectCompound::ReadRecord"
+address = 0x005AB690
+kind = "function"
+convention = "cdecl"
+signature = "void (void* stream, void* record)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. Reads one 0x6C-byte record from a stream: a string, a byte into the word at +0xC, a word of two bits at +0x10, the numbers from +0x14 (0x005DA930), then bytes, 16-bit words, four floats and a word up to +0x6C. Ours in renderer.effects.compound_read."
+
+[[entry]]
+name = "SC4EffectCompound::ReadRecords"
+address = 0x005ABE30
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* stream, void* list)"
+expect = "83 EC 6C 53 8B 5C 24 74"
+source = "Name ours. Reads a list of 0x6C-byte records from a stream: the count, the resize (0x005ABCE0) with a record made by 0x005997B0, then each record (0x005AB690); answers the stream. Ours in renderer.effects.compound_read."
+
+[[entry]]
+name = "SC4EffectCompound::ReadRecordsB"
+address = 0x005ABEC0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* stream, void* list)"
+expect = "51 53 56 8B 74 24 10 8B"
+source = "Name ours. Reads a list of 0x18-byte records from a stream: the count, the resize (0x005ABDC0), then per record a word of four bits, a string (+4), a float and a word; answers the stream. Ours in renderer.effects.compound_read."
+
+[[entry]]
+name = "SC4EffectCompound::ResizeRecords"
+address = 0x005ABCE0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count, const void* record)"
+expect = "53 8B 59 04 56 8B 74 24"
+source = "Name ours. ret 8: resizes a list of 0x6C-byte records: cut short (0x005ABC20) or copies of the record inserted at the end (0x005AB970). Ours in renderer.effects.compound_read."
+
+[[entry]]
+name = "SC4EffectCompound::ResizeRecordsB"
+address = 0x005ABD50
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count, const void* record)"
+expect = "53 8B 59 04 56 8B 74 24"
+source = "Name ours. ret 8: resizes a list of 0x18-byte records: cut short (0x005ABC80) or copies of the record inserted at the end (0x005ABAD0). Ours in renderer.effects.compound_read."
+
+[[entry]]
+name = "SC4EffectCompound::ResizeRecordsDefaultB"
+address = 0x005ABDC0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count)"
+expect = "83 EC 18 56 6A 08 8B F1"
+source = "Name ours. ret 4: SC4EffectCompound::ResizeRecordsB with a record of 0, an empty string, 0 and -1. Ours in renderer.effects.compound_read."
+
+[[entry]]
+name = "SC4EffectCompound::InsertRecords"
+address = 0x005AB970
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* where, uint32_t count, const void* record)"
+expect = "83 EC 6C 56 57 8B 7C 24"
+source = "Name ours. ret 0xC: inserts count copies of a 0x6C-byte record into a list at where: in place when the list has room (helpers 0x005888A0, 0x00589490, 0x005AB790, 0x005AB890, 0x005AB660), else through the growing insert 0x0059EDC0. Ours in renderer.effects.compound_read."
+
+[[entry]]
+name = "SC4EffectCompound::InsertRecordsB"
+address = 0x005ABAD0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* where, uint32_t count, const void* record)"
+expect = "83 EC 18 56 57 8B 7C 24"
+source = "Name ours. ret 0xC: inserts count copies of a 0x18-byte record into a list at where: in place when the list has room (helpers 0x00588A00, 0x005894C0, 0x005AB7E0, 0x005AB8C0, 0x005AB600), else through the growing insert 0x005A07B0. Ours in renderer.effects.compound_read."
+
+[[entry]]
 name = "SC4EffectDescription::Read"
 address = 0x005B1DC0
 kind = "function"
