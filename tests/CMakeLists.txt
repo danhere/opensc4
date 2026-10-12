@@ -103,3 +103,27 @@ add_executable(opensc4_pe_flag_test pe_flag_test.cpp ${PROJECT_SOURCE_DIR}/src/l
 target_link_libraries(opensc4_pe_flag_test PRIVATE opensc4_options)
 add_test(NAME pe_flag COMMAND opensc4_pe_flag_test)
 set_tests_properties(pe_flag PROPERTIES PASS_REGULAR_EXPRESSION "pe flag test OK")
+
+# Probe plugin DLLs for the plugin DLL loading tests (docs/plugin-dlls.md):
+# one source, several DLLs that differ in what they register and how they
+# behave when the game loads them. Not run by ctest; scripts/make-dll-probes.sh
+# copies them into a test Plugins folder.
+function(opensc4_probe_plugin name director)
+  add_library(opensc4_probe_${name} SHARED probe_plugin.cpp)
+  target_link_libraries(opensc4_probe_${name} PRIVATE opensc4_options)
+  target_include_directories(opensc4_probe_${name} SYSTEM PRIVATE
+    ${PROJECT_SOURCE_DIR}/third_party/gzcom-dll/gzcom-dll/include)
+  target_compile_definitions(opensc4_probe_${name} PRIVATE
+    PROBE_NAME="${name}" PROBE_DIRECTOR_ID=${director} ${ARGN})
+  set_target_properties(opensc4_probe_${name} PROPERTIES OUTPUT_NAME probe_${name} PREFIX "")
+endfunction()
+opensc4_probe_plugin(a 0x0B0A0001 PROBE_CLASS_A=0x0BC10001 PROBE_VERSION_A=1 PROBE_CLASS_B=0x0BC10002 PROBE_VERSION_B=5)
+opensc4_probe_plugin(b 0x0B0A0002 PROBE_CLASS_A=0x0BC10001 PROBE_VERSION_A=2 PROBE_CLASS_B=0x0BC10002 PROBE_VERSION_B=5)
+opensc4_probe_plugin(c 0x0B0A0003 PROBE_CLASS_A=0x0BC10003 PROBE_VERSION_A=1)
+opensc4_probe_plugin(d 0x0B0A0004 PROBE_CLASS_A=0x0BC10004 PROBE_VERSION_A=1)
+opensc4_probe_plugin(e 0x0B0A0005 PROBE_CLASS_A=0x0BC10005 PROBE_VERSION_A=1)
+opensc4_probe_plugin(f 0x0B0A0006 PROBE_MODE=1 PROBE_CLASS_A=0x0BC10006 PROBE_VERSION_A=1)
+opensc4_probe_plugin(g 0x0B0A0007 PROBE_MODE=2)
+opensc4_probe_plugin(h 0x0B0A0008 PROBE_MODE=3)
+opensc4_probe_plugin(i 0x0B0A0001 PROBE_CLASS_A=0x0BC10001 PROBE_VERSION_A=1 PROBE_CLASS_B=0x0BC10009 PROBE_VERSION_B=1)
+opensc4_probe_plugin(j 0x0B0A000A PROBE_CLASS_A=0x0BC1000A PROBE_VERSION_A=1)
