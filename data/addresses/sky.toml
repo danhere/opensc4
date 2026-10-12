@@ -442,6 +442,51 @@ expect = "56 8B F1 8A 46 04 84 C0"
 source = "Name ours. On the sub-object at the effect's +4: for one in use (+4), clears +0xC and +0xD, calls its slot 0x20 with (0, 0) (SC4EffectBase::SetEnding: every particle given back) and clears +4. SC4EffectBase::LetGo ends in a jump to it (0x005B248B). Ours in renderer.effects.stop."
 
 [[entry]]
+name = "SC4EffectB::SetDescription"
+address = 0x005AEC90
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4EffectDescription* description)"
+expect = "83 EC 14 56 57 8B 7C 24"
+source = "Name ours (0x005AEC90 to 0x005AEF1D). Slot 0x28 of the second effect class (vtable 0x00AA0C58), for descriptions with bit 0 of their third word of flags: SC4Effect::SetDescription, then the model instance (+0x220) and model (+0x224) released, the object at +0x278 ended (slot 0x20), the part at +0x228 cleared, a model loaded (slot 0x54) by the description's +0xD0 or one of its list at +0x1E0 picked at random, the instance and the part set up, and the effects manager asked for two more named effects (+0x26D, +0x26E). Ours in renderer.effects.description_b (src/core/effect_description_b.inc)."
+
+[[entry]]
+name = "SC4EffectB::LoadModel"
+address = 0x005AC610
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, uint32_t which)"
+expect = "8B 44 24 04 83 EC 34 85"
+source = "Name ours, not analysed. Slot 0x54 of the second effect class: loads the model the effect's particles are drawn as (+0x220, +0x224). SC4EffectB::SetDescription calls it (0x005AED73)."
+
+[[entry]]
+name = "SC4EffectPartB::Attach"
+address = 0x008038D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* instance)"
+expect = "83 EC 0C 53 55 8B E9 8B"
+source = "Class and name ours, not analysed. SC4EffectB::SetDescription calls it on the part of the effect at +0x228, with 0 (0x005AED0B) and with the model instance (0x005AEDE4, the answer kept at +0x26C). Not in the effects' code: other classes may use it."
+
+[[entry]]
+name = "SC4EffectPartB::Place"
+address = 0x00802DB0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* place)"
+expect = "83 EC 2C 8B 41 04 56 33"
+source = "Class and name ours, not analysed. SC4EffectB::SetDescription calls it on the part at +0x228 with (0, 0, -1) when the part took the instance (0x005AEE12). Not in the effects' code: other classes may use it."
+
+[[entry]]
+name = "SC4EffectPartB::SetDescription"
+address = 0x005AC110
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, SC4EffectDescription* description)"
+expect = "53 56 8B 74 24 0C 8B D9"
+source = "Name ours. The part at the effect's +0x228 given a description at its +0x40: the new one held (SC4Effect::Hold), the old let go (SC4EffectDescription::Release). SC4EffectB::SetDescription calls it for flag 0x100 of the description's third word (0x005AEDCD)."
+
+[[entry]]
 name = "SC4Effect::GetBox"
 address = 0x005B26F0
 kind = "function"
