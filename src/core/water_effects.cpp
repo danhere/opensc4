@@ -5370,6 +5370,116 @@ const bool g_registeredStep = registry::Register({
     InstallStep,
 });
 
+// --- Making an effect ----------------------------------------------------------------------
+
+// The sub-object's constructor (0x005B9F00), written by hand: its table of
+// functions (0x00AA0F48, which the effect's constructor then replaces), the
+// bytes and words up to +0x1C cleared, and an empty list at +0x10 (a head
+// node of 12 bytes that points at itself both ways).
+uint32_t ConstructEffectBase(char* base)
+{
+    At<uint32_t>(base, 0) = 0x00AA0F48;
+    At<uint8_t>(base, 4) = 0;
+    At<uint8_t>(base, 5) = 0;
+    At<uint32_t>(base, 8) = 0;
+    At<uint8_t>(base, 0xC) = 0;
+    At<uint8_t>(base, 0xD) = 0;
+    At<uint32_t>(base, 0x10) = 0;
+    char* const head = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(12);
+    At<char*>(head, 0) = head;
+    At<char*>(head, 4) = head;
+    At<char*>(base, 0x10) = head;
+    At<uint32_t>(base, 0x14) = 0;
+    At<uint32_t>(base, 0x18) = 0;
+    At<uint32_t>(base, 0x1C) = 0;
+    return reinterpret_cast<uint32_t>(base);
+}
+
+// The effect's constructor (0x005B2B50), translated instruction by
+// instruction: the sub-object at +4 and the batch at +0x28 (0x005EC690)
+// constructed, the two tables of functions set (0x00AA0EA0, 0x00AA0E58),
+// and the effect's fields given their first values. It leaves some of the
+// object's bytes as they were.
+uint32_t ConstructEffect(char* self)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_ctor.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Their comparison: ours on the object's memory, what it left kept, its
+// list's head freed, the memory put back as it was, and the game's. The
+// two must have left the same bytes but for the pointer to the head, and
+// ours' head must have been an empty list.
+StepMode g_ctorMode = StepMode::Original;
+Call0Fn g_SC4EffectBase_Construct = nullptr, g_SC4Effect_Construct = nullptr;
+
+uint32_t CtorCompared(const char* id, char* object, std::size_t size, std::size_t headAt, Call0Fn game,
+                      uint32_t (*ours)(char*))
+{
+    std::vector<char> before(object, object + size);
+    const uint32_t ourResult = ours(object);
+    std::vector<char> mine(object, object + size);
+    char* const head = At<char*>(object, headAt);
+    const bool emptyList = head && At<char*>(head, 0) == head && At<char*>(head, 4) == head;
+    if (head)
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(head);
+    std::memcpy(object, before.data(), size);
+    const uint32_t result = game(object, nullptr);
+    std::vector<char> theirs(object, object + size);
+    std::memset(mine.data() + headAt, 0, 4);
+    std::memset(theirs.data() + headAt, 0, 4);
+    const bool same = emptyList && result == ourResult && theirs == mine;
+    std::string text;
+    if (!same) {
+        std::size_t at = 0;
+        while (at < size && theirs[at] == mine[at])
+            ++at;
+        char buffer[64];
+        std::snprintf(buffer, sizeof buffer, "%s at +%zX", emptyList ? "list empty" : "list not empty", at);
+        text = buffer;
+    }
+    compare::Record(id, same, same ? std::string() : std::string("as the game's"), text);
+    return result;
+}
+
+uint32_t __fastcall BaseCtorByMode(char* base, void*)
+{
+    if (g_ctorMode == StepMode::Original)
+        return g_SC4EffectBase_Construct(base, nullptr);
+    if (g_ctorMode == StepMode::Ours)
+        return ConstructEffectBase(base);
+    return CtorCompared("effects.ctor.base", base, 0x20, 0x10, g_SC4EffectBase_Construct, &ConstructEffectBase);
+}
+OPENSC4_THUNK(TSC4EffectBase_Construct, BaseCtorByMode, 0)
+
+uint32_t __fastcall EffectCtorByMode(char* self, void*)
+{
+    if (g_ctorMode == StepMode::Original)
+        return g_SC4Effect_Construct(self, nullptr);
+    if (g_ctorMode == StepMode::Ours)
+        return ConstructEffect(self);
+    return CtorCompared("effects.ctor", self, kEffectSize, 0x14, g_SC4Effect_Construct, &ConstructEffect);
+}
+OPENSC4_THUNK(TSC4Effect_Construct, EffectCtorByMode, 0)
+
 // What every record-and-replay comparison needs: the frees held back, and
 // the particle pool's functions recorded.
 bool HookFrees()
@@ -5878,6 +5988,31 @@ const bool g_registeredHolders = registry::Register({
     "effects, sky and clouds\")",
     true,
     InstallHolders,
+});
+
+bool InstallCtor(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4EffectBase_Construct, &TSC4EffectBase_Construct, &g_SC4EffectBase_Construct) &&
+          Detour(addr::SC4Effect_Construct, &TSC4Effect_Construct, &g_SC4Effect_Construct)))
+        return false;
+    g_ctorMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects' constructors %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredCtor = registry::Register({
+    "renderer.effects.ctor",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_Construct,
+    "An effect's constructor and its sub-object's: the tables of functions, an empty particle list and the "
+    "fields' first values; compare mode runs ours and the game's on the same memory (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallCtor,
 });
 
 bool InstallGround(registry::Mode mode)
