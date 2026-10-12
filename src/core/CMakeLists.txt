@@ -14,6 +14,7 @@ add_library(opensc4_core_support STATIC
   log.cpp
   registry.cpp
   date_sync_region.cpp
+  foreign_sites.cpp
   growify_command.cpp
   seed_code.cpp
   settings.cpp)
@@ -242,7 +243,11 @@ add_library(opensc4_core SHARED
   terrain_brush_autotest.cpp
   terrain_edit.cpp
   terrain_edit_autotest.cpp
+  terrain_messages.cpp
+  terrain_object.cpp
+  terrain_object_autotest.cpp
   terrain_queries.cpp
+  terrain_save.cpp
   view_objects.cpp
   water_effects.cpp
   d3d7_probe.cpp
@@ -279,6 +284,8 @@ add_library(opensc4_core SHARED
   power_sim.cpp
   protection_autotest.cpp
   flammability_autotest.cpp
+  framework_autotest.cpp
+  framework_messageserver.cpp
   protection_sim.cpp
   fire_sim.cpp
   police_sim.cpp
@@ -308,6 +315,9 @@ add_library(opensc4_core SHARED
   save_serializer_1.cpp
   save_serializer_2.cpp
   save_serializer_3.cpp
+  save_app.cpp
+  save_app_1.cpp
+  save_app_2.cpp
   minimap_autotest.cpp
   datamap_autotest.cpp
   cityview_draw_autotest.cpp
@@ -334,6 +344,11 @@ add_library(opensc4_core SHARED
   sim_timers.cpp
   mysim_agents.cpp
   mysim_dispatch.cpp
+  mysim_street_1.cpp
+  mysim_street_2.cpp
+  mysim_balloon_advice.cpp
+  mysim_balloon.cpp
+  mysim_leftovers.cpp
   trip_trace.cpp
   agent_order.cpp
   trace.cpp

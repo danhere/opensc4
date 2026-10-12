@@ -1,6 +1,7 @@
 #include "core/hook.h"
 
 #include "core/address_check.h"
+#include "core/foreign_sites.h"
 #include "core/log.h"
 
 #include <MinHook.h>
@@ -44,6 +45,16 @@ bool InstallAt(const char* name, std::uintptr_t target, const unsigned char* exp
     if (!found.empty()) {
         log::Write("hook: refusing %s at 0x%08X: %s", name, static_cast<unsigned>(target), found.c_str());
         return false;
+    }
+    // Another DLL changed the middle of this function (foreign_sites.h):
+    // leave it to the game, so that change stays in effect, and hand back
+    // the game's own function as the original.
+    if (const std::string patched = foreign_sites::PatchedInside(target); !patched.empty()) {
+        log::Write("hook: leaving %s at 0x%08X to the game: patched inside by %s", name, static_cast<unsigned>(target),
+                   patched.c_str());
+        if (original)
+            *original = reinterpret_cast<void*>(target);
+        return true;
     }
     if (!EnsureInitialized())
         return false;

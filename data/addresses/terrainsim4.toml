@@ -1,0 +1,700 @@
+# cSTETerrain (build 641), piece 4: Init, Shutdown, DoPostCityInit, the messages, ReconcileEdges, save and load,
+# the object (src/core/terrain_object.cpp, terrain_messages.cpp, terrain_save.cpp). New names only.
+
+[[entry]]
+name = "cSTETerrain::vftable_4"
+address = 0x00AB3D08
+kind = "vtable"
+expect = "00 C7 74 00 30 D2 68 00"
+source = "Name ours. The cIGZMessageTarget2 part at +0x4 (4 slots): QueryInterface thunk 0x0074C700, AddRef thunk 0x0068D230 (shared), Release thunk 0x0074C710, DoMessage 0x0074A470. Slot 3 replaced by simulators.terrain.messages (src/core/terrain_messages.cpp)."
+
+[[entry]]
+name = "cSTETerrain::vftable_8"
+address = 0x00AB3CF0
+kind = "vtable"
+expect = "20 C7 74 00 50 D2 68 00"
+source = "Name ours. The cIGZSerializable part at +0x8 (6 slots): QueryInterface thunk 0x0074C720, AddRef thunk 0x0068D250 (shared), Release thunk 0x0074C730, Write 0x00745300, Read 0x00745380, GetGZCLSID 0x007405D0. Slots 3 and 4 replaced by simulators.terrain.save (src/core/terrain_save.cpp)."
+
+[[entry]]
+name = "cSTETerrain::cSTETerrain"
+address = 0x0074C380
+kind = "function"
+convention = "thiscall"
+signature = "cSTETerrain* (cSTETerrain* this)"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "The constructor (object 0x1E0 bytes). Only the factory 0x0074D580 reaches it (operator new(0x1E0), then a jump). Sets the three vtables (0x00AB3D18, 0x00AB3D08 at +4, 0x00AB3CF0 at +8), zeroes most fields, +0xDD = 1, constructs the object at +0x130 (0x0075C9D0), allocates the head of the pending-rectangle list +0x1B0 (0x20 bytes) and of the scrub set +0x1D4 (0x18 bytes), in that order, and sets the rectangle +0xAC to the empty one (0x00B0D698). Detoured by simulators.terrain.object (src/core/terrain_object.cpp)."
+
+[[entry]]
+name = "cSTETerrain::Create"
+address = 0x0074D580
+kind = "function"
+convention = "cdecl"
+signature = "cSTETerrain* ()"
+expect = "68 E0 01 00 00 E8 56 80"
+source = "Name ours. The class factory: operator new(0x1E0) (0x005E55E0), then jumps to the constructor; null when the allocation fails. Registered with the class ID 0xE98F9525 at 0x0046034C. The only construction site."
+
+[[entry]]
+name = "cSTETerrain::Destruct"
+address = 0x0074C740
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "57 8B F9 8A 47 0C 84 C0"
+source = "Name ours. The destructor: sets the three vtables, calls Shutdown (0x007435C0, directly) when +0xC is set, empties and frees the scrub set +0x1D4 (0x00743990), destroys the list +0x1B0 (0x005650A0) and the rows +0x190 (0x004638B0), frees the vector storage at +0x124, +0x118 and +0x10C. Only slot 91 calls it. Ours in simulators.terrain.object."
+
+[[entry]]
+name = "cSTETerrain::DeletingDestructor"
+address = 0x0074DB90
+kind = "function"
+convention = "thiscall"
+signature = "cSTETerrain* (cSTETerrain* this, uint32_t flags)"
+expect = "56 8B F1 E8 A8 EB FF FF"
+source = "Slot 91: the destructor, then operator delete (0x005E5620) when bit 0 of flags is set. Release calls it through the vtable (+0x16C) with 1."
+
+[[entry]]
+name = "cSTETerrain::QueryInterface"
+address = 0x00741E90
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t iid, void** object)"
+expect = "8B 44 24 04 3D 53 32 95"
+source = "Slot 0. The object for 1, 0xAB953253 and 0xC70BD37E; +4 for 0x452294AA (cIGZMessageTarget2); +8 for 0xE4FDA3D4 (cIGZSerializable); AddRef through the vtable; false for anything else."
+
+[[entry]]
+name = "cSTETerrain::Release"
+address = 0x00741F70
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSTETerrain* this)"
+expect = "8B 41 10 83 F8 01 76 05"
+source = "Slot 2. Above one reference (unsigned): one less, returned. Otherwise slot 91 with 1 and 0; Shutdown is the destructor's."
+
+[[entry]]
+name = "cSTETerrain::QueryInterfaceThunk4"
+address = 0x0074C700
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 04 E9 88 57 FF FF"
+source = "Name ours. this - 4, then QueryInterface (slot 0 of 0x00AB3D08)."
+
+[[entry]]
+name = "cSTETerrain::ReleaseThunk4"
+address = 0x0074C710
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part)"
+expect = "83 E9 04 E9 58 58 FF FF"
+source = "Name ours. this - 4, then Release (slot 2 of 0x00AB3D08)."
+
+[[entry]]
+name = "cSTETerrain::QueryInterfaceThunk8"
+address = 0x0074C720
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t iid, void** object)"
+expect = "83 E9 08 E9 68 57 FF FF"
+source = "Name ours. this - 8, then QueryInterface (slot 0 of 0x00AB3CF0)."
+
+[[entry]]
+name = "cSTETerrain::ReleaseThunk8"
+address = 0x0074C730
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part)"
+expect = "83 E9 08 E9 38 58 FF FF"
+source = "Name ours. this - 8, then Release (slot 2 of 0x00AB3CF0)."
+
+[[entry]]
+name = "cSTETerrain::GetGZCLSID"
+address = 0x007405D0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part)"
+expect = "B8 25 95 8F E9 C3 CC CC"
+source = "Slot 5 of the +8 vtable: 0xE98F9525. Also called directly at 0x00460351 (the class registration)."
+
+[[entry]]
+name = "cSTETerrain::Init"
+address = 0x0074FEA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this)"
+expect = "A0 3C BC B4 00 83 EC 20"
+source = "Slot 3. The static part first (0x0074FE40, once); Shutdown through the vtable when already initialized; the city (0x00B43CEC) and the water object (0x00B43CF0) taken; the grid's size from the city's slots 93 and 94 (+0x174, +0x178: cells x and z) and everything derived from it (+0x28 to +0x64); +0x58 the city's size type (its +0x15C) and +0x78 the float of that type in the table at 0x00B4BCF8; +0xA4; the rows +0x190 resized to rows x vertices per row bytes; three city objects (+0x100, +0x104, +0xFC); +0x130; the sea level +0x7C from 0x00B4B404; the eight neighbour index offsets +0x84 to +0xA0; the vertex array (36 bytes x +0x5C, operator new, zeroed) when there is none; the vectors +0x118 and +0x124 resized to 2 x cells x of 12 bytes; eight draws (0x00741970); the dword array +0xE0 (4 x +0x5C); ten message subscriptions; seven cheat commands registered; the simulator service's agent list (kind 6, name cSTETerrain); the timer service (0xC0); when nothing was loaded (+0x68 clear) the water object's Init and 0x00748130. Ours in simulators.terrain.init (src/core/terrain_object.cpp)."
+
+[[entry]]
+name = "cSTETerrain::InitStatics"
+address = 0x0074FE40
+kind = "function"
+convention = "cdecl"
+signature = "bool ()"
+expect = "A0 3C BC B4 00 84 C0 75"
+source = "Name ours. Once (byte 0x00B4BC3C): registers 0x0074FC20 with the application (0x00B43C94, slot 69), keeps the resource manager (0x00B4BC40), then 0x0074F410, the brush loader 0x0074DC30, 0x0074B6A0 and 0x0074FDC0. The game's; our Init calls it at its address."
+
+[[entry]]
+name = "cSTETerrain::StaticsDone"
+address = 0x00B4BC3C
+kind = "data"
+source = "Name ours. uint8: set by 0x0074FE40 on its first run; Init tests it before calling."
+
+[[entry]]
+name = "cSTETerrain::Shutdown"
+address = 0x007435C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this)"
+expect = "51 53 55 8B E9 8A 45 0C"
+source = "Slot 4; the destructor calls it directly. Nothing when +0xC is clear. Else: +0xC cleared; the timer service, the simulator service, eleven message types and seven cheat commands unregistered; the city objects +0xFC, +0x104, +0x100, the view's objects +0xF8, +0xF4, +0xF0, the view +0xE8 (0x007560F0 first), the water object and the city released; the arrays +0xE0 and +0x6C freed (operator delete). True. Ours in simulators.terrain.init."
+
+[[entry]]
+name = "cSTETerrain::DoPostCityInit"
+address = 0x00749540
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "51 56 8B F1 8A 46 14 84"
+source = "Slot 40; DoMessage calls it for message 0x26D31EC1. Once (+0x14): +0xBC from the camera view's +0xC (0x00B43DD8); the view created when +0xE8 is null (class 0xC9B84E10 through GZCOM, else operator new(0xE8) and 0x007567C0); the view given the terrain (0x0075C420); +0xEC set; the city object +0x100 slot 5; 0x00743B60 and 0x007490B0 with the whole rectangle +0x40; the view's +0x70, +0x74 and slot 18 of its +0xC part kept at +0xF0, +0xF4, +0xF8. Ours in simulators.terrain.init."
+
+[[entry]]
+name = "cSTETerrain::DrawPhases"
+address = 0x00741970
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "DD 05 18 60 A9 00 56 83"
+source = "Name ours. Eight uniform draws between 0 and the double at 0x00A96018 from the generator 0x00B4BC78 (0x00913761), stored as floats at +0x1B4 to +0x1D0. Only Init calls it; ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::ConstructVertex"
+address = 0x00741950
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* record)"
+expect = "8B C1 8B 0D 60 BC B4 00"
+source = "Name ours. A vertex record's constructor: the dword at 0x00B4BC60 into +4, +8 and +0xC. Given to the array constructor 0x0041D490 by the altitude reader 0x007455F0; Init has it inline."
+
+[[entry]]
+name = "cSTETerrain::SetUpNewTerrain"
+address = 0x00748130
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "83 EC 1C 53 56 8B F1 8B"
+source = "Name ours, not analysed (386 bytes). Init calls it after the water object's Init when no terrain was loaded (+0x68 clear); it reads the region's data through the application (0x00B43C94, slot 39) and may load through slot 95. The game's; called at its address."
+
+[[entry]]
+name = "cSTETerrain::PrepareRect"
+address = 0x00743B60
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* rect)"
+expect = "83 EC 58 53 55 56 8B 74"
+source = "Name ours, not analysed (1,077 bytes). DoPostCityInit calls it with the whole rectangle before the refresh 0x007490B0. The game's; called at its address."
+
+[[entry]]
+name = "cSTETerrain::DefaultVertexWord"
+address = 0x00B4BC60
+kind = "data"
+source = "Name ours. The dword Init, the vertex constructor and the vector resizes of +0x118 and +0x124 copy three times (a default vector component)."
+
+[[entry]]
+name = "cSTETerrain::SizeTypeFloats"
+address = 0x00B4BCF8
+kind = "data"
+source = "Name ours. Pointer to an array of floats by the city's size type (cISC4City slot 87); Init copies one to +0x78 (saved in the header record: 308 in the tutorial cities)."
+
+[[entry]]
+name = "cSTETerrain::InitScale"
+address = 0x00B4B3FC
+kind = "data"
+source = "Name ours. Float: Init stores it times 64 (0x00A9552C), truncated and clamped to 0..255, at +0xA4."
+
+[[entry]]
+name = "cSTETerrain::DefaultSeaLevel"
+address = 0x00B4B404
+kind = "data"
+source = "Name ours. Float (250 in the game's cities): Init copies it to +0x7C."
+
+[[entry]]
+name = "cSTETerrain::CellWidthFloat"
+address = 0x00AB3B5C
+kind = "data"
+expect = "00 00 80 41 00 00 00 00"
+source = "Name ours. Float 16 in .rdata: Init multiplies the cell counts by it for the size in metres (+0x50, +0x54)."
+
+[[entry]]
+name = "SC4::Float64"
+address = 0x00A9552C
+kind = "data"
+expect = "00 00 80 42 00 00 20 40"
+source = "Name ours. Float 64 in .rdata (Init's +0xA4)."
+
+[[entry]]
+name = "SC4::DoubleTwoPiSingle"
+address = 0x00A96018
+kind = "data"
+expect = "00 00 00 60 FB 21 19 40"
+source = "Name ours. Double 6.2831854820251465 (two pi rounded to a float) in .rdata: the upper bound of the terrain's eight phase draws."
+
+[[entry]]
+name = "cSTETerrain::ClassName"
+address = 0x00AB41A8
+kind = "data"
+expect = "63 53 54 45 54 65 72 72"
+source = "The string cSTETerrain (11 characters): the name Init registers with the simulator service."
+
+[[entry]]
+name = "cSTETerrain::CommandGetAltitude"
+address = 0x00AB420C
+kind = "data"
+expect = "47 65 74 41 6C 74 69 74"
+source = "The string GetAltitude: cheat command 0x0C4A6AF0."
+
+[[entry]]
+name = "cSTETerrain::CommandSetAltitude"
+address = 0x00AB4200
+kind = "data"
+expect = "53 65 74 41 6C 74 69 74"
+source = "The string SetAltitude: cheat command 0x0C4A6AF1."
+
+[[entry]]
+name = "cSTETerrain::CommandGetCellAltitude"
+address = 0x00AB41F0
+kind = "data"
+expect = "47 65 74 43 65 6C 6C 41"
+source = "The string GetCellAltitude: cheat command 0x0C4A6AF2."
+
+[[entry]]
+name = "cSTETerrain::CommandSetCellAltitude"
+address = 0x00AB41E0
+kind = "data"
+expect = "53 65 74 43 65 6C 6C 41"
+source = "The string SetCellAltitude: cheat command 0x0C4A6AF3."
+
+[[entry]]
+name = "cSTETerrain::CommandGetSeaLevel"
+address = 0x00AB41D4
+kind = "data"
+expect = "47 65 74 53 65 61 4C 65"
+source = "The string GetSeaLevel: cheat command 0x0C4A6AF4."
+
+[[entry]]
+name = "cSTETerrain::CommandSetSeaLevel"
+address = 0x00AB41C8
+kind = "data"
+expect = "53 65 74 53 65 61 4C 65"
+source = "The string SetSeaLevel: cheat command 0x0C4A6AF5."
+
+[[entry]]
+name = "cSTETerrain::CommandApplyBrush"
+address = 0x00AB41B4
+kind = "data"
+expect = "41 70 70 6C 79 54 65 72"
+source = "The string of cheat command 0x0C4A6AF6 (ApplyTerrain...)."
+
+[[entry]]
+name = "SC4TripleVector::InsertN"
+address = 0x004FBD30
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, void* position, uint32_t count, const void* value)"
+expect = "83 EC 0C 56 8B F1 8B 4C"
+source = "Name ours. insert(position, count, value) of a vector of 12-byte elements (three dwords). Init grows the terrain's +0x118 and +0x124 with it. Generic; called at its address."
+
+[[entry]]
+name = "cSTETerrainView::ConstructPart130"
+address = 0x0075C9D0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* part)"
+expect = "8B C1 C6 00 01 C3 CC CC"
+source = "Name ours. Sets the byte at +0 of the terrain's +0x130 object to 1 (the constructor's call)."
+
+[[entry]]
+name = "cSTETerrainView::InitPart130"
+address = 0x0075C9E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, uint32_t count)"
+expect = "8B 44 24 04 89 41 04 C6"
+source = "Name ours. +4 = count, the byte at +0 = 1; true. Init calls it on the terrain's +0x130 with 16."
+
+[[entry]]
+name = "cSTETerrainView3D::cSTETerrainView3D"
+address = 0x007567C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* view)"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "The terrain view's constructor (object 0xE8 bytes), used by DoPostCityInit when GZCOM does not give the class 0xC9B84E10. The Renderer's; called at its address."
+
+[[entry]]
+name = "cSTETerrainView3D::SetTerrain"
+address = 0x0075C420
+kind = "function"
+convention = "thiscall"
+signature = "void (void* view, cSTETerrain* terrain)"
+expect = "A0 40 C7 B4 00 83 EC 18"
+source = "Name ours. DoPostCityInit gives the view the terrain. The Renderer's; called at its address."
+
+[[entry]]
+name = "cSTETerrainView3D::Shutdown7560F0"
+address = 0x007560F0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* view)"
+expect = "53 56 8B F1 8A 46 18 33"
+source = "Name ours. The terrain's Shutdown calls it on the view before releasing it. The Renderer's; called at its address."
+
+[[entry]]
+name = "cSTETerrain::DoMessage"
+address = 0x0074A470
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZMessage2* message)"
+expect = "81 EC B8 00 00 00 53 8B"
+source = "Slot 3 of the +4 vtable (this = object + 4). 0x26D31EC1: slot 40 (DoPostCityInit). 0x2A612643: with a window manager, re-posted to itself (0x00743400) while the manager's slot 42 is true, else slot 89 with (0, 1, 1). 0x470BD214: erosion 0x00747B20 (data 1, 0), then slot 68 (1, 1, the whole rectangle, 1). 0x86AD10EE: the tick 0x0074A390 with data 2. 0xA6B79602: the dword at void 2 into +0xBC when different, then the refresh 0x007490B0 of the whole rectangle. 0x66956816, 0x6716A4E6: nothing. 0x0C4A6AF0 to 0x0C4A6AF6: the seven cheat commands (void 1 the arguments, void 2 the answer). Always true. Ours in simulators.terrain.messages (src/core/terrain_messages.cpp)."
+
+[[entry]]
+name = "cSTETerrain::Tick"
+address = 0x0074A390
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t elapsed)"
+expect = "56 8B F1 8B 86 E8 00 00"
+source = "Name ours. The timer message's work: with a view, the counter +0xD8 up to 2 and at 2 either message 0x2A612643 to itself (the options' byte +0x4EC set) or message 0xCA63D517 with zeros; the flood step 0x007467F0 while +0xD4 is set; the pending rectangles (0x00749AF0); +0xA8 += elapsed and, from 10,000,000 on, 0x007440C0 with the whole rectangle unless the rectangle +0xAC is the empty one. Only DoMessage calls it; ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::UpdatePendingRects"
+address = 0x00749AF0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t elapsed)"
+expect = "83 EC 10 57 8B F9 8B 87"
+source = "Name ours. Walks the list +0x1B0 (nodes: next, previous, a rectangle, two timers): the first timer += elapsed; from 0x00B0D624 on the rectangle joins the bounds, loses flag 0x400 (0x007409B0) and its node is unlinked and freed; else the second timer += elapsed and from 0x00B0D628 on it is reset and the rectangle joins the bounds. A non-empty bounds rectangle is refreshed (0x007490B0) and redisplayed (slot 68 with 0, 0, bounds, 0). Only 0x0074A390 calls it; ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::PostMessageTo"
+address = 0x00743400
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t type, void* target)"
+expect = "57 8B 3D CC 3C B4 00 85"
+source = "Name ours. A new cRZMessage2Standard of the type given to the message server's slot 7 (+0x1C) with the target, then released; nothing without a message server. Called at 0x0074A3CC and 0x0074A52F (both ours now); ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::WholeRect"
+address = 0x00741660
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, int32_t* rect)"
+expect = "8B 44 24 04 C7 40 04 00"
+source = "Name ours. rect = 0, 0, cells x, cells z."
+
+[[entry]]
+name = "cSTETerrain::VertexInGrid"
+address = 0x007404E0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSTETerrain* this, uint32_t x, uint32_t z)"
+expect = "8B 44 24 04 3B 41 38 73"
+source = "Name ours. 1 when x is below +0x38 and z below +0x3C (unsigned), else 0. The cell commands test it."
+
+[[entry]]
+name = "cSTETerrain::Erode"
+address = 0x00747B20
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t kind, bool strong)"
+expect = "8B 44 24 04 85 C0 56 8B"
+source = "Name ours. The erosion message's worker: kind 0 runs 0x00746AD0 a number of times and then 0x00746F40 (two parameter sets by the byte), kind 1 runs 0x00746F40 with 0x00B0D594; other kinds nothing. The game's (a later piece); called at its address."
+
+[[entry]]
+name = "cSTETerrain::FloodStep"
+address = 0x007467F0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "A0 80 BD B4 00 83 EC 0C"
+source = "Name ours. The flood worker (slot 56 jumps to it); the tick calls it while +0xD4 is set. The game's (a later piece); called at its address."
+
+[[entry]]
+name = "cSTETerrain::UpdateWaterDistances"
+address = 0x007440C0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* rect)"
+expect = "8B 44 24 04 8B 91 AC 00"
+source = "Name ours. Joins the rectangle into the changed rectangle +0xAC; once that covers 100 or more (width x height) it resets +0xA8 and +0xAC, recounts the water vertices (+0xE4) and refills the rows +0x190 with each vertex's distance from water (0 on water; 0x005E5180 spreads it). The tick calls it with the whole rectangle once +0xA8 has reached 10,000,000. The game's; called at its address."
+
+[[entry]]
+name = "cSTETerrain::PendingExpiry"
+address = 0x00B0D624
+kind = "data"
+source = "Name ours. uint32: a pending rectangle's first timer at or above it ends the rectangle (0x00749AF0)."
+
+[[entry]]
+name = "cSTETerrain::PendingRepeat"
+address = 0x00B0D628
+kind = "data"
+source = "Name ours. uint32: a pending rectangle's second timer at or above it is reset and the rectangle refreshed (0x00749AF0)."
+
+[[entry]]
+name = "SC4::FloatSixteenth"
+address = 0x00A8E174
+kind = "data"
+expect = "00 00 80 3D 00 00 00 41"
+source = "Name ours. Float 0.0625 in .rdata: the SetAltitude command's position to vertex."
+
+[[entry]]
+name = "SC4ScriptNumber::FromFloat"
+address = 0x00915E0B
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* number, float value)"
+expect = "8B 54 24 04 8B C1 33 C9"
+source = "Name ours. Constructs a 0x14-byte variant (vtable 0x00ACECD0) holding a float (type word 0xA at +0xE). The terrain's commands answer with one; destroyed by 0x00915EB5."
+
+[[entry]]
+name = "SC4BrushParameters::Construct"
+address = 0x004D8B90
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* parameters)"
+expect = "8B C1 B9 00 00 80 3F C7"
+source = "Name ours. tBrushParameters' defaults (0x38 bytes): +0x10 = -1, +0x14 = 1 (byte), +0x18 = +0x1C = 1.0f, +0x20 = 3, +0x34 = 100.0f. The terrain's ApplyBrush command starts from it."
+
+[[entry]]
+name = "cSTETerrain::ReconcileEdgesWithNeighboringCities"
+address = 0x0074ED40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, bool report, bool ask, bool arg3)"
+expect = "83 EC 38 57 8B F9 E8 45"
+source = "Name from gzcom-dll cISTETerrain.h by slot. Slot 89. Nothing unless the application's slot 23 is true (0x005F9090). Finds the edge vertices that differ from the neighbours' (0x0074D010 into a set, with arg3); with none and report set, the dialog 0x00734FB0/0x00734FE0; with some, asks (0x00735250/0x00734E10) when report is clear and ask set, then 0x0074B0D0, with ask 0x0074B2D0 and the dialog 0x007350F0/0x00735120 and the view's +0xC slot 9, then applies (0x00748C90); message 0xCA63D517 (report, found, done, 0) at the end. DoMessage calls it with (0, 1, 1). Ours in simulators.terrain.messages; everything it calls stays the game's."
+
+[[entry]]
+name = "cSTETerrain::FindEdgeDifferences"
+address = 0x0074D010
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, void* set, bool arg)"
+expect = "83 EC 68 53 55 56 57 33"
+source = "Name ours, not analysed (1,233 bytes). Fills a set with what differs along the edges from the neighbouring cities' saved edges. The game's; called at its address."
+
+[[entry]]
+name = "cSTETerrain::CollectEdgeChanges"
+address = 0x0074B0D0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, void* set, void* hashA, void* hashB)"
+expect = "83 EC 3C 8B 44 24 40 8B"
+source = "Name ours, not analysed (499 bytes). ReconcileEdges calls it with the set and its two hash sets. The game's; called at its address."
+
+[[entry]]
+name = "cSTETerrain::PrepareEdgeChanges"
+address = 0x0074B2D0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, void* hashA)"
+expect = "83 EC 14 53 55 33 DB 8B"
+source = "Name ours, not analysed (258 bytes). The game's; called at its address."
+
+[[entry]]
+name = "cSTETerrain::ApplyEdgeChanges"
+address = 0x00748C90
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, void* set, void* hashB)"
+expect = "83 EC 1C A1 98 D6 B0 00"
+source = "Name ours, not analysed (504 bytes). The game's; called at its address."
+
+[[entry]]
+name = "cSTETerrain::FreeEdgeNodes"
+address = 0x007439D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* set, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Frees a subtree of the edge set's nodes (as 0x00743990 for the scrub set). Generic tree code of this class; called at its address."
+
+[[entry]]
+name = "SC4EdgeDialog::ConstructNone"
+address = 0x00734FB0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* dialog)"
+expect = "8B C1 C7 00 94 38 AB 00"
+source = "Name ours. An 8-byte reference-counted helper of ReconcileEdges (nothing to reconcile)."
+
+[[entry]]
+name = "SC4EdgeDialog::ShowNone"
+address = 0x00734FE0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* dialog)"
+expect = "83 EC 10 53 55 57 8B E9"
+source = "Name ours. Run by ReconcileEdges when nothing differs and it was asked to report."
+
+[[entry]]
+name = "SC4EdgeDialog::ConstructAsk"
+address = 0x00735250
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* dialog)"
+expect = "8B C1 C7 00 84 38 AB 00"
+source = "Name ours. An 8-byte reference-counted helper of ReconcileEdges (the question)."
+
+[[entry]]
+name = "SC4EdgeDialog::Ask"
+address = 0x00734E10
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* dialog)"
+expect = "83 EC 1C 53 55 57 8B E9"
+source = "Name ours. The question before reconciling; false without the main window (0x00B43CC0)."
+
+[[entry]]
+name = "SC4EdgeDialog::ConstructConfirm"
+address = 0x007350F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* dialog)"
+expect = "8B C1 C7 00 A4 38 AB 00"
+source = "Name ours. An 8-byte reference-counted helper of ReconcileEdges (the second question)."
+
+[[entry]]
+name = "SC4EdgeDialog::Confirm"
+address = 0x00735120
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* dialog)"
+expect = "83 EC 10 53 55 57 89 4C"
+source = "Name ours. The second question of ReconcileEdges."
+
+[[entry]]
+name = "cSTETerrain::Write"
+address = 0x00745300
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZOStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Slot 3 of the +8 vtable (this = object + 8): uint16 version 2, a reference to the view's +0x14 part (0x005D99A0; none without a view), then the stream's database segment (interface 0x6999A8FB, its slot 25 then that object's slot 3) given to slot 97. Ours in simulators.terrain.save (src/core/terrain_save.cpp)."
+
+[[entry]]
+name = "cSTETerrain::Read"
+address = 0x00745380
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZIStream* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Slot 4 of the +8 vtable: the version (false above 2), the view reference into +0xE8 (0x005D9730 with 0xC9B84E10), the stream's segment (0x0045BA70) given to slot 96."
+
+[[entry]]
+name = "cSTETerrain::SaveObliterated"
+address = 0x00742150
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, cIGZPersistDBSegment* segment)"
+expect = "68 E7 FF 00 00 8D 41 40"
+source = "Name ours. Slot 90: every vertex's flags cut down to 0x18 (0x007409B0 with the whole rectangle and 0xFFE7), then slot 97. cSC4City::SaveObliterated (0x00459970) calls it."
+
+[[entry]]
+name = "cSTETerrain::Load"
+address = 0x00742170
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, cIGZPersistDBSegment* segment)"
+expect = "8B 01 FF A0 80 01 00 00"
+source = "Name ours. Slot 95: a jump to slot 96 through the vtable."
+
+[[entry]]
+name = "cSTETerrain::LoadFromSegment"
+address = 0x00747800
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, cIGZPersistDBSegment* segment)"
+expect = "56 57 8B 7C 24 0C 57 8B"
+source = "Name ours. Slot 96: the header (0x00745490), the altitudes (0x007455F0) and the flags (0x00745760), each only when the one before succeeded; +0x68 = the last answer; true."
+
+[[entry]]
+name = "cSTETerrain::SaveToSegment"
+address = 0x007477C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, cIGZPersistDBSegment* segment)"
+expect = "53 8B 5C 24 08 56 57 53"
+source = "Name ours. Slot 97: the header (0x007453E0), the altitudes (0x00745560), the flags (0x007456D0) and the four edges (0x00745800 with 0 to 3); true."
+
+[[entry]]
+name = "cSTETerrain::WriteHeader"
+address = 0x007453E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, cIGZPersistDBSegment* segment)"
+expect = "8B 44 24 04 83 EC 10 56"
+source = "Name ours. Record 0x8A91E7E3 / 0xE98F9525 / 3, version 2: uint32 vertices per row (+0x38), uint32 rows (+0x3C), int32 terrain type (+0x18), floats +0x70, +0x74, +0x78. False when the record does not open."
+
+[[entry]]
+name = "cSTETerrain::ReadHeader"
+address = 0x00745490
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, cIGZPersistDBSegment* segment)"
+expect = "8B 44 24 04 83 EC 10 56"
+source = "Name ours. Reads the header record back; below version 2 a terrain type of 1 or more becomes 0; +0x5C = rows x vertices per row."
+
+[[entry]]
+name = "cSTETerrain::WriteAltitudes"
+address = 0x00745560
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, cIGZPersistDBSegment* segment)"
+expect = "8B 44 24 04 83 EC 10 56"
+source = "Name ours. Record 0xA9DD6FF4 / 0xE98F9525 / 1, version 2: every vertex's altitude (float), rows first."
+
+[[entry]]
+name = "cSTETerrain::ReadAltitudes"
+address = 0x007455F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, cIGZPersistDBSegment* segment)"
+expect = "8B 44 24 04 83 EC 10 56"
+source = "Name ours. Version 2 only. Allocates the vertex array when there is none (operator new, the array constructor 0x0041D490 with 0x00741950, zeroed), then reads the altitudes."
+
+[[entry]]
+name = "cSTETerrain::WriteFlags"
+address = 0x007456D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, cIGZPersistDBSegment* segment)"
+expect = "8B 44 24 04 83 EC 10 56"
+source = "Name ours. Record 0x8A91E7E0 / 0xE98F9525 / 2, version 1: every vertex's flags word (uint16)."
+
+[[entry]]
+name = "cSTETerrain::ReadFlags"
+address = 0x00745760
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, cIGZPersistDBSegment* segment)"
+expect = "8B 44 24 04 83 EC 10 56"
+source = "Name ours. Version 1 only, and only with a vertex array."
+
+[[entry]]
+name = "cSTETerrain::WriteEdge"
+address = 0x00745800
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t edge, cIGZPersistDBSegment* segment)"
+expect = "83 EC 10 55 8B 6C 24 18"
+source = "Name ours. Record 0xA9DD6FF4 / 0xE98F9525 / 0x64 + edge, version 1: uint32 count, then that many altitudes: edge 0 the column x = 0, 2 the column x = cells x (count = rows); 1 the row z = 0, 3 the row z = cells z (count = vertices per row). The neighbours' edges are read from these."
+
+[[entry]]
+name = "SC4Stream::GetSegment"
+address = 0x0045BA70
+kind = "function"
+convention = "cdecl"
+signature = "cIGZPersistDBSegment* (cIGZIStream* stream)"
+expect = "51 8B 4C 24 08 8B 01 56"
+source = "Name ours. The database segment behind a stream (interface 0x4999A8F5); the terrain's Read gives it to slot 96. Generic; called at its address."

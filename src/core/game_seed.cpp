@@ -31,6 +31,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/save_app.h"
 #include "core/seed_code.h"
 #include "core/settings.h"
 
@@ -187,7 +188,7 @@ bool __fastcall LoadCity(void* self, void* edx, void* path, void* city)
 {
     Reseed("city loads");
     g_loading = true;
-    const bool ok = g_loadCity(self, edx, path, city);
+    const bool ok = saves::LoadCity(reinterpret_cast<void*>(g_loadCity), self, edx, path, city);
     g_loading = false;
     return ok;
 }
