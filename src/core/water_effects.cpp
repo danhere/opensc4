@@ -334,6 +334,7 @@ uint32_t DescCallee(uint32_t target, uint32_t a, const std::function<uint32_t()>
 // The same for the second class's version, which notes the base class's as one call.
 bool BNoting();
 bool BBusy();
+uint32_t PartDescriptionByMode(char* part, uint32_t description);
 uint32_t BCallee(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real,
                  uint32_t out = 0);
 Call1Fn g_beforeDraw = nullptr, g_stepShake = nullptr, g_decalDraw = nullptr;
@@ -2478,6 +2479,9 @@ OPENSC4_THUNK(TSC4Effect_SetField1E8, SetField1E8ByMode, 4)
 
 uint32_t __fastcall HoldByMode(char* self, void*)
 {
+    if (BNoting())
+        return BCallee(addr::SC4Effect_Hold, reinterpret_cast<uint32_t>(self), 0, 0,
+                       [&] { return g_SC4Effect_Hold(self, nullptr); });
     if (DescNoting())
         return DescCallee(addr::SC4Effect_Hold, reinterpret_cast<uint32_t>(self),
                           [&] { return g_SC4Effect_Hold(self, nullptr); });
@@ -2813,6 +2817,9 @@ uint32_t DescCallee(uint32_t target, uint32_t a, const std::function<uint32_t()>
 
 uint32_t __fastcall DSC4EffectDescription_Release(char* self, void*)
 {
+    if (BNoting())
+        return BCallee(addr::SC4EffectDescription_Release, reinterpret_cast<uint32_t>(self), 0, 0,
+                       [&] { return g_SC4EffectDescription_Release(self, nullptr); });
     if (DescNoting())
         return DescCallee(addr::SC4EffectDescription_Release, reinterpret_cast<uint32_t>(self),
                           [&] { return g_SC4EffectDescription_Release(self, nullptr); });
@@ -3386,7 +3393,8 @@ OPENSC4_THUNK(TSC4EffectPartB_Place, DSC4EffectPartB_Place, 4)
 uint32_t __fastcall DSC4EffectPartB_SetDescription(char* part, void*, uint32_t description)
 {
     if (!BNoting() || part != g_bSelf + kEffectPartB)
-        return g_SC4EffectPartB_SetDescription(part, nullptr, description);
+        return BBusy() ? g_SC4EffectPartB_SetDescription(part, nullptr, description)
+                       : PartDescriptionByMode(part, description);
     return BCallee(addr::SC4EffectPartB_SetDescription, description, 0, 0,
                    [&] { return g_SC4EffectPartB_SetDescription(part, nullptr, description); });
 }
@@ -4034,6 +4042,121 @@ uint32_t __fastcall DSC4EffectBaseB_GiveBackParticle(char* base, void*, uint32_t
     return EffectRecorded(addr::SC4EffectBaseB_GiveBackParticle, &GiveBackBByMode, base, particle);
 }
 OPENSC4_THUNK(TSC4EffectBaseB_GiveBackParticle, DSC4EffectBaseB_GiveBackParticle, 4)
+
+// Two setters of what an effect holds, written by hand. Both do nothing
+// when given what is held already; else the new one is held first, kept,
+// and the old one let go. The effect's object at +0x1EC (0x005B26B0; the
+// effects manager calls it) is held and let go through its own slots 4 and
+// 8; the description of the second class's part (0x005AC110, the part's
+// +0x40) through SC4Effect::Hold and SC4EffectDescription::Release.
+uint32_t SetEffectObject(char* self, uint32_t object)
+{
+    const uint32_t old = At<uint32_t>(self, 0x1EC);
+    if (object == old)
+        return object;
+    if (object) {
+        char* const held = reinterpret_cast<char*>(object);
+        BOurs(0x1004, object, 0, 0, [&] { return CallThis<uint32_t>(At<uint32_t>(At<char*>(held, 0), 0x4), held); });
+    }
+    At<uint32_t>(self, 0x1EC) = object;
+    if (old) {
+        char* const let = reinterpret_cast<char*>(old);
+        return BOurs(0x8, old, 0, 0, [&] { return CallThis<uint32_t>(At<uint32_t>(At<char*>(let, 0), 0x8), let); });
+    }
+    return object;
+}
+
+uint32_t SetPartDescription(char* part, uint32_t description)
+{
+    const uint32_t old = At<uint32_t>(part, 0x40);
+    if (description == old)
+        return description;
+    if (description)
+        BOurs(addr::SC4Effect_Hold, description, 0, 0,
+              [&] { return CallThis<uint32_t>(addr::SC4Effect_Hold, reinterpret_cast<char*>(description)); });
+    At<uint32_t>(part, 0x40) = description;
+    if (old)
+        return BOurs(addr::SC4EffectDescription_Release, old, 0, 0, [&] {
+            return CallThis<uint32_t>(addr::SC4EffectDescription_Release, reinterpret_cast<char*>(old));
+        });
+    return description;
+}
+
+// Their comparison is the noted one, the game's first: the holding and the
+// letting go are noted (the object's through copies of the two objects'
+// tables of functions, the description's through the detours those two
+// functions have), then the field is put back and ours is replayed.
+StepMode g_holdersMode = StepMode::Original;
+Call1Fn g_SC4Effect_SetObject = nullptr;
+
+uint32_t __fastcall BAddRef(char* object, void*)
+{
+    const uint32_t real = BRealSlot(object, 0x4);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object);
+    return BCallee(0x1004, reinterpret_cast<uint32_t>(object), 0, 0, [&] { return CallThis<uint32_t>(real, object); });
+}
+
+template <typename Game, typename Ours>
+uint32_t HolderCompared(const char* id, char* at, std::size_t size, Game&& game, Ours&& ours)
+{
+    g_bSelf = at;
+    g_bRegions = {{at, size}};
+    g_bThread = GetCurrentThreadId();
+    const std::vector<char> before = BSaveRegions();
+    g_bGameCalls.clear();
+    g_bRecord = true;
+    const uint32_t result = game();
+    g_bRecord = false;
+    const std::vector<char> after = BSaveRegions();
+    std::memcpy(at, before.data(), size);
+    g_bOurCalls.clear();
+    g_bReplay = true;
+    ours();
+    g_bReplay = false;
+    const std::vector<char> mine = BSaveRegions();
+    std::memcpy(at, after.data(), size);
+    for (const auto& [object, standIn] : g_bReal)
+        At<uint32_t>(object, 0) = standIn.real;
+    g_bReal.clear();
+    const bool same = g_bGameCalls == g_bOurCalls && after == mine;
+    char text[48];
+    std::snprintf(text, sizeof text, "%zu calls", g_bGameCalls.size());
+    const std::string theirs = text;
+    std::snprintf(text, sizeof text, "%zu calls%s", g_bOurCalls.size(), after == mine ? "" : ", bytes differ");
+    compare::Record(id, same, same ? std::string() : theirs, same ? std::string() : std::string(text));
+    return result;
+}
+
+uint32_t __fastcall SetObjectByMode(char* self, void*, uint32_t object)
+{
+    if (g_holdersMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
+        BBusy())
+        return g_SC4Effect_SetObject(self, nullptr, object);
+    if (g_holdersMode == StepMode::Ours)
+        return SetEffectObject(self, object);
+    const uint32_t old = At<uint32_t>(self, 0x1EC);
+    if (object != old) {
+        BSwap(reinterpret_cast<char*>(object), 0x4, reinterpret_cast<uint32_t>(&BAddRef));
+        BSwap(reinterpret_cast<char*>(old), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    }
+    return HolderCompared(
+        object == old ? "effects.holders.object.same" : "effects.holders.object", self, 0x1F0,
+        [&] { return g_SC4Effect_SetObject(self, nullptr, object); }, [&] { return SetEffectObject(self, object); });
+}
+OPENSC4_THUNK(TSC4Effect_SetObject, SetObjectByMode, 4)
+
+uint32_t PartDescriptionByMode(char* part, uint32_t description)
+{
+    if (g_holdersMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay)
+        return g_SC4EffectPartB_SetDescription(part, nullptr, description);
+    if (g_holdersMode == StepMode::Ours)
+        return SetPartDescription(part, description);
+    return HolderCompared(
+        description == At<uint32_t>(part, 0x40) ? "effects.holders.part.same" : "effects.holders.part", part, 0x44,
+        [&] { return g_SC4EffectPartB_SetDescription(part, nullptr, description); },
+        [&] { return SetPartDescription(part, description); });
+}
 OPENSC4_EFFECT_HOOK1(SC4Effect_SpawnFromParticle)
 
 // A particle effect's draw (0x005B8540, slot 0x24 of both effect classes),
@@ -5624,8 +5747,9 @@ bool InstallDescriptionB(registry::Mode mode)
            Detour(addr::SC4EffectB_LoadModel, &TSC4EffectB_LoadModel, &g_SC4EffectB_LoadModel)) &&
           Detour(addr::SC4EffectPartB_Attach, &TSC4EffectPartB_Attach, &g_SC4EffectPartB_Attach) &&
           Detour(addr::SC4EffectPartB_Place, &TSC4EffectPartB_Place, &g_SC4EffectPartB_Place) &&
-          Detour(addr::SC4EffectPartB_SetDescription, &TSC4EffectPartB_SetDescription,
-                 &g_SC4EffectPartB_SetDescription)))
+          (g_SC4EffectPartB_SetDescription ||
+           Detour(addr::SC4EffectPartB_SetDescription, &TSC4EffectPartB_SetDescription,
+                  &g_SC4EffectPartB_SetDescription))))
         return false;
     g_descModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: second effect class taking a description %s",
@@ -5720,6 +5844,40 @@ const bool g_registeredGiveBackB = registry::Register({
     "replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallGiveBackB,
+});
+
+bool InstallHolders(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !((g_SC4Effect_SetObject ||
+           Detour(addr::SC4Effect_SetObject, &TSC4Effect_SetObject, &g_SC4Effect_SetObject)) &&
+          (g_SC4EffectPartB_SetDescription ||
+           Detour(addr::SC4EffectPartB_SetDescription, &TSC4EffectPartB_SetDescription,
+                  &g_SC4EffectPartB_SetDescription))))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !((g_SC4Effect_Hold || Detour(addr::SC4Effect_Hold, &TSC4Effect_Hold, &g_SC4Effect_Hold)) &&
+          (g_SC4EffectDescription_Release ||
+           Detour(addr::SC4EffectDescription_Release, &TSC4EffectDescription_Release,
+                  &g_SC4EffectDescription_Release))))
+        return false;
+    g_holdersMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: two setters of what an effect holds %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredHolders = registry::Register({
+    "renderer.effects.holders",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_SetObject,
+    "Two setters of what an effect holds, its object at +0x1EC and its part's description: the new one held, the "
+    "old one let go; compare mode runs the game's with those noted and replays ours (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallHolders,
 });
 
 bool InstallGround(registry::Mode mode)
