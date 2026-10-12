@@ -14,6 +14,7 @@ add_library(opensc4_core_support STATIC
   log.cpp
   registry.cpp
   date_sync_region.cpp
+  foreign_sites.cpp
   growify_command.cpp
   seed_code.cpp
   settings.cpp)

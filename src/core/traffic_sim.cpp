@@ -7490,6 +7490,14 @@ void __fastcall SetWay(void* self, void*, int32_t x, int32_t z, uint32_t from, u
         reinterpret_cast<const uint16_t*>(addr::SC4Traffic_RoadSideMask)[from];
 }
 
+// SetWay through the game's entry: our detour when it is installed, the
+// game's own function when NAM patched it and the hook layer left it alone.
+void CallSetWay(void* self, int32_t x, int32_t z, uint32_t from, uint32_t to, uint32_t type)
+{
+    using SetWayFn = void(__thiscall*)(void*, int32_t, int32_t, uint32_t, uint32_t, uint32_t);
+    reinterpret_cast<SetWayFn>(addr::cSC4TrafficSimulator_SetWay)(self, x, z, from, to, type);
+}
+
 // 0x0070EB60: the pending rectangle (+0x820, flag +0x81C) grown to take in
 // another.
 void __fastcall MarkPending(void* self, void*, int32_t x0, int32_t z0, int32_t x1, int32_t z1)
@@ -7708,7 +7716,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
                     ++ways;
                     for (uint32_t t = 0; t < 9; ++t) {
                         if (networkOf[t] == index)
-                            SetWay(self, nullptr, cx, cz, a, a, t);
+                            CallSetWay(self, cx, cz, a, a, t);
                     }
                 }
                 if (!static_cast<uint16_t>(ways))
@@ -7790,7 +7798,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
                             continue;
                         for (uint32_t k = 0; k < 4; ++k) {
                             if (part[1 + k])
-                                SetWay(self, nullptr, x, z, k, d, At<uint16_t>(const_cast<char*>(part), 8));
+                                CallSetWay(self, x, z, k, d, At<uint16_t>(const_cast<char*>(part), 8));
                         }
                     }
                     continue;
@@ -7810,7 +7818,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
                         if (edge) {
                             if (fromType == toType) {
                                 for (uint32_t k = 0; k < 4; ++k)
-                                    SetWay(self, nullptr, x, z, k, d, fromType);
+                                    CallSetWay(self, x, z, k, d, fromType);
                             } else {
                                 const uint32_t shift = (d << 2) & 0xFFFF;
                                 uint16_t& nibbles = At<uint16_t>(cell, 0x12 + 2 * fromType);
@@ -7823,7 +7831,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
                             const uint16_t ways = At<uint16_t>(neighbour, 2 * toType);
                             for (uint32_t j = 0; j < 4; ++j) {
                                 if (ways & (1u << ((k + 4 * j) & 31))) {
-                                    SetWay(self, nullptr, nx, nz, side, k, toType);
+                                    CallSetWay(self, nx, nz, side, k, toType);
                                     break;
                                 }
                             }
@@ -7842,7 +7850,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
                     } else {
                         for (uint32_t j = 0; j < 4; ++j) {
                             if (At<uint16_t>(neighbour, 2 * fromType) & (0xFu << (4 * j)))
-                                SetWay(self, nullptr, nx, nz, j, side, fromType);
+                                CallSetWay(self, nx, nz, j, side, fromType);
                         }
                     }
                     if (fromType == 1) {
@@ -7852,7 +7860,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
                             const uint16_t ways = At<uint16_t>(neighbour, 2);
                             for (uint32_t j = 0; j < 4; ++j) {
                                 if (ways & (1u << ((k + 4 * j) & 31))) {
-                                    SetWay(self, nullptr, nx, nz, side, k, 1);
+                                    CallSetWay(self, nx, nz, side, k, 1);
                                     break;
                                 }
                             }
@@ -7903,7 +7911,7 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
                             if (j == side)
                                 continue;
                             if (ways & (0xFu << (4 * j)))
-                                SetWay(self, nullptr, nx, nz, j, side, t);
+                                CallSetWay(self, nx, nz, j, side, t);
                         }
                     } else {
                         for (uint32_t m = 0; m < 4; ++m)
@@ -7932,14 +7940,14 @@ void __fastcall OnCellsChanged(void* self, void*, int32_t x0, int32_t z0, int32_
                             continue;
                         for (uint32_t m = 0; m < 4; ++m) {
                             if (ways & (1u << ((4 * j + m) & 31))) {
-                                SetWay(self, nullptr, nx, nz, side, m, t);
+                                CallSetWay(self, nx, nz, side, m, t);
                                 any = true;
                             }
                         }
                     }
                     if (any) {
                         for (uint32_t m = 0; m < 4; ++m)
-                            SetWay(self, nullptr, bx, bz, m, d, t);
+                            CallSetWay(self, bx, bz, m, d, t);
                     }
                 } else {
                     for (uint32_t m = 0; m < 4; ++m)

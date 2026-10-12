@@ -13,6 +13,11 @@ target_link_libraries(opensc4_hook_test PRIVATE opensc4_core_support)
 add_test(NAME hook_layer COMMAND opensc4_hook_test)
 set_tests_properties(hook_layer PROPERTIES PASS_REGULAR_EXPRESSION "hook test OK")
 
+add_executable(opensc4_foreign_sites_test foreign_sites_test.cpp)
+target_link_libraries(opensc4_foreign_sites_test PRIVATE opensc4_core_support)
+add_test(NAME foreign_sites COMMAND opensc4_foreign_sites_test)
+set_tests_properties(foreign_sites PROPERTIES PASS_REGULAR_EXPRESSION "foreign sites test OK")
+
 add_executable(opensc4_crash_test crash_test.cpp)
 target_link_libraries(opensc4_crash_test PRIVATE opensc4_core_support)
 add_test(NAME crash_handling COMMAND opensc4_crash_test)

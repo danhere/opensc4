@@ -29,6 +29,10 @@ The address and symbol database is the real critical path. The renderer can be s
 
 Renderer class IDs: DirectX `0xBADB6906`, OpenGL `0xC4554841`, Software `0x7ACA35C6`.
 
+### Patches inside replaced functions
+
+Other DLLs patch the middle of game functions (NAM most of all; [patch-census.md](patch-census.md)). Replacing such a function would silently drop their change. So [`foreign_sites.cpp`](../src/core/foreign_sites.cpp) lists the census's JMP sites inside functions we replace, and the hook layer leaves a function alone when one of its sites jumps into another module or allocated memory, which the game's own code never does: no hook, a log line naming the DLL, the function itself as the original, and the rest of the replacement still applies. Our code calls such functions through the game's entry, never our C++ directly, so it reaches the other DLL's version. Every replacement that takes over a census function adds its sites to the table.
+
 ## Replacement registry
 
 A declarative table generated from the address database. Each row:
@@ -93,7 +97,7 @@ All harnesses, recorded sessions and golden saves live in the repo and run from 
    - Keep a per-DLL compatibility manifest (defer / absorb / chain).
    - Engage the DLL authors early.
    - Offer a registry API so new DLLs hook through `core.dll`.
-2. **NAM dependence.** NAM 50 requires the NAM DLL's rule injection. Networks go late (P7) and only jointly with the NAM team.
+2. **NAM dependence.** NAM 50 requires the NAM DLL's rule injection. Networks go late (P7); Dan decided (2026-10-11) to proceed without the NAM team, with functions NAM patched left to the game.
 3. **Undocumented simulator state.** P4 front-loads it; in-memory dumpers work around it.
 4. **Non-determinism in the original game.** Prove determinism first, or fall back to statistical parity.
 5. **ABI, heap and STL mismatches.** Follow the ABI rules above; use guard pages in debug builds.
