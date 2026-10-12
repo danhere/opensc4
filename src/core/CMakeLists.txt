@@ -261,6 +261,9 @@ add_library(opensc4_core SHARED
   terrain_queries.cpp
   terrain_rest.cpp
   terrain_save.cpp
+  terrain_tables.cpp
+  terrain_tables_autotest.cpp
+  terrain_tables_ini.cpp
   view_objects.cpp
   water_effects.cpp
   d3d7_probe.cpp

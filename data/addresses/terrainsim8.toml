@@ -1,0 +1,360 @@
+# cSTETerrain (build 641), piece 8: the three startup table loaders 0x0074FE40 runs besides the brush loader
+# (src/core/terrain_tables.cpp: the texture exemplars and the tuning exemplar; src/core/terrain_tables_ini.cpp: the
+# INI resource) and what they write. New names only. Reused: cSTETerrain::ResourceManager, ::Random, ::StaticsDone,
+# ::InverseCellWidth, ::CellWidthFloat and the tuning globals earlier pieces named (terrainsim.toml to
+# terrainsim7.toml); the property getters, curve, vector, string and ini file functions of core.toml, crime.toml,
+# traffic.toml, flora.toml, region.toml, ui.toml, scripts.toml, ordinance.toml and audio.toml.
+
+[[entry]]
+name = "cSTETerrain::LoadTextureExemplars"
+address = 0x0074F410
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "51 A1 40 BC B4 00 85 C0"
+source = "Name ours. The first of the four loaders of 0x0074FE40 (its only caller, 0x0074FE7A): nothing without the resource manager 0x00B4BC40; else zeroes 0x00B4BC44, lists the exemplars of type 0x6534284A, group 0x89C2A517 (a key filter 0x00682020, the resource manager's slot 17), has the list call 0x0074F180 for each (its slot 7) and adds 1 to 0x00B4BC44. Ours in simulators.terrain.tables_exemplars (src/core/terrain_tables.cpp)."
+
+[[entry]]
+name = "cSTETerrain::LoadTextureExemplar"
+address = 0x0074F180
+kind = "function"
+convention = "cdecl"
+signature = "void (const uint32_t* key, void* context)"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. The key list's callback of 0x0074F410 (its address occurs only there): keeps the greatest instance in 0x00B4BC44, finds or inserts the instance's record in the hash map 0x00B4BCDC (0x00748E90, 0x004F0940, 0x0074BFB0, 0x00748920, 0x007488F0), and reads the exemplar: property 0x09C2AEF0 (float) to the record's +0, and for i = 0 to 4 property 0x09C2AEF3 + i (float pairs) into the curve +4 + 0x10 i (0x005F4480), the last pair's x to +0x68 + 4 i and its ceiling in cells to +0x54 + 4 i and into the maxima 0x00B4BC48. Ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::TextureRecordCopy"
+address = 0x00748E90
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* record, const void* other)"
+expect = "53 55 56 57 8B 7C 24 14"
+source = "Name ours. Copy constructor of a texture record (0x7C bytes: a float, five curves copied through 0x005F4430, five dwords at +0x54 and five at +0x68), RET 4. Only 0x0074F180 and the map's insert call it. The game's; called at its address by our loader."
+
+[[entry]]
+name = "cSTETerrain::TextureMapInsert"
+address = 0x0074BFB0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map, void* result, const void* pair)"
+expect = "8B 44 24 08 53 55 56 8B"
+source = "Name ours. Insert into the hash map 0x00B4BCDC of a pair (instance, record of 0x7C bytes; node 0x84 bytes: next, key, record): the new node goes to the head of its bucket; the result is 9 bytes (node, map, inserted byte), RET 8. Only 0x0074F180 calls it. The game's; called at its address by our loader."
+
+[[entry]]
+name = "cSTETerrain::TexturePairDestruct"
+address = 0x00748920
+kind = "function"
+convention = "thiscall"
+signature = "void (void* pair)"
+expect = "56 57 8D 71 58 BF 05 00"
+source = "Name ours. Destructor of an (instance, texture record) pair: frees the five curves' points, the last first. Only 0x0074F180 calls it. The game's; called at its address by our loader."
+
+[[entry]]
+name = "cSTETerrain::TextureRecordDestruct"
+address = 0x007488F0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* record)"
+expect = "56 57 8D 71 54 BF 05 00"
+source = "Name ours. Destructor of a texture record: frees the five curves' points, the last first. Only 0x0074F180 calls it. The game's; called at its address by our loader."
+
+[[entry]]
+name = "cSTETerrain::LoadTuning"
+address = 0x0074B6A0
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "83 EC 14 8B 0D A8 3C B4"
+source = "Name ours. The third of the four loaders of 0x0074FE40 (its only caller, 0x0074FE84): the tuning exemplar (type 0x6534284A, group 0x88CD66E9, instance 1, from the resource manager 0x00B43CA8) into globals: property 0x89A312C2 then the random tables (0x0074B460), then 0x48CD7B20 and on (the list is in src/core/terrain_tables.cpp). Ours in simulators.terrain.tables_tuning."
+
+[[entry]]
+name = "cSTETerrain::FillNoiseTables"
+address = 0x0074B460
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "83 EC 10 53 55 56 57 33"
+source = "Name ours (what the tables are for is not established). For k = 0 to 4: side = 0x101 / (the k-th dword of the vector 0x00B4BC90) + 1 into 0x00B4BC20 + 4 k; the uint16 vector 0x00B4BC9C + 0xC k resized to side x side (0x00465760 with zeros, or cut); every element drawn in row order with cRZRandom::Between(0, 0xFFFF) from the generator 0x00B4BC78. Only 0x0074B6A0 calls it (0x0074B6FD). Ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::LoadIni"
+address = 0x0074DC30
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "81 EC 84 00 00 00 53 33"
+source = "Name ours. The second of the four loaders of 0x0074FE40 (its only caller, 0x0074FE7F): the INI resource of type 0, group 0x8A5971C5, instance 0xAA597172 (0x005F9670, an ini file reader on the record 0x0091CF46): the section <prefix>TextureMapTable through 0x0074D5A0, <prefix>MiscTextures through 0x0074C800, then MiscTerrainTunables, WindErosion (TalusAngle with FPTAN at 0x0074E1DA) and Hydrology keys into globals. Ours in simulators.terrain.tables_ini (src/core/terrain_tables_ini.cpp)."
+
+[[entry]]
+name = "cSTETerrain::LoadMiscTextures"
+address = 0x0074C800
+kind = "function"
+convention = "cdecl"
+signature = "void (cRZIniFile* ini)"
+expect = "81 EC CC 00 00 00 53 55"
+source = "Name ours. For the one prefix string 0x00B4BC64: the section <prefix>MiscTextures; its keys HighCliff, LowCliff and Beach (the reader's slot 6) into 0x00B4B418, 0x00B4B414 and 0x00B4B410 and into the sorted list 0x00B4BCD8, then the IDs 0x13, 0x14, 0xE0, 0x11, 0x10 and 0x15 into that list. Only 0x0074DC30 calls it (0x0074DD2B). Ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::TextureMapRow"
+address = 0x0074D5A0
+kind = "function"
+convention = "cdecl"
+signature = "void (cIGZString* key, cIGZString* value, uint32_t context)"
+expect = "83 EC 3C 53 55 56 33 F6"
+source = "Name ours. The entry callback 0x0074DC30 gives cRZIniFile::ForEachEntry for the section <prefix>TextureMapTable (its address occurs only there): the key is the row, the value sixteen numbers cut at commas (0x0090E98C) into 0x00B4B420 + 64 (row + 32 context), each also into the sorted list 0x00B4BCD8 + 4 context. Ours has its own copy."
+
+[[entry]]
+name = "cRZIniFile::ConstructFromRecord"
+address = 0x0091CF46
+kind = "function"
+convention = "thiscall"
+signature = "cRZIniFile* (cRZIniFile* this, void* record)"
+expect = "56 8B F1 8D 4E 04 C7 06"
+source = "Name ours. Constructor of the ini file reader (0x3C bytes, vtable 0x00ACF150) on an open record (kept at +0x34 with a reference; without one it makes a file object of 0x80 bytes), RET 4. The terrain's loader 0x0074DC30 makes one on its stack."
+
+[[entry]]
+name = "cSTETerrain::TextureIDLimit"
+address = 0x00B4BC44
+kind = "data"
+source = "Name ours. uint32, 0 in the exe: the greatest instance among the texture exemplars (group 0x89C2A517) plus 1, set by 0x0074F410; the terrain view sizes five arrays by it (0x00B4C670 on)."
+
+[[entry]]
+name = "cSTETerrain::TextureReachMax"
+address = 0x00B4BC48
+kind = "data"
+source = "Name ours. uint32[5], zeros in the exe: per curve index the greatest of the texture records' +0x54 values (0x0074F180); never reset."
+
+[[entry]]
+name = "cSTETerrain::TextureRecords"
+address = 0x00B4BCDC
+kind = "data"
+source = "Name ours. A hash map (0x14 bytes: +4 the bucket vector, +0x10 the count; made by a static initializer) from a texture exemplar's instance to its record of 0x7C bytes (node: next, key, record), filled by 0x0074F180."
+
+[[entry]]
+name = "cSTETerrain::NoiseSteps"
+address = 0x00B4BC90
+kind = "data"
+source = "Name ours. vector<uint32_t>: the tuning exemplar's property 0x89A312C2 (0x20, 0x10, 8, 4, 2 in the game's data); 0x0074B460 reads its first five values."
+
+[[entry]]
+name = "cSTETerrain::NoiseSides"
+address = 0x00B4BC20
+kind = "data"
+source = "Name ours. uint32[5], zeros in the exe: 0x101 / step + 1 per table (0x0074B460)."
+
+[[entry]]
+name = "cSTETerrain::NoiseTables"
+address = 0x00B4BC9C
+kind = "data"
+source = "Name ours. vector<uint16_t>[5] (0xC bytes each): side x side random words each, drawn by 0x0074B460."
+
+[[entry]]
+name = "cSTETerrain::TextureIDs"
+address = 0x00B4BCD8
+kind = "data"
+source = "Name ours. A std::list<uint32_t> (the pointer to its end node; nodes: next, previous, value) kept sorted and without doubles: every texture ID the INI resource names (0x0074D5A0, 0x0074C800)."
+
+[[entry]]
+name = "cSTETerrain::TexturePrefix"
+address = 0x00B4BC64
+kind = "data"
+source = "Name ours. A string object (0x14 bytes, made by a static initializer): the prefix of the INI sections TextureMapTable and MiscTextures (0x0074DC30, 0x0074C800 read its body at +4)."
+
+[[entry]]
+name = "cSTETerrain::TextureMap"
+address = 0x00B4B420
+kind = "data"
+source = "Name ours. uint32[32][16], zeros in the exe: the INI section <prefix>TextureMapTable: a row per key, sixteen texture IDs each (0x0074D5A0)."
+
+[[entry]]
+name = "cSTETerrain::BeachTexture"
+address = 0x00B4B410
+kind = "data"
+source = "Name ours. uint32, 0 in the exe: the INI key Beach of <prefix>MiscTextures (0x0074C800)."
+
+[[entry]]
+name = "cSTETerrain::LowCliffTexture"
+address = 0x00B4B414
+kind = "data"
+source = "Name ours. uint32, 0 in the exe: the INI key LowCliff of <prefix>MiscTextures (0x0074C800)."
+
+[[entry]]
+name = "cSTETerrain::HighCliffTexture"
+address = 0x00B4B418
+kind = "data"
+source = "Name ours. uint32, 0 in the exe: the INI key HighCliff of <prefix>MiscTextures (0x0074C800)."
+
+[[entry]]
+name = "cSTETerrain::Tuning7B22"
+address = 0x00B4BD04
+kind = "data"
+source = "Name ours. vector<float>: the tuning exemplar's property 0x48CD7B22 (0x0074B6A0); empty in the exe."
+
+[[entry]]
+name = "cSTETerrain::Tuning7B23"
+address = 0x00B4BD10
+kind = "data"
+source = "Name ours. vector<float>: the tuning exemplar's property 0x48CD7B23 (0x0074B6A0); empty in the exe."
+
+[[entry]]
+name = "cSTETerrain::Tuning7B24"
+address = 0x00B4BD1C
+kind = "data"
+source = "Name ours. vector<float>: the tuning exemplar's property 0x48CD7B24 (0x0074B6A0); empty in the exe."
+
+[[entry]]
+name = "cSTETerrain::Tuning7B25"
+address = 0x00B4BD28
+kind = "data"
+source = "Name ours. vector<float>: the tuning exemplar's property 0x48CD7B25 (0x0074B6A0); empty in the exe."
+
+[[entry]]
+name = "cSTETerrain::Tuning7B43"
+address = 0x00B4BD34
+kind = "data"
+source = "Name ours. vector<float>: the tuning exemplar's property 0x48CD7B43 (0x0074B6A0); empty in the exe."
+
+[[entry]]
+name = "cSTETerrain::Tuning7BA0"
+address = 0x00B4BD40
+kind = "data"
+source = "Name ours. vector<float>: the tuning exemplar's property 0x48CD7BA0, its first five values multiplied by the double 0x00A9E108 (pi / 180) by 0x0074B6A0; empty in the exe."
+
+[[entry]]
+name = "cSTETerrain::Tuning7B30"
+address = 0x00B4B400
+kind = "data"
+source = "Name ours. float, 0 in the exe: the tuning exemplar's property 0x48CD7B30 (0x0074B6A0)."
+
+[[entry]]
+name = "cSTETerrain::Tuning7B40"
+address = 0x00B4B3F8
+kind = "data"
+source = "Name ours. uint32, 0 in the exe: the tuning exemplar's property 0x48CD7B40 (0x0074B6A0)."
+
+[[entry]]
+name = "cSTETerrain::Tuning7B41"
+address = 0x00B4B3F4
+kind = "data"
+source = "Name ours. uint32, 0 in the exe: the tuning exemplar's property 0x48CD7B41 (0x0074B6A0)."
+
+[[entry]]
+name = "cSTETerrain::Tuning7B42"
+address = 0x00B4B3F0
+kind = "data"
+source = "Name ours. uint32, 0 in the exe: the tuning exemplar's property 0x48CD7B42 (0x0074B6A0)."
+
+[[entry]]
+name = "cSTETerrain::Tuning5640"
+address = 0x00B0D5D4
+kind = "data"
+source = "Name ours. float, 15.0 in the exe: the tuning exemplar's property 0x69AC5640 (0x0074B6A0)."
+
+[[entry]]
+name = "cSTETerrain::Tuning5641"
+address = 0x00B0D5D8
+kind = "data"
+source = "Name ours. float, 30.0 in the exe: the tuning exemplar's property 0x69AC5641 (0x0074B6A0)."
+
+[[entry]]
+name = "cSTETerrain::Tuning83D1"
+address = 0x00B0D590
+kind = "data"
+source = "Name ours. float, 7.0 in the exe: the tuning exemplar's property 0xA9C283D1 (0x0074B6A0)."
+
+[[entry]]
+name = "cSTETerrain::Tuning7B80"
+address = 0x00B4BC5D
+kind = "data"
+source = "Name ours. uint8, 0 in the exe: whether the tuning exemplar's property 0x48CD7B80 (uint8) is not 0 (0x0074B6A0)."
+
+[[entry]]
+name = "cSTETerrain::Tuning7B81"
+address = 0x00B0D608
+kind = "data"
+source = "Name ours. uint8, 1 in the exe: whether the tuning exemplar's property 0x48CD7B81 (uint8) is not 0 (0x0074B6A0)."
+
+[[entry]]
+name = "SC4::FloatSix"
+address = 0x00A90900
+kind = "data"
+source = "Name ours. float 6.0 in .rdata; the terrain's tuning loader multiplies property 0x48CD7B61 by it (0x0074B905)."
+
+[[entry]]
+name = "cSTETerrain::IniEnableSimulation"
+address = 0x00B0D568
+kind = "data"
+source = "Name ours. uint8, 1 in the exe: the INI key EnableSimulation of MiscTerrainTunables, not 0 (0x0074DC30)."
+
+[[entry]]
+name = "cSTETerrain::IniWaterSourceCapacity"
+address = 0x00B0D56C
+kind = "data"
+source = "Name ours. float, 5.5 in the exe: the INI key WaterSourceCapacity of Hydrology (0x0074DC30)."
+
+[[entry]]
+name = "cSTETerrain::IniWaterSinkCapacity"
+address = 0x00B0D570
+kind = "data"
+source = "Name ours. float, 5.5 in the exe: the INI key WaterSinkCapacity of Hydrology (0x0074DC30)."
+
+[[entry]]
+name = "cSTETerrain::IniSurfaceWaterThreshold"
+address = 0x00B0D574
+kind = "data"
+source = "Name ours. float, 10.0 in the exe: the INI key SurfaceWaterThreshold of Hydrology (0x0074DC30)."
+
+[[entry]]
+name = "cSTETerrain::IniRaiseLowerAmount"
+address = 0x00B0D578
+kind = "data"
+source = "Name ours. float, 10.5 in the exe: the INI key RaiseLowerAmount of MiscTerrainTunables (0x0074DC30)."
+
+[[entry]]
+name = "cSTETerrain::IniWindIterationsPerMonth"
+address = 0x00B0D598
+kind = "data"
+source = "Name ours. uint32, 1 in the exe: the INI key NumIterationsPerSimMonth of WindErosion (0x0074DC30)."
+
+[[entry]]
+name = "cSTETerrain::IniTalusAngle"
+address = 0x00B0D59C
+kind = "data"
+source = "Name ours. float, 0.79 in the exe: the INI key TalusAngle of WindErosion (a whole number of degrees) times the float 0x00B0D694, in radians; 0x0074DC30 derives 0x00B4BCF4 and 0x00B4BCF0 from it with FPTAN."
+
+[[entry]]
+name = "cSTETerrain::DegreeFloat"
+address = 0x00B0D694
+kind = "data"
+source = "Name ours. float in .data, pi / 180 (0x3C8EFA35) in the exe: 0x0074DC30 turns the INI's angles into radians with it."
+
+[[entry]]
+name = "cSTETerrain::IniSedimentSpreadUnderSea"
+address = 0x00B4B408
+kind = "data"
+source = "Name ours. float, 0 in the exe: the INI key SedimentSpreadRateUnderSea of Hydrology, at most 1 (0x0074DC30)."
+
+[[entry]]
+name = "cSTETerrain::IniDepositRateUnderSea"
+address = 0x00B0D5B4
+kind = "data"
+source = "Name ours. float, 0.02 in the exe: the INI key DepositRateUnderSea of Hydrology (0x0074DC30)."
+
+[[entry]]
+name = "cSTETerrain::IniSedimentInfluence"
+address = 0x00B0D5C8
+kind = "data"
+source = "Name ours. float, 0.1 in the exe: the INI key SedimentInfluenceOnWaterColor of Hydrology (0x0074DC30)."
+
+[[entry]]
+name = "cSTETerrain::IniMaxSedimentAlpha"
+address = 0x00B0D5CC
+kind = "data"
+source = "Name ours. float, 0.5 in the exe: the INI key MaxSedimentAlpha of Hydrology, at most 1 (0x0074DC30)."
+
+[[entry]]
+name = "cSTETerrain::IniSedimentColor"
+address = 0x00B0D5D0
+kind = "data"
+source = "Name ours. uint8[3], 0x76, 0x71, 0x68 in the exe: the INI keys SedimentColorRed, SedimentColorGreen and SedimentColorBlue of Hydrology (0x0074DC30)."
