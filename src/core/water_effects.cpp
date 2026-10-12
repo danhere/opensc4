@@ -6475,6 +6475,43 @@ uint32_t __fastcall ListStreamFloat(char* stream, void*, uint32_t to)
     return ListStreamRead(stream, 0x30, to);
 }
 
+// The stream's slot 0x3C reads a string into a string object (its three
+// pointers at +4); the note keeps the bytes, and the replay assigns them
+// with the game's own assign (0x00408A70).
+constexpr uint32_t kStringAssign = 0x00408A70;
+std::vector<std::string> g_listStrings;
+std::size_t g_listStringsReplayed = 0;
+
+uint32_t __fastcall ListStreamString(char* stream, void*, uint32_t to)
+{
+    const bool mine = (g_listGame || g_listReplay) && GetCurrentThreadId() == g_listThread;
+    if (mine && g_listReplay) {
+        if (g_listReplayed >= g_listReads.size() || g_listReads[g_listReplayed].slot != 0x3C ||
+            g_listStringsReplayed >= g_listStrings.size()) {
+            g_listWrong = true;
+            return 0;
+        }
+        const std::string& text = g_listStrings[g_listStringsReplayed++];
+        uint32_t tag = 0;
+        CallThis<uint32_t>(kStringAssign, reinterpret_cast<char*>(to + 4), reinterpret_cast<uint32_t>(text.data()),
+                           reinterpret_cast<uint32_t>(text.data() + text.size()), reinterpret_cast<uint32_t>(&tag));
+        return g_listReads[g_listReplayed++].result;
+    }
+    uint32_t real = g_listStreamReal;
+    if (!mine) {
+        for (const auto& [table, copy] : g_listTables) {
+            if (At<uint32_t*>(stream, 0) == copy.data())
+                real = table;
+        }
+    }
+    const uint32_t result = CallThis<uint32_t>(M<uint32_t>(real + 0x3C), stream, to);
+    if (mine) {
+        g_listReads.push_back({0x3C, 0, result});
+        g_listStrings.emplace_back(M<const char*>(to + 4), M<const char*>(to + 8));
+    }
+    return result;
+}
+
 uint32_t ListCompared(const char* id, uint32_t stream, uint32_t list, std::size_t record, ListReadFn game,
                       uint32_t (*ours)(uint32_t, uint32_t))
 {
@@ -6495,6 +6532,7 @@ uint32_t ListCompared(const char* id, uint32_t stream, uint32_t list, std::size_
                      reinterpret_cast<const uint32_t*>(g_listStreamReal) + kBSlots);
         table[0x24 / 4] = reinterpret_cast<uint32_t>(&ListStreamCount);
         table[0x30 / 4] = reinterpret_cast<uint32_t>(&ListStreamFloat);
+        table[0x3C / 4] = reinterpret_cast<uint32_t>(&ListStreamString);
     }
     g_listThread = GetCurrentThreadId();
     g_listReads.clear();
@@ -6679,6 +6717,208 @@ const bool g_registeredDescriptionCtor = registry::Register({
     InstallDescriptionCtor,
 });
 
+// The third list: records of a string (the three pointers of the game's
+// own) and a float, 0x10 bytes. Its reader (0x005B1D60, (stream, list)
+// like the others) reads the count, resizes (0x005B1CD0), then for each
+// record the string (0x005811F0, the stream's slot 0x3C into a string of
+// the game's and from there into the record) and the float. The resize
+// makes a record with an empty string (eight bytes of the game's memory,
+// freed at the end) and cuts the list short (0x005B1790, which frees the
+// strings) or inserts copies of that record at the end (0x005B1530). The
+// insert, like the game's containers': without room the game's growing
+// insert (0x005A17F0); with room the record is copied, the records after
+// the place are moved up and the copies assigned, with the game's own
+// helpers for records that hold strings. All three by hand.
+constexpr uint32_t kStringCopy = 0x00408420, kNamedCopyNew = 0x005B0A50, kNamedFillNew = 0x005B0AA0,
+                   kNamedCopyBack = 0x005B0AF0, kNamedFill = 0x005B0F40, kNamedGrow = 0x005A17F0,
+                   kNamedErase = 0x005B1790, kStreamString = 0x005811F0;
+using NamedCopyFn = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t);
+ListInsertFn g_SC4EffectDescription_InsertListC = nullptr;
+Call1Fn g_SC4EffectDescription_ResizeListC = nullptr;
+ListReadFn g_SC4EffectDescription_ReadListC = nullptr;
+
+void InsertNamed(char* list, uint32_t where, uint32_t count, uint32_t record)
+{
+    if (!count)
+        return;
+    const uint32_t end = At<uint32_t>(list, 4);
+    uint32_t tag = 0;
+    if (static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(list, 8) - end) >> 4) < count) {
+        CallThis<uint32_t>(kNamedGrow, list, where, record, reinterpret_cast<uint32_t>(&tag), count, 0u);
+        return;
+    }
+    uint32_t value[4] = {0, 0, 0, 0};
+    CallThis<uint32_t>(kStringCopy, reinterpret_cast<char*>(value), M<uint32_t>(record), M<uint32_t>(record + 4),
+                       reinterpret_cast<uint32_t>(&tag));
+    value[3] = M<uint32_t>(record + 0xC);
+    const uint32_t mine = reinterpret_cast<uint32_t>(value);
+    const uint32_t after = static_cast<uint32_t>(static_cast<int32_t>(end - where) >> 4);
+    const NamedCopyFn copyNew = reinterpret_cast<NamedCopyFn>(kNamedCopyNew);
+    const auto fill = reinterpret_cast<uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t)>(kNamedFill);
+    if (after > count) {
+        const uint32_t bytes = count * 0x10, from = end - bytes;
+        copyNew(from, end, end, reinterpret_cast<uint32_t>(&tag));
+        At<uint32_t>(list, 4) += bytes;
+        reinterpret_cast<uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(kNamedCopyBack)(
+            where, from, end, reinterpret_cast<uint32_t>(&tag), 0);
+        fill(where, where + bytes, mine);
+    } else {
+        reinterpret_cast<uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t)>(kNamedFillNew)(end, count - after, mine);
+        const uint32_t filled = At<uint32_t>(list, 4) + (count - after) * 0x10;
+        At<uint32_t>(list, 4) = filled;
+        copyNew(where, end, filled, reinterpret_cast<uint32_t>(&tag));
+        At<uint32_t>(list, 4) += after * 0x10;
+        fill(where, end, mine);
+    }
+    if (value[0])
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(reinterpret_cast<void*>(value[0]));
+}
+
+bool ListGames()
+{
+    return g_listsMode == StepMode::Original || g_listGame || (g_listsMode == StepMode::Compare && !g_listReplay);
+}
+
+uint32_t __fastcall DInsertListC(char* list, void*, uint32_t where, uint32_t count, uint32_t record)
+{
+    if (ListGames())
+        return g_SC4EffectDescription_InsertListC(list, nullptr, where, count, record);
+    InsertNamed(list, where, count, record);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectDescription_InsertListC, DInsertListC, 12)
+
+void ResizeNamed(char* list, uint32_t count)
+{
+    char* const text = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(8);
+    text[0] = 0;
+    uint32_t record[4] = {reinterpret_cast<uint32_t>(text), reinterpret_cast<uint32_t>(text),
+                          reinterpret_cast<uint32_t>(text) + 8, 0};
+    const uint32_t begin = At<uint32_t>(list, 0), end = At<uint32_t>(list, 4);
+    const uint32_t size = static_cast<uint32_t>(static_cast<int32_t>(end - begin) >> 4);
+    if (count < size)
+        CallThis<uint32_t>(kNamedErase, list, begin + count * 0x10, end);
+    else
+        DInsertListC(list, nullptr, end, count - size, reinterpret_cast<uint32_t>(record));
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(text);
+}
+
+uint32_t __fastcall DResizeListC(char* list, void*, uint32_t count)
+{
+    if (ListGames())
+        return g_SC4EffectDescription_ResizeListC(list, nullptr, count);
+    ResizeNamed(list, count);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectDescription_ResizeListC, DResizeListC, 4)
+
+uint32_t ReadListC(uint32_t stream, uint32_t list)
+{
+    uint32_t count = 0;
+    StreamRead(stream, 0x24, reinterpret_cast<uint32_t>(&count));
+    DResizeListC(reinterpret_cast<char*>(list), nullptr, count);
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t at = M<uint32_t>(list) + i * 0x10;
+        reinterpret_cast<uint32_t(__cdecl*)(uint32_t, uint32_t)>(kStreamString)(stream, at);
+        StreamRead(stream, 0x30, at + 0xC);
+    }
+    return stream;
+}
+
+// Its comparison is the other two readers', for a list that is empty
+// before (they all are): the game's reads the list with the stream's
+// reads noted, ours reads the same into an empty list of its own, and the
+// two must have the same records, string by string and float by float.
+// Ours' list is then destroyed.
+uint32_t __cdecl ReadListCByMode(uint32_t stream, uint32_t list)
+{
+    if (g_listsMode == StepMode::Original || g_listGame || g_listReplay)
+        return g_SC4EffectDescription_ReadListC(stream, list);
+    if (g_listsMode == StepMode::Ours)
+        return ReadListC(stream, list);
+    if (M<uint32_t>(list) != M<uint32_t>(list + 4)) {
+        compare::Record("effects.lists.c.not_empty", true, std::string(), std::string());
+        return g_SC4EffectDescription_ReadListC(stream, list);
+    }
+    g_listStreamReal = M<uint32_t>(stream);
+    std::vector<uint32_t>& table = g_listTables[g_listStreamReal];
+    if (table.empty()) {
+        table.assign(reinterpret_cast<const uint32_t*>(g_listStreamReal),
+                     reinterpret_cast<const uint32_t*>(g_listStreamReal) + kBSlots);
+        table[0x24 / 4] = reinterpret_cast<uint32_t>(&ListStreamCount);
+        table[0x30 / 4] = reinterpret_cast<uint32_t>(&ListStreamFloat);
+        table[0x3C / 4] = reinterpret_cast<uint32_t>(&ListStreamString);
+    }
+    g_listThread = GetCurrentThreadId();
+    g_listReads.clear();
+    g_listStrings.clear();
+    g_listReplayed = 0;
+    g_listStringsReplayed = 0;
+    g_listWrong = false;
+    M<const uint32_t*>(stream) = table.data();
+    g_listGame = true;
+    const uint32_t result = g_SC4EffectDescription_ReadListC(stream, list);
+    g_listGame = false;
+    uint32_t mine[3] = {0, 0, 0};
+    g_listReplay = true;
+    const uint32_t ourResult = ReadListC(stream, reinterpret_cast<uint32_t>(mine));
+    g_listReplay = false;
+    M<uint32_t>(stream) = g_listStreamReal;
+    const uint32_t theirUsed = M<uint32_t>(list + 4) - M<uint32_t>(list), ourUsed = mine[1] - mine[0];
+    bool same = !g_listWrong && g_listReplayed == g_listReads.size() && result == ourResult && theirUsed == ourUsed &&
+                M<uint32_t>(list + 8) - M<uint32_t>(list) == mine[2] - mine[0];
+    for (uint32_t offset = 0; same && offset < ourUsed; offset += 0x10) {
+        const uint32_t theirs = M<uint32_t>(list) + offset, ours = mine[0] + offset;
+        const uint32_t length = M<uint32_t>(theirs + 4) - M<uint32_t>(theirs);
+        same = length == M<uint32_t>(ours + 4) - M<uint32_t>(ours) && M<uint32_t>(theirs + 0xC) == M<uint32_t>(ours + 0xC) &&
+               (length == 0 || std::memcmp(M<void*>(theirs), M<void*>(ours), length) == 0);
+    }
+    for (uint32_t at = mine[0]; at < mine[1]; at += 0x10) {
+        if (M<uint32_t>(at))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(M<void*>(at));
+    }
+    if (mine[0])
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(reinterpret_cast<void*>(mine[0]));
+    char text[64];
+    std::snprintf(text, sizeof text, "%zu reads, %u records", g_listReads.size(), theirUsed / 0x10);
+    const std::string theirs = text;
+    std::snprintf(text, sizeof text, "%zu reads%s, %u records", g_listReplayed, g_listWrong ? " then another" : "",
+                  ourUsed / 0x10);
+    compare::Record(theirUsed ? "effects.lists.c" : "effects.lists.c.empty", same, same ? std::string() : theirs,
+                    same ? std::string() : std::string(text));
+    return result;
+}
+
+// The whole description's constructor (0x005B1660): the inner one, then
+// no holders (+0x204). Compared by letting the game's run and then ours'
+// own line on a count set to something else.
+Call0Fn g_SC4EffectDescription_ConstructWhole = nullptr;
+
+uint32_t DescriptionNoHolders(char* self)
+{
+    At<uint32_t>(self, 0x204) = 0;
+    return reinterpret_cast<uint32_t>(self);
+}
+
+uint32_t __fastcall DescriptionWholeByMode(char* self, void*)
+{
+    if (g_listsMode == StepMode::Original)
+        return g_SC4EffectDescription_ConstructWhole(self, nullptr);
+    if (g_listsMode == StepMode::Ours) {
+        CallThis<uint32_t>(addr::SC4EffectDescription_Construct, self);
+        return DescriptionNoHolders(self);
+    }
+    const uint32_t result = g_SC4EffectDescription_ConstructWhole(self, nullptr);
+    const uint32_t holders = At<uint32_t>(self, 0x204);
+    At<uint32_t>(self, 0x204) = 0xFFFFFFFF;
+    const bool same = DescriptionNoHolders(self) == result && At<uint32_t>(self, 0x204) == holders;
+    compare::Record("effects.lists.whole_ctor", same, same ? std::string() : std::to_string(holders),
+                    same ? std::string() : std::string("0"));
+    At<uint32_t>(self, 0x204) = holders;
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectDescription_ConstructWhole, DescriptionWholeByMode, 0)
+
 bool InstallLists(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
@@ -6693,7 +6933,15 @@ bool InstallLists(registry::Mode mode)
           Detour(addr::SC4EffectDescription_InsertListA, &TSC4EffectDescription_InsertListA,
                  &g_SC4EffectDescription_InsertListA) &&
           Detour(addr::SC4EffectDescription_InsertListB, &TSC4EffectDescription_InsertListB,
-                 &g_SC4EffectDescription_InsertListB)))
+                 &g_SC4EffectDescription_InsertListB) &&
+          Detour(addr::SC4EffectDescription_ReadListC, reinterpret_cast<void (*)()>(&ReadListCByMode),
+                 &g_SC4EffectDescription_ReadListC) &&
+          Detour(addr::SC4EffectDescription_ResizeListC, &TSC4EffectDescription_ResizeListC,
+                 &g_SC4EffectDescription_ResizeListC) &&
+          Detour(addr::SC4EffectDescription_InsertListC, &TSC4EffectDescription_InsertListC,
+                 &g_SC4EffectDescription_InsertListC) &&
+          Detour(addr::SC4EffectDescription_ConstructWhole, &TSC4EffectDescription_ConstructWhole,
+                 &g_SC4EffectDescription_ConstructWhole)))
         return false;
     g_listsMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: a description's lists' reading %s",
@@ -6707,7 +6955,8 @@ const bool g_registeredLists = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::SC4EffectDescription_ReadListA,
-    "A description's two lists of floats read from the effects file, their resizing and the inserts under it; "
+    "A description's three lists read from the effects file, their resizing and the inserts under it, and the "
+    "whole constructor's last line; "
     "compare mode notes what the game's reads from the stream and has ours read the same into a copy of the list, "
     "and runs the inserts on a copy (docs/renderer.md, "
     "\"Water effects, sky and clouds\")",

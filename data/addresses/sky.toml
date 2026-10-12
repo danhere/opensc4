@@ -532,6 +532,42 @@ expect = "83 EC 20 56 8B F1 8B 4C"
 source = "Name ours. ret 0xC: inserts count copies of a 0x20-byte record into a list at where: in place when the list has room, else through the growing insert 0x0059B570. Ours in renderer.effects.lists."
 
 [[entry]]
+name = "SC4EffectDescription::ConstructWhole"
+address = 0x005B1660
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 E8 78 F9 FF FF"
+source = "Name ours. The constructor of the whole description object (0x208 bytes, called by the manager at 0x0058AA06): SC4EffectDescription::Construct, then the count of holders at +0x204 cleared. Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4EffectDescription::ReadListC"
+address = 0x005B1D60
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* stream, void* list)"
+expect = "53 57 8B 7C 24 0C 8B 07"
+source = "Name ours. Reads a description's list of 0x10-byte records (a string and a float) from a stream: the count (slot 0x24), the resize (0x005B1CD0), then each record's string (0x005811F0) and float (slot 0x30); answers the stream. Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4EffectDescription::ResizeListC"
+address = 0x005B1CD0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count)"
+expect = "83 EC 10 53 56 57 6A 08"
+source = "Name ours. ret 4: resizes a list of 0x10-byte records (a string and a float): cut short (0x005B1790) or records with an empty string inserted at the end (0x005B1530). Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4EffectDescription::InsertListC"
+address = 0x005B1530
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* where, uint32_t count, const void* record)"
+expect = "83 EC 10 55 8B 6C 24 1C"
+source = "Name ours. ret 0xC: inserts count copies of a 0x10-byte record (a string and a float) into a list at where: in place when the list has room, else through the growing insert 0x005A17F0. Ours in renderer.effects.lists."
+
+[[entry]]
 name = "SC4EffectDescription::ReadListA"
 address = 0x005B0930
 kind = "function"
