@@ -457,7 +457,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, uint32_t which)"
 expect = "8B 44 24 04 83 EC 34 85"
-source = "Name ours, not analysed. Slot 0x54 of the second effect class: loads the model the effect's particles are drawn as (+0x220, +0x224). SC4EffectB::SetDescription calls it (0x005AED73)."
+source = "Name ours (0x005AC610 to 0x005AC86A). Slot 0x54 of the second effect class, with the model's instance ID (nothing for 0): the resource of type 0x5AD0E817, group 0xBADB57F1 asked of the resource manager (0x00B43CA8 slot 0xC), the old model (+0x224) released and a new one made (the resource's slot 0x10), its holder-counting part kept at +0x220, its slot 0x40 called with 3, the largest side of its box at +0x274, and each material's flags (interface 0x26A68448) set by the description's kind (+0xD4, jump table 0x005AC870) and flag 0x400 of its third word. SC4EffectB::SetDescription calls it (0x005AED73). Ours in renderer.effects.model_b (src/core/effect_model_b.inc)."
 
 [[entry]]
 name = "SC4EffectPartB::Attach"

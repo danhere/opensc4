@@ -19,6 +19,7 @@
 
 #include <opensc4/addresses.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -3091,10 +3092,133 @@ void BSwap(char* object, uint32_t slot, uint32_t stub)
     At<uint32_t*>(object, 0) = table.data();
 }
 
+// The second class loading its model (0x005AC610, slot 0x54, with the
+// model's instance ID; nothing for 0), translated instruction by
+// instruction. The resource manager (0x00B43CA8, slot 0xC) is asked for
+// the resource of type 0x5AD0E817, group 0xBADB57F1 and that instance; the
+// old model (+0x224) is released and a new one made from the resource (its
+// slot 0x10), whose part that counts its holders is kept at +0x220. The
+// model's slot 0x40 is called with 3, the largest side of its box (slot
+// 0x1C of the instance) is kept at +0x274, and each of its materials (the
+// interface 0x26A68448) has its flags set by two flags of the description
+// and the description's kind.
+uint32_t LoadModelB(char* self, uint32_t which)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = which;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_model_b.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Its comparison runs both for real, on an effect that has no model yet
+// (as its one caller leaves it): ours first, whose model's materials are
+// read (eight bytes each, the flags it sets) and whose model is then
+// released twice, as the class lets go of one; the effect is put back and
+// the game's runs. The effect but for the two pointers, whether there is a
+// model, and the materials must be the same.
+StepMode g_modelModeB = StepMode::Original;
+uint64_t g_modelsBCompared = 0;
+
+std::vector<char> ModelMaterials(char* instance)
+{
+    std::vector<char> bytes;
+    if (!instance)
+        return bytes;
+    char* materials = nullptr;
+    CallThis<uint32_t>(At<uint32_t>(At<char*>(instance, 0), 0), instance, 0x26A68448u, &materials);
+    if (!materials)
+        return bytes;
+    const uint32_t count = CallThis<uint32_t>(At<uint32_t>(At<char*>(materials, 0), 0xC), materials);
+    for (uint32_t i = 0; i < count; ++i) {
+        const char* const material =
+            reinterpret_cast<const char*>(
+                CallThis<uint32_t>(At<uint32_t>(At<char*>(materials, 0), 0x18), materials, i));
+        bytes.insert(bytes.end(), material + 4, material + 12);
+    }
+    CallThis<uint32_t>(At<uint32_t>(At<char*>(materials, 0), 0x8), materials);
+    return bytes;
+}
+
+uint32_t LoadModelBByMode(char* self, uint32_t which)
+{
+    if (g_modelModeB == StepMode::Original)
+        return g_SC4EffectB_LoadModel(self, nullptr, which);
+    if (g_modelModeB == StepMode::Ours)
+        return LoadModelB(self, which);
+    if (At<char*>(self, 0x220) || At<char*>(self, 0x224)) {
+        compare::Record("effects.model_b.skipped", true, std::string(), std::string());
+        return g_SC4EffectB_LoadModel(self, nullptr, which);
+    }
+    char before[kEffectSizeB], mine[kEffectSizeB], theirs[kEffectSizeB];
+    std::memcpy(before, self, kEffectSizeB);
+    LoadModelB(self, which);
+    std::memcpy(mine, self, kEffectSizeB);
+    char* const ourInstance = At<char*>(self, 0x220);
+    char* const ourModel = At<char*>(self, 0x224);
+    const std::vector<char> ourMaterials = ModelMaterials(ourInstance);
+    if (ourInstance)
+        CallThis<uint32_t>(At<uint32_t>(At<char*>(ourInstance, 0), 0x8), ourInstance);
+    if (ourModel) {
+        char* const part = ourModel + 4 + At<int32_t>(At<char*>(ourModel, 4), 4);
+        CallThis<uint32_t>(At<uint32_t>(At<char*>(part, 0), 0x8), part);
+    }
+    std::memcpy(self, before, kEffectSizeB);
+    const uint32_t result = g_SC4EffectB_LoadModel(self, nullptr, which);
+    std::memcpy(theirs, self, kEffectSizeB);
+    const std::vector<char> theirMaterials = ModelMaterials(At<char*>(self, 0x220));
+    const bool sameModel = (ourInstance != nullptr) == (At<char*>(self, 0x220) != nullptr) &&
+                           (ourModel != nullptr) == (At<char*>(self, 0x224) != nullptr);
+    std::memset(mine + 0x220, 0, 8);
+    std::memset(theirs + 0x220, 0, 8);
+    ++g_modelsBCompared;
+    if ((g_modelsBCompared & (g_modelsBCompared - 1)) == 0)
+        log::Write("water effects: effects.model_b: %llu loads compared so far",
+                   static_cast<unsigned long long>(g_modelsBCompared));
+    const char* const id = theirMaterials.empty() ? "effects.model_b.none" : "effects.model_b";
+    char text[64];
+    if (!sameModel) {
+        compare::Record(id, false, At<char*>(self, 0x220) ? "a model" : "no model",
+                        ourInstance ? "a model" : "no model");
+    } else if (theirMaterials != ourMaterials) {
+        std::snprintf(text, sizeof text, "%zu materials ", theirMaterials.size() / 8);
+        const std::string game = text + Hex(theirMaterials.data(), std::min<std::size_t>(theirMaterials.size(), 32));
+        std::snprintf(text, sizeof text, "%zu materials ", ourMaterials.size() / 8);
+        compare::Record(id, false, game,
+                        text + Hex(ourMaterials.data(), std::min<std::size_t>(ourMaterials.size(), 32)));
+    } else if (std::memcmp(theirs, mine, kEffectSizeB) != 0) {
+        std::size_t at = 0;
+        while (theirs[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "effect+%zX ", at);
+        compare::Record(id, false, text + Hex(theirs + at, 8), text + Hex(mine + at, 8));
+    } else {
+        compare::Record(id, true, std::string(), std::string());
+    }
+    return result;
+}
+
 uint32_t __fastcall DSC4EffectB_LoadModel(char* self, void*, uint32_t which)
 {
     if (!BNoting() || self != g_bSelf)
-        return g_SC4EffectB_LoadModel(self, nullptr, which);
+        return BBusy() ? g_SC4EffectB_LoadModel(self, nullptr, which) : LoadModelBByMode(self, which);
     const uint32_t result = BCallee(addr::SC4EffectB_LoadModel, which, 0, 0,
                                     [&] { return g_SC4EffectB_LoadModel(self, nullptr, which); });
     BSwap(At<char*>(self, 0x220), 0x40, reinterpret_cast<uint32_t>(&BInfo));
@@ -5110,7 +5234,8 @@ bool InstallDescriptionB(registry::Mode mode)
     if (mode == registry::Mode::Compare &&
         !((g_SC4Effect_SetDescription ||
            Detour(addr::SC4Effect_SetDescription, &TSC4Effect_SetDescription, &g_SC4Effect_SetDescription)) &&
-          Detour(addr::SC4EffectB_LoadModel, &TSC4EffectB_LoadModel, &g_SC4EffectB_LoadModel) &&
+          (g_SC4EffectB_LoadModel ||
+           Detour(addr::SC4EffectB_LoadModel, &TSC4EffectB_LoadModel, &g_SC4EffectB_LoadModel)) &&
           Detour(addr::SC4EffectPartB_Attach, &TSC4EffectPartB_Attach, &g_SC4EffectPartB_Attach) &&
           Detour(addr::SC4EffectPartB_Place, &TSC4EffectPartB_Place, &g_SC4EffectPartB_Place) &&
           Detour(addr::SC4EffectPartB_SetDescription, &TSC4EffectPartB_SetDescription,
@@ -5133,6 +5258,31 @@ const bool g_registeredDescriptionB = registry::Register({
     "sky and clouds\")",
     true,
     InstallDescriptionB,
+});
+
+bool InstallModelB(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4EffectB_LoadModel ||
+          Detour(addr::SC4EffectB_LoadModel, &TSC4EffectB_LoadModel, &g_SC4EffectB_LoadModel)))
+        return false;
+    g_modelModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: second effect class's model loading %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredModelB = registry::Register({
+    "renderer.effects.model_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectB_LoadModel,
+    "The second effect class loading its model: the resource asked for, the model made, its size kept and its "
+    "materials' flags set; compare mode runs ours and the game's for real and compares the effect and the "
+    "materials (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallModelB,
 });
 
 bool InstallGround(registry::Mode mode)
