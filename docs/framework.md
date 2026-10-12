@@ -317,3 +317,24 @@ On Big City the original and ours give the same 34 starts (hash 6AED0313) and th
 
 All seventeen framework groups on against the original, the trace on both sides, 12 saves, 7 days, two jobs, 2026-10-12: 12 of 12 the same on the first pair, and the control (the original on both sides) 12 of 12. The `start` part and the logged stops were the same in all 24 runs.
 
+## The sequence and the main loop
+
+What is left of the framework's own run: `GZFrameWork::Run` (0x0087B0B9, called once from WinMain's helper with the command line) and what it calls. Names ours.
+
+- **Init** (0x0087AF13) is the start-up of the survey's table, state by state: the command line copied, the COM object's RealInit and its registration as a service, the app's three early callbacks, the app's PreFrameWorkInit, the hooks' PreFrameWorkInit, the first services, the hooks' PreAppInit, the app's own start, the tick switched on, the last services, the app's PostFrameWorkInit, the hooks' PostAppInit. It fails, with exit code -1, when the app's PreFrameWorkInit says no (the COM object is then shut down again) or when the app's band of services does not start.
+- **The run phase** (0x0087957A) sets state 7 and asks the app's GZRun; SimCity 4's says no, and the framework's own main loop runs.
+- **The main loop** (slot 48, 0x008795BD): with the tick off it waits for a Windows message; it hands every message there is to its window, and ends on WM_QUIT with that message's wParam as the exit code; with the tick on it calls OnIdle once per pass. A run started with "quit by flag" (SimCity 4 does not) also ends when the quit flag is set. It never sleeps.
+- **Shutdown** (0x0087AB07) always follows: the hooks' PreAppShutdown, the app's PreFrameWorkShutdown, the services stopped band by band with the hooks' PostAppShutdown between, the tick off, the hooks' PostSystemServiceShutdown, the lists, table and tree emptied (0x0087AA81, 0x00879922), the COM object's RealShutdown (0x008793FD), the three global pointers released (0x008794CC).
+
+`src/core/framework_run.cpp`: `framework.run.sequence` (Run, Init, the run phase, Shutdown and its four helpers: 8 functions) and `framework.run.loop` (the main loop), off by default, both put in when core.dll is injected. With the two on, the program runs from the framework's first step to its last through our code. The main loop calls the four Windows functions through the exe's import slots, so what stands in for them there (the interface scaling's wrappers) still does. Still the game's: the copy of the command line (0x0087AEE1) and 0x0091479D on it, the tree's erase.
+
+With these, all of the framework object's own logic is ours except the constructor and destructor, AbortiveQuit and Quit, the streams and the small getters and setters.
+
+### Testing
+
+The same trace as above (`diagnostics.trace.service_start` on both sides): a run that starts, loads a city, plays and quits through our sequence and loop gives the same 34 starts and 35 stops as the original, and saves the city.
+
+### Parity
+
+All nineteen framework groups on against the original, the trace on both sides, 12 saves, 7 days, two jobs, 2026-10-12: 12 of 12 the same on the first pair, and the control (the original on both sides) 12 of 12. The `start` part and the logged stops were the same in all 24 runs.
+
