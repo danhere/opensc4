@@ -28,7 +28,7 @@ Fields: +0xC initialised, +0x10 references, +0x18 random numbers (seed 0), +0x30
 | `simulators.flammability.sim` | every function above but the 4-byte getter (19 functions, flammability_sim.cpp) |
 | `simulators.flammability.object` | our own object under the class ID: factory, constructor, destructor, identity, the average getter, our copies of the vtables |
 
-Bisect inside the group with `OPENSC4_FLAMMABILITY_SKIP` (function addresses in hex). The fingerprint has a `flam` part (both grids, average, hotspot, multiplier, the walk's sums, hot cells, clusters). `OPENSC4_TEST_FLAMMABILITY=<day>` (autotest) makes every cell hot, keeps clusters of one cell, sets the lot fire chance to 100 and walks the whole city each step, so the walk's end, clusters and fires happen in short runs.
+Bisect inside the group with `OPENSC4_FLAMMABILITY_SKIP` (function addresses in hex). The fingerprint has a `flam` part (both grids, average, hotspot, multiplier, the walk's sums, hot cells, clusters). `OPENSC4_TEST_FLAMMABILITY=<day>` (autotest) makes every cell hot, keeps clusters of one cell, sets the lot fire chance to 100 and walks the whole city each step, so the walk's end, clusters and fires happen in short runs. `OPENSC4_TEST_FLAM_DUMP=<n>` logs every cell's raw value, grid value and water answer at the n-th fingerprint, to find where two runs differ (it found the walk's start depending on the sound code's `rand()` calls, [experiments/determinism.md](experiments/determinism.md)).
 
 ## Parity
 
