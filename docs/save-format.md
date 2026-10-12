@@ -61,7 +61,7 @@ The library every serialisable class writes and reads its record with. `saves.st
 
 ## The serializer and the segment streams (0x005D1520 to 0x005D4AB0)
 
-What stands between an object's `Read` and `Write` and the file. `saves.serializer.part1` to `part3` replace it ([save_serializer_1.cpp](../src/core/save_serializer_1.cpp) to `_3.cpp`, off by default): 102 functions, the second piece of the rewrite. The framework's packed file underneath (index, compression, 0x0096Dxxx to 0x00979xxx) is still the game's.
+What stands between an object's `Read` and `Write` and the file. `saves.serializer.part1` to `part3` replace it ([save_serializer_1.cpp](../src/core/save_serializer_1.cpp) to `_3.cpp`, off by default): 102 functions, the second piece of the rewrite. The framework's packed file underneath (0x0096Dxxx to 0x00972xxx) is ours on its read side (`resources.packed_file.*`, [resources.md](resources.md)); its write side (index and directory writing, compression) is still the game's.
 
 **Three objects.**
 
@@ -149,6 +149,8 @@ The framework's packed file is the DBPF container behind a saved city and behind
 **Closing the file** (`part3`). Records still open are closed; then `Flush` (0x00970193) writes the directory of compressed records (a record like any other, type 0xE86B1EEF: 16 bytes for each compressed record, its key and its expanded size), the index (20 bytes a record, in the order of the game's hash map), the hole table (8 bytes a hole, by size) and the header. The tables are allocated like records, so they land in holes too, and a hole table can take its own eight bytes out of a hole it lists. When the holes exceed 15 percent of the bytes in use, the file is rebuilt first: every record is copied into a new packed file under a temporary name (`TempDBSegmentPackedFile_`), which takes the old one's place; a segment does that at most once in its life. The header's two dates come from the clock.
 
 **Limits for bigger cities** ([city-size.md](city-size.md)): a record over 16,000,000 bytes is never compressed; a record being written holds at most 2,000,000 bytes in memory; record sizes and offsets are 32 bits.
+
+**Shared with the reading half** (`resources.packed_file.*`, [resources.md](resources.md)): four functions are in both halves' lists (0x0096E09A and the segment's three record calls 0x009757DA, 0x009758BD, 0x00975929). One address takes one detour, so with the reading half's group on, ours leaves that function to it and says so in the log. Both halves on together write the same test files.
 
 **Left the game's in the writing half:** the three inserts of the hole map (the reading half's table loader uses them), container and file helpers, and the write record's base constructor and destructor.
 

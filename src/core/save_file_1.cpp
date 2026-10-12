@@ -206,7 +206,7 @@ void Delete(void* memory)
 
 void Copy(void* to, const void* from, uint32_t size)
 {
-    Cdecl<void*>(addr::SC4_memcpy, to, from, size);
+    Cdecl<void*>(addr::CRT_memcpy, to, from, size);
 }
 
 // The inlined destructor of a string on the stack.
@@ -459,7 +459,7 @@ void __fastcall Reserve(ByteVector* buffer, void*, uint32_t size)
 // What both constructors do before they fill the buffer.
 void ConstructEmpty(char* self, const uint32_t* key, char* owner, uint32_t nativeOrder)
 {
-    This<void*>(addr::cGZPersistDBSerialRecord_ConstructWithKind, self, uint32_t{3}, key,
+    This<void*>(addr::cGZDBSegmentPackedFile_F96D859, self, uint32_t{3}, key,
                 owner ? owner + 4 : static_cast<char*>(nullptr), nativeOrder);
     SetVtables(self);
     ByteVector& buffer = Buffer(self);
@@ -940,23 +940,23 @@ bool InstallSaveFile1(registry::Mode)
     static void* originals[48] = {};
     static const std::pair<std::uintptr_t, void*> hooks[] = {
         // The write record.
-        {addr::cGZDBWriteRecord_GetPosition, reinterpret_cast<void*>(&GetPosition)},
-        {addr::cGZDBWriteRecord_SeekAbsolute, reinterpret_cast<void*>(&SeekAbsolute)},
-        {addr::cGZDBWriteRecord_SeekRelative, reinterpret_cast<void*>(&SeekRelative)},
-        {addr::cGZDBWriteRecord_GetSize, reinterpret_cast<void*>(&GetSize)},
-        {addr::cGZDBWriteRecord_GetFieldVoid, reinterpret_cast<void*>(&GetFieldVoid)},
-        {addr::cGZDBWriteRecord_WriteOut, reinterpret_cast<void*>(&WriteOut)},
-        {addr::cGZDBWriteRecord_Destruct, reinterpret_cast<void*>(&Destruct)},
-        {addr::cGZDBWriteRecord_Delete, reinterpret_cast<void*>(&DeleteRecord)},
-        {addr::cGZDBWriteRecord_Discard, reinterpret_cast<void*>(&Discard)},
-        {addr::cGZDBWriteRecord_CopyToNewBlock, reinterpret_cast<void*>(&CopyToNewBlock)},
-        {addr::cGZDBWriteRecord_Reserve, reinterpret_cast<void*>(&Reserve)},
-        {addr::cGZDBWriteRecord_Construct, reinterpret_cast<void*>(&Construct)},
-        {addr::cGZDBWriteRecord_ConstructFromMemory, reinterpret_cast<void*>(&ConstructFromMemory)},
-        {addr::cGZDBWriteRecord_SetSize, reinterpret_cast<void*>(&SetSize)},
+        {addr::cGZDBSegmentPackedFile_F96DBA0, reinterpret_cast<void*>(&GetPosition)},
+        {addr::cGZDBSegmentPackedFile_F96DBBC, reinterpret_cast<void*>(&SeekAbsolute)},
+        {addr::cGZDBSegmentPackedFile_F96DBF0, reinterpret_cast<void*>(&SeekRelative)},
+        {addr::cGZDBSegmentPackedFile_F96E91B, reinterpret_cast<void*>(&GetSize)},
+        {addr::cGZDBSegmentPackedFile_F96EB2A, reinterpret_cast<void*>(&GetFieldVoid)},
+        {addr::cGZDBSegmentPackedFile_F96EB78, reinterpret_cast<void*>(&WriteOut)},
+        {addr::cGZDBSegmentPackedFile_F96F33D, reinterpret_cast<void*>(&Destruct)},
+        {addr::cGZDBSegmentPackedFile_F96F6E9, reinterpret_cast<void*>(&DeleteRecord)},
+        {addr::cGZDBSegmentPackedFile_F96F70F, reinterpret_cast<void*>(&Discard)},
+        {addr::cGZDBSegmentPackedFile_F96F6BE, reinterpret_cast<void*>(&CopyToNewBlock)},
+        {addr::cGZDBSegmentPackedFile_F970080, reinterpret_cast<void*>(&Reserve)},
+        {addr::cGZDBSegmentPackedFile_F970C4D, reinterpret_cast<void*>(&Construct)},
+        {addr::cGZDBSegmentPackedFile_F970E67, reinterpret_cast<void*>(&ConstructFromMemory)},
+        {addr::cGZDBSegmentPackedFile_F970EE5, reinterpret_cast<void*>(&SetSize)},
         {addr::cGZDBSegmentPackedFile_WriteRecordSetFieldVoid, reinterpret_cast<void*>(&SetFieldVoid)},
         // The record base's typed sets.
-        {addr::cGZPersistDBRecord_VariantTypeCode, reinterpret_cast<void*>(&VariantTypeCode)},
+        {addr::cGZDBSegmentPackedFile_F97567E, reinterpret_cast<void*>(&VariantTypeCode)},
         {addr::cGZPersistDBRecord_SetFieldUint8, reinterpret_cast<void*>(&SetFieldUint8)},
         {addr::cGZPersistDBRecord_SetFieldUint8Array, reinterpret_cast<void*>(&SetFieldUint8Array)},
         {addr::cGZPersistDBRecord_SetFieldFloat32, reinterpret_cast<void*>(&SetFieldFloat32)},
