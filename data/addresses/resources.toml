@@ -2399,3 +2399,471 @@ name = "cGZDBSegmentPackedFile::sRereadingHeader"
 address = 0x00B63638
 kind = "data"
 source = "A byte: the header reader 0x00972999 is in its second round after the embedded-package scan found a start; stops a third."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldUint8"
+address = 0x00975AFF
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 6A 01 8D 54 24 08"
+source = "Name ours. (uint8_t value), ret 4: slots 29 and 31 of every record's main vtable (SetFieldUint8 and SetFieldSint8 by value): one byte through SetFieldVoid (slot 51, offset 0xCC). Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldUint8Array"
+address = 0x00975B11
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 FF A0 CC 00 00 00"
+source = "Name ours. (const uint8_t* values, uint32_t count), ret 8: slots 28 and 30: a jump to SetFieldVoid (offset 0xCC). Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldFloat32"
+address = 0x00975B19
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 6A 04 8D 54 24 08"
+source = "Name ours. (float value), ret 4: slot 45: four bytes through SetFieldVoid, never byte swapped. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldFloat32Array"
+address = 0x00975B2B
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 8B 01 C1 E2"
+source = "Name ours. (const float* values, uint32_t count), ret 8: slot 44: count * 4 bytes through SetFieldVoid, never swapped. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldFloat64"
+address = 0x00975B42
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 6A 08 8D 54 24 08"
+source = "Name ours. (double value), ret 8: slot 47: eight bytes through SetFieldVoid, never swapped. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldFloat64Array"
+address = 0x00975B54
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 8B 01 C1 E2"
+source = "Name ours. (const double* values, uint32_t count), ret 8: slot 46: count * 8 bytes through SetFieldVoid, never swapped. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::OStreamSetString"
+address = 0x00975B6B
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 E4 8B 01 FF A0 C0"
+source = "Name ours. (const cIGZString* text), ret 4: slot 15 of every record's output stream part (+0x1C): this less 0x1C, jump to SetFieldString (slot 48, offset 0xC0). Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldStringChained"
+address = 0x00975B84
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 08 8B F1 8B"
+source = "Name ours. (const cIGZString* text), ret 4: slot 59: SetFieldString (offset 0xC0), then answers the output stream part (this + 0x1C) whatever the write said. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldResKey"
+address = 0x00975BB5
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C FF 37"
+source = "Name ours. (const cGZPersistResourceKey* key), ret 4: slot 49: type, group and instance through SetFieldUint32 (slot 37, offset 0x94), stopping at the first that fails. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::OStreamSetVoid"
+address = 0x00975C10
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 E4 8B 01 FF A0 CC"
+source = "Name ours. (const void* data, uint32_t size), ret 8: slot 17 of every record's output stream part: this less 0x1C, jump to SetFieldVoid (offset 0xCC). Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldVoidSized"
+address = 0x00975C1B
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 0F AF 54 24"
+source = "Name ours. (const void* data, uint32_t size, uint32_t count), ret 0xC: slot 58: size * count bytes through SetFieldVoid. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldUint16"
+address = 0x00975E97
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 80 79 3C 00"
+source = "Name ours. (uint16_t value), ret 4: slots 33 and 35: two bytes through SetFieldVoid, byte swapped when the record's byte at +0x3C is 0. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldUint16Array"
+address = 0x00975ED0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 81 EC 04 02 00"
+source = "Name ours. (const uint16_t* values, uint32_t count), ret 8: slots 32 and 34: count * 2 bytes through SetFieldVoid; with the byte at +0x3C 0 a swapped copy is written (on the stack up to 0x100 items, else from 0x005E55E0). Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldUint32"
+address = 0x00975F74
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 80 79 3C 00"
+source = "Name ours. (uint32_t value), ret 4: slots 37 and 39: four bytes through SetFieldVoid, byte swapped when the byte at +0x3C is 0. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldUint32Array"
+address = 0x00975FA4
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 81 EC 04 04 00"
+source = "Name ours. (const uint32_t* values, uint32_t count), ret 8: slots 36 and 38: count * 4 bytes through SetFieldVoid; a swapped copy when the byte at +0x3C is 0. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldUint64"
+address = 0x00976049
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. (uint64_t value), ret 8: slots 41 and 43: eight bytes through SetFieldVoid, byte swapped (0x0092B55B) when the byte at +0x3C is 0. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldUint64Array"
+address = 0x0097608B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 81 EC 08 08 00"
+source = "Name ours. (const uint64_t* values, uint32_t count), ret 8: slots 40 and 42: count * 8 bytes through SetFieldVoid; a swapped copy when the byte at +0x3C is 0. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldString"
+address = 0x00976139
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name ours. (const cIGZString* text), ret 4: slot 48: the string's length (its slot 0x1C) through SetFieldUint32, then its characters (its slot 0x18) through SetFieldVoid; false when the length did not go out. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::OStreamSetText"
+address = 0x00976A6E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. (const char* text), ret 4: slot 14 of every record's output stream part: a string object made from the C string (0x00408480), written with SetFieldString on this less 0x1C, then destroyed. Starts with 55 8B EC (the whole-exe listing shows it from 0x00976A71 because a jump table ends just before it). Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZPersistDBRecord::SetFieldVariant"
+address = 0x00976AB2
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. (cIGZVariant* value), ret 4: slot 50: the type's code (0x0097567E) through SetFieldUint32, then by code: a value through the typed set of its width, an array as a 32-bit count and the array set, an array of RZ characters as a string field, code 0x8000 as a count and raw bytes; jump tables at 0x00976FC8 (18 entries) and 0x00977010 (17). Codes without a case leave the code written and answer false. Ours in saves.file.part1."
+
+[[entry]]
+name = "cGZDBWriteRecord::Vtable"
+address = 0x00AD8628
+kind = "data"
+source = "Name ours. The write record's main vtable, 64 slots (27 GetFieldVoid 0x0096EB2A, 51 SetFieldVoid 0x00970F0F, 52 GetSize, 53 SetSize, 54 GetPosition, 55 SeekAbsolute, 56 SeekRelative, 62 Discard 0x0096F70F, 63 WriteOut 0x0096EB78)."
+
+[[entry]]
+name = "cGZDBWriteRecord::RecordVtable"
+address = 0x00AD85E8
+kind = "data"
+source = "Name ours. The write record's vtable at +4 (cIGZPersistDBRecord, 16 slots; 6 to 13 are thunks to the main part)."
+
+[[entry]]
+name = "cGZDBWriteRecord::OStreamVtable"
+address = 0x00AD8588
+kind = "data"
+source = "Name ours. The write record's vtable at +0x1C, the output stream part (24 slots)."
+
+[[entry]]
+name = "cGZDBWriteRecord::IStreamVtable"
+address = 0x00AD8528
+kind = "data"
+source = "Name ours. The write record's vtable at +0x2C, the input stream part (24 slots)."
+
+[[entry]]
+name = "cGZDBWriteRecord::FreeList"
+address = 0x00B17A20
+kind = "data"
+source = "Name ours. Head of the free list of the write records' pool (0x00B17A14): the deleting destructor 0x0096F6E9 links a dead record in through its first dword."
+
+[[entry]]
+name = "cGZDBWriteRecord::kTempNameFormat"
+address = 0x00AD888C
+kind = "data"
+source = "Name ours. The text 'Record_%08x_': the start of a spilled record's temporary file name, formatted with the key's type (0x00970CEB, 0x00970F6B)."
+
+[[entry]]
+name = "cGZPersistDBRecord::kVariantTypeCodes"
+address = 0x00AD8C50
+kind = "data"
+source = "Name ours. Twenty dwords, a variant type (0 to 0x13) to the code a record stores for it: 0, 0xB, 1, 5, 2, 6, 3, 7, 4, 8, 9, 0xA, 0x11, 0x10, 0xC, 0x12, 0xD, 0xE, 0xF, 0x13. Read by 0x0097567E."
+
+[[entry]]
+name = "SC4Allocator::Allocate"
+address = 0x00459D80
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 74 0C"
+source = "Name ours. (uint32_t size), ret 4: the allocate of the game's STL allocator; this is not read. Null for size 0, else 0x0090CF54. Two direct callers, both the write record (0x0096F6C8, 0x009700C5); left the game's as allocator code."
+
+[[entry]]
+name = "SC4::CopyBytes"
+address = 0x006D6880
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 8B 54 24 04"
+source = "Name ours. (const uint8_t* first, const uint8_t* last, uint8_t* out, void* tag): copies the bytes of [first, last) to out one at a time; the fourth argument is not read. Generic (17 callers)."
+
+[[entry]]
+name = "SC4ByteVector::PushBack"
+address = 0x00478890
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 3B 41 08 74 12"
+source = "Name ours. (const uint8_t* value), ret 4: push_back of a vector of bytes; grows through 0x00461A10 when full. Generic (5 callers)."
+
+[[entry]]
+name = "SC4String::FromBytes"
+address = 0x0044ABE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 56 8D 44 24"
+source = "Name ours. (const char* text, uint32_t length), ret 8: constructs a game string (0x14 bytes, vtable 0x00A80810) from length characters (0x00407FA0); answers this. Generic (33 callers)."
+
+[[entry]]
+name = "RZ::ByteSwap64"
+address = 0x0092B55B
+kind = "function"
+convention = "stdcall"
+expect = "55 8B EC 51 8B 45 08 56"
+source = "Name ours. (uint32_t low, uint32_t high), ret 8, no this: a 64-bit value with its bytes reversed in EDX:EAX. Generic (6 callers)."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::IndexErase"
+address = 0x0097C221
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 8B 45 08"
+source = "Name ours. Erase one node of the index hash map by iterator: (node*, map*) by value, RET 8."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::CompressedErase"
+address = 0x0097E4B6
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 8B 45"
+source = "Name ours. Erase a key from the compressed-record hash map: (const key*), RET 4."
+
+[[entry]]
+name = "cGZDBWriteRecord::Pool"
+address = 0x00B17A14
+kind = "data"
+source = "Name ours. The pool the packed file's write records come from (free list at 0x00B17A20)."
+
+[[entry]]
+name = "cRZCompressor::GetMaxCompressedLength"
+address = 0x00A6D979
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 6B C0 0F 6A"
+source = "Name ours. uint32 (uint32 size), RET 4: size * 15 / 10 + 0x400."
+
+[[entry]]
+name = "cRZCompressor::SetQuick"
+address = 0x00A6D98F
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 88 41 08 C2"
+source = "Name ours. void (bool), RET 4: the byte at +8."
+
+[[entry]]
+name = "cRZCompressor::Compress"
+address = 0x00A6DFEB
+kind = "function"
+convention = "thiscall"
+expect = "B8 E2 FE A6 00 E8 DB 38"
+source = "Name ours. bool (const void* source, uint32 size, void* destination, uint32* outSize), RET 0x10: the encoder's output after a 4-byte length."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::kTempPrefix"
+address = 0x00AD889C
+kind = "data"
+source = "Name ours. The text 'TempDBSegmentPackedFile_', the prefix of the two temporary file names a compaction makes (0x0097233F)."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F93F7EB"
+address = 0x0093F7EB
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 26 00 6A 0C"
+source = "Placeholder. (allocator*, unused), ret 4, this = a list (one pointer): allocates the 12-byte head node (0x0090CF54) linked to itself; returns this. Generic list code."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F897C8D"
+address = 0x00897C8D
+kind = "function"
+convention = "thiscall"
+expect = "FF 74 24 0C E8 A4 36 0B"
+source = "Placeholder. (iterator* out, node* before, const value* value), ret 0xC, this = a list of 4-byte values: allocates a node with *value (0x0094B33A), links it in before the given node, writes the node to out and returns out. Generic list code."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F667A60"
+address = 0x00667A60
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 8B 51 08 83 C0 0C"
+source = "Placeholder. No arguments, this = a deque iterator {current, first, last, block} over 12-byte elements in blocks of 0x78 bytes: steps to the next element. The key list's keys are walked with it."
+
+[[entry]]
+name = "cGZPersistResourceKeyList::Construct"
+address = 0x00974E7A
+kind = "function"
+convention = "thiscall"
+expect = "51 33 C0 56 8B F1 C7 06"
+source = "Name ours. No arguments, this = 0x40 bytes: the framework's resource key list (vtable 0x00AADA64, reference count at +4, a deque of 12-byte keys at +0x18 whose begin iterator is at +0x18 and end iterator at +0x28, 16 bytes each); returns this, not counted."
+
+[[entry]]
+name = "cRZFile::SeekToPosition"
+address = 0x00918374
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 6A 00 FF 74 24 08"
+source = "Name ours. (uint32_t position), ret 4, slot 12 of cRZFile's vtable 0x00ABFED0: calls the file's slot 0x34 with (position, 0) and returns its result, the position reached."
+
+[[entry]]
+name = "RZFile::GetDirectoryOf"
+address = 0x0091A847
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 81 EC 2C 03 00"
+source = "Name ours, not analysed in full. (const cIGZString* path, cIGZString* out): splits the path (0x00917BCB) and gives out the folder part. The compaction asks it for the folder of the segment's file."
+
+[[entry]]
+name = "RZFile::MakeTempNameIn"
+address = 0x0091A686
+kind = "function"
+convention = "cdecl"
+expect = "55 8D 6C 24 94 81 EC D4"
+source = "Name ours, not analysed in full. (const cIGZString* folder, cIGZString* name, const cIGZString* extension or null): name comes in as a prefix and goes out as the path of a temporary file in the folder: a number from time(0) is added (format at 0x00ACF0CC), a default extension (0x00ABF9A0) when none is given, and candidates are tried by opening a file until one works, up to 10,000 times; true when a name was made."
+
+[[entry]]
+name = "cRZCompressor::WriteBigEndian"
+address = 0x00A6D9B6
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 8B 45 08 6A 04"
+source = "Name ours. (uint8_t* to, uint32_t value, uint32_t count): stores the low count bytes of value high byte first; EAX = the place after them. Called twice by 0x00A6DF84 for the header. Ours in saves.file.part4."
+
+[[entry]]
+name = "cRZCompressor::MatchLength"
+address = 0x00A6DBD6
+kind = "function"
+convention = "cdecl"
+expect = "57 33 FF 39 7C 24 10 76"
+source = "Name ours. (const uint8_t* a, const uint8_t* b, uint32_t most): how many leading bytes agree, at most 'most'. One caller, the encoder (0x00A6DD0A). Ours in saves.file.part4."
+
+[[entry]]
+name = "cRZCompressor::Encode"
+address = 0x00A6DBFE
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 40 83 65"
+source = "Name ours. (const uint8_t* source, int32_t length, uint8_t* out, int32_t window, int32_t quick): the RefPack encoder: two tables from CRT malloc (0x40000 bytes of chain heads set to -1, 0x80000 bytes of links), the commands written to out, both tables freed; EAX = bytes written, 0 when a table could not be had. window (0x20000 from the one caller 0x00A6DFBF) is not read. Reads up to two bytes past the source's end. Ours in saves.file.part4."
+
+[[entry]]
+name = "cRZCompressor::EncodeWithHeader"
+address = 0x00A6DF84
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 8B 45 14 56 8B"
+source = "Name ours. (const uint8_t* source, int32_t length, uint8_t* out, const int32_t* quick): writes 0x10 0xFB and the length in three bytes high first, then the commands through 0x00A6DBFE with bit 0 of *quick; EAX = that count + 5. One caller, Compress (0x00A6E01E). Ours in saves.file.part4."
+
+[[entry]]
+name = "CRT::free"
+address = 0x009F015B
+kind = "function"
+convention = "cdecl"
+expect = "6A 0C 68 60 63 AE 00 E8"
+source = "The exe's statically linked C runtime free (void* block). The compressor's encoder frees its two tables with it (0x00A6DF6B, 0x00A6DF73)."
+
+[[entry]]
+name = "cRZCompressor::QueryInterface"
+address = 0x00A6D93D
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 04 01 74 0E 81"
+source = "Name ours. (uint32_t iid, void** out), ret 8: slot 0 of vtable 0x00B00A5C: answers 1 and 0x8359908E with this and an AddRef (slot 1), else false in AL. The game's."
+
+[[entry]]
+name = "cRZCompressor::Release"
+address = 0x00A6D962
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 83 F8 01 76 05"
+source = "Name ours. No arguments: slot 2 of vtable 0x00B00A5C: counts this + 4 down and answers it while it is above 1, else calls the deleting destructor (slot 9) with 1 and answers 0. The game's."
+
+[[entry]]
+name = "cRZCompressor::ReadBigEndian"
+address = 0x00A6D999
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 08 8B 4C 24 04"
+source = "Name ours. (const uint8_t* from, uint32_t count): the value of count bytes read high byte first. Used by the read path's helpers 0x00A6D9E3 and 0x00A6DA15. The game's."
+
+[[entry]]
+name = "cRZCompressor::IsCompressedSignature"
+address = 0x00A6D9E3
+kind = "function"
+convention = "cdecl"
+expect = "56 6A 02 FF 74 24 0C 33"
+source = "Name ours. (const uint8_t* stream): 100 when the first two bytes are 0x10FB or 0x11FB, else 0. Called by Validate (0x00A6E15D). The game's (read path)."
+
+[[entry]]
+name = "cRZCompressor::StreamDecompressedLength"
+address = 0x00A6DA15
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 6A 02 56"
+source = "Name ours. (const uint8_t* stream): the three-byte length at +2 when the stream starts 0x10FB, else the three bytes at +5. Called by 0x00A6E122. The game's (read path)."
+
+[[entry]]
+name = "cRZCompressor::Decode"
+address = 0x00A6DA3F
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 51 8B 4D 08"
+source = "Name ours. (const uint8_t* stream, uint32_t* consumed, uint8_t* out): the RefPack decoder: skips the header (and three more bytes when bit 0 of the first byte is set), runs the commands into out; EAX = the length the header gives, *consumed = stream bytes read when the pointer is not null. Callers 0x00A6E08A and 0x00920B78. The game's (read path)."
+
+[[entry]]
+name = "cRZCompressor::DeletingDestructor"
+address = 0x00A6DFCE
+kind = "function"
+convention = "thiscall"
+expect = "F6 44 24 04 01 56 8B F1"
+source = "Name ours. (uint32_t flags), ret 4: slot 9 (offset 0x24) of vtable 0x00B00A5C: stores the vtable, frees this with 0x005E5620 when flags & 1. The game's."
+
+[[entry]]
+name = "cRZCompressor::GetCompressedLength"
+address = 0x00A6E0C8
+kind = "function"
+convention = "thiscall"
+expect = "B8 F6 FE A6 00 E8 FE 37"
+source = "Name ours. (const void* stream), ret 4: slot 6 (offset 0x18) of vtable 0x00B00A5C: the 32-bit length at the stream's start; 0 from its catch of everything. The game's (read path)."
+
+[[entry]]
+name = "cRZCompressor::GetVersionText"
+address = 0x00A6E1A4
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 68 84"
+source = "Name ours. (object* out), ret 4: slot 8 (offset 0x20) of vtable 0x00B00A5C: builds a string from the text '0.90' (0x00B00A84) and hands it to out's slot 0x38. The game's."
+
+[[entry]]
+name = "cRZCompressor::vftable"
+address = 0x00B00A5C
+kind = "data"
+source = "Name ours. The compressor's vtable, ten slots: QueryInterface 0x00A6D93D, AddRef 0x00968B60 (shared), Release 0x00A6D962, Compress 0x00A6DFEB, Decompress 0x00A6E065, GetMaxCompressedLength 0x00A6D979, GetCompressedLength 0x00A6E0C8, GetDecompressedLength 0x00A6E105, GetVersionText 0x00A6E1A4, the deleting destructor 0x00A6DFCE."
