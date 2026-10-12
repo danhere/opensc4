@@ -22,6 +22,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/tool_bulldoze.h"
 
 #include <cIGZUnknown.h>
 #include <cISC4NetworkOccupant.h>
@@ -187,7 +188,8 @@ uint8_t __fastcall DemolishRegion(void* self, void* edx, uint8_t demolish, void*
                                   void* demolished, void* occupant, int32_t a, int32_t b)
 {
     const auto caller = reinterpret_cast<std::uintptr_t>(__builtin_return_address(0));
-    const bool tool = caller >= kToolBegin && caller < kToolEnd;
+    // The game's tool code, or our translation of it (tool_bulldoze.h).
+    const bool tool = (caller >= kToolBegin && caller < kToolEnd) || tool_bulldoze::InToolCall();
     if (!filter && (g_testMode >= 0 || tool)) {
         const Mode mode = Current();
         if (mode != Mode::All) {
@@ -229,6 +231,19 @@ bool InstallRegion(const addr::Entry& entry)
     return hook::Install(entry, &DemolishRegion, &g_region);
 }
 
+// One of the tool's four functions: on our translation when ui.tools.bulldoze
+// has put it at the game's entry (tool_bulldoze.h), else on the game's entry.
+template <typename Fn>
+bool InstallTool(const addr::Entry& entry, tool_bulldoze::Wrapped which, std::uintptr_t ours, Fn detour, Fn* original)
+{
+    if (tool_bulldoze::WrappedIsOurs(which)) {
+        log::Write("bulldoze: %s wrapper sits on our translation", entry.name);
+        return hook::InstallAt(entry.name, ours, nullptr, 0, detour, original);
+    }
+    log::Write("bulldoze: %s wrapper sits on the game's entry", entry.name);
+    return hook::Install(entry, detour, original);
+}
+
 bool Install(registry::Mode)
 {
     char value[8];
@@ -243,9 +258,15 @@ bool Install(registry::Mode)
     const addr::Entry* move = addr_check::Find(addr::cSC4ViewInputControlDemolish_OnMouseMove);
     const addr::Entry* end = addr_check::Find(addr::cSC4ViewInputControlDemolish_EndDrag);
     const bool ok = region && shown && preview && InstallRegion(*region) &&
-                    hook::Install(*shown, &IsOccupantShown, &g_shown) &&
-                    hook::Install(*preview, &Preview, &g_preview) && move && end &&
-                    hook::Install(*move, &MouseMove, &g_move) && hook::Install(*end, &EndDrag, &g_end);
+                    InstallTool(*shown, tool_bulldoze::Wrapped::Shown, tool_bulldoze::ShownEntry(), &IsOccupantShown,
+                                &g_shown) &&
+                    InstallTool(*preview, tool_bulldoze::Wrapped::Preview, tool_bulldoze::PreviewEntry(), &Preview,
+                                &g_preview) &&
+                    move && end &&
+                    InstallTool(*move, tool_bulldoze::Wrapped::MouseMove, tool_bulldoze::MouseMoveEntry(), &MouseMove,
+                                &g_move) &&
+                    InstallTool(*end, tool_bulldoze::Wrapped::EndDrag, tool_bulldoze::EndDragEntry(), &EndDrag,
+                                &g_end);
     log::Write("bulldoze: Ctrl flora only, Shift networks only, Ctrl+Shift all but networks, Alt diagonal: %s",
                ok ? "installed" : "FAILED");
     return ok;

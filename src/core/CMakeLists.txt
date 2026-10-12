@@ -425,6 +425,8 @@ add_library(opensc4_core SHARED
   ui_panels_5.cpp
   ui_panels_6.cpp
   ui_panels_7.cpp
+  tool_bulldoze.cpp
+  tool_bulldoze_autotest.cpp
   ui_cityview_1.cpp
   ui_cityview_2.cpp
   ui_cityview_3.cpp
