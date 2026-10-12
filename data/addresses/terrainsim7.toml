@@ -1,0 +1,176 @@
+# cSTETerrain (build 641), piece 7: the edge reconciling's workers (src/core/terrain_edges.cpp), a new city's
+# terrain (src/core/terrain_newcity.cpp) and the leftovers (src/core/terrain_rest.cpp).
+# New names only. Reused: cSTETerrain::FindEdgeDifferences, ::CollectEdgeChanges, ::PrepareEdgeChanges,
+# ::ApplyEdgeChanges and ::SetUpNewTerrain (terrainsim4.toml; ours in simulators.terrain.edges and
+# simulators.terrain.newcity), ::UnflipMarkedCells and ::MarkSteepCell (terrainsim5.toml) and ::RaiseVertex and
+# ::GrowRect (terrainsim6.toml), ours in simulators.terrain.rest.
+
+[[entry]]
+name = "cSTETerrain::CityVertexRect"
+address = 0x007420F0
+kind = "function"
+convention = "cdecl"
+signature = "void (cISC4RegionalCity* city, int32_t* rect)"
+expect = "53 8B 5C 24 08 8B 03 56"
+source = "Name ours. A regional city's rectangle in vertex units of the region: its position (slot 5) and position + size (slot 7), each times 64 (a region unit is 64 cells). Only 0x0074D010 and 0x0074BE80 call it; ours has its own copy (src/core/terrain_edges.cpp)."
+
+[[entry]]
+name = "cSTETerrain::ReadNeighbourEdge"
+address = 0x0074BE80
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t edge, const int32_t* mine, cISC4RegionalCity* city, void* set)"
+expect = "83 EC 40 53 56 57 33 DB"
+source = "Name ours. One neighbouring city for 0x0074D010: its save path (slot 31) into a string, its file opened for reading (0x005DBFE0 with write 0, check version 1), the edge strip it saved for the side facing us read (0x0074BDE0 with (edge + 2) mod 4) into a vector that starts with 257 zeros, the shared part of the two rectangles found (0x007438C0) and the strip's altitudes put into the set (0x0074AF00); the file closed (0x005DBC10). Only 0x0074D010 calls it; ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::ReadEdgeStrip"
+address = 0x0074BDE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t edge, void* segment, std::vector<float>* strip)"
+expect = "8B 44 24 04 8B 4C 24 08"
+source = "Name ours. Reads record 0xA9DD6FF4 / 0xE98F9525 / 0x64 + edge of a city file segment (version 1 only): a count, the vector resized to it (0x00464130, fill 0), that many floats. AL 1 when read. Only 0x0074BE80 calls it; ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::SharedEdge"
+address = 0x007438C0
+kind = "function"
+convention = "cdecl"
+signature = "bool (const int32_t* mine, const int32_t* theirs, int32_t* first, int32_t* last)"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "Name ours. Where the rectangle `theirs` lies against `mine` (west, east, north, south, tested in that order): the two ends (x, z) of the shared part; AL 0 when they do not touch. Only 0x0074BE80 calls it; ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::AddEdgeStrip"
+address = 0x0074AF00
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* mine, const int32_t* theirs, const int32_t* first, const int32_t* last, const std::vector<float>* strip, void* set)"
+expect = "8B 4C 24 04 8B 41 08 53"
+source = "Name ours. The neighbour's strip along the shared part into the map of vertex index to altitude (0x006B5840 for a new key; an entry keeps the greater value): the key counted with the regional city's width in vertices, one apart along x and that width apart along z. No test of the strip's length. Only 0x0074BE80 calls it; ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::AddEmptyEdge"
+address = 0x0074B000
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t edge, int32_t cityX, int32_t cityZ, int32_t unitX, int32_t unitZ, float altitude, void* set)"
+expect = "8B 44 24 04 A8 01 53 55"
+source = "Name ours. The 65 vertices of our edge along one region unit without a city get the altitude in the map (an entry keeps the greater value); keys counted with the terrain's row length (+0x38) and cell counts (+0x28, +0x2C). Only 0x0074D010 calls it (with the region's base height x 1.5, when its second argument is set); ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::EraseEdgeRange"
+address = 0x00747830
+kind = "function"
+convention = "thiscall"
+signature = "void (void* set, void* first, void* last)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. Erases a range of nodes from the edge map (the whole tree through 0x007439D0 when it is everything, else node by node through 0x0040DAF0). Tree code of this class used only by 0x0074D010 (0x0074D44F); the game's, called at its address."
+
+[[entry]]
+name = "cSTETerrain::NewTerrainFromImage"
+address = 0x00740D60
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, void* picture)"
+expect = "83 EC 14 53 8B 5C 24 1C"
+source = "Name ours. A height picture (slots +0x24 width, +0x28 height, +0x54 pixel (x, y) -> AL, +8 release) stretched over the grid: every vertex 1.5 (0x00B0D5E8) x the byte at its place, the place stepping by width / vertices per row and height / rows; the picture released, +0x80 set, AL 1; AL 0 without a width or height. Called by 0x00748130 and 0x00742860; ours has its own copy (src/core/terrain_newcity.cpp)."
+
+[[entry]]
+name = "cSTETerrain::NewTerrainFromFile"
+address = 0x00742860
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, cIGZString* fileName)"
+expect = "83 EC 08 56 8B F1 C7 44"
+source = "Name ours. The framework's COM object makes a picture loader (class 0xA2FFB5D3, interface 0x02FFBB60), which loads the named file (its slot 4 with the name, a picture** and 2); then 0x00740D60 with the picture. Only 0x00748130 calls it; ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::ClampToMinHeight"
+address = 0x007429A0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "D9 41 70 D8 1D E0 D5 B0"
+source = "Name ours. When +0x70 is below the least allowed height (0x00B0D5E0): every vertex below it raised to it, +0x70 set to it. Only 0x00748130 calls it; ours has its own copy."
+
+[[entry]]
+name = "cSTETerrain::MarkShoreVertices"
+address = 0x007428E0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "83 EC 10 8B 41 28 8B 51"
+source = "Name ours. The mark 0x10 cleared over the whole map (0x007409B0) and set on every shore vertex (0x00741DE0 with the callback 0x00741B80; ECX is kept between the two calls). Called by slot 64 (0x0074BBA4) and from 0x00761BA2. Ours in simulators.terrain.rest (src/core/terrain_rest.cpp)."
+
+[[entry]]
+name = "cSTETerrain::CollectShore"
+address = 0x0074B570
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t index, void* deque, uint32_t mask)"
+expect = "53 55 56 8B 74 24 14 8B"
+source = "Name ours. The deque emptied (0x006DB440), the vertex pushed (0x006266E0 when the block is full) and flagged with the mask, then the shore line followed both ways (0x0074AD20, 0x0074AB60). Called by slot 64 (0x0074BC36) and from 0x00761C2F. Ours in simulators.terrain.rest."
+
+[[entry]]
+name = "cSTETerrain::ClearFlagsEverywhere"
+address = 0x00740980
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t mask)"
+expect = "8B 41 5C 57 8B 7C 24 08"
+source = "Name ours. Clears the mask's bits in every vertex's flags word. Called from 0x00761C9E. Ours in simulators.terrain.rest."
+
+[[entry]]
+name = "cSTETerrain::RectAround"
+address = 0x00740F10
+kind = "function"
+convention = "thiscall"
+signature = "int32_t* (cSTETerrain* this, int32_t* out, int32_t x, int32_t z, int32_t reach)"
+expect = "8B 54 24 10 8B 44 24 04"
+source = "Name ours. out = x - reach, z - reach, x + reach, z + reach, the near ends not below 0 (signed), the far ends not above the cell counts (unsigned); EAX = out. Called from 0x0075F958. Ours in simulators.terrain.rest."
+
+[[entry]]
+name = "cSTETerrain::HeightUnit"
+address = 0x00B0D5E8
+kind = "data"
+source = "Name ours. float in .data: 1.5 in the exe: metres per unit of the region's base terrain height (0x0074D104, 0x007481EA) and per step of a height picture's byte (0x00740EAD)."
+
+[[entry]]
+name = "cSTETerrain::DefaultNewHeight"
+address = 0x00B0D5E4
+kind = "data"
+source = "Name ours. float in .data: 50.0 in the exe: a new flat terrain's height when there is no region (0x007481C5). The tuning loader 0x0074B6A0 refers to it."
+
+[[entry]]
+name = "cSTETerrain::EdgeTolerance"
+address = 0x00B0D680
+kind = "data"
+source = "Name ours. float in .data: 1.2 in the exe: when every edge vertex is within it of the altitude the neighbours ask for, 0x0074D010 finds nothing to reconcile (0x0074D316)."
+
+[[entry]]
+name = "cSTETerrain::EdgeSmoothPasses"
+address = 0x00B0D67C
+kind = "data"
+source = "Name ours. int32 in .data: 5 in the exe: the smoothing passes 0x00748C90 gives 0x00745020 (0x00748E4B)."
+
+[[entry]]
+name = "cSTETerrain::EdgeReachCurve"
+address = 0x00B4BD64
+kind = "data"
+source = "Name ours. A curve object (0x005F4250 evaluates it), filled by the tuning loader 0x0074B6A0: the altitude difference at an edge vertex to the reach in cells of the reconciling around it (0x0074B11B)."
+
+[[entry]]
+name = "cSTETerrain::EdgeStepX"
+address = 0x00AB3EE0
+kind = "data"
+expect = "00 00 00 00 01 00 00 00"
+source = "Name ours. int32_t[4] in .rdata: 0, 1, 0, 1: the step along x in region units when 0x0074D010 walks outside edge 0 to 3 (west, north, east, south)."
+
+[[entry]]
+name = "cSTETerrain::EdgeStepZ"
+address = 0x00AB3ED0
+kind = "data"
+expect = "01 00 00 00 00 00 00 00"
+source = "Name ours. int32_t[4] in .rdata: 1, 0, 1, 0: the step along z."
