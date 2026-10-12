@@ -41,6 +41,10 @@ struct Hash {
 struct Counters {
     uint32_t intersections = 0, lit = 0, immovable = 0, unusable = 0, oneWay = 0, ceiling = 0, retrofit = 0;
     uint32_t origin = 0, nodeEdges = 0, pylon = 0, placed = 0, pathOverride = 0, variation = 0, edges = 0;
+    // The third piece's: pieces whose corners are not level, whose normal is not flat, whose cell is not 0, whose
+    // box is wider than a point, neighbour connections that said yes, and complex pieces that are part of their own
+    // structure.
+    uint32_t sloped = 0, tilted = 0, cells = 0, wide = 0, connects = 0, same = 0;
 };
 
 // The network types the edge store is asked about (0 to 12).
@@ -101,6 +105,88 @@ void MixSaved(Hash& hash, char* self, bool inited)
             hash.Mix(At<uint32_t>(self, field::kPairs + 4 * i));
 }
 
+// The geometry queries of the third piece (src/core/netocc_geometry.cpp), all read-only, through the
+// interface's and the occupant part's vtables. The world positions asked are corner 0, 1, 2 and 3 as the object
+// has them (x at +0x9C, z at +0xA4 of each 0x18 record), the middle of corners 0 and 2, and two points in each
+// of the two triangles (offsets 4, 12 and 12, 4 from corner 0) and one on the diagonal (8, 8): GetAltitude
+// (a double in ST0, mixed as the float it is) and GetNormal (the out vector's three words) for each.
+// GetOccupiedCell (two out words), the occupant part's slot 8 (the position, three words) and slot 10 (the
+// stored box, six words), the interface's
+// slot 80 into local arrays (the box worked out again from the corners and the path records, six words) and
+// ConnectsToNeighbor for the four sides and the 13 types. IsPartOfTheSameStructure only for a piece that has a
+// complex piece origin and only against itself: the game's function compares uninitialised stack words when a
+// piece has none (and it is not ours). Not called here: GetPathInfo, ReleasePathInfo, PathConnectionExists
+// (builds the information when flag 0x2000 is not set) and AddPathConnection: the information is made when the
+// game first needs it (the view), so calling them would make the part follow the view.
+void MixGeometry(Hash& hash, char* self, bool hasOrigin, Counters& counters)
+{
+    const float x0 = At<float>(self, field::kCorners);
+    const float z0 = At<float>(self, field::kCorners + 8);
+    const float x2 = At<float>(self, field::kCorners + 2 * field::kVertexStride);
+    const float z2 = At<float>(self, field::kCorners + 2 * field::kVertexStride + 8);
+    float xs[8] = {};
+    float zs[8] = {};
+    for (std::size_t corner = 0; corner < 4; ++corner) {
+        xs[corner] = At<float>(self, field::kCorners + corner * field::kVertexStride);
+        zs[corner] = At<float>(self, field::kCorners + corner * field::kVertexStride + 8);
+    }
+    xs[4] = static_cast<float>((static_cast<double>(x0) + static_cast<double>(x2)) * 0.5);
+    zs[4] = static_cast<float>((static_cast<double>(z0) + static_cast<double>(z2)) * 0.5);
+    xs[5] = x0 + 4.0f;
+    zs[5] = z0 + 12.0f;
+    xs[6] = x0 + 12.0f;
+    zs[6] = z0 + 4.0f;
+    xs[7] = x0 + 8.0f;
+    zs[7] = z0 + 8.0f;
+    for (std::size_t i = 0; i < 8; ++i) {
+        hash.MixFloat(static_cast<float>(Virtual<double>(self, slot::kGetAltitude, xs[i], zs[i])));
+        uint32_t normal[3] = {};
+        Virtual<uint32_t*>(self, slot::kGetNormal, static_cast<uint32_t*>(normal), xs[i], zs[i]);
+        hash.Mix(normal[0]);
+        hash.Mix(normal[1]);
+        hash.Mix(normal[2]);
+        float flat[2] = {};
+        std::memcpy(&flat[0], &normal[0], 4);
+        std::memcpy(&flat[1], &normal[2], 4);
+        counters.tilted += i < 4 && (flat[0] != 0.0f || flat[1] != 0.0f);
+    }
+    uint32_t heights[4] = {};
+    Virtual<void>(self, slot::kGetVertexHeights, static_cast<uint32_t*>(heights));
+    counters.sloped += heights[0] != heights[1] || heights[0] != heights[2] || heights[0] != heights[3];
+    uint32_t cellX = 0, cellZ = 0;
+    Virtual<void>(self, slot::kGetOccupiedCell, &cellX, &cellZ);
+    hash.Mix(cellX);
+    hash.Mix(cellZ);
+    counters.cells += cellX != 0 || cellZ != 0;
+    uint32_t position[3] = {};
+    Virtual<void>(self + field::kOccupant, 0x20, static_cast<uint32_t*>(position));
+    hash.Mix(position[0]);
+    hash.Mix(position[1]);
+    hash.Mix(position[2]);
+    uint32_t low[3] = {}, high[3] = {};
+    Virtual<void>(self + field::kOccupant, 0x28, static_cast<uint32_t*>(low), static_cast<uint32_t*>(high));
+    for (std::size_t i = 0; i < 3; ++i) {
+        hash.Mix(low[i]);
+        hash.Mix(high[i]);
+    }
+    counters.wide += std::memcmp(low, high, sizeof low) != 0;
+    uint32_t again[6] = {};
+    Virtual<void>(self, slot::kComputeBoundingBox, static_cast<uint32_t*>(again), &again[3]);
+    for (const uint32_t word : again)
+        hash.Mix(word);
+    for (uint32_t side = 0; side < 4; ++side)
+        for (uint32_t type = 0; type < kTypes; ++type) {
+            const bool connects = Virtual<uint8_t>(self, slot::kConnectsToNeighbor, side, type) != 0;
+            hash.Mix(connects);
+            counters.connects += connects;
+        }
+    if (hasOrigin) {
+        const bool same = Virtual<uint8_t>(self, slot::kIsPartOfTheSameStructure, self) != 0;
+        hash.Mix(same);
+        counters.same += same;
+    }
+}
+
 // One network occupant's state as the interface's read-only queries answer
 // it (so through the vtable: the game's functions or ours): every flag bit
 // but the lit bit (the lighting follows the view), HasNetworkFlag and
@@ -110,10 +196,11 @@ void MixSaved(Hash& hash, char* self, bool inited)
 // one byte, variation, the four corner heights (both ways), the edge store's
 // values for every type and the active and grouped edges for it, the
 // intersection answer, the demolition cost, the passage ceiling, the
-// one-way directions, the complex piece origin and the pylon. Out values
+// one-way directions, the complex piece origin and the pylon, and the geometry (MixGeometry). Out values
 // are mixed only when the query says it wrote them. Not mixed: the lit bit
 // (only counted), pointers and the edge store's own pointer. Not called:
-// functions that are not of this piece (GetEdgeStore, GetPathInfo ...).
+// functions that are not of these pieces (GetEdgeStore, the path information's functions, which follow the
+// view).
 uint32_t ObjectHash(char* self, Counters& counters)
 {
     Hash hash;
@@ -200,6 +287,7 @@ uint32_t ObjectHash(char* self, Counters& counters)
     const bool pylon = Virtual<uint8_t>(self, slot::kIsSupportPylonPresent) != 0;
     hash.Mix(pylon);
     counters.pylon += pylon;
+    MixGeometry(hash, self, hasOrigin, counters);
     MixSaved(hash, self, true);
     return hash.h;
 }
@@ -312,6 +400,15 @@ uint32_t Exercise(char* self)
         Virtual<void>(self, slot::kClearNetworkFlag, flag::kTranslucent);
     }
     hash.Mix(Virtual<uint8_t>(self, slot::kHasNetworkFlag, flag::kTranslucent));
+
+    // Rotation and flip, in one byte (slot 74).
+    const uint8_t rotation = Virtual<uint8_t>(self, slot::kGetRotationAndFlip);
+    Virtual<void>(self, slot::kSetRotationAndFlip, uint32_t{static_cast<uint8_t>(rotation ^ 0x85)});
+    hash.Mix(Virtual<uint8_t>(self, slot::kGetRotationAndFlip));
+    hash.Mix(Virtual<uint8_t>(self, slot::kGetRotation));
+    hash.Mix(Virtual<uint8_t>(self, slot::kGetFlip));
+    Virtual<void>(self, slot::kSetRotationAndFlip, uint32_t{rotation});
+    hash.Mix(Virtual<uint8_t>(self, slot::kGetRotationAndFlip));
 
     // Variation and under texture.
     const uint8_t variation = Virtual<uint8_t>(self, slot::kGetVariation);
@@ -466,6 +563,107 @@ uint32_t Exercise(char* self)
     return hash.h;
 }
 
+// The path information and the path connection table of one object (OPENSC4_TEST_NETOCC day hook only: the
+// information is made when the game first needs it, which follows the view, so the daily part must not ask for it).
+// GetPathInfo twice (the second answer is the first's), what it did (an answer or not, flag 0x2000, the eight
+// words of the table; never the pointer), PathConnectionExists over the path types 0 to 7 and for `from` and `to`
+// each 0xFF or 0 to 3; then AddPathConnection (type 7, from 3, to 3, and a call with `from` 0xFF, which only sets
+// the flag) and the read-back with the four forms of the question and the first row (which AddPathConnection also
+// sets). Then the table's words and the flag are put back as they were, and the information dropped when there
+// was none before (what the information's own functions did to the model and the piece cannot be undone).
+// Whether the information was there before is not mixed: that follows the view.
+uint32_t Paths(char* self)
+{
+    Hash hash;
+    uint32_t saved[8];
+    for (std::size_t i = 0; i < 8; ++i)
+        saved[i] = At<uint32_t>(self, field::kPathTable + 4 * i);
+    const bool hadInfo = At<void*>(self, field::kReference) != nullptr;
+    const bool hadFlag = Virtual<uint8_t>(self, slot::kHasNetworkFlag, flag::kPathInfo) != 0;
+    void* const info = Virtual<void*>(self, slot::kGetPathInfo);
+    hash.Mix(info != nullptr);
+    hash.Mix(Virtual<void*>(self, slot::kGetPathInfo) == info);
+    hash.Mix(At<void*>(self, field::kReference) == info);
+    hash.Mix(Virtual<uint8_t>(self, slot::kHasNetworkFlag, flag::kPathInfo));
+    for (std::size_t i = 0; i < 8; ++i)
+        hash.Mix(At<uint32_t>(self, field::kPathTable + 4 * i));
+    constexpr uint32_t kEnds[] = {0xFF, 0, 1, 2, 3};
+    for (uint32_t type = 0; type < 8; ++type)
+        for (const uint32_t from : kEnds)
+            for (const uint32_t to : kEnds)
+                hash.Mix(Virtual<uint8_t>(self, slot::kPathConnectionExists, type, from, to));
+    Virtual<void>(self, slot::kAddPathConnection, 7u, 3u, 3u);
+    hash.Mix(Virtual<uint8_t>(self, slot::kPathConnectionExists, 7u, 3u, 3u));
+    hash.Mix(Virtual<uint8_t>(self, slot::kPathConnectionExists, 7u, 0xFFu, 3u));
+    hash.Mix(Virtual<uint8_t>(self, slot::kPathConnectionExists, 7u, 3u, 0xFFu));
+    hash.Mix(Virtual<uint8_t>(self, slot::kPathConnectionExists, 7u, 0xFFu, 0xFFu));
+    hash.Mix(Virtual<uint8_t>(self, slot::kPathConnectionExists, 0u, 3u, 3u));
+    hash.Mix(Virtual<uint8_t>(self, slot::kHasNetworkFlag, flag::kPathInfo));
+    Virtual<void>(self, slot::kAddPathConnection, 2u, 0xFFu, 1u);
+    hash.Mix(Virtual<uint8_t>(self, slot::kPathConnectionExists, 2u, 0xFFu, 0xFFu));
+    for (std::size_t i = 0; i < 8; ++i) {
+        hash.Mix(At<uint32_t>(self, field::kPathTable + 4 * i));
+        At<uint32_t>(self, field::kPathTable + 4 * i) = saved[i];
+    }
+    if (!hadFlag)
+        Virtual<void>(self, slot::kClearNetworkFlag, flag::kPathInfo);
+    if (!hadInfo)
+        Virtual<void>(self, slot::kReleasePathInfo);
+    return hash.h;
+}
+
+// The edge store's Set, Get and Assign on made objects (so on no occupant of the city): through the interface's
+// slots 37, 38 and 44 (thunks to the store at +0x108). `self` is a fresh object (an empty store), `other` another
+// one; the stores' words are mixed through Get only (no pointers). Keys 5, 7, 9, 11, 12, 2, 3 and 4 are set in a
+// sequence that reaches every branch of Set: the first entry (empty and taken, replaced, emptied and taken again
+// by another key), further entries added (the array grown), replaced, removed from the end, removed from the
+// middle (the last moved in), removed to empty (the array freed), a zero for a key that is not there; Assign
+// from `other` (with entries) and from an empty store (the array freed); Get for every key 0 to 12 after each
+// step. Write and Read are the save's: every city is saved through them in the parity runs.
+uint32_t EdgeStore(char* self, char* other)
+{
+    Hash hash;
+    const auto mixAll = [&](char* object) {
+        for (uint32_t key = 0; key < 13; ++key)
+            hash.Mix(Virtual<uint32_t>(object, slot::kGetEdgeTypesFlag, key));
+        hash.Mix(At<uint8_t>(object, field::kEdgeCount));
+    };
+    const auto set = [&](char* object, uint32_t key, uint32_t value) {
+        Virtual<void>(object, slot::kSetEdgeTypesFlag, key, value);
+        mixAll(object);
+    };
+    mixAll(self);
+    set(self, 5, 0x01020304u);
+    set(self, 7, 0x11u);
+    set(self, 9, 0x22u);
+    set(self, 7, 0x33u);
+    set(self, 5, 0);
+    set(self, 11, 0x44u);
+    set(self, 9, 0);
+    set(self, 6, 0);
+    set(self, 7, 0);
+    set(self, 12, 0x55u);
+    set(self, 2, 0x66u);
+    set(self, 3, 0x77u);
+    set(self, 4, 0x88u);
+    set(self, 12, 0);
+    set(self, 4, 0);
+    set(other, 1, 0xAAu);
+    set(other, 8, 0xBBu);
+    set(other, 10, 0xCCu);
+    Virtual<void>(self, slot::kSetEdgeStore, other + field::kEdgeStore);
+    mixAll(self);
+    set(self, 8, 0);
+    mixAll(other);
+    Virtual<void>(self, slot::kSetEdgeStore, other + field::kEdgeStore);
+    mixAll(self);
+    set(other, 8, 0);
+    set(other, 10, 0);
+    Virtual<void>(self, slot::kSetEdgeStore, other + field::kEdgeStore);
+    mixAll(self);
+    return hash.h;
+}
+
 // One QueryInterface through `part` for `iid`: whether it answered and where
 // in the object the answer lies (never the address); the reference it gave
 // is released.
@@ -493,7 +691,8 @@ void AskInterface(Hash& hash, char* self, char* part, uint32_t iid)
 // second branch: the usable bit and the bit 0x800000, set in the flags,
 // cleared and set again through SetNetworkFlag). The last Release destroys
 // the object through the deleting destructor and returns the item to its
-// pool page. Not called: the interface's Init (0x00619050) and the first
+// pool page. The edge store's Set, Get and Assign run on it and a second made object (EdgeStore). Not called:
+// the interface's Init (0x00619050) and the first
 // branch of the occupant part's, which end in the occupant message 0x99EF1140
 // (queued, with the made object as its object): listeners of that message
 // would meet an occupant that is in no cell and no network.
@@ -518,6 +717,11 @@ uint32_t Life()
         for (const uint32_t iid : ids)
             AskInterface(hash, self, self + offset, iid);
     MixSaved(hash, self, false);
+    if (char* const other = reinterpret_cast<char*(__cdecl*)()>(addr::cSC4NetworkOccupant_Create)()) {
+        Virtual<uint32_t>(other, 0x4);
+        hash.Mix(EdgeStore(self, other));
+        Virtual<uint32_t>(other, 0x8);
+    }
     hash.Mix(At<uint32_t>(self, field::kFlags));
     At<uint8_t>(self, field::kOccupant + 0x2E) |= 1;
     At<uint32_t>(self, field::kFlags) |= 0x10800000u;
@@ -547,6 +751,7 @@ void Drive(const Day& day)
         if (ObjectHash(self, unused) % 7 != 0)
             continue;
         g_setSum += Exercise(self);
+        g_setSum += Paths(self);
         ++g_setCount;
     }
 }
@@ -569,14 +774,15 @@ void Fingerprint(cISC4City* city, std::string& line)
         sum += hash;
         mixed ^= hash;
     }
-    char text[256];
+    char text[384];
     std::snprintf(text, sizeof text,
                   " | netocc %u,%08X,%08X inter %u lit %u imm %u unus %u ow %u ceil %u retro %u node %u orig %u "
-                  "pyl %u placed %u pov %u var %u act %u",
+                  "pyl %u placed %u pov %u var %u act %u slope %u tilt %u cell %u wide %u conn %u same %u",
                   static_cast<unsigned>(objects.size()), sum, mixed, counters.intersections, counters.lit,
                   counters.immovable, counters.unusable, counters.oneWay, counters.ceiling, counters.retrofit,
                   counters.nodeEdges, counters.origin, counters.pylon, counters.placed, counters.pathOverride,
-                  counters.variation, counters.edges);
+                  counters.variation, counters.edges, counters.sloped, counters.tilted, counters.cells, counters.wide,
+                  counters.connects, counters.same);
     line += text;
     if (g_setCount) {
         std::snprintf(text, sizeof text, " set %08X,%u", g_setSum, static_cast<unsigned>(g_setCount));
