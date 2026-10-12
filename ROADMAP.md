@@ -13,7 +13,7 @@ Measured 2026-10-11:
 
 - Roadmap (P0-P9): 69 of 99 items done, 11 in progress.
 - Address database: 6561 game functions recorded, 3119 of them reimplemented (9.0% of the game's 34,556; a lower bound, vtable swaps are not all recorded).
-- Replacement toggles: 398 simulators, 67 renderer, 64 ui, 6 game, 2 resources.
+- Replacement toggles: 398 simulators, 67 renderer, 64 ui, 6 game, 6 resources.
 
 | Phase | Done | In progress | Not started |
 |---|---|---|---|
@@ -83,7 +83,7 @@ Output is a toolkit, not a game change. Everything later depends on it.
 
 - [x] Survey ([docs/resources.md](docs/resources.md)): segment order and override rules measured in the running game (`diagnostics.dbpf_survey`); on the vanilla game building all segments takes under 40 ms, so loading speed only matters with large plugin folders
 - [x] Our DBPF reader (format, index, compression) as a tested library ([src/dbpf](src/dbpf), `opensc4-dbpf` tool); byte-identical to the game's own reading for all 111,838 records of the clean install, and reads every saved city in the test region. Also the base for P4, since saved cities are DBPF files
-- [ ] Our DBPF loader with exact plugin override precedence (top level: first segment wins; inside a folder: last file wins, top-level files before subfolders, alphabetical). Offline loader done ([src/dbpf/plugins.h](src/dbpf/plugins.h)): order, key index, reads, plugins turned off, per-file summaries. In the game, `resources.plugin_loader` (off by default) builds the segments with it, the folder segment our own, and keeps turned-off plugins out; records are still read by the game's packed-file segments ([docs/resources.md](docs/resources.md), "Our loader in the game")
+- [ ] Our DBPF loader with exact plugin override precedence (top level: first segment wins; inside a folder: last file wins, top-level files before subfolders, alphabetical). Offline loader done ([src/dbpf/plugins.h](src/dbpf/plugins.h)): order, key index, reads, plugins turned off, per-file summaries. In the game, `resources.plugin_loader` (off by default) builds the segments with it, the folder segment our own, and keeps turned-off plugins out; and `resources.packed_file.part1` to `part4` (off by default) are our translation of the packed-file segment's read side, 135 functions: open, header, index, holes, directory, record opens and reads, decompression; its write side is still the game's ([docs/resources.md](docs/resources.md), "Our loader in the game" and "The packed file")
 - [ ] Faster loading, conflict and override diagnostics (pays off with mods; absorbs sc4-dbpf-loading). Offline conflict report started: `opensc4-dbpf plugins` ([docs/resources.md](docs/resources.md))
 - [ ] Coordinate with existing DBPF-loading DLLs
 

@@ -84,3 +84,2318 @@ convention = "thiscall"
 signature = "bool (void* this)"
 expect = "55 8B EC 6A FF 68 C0 EF A6 00 64 A1 00 00 00 00"
 source = "Name ours. Reads the class objects of a save (docs/crashes.md, Prop pox); returns early unless the state at this+0x20 is 1. The class map is at this+0x14 ({header*, count}; node: class ID +0x10, expected count +0x14, registered count +0x18). Has an SEH frame. Hooked read-only by diagnostics.prop_pox."
+
+# cGZDBSegmentPackedFile (class 0x086D4A89), the framework packed file: 0x0096D80C to 0x00972B73 and its
+# base at 0x00975616 to 0x009759C5 (docs/resources.md, "The packed file"). Placeholder names until read.
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D80C"
+address = 0x0096D80C
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 10 89 51"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 24 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D824"
+address = 0x0096D824
+kind = "function"
+convention = "thiscall"
+expect = "0F B7 41 06 C3 66 8B 44"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 5 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D829"
+address = 0x0096D829
+kind = "function"
+convention = "thiscall"
+expect = "66 8B 44 24 04 66 89 41"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 12 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D835"
+address = 0x0096D835
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 83 F8"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 36 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D859"
+address = 0x0096D859
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 14 8B F1 FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 60 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D895"
+address = 0x0096D895
+kind = "function"
+convention = "thiscall"
+expect = "8B 11 8B 44 24 04 3B 10"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 36 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D8B9"
+address = 0x0096D8B9
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 C3 56 6A 04 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 3 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D8BC"
+address = 0x0096D8BC
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 04 8B F1 6A 00 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 20 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D8D0"
+address = 0x0096D8D0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 8B 45 14 56 FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 92 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D92C"
+address = 0x0096D92C
+kind = "function"
+convention = "thiscall"
+expect = "66 83 79 0A 00 74 10 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 28 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D948"
+address = 0x0096D948
+kind = "function"
+convention = "thiscall"
+expect = "66 83 79 0A 00 74 13 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 31 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D967"
+address = 0x0096D967
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 66 83 7E 0A 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 76 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D9B3"
+address = 0x0096D9B3
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 18 66 83"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 30 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96D9D1"
+address = 0x0096D9D1
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 8B 45 14 56 FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 95 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DA30"
+address = 0x0096DA30
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 8B 45 14 56 FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 117 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DAA5"
+address = 0x0096DAA5
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 44 85 C9"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 50 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DAD7"
+address = 0x0096DAD7
+kind = "function"
+convention = "thiscall"
+expect = "66 83 79 0A 00 74 15 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 33 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DAF8"
+address = 0x0096DAF8
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 66 83 7E 0A 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 61 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DB35"
+address = 0x0096DB35
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 66 83 7E 0A 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 61 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DB72"
+address = 0x0096DB72
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 18 66 83"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 46 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DBA0"
+address = 0x0096DBA0
+kind = "function"
+convention = "thiscall"
+expect = "66 83 79 0A 00 74 12 83"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 28 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DBBC"
+address = 0x0096DBBC
+kind = "function"
+convention = "thiscall"
+expect = "66 83 79 0A 00 74 28 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 52 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DBF0"
+address = 0x0096DBF0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 61 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DC2D"
+address = 0x0096DC2D
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 81 7D 08 45 36"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 65 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DC6E"
+address = 0x0096DC6E
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8D 77 04 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 37 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DC93"
+address = 0x0096DC93
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 41 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DCBC"
+address = 0x0096DCBC
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 08 32 C0"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 40 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DCE4"
+address = 0x0096DCE4
+kind = "function"
+convention = "thiscall"
+expect = "83 79 08 00 74 0B 8B 49"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 21 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DCF9"
+address = 0x0096DCF9
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 39 41 08 74 0B 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 19 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DD0C"
+address = 0x0096DD0C
+kind = "function"
+convention = "thiscall"
+expect = "83 79 08 00 74 0B 8B 49"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 22 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DD22"
+address = 0x0096DD22
+kind = "function"
+convention = "thiscall"
+expect = "83 79 08 00 74 14 8B 49"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 30 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DD40"
+address = 0x0096DD40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 7E 08 00 57"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 53 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DD75"
+address = 0x0096DD75
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 7E 08 00 74"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 48 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DDA5"
+address = 0x0096DDA5
+kind = "function"
+convention = "thiscall"
+expect = "83 79 08 00 74 19 8B 49"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 37 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DDCA"
+address = 0x0096DDCA
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 7E 08 00 74"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 88 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DE22"
+address = 0x0096DE22
+kind = "function"
+convention = "thiscall"
+expect = "83 79 08 00 74 08 8B 49"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 19 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DE35"
+address = 0x0096DE35
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 7E 08 00 74"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 73 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DE7E"
+address = 0x0096DE7E
+kind = "function"
+convention = "thiscall"
+expect = "83 79 08 00 74 0B 8B 49"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 22 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DE94"
+address = 0x0096DE94
+kind = "function"
+convention = "thiscall"
+expect = "83 79 08 00 74 22 8B 49"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 45 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DEC1"
+address = 0x0096DEC1
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 73 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DF3C"
+address = 0x0096DF3C
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 F6 46 18 03 74"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 36 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DF60"
+address = 0x0096DF60
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 80 7E 10 00 75"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 45 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DFC9"
+address = 0x0096DFC9
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 00 89 41"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 14 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DFD7"
+address = 0x0096DFD7
+kind = "function"
+convention = "thiscall"
+expect = "F6 41 1C 03 74 04 32 C0"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 25 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96DFF0"
+address = 0x0096DFF0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 60 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E02C"
+address = 0x0096E02C
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 55 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E063"
+address = 0x0096E063
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 55 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E09A"
+address = 0x0096E09A
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 51 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E0CD"
+address = 0x0096E0CD
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 69 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E112"
+address = 0x0096E112
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 77 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E15F"
+address = 0x0096E15F
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 44 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E18B"
+address = 0x0096E18B
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 81 48 01"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 13 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E198"
+address = 0x0096E198
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 77 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E1E5"
+address = 0x0096E1E5
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 97 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E246"
+address = 0x0096E246
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 97 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E2A7"
+address = 0x0096E2A7
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 102 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E30D"
+address = 0x0096E30D
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 42 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E337"
+address = 0x0096E337
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 44 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E363"
+address = 0x0096E363
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8D 41 FC F7"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 24 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E37B"
+address = 0x0096E37B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 68 53 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 140 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E407"
+address = 0x0096E407
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 86 E4 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 150 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E49D"
+address = 0x0096E49D
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 86 18 01"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 63 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E4DC"
+address = 0x0096E4DC
+kind = "function"
+convention = "thiscall"
+expect = "B8 89 F2 A6 00 E8 EA 33"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 315 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E617"
+address = 0x0096E617
+kind = "function"
+convention = "thiscall"
+expect = "B8 93 F2 A6 00 E8 AF 32"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 221 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E6F4"
+address = 0x0096E6F4
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 83 7D 08 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 127 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E773"
+address = 0x0096E773
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 85"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 24 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E78B"
+address = 0x0096E78B
+kind = "function"
+convention = "thiscall"
+expect = "56 8B C1 8B 4C 24 08 57"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 32 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E7AB"
+address = 0x0096E7AB
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 64 72 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E7B3"
+address = 0x0096E7B3
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 AC 72 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E7BB"
+address = 0x0096E7BB
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 AD 72 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E7C3"
+address = 0x0096E7C3
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 C3 9F FC FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E7CB"
+address = 0x0096E7CB
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 C0 00 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E7D3"
+address = 0x0096E7D3
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 3C 72 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E7DB"
+address = 0x0096E7DB
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 84 72 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E7E3"
+address = 0x0096E7E3
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 85 72 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E7EB"
+address = 0x0096E7EB
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 A0 00 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E7F3"
+address = 0x0096E7F3
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 2C E9 1C 72 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E7FB"
+address = 0x0096E7FB
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 2C E9 64 72 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E803"
+address = 0x0096E803
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 2C E9 65 72 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E80B"
+address = 0x0096E80B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 10 E9 D7 BD FD FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E813"
+address = 0x0096E813
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 2C E9 78 00 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E81B"
+address = 0x0096E81B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 44 F1 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E823"
+address = 0x0096E823
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 53 9F FC FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E82B"
+address = 0x0096E82B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 19 D6 02 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E833"
+address = 0x0096E833
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 B3 CF 02 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E83B"
+address = 0x0096E83B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 E9 F0 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E843"
+address = 0x0096E843
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 FD F0 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E84B"
+address = 0x0096E84B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 5C 00 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E853"
+address = 0x0096E853
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 54 00 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E85B"
+address = 0x0096E85B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 2C E9 4C 00 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E863"
+address = 0x0096E863
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 8D F2 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E86B"
+address = 0x0096E86B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 C2 F2 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E873"
+address = 0x0096E873
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 5C F2 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E87B"
+address = 0x0096E87B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 72 00 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E883"
+address = 0x0096E883
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 6A 00 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E88B"
+address = 0x0096E88B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 2C E9 62 00 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E893"
+address = 0x0096E893
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 39 EF FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 28 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E8AF"
+address = 0x0096E8AF
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 1E 00 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 38 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E8D5"
+address = 0x0096E8D5
+kind = "function"
+convention = "thiscall"
+expect = "C7 01 E8 80 AD 00 C7 41"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 32 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E8F5"
+address = 0x0096E8F5
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 A8 F1 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 38 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E91B"
+address = 0x0096E91B
+kind = "function"
+convention = "thiscall"
+expect = "66 83 79 0A 00 74 15 83"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 31 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E93A"
+address = 0x0096E93A
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 83 78 0C 00 8D 48"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 29 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E957"
+address = 0x0096E957
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 39 41 08 0F 95 C0"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 9 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E960"
+address = 0x0096E960
+kind = "function"
+convention = "thiscall"
+expect = "C2 08 00 83 E9 04 E9 C2"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 3 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E963"
+address = 0x0096E963
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 C2 F2 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E96B"
+address = 0x0096E96B
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 83 F8 01 76 05"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 47 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96E99A"
+address = 0x0096E99A
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 6A 60 33"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 173 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EA47"
+address = 0x0096EA47
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 53 8B 5D 0C"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 129 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EAC8"
+address = 0x0096EAC8
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 45 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EAF5"
+address = 0x0096EAF5
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 45 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EB22"
+address = 0x0096EB22
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 41 FE FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EB2A"
+address = 0x0096EB2A
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 66 83 7E 0A 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 78 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EB78"
+address = 0x0096EB78
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 260 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EC7C"
+address = 0x0096EC7C
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 C7"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 49 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96ECAD"
+address = 0x0096ECAD
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 85 FC FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 28 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96ECC9"
+address = 0x0096ECC9
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 83 C1 0C"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 90 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96ED23"
+address = 0x0096ED23
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 71 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96ED6A"
+address = 0x0096ED6A
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 7E 04 00 74"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 41 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96ED93"
+address = 0x0096ED93
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 7E 04 00 74"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 41 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EDBC"
+address = 0x0096EDBC
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 5B 96 03 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 23 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EDD3"
+address = 0x0096EDD3
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 18 E8 79 E1 F9 FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 36 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EDF7"
+address = 0x0096EDF7
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 11 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 41 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EE20"
+address = 0x0096EE20
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 8B 45 14 53 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 137 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EEA9"
+address = 0x0096EEA9
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 08 2B 71 04 57"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 56 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EEE1"
+address = 0x0096EEE1
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 20 E8 6B E0 F9 FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 33 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EF02"
+address = 0x0096EF02
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 129 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96EF83"
+address = 0x0096EF83
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 53 56 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 320 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F0C3"
+address = 0x0096F0C3
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 33 C0 57"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 60 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F0FF"
+address = 0x0096F0FF
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 63 FC FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 23 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F116"
+address = 0x0096F116
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 75 FC FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 23 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F12D"
+address = 0x0096F12D
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 53 8B D9 8B 0B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 134 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F1B3"
+address = 0x0096F1B3
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 57 8B 38"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 86 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F209"
+address = 0x0096F209
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 8B 45 0C 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 135 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F290"
+address = 0x0096F290
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 0C 8B F1 E8"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 27 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F2AB"
+address = 0x0096F2AB
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 53 8B 5D 10 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 146 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F33D"
+address = 0x0096F33D
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 54 85 C9"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 112 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F3AD"
+address = 0x0096F3AD
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 EB E7 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F3B5"
+address = 0x0096F3B5
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 FF E7 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F3BD"
+address = 0x0096F3BD
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 2B E8 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F3C5"
+address = 0x0096F3C5
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 1C 03 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F3CD"
+address = 0x0096F3CD
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 14 03 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F3D5"
+address = 0x0096F3D5
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 2C E9 0C 03 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F3DD"
+address = 0x0096F3DD
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 36 F5 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F3E5"
+address = 0x0096F3E5
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 3D F7 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F3ED"
+address = 0x0096F3ED
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 167 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F494"
+address = 0x0096F494
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 58 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F4CE"
+address = 0x0096F4CE
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 57"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 173 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F57B"
+address = 0x0096F57B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 56 8D 45 FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 25 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F594"
+address = 0x0096F594
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 FF 75 0C"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 35 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F5B7"
+address = 0x0096F5B7
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 8B 00 85"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 22 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F5CD"
+address = 0x0096F5CD
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B D9 57 8B 3B 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 71 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F614"
+address = 0x0096F614
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 53 57"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 170 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F6BE"
+address = 0x0096F6BE
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 56 FF 75 08 83"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 43 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F6E9"
+address = 0x0096F6E9
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 4C FC FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 38 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F70F"
+address = 0x0096F70F
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 4E 18 33"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 106 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F779"
+address = 0x0096F779
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 57"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 84 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F7CD"
+address = 0x0096F7CD
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 86 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F823"
+address = 0x0096F823
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 86 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F879"
+address = 0x0096F879
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 24 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 153 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F912"
+address = 0x0096F912
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 24 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 153 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96F9AB"
+address = 0x0096F9AB
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 18 83 65"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 133 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96FA30"
+address = 0x0096FA30
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 59 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96FA6B"
+address = 0x0096FA6B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 53 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 164 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96FB0F"
+address = 0x0096FB0F
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 390 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96FC95"
+address = 0x0096FC95
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 83 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96FCE8"
+address = 0x0096FCE8
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 250 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96FDE2"
+address = 0x0096FDE2
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 62 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96FE20"
+address = 0x0096FE20
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 1C 53 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 225 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96FF01"
+address = 0x0096FF01
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 33"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 125 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96FF7E"
+address = 0x0096FF7E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 101 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F96FFE3"
+address = 0x0096FFE3
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 77 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F970030"
+address = 0x00970030
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 FF 75"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 44 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97005C"
+address = 0x0097005C
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 40 50"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 36 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F970080"
+address = 0x00970080
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 56 8B F1 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 101 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F970163"
+address = 0x00970163
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 9F DD FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97016B"
+address = 0x0097016B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 B9 DD FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F970173"
+address = 0x00970173
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 B9 DD FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97017B"
+address = 0x0097017B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 A8 91 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F970183"
+address = 0x00970183
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 02 DE FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97018B"
+address = 0x0097018B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 43 0F 00 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F970193"
+address = 0x00970193
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 4F 18 F6 C1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 106 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97042E"
+address = 0x0097042E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 83 4D"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 143 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9704BD"
+address = 0x009704BD
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 18 83 4D"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 335 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97060C"
+address = 0x0097060C
+kind = "function"
+convention = "thiscall"
+expect = "55 8D 6C 24 90 81 EC A0"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 387 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97078F"
+address = 0x0097078F
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 20 53 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 303 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9708BE"
+address = 0x009708BE
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 18 53 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 657 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F970B4F"
+address = 0x00970B4F
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 34 53 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 211 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F970C22"
+address = 0x00970C22
+kind = "function"
+convention = "thiscall"
+expect = "F6 05 34 36 B6 00 01 75"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 43 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F970C4D"
+address = 0x00970C4D
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 18 8B 45"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 538 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F970E67"
+address = 0x00970E67
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 8B 45 14 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 126 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F970EE5"
+address = 0x00970EE5
+kind = "function"
+convention = "thiscall"
+expect = "66 83 79 0A 00 74 1E 83"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 42 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9710D6"
+address = 0x009710D6
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 07 F0 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 28 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F971178"
+address = 0x00971178
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 24 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 351 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9712D7"
+address = 0x009712D7
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 57 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 197 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97139C"
+address = 0x0097139C
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 229 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F971481"
+address = 0x00971481
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 126 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9714FF"
+address = 0x009714FF
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 68 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F971543"
+address = 0x00971543
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 68 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F971587"
+address = 0x00971587
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 24 53 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 144 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F971617"
+address = 0x00971617
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 48 53 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 674 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9718B9"
+address = 0x009718B9
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 34 53 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 200 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F971981"
+address = 0x00971981
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 86 F5 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F971989"
+address = 0x00971989
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 54 F5 FF FF"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F971991"
+address = 0x00971991
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 196 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F971B1D"
+address = 0x00971B1D
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 34 53 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 426 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F971CC7"
+address = 0x00971CC7
+kind = "function"
+convention = "thiscall"
+expect = "55 8D 6C 24 90 81 EC CC"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 795 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F971FE2"
+address = 0x00971FE2
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 3C 53 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 331 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F972233"
+address = 0x00972233
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 48 53 56"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 783 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F972542"
+address = 0x00972542
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 185 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9725FB"
+address = 0x009725FB
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 2C 83 4D"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 358 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F972761"
+address = 0x00972761
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 30 53 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 372 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9728D5"
+address = 0x009728D5
+kind = "function"
+convention = "thiscall"
+expect = "55 8D 6C 24 90 81 EC 88"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 196 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F972999"
+address = 0x00972999
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 FF B6 C0"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 126 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F972B51"
+address = 0x00972B51
+kind = "function"
+convention = "thiscall"
+expect = "81 7C 24 04 FC 8E 6B 65"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 34 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F975616"
+address = 0x00975616
+kind = "function"
+convention = "thiscall"
+expect = "F6 44 24 04 01 56 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 29 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F975633"
+address = 0x00975633
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 33 C9 C7 00 EC 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 26 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97564D"
+address = 0x0097564D
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 66 04 00 8D"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 25 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F975666"
+address = 0x00975666
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 08 8B 44 24 04 89"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 24 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97567E"
+address = 0x0097567E
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 25 FF 7F 00"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 30 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97569C"
+address = 0x0097569C
+kind = "function"
+convention = "thiscall"
+expect = "C7 01 A0 8C AD 00 83 C1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 14 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9756AA"
+address = 0x009756AA
+kind = "function"
+convention = "thiscall"
+expect = "81 7C 24 04 0C 8F 6B 65"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 37 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9756CF"
+address = 0x009756CF
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 39 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9756F6"
+address = 0x009756F6
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8D 77 08 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 56 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97572E"
+address = 0x0097572E
+kind = "function"
+convention = "thiscall"
+expect = "85 C9 74 07 8B 01 6A 01"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 12 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97573A"
+address = 0x0097573A
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 52 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97576E"
+address = 0x0097576E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 50 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9757A0"
+address = 0x009757A0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 58 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9757DA"
+address = 0x009757DA
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 55 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F975811"
+address = 0x00975811
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 52 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F975845"
+address = 0x00975845
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B 30 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 34 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F975867"
+address = 0x00975867
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 52 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97589B"
+address = 0x0097589B
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B 30 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 34 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9758BD"
+address = 0x009758BD
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 52 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9758F1"
+address = 0x009758F1
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 56 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F975929"
+address = 0x00975929
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 58 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F975963"
+address = 0x00975963
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 6A 00 FF 74 24 08"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 20 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F975977"
+address = 0x00975977
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 08 8B 01 FF 50 04"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 11 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F975982"
+address = 0x00975982
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 08 8B 01 FF 50 08"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 11 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F97598D"
+address = 0x0097598D
+kind = "function"
+convention = "thiscall"
+expect = "C7 01 48 8D AD 00 8B 49"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 19 bytes."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::F9759A0"
+address = 0x009759A0
+kind = "function"
+convention = "thiscall"
+expect = "81 7C 24 04 03 8F 6B E5"
+source = "Placeholder name (docs/resources.md): a function of the packed file code, 37 bytes."
+
+[[entry]]
+name = "SC4LockGuard::Construct"
+address = 0x0048C9F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 C7"
+source = "(lock*), ret 4: the lock scope guard's constructor: stores its vtable 0x00A8ED58 and the lock at +4, locks it (the lock's slot +4), returns this. The guard's end is the lock's slot +8."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::RawFileViewVtable"
+address = 0x00AD8468
+kind = "data"
+source = "The raw file view's main vtable (7 slots; slot 6 the deleting destructor 0x0096ECAD)"
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::RawFileViewFileVtable"
+address = 0x00AD83E8
+kind = "data"
+source = "The raw file view's file interface at +4 (32 slots, thunks and forwards to the record)"
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::GetPath"
+address = 0x0096E980
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name ours. (string* out), ret 4: slot 8 of the packed file's main vtable 0x00AD87D0, this = the segment: copies the path (begin +0x30, end +0x34) into the caller's string through its slot +0xC (text, length). A function start the splitter missed (inside the listed size of 0x0096E96B); it had no entry."
+
+[[entry]]
+name = "cGZPersistDBSerialRecord::Construct"
+address = 0x00975CB5
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 53 56 57 FF 75"
+source = "Name ours. (key*, segment interface, flag), ret 0xC: constructor of the framework's serial record (vtables 0x00AD7CF0 / 0x00AD7CB0 / 0x00AD7C50 / 0x00AD7BF0): the key to +0xC, the segment's cIGZPersistDBSegment to +0x18 with one reference, the flag's low byte to +0x3C; returns this."
+
+[[entry]]
+name = "cGZPersistDBSerialRecord::Destruct"
+address = 0x0096D7D4
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8D 71 04 8D 79 1C"
+source = "Name ours. No arguments: destructor of the framework's serial record: restores its four vtables, destroys the two stream parts (0x0092B79F, 0x0092B62D) and releases the segment (0x0097598D)."
+
+[[entry]]
+name = "CRT::memcpy"
+address = 0x009F19B0
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 57 56 8B 75 0C"
+source = "(void* to, const void* from, uint32_t size): the C runtime's memcpy."
+
+[[entry]]
+name = "CRT::memset"
+address = 0x009F1870
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 0C 8B 4C 24 04"
+source = "(void* to, int value, uint32_t size): the C runtime's memset."
+
+[[entry]]
+name = "SC4Compressor::Construct"
+address = 0x00A6E193
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 83 60 04 00 C7 00"
+source = "Name ours. No arguments: constructor of the framework's decompressor, 0xC bytes on the caller's stack: vtable 0x00B00A5C, reference count 0 at +4, a byte 0 at +8; returns this."
+
+[[entry]]
+name = "SC4Compressor::Destruct"
+address = 0x00A6D936
+kind = "function"
+convention = "thiscall"
+expect = "C7 01 5C 0A B0 00 C3 83"
+source = "Name ours. No arguments: destructor of the framework's decompressor: stores its vtable 0x00B00A5C."
+
+[[entry]]
+name = "SC4Compressor::Validate"
+address = 0x00A6E14A
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 08 07 56 57 8B"
+source = "Name ours. (const void* data, uint32_t size), ret 8: whether the bytes are a compressed record: at least 7 bytes, the signature check 0x00A6D9E3 on data + 4, and both sizes its slots +0x18 and +0x1C read at most 0x1000000; bool in AL."
+
+[[entry]]
+name = "SC4Compressor::GetUncompressedSize"
+address = 0x00A6E105
+kind = "function"
+convention = "thiscall"
+expect = "B8 00 FF A6 00 E8 C1 37"
+source = "Name ours. (const void* data), ret 4: the uncompressed size from a compressed record's header (0x00A6DA15 on data + 4); 0 when reading it faults."
+
+[[entry]]
+name = "SC4Compressor::Decompress"
+address = 0x00A6E065
+kind = "function"
+convention = "thiscall"
+expect = "B8 EC FE A6 00 E8 61 38"
+source = "Name ours. (const void* data, uint32_t size, void* out, uint32_t* outSize), ret 0x10: decompresses (0x00A6DA3F on data + 4) into out, stores the bytes written in *outSize; true in AL when bytes were written or the header's size is 0, false also when it faults."
+
+[[entry]]
+name = "cGZDBPackedRecord::Vtable"
+address = 0x00AD7EE8
+kind = "data"
+source = "Main vtable of the packed file's record base (kind set by 0x0096D859), at record + 0."
+
+[[entry]]
+name = "cGZDBPackedRecord::Vtable4"
+address = 0x00AD7EA8
+kind = "data"
+source = "The cIGZPersistDBRecord vtable of the packed file's record base, at record + 4."
+
+[[entry]]
+name = "cGZDBPackedRecord::Vtable1C"
+address = 0x00AD7E48
+kind = "data"
+source = "The input stream vtable of the packed file's record base, at record + 0x1C."
+
+[[entry]]
+name = "cGZDBPackedRecord::Vtable2C"
+address = 0x00AD7DE8
+kind = "data"
+source = "The output stream vtable of the packed file's record base, at record + 0x2C."
+
+[[entry]]
+name = "cGZDBPackedFileRecord::Vtable"
+address = 0x00AD80E8
+kind = "data"
+source = "Main vtable of the packed file's file-backed read record (kind 1; 63 slots, slot 62 at +0xF8 is 0x0096D9B3), at record + 0."
+
+[[entry]]
+name = "cGZDBPackedFileRecord::Vtable4"
+address = 0x00AD80A8
+kind = "data"
+source = "The cIGZPersistDBRecord vtable of the file-backed read record (16 slots), at record + 4."
+
+[[entry]]
+name = "cGZDBPackedFileRecord::Vtable1C"
+address = 0x00AD8048
+kind = "data"
+source = "The input stream vtable of the file-backed read record (24 slots), at record + 0x1C."
+
+[[entry]]
+name = "cGZDBPackedFileRecord::Vtable2C"
+address = 0x00AD7FE8
+kind = "data"
+source = "The output stream vtable of the file-backed read record (24 slots), at record + 0x2C."
+
+[[entry]]
+name = "cGZDBPackedMemoryRecord::Vtable"
+address = 0x00AD82E8
+kind = "data"
+source = "Main vtable of the packed file's in-memory read record (kind 2; 63 slots, slot 62 at +0xF8 is 0x0096DB72), at record + 0."
+
+[[entry]]
+name = "cGZDBPackedMemoryRecord::Vtable4"
+address = 0x00AD82A8
+kind = "data"
+source = "The cIGZPersistDBRecord vtable of the in-memory read record (16 slots), at record + 4."
+
+[[entry]]
+name = "cGZDBPackedMemoryRecord::Vtable1C"
+address = 0x00AD8248
+kind = "data"
+source = "The input stream vtable of the in-memory read record (24 slots), at record + 0x1C."
+
+[[entry]]
+name = "cGZDBPackedMemoryRecord::Vtable2C"
+address = 0x00AD81E8
+kind = "data"
+source = "The output stream vtable of the in-memory read record (24 slots), at record + 0x2C."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::FileRecordFreeList"
+address = 0x00B17A00
+kind = "data"
+source = "Head of the free list of the pool 0x00B179F4 (file-backed read records): the deleting destructor 0x0096E8AF pushes the block here."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::MemoryRecordFreeList"
+address = 0x00B17A10
+kind = "data"
+source = "Head of the free list of the pool 0x00B17A04 (in-memory read records): the deleting destructor 0x0096E8F5 pushes the block here."
+
+[[entry]]
+name = "SC4Tree::NewPairNode"
+address = 0x009DBB99
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 18 E8 B3 13 F3 FF"
+source = "(const pair*), ret 4, this unused: a new tree node of 0x18 bytes with a copy of an 8-byte value at +0x10; the packed file's holes tree uses it"
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::CopyOpenEntry"
+address = 0x0097BF85
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "(const entry*), ret 4, this = the destination: copies the 16 bytes of an open-record map value (key and record pointer), no reference taken"
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::KeyTableBegin"
+address = 0x0097C081
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 2B 41 04 56 33"
+source = "(iterator* out), ret 4, this = a hash table of the index's shape: writes {first node or null, table}"
+
+[[entry]]
+name = "SC4ResourceKey::Equals"
+address = 0x00431180
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 11 3B 10"
+source = "(const key* other), ret 4, this = a key of three dwords: 1 in EAX when all three are equal, else 0"
+
+[[entry]]
+name = "SC4ResourceKey::Less"
+address = 0x00662810
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 56 8B 74 24 08 8B"
+source = "(const key* other), ret 4, this = a key of three dwords: 1 in EAX when this sorts before other (type, then group, then instance, unsigned), else 0"
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::RawFileBaseVtable"
+address = 0x00ABFE50
+kind = "data"
+source = "The base vtable the raw file view's constructor 0x0096EC7C stores at +4 first"
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::KeyTableDestroy"
+address = 0x0099784E
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 4C 49 FE FF"
+source = "No arguments: destroys the packed file's directory hash table (key to uncompressed size): clears it (0x0097C1A2) and frees the bucket array."
+
+[[entry]]
+name = "SC4Uint32Hash::Destroy"
+address = 0x0058F3A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 B8 C6 35 00"
+source = "No arguments: destroys a hash table of dwords: clears it (0x008EBA60) and frees the bucket array. The packed file has four (+0x15C, +0x170, +0x188, +0x19C)."
+
+[[entry]]
+name = "SC4Pool::Allocate"
+address = 0x005A6290
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 0C 85 C0"
+source = "No arguments: takes one block off a fixed-size pool's free list (this + 0xC), refilling the list first (0x005A61B0) when it is empty; returns the block."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::FileRecordPool"
+address = 0x00B179F4
+kind = "data"
+source = "The pool of the packed file's file-backed read records (kind 1); its free list is the dword at 0x00B17A00."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::MemoryRecordPool"
+address = 0x00B17A04
+kind = "data"
+source = "The pool of the packed file's in-memory read records (kind 2); its free list is the dword at 0x00B17A10."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::vftable"
+address = 0x00AD87D0
+kind = "data"
+source = "Main vtable of cGZDBSegmentPackedFile (47 slots), at object + 0."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::interfaceVftable"
+address = 0x00AD8728
+kind = "data"
+source = "The cIGZPersistDBSegment vtable of cGZDBSegmentPackedFile (41 slots), at object + 4."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::KeyTableConstruct"
+address = 0x00969AD5
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 56 8B F1 89 46 04"
+source = "Constructor of a hash table keyed by resource key (0x14 bytes: +4 buckets begin, +8 end, +0xC capacity end, +0x10 count; 100 buckets through 0x0097C55A). Used for the index (heap) and the directory (+0x1B0). No arguments, returns this."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::KeyTableClear"
+address = 0x0097C1A2
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 08 2B 46"
+source = "Frees every node of a key hash table (0x0090CF63), zeroes the buckets and the count. No arguments."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::DirectoryInsert"
+address = 0x0097C51A
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 40 50"
+source = "Insert into the directory table: resizes for count + 1 (0x0096F614), inserts (0x0097C0C5). Arguments: a result buffer {iterator, inserted byte}, a 16-byte entry {type, group, instance, uncompressed size}. Returns the result buffer. RET 8."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::HolesMapConstruct"
+address = 0x0092E6C9
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 56 8D 45 FF"
+source = "Constructor of the holes map at +0x14C (a tree map {header, count}; 0x00892017 makes the header). No arguments, returns this."
+
+[[entry]]
+name = "SC4Uint32HashSet::EraseAt"
+address = 0x0092DC3A
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 8B 45 08"
+source = "Erases the element an iterator points at; the iterator {node, table} is passed by value (8 bytes), forwards to 0x0096F1B3. RET 8."
+
+[[entry]]
+name = "SC4Uint32HashSet::InsertPair"
+address = 0x005E06D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 57 40"
+source = "Insert of a {key, value} pair into a dword-keyed hash table: resizes for count + 1 (0x004F0940), inserts (0x005E04A0). Arguments: a result buffer {iterator, inserted byte}, the pair. Returns the result buffer. RET 8."
+
+[[entry]]
+name = "SC4Uint32HashSet::ConstructDefault"
+address = 0x0060EE30
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 56 8B F1 89 46 04"
+source = "Constructor of a dword-keyed hash table (0x14 bytes) with 100 buckets (0x00829BC0). No arguments, returns this."
+
+[[entry]]
+name = "cGZPersistDBSegment::Construct"
+address = 0x00976179
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 83 66 04 00 8D"
+source = "Constructor of the segment base class at the interface part (object + 4): reference count 0 at +4, vtable 0x00AD8CA0, the lock at +8 (0x00930B91). No arguments, returns this."
+
+[[entry]]
+name = "cRZFile::ConstructEmpty"
+address = 0x00918B96
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8D 4E 04 C7"
+source = "cRZFile's default constructor (0x80 bytes, vtable 0x00ABFED0, no path). No arguments, returns this."
+
+[[entry]]
+name = "SC4ByteString::ConstructFilled"
+address = 0x004D7E50
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 55 56 33"
+source = "Constructor of a byte string body {begin, end, capacity end}: count bytes of one fill value and a terminator. Arguments: count, fill byte, allocator reference (unused). RET 0xC."
+
+[[entry]]
+name = "SC4ByteString::ConstructCopy"
+address = 0x0040ADD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 0C 33"
+source = "Constructor of a byte string body from a pointer and a length (0x00407FA0). Arguments: bytes, length, allocator reference (unused). RET 0xC."
+
+[[entry]]
+name = "SC4ByteString::Find"
+address = 0x004427F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 0C 53 56 8B 71"
+source = "Find in a byte string body: arguments pattern, start position, pattern length; the index of the first match or -1. RET 0xC."
+
+[[entry]]
+name = "cGZDBSegment::vftable"
+address = 0x00AD8488
+kind = "data"
+source = "The main vtable the packed file's constructor stores first, while the base part is built (pure-call slots)."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::kEmbedMarker"
+address = 0x00AD7BE0
+kind = "data"
+source = "16 bytes: the marker that stands 16 bytes before a package embedded in another file, with its first byte inverted (0x7F in the exe, 0x80 in a file) so the exe does not contain the marker itself."
+
+[[entry]]
+name = "cGZDBSegmentPackedFile::sRereadingHeader"
+address = 0x00B63638
+kind = "data"
+source = "A byte: the header reader 0x00972999 is in its second round after the embedded-package scan found a start; stops a third."
