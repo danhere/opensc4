@@ -11,10 +11,14 @@
 // manager, removal counts, the property holder with the exemplar) is the
 // occupant base's, cSC4Occupant (src/core/occbase_sim.h), at the object + 4.
 //
-// This is the first piece (src/core/netocc_state.cpp): 43 small functions of
-// the interface, state and queries. Not in it, left for later pieces: the
-// constructor 0x0061BDD0 and factory 0x0061C480 and the save (life and
-// save), geometry and paths (GetPathInfo, AddPathConnection, GetAltitude,
+// The first piece (src/core/netocc_state.cpp) is 43 small functions of the
+// interface, state and queries. The second (src/core/netocc_life.cpp) is the
+// class's life and save: Write, Read, GetGZCLSID, the occupant part's Init
+// (0x0061CB50) and the interface's Init (0x00619050), QueryInterface, the
+// constructor 0x0061BDD0, the destructor 0x0061C170, the deleting
+// destructor 0x0061C4C0, the pool's free (0x0061BD40) and page set-up
+// (0x00619D50) and the factory 0x0061C480. Not in either, left for later
+// pieces: geometry and paths (GetPathInfo, AddPathConnection, GetAltitude,
 // GetNormal, ConnectsToNeighbor, TransformNode ...), and the drawing code,
 // which stays out for the Renderer thread: SetQuadDraw, AddPart,
 // GetModelInstances, MarkLightingUpdateNeeded, SetTranslucency, SetLit.
@@ -107,7 +111,21 @@ constexpr uint32_t kIidNetworkOccupant = 0xA821EF94;
 // src/core/occbase_sim.h at +0x4 to +0x37). Evidence: the 43 functions.
 namespace field {
 constexpr std::size_t kOccupant = 0x4;        // base: the cISC4Occupant part (slot 0x84 GetFlags: bit 0 = placed)
+constexpr std::size_t kSerializable = 0x8;    // the cIGZSerializable part (Write, Read, GetGZCLSID)
 constexpr std::size_t kHolder = 0xC;          // base: the property holder
+constexpr std::size_t kExemplarPart = 0x20;   // base: the exemplar holder part
+constexpr std::size_t kModelPart = 0x38;      // the model part (constructor 0x00801CF0, destructor 0x00801810)
+constexpr std::size_t kVbtable = 0x3C;        // the virtual base table: [0] -4, [1] the virtual base's displacement
+constexpr std::size_t kModelState = 0x50;     // the model part's 0x14 bytes: two bytes, a word, three words, a float
+constexpr std::size_t kTransform = 0x64;      // the 0x38-byte transform: bytes +0 and +1, matrix +4, translation +0x28,
+                                              // scale +0x34
+constexpr std::size_t kModelBase = 0x68;      // given to the model's QueryInterface 0x00801940 (inside the transform)
+constexpr std::size_t kCorners = 0x9C;        // four 0x18-byte corners: x y z, four bytes at +0xC, two words at +0x10
+constexpr std::size_t kUnknownFC = 0xFC;      // uint32, saved before the variation; zero from the constructor
+constexpr std::size_t kPaths = 0x118;         // vector of 0x4C-byte path records: begin, +4 end, +8 capacity
+constexpr std::size_t kPairs = 0x124;         // box: low x y z; at +0xC high x y z (saved as pairs); slot 80 sets
+constexpr std::size_t kReference = 0x140;     // a resource key object, released by the destructor; saved as three words
+constexpr std::size_t kVbase = 0x17C;         // the virtual base's vtable (with the displacement of 0x140)
 constexpr std::size_t kVertexHeights = 0xA0;  // four floats, one every 0x18 bytes (0xA0, 0xB8, 0xD0, 0xE8)
 constexpr std::size_t kVertexStride = 0x18;
 constexpr std::size_t kUnderTexture = 0x100;  // uint32 (SetUnderTexture)
@@ -174,6 +192,11 @@ constexpr std::size_t kSetComplexPieceOrigin = 0x120, kIsSupportPylonPresent = 0
 namespace holder {
 constexpr std::size_t kGetProperty = 0x24, kSetProperty = 0x38, kRemoveProperty = 0x44;
 } // namespace holder
+
+// Pool of the 0x180-byte objects (src/core/netocc_life.cpp): pages of 32 KB at
+// address & 0xFFFF8000, 85 items each, the free list at +8 and the used count
+// at +0xC.
+constexpr std::size_t kObjectSize = 0x180;
 
 // Logs a function's first call once ("netocc: first <name>"; defined in
 // netocc_state.cpp).
