@@ -17,11 +17,14 @@
 // (0x0061CB50) and the interface's Init (0x00619050), QueryInterface, the
 // constructor 0x0061BDD0, the destructor 0x0061C170, the deleting
 // destructor 0x0061C4C0, the pool's free (0x0061BD40) and page set-up
-// (0x00619D50) and the factory 0x0061C480. Not in either, left for later
-// pieces: geometry and paths (GetPathInfo, AddPathConnection, GetAltitude,
-// GetNormal, ConnectsToNeighbor, TransformNode ...), and the drawing code,
+// (0x00619D50) and the factory 0x0061C480. The third piece
+// (src/core/netocc_geometry.cpp) is the geometry (ConnectsToNeighbor,
+// GetAltitude, GetNormal, GetOccupiedCell, the position and boxes), the
+// paths (GetPathInfo, ReleasePathInfo, the path connection table) and the
+// edge store (Get, Set, Assign, Write, Read). Not ours, the drawing code,
 // which stays out for the Renderer thread: SetQuadDraw, AddPart,
-// GetModelInstances, MarkLightingUpdateNeeded, SetTranslucency, SetLit.
+// GetModelInstances, MarkLightingUpdateNeeded, SetTranslucency, SetLit and
+// the slots 76 to 79 (models and lighting).
 //
 // Class map
 //   class ID 0xC9C05C6E, occupant type 0xC772BF98 (what the occupant part's
@@ -124,7 +127,11 @@ constexpr std::size_t kCorners = 0x9C;        // four 0x18-byte corners: x y z, 
 constexpr std::size_t kUnknownFC = 0xFC;      // uint32, saved before the variation; zero from the constructor
 constexpr std::size_t kPaths = 0x118;         // vector of 0x4C-byte path records: begin, +4 end, +8 capacity
 constexpr std::size_t kPairs = 0x124;         // box: low x y z; at +0xC high x y z (saved as pairs); slot 80 sets
-constexpr std::size_t kReference = 0x140;     // a resource key object, released by the destructor; saved as three words
+constexpr std::size_t kReference = 0x140;     // the path information (GetPathInfo), released by the destructor
+constexpr std::size_t kPathTable = 0x144;     // path connections: 8 dwords, 4 bytes (by `from`) for each path type,
+                                              // a bit (by `to`, 0 to 3) in each; zeroed by GetPathInfo
+constexpr std::size_t kPathOriginX = 0x168;   // uint32, second argument of the path information's slot 0x74
+constexpr std::size_t kPathOriginY = 0x16C;   // uint32, fourth
 constexpr std::size_t kVbase = 0x17C;         // the virtual base's vtable (with the displacement of 0x140)
 constexpr std::size_t kVertexHeights = 0xA0;  // four floats, one every 0x18 bytes (0xA0, 0xB8, 0xD0, 0xE8)
 constexpr std::size_t kVertexStride = 0x18;
@@ -179,13 +186,18 @@ constexpr std::size_t kGetRotationAndFlip = 0x68, kSetVariation = 0x6C, kGetVari
 constexpr std::size_t kSetUnderTexture = 0x74, kGetVertexHeights = 0x88, kGetVertexHeight = 0x8C;
 constexpr std::size_t kSetVertexHeights = 0x90, kSetEdgeTypesFlag = 0x94, kGetEdgeTypesFlag = 0x98;
 constexpr std::size_t kSetEdgeType = 0x9C, kGetActiveEdges = 0xA0, kGetActiveEdgesForType = 0xA4;
-constexpr std::size_t kGetActiveEdgesForTypeNoGroup = 0xA8, kGetGroupedEdges = 0xAC;
+constexpr std::size_t kGetActiveEdgesForTypeNoGroup = 0xA8, kGetGroupedEdges = 0xAC, kSetEdgeStore = 0xB0;
+constexpr std::size_t kConnectsToNeighbor = 0xBC, kGetPathInfo = 0xC4;
 constexpr std::size_t kReleasePathInfo = 0xC8, kSetPathIDOverride = 0xCC, kGetPathIDOverride = 0xD0;
-constexpr std::size_t kIsIntersection = 0xDC, kSetTranslucency = 0xE8, kIsLit = 0xF0;
+constexpr std::size_t kPathConnectionExists = 0xD4, kAddPathConnection = 0xD8;
+constexpr std::size_t kIsIntersection = 0xDC, kGetAltitude = 0xE0, kGetNormal = 0xE4, kSetTranslucency = 0xE8;
+constexpr std::size_t kGetOccupiedCell = 0xEC, kIsLit = 0xF0;
 constexpr std::size_t kGetCostOfDemolition = 0xFC, kSetCostOfDemolition = 0x100;
 constexpr std::size_t kGetPassageCeiling = 0x10C, kSetPassageCeiling = 0x110, kGetOneWayDirections = 0x114;
 constexpr std::size_t kSetOneWayDirections = 0x118, kGetComplexPieceOrigin = 0x11C;
 constexpr std::size_t kSetComplexPieceOrigin = 0x120, kIsSupportPylonPresent = 0x124;
+constexpr std::size_t kIsPartOfTheSameStructure = 0x108, kSetRotationAndFlip = 0x128, kGetPosition = 0x12C;
+constexpr std::size_t kComputeBoundingBox = 0x140;
 } // namespace slot
 
 // Property holder slots (the holder is at +0xC).
