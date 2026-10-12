@@ -210,8 +210,9 @@ void __cdecl Srand(unsigned seed)
 // draws when a sound starts or on a real-time stopwatch (0x004EE560,
 // 0x008D2CFD, 0x008D3442, 0x008D546F). How many sounds had started when a
 // walk picked its start changed from run to run, and the flammability and
-// weather walks with it (docs/experiments/determinism.md). The sound code's
-// draws come from a sequence of their own.
+// weather walks with it (docs/experiments/determinism.md). So did the lot
+// developer's shuffle of every building at nightfall and daybreak, which
+// follow real time. Those draws come from a sequence of their own.
 struct SoundCaller {
     uintptr_t start, end;
 };
@@ -220,6 +221,10 @@ constexpr SoundCaller kSoundCallers[] = {
     {0x008D2CFD, 0x008D2E60}, // GZSound
     {0x008D3442, 0x008D3486},
     {0x008D546F, 0x008D54C3},
+    // Not sound, but as far from the simulation: the lot developer shuffles
+    // its buildings when the view's day turns to night or back (message
+    // 0x44778234, on real time), for the order their lights change in.
+    {0x006C68C0, 0x006C69D0},
 };
 std::atomic<uint32_t> g_soundState{0x5EED50FDu};
 
