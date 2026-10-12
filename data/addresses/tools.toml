@@ -1,0 +1,185 @@
+# The view input controls for bulldozing, placing lots and zoning: the entries our translations hook (src/core/tool_bulldoze.cpp).
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::Vtable"
+address = 0x00A901A0
+kind = "data"
+source = "Name ours. Vtable of the bulldoze tool (0xD8 bytes, ID 0x46DDB5F1 0xE1855ADC, constructor 0x004B9070): the view input control base class with Init 0x004B8AB0 at slot 3, Shutdown 0x004B8F30 (4), OnKeyDown 0x004B8830 (14), OnMouseDownL 0x004B9AE0 (16), OnMouseUpL 0x004B9C50 (18), OnMouseMove 0x004B9B70 (20), 0x004B9020 (22), the deleting destructor 0x004B91C0 (26), Cancel 0x004B9040 (27)."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::FilterVtable"
+address = 0x00A90180
+kind = "data"
+source = "Name ours. Vtable of the tool's own occupant filter (0xC bytes made by Init: the occupant filter base 0x005EA080, vtables 0x00A90180 at +0 and 0x00A90168 at +4); slot 3 is IsOccupantShown 0x004B8880."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::FilterVtable4"
+address = 0x00A90168
+kind = "data"
+source = "Name ours. Second vtable of the tool's own occupant filter, at +4."
+
+[[entry]]
+name = "SC4::Global217FC"
+address = 0x00B217FC
+kind = "data"
+source = "Name ours. A dword (0 in the file image) the bulldoze tool's constructor copies into its sixteen colour words at +0x98 to +0xD4."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::OnKeyDown"
+address = 0x004B8830
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 58 29 14 00"
+source = "Name ours. (key, modifiers), ret 8, slot 14: when the tool is the view's current one, key 0x1B and a press is held, calls Cancel (slot 27) and answers true; else false."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::PickCell"
+address = 0x004B8980
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 8B F1 8B 46"
+source = "Name ours. (x, z, int* out), ret 0xC: the cell under a screen point: the view's PickTerrain (slot 0x90, flag from the terrain slot 0x14C), then the city's slot 0x17C; false without a view or ground."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::FindOccupant"
+address = 0x004B8A00
+kind = "function"
+convention = "thiscall"
+expect = "51 53 57 8B F9 32 DB 88"
+source = "Name ours. (x, z, void** out), ret 0xC: asks the service 0x00B43DD0 (slot 0x104, with the tool's filter at +0x3C) what is at the screen point; the object's slot 3 gives an occupant whose interface 0x26BB767E goes to out and which says in +0x94 whether it has interface 0x4B44FBE2 (taken alone). True when found."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::Init"
+address = 0x004B8AB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. No arguments, slot 3: sets the ID, runs the base Init, makes the overlay helper (0x50 bytes) once and gives it to the service 0x00B43DD0 (slot 0x80, 5, 1000), takes the services (budget, city, demolition 0x00B43D00, lot developer, lot manager, a filter object, occupant manager), copies four colours from the renderer's settings into +0x98 to +0xD4. True."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::UpdateHover"
+address = 0x004B8D10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 56 8B F1 8B 46"
+source = "Name ours. (x, z, int* rect), ret 0xC: lets go of the hovered occupant at +0x70, finds a new one (FindOccupant), takes its position or the ground's, the cell and the lot there; rect (x0, z0, x1, z1) is the lot's rectangle when it can be demolished and its building passes the view's filter, else the occupant's cells, else the cell. False without a view or ground."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::Shutdown"
+address = 0x004B8F30
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 04 33"
+source = "Name ours. No arguments, slot 4: when initialised, Cancel, EndDrag, takes the overlay off the service 0x00B43DD0 (slot 0x84) and lets it go, lets go of every held service, the hovered and the highlighted occupants, clears the cost indicator, runs the base Shutdown. True."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::OnSlot22"
+address = 0x004B9020
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 1C 8B 01"
+source = "Name ours. No arguments, slot 22 (the cursor left the view): clears the cost indicator (view slot 0xB0, false) and runs EndDrag. False."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::Cancel"
+address = 0x004B9040
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 44 84 C0"
+source = "Name ours. No arguments, slot 27: a held press is let go (flag, mouse capture, EndDrag); clears the cost indicator."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::DeletingDestructor"
+address = 0x004B91C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. (flags), ret 4, slot 26: Destruct, then operator delete when bit 0 is set. Returns this."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::Destruct"
+address = 0x004B91E0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 87 80 00"
+source = "Name ours. No arguments: empties and frees the header node of the set at +0x7C, lets go of the occupants at +0x74 and +0x70, jumps to the base destructor."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::OnMouseDownL"
+address = 0x004B9AE0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 55 8B 6C"
+source = "Name ours. (x, z, modifiers), ret 0xC, slot 16: picks the start cell (+0x58) and sets the press flag (+0x44); with a cell: captures the mouse, refreshes the hover, end cell = start cell, empties the set, runs Preview. Plays sound 0xCA5C328B (slot 28). True."
+
+[[entry]]
+name = "cSC4ViewInputControlDemolish::OnMouseUpL"
+address = 0x004B9C50
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 44 84 C0"
+source = "Name ours. (x, z, modifiers), ret 0xC, slot 18: false without a held press; else picks the end cell, runs Preview and, when the service allowed it, takes the price off the budget and calls DemolishOccupant or DemolishRegion with demolish 1; clears the cost indicator, plays a sound, EndDrag, releases the capture. True."
+
+[[entry]]
+name = "SC4UI::MapOverlay_AddCells"
+address = 0x004B9250
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 55 8B 6C 24 14"
+source = "Name ours. (region), ret 4, this is the overlay helper: appends every set cell of a cell region as an (x, z) pair of 8 bytes to the vector at +0x10 (end +0x14, capacity +0x18), growing by the size (at least one)."
+
+[[entry]]
+name = "SC4ViewInputControl::IsCurrent"
+address = 0x005FB190
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 1C 8B 01"
+source = "Name ours. No arguments: true when the view's current input control (view slot 0x60) is this one."
+
+[[entry]]
+name = "SC4ViewInputControl::BeginCapture"
+address = 0x005FB130
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 18 85 C0 74 0A 8B"
+source = "Name ours. No arguments: when +0x18 is set, the window manager's slot 0x74 with it (captures the mouse); false otherwise."
+
+[[entry]]
+name = "SC4ViewInputControl::EndCapture"
+address = 0x005FB150
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 18 85 C0 74 0A 8B"
+source = "Name ours. No arguments: when +0x18 is set, the window manager's slot 0x78 with it (releases the capture); false otherwise."
+
+[[entry]]
+name = "SC4ViewInputControl::PlaySound"
+address = 0x005FB260
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 74 18"
+source = "Name ours. (id), ret 4, slot 28 of the tools: when the ID is not zero and the service 0x00B43CB8 exists, its slot 0x2C with 1, the ID and zeros."
+
+[[entry]]
+name = "SC4UI::MapOverlay_SetScale"
+address = 0x007DC1D0
+kind = "function"
+convention = "thiscall"
+expect = "D9 05 28 12 A8 00 8B 44"
+source = "Name ours, not analysed. (float, float), ret 8: stores both at +0x1C, +0x20 and the reciprocals (a constant divided by each) at +0x24, +0x28."
+
+[[entry]]
+name = "SC4UI::MapOverlay_SetFillColor"
+address = 0x007DCB30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 44 24 18 D9"
+source = "Name ours, not analysed. (const float* four), ret 4: takes a colour of four floats (the bulldoze tool's fill colours), packs it into the overlay's fields."
+
+[[entry]]
+name = "SC4UI::MapOverlay_SetLineColor"
+address = 0x007DC2F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 44 24 18 D9"
+source = "Name ours, not analysed. (const float* four), ret 4: takes a colour of four floats (the bulldoze tool's line colours), packs it into the overlay's fields and sets the byte +0x44."
