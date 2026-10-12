@@ -1,0 +1,239 @@
+# The power line occupant (cSC4PowerLineOccupant, class ID 0xC9C05C5D): the wire between two towers (src/core/powerlineocc_sim.cpp, the class map in src/core/powerlineocc_sim.h).
+
+[[entry]]
+name = "cSC4PowerLineOccupant::vftable"
+address = 0x00AA9C80
+kind = "vtable"
+expect = "50 93 64 00 F0 28 5E 00"
+source = "The primary cISC4PowerLineOccupant vtable (8 slots, listed in src/core/powerlineocc_sim.h). simulators.powerlineocc.slots swaps slots 0, 3, 4, 5, 6 and 7; simulators.powerlineocc.object copies it at the first construction."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::vftable_4"
+address = 0x00AA9BF8
+kind = "vtable"
+expect = "C0 98 64 00 B0 29 5E 00"
+source = "Name ours. The cISC4Occupant part at +0x4 (34 slots; those of the base cSC4Occupant and shared stubs except 0, 4, 9 and 10). simulators.powerlineocc.slots swaps slot 0, simulators.powerlineocc.occupant slots 4, 9 and 10."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::vftable_8"
+address = 0x00AA9BDC
+kind = "vtable"
+expect = "D0 98 64 00 E0 29 5E 00"
+source = "Name ours. The cIGZSerializable part at +0x8 (6 slots: three thunks, Write 0x0064A310, Read 0x0064A3A0, GetGZCLSID 0x00649260). Slots 3 and 4 replaced by simulators.powerlineocc.save, 0 and 5 by simulators.powerlineocc.slots."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::vftable_C"
+address = 0x00AA9B78
+kind = "vtable"
+expect = "E0 98 64 00 10 2A 5E 00"
+source = "Name ours. The property holder part at +0xC (25 slots: three thunks, the shared holder code, 22 the deleting destructor thunk 0x006498F0, 23 the Write thunk 0x0064A540, 24 the Read thunk 0x0064A550). Slots 23 and 24 replaced by simulators.powerlineocc.save, 0 by simulators.powerlineocc.slots."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::vftable_20"
+address = 0x00AA9B60
+kind = "vtable"
+expect = "00 99 64 00 A0 06 5E 00"
+source = "Name ours. The exemplar holder part at +0x20 (cISCExemplarPropertyHolder, 5 slots: three thunks, the do-nothing stub 0x00648F10, the shared getter 0x0060CE80). Slot 0 replaced by simulators.powerlineocc.slots."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::AbstractVtable"
+address = 0x00AA9B40
+kind = "vtable"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The abstract cISC4PowerLineOccupant vtable the constructor stores first (overwritten at once by 0x00AA9C80); no call can meet it."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::GetGZCLSID"
+address = 0x00649260
+kind = "function"
+convention = "thiscall"
+expect = "B8 5D 5C C0 C9 C3 CC CC"
+source = "Returns the class ID 0xC9C05C5D (+8 slot 5; also called by the class registration at 0x00460700). Ours in simulators.powerlineocc.slots."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::Shutdown"
+address = 0x00649270
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 00 8B F1 8B 46 FC"
+source = "Occupant part slot 4 (this = object + 4): SetConnectedPoles through slot 4 of the object with three zeros (the poles let go), then a jump to the Shutdown of the occupant base 0x005E8980. Ours in simulators.powerlineocc.occupant."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::GetConnectedPoles"
+address = 0x00649290
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 4C 85 C0"
+source = "Slot 3 (ret 0xC): each pole is counted (AddRef) and its pointer given out, then the flag byte at +0x54. Ours in simulators.powerlineocc.slots."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::SetConnectedPoles"
+address = 0x006492D0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Slot 4 (ret 0xC): the new poles counted, the old ones released, pointers stored at +0x4C and +0x50, the flag byte stored at +0x54. Ours in simulators.powerlineocc.slots."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::GetCell"
+address = 0x00649330
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 44 8B 54 24 04 89"
+source = "Slot 5 (ret 8): the two cells at +0x44 and +0x48 given out. Ours in simulators.powerlineocc.slots."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::QueryInterface"
+address = 0x00649350
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 24 3B 8F"
+source = "Slot 0 (ret 8): the IDs 0xC98F3B24, 0xC9C05C5D and 0xA9764C8C give the object (counted); every other goes to the QueryInterface of the occupant base 0x005E89C0 with this + 4. Ours in simulators.powerlineocc.slots."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::IsPreview"
+address = 0x00649390
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 55 C3 CC CC CC CC"
+source = "Slot 6: the byte at +0x55 in AL. Ours in simulators.powerlineocc.slots (a slot swap: four bytes of code)."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::SetPreview"
+address = 0x006493A0
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 88 41 55 C2"
+source = "Slot 7 (ret 4): the low byte of the argument into +0x55. Ours in simulators.powerlineocc.slots."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::QueryInterfaceThunk4"
+address = 0x006498C0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 88 FA FF FF"
+source = "Name ours. +4 slot 0: this - 4 to QueryInterface. Ours in simulators.powerlineocc.slots."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::QueryInterfaceThunk8"
+address = 0x006498D0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 78 FA FF FF"
+source = "Name ours. +8 slot 0: this - 8 to QueryInterface. Ours in simulators.powerlineocc.slots."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::QueryInterfaceThunkC"
+address = 0x006498E0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 68 FA FF FF"
+source = "Name ours. +0xC slot 0: this - 0xC to QueryInterface. Ours in simulators.powerlineocc.slots."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::DeletingDestructorThunk"
+address = 0x006498F0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 F8 12 00 00"
+source = "Name ours. +0xC slot 22: this - 0xC to the deleting destructor 0x0064ABF0. Ours (in the vtable copy) in simulators.powerlineocc.object."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::QueryInterfaceThunk20"
+address = 0x00649900
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 20 E9 48 FA FF FF"
+source = "Name ours. +0x20 slot 0: this - 0x20 to QueryInterface. Ours in simulators.powerlineocc.slots."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::cSC4PowerLineOccupant"
+address = 0x0064A270
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "The constructor (0x58 bytes): the occupant base 0x005E9220 on this + 4, the five vtables, the position set to three copies of the float at 0x00B46778, the cells, poles, flag and preview byte zeroed, the occupant type 0x0990B2EA. Called by the factory (a tail jump) and at 0x00651CE4. Ours in simulators.powerlineocc.object."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::Allocate"
+address = 0x0064A2E0
+kind = "function"
+convention = "cdecl"
+expect = "A1 5C C2 B0 00 8B 40 08"
+source = "The pool allocator (the size argument is not used): the free head of the current page, refilled through 0x0090CF9A when empty. Called at 0x00651CD6. Ours in simulators.powerlineocc.object."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::Write"
+address = 0x0064A310
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "+8 slot 3 (this = object + 8, ret 4): version 2, the record of the occupant base (0x005E8CD0), the position floats, the two cells, the flag as a bool and the two poles as references; when the base fails the fields of the class are left out and the result is still the state of the stream. Ours in simulators.powerlineocc.save."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::Read"
+address = 0x0064A3A0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "+8 slot 4 (this = object + 8, ret 4): the reverse of 0x0064A310, version 2 only. Ours in simulators.powerlineocc.save."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::SetPosition"
+address = 0x0064A460
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Occupant part slot 9 (this = object + 4, ret 4): three floats copied to +0x38, then the cells at +0x44 and +0x48 as the x and z times 0.0625 truncated. Ours in simulators.powerlineocc.occupant."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::GetBoundingBox"
+address = 0x0064A4A0
+kind = "function"
+convention = "thiscall"
+expect = "D9 41 34 8B 44 24 08 8B"
+source = "Occupant part slot 10 (this = object + 4, ret 8): the position given out as both corners. Ours in simulators.powerlineocc.occupant."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::WriteThunk"
+address = 0x0064A540
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 C8 FD FF FF"
+source = "Name ours. +0xC slot 23: this - 4 to Write. Ours in simulators.powerlineocc.save."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::ReadThunk"
+address = 0x0064A550
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 48 FE FF FF"
+source = "Name ours. +0xC slot 24: this - 4 to Read. Ours in simulators.powerlineocc.save."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::Create"
+address = 0x0064AB70
+kind = "function"
+convention = "cdecl"
+expect = "A1 5C C2 B0 00 8B 40 08"
+source = "The factory (the pointer of the class registration, pushed at 0x004606FB): the pool item as the allocator makes it, then a jump to the constructor; returns the object. Ours in simulators.powerlineocc.object."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::DeletingDestructor"
+address = 0x0064ABF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 04 C7 06"
+source = "The deleting destructor (ret 4): the five vtables, the destructor of the occupant base 0x005E8C40 on this + 4, and with flag 1 the item back to its pool page (0x0090D031 at count 0, 0x0090CFF9 at count 0x40000045). Reached only through the thunk 0x006498F0. Ours (in the vtable copy) in simulators.powerlineocc.object."
+
+[[entry]]
+name = "cSC4PowerLineOccupant::Pool"
+address = 0x00B0C258
+kind = "data"
+source = "Name ours. The pool of the 0x58-byte power line occupants (+4 the current page; pages of 8 KB at address & 0xFFFFE000 with the free list at +8 and the used count at +0xC; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at count 0x40000045)."
+
+[[entry]]
+name = "SC4::ZeroVector3"
+address = 0x00B46778
+kind = "data"
+source = "Name ours. Three zero floats (0x00B46778 to 0x00B46783) that the power line and power pole constructors and Read copy into positions and vectors."

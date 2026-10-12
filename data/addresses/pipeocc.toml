@@ -1,0 +1,298 @@
+# The pipe occupant (cSC4PipeOccupant, class ID 0x49C05B9F): its own code 0x006484B0 to 0x00648C40 (src/core/pipeocc_sim.cpp, the class map in src/core/pipeocc_sim.h). The intermediate class it derives from (constructor 0x0065C330) is the game's.
+
+[[entry]]
+name = "cSC4PipeOccupant::QueryInterface"
+address = 0x006484D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 9F 5B C0"
+source = "Name ours. Slot 0, ret 8: the pipe IID 0x49C05B9F and 0xA9764C8C give the object itself (AddRef through slot 1); every other ID is a tail jump to the intermediate class QueryInterface 0x0065A080 (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::GetDescriptor"
+address = 0x006484B0
+kind = "function"
+convention = "thiscall"
+expect = "B8 D0 BE B0 00 C3 CC CC"
+source = "Name ours. Slot 101: the address 0x00B0BED0 of the pipe descriptor, which the intermediate class occupant Init stores at +0x26C (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::GetDefaultFlags"
+address = 0x006484C0
+kind = "function"
+convention = "thiscall"
+expect = "B8 00 00 00 06 C3 CC CC"
+source = "Name ours. Slot 105: the constant 0x06000000, the network flags a new piece starts with (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::GetPieceKey"
+address = 0x00648500
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 84 FD FF"
+source = "Name ours. Slot 17 of the virtual base (this = object + 0x27C; behind the thunk 0x006487B0), ret 4: writes the word at +0xFC when any of the flags 0x06000000 is set, else the class ID 0x49C05B9F (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::InitPoolPage"
+address = 0x00648580
+kind = "function"
+convention = "cdecl"
+expect = "56 57 6A 10 E8 57 53 2C"
+source = "Name ours. Slot 2 of the pool table 0x00AA9960: a 64 KB page (allocator order 0x10) of 102 items of 0x280 bytes chained upwards from +0x10, free list at +8, used count 0 at +0xC; returns the page (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::Allocate"
+address = 0x006487D0
+kind = "function"
+convention = "cdecl"
+expect = "A1 C4 BE B0 00 8B 40 08"
+source = "Name ours. One argument, not read (the maker class pushes 0x280): an item of the pipe pool 0x00B0BEC0 (the current page free head, refilled by 0x0090CF9A) (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::Write"
+address = 0x00648800
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Serializable slot 3, ret 4, this = object + 8: version 3, the intermediate class Write 0x0065B140, then the watered word at object + 0x270 (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::Read"
+address = 0x00648840
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Name ours. Serializable slot 4, ret 4, this = object + 8: version 3 only, the intermediate class Read 0x0065E510, then the watered word; sets the byte at object + 0x260 to 1 (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::GetTint"
+address = 0x006488A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 70 02 00 00 8D 0C"
+source = "Name ours. Slot 103, ret 4: copies the three words of the tint record at 0x00B0BE88 indexed by the watered word (+0x270) to the argument (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::cSC4PipeOccupant"
+address = 0x006488F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 56 8B"
+source = "Name ours. Constructor, ret 4 (non-zero argument for the most derived object): the intermediate class constructor 0x0065C330 with 0, the vtables, the watered word zero. Called by the factory 0x006489B0 and by the maker class function 0x00648D10 (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::PoolFree"
+address = 0x00648970
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 85 D2 74 34"
+source = "Name ours. Slot 1 of the pool table 0x00AA9960, ECX the pool, ret 4: an item back to its page (page at address & 0xFFFF0000); page released at count 0 (0x0090D031), reopened at 0x4000004C (0x0090CFF9) (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::Create"
+address = 0x006489B0
+kind = "function"
+convention = "cdecl"
+expect = "A1 C4 BE B0 00 8B 40 08"
+source = "Name ours. The factory (the class registration pointer): an item of the pipe pool constructed as the most derived object; returns the occupant part (object + 4) (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::DeletingDestructor"
+address = 0x006489F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 3C C7 06"
+source = "Name ours. Ret 4 (flags): the vtables, the intermediate class destructor 0x0065C0C0, and with flag 1 the item back to the pipe pool; the holder part slot 22 and the model part slot 0 reach it through thunks (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::InitStatics"
+address = 0x00648A90
+kind = "function"
+convention = "cdecl"
+expect = "A0 30 67 B4 00 83 EC 0C"
+source = "Name ours. Once (byte 0x00B46730): five distances between table points (0x00B0BA68 picked by 0x00B0BC60 and 0x00B0BC88) in a vector of five, the ratios stored at 0x00B46708 to 0x00B4672C, then the intermediate class 0x0065B040 when the network occupant statics are not done (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::OccupantInit"
+address = 0x00648BC0
+kind = "function"
+convention = "thiscall"
+expect = "A0 30 67 B4 00 84 C0 56"
+source = "Name ours. Slot 3 of the occupant part (this = object + 4): the statics, and for an object not initialised the intermediate class occupant Init 0x0065C070 and 0x0065AE80; returns true (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PipeOccupant::Init"
+address = 0x00648BF0
+kind = "function"
+convention = "thiscall"
+expect = "A0 30 67 B4 00 84 C0 56"
+source = "Name ours. Slot 3 of the interface, ret 4 (one argument handed on): the statics, and for an object not initialised the intermediate class Init 0x0065C6B0 with the argument, the class ID and the descriptor, then the watered word zero; returns true (src/core/pipeocc_sim.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::cSC4PipeBase"
+address = 0x0065C330
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 55 56 33"
+source = "Name ours. The constructor of the class between the pipe and the network occupant (vtable 0x00AAAD40), ret 4 (the most derived flag, 0 from the pipe): calls the network occupant constructor 0x0061BDD0 with 0."
+
+[[entry]]
+name = "SC4PipeBase::Destroy"
+address = 0x0065C0C0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 46 3C C7"
+source = "Name ours. The destructor of the class between the pipe and the network occupant: its vtables, its vectors freed, then the network occupant destructor 0x0061C170 by a tail jump."
+
+[[entry]]
+name = "SC4PipeBase::Init"
+address = 0x0065C6B0
+kind = "function"
+convention = "thiscall"
+expect = "A0 70 68 B4 00 83 EC 40"
+source = "Name ours. Slot 81 of the pipe interface, ret 0xC: (description, class ID, descriptor); the intermediate class Init the pipe Init calls for an object not initialised."
+
+[[entry]]
+name = "SC4PipeBase::OccupantInit"
+address = 0x0065C070
+kind = "function"
+convention = "thiscall"
+expect = "A0 70 68 B4 00 84 C0 56"
+source = "Name ours. The occupant part Init of the class between the pipe and the network occupant (this = object + 4): statics once, network occupant OccupantInit 0x0061CB50, then slot 101 stored at +0x26C of the object."
+
+[[entry]]
+name = "SC4PipeBase::Write"
+address = 0x0065B140
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Ret 4, this = object + 8: its version 3, the network occupant Write 0x0061A190, then its own fields (byte pair +0x50, float +0x60, word +0x17C, six vectors, a 4 by 4 matrix, words +0x23C/+0x240, bytes, floats, words +0x264/+0x268)."
+
+[[entry]]
+name = "SC4PipeBase::Read"
+address = 0x0065E510
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Name ours. Ret 4, this = object + 8: version 3 only, the network occupant Read 0x0061CC00, then its own fields; sets the bytes at +0x261 to 1 and +0x262 to 0."
+
+[[entry]]
+name = "SC4PipeBase::QueryInterface"
+address = 0x0065A080
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 81 FF"
+source = "Name ours. Ret 8: QueryInterface of the class between the pipe and the network occupant (IID, out pointer)."
+
+[[entry]]
+name = "SC4PipeBase::InitModels"
+address = 0x0065AE80
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D D0 3D B4 00 85 C9"
+source = "Name ours, not analysed. No arguments: builds model parameter objects at 0x00B46878 and 0x00B46880 through 0x007D2B50 from the object at 0x00B43DD0 (reads no register)."
+
+[[entry]]
+name = "SC4PipeBase::InitStatics"
+address = 0x0065B040
+kind = "function"
+convention = "cdecl"
+expect = "A0 70 68 B4 00 84 C0 75"
+source = "Name ours. No arguments: once (byte 0x00B46870) 0x0065AE80, then the network occupant statics 0x0061C690 when not done; AL 1 or 0."
+
+[[entry]]
+name = "cSC4PipeOccupant::Pool"
+address = 0x00B0BEC0
+kind = "data"
+source = "Name ours. The pool of the 0x280-byte pipe occupants (table 0x00AA9960; +4 the current page; pages of 64 KB at address & 0xFFFF0000 with the free list at +8 and the used count at +0xC; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at count 0x4000004C)."
+
+[[entry]]
+name = "cSC4PipeOccupant::Descriptor"
+address = 0x00B0BED0
+kind = "data"
+source = "Name ours. The pipe descriptor: slot 101 answers its address and the pipe Init gives it to the intermediate class Init as the third argument."
+
+[[entry]]
+name = "cSC4PipeOccupant::Tints"
+address = 0x00B0BE88
+kind = "data"
+source = "Name ours. Records of three floats indexed by the watered word: 0.8 0.23 0.23 for a dry pipe and 1 1 1 for a watered one; GetTint copies one."
+
+[[entry]]
+name = "cSC4PipeOccupant::Points"
+address = 0x00B0BA68
+kind = "data"
+source = "Name ours. Table of 24-byte point records (x at +0, z at +8) the statics 0x00648A90 measures distances between."
+
+[[entry]]
+name = "cSC4PipeOccupant::FromPoints"
+address = 0x00B0BC60
+kind = "data"
+source = "Name ours. Five record indices (1 3 5 7 9): the first point of each distance in 0x00648A90."
+
+[[entry]]
+name = "cSC4PipeOccupant::ToPoints"
+address = 0x00B0BC88
+kind = "data"
+source = "Name ours. Five record indices (0 2 4 6 8): the second point of each distance in 0x00648A90."
+
+[[entry]]
+name = "cSC4PipeOccupant::Statics"
+address = 0x00B46708
+kind = "data"
+source = "Name ours. The pipe statics set once by 0x00648A90: ten floats from +0 (ratios, and ones at +0x10 and +0x14) and the done byte at +0x28 (0x00B46730)."
+
+[[entry]]
+name = "cSC4PipeOccupant::vftable"
+address = 0x00AA97B8
+kind = "vtable"
+expect = "D0 84 64 00 60 A8 65 00"
+source = "The primary cISC4NetworkOccupant vtable of the pipe, 106 slots: QueryInterface 0x006484D0, Init 0x00648BF0, slots 101, 103 and 105 the pipe own (0x006484B0, 0x006488A0, 0x006484C0)."
+
+[[entry]]
+name = "cSC4PipeOccupant::vftable_4"
+address = 0x00AA9730
+kind = "vtable"
+expect = "C0 85 64 00 D0 85 64 00"
+source = "The cISC4Occupant part (+4) vtable of the pipe, 34 slots, slot 3 is OccupantInit 0x00648BC0."
+
+[[entry]]
+name = "cSC4PipeOccupant::vftable_8"
+address = 0x00AA9714
+kind = "vtable"
+expect = "F0 85 64 00 00 86 64 00"
+source = "The cIGZSerializable part (+8) vtable of the pipe, 6 slots: Write 0x00648800, Read 0x00648840, GetGZCLSID 0x00648F40."
+
+[[entry]]
+name = "cSC4PipeOccupant::vftable_C"
+address = 0x00AA96B0
+kind = "vtable"
+expect = "20 86 64 00 30 86 64 00"
+source = "The property holder (+0xC) vtable of the pipe, 25 slots: slot 22 the deleting destructor thunk, 23 and 24 the save thunks."
+
+[[entry]]
+name = "cSC4PipeOccupant::vftable_20"
+address = 0x00AA9698
+kind = "vtable"
+expect = "60 86 64 00 70 86 64 00"
+source = "The exemplar holder part (+0x20) vtable of the pipe, 5 slots."
+
+[[entry]]
+name = "cSC4PipeOccupant::vftable_38"
+address = 0x00AA9694
+kind = "vtable"
+expect = "90 86 64 00 60 86 64 00"
+source = "The vtable at +0x38 of the pipe (one slot, a thunk to the deleting destructor)."
+
+[[entry]]
+name = "cSC4PipeOccupant::vbase_vftable"
+address = 0x00AA9648
+kind = "vtable"
+expect = "A0 86 64 00 B0 86 64 00"
+source = "The virtual base vtable of the pipe (at +0x27C), 19 slots; slot 17 is the pipe piece key 0x00648500 behind the thunk 0x006487B0."
+
+[[entry]]
+name = "cSC4PipeOccupant::vbtable"
+address = 0x00AA9970
+kind = "data"
+source = "Name ours. The virtual base table of the pipe: -4, then the displacement 0x240 of the virtual base from the model part."
