@@ -105,10 +105,12 @@ void ConnectAndDeal(void* neighbors, int32_t x, int32_t z, void* across)
 }
 
 // Power's helpers the network edits and a new city call: the cell of each
-// plant and each power connection (OccupantCell, 0x006EB280), the occupant
-// search for the city across (FindConnectedOccupant, 0x006EDB40, neither
-// switching on nor marking), and a new city's bit arrays (CreateBitArrays,
-// 0x006EAED0), made, checksummed and freed, the city's own put back.
+// power connection (OccupantCell, 0x006EB280; it asks the object's slot 6,
+// which only a connection answers with a cell: a plant's is its property
+// holder, without arguments), the occupant search for the city across
+// (FindConnectedOccupant, 0x006EDB40, neither switching on nor marking),
+// and a new city's bit arrays (CreateBitArrays, 0x006EAED0), made,
+// checksummed and freed, the city's own put back.
 void AskPower(void* power, void* neighbors, void* across)
 {
     using CellFn = void(__stdcall*)(void* object, int32_t* x, int32_t* z);
@@ -122,7 +124,6 @@ void AskPower(void* power, void* neighbors, void* across)
         Add(static_cast<uint32_t>(x));
         Add(static_cast<uint32_t>(z));
     };
-    ForEachNode(At<void*>(power, 0x298), [&ask](void** node) { ask(node[3]); });
     if (neighbors)
         ForEachConnection(neighbors, 4, ask);
     if (across)
@@ -150,9 +151,9 @@ void AskPower(void* power, void* neighbors, void* across)
 
 // Water's helpers: the search for other sources around each pump and the
 // city's middle, for both source kinds that search (FindOtherSources,
-// 0x006DB2B0, radii +0xAC and +0xB0), the cell of each pump and each pipe
-// connection (ObjectCell, 0x006DA480), and the lot search for the city
-// across (Serve, 0x006DCEE0, not switching on).
+// 0x006DB2B0, radii +0xAC and +0xB0), the cell of each pipe connection
+// (ObjectCell, 0x006DA480; connections only, as for power), and the lot
+// search for the city across (Serve, 0x006DCEE0, not switching on).
 void AskWater(cISC4City* city, void* water, void* neighbors, void* across)
 {
     using SearchFn = int32_t(__thiscall*)(void* self, int32_t x, int32_t z, uint32_t kind, int32_t radius);
@@ -170,10 +171,8 @@ void AskWater(cISC4City* city, void* water, void* neighbors, void* across)
         Add(static_cast<uint32_t>(x));
         Add(static_cast<uint32_t>(z));
     };
-    ForEachNode(At<void*>(water, 0xBC), [&](void** node) {
-        searchAt(At<int32_t>(node, 0x8), At<int32_t>(node, 0xC));
-        ask(At<void*>(node, 0x34));
-    });
+    ForEachNode(At<void*>(water, 0xBC),
+                [&searchAt](void** node) { searchAt(At<int32_t>(node, 0x8), At<int32_t>(node, 0xC)); });
     searchAt(Virtual<int32_t>(city, 0x174) / 2, Virtual<int32_t>(city, 0x178) / 2);
     if (neighbors)
         ForEachConnection(neighbors, 5, ask);
