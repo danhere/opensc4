@@ -244,15 +244,19 @@ add_library(opensc4_core SHARED
   terrain_brushbody.cpp
   terrain_brushbody_autotest.cpp
   terrain_brushload.cpp
+  terrain_edges.cpp
+  terrain_edges_autotest.cpp
   terrain_edit.cpp
   terrain_edit_autotest.cpp
   terrain_erode.cpp
   terrain_erode_2.cpp
   terrain_erode_autotest.cpp
   terrain_messages.cpp
+  terrain_newcity.cpp
   terrain_object.cpp
   terrain_object_autotest.cpp
   terrain_queries.cpp
+  terrain_rest.cpp
   terrain_save.cpp
   view_objects.cpp
   water_effects.cpp
