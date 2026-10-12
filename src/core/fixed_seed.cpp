@@ -231,9 +231,9 @@ int NextSoundRand()
     return static_cast<int>((next >> 16) & 0x7FFF);
 }
 
-// OPENSC4_RAND_TRACE=<file>: every rand() call's caller and thread, as
-// pairs of 32-bit words, in call order, to find where two runs part (the
-// sound code's calls too).
+// OPENSC4_RAND_TRACE=<file>: every rand() call's caller, thread and the
+// next two code addresses up the stack, as four 32-bit words, in call
+// order, to find where two runs part (the sound code's calls too).
 using RandFn = int(__cdecl*)();
 RandFn g_rand = nullptr;
 std::FILE* g_randTrace = nullptr;
@@ -251,8 +251,17 @@ int __cdecl Rand()
     if (!g_randTrace)
         return value;
     EnterCriticalSection(&g_randLock);
+    // The caller, the thread, and the next two code addresses up the stack
+    // (who asked the caller).
+    uint32_t above[2] = {0, 0};
+    const auto* words = static_cast<const uint32_t*>(_AddressOfReturnAddress()) + 1;
+    for (int i = 0, found = 0; i < 64 && found < 2; ++i)
+        if (words[i] >= 0x00401000 && words[i] < 0x00A80000)
+            above[found++] = words[i];
     g_randBuffer[g_randUsed++] = static_cast<uint32_t>(caller);
     g_randBuffer[g_randUsed++] = GetCurrentThreadId();
+    g_randBuffer[g_randUsed++] = above[0];
+    g_randBuffer[g_randUsed++] = above[1];
     if (g_randUsed == sizeof(g_randBuffer) / sizeof(g_randBuffer[0])) {
         std::fwrite(g_randBuffer, sizeof(uint32_t), g_randUsed, g_randTrace);
         std::fflush(g_randTrace);
