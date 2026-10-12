@@ -6433,7 +6433,9 @@ ListReadFn g_SC4EffectDescription_ReadListA = nullptr, g_SC4EffectDescription_Re
 ListResizeAFn g_SC4EffectDescription_ResizeListA = nullptr;
 Call1Fn g_SC4EffectDescription_ResizeListB = nullptr;
 struct ListRead {
-    uint32_t slot, value, result;
+    uint32_t slot;
+    uint64_t value;
+    uint32_t result;
 };
 std::vector<ListRead> g_listReads;
 std::size_t g_listReplayed = 0;
@@ -6442,7 +6444,9 @@ uint32_t g_listStreamReal = 0;
 DWORD g_listThread = 0;
 std::map<uint32_t, std::vector<uint32_t>> g_listTables;
 
-uint32_t ListStreamRead(char* stream, uint32_t slot, uint32_t to)
+// A read of `size` bytes through one of the stream's slots (0x10 to 0x34:
+// one, two, four or eight bytes).
+uint32_t ListStreamRead(char* stream, uint32_t slot, uint32_t to, std::size_t size)
 {
     uint32_t real = g_listStreamReal;
     if (!(g_listGame || g_listReplay) || GetCurrentThreadId() != g_listThread) {
@@ -6454,26 +6458,35 @@ uint32_t ListStreamRead(char* stream, uint32_t slot, uint32_t to)
     }
     if (g_listGame) {
         const uint32_t result = CallThis<uint32_t>(M<uint32_t>(real + slot), stream, to);
-        g_listReads.push_back({slot, M<uint32_t>(to), result});
+        ListRead read{slot, 0, result};
+        std::memcpy(&read.value, reinterpret_cast<const void*>(to), size);
+        g_listReads.push_back(read);
         return result;
     }
     if (g_listReplayed >= g_listReads.size() || g_listReads[g_listReplayed].slot != slot) {
         g_listWrong = true;
         return 0;
     }
-    M<uint32_t>(to) = g_listReads[g_listReplayed].value;
+    std::memcpy(reinterpret_cast<void*>(to), &g_listReads[g_listReplayed].value, size);
     return g_listReads[g_listReplayed++].result;
 }
 
-uint32_t __fastcall ListStreamCount(char* stream, void*, uint32_t to)
-{
-    return ListStreamRead(stream, 0x24, to);
-}
-
-uint32_t __fastcall ListStreamFloat(char* stream, void*, uint32_t to)
-{
-    return ListStreamRead(stream, 0x30, to);
-}
+#define OPENSC4_STREAM_SLOT(Slot, Size)                                                                                \
+    uint32_t __fastcall ListStream##Slot(char* stream, void*, uint32_t to)                                             \
+    {                                                                                                                  \
+        return ListStreamRead(stream, Slot, to, Size);                                                                 \
+    }
+OPENSC4_STREAM_SLOT(0x10, 1)
+OPENSC4_STREAM_SLOT(0x14, 1)
+OPENSC4_STREAM_SLOT(0x18, 2)
+OPENSC4_STREAM_SLOT(0x1C, 2)
+OPENSC4_STREAM_SLOT(0x20, 4)
+OPENSC4_STREAM_SLOT(0x24, 4)
+OPENSC4_STREAM_SLOT(0x28, 8)
+OPENSC4_STREAM_SLOT(0x2C, 8)
+OPENSC4_STREAM_SLOT(0x30, 4)
+OPENSC4_STREAM_SLOT(0x34, 8)
+#undef OPENSC4_STREAM_SLOT
 
 // The stream's slot 0x3C reads a string into a string object (its three
 // pointers at +4); the note keeps the bytes, and the replay assigns them
@@ -6512,6 +6525,36 @@ uint32_t __fastcall ListStreamString(char* stream, void*, uint32_t to)
     return result;
 }
 
+// The stream's own table of functions kept, the notes emptied, and the
+// copy of the table with the noting slots for the caller to put in.
+const std::vector<uint32_t>& ListStreamNoted(uint32_t stream)
+{
+    g_listStreamReal = M<uint32_t>(stream);
+    std::vector<uint32_t>& table = g_listTables[g_listStreamReal];
+    if (table.empty()) {
+        table.assign(reinterpret_cast<const uint32_t*>(g_listStreamReal),
+                     reinterpret_cast<const uint32_t*>(g_listStreamReal) + kBSlots);
+        table[0x10 / 4] = reinterpret_cast<uint32_t>(&ListStream0x10);
+        table[0x14 / 4] = reinterpret_cast<uint32_t>(&ListStream0x14);
+        table[0x18 / 4] = reinterpret_cast<uint32_t>(&ListStream0x18);
+        table[0x1C / 4] = reinterpret_cast<uint32_t>(&ListStream0x1C);
+        table[0x20 / 4] = reinterpret_cast<uint32_t>(&ListStream0x20);
+        table[0x24 / 4] = reinterpret_cast<uint32_t>(&ListStream0x24);
+        table[0x28 / 4] = reinterpret_cast<uint32_t>(&ListStream0x28);
+        table[0x2C / 4] = reinterpret_cast<uint32_t>(&ListStream0x2C);
+        table[0x30 / 4] = reinterpret_cast<uint32_t>(&ListStream0x30);
+        table[0x34 / 4] = reinterpret_cast<uint32_t>(&ListStream0x34);
+        table[0x3C / 4] = reinterpret_cast<uint32_t>(&ListStreamString);
+    }
+    g_listThread = GetCurrentThreadId();
+    g_listReads.clear();
+    g_listStrings.clear();
+    g_listReplayed = 0;
+    g_listStringsReplayed = 0;
+    g_listWrong = false;
+    return table;
+}
+
 uint32_t ListCompared(const char* id, uint32_t stream, uint32_t list, std::size_t record, ListReadFn game,
                       uint32_t (*ours)(uint32_t, uint32_t))
 {
@@ -6525,19 +6568,7 @@ uint32_t ListCompared(const char* id, uint32_t stream, uint32_t list, std::size_
         mine[1] = mine[0] + used;
         mine[2] = mine[0] + room;
     }
-    g_listStreamReal = M<uint32_t>(stream);
-    std::vector<uint32_t>& table = g_listTables[g_listStreamReal];
-    if (table.empty()) {
-        table.assign(reinterpret_cast<const uint32_t*>(g_listStreamReal),
-                     reinterpret_cast<const uint32_t*>(g_listStreamReal) + kBSlots);
-        table[0x24 / 4] = reinterpret_cast<uint32_t>(&ListStreamCount);
-        table[0x30 / 4] = reinterpret_cast<uint32_t>(&ListStreamFloat);
-        table[0x3C / 4] = reinterpret_cast<uint32_t>(&ListStreamString);
-    }
-    g_listThread = GetCurrentThreadId();
-    g_listReads.clear();
-    g_listReplayed = 0;
-    g_listWrong = false;
+    const std::vector<uint32_t>& table = ListStreamNoted(stream);
     M<const uint32_t*>(stream) = table.data();
     g_listGame = true;
     const uint32_t result = game(stream, list);
@@ -6840,21 +6871,7 @@ uint32_t __cdecl ReadListCByMode(uint32_t stream, uint32_t list)
         compare::Record("effects.lists.c.not_empty", true, std::string(), std::string());
         return g_SC4EffectDescription_ReadListC(stream, list);
     }
-    g_listStreamReal = M<uint32_t>(stream);
-    std::vector<uint32_t>& table = g_listTables[g_listStreamReal];
-    if (table.empty()) {
-        table.assign(reinterpret_cast<const uint32_t*>(g_listStreamReal),
-                     reinterpret_cast<const uint32_t*>(g_listStreamReal) + kBSlots);
-        table[0x24 / 4] = reinterpret_cast<uint32_t>(&ListStreamCount);
-        table[0x30 / 4] = reinterpret_cast<uint32_t>(&ListStreamFloat);
-        table[0x3C / 4] = reinterpret_cast<uint32_t>(&ListStreamString);
-    }
-    g_listThread = GetCurrentThreadId();
-    g_listReads.clear();
-    g_listStrings.clear();
-    g_listReplayed = 0;
-    g_listStringsReplayed = 0;
-    g_listWrong = false;
+    const std::vector<uint32_t>& table = ListStreamNoted(stream);
     M<const uint32_t*>(stream) = table.data();
     g_listGame = true;
     const uint32_t result = g_SC4EffectDescription_ReadListC(stream, list);
@@ -6918,6 +6935,145 @@ uint32_t __fastcall DescriptionWholeByMode(char* self, void*)
     return result;
 }
 OPENSC4_THUNK(TSC4EffectDescription_ConstructWhole, DescriptionWholeByMode, 0)
+
+// A description read from a stream (0x005B1DC0, (stream, description)
+// answering the stream), translated instruction by instruction: its
+// numbers one after another (the stream's slots 0x14, 0x1C, 0x24 and
+// 0x30), its lists through their readers (among them the three above and
+// the game's for lists of floats, of points and of IDs) and its string
+// (0x005811F0).
+uint32_t ReadDescription(uint32_t stream, uint32_t description)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = stream;
+    M<uint32_t>(esp + 8) = description;
+    [[maybe_unused]] double st[8] = {};
+    [[maybe_unused]] int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_desc_read.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Two descriptions' first 0x200 bytes compared: where they differ the
+// words must be the three pointers of a list or string of the same length
+// and room and with the same bytes, or at +0x1CC of the list of named
+// records, compared record by record.
+constexpr std::size_t kDescriptionNamed = 0x1CC;
+
+bool SameDescription(const char* a, const char* b, std::size_t* wrongAt)
+{
+    const uint32_t* const x = reinterpret_cast<const uint32_t*>(a);
+    const uint32_t* const y = reinterpret_cast<const uint32_t*>(b);
+    for (std::size_t i = 0; i < kDescriptionCtorSize / 4; ++i) {
+        if (x[i] == y[i])
+            continue;
+        *wrongAt = i * 4;
+        if (i + 2 >= kDescriptionCtorSize / 4 || !x[i] || !y[i] || x[i + 1] - x[i] != y[i + 1] - y[i] ||
+            x[i + 2] - x[i] != y[i + 2] - y[i])
+            return false;
+        const uint32_t used = x[i + 1] - x[i];
+        if (i * 4 == kDescriptionNamed) {
+            for (uint32_t offset = 0; offset < used; offset += 0x10) {
+                const uint32_t p = x[i] + offset, q = y[i] + offset;
+                const uint32_t length = M<uint32_t>(p + 4) - M<uint32_t>(p);
+                if (length != M<uint32_t>(q + 4) - M<uint32_t>(q) || M<uint32_t>(p + 0xC) != M<uint32_t>(q + 0xC) ||
+                    (length && std::memcmp(M<void*>(p), M<void*>(q), length) != 0))
+                    return false;
+            }
+        } else if (std::memcmp(reinterpret_cast<const void*>(x[i]), reinterpret_cast<const void*>(y[i]),
+                               used ? used : 1) != 0) {
+            return false;
+        }
+        i += 2;
+    }
+    return true;
+}
+
+// Its comparison: a description of our own is made by the game's
+// constructor; if the game's description is not as new as that one, the
+// game's alone reads it. Else the game's reads its description with the
+// stream's reads noted, ours reads the same into ours, and the two must be
+// the same; ours is then let go. The readers of the lists are the game's
+// in both runs.
+StepMode g_descReadMode = StepMode::Original;
+ListReadFn g_SC4EffectDescription_Read = nullptr;
+
+uint32_t __cdecl ReadDescriptionByMode(uint32_t stream, uint32_t description)
+{
+    if (g_descReadMode == StepMode::Original || g_listGame || g_listReplay)
+        return g_SC4EffectDescription_Read(stream, description);
+    if (g_descReadMode == StepMode::Ours)
+        return ReadDescription(stream, description);
+    char* const mine = reinterpret_cast<char*(__cdecl*)(std::size_t)>(0x005E55E0)(0x208);
+    CallThis<uint32_t>(addr::SC4EffectDescription_ConstructWhole, mine);
+    std::size_t wrongAt = 0;
+    const bool fresh = SameDescription(reinterpret_cast<const char*>(description), mine, &wrongAt);
+    uint32_t result = 0;
+    if (!fresh) {
+        compare::Record("effects.description_read.not_new", true, std::string(), std::string());
+        result = g_SC4EffectDescription_Read(stream, description);
+    } else {
+        const std::vector<uint32_t>& table = ListStreamNoted(stream);
+        M<const uint32_t*>(stream) = table.data();
+        g_listGame = true;
+        result = g_SC4EffectDescription_Read(stream, description);
+        g_listGame = false;
+        g_listReplay = true;
+        const uint32_t ourResult = ReadDescription(stream, reinterpret_cast<uint32_t>(mine));
+        g_listReplay = false;
+        M<uint32_t>(stream) = g_listStreamReal;
+        const bool same = !g_listWrong && g_listReplayed == g_listReads.size() && result == ourResult &&
+                          SameDescription(reinterpret_cast<const char*>(description), mine, &wrongAt);
+        char text[64];
+        std::snprintf(text, sizeof text, "%zu reads", g_listReads.size());
+        const std::string theirs = text;
+        std::snprintf(text, sizeof text, "%zu reads%s, differs at +%zX", g_listReplayed,
+                      g_listWrong ? " then another" : "", wrongAt);
+        compare::Record("effects.description_read", same, same ? std::string() : theirs,
+                        same ? std::string() : std::string(text));
+    }
+    At<uint32_t>(mine, 0x204) = 1;
+    CallThis<uint32_t>(addr::SC4EffectDescription_Release, mine);
+    return result;
+}
+
+bool InstallDescriptionRead(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !Detour(addr::SC4EffectDescription_Read, reinterpret_cast<void (*)()>(&ReadDescriptionByMode),
+                &g_SC4EffectDescription_Read))
+        return false;
+    g_descReadMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: a description's reading %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDescriptionRead = registry::Register({
+    "renderer.effects.description_read",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDescription_Read,
+    "An effect description read from the effects file, number by number and list by list; compare mode notes what "
+    "the game's reads from the stream and has ours read the same into a description of its own (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallDescriptionRead,
+});
 
 bool InstallLists(registry::Mode mode)
 {
