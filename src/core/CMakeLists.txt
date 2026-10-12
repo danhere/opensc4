@@ -210,6 +210,8 @@ add_library(opensc4_core SHARED
   floraocc_sim.cpp
   foundocc_autotest.cpp
   foundocc_sim.cpp
+  netocc_autotest.cpp
+  netocc_state.cpp
   landfillocc_autotest.cpp
   landfillocc_sim.cpp
   wallocc_autotest.cpp

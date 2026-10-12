@@ -1,0 +1,380 @@
+
+[[entry]]
+name = "cSC4NetworkOccupant::CheckForRetrofit"
+address = 0x00619180
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 83 C1 0C 68 AC"
+source = "Name ours. Slot 6: whether the retrofit property 0x4835C6AC is in the holder (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetRetrofitFlag"
+address = 0x0061A120
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 57 8B"
+source = "Name ours. Slot 7: removes the retrofit property or stores an empty script number (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::HasNetworkFlag"
+address = 0x00604D10
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 3C 01 00 00 8B 4C"
+source = "Name ours. Slot 8: every bit of the argument set in the flags at +0x13C (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::HasAnyNetworkFlag"
+address = 0x00604D30
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 3C 01 00 00 23 44"
+source = "Name ours. Slot 9: any bit of the argument set in the flags at +0x13C (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetNetworkFlag"
+address = 0x00619EC0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 F7 C5 00"
+source = "Name ours. Slot 10: ORs flags in; usable bit on a placed piece posts message 0x89D3E9F3; 0x4000 calls SetTranslucency (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::ClearNetworkFlag"
+address = 0x00619F70
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 F7 C5 00"
+source = "Name ours. Slot 11: clears flags; usable bit posts message 0x89D3E9F3; 0x4000 calls SetTranslucency (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetConnectionNodeEdgeTypes"
+address = 0x00619110
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 83 C1 0C 68 A7"
+source = "Name ours. Slot 13: the two uint32 of property 0x4835C6A7 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetConnectionNodeEdgeTypes"
+address = 0x0061A020
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 44 24 0C 56"
+source = "Name ours. Slot 14: stores property 0x4835C6A7 with two uint32 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetConnectionPathIDOverride"
+address = 0x00619150
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 83 C1 0C 68 A9"
+source = "Name ours. Slot 15: the uint32 of property 0x4835C6A9 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetConnectionPathIDOverride"
+address = 0x0061A090
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 85 DB 57"
+source = "Name ours. Slot 16: stores or removes property 0x4835C6A9, sets +0x164, calls slot 50, clears flag 0x2000 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::IsImmovable"
+address = 0x00604D50
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 68 00 00 40 00 FF"
+source = "Name ours. Slot 17: HasNetworkFlag(0x400000) through the vtable (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetImmovable"
+address = 0x00604D60
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 C7 44"
+source = "Name ours. Slot 18: SetNetworkFlag or ClearNetworkFlag of 0x400000 by a tail jump (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::IsUsable"
+address = 0x00604D80
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 68 00 00 00 10 FF"
+source = "Name ours. Slot 19: HasNetworkFlag(0x10000000) through the vtable (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetUsable"
+address = 0x00604D90
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 C7 44"
+source = "Name ours. Slot 20: SetNetworkFlag or ClearNetworkFlag of 0x10000000 by a tail jump (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::IsPlaced"
+address = 0x00604DB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 83 C1 04 FF 90"
+source = "Name ours. Slot 21: bit 0 of the occupant part GetFlags (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::IsOfType"
+address = 0x00619520
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8B 01 8B 14"
+source = "Name ours. Slot 22: HasNetworkFlag with the flag from the table 0x00AA7CE8 for the type (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetRotation"
+address = 0x00604DC0
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 8A 81 04 01 00 00"
+source = "Name ours. Slot 24: the low seven bits of the byte at +0x104 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetFlip"
+address = 0x00604DD0
+kind = "function"
+convention = "thiscall"
+expect = "0F B6 81 04 01 00 00 C1"
+source = "Name ours. Slot 25: bit 7 of the byte at +0x104 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetRotationAndFlip"
+address = 0x00604DE0
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 04 01 00 00 C3 CC"
+source = "Name ours. Slot 26: the byte at +0x104 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetVariation"
+address = 0x0061B7F0
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 57 8B F9 3A"
+source = "Name ours. Slot 27: stores the byte at +0x105 and posts message 0x99EF1145 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetVariation"
+address = 0x00619880
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 05 01 00 00 C3 CC"
+source = "Name ours. Slot 28: the byte at +0x105 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetUnderTexture"
+address = 0x0061B880
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 57 8B F9 3B"
+source = "Name ours. Slot 29: stores the uint32 at +0x100 and posts message 0x99EF1145 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetVertexHeights"
+address = 0x0065A6C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 A0 00 00 00 8B 44"
+source = "Name ours. Slot 34: copies the four corner heights (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetVertexHeight"
+address = 0x006194C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8D 04 40 D9"
+source = "Name ours. Slot 35: one corner height in ST0 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetVertexHeights"
+address = 0x00619650
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 10 89 91"
+source = "Name ours. Slot 36: stores the four corner heights (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetEdgeType"
+address = 0x0061B430
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B 74"
+source = "Name ours. Slot 39: replaces one edge byte of a type value in the edge store (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetActiveEdges"
+address = 0x0061AE90
+kind = "function"
+convention = "thiscall"
+expect = "8A 91 08 01 00 00 84 D2"
+source = "Name ours. Slot 40: counts the edges with a connection over all edge store entries (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetActiveEdgesForType"
+address = 0x0061AEE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 50 81 C1 08"
+source = "Name ours. Slot 41: counts the edges with a connection for one type (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetActiveEdgesForTypeNoGroup"
+address = 0x0061AF10
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 50 81 C1 08"
+source = "Name ours. Slot 42: counts the edges with the low two bits set for one type (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetGroupedEdges"
+address = 0x0061AF40
+kind = "function"
+convention = "thiscall"
+expect = "8A 91 08 01 00 00 84 D2"
+source = "Name ours. Slot 43: counts the edges with the grouped bit over all entries (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetPathIDOverride"
+address = 0x006197D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 81 64 01"
+source = "Name ours. Slot 51: stores the uint32 at +0x164 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetPathIDOverride"
+address = 0x006197E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 64 01 00 00 C3 CC"
+source = "Name ours. Slot 52: the uint32 at +0x164 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::IsIntersection"
+address = 0x0061BD80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 8B 06"
+source = "Name ours. Slot 55: flag 0x40 and the piece ID found in the map at 0x00B4528C (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::IsLit"
+address = 0x00619890
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 3C 01 00 00 C1 E8"
+source = "Name ours. Slot 60: bit 29 of the flags (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetCostOfDemolition"
+address = 0x00604E10
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 70 01 00 00 8B 91"
+source = "Name ours. Slot 63: the int64 at +0x170 in EDX:EAX (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetCostOfDemolition"
+address = 0x00604E20
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. Slot 64: stores the int64 at +0x170 from two arguments (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetPassageCeiling"
+address = 0x00619900
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 83 C1 0C 68 A8"
+source = "Name ours. Slot 67: the float of property 0x4835C6A8 (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetPassageCeiling"
+address = 0x0061B9A0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 14 8B F9 E8 35"
+source = "Name ours. Slot 68: stores property 0x4835C6A8 from a float (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetOneWayDirections"
+address = 0x00619940
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 83 C1 0C 68 AA"
+source = "Name ours. Slot 69: the byte of property 0x4835C6AA (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetOneWayDirections"
+address = 0x0061B9F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 83 EC 14 56 57"
+source = "Name ours. Slot 70: sets or stores property 0x4835C6AA from a byte (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetComplexPieceOrigin"
+address = 0x00619970
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 83 C1 0C 68 AB"
+source = "Name ours. Slot 71: the packed x and y of property 0x4835C6AB (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::SetComplexPieceOrigin"
+address = 0x0061BA90
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8B 41 0C 83"
+source = "Name ours. Slot 72: sets or stores property 0x4835C6AB from x and y (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::IsSupportPylonPresent"
+address = 0x006199C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 3C 01 00 00 C1 E8"
+source = "Name ours. Slot 73: bit 30 of the flags (src/core/netocc_state.cpp)."
+
+[[entry]]
+name = "cSC4EdgeConnectionStore::Get"
+address = 0x00619B70
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 04 53 8A 5C 24 08"
+source = "Name ours. ret 4: the value stored for a network type key (byte) in the edge store at network occupant +0x108, 0 when absent; the adjustor thunk 0x0061AF80 jumps to it."
+
+[[entry]]
+name = "cSC4EdgeConnectionStore::Set"
+address = 0x00619A40
+kind = "function"
+convention = "thiscall"
+expect = "8A 54 24 04 55 8B E9 3A"
+source = "Name ours. ret 8: stores a value for a network type key in the edge store at network occupant +0x108; a zero value for a key not in the first entry removes the entry; the adjustor thunk 0x0061B480 jumps to it."
+
+[[entry]]
+name = "SC4ScriptNumber::FromUint8"
+address = 0x00915D1D
+kind = "function"
+convention = "thiscall"
+expect = "8A 54 24 04 8B C1 33 C9"
+source = "Name ours. ret 4: constructs a 0x14-byte script number (vtable 0x00ACECD0, type word 2 at +0xE) holding a byte."
+
+[[entry]]
+name = "cSC4NetworkOccupant::PieceMap"
+address = 0x00B4528C
+kind = "data"
+source = "Name ours. The map (a pointer to its head node in the first word) of piece IDs that are intersections; IsIntersection looks the piece ID up in it with 0x00497520."
+
+[[entry]]
+name = "cSC4NetworkOccupant::TypeFlags"
+address = 0x00AA7CE8
+kind = "data"
+source = "Name ours. Table of network flags indexed by the network type (0 to 12), which IsOfType passes to HasNetworkFlag."
