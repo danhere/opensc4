@@ -2675,11 +2675,38 @@ OPENSC4_THUNK(TGrid, DGrid, 8)
 using RebuildFn = void(__fastcall*)(char*, void*, int32_t);
 RebuildFn g_rebuild;
 bool g_compareRebuild = false;
+bool g_compareRowSpans = false; // renderer.terrain.rowspans in compare mode
+extern bool g_dataMapGameRun;
 
 void __fastcall DRebuild(char* self, void*, int32_t row)
 {
     if (g_depth > 0)
         return g_rebuild(self, nullptr, row);
+    if (g_compareRowSpans) {
+        // The row's lists as built through our span functions, then as the
+        // game's rebuild builds them with the game's own.
+        RebuildRowLayers(self, row);
+        const std::vector<uint32_t> mine = RowLayerList(row);
+        g_dataMapGameRun = true;
+        g_rebuild(self, nullptr, row);
+        g_dataMapGameRun = false;
+        const std::vector<uint32_t> theirs = RowLayerList(row);
+        const bool same = mine == theirs;
+        char text[64] = "", mineText[64] = "";
+        if (!same) {
+            std::snprintf(text, sizeof(text), "row %d: %zu values", row, theirs.size());
+            std::snprintf(mineText, sizeof(mineText), "row %d: %zu values", row, mine.size());
+        }
+        size_t layers = 0;
+        for (const uint32_t value : theirs)
+            layers += value == 0xFFFFFFFF;
+        compare::Record("terrain.rowspans", same, text, mineText);
+        if (layers)
+            compare::Record("terrain.rowspans.withlayers", same, text, mineText);
+        if (theirs.size() > layers * 4)
+            compare::Record("terrain.rowspans.severalspans", same, text, mineText);
+        return;
+    }
     if (!g_compareRebuild)
         return RebuildRowLayers(self, row);
     const int32_t index = Global<int32_t>(addr::STE_DirtyRowBase) + row;
@@ -8681,6 +8708,85 @@ const bool g_registeredTerrainObjectUntested = registry::Register({
     "Fourteen more small methods of the terrain view's interface that no test reaches, so this code has never run (docs/renderer.md, \"The terrain view's object\")",
     true,
     InstallTerrainObjectUntested,
+});
+
+// The span functions under the row layer lists (docs/renderer.md, "Row layer
+// lists"): emptying a row's lists, adding a span to a layer and merging a
+// span into a layer's ordered list. Translated instruction by instruction and
+// entered like the pixel routines above. Compare mode is in the row layer
+// rebuild's detour (DRebuild).
+void* g_terrainSpansClearRowLayers;
+void __cdecl TerrainSpansClearRowLayers(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain row spans: ClearRowLayers call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainspans_clearrowlayers.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainSpansClearRowLayers, TerrainSpansClearRowLayers, g_terrainSpansClearRowLayers, 0)
+
+void* g_terrainSpansAddRowLayerSpan;
+void __cdecl TerrainSpansAddRowLayerSpan(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain row spans: AddRowLayerSpan call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainspans_addrowlayerspan.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainSpansAddRowLayerSpan, TerrainSpansAddRowLayerSpan, g_terrainSpansAddRowLayerSpan, 16)
+
+void* g_terrainSpansMergeSpan;
+void __cdecl TerrainSpansMergeSpan(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain row spans: MergeSpan call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainspans_mergespan.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainSpansMergeSpan, TerrainSpansMergeSpan, g_terrainSpansMergeSpan, 8)
+
+bool InstallTerrainRowSpans(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareRowSpans = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::STE_ClearRowLayers, &TTerrainSpansClearRowLayers, &g_terrainSpansClearRowLayers)
+                           && Detour(addr::cSTETerrainView3D_AddRowLayerSpan, &TTerrainSpansAddRowLayerSpan, &g_terrainSpansAddRowLayerSpan)
+                           && Detour(addr::STE_MergeSpan, &TTerrainSpansMergeSpan, &g_terrainSpansMergeSpan);
+    if (installed)
+        log::Write("terrain row spans: %s", g_compareRowSpans ? "compared with the game's (needs renderer.terrain.rowlayers on)" : "ours");
+    return installed;
+}
+
+const bool g_registeredTerrainRowSpans = registry::Register({
+    "renderer.terrain.rowspans",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_AddRowLayerSpan,
+    "The span functions under the row layer lists: empty a row's lists, add a span to a layer, merge a span into a layer's "
+    "list; compare mode needs renderer.terrain.rowlayers on and rebuilds each row a second time with the game's "
+    "(docs/renderer.md, \"Row layer lists\")",
+    true,
+    InstallTerrainRowSpans,
 });
 
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),
