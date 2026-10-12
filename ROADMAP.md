@@ -12,8 +12,8 @@ Roughly 15-20% of the way to a full rewrite: the simulation and region view are 
 Measured 2026-10-12:
 
 - Roadmap (P0-P9): 72 of 105 items done, 14 in progress.
-- Address database: 7610 game functions recorded, 3671 of them reimplemented (10.6% of the game's 34,556; a lower bound, vtable swaps are not all recorded).
-- Replacement toggles: 419 simulators, 88 renderer, 64 ui, 13 framework, 11 game, 8 resources.
+- Address database: 7627 game functions recorded, 3688 of them reimplemented (10.7% of the game's 34,556; a lower bound, vtable swaps are not all recorded).
+- Replacement toggles: 422 simulators, 89 renderer, 64 ui, 13 framework, 11 game, 8 resources.
 
 | Phase | Done | In progress | Not started |
 |---|---|---|---|
