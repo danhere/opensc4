@@ -288,7 +288,7 @@ The start:
 - keeps the terrain (+0x20) and two more services of the city (+0x1C, +0x24), each with a reference;
 - sets the size (0x007595A0, cdecl, cells across and down): when it differs from the one kept at 0x00B4C744 and 0x00B4C748, the counts derived from it are kept (vertex columns and rows, the vertex count, the index steps from 0x00B4C710 on), the drawing buffers are freed and built again ("The terrain's buffers");
 - drops the textures and picks the zoom's again, and resets the kept rotation and zoom (0x00B4C708 = 4, 0x00B4C70C = 5, values no camera has, so the first frame redoes the texture coordinates);
-- makes the view's parts: the overlay manager (+0x6C), the cell marks (+0x70) and four render passes (+0x78 to +0x84);
+- makes the view's parts: the cell marks (+0x6C), the shore (+0x70) and four drawables of one class (0xFC bytes, constructor 0x0073BC20; +0x78 to +0x84), each set up with the view and one of the four pairings of two flags (0x0073CB60);
 - fills the heights of every vertex, land and water (0x007569F0, 0x00756B00), sets every row's dirty bit (0x00755ED0) and redoes every cell's indices (0x00755FB0);
 - forgets every cell's own texture: the counts at 0x00B4C6B8 are zeroed and each row's two vectors emptied ("A cell's own texture");
 - subscribes to six messages and gives the passes to the 3D render (slot 0x80, nine calls).
@@ -303,7 +303,29 @@ Compare mode stops and starts the view again: ours starts it and its result is t
 
 Checked on the three tutorial cities: 349,215 dwords (1.4 MB) after the start and after the stop, no difference, with 176 to 256 bytes left out, nearly all of them pointers; the self-check is clean; ours alone with every terrain replacement runs Big City for 30 days with a volcano in the release build and stops the view at the end; screenshots after the camera workout match the game's (20 of 20). The start runs once a city, so this is one comparison a run. What the comparison does not see is inside the parts the start makes (they are made by the game's constructors in both runs) and the render's own list of passes.
 
-**What is left of the terrain view.** Its code runs from 0x00751C40 to 0x0075D5B0: 146 functions, 45.8 KB. Counting what can still be reached when our replacements are on, about 45 functions are still the game's, and 30 more are only called from code that is ours already, so they no longer run (the row drawing variants at 0x007543C0 to 0x00755700 and the dynamic vertex buffer path at 0x0075C9F0 to 0x0075CB50 are among them: our passes do that work themselves). What is left: the single-cell draw (0x00752870), a command parser (0x0075A770), the debug draw (0x00759A80), and many small getters and setters. They come next, a part at a time.
+### The terrain view's object
+
+The view is a GZCOM object of 0xE8 bytes with five vtables: the object's own at +0 (0x00AB4480), a base at +4 (0x00AB4468), the view's interface at +0xC (0x00AB4410, the one the rest of the game uses) and two more parts at +0x10 and +0x14 (0x00AB4400, 0x00AB43E8). Class ID 0xC9B84E10.
+
+- **The factory** (0x00757470) allocates the object, constructs it (0x007567C0) and returns the interface at +0xC.
+- **The constructor** sets the vtables, clears the fields, sets the bytes at +0x31, +0x48, +0x49 and +0xB8, and the height range at +0x64 and +0x68 to the largest and smallest float.
+- **The destructor** (0x00756980; deleting 0x00757540) stops the view when it is started, and releases the texture at +0x88 and the four drawables.
+- **QueryInterface** (0x00752730) knows five IDs: 0x6771477D (the part at +0xC), 0x452294AA (+0x10), 0xE4FDA3D4 (+0x14), 0xC989F960 and 0xC9B84E10 (the object); the rest goes to the base. Each part has a thunk to it, and the parts at +0x10 and +0x14 have thunks to the shared AddRef and Release.
+- **Small methods of the interface at +0xC**: one of the four drawables by number (0x007558A0); an area, or every cell, added to the colour rectangle at the view's +0x34 (0x00755F30; the land frame redoes the skirt colours for it); and, not a method, the terrain detail setting (0x007574A0, cdecl: when it differs from the one at 0x00B0D6FC the textures are dropped and picked again).
+
+`renderer.terrain.object` is those seventeen functions, translated instruction by instruction. `renderer.terrain.object_untested` has fourteen more that no test of ours reaches, so that code has never run: the class ID getter, the getter of the saved byte (0x00B4C741), a pick without the water, six that pass a call on to the cell marks, the setter of the byte that makes a pick mark its cell (+0x30), the getter and setter of the byte at +0x49, and two QueryInterface thunks. The view's save and load (0x007527D0, 0x00752CD0: one byte, 0x00B4C741) are left to the save work.
+
+Compare mode:
+
+- At the factory, two blocks of our own, filled alike with a byte the constructor never writes, are constructed, one by ours and one by the game's, and compared whole; then one is destructed by ours and one by the game's and they are compared again. A view that was never started holds nothing, so its destructor reaches nothing outside the block; the destructor of a started view goes through the stop above.
+- QueryInterface: the game's answers the same question after ours, and the answers and the pointers handed out are compared; the game's reference is released again.
+- The drawable getter: both answers compared.
+- The colour area: the view is copied, ours adds the area, the copy is put back, the game's adds it, and the two views are compared.
+- The detail setting cannot run twice when the detail changes (textures are dropped); such a call is counted, as is one with the detail already kept, which does nothing.
+
+Checked on the three tutorial cities with the camera workout: the constructed and the destructed blocks are the same (232 bytes; the constructor writes at least 167 of them); 6,462 interface queries, 109,004 drawable lookups and 78 colour areas (60 for every cell, 18 with a rectangle), no difference; 136 detail calls, all with the detail already kept. The self-check is clean. Every query in the tests asks for an interface the view has, so the hand-over to the base has not run, and no test changes the detail. Ours alone with every terrain replacement runs Big City for 30 days with a volcano in the release build; screenshots after the camera workout match the game's (20 of 20).
+
+**What is left of the terrain view.** Its code runs from 0x00751C40 to 0x0075D5B0. About 40 functions are not ours; 30 of them are only called from code that is ours already, so they no longer run (the row drawing variants at 0x007543C0 to 0x00755700 and the dynamic vertex buffer path at 0x0075C9F0 to 0x0075CB50 are among them: our passes do that work themselves). Still running and the game's: the span lists under the row layers (0x00758B10 and 0x00759910 to 0x0075B790, eleven functions), which come next. Never run in a test: the single-cell draw (0x00752870), a command parser (0x0075A770) and the debug draw (0x00759A80).
 
 ## The overlays
 
