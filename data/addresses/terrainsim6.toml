@@ -1,0 +1,362 @@
+# cSTETerrain (build 641), piece 6: the brush body (src/core/terrain_brushbody.cpp) and the brush loader (src/core/terrain_brushload.cpp).
+# New names only; cSTETerrain::ApplyBrushLayers (terrainsim3.toml) is reused and is ours in simulators.terrain.brushbody.
+
+[[entry]]
+name = "cSTETerrain::WalkBrushPicture"
+address = 0x00742180
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, void* picture, int32_t x, int32_t z, float width, float angle, void* routine, int32_t adjust, void* block, int32_t* rect)"
+expect = "81 EC 68 08 00 00 8B 84"
+source = "Name ours. Lays a brush layer's picture (width at +0x8, height at +0xC, bytes through +0x1C), `width` metres wide and turned by the angle (FCOS, FSIN), around a vertex and calls the routine (thiscall on this + adjust: index, block) for each vertex of its rows (0x00740AB0, 0x00740BB0) that falls on a point of the picture, that point's byte put into the block's +0x14; the rectangle becomes the bounds of the vertices the routine answered for. Two arrays of 257 rows on its stack. Only 0x0074D730 calls it (0x0074DA71). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::WalkBrushSquare"
+address = 0x00742440
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, int32_t x, int32_t z, float width, float angle, void* routine, int32_t adjust, uint32_t times, void* block, int32_t* rect)"
+expect = "81 EC 3C 08 00 00 8B 84"
+source = "Name ours. The same for a layer without a picture: every vertex of the rows of a turned square of `width` metres, `times` times over. Keeps the terrain in EDX across its call of 0x00740AB0. Only 0x0074D730 calls it (0x0074DA86, times 1). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::QuadCorners"
+address = 0x00740AB0
+kind = "function"
+convention = "cdecl"
+signature = "void (float* out, float x, float z, float width, float height, float angle)"
+expect = "D9 44 24 18 8B 44 24 04"
+source = "Name ours. The four corners (x, z pairs) of a rectangle of that size around (x, z), turned by the angle: half sizes are the sizes x -0.5 (0x00A949FC); FCOS stored as a float, FSIN kept at the x87's full width through eight multiplications. Uses EAX and ECX only (0x00742440 counts on EDX). Only the two walkers call it; ours is a plain function. Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::QuadRows"
+address = 0x00740BB0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const float* corners, int32_t* firstColumns, int32_t* lastColumns, int32_t* firstRow, int32_t* lastRow)"
+expect = "51 8B 44 24 18 53 8B 5C"
+source = "Name ours. Scan conversion of a quadrilateral (four x, z pairs in metres) to rows of vertices: the first and last row (cut to 0 and the cell count), and for each row the first column and the last + 1 (cut the same way) from the edges crossing z = row x 16. Called by the two brush walkers and by the wave producers' counter 0x00742590 (0x007425BB). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::BrushRaiseLower"
+address = 0x00745C60
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t index, void* block)"
+expect = "56 8B 74 24 0C 8B 46 20"
+source = "Name ours. Layer kind 0: raises (0x00744CA0) or lowers (0x00744AF0) the vertex by |picture value - the layer's neutral value| x the block's strength; nothing for the neutral value. A per-vertex routine of the brush body (0x0074D730 hands it to a walker; the walkers call it on the terrain with the vertex index and the layer block and test AL). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::BrushPlantFlora"
+address = 0x00745A40
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t index, void* block)"
+expect = "8B 44 24 08 83 EC 0C 56"
+source = "Name ours. Layer kind 1: for a picture value of 10 or more and a draw below 100 of at most 30 (generator 0x00B4BC78): under water a sound (0xAA62C9D5); else flora at a random place of the vertex's cell through the flora simulator (+0x104, slot 17). Answers 0. A per-vertex routine of the brush body (0x0074D730 hands it to a walker; the walkers call it on the terrain with the vertex index and the layer block and test AL). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::BrushSmooth"
+address = 0x00745DE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t index, void* block)"
+expect = "51 56 8B 74 24 10 8A 46"
+source = "Name ours. Layer kind 2: for each neighbour lower than the vertex by more than the limit (0x00B4BCF4 straight, 0x00B4BCF0 diagonal), the excess x (picture value x strength / 256) moves from the vertex to the neighbour (locks, clamps and water depths as 0x00744AF0 / 0x00744CA0). A per-vertex routine of the brush body (0x0074D730 hands it to a walker; the walkers call it on the terrain with the vertex index and the layer block and test AL). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::BrushSplatTexture"
+address = 0x00749130
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t index, void* block)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Layer kind 3: while the vertex's scrub count (map +0x1D4) is not above the layer's limit, counts it and gives the view's decal object (+0xF8, slot 5) the layer's texture key, a random place in the vertex's cell, the strength and a random turn. Answers 0. A per-vertex routine of the brush body (0x0074D730 hands it to a walker; the walkers call it on the terrain with the vertex index and the layer block and test AL). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::BrushStartEffect"
+address = 0x00749310
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t index, void* block)"
+expect = "83 EC 54 53 8B 5C 24 60"
+source = "Name ours. Layer kind 4: for a picture value other than the layer's neutral one and a scrub count not above the layer's limit, makes the layer's effect (effects manager +0xFC, slot 6), places it at a random place of the vertex's cell at the altitude or the sea level, starts and releases it. Answers 0. A per-vertex routine of the brush body (0x0074D730 hands it to a walker; the walkers call it on the terrain with the vertex index and the layer block and test AL). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::BrushLevel"
+address = 0x00745BA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t index, void* block)"
+expect = "56 8B 74 24 0C 8A 46 14"
+source = "Name ours. Layer kind 5: moves the vertex towards the block's altitude (the parameters' +0x34) by picture value x strength / 256, or sets it (slot 50) when it is within that. A per-vertex routine of the brush body (0x0074D730 hands it to a walker; the walkers call it on the terrain with the vertex index and the layer block and test AL). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::BrushMark"
+address = 0x00740820
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t index, void* block)"
+expect = "8B 44 24 08 8A 50 14 84"
+source = "Name ours. Layer kind 7: sets the flag 0x0400 of the vertex for a picture value other than 0. A per-vertex routine of the brush body (0x0074D730 hands it to a walker; the walkers call it on the terrain with the vertex index and the layer block and test AL). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::BrushShape"
+address = 0x00745CD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSTETerrain* this, uint32_t index, void* block)"
+expect = "51 8B 54 24 0C 8B 42 20"
+source = "Name ours. Layer kind 8: moves the vertex towards the block's altitude + (picture value - neutral) x the layer's own strength at the step, by 1/16 of that height, or sets it (slot 50) when within that; a vertex under water is not raised. A per-vertex routine of the brush body (0x0074D730 hands it to a walker; the walkers call it on the terrain with the vertex index and the layer block and test AL). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::BrushErode"
+address = 0x007479B0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, void* block, int32_t size, int32_t* rect)"
+expect = "D9 05 88 D6 B0 00 53 55"
+source = "Name ours. Layer kind 6: the rectangle becomes the vertex at the block's place grown by size / 2 (0x00741E30); the erosion pass 0x00746AD0 runs over it as many times as the block's strength rounded (FISTP), with the iteration count the table 0x00B4BD4C has for the block's step. Only 0x0074D730 calls it (0x0074D9E4). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::AddPendingRect"
+address = 0x00748040
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, const int32_t* rect)"
+expect = "8B 44 24 04 8B 10 83 EC"
+source = "Name ours. Joins a rectangle into the list +0x1B0 (records of 0x18 bytes: rect, two dwords): overlapping records are merged into it and freed, then it is added at the end (0x00747FF0) with both dwords 0. Only 0x0074D730 calls it, after a kind 7 layer (0x0074DAA3). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "SC4RectList::PushBack"
+address = 0x00747FF0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* list, const void* record)"
+expect = "56 8B 31 57 6A 20 E8 59"
+source = "Name ours. push_back of a 0x18-byte record on a std::list (node 0x20 bytes from 0x0090CF54). Called by 0x00748040 and by 0x007A9FAF. The game's; called at its address."
+
+[[entry]]
+name = "cSTETerrain::CollectFloraTypes"
+address = 0x0074B5E0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this)"
+expect = "51 53 55 8B E9 8B 85 08"
+source = "Name ours. Once (count +0x108 still 0): the flora simulator's types (+0x104, slot 9) into the vector +0x10C, those whose record (slot 7) has not exactly the flag 2 of the flags 1 and 2 at +0x16C taken out again. Only 0x0074D730 calls it, before a kind 1 layer (0x0074D947). Ours in simulators.terrain.brushbody (src/core/terrain_brushbody.cpp)."
+
+[[entry]]
+name = "cSTETerrain::RaiseVertex"
+address = 0x00744CA0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, uint32_t index, float amount)"
+expect = "8B 44 24 04 8B 51 6C 8D"
+source = "Name ours. Raises an unlocked vertex by the amount, not above 0x00B0D5DC, water depth = sea level - altitude (the counterpart of 0x00744AF0). The brush body's routines use their own copy (src/core/terrain_brushbody.cpp); not hooked."
+
+[[entry]]
+name = "cSTETerrain::GrowRect"
+address = 0x00741E30
+kind = "function"
+convention = "thiscall"
+signature = "void (cSTETerrain* this, int32_t* rect, int32_t by)"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. Grows a rectangle by `by` on every side and cuts it to 0 and the cell counts. Called from seven places in and outside the class (0x0075F10E, 0x0075F846); the brush body's erosion layer uses its own copy; not hooked."
+
+[[entry]]
+name = "STE::WaterBrushRoutine"
+address = 0x0073EAB0
+kind = "function"
+convention = "thiscall"
+signature = "uint64_t (void* water, uint32_t index, void* block, int32_t* rect, float strength)"
+expect = "8A 41 34 84 C0 74 0A B8"
+source = "Name ours. The water object's part of brush layer kind 9: with its byte +0x34 set it answers the per-vertex routine 0x0073D490 (EAX) and the adjustment 0 (EDX) for the brush walker; else it does the work itself (0x0073E350 with the same four arguments) and answers 0, 0. The game's; called at its address by 0x0074D730 (0x0074DA21)."
+
+[[entry]]
+name = "STE::WaterBrushPoint"
+address = 0x0073D4D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* water, uint32_t index)"
+expect = "8B 44 24 04 8B 49 18 8D"
+source = "Name ours. The water object's brush layer kind 10: adds 1.0 to the float +0x4 of the vertex's water record. The game's; called at its address by 0x0074D730 (0x0074DA41)."
+
+[[entry]]
+name = "cSTETerrain::LoadBrushes"
+address = 0x0074FDC0
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "51 A1 40 BC B4 00 85 C0"
+source = "Name ours. The brush loader: nothing without the resource manager 0x00B4BC40; else empties the brush map (0x0074FB60), lists the exemplars of type 0x6534284A, group 0x6A01FC2A (a key filter 0x00682020, the resource manager's slot 17) and has the list call 0x0074FC70 for each (its slot 7). Only 0x0074FE40 calls it (0x0074FE89), last of its four loaders. Ours in simulators.terrain.brushload (src/core/terrain_brushload.cpp)."
+
+[[entry]]
+name = "cSTETerrain::LoadBrush"
+address = 0x0074FC70
+kind = "function"
+convention = "cdecl"
+signature = "void (const uint32_t* key, void* context)"
+expect = "81 EC F4 00 00 00 56 57"
+source = "Name ours. The key list's callback of 0x0074FDC0: for an instance the brush map 0x00B4BD58 has not, gets the exemplar (interface 0xA52160F5), inserts a record of 0x70 bytes under the instance (0x0074D4F0, 0x0074FAA0), makes its +0xC five zeros, and fills it with 0x00747EC0, 0x0074F4A0 and 0x00747DE0; erased again (0x0074FA40) when one fails. Reached only through the pointer at 0x0074FE25. Ours in simulators.terrain.brushload (src/core/terrain_brushload.cpp)."
+
+[[entry]]
+name = "cSTETerrain::ReadBrushBasics"
+address = 0x00747EC0
+kind = "function"
+convention = "cdecl"
+signature = "bool (void* exemplar, void* record)"
+expect = "83 EC 0C 53 55 8B 6C 24"
+source = "Name ours. Properties 0x8A020102 (turn step in degrees, 0.5 without it; x pi / 180; the brush turns when not 0 and then starts at an angle drawn between 0 and 2 pi from the generator 0x00B4BC78), 0x8A020101 (five floats to +0x24), 0x8A020103 and 0x8A020104 (+0x60, +0x64). Only 0x0074FC70 calls it. Ours in simulators.terrain.brushload (src/core/terrain_brushload.cpp)."
+
+[[entry]]
+name = "cSTETerrain::ReadBrushLayers"
+address = 0x0074F4A0
+kind = "function"
+convention = "cdecl"
+signature = "bool (void* exemplar, void* record)"
+expect = "83 EC 58 53 55 8B 6C 24"
+source = "Name ours. Up to four layers (property base 0x8A020202 + 0x100 x n: kind at +3, widths at +0, strengths at +1, follows at -1, and by the kind's row of the table 0x00AB4160 the picture ID at -2, the neutral value at +2, the decal at +4, the turn at +5, the count limit at +6, the effect at +7) appended to the record's vector +0x18; the record's +0xC keeps the greatest widths. Only 0x0074FC70 calls it. Ours in simulators.terrain.brushload (src/core/terrain_brushload.cpp)."
+
+[[entry]]
+name = "cSTETerrain::ReadBrushCursors"
+address = 0x00747DE0
+kind = "function"
+convention = "cdecl"
+signature = "bool (void* exemplar, void* record)"
+expect = "53 56 8B 74 24 10 57 8B"
+source = "Name ours. Properties 0xAA2ED800 to 0xAA2ED803 (pairs to +0x38 to +0x54; without: 0xEA3169E6 and 2, 1, 4, 3), 0xAA2ED804 and 0xAA2ED805 (+0x58, +0x5C; without: 0x071E5700, 0x071E5705). Only 0x0074FC70 calls it. Ours in simulators.terrain.brushload (src/core/terrain_brushload.cpp)."
+
+[[entry]]
+name = "SC4::GetPropertyUint32Pair"
+address = 0x00747CE0
+kind = "function"
+convention = "cdecl"
+signature = "bool (void* exemplar, uint32_t property, uint32_t* out)"
+expect = "83 EC 0C 8B 4C 24 14 8B"
+source = "Name ours. A uint32 array property of exactly two values into out[0], out[1]; false and out untouched otherwise. Called by 0x00747DE0 and 0x0074F4A0 only; ours have their own copy (src/core/terrain_brushload.cpp)."
+
+[[entry]]
+name = "cSTETerrain::ClearBrushes"
+address = 0x0074FB60
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "51 8B 15 58 BD B4 00 55"
+source = "Name ours. Releases every brush layer's picture (layer +0x8) and empties the brush map 0x00B4BD58 (0x0074F800). Called by 0x0074FDC0 and by the application callback 0x0074FC20. The game's; called at its address."
+
+[[entry]]
+name = "cSTETerrain::BrushRecordCopy"
+address = 0x0074D4F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* record, const void* from)"
+expect = "53 55 8B 6C 24 0C 8B 45"
+source = "Name ours. Copy constructor of a brush record (0x70 bytes: the float vector +0xC through 0x00464760, the layer vector +0x18 through 0x0074B3E0, the rest by value). The game's; called at its address by our brush loader."
+
+[[entry]]
+name = "cSTETerrain::BrushMapInsert"
+address = 0x0074FAA0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map, void* result, const void* pair)"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Name ours. std::map<uint32_t, brush record>::insert (node 0x84 bytes; result: node, inserted byte). The game's; called at its address by our brush loader."
+
+[[entry]]
+name = "cSTETerrain::BrushMapErase"
+address = 0x0074FA40
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* map, const uint32_t* key)"
+expect = "8B 44 24 04 83 EC 08 56"
+source = "Name ours. std::map<uint32_t, brush record>::erase(key): the count erased. The game's; called at its address by our brush loader."
+
+[[entry]]
+name = "cSTETerrain::BrushPairDestruct"
+address = 0x0074DBF0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* pair)"
+expect = "51 56 8B F1 8B 4E 20 8B"
+source = "Name ours. Destructor of a (key, brush record) pair: the layers' arrays (0x00749F50), the layer vector, the float vector. The game's; called at its address by our brush loader."
+
+[[entry]]
+name = "cSTETerrain::BrushRecordDestruct"
+address = 0x0074DBB0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* record)"
+expect = "51 56 8B F1 8B 4E 1C 8B"
+source = "Name ours. Destructor of a brush record (the same for the record alone). The game's; called at its address by our brush loader."
+
+[[entry]]
+name = "cSTETerrain::BrushLayerCopy"
+address = 0x00749040
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* layer, const void* from)"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. Copy constructor of a brush layer (0x4C bytes; the float vectors +0x10 and +0x1C through 0x00464760, the vector +0x40 through 0x00462F00). The game's; called at its address by our brush loader."
+
+[[entry]]
+name = "cSTETerrain::BrushLayersInsertN"
+address = 0x0074EFC0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, void* position, const void* layer, void* tag, uint32_t count, uint32_t atEnd)"
+expect = "51 53 8B D9 8B 03 8B 4B"
+source = "Name ours. The growth path of the brush layer vector's insert (elements of 0x4C bytes). The game's; called at its address by our brush loader."
+
+[[entry]]
+name = "cSTETerrain::ResourceManager"
+address = 0x00B4BC40
+kind = "data"
+source = "Name ours. The resource manager (0x00B43CA8) as 0x0074FE40 keeps it, referenced, for the terrain's statics; 0x0074D730 fetches a brush layer's picture through its slot 3 (0x0074D894)."
+
+[[entry]]
+name = "cSTETerrain::ErodeIterationsPerStep"
+address = 0x00B4BD4C
+kind = "data"
+source = "Name ours. vector<uint32_t> (its array pointer here) from the tuning exemplar's property 0x48CD7BF1 (0x0074BA52): the erosion pass's iteration count per brush step (0x00747A13)."
+
+[[entry]]
+name = "cSTETerrain::PictureScale"
+address = 0x00AA6E60
+kind = "data"
+source = "Name ours. float in .rdata: 1 / 256; brush layer kinds 2 and 5 multiply picture value x strength by it (0x00745E12, 0x00745BC9)."
+
+[[entry]]
+name = "SC4::FloatMinusHalf"
+address = 0x00A949FC
+kind = "data"
+source = "Name ours. float in .rdata: -0.5; 0x00740AB0 halves the turned rectangle's sizes with it."
+
+[[entry]]
+name = "cSTETerrain::TwoPiFloat"
+address = 0x00AB3B74
+kind = "data"
+source = "Name ours. float in .rdata: 6.2831855 (0x40C90FDB); a brush's turn wraps at it (0x0074D7DE, 0x0074D80F)."
+
+[[entry]]
+name = "cSTETerrain::HalfPiFloat"
+address = 0x00AB3CA8
+kind = "data"
+source = "Name ours. float in .rdata: 1.5707963 (0x3FC90FDA); added to the FPATAN of a brush stroke's move (0x0074D84F)."
+
+[[entry]]
+name = "cSTETerrain::BrushKindProperties"
+address = 0x00AB4160
+kind = "data"
+source = "Name ours. uint8_t[12][6] in .rdata: per layer kind which optional properties the brush loader 0x0074F4A0 must find (picture ID, neutral value, texture ID, turn, count limit, effect)."
+
+[[entry]]
+name = "SC4::FloatDegree"
+address = 0x00AA8C60
+kind = "data"
+source = "Name ours. float in .rdata: pi / 180 (0x3C8EFA35); the brush loader turns a brush's turn step into radians with it (0x00747F0B)."
+
+[[entry]]
+name = "cSTETerrain::BrushTurnScale"
+address = 0x00AB415C
+kind = "data"
+source = "Name ours. float in .rdata: 1 / 360 (0x3B360B61); the brush loader multiplies a kind 3 layer's turn property by it (0x0074F6EE)."
