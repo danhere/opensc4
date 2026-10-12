@@ -20,6 +20,8 @@
 //   framework.messageserver.interface  QueryInterface (0x0092D091),
 //                                      GetRefCount (0x0092D0B3), Init
 //                                      (0x0092D05B), Shutdown (0x0092D076)
+//   fixes.message_cancel               the cancel without the game's fault
+//                                      (it works alone or with .direct)
 //
 // The object (0xB0 bytes):
 //   +0x00 vtable (cIGZMessageServer2), +0x04 the system service part,
@@ -632,15 +634,22 @@ uint32_t __fastcall GeneralMessagePostToTarget(char* self, void*, void* message,
     return Virtual<uint32_t>(lock, 0x8);
 }
 
+// fixes.message_cancel (docs/framework.md).
+bool g_fixCancel = false;
+
 // The game's 0x0092E642: every post to `target` erased, walking the deque
 // with an iterator that steps past an element before it is erased. That is
 // only sound when the erase moves the elements in front of it (the
-// element is in the deque's first half); kept as the game has it.
+// element is in the deque's first half); kept as the game has it, unless
+// fixes.message_cancel is on: then the walk goes on from the position the
+// erase returns.
 uint32_t __fastcall CancelGeneralMessagePostsToTarget(char* self, void*, void* target)
 {
     void* const lock = self + kDirectLock;
     Virtual<void>(lock, 0x4);
     char* const deque = self + kDirect;
+    using EraseFn = void*(__thiscall*)(char* deque, DequeIterator* result, DequeIterator position);
+    const auto erase = reinterpret_cast<EraseFn>(addr::cGZMessageServer2_DirectQueue_Erase);
     DequeIterator it = At<DequeIterator>(deque, 0);
     while (it.current != At<char*>(deque, kFinish + kItCurrent)) {
         if (At<void*>(it.current, 0x0) != target) {
@@ -648,10 +657,14 @@ uint32_t __fastcall CancelGeneralMessagePostsToTarget(char* self, void*, void* t
             continue;
         }
         const DequeIterator position = it;
-        it.Next();
         DequeIterator result;
-        using Fn = void*(__thiscall*)(char* deque, DequeIterator* result, DequeIterator position);
-        reinterpret_cast<Fn>(addr::cGZMessageServer2_DirectQueue_Erase)(deque, &result, position);
+        if (g_fixCancel) {
+            erase(deque, &result, position);
+            it = result;
+        } else {
+            it.Next();
+            erase(deque, &result, position);
+        }
     }
     return Virtual<uint32_t>(lock, 0x8);
 }
@@ -702,6 +715,10 @@ bool InstallAll(const Detour* detours, std::size_t count)
     if (!game::IsBuild641())
         return false;
     for (std::size_t i = 0; i < count; ++i) {
+        // The cancel is hooked once, by whichever of
+        // framework.messageserver.direct and fixes.message_cancel comes first.
+        if (hook::IsInstalledAt(detours[i].address))
+            continue;
         const addr::Entry* entry = addr_check::Find(detours[i].address);
         void* original = nullptr;
         if (!entry || !hook::Install(*entry, detours[i].ours, &original))
@@ -770,6 +787,18 @@ bool InstallInterface(registry::Mode)
     return InstallAll(detours);
 }
 
+bool InstallCancelFix(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZMessageServer2_CancelGeneralMessagePostsToTarget,
+         reinterpret_cast<void*>(&CancelGeneralMessagePostsToTarget)},
+    };
+    if (!InstallAll(detours))
+        return false;
+    g_fixCancel = true;
+    return true;
+}
+
 const bool g_registeredSend = registry::Register({
     "framework.messageserver.send",
     "framework/messageserver",
@@ -826,6 +855,18 @@ const bool g_registeredInterface = registry::Register({
     "Our QueryInterface, GetRefCount, Init and Shutdown of the message server (docs/framework.md)",
     false,
     InstallInterface,
+});
+
+const bool g_registeredCancelFix = registry::Register({
+    "fixes.message_cancel",
+    "fixes",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cGZMessageServer2_CancelGeneralMessagePostsToTarget,
+    "Fixes the message server's cancel of posts to one target: it skipped a post, or walked past the end, "
+    "when the cancelled post was in the queue's second half (docs/framework.md)",
+    false,
+    InstallCancelFix,
 });
 
 } // namespace

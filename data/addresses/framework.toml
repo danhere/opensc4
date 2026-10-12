@@ -102,7 +102,7 @@ address = 0x0092E642
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 4C 53 56"
-source = "Slot 8; `ret 4`. Ours in framework.messageserver.direct."
+source = "Slot 8; `ret 4`. Reached only through the two vtables (scan of the whole image). Ours in framework.messageserver.direct; without the original's fault in fixes.message_cancel (docs/framework.md)."
 
 [[entry]]
 name = "cGZMessageServer2::DispatchGeneralMessages"
