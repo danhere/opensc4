@@ -297,3 +297,23 @@ The `cls` part was the same in all 26 runs of the test's leg. The game starts wi
 
 **Rush Hour d1095 again.** With the cycle clock held, the first day's flammability sum on that save is two-valued in the original itself: 1273 in 11 of 14 runs and 1303 in 3. With hooks on the framework's service functions the odds turn round, whatever the hooks run: ours 12 of 20 runs at 1303, stubs that only jump on to the original code 6 of 12, the three hook-list functions alone 5 of 8. So the earlier reading holds (timing, not what our code does), and the value is no longer one that only the hooked runs show. What it is that races on the first day after a load is still not known; a batch that compares outcome sets is not disturbed by it.
 
+## Starting and stopping the services, calling the hooks
+
+Thirteen functions of the framework object that its start-up (0x0087AF13) and shutdown (0x0087AB07) call.
+
+- **The services start in three bands of priority.** Slot 41 (0x00879F15) first adds the app itself as a system service, then walks the services from the highest priority down and starts those above -2,000,000; slot 42 (0x00879FBC) starts the band from -2,999,999 to -2,000,000, which is the app; slot 43 (0x0087A046) the rest. Starting is Init and, when Init says yes, SetServiceRunning(true). Only slot 42 can fail the start: when a service that answers the app's interface (0x66) fails its Init.
+- **They stop the other way round**, lowest priority first: slot 44 (0x0087A4B6) the last band, slot 45 (0x0087A527) the app's, slot 46 (0x0087A59F) the first. Stopping is Shutdown and, on yes, SetServiceRunning(false); a function answers false when any Shutdown said no.
+- **The hooks** are called by seven functions that differ in the method they call: PreFrameWorkInit 0x0087A286, PreAppInit 0x0087A2D6, PostAppInit 0x0087A326, PreAppShutdown 0x0087A376, PostAppShutdown 0x0087A3C6, PostSystemServiceShutdown 0x0087A416 and AbortiveQuit 0x0087A466. Each takes a copy of the hooks first and does nothing while the hooks' list is in use.
+
+`src/core/framework_run.cpp`: `framework.run.services` (the six) and `framework.run.hooks` (the seven), off by default. Both go in when core.dll is injected (Attach), because the start functions and three of the hook callers run once, before any later phase. With them on, the game starts its services and calls its hooks (ours among them: core.dll's own phases hang on these calls) through our code. Still the game's: the start-up and shutdown sequences themselves and the main loop.
+
+### Testing
+
+Nothing can call these functions again in a running game (the services would be started twice), so the test watches them work. `diagnostics.trace.service_start` (on in both runs of a comparison) records every call of the system service base's SetServiceRunning (0x0091DD91, the slot of nearly every service): the service's ID and the flag go into a hash. The fingerprint gets ` | start <hash> <calls>`, and each stop is logged with the hash so far, since the stops come after the last fingerprint.
+
+On Big City the original and ours give the same 34 starts (hash 6AED0313) and the same 35 stops in the same order.
+
+### Parity
+
+All seventeen framework groups on against the original, the trace on both sides, 12 saves, 7 days, two jobs, 2026-10-12: 12 of 12 the same on the first pair, and the control (the original on both sides) 12 of 12. The `start` part and the logged stops were the same in all 24 runs.
+
