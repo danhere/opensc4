@@ -568,6 +568,15 @@ expect = "83 EC 10 55 8B 6C 24 1C"
 source = "Name ours. ret 0xC: inserts count copies of a 0x10-byte record (a string and a float) into a list at where: in place when the list has room, else through the growing insert 0x005A17F0. Ours in renderer.effects.lists."
 
 [[entry]]
+name = "SC4EffectDescription::Read"
+address = 0x005B1DC0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* stream, void* description)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Reads an effect description from a stream, 0x005B1DC0 to 0x005B21D5: its numbers through the stream's slots 0x14, 0x1C, 0x24 and 0x30, its lists through their readers (0x005DB4B0 floats, 0x005A4AD0 at +0x94, SC4EffectDescription::ReadListA at +0x108, ReadListB at +0x1B8, ReadListC at +0x1CC, 0x005DB350 at +0x1E0) and its string at +0x160 (0x005811F0); answers the stream. Ours in renderer.effects.description_read."
+
+[[entry]]
 name = "SC4EffectDescription::ReadListA"
 address = 0x005B0930
 kind = "function"
