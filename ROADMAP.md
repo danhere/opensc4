@@ -12,8 +12,8 @@ Roughly 15-20% of the way to a full rewrite: the simulation and region view are 
 Measured 2026-10-12:
 
 - Roadmap (P0-P9): 73 of 106 items done, 14 in progress.
-- Address database: 7718 game functions recorded, 3781 of them reimplemented (10.9% of the game's 34,556; a lower bound, vtable swaps are not all recorded).
-- Replacement toggles: 424 simulators, 92 renderer, 64 ui, 17 framework, 11 game, 8 resources.
+- Address database: 7730 game functions recorded, 3793 of them reimplemented (11.0% of the game's 34,556; a lower bound, vtable swaps are not all recorded).
+- Replacement toggles: 424 simulators, 93 renderer, 64 ui, 19 framework, 11 game, 8 resources.
 
 | Phase | Done | In progress | Not started |
 |---|---|---|---|
@@ -42,7 +42,7 @@ Estimates by area (a judgment from the checklists below, not a measurement):
 | Networks, terrain (P7, P8) | ~0% | Not started; networks only together with the NAM team. The terrain is under way (see its item in P8) |
 | Lots and growth (P5, P8) | the classes are ours | The lot, occupant, zone, development and growth classes, the demolition service and the prop manager are ours (see their items); left: the occupant filters (in progress), the bulldoze, plop and zone tools, the derived prop classes with drawing |
 | Audio (P8) | the game's audio classes | The game's audio classes (0x004E1320 to 0x004FA6A0), 575 functions in nine groups, are ours ([docs/audio.md](docs/audio.md)); EA's sound library (AEMS) and the framework's sound service stay the game's. The harness compares state, not what is heard, so playback is untested |
-| Framework and exe independence (P9) | ~5% | Surveyed; the message server, its queue, the framework's service lists and tick and the directors' class lookup are ours (81 of about 300 framework functions, plus the COM object from the plugin DLL loader) |
+| Framework and exe independence (P9) | ~5% | Surveyed; the message server, its queue, the framework's service lists and tick and the directors' class lookup are ours (90 of about 300 framework functions, plus the COM object from the plugin DLL loader) |
 
 ## P0: Foundations
 
@@ -184,7 +184,7 @@ Decided (Dan, 2026-10-11): we go ahead without waiting for the NAM team; NAM sta
 
 ## P9: Framework and host mode (exe independence)
 
-- [~] Own GZCOM framework implementation (scion as reference). Surveyed ([docs/framework.md](docs/framework.md)): the framework object, the COM object, directors, system services, start-up order and what can be swapped during a run. Ours so far, as detours on the game's object, with parity on the 12 saves within the original's own noise under load: the message server and its message queue (`framework.messageserver.*`, `framework.messagequeue.*`, 41 functions), the framework's service registry, tick and idle lists and hooks (`framework.services.*`, 17 functions), the COM directors' class registration and lookup (`framework.directors.*`, 10 functions; the COM object itself came with the plugin DLL loader), and a fix for the server's cancel of posts (`fixes.message_cancel`). The start and stop of the services and the calls of the hooks are ours too (`framework.run.*`, 13 functions). Next: the start-up and shutdown sequences and the main loop, strings
+- [~] Own GZCOM framework implementation (scion as reference). Surveyed ([docs/framework.md](docs/framework.md)): the framework object, the COM object, directors, system services, start-up order and what can be swapped during a run. Ours so far, as detours on the game's object, with parity on the 12 saves within the original's own noise under load: the message server and its message queue (`framework.messageserver.*`, `framework.messagequeue.*`, 41 functions), the framework's service registry, tick and idle lists and hooks (`framework.services.*`, 17 functions), the COM directors' class registration and lookup (`framework.directors.*`, 10 functions; the COM object itself came with the plugin DLL loader), and a fix for the server's cancel of posts (`fixes.message_cancel`). The start and stop of the services, the calls of the hooks, the start-up and shutdown sequences and the main loop are ours too (`framework.run.*`, 22 functions): the program runs from the framework's first step to its last through our code. Next: strings, the critical section wrapper, the standard message
 - [ ] Host mode: our exe maps the original exe's sections, then stops needing them
 - [ ] Address shim for ecosystem DLLs that hook fixed addresses
 - [ ] **Exe independence:** the coverage meter shows zero original code executed in the regression suite
