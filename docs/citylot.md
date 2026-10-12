@@ -41,7 +41,7 @@ High-tech industry splits its jobs 10/80/10 (per the community fix, not read fro
 
 `fixes.travel_jobs` (on by default, [src/core/citylot_object.cpp](../src/core/citylot_object.cpp)) asks each capacity's own value, so every count is sent once it moves. It installs our 0x006BF6A0 by itself when `simulators.citylot.slots` is off, and turns the same switch on in it when that is on. `fixes.travel_jobs = original` keeps the game's behaviour; the parity script turns it off, since it changes the city.
 
-Found by reading the code (2026-10-11); not yet run in the game.
+Found by reading the code (2026-10-11). Checked 2026-10-12 on Making Money d0000 over 30 days, with the parity script's determinism switches: a manufacturing lot with 7/6/1 jobs offered 6/0/1 with the fix off and 6/6/1 with it on; Big City d1095 has no lot it changes. Not checked yet: high-tech industry itself, which no test save has (ROADMAP P6).
 
 ## Test cities
 
