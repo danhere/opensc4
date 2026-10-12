@@ -448,6 +448,8 @@ void UnpokeParticles()
 // The recorded functions whose answer the caller goes by: the particle's
 // step and the end check (a byte), and taking a particle (a pointer).
 bool g_poolHooked = false;
+// Letting go of what an effect holds records two more, once their detours are in.
+bool g_letGoHooked = false;
 
 bool Steers(uint32_t target)
 {
@@ -475,7 +477,9 @@ bool Recorded(uint32_t target)
             target == addr::SC4EffectBaseB_GiveBackParticle || target == addr::SC4Effect_SpawnFromParticle ||
             target == addr::SC4Effect_SetStopped || target == addr::SC4EffectB_SetStopped ||
             target == addr::SC4EffectBase_SetEnding || target == addr::SC4EffectBase_LetGo ||
-            target == addr::SC4EffectBaseB_LetGo);
+            target == addr::SC4EffectBaseB_LetGo ||
+            (g_letGoHooked &&
+             (target == addr::SC4EffectDescription_Release || target == addr::SC4EffectBase_Stop)));
 }
 
 template <typename... Args>
@@ -2806,7 +2810,7 @@ uint32_t __fastcall DSC4EffectDescription_Release(char* self, void*)
     if (DescNoting())
         return DescCallee(addr::SC4EffectDescription_Release, reinterpret_cast<uint32_t>(self),
                           [&] { return g_SC4EffectDescription_Release(self, nullptr); });
-    return g_SC4EffectDescription_Release(self, nullptr);
+    return EffectRecorded(addr::SC4EffectDescription_Release, g_SC4EffectDescription_Release, self);
 }
 OPENSC4_THUNK(TSC4EffectDescription_Release, DSC4EffectDescription_Release, 0)
 
@@ -3202,8 +3206,6 @@ uint32_t __fastcall DSC4EffectBaseB_TakeParticle(char* base, void*)
 OPENSC4_THUNK(TSC4EffectBaseB_TakeParticle, DSC4EffectBaseB_TakeParticle, 0)
 OPENSC4_EFFECT_HOOK1(SC4EffectBaseB_GiveBackParticle)
 OPENSC4_EFFECT_HOOK1(SC4Effect_SpawnFromParticle)
-OPENSC4_EFFECT_HOOK0(SC4EffectBase_LetGo)
-OPENSC4_EFFECT_HOOK0(SC4EffectBaseB_LetGo)
 
 // A particle effect's draw (0x005B8540, slot 0x24 of both effect classes),
 // translated instruction by instruction: the step added to the effect's
@@ -3694,7 +3696,215 @@ uint32_t __fastcall StopByMode(char* base, void*)
         [&] { return g_SC4EffectBase_Stop(base, nullptr); },
         [](void* b) { return StopEffect(static_cast<char*>(b)); }, base);
 }
-OPENSC4_THUNK(TSC4EffectBase_Stop, StopByMode, 0)
+uint32_t __fastcall DSC4EffectBase_Stop(char* base, void*)
+{
+    return EffectRecorded(addr::SC4EffectBase_Stop, &StopByMode, base);
+}
+OPENSC4_THUNK(TSC4EffectBase_Stop, DSC4EffectBase_Stop, 0)
+
+// Letting go of what an effect holds (0x005B2440, slot 0x14 of the base
+// class's sub-object): the object at +0x1EC is released (its slot 8), the
+// description at +0x20 let go (0x005B1C80) and the object at +0x1E8
+// released, each field cleared first; then the effect is stopped outright
+// (a jump to 0x005B9CC0).
+std::vector<char*> g_heldGame, g_heldOurs;
+
+void ReleaseHeld(char* object)
+{
+    if (g_effectReplay)
+        g_heldOurs.push_back(object);
+    else
+        CallThis<void>(At<uint32_t>(At<char*>(object, 0), 0x8), object);
+}
+
+uint32_t LetGoEffect(char* base)
+{
+    if (char* const object = At<char*>(base, 0x1EC)) {
+        At<char*>(base, 0x1EC) = nullptr;
+        ReleaseHeld(object);
+    }
+    if (char* const description = At<char*>(base, 0x20)) {
+        At<char*>(base, 0x20) = nullptr;
+        CallThisTraced(addr::SC4EffectDescription_Release, description);
+    }
+    if (char* const object = At<char*>(base, 0x1E8)) {
+        At<char*>(base, 0x1E8) = nullptr;
+        ReleaseHeld(object);
+    }
+    return CallThisTraced(addr::SC4EffectBase_Stop, base);
+}
+
+// Its comparison is the record and replay of the effect's draw, with the
+// two releases seen as well: for the game's run each of the two objects is
+// given a copy of its table of functions whose slot 8 notes the release,
+// gives the object its own table back and passes the release on; ours in
+// the replay only notes which objects it would release. Other threads'
+// calls through the copy pass straight on.
+constexpr std::size_t kHeldSlots = 512;
+std::map<uint32_t, std::vector<uint32_t>> g_heldTables;
+std::unordered_map<char*, uint32_t> g_heldReal;
+std::unordered_map<char*, int> g_heldTimes;
+StepMode g_letGoMode = StepMode::Original;
+Call0Fn g_SC4EffectBase_LetGo = nullptr;
+
+uint32_t __fastcall HeldRelease(char* object, void*)
+{
+    const auto found = g_heldReal.find(object);
+    if (found == g_heldReal.end() || GetCurrentThreadId() != g_effectThread) {
+        // Not one of ours to note (or another thread's): its real table is the one the copy was made from.
+        for (const auto& [real, table] : g_heldTables) {
+            if (At<uint32_t*>(object, 0) == table.data())
+                return CallThis<uint32_t>(M<uint32_t>(real + 0x8), object);
+        }
+        return 0;
+    }
+    const uint32_t real = found->second;
+    g_heldGame.push_back(object);
+    // An object held twice keeps the copy until its last release here.
+    if (--g_heldTimes[object] == 0) {
+        At<uint32_t>(object, 0) = real;
+        g_heldReal.erase(found);
+    }
+    return CallThis<uint32_t>(M<uint32_t>(real + 0x8), object);
+}
+
+void SwapHeld(char* object)
+{
+    if (!object)
+        return;
+    if (g_heldReal.count(object)) {
+        ++g_heldTimes[object];
+        return;
+    }
+    g_heldTimes[object] = 1;
+    const uint32_t real = At<uint32_t>(object, 0);
+    std::vector<uint32_t>& table = g_heldTables[real];
+    if (table.empty()) {
+        table.assign(reinterpret_cast<const uint32_t*>(real), reinterpret_cast<const uint32_t*>(real) + kHeldSlots);
+        table[0x8 / 4] = reinterpret_cast<uint32_t>(&HeldRelease);
+    }
+    g_heldReal[object] = real;
+    At<uint32_t*>(object, 0) = table.data();
+}
+
+uint32_t __fastcall LetGoByMode(char* base, void*)
+{
+    if (g_letGoMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4EffectBase_LetGo(base, nullptr);
+    if (g_letGoMode == StepMode::Ours)
+        return LetGoEffect(base);
+    g_heldGame.clear();
+    g_heldOurs.clear();
+    g_effectThread = GetCurrentThreadId();
+    SwapHeld(At<char*>(base, 0x1EC));
+    SwapHeld(At<char*>(base, 0x1E8));
+    const uint32_t result = RecordAndReplay(
+        "effects.letgo", base - 4, false, [&] { return g_SC4EffectBase_LetGo(base, nullptr); },
+        [](void* b) { return LetGoEffect(static_cast<char*>(b)); }, base);
+    for (const auto& [object, real] : g_heldReal)
+        At<uint32_t>(object, 0) = real;
+    g_heldReal.clear();
+    char text[48];
+    std::snprintf(text, sizeof text, "%zu released", g_heldGame.size());
+    const std::string game = text;
+    std::snprintf(text, sizeof text, "%zu released", g_heldOurs.size());
+    const bool same = g_heldGame == g_heldOurs;
+    compare::Record(g_heldGame.empty() ? "effects.letgo.released.none" : "effects.letgo.released", same,
+                    same ? std::string() : game, same ? std::string() : std::string(text));
+    return result;
+}
+
+uint32_t __fastcall DSC4EffectBase_LetGo(char* base, void*)
+{
+    return EffectRecorded(addr::SC4EffectBase_LetGo, &LetGoByMode, base);
+}
+OPENSC4_THUNK(TSC4EffectBase_LetGo, DSC4EffectBase_LetGo, 0)
+
+// The second class's version (0x005AC140, slot 0x14 of its sub-object),
+// for an effect in use (+4): its model instance (+0x21C) is released, and
+// its model (+0x220) through the part of it that counts its holders (a
+// pointer worked out from the model's own table of offsets); then the
+// base class's.
+uint32_t LetGoEffectB(char* base)
+{
+    if (!At<uint8_t>(base, 4))
+        return 0;
+    if (char* const instance = At<char*>(base, 0x21C)) {
+        At<char*>(base, 0x21C) = nullptr;
+        ReleaseHeld(instance);
+    }
+    if (char* const model = At<char*>(base, 0x220)) {
+        At<char*>(base, 0x220) = nullptr;
+        ReleaseHeld(model + 4 + At<int32_t>(At<char*>(model, 4), 4));
+    }
+    return CallThisTraced(addr::SC4EffectBase_LetGo, base);
+}
+
+// Its comparison is the base class's. The two fields are past the bytes
+// the record and replay keeps of an effect, so they are kept here: put
+// back for ours' run, checked, and left as the game's left them.
+StepMode g_letGoModeB = StepMode::Original;
+Call0Fn g_SC4EffectBaseB_LetGo = nullptr;
+struct LetGoBReplay {
+    char* base;
+    char* instance;
+    char* model;
+    bool cleared;
+};
+
+uint32_t __fastcall LetGoBByMode(char* base, void*)
+{
+    if (g_letGoModeB == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4EffectBaseB_LetGo(base, nullptr);
+    if (g_letGoModeB == StepMode::Ours)
+        return LetGoEffectB(base);
+    g_heldGame.clear();
+    g_heldOurs.clear();
+    g_effectThread = GetCurrentThreadId();
+    LetGoBReplay replay{base, At<char*>(base, 0x21C), At<char*>(base, 0x220), false};
+    const bool used = At<uint8_t>(base, 4) != 0;
+    if (used) {
+        SwapHeld(replay.instance);
+        if (replay.model)
+            SwapHeld(replay.model + 4 + At<int32_t>(At<char*>(replay.model, 4), 4));
+        // The base class's two are its own comparison's: here its whole
+        // run is one recorded call.
+    }
+    const uint32_t result = RecordAndReplay(
+        used ? "effects.letgo_b" : "effects.letgo_b.unused", base - 4, false,
+        [&] { return g_SC4EffectBaseB_LetGo(base, nullptr); },
+        [](void* r) {
+            LetGoBReplay& replay = *static_cast<LetGoBReplay*>(r);
+            char* const instanceAfter = At<char*>(replay.base, 0x21C);
+            char* const modelAfter = At<char*>(replay.base, 0x220);
+            At<char*>(replay.base, 0x21C) = replay.instance;
+            At<char*>(replay.base, 0x220) = replay.model;
+            const uint32_t result = LetGoEffectB(replay.base);
+            replay.cleared = At<char*>(replay.base, 0x21C) == instanceAfter &&
+                             At<char*>(replay.base, 0x220) == modelAfter;
+            At<char*>(replay.base, 0x21C) = instanceAfter;
+            At<char*>(replay.base, 0x220) = modelAfter;
+            return result;
+        },
+        &replay);
+    for (const auto& [object, real] : g_heldReal)
+        At<uint32_t>(object, 0) = real;
+    g_heldReal.clear();
+    char text[64];
+    std::snprintf(text, sizeof text, "%zu released", g_heldGame.size());
+    const std::string game = text;
+    std::snprintf(text, sizeof text, "%zu released, fields %s", g_heldOurs.size(), replay.cleared ? "same" : "differ");
+    const bool same = g_heldGame == g_heldOurs && replay.cleared;
+    compare::Record(g_heldGame.empty() ? "effects.letgo_b.released.none" : "effects.letgo_b.released", same,
+                    same ? std::string() : game, same ? std::string() : std::string(text));
+    return result;
+}
+
+uint32_t __fastcall DSC4EffectBaseB_LetGo(char* base, void*)
+{
+    return EffectRecorded(addr::SC4EffectBaseB_LetGo, &LetGoBByMode, base);
+}
+OPENSC4_THUNK(TSC4EffectBaseB_LetGo, DSC4EffectBaseB_LetGo, 0)
 
 // An effect told to go on or to end (0x005B9E70, slot 0x20 of both classes'
 // sub-objects; nothing for one whose byte +5 is clear). The first argument
@@ -4644,6 +4854,40 @@ const bool g_registeredEnding = registry::Register({
     "renderer.effects.effect (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallEnding,
+});
+
+bool InstallLetGo(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookPool())
+        return false;
+    if (mode == registry::Mode::Compare) {
+        if (!(HookFrees() &&
+              (g_SC4EffectBase_Stop ||
+               Detour(addr::SC4EffectBase_Stop, &TSC4EffectBase_Stop, &g_SC4EffectBase_Stop)) &&
+              (g_SC4EffectDescription_Release ||
+               Detour(addr::SC4EffectDescription_Release, &TSC4EffectDescription_Release,
+                      &g_SC4EffectDescription_Release))))
+            return false;
+        g_letGoHooked = true;
+    }
+    g_letGoMode = g_letGoModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects letting go of what they hold %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredLetGo = registry::Register({
+    "renderer.effects.letgo",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectBase_LetGo,
+    "An effect letting go of what it holds (both classes): objects released, its description let go, and the "
+    "effect stopped; "
+    "compare mode records the game's run and replays ours, with the two releases noted through stand-in tables of "
+    "functions (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLetGo,
 });
 
 bool InstallStop(registry::Mode mode)

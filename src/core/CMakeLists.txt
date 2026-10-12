@@ -243,6 +243,9 @@ add_library(opensc4_core SHARED
   terrain_brush_autotest.cpp
   terrain_edit.cpp
   terrain_edit_autotest.cpp
+  terrain_erode.cpp
+  terrain_erode_2.cpp
+  terrain_erode_autotest.cpp
   terrain_messages.cpp
   terrain_object.cpp
   terrain_object_autotest.cpp
@@ -288,6 +291,7 @@ add_library(opensc4_core SHARED
   protection_autotest.cpp
   flammability_autotest.cpp
   framework_autotest.cpp
+  framework_messagequeue.cpp
   framework_messageserver.cpp
   protection_sim.cpp
   fire_sim.cpp
