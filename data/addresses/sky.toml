@@ -505,6 +505,24 @@ expect = "53 56 8B 74 24 0C 8B D9"
 source = "Name ours. Sets the object the effect holds at +0x1EC: nothing when it is the one held; else the new one held (its slot 4), kept, and the old one let go (its slot 8). Called by the effects manager (0x00590C8B, 0x00593F0A, 0x00593F4B). Ours in renderer.effects.holders."
 
 [[entry]]
+name = "SC4Effect::Construct"
+address = 0x005B2B50
+kind = "function"
+convention = "thiscall"
+signature = "SC4Effect* (SC4Effect* this)"
+expect = "51 53 56 8B F1 57 8D 7E"
+source = "Name ours (0x005B2B50 to 0x005B2FC4). The base effect class's constructor: the sub-object at +4 (SC4EffectBase::Construct) and the batch at +0x28 (0x005EC690) constructed, the tables of functions 0x00AA0EA0 and 0x00AA0E58 set, and the fields given their first values; some bytes of the object are left as they were. The second class's constructor (0x005AC510) calls it. Ours in renderer.effects.ctor (src/core/effect_ctor.inc)."
+
+[[entry]]
+name = "SC4EffectBase::Construct"
+address = 0x005B9F00
+kind = "function"
+convention = "thiscall"
+signature = "SC4EffectBase* (SC4EffectBase* this)"
+expect = "53 33 DB 56 8B F1 C7 06"
+source = "Name ours. The sub-object's constructor: the table of functions 0x00AA0F48, the bytes and words up to +0x1C cleared, and an empty list at +0x10 (a 12-byte head node pointing at itself). Ours in renderer.effects.ctor."
+
+[[entry]]
 name = "SC4Effect::GetBox"
 address = 0x005B26F0
 kind = "function"
