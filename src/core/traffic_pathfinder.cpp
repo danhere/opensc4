@@ -1879,7 +1879,7 @@ const bool g_registered = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::TrafficPathfinder_Search,
-    "Our traffic path search, node pool and heap; NAM's patch inside the search is not in effect (docs/traffic.md)",
+    "Our traffic path search, node pool and heap; functions NAM patched stay the game's (docs/traffic.md)",
     false,
     Install,
 });

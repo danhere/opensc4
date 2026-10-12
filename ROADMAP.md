@@ -161,9 +161,11 @@ Parity method (from P4): short-window exact comparison against the original from
 - [x] Population: the game has no population simulator of its own. The population grids by wealth, the city's population, age, education and health are the residential simulator's ([docs/residential.md](docs/residential.md)); the monthly population, jobs and workforce figures are the demand simulator's ([docs/demand.md](docs/demand.md)); both are ours. The script variables that publish them (`g_city_r_population` and the rest) belong to the Lua bindings below.
 - [x] Lua 5.0 bindings ([docs/lua.md](docs/lua.md)): the 295 script variables the advisors publish (`game.g_population` and the rest), the 36 native script functions, the advisor base class (the advice engine all advisors share), the seven advisor classes, the advice class, the mission advice and the script context with its Lua thread and engine classes are ours (`scripts.globals.*`, `scripts.natives.*`, `scripts.advisors.*`, `scripts.context.*`); 12 of 12 saves in every leg, every variable and every advice record compared. Two variables are stack garbage in the original and cannot be matched. The natives that work on a current advice are tested with one made current (`OPENSC4_TEST_LUA_ADVICE`). The native function table and its dispatcher, the data registry bridge, the thread table with the game's `coroutine` library and the tag library are ours too (twenty groups, 12 of 12 in four legs). The Lua library itself stays the game's. The missions' getters are compared through the fingerprint (`OPENSC4_TEST_MISSIONS`); no test starts a mission. The advice window's text builder is interface code and goes with the interface.
 
-## P7: Networks and traffic (only together with the NAM team)
+## P7: Networks and traffic
 
-- [ ] RUL0/1/2 engine and network tools, either implemented jointly or preserving the NAM DLL's hook points
+Decided (Dan, 2026-10-11): we go ahead without waiting for the NAM team; NAM stays a plugin players install, and a function NAM's DLL patched stays the game's automatically ([architecture.md](docs/architecture.md), "Patches inside replaced functions"). Order: the NAM guard, a networks test corpus, traffic leftovers, network occupants, the network manager, network lots and construction crew, the network tool, the RUL engine, automata.
+
+- [ ] RUL0/1/2 engine and network tools, keeping the NAM DLL's patch sites working
 - [ ] Traffic simulator: the vanilla model, plus our own "Improved traffic" option (see ideas from newer games)
 
 ## P8: Remaining world systems
