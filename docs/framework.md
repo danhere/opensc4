@@ -207,3 +207,53 @@ With the message queue's five groups on as well (ten groups against the original
 - The `msg` and `mq` parts were the same in all 32 runs of the tests' leg, original and ours.
 - The two partly (Making Money d1095 plain, Big City d0365 with the tests): the original gave two outcomes on each within the batch (on Making Money d1095 the lots' checksum of day 1 takes one of two values), ours two, one of them shared. The same kind of split as above; other threads' games were running.
 
+## Services, tick and hooks
+
+The framework's own lists, on the framework object (layout in the survey above).
+
+How they work:
+
+- **AddSystemService** (slot 3) puts a service into the tree (by priority; equal priorities in the order they came) and the table (by ID). It is refused while either is in use, for a null service and for an ID that is taken. **RemoveSystemService** (slot 4) takes it out of the idle list, the tick list, the tree and the table, and answers true whether it was known or not.
+- **GetSystemService** (slot 5) looks the ID up in the table and asks that service for the interface. The table counts as in use while the service answers, so a service cannot add or remove services from inside its QueryInterface.
+- **AddToTick** (slot 9) inserts before the first service of a lower tick priority, so the list runs from the highest down and equal priorities keep their order; a service whose ID is on the list already is not added again (the answer is still true). **AddToOnIdle** (slot 11) appends, and answers false for a service that is there.
+- **RemoveFromTick, RemoveFromOnIdle** (slots 10, 12): during a call of the list the service is first put on a second list that keeps it referenced until the outermost call ends; the services of the pass under way are still called.
+- **OnIdle** (slot 16) is what the main loop calls: it counts the frame, calls **OnTick** (slot 15) through the vtable with the frame's number, and when the frame count divides by the idle interval (4) calls the idle list's services with the idle count. Both copy their list under the lock and call outside it.
+- **AddHook, RemoveHook** (slots 7, 8) keep a list; the seven functions that call the hooks first copy it (0x0087A178).
+
+`src/core/framework_services.cpp`, entry detours on the game's object, off by default:
+
+| Replacement | Functions |
+|---|---|
+| `framework.services.registry` | AddSystemService 0x0087AC3C, RemoveSystemService 0x0087A90E, GetSystemService 0x0087A0AC, the services listed by priority 0x00879ACE |
+| `framework.services.tick` | AddToTick 0x00879BB9, RemoveFromTick 0x00879C6C, AddToOnIdle 0x00879D21, RemoveFromOnIdle 0x00879DB3, the idle interval 0x0087946C and 0x0087944F, OnTick 0x0087A74B, OnIdle 0x0087A812, and the game's subclass's OnTick 0x00473440 and OnIdle 0x004735F0 |
+| `framework.services.hooks` | AddHook 0x0087A1F4, RemoveHook 0x008798AA, the hooks' copy 0x0087A178 |
+
+17 functions. The lists, the table's lookup and removal and the tree's walk are done in our code on the game's layouts; the tree's insert and erase and the table's insert are still the game's helpers (0x00879E91, 0x00968D88, 0x0087A66F). The two functions that game code calls directly (0x00879ACE, 0x0087A178) are entered through thunks that keep ECX and EDX.
+
+Still the game's in this part of the framework: the functions that start and stop the services in bands (slots 41-46) and the seven that call the hooks (they run at start-up, before our detours go in, and at shutdown), the tick switch and the small getters (shared code), and:
+
+- **EnumSystemServices (slot 6) stalls the original** when it is called in a running city: it stops after the 32nd service and the game never comes back. A replacement could not be compared, so the function is left alone. Which service it stops at was not looked into.
+
+Findings:
+
+- Which frame a tick falls on is not the same from run to run: frames pass while the city loads, and their number depends on real time. The idle calls (every fourth frame) therefore land on different frames in two runs of the original. The simulation does not see this (the simulator runs its own slices); a test of the lists has to keep frame numbers out of what it compares.
+
+### Testing
+
+`OPENSC4_TEST_SERVICES=<day>` adds three services of its own (one twice), looks them up, lists the services by priority both ways through 0x00879ACE (how many, and where the three stand), puts the three on the tick list (one twice) and two on the idle list (one twice), removes what is not there, adds a hook twice and removes it twice, and reads and sets the idle interval. The services then record their first three ticks and two idle calls (who is called, in which order, with which number counted from the first; one takes another off the tick list from inside a tick) and take themselves out again. The fingerprint's `svc` part appears ten days after the drive, when all of that is over: run at least 13 days.
+
+With the test on, the coverage meter shows all 17 functions reached in the original except the subclass's two.
+
+### Parity
+
+All thirteen framework groups on (services, message server, message queue) against the original, 12 saves, two jobs, on 2026-10-12, with a control (the original on both sides) run the same way right after; three to five other copies of the game were running:
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain, 7 days | 10 same, 2 partly | 11 same, 1 partly |
+| `OPENSC4_TEST_SERVICES=2`, 14 days | 8 same, 4 partly | 10 same, 2 partly |
+
+- The `svc` part was the same in all 50 runs of the test's leg, original and ours.
+- Every difference is in parts that the original also gives two values for under load: the flammability walk's sums on the first day and the lots' checksum.
+- **One save needed a closer look.** On Rush Hour d1095 the first day's flammability sum is 1303 in every run of the original (23 runs over five batches) and 1273 in about one run in six with our groups on (2 of 4 in the batch, 2 of 12 alone; none in 11 runs with one group at a time). It is a matter of timing and not of what our code does: with the same 17 functions hooked by stubs that only jump on to the original code, 1 run in 13 gave 1273 too. So something on the first day after a load races with the main thread, and a hook on these much-called functions (GetSystemService above all) is enough to tip it now and then. Ours come out a little worse than the control in both legs for that reason. Which two things race was not looked into; the load-time worker thread ([experiments/determinism.md](experiments/determinism.md)) is the first suspect.
+
