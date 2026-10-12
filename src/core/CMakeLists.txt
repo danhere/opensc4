@@ -326,6 +326,7 @@ add_library(opensc4_core SHARED
   framework_messagequeue.cpp
   framework_messageserver.cpp
   framework_run.cpp
+  framework_servicebase.cpp
   framework_services.cpp
   framework_string.cpp
   framework_stringformat.cpp

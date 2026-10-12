@@ -751,7 +751,7 @@ address = 0x0091DD91
 kind = "function"
 convention = "thiscall"
 expect = "8A 44 24 04 88 41 18 C2"
-source = "Slot 7 of the system service base (in 48 vtables); `ret 4`: the byte at +0x18. The game's; diagnostics.trace.service_start records the calls through it."
+source = "Slot 7 of the system service base (in 48 vtables); `ret 4`: the byte at +0x18. Ours in framework.service.interface; diagnostics.trace.service_start records the calls through the same detour."
 
 [[entry]]
 name = "GZFrameWork::Run"
@@ -1592,3 +1592,33 @@ kind = "function"
 convention = "thiscall"
 expect = "56 FF 74 24 08 8B F1 8D"
 source = "Name ours. `ret 4` (const char* text): appends the text to the body (0x00410F00); returns this. 54 callers. Ours in framework.string.helpers."
+
+[[entry]]
+name = "cRZBaseSystemService::ConstructWithTickPriority"
+address = 0x0091DDCF
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "Name ours. `ret 0xC` (ID, priority, tick priority): the constructor with a tick priority of its own; 2 callers. Ours in framework.service.lifetime."
+
+[[entry]]
+name = "cRZBaseSystemService::DeletingDestructor"
+address = 0x0091DDB3
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 98 FF FF FF"
+source = "Name ours. `ret 4` (flags): the destructor (0x0091DD53), and with flag 1 the object freed (0x005E5620); returns the object. Reached through the unknown part's slot 3 (0x0091DDAB). Ours in framework.service.lifetime."
+
+[[entry]]
+name = "cRZBaseSystemService::Vtable"
+address = 0x00ACF1CC
+kind = "vtable"
+expect = "67 DD 91 00 A0 97 92 00"
+source = "Name ours. 13 slots: QueryInterface, AddRef, Release, GetServiceID, SetServiceID, GetServicePriority, IsServiceRunning, SetServiceRunning, Init, Shutdown, OnTick, OnIdle, GetServiceTickPriority. The getters and the empty Init to OnIdle are functions shared with unrelated classes."
+
+[[entry]]
+name = "cRZBaseSystemService::UnknownVtable"
+address = 0x00ACF1B4
+kind = "vtable"
+expect = "9B DD 91 00 31 9A 92 00"
+source = "Name ours. The vtable of the unknown part at +4: three thunks back to the service (0x0091DD9B, 0x0091DDA3, 0x0091DDAB) and the base's own slots."
