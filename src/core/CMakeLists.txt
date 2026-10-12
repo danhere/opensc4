@@ -243,6 +243,9 @@ add_library(opensc4_core SHARED
   terrain_brush_autotest.cpp
   terrain_edit.cpp
   terrain_edit_autotest.cpp
+  terrain_erode.cpp
+  terrain_erode_2.cpp
+  terrain_erode_autotest.cpp
   terrain_messages.cpp
   terrain_object.cpp
   terrain_object_autotest.cpp
@@ -253,7 +256,10 @@ add_library(opensc4_core SHARED
   d3d7_probe.cpp
   dbpf_survey.cpp
   plugin_loader.cpp
-  stale_record_fix.cpp
+  packed_file_1.cpp
+  packed_file_2.cpp
+  packed_file_3.cpp
+  packed_file_4.cpp
   prop_pox_diag.cpp
   pin_plugin_dlls.cpp
   puzzle_piece_fix.cpp
