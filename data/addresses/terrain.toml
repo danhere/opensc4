@@ -2245,3 +2245,11 @@ kind = "function"
 convention = "thiscall"
 expect = "8A 44 24 04 8A 51 3D 83"
 source = "Name ours. (bool): when it differs, keeps it at the view's +0x49 and adds every cell to the changed rectangle at +0x4C. `this` is the part at +0xC. (docs/renderer.md, \"The terrain view's object\")."
+
+[[entry]]
+name = "STE::MergeSpan"
+address = 0x00758B10
+kind = "function"
+convention = "stdcall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. (a layer node's span list, {first, last}), stdcall: adds a span to a layer's list, which is kept in order: every span it overlaps is taken out and the new one widened to cover it, then the new one is put in before the first span that lies beyond it. (docs/renderer.md, \"Row layer lists\")."
