@@ -439,6 +439,10 @@ add_library(opensc4_core SHARED
   tool_bulldoze_autotest.cpp
   tool_zone.cpp
   tool_zone_autotest.cpp
+  tool_plop_1.cpp
+  tool_plop_2.cpp
+  tool_plop_3.cpp
+  tool_plop_autotest.cpp
   ui_cityview_1.cpp
   ui_cityview_2.cpp
   ui_cityview_3.cpp
