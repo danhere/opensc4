@@ -1267,3 +1267,128 @@ name = "RZ::PoolLock"
 address = 0x00B62870
 kind = "data"
 source = "Name ours. The lock RZ::operator_new and RZ::operator_delete hold around the pool (lock slot +4, unlock slot +8); made at 0x00A791FC."
+
+[[entry]]
+name = "RZCriticalSection::Release"
+address = 0x00930B20
+kind = "function"
+convention = "thiscall"
+expect = "85 C9 74 07 8B 01 6A 01"
+source = "Name ours. Slot 0, no arguments: deletes the lock through slot 6 with flag 1 (nothing for a null this); returns 0. Ours in framework.lock.lifetime."
+
+[[entry]]
+name = "RZCriticalSection::Lock"
+address = 0x00930B35
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 04 56 FF 15 2C"
+source = "Name ours. Slot 1, no arguments: EnterCriticalSection, then the count at the block's +0x18 goes up; returns the count. 29 direct callers. Ours in framework.lock.use."
+
+[[entry]]
+name = "RZCriticalSection::Unlock"
+address = 0x00930B6D
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 FF 48 18 56 8B"
+source = "Name ours. Slot 2, no arguments: the count goes down, then LeaveCriticalSection; returns the count. 32 direct callers. Ours in framework.lock.use."
+
+[[entry]]
+name = "RZCriticalSection::TryLock"
+address = 0x00930B48
+kind = "function"
+convention = "thiscall"
+expect = "A1 88 2A B6 00 85 C0 56"
+source = "Name ours. Slot 3, no arguments: TryEnterCriticalSection through the pointer at 0x00B62A88; 0 when it fails. When it succeeds (or the pointer is null) EnterCriticalSection follows, so a successful try enters twice; then as Lock. Ours in framework.lock.use."
+
+[[entry]]
+name = "RZCriticalSection::GetLockCount"
+address = 0x00930B2E
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 8B 40 18 C3 56"
+source = "Name ours. Slot 5, no arguments: the count at the block's +0x18. Keeps ECX and EDX. Ours in framework.lock.use."
+
+[[entry]]
+name = "RZCriticalSection::GetHandle"
+address = 0x00930B82
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 8B 4C 24 04 89"
+source = "Name ours. Slot 7; `ret 4` (out): the CRITICAL_SECTION's address into *out; returns 1. Ours in framework.lock.use."
+
+[[entry]]
+name = "RZCriticalSection::DeletingDestructor"
+address = 0x00930BC3
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 37 FF FF FF"
+source = "Name ours. Slot 6; `ret 4` (flags): the destructor (0x00930B02), and with flag 1 the object freed (0x005E5620); returns the object. Ours in framework.lock.lifetime."
+
+[[entry]]
+name = "RZCriticalSection::FindTryEnter"
+address = 0x00930AC0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 FF 15 98 00 A8"
+source = "Name ours. A static initialiser (called once, from 0x00A79301), no arguments, returns this: unless GetVersion says Windows 95, LoadLibraryA('Kernel32.dll') into 0x00B62A8C and GetProcAddress('TryEnterCriticalSection') into 0x00B62A88. Ours in framework.lock.lifetime."
+
+[[entry]]
+name = "RZCriticalSection::Vtable"
+address = 0x00AD1EF4
+kind = "vtable"
+expect = "20 0B 93 00 35 0B 93 00"
+source = "Name ours. 8 slots: Release, Lock, Unlock, TryLock, a shared 'return 1' (0x009DAA18), GetLockCount, the deleting destructor, GetHandle."
+
+[[entry]]
+name = "RZCriticalSection::TryEnterFunction"
+address = 0x00B62A88
+kind = "data"
+source = "Name ours. TryEnterCriticalSection's address, or null; set by FindTryEnter."
+
+[[entry]]
+name = "RZCriticalSection::Kernel32Module"
+address = 0x00B62A8C
+kind = "data"
+source = "Name ours. Kernel32's module handle from FindTryEnter's LoadLibraryA."
+
+[[entry]]
+name = "Kernel32::GetVersion"
+address = 0x00A80098
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "Kernel32::LoadLibraryA"
+address = 0x00A800D0
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "Kernel32::GetProcAddress"
+address = 0x00A800CC
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "Kernel32::InitializeCriticalSection"
+address = 0x00A80224
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "Kernel32::LeaveCriticalSection"
+address = 0x00A80228
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "Kernel32::EnterCriticalSection"
+address = 0x00A8022C
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "Kernel32::DeleteCriticalSection"
+address = 0x00A80230
+kind = "data"
+source = "The exe's import slot."

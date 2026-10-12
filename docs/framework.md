@@ -441,3 +441,41 @@ All 27 framework groups on against the original (the service start trace on both
 | `OPENSC4_TEST_MESSAGE_POOL=2` | 12 same | 12 same |
 
 All on the first pair. The `mpool` part was the same in all 48 runs of the test's leg and its control.
+
+## The critical section wrapper
+
+The lock object the framework, the message servers, the pools and many game classes hold (vtable 0x00AD1EF4, 8 slots; 67 places construct one) is 8 bytes: the vtable and a pointer to a block of 0x1C bytes from the C runtime, which is a Windows CRITICAL_SECTION followed by the wrapper's own count of locks held.
+
+- **Lock** enters the section and then raises the count; **Unlock** lowers the count and then leaves. Both return the count. The count is only ever changed while the section is held.
+- **TryLock** calls TryEnterCriticalSection through a pointer looked up when the program starts and returns 0 when that fails. When it succeeds, the game goes on to enter the section a second time before raising the count, so Windows counts two entries for one lock, and the matching Unlock does not give the section up: the thread keeps it for good. The test measures this in the original (2 entries after one TryLock on a free lock). Ours does the same. The coverage meter shows the game never calls TryLock in a city run, so nothing depends on it today.
+- **The getters.** GetLockCount reads the count; GetHandle gives the CRITICAL_SECTION's address.
+- **Beginning and end.** The constructor takes the block, clears it and initialises the section. The destructor deletes the section and frees the block. Release deletes the object outright (there is no reference count), through the deleting destructor's slot.
+- **The lookup.** A static object's constructor (0x00930AC0, run once) loads Kernel32.dll and looks up TryEnterCriticalSection, on everything but Windows 95.
+
+`src/core/framework_lock.cpp`, entry detours, off by default:
+
+| Replacement | Functions |
+|---|---|
+| `framework.lock.use` | Lock 0x00930B35, Unlock 0x00930B6D, TryLock 0x00930B48, GetLockCount 0x00930B2E, GetHandle 0x00930B82 |
+| `framework.lock.lifetime` | the constructor 0x00930B91, the destructor 0x00930B02, Release 0x00930B20, the deleting destructor 0x00930BC3, the lookup 0x00930AC0 |
+
+10 functions. Locks are made from the program's first moments, and the lookup runs once among them, so the lifetime group goes in when core.dll is injected (phase Attach); the log shows the lookup running in our code. Windows is called through the exe's own import slots, as the game's code does.
+
+Still the game's: the block's clearing helper (0x00930AA8, whose one caller is the constructor, so it no longer runs when ours is on), the lock scope guard (0x0048C9F0), the C runtime and Windows.
+
+### Testing
+
+`OPENSC4_TEST_LOCKS=<day>` makes a lock with the game's constructor and calls its slots: three locks and three unlocks, with the wrapper's count and Windows' own count of entries read after each; the handle; TryLock on a free lock and on a held one, then the unlocks (the entries TryLock leaves over are given back by hand); the destructor; one on the heap ended through Release; and the lookup run again. Every result goes into the fingerprint's `lock` part. TryLock's failing path needs a second thread and is not driven.
+
+Without the test, a city run reaches the constructor, the destructor, Lock and Unlock; with it, the coverage meter shows all 10 functions reached in the original.
+
+### Parity
+
+All 29 framework groups on against the original (the service start trace on both sides), 12 saves, 7 days, two jobs, 2026-10-12, each leg with a control (the original on both sides):
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 12 same | 12 same |
+| `OPENSC4_TEST_LOCKS=2` | 12 same | 12 same |
+
+All on the first pair. The `lock` part was the same in all 48 runs of the test's leg and its control.
