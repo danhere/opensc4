@@ -306,6 +306,7 @@ add_library(opensc4_core SHARED
   framework_autotest.cpp
   framework_messagequeue.cpp
   framework_messageserver.cpp
+  framework_services.cpp
   protection_sim.cpp
   fire_sim.cpp
   police_sim.cpp
