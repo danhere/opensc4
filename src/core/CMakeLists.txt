@@ -242,7 +242,11 @@ add_library(opensc4_core SHARED
   terrain_brush_autotest.cpp
   terrain_edit.cpp
   terrain_edit_autotest.cpp
+  terrain_messages.cpp
+  terrain_object.cpp
+  terrain_object_autotest.cpp
   terrain_queries.cpp
+  terrain_save.cpp
   view_objects.cpp
   water_effects.cpp
   d3d7_probe.cpp
