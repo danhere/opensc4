@@ -378,3 +378,248 @@ name = "cSC4NetworkOccupant::TypeFlags"
 address = 0x00AA7CE8
 kind = "data"
 source = "Name ours. Table of network flags indexed by the network type (0 to 12), which IsOfType passes to HasNetworkFlag."
+
+[[entry]]
+name = "cSC4NetworkOccupant::Write"
+address = 0x0061A190
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. cIGZSerializable slot 3 (this = object + 8; ret 4): version 8, the occupant base record, the transform, four corners, the edge store, the path records, the box pairs, flags, path ID override, resource key and demolition cost. Ours in simulators.netocc.save (src/core/netocc_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::Read"
+address = 0x0061CC00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 74 53 55 8B E9 56"
+source = "Name ours. cIGZSerializable slot 4 (this = object + 8; ret 4): the reverse of Write for versions 4 and up, with the old formats converted. Ours in simulators.netocc.save."
+
+[[entry]]
+name = "cSC4NetworkOccupant::GetGZCLSID"
+address = 0x00619040
+kind = "function"
+convention = "thiscall"
+expect = "B8 6E 5C C0 C9 C3 CC CC"
+source = "Name ours. cIGZSerializable slot 5: the class ID 0xC9C05C6E. Ours in simulators.netocc.save."
+
+[[entry]]
+name = "cSC4NetworkOccupant::OccupantInit"
+address = 0x0061CB50
+kind = "function"
+convention = "thiscall"
+expect = "A0 50 52 B4 00 84 C0 56"
+source = "Name ours. The occupant part's slot 3 (this = object + 4): statics once, then flag 0x2000 cleared and the retrofit list, then the occupant base Init; for an initialised occupant the usable bit and bit 0x800000 set again. Ours in simulators.netocc.life."
+
+[[entry]]
+name = "cSC4NetworkOccupant::NetworkInit"
+address = 0x00619050
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 8D 4E"
+source = "Name ours. Interface slot 3 (ret 4): the occupant part Init then the twelve floats of the corners copied and slot 80 asked. Ours in simulators.netocc.life."
+
+[[entry]]
+name = "cSC4NetworkOccupant::QueryInterface"
+address = 0x006192C0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 81 FF"
+source = "Name ours. Slot 0 of the primary interface and the target of the other parts' thunks (ret 8): the interface IIDs, then the occupant base, then the model part. Ours in simulators.netocc.life."
+
+[[entry]]
+name = "cSC4NetworkOccupant::cSC4NetworkOccupant"
+address = 0x0061BDD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 55 56 33"
+source = "Name ours. The constructor (ret 4: non-zero for the most derived object), called with 0 by the bridge, tunnel and pipe constructors. Ours in simulators.netocc.object."
+
+[[entry]]
+name = "cSC4NetworkOccupant::Destroy"
+address = 0x0061C170
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 46 3C 57"
+source = "Name ours. The destructor the derived destructors call: vtables back, the resource key released, the path vector and the edge entries freed, the model part and the occupant base destroyed. Ours in simulators.netocc.object."
+
+[[entry]]
+name = "cSC4NetworkOccupant::DeletingDestructor"
+address = 0x0061C4C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 A8 FC FF FF"
+source = "Name ours. The deleting destructor (ret 4; the holder part and model part thunks jump here): Destroy and with flag 1 the item back to its pool page. Ours in simulators.netocc.object."
+
+[[entry]]
+name = "cSC4NetworkOccupant::PoolFree"
+address = 0x0061BD40
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 85 D2 74 34"
+source = "Name ours. Slot 1 of the pool's table at 0x00AA7DA8 (this = the pool; ret 4): an item back on its page's free list, the page released at count 0 and reopened at 0x4000003F. Ours in simulators.netocc.object."
+
+[[entry]]
+name = "cSC4NetworkOccupant::InitPoolPage"
+address = 0x00619D50
+kind = "function"
+convention = "cdecl"
+expect = "56 57 6A 0F E8 87 3B 2F"
+source = "Name ours. Slot 2 of the pool's table at 0x00AA7DA8 (ECX unused): a 32 KB page of 85 items of 0x180 bytes chained, free head at +8, count 0 at +0xC. Ours in simulators.netocc.object."
+
+[[entry]]
+name = "cSC4NetworkOccupant::Create"
+address = 0x0061C480
+kind = "function"
+convention = "cdecl"
+expect = "A1 98 B3 B0 00 8B 40 08"
+source = "Name ours. The class factory: an item of the pool at 0x00B0B394 constructed as the most derived object; the result is the object. Ours in simulators.netocc.object."
+
+[[entry]]
+name = "cSC4NetworkOccupant::ResizePaths"
+address = 0x0061CAF0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 1E 57 8B"
+source = "Name ours. ret 8: the vector of 0x4C-byte path records at the object + 0x118 resized to a count with a fill record (grows with copies of the record, shrinks by erasing)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::ConvertOldFlags"
+address = 0x006191A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 33 C0 F6 C1"
+source = "Name ours. One argument: the network flags of a record older than version 6 turned into the current bits."
+
+[[entry]]
+name = "cSC4NetworkOccupant::InitStatics"
+address = 0x0061C690
+kind = "function"
+convention = "cdecl"
+expect = "A0 50 52 B4 00 83 EC 0C"
+source = "Name ours, not analysed. Sets up the class statics once (marked by the byte at 0x00B45250: it reads the city and the framework, registers a callback and builds a few parameter objects); called by the occupant part Init."
+
+[[entry]]
+name = "cSC4EdgeConnectionStore::Write"
+address = 0x00619C10
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. ret 4: the edge store at network occupant + 0x108 to a stream: version 2, the count, the first entry (key byte, value) and the further entries."
+
+[[entry]]
+name = "cSC4EdgeConnectionStore::Read"
+address = 0x00619C90
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. ret 4: the reverse of Write (version 2 only); the old entries array freed first."
+
+[[entry]]
+name = "SC4Model::QueryInterface"
+address = 0x00801940
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 48 74 23 2D"
+source = "Name ours. ret 8: the model part inside a network occupant (this = object + 0x68) answers IID 1 and 0x26A68449 and nothing else."
+
+[[entry]]
+name = "SC4::AllocatePoolPage"
+address = 0x0090D8E0
+kind = "function"
+convention = "cdecl"
+expect = "56 57 BF FC 25 B6 00 8B"
+source = "Name ours, not analysed. One argument, the size order (0xF for a 32 KB page): a block from the game's page allocator."
+
+[[entry]]
+name = "cSC4NetworkOccupant::Pool"
+address = 0x00B0B394
+kind = "data"
+source = "Name ours. The pool of the 0x180-byte network occupants (vtable 0x00AA7DA8; +4 the current page; pages of 32 KB at address & 0xFFFF8000 with the free list at +8 and the used count at +0xC; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at count 0x4000003F)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::StaticsDone"
+address = 0x00B45250
+kind = "data"
+source = "Name ours. A byte: the class statics (0x0061C690) have been set up."
+
+[[entry]]
+name = "cSC4NetworkOccupant::vbtable"
+address = 0x00AA81C4
+kind = "data"
+source = "Name ours. The virtual base table of the network occupant: -4, then the displacement 0x140 of the virtual base from the model part."
+
+[[entry]]
+name = "cSC4NetworkOccupant::OriginScale"
+address = 0x00AA7D78
+kind = "data"
+source = "Name ours. The float 1/16, the scale of the complex piece origin Read works out for records before version 7."
+
+[[entry]]
+name = "cSC4NetworkOccupant::RoundMagic"
+address = 0x00AA7D7C
+kind = "data"
+source = "Name ours. The float 12582912.0 (1.5 times 2 to the 23rd), the rounding trick of the complex piece origin for records before version 7."
+
+[[entry]]
+name = "cSC4NetworkOccupant::vftable"
+address = 0x00AA8080
+kind = "vtable"
+expect = "C0 92 61 00 F0 28 5E 00"
+source = "The primary cISC4NetworkOccupant vtable (74 slots plus slot 80; the class map is in src/core/netocc_sim.h)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::vftable_4"
+address = 0x00AA7FF8
+kind = "vtable"
+expect = "C0 BF 61 00 B0 29 5E 00"
+source = "The cISC4Occupant part (+4) vtable, 34 slots, slot 3 is OccupantInit."
+
+[[entry]]
+name = "cSC4NetworkOccupant::vftable_8"
+address = 0x00AA7FDC
+kind = "vtable"
+expect = "E0 BF 61 00 E0 29 5E 00"
+source = "The cIGZSerializable part (+8) vtable: QueryInterface thunk, AddRef, Release, Write, Read, GetGZCLSID."
+
+[[entry]]
+name = "cSC4NetworkOccupant::vftable_C"
+address = 0x00AA7F78
+kind = "vtable"
+expect = "F0 BF 61 00 10 2A 5E 00"
+source = "The property holder part (+0xC) vtable."
+
+[[entry]]
+name = "cSC4NetworkOccupant::vftable_20"
+address = 0x00AA7F60
+kind = "vtable"
+expect = "10 C0 61 00 A0 06 5E 00"
+source = "The exemplar holder part (+0x20) vtable."
+
+[[entry]]
+name = "cSC4NetworkOccupant::vftable_38"
+address = 0x00AA7F5C
+kind = "vtable"
+expect = "20 C0 61 00 10 C0 61 00"
+source = "The model part (+0x38) vtable: slot 0 thunks to the deleting destructor."
+
+[[entry]]
+name = "cSC4NetworkOccupant::vbase_vftable"
+address = 0x00AA7F10
+kind = "vtable"
+expect = "30 C0 61 00 40 C0 61 00"
+source = "The virtual base (object + 0x17C through the table at +0x3C) final vtable."
+
+[[entry]]
+name = "cSC4NetworkOccupant::abstract_vftable"
+address = 0x00AA7DB8
+kind = "vtable"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "The abstract vtable the constructor stores at +0 before the base constructors (three purecall slots)."
+
+[[entry]]
+name = "cSC4NetworkOccupant::vbase_abstract_vftable"
+address = 0x00AA1F38
+kind = "vtable"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "The abstract vtable the most derived constructor stores at the virtual base (+0x17C) before the base constructors."
