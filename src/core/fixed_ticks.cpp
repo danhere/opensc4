@@ -209,12 +209,15 @@ bool PaceAllows()
 // The cycle clock's estimate made at every slice (0x005D9370: milliseconds per
 // cycle, a moving average over counter deltas, in floats) drifts towards the
 // virtual clock's 3 GHz along a path that depends on how many clock reads came
-// between two slices, which pacing changes (paused slices, held slices); one
-// deadline check more or less then changes the idle work. Paced, it is the
-// value it converges to.
+// between two slices, which pacing changes (paused slices, held slices) and
+// so does the machine's load while a city loads; one deadline check more or
+// less then changes the idle work and how far the time-boxed simulators get
+// in a step (the traffic simulator's lot walk stopped at another lot in one
+// loaded run in four, original code or ours). It is always the value it
+// converges to. OPENSC4_FREE_CYCLES=1 leaves the game's estimate alone.
 using CalibrateFn = void(__fastcall*)(float* self, void* edx);
 CalibrateFn g_calibrate = nullptr;
-float g_cyclesPerMs = 0.0f; // replacement value; 0: log only (OPENSC4_LOG_CYCLES=1)
+float g_cyclesPerMs = 0.0f; // replacement value; 0: log only (OPENSC4_FREE_CYCLES=1)
 uint32_t g_calibrations = 0;
 float g_lastLogged = -1.0f;
 int g_changesLogged = 0;
@@ -268,10 +271,9 @@ bool Install(registry::Mode)
     g_pace = settings::Get("determinism", "pace", "off") == "realtime";
     if (const char* scale = std::getenv("OPENSC4_PACE_SCALE"); scale && std::atof(scale) > 0)
         g_paceScale = std::atof(scale);
-    if (g_pace)
+    if (!std::getenv("OPENSC4_FREE_CYCLES"))
         g_cyclesPerMs = 1.0f / 3000000.0f; // virtual_clock's kTscHz, per millisecond
-    const addr::Entry* calibrate = addr_check::Find(addr::SC4CycleClock_Calibrate);
-    if (calibrate && (g_pace || std::getenv("OPENSC4_LOG_CYCLES")))
+    if (const addr::Entry* calibrate = addr_check::Find(addr::SC4CycleClock_Calibrate))
         hook::Install(*calibrate, &Calibrate, &g_calibrate);
     const addr::Entry* slice = addr_check::Find(addr::cSC4Simulator_RunTimeSlice);
     const addr::Entry* elapsed = addr_check::Find(addr::GZStopwatch_ElapsedMilliseconds);

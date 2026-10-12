@@ -19,6 +19,7 @@
 
 #include <opensc4/addresses.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -330,6 +331,12 @@ using Call2Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t);
 // functions that have detours of their own further up; defined with it.
 bool DescNoting();
 uint32_t DescCallee(uint32_t target, uint32_t a, const std::function<uint32_t()>& real);
+// The same for the second class's version, which notes the base class's as one call.
+bool BNoting();
+bool BBusy();
+uint32_t PartDescriptionByMode(char* part, uint32_t description);
+uint32_t BCallee(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real,
+                 uint32_t out = 0);
 Call1Fn g_beforeDraw = nullptr, g_stepShake = nullptr, g_decalDraw = nullptr;
 Call2Fn g_drawFlash = nullptr, g_effectDraw = nullptr;
 Call0Fn g_afterDraw = nullptr;
@@ -2472,6 +2479,9 @@ OPENSC4_THUNK(TSC4Effect_SetField1E8, SetField1E8ByMode, 4)
 
 uint32_t __fastcall HoldByMode(char* self, void*)
 {
+    if (BNoting())
+        return BCallee(addr::SC4Effect_Hold, reinterpret_cast<uint32_t>(self), 0, 0,
+                       [&] { return g_SC4Effect_Hold(self, nullptr); });
     if (DescNoting())
         return DescCallee(addr::SC4Effect_Hold, reinterpret_cast<uint32_t>(self),
                           [&] { return g_SC4Effect_Hold(self, nullptr); });
@@ -2805,21 +2815,150 @@ uint32_t DescCallee(uint32_t target, uint32_t a, const std::function<uint32_t()>
     return g_descGameCalls.back().result;
 }
 
+// A description let go (0x005B1C80), written by hand: its count of holders
+// (+0x204) goes down by one, and at none it is destroyed (0x0059ECB0) and
+// its memory freed (0x005E5620). The answer is the count left. Compared by
+// running both on the count while a holder is left; the last letting go
+// is the game's in compare mode.
+StepMode g_releaseMode = StepMode::Original;
+
+uint32_t ReleaseDescription(char* self)
+{
+    const int32_t left = --At<int32_t>(self, 0x204);
+    if (left != 0)
+        return static_cast<uint32_t>(left);
+    CallThis<uint32_t>(0x0059ECB0, self);
+    reinterpret_cast<void(__cdecl*)(void*)>(0x005E5620)(self);
+    return 0;
+}
+
+uint32_t __fastcall ReleaseByMode(char* self, void*)
+{
+    if (g_releaseMode == StepMode::Original)
+        return g_SC4EffectDescription_Release(self, nullptr);
+    if (g_releaseMode == StepMode::Ours)
+        return ReleaseDescription(self);
+    const int32_t before = At<int32_t>(self, 0x204);
+    if (before == 1) {
+        compare::Record("effects.release.last", true, std::string(), std::string());
+        return g_SC4EffectDescription_Release(self, nullptr);
+    }
+    const uint32_t mine = ReleaseDescription(self);
+    const int32_t left = At<int32_t>(self, 0x204);
+    At<int32_t>(self, 0x204) = before;
+    const uint32_t result = g_SC4EffectDescription_Release(self, nullptr);
+    const bool same = mine == result && left == At<int32_t>(self, 0x204);
+    compare::Record("effects.release", same, same ? std::string() : std::to_string(result),
+                    same ? std::string() : std::to_string(mine));
+    return result;
+}
+
 uint32_t __fastcall DSC4EffectDescription_Release(char* self, void*)
 {
+    if (BNoting())
+        return BCallee(addr::SC4EffectDescription_Release, reinterpret_cast<uint32_t>(self), 0, 0,
+                       [&] { return g_SC4EffectDescription_Release(self, nullptr); });
     if (DescNoting())
         return DescCallee(addr::SC4EffectDescription_Release, reinterpret_cast<uint32_t>(self),
                           [&] { return g_SC4EffectDescription_Release(self, nullptr); });
-    return EffectRecorded(addr::SC4EffectDescription_Release, g_SC4EffectDescription_Release, self);
+    return EffectRecorded(addr::SC4EffectDescription_Release, &ReleaseByMode, self);
 }
 OPENSC4_THUNK(TSC4EffectDescription_Release, DSC4EffectDescription_Release, 0)
+
+// An effect's texture loaded (0x005B74C0; taking a description calls it
+// with the description's +0xD0), written by hand. The handle at +0x68 is
+// cleared. The framework (0x008793EC) is asked for the service 0x1AC0E11A
+// by its interface 0xFAC0E219; with it, what the effect held at +0x6C is
+// let go (0x008090E0), the service is asked for the texture by its ID into
+// +0x6C (its slot 0x14), and on success +0x68 is the word the holder's
+// first word points at. The service is released again (0x004495C0, as the
+// game's own holder of it does).
+uint32_t LoadEffectTexture(char* self, uint32_t which)
+{
+    At<uint32_t>(self, 0x68) = 0;
+    char* service = nullptr;
+    char* const framework = reinterpret_cast<char*(__cdecl*)()>(0x008793EC)();
+    if (framework)
+        CallThis<uint32_t>(At<uint32_t>(At<char*>(framework, 0), 0x14), framework, 0x1AC0E11Au, 0xFAC0E219u,
+                           &service);
+    if (service) {
+        if (char* const old = At<char*>(self, 0x6C)) {
+            At<char*>(self, 0x6C) = nullptr;
+            CallThis<uint32_t>(0x008090E0, old);
+        }
+        if (CallThis<uint32_t>(At<uint32_t>(At<char*>(service, 0), 0x14), service, which, self + 0x6C) & 0xFF)
+            At<uint32_t>(self, 0x68) = M<uint32_t>(M<uint32_t>(At<uint32_t>(self, 0x6C)));
+    }
+    return CallThis<uint32_t>(0x004495C0, &service);
+}
+
+// Its comparison runs both for real. For an effect that holds no texture
+// yet: ours, whose texture is let go again as the function itself lets an
+// old one go, then the game's. For one that holds a texture: the game's,
+// then ours on top of it. The handle, and whether a texture is held, must
+// be the same.
+StepMode g_textureMode = StepMode::Original;
+
+uint32_t LoadTextureByMode(char* self, uint32_t which)
+{
+    if (g_textureMode == StepMode::Original)
+        return g_SC4Effect_LoadTexture(self, nullptr, which);
+    if (g_textureMode == StepMode::Ours)
+        return LoadEffectTexture(self, which);
+    if (At<char*>(self, 0x6C)) {
+        // The game's lets the old texture go, which cannot be done twice:
+        // ours then runs on what the game's left, letting that one go and
+        // loading again, and must leave the same.
+        const uint32_t result = g_SC4Effect_LoadTexture(self, nullptr, which);
+        char theirs[kEffectSize], mine[kEffectSize];
+        std::memcpy(theirs, self, kEffectSize);
+        LoadEffectTexture(self, which);
+        std::memcpy(mine, self, kEffectSize);
+        const bool sameHeld = (At<char*>(theirs, 0x6C) != nullptr) == (At<char*>(mine, 0x6C) != nullptr);
+        char text[64];
+        std::snprintf(text, sizeof text, "handle %08X, held %d", At<uint32_t>(theirs, 0x68),
+                      At<char*>(theirs, 0x6C) != nullptr);
+        const std::string game = text;
+        std::snprintf(text, sizeof text, "handle %08X, held %d", At<uint32_t>(mine, 0x68),
+                      At<char*>(mine, 0x6C) != nullptr);
+        std::memset(mine + 0x6C, 0, 4);
+        std::memset(theirs + 0x6C, 0, 4);
+        const bool same = sameHeld && std::memcmp(theirs, mine, kEffectSize) == 0;
+        compare::Record("effects.texture.again", same, same ? std::string() : game,
+                        same ? std::string() : std::string(text));
+        return result;
+    }
+    char before[kEffectSize], mine[kEffectSize];
+    std::memcpy(before, self, kEffectSize);
+    LoadEffectTexture(self, which);
+    std::memcpy(mine, self, kEffectSize);
+    char* const held = At<char*>(self, 0x6C);
+    if (held)
+        CallThis<uint32_t>(0x008090E0, held);
+    std::memcpy(self, before, kEffectSize);
+    const uint32_t result = g_SC4Effect_LoadTexture(self, nullptr, which);
+    const bool sameHeld = (held != nullptr) == (At<char*>(self, 0x6C) != nullptr);
+    char theirs[kEffectSize];
+    std::memcpy(theirs, self, kEffectSize);
+    std::memset(mine + 0x6C, 0, 4);
+    std::memset(theirs + 0x6C, 0, 4);
+    const bool same = sameHeld && std::memcmp(theirs, mine, kEffectSize) == 0;
+    char text[64];
+    std::snprintf(text, sizeof text, "handle %08X, held %d", At<uint32_t>(theirs, 0x68),
+                  At<char*>(self, 0x6C) != nullptr);
+    const std::string game = text;
+    std::snprintf(text, sizeof text, "handle %08X, held %d", At<uint32_t>(mine, 0x68), held != nullptr);
+    compare::Record(At<uint32_t>(theirs, 0x68) ? "effects.texture" : "effects.texture.none", same,
+                    same ? std::string() : game, same ? std::string() : std::string(text));
+    return result;
+}
 
 uint32_t __fastcall DSC4Effect_LoadTexture(char* self, void*, uint32_t which)
 {
     if (DescNoting())
         return DescCallee(addr::SC4Effect_LoadTexture, which,
                           [&] { return g_SC4Effect_LoadTexture(self, nullptr, which); });
-    return g_SC4Effect_LoadTexture(self, nullptr, which);
+    return LoadTextureByMode(self, which);
 }
 OPENSC4_THUNK(TSC4Effect_LoadTexture, DSC4Effect_LoadTexture, 4)
 
@@ -2834,7 +2973,11 @@ OPENSC4_THUNK(TSC4Effect_SortBatch, DSC4Effect_SortBatch, 4)
 
 uint32_t __fastcall DescriptionByMode(char* self, void*, uint32_t description)
 {
-    if (g_descMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay)
+    if (BNoting())
+        return BCallee(addr::SC4Effect_SetDescription, description, 0, 0,
+                       [&] { return g_SC4Effect_SetDescription(self, nullptr, description); });
+    if (g_descMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
+        BBusy())
         return g_SC4Effect_SetDescription(self, nullptr, description);
     if (g_descMode == StepMode::Ours)
         return SetEffectDescription(self, description);
@@ -2888,6 +3031,492 @@ uint32_t __fastcall DescriptionByMode(char* self, void*, uint32_t description)
     return result;
 }
 OPENSC4_THUNK(TSC4Effect_SetDescription, DescriptionByMode, 4)
+
+// The second class taking a description (0x005AEC90, its slot 0x28),
+// translated instruction by instruction; nothing for a description without
+// bit 0 of its third word of flags. After the base class's: the model
+// instance (+0x220) and the model (+0x224) are released and the object at
+// +0x278 ended (its slot 0x20), the part at +0x228 is cleared (0x008038D0
+// with 0), and a model is loaded (slot 0x54, 0x005AC610) by the
+// description's +0xD0 or one picked at random from its list at +0x1E0.
+// With a model: the instance is told when the description has flag 1 (its
+// slot 0x40), and for flags 0x100 or 4 of the third word the part is set
+// up on the instance (0x005AC110, 0x00989A60 with 10, 0x008038D0,
+// 0x00802DB0), the byte +0x26C saying whether that worked. Last the
+// effects manager is asked for effects named after this one with two
+// more suffixes (+0x26D, +0x26E).
+// What a note keeps of the values behind a pointer: so many bytes, a
+// string, or a block of two bytes and thirteen floats (its two unset bytes
+// left out).
+constexpr std::size_t kBData = 0x38, kBString = 0xFFFF, kBBlock = 0xFFFE;
+struct BCall {
+    uint32_t target, a, result, made;
+    char data[kBData];
+    std::vector<std::pair<uint32_t, char>> changes;
+    bool operator==(const BCall& other) const
+    {
+        return target == other.target && a == other.a && std::memcmp(data, other.data, sizeof data) == 0;
+    }
+};
+StepMode g_descModeB = StepMode::Original;
+Call1Fn g_SC4EffectB_SetDescription = nullptr, g_SC4EffectB_LoadModel = nullptr, g_SC4EffectPartB_Attach = nullptr,
+        g_SC4EffectPartB_Place = nullptr, g_SC4EffectPartB_SetDescription = nullptr;
+bool g_bRecord = false, g_bReplay = false;
+int g_bNested = 0;
+// The memory whose bytes a noted call may change, one piece after another.
+struct BRegion {
+    char* at;
+    std::size_t size;
+};
+std::vector<BRegion> g_bRegions;
+char* g_bSelf = nullptr;
+DWORD g_bThread = 0;
+std::vector<BCall> g_bGameCalls, g_bOurCalls;
+uint64_t g_bCompared = 0, g_bCallsCompared = 0;
+
+bool BNoting()
+{
+    return g_bRecord && g_bNested == 0 && GetCurrentThreadId() == g_bThread;
+}
+
+bool BBusy()
+{
+    return g_bRecord || g_bReplay;
+}
+
+std::vector<char> BSaveRegions()
+{
+    std::vector<char> bytes;
+    for (const BRegion& region : g_bRegions)
+        bytes.insert(bytes.end(), region.at, region.at + region.size);
+    return bytes;
+}
+
+char* BRegionByte(std::size_t offset)
+{
+    for (const BRegion& region : g_bRegions) {
+        if (offset < region.size)
+            return region.at + offset;
+        offset -= region.size;
+    }
+    return nullptr;
+}
+
+// `out`, when given, is where the call leaves a pointer to what it made:
+// noted in the game's run and given to ours in the replay.
+uint32_t BCallee(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real,
+                 uint32_t out)
+{
+    BCall call{target, a, 0, 0, {}, {}};
+    if (size == kBString)
+        std::strncpy(call.data, reinterpret_cast<const char*>(data), kBData - 1);
+    else if (size == kBBlock)
+        CopyBlock(call.data, data);
+    else if (size)
+        std::memcpy(call.data, reinterpret_cast<const void*>(data), size);
+    if (g_bReplay) {
+        const std::size_t at = g_bOurCalls.size();
+        g_bOurCalls.push_back(call);
+        if (at >= g_bGameCalls.size())
+            return 0;
+        for (const auto& [offset, value] : g_bGameCalls[at].changes) {
+            if (char* const byte = BRegionByte(offset))
+                *byte = value;
+        }
+        if (out)
+            M<uint32_t>(out) = g_bGameCalls[at].made;
+        return g_bGameCalls[at].result;
+    }
+    const std::vector<char> before = BSaveRegions();
+    ++g_bNested;
+    call.result = real();
+    --g_bNested;
+    const std::vector<char> after = BSaveRegions();
+    for (std::size_t offset = 0; offset < after.size(); ++offset) {
+        if (after[offset] != before[offset])
+            call.changes.push_back({static_cast<uint32_t>(offset), after[offset]});
+    }
+    if (out)
+        call.made = M<uint32_t>(out);
+    g_bGameCalls.push_back(std::move(call));
+    return g_bGameCalls.back().result;
+}
+
+// What the translation's ten calls go through: the real call, or in the
+// comparison's replay the note of the game's.
+uint32_t BOurs(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real,
+               uint32_t out = 0)
+{
+    return g_bReplay ? BCallee(target, a, data, size, real, out) : real();
+}
+
+uint32_t SetEffectDescriptionB(char* self, uint32_t description)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = description;
+    [[maybe_unused]] double st[8] = {};
+    [[maybe_unused]] int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_description_b.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Its comparison is the base class's, the game's first, with more to
+// note. The objects it releases or ends, and the instance the loaded
+// model gives, are seen through copies of their tables of functions (one
+// slot each: 8, 0x20 or 0x40); the part's functions and the model's
+// loading through detours. The pick among the description's models is
+// made again by ours from the same generator.
+struct BStandIn {
+    uint32_t real, slot;
+    int times;
+};
+constexpr std::size_t kBSlots = 512;
+std::map<std::pair<uint32_t, uint32_t>, std::vector<uint32_t>> g_bTables;
+std::unordered_map<char*, BStandIn> g_bReal;
+
+uint32_t BRealSlot(char* object, uint32_t slot)
+{
+    const auto found = g_bReal.find(object);
+    if (found != g_bReal.end())
+        return M<uint32_t>(found->second.real + slot);
+    for (const auto& [key, table] : g_bTables) {
+        if (At<uint32_t*>(object, 0) == table.data())
+            return M<uint32_t>(key.second + slot);
+    }
+    return 0;
+}
+
+// The object gets its own table back before a call that may be its last.
+void BGiveBack(char* object, bool whole)
+{
+    const auto found = g_bReal.find(object);
+    if (found == g_bReal.end())
+        return;
+    if (!whole && --found->second.times > 0)
+        return;
+    At<uint32_t>(object, 0) = found->second.real;
+    g_bReal.erase(found);
+}
+
+uint32_t __fastcall BRelease(char* object, void*)
+{
+    const uint32_t real = BRealSlot(object, 0x8);
+    if (!BNoting()) {
+        BGiveBack(object, true);
+        return CallThis<uint32_t>(real, object);
+    }
+    return BCallee(0x8, reinterpret_cast<uint32_t>(object), 0, 0, [&] {
+        BGiveBack(object, false);
+        return CallThis<uint32_t>(real, object);
+    });
+}
+
+uint32_t __fastcall BEnd(char* object, void*)
+{
+    const uint32_t real = BRealSlot(object, 0x20);
+    if (!BNoting()) {
+        BGiveBack(object, true);
+        return CallThis<uint32_t>(real, object);
+    }
+    return BCallee(0x20, reinterpret_cast<uint32_t>(object), 0, 0, [&] {
+        BGiveBack(object, true);
+        return CallThis<uint32_t>(real, object);
+    });
+}
+
+uint32_t __fastcall BInfo(char* object, void*, uint32_t info)
+{
+    const uint32_t real = BRealSlot(object, 0x40);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, info);
+    return BCallee(0x40, reinterpret_cast<uint32_t>(object), info, 0x14,
+                   [&] { return CallThis<uint32_t>(real, object, info); });
+}
+
+// An object given a copy of its table of functions with some slots
+// replaced; `role` names the set of slots.
+void BSwapRole(char* object, uint32_t role, std::initializer_list<std::pair<uint32_t, uint32_t>> slots)
+{
+    if (!object)
+        return;
+    const auto found = g_bReal.find(object);
+    if (found != g_bReal.end()) {
+        if (found->second.slot == role)
+            ++found->second.times;
+        return;
+    }
+    const uint32_t real = At<uint32_t>(object, 0);
+    std::vector<uint32_t>& table = g_bTables[{role, real}];
+    if (table.empty()) {
+        table.assign(reinterpret_cast<const uint32_t*>(real), reinterpret_cast<const uint32_t*>(real) + kBSlots);
+        for (const auto& [slot, stub] : slots)
+            table[slot / 4] = stub;
+    }
+    g_bReal[object] = {real, role, 1};
+    At<uint32_t*>(object, 0) = table.data();
+}
+
+void BSwap(char* object, uint32_t slot, uint32_t stub)
+{
+    BSwapRole(object, slot, {{slot, stub}});
+}
+
+// The second class loading its model (0x005AC610, slot 0x54, with the
+// model's instance ID; nothing for 0), translated instruction by
+// instruction. The resource manager (0x00B43CA8, slot 0xC) is asked for
+// the resource of type 0x5AD0E817, group 0xBADB57F1 and that instance; the
+// old model (+0x224) is released and a new one made from the resource (its
+// slot 0x10), whose part that counts its holders is kept at +0x220. The
+// model's slot 0x40 is called with 3, the largest side of its box (slot
+// 0x1C of the instance) is kept at +0x274, and each of its materials (the
+// interface 0x26A68448) has its flags set by two flags of the description
+// and the description's kind.
+uint32_t LoadModelB(char* self, uint32_t which)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    M<uint32_t>(esp + 4) = which;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_model_b.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Its comparison runs both for real, on an effect that has no model yet
+// (as its one caller leaves it): ours first, whose model's materials are
+// read (eight bytes each, the flags it sets) and whose model is then
+// released twice, as the class lets go of one; the effect is put back and
+// the game's runs. The effect but for the two pointers, whether there is a
+// model, and the materials must be the same.
+StepMode g_modelModeB = StepMode::Original;
+uint64_t g_modelsBCompared = 0;
+
+std::vector<char> ModelMaterials(char* instance)
+{
+    std::vector<char> bytes;
+    if (!instance)
+        return bytes;
+    char* materials = nullptr;
+    CallThis<uint32_t>(At<uint32_t>(At<char*>(instance, 0), 0), instance, 0x26A68448u, &materials);
+    if (!materials)
+        return bytes;
+    const uint32_t count = CallThis<uint32_t>(At<uint32_t>(At<char*>(materials, 0), 0xC), materials);
+    for (uint32_t i = 0; i < count; ++i) {
+        const char* const material =
+            reinterpret_cast<const char*>(
+                CallThis<uint32_t>(At<uint32_t>(At<char*>(materials, 0), 0x18), materials, i));
+        bytes.insert(bytes.end(), material + 4, material + 12);
+    }
+    CallThis<uint32_t>(At<uint32_t>(At<char*>(materials, 0), 0x8), materials);
+    return bytes;
+}
+
+uint32_t LoadModelBByMode(char* self, uint32_t which)
+{
+    if (g_modelModeB == StepMode::Original)
+        return g_SC4EffectB_LoadModel(self, nullptr, which);
+    if (g_modelModeB == StepMode::Ours)
+        return LoadModelB(self, which);
+    if (At<char*>(self, 0x220) || At<char*>(self, 0x224)) {
+        compare::Record("effects.model_b.skipped", true, std::string(), std::string());
+        return g_SC4EffectB_LoadModel(self, nullptr, which);
+    }
+    char before[kEffectSizeB], mine[kEffectSizeB], theirs[kEffectSizeB];
+    std::memcpy(before, self, kEffectSizeB);
+    LoadModelB(self, which);
+    std::memcpy(mine, self, kEffectSizeB);
+    char* const ourInstance = At<char*>(self, 0x220);
+    char* const ourModel = At<char*>(self, 0x224);
+    const std::vector<char> ourMaterials = ModelMaterials(ourInstance);
+    if (ourInstance)
+        CallThis<uint32_t>(At<uint32_t>(At<char*>(ourInstance, 0), 0x8), ourInstance);
+    if (ourModel) {
+        char* const part = ourModel + 4 + At<int32_t>(At<char*>(ourModel, 4), 4);
+        CallThis<uint32_t>(At<uint32_t>(At<char*>(part, 0), 0x8), part);
+    }
+    std::memcpy(self, before, kEffectSizeB);
+    const uint32_t result = g_SC4EffectB_LoadModel(self, nullptr, which);
+    std::memcpy(theirs, self, kEffectSizeB);
+    const std::vector<char> theirMaterials = ModelMaterials(At<char*>(self, 0x220));
+    const bool sameModel = (ourInstance != nullptr) == (At<char*>(self, 0x220) != nullptr) &&
+                           (ourModel != nullptr) == (At<char*>(self, 0x224) != nullptr);
+    std::memset(mine + 0x220, 0, 8);
+    std::memset(theirs + 0x220, 0, 8);
+    ++g_modelsBCompared;
+    if ((g_modelsBCompared & (g_modelsBCompared - 1)) == 0)
+        log::Write("water effects: effects.model_b: %llu loads compared so far",
+                   static_cast<unsigned long long>(g_modelsBCompared));
+    const char* const id = theirMaterials.empty() ? "effects.model_b.none" : "effects.model_b";
+    char text[64];
+    if (!sameModel) {
+        compare::Record(id, false, At<char*>(self, 0x220) ? "a model" : "no model",
+                        ourInstance ? "a model" : "no model");
+    } else if (theirMaterials != ourMaterials) {
+        std::snprintf(text, sizeof text, "%zu materials ", theirMaterials.size() / 8);
+        const std::string game = text + Hex(theirMaterials.data(), std::min<std::size_t>(theirMaterials.size(), 32));
+        std::snprintf(text, sizeof text, "%zu materials ", ourMaterials.size() / 8);
+        compare::Record(id, false, game,
+                        text + Hex(ourMaterials.data(), std::min<std::size_t>(ourMaterials.size(), 32)));
+    } else if (std::memcmp(theirs, mine, kEffectSizeB) != 0) {
+        std::size_t at = 0;
+        while (theirs[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "effect+%zX ", at);
+        compare::Record(id, false, text + Hex(theirs + at, 8), text + Hex(mine + at, 8));
+    } else {
+        compare::Record(id, true, std::string(), std::string());
+    }
+    return result;
+}
+
+uint32_t __fastcall DSC4EffectB_LoadModel(char* self, void*, uint32_t which)
+{
+    if (!BNoting() || self != g_bSelf)
+        return BBusy() ? g_SC4EffectB_LoadModel(self, nullptr, which) : LoadModelBByMode(self, which);
+    const uint32_t result = BCallee(addr::SC4EffectB_LoadModel, which, 0, 0,
+                                    [&] { return g_SC4EffectB_LoadModel(self, nullptr, which); });
+    BSwap(At<char*>(self, 0x220), 0x40, reinterpret_cast<uint32_t>(&BInfo));
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectB_LoadModel, DSC4EffectB_LoadModel, 4)
+
+uint32_t __fastcall DSC4EffectPartB_Attach(char* part, void*, uint32_t instance)
+{
+    if (!BNoting() || part != g_bSelf + kEffectPartB)
+        return g_SC4EffectPartB_Attach(part, nullptr, instance);
+    return BCallee(addr::SC4EffectPartB_Attach, instance, 0, 0,
+                   [&] { return g_SC4EffectPartB_Attach(part, nullptr, instance); });
+}
+OPENSC4_THUNK(TSC4EffectPartB_Attach, DSC4EffectPartB_Attach, 4)
+
+uint32_t __fastcall DSC4EffectPartB_Place(char* part, void*, uint32_t place)
+{
+    if (!BNoting() || part != g_bSelf + kEffectPartB)
+        return g_SC4EffectPartB_Place(part, nullptr, place);
+    return BCallee(addr::SC4EffectPartB_Place, 0, place, 12,
+                   [&] { return g_SC4EffectPartB_Place(part, nullptr, place); });
+}
+OPENSC4_THUNK(TSC4EffectPartB_Place, DSC4EffectPartB_Place, 4)
+
+uint32_t __fastcall DSC4EffectPartB_SetDescription(char* part, void*, uint32_t description)
+{
+    if (!BNoting() || part != g_bSelf + kEffectPartB)
+        return BBusy() ? g_SC4EffectPartB_SetDescription(part, nullptr, description)
+                       : PartDescriptionByMode(part, description);
+    return BCallee(addr::SC4EffectPartB_SetDescription, description, 0, 0,
+                   [&] { return g_SC4EffectPartB_SetDescription(part, nullptr, description); });
+}
+OPENSC4_THUNK(TSC4EffectPartB_SetDescription, DSC4EffectPartB_SetDescription, 4)
+
+uint32_t __fastcall DescriptionBByMode(char* self, void*, uint32_t description)
+{
+    if (g_descModeB == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
+        BBusy())
+        return g_SC4EffectB_SetDescription(self, nullptr, description);
+    if (g_descModeB == StepMode::Ours)
+        return SetEffectDescriptionB(self, description);
+    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
+    char before[kEffectSizeB], after[kEffectSizeB], mine[kEffectSizeB];
+    char generatorBefore[kGeneratorSize], generatorAfter[kGeneratorSize];
+    std::memcpy(before, self, kEffectSizeB);
+    std::memcpy(generatorBefore, generator, kGeneratorSize);
+    if (char* const model = At<char*>(self, 0x224)) {
+        BSwap(At<char*>(self, 0x220), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+        BSwap(model + 4 + At<int32_t>(At<char*>(model, 4), 4), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    } else {
+        BSwap(At<char*>(self, 0x220), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    }
+    BSwap(At<char*>(self, 0x278), 0x20, reinterpret_cast<uint32_t>(&BEnd));
+    g_bSelf = self;
+    g_bRegions = {{self, kEffectSizeB}};
+    g_bThread = GetCurrentThreadId();
+    g_bGameCalls.clear();
+    g_bRecord = true;
+    const uint32_t result = g_SC4EffectB_SetDescription(self, nullptr, description);
+    g_bRecord = false;
+    std::memcpy(after, self, kEffectSizeB);
+    std::memcpy(generatorAfter, generator, kGeneratorSize);
+    std::memcpy(self, before, kEffectSizeB);
+    std::memcpy(generator, generatorBefore, kGeneratorSize);
+    g_bOurCalls.clear();
+    g_bReplay = true;
+    SetEffectDescriptionB(self, description);
+    g_bReplay = false;
+    std::memcpy(mine, self, kEffectSizeB);
+    const bool sameGenerator = std::memcmp(generator, generatorAfter, kGeneratorSize) == 0;
+    std::memcpy(self, after, kEffectSizeB);
+    std::memcpy(generator, generatorAfter, kGeneratorSize);
+    // What is still wearing a copy was not released: its own table back.
+    for (const auto& [object, standIn] : g_bReal)
+        At<uint32_t>(object, 0) = standIn.real;
+    g_bReal.clear();
+    ++g_bCompared;
+    g_bCallsCompared += g_bGameCalls.size();
+    if ((g_bCompared & (g_bCompared - 1)) == 0)
+        log::Write("water effects: effects.description_b: %llu calls, %llu noted calls compared so far",
+                   static_cast<unsigned long long>(g_bCompared), static_cast<unsigned long long>(g_bCallsCompared));
+    const char* const id = g_bGameCalls.empty() ? "effects.description_b.none" : "effects.description_b";
+    char text[96];
+    if (!(g_bGameCalls == g_bOurCalls)) {
+        std::size_t at = 0;
+        while (at < g_bGameCalls.size() && at < g_bOurCalls.size() && g_bGameCalls[at] == g_bOurCalls[at])
+            ++at;
+        const auto describe = [&](const std::vector<BCall>& calls) {
+            if (at >= calls.size()) {
+                std::snprintf(text, sizeof text, "%zu calls", calls.size());
+                return std::string(text);
+            }
+            std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X) ", at, calls.size(), calls[at].target,
+                          calls[at].a);
+            return text + Hex(calls[at].data, sizeof calls[at].data);
+        };
+        const std::string game = describe(g_bGameCalls);
+        compare::Record(id, false, game, describe(g_bOurCalls));
+    } else if (!sameGenerator) {
+        compare::Record(id, false, "generator", "generator differs");
+    } else if (std::memcmp(after, mine, kEffectSizeB) != 0) {
+        std::size_t at = 0;
+        while (after[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "effect+%zX ", at);
+        compare::Record(id, false, text + Hex(after + at, 8), text + Hex(mine + at, 8));
+    } else {
+        compare::Record(id, true, std::string(), std::string());
+    }
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectB_SetDescription, DescriptionBByMode, 4)
 
 // --- The particle pool ---------------------------------------------------------------------
 
@@ -3204,7 +3833,368 @@ uint32_t __fastcall DSC4EffectBaseB_TakeParticle(char* base, void*)
     return EffectRecorded(addr::SC4EffectBaseB_TakeParticle, &TakeBByMode, base);
 }
 OPENSC4_THUNK(TSC4EffectBaseB_TakeParticle, DSC4EffectBaseB_TakeParticle, 0)
-OPENSC4_EFFECT_HOOK1(SC4EffectBaseB_GiveBackParticle)
+
+// The second class given a particle back (0x005AF390, slot 0x40 of its
+// sub-object), translated instruction by instruction. An effect with an
+// object at +0x274 whose particle has not outlived its life starts the
+// particle again instead (0x005AF060). Otherwise the particle's own effect
+// is stopped (its slot 0x10 with the effect's +0x188) and released; an
+// effect with its byte +0x26A set and nothing at +0x188 has the effects
+// manager make the effect named after it with "_death" where the particle
+// was (placed by a block built from the particle and the effect's matrix,
+// its slot 0x34 called when the byte +0x26B is set, started with 0, and
+// let go); and the particle goes back on the free list (0x00B0A5CC). Last,
+// an effect with the object at +0x274, no particle left and its byte +0xC
+// set tells that object (its slot 4 with 0).
+uint32_t GiveBackParticleB(char* base, uint32_t particle)
+{
+    uint32_t stackmem[320] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(base);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[224]);
+    M<uint32_t>(esp + 4) = particle;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_giveback_b.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Its comparison is the one of the class taking a description: the game's
+// first, with its calls noted, then ours replayed from the notes. Noted
+// here: the restart (a detour), the particle's own effect stopped and
+// released, the object at +0x274 told, and the effects manager asked to
+// make an effect, all through copies of their tables of functions; the
+// effect the manager makes gets a copy too, so what is done to it is seen.
+// The bytes a noted call may change are the effect's, the particle's and
+// the free list's head.
+constexpr std::size_t kManagerSlotsB = 1024;
+std::vector<uint32_t> g_bManagerTable;
+uint32_t g_bManagerTableReal = 0, g_bManagerReal = 0;
+StepMode g_giveBackModeB = StepMode::Original;
+Call1Fn g_SC4EffectBaseB_GiveBackParticle = nullptr, g_SC4EffectB_RestartParticle = nullptr;
+uint64_t g_giveBacksBCompared = 0, g_giveBackBCallsCompared = 0;
+
+uint32_t __fastcall BChildStop(char* object, void*, uint32_t owner)
+{
+    const uint32_t real = BRealSlot(object, 0x10);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, owner);
+    return BCallee(0x10, reinterpret_cast<uint32_t>(object), reinterpret_cast<uint32_t>(&owner), 4,
+                   [&] { return CallThis<uint32_t>(real, object, owner); });
+}
+
+uint32_t __fastcall BOwnerTell(char* object, void*, uint32_t value)
+{
+    const uint32_t real = BRealSlot(object, 0x4);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, value);
+    return BCallee(0x4, reinterpret_cast<uint32_t>(object), reinterpret_cast<uint32_t>(&value), 4,
+                   [&] { return CallThis<uint32_t>(real, object, value); });
+}
+
+uint32_t __fastcall BMadeBlock(char* object, void*, uint32_t block)
+{
+    const uint32_t real = BRealSlot(object, 0x20);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, block);
+    return BCallee(0x2020, reinterpret_cast<uint32_t>(object), block, kBBlock,
+                   [&] { return CallThis<uint32_t>(real, object, block); });
+}
+
+uint32_t __fastcall BMadeValue(char* object, void*, uint32_t which, uint32_t values, uint32_t count)
+{
+    const uint32_t real = BRealSlot(object, 0x34);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, which, values, count);
+    return BCallee(0x2034, reinterpret_cast<uint32_t>(object), values, 4,
+                   [&] { return CallThis<uint32_t>(real, object, which, values, count); });
+}
+
+uint32_t __fastcall BMadeStart(char* object, void*, uint32_t owner)
+{
+    const uint32_t real = BRealSlot(object, 0xC);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, owner);
+    return BCallee(0x200C, reinterpret_cast<uint32_t>(object), reinterpret_cast<uint32_t>(&owner), 4,
+                   [&] { return CallThis<uint32_t>(real, object, owner); });
+}
+
+uint32_t __fastcall BMadeRelease(char* object, void*)
+{
+    const uint32_t real = BRealSlot(object, 0x8);
+    if (!BNoting()) {
+        BGiveBack(object, true);
+        return CallThis<uint32_t>(real, object);
+    }
+    return BCallee(0x2008, reinterpret_cast<uint32_t>(object), 0, 0, [&] {
+        BGiveBack(object, true);
+        return CallThis<uint32_t>(real, object);
+    });
+}
+
+uint32_t __fastcall BManagerMake(char* manager, void*, uint32_t name, uint32_t out)
+{
+    const uint32_t real = M<uint32_t>(g_bManagerTableReal + 0x1C);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, manager, name, out);
+    const uint32_t result = BCallee(0x1C, 0, name, kBString,
+                                    [&] { return CallThis<uint32_t>(real, manager, name, out); }, out);
+    if ((result & 0xFF) && M<char*>(out))
+        BSwapRole(M<char*>(out), 0x2000,
+                  {{0x20, reinterpret_cast<uint32_t>(&BMadeBlock)},
+                   {0x34, reinterpret_cast<uint32_t>(&BMadeValue)},
+                   {0xC, reinterpret_cast<uint32_t>(&BMadeStart)},
+                   {0x8, reinterpret_cast<uint32_t>(&BMadeRelease)}});
+    return result;
+}
+
+void BSwapManager(bool in)
+{
+    char* const manager = Global<char*>(0x00B43D1C);
+    if (!manager)
+        return;
+    if (!in) {
+        if (g_bManagerReal)
+            At<uint32_t>(manager, 0) = g_bManagerReal;
+        g_bManagerReal = 0;
+        return;
+    }
+    const uint32_t real = At<uint32_t>(manager, 0);
+    if (g_bManagerTableReal != real) {
+        g_bManagerTable.assign(reinterpret_cast<const uint32_t*>(real),
+                               reinterpret_cast<const uint32_t*>(real) + kManagerSlotsB);
+        g_bManagerTable[0x1C / 4] = reinterpret_cast<uint32_t>(&BManagerMake);
+        g_bManagerTableReal = real;
+    }
+    g_bManagerReal = real;
+    At<uint32_t*>(manager, 0) = g_bManagerTable.data();
+}
+
+uint32_t __fastcall DSC4EffectB_RestartParticle(char* self, void*, uint32_t particle)
+{
+    if (!BNoting())
+        return g_SC4EffectB_RestartParticle(self, nullptr, particle);
+    return BCallee(addr::SC4EffectB_RestartParticle, particle, 0, 0,
+                   [&] { return g_SC4EffectB_RestartParticle(self, nullptr, particle); });
+}
+OPENSC4_THUNK(TSC4EffectB_RestartParticle, DSC4EffectB_RestartParticle, 4)
+
+uint32_t __fastcall GiveBackBByMode(char* base, void*, uint32_t particle)
+{
+    if (g_giveBackModeB == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
+        BBusy())
+        return g_SC4EffectBaseB_GiveBackParticle(base, nullptr, particle);
+    if (g_giveBackModeB == StepMode::Ours)
+        return GiveBackParticleB(base, particle);
+    char* const self = base - 4;
+    char* const bytes = reinterpret_cast<char*>(particle);
+    g_bSelf = self;
+    g_bRegions = {{self, kEffectSizeB}, {bytes, kParticleBytesB}, {reinterpret_cast<char*>(kParticleFreeB), 4}};
+    g_bThread = GetCurrentThreadId();
+    const std::vector<char> before = BSaveRegions();
+    BSwapRole(At<char*>(bytes, kParticleChild), 0x1000,
+              {{0x10, reinterpret_cast<uint32_t>(&BChildStop)}, {0x8, reinterpret_cast<uint32_t>(&BRelease)}});
+    BSwap(At<char*>(base, 0x274), 0x4, reinterpret_cast<uint32_t>(&BOwnerTell));
+    BSwapManager(true);
+    g_bGameCalls.clear();
+    g_bRecord = true;
+    const uint32_t result = g_SC4EffectBaseB_GiveBackParticle(base, nullptr, particle);
+    g_bRecord = false;
+    const std::vector<char> after = BSaveRegions();
+    for (std::size_t offset = 0; offset < before.size(); ++offset)
+        *BRegionByte(offset) = before[offset];
+    g_bOurCalls.clear();
+    g_bReplay = true;
+    GiveBackParticleB(base, particle);
+    g_bReplay = false;
+    const std::vector<char> mine = BSaveRegions();
+    for (std::size_t offset = 0; offset < after.size(); ++offset)
+        *BRegionByte(offset) = after[offset];
+    BSwapManager(false);
+    for (const auto& [object, standIn] : g_bReal)
+        At<uint32_t>(object, 0) = standIn.real;
+    g_bReal.clear();
+    ++g_giveBacksBCompared;
+    g_giveBackBCallsCompared += g_bGameCalls.size();
+    if ((g_giveBacksBCompared & (g_giveBacksBCompared - 1)) == 0)
+        log::Write("water effects: effects.giveback_b: %llu calls, %llu noted calls compared so far",
+                   static_cast<unsigned long long>(g_giveBacksBCompared),
+                   static_cast<unsigned long long>(g_giveBackBCallsCompared));
+    // One name for each way it can go, so the totals show which a city has.
+    bool restarted = false, made = false;
+    for (const BCall& call : g_bGameCalls) {
+        restarted = restarted || call.target == addr::SC4EffectB_RestartParticle;
+        made = made || call.target == 0x1C;
+    }
+    const char* const id = restarted ? "effects.giveback_b.restart"
+                           : made    ? "effects.giveback_b.death"
+                                     : "effects.giveback_b";
+    char text[96];
+    if (!(g_bGameCalls == g_bOurCalls)) {
+        std::size_t at = 0;
+        while (at < g_bGameCalls.size() && at < g_bOurCalls.size() && g_bGameCalls[at] == g_bOurCalls[at])
+            ++at;
+        const auto describe = [&](const std::vector<BCall>& calls) {
+            if (at >= calls.size()) {
+                std::snprintf(text, sizeof text, "%zu calls", calls.size());
+                return std::string(text);
+            }
+            std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X) ", at, calls.size(), calls[at].target,
+                          calls[at].a);
+            return text + Hex(calls[at].data, sizeof calls[at].data);
+        };
+        const std::string game = describe(g_bGameCalls);
+        compare::Record(id, false, game, describe(g_bOurCalls));
+    } else if (after != mine) {
+        std::size_t at = 0;
+        while (after[at] == mine[at])
+            ++at;
+        const char* const part =
+            at < kEffectSizeB ? "effect" : at < kEffectSizeB + kParticleBytesB ? "particle" : "free";
+        const std::size_t offset =
+            (at < kEffectSizeB ? at : at < kEffectSizeB + kParticleBytesB ? at - kEffectSizeB : 0) & ~std::size_t{3};
+        std::snprintf(text, sizeof text, "%s+%zX %02X", part, offset, static_cast<unsigned char>(after[at]));
+        const std::string game = text;
+        std::snprintf(text, sizeof text, "%s+%zX %02X", part, offset, static_cast<unsigned char>(mine[at]));
+        compare::Record(id, false, game, text);
+    } else {
+        compare::Record(id, true, std::string(), std::string());
+    }
+    return result;
+}
+
+uint32_t __fastcall DSC4EffectBaseB_GiveBackParticle(char* base, void*, uint32_t particle)
+{
+    return EffectRecorded(addr::SC4EffectBaseB_GiveBackParticle, &GiveBackBByMode, base, particle);
+}
+OPENSC4_THUNK(TSC4EffectBaseB_GiveBackParticle, DSC4EffectBaseB_GiveBackParticle, 4)
+
+// Two setters of what an effect holds, written by hand. Both do nothing
+// when given what is held already; else the new one is held first, kept,
+// and the old one let go. The effect's object at +0x1EC (0x005B26B0; the
+// effects manager calls it) is held and let go through its own slots 4 and
+// 8; the description of the second class's part (0x005AC110, the part's
+// +0x40) through SC4Effect::Hold and SC4EffectDescription::Release.
+uint32_t SetEffectObject(char* self, uint32_t object)
+{
+    const uint32_t old = At<uint32_t>(self, 0x1EC);
+    if (object == old)
+        return object;
+    if (object) {
+        char* const held = reinterpret_cast<char*>(object);
+        BOurs(0x1004, object, 0, 0, [&] { return CallThis<uint32_t>(At<uint32_t>(At<char*>(held, 0), 0x4), held); });
+    }
+    At<uint32_t>(self, 0x1EC) = object;
+    if (old) {
+        char* const let = reinterpret_cast<char*>(old);
+        return BOurs(0x8, old, 0, 0, [&] { return CallThis<uint32_t>(At<uint32_t>(At<char*>(let, 0), 0x8), let); });
+    }
+    return object;
+}
+
+uint32_t SetPartDescription(char* part, uint32_t description)
+{
+    const uint32_t old = At<uint32_t>(part, 0x40);
+    if (description == old)
+        return description;
+    if (description)
+        BOurs(addr::SC4Effect_Hold, description, 0, 0,
+              [&] { return CallThis<uint32_t>(addr::SC4Effect_Hold, reinterpret_cast<char*>(description)); });
+    At<uint32_t>(part, 0x40) = description;
+    if (old)
+        return BOurs(addr::SC4EffectDescription_Release, old, 0, 0, [&] {
+            return CallThis<uint32_t>(addr::SC4EffectDescription_Release, reinterpret_cast<char*>(old));
+        });
+    return description;
+}
+
+// Their comparison is the noted one, the game's first: the holding and the
+// letting go are noted (the object's through copies of the two objects'
+// tables of functions, the description's through the detours those two
+// functions have), then the field is put back and ours is replayed.
+StepMode g_holdersMode = StepMode::Original;
+Call1Fn g_SC4Effect_SetObject = nullptr;
+
+uint32_t __fastcall BAddRef(char* object, void*)
+{
+    const uint32_t real = BRealSlot(object, 0x4);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object);
+    return BCallee(0x1004, reinterpret_cast<uint32_t>(object), 0, 0, [&] { return CallThis<uint32_t>(real, object); });
+}
+
+template <typename Game, typename Ours>
+uint32_t HolderCompared(const char* id, char* at, std::size_t size, Game&& game, Ours&& ours)
+{
+    g_bSelf = at;
+    g_bRegions = {{at, size}};
+    g_bThread = GetCurrentThreadId();
+    const std::vector<char> before = BSaveRegions();
+    g_bGameCalls.clear();
+    g_bRecord = true;
+    const uint32_t result = game();
+    g_bRecord = false;
+    const std::vector<char> after = BSaveRegions();
+    std::memcpy(at, before.data(), size);
+    g_bOurCalls.clear();
+    g_bReplay = true;
+    ours();
+    g_bReplay = false;
+    const std::vector<char> mine = BSaveRegions();
+    std::memcpy(at, after.data(), size);
+    for (const auto& [object, standIn] : g_bReal)
+        At<uint32_t>(object, 0) = standIn.real;
+    g_bReal.clear();
+    const bool same = g_bGameCalls == g_bOurCalls && after == mine;
+    char text[48];
+    std::snprintf(text, sizeof text, "%zu calls", g_bGameCalls.size());
+    const std::string theirs = text;
+    std::snprintf(text, sizeof text, "%zu calls%s", g_bOurCalls.size(), after == mine ? "" : ", bytes differ");
+    compare::Record(id, same, same ? std::string() : theirs, same ? std::string() : std::string(text));
+    return result;
+}
+
+uint32_t __fastcall SetObjectByMode(char* self, void*, uint32_t object)
+{
+    if (g_holdersMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
+        BBusy())
+        return g_SC4Effect_SetObject(self, nullptr, object);
+    if (g_holdersMode == StepMode::Ours)
+        return SetEffectObject(self, object);
+    const uint32_t old = At<uint32_t>(self, 0x1EC);
+    if (object != old) {
+        BSwap(reinterpret_cast<char*>(object), 0x4, reinterpret_cast<uint32_t>(&BAddRef));
+        BSwap(reinterpret_cast<char*>(old), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    }
+    return HolderCompared(
+        object == old ? "effects.holders.object.same" : "effects.holders.object", self, 0x1F0,
+        [&] { return g_SC4Effect_SetObject(self, nullptr, object); }, [&] { return SetEffectObject(self, object); });
+}
+OPENSC4_THUNK(TSC4Effect_SetObject, SetObjectByMode, 4)
+
+uint32_t PartDescriptionByMode(char* part, uint32_t description)
+{
+    if (g_holdersMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay)
+        return g_SC4EffectPartB_SetDescription(part, nullptr, description);
+    if (g_holdersMode == StepMode::Ours)
+        return SetPartDescription(part, description);
+    return HolderCompared(
+        description == At<uint32_t>(part, 0x40) ? "effects.holders.part.same" : "effects.holders.part", part, 0x44,
+        [&] { return g_SC4EffectPartB_SetDescription(part, nullptr, description); },
+        [&] { return SetPartDescription(part, description); });
+}
 OPENSC4_EFFECT_HOOK1(SC4Effect_SpawnFromParticle)
 
 // A particle effect's draw (0x005B8540, slot 0x24 of both effect classes),
@@ -4418,6 +5408,326 @@ const bool g_registeredStep = registry::Register({
     InstallStep,
 });
 
+// --- Making an effect ----------------------------------------------------------------------
+
+// The sub-object's constructor (0x005B9F00), written by hand: its table of
+// functions (0x00AA0F48, which the effect's constructor then replaces), the
+// bytes and words up to +0x1C cleared, and an empty list at +0x10 (a head
+// node of 12 bytes that points at itself both ways).
+uint32_t ConstructEffectBase(char* base)
+{
+    At<uint32_t>(base, 0) = 0x00AA0F48;
+    At<uint8_t>(base, 4) = 0;
+    At<uint8_t>(base, 5) = 0;
+    At<uint32_t>(base, 8) = 0;
+    At<uint8_t>(base, 0xC) = 0;
+    At<uint8_t>(base, 0xD) = 0;
+    At<uint32_t>(base, 0x10) = 0;
+    char* const head = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(12);
+    At<char*>(head, 0) = head;
+    At<char*>(head, 4) = head;
+    At<char*>(base, 0x10) = head;
+    At<uint32_t>(base, 0x14) = 0;
+    At<uint32_t>(base, 0x18) = 0;
+    At<uint32_t>(base, 0x1C) = 0;
+    return reinterpret_cast<uint32_t>(base);
+}
+
+// The effect's constructor (0x005B2B50), translated instruction by
+// instruction: the sub-object at +4 and the batch at +0x28 (0x005EC690)
+// constructed, the two tables of functions set (0x00AA0EA0, 0x00AA0E58),
+// and the effect's fields given their first values. It leaves some of the
+// object's bytes as they were.
+uint32_t ConstructEffect(char* self)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_ctor.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Their comparison: ours on the object's memory, what it left kept, its
+// list's head freed, the memory put back as it was, and the game's. The
+// two must have left the same bytes but for the pointer to the head, and
+// ours' head must have been an empty list.
+StepMode g_ctorMode = StepMode::Original;
+Call0Fn g_SC4EffectBase_Construct = nullptr, g_SC4Effect_Construct = nullptr;
+
+uint32_t CtorCompared(const char* id, char* object, std::size_t size, std::size_t headAt, Call0Fn game,
+                      uint32_t (*ours)(char*))
+{
+    std::vector<char> before(object, object + size);
+    const uint32_t ourResult = ours(object);
+    std::vector<char> mine(object, object + size);
+    char* const head = At<char*>(object, headAt);
+    const bool emptyList = head && At<char*>(head, 0) == head && At<char*>(head, 4) == head;
+    if (head)
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(head);
+    std::memcpy(object, before.data(), size);
+    const uint32_t result = game(object, nullptr);
+    std::vector<char> theirs(object, object + size);
+    std::memset(mine.data() + headAt, 0, 4);
+    std::memset(theirs.data() + headAt, 0, 4);
+    const bool same = emptyList && result == ourResult && theirs == mine;
+    std::string text;
+    if (!same) {
+        std::size_t at = 0;
+        while (at < size && theirs[at] == mine[at])
+            ++at;
+        char buffer[64];
+        std::snprintf(buffer, sizeof buffer, "%s at +%zX", emptyList ? "list empty" : "list not empty", at);
+        text = buffer;
+    }
+    compare::Record(id, same, same ? std::string() : std::string("as the game's"), text);
+    return result;
+}
+
+uint32_t __fastcall BaseCtorByMode(char* base, void*)
+{
+    if (g_ctorMode == StepMode::Original)
+        return g_SC4EffectBase_Construct(base, nullptr);
+    if (g_ctorMode == StepMode::Ours)
+        return ConstructEffectBase(base);
+    return CtorCompared("effects.ctor.base", base, 0x20, 0x10, g_SC4EffectBase_Construct, &ConstructEffectBase);
+}
+OPENSC4_THUNK(TSC4EffectBase_Construct, BaseCtorByMode, 0)
+
+uint32_t __fastcall EffectCtorByMode(char* self, void*)
+{
+    if (g_ctorMode == StepMode::Original)
+        return g_SC4Effect_Construct(self, nullptr);
+    if (g_ctorMode == StepMode::Ours)
+        return ConstructEffect(self);
+    return CtorCompared("effects.ctor", self, kEffectSize, 0x14, g_SC4Effect_Construct, &ConstructEffect);
+}
+OPENSC4_THUNK(TSC4Effect_Construct, EffectCtorByMode, 0)
+
+// The second class's constructor (0x005AC510), written by hand: the base
+// class's, the class's own two tables of functions (0x00AA0C58,
+// 0x00AA0C10), no model yet (+0x220, +0x224), the part at +0x228
+// constructed (0x00803060) with no description (its +0x40), and the
+// class's bytes and words from +0x26C to +0x278 cleared.
+uint32_t ConstructEffectB(char* self)
+{
+    CallThis<uint32_t>(addr::SC4Effect_Construct, self);
+    At<uint32_t>(self, 0) = 0x00AA0C58;
+    At<uint32_t>(self, 4) = 0x00AA0C10;
+    At<uint32_t>(self, 0x220) = 0;
+    At<uint32_t>(self, 0x224) = 0;
+    CallThis<uint32_t>(0x00803060, self + 0x228);
+    At<uint32_t>(self, 0x268) = 0;
+    At<uint8_t>(self, 0x26C) = 0;
+    At<uint8_t>(self, 0x26D) = 0;
+    At<uint8_t>(self, 0x26E) = 0;
+    At<uint8_t>(self, 0x26F) = 0;
+    At<uint32_t>(self, 0x270) = 0;
+    At<uint32_t>(self, 0x274) = 0;
+    At<uint32_t>(self, 0x278) = 0;
+    return reinterpret_cast<uint32_t>(self);
+}
+
+Call0Fn g_SC4EffectB_Construct = nullptr;
+
+uint32_t __fastcall EffectBCtorByMode(char* self, void*)
+{
+    if (g_ctorMode == StepMode::Original)
+        return g_SC4EffectB_Construct(self, nullptr);
+    if (g_ctorMode == StepMode::Ours)
+        return ConstructEffectB(self);
+    return CtorCompared("effects.ctor.b", self, kEffectSizeB, 0x14, g_SC4EffectB_Construct, &ConstructEffectB);
+}
+OPENSC4_THUNK(TSC4EffectB_Construct, EffectBCtorByMode, 0)
+
+// An effect's destructor (0x005A62B0, also the end of a third class's at
+// 0x005A90xx), written by hand: the objects at +0x1F0 and +0x1EC released
+// (slot 8), the texture at +0x6C let go (0x008090E0), the batch at +0x28
+// destroyed (0x005EC6E0), the description at +0x24 let go (0x005B1C80)
+// and the sub-object at +4 destroyed (0x005B9F40: its list freed). The
+// calls go through the comparison's notes; the texture's is kept apart,
+// the game's having no detour of ours.
+char* g_dtorTextureOurs = nullptr;
+
+uint32_t DtorRelease(char* object, uint32_t slot)
+{
+    return BOurs(slot, reinterpret_cast<uint32_t>(object), 0, 0,
+                 [&] { return CallThis<uint32_t>(M<uint32_t>(At<uint32_t>(object, 0) + slot), object); });
+}
+
+uint32_t DtorCall(uint32_t target, char* object)
+{
+    return BOurs(target, reinterpret_cast<uint32_t>(object), 0, 0, [&] { return CallThis<uint32_t>(target, object); });
+}
+
+void DestructEffect(char* self)
+{
+    if (char* const object = At<char*>(self, 0x1F0))
+        DtorRelease(object, 0x8);
+    if (char* const object = At<char*>(self, 0x1EC))
+        DtorRelease(object, 0x8);
+    if (char* const texture = At<char*>(self, 0x6C)) {
+        if (g_bReplay)
+            g_dtorTextureOurs = texture;
+        else
+            CallThis<uint32_t>(0x008090E0, texture);
+    }
+    DtorCall(addr::SC4EffectBatch_Destruct, self + 0x28);
+    if (char* const description = At<char*>(self, 0x24))
+        DtorCall(addr::SC4EffectDescription_Release, description);
+    DtorCall(addr::SC4EffectBase_Destruct, self + 4);
+}
+
+// The second class's (0x005AC5B0): the object at +0x278 ended (slot
+// 0x20), the description at +0x268 let go, the part at +0x228 destroyed
+// (0x008030A0), the model at +0x224 released through the part of it that
+// counts its holders, the instance at +0x220 released, then the base
+// class's.
+void DestructEffectB(char* self)
+{
+    if (char* const object = At<char*>(self, 0x278))
+        DtorRelease(object, 0x20);
+    if (char* const description = At<char*>(self, 0x268))
+        DtorCall(addr::SC4EffectDescription_Release, description);
+    DtorCall(addr::SC4EffectPartB_Destruct, self + 0x228);
+    if (char* const model = At<char*>(self, 0x224))
+        DtorRelease(model + 4 + At<int32_t>(At<char*>(model, 4), 4), 0x8);
+    if (char* const instance = At<char*>(self, 0x220))
+        DtorRelease(instance, 0x8);
+    DestructEffect(self);
+}
+
+// Their comparison is the holders': the game's first with its calls
+// noted (the objects through copies of their tables of functions, the
+// three destructors and the description's letting go through detours),
+// then ours with the effect's bytes put back, making no call but noting
+// each. The texture is given one more holder for the game's run, must
+// have lost exactly one, and is then let go for real; one whose last
+// holder but its factory this is cannot be checked that way.
+StepMode g_dtorMode = StepMode::Original;
+Call0Fn g_SC4Effect_Destruct = nullptr, g_SC4EffectB_Destruct = nullptr, g_SC4EffectBatch_Destruct = nullptr,
+        g_SC4EffectBase_Destruct = nullptr, g_SC4EffectPartB_Destruct = nullptr;
+Call1Fn g_SC4Effect_Delete = nullptr, g_SC4EffectB_Delete = nullptr;
+
+#define OPENSC4_DTOR_NOTED(Name)                                                                                       \
+    uint32_t __fastcall D##Name(char* self, void*)                                                                     \
+    {                                                                                                                  \
+        if (!BNoting())                                                                                                \
+            return g_##Name(self, nullptr);                                                                            \
+        return BCallee(addr::Name, reinterpret_cast<uint32_t>(self), 0, 0, [&] { return g_##Name(self, nullptr); });   \
+    }                                                                                                                  \
+    OPENSC4_THUNK(T##Name, D##Name, 0)
+OPENSC4_DTOR_NOTED(SC4EffectBatch_Destruct)
+OPENSC4_DTOR_NOTED(SC4EffectBase_Destruct)
+OPENSC4_DTOR_NOTED(SC4EffectPartB_Destruct)
+#undef OPENSC4_DTOR_NOTED
+
+template <typename Game, typename Ours>
+void DtorCompared(const char* id, char* self, std::size_t size, Game&& game, Ours&& ours)
+{
+    BSwap(At<char*>(self, 0x1F0), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    BSwap(At<char*>(self, 0x1EC), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    char* const texture = At<char*>(self, 0x6C);
+    const int32_t holders = texture ? At<int32_t>(texture, 0xC) : 0;
+    const bool held = texture && !(holders == 1 && At<uint32_t>(texture, 8));
+    if (held)
+        ++At<int32_t>(texture, 0xC);
+    g_dtorTextureOurs = nullptr;
+    HolderCompared(
+        id, self, size,
+        [&] {
+            game();
+            return 0u;
+        },
+        ours);
+    if (texture) {
+        const bool same = g_dtorTextureOurs == texture && (!held || At<int32_t>(texture, 0xC) == holders);
+        compare::Record(held ? "effects.dtor.texture" : "effects.dtor.texture.last", same,
+                        same ? std::string() : std::string("one holder less"),
+                        same ? std::string() : std::string(g_dtorTextureOurs == texture ? "not so" : "not ours'"));
+        if (held)
+            CallThis<uint32_t>(0x008090E0, texture);
+    }
+}
+
+bool DtorPassed()
+{
+    return g_dtorMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
+           BBusy();
+}
+
+uint32_t __fastcall EffectDtorByMode(char* self, void*)
+{
+    if (DtorPassed())
+        return g_SC4Effect_Destruct(self, nullptr);
+    if (g_dtorMode == StepMode::Ours)
+        DestructEffect(self);
+    else
+        DtorCompared(
+            "effects.dtor", self, kEffectSize, [&] { g_SC4Effect_Destruct(self, nullptr); },
+            [&] { DestructEffect(self); });
+    return 0;
+}
+OPENSC4_THUNK(TSC4Effect_Destruct, EffectDtorByMode, 0)
+
+uint32_t __fastcall EffectBDtorByMode(char* self, void*)
+{
+    if (DtorPassed())
+        return g_SC4EffectB_Destruct(self, nullptr);
+    if (g_dtorMode == StepMode::Ours) {
+        DestructEffectB(self);
+        return 0;
+    }
+    BSwap(At<char*>(self, 0x278), 0x20, reinterpret_cast<uint32_t>(&BEnd));
+    if (char* const model = At<char*>(self, 0x224))
+        BSwap(model + 4 + At<int32_t>(At<char*>(model, 4), 4), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    BSwap(At<char*>(self, 0x220), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    DtorCompared(
+        "effects.dtor.b", self, kEffectSizeB, [&] { g_SC4EffectB_Destruct(self, nullptr); },
+        [&] { DestructEffectB(self); });
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectB_Destruct, EffectBDtorByMode, 0)
+
+// The two destructors as the tables of functions have them (0x005B2FE0
+// and 0x005AC590, slot 0xC of the sub-object's through a thunk): the
+// destructor, then with bit 0 of the flags the memory freed (0x005E5620).
+uint32_t __fastcall EffectDeleteByMode(char* self, void*, uint32_t flags)
+{
+    if (g_dtorMode == StepMode::Original)
+        return g_SC4Effect_Delete(self, nullptr, flags);
+    EffectDtorByMode(self, nullptr);
+    if (flags & 1)
+        reinterpret_cast<void(__cdecl*)(void*)>(0x005E5620)(self);
+    return reinterpret_cast<uint32_t>(self);
+}
+OPENSC4_THUNK(TSC4Effect_Delete, EffectDeleteByMode, 4)
+
+uint32_t __fastcall EffectBDeleteByMode(char* self, void*, uint32_t flags)
+{
+    if (g_dtorMode == StepMode::Original)
+        return g_SC4EffectB_Delete(self, nullptr, flags);
+    EffectBDtorByMode(self, nullptr);
+    if (flags & 1)
+        reinterpret_cast<void(__cdecl*)(void*)>(0x005E5620)(self);
+    return reinterpret_cast<uint32_t>(self);
+}
+OPENSC4_THUNK(TSC4EffectB_Delete, EffectBDeleteByMode, 4)
+
 // What every record-and-replay comparison needs: the frees held back, and
 // the particle pool's functions recorded.
 bool HookFrees()
@@ -4780,6 +6090,939 @@ const bool g_registeredDescription = registry::Register({
     "(docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallDescription,
+});
+
+bool InstallDescriptionB(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4EffectB_SetDescription ||
+          Detour(addr::SC4EffectB_SetDescription, &TSC4EffectB_SetDescription, &g_SC4EffectB_SetDescription)))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !((g_SC4Effect_SetDescription ||
+           Detour(addr::SC4Effect_SetDescription, &TSC4Effect_SetDescription, &g_SC4Effect_SetDescription)) &&
+          (g_SC4EffectB_LoadModel ||
+           Detour(addr::SC4EffectB_LoadModel, &TSC4EffectB_LoadModel, &g_SC4EffectB_LoadModel)) &&
+          Detour(addr::SC4EffectPartB_Attach, &TSC4EffectPartB_Attach, &g_SC4EffectPartB_Attach) &&
+          Detour(addr::SC4EffectPartB_Place, &TSC4EffectPartB_Place, &g_SC4EffectPartB_Place) &&
+          (g_SC4EffectPartB_SetDescription ||
+           Detour(addr::SC4EffectPartB_SetDescription, &TSC4EffectPartB_SetDescription,
+                  &g_SC4EffectPartB_SetDescription))))
+        return false;
+    g_descModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: second effect class taking a description %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDescriptionB = registry::Register({
+    "renderer.effects.description_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectB_SetDescription,
+    "The second effect class taking a description: its old model released, a model loaded and its instance set "
+    "up; compare mode runs the game's with its calls noted and replays ours (docs/renderer.md, \"Water effects, "
+    "sky and clouds\")",
+    true,
+    InstallDescriptionB,
+});
+
+bool InstallModelB(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4EffectB_LoadModel ||
+          Detour(addr::SC4EffectB_LoadModel, &TSC4EffectB_LoadModel, &g_SC4EffectB_LoadModel)))
+        return false;
+    g_modelModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: second effect class's model loading %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredModelB = registry::Register({
+    "renderer.effects.model_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectB_LoadModel,
+    "The second effect class loading its model: the resource asked for, the model made, its size kept and its "
+    "materials' flags set; compare mode runs ours and the game's for real and compares the effect and the "
+    "materials (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallModelB,
+});
+
+bool InstallTexture(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4Effect_LoadTexture ||
+          Detour(addr::SC4Effect_LoadTexture, &TSC4Effect_LoadTexture, &g_SC4Effect_LoadTexture)))
+        return false;
+    g_textureMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects' texture loading %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredTexture = registry::Register({
+    "renderer.effects.texture",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_LoadTexture,
+    "An effect's texture loaded: the texture service asked for it by ID and its handle kept; compare mode runs "
+    "ours and the game's for real (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallTexture,
+});
+
+bool InstallGiveBackB(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookPool())
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(g_SC4EffectB_RestartParticle ||
+          Detour(addr::SC4EffectB_RestartParticle, &TSC4EffectB_RestartParticle, &g_SC4EffectB_RestartParticle)))
+        return false;
+    g_giveBackModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: second effect class given a particle back %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredGiveBackB = registry::Register({
+    "renderer.effects.giveback_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectBaseB_GiveBackParticle,
+    "The second effect class given a particle back: started again, or its own effect stopped, a last effect made "
+    "where it was, and the particle put on the free list; compare mode runs the game's with its calls noted and "
+    "replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallGiveBackB,
+});
+
+bool InstallHolders(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !((g_SC4Effect_SetObject ||
+           Detour(addr::SC4Effect_SetObject, &TSC4Effect_SetObject, &g_SC4Effect_SetObject)) &&
+          (g_SC4EffectPartB_SetDescription ||
+           Detour(addr::SC4EffectPartB_SetDescription, &TSC4EffectPartB_SetDescription,
+                  &g_SC4EffectPartB_SetDescription))))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !((g_SC4Effect_Hold || Detour(addr::SC4Effect_Hold, &TSC4Effect_Hold, &g_SC4Effect_Hold)) &&
+          (g_SC4EffectDescription_Release ||
+           Detour(addr::SC4EffectDescription_Release, &TSC4EffectDescription_Release,
+                  &g_SC4EffectDescription_Release))))
+        return false;
+    g_holdersMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: two setters of what an effect holds %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredHolders = registry::Register({
+    "renderer.effects.holders",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_SetObject,
+    "Two setters of what an effect holds, its object at +0x1EC and its part's description: the new one held, the "
+    "old one let go; compare mode runs the game's with those noted and replays ours (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallHolders,
+});
+
+bool InstallCtor(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4EffectBase_Construct, &TSC4EffectBase_Construct, &g_SC4EffectBase_Construct) &&
+          Detour(addr::SC4Effect_Construct, &TSC4Effect_Construct, &g_SC4Effect_Construct) &&
+          Detour(addr::SC4EffectB_Construct, &TSC4EffectB_Construct, &g_SC4EffectB_Construct)))
+        return false;
+    g_ctorMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects' constructors %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredCtor = registry::Register({
+    "renderer.effects.ctor",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_Construct,
+    "The two effect classes' constructors and the sub-object's: the tables of functions, an empty particle list "
+    "and the fields' first values; compare mode runs ours and the game's on the same memory (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallCtor,
+});
+
+// --- A description's lists read from the effects file ---------------------------------------
+//
+// A description keeps some of its values in lists (begin, end and end of
+// the memory, as the game's own containers have them): one of records of
+// seven floats (0x1C bytes), one of records of eight (0x20). Each is read
+// from a stream by a function of its own (0x005B0930, 0x005B09D0, both
+// (stream, list) answering the stream): the count (the stream's slot
+// 0x24), the list resized to it (0x005B0840 with the record to fill with,
+// 0x005B08A0 which fills with the float at 0x00B22D54 six times and two
+// zeroes), then every float of every record (slot 0x30). The resize cuts
+// the list short or has the game's insert (0x005B05A0, 0x005B0700) add
+// the records. All four are written by hand; the first float of the
+// record the first reader fills with is whatever was on the game's stack,
+// zero in ours, and is read over at once.
+constexpr uint32_t kListInsertA = 0x005B05A0, kListInsertB = 0x005B0700, kListFill = 0x00B22D54;
+
+// The inserts (0x005B05A0 for records of 0x1C bytes, 0x005B0700 for 0x20;
+// (where, count, record), ret 0xC), written by hand as one: with room for
+// them the records from `where` on move up and `count` copies of the
+// record go in; without, the game's growing insert does it all (0x0059BBA0,
+// 0x0059B570). Compared by running ours on a copy of the list in memory of
+// the same size and the game's on the list.
+constexpr uint32_t kListGrowA = 0x0059BBA0, kListGrowB = 0x0059B570;
+using ListInsertFn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t);
+ListInsertFn g_SC4EffectDescription_InsertListA = nullptr, g_SC4EffectDescription_InsertListB = nullptr;
+
+void InsertRecords(char* list, char* where, uint32_t count, uint32_t record, std::size_t size, uint32_t grow)
+{
+    if (!count)
+        return;
+    char* const end = At<char*>(list, 4);
+    if (static_cast<uint32_t>((At<char*>(list, 8) - end) / static_cast<std::ptrdiff_t>(size)) < count) {
+        CallThis<uint32_t>(grow, list, where, record, reinterpret_cast<uint32_t>(&record), count, 0u);
+        return;
+    }
+    char value[0x20];
+    std::memcpy(value, reinterpret_cast<const void*>(record), size);
+    std::memmove(where + count * size, where, end - where);
+    for (uint32_t i = 0; i < count; ++i)
+        std::memcpy(where + i * size, value, size);
+    At<char*>(list, 4) = end + count * size;
+}
+
+StepMode g_listsMode = StepMode::Original;
+
+uint32_t InsertByMode(const char* id, char* list, uint32_t where, uint32_t count, uint32_t record, std::size_t size,
+                      uint32_t grow, ListInsertFn game)
+{
+    if (g_listsMode == StepMode::Original)
+        return game(list, nullptr, where, count, record);
+    if (g_listsMode == StepMode::Ours) {
+        InsertRecords(list, reinterpret_cast<char*>(where), count, record, size, grow);
+        return 0;
+    }
+    char* const begin = At<char*>(list, 0);
+    const std::size_t used = At<char*>(list, 4) - begin, room = At<char*>(list, 8) - begin;
+    char* mine[3] = {nullptr, nullptr, nullptr};
+    if (room) {
+        mine[0] = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(room);
+        std::memcpy(mine[0], begin, used);
+        mine[1] = mine[0] + used;
+        mine[2] = mine[0] + room;
+    }
+    char value[0x20];
+    std::memcpy(value, reinterpret_cast<const void*>(record), size);
+    InsertRecords(reinterpret_cast<char*>(mine), mine[0] + (reinterpret_cast<char*>(where) - begin), count,
+                  reinterpret_cast<uint32_t>(value), size, grow);
+    const uint32_t result = game(list, nullptr, where, count, record);
+    const std::size_t theirUsed = At<char*>(list, 4) - At<char*>(list, 0), ourUsed = mine[1] - mine[0];
+    const bool same = theirUsed == ourUsed &&
+                      static_cast<std::size_t>(At<char*>(list, 8) - At<char*>(list, 0)) ==
+                          static_cast<std::size_t>(mine[2] - mine[0]) &&
+                      (ourUsed == 0 || std::memcmp(At<char*>(list, 0), mine[0], ourUsed) == 0);
+    if (mine[0])
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(mine[0]);
+    compare::Record(room >= used + count * size ? (std::string(id) + ".room").c_str() : id, same,
+                    same ? std::string() : std::to_string(theirUsed / size) + " records",
+                    same ? std::string() : std::to_string(ourUsed / size) + " records");
+    return result;
+}
+
+uint32_t __fastcall DInsertListA(char* list, void*, uint32_t where, uint32_t count, uint32_t record)
+{
+    return InsertByMode("effects.lists.insert.a", list, where, count, record, 0x1C, kListGrowA,
+                        g_SC4EffectDescription_InsertListA);
+}
+OPENSC4_THUNK(TSC4EffectDescription_InsertListA, DInsertListA, 12)
+
+uint32_t __fastcall DInsertListB(char* list, void*, uint32_t where, uint32_t count, uint32_t record)
+{
+    return InsertByMode("effects.lists.insert.b", list, where, count, record, 0x20, kListGrowB,
+                        g_SC4EffectDescription_InsertListB);
+}
+OPENSC4_THUNK(TSC4EffectDescription_InsertListB, DInsertListB, 12)
+
+void ResizeListA(char* list, uint32_t count, uint32_t record)
+{
+    char* const begin = At<char*>(list, 0);
+    char* const end = At<char*>(list, 4);
+    const uint32_t size = static_cast<uint32_t>((end - begin) / 0x1C);
+    if (count < size)
+        At<char*>(list, 4) = begin + count * 0x1C;
+    else
+        CallThis<uint32_t>(kListInsertA, list, end, count - size, record);
+}
+
+void ResizeListB(char* list, uint32_t count)
+{
+    char* const begin = At<char*>(list, 0);
+    char* const end = At<char*>(list, 4);
+    const uint32_t size = static_cast<uint32_t>((end - begin) >> 5);
+    if (count < size) {
+        At<char*>(list, 4) = begin + count * 0x20;
+        return;
+    }
+    const uint32_t fill = M<uint32_t>(kListFill);
+    uint32_t record[8] = {fill, fill, fill, fill, fill, fill, 0, 0};
+    CallThis<uint32_t>(kListInsertB, list, end, count - size, record);
+}
+
+void ResizeListAByMode(char* list, uint32_t count, uint32_t record);
+void ResizeListBByMode(char* list, uint32_t count);
+
+uint32_t StreamRead(uint32_t stream, uint32_t slot, uint32_t to)
+{
+    return CallThis<uint32_t>(M<uint32_t>(M<uint32_t>(stream) + slot), reinterpret_cast<char*>(stream), to);
+}
+
+uint32_t ReadListA(uint32_t stream, uint32_t list)
+{
+    uint32_t count = 0;
+    StreamRead(stream, 0x24, reinterpret_cast<uint32_t>(&count));
+    const uint32_t fill = M<uint32_t>(kListFill);
+    uint32_t record[7] = {0, fill, fill, fill, fill, fill, fill};
+    ResizeListAByMode(reinterpret_cast<char*>(list), count, reinterpret_cast<uint32_t>(record));
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t at = M<uint32_t>(list) + i * 0x1C;
+        for (uint32_t offset = 0; offset < 0x1C; offset += 4)
+            StreamRead(stream, 0x30, at + offset);
+    }
+    return stream;
+}
+
+uint32_t ReadListB(uint32_t stream, uint32_t list)
+{
+    uint32_t count = 0;
+    StreamRead(stream, 0x24, reinterpret_cast<uint32_t>(&count));
+    ResizeListBByMode(reinterpret_cast<char*>(list), count);
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t at = M<uint32_t>(list) + i * 0x20;
+        for (uint32_t offset = 0; offset < 0x20; offset += 4)
+            StreamRead(stream, 0x30, at + offset);
+    }
+    return stream;
+}
+
+// Their comparison: the game's reads the list, with the stream's two
+// slots seen through a copy of its table of functions that notes each
+// read and the four bytes it gave; then ours reads into a copy of the list
+// as it was before (in memory of the same size), the stream's copy giving
+// back the noted values in order. The reads must be the same ones, and
+// the two lists the same in length, room and bytes. In the game's run the
+// resizes are the game's, in ours' ours.
+using ListReadFn = uint32_t(__cdecl*)(uint32_t, uint32_t);
+using ListResizeAFn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t);
+ListReadFn g_SC4EffectDescription_ReadListA = nullptr, g_SC4EffectDescription_ReadListB = nullptr;
+ListResizeAFn g_SC4EffectDescription_ResizeListA = nullptr;
+Call1Fn g_SC4EffectDescription_ResizeListB = nullptr;
+struct ListRead {
+    uint32_t slot, value, result;
+};
+std::vector<ListRead> g_listReads;
+std::size_t g_listReplayed = 0;
+bool g_listGame = false, g_listReplay = false, g_listWrong = false;
+uint32_t g_listStreamReal = 0;
+DWORD g_listThread = 0;
+std::map<uint32_t, std::vector<uint32_t>> g_listTables;
+
+uint32_t ListStreamRead(char* stream, uint32_t slot, uint32_t to)
+{
+    uint32_t real = g_listStreamReal;
+    if (!(g_listGame || g_listReplay) || GetCurrentThreadId() != g_listThread) {
+        for (const auto& [table, copy] : g_listTables) {
+            if (At<uint32_t*>(stream, 0) == copy.data())
+                real = table;
+        }
+        return CallThis<uint32_t>(M<uint32_t>(real + slot), stream, to);
+    }
+    if (g_listGame) {
+        const uint32_t result = CallThis<uint32_t>(M<uint32_t>(real + slot), stream, to);
+        g_listReads.push_back({slot, M<uint32_t>(to), result});
+        return result;
+    }
+    if (g_listReplayed >= g_listReads.size() || g_listReads[g_listReplayed].slot != slot) {
+        g_listWrong = true;
+        return 0;
+    }
+    M<uint32_t>(to) = g_listReads[g_listReplayed].value;
+    return g_listReads[g_listReplayed++].result;
+}
+
+uint32_t __fastcall ListStreamCount(char* stream, void*, uint32_t to)
+{
+    return ListStreamRead(stream, 0x24, to);
+}
+
+uint32_t __fastcall ListStreamFloat(char* stream, void*, uint32_t to)
+{
+    return ListStreamRead(stream, 0x30, to);
+}
+
+// The stream's slot 0x3C reads a string into a string object (its three
+// pointers at +4); the note keeps the bytes, and the replay assigns them
+// with the game's own assign (0x00408A70).
+constexpr uint32_t kStringAssign = 0x00408A70;
+std::vector<std::string> g_listStrings;
+std::size_t g_listStringsReplayed = 0;
+
+uint32_t __fastcall ListStreamString(char* stream, void*, uint32_t to)
+{
+    const bool mine = (g_listGame || g_listReplay) && GetCurrentThreadId() == g_listThread;
+    if (mine && g_listReplay) {
+        if (g_listReplayed >= g_listReads.size() || g_listReads[g_listReplayed].slot != 0x3C ||
+            g_listStringsReplayed >= g_listStrings.size()) {
+            g_listWrong = true;
+            return 0;
+        }
+        const std::string& text = g_listStrings[g_listStringsReplayed++];
+        uint32_t tag = 0;
+        CallThis<uint32_t>(kStringAssign, reinterpret_cast<char*>(to + 4), reinterpret_cast<uint32_t>(text.data()),
+                           reinterpret_cast<uint32_t>(text.data() + text.size()), reinterpret_cast<uint32_t>(&tag));
+        return g_listReads[g_listReplayed++].result;
+    }
+    uint32_t real = g_listStreamReal;
+    if (!mine) {
+        for (const auto& [table, copy] : g_listTables) {
+            if (At<uint32_t*>(stream, 0) == copy.data())
+                real = table;
+        }
+    }
+    const uint32_t result = CallThis<uint32_t>(M<uint32_t>(real + 0x3C), stream, to);
+    if (mine) {
+        g_listReads.push_back({0x3C, 0, result});
+        g_listStrings.emplace_back(M<const char*>(to + 4), M<const char*>(to + 8));
+    }
+    return result;
+}
+
+uint32_t ListCompared(const char* id, uint32_t stream, uint32_t list, std::size_t record, ListReadFn game,
+                      uint32_t (*ours)(uint32_t, uint32_t))
+{
+    char* const begin = M<char*>(list);
+    const std::size_t used = M<char*>(list + 4) - begin, room = M<char*>(list + 8) - begin;
+    uint32_t mine[3] = {0, 0, 0};
+    if (room) {
+        mine[0] = reinterpret_cast<uint32_t>(
+            reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(room));
+        std::memcpy(reinterpret_cast<void*>(mine[0]), begin, used);
+        mine[1] = mine[0] + used;
+        mine[2] = mine[0] + room;
+    }
+    g_listStreamReal = M<uint32_t>(stream);
+    std::vector<uint32_t>& table = g_listTables[g_listStreamReal];
+    if (table.empty()) {
+        table.assign(reinterpret_cast<const uint32_t*>(g_listStreamReal),
+                     reinterpret_cast<const uint32_t*>(g_listStreamReal) + kBSlots);
+        table[0x24 / 4] = reinterpret_cast<uint32_t>(&ListStreamCount);
+        table[0x30 / 4] = reinterpret_cast<uint32_t>(&ListStreamFloat);
+        table[0x3C / 4] = reinterpret_cast<uint32_t>(&ListStreamString);
+    }
+    g_listThread = GetCurrentThreadId();
+    g_listReads.clear();
+    g_listReplayed = 0;
+    g_listWrong = false;
+    M<const uint32_t*>(stream) = table.data();
+    g_listGame = true;
+    const uint32_t result = game(stream, list);
+    g_listGame = false;
+    g_listReplay = true;
+    const uint32_t ourResult = ours(stream, reinterpret_cast<uint32_t>(mine));
+    g_listReplay = false;
+    M<uint32_t>(stream) = g_listStreamReal;
+    const std::size_t theirUsed = M<uint32_t>(list + 4) - M<uint32_t>(list),
+                      ourUsed = mine[1] - mine[0];
+    const bool same = !g_listWrong && g_listReplayed == g_listReads.size() && result == ourResult &&
+                      theirUsed == ourUsed && M<uint32_t>(list + 8) - M<uint32_t>(list) == mine[2] - mine[0] &&
+                      (ourUsed == 0 || std::memcmp(M<void*>(list), reinterpret_cast<void*>(mine[0]), ourUsed) == 0);
+    if (mine[0])
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(reinterpret_cast<void*>(mine[0]));
+    char text[64];
+    std::snprintf(text, sizeof text, "%zu reads, %zu records", g_listReads.size(), theirUsed / record);
+    const std::string theirs = text;
+    std::snprintf(text, sizeof text, "%zu reads%s, %zu records", g_listReplayed, g_listWrong ? " then another" : "",
+                  ourUsed / record);
+    compare::Record(theirUsed ? id : (std::string(id) + ".empty").c_str(), same, same ? std::string() : theirs,
+                    same ? std::string() : std::string(text));
+    return result;
+}
+
+uint32_t __cdecl ReadListAByMode(uint32_t stream, uint32_t list)
+{
+    if (g_listsMode == StepMode::Original || g_listGame || g_listReplay)
+        return g_SC4EffectDescription_ReadListA(stream, list);
+    if (g_listsMode == StepMode::Ours)
+        return ReadListA(stream, list);
+    return ListCompared("effects.lists.a", stream, list, 0x1C, g_SC4EffectDescription_ReadListA, &ReadListA);
+}
+
+uint32_t __cdecl ReadListBByMode(uint32_t stream, uint32_t list)
+{
+    if (g_listsMode == StepMode::Original || g_listGame || g_listReplay)
+        return g_SC4EffectDescription_ReadListB(stream, list);
+    if (g_listsMode == StepMode::Ours)
+        return ReadListB(stream, list);
+    return ListCompared("effects.lists.b", stream, list, 0x20, g_SC4EffectDescription_ReadListB, &ReadListB);
+}
+
+void ResizeListAByMode(char* list, uint32_t count, uint32_t record)
+{
+    if (g_listsMode == StepMode::Original || g_listGame || (g_listsMode == StepMode::Compare && !g_listReplay))
+        g_SC4EffectDescription_ResizeListA(list, nullptr, count, record);
+    else
+        ResizeListA(list, count, record);
+}
+
+void ResizeListBByMode(char* list, uint32_t count)
+{
+    if (g_listsMode == StepMode::Original || g_listGame || (g_listsMode == StepMode::Compare && !g_listReplay))
+        g_SC4EffectDescription_ResizeListB(list, nullptr, count);
+    else
+        ResizeListB(list, count);
+}
+
+uint32_t __fastcall DResizeListA(char* list, void*, uint32_t count, uint32_t record)
+{
+    ResizeListAByMode(list, count, record);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectDescription_ResizeListA, DResizeListA, 8)
+
+uint32_t __fastcall DResizeListB(char* list, void*, uint32_t count)
+{
+    ResizeListBByMode(list, count);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectDescription_ResizeListB, DResizeListB, 4)
+
+// A description's constructor (0x005B0FE0, the first thing the whole
+// object's constructor 0x005B1660 calls), translated instruction by
+// instruction: the first values of its fields, an empty string (eight
+// bytes of the game's memory), and one value put in each of seven lists
+// (the game's growing inserts 0x00676CC0 and 0x0050C3B0 for a list with
+// no room, which is every one here).
+uint32_t ConstructDescription(char* self)
+{
+    uint32_t stackmem[192] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effect_desc_ctor.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+// Its comparison: ours on the object's memory, what it left kept, the
+// memory put back as it was, and the game's. Where the two differ, the
+// words must be the three pointers of a list or string (begin, end, end
+// of the memory) of the same length and room and with the same bytes;
+// ours' memory is then freed.
+constexpr std::size_t kDescriptionCtorSize = 0x200;
+StepMode g_descCtorMode = StepMode::Original;
+Call0Fn g_SC4EffectDescription_Construct = nullptr;
+
+uint32_t __fastcall DescriptionCtorByMode(char* self, void*)
+{
+    if (g_descCtorMode == StepMode::Original)
+        return g_SC4EffectDescription_Construct(self, nullptr);
+    if (g_descCtorMode == StepMode::Ours)
+        return ConstructDescription(self);
+    uint32_t before[kDescriptionCtorSize / 4], mine[kDescriptionCtorSize / 4];
+    std::memcpy(before, self, sizeof before);
+    const uint32_t ourResult = ConstructDescription(self);
+    std::memcpy(mine, self, sizeof mine);
+    std::memcpy(self, before, sizeof before);
+    const uint32_t result = g_SC4EffectDescription_Construct(self, nullptr);
+    const uint32_t* const theirs = reinterpret_cast<const uint32_t*>(self);
+    bool same = result == ourResult;
+    std::size_t lists = 0, wrongAt = 0;
+    for (std::size_t i = 0; i < kDescriptionCtorSize / 4; ++i) {
+        if (mine[i] == theirs[i])
+            continue;
+        const bool list = i + 2 < kDescriptionCtorSize / 4 && mine[i] && theirs[i] &&
+                          mine[i + 1] - mine[i] == theirs[i + 1] - theirs[i] &&
+                          mine[i + 2] - mine[i] == theirs[i + 2] - theirs[i] && mine[i + 1] - mine[i] <= 0x100 &&
+                          std::memcmp(reinterpret_cast<const void*>(mine[i]), reinterpret_cast<const void*>(theirs[i]),
+                                      mine[i + 1] - mine[i] ? mine[i + 1] - mine[i] : 1) == 0;
+        if (!list) {
+            if (same)
+                wrongAt = i * 4;
+            same = false;
+            continue;
+        }
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(reinterpret_cast<void*>(mine[i]));
+        ++lists;
+        i += 2;
+    }
+    char text[48];
+    std::snprintf(text, sizeof text, "differs at +%zX", wrongAt);
+    compare::Record(lists == 8 ? "effects.description_ctor" : "effects.description_ctor.lists", same && lists == 8,
+                    same && lists == 8 ? std::string() : std::string("8 lists"),
+                    same && lists == 8 ? std::string() : (same ? std::to_string(lists) + " lists" : std::string(text)));
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectDescription_Construct, DescriptionCtorByMode, 0)
+
+bool InstallDescriptionCtor(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !Detour(addr::SC4EffectDescription_Construct, &TSC4EffectDescription_Construct,
+                &g_SC4EffectDescription_Construct))
+        return false;
+    g_descCtorMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: a description's constructor %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDescriptionCtor = registry::Register({
+    "renderer.effects.description_ctor",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDescription_Construct,
+    "An effect description's constructor: its fields' first values, an empty string and one value in each of seven "
+    "lists; compare mode runs ours and the game's on the same memory (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallDescriptionCtor,
+});
+
+// The third list: records of a string (the three pointers of the game's
+// own) and a float, 0x10 bytes. Its reader (0x005B1D60, (stream, list)
+// like the others) reads the count, resizes (0x005B1CD0), then for each
+// record the string (0x005811F0, the stream's slot 0x3C into a string of
+// the game's and from there into the record) and the float. The resize
+// makes a record with an empty string (eight bytes of the game's memory,
+// freed at the end) and cuts the list short (0x005B1790, which frees the
+// strings) or inserts copies of that record at the end (0x005B1530). The
+// insert, like the game's containers': without room the game's growing
+// insert (0x005A17F0); with room the record is copied, the records after
+// the place are moved up and the copies assigned, with the game's own
+// helpers for records that hold strings. All three by hand.
+constexpr uint32_t kStringCopy = 0x00408420, kNamedCopyNew = 0x005B0A50, kNamedFillNew = 0x005B0AA0,
+                   kNamedCopyBack = 0x005B0AF0, kNamedFill = 0x005B0F40, kNamedGrow = 0x005A17F0,
+                   kNamedErase = 0x005B1790, kStreamString = 0x005811F0;
+using NamedCopyFn = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t);
+ListInsertFn g_SC4EffectDescription_InsertListC = nullptr;
+Call1Fn g_SC4EffectDescription_ResizeListC = nullptr;
+ListReadFn g_SC4EffectDescription_ReadListC = nullptr;
+
+void InsertNamed(char* list, uint32_t where, uint32_t count, uint32_t record)
+{
+    if (!count)
+        return;
+    const uint32_t end = At<uint32_t>(list, 4);
+    uint32_t tag = 0;
+    if (static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(list, 8) - end) >> 4) < count) {
+        CallThis<uint32_t>(kNamedGrow, list, where, record, reinterpret_cast<uint32_t>(&tag), count, 0u);
+        return;
+    }
+    uint32_t value[4] = {0, 0, 0, 0};
+    CallThis<uint32_t>(kStringCopy, reinterpret_cast<char*>(value), M<uint32_t>(record), M<uint32_t>(record + 4),
+                       reinterpret_cast<uint32_t>(&tag));
+    value[3] = M<uint32_t>(record + 0xC);
+    const uint32_t mine = reinterpret_cast<uint32_t>(value);
+    const uint32_t after = static_cast<uint32_t>(static_cast<int32_t>(end - where) >> 4);
+    const NamedCopyFn copyNew = reinterpret_cast<NamedCopyFn>(kNamedCopyNew);
+    const auto fill = reinterpret_cast<uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t)>(kNamedFill);
+    if (after > count) {
+        const uint32_t bytes = count * 0x10, from = end - bytes;
+        copyNew(from, end, end, reinterpret_cast<uint32_t>(&tag));
+        At<uint32_t>(list, 4) += bytes;
+        reinterpret_cast<uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(kNamedCopyBack)(
+            where, from, end, reinterpret_cast<uint32_t>(&tag), 0);
+        fill(where, where + bytes, mine);
+    } else {
+        reinterpret_cast<uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t)>(kNamedFillNew)(end, count - after, mine);
+        const uint32_t filled = At<uint32_t>(list, 4) + (count - after) * 0x10;
+        At<uint32_t>(list, 4) = filled;
+        copyNew(where, end, filled, reinterpret_cast<uint32_t>(&tag));
+        At<uint32_t>(list, 4) += after * 0x10;
+        fill(where, end, mine);
+    }
+    if (value[0])
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(reinterpret_cast<void*>(value[0]));
+}
+
+bool ListGames()
+{
+    return g_listsMode == StepMode::Original || g_listGame || (g_listsMode == StepMode::Compare && !g_listReplay);
+}
+
+uint32_t __fastcall DInsertListC(char* list, void*, uint32_t where, uint32_t count, uint32_t record)
+{
+    if (ListGames())
+        return g_SC4EffectDescription_InsertListC(list, nullptr, where, count, record);
+    InsertNamed(list, where, count, record);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectDescription_InsertListC, DInsertListC, 12)
+
+void ResizeNamed(char* list, uint32_t count)
+{
+    char* const text = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(8);
+    text[0] = 0;
+    uint32_t record[4] = {reinterpret_cast<uint32_t>(text), reinterpret_cast<uint32_t>(text),
+                          reinterpret_cast<uint32_t>(text) + 8, 0};
+    const uint32_t begin = At<uint32_t>(list, 0), end = At<uint32_t>(list, 4);
+    const uint32_t size = static_cast<uint32_t>(static_cast<int32_t>(end - begin) >> 4);
+    if (count < size)
+        CallThis<uint32_t>(kNamedErase, list, begin + count * 0x10, end);
+    else
+        DInsertListC(list, nullptr, end, count - size, reinterpret_cast<uint32_t>(record));
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(text);
+}
+
+uint32_t __fastcall DResizeListC(char* list, void*, uint32_t count)
+{
+    if (ListGames())
+        return g_SC4EffectDescription_ResizeListC(list, nullptr, count);
+    ResizeNamed(list, count);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectDescription_ResizeListC, DResizeListC, 4)
+
+uint32_t ReadListC(uint32_t stream, uint32_t list)
+{
+    uint32_t count = 0;
+    StreamRead(stream, 0x24, reinterpret_cast<uint32_t>(&count));
+    DResizeListC(reinterpret_cast<char*>(list), nullptr, count);
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t at = M<uint32_t>(list) + i * 0x10;
+        reinterpret_cast<uint32_t(__cdecl*)(uint32_t, uint32_t)>(kStreamString)(stream, at);
+        StreamRead(stream, 0x30, at + 0xC);
+    }
+    return stream;
+}
+
+// Its comparison is the other two readers', for a list that is empty
+// before (they all are): the game's reads the list with the stream's
+// reads noted, ours reads the same into an empty list of its own, and the
+// two must have the same records, string by string and float by float.
+// Ours' list is then destroyed.
+uint32_t __cdecl ReadListCByMode(uint32_t stream, uint32_t list)
+{
+    if (g_listsMode == StepMode::Original || g_listGame || g_listReplay)
+        return g_SC4EffectDescription_ReadListC(stream, list);
+    if (g_listsMode == StepMode::Ours)
+        return ReadListC(stream, list);
+    if (M<uint32_t>(list) != M<uint32_t>(list + 4)) {
+        compare::Record("effects.lists.c.not_empty", true, std::string(), std::string());
+        return g_SC4EffectDescription_ReadListC(stream, list);
+    }
+    g_listStreamReal = M<uint32_t>(stream);
+    std::vector<uint32_t>& table = g_listTables[g_listStreamReal];
+    if (table.empty()) {
+        table.assign(reinterpret_cast<const uint32_t*>(g_listStreamReal),
+                     reinterpret_cast<const uint32_t*>(g_listStreamReal) + kBSlots);
+        table[0x24 / 4] = reinterpret_cast<uint32_t>(&ListStreamCount);
+        table[0x30 / 4] = reinterpret_cast<uint32_t>(&ListStreamFloat);
+        table[0x3C / 4] = reinterpret_cast<uint32_t>(&ListStreamString);
+    }
+    g_listThread = GetCurrentThreadId();
+    g_listReads.clear();
+    g_listStrings.clear();
+    g_listReplayed = 0;
+    g_listStringsReplayed = 0;
+    g_listWrong = false;
+    M<const uint32_t*>(stream) = table.data();
+    g_listGame = true;
+    const uint32_t result = g_SC4EffectDescription_ReadListC(stream, list);
+    g_listGame = false;
+    uint32_t mine[3] = {0, 0, 0};
+    g_listReplay = true;
+    const uint32_t ourResult = ReadListC(stream, reinterpret_cast<uint32_t>(mine));
+    g_listReplay = false;
+    M<uint32_t>(stream) = g_listStreamReal;
+    const uint32_t theirUsed = M<uint32_t>(list + 4) - M<uint32_t>(list), ourUsed = mine[1] - mine[0];
+    bool same = !g_listWrong && g_listReplayed == g_listReads.size() && result == ourResult && theirUsed == ourUsed &&
+                M<uint32_t>(list + 8) - M<uint32_t>(list) == mine[2] - mine[0];
+    for (uint32_t offset = 0; same && offset < ourUsed; offset += 0x10) {
+        const uint32_t theirs = M<uint32_t>(list) + offset, ours = mine[0] + offset;
+        const uint32_t length = M<uint32_t>(theirs + 4) - M<uint32_t>(theirs);
+        same = length == M<uint32_t>(ours + 4) - M<uint32_t>(ours) && M<uint32_t>(theirs + 0xC) == M<uint32_t>(ours + 0xC) &&
+               (length == 0 || std::memcmp(M<void*>(theirs), M<void*>(ours), length) == 0);
+    }
+    for (uint32_t at = mine[0]; at < mine[1]; at += 0x10) {
+        if (M<uint32_t>(at))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(M<void*>(at));
+    }
+    if (mine[0])
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(reinterpret_cast<void*>(mine[0]));
+    char text[64];
+    std::snprintf(text, sizeof text, "%zu reads, %u records", g_listReads.size(), theirUsed / 0x10);
+    const std::string theirs = text;
+    std::snprintf(text, sizeof text, "%zu reads%s, %u records", g_listReplayed, g_listWrong ? " then another" : "",
+                  ourUsed / 0x10);
+    compare::Record(theirUsed ? "effects.lists.c" : "effects.lists.c.empty", same, same ? std::string() : theirs,
+                    same ? std::string() : std::string(text));
+    return result;
+}
+
+// The whole description's constructor (0x005B1660): the inner one, then
+// no holders (+0x204). Compared by letting the game's run and then ours'
+// own line on a count set to something else.
+Call0Fn g_SC4EffectDescription_ConstructWhole = nullptr;
+
+uint32_t DescriptionNoHolders(char* self)
+{
+    At<uint32_t>(self, 0x204) = 0;
+    return reinterpret_cast<uint32_t>(self);
+}
+
+uint32_t __fastcall DescriptionWholeByMode(char* self, void*)
+{
+    if (g_listsMode == StepMode::Original)
+        return g_SC4EffectDescription_ConstructWhole(self, nullptr);
+    if (g_listsMode == StepMode::Ours) {
+        CallThis<uint32_t>(addr::SC4EffectDescription_Construct, self);
+        return DescriptionNoHolders(self);
+    }
+    const uint32_t result = g_SC4EffectDescription_ConstructWhole(self, nullptr);
+    const uint32_t holders = At<uint32_t>(self, 0x204);
+    At<uint32_t>(self, 0x204) = 0xFFFFFFFF;
+    const bool same = DescriptionNoHolders(self) == result && At<uint32_t>(self, 0x204) == holders;
+    compare::Record("effects.lists.whole_ctor", same, same ? std::string() : std::to_string(holders),
+                    same ? std::string() : std::string("0"));
+    At<uint32_t>(self, 0x204) = holders;
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectDescription_ConstructWhole, DescriptionWholeByMode, 0)
+
+bool InstallLists(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4EffectDescription_ReadListA, reinterpret_cast<void (*)()>(&ReadListAByMode),
+                 &g_SC4EffectDescription_ReadListA) &&
+          Detour(addr::SC4EffectDescription_ReadListB, reinterpret_cast<void (*)()>(&ReadListBByMode),
+                 &g_SC4EffectDescription_ReadListB) &&
+          Detour(addr::SC4EffectDescription_ResizeListA, &TSC4EffectDescription_ResizeListA,
+                 &g_SC4EffectDescription_ResizeListA) &&
+          Detour(addr::SC4EffectDescription_ResizeListB, &TSC4EffectDescription_ResizeListB,
+                 &g_SC4EffectDescription_ResizeListB) &&
+          Detour(addr::SC4EffectDescription_InsertListA, &TSC4EffectDescription_InsertListA,
+                 &g_SC4EffectDescription_InsertListA) &&
+          Detour(addr::SC4EffectDescription_InsertListB, &TSC4EffectDescription_InsertListB,
+                 &g_SC4EffectDescription_InsertListB) &&
+          Detour(addr::SC4EffectDescription_ReadListC, reinterpret_cast<void (*)()>(&ReadListCByMode),
+                 &g_SC4EffectDescription_ReadListC) &&
+          Detour(addr::SC4EffectDescription_ResizeListC, &TSC4EffectDescription_ResizeListC,
+                 &g_SC4EffectDescription_ResizeListC) &&
+          Detour(addr::SC4EffectDescription_InsertListC, &TSC4EffectDescription_InsertListC,
+                 &g_SC4EffectDescription_InsertListC) &&
+          Detour(addr::SC4EffectDescription_ConstructWhole, &TSC4EffectDescription_ConstructWhole,
+                 &g_SC4EffectDescription_ConstructWhole)))
+        return false;
+    g_listsMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: a description's lists' reading %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredLists = registry::Register({
+    "renderer.effects.lists",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDescription_ReadListA,
+    "A description's three lists read from the effects file, their resizing and the inserts under it, and the "
+    "whole constructor's last line; "
+    "compare mode notes what the game's reads from the stream and has ours read the same into a copy of the list, "
+    "and runs the inserts on a copy (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallLists,
+});
+
+bool InstallRelease(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4EffectDescription_Release ||
+          Detour(addr::SC4EffectDescription_Release, &TSC4EffectDescription_Release,
+                 &g_SC4EffectDescription_Release)))
+        return false;
+    g_releaseMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: a description's letting go %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredRelease = registry::Register({
+    "renderer.effects.release",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDescription_Release,
+    "A description let go by one of its holders, and destroyed by the last; compare mode runs ours and the game's "
+    "on the count while a holder is left (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallRelease,
+});
+
+bool InstallDtor(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4Effect_Destruct, &TSC4Effect_Destruct, &g_SC4Effect_Destruct) &&
+          Detour(addr::SC4EffectB_Destruct, &TSC4EffectB_Destruct, &g_SC4EffectB_Destruct) &&
+          Detour(addr::SC4Effect_Delete, &TSC4Effect_Delete, &g_SC4Effect_Delete) &&
+          Detour(addr::SC4EffectB_Delete, &TSC4EffectB_Delete, &g_SC4EffectB_Delete)))
+        return false;
+    // The comparison notes what the game's destructors call.
+    if (mode == registry::Mode::Compare &&
+        !(Detour(addr::SC4EffectBatch_Destruct, &TSC4EffectBatch_Destruct, &g_SC4EffectBatch_Destruct) &&
+          Detour(addr::SC4EffectBase_Destruct, &TSC4EffectBase_Destruct, &g_SC4EffectBase_Destruct) &&
+          Detour(addr::SC4EffectPartB_Destruct, &TSC4EffectPartB_Destruct, &g_SC4EffectPartB_Destruct) &&
+          (g_SC4EffectDescription_Release ||
+           Detour(addr::SC4EffectDescription_Release, &TSC4EffectDescription_Release,
+                  &g_SC4EffectDescription_Release))))
+        return false;
+    g_dtorMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects' destructors %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDtor = registry::Register({
+    "renderer.effects.dtor",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_Destruct,
+    "The two effect classes' destructors, alone and with the memory freed: what the effect holds released or let "
+    "go, its batch, part and sub-object destroyed; compare mode notes the game's calls and checks ours would make "
+    "the same (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallDtor,
 });
 
 bool InstallGround(registry::Mode mode)

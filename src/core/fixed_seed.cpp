@@ -203,8 +203,42 @@ void __cdecl Srand(unsigned seed)
     g_srand(g_base);
 }
 
-// OPENSC4_RAND_TRACE=<file>: every rand() call's caller and thread, as
-// pairs of 32-bit words, in call order, to find where two runs part.
+// The C runtime's rand(): one sequence per thread, which the simulation
+// (the cell walks' starts and steps 0x0049CBE0 and 0x0049D1C0, the shuffles
+// 0x005CF610, 0x006C68C0 and 0x006DB010, the landfill's pictures 0x006BCFC0,
+// Lua's math.random) shares on the main thread with the sound code, which
+// draws when a sound starts or on a real-time stopwatch (0x004EE560,
+// 0x008D2CFD, 0x008D3442, 0x008D546F). How many sounds had started when a
+// walk picked its start changed from run to run, and the flammability and
+// weather walks with it (docs/experiments/determinism.md). So did the lot
+// developer's shuffle of every building at nightfall and daybreak, which
+// follow real time. Those draws come from a sequence of their own.
+struct SoundCaller {
+    uintptr_t start, end;
+};
+constexpr SoundCaller kSoundCallers[] = {
+    {0x004EE560, 0x004EE970}, // an audio event handler: a wait of 1 to 4 s
+    {0x008D2CFD, 0x008D2E60}, // GZSound
+    {0x008D3442, 0x008D3486},
+    {0x008D546F, 0x008D54C3},
+    // Not sound, but as far from the simulation: the lot developer shuffles
+    // its buildings when the view's day turns to night or back (message
+    // 0x44778234, on real time), for the order their lights change in.
+    {0x006C68C0, 0x006C69D0},
+};
+std::atomic<uint32_t> g_soundState{0x5EED50FDu};
+
+int NextSoundRand()
+{
+    // The C runtime's own generator, on our state.
+    const uint32_t next = g_soundState.load(std::memory_order_relaxed) * 214013u + 2531011u;
+    g_soundState.store(next, std::memory_order_relaxed);
+    return static_cast<int>((next >> 16) & 0x7FFF);
+}
+
+// OPENSC4_RAND_TRACE=<file>: every rand() call's caller, thread and the
+// next two code addresses up the stack, as four 32-bit words, in call
+// order, to find where two runs part (the sound code's calls too).
 using RandFn = int(__cdecl*)();
 RandFn g_rand = nullptr;
 std::FILE* g_randTrace = nullptr;
@@ -214,10 +248,25 @@ CRITICAL_SECTION g_randLock;
 
 int __cdecl Rand()
 {
-    const int value = g_rand();
+    const auto caller = reinterpret_cast<uintptr_t>(_ReturnAddress());
+    bool sound = false;
+    for (const SoundCaller& range : kSoundCallers)
+        sound = sound || (caller >= range.start && caller < range.end);
+    const int value = sound ? NextSoundRand() : g_rand();
+    if (!g_randTrace)
+        return value;
     EnterCriticalSection(&g_randLock);
-    g_randBuffer[g_randUsed++] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(_ReturnAddress()));
+    // The caller, the thread, and the next two code addresses up the stack
+    // (who asked the caller).
+    uint32_t above[2] = {0, 0};
+    const auto* words = static_cast<const uint32_t*>(_AddressOfReturnAddress()) + 1;
+    for (int i = 0, found = 0; i < 64 && found < 2; ++i)
+        if (words[i] >= 0x00401000 && words[i] < 0x00A80000)
+            above[found++] = words[i];
+    g_randBuffer[g_randUsed++] = static_cast<uint32_t>(caller);
     g_randBuffer[g_randUsed++] = GetCurrentThreadId();
+    g_randBuffer[g_randUsed++] = above[0];
+    g_randBuffer[g_randUsed++] = above[1];
     if (g_randUsed == sizeof(g_randBuffer) / sizeof(g_randBuffer[0])) {
         std::fwrite(g_randBuffer, sizeof(uint32_t), g_randUsed, g_randTrace);
         std::fflush(g_randTrace);
@@ -244,6 +293,14 @@ bool InstallHooks()
     const addr::Entry* lcg = addr_check::Find(addr::cRZRandom_Seed);
     const addr::Entry* mt = addr_check::Find(addr::cRZRandomSuper_Seed);
     g_hooksOk = lcg && mt && hook::Install(*lcg, &SeedLcg, &g_seedLcg) && hook::Install(*mt, &SeedMt, &g_seedMt);
+    // The sound code's rand() calls leave the simulation's sequence alone
+    // (OPENSC4_SHARED_RAND=1: as the game has it).
+    char shared[4];
+    if (GetEnvironmentVariableA("OPENSC4_SHARED_RAND", shared, sizeof(shared)) == 0) {
+        const addr::Entry* rand = addr_check::Find(addr::CRT_rand);
+        if (!rand || !hook::Install(*rand, &Rand, &g_rand))
+            log::Write("fixed_seed: rand() not hooked; the sound code shares the simulation's sequence");
+    }
     return g_hooksOk;
 }
 
@@ -259,11 +316,13 @@ bool Apply(registry::Mode)
     const bool ok = srand && InstallHooks() && hook::Install(*srand, &Srand, &g_srand);
     char tracePath[MAX_PATH];
     const DWORD traceLength = GetEnvironmentVariableA("OPENSC4_RAND_TRACE", tracePath, sizeof(tracePath));
-    if (ok && traceLength > 0 && traceLength < sizeof(tracePath)) {
+    if (ok && g_rand && traceLength > 0 && traceLength < sizeof(tracePath)) {
         InitializeCriticalSection(&g_randLock);
-        const addr::Entry* rand = addr_check::Find(addr::CRT_rand);
-        if (fopen_s(&g_randTrace, tracePath, "wb") == 0 && rand && hook::Install(*rand, &Rand, &g_rand))
+        std::FILE* trace = nullptr;
+        if (fopen_s(&trace, tracePath, "wb") == 0) {
+            g_randTrace = trace;
             log::Write("fixed_seed: tracing rand() callers to %s", tracePath);
+        }
     }
     log::Write("fixed_seed: base 0x%08X, %s", g_base, ok ? "installed" : "FAILED");
     return ok;
@@ -281,6 +340,11 @@ const bool g_registered = registry::Register({
 });
 
 } // namespace
+
+int SoundRand()
+{
+    return g_rand ? NextSoundRand() : reinterpret_cast<int(__cdecl*)()>(addr::CRT_rand)();
+}
 
 bool InstallForGameSeed()
 {

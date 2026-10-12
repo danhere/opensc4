@@ -1,0 +1,410 @@
+# The small occupant filter classes (the filter base, default, type, types, hashed types, realistic, network, view level and group filters, the lot's own filter) and their factories: the entries our translations hook (src/core/occfilters_1.cpp).
+
+[[entry]]
+name = "SC4OccupantFilterBase::GetGZCLSID"
+address = 0x005E95B0
+kind = "function"
+convention = "thiscall"
+expect = "B8 C9 4D C7 A9 C3 CC CC"
+source = "Name ours. The base filter's cIGZSerializable slot 5 (vtable 0x00AA42B0, in 44 vtables): 0xA9C74DC9 (docs/occfilters.md)."
+
+[[entry]]
+name = "SC4OccupantFilterBase::QueryInterface"
+address = 0x005E95D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "Name ours. Slot 0 of the filter vtable (iid, void** out), ret 8, in 44 vtables: IIDs 1 and 0x46A80026 give the object, 0xE4FDA3D4 the part at +4 (null for a null object, after which the AddRef through the null object crashes); AddRef through slot 1 first, true. Any other IID: false. Missing from the survey's function list (docs/occfilters.md)."
+
+[[entry]]
+name = "SC4OccupantFilterBase::DeletingDestructor"
+address = 0x005E9790
+kind = "function"
+convention = "thiscall"
+expect = "F6 44 24 04 01 56 8B F1"
+source = "Name ours. Slot 6 of the base filter vtable 0x00AA42C8 (flags), ret 4: the base vtables, and with flag 1 the object freed (0x005E5620); returns the object."
+
+[[entry]]
+name = "SC4OccupantFilterAll::IsPropertyHolderIncluded"
+address = 0x005E96E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 68"
+source = "Name ours. Slot 5 of the default and the realistic filter (vtables 0x00A87FC0, 0x00A88084): (property holder), ret 4. False when the holder has property 0x49512A09 or 0x8A15F1BD or its bool property 0xCAA45670 is set."
+
+[[entry]]
+name = "SC4OccupantTypeFilter::GetGZCLSID"
+address = 0x005E9730
+kind = "function"
+convention = "thiscall"
+expect = "B8 D1 5E C7 E9 C3 CC CC"
+source = "Name ours. The type filter's (single type at +0xC, vtable 0x00A8F79C) cIGZSerializable slot 5: 0xE9C75ED1."
+
+[[entry]]
+name = "SC4OccupantTypeFilter::IsOccupantTypeIncluded"
+address = 0x005E9740
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 56 8B 71 0C"
+source = "Name ours. Slot 4 of the type filter: (type), ret 4, whether it is the filter's type (+0xC)."
+
+[[entry]]
+name = "SC4OccupantTypesFilter::GetGZCLSID"
+address = 0x005E9760
+kind = "function"
+convention = "thiscall"
+expect = "B8 E8 5E C7 E9 C3 CC CC"
+source = "Name ours. The types filter's (vector of types at +0xC, vtable 0x00A8EDBC) cIGZSerializable slot 5: 0xE9C75EE8."
+
+[[entry]]
+name = "SC4OccupantTypesHashedFilter::GetGZCLSID"
+address = 0x005E9770
+kind = "function"
+convention = "thiscall"
+expect = "B8 90 CB 25 AA C3 CC CC"
+source = "Name ours. The hashed types filter's (hash set at +0xC, vtable 0x00A8EE38) cIGZSerializable slot 5: 0xAA25CB90."
+
+[[entry]]
+name = "SC4OccupantFilterByKind::GetGZCLSID"
+address = 0x005E9780
+kind = "function"
+convention = "thiscall"
+expect = "B8 1D C0 C3 AA C3 CC CC"
+source = "Name ours. The view level filter's (kind at +0xC, vtable 0x00A8FAD4) cIGZSerializable slot 5: 0xAAC3C01D."
+
+[[entry]]
+name = "SC4OccupantFilterAll::Write"
+address = 0x005E9810
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 6A"
+source = "Name ours. cIGZSerializable slot 3 of the default filter (vtable 0x00A87FA8), ret 4: two 16-bit 3, then no error."
+
+[[entry]]
+name = "SC4OccupantFilterAll::Read"
+address = 0x005E9840
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Name ours. cIGZSerializable slot 4 of the default filter, ret 4: two 16-bit values, both must be 3 (the second is a stack slot the game leaves holding the object's low word when the stream gives nothing), then no error."
+
+[[entry]]
+name = "SC4OccupantTypeFilter::Write"
+address = 0x005E9890
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. cIGZSerializable slot 3 of the type filter (vtable 0x00A8F784), ret 4: 3 and 3 as 16 bits, then the type as 32 bits when there is no error; no error."
+
+[[entry]]
+name = "SC4OccupantTypeFilter::Read"
+address = 0x005E98E0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Name ours. cIGZSerializable slot 4 of the type filter, ret 4: version 3, then a second 3 and the type; no error."
+
+[[entry]]
+name = "SC4OccupantTypesFilter::IsOccupantTypeIncluded"
+address = 0x005E9950
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 3B 41 10 75 05"
+source = "Name ours. Slot 4 of the types filter (vtable 0x00A8EDBC): (type), ret 4, true when the vector at +0xC is empty, else whether the type is in it."
+
+[[entry]]
+name = "SC4RealisticOccupantFilter::Write"
+address = 0x005E9AF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. cIGZSerializable slot 3 of the realistic filter (vtable 0x00A8806C), ret 4: 16-bit 4, the three flags as bools (0x005D9FD0), 3 and 3; no error."
+
+[[entry]]
+name = "SC4RealisticOccupantFilter::Read"
+address = 0x005E9B50
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. cIGZSerializable slot 4 of the realistic filter, ret 4: version below 3 refused; two bools, a third (else a copy of the second) with version 4 or more, then the default filter's Read."
+
+[[entry]]
+name = "SC4NetworkOccupantFilter::IsOccupantIncluded"
+address = 0x005E9BD0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8D 54 24 04 8B F1"
+source = "Name ours. Slot 3 of the network filter (class 0xEAC3A3D2, vtable 0x00AA42FC, mask at +0xC): (occupant), ret 4, true when the occupant has interface 0xA821EF94 (network occupant) and its slot 0x30 shares a bit with the mask."
+
+[[entry]]
+name = "SC4NetworkOccupantFilter::Write"
+address = 0x005E9C30
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. cIGZSerializable slot 3 of the network filter (vtable 0x00AA42E4), ret 4: 16-bit 1, the mask; no error."
+
+[[entry]]
+name = "SC4NetworkOccupantFilter::Read"
+address = 0x005E9C60
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. cIGZSerializable slot 4 of the network filter, ret 4: version 1 only, the mask; no error."
+
+[[entry]]
+name = "SC4OccupantFilterByKind::GetKind"
+address = 0x005E9CA0
+kind = "function"
+convention = "custom"
+expect = "83 EC 14 8B 06 53 55 57"
+source = "Name ours. ESI the occupant, EAX the result (1, 2 or 3; EBX, EBP, EDI kept): 3 for pipe (0x49C05B9F) and 0xEA0A5ACF occupants and a holder with property 0x49512A09; 2 for interfaces 0xCA16374F and 0xCA15ED6B, groups 0x4217, 0x4208, 0x421D and property 0x8A15F1BD; otherwise the bool properties 0xCAA45672, 0xCAA45671, 0xCAA45670 decide 3, 2, 1. Callers 0x005E9E40 and 0x005E9F20."
+
+[[entry]]
+name = "SC4OccupantFilterByKind::IsOccupantIncluded"
+address = 0x005E9E40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Name ours. Slot 3 of the view level filter (vtable 0x00A8FAD4): (occupant), ret 4, whether the occupant's kind (0x005E9CA0) is the filter's (+0xC)."
+
+[[entry]]
+name = "SC4OccupantFilterByKind::Write"
+address = 0x005E9E60
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. cIGZSerializable slot 3 of the view level filter (vtable 0x00A8FABC), ret 4: 16-bit 1, the kind as 8 bits; no error."
+
+[[entry]]
+name = "SC4OccupantFilterByKind::Read"
+address = 0x005E9E90
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Name ours. cIGZSerializable slot 4 of the view level filter, ret 4: version 1 only, the kind as 8 bits into +0xC; no error."
+
+[[entry]]
+name = "SC4StringSpecificationOccupantFilter::GetOccupants"
+address = 0x005E9EE0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 0D 0C 3D B4 00"
+source = "Name ours. (list, limit), ret 8: the occupant manager's GetOccupantsByBBox (0x00B43D0C slot 36) over the filter's box (floats at +0xC and +0x18) with the filter itself. Returns its count; with no manager EAX is the object with its low byte cleared. One caller, 0x005C8B30."
+
+[[entry]]
+name = "SC4StringSpecificationOccupantFilter::IsOccupantIncluded"
+address = 0x005E9F20
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. Slot 3 of the string specification filter (class 0x0BCEB6C2, vtable 0x00AA442C): (occupant), ret 4. Three vectors (types +0x24, groups +0x30, kinds +0x3C; an empty one passes): the occupant's type is in the first, one of its groups in the second, its kind (0x005E9CA0) in the third."
+
+[[entry]]
+name = "SC4OccupantGroupFilter::IsOccupantIncluded"
+address = 0x005EA020
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 0C 32 DB"
+source = "Name ours. Slot 3 of the occupant group filter (vtable 0x00AA4330, groups vector at +0xC; no class ID): (occupant), ret 4, true when the occupant is in one of the groups; false for none."
+
+[[entry]]
+name = "SC4OccupantTypesFilter::Write"
+address = 0x005EA0A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. cIGZSerializable slot 3 of the types filter (vtable 0x00A8EDA4), ret 4: 3 and 3 as 16 bits, the count, each type as 32 bits; no error."
+
+[[entry]]
+name = "SC4NetworkOccupantFilter::GetGZCLSID"
+address = 0x005EA120
+kind = "function"
+convention = "thiscall"
+expect = "B8 D2 A3 C3 EA C3 CC CC"
+source = "Name ours. The network filter's cIGZSerializable slot 5: 0xEAC3A3D2."
+
+[[entry]]
+name = "SC4OccupantFilterBase::Factory"
+address = 0x005EA130
+kind = "function"
+convention = "cdecl"
+expect = "6A 0C E8 A9 B4 FF FF 83"
+source = "Name ours. The factory of class 0xA9C74DC9 (0xC bytes, registered at 0x00460863): the base vtables, reference count 0; null when the allocation fails."
+
+[[entry]]
+name = "SC4OccupantFilterAll::Factory"
+address = 0x005EA160
+kind = "function"
+convention = "cdecl"
+expect = "6A 0C E8 79 B4 FF FF 83"
+source = "Name ours. The factory of class 0xC9C75EAE (0xC bytes, vtables 0x00A87FC0 and 0x00A87FA8)."
+
+[[entry]]
+name = "SC4OccupantTypeFilter::Factory"
+address = 0x005EA190
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 49 B4 FF FF 33"
+source = "Name ours. The factory of class 0xE9C75ED1 (0x10 bytes, vtables 0x00A8F79C and 0x00A8F784; type 0)."
+
+[[entry]]
+name = "SC4NetworkOccupantFilter::Factory"
+address = 0x005EA1C0
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 19 B4 FF FF 83"
+source = "Name ours. The factory of class 0xEAC3A3D2 (0x10 bytes, vtables 0x00AA42FC and 0x00AA42E4; mask 0x1FFF)."
+
+[[entry]]
+name = "SC4OccupantFilterByKind::Factory"
+address = 0x005EA200
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 D9 B3 FF FF 83"
+source = "Name ours. The factory of class 0xAAC3C01D (0x10 bytes, vtables 0x00A8FAD4 and 0x00A8FABC; kind 1)."
+
+[[entry]]
+name = "SC4RealisticOccupantFilter::Factory"
+address = 0x005EA240
+kind = "function"
+convention = "cdecl"
+expect = "6A 10 E8 99 B3 FF FF 33"
+source = "Name ours. The factory of class 0x8A7A1C2C (0x10 bytes, vtables 0x00A88084 and 0x00A8806C; the three flags clear)."
+
+[[entry]]
+name = "SC4OccupantGroupFilter::SC4OccupantGroupFilter"
+address = 0x005EA280
+kind = "function"
+convention = "thiscall"
+expect = "33 D2 56 8B F1 C7 46 04"
+source = "Name ours. (group), ret 4, on 0x10 bytes the caller allocated: the group filter vtables 0x00AA4330 and 0x00AA4318, reference count 0, the groups vector (+0xC) holding the group unless it is 0 (grown through 0x0051CA60; the test before it compares the vector's end with 0, so a new vector always grows). One caller, 0x00526613."
+
+[[entry]]
+name = "SC4OccupantGroupFilter::AddGroup"
+address = 0x005EA2F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 85 D2 74 2C"
+source = "Name ours. Slot 7 of the group filter vtable 0x00AA4330, ret 4: pushes a group (0 is ignored) onto the vector at +0xC."
+
+[[entry]]
+name = "SC4OccupantTypesFilter::Factory"
+address = 0x005EA330
+kind = "function"
+convention = "cdecl"
+expect = "6A 18 E8 A9 B2 FF FF 33"
+source = "Name ours. The factory of class 0xE9C75EE8 (0x18 bytes, vtables 0x00A8EDBC and 0x00A8EDA4; an empty vector at +0xC)."
+
+[[entry]]
+name = "SC4OccupantTypesHashedFilter::Write"
+address = 0x005EA370
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours. cIGZSerializable slot 3 of the hashed types filter (vtable 0x00A8EE20), ret 4: 3 and 3 as 16 bits, the count, then each key in the hash set's iteration order (bucket order); no error."
+
+[[entry]]
+name = "SC4OccupantFilterWithList::DeletingDestructor"
+address = 0x005EA420
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 E8 6D EA FF"
+source = "Name ours. Slot 6 of the types filter and the group filter (and one more vtable, 0x00A97DFC), ret 4: 0x00491210, and with flag 1 the object freed (0x005E5620); returns the object."
+
+[[entry]]
+name = "SC4OccupantGroupFilter::CopyConstruct"
+address = 0x005EA440
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 56 8B F1 C7 46 04"
+source = "Name ours. (vector of uint32), ret 4, on 0x10 bytes the caller allocated: the group filter vtables, reference count 0, the groups copied from the vector (0x00462C10). One caller, 0x0050F401."
+
+[[entry]]
+name = "SC4OccupantTypesFilter::Read"
+address = 0x005EA490
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 8B 74 24"
+source = "Name ours. cIGZSerializable slot 4 of the types filter, ret 4: version 3, then (when the second 16-bit value is 3) the count, the vector at +0xC resized to it (0x006BDF10, filled with 0) and read in; no error."
+
+[[entry]]
+name = "SC4OccupantTypesHashedFilter::Read"
+address = 0x005EA550
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 55 56 8B 74 24"
+source = "Name ours. cIGZSerializable slot 4 of the hashed types filter, ret 4: version 3, then the count and for each key the set grown by one (0x004F0940) and the key inserted (0x00624DD0); no error."
+
+[[entry]]
+name = "SC4OccupantFilterWithList::Destroy"
+address = 0x00491210
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 0C 85 C0"
+source = "Name ours. The destructor of the types and group filters: frees the vector at +0xC (0x0090CF63) when it has memory, then the base filter's Destroy (0x005E95C0). Ours inline in 0x005EA420."
+
+[[entry]]
+name = "SC4OccupantFilterBase::vftable_4"
+address = 0x00AA42B0
+kind = "vtable"
+expect = "E0 4E 42 00 00 05 5C 00"
+source = "Name ours. The base filter's cIGZSerializable vtable (6 slots: thunks, Write 0x005E97C0, Read 0x005E97E0, GetGZCLSID 0x005E95B0)."
+
+[[entry]]
+name = "SC4NetworkOccupantFilter::vftable"
+address = 0x00AA42FC
+kind = "vtable"
+expect = "D0 95 5E 00 00 DF 4B 00"
+source = "Name ours. The network filter's vtable (slot 3 the test 0x005E9BD0)."
+
+[[entry]]
+name = "SC4NetworkOccupantFilter::vftable_4"
+address = 0x00AA42E4
+kind = "vtable"
+expect = "E0 4E 42 00 00 05 5C 00"
+source = "Name ours. The network filter's cIGZSerializable vtable (Write 0x005E9C30, Read 0x005E9C60, GetGZCLSID 0x005EA120)."
+
+[[entry]]
+name = "SC4OccupantGroupFilter::vftable"
+address = 0x00AA4330
+kind = "vtable"
+expect = "D0 95 5E 00 00 DF 4B 00"
+source = "Name ours. The occupant group filter's vtable (slot 3 the test 0x005EA020, slot 6 0x005EA420, slot 7 AddGroup 0x005EA2F0, slot 8 a thunk 0x005EA480 to the vector copy 0x00462C10 on +0xC)."
+
+[[entry]]
+name = "SC4OccupantGroupFilter::vftable_4"
+address = 0x00AA4318
+kind = "vtable"
+expect = "E0 4E 42 00 00 05 5C 00"
+source = "Name ours. The group filter's cIGZSerializable vtable (the base filter's Write, Read and GetGZCLSID)."
+
+[[entry]]
+name = "SC4OccupantTypesHashedFilter::vftable"
+address = 0x00A8EE38
+kind = "vtable"
+expect = "D0 95 5E 00 00 DF 4B 00"
+source = "Name ours. The hashed types filter's vtable."
+
+[[entry]]
+name = "SC4OccupantTypesHashedFilter::vftable_4"
+address = 0x00A8EE20
+kind = "vtable"
+expect = "E0 4E 42 00 00 05 5C 00"
+source = "Name ours. The hashed types filter's cIGZSerializable vtable (Write 0x005EA370, Read 0x005EA550, GetGZCLSID 0x005E9770)."
+
+[[entry]]
+name = "cSC4LotOccupantFilter::IsOccupantIncluded"
+address = 0x006BFB80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 57 8B"
+source = "Name ours. Slot 3 of the lot's occupant filter (vtable 0x00AB1830, 0x38 bytes made by GetLotOccupants): (occupant), ret 4. The occupant's x and z (GetPosition) within the box at +0xC..+0x18 (inclusive), and both embedded filters (+0x1C a default filter, +0x28 a realistic one) include it."
+
+[[entry]]
+name = "cSC4LotOccupantFilter::DeletingDestructor"
+address = 0x006BFC10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 28 E8 A5"
+source = "Name ours. Slot 6 of the lot's occupant filter, ret 4 (flags): the base Destroy on the parts at +0x28, +0x1C and +0, and with flag 1 the object freed (0x005E5620); returns the object."

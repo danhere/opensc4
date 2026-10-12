@@ -304,7 +304,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4EffectBase* this, SC4Particle* particle)"
 expect = "81 EC D8 00 00 00 55 8B"
-source = "Name ours, not analysed. Slot 0x40 of the second effect class's sub-object (vtable 0x00AA0C10)."
+source = "Name ours (0x005AF390 to 0x005AF930). Slot 0x40 of the second effect class's sub-object (vtable 0x00AA0C10): with an object at +0x274 and a particle within its life, SC4EffectB::RestartParticle; else the particle's own effect stopped (slot 0x10 with +0x188) and released, for effects with +0x26A and nothing at +0x188 the effect named with \"_death\" (0x00AA0CDC) made by the effects manager where the particle was, placed, started and let go, and the particle put on the free list 0x00B0A5CC; last the object at +0x274 told (slot 4 with 0) when no particle is left and +0xC is set. Ours in renderer.effects.giveback_b (src/core/effect_giveback_b.inc)."
 
 [[entry]]
 name = "SC4Effect::SpawnFromParticle"
@@ -412,7 +412,7 @@ kind = "function"
 convention = "thiscall"
 signature = "uint32_t (SC4EffectDescription* this)"
 expect = "56 8B F1 8B 86 04 02 00"
-source = "Name ours. Lowers the count at +0x204; at 0 destroys the object (0x0059ECB0) and frees it. The pair of SC4Effect::Hold."
+source = "Name ours. Lowers the count at +0x204; at 0 destroys the object (0x0059ECB0) and frees it. The pair of SC4Effect::Hold. Ours in renderer.effects.release."
 
 [[entry]]
 name = "SC4Effect::LoadTexture"
@@ -421,7 +421,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, uint32_t which)"
 expect = "51 53 57 8B F9 C7 47 68"
-source = "Name ours, not analysed. Called by SC4Effect::SetDescription (0x005B7CE3) with the description's +0xD0; sets the effect's +0x68."
+source = "Name ours. Called by SC4Effect::SetDescription (0x005B7CE3) with the description's +0xD0: clears the handle at +0x68, asks the framework (0x008793EC, slot 0x14) for the service 0x1AC0E11A by interface 0xFAC0E219, lets go of what +0x6C held (0x008090E0), asks the service for the texture by ID into +0x6C (slot 0x14) and on success keeps the word the holder's first word points at as +0x68; releases the service (0x004495C0). Ours in renderer.effects.texture."
 
 [[entry]]
 name = "SC4Effect::SortBatch"
@@ -440,6 +440,258 @@ convention = "thiscall"
 signature = "void (SC4EffectBase* this)"
 expect = "56 8B F1 8A 46 04 84 C0"
 source = "Name ours. On the sub-object at the effect's +4: for one in use (+4), clears +0xC and +0xD, calls its slot 0x20 with (0, 0) (SC4EffectBase::SetEnding: every particle given back) and clears +4. SC4EffectBase::LetGo ends in a jump to it (0x005B248B). Ours in renderer.effects.stop."
+
+[[entry]]
+name = "SC4EffectB::SetDescription"
+address = 0x005AEC90
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4EffectDescription* description)"
+expect = "83 EC 14 56 57 8B 7C 24"
+source = "Name ours (0x005AEC90 to 0x005AEF1D). Slot 0x28 of the second effect class (vtable 0x00AA0C58), for descriptions with bit 0 of their third word of flags: SC4Effect::SetDescription, then the model instance (+0x220) and model (+0x224) released, the object at +0x278 ended (slot 0x20), the part at +0x228 cleared, a model loaded (slot 0x54) by the description's +0xD0 or one of its list at +0x1E0 picked at random, the instance and the part set up, and the effects manager asked for two more named effects (+0x26D, +0x26E). Ours in renderer.effects.description_b (src/core/effect_description_b.inc)."
+
+[[entry]]
+name = "SC4EffectB::LoadModel"
+address = 0x005AC610
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, uint32_t which)"
+expect = "8B 44 24 04 83 EC 34 85"
+source = "Name ours (0x005AC610 to 0x005AC86A). Slot 0x54 of the second effect class, with the model's instance ID (nothing for 0): the resource of type 0x5AD0E817, group 0xBADB57F1 asked of the resource manager (0x00B43CA8 slot 0xC), the old model (+0x224) released and a new one made (the resource's slot 0x10), its holder-counting part kept at +0x220, its slot 0x40 called with 3, the largest side of its box at +0x274, and each material's flags (interface 0x26A68448) set by the description's kind (+0xD4, jump table 0x005AC870) and flag 0x400 of its third word. SC4EffectB::SetDescription calls it (0x005AED73). Ours in renderer.effects.model_b (src/core/effect_model_b.inc)."
+
+[[entry]]
+name = "SC4EffectPartB::Attach"
+address = 0x008038D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* instance)"
+expect = "83 EC 0C 53 55 8B E9 8B"
+source = "Class and name ours, not analysed. SC4EffectB::SetDescription calls it on the part of the effect at +0x228, with 0 (0x005AED0B) and with the model instance (0x005AEDE4, the answer kept at +0x26C). Not in the effects' code: other classes may use it."
+
+[[entry]]
+name = "SC4EffectPartB::Place"
+address = 0x00802DB0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* place)"
+expect = "83 EC 2C 8B 41 04 56 33"
+source = "Class and name ours, not analysed. SC4EffectB::SetDescription calls it on the part at +0x228 with (0, 0, -1) when the part took the instance (0x005AEE12). Not in the effects' code: other classes may use it."
+
+[[entry]]
+name = "SC4EffectPartB::SetDescription"
+address = 0x005AC110
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, SC4EffectDescription* description)"
+expect = "53 56 8B 74 24 0C 8B D9"
+source = "Name ours. The part at the effect's +0x228 given a description at its +0x40: the new one held (SC4Effect::Hold), the old let go (SC4EffectDescription::Release). SC4EffectB::SetDescription calls it for flag 0x100 of the description's third word (0x005AEDCD). Ours in renderer.effects.holders."
+
+[[entry]]
+name = "SC4EffectB::RestartParticle"
+address = 0x005AF060
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4Particle* particle)"
+expect = "81 EC 80 00 00 00 53 55"
+source = "Name ours, not analysed. SC4EffectBaseB::GiveBackParticle calls it (0x005AF3C3) in place of giving the particle back, for an effect with an object at +0x278 whose particle is within its life: the particle's age set back and a new random life, and more."
+
+[[entry]]
+name = "SC4Effect::SetObject"
+address = 0x005B26B0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, void* object)"
+expect = "53 56 8B 74 24 0C 8B D9"
+source = "Name ours. Sets the object the effect holds at +0x1EC: nothing when it is the one held; else the new one held (its slot 4), kept, and the old one let go (its slot 8). Called by the effects manager (0x00590C8B, 0x00593F0A, 0x00593F4B). Ours in renderer.effects.holders."
+
+[[entry]]
+name = "SC4EffectDescription::Construct"
+address = 0x005B0FE0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "83 EC 18 53 33 DB 55 56"
+source = "Name ours. An effect description's constructor, called first by the whole object's (0x005B1660, 0x208 bytes): the fields' first values, an empty string in 8 bytes from 0x0090CF54, and one value put in each of seven lists (0x00676CC0, 0x0050C3B0 when a list has no room). Ours in renderer.effects.description_ctor."
+
+[[entry]]
+name = "SC4EffectDescription::InsertListA"
+address = 0x005B05A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* where, uint32_t count, const void* record)"
+expect = "83 EC 1C 57 8B F9 8B 4C"
+source = "Name ours. ret 0xC: inserts count copies of a 0x1C-byte record into a list at where: in place when the list has room, else through the growing insert 0x0059BBA0. Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4EffectDescription::InsertListB"
+address = 0x005B0700
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* where, uint32_t count, const void* record)"
+expect = "83 EC 20 56 8B F1 8B 4C"
+source = "Name ours. ret 0xC: inserts count copies of a 0x20-byte record into a list at where: in place when the list has room, else through the growing insert 0x0059B570. Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4EffectDescription::ConstructWhole"
+address = 0x005B1660
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 E8 78 F9 FF FF"
+source = "Name ours. The constructor of the whole description object (0x208 bytes, called by the manager at 0x0058AA06): SC4EffectDescription::Construct, then the count of holders at +0x204 cleared. Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4EffectDescription::ReadListC"
+address = 0x005B1D60
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* stream, void* list)"
+expect = "53 57 8B 7C 24 0C 8B 07"
+source = "Name ours. Reads a description's list of 0x10-byte records (a string and a float) from a stream: the count (slot 0x24), the resize (0x005B1CD0), then each record's string (0x005811F0) and float (slot 0x30); answers the stream. Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4EffectDescription::ResizeListC"
+address = 0x005B1CD0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count)"
+expect = "83 EC 10 53 56 57 6A 08"
+source = "Name ours. ret 4: resizes a list of 0x10-byte records (a string and a float): cut short (0x005B1790) or records with an empty string inserted at the end (0x005B1530). Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4EffectDescription::InsertListC"
+address = 0x005B1530
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* where, uint32_t count, const void* record)"
+expect = "83 EC 10 55 8B 6C 24 1C"
+source = "Name ours. ret 0xC: inserts count copies of a 0x10-byte record (a string and a float) into a list at where: in place when the list has room, else through the growing insert 0x005A17F0. Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4EffectDescription::ReadListA"
+address = 0x005B0930
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* stream, void* list)"
+expect = "83 EC 1C 53 57 8B 7C 24"
+source = "Name ours. Reads a description's list of 0x1C-byte records (seven floats) from a stream: the count (the stream's slot 0x24), the resize (0x005B0840), then each float (slot 0x30, the last six in threes through 0x005DA550); answers the stream. Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4EffectDescription::ReadListB"
+address = 0x005B09D0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* stream, void* list)"
+expect = "53 57 8B 7C 24 0C 8B 07"
+source = "Name ours. Reads a description's list of 0x20-byte records (eight floats) from a stream: the count (slot 0x24), the resize (0x005B08A0), then each float (slot 0x30); answers the stream. Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4EffectDescription::ResizeListA"
+address = 0x005B0840
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count, const void* record)"
+expect = "53 56 8B F1 8B 1E 57 8B"
+source = "Name ours. ret 8: resizes a list of 0x1C-byte records: cut short (0x005AFE00 over an empty range) or count minus its length copies of the record inserted at the end (0x005B05A0). Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4EffectDescription::ResizeListB"
+address = 0x005B08A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count)"
+expect = "83 EC 20 A1 54 2D B2 00"
+source = "Name ours. ret 4: resizes a list of 0x20-byte records: cut short (0x00624990 over an empty range) or records of the float at 0x00B22D54 six times and two zeroes inserted at the end (0x005B0700). Ours in renderer.effects.lists."
+
+[[entry]]
+name = "SC4Effect::Destruct"
+address = 0x005A62B0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this)"
+expect = "56 8B F1 8B 8E F0 01 00"
+source = "Name ours. An effect's destructor, also jumped to by the second class's and a third's (0x005A914A): releases +0x1F0 and +0x1EC (slot 8), lets go of the texture at +0x6C (0x008090E0), destroys the batch at +0x28 (0x005EC6E0), lets go of the description at +0x24 (0x005B1C80) and destroys the sub-object at +4 (0x005B9F40). Ours in renderer.effects.dtor."
+
+[[entry]]
+name = "SC4EffectB::Destruct"
+address = 0x005AC5B0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this)"
+expect = "56 8B F1 8B 8E 78 02 00"
+source = "Name ours. The second effect class's destructor: ends the object at +0x278 (slot 0x20), lets go of the description at +0x268, destroys the part at +0x228 (0x008030A0), releases the model at +0x224 through its counting part and the instance at +0x220, then SC4Effect::Destruct. Ours in renderer.effects.dtor."
+
+[[entry]]
+name = "SC4Effect::Delete"
+address = 0x005B2FE0
+kind = "function"
+convention = "thiscall"
+signature = "SC4Effect* (SC4Effect* this, uint32_t flags)"
+expect = "56 8B F1 E8 C8 32 FF FF"
+source = "Name ours. ret 4: SC4Effect::Destruct, then with bit 0 of flags the memory freed (0x005E5620); reached from the sub-object's table through the thunk at 0x005B2FD0. Ours in renderer.effects.dtor."
+
+[[entry]]
+name = "SC4EffectB::Delete"
+address = 0x005AC590
+kind = "function"
+convention = "thiscall"
+signature = "SC4Effect* (SC4Effect* this, uint32_t flags)"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. ret 4: SC4EffectB::Destruct, then with bit 0 of flags the memory freed (0x005E5620); reached from the sub-object's table through the thunk at 0x005AC580. Ours in renderer.effects.dtor."
+
+[[entry]]
+name = "SC4EffectBatch::Destruct"
+address = 0x005EC6E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 C7 06 AC 44 AA"
+source = "Name ours. The destructor of the batch an effect keeps at +0x28: sets its table of functions (0x00AA44AC) and frees its two buffers (+0x2C, +0x14). The game's; renderer.effects.dtor notes its calls in compare mode."
+
+[[entry]]
+name = "SC4EffectBase::Destruct"
+address = 0x005B9F40
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "C7 01 48 0F AA 00 83 C1"
+source = "Name ours. The destructor of an effect's sub-object: sets its table of functions (0x00AA0F48) and frees the list at +0x10 (0x005650A0). The game's; renderer.effects.dtor notes its calls in compare mode."
+
+[[entry]]
+name = "SC4EffectPartB::Destruct"
+address = 0x008030A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "51 56 8B F1 8B 0E 85 C9"
+source = "Name ours. The destructor of the part the second effect class keeps at +0x228 (constructed by 0x00803060). The game's; renderer.effects.dtor notes its calls in compare mode."
+
+[[entry]]
+name = "SC4EffectB::Construct"
+address = 0x005AC510
+kind = "function"
+convention = "thiscall"
+signature = "SC4Effect* (SC4Effect* this)"
+expect = "53 56 57 8B F1 E8 36 66"
+source = "Name ours. The second effect class's constructor: SC4Effect::Construct, the tables of functions 0x00AA0C58 and 0x00AA0C10, +0x220 and +0x224 cleared, the part at +0x228 constructed (0x00803060) with its +0x40 cleared, and +0x26C to +0x278 cleared. Ours in renderer.effects.ctor."
+
+[[entry]]
+name = "SC4Effect::Construct"
+address = 0x005B2B50
+kind = "function"
+convention = "thiscall"
+signature = "SC4Effect* (SC4Effect* this)"
+expect = "51 53 56 8B F1 57 8D 7E"
+source = "Name ours (0x005B2B50 to 0x005B2FC4). The base effect class's constructor: the sub-object at +4 (SC4EffectBase::Construct) and the batch at +0x28 (0x005EC690) constructed, the tables of functions 0x00AA0EA0 and 0x00AA0E58 set, and the fields given their first values; some bytes of the object are left as they were. The second class's constructor (0x005AC510) calls it. Ours in renderer.effects.ctor (src/core/effect_ctor.inc)."
+
+[[entry]]
+name = "SC4EffectBase::Construct"
+address = 0x005B9F00
+kind = "function"
+convention = "thiscall"
+signature = "SC4EffectBase* (SC4EffectBase* this)"
+expect = "53 33 DB 56 8B F1 C7 06"
+source = "Name ours. The sub-object's constructor: the table of functions 0x00AA0F48, the bytes and words up to +0x1C cleared, and an empty list at +0x10 (a 12-byte head node pointing at itself). Ours in renderer.effects.ctor."
 
 [[entry]]
 name = "SC4Effect::GetBox"
