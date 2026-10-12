@@ -1,0 +1,355 @@
+# cSC4Demolition (class ID 0x0990C38A), code 0x00466480 to 0x004695A0, and its two filter classes: the entries our translations hook (src/core/demolition_1.cpp, demolition_2.cpp).
+
+[[entry]]
+name = "cSC4Demolition::Vtable"
+address = 0x00A88004
+kind = "data"
+source = "Main vtable of the demolition service (cISC4Demolition, class ID 0x0990C38A, 0x34 bytes, factory 0x00466E40; 13 slots): QueryInterface 0x004664B0, AddRef 0x004664A0, Release 0x00466950, Init, Shutdown, SetDefaultOccupantFilter, DemolishRegion, DemolishLots, DemolishOccupant, ModifyTerrainHeight, the two effects, the deleting destructor 0x00466920."
+
+[[entry]]
+name = "cSC4Demolition::Vtable4"
+address = 0x00A87FF4
+kind = "data"
+source = "Name ours. Vtable of the service at +4, the message target (4 slots: thunks 0x004666A0, 0x00466DF0 and the shared AddRef 0x006C2270; slot 3 is DoMessage 0x00466FF0, called with this + 4)."
+
+[[entry]]
+name = "cSC4Demolition::Vtable8"
+address = 0x00A87FDC
+kind = "data"
+source = "Name ours. Vtable of the service at +8 (6 slots): a serializable whose Write and Read are shared no-ops (0x0042E440, 0x006B8A70); slot 5 GetGZCLSID 0x00466490. Thunks 0x004666B0 and 0x00466E00."
+
+[[entry]]
+name = "cSC4DemolitionFilter::Vtable"
+address = 0x00A880B8
+kind = "data"
+source = "Name ours. Main vtable of the demolition service's own occupant filter (0x34 bytes, constructor 0x00466700): the base's slots, Test 0x00466730 at slot 3, the deleting destructor 0x00466EA0 at slot 6."
+
+[[entry]]
+name = "cSC4DemolitionFilter::Vtable4"
+address = 0x00A880A0
+kind = "data"
+source = "Name ours. The demolition filter's vtable at +4 (6 slots, GetGZCLSID 0x004666F0 at slot 5, the realistic filter's ID)."
+
+[[entry]]
+name = "cSC4DemolitionTerrainFilter::Vtable"
+address = 0x00A88050
+kind = "data"
+source = "Name ours. Main vtable of the 0xC-byte filter ModifyTerrainHeight makes inline (7 slots): Test 0x00466530 at slot 3; the vtable at +4 is 0x00A88038."
+
+[[entry]]
+name = "cSC4DemolitionTerrainFilter::Vtable4"
+address = 0x00A88038
+kind = "data"
+source = "Name ours. Vtable at +4 of the 0xC-byte filter ModifyTerrainHeight makes inline (6 slots)."
+
+[[entry]]
+name = "SC4::ZeroFloat"
+address = 0x00B215E8
+kind = "data"
+source = "Name ours. A float that is 0 in every run (never written by code): the demolition functions start their position floats from it, and cSC4Demolition::DoDemolishGroupEffect copies it three times."
+
+[[entry]]
+name = "SC4::ZeroDword"
+address = 0x00B215EC
+kind = "data"
+source = "Name ours. A dword that is 0 in every run; its address is the data argument of the demolition effect's parameter 4 (cSC4Demolition::DoDemolishOccupantEffect)."
+
+[[entry]]
+name = "cSC4Demolition::OccupantEffectLow"
+address = 0x00B07F40
+kind = "data"
+source = "Name ours. Tuning uint32 (property 0x6A8A09D2, default 0x40, exemplar 0x6534284A / 0x690F693F / 0x2A8A09CA): an occupant larger than this gets effect key bit 1 (cSC4Demolition::DoDemolishOccupantEffect)."
+
+[[entry]]
+name = "cSC4Demolition::OccupantEffectHigh"
+address = 0x00B07F44
+kind = "data"
+source = "Name ours. Tuning uint32 (property 0x6A8A09D3, default 0x80): an occupant larger than this gets effect key bit 2."
+
+[[entry]]
+name = "cSC4Demolition::GroupEffectLow"
+address = 0x00B07F48
+kind = "data"
+source = "Name ours. Tuning uint32 (property 0x6A8A09D4, default 0x14): a group of more than this many occupants gets effect key bit 1 (cSC4Demolition::DoDemolishGroupEffect)."
+
+[[entry]]
+name = "cSC4Demolition::GroupEffectHigh"
+address = 0x00B07F4C
+kind = "data"
+source = "Name ours. Tuning uint32 (property 0x6A8A09D5, default 0x64): a group of more than this many occupants gets effect key bit 2."
+
+[[entry]]
+name = "cSC4Demolition::LotCostScale"
+address = 0x00B07F50
+kind = "data"
+source = "Name ours. Tuning uint32 (property 0x2AB845E7 of the exemplar 0x6534284A / 0xE7E2C2DB / 0xE8DA7677, default 3): the price of a cell of a type 6 lot in cSC4Demolition::DemolishRegion."
+
+[[entry]]
+name = "cSC4DefaultOccupantFilter::GetGZCLSID"
+address = 0x00466480
+kind = "function"
+convention = "thiscall"
+expect = "B8 AE 5E C7 C9 C3 CC CC"
+source = "Name ours. Returns 0xC9C75EAE, the default occupant filter's class ID (slot 3 of its vtable at 0x00A87FB0)."
+
+[[entry]]
+name = "cSC4Demolition::GetGZCLSID"
+address = 0x00466490
+kind = "function"
+convention = "thiscall"
+expect = "B8 8A C3 90 09 C3 CC CC"
+source = "Name ours. Returns 0x0990C38A (slot 5 of the service's serializable vtable 0x00A87FDC)."
+
+[[entry]]
+name = "cSC4Demolition::QueryInterface"
+address = 0x004664B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D AA 94 22"
+source = "Name ours. Slot 0 of the service's vtable 0x00A88004, `ret 8`: IDs 1 and 0x26DDE2EA the object, 0x452294AA +4, 0xE4FDA3D4 +8; referenced; false for others. The thunks 0x004666A0 and 0x004666B0 jump to it with this - 4 and this - 8."
+
+[[entry]]
+name = "cSC4DemolitionTerrainFilter::Test"
+address = 0x00466530
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 8B"
+source = "Name ours. Slot 3 of the filter ModifyTerrainHeight makes (vtable 0x00A88050), `ret 4`: types 0xA823821E, 0x278128A0, 0x2890D4DE and 0xC772BF98 whose exemplar does not have the bool 0x29F013E6."
+
+[[entry]]
+name = "cSC4RealisticOccupantFilter::GetGZCLSID"
+address = 0x004666F0
+kind = "function"
+convention = "thiscall"
+expect = "B8 2C 1C 7A 8A C3 CC CC"
+source = "Name ours. Returns 0x8A7A1C2C (vtables 0x00A88080 and 0x00A880B4, and the demolition filter's at 0x00A880A0)."
+
+[[entry]]
+name = "cSC4DemolitionFilter::cSC4DemolitionFilter"
+address = 0x00466700
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 78 39 18 00"
+source = "Name ours. Constructor of the demolition service's own occupant filter (0x34 bytes): the base 0x005EA080, three flag bytes and +0x10 clear, vtables 0x00A880B8 and 0x00A880A0, the two filters at +0x2C and +0x30 empty. Only caller: Init."
+
+[[entry]]
+name = "cSC4DemolitionFilter::Test"
+address = 0x00466730
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B 74 24 14"
+source = "Name ours. Slot 3 of the demolition filter (vtable 0x00A880B8), `ret 4`: what a bulldozer may take (docs in src/core/demolition_1.cpp). 484 bytes."
+
+[[entry]]
+name = "cSC4Demolition::DeletingDestructor"
+address = 0x00466920
+kind = "function"
+convention = "thiscall"
+expect = "F6 44 24 04 01 56 8B F1"
+source = "Name ours. Slot 12 of the service's vtable, `ret 4`: sets the three vtables back and frees the object when the flag is 1. Does not shut down."
+
+[[entry]]
+name = "cSC4Demolition::Release"
+address = 0x00466950
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 0C 83 F8"
+source = "Name ours. Slot 2 (the thunks 0x00466DF0 and 0x00466E00 reach it from the other vtables): the count down while it is above 1; else Shutdown (slot 4) and the deleting destructor (slot 12, 1) and 0."
+
+[[entry]]
+name = "cSC4Demolition::Shutdown"
+address = 0x00466980
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 10 33"
+source = "Name ours. Slot 4: gives back the filter, terrain, lot developer, occupant manager and city (+0x1C, +0x2C, +0x24, +0x28, +0x20) and removes the message target from 0xC53D10AA, 0x26D31EC1 and 0xA9DED179."
+
+[[entry]]
+name = "cSC4Demolition::PlayDemolishSound"
+address = 0x00466A20
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 01 57 FF 50 18 8B"
+source = "Name ours. ECX the occupant: if its exemplar has the uint32 property 0x0A93036F, the sound service (0x00B43CB8, slot 0x2C) plays it (1, value, 0, 0, 0). Only caller: DoDemolishOccupantEffect."
+
+[[entry]]
+name = "cSC4Demolition::EffectKind"
+address = 0x00466A90
+kind = "function"
+convention = "custom"
+expect = "8B 06 83 EC 08 8B CE FF"
+source = "Name ours. Register convention: ESI the occupant, EDI a flags word it adds the kind bits to (0x10 building or power pole, 0x20 flora, 0x40 or 0x50 network type 0xC772BF98, 0x20 or 0x30 prop); AL false only for a prop without the bool 0x8A5E5DB8. Only caller: DoDemolishOccupantEffect. Not hooked."
+
+[[entry]]
+name = "cSC4Demolition::CollectOccupants"
+address = 0x00466B90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 56 8B 74 24 28"
+source = "Name ours. (rect x1 z1 x2 z2, list), `ret 8`: the occupants in the cell rectangle go into the list, through the demolition filter limited to the rectangle in metres (city slot 0x180 for the corners; occupant manager slot 0xA0). Only caller: DemolishRegion."
+
+[[entry]]
+name = "cSC4Demolition::SendNewMessage"
+address = 0x00466C50
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 3D CC 3C B4 00"
+source = "Name ours. (type, data, post), `ret 0xC`, this never read: a 0x2C-byte cGZMessage with the type and the data (slots 0x30 and 0x84), posted when the byte is set and sent otherwise. Only caller: DemolishOccupant."
+
+[[entry]]
+name = "cSC4Demolition::LoadTuning"
+address = 0x00466CD0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 8B 0D A8 3C B4"
+source = "Name ours. Reads the five tuning globals at 0x00B07F40 to 0x00B07F50 from two exemplars; this is never read. Callers: Init and DoMessage."
+
+[[entry]]
+name = "cSC4Demolition::Factory"
+address = 0x00466E40
+kind = "function"
+convention = "cdecl"
+expect = "6A 34 E8 99 E7 17 00 33"
+source = "Name ours. The class factory (registered at 0x00460090): a 0x34-byte service with the three vtables set and every field 0, or null."
+
+[[entry]]
+name = "cSC4DemolitionFilter::DeletingDestructor"
+address = 0x00466EA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. Slot 6 of the demolition filter, `ret 4`: 0x00466EC0 and the free when the flag is 1."
+
+[[entry]]
+name = "cSC4DemolitionFilter::Destruct"
+address = 0x00466EC0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 30 85 C9"
+source = "Name ours. Gives back the filters at +0x30 and +0x2C, then the base's destroy 0x005E95C0."
+
+[[entry]]
+name = "cSC4Demolition::Init"
+address = 0x00466EF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 10 84 C0"
+source = "Name ours. Slot 3: registers the message target for 0xC53D10AA, 0x26D31EC1 and 0xA9DED179, takes the city (and its slots 0x174 and 0x178 into +0x14, +0x18), occupant manager, lot developer (building development simulator slot 0x90), terrain, makes the filter, reads the tuning. True."
+
+[[entry]]
+name = "cSC4Demolition::DoMessage"
+address = 0x00466FF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 56 8B 74 24"
+source = "Name ours. Slot 3 of the message target at +4 (called with this + 4), `ret 4`: 0xC53D10AA reads the tuning; 0xA9DED179 finishes a lot's demolition (lot developer EndDemolishLot) and may dezone the lot's rectangle. Always true."
+
+[[entry]]
+name = "cSC4Demolition::DemolishLots"
+address = 0x004670C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C 55 8B 6C 24 58"
+source = "Name ours. Slot 7, `ret 0x20` (8 arguments: demolish, list of lots, privilege, flags, clear zoned, filter, cost, taken): a region of the lots' cells, then DemolishRegion with 0x2000 added to the flags."
+
+[[entry]]
+name = "cSC4Demolition::DoDemolishGroupEffect"
+address = 0x00467530
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C A1 E8 15 B2 00"
+source = "Name ours. Slot 11, `ret 0x10` (kind, count, unused, rectangle): the effect for a group of demolished occupants at the middle cell of the rectangle, keyed by 0x6A3589A0 and the kind and size."
+
+[[entry]]
+name = "cSC4Demolition::DezoneLot"
+address = 0x004677F0
+kind = "function"
+convention = "custom"
+expect = "83 EC 40 84 C0 55 8B 2D"
+source = "Name ours. Register convention: ECX the lot, AL clear-zoned, two stack arguments (flags, zone type) the caller pops: dezones the lot's rectangle, or for zone types 7 to 9 gives the lot up to the lot manager and re-lots the cells still of that type. Only caller: DemolishRegion."
+
+[[entry]]
+name = "SC4LotPtrSet::Destroy"
+address = 0x00467A50
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Name ours. Empties and frees a std::set of referenced lots (head node at +0, count at +4): 0x004676A0 on the root, the head reset, the head freed. Only caller: DemolishOccupant."
+
+[[entry]]
+name = "cSC4Demolition::DropRefusedOccupants"
+address = 0x00467AA0
+kind = "function"
+convention = "thiscall"
+expect = "55 56 57 8B 7C 24 14 8B"
+source = "Name ours. (lot, list), `ret 8`: the lot's occupants (lot slot 49) go into the list and every one the default filter at +0x1C refuses is unlinked, its node freed and the occupant released. Only caller: DemolishRegion."
+
+[[entry]]
+name = "cSC4Demolition::IsTooSmallForEffect"
+address = 0x004672E0
+kind = "function"
+convention = "custom"
+expect = "83 EC 24 8B 01 8D 54 24"
+source = "Name ours. Register convention: ECX the occupant, ESI an optional float out for the occupant's greatest bounding box side; AL true when side * camera zoom (+0x154 of 0x00B43DD8) is below the limit at +0x15C of the application's +0x24 object. Only caller: DoDemolishOccupantEffect. Not hooked."
+
+[[entry]]
+name = "cSC4DefaultOccupantFilter::Test"
+address = 0x005E9630
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B 74 24 10 8B"
+source = "Name ours, not analysed (another part translates it). The default occupant filter's Test (slot 3 of vtable 0x00A87FC0), `ret 4`."
+
+[[entry]]
+name = "cSC4RealisticOccupantFilter::Test"
+address = 0x005E9990
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 56 8B 74 24"
+source = "Name ours, not analysed (another part translates it). The realistic occupant filter's Test (slot 3 of vtable 0x00A88084), `ret 4`; it runs the default filter's test first."
+
+[[entry]]
+name = "SC4RefSet::EraseSubtree"
+address = 0x004676A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. (root), `ret 4`: erases a subtree of a std::set of referenced objects, releasing each (slot 2) and freeing the node. Shared by about a dozen callers."
+
+[[entry]]
+name = "SC4CameraView::ScreenRay"
+address = 0x007F9080
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 83 EC 20 85 C0"
+source = "Name ours. The city view (0x00B43DD8): (x, z screen ints, point out, direction out), `ret 0x10`: a screen position as a ray into the world, true when it worked. Called by DoDemolishOccupantEffect."
+
+[[entry]]
+name = "cSC4Demolition::ModifyTerrainHeight"
+address = 0x00467BB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 58 8B 44 24 64 8B"
+source = "Slot 9 of the demolition utility's vtable 0x00A88004 (gzcom-dll cISC4Demolition); ret 0x28 (ten arguments, the tenth is not read): apply, perCell, x1, z1, x2, z2, height, lot to ignore, a value handed to the terrain, int64 cost out (unused). Sets a rectangle of the terrain to a height unless a lot with locked vertices is near or an occupant is on the cell; returns the count of cells that differ. Ours in simulators.demolition.part2 (src/core/demolition_2.cpp)."
+
+[[entry]]
+name = "cSC4Demolition::DemolishOccupant"
+address = 0x004691F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 55 56 8B 74"
+source = "Slot 8; ret 0x1C: demolish, occupant, privilege, flags, int64 cost out, excludeNetworks, list of occupants taken. One occupant by type: power pole 0x2890D4DE, building, construction 0x096E763C, foundation 0x68FD0C69, network piece 0xC772BF98, prop 0xA823821E, flora 0x74758926; the price goes to the cost out. Ours in simulators.demolition.part2 (src/core/demolition_2.cpp)."
+
+[[entry]]
+name = "cSC4Demolition::NotifyRemovedOccupants"
+address = 0x004681A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 89 4C 24"
+source = "Name ours. Takes a pointer to a set of occupants (head, count); ret 4. For each with flag 1: a power pole sends message 0xAA7A014D and is removed from the occupant manager, a network piece joins a list that the network manager (slot 6) takes. Only called by DemolishRegion and DemolishOccupant. Ours as a plain function in simulators.demolition.part2 (src/core/demolition_2.cpp)."
+
+[[entry]]
+name = "cSC4Demolition::TerrainBoxMargin"
+address = 0x00A880D4
+kind = "data"
+source = "Name ours. float 1.5: ModifyTerrainHeight shrinks the 32 m square around a cell by it to test for occupants (the float after it, 0x00A880D8, is 0.05)."

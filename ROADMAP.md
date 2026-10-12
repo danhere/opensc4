@@ -39,7 +39,8 @@ Estimates by area (a judgment from the checklists below, not a measurement):
 | Files and saves (P3, P4) | ~30% | Our DBPF reader; the game still loads plugins and parses saves |
 | Script bindings (P6 Lua) | ~95% | All of the game's script code with exact parity: variables, natives, advisors, advices, script context; the Lua 5.0 library itself is still the game's |
 | Region view (P8) | ~95% | All five parts ours (332 functions); four drawing functions stay with the renderer |
-| Networks, lots and growth, terrain (P7, P8) | ~0% | Not started (the lot and occupant classes are ours under P5); networks only together with the NAM team |
+| Networks, terrain (P7, P8) | ~0% | Not started; networks only together with the NAM team. The terrain is under way (see its item in P8) |
+| Lots and growth (P5, P8) | the classes are ours | The lot, occupant, zone, development and growth classes and the demolition service are ours (see their items); left: the prop manager and occupant filters (in progress), the bulldoze, plop and zone tools, the derived prop classes with drawing |
 | Audio (P8) | the game's audio classes | The game's audio classes (0x004E1320 to 0x004FA6A0), 575 functions in nine groups, are ours ([docs/audio.md](docs/audio.md)); EA's sound library (AEMS) and the framework's sound service stay the game's. The harness compares state, not what is heard, so playback is untested |
 | Framework and exe independence (P9) | ~5% | Surveyed; the message server and its queue are ours (41 of about 300 framework functions) |
 
@@ -171,7 +172,10 @@ Decided (Dan, 2026-10-11): we go ahead without waiting for the NAM team; NAM sta
 
 ## P8: Remaining world systems
 
-- [ ] Lots / buildings / growth
+- [~] Lots / buildings / growth: the classes are ours, each with its own item above and docs page (the lot [docs/citylot.md](docs/citylot.md), the lot configuration [docs/lotconfig.md](docs/lotconfig.md), the zone developer and lot manager [docs/zone.md](docs/zone.md), the zone manager [docs/zonemgr.md](docs/zonemgr.md), the occupant manager [docs/occmgr.md](docs/occmgr.md), the building development simulator [docs/development.md](docs/development.md), the growth developers [docs/growth.md](docs/growth.md)). The demolition service (`cSC4Demolition`, `simulators.demolition.*`) is ours too ([docs/demolition.md](docs/demolition.md))
+  - [ ] The prop manager and the occupant filters (in progress)
+  - [ ] The bulldoze, plop and zone tools (interface code; a later round)
+  - [ ] The derived prop classes, with their drawing (renderer)
 - [x] Terrain (`cSTETerrain`, 259 functions, [docs/terrain.md](docs/terrain.md)): ours in fourteen groups `simulators.terrain.*`: the queries, the setters, the shaping machinery, Init, the messages, save and load, the object, erosion, the flood, the water distance map, the normals, the brush body and loader, the neighbour edge matching, a new city's terrain. Left as the game's: its drawing side (the Renderer's) and three once-only tuning table loaders. Read but never run in the game: the edge matching past its search, a new city's path, the cheat commands
 - [x] Region view ([docs/region.md](docs/region.md)): all five parts are replaceable, 332 functions, off by default: the region data class (`region.data.*`), the regional city (`region.city.*`), city files and the region pictures (`region.files.*`), the region screen window (`region.screen.*`) and the region map window with its overlay (`region.view.*`). Four functions that draw stay the game's for the renderer. Parity on twelve saves with the region screen up; not reached unattended: anything behind a dialog, real clicks, neighbour connection changes and deals
 - [x] Audio ([docs/audio.md](docs/audio.md)): the game's own audio classes are rewritten, 575 functions in nine groups (`audio.part1` to `audio.part9`): the ambience, sound and scape managers, the listener, the music lists, the event handlers, the movers and fades and the options dialog. Still the game's: EA's sound library (AEMS) and the framework's sound service and music player. Parity on twelve saves and the plopped corpus: the state the test compares agrees; one rare second outcome of the test also occurs in the original
