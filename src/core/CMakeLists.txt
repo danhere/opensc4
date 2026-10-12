@@ -281,6 +281,8 @@ add_library(opensc4_core SHARED
   power_sim.cpp
   protection_autotest.cpp
   flammability_autotest.cpp
+  framework_autotest.cpp
+  framework_messageserver.cpp
   protection_sim.cpp
   fire_sim.cpp
   police_sim.cpp
