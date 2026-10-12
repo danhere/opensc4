@@ -4,6 +4,7 @@
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
+#include "core/registry.h"
 
 #include <GZServPtrs.h>
 #include <cIGZMessage2.h>
@@ -100,6 +101,8 @@ bool Target::DoMessage(cIGZMessage2* message)
     Mix(type);
     Mix(static_cast<uint32_t>(data));
     ++g_deliveries;
+    if (data >= 31)
+        log::Write("autotest: message cancel: target %u got post %d", index_, static_cast<int>(data));
     // Changes from inside a delivery: target 1, on the first A, leaves A,
     // puts target 2 on B, sends a B (which applies both changes before it
     // collects) and posts a C.
@@ -211,6 +214,33 @@ void Drive(const Day& day)
                t0.refs(), t1.refs(), t2.refs());
 }
 
+// OPENSC4_TEST_MESSAGE_CANCEL=<day>, only with fixes.message_cancel on (in
+// the original the case walks past the deque's end): five direct posts,
+// target 1's the third and the last, and target 1's cancelled. The three
+// to target 0 must arrive and none to target 1.
+void DriveCancel(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_MESSAGE_CANCEL") || !game::IsBuild641())
+        return;
+    if (registry::ModeOf("fixes.message_cancel") != registry::Mode::Ours) {
+        log::Write("autotest: message cancel not driven (fixes.message_cancel is off)");
+        return;
+    }
+    cIGZMessageServer2Ptr server;
+    if (!server)
+        return;
+    g_server = server;
+    g_on = true;
+    DirectPost(31, g_targets[0]);
+    DirectPost(32, g_targets[0]);
+    DirectPost(33, g_targets[1]);
+    DirectPost(34, g_targets[0]);
+    DirectPost(35, g_targets[1]);
+    server->CancelGeneralMessagePostsToTarget(&g_targets[1]);
+    log::Write("autotest: message cancel driven (refs %u %u %u)", g_targets[0].refs(), g_targets[1].refs(),
+               g_targets[2].refs());
+}
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     if (!g_on)
@@ -223,6 +253,7 @@ void Fingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kFingerprint{"messages", 4, &Fingerprint};
 const DayHook kDrive{"messages", 4, &Drive};
+const DayHook kDriveCancel{"messages.cancel", 4, &DriveCancel};
 
 } // namespace
 } // namespace opensc4::autotest
