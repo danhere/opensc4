@@ -131,7 +131,8 @@ How it works:
 Findings:
 
 - The game also has a subclass (vtable 0x00A8CAFC, constructor 0x00472EB0) whose MessageSend (0x004737E0) is the same with the delivery in a try block. The coverage meter shows the base's MessageSend running and the subclass's never: the server is the base class in our runs.
-- **CancelGeneralMessagePostsToTarget (slot 8) has a fault.** It walks the deque and erases with an iterator it has already stepped forward. That holds only when the erased post lies in the deque's first half (the erase then moves the posts in front of it). In the second half the posts behind move down: the walk skips one, and when the erased post was the last it walks past the end. Ours does the same steps in the same order, so it has the same fault; nothing in a normal run calls the function. A fix would be a change of behaviour and belongs with the other fixes, on request.
+- **CancelGeneralMessagePostsToTarget (slot 8) has a fault.** It walks the deque and erases with an iterator it has already stepped forward. That holds only when the erased post lies in the deque's first half (the erase then moves the posts in front of it). In the second half the posts behind move down: the walk skips one, and when the erased post was the last it walks past the end. Ours does the same steps in the same order, so it has the same fault, unless `fixes.message_cancel` is on (below).
+- Who calls it: no code reaches the function except through the two vtables (a scan of the whole code section for calls and jumps, and of the whole image for pointers, 2026-10-11; the same holds for every function of the server: the only direct calls come from inside the class and from the subclass's thunks). No call of slot 8 through the server's global 0x00B43CCC was found either; a caller that got the server from the framework would not show in that search. The game does post to single targets (slot 7; about 9 call sites).
 - A second, older server (`cGZMessageQueueManager2`? class 0x452294DF, vtable 0x00AD1B80, 10 slots, 0x38 bytes) is registered and not ours.
 - The service's Shutdown takes the server off the framework's tick. Called from inside a tick, the Init that follows is refused (the list is busy) and the game stops delivering queued messages: the test does not call them.
 
@@ -147,6 +148,8 @@ Findings:
 | `framework.messageserver.direct` | GeneralMessagePostToTarget 0x0092EA00, CancelGeneralMessagePostsToTarget 0x0092E642, the delivery pass 0x0092DFA3 |
 | `framework.messageserver.interface` | QueryInterface 0x0092D091, GetRefCount 0x0092D0B3, Init 0x0092D05B, Shutdown 0x0092D076 |
 
+`fixes.message_cancel` (off by default) is the cancel without the fault: after an erase the walk goes on from the position the erase returns. It works alone (it then replaces that one function) or with `framework.messageserver.direct`.
+
 18 functions. The lists, the table's lookup and removal and the deque's simple cases are done in our code on the game's layouts with the game's allocator. Still the game's: the message queue object (reached through its vtable), the table's insert (it may grow the table: 0x0092FDD8), the deque's new block, block release and erase (0x0092E216, 0x00473290, 0x0092E162), the constructor, destructor and factory, and the three shared thunks for AddRef and Release.
 
 Differences from the game that cannot be seen from outside: the list of targets a send collects grows without the game's extra AddRef and Release of each element on a move; the subclass's try block is not there (an exception from a target passes through, as in the base class).
@@ -156,6 +159,8 @@ Hooks go in at PostAppInit. The detours installed by then replace every later ca
 ### Testing
 
 `OPENSC4_TEST_MESSAGES=<day>` (src/core/framework_autotest.cpp) drives the server through its interface on that day of a run, with three targets of its own: notifications added (one twice), a send to two targets and to a target of every message, changes made from inside a delivery (a removal, an addition, a nested send, a post), removals, a class the server does not make, the interfaces, posts of both priorities, direct posts (one posted from inside a delivery) and a cancel in the deque's first half. Every delivery (target, type, data) goes into a hash; the fingerprint line gets ` | msg <hash> n <deliveries> x <refusals> refs <the targets' reference counts>`.
+
+`OPENSC4_TEST_MESSAGE_CANCEL=<day>` runs only with `fixes.message_cancel` on (in the original the case walks past the deque's end): five direct posts, the third and the last to the second target, whose posts are then cancelled. The three to the first target arrive, none to the second, and the targets' reference counts come back; checked with the fix alone and with all of the server ours.
 
 With the test on, the coverage meter shows every function of the five groups reached in the original except the subclass's MessageSend, Init and Shutdown.
 
@@ -171,5 +176,6 @@ All five groups on against the original, 12 saves, 7 game days, two jobs, on 202
 - The `msg` part of the fingerprint was the same in every run of both batches, original and ours, on all 12 saves.
 - Every save but one came out the same in at least one batch of each leg. The one, Making Money d0365 in the plain leg, was partly both times: the original alone gave two and three outcomes there (the tick on which day 1 begins is 345 or 347, and the lots' checksum of day 2 takes one of two values with it); ours gave the same alternatives.
 - The two "different" of the first batch (Making Money d0090 and d0365) were the same two-valued lots' checksum: rerun as a batch of their own, the original gave both values on each save and ours too.
+- A control in the second batch, the original on both sides with the test on, gave 9 same and 3 partly (Big City d0090, Making Money d0090 and d0365): the original against itself did no better than ours against it.
 - So no outcome was found that only ours gives, but under that load the verdict rests on outcome sets, not on a clean 12 of 12. A batch on a quiet machine should give that.
 

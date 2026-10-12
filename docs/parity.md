@@ -85,6 +85,7 @@ The test cities never edit their networks, so parity alone would not reach the c
 | `OPENSC4_TEST_DEMAND_MONTH=<n>` | every n days, the demand simulator's MonthPassed ([demand.md](demand.md)) |
 | `OPENSC4_TEST_DEMAND_MESSAGES=<n>` | on day n, SimulationBegin, the neighbours message and the passes to the demand simulator |
 | `OPENSC4_TEST_MESSAGES=<n>` | on day n, the message server driven through its interface with three targets of the test's own (notifications, sends, changes from inside a delivery, posts, direct posts and a cancel); every delivery goes into the fingerprint's `msg` part ([framework.md](framework.md)) |
+| `OPENSC4_TEST_MESSAGE_CANCEL=<n>` | on day n, with `fixes.message_cancel` on only: direct posts with one target's cancelled in the queue's second half, the case the original gets wrong ([framework.md](framework.md)) |
 | `OPENSC4_TEST_COMMERCIAL=<n>` | on day n, "removed" then "added" (0x99EF1143, 0x99EF1142, kind 0x278128A0) for every building on a lot (at most 400), to the commercial simulator, so its proximity-map cycle runs ([commercial-industrial.md](commercial-industrial.md)) |
 | `OPENSC4_TEST_RESIDENTIAL_MONTH=<n>` | every n days, the month message (0x66956816) to the residential simulator, which restarts its cycle; with 2, a 30-day run covers it about twice ([residential.md](residential.md)) |
 | `OPENSC4_TEST_RESIDENTIAL_QUERIES=1` | each day, the residential queries only the UI makes, into the fingerprint ([residential.md](residential.md)) |
