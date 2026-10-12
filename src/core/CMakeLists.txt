@@ -195,6 +195,9 @@ add_library(opensc4_core SHARED
   occmgr_edit.cpp
   occmgr_queries.cpp
   occmgr_sim.cpp
+  propmgr_1.cpp
+  propmgr_2.cpp
+  propmgr_autotest.cpp
   bldgocc_autotest.cpp
   bldgocc_sim.cpp
   occbase_autotest.cpp
