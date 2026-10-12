@@ -176,6 +176,9 @@ add_library(opensc4_core SHARED
   citylot_capacity.cpp
   citylot_object.cpp
   citylot_state.cpp
+  demolition_1.cpp
+  demolition_2.cpp
+  demolition_autotest.cpp
   landfillzone_autotest.cpp
   landfillzone_cells.cpp
   landfillzone_sim.cpp

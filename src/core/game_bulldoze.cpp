@@ -17,6 +17,7 @@
 #include "core/game_bulldoze.h"
 
 #include "core/address_check.h"
+#include "core/demolition.h"
 #include "core/game_access.h"
 #include "core/hook.h"
 #include "core/log.h"
@@ -216,6 +217,18 @@ uint8_t __fastcall IsOccupantShown(void* self, void* edx, cISC4Occupant* occupan
     return mode == Mode::All || Includes(mode, occupant) ? 1 : 0;
 }
 
+// DemolishRegion's wrapper: on our translation when simulators.demolition.part2
+// has put it at the game's entry (demolition.h), else on the game's entry.
+bool InstallRegion(const addr::Entry& entry)
+{
+    if (demolition::RegionIsOurs()) {
+        log::Write("bulldoze: DemolishRegion wrapper sits on our translation");
+        return hook::InstallAt(entry.name, demolition::RegionEntry(), nullptr, 0, &DemolishRegion, &g_region);
+    }
+    log::Write("bulldoze: DemolishRegion wrapper sits on the game's entry");
+    return hook::Install(entry, &DemolishRegion, &g_region);
+}
+
 bool Install(registry::Mode)
 {
     char value[8];
@@ -229,7 +242,7 @@ bool Install(registry::Mode)
     const addr::Entry* preview = addr_check::Find(addr::cSC4ViewInputControlDemolish_Preview);
     const addr::Entry* move = addr_check::Find(addr::cSC4ViewInputControlDemolish_OnMouseMove);
     const addr::Entry* end = addr_check::Find(addr::cSC4ViewInputControlDemolish_EndDrag);
-    const bool ok = region && shown && preview && hook::Install(*region, &DemolishRegion, &g_region) &&
+    const bool ok = region && shown && preview && InstallRegion(*region) &&
                     hook::Install(*shown, &IsOccupantShown, &g_shown) &&
                     hook::Install(*preview, &Preview, &g_preview) && move && end &&
                     hook::Install(*move, &MouseMove, &g_move) && hook::Install(*end, &EndDrag, &g_end);

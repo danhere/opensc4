@@ -54,6 +54,7 @@
 //     wraps Init: if it stored the service, the reference is given back and
 //     +0x18 put back as it was.
 #include "core/address_check.h"
+#include "core/demolition.h"
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
@@ -263,7 +264,14 @@ bool InstallDemolish(registry::Mode)
 {
     const addr::Entry* const entry = addr_check::Find(addr::cSC4Demolition_DoDemolishOccupantEffect);
     void* original = nullptr;
-    g_demolishOn = entry && hook::Install(*entry, reinterpret_cast<void*>(&DoDemolishOccupantEffect), &original);
+    // On our translation when simulators.demolition.part1 has put it at the
+    // game's entry (demolition.h), else on the game's entry.
+    const bool ours = demolition::EffectIsOurs();
+    log::Write("quiet: demolition animation wrapper sits on %s", ours ? "our translation" : "the game's entry");
+    void* const detour = reinterpret_cast<void*>(&DoDemolishOccupantEffect);
+    g_demolishOn = entry && (ours ? hook::InstallAt(entry->name, demolition::EffectEntry(), nullptr, 0, detour,
+                                                    &original)
+                                  : hook::Install(*entry, detour, &original));
     log::Write("quiet: demolition animations %s", g_demolishOn ? "off" : "NOT turned off (hook failed)");
     if (g_demolishOn)
         Listen();
