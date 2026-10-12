@@ -5480,6 +5480,216 @@ uint32_t __fastcall EffectCtorByMode(char* self, void*)
 }
 OPENSC4_THUNK(TSC4Effect_Construct, EffectCtorByMode, 0)
 
+// The second class's constructor (0x005AC510), written by hand: the base
+// class's, the class's own two tables of functions (0x00AA0C58,
+// 0x00AA0C10), no model yet (+0x220, +0x224), the part at +0x228
+// constructed (0x00803060) with no description (its +0x40), and the
+// class's bytes and words from +0x26C to +0x278 cleared.
+uint32_t ConstructEffectB(char* self)
+{
+    CallThis<uint32_t>(addr::SC4Effect_Construct, self);
+    At<uint32_t>(self, 0) = 0x00AA0C58;
+    At<uint32_t>(self, 4) = 0x00AA0C10;
+    At<uint32_t>(self, 0x220) = 0;
+    At<uint32_t>(self, 0x224) = 0;
+    CallThis<uint32_t>(0x00803060, self + 0x228);
+    At<uint32_t>(self, 0x268) = 0;
+    At<uint8_t>(self, 0x26C) = 0;
+    At<uint8_t>(self, 0x26D) = 0;
+    At<uint8_t>(self, 0x26E) = 0;
+    At<uint8_t>(self, 0x26F) = 0;
+    At<uint32_t>(self, 0x270) = 0;
+    At<uint32_t>(self, 0x274) = 0;
+    At<uint32_t>(self, 0x278) = 0;
+    return reinterpret_cast<uint32_t>(self);
+}
+
+Call0Fn g_SC4EffectB_Construct = nullptr;
+
+uint32_t __fastcall EffectBCtorByMode(char* self, void*)
+{
+    if (g_ctorMode == StepMode::Original)
+        return g_SC4EffectB_Construct(self, nullptr);
+    if (g_ctorMode == StepMode::Ours)
+        return ConstructEffectB(self);
+    return CtorCompared("effects.ctor.b", self, kEffectSizeB, 0x14, g_SC4EffectB_Construct, &ConstructEffectB);
+}
+OPENSC4_THUNK(TSC4EffectB_Construct, EffectBCtorByMode, 0)
+
+// An effect's destructor (0x005A62B0, also the end of a third class's at
+// 0x005A90xx), written by hand: the objects at +0x1F0 and +0x1EC released
+// (slot 8), the texture at +0x6C let go (0x008090E0), the batch at +0x28
+// destroyed (0x005EC6E0), the description at +0x24 let go (0x005B1C80)
+// and the sub-object at +4 destroyed (0x005B9F40: its list freed). The
+// calls go through the comparison's notes; the texture's is kept apart,
+// the game's having no detour of ours.
+char* g_dtorTextureOurs = nullptr;
+
+uint32_t DtorRelease(char* object, uint32_t slot)
+{
+    return BOurs(slot, reinterpret_cast<uint32_t>(object), 0, 0,
+                 [&] { return CallThis<uint32_t>(M<uint32_t>(At<uint32_t>(object, 0) + slot), object); });
+}
+
+uint32_t DtorCall(uint32_t target, char* object)
+{
+    return BOurs(target, reinterpret_cast<uint32_t>(object), 0, 0, [&] { return CallThis<uint32_t>(target, object); });
+}
+
+void DestructEffect(char* self)
+{
+    if (char* const object = At<char*>(self, 0x1F0))
+        DtorRelease(object, 0x8);
+    if (char* const object = At<char*>(self, 0x1EC))
+        DtorRelease(object, 0x8);
+    if (char* const texture = At<char*>(self, 0x6C)) {
+        if (g_bReplay)
+            g_dtorTextureOurs = texture;
+        else
+            CallThis<uint32_t>(0x008090E0, texture);
+    }
+    DtorCall(addr::SC4EffectBatch_Destruct, self + 0x28);
+    if (char* const description = At<char*>(self, 0x24))
+        DtorCall(addr::SC4EffectDescription_Release, description);
+    DtorCall(addr::SC4EffectBase_Destruct, self + 4);
+}
+
+// The second class's (0x005AC5B0): the object at +0x278 ended (slot
+// 0x20), the description at +0x268 let go, the part at +0x228 destroyed
+// (0x008030A0), the model at +0x224 released through the part of it that
+// counts its holders, the instance at +0x220 released, then the base
+// class's.
+void DestructEffectB(char* self)
+{
+    if (char* const object = At<char*>(self, 0x278))
+        DtorRelease(object, 0x20);
+    if (char* const description = At<char*>(self, 0x268))
+        DtorCall(addr::SC4EffectDescription_Release, description);
+    DtorCall(addr::SC4EffectPartB_Destruct, self + 0x228);
+    if (char* const model = At<char*>(self, 0x224))
+        DtorRelease(model + 4 + At<int32_t>(At<char*>(model, 4), 4), 0x8);
+    if (char* const instance = At<char*>(self, 0x220))
+        DtorRelease(instance, 0x8);
+    DestructEffect(self);
+}
+
+// Their comparison is the holders': the game's first with its calls
+// noted (the objects through copies of their tables of functions, the
+// three destructors and the description's letting go through detours),
+// then ours with the effect's bytes put back, making no call but noting
+// each. The texture is given one more holder for the game's run, must
+// have lost exactly one, and is then let go for real; one whose last
+// holder but its factory this is cannot be checked that way.
+StepMode g_dtorMode = StepMode::Original;
+Call0Fn g_SC4Effect_Destruct = nullptr, g_SC4EffectB_Destruct = nullptr, g_SC4EffectBatch_Destruct = nullptr,
+        g_SC4EffectBase_Destruct = nullptr, g_SC4EffectPartB_Destruct = nullptr;
+Call1Fn g_SC4Effect_Delete = nullptr, g_SC4EffectB_Delete = nullptr;
+
+#define OPENSC4_DTOR_NOTED(Name)                                                                                       \
+    uint32_t __fastcall D##Name(char* self, void*)                                                                     \
+    {                                                                                                                  \
+        if (!BNoting())                                                                                                \
+            return g_##Name(self, nullptr);                                                                            \
+        return BCallee(addr::Name, reinterpret_cast<uint32_t>(self), 0, 0, [&] { return g_##Name(self, nullptr); });   \
+    }                                                                                                                  \
+    OPENSC4_THUNK(T##Name, D##Name, 0)
+OPENSC4_DTOR_NOTED(SC4EffectBatch_Destruct)
+OPENSC4_DTOR_NOTED(SC4EffectBase_Destruct)
+OPENSC4_DTOR_NOTED(SC4EffectPartB_Destruct)
+#undef OPENSC4_DTOR_NOTED
+
+template <typename Game, typename Ours>
+void DtorCompared(const char* id, char* self, std::size_t size, Game&& game, Ours&& ours)
+{
+    BSwap(At<char*>(self, 0x1F0), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    BSwap(At<char*>(self, 0x1EC), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    char* const texture = At<char*>(self, 0x6C);
+    const int32_t holders = texture ? At<int32_t>(texture, 0xC) : 0;
+    const bool held = texture && !(holders == 1 && At<uint32_t>(texture, 8));
+    if (held)
+        ++At<int32_t>(texture, 0xC);
+    g_dtorTextureOurs = nullptr;
+    HolderCompared(
+        id, self, size,
+        [&] {
+            game();
+            return 0u;
+        },
+        ours);
+    if (texture) {
+        const bool same = g_dtorTextureOurs == texture && (!held || At<int32_t>(texture, 0xC) == holders);
+        compare::Record(held ? "effects.dtor.texture" : "effects.dtor.texture.last", same,
+                        same ? std::string() : std::string("one holder less"),
+                        same ? std::string() : std::string(g_dtorTextureOurs == texture ? "not so" : "not ours'"));
+        if (held)
+            CallThis<uint32_t>(0x008090E0, texture);
+    }
+}
+
+bool DtorPassed()
+{
+    return g_dtorMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
+           BBusy();
+}
+
+uint32_t __fastcall EffectDtorByMode(char* self, void*)
+{
+    if (DtorPassed())
+        return g_SC4Effect_Destruct(self, nullptr);
+    if (g_dtorMode == StepMode::Ours)
+        DestructEffect(self);
+    else
+        DtorCompared(
+            "effects.dtor", self, kEffectSize, [&] { g_SC4Effect_Destruct(self, nullptr); },
+            [&] { DestructEffect(self); });
+    return 0;
+}
+OPENSC4_THUNK(TSC4Effect_Destruct, EffectDtorByMode, 0)
+
+uint32_t __fastcall EffectBDtorByMode(char* self, void*)
+{
+    if (DtorPassed())
+        return g_SC4EffectB_Destruct(self, nullptr);
+    if (g_dtorMode == StepMode::Ours) {
+        DestructEffectB(self);
+        return 0;
+    }
+    BSwap(At<char*>(self, 0x278), 0x20, reinterpret_cast<uint32_t>(&BEnd));
+    if (char* const model = At<char*>(self, 0x224))
+        BSwap(model + 4 + At<int32_t>(At<char*>(model, 4), 4), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    BSwap(At<char*>(self, 0x220), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    DtorCompared(
+        "effects.dtor.b", self, kEffectSizeB, [&] { g_SC4EffectB_Destruct(self, nullptr); },
+        [&] { DestructEffectB(self); });
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectB_Destruct, EffectBDtorByMode, 0)
+
+// The two destructors as the tables of functions have them (0x005B2FE0
+// and 0x005AC590, slot 0xC of the sub-object's through a thunk): the
+// destructor, then with bit 0 of the flags the memory freed (0x005E5620).
+uint32_t __fastcall EffectDeleteByMode(char* self, void*, uint32_t flags)
+{
+    if (g_dtorMode == StepMode::Original)
+        return g_SC4Effect_Delete(self, nullptr, flags);
+    EffectDtorByMode(self, nullptr);
+    if (flags & 1)
+        reinterpret_cast<void(__cdecl*)(void*)>(0x005E5620)(self);
+    return reinterpret_cast<uint32_t>(self);
+}
+OPENSC4_THUNK(TSC4Effect_Delete, EffectDeleteByMode, 4)
+
+uint32_t __fastcall EffectBDeleteByMode(char* self, void*, uint32_t flags)
+{
+    if (g_dtorMode == StepMode::Original)
+        return g_SC4EffectB_Delete(self, nullptr, flags);
+    EffectBDtorByMode(self, nullptr);
+    if (flags & 1)
+        reinterpret_cast<void(__cdecl*)(void*)>(0x005E5620)(self);
+    return reinterpret_cast<uint32_t>(self);
+}
+OPENSC4_THUNK(TSC4EffectB_Delete, EffectBDeleteByMode, 4)
+
 // What every record-and-replay comparison needs: the frees held back, and
 // the particle pool's functions recorded.
 bool HookFrees()
@@ -5994,7 +6204,8 @@ bool InstallCtor(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
         !(Detour(addr::SC4EffectBase_Construct, &TSC4EffectBase_Construct, &g_SC4EffectBase_Construct) &&
-          Detour(addr::SC4Effect_Construct, &TSC4Effect_Construct, &g_SC4Effect_Construct)))
+          Detour(addr::SC4Effect_Construct, &TSC4Effect_Construct, &g_SC4Effect_Construct) &&
+          Detour(addr::SC4EffectB_Construct, &TSC4EffectB_Construct, &g_SC4EffectB_Construct)))
         return false;
     g_ctorMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: effects' constructors %s",
@@ -6008,11 +6219,47 @@ const bool g_registeredCtor = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::SC4Effect_Construct,
-    "An effect's constructor and its sub-object's: the tables of functions, an empty particle list and the "
-    "fields' first values; compare mode runs ours and the game's on the same memory (docs/renderer.md, \"Water "
+    "The two effect classes' constructors and the sub-object's: the tables of functions, an empty particle list "
+    "and the fields' first values; compare mode runs ours and the game's on the same memory (docs/renderer.md, \"Water "
     "effects, sky and clouds\")",
     true,
     InstallCtor,
+});
+
+bool InstallDtor(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4Effect_Destruct, &TSC4Effect_Destruct, &g_SC4Effect_Destruct) &&
+          Detour(addr::SC4EffectB_Destruct, &TSC4EffectB_Destruct, &g_SC4EffectB_Destruct) &&
+          Detour(addr::SC4Effect_Delete, &TSC4Effect_Delete, &g_SC4Effect_Delete) &&
+          Detour(addr::SC4EffectB_Delete, &TSC4EffectB_Delete, &g_SC4EffectB_Delete)))
+        return false;
+    // The comparison notes what the game's destructors call.
+    if (mode == registry::Mode::Compare &&
+        !(Detour(addr::SC4EffectBatch_Destruct, &TSC4EffectBatch_Destruct, &g_SC4EffectBatch_Destruct) &&
+          Detour(addr::SC4EffectBase_Destruct, &TSC4EffectBase_Destruct, &g_SC4EffectBase_Destruct) &&
+          Detour(addr::SC4EffectPartB_Destruct, &TSC4EffectPartB_Destruct, &g_SC4EffectPartB_Destruct) &&
+          (g_SC4EffectDescription_Release ||
+           Detour(addr::SC4EffectDescription_Release, &TSC4EffectDescription_Release,
+                  &g_SC4EffectDescription_Release))))
+        return false;
+    g_dtorMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects' destructors %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDtor = registry::Register({
+    "renderer.effects.dtor",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_Destruct,
+    "The two effect classes' destructors, alone and with the memory freed: what the effect holds released or let "
+    "go, its batch, part and sub-object destroyed; compare mode notes the game's calls and checks ours would make "
+    "the same (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallDtor,
 });
 
 bool InstallGround(registry::Mode mode)
