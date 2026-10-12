@@ -34,7 +34,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (cRZCOMDllDirector* this, uint32_t clsid, cIGZUnknown* (*factory)())"
 expect = "55 8B EC 83 EC 18 8B 45"
-source = "Receives 455 (class ID, factory) registrations from 23 directors (docs/class-creation.md, finding 3)."
+source = "Receives 455 (class ID, factory) registrations from 23 directors (docs/class-creation.md, finding 3). Ours in framework.directors.registration (docs/framework.md)."
 
 [[entry]]
 name = "cRZCOMDllDirector::AddCls_FactoryType2"
@@ -43,7 +43,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (cRZCOMDllDirector* this, uint32_t clsid, bool (*factory)(uint32_t iid, void** object))"
 expect = "55 8B EC 83 EC 18 8B 45"
-source = "Adjacent to AddCls; 4 registrations (docs/class-creation.md, finding 3)."
+source = "Adjacent to AddCls; 4 registrations (docs/class-creation.md, finding 3). Ours in framework.directors.registration (docs/framework.md)."
 
 [[entry]]
 name = "cSC4App::LoadCity"

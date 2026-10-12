@@ -5380,7 +5380,7 @@ address = 0x0090E0D4
 kind = "function"
 convention = "thiscall"
 expect = "53 56 8B D9 57 8B 7C 24"
-source = "Adds a child director (ret 4): the child is given this director's COM and path, its own children are added, and it is appended to the list at +0x2C."
+source = "Adds a child director (ret 4): the child is given this director's COM and path, its own children are added, and it is appended to the list at +0x2C. Ours in framework.directors.registration (docs/framework.md)."
 
 [[entry]]
 name = "GZDirector::Get9666C9"
