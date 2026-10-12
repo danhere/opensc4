@@ -358,7 +358,7 @@ The class is a thin layer over the body, and that layer is what is ours:
 
 22 functions. Game code calls many of them directly (Find 23 times, IsEqual 24, Append 14), and code built with whole-program optimisation may keep ECX and EDX across such a call, so every detour is entered through a thunk that keeps both.
 
-Still the game's: the body's operations (STLport: assign 0x0044D3A0, resize 0x00442E90, append 0x004D8650, insert 0x0090E8B6, replace 0x005C2EB0, erase 0x004425C0, find 0x00442850, reverse find 0x005C2620), the lowering (0x0090EAC5: ASCII through the C runtime, anything else through the language's wide characters), the constructors and destructor, the C runtime's strlen, strncmp and memcmp (their exact results are CompareTo's answers), Sprintf (0x0090F574, a formatter of 1,649 bytes with 463 callers), and the three getters (ToChar and Data are one function shared with other classes; Strlen is seven bytes with 99 direct callers).
+Still the game's: the body's operations (STLport: assign 0x0044D3A0, resize 0x00442E90, append 0x004D8650, insert 0x0090E8B6, replace 0x005C2EB0, erase 0x004425C0, find 0x00442850, reverse find 0x005C2620), the lowering (0x0090EAC5: ASCII through the C runtime, anything else through the language's wide characters), the constructors and destructor, the C runtime's strlen, strncmp and memcmp (their exact results are CompareTo's answers), and the three getters (ToChar and Data are one function shared with other classes; Strlen is seven bytes with 99 direct callers).
 
 ### Testing
 
@@ -479,3 +479,52 @@ All 29 framework groups on against the original (the service start trace on both
 | `OPENSC4_TEST_LOCKS=2` | 12 same | 12 same |
 
 All on the first pair. The `lock` part was the same in all 48 runs of the test's leg and its control.
+
+## The string's formatter
+
+`cRZBaseString::Sprintf` (0x0090F574, 1,649 bytes, 463 callers) is a printf of the game's own: it reads the format itself and leaves only the text of floating point numbers to the C runtime. A conversion is `%`, flags (`-`, `+`, space, `0`, `#`, in any order and number), a width (digits or `*`), a precision (`.` and digits or `*`), a size (`h`, `l`, `ll` or `I64`) and a letter.
+
+- **Integers** (`d i u o x X`): a negative `d` or `i` is turned positive and remembered; the digits are those of the 16, 32 or 64 bit value.
+- **Floating point** (`e f g E G`): a negative value is turned positive and remembered; the C runtime's `_snprintf` writes the rest, given only the `#` flag and the precision.
+- **Strings** (`s`): the precision counts characters, not bytes, reading the text as UTF-8; the length of a character is taken from its first two bytes alone.
+- **`c`** is one byte; **`p`** is eight hexadecimal digits; **`n`** stores the length the string had before the call, not what has been written so far.
+- **Around the text**, in this order: the sign now if the `0` flag is set; padding to the width (zeros with the `0` flag, else spaces) unless left-aligned; the sign otherwise; the `#` prefix (`0x`, `0X`, `0`); zeros up to the precision (integers only); the text; padding when left-aligned. The widths count characters, as for strings.
+
+It differs from C's printf in ways that ours keeps:
+
+- The `#` prefix comes after zero padding (`%#08x` of 0x1f gives `00000x1f`) and is written for a value of 0 too.
+- A point without a number (`%.f`) leaves the precision unset instead of 0.
+- A negative width from `*` is no width, not left alignment.
+- `C`, `S` and every other letter are not conversions: nothing is taken from the arguments, the width still pads an empty text, and the letter is then read as plain text.
+- `%hs` and `%ls` are plain `%s`.
+
+The text is built in two buffers of the game's own: a scratch buffer for one conversion (64 bytes on the stack) and the output (1,024 bytes on the stack); each moves to the game's heap and doubles when it fills. Ours grows them at the same moments with the same sizes, so the heap sees the same requests in the same order. One oddity kept: the first floating point conversion of a call always takes a 128-byte heap block, because the scratch buffer's used length is 0 when `_snprintf` is first asked.
+
+`src/core/framework_stringformat.cpp`, an entry detour, off by default:
+
+| Replacement | Functions |
+|---|---|
+| `framework.string.format` | Sprintf 0x0090F574 |
+
+One function hooked. The buffer's helpers (grow 0x0090E25C, resize 0x0090E2C8, append 0x0090E2EB, 0x0090E312 and 0x0090E366), the digit test (0x0090E247) and the two UTF-8 helpers as the formatter uses them (0x009106A9, 0x009107D8) are written out inside ours and not hooked; the game's keep serving their other callers.
+
+Still the game's: the C runtime's `_snprintf` (0x009F2108) for floating point text, the string body's assign and the heap.
+
+### Testing
+
+The game's own format strings (356 of the 463 call sites push one that can be read from the code) use 39 shapes of conversion, from `%d` (226 times), `%s` and `%08x` to `%3.2f`, `%I64d`, `%02.2d` and `%-18.18s`.
+
+`OPENSC4_TEST_STRING_FORMAT=<day>` calls the formatter 130,423 times: each of those 39 shapes; then every combination of 14 sets of flags, 5 widths (with `*`), 6 precisions (with `.` alone and `.*`) and 5 sizes with each integer conversion, and the same without sizes for the floating point conversions, `s`, `c` and `p`, each over 8 values chosen for the signs, the limits of 16, 32 and 64 bits, UTF-8 texts (one cut short in the middle of a character) and star widths that are 0 or negative; letters that are not conversions; results that outgrow each buffer (to the byte around 1,024); `%n`, `%%`, and formats that end in the middle of a conversion. The length and the bytes of every result go into the fingerprint's `fmt` part. The test takes about 50 ms.
+
+A city run reaches the formatter without the test.
+
+### Parity
+
+All 30 framework groups on against the original (the service start trace on both sides), 12 saves, 7 days, two jobs, 2026-10-12, each leg with a control (the original on both sides):
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 12 same | 12 same |
+| `OPENSC4_TEST_STRING_FORMAT=2` | 12 same | 12 same |
+
+All on the first pair. The `fmt` part was the same in all 48 runs of the test's leg and its control.
