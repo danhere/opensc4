@@ -394,3 +394,1009 @@ address = 0x00AD1AD0
 kind = "vtable"
 expect = "85 CF 92 00 9F EC 93 00"
 source = "25 slots; stored by the constructor 0x0092DD7E."
+
+[[entry]]
+name = "cGZFrameWork::AddSystemService"
+address = 0x0087AC3C
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 28 53 56"
+source = "Slot 3 of the vtable 0x00AC3090 (gzcom-dll cIGZFrameWork); `ret 4`. Ours in framework.services.registry."
+
+[[entry]]
+name = "cGZFrameWork::RemoveSystemService"
+address = 0x0087A90E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 53 56"
+source = "Slot 4; `ret 4`. Ours in framework.services.registry."
+
+[[entry]]
+name = "cGZFrameWork::GetSystemService"
+address = 0x0087A0AC
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Slot 5; `ret 0xC` (service ID, interface ID, out). Ours in framework.services.registry."
+
+[[entry]]
+name = "cGZFrameWork::EnumSystemServices"
+address = 0x0087A106
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 56 57 8D 45"
+source = "Slot 6; `ret 0xC` (an enumerator object whose slot 3 is called with each service, and two values passed on). Left the game's: called in a running city it stalls after 32 services, so a replacement could not be compared (docs/framework.md)."
+
+[[entry]]
+name = "cGZFrameWork::ListServicesByPriority"
+address = 0x00879ACE
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 53 56"
+source = "Name ours. `ret 8` (a list, ascending): the services in priority order, lowest first when the flag is set, into the list. Called by EnumSystemServices (0x0087A122) and by the six functions that start and stop the services in bands (0x00879F6A, 0x00879FDB, 0x0087A063, 0x0087A4D7, 0x0087A548, 0x0087A5C0). Ours in framework.services.registry."
+
+[[entry]]
+name = "cGZFrameWork::AddToTick"
+address = 0x00879BB9
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 18 53 56"
+source = "Slot 9; `ret 4`. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::RemoveFromTick"
+address = 0x00879C6C
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Slot 10; `ret 4`. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::AddToOnIdle"
+address = 0x00879D21
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Slot 11; `ret 4`. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::RemoveFromOnIdle"
+address = 0x00879DB3
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Slot 12; `ret 4`. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::GetOnIdleInterval"
+address = 0x0087946C
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 BC 00 00 00 C3 A1"
+source = "Slot 13: the value at +0xBC. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::SetOnIdleInterval"
+address = 0x0087944F
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 7E 08"
+source = "Slot 14; `ret 4`: +0xBC, or 1 for a value below 1. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::OnTick"
+address = 0x0087A74B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Slot 15; `ret 4` (the frame number). The one that runs (the game's subclass overrides it; see cSC4FrameWork::OnTick). Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::OnIdle"
+address = 0x0087A812
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 56 8B"
+source = "Slot 16; no arguments. Called by the main loop (0x008795BD) once per pass. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::AddHook"
+address = 0x0087A1F4
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Slot 7; `ret 4`. Ours in framework.services.hooks."
+
+[[entry]]
+name = "cGZFrameWork::RemoveHook"
+address = 0x008798AA
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Slot 8; `ret 4`. Ours in framework.services.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CopyHooks"
+address = 0x0087A178
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 10 53 56"
+source = "Name ours. `ret 4` (a list): the hooks appended to the list under the lock. Called by the seven functions that call the hooks (0x0087A2AA ... 0x0087A48A). Ours in framework.services.hooks."
+
+[[entry]]
+name = "cSC4FrameWork::OnTick"
+address = 0x00473440
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 E0 EE"
+source = "Name ours (the game's subclass of the framework, vtable 0x00A8C970, chosen by the byte 0x00B21428, which is clear in our runs). Slot 15; `ret 4`: the base's OnTick in a try block. Ours in framework.services.tick."
+
+[[entry]]
+name = "cSC4FrameWork::OnIdle"
+address = 0x004735F0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 F0 EE"
+source = "Name ours. Slot 16 of the subclass: the base's OnIdle in a try block. Ours in framework.services.tick."
+
+[[entry]]
+name = "cGZFrameWork::ServiceTree_Insert"
+address = 0x00879E91
+kind = "function"
+convention = "thiscall"
+expect = "8B 11 8B 42 04 85 C0 57"
+source = "Name ours. The services-by-priority tree's insert (equal keys allowed, a new one after its equals); `ret 8` (result, value {priority, service}). Called by ours; still the game's (a container helper)."
+
+[[entry]]
+name = "cGZFrameWork::ServiceTree_Erase"
+address = 0x00968D88
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 07 8D 48"
+source = "Name ours. A tree's erase of one node (rebalance 0x0040DAF0, the node's reference released, the count down); `ret 4`. Shared template code. Called by ours; still the game's."
+
+[[entry]]
+name = "cGZFrameWork::ServiceTable_Insert"
+address = 0x0087A66F
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 40 50"
+source = "Name ours. The services-by-ID hash table's insert: grows the table for one more (0x009978AF), then inserts {ID, service} (0x0087999F); `ret 8` (result, value). Called by ours; still the game's."
+
+[[entry]]
+name = "cGZFrameWork::Vtable"
+address = 0x00AC3090
+kind = "vtable"
+expect = "1B 93 87 00 55 93 87 00"
+source = "The framework's primary vtable, 49 slots (docs/framework.md)."
+
+[[entry]]
+name = "cRZCOMDllDirector::QueryInterface"
+address = 0x0090DE02
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 7D 08 01 74"
+source = "Slot 0 of the director base's vtable 0x00ACE6F8 (gzcom-dll cIGZCOMDirector); `ret 8`. Answers 1 and 0xA21EE941 itself and 0x03FA40BF (the framework hooks) with this + 4. Ours in framework.directors.lookup."
+
+[[entry]]
+name = "cRZCOMDllDirector::RemoveRef"
+address = 0x0090DE43
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 85 C0 76 04 48"
+source = "Slot 10: the count at +8 one down unless it is 0; the count. Ours in framework.directors.lookup."
+
+[[entry]]
+name = "cRZCOMDllDirector::InitializeCOM"
+address = 0x0090DE57
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 85 DB 56"
+source = "Slot 3; `ret 8` (COM object, library path): stores the COM object (+0x24) and its framework (+0x28), copies the path (+0x10) and passes both on to every child. Ours in framework.directors.registration."
+
+[[entry]]
+name = "cRZCOMDllDirector::CanUnloadNow"
+address = 0x0090DEA2
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 83 7F 08 00"
+source = "Slot 7. Ours in framework.directors.lookup."
+
+[[entry]]
+name = "cRZCOMDllDirector::GetLibraryPath"
+address = 0x0090DECD
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Slot 14; `ret 4` (a string, set through its slot 3 from the path's characters). Ours in framework.directors.lookup."
+
+[[entry]]
+name = "cRZCOMDllDirector::GetClassObject"
+address = 0x0090DFAC
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 56 57 8B F9 8B"
+source = "Slot 6; `ret 0xC` (class ID, interface ID, out): the children in order, then the director's own table. Ours in framework.directors.lookup."
+
+[[entry]]
+name = "cRZCOMDllDirector::EnumClassObjects"
+address = 0x0090E02B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 57 8B"
+source = "Slot 5; `ret 8` (a cdecl callback (class ID, version, context), context): the children, then every class of the director's own table with version 0. Ours in framework.directors.lookup."
+
+[[entry]]
+name = "cRZCOMDllDirector::ClassTable_Insert"
+address = 0x0090E081
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 40 50"
+source = "Name ours. The class table's insert: grows the table for one more (0x009978AF), then inserts {class ID, factory, type} unless the ID is there (0x0090DF0C); `ret 8` (result, value). Called by ours; still the game's (a container helper)."
+
+[[entry]]
+name = "cRZCOMDllDirector::Vtable"
+address = 0x00ACE6F8
+kind = "vtable"
+expect = "02 DE 90 00 B1 C4 94 00"
+source = "The director base's vtable, 17 slots; stored by the constructor 0x0090E18D."
+
+[[entry]]
+name = "cGZFrameWork::StartFirstServices"
+address = 0x00879F15
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. Slot 41 of the vtable 0x00AC3090; no arguments. Adds the app as a system service, then Init and SetServiceRunning(true) for every service of priority above -2000000, highest first. Called once by the framework's start-up (0x0087B01E). Ours in framework.run.services."
+
+[[entry]]
+name = "cGZFrameWork::StartAppServices"
+address = 0x00879FBC
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. Slot 42: the services of priority -2999999 to -2000000 (the app itself); false when one that answers interface 0x66 fails its Init. Called once (0x0087B046). Ours in framework.run.services."
+
+[[entry]]
+name = "cGZFrameWork::StartLastServices"
+address = 0x0087A046
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8D"
+source = "Name ours. Slot 43: the services of priority below -2999999. Called once (0x0087B07F). Ours in framework.run.services."
+
+[[entry]]
+name = "cGZFrameWork::StopLastServices"
+address = 0x0087A4B6
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8D"
+source = "Name ours. Slot 44: Shutdown and SetServiceRunning(false) for the services of priority below -2999999, lowest first; false when a Shutdown fails. Ours in framework.run.services."
+
+[[entry]]
+name = "cGZFrameWork::StopAppServices"
+address = 0x0087A527
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8D"
+source = "Name ours. Slot 45: the same for priority -2999999 to -2000000. Ours in framework.run.services."
+
+[[entry]]
+name = "cGZFrameWork::StopFirstServices"
+address = 0x0087A59F
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 8D"
+source = "Name ours. Slot 46: the same for priority above -2000000. Ours in framework.run.services."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksPreFrameWorkInit"
+address = 0x0087A286
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. No arguments: a copy of the hooks (0x0087A178), each one's slot 3; false while the hooks are in use. Ours in framework.run.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksPreAppInit"
+address = 0x0087A2D6
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. As 0x0087A286 with the hooks' slot 4. Ours in framework.run.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksPostAppInit"
+address = 0x0087A326
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. As 0x0087A286 with the hooks' slot 5. Ours in framework.run.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksPreAppShutdown"
+address = 0x0087A376
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. As 0x0087A286 with the hooks' slot 6. Ours in framework.run.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksPostAppShutdown"
+address = 0x0087A3C6
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. As 0x0087A286 with the hooks' slot 7. Ours in framework.run.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksPostSystemServiceShutdown"
+address = 0x0087A416
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. As 0x0087A286 with the hooks' slot 8. Ours in framework.run.hooks."
+
+[[entry]]
+name = "cGZFrameWork::CallHooksAbortiveQuit"
+address = 0x0087A466
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. As 0x0087A286 with the hooks' slot 9; called by AbortiveQuit (slot 20). Ours in framework.run.hooks."
+
+[[entry]]
+name = "cRZBaseSystemService::SetServiceRunning"
+address = 0x0091DD91
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 88 41 18 C2"
+source = "Slot 7 of the system service base (in 48 vtables); `ret 4`: the byte at +0x18. The game's; diagnostics.trace.service_start records the calls through it."
+
+[[entry]]
+name = "GZFrameWork::Run"
+address = 0x0087B0B9
+kind = "function"
+convention = "cdecl"
+expect = "FF 74 24 08 FF 74 24 08"
+source = "Name ours. (command line, quit by flag): Init (0x0087AF13), on success the run phase (0x0087957A), always the shutdown (0x0087AB07); the exit code (0x00B540A8). One caller, 0x0044C221 in WinMain's helper. Ours in framework.run.sequence."
+
+[[entry]]
+name = "GZFrameWork::Init"
+address = 0x0087AF13
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 A1 AC 40 B5"
+source = "Name ours. (command line, quit by flag): the framework's start-up, states 0 to 6 (docs/framework.md). Ours in framework.run.sequence."
+
+[[entry]]
+name = "GZFrameWork::RunPhase"
+address = 0x0087957A
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D AC 40 B5 00 8B 01"
+source = "Name ours. State 7: the app's GZRun (its slot 8), and when that says no the main loop (the framework's slot 48). Ours in framework.run.sequence."
+
+[[entry]]
+name = "GZFrameWork::Shutdown"
+address = 0x0087AB07
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D AC 40 B5 00 8B 01"
+source = "Name ours. The framework's shutdown, states 8 to 14. Ours in framework.run.sequence."
+
+[[entry]]
+name = "GZFrameWork::ReleaseGlobals"
+address = 0x008794CC
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D B4 40 B5 00 85 C9"
+source = "Name ours. Releases and clears the app (0x00B540B4) and the framework's two pointers (0x00B540AC, 0x00B540B0). Ours in framework.run.sequence."
+
+[[entry]]
+name = "cGZFrameWork::EmptyServices"
+address = 0x0087AA81
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. No arguments: the idle and tick lists and their parked lists, the services' table and tree emptied under the lock. Ours in framework.run.sequence."
+
+[[entry]]
+name = "cGZFrameWork::EmptyHooks"
+address = 0x00879922
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. No arguments: the hooks' list emptied under the lock. Ours in framework.run.sequence."
+
+[[entry]]
+name = "cGZFrameWork::ShutdownCOM"
+address = 0x008793FD
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. No arguments: the COM object's RealShutdown (its slot 10) under the framework's lock. Ours in framework.run.sequence."
+
+[[entry]]
+name = "cGZFrameWork::MainLoop"
+address = 0x008795BD
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 1C 53 56"
+source = "Name ours. Slot 48 of the vtable 0x00AC3090; no arguments. Windows messages until there are none, then OnIdle (slot 16) when the tick is on; ends on WM_QUIT or the quit flag. Ours in framework.run.loop."
+
+[[entry]]
+name = "cGZFrameWork::CopyCommandLine"
+address = 0x0087AEE1
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 56 8B F1"
+source = "Name ours. `ret 4`: the command line copied into the object at +0xE8 under the lock. Called by ours; still the game's."
+
+[[entry]]
+name = "RZCmdLine::Prepare"
+address = 0x0091479D
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 81 EC 68 02 00"
+source = "Name ours (purpose not read). (command line object, 0); called once by the framework's Init on its copy of the command line. Called by ours; still the game's."
+
+[[entry]]
+name = "GZFrameWork::ExitCode"
+address = 0x00B540A8
+kind = "data"
+source = "The program's exit code: -1 when the start-up fails, WM_QUIT's wParam or the quit code when the main loop ends."
+
+[[entry]]
+name = "GZFrameWork::Instance"
+address = 0x00B540AC
+kind = "data"
+source = "The framework (what RZGetFramework returns); 0x00B540B0 holds the same pointer again."
+
+[[entry]]
+name = "GZFrameWork::Instance2"
+address = 0x00B540B0
+kind = "data"
+source = "The framework's second pointer."
+
+[[entry]]
+name = "GZFrameWork::App"
+address = 0x00B540B4
+kind = "data"
+source = "The app (cIGZApp), set by the framework's SetApplication."
+
+[[entry]]
+name = "User32::DispatchMessageA"
+address = 0x00A80524
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "User32::TranslateMessage"
+address = 0x00A80528
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "User32::WaitMessage"
+address = 0x00A8052C
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "User32::PeekMessageA"
+address = 0x00A80530
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "cRZBaseString::QueryInterface"
+address = 0x0090E1D1
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 48 74 0B 2D"
+source = "Slot 0 of the string's vtable 0x00A80810 (gzcom-dll cIGZString); `ret 8`. Answers 1 and 0x089B7DC8. Ours in framework.string.interface (docs/framework.md)."
+
+[[entry]]
+name = "cRZBaseString::Release"
+address = 0x0090E1F3
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 10 83 F8 01 76 05"
+source = "Slot 2: the count at +0x10; at 1 or less the deleting destructor (slot 28) with flag 1, result 0. Ours in framework.string.interface."
+
+[[entry]]
+name = "cRZBaseString::IsEqualChars"
+address = 0x0090ED5D
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 28 56 57"
+source = "Slot 8; `ret 0xC` (characters, length or -1, case sensitive). Ours in framework.string.compare."
+
+[[entry]]
+name = "cRZBaseString::CompareToChars"
+address = 0x0090EF5B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 2C 83 7D"
+source = "Slot 11; `ret 0xC` (characters, length or -1, case sensitive). Ours in framework.string.compare."
+
+[[entry]]
+name = "cRZBaseString::CompareTo"
+address = 0x0090EE61
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 2C 53 56"
+source = "Slot 12; `ret 8` (string, case sensitive). Ours in framework.string.compare."
+
+[[entry]]
+name = "cRZBaseString::InsertString"
+address = 0x0090F0B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 0C 8B 06 57"
+source = "Slot 18; `ret 8` (position, string). Ours in framework.string.modify."
+
+[[entry]]
+name = "cRZBaseString::InsertChars"
+address = 0x0090F093
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 10 8B F1 FF"
+source = "Slot 19; `ret 0xC` (position, characters, length). Ours in framework.string.modify."
+
+[[entry]]
+name = "cRZBaseString::ReplaceString"
+address = 0x0090FC30
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 0C 8B 06 57"
+source = "Slot 20; `ret 8` (position, string). Ours in framework.string.modify."
+
+[[entry]]
+name = "cRZBaseString::ReplaceChars"
+address = 0x0090FC13
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 0C 8B F1 FF"
+source = "Slot 21; `ret 0xC` (position, characters, length). Ours in framework.string.modify."
+
+[[entry]]
+name = "cRZBaseString::Erase"
+address = 0x0090E4D8
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 0C 8B F1 FF"
+source = "Slot 22; `ret 8` (position, count). Ours in framework.string.modify."
+
+[[entry]]
+name = "cRZBaseString::FindString"
+address = 0x0090F16C
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 28 80 7D"
+source = "Slot 23; `ret 0xC` (string, position, case sensitive). Ours in framework.string.compare."
+
+[[entry]]
+name = "cRZBaseString::RFindString"
+address = 0x0090F28C
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 28 80 7D"
+source = "Slot 25; `ret 0xC` (string, position, case sensitive). Ours in framework.string.compare."
+
+[[entry]]
+name = "cRZBaseString::RFindChars"
+address = 0x0090F1FB
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 28 80 7D"
+source = "Slot 26; `ret 0xC` (characters, position, case sensitive). Ours in framework.string.compare."
+
+[[entry]]
+name = "SC4StringBody::AppendChars"
+address = 0x004D8650
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 8D 44 24 04"
+source = "Name ours. The string body (the object's +4): append of a run of characters; `ret 8` (characters, length). STLport's basic_string; called by ours, still the game's."
+
+[[entry]]
+name = "SC4StringBody::InsertChars"
+address = 0x0090E8B6
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 2B 06"
+source = "Name ours. The string body: insert; `ret 0xC` (position, characters, length). Called by ours; still the game's."
+
+[[entry]]
+name = "SC4StringBody::ReplaceChars"
+address = 0x005C2EB0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 0C 56 8B"
+source = "Name ours. The string body: replace; `ret 0xC` (position, count, characters). Called by ours; still the game's."
+
+[[entry]]
+name = "SC4StringBody::Find"
+address = 0x00442850
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B C6 57"
+source = "Name ours. The string body: find; `ret 8` (characters, position); the index or -1. Called by ours; still the game's."
+
+[[entry]]
+name = "SC4StringBody::RFind"
+address = 0x005C2620
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B C6 57"
+source = "Name ours. The string body: reverse find; `ret 8` (characters, position). Called by ours; still the game's."
+
+[[entry]]
+name = "CRT::strncmp"
+address = 0x009F1120
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 57 56 53 8B 4D"
+source = "The exe's C runtime strncmp (Function ID name)."
+
+[[entry]]
+name = "CRT::memcmp"
+address = 0x009F18F0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 0C 85 C0 74 4A"
+source = "The exe's C runtime memcmp (Function ID name)."
+
+[[entry]]
+name = "CRT::strlen"
+address = 0x009F17E0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 F7 C1 03 00"
+source = "The exe's C runtime strlen (Function ID name)."
+
+[[entry]]
+name = "cRZBaseString::AssignString"
+address = 0x0090E230
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 08 8B F1 8B"
+source = "Slot 13 (operator=); `ret 4`: Copy through slot 14, the result is this. Ours in framework.string.modify."
+
+[[entry]]
+name = "cGZMessage::QueryInterface"
+address = 0x00913292
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 7D 08 01 74"
+source = "Slot 0 of the vtable 0x00ACEC00 (gzcom-dll cIGZMessage2Standard); `ret 8`. Answers 1, 0x65297976 and 0xA52294B4. Shared by the message's subclasses' vtables. Ours in framework.message.interface."
+
+[[entry]]
+name = "cGZMessage::Release"
+address = 0x009132C1
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 83 F8 01 76 05"
+source = "Slot 2: the count at +4; at 1 or less the deleting destructor (slot 37) with flag 1, result 0. Ours in framework.message.interface."
+
+[[entry]]
+name = "cGZMessage::Create"
+address = 0x009134FF
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 2C 8B F9 E8 D0"
+source = "Slot 3; `ret 8` (interface ID, out): a new message asked for the interface and given this one's type. Ours in framework.message.interface."
+
+[[entry]]
+name = "cGZMessage::SetType"
+address = 0x009132DB
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 89 41"
+source = "Slot 5; `ret 4`: the type (+0xC) and bit 0 of the flags (+8) when it is not 0. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::IsSameType"
+address = 0x0091337A
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "Slot 6 (operator==); `ret 4`: the other message's type equals this one's. Ours in framework.message.interface."
+
+[[entry]]
+name = "cGZMessage::IsLowerType"
+address = 0x00913394
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "Slot 7 (operator<); `ret 4`: this type below the other's, unsigned. Ours in framework.message.interface."
+
+[[entry]]
+name = "cGZMessage::GetHasData1"
+address = 0x009132F3
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 8A 41 08 D1 E8 83"
+source = "Slot 8: bit 1 of the flags. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::GetHasData2"
+address = 0x009132FE
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 8A 41 08 C1 E8 02"
+source = "Slot 13: bit 2. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::GetHasData3"
+address = 0x0091330A
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 8A 41 08 C1 E8 03"
+source = "Slot 18: bit 3. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::GetHasData4"
+address = 0x00913316
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 8A 41 08 C1 E8 04"
+source = "Slot 23: bit 4. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::SetData1"
+address = 0x00913322
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 80 49 08 02"
+source = "Slots 11 and 12 (SetData1, SetVoid1); `ret 4`: +0x10 and bit 1. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::SetData2"
+address = 0x00913330
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 80 49 08 04"
+source = "Slots 16 and 17; `ret 4`: +0x14 and bit 2. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::SetData3"
+address = 0x0091333E
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 80 49 08 08"
+source = "Slots 21 and 22; `ret 4`: +0x18 and bit 3. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::SetData4"
+address = 0x0091334C
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 80 49 08 10"
+source = "Slots 26 and 27; `ret 4`: +0x1C and bit 4. Ours in framework.message.data."
+
+[[entry]]
+name = "cGZMessage::GetHasString"
+address = 0x0091335A
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 8A 41 08 C1 E8 06"
+source = "Slot 28: bit 6. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::GetString"
+address = 0x00913438
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 70"
+source = "Slot 29; `ret 8` (interface ID, out): the string (+0x20) asked for the interface when there is one. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::SetString"
+address = 0x00913452
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 04 00 74 06 80"
+source = "Slot 30; `ret 4`: +0x20 (a counted reference) and bit 6 when it is not null. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::GetHasIGZUnknown"
+address = 0x00913366
+kind = "function"
+convention = "thiscall"
+expect = "0F B6 41 08 C1 E8 07 C3"
+source = "Slot 31: bit 7. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::SetIGZUnknown"
+address = 0x0091346B
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 04 00 74 06 80"
+source = "Slot 33; `ret 4`: +0x24 and bit 7. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::GetHasExtra"
+address = 0x0091336E
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 8A 41 08 C1 E8 05"
+source = "Slot 34: bit 5. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::GetExtra"
+address = 0x00913484
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 90 88"
+source = "Slot 35; `ret 8` (interface ID, out): the extra object (+0x28) asked for the interface when there is one. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::SetExtra"
+address = 0x009134A1
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 04 00 74 06 80"
+source = "Slot 36; `ret 4`: +0x28 and bit 5. Ours in framework.message.objects."
+
+[[entry]]
+name = "cGZMessage::DeletingDestructor"
+address = 0x009134BA
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 E9 FE FF FF"
+source = "Slot 37; `ret 4`: the destructor (0x009133AB), and with flag 1 the memory back to the message pool (0x00913409). Ours in framework.message.interface."
+
+[[entry]]
+name = "cGZMessage::Vtable"
+address = 0x00ACEC00
+kind = "vtable"
+expect = "92 32 91 00 60 8B 96 00"
+source = "The standard message's vtable, 38 slots; stored by the constructor 0x009134D6 (0x2C bytes)."
+
+[[entry]]
+name = "RZ::Pool"
+address = 0x00B627E0
+kind = "data"
+source = "Name ours. The allocator behind RZ::operator_new and RZ::operator_delete (the message pool): nine block allocators at +0x6C, one for each block size from 8 bytes to 2,048; made at 0x00A791E6 when the program starts."
+
+[[entry]]
+name = "RZ::PoolLock"
+address = 0x00B62870
+kind = "data"
+source = "Name ours. The lock RZ::operator_new and RZ::operator_delete hold around the pool (lock slot +4, unlock slot +8); made at 0x00A791FC."
+
+[[entry]]
+name = "RZCriticalSection::Release"
+address = 0x00930B20
+kind = "function"
+convention = "thiscall"
+expect = "85 C9 74 07 8B 01 6A 01"
+source = "Name ours. Slot 0, no arguments: deletes the lock through slot 6 with flag 1 (nothing for a null this); returns 0. Ours in framework.lock.lifetime."
+
+[[entry]]
+name = "RZCriticalSection::Lock"
+address = 0x00930B35
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 04 56 FF 15 2C"
+source = "Name ours. Slot 1, no arguments: EnterCriticalSection, then the count at the block's +0x18 goes up; returns the count. 29 direct callers. Ours in framework.lock.use."
+
+[[entry]]
+name = "RZCriticalSection::Unlock"
+address = 0x00930B6D
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 FF 48 18 56 8B"
+source = "Name ours. Slot 2, no arguments: the count goes down, then LeaveCriticalSection; returns the count. 32 direct callers. Ours in framework.lock.use."
+
+[[entry]]
+name = "RZCriticalSection::TryLock"
+address = 0x00930B48
+kind = "function"
+convention = "thiscall"
+expect = "A1 88 2A B6 00 85 C0 56"
+source = "Name ours. Slot 3, no arguments: TryEnterCriticalSection through the pointer at 0x00B62A88; 0 when it fails. When it succeeds (or the pointer is null) EnterCriticalSection follows, so a successful try enters twice; then as Lock. Ours in framework.lock.use."
+
+[[entry]]
+name = "RZCriticalSection::GetLockCount"
+address = 0x00930B2E
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 8B 40 18 C3 56"
+source = "Name ours. Slot 5, no arguments: the count at the block's +0x18. Keeps ECX and EDX. Ours in framework.lock.use."
+
+[[entry]]
+name = "RZCriticalSection::GetHandle"
+address = 0x00930B82
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 8B 4C 24 04 89"
+source = "Name ours. Slot 7; `ret 4` (out): the CRITICAL_SECTION's address into *out; returns 1. Ours in framework.lock.use."
+
+[[entry]]
+name = "RZCriticalSection::DeletingDestructor"
+address = 0x00930BC3
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 37 FF FF FF"
+source = "Name ours. Slot 6; `ret 4` (flags): the destructor (0x00930B02), and with flag 1 the object freed (0x005E5620); returns the object. Ours in framework.lock.lifetime."
+
+[[entry]]
+name = "RZCriticalSection::FindTryEnter"
+address = 0x00930AC0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 FF 15 98 00 A8"
+source = "Name ours. A static initialiser (called once, from 0x00A79301), no arguments, returns this: unless GetVersion says Windows 95, LoadLibraryA('Kernel32.dll') into 0x00B62A8C and GetProcAddress('TryEnterCriticalSection') into 0x00B62A88. Ours in framework.lock.lifetime."
+
+[[entry]]
+name = "RZCriticalSection::Vtable"
+address = 0x00AD1EF4
+kind = "vtable"
+expect = "20 0B 93 00 35 0B 93 00"
+source = "Name ours. 8 slots: Release, Lock, Unlock, TryLock, a shared 'return 1' (0x009DAA18), GetLockCount, the deleting destructor, GetHandle."
+
+[[entry]]
+name = "RZCriticalSection::TryEnterFunction"
+address = 0x00B62A88
+kind = "data"
+source = "Name ours. TryEnterCriticalSection's address, or null; set by FindTryEnter."
+
+[[entry]]
+name = "RZCriticalSection::Kernel32Module"
+address = 0x00B62A8C
+kind = "data"
+source = "Name ours. Kernel32's module handle from FindTryEnter's LoadLibraryA."
+
+[[entry]]
+name = "Kernel32::GetVersion"
+address = 0x00A80098
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "Kernel32::LoadLibraryA"
+address = 0x00A800D0
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "Kernel32::GetProcAddress"
+address = 0x00A800CC
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "Kernel32::InitializeCriticalSection"
+address = 0x00A80224
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "Kernel32::LeaveCriticalSection"
+address = 0x00A80228
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "Kernel32::EnterCriticalSection"
+address = 0x00A8022C
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "Kernel32::DeleteCriticalSection"
+address = 0x00A80230
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "CRT::_snprintf"
+address = 0x009F2108
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 20 8B 45"
+source = "The exe's statically linked C runtime _snprintf (buffer, count, format, ...): a negative result when the text does not fit. cRZBaseString::Sprintf formats its floating point values with it (0x0090F8CA)."

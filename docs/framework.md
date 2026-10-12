@@ -207,3 +207,324 @@ With the message queue's five groups on as well (ten groups against the original
 - The `msg` and `mq` parts were the same in all 32 runs of the tests' leg, original and ours.
 - The two partly (Making Money d1095 plain, Big City d0365 with the tests): the original gave two outcomes on each within the batch (on Making Money d1095 the lots' checksum of day 1 takes one of two values), ours two, one of them shared. The same kind of split as above; other threads' games were running.
 
+## Services, tick and hooks
+
+The framework's own lists, on the framework object (layout in the survey above).
+
+How they work:
+
+- **AddSystemService** (slot 3) puts a service into the tree (by priority; equal priorities in the order they came) and the table (by ID). It is refused while either is in use, for a null service and for an ID that is taken. **RemoveSystemService** (slot 4) takes it out of the idle list, the tick list, the tree and the table, and answers true whether it was known or not.
+- **GetSystemService** (slot 5) looks the ID up in the table and asks that service for the interface. The table counts as in use while the service answers, so a service cannot add or remove services from inside its QueryInterface.
+- **AddToTick** (slot 9) inserts before the first service of a lower tick priority, so the list runs from the highest down and equal priorities keep their order; a service whose ID is on the list already is not added again (the answer is still true). **AddToOnIdle** (slot 11) appends, and answers false for a service that is there.
+- **RemoveFromTick, RemoveFromOnIdle** (slots 10, 12): during a call of the list the service is first put on a second list that keeps it referenced until the outermost call ends; the services of the pass under way are still called.
+- **OnIdle** (slot 16) is what the main loop calls: it counts the frame, calls **OnTick** (slot 15) through the vtable with the frame's number, and when the frame count divides by the idle interval (4) calls the idle list's services with the idle count. Both copy their list under the lock and call outside it.
+- **AddHook, RemoveHook** (slots 7, 8) keep a list; the seven functions that call the hooks first copy it (0x0087A178).
+
+`src/core/framework_services.cpp`, entry detours on the game's object, off by default:
+
+| Replacement | Functions |
+|---|---|
+| `framework.services.registry` | AddSystemService 0x0087AC3C, RemoveSystemService 0x0087A90E, GetSystemService 0x0087A0AC, the services listed by priority 0x00879ACE |
+| `framework.services.tick` | AddToTick 0x00879BB9, RemoveFromTick 0x00879C6C, AddToOnIdle 0x00879D21, RemoveFromOnIdle 0x00879DB3, the idle interval 0x0087946C and 0x0087944F, OnTick 0x0087A74B, OnIdle 0x0087A812, and the game's subclass's OnTick 0x00473440 and OnIdle 0x004735F0 |
+| `framework.services.hooks` | AddHook 0x0087A1F4, RemoveHook 0x008798AA, the hooks' copy 0x0087A178 |
+
+17 functions. The lists, the table's lookup and removal and the tree's walk are done in our code on the game's layouts; the tree's insert and erase and the table's insert are still the game's helpers (0x00879E91, 0x00968D88, 0x0087A66F). The two functions that game code calls directly (0x00879ACE, 0x0087A178) are entered through thunks that keep ECX and EDX.
+
+Still the game's in this part of the framework: the functions that start and stop the services in bands (slots 41-46) and the seven that call the hooks (they run at start-up, before our detours go in, and at shutdown), the tick switch and the small getters (shared code), and:
+
+- **EnumSystemServices (slot 6) stalls the original** when it is called in a running city: it stops after the 32nd service and the game never comes back. A replacement could not be compared, so the function is left alone. Which service it stops at was not looked into.
+
+Findings:
+
+- Which frame a tick falls on is not the same from run to run: frames pass while the city loads, and their number depends on real time. The idle calls (every fourth frame) therefore land on different frames in two runs of the original. The simulation does not see this (the simulator runs its own slices); a test of the lists has to keep frame numbers out of what it compares.
+
+### Testing
+
+`OPENSC4_TEST_SERVICES=<day>` adds three services of its own (one twice), looks them up, lists the services by priority both ways through 0x00879ACE (how many, and where the three stand), puts the three on the tick list (one twice) and two on the idle list (one twice), removes what is not there, adds a hook twice and removes it twice, and reads and sets the idle interval. The services then record their first three ticks and two idle calls (who is called, in which order, with which number counted from the first; one takes another off the tick list from inside a tick) and take themselves out again. The fingerprint's `svc` part appears ten days after the drive, when all of that is over: run at least 13 days.
+
+With the test on, the coverage meter shows all 17 functions reached in the original except the subclass's two.
+
+### Parity
+
+All thirteen framework groups on (services, message server, message queue) against the original, 12 saves, two jobs, on 2026-10-12, with a control (the original on both sides) run the same way right after; three to five other copies of the game were running:
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain, 7 days | 10 same, 2 partly | 11 same, 1 partly |
+| `OPENSC4_TEST_SERVICES=2`, 14 days | 8 same, 4 partly | 10 same, 2 partly |
+
+- The `svc` part was the same in all 50 runs of the test's leg, original and ours.
+- Every difference is in parts that the original also gives two values for under load: the flammability walk's sums on the first day and the lots' checksum.
+- **One save needed a closer look.** On Rush Hour d1095 the first day's flammability sum is 1303 in every run of the original (23 runs over five batches) and 1273 in about one run in six with our groups on (2 of 4 in the batch, 2 of 12 alone; none in 11 runs with one group at a time). It is a matter of timing and not of what our code does: with the same 17 functions hooked by stubs that only jump on to the original code, 1 run in 13 gave 1273 too. So something on the first day after a load races with the main thread, and a hook on these much-called functions (GetSystemService above all) is enough to tip it now and then. Ours come out a little worse than the control in both legs for that reason. Which two things race was not looked into; the load-time worker thread ([experiments/determinism.md](experiments/determinism.md)) is the first suspect.
+
+## Directors: class registration and lookup
+
+The COM object itself (GetClassObject 0x0087BE75, the libraries, the DLL scan) is ours since the plugin DLL work ([plugin-dlls.md](plugin-dlls.md), `resources.plugin_dlls.*`). What it falls back to for every class that no DLL registered is the exe's root director, and with it the director base class, which this part covers.
+
+How the base class works (layout in the survey above):
+
+- **AddCls** (0x0090E133; 0x0090E160 for factories that take the interface ID) puts {class ID, factory, type} into the director's table; a second registration of an ID is dropped. The exe calls them 464 times, all from director constructors while the app starts.
+- **AddDirector** (0x0090E0D4) gives the child this director's COM object and path (InitializeCOM), adds the child's own children to this director first and then the child, so the root's list is flat. The children are not counted references.
+- **GetClassObject** (slot 6) asks the children in order, the first that makes the object wins, then looks in its own table. A type 1 factory's object is asked for the interface; when it does not have it, it is given a reference and released, which ends it. A type 2 factory is handed the interface ID.
+- **EnumClassObjects** (slot 5) calls a function for every class of the children and then of its own table, with version 0.
+- **CanUnloadNow** (slot 7) says yes while the director is referenced, and without a reference only when every child says yes.
+
+`src/core/framework_directors.cpp`, entry detours on the game's objects, off by default:
+
+| Replacement | Functions | Goes in |
+|---|---|---|
+| `framework.directors.lookup` | GetClassObject 0x0090DFAC, EnumClassObjects 0x0090E02B, QueryInterface 0x0090DE02, RemoveRef 0x0090DE43, CanUnloadNow 0x0090DEA2, GetLibraryPath 0x0090DECD | PostAppInit |
+| `framework.directors.registration` | AddCls 0x0090E133 and 0x0090E160, AddDirector 0x0090E0D4, InitializeCOM 0x0090DE57 | when core.dll is injected (Attach), so the exe's own registrations at start-up run through ours |
+
+10 functions. The table's insert (0x0090E081, it may grow the table) is still the game's helper; so are the constructor and destructor, and the seven slots that are small functions shared with unrelated classes (AddRef, OnStart, OnUnload, RefCount, FrameWork, GZCOM, the heap size). Plugin DLLs carry their own copy of this class, so only the exe's directors (26 classes) run this code.
+
+### Testing
+
+`OPENSC4_TEST_CLASSES=<day>` makes two directors with the game's base constructor, registers three classes of the test's own on them (one twice, one with the second kind of factory), makes the second a child of the first and adds the first to the exe's root director, which takes the child as well. Then it looks the classes up through the COM object and through the directors (found, wrong interface, unknown class), enumerates them, asks for the director's interfaces, counts references down with RemoveRef, asks CanUnloadNow with and without a reference, and reads the library path. Everything goes into the fingerprint's `cls` part, with how many objects the factories made and how many ended (all of them). The two directors stay in the root's list for the rest of the run.
+
+With the test on, the coverage meter shows all 10 functions reached in the original.
+
+### Parity
+
+All fifteen framework groups on (directors, services, message server, message queue) against the original, 12 saves, 7 days, two jobs, on 2026-10-12, on main after the change that holds the cycle clock's estimate in fixed-ticks runs ([experiments/determinism.md](experiments/determinism.md)); each leg with a control run the same way:
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 11 same, 1 partly (Big City d0000) | 11 same, 1 partly (Big City d0365) |
+| `OPENSC4_TEST_CLASSES=2` | 12 same | 12 same |
+
+The `cls` part was the same in all 26 runs of the test's leg. The game starts with every class registration of the exe going through ours.
+
+**Rush Hour d1095 again.** With the cycle clock held, the first day's flammability sum on that save is two-valued in the original itself: 1273 in 11 of 14 runs and 1303 in 3. With hooks on the framework's service functions the odds turn round, whatever the hooks run: ours 12 of 20 runs at 1303, stubs that only jump on to the original code 6 of 12, the three hook-list functions alone 5 of 8. So the earlier reading holds (timing, not what our code does), and the value is no longer one that only the hooked runs show. What it is that races on the first day after a load is still not known; a batch that compares outcome sets is not disturbed by it.
+
+## Starting and stopping the services, calling the hooks
+
+Thirteen functions of the framework object that its start-up (0x0087AF13) and shutdown (0x0087AB07) call.
+
+- **The services start in three bands of priority.** Slot 41 (0x00879F15) first adds the app itself as a system service, then walks the services from the highest priority down and starts those above -2,000,000; slot 42 (0x00879FBC) starts the band from -2,999,999 to -2,000,000, which is the app; slot 43 (0x0087A046) the rest. Starting is Init and, when Init says yes, SetServiceRunning(true). Only slot 42 can fail the start: when a service that answers the app's interface (0x66) fails its Init.
+- **They stop the other way round**, lowest priority first: slot 44 (0x0087A4B6) the last band, slot 45 (0x0087A527) the app's, slot 46 (0x0087A59F) the first. Stopping is Shutdown and, on yes, SetServiceRunning(false); a function answers false when any Shutdown said no.
+- **The hooks** are called by seven functions that differ in the method they call: PreFrameWorkInit 0x0087A286, PreAppInit 0x0087A2D6, PostAppInit 0x0087A326, PreAppShutdown 0x0087A376, PostAppShutdown 0x0087A3C6, PostSystemServiceShutdown 0x0087A416 and AbortiveQuit 0x0087A466. Each takes a copy of the hooks first and does nothing while the hooks' list is in use.
+
+`src/core/framework_run.cpp`: `framework.run.services` (the six) and `framework.run.hooks` (the seven), off by default. Both go in when core.dll is injected (Attach), because the start functions and three of the hook callers run once, before any later phase. With them on, the game starts its services and calls its hooks (ours among them: core.dll's own phases hang on these calls) through our code. Still the game's: the start-up and shutdown sequences themselves and the main loop.
+
+### Testing
+
+Nothing can call these functions again in a running game (the services would be started twice), so the test watches them work. `diagnostics.trace.service_start` (on in both runs of a comparison) records every call of the system service base's SetServiceRunning (0x0091DD91, the slot of nearly every service): the service's ID and the flag go into a hash. The fingerprint gets ` | start <hash> <calls>`, and each stop is logged with the hash so far, since the stops come after the last fingerprint.
+
+On Big City the original and ours give the same 34 starts (hash 6AED0313) and the same 35 stops in the same order.
+
+### Parity
+
+All seventeen framework groups on against the original, the trace on both sides, 12 saves, 7 days, two jobs, 2026-10-12: 12 of 12 the same on the first pair, and the control (the original on both sides) 12 of 12. The `start` part and the logged stops were the same in all 24 runs.
+
+## The sequence and the main loop
+
+What is left of the framework's own run: `GZFrameWork::Run` (0x0087B0B9, called once from WinMain's helper with the command line) and what it calls. Names ours.
+
+- **Init** (0x0087AF13) is the start-up of the survey's table, state by state: the command line copied, the COM object's RealInit and its registration as a service, the app's three early callbacks, the app's PreFrameWorkInit, the hooks' PreFrameWorkInit, the first services, the hooks' PreAppInit, the app's own start, the tick switched on, the last services, the app's PostFrameWorkInit, the hooks' PostAppInit. It fails, with exit code -1, when the app's PreFrameWorkInit says no (the COM object is then shut down again) or when the app's band of services does not start.
+- **The run phase** (0x0087957A) sets state 7 and asks the app's GZRun; SimCity 4's says no, and the framework's own main loop runs.
+- **The main loop** (slot 48, 0x008795BD): with the tick off it waits for a Windows message; it hands every message there is to its window, and ends on WM_QUIT with that message's wParam as the exit code; with the tick on it calls OnIdle once per pass. A run started with "quit by flag" (SimCity 4 does not) also ends when the quit flag is set. It never sleeps.
+- **Shutdown** (0x0087AB07) always follows: the hooks' PreAppShutdown, the app's PreFrameWorkShutdown, the services stopped band by band with the hooks' PostAppShutdown between, the tick off, the hooks' PostSystemServiceShutdown, the lists, table and tree emptied (0x0087AA81, 0x00879922), the COM object's RealShutdown (0x008793FD), the three global pointers released (0x008794CC).
+
+`src/core/framework_run.cpp`: `framework.run.sequence` (Run, Init, the run phase, Shutdown and its four helpers: 8 functions) and `framework.run.loop` (the main loop), off by default, both put in when core.dll is injected. With the two on, the program runs from the framework's first step to its last through our code. The main loop calls the four Windows functions through the exe's import slots, so what stands in for them there (the interface scaling's wrappers) still does. Still the game's: the copy of the command line (0x0087AEE1) and 0x0091479D on it, the tree's erase.
+
+With these, all of the framework object's own logic is ours except the constructor and destructor, AbortiveQuit and Quit, the streams and the small getters and setters.
+
+### Testing
+
+The same trace as above (`diagnostics.trace.service_start` on both sides): a run that starts, loads a city, plays and quits through our sequence and loop gives the same 34 starts and 35 stops as the original, and saves the city.
+
+### Parity
+
+All nineteen framework groups on against the original, the trace on both sides, 12 saves, 7 days, two jobs, 2026-10-12: 12 of 12 the same on the first pair, and the control (the original on both sides) 12 of 12. The `start` part and the logged stops were the same in all 24 runs.
+
+## The string class
+
+`cRZBaseString` (vtable 0x00A80810, 29 slots; 0x14 bytes) is what the game's `cIGZString` objects are: the paths, names and texts handed across interfaces. The object is a vtable, a string body at +4 (STLport's basic_string: first character, one past the last, end of the block) and a reference count at +0x10. Four more vtables (0x00A812F8, 0x00A85478, 0x00A86258, 0x00ADA4F0) are subclasses that share its code.
+
+The class is a thin layer over the body, and that layer is what is ours:
+
+- **Changing the text.** FromChar (a null pointer gives the empty string), Copy and operator= (the other string's Data and length, through this string's own slot 3), Resize (filled with zeros), Append, Insert, Replace (`length` characters at the position give way to the text) and Erase each pick one body operation and its arguments; the forms that take a string ask it for its text and length through its interface, so a string of any class works.
+- **Comparing.** IsEqual is false at different lengths; with case it is strncmp, without it both sides are copied and lowered and the copies compared with memcmp (and their lengths once more: lowering text that is not ASCII can change it). CompareTo compares the common part the same two ways and, when that is equal, answers the difference of the lengths. Find and RFind are the body's searches, without case in lowered copies.
+- **The interface.** QueryInterface answers 1 and 0x089B7DC8; Release deletes the string with its last reference.
+
+`src/core/framework_string.cpp`, entry detours, off by default:
+
+| Replacement | Functions |
+|---|---|
+| `framework.string.modify` | FromChar 0x0090F50F and 0x0090F546, operator= 0x0090E230, Copy 0x0090E20A, Resize 0x0090F042, Append 0x0090F06C and 0x0090F053, Insert 0x0090F0B0 and 0x0090F093, Replace 0x0090FC30 and 0x0090FC13, Erase 0x0090E4D8 |
+| `framework.string.compare` | IsEqual 0x0090EC57 and 0x0090ED5D, CompareTo 0x0090EE61 and 0x0090EF5B, Find 0x0090F16C and 0x0090F0DB, RFind 0x0090F28C and 0x0090F1FB |
+| `framework.string.interface` | QueryInterface 0x0090E1D1, Release 0x0090E1F3 |
+
+22 functions. Game code calls many of them directly (Find 23 times, IsEqual 24, Append 14), and code built with whole-program optimisation may keep ECX and EDX across such a call, so every detour is entered through a thunk that keeps both.
+
+Still the game's: the body's operations (STLport: assign 0x0044D3A0, resize 0x00442E90, append 0x004D8650, insert 0x0090E8B6, replace 0x005C2EB0, erase 0x004425C0, find 0x00442850, reverse find 0x005C2620), the lowering (0x0090EAC5: ASCII through the C runtime, anything else through the language's wide characters), the constructors and destructor, the C runtime's strlen, strncmp and memcmp (their exact results are CompareTo's answers), and the three getters (ToChar and Data are one function shared with other classes; Strlen is seven bytes with 99 direct callers).
+
+### Testing
+
+`OPENSC4_TEST_STRINGS=<day>` makes game strings with the game's constructor and calls the methods through their vtable slots: every pair of eight texts (empty, mixed case, accented letters, one longer than the lowering's own buffer) compared and searched with and without case, by string and by characters, from several positions; then one string changed step by step through every changing method, with a copy from a string of another class; then the interfaces and the count of one made on the heap, down to its end. Every result and every text go into the fingerprint's `str` part.
+
+With the test on, the coverage meter shows all 22 functions reached in the original.
+
+### Parity
+
+All 22 framework groups on against the original (the service start trace on both sides), 12 saves, 7 days, two jobs, 2026-10-12, each leg with a control (the original on both sides):
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 12 same | 12 same |
+| `OPENSC4_TEST_STRINGS=2` | 12 same | 12 same |
+
+All on the first pair. The `str` part was the same in all 24 runs of the test's leg.
+
+## The standard message
+
+`cGZMessage` (vtable 0x00ACEC00, 38 slots; 0x2C bytes, from the message pool) is the message object the message servers and the message queue pass around. It holds a reference count at +4, a byte of flags at +8, a type at +0xC, four data values from +0x10, and three counted references: a string at +0x20, an unknown at +0x24 and an extra object at +0x28. The flags say what the message has: bit 0 a type, bits 1 to 4 the data values, bit 5 the extra object, bit 6 the string, bit 7 the unknown. The message's subclasses share these functions through their own vtables.
+
+- **The type and the data values.** SetType stores the type; a type of 0 clears the flag, so such a message has no type. A data value's setter stores the value and sets its flag whatever the value: once set, a value cannot be taken back.
+- **The three objects.** A setter sets the flag by whether the object is null, then, when the object is not the one already held, adds a reference to the new one, stores it and releases the old one. GetString and GetExtra first ask the message itself whether it has the object (through its own slots, so a subclass can answer) and then ask the object for the interface.
+- **The interface.** QueryInterface answers 1, 0xA52294B4 and 0x65297976. Release deletes the message with its last reference, through the deleting destructor's slot. Create makes a new standard message, asks it for the interface and gives it this message's type and nothing else of it; without the interface the new message is deleted again. The two comparisons (same type, lower type) read the other message's type through its slot.
+
+`src/core/framework_message.cpp`, entry detours, off by default:
+
+| Replacement | Functions |
+|---|---|
+| `framework.message.data` | SetType 0x009132DB, the data values' setters 0x00913322, 0x00913330, 0x0091333E, 0x0091334C and "has" answers 0x009132F3, 0x009132FE, 0x0091330A, 0x00913316 |
+| `framework.message.objects` | SetString 0x00913452, SetIGZUnknown 0x0091346B, SetExtra 0x009134A1, their "has" answers 0x0091335A, 0x00913366, 0x0091336E, GetString 0x00913438, GetExtra 0x00913484 |
+| `framework.message.interface` | QueryInterface 0x00913292, Release 0x009132C1, Create 0x009134FF, the comparisons 0x0091337A and 0x00913394, the deleting destructor 0x009134BA |
+
+23 functions. Some have direct callers in game code, so every detour is entered through a thunk that keeps ECX and EDX.
+
+Still the game's: the getters of the type, the data values and the unknown, which are small functions shared with unrelated classes.
+
+### Testing
+
+`OPENSC4_TEST_MESSAGE_OBJECT=<day>` makes messages with the game's constructor and calls the methods through their vtable slots: the type set, cleared and set again; each data value set, one of them to 0; a game string, and two counted test objects as the unknown and the extra object, set, set again, exchanged and cleared, with the objects' reference counts read after each step; GetString and GetExtra with an interface the object has and one it does not, and on a message without the object; the interfaces; Create, with and without an interface the new message has; the two comparisons; and the reference count down to the message's end. Every result goes into the fingerprint's `mobj` part.
+
+With the test on, the coverage meter shows all 23 functions reached in the original.
+
+### Parity
+
+All 25 framework groups on against the original (the service start trace on both sides), 12 saves, 7 days, two jobs, 2026-10-12, each leg with a control (the original on both sides):
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 12 same | 12 same |
+| `OPENSC4_TEST_MESSAGE_OBJECT=2` | 12 same | 12 same |
+
+All on the first pair. The `mobj` part was the same in all 48 runs of the test's leg and its control.
+
+### The constructor, the destructor and the pool
+
+A message's memory comes from a pool of its own (0x00B627E0), through two functions that 280 places in the game call directly before the constructor. The pool has nine block allocators, for blocks of 8, 16, 32 and so on up to 2,048 bytes. A request gets four more bytes in front for a header and goes to the first allocator whose block holds it; the header is the allocator's number in the top byte and the size with the header below it. What no allocator holds (more than 2,044 bytes) comes from the C runtime, with the top bit set in the header. The free reads the header's top byte to give the block back where it came from, and does nothing for a null pointer. Both hold the pool's lock (0x00B62870) while they work.
+
+The constructor makes an empty message without a reference. The destructor sets the vtable back to the standard message's (a subclass's destructor ends in it) and releases the extra object, the unknown and the string, in that order.
+
+`src/core/framework_messagepool.cpp`, entry detours, off by default:
+
+| Replacement | Functions |
+|---|---|
+| `framework.message.lifetime` | the constructor 0x009134D6, the destructor 0x009133AB |
+| `framework.message.pool` | allocate 0x009133DA, free 0x00913409 |
+
+4 functions. The game's constructor returns the message in EAX, leaves ECX at 0 and keeps every other register, and its 282 callers may count on any of that, so ours is entered through a thunk of its own that leaves the registers the same way.
+
+Still the game's: the block allocators (the pool's allocate 0x005B9FC0 and free 0x00505190 are a class other pools share, so their logic is written out in ours instead of hooked; the allocators' own slots give and take the blocks) and the C runtime's malloc and free.
+
+`OPENSC4_TEST_MESSAGE_POOL=<day>` takes blocks of every size class from the pool, at each class's upper edge and one byte past it, and two sizes only the C runtime holds; reads their headers, writes and reads back their bytes and frees them, with a null pointer too. Then it builds a message with the constructor on memory filled with a pattern and reads every byte, and ends a message that has a foreign vtable and holds a string and two counted objects, reading the vtable and the reference counts after. The results go into the fingerprint's `mpool` part. All four functions run in every city without the test.
+
+All 27 framework groups on against the original (the service start trace on both sides), 12 saves, 7 days, two jobs, 2026-10-12, each leg with a control (the original on both sides):
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 12 same | 12 same |
+| `OPENSC4_TEST_MESSAGE_POOL=2` | 12 same | 12 same |
+
+All on the first pair. The `mpool` part was the same in all 48 runs of the test's leg and its control.
+
+## The critical section wrapper
+
+The lock object the framework, the message servers, the pools and many game classes hold (vtable 0x00AD1EF4, 8 slots; 67 places construct one) is 8 bytes: the vtable and a pointer to a block of 0x1C bytes from the C runtime, which is a Windows CRITICAL_SECTION followed by the wrapper's own count of locks held.
+
+- **Lock** enters the section and then raises the count; **Unlock** lowers the count and then leaves. Both return the count. The count is only ever changed while the section is held.
+- **TryLock** calls TryEnterCriticalSection through a pointer looked up when the program starts and returns 0 when that fails. When it succeeds, the game goes on to enter the section a second time before raising the count, so Windows counts two entries for one lock, and the matching Unlock does not give the section up: the thread keeps it for good. The test measures this in the original (2 entries after one TryLock on a free lock). Ours does the same. The coverage meter shows the game never calls TryLock in a city run, so nothing depends on it today.
+- **The getters.** GetLockCount reads the count; GetHandle gives the CRITICAL_SECTION's address.
+- **Beginning and end.** The constructor takes the block, clears it and initialises the section. The destructor deletes the section and frees the block. Release deletes the object outright (there is no reference count), through the deleting destructor's slot.
+- **The lookup.** A static object's constructor (0x00930AC0, run once) loads Kernel32.dll and looks up TryEnterCriticalSection, on everything but Windows 95.
+
+`src/core/framework_lock.cpp`, entry detours, off by default:
+
+| Replacement | Functions |
+|---|---|
+| `framework.lock.use` | Lock 0x00930B35, Unlock 0x00930B6D, TryLock 0x00930B48, GetLockCount 0x00930B2E, GetHandle 0x00930B82 |
+| `framework.lock.lifetime` | the constructor 0x00930B91, the destructor 0x00930B02, Release 0x00930B20, the deleting destructor 0x00930BC3, the lookup 0x00930AC0 |
+
+10 functions. Locks are made from the program's first moments, and the lookup runs once among them, so the lifetime group goes in when core.dll is injected (phase Attach); the log shows the lookup running in our code. Windows is called through the exe's own import slots, as the game's code does.
+
+Still the game's: the block's clearing helper (0x00930AA8, whose one caller is the constructor, so it no longer runs when ours is on), the lock scope guard (0x0048C9F0), the C runtime and Windows.
+
+### Testing
+
+`OPENSC4_TEST_LOCKS=<day>` makes a lock with the game's constructor and calls its slots: three locks and three unlocks, with the wrapper's count and Windows' own count of entries read after each; the handle; TryLock on a free lock and on a held one, then the unlocks (the entries TryLock leaves over are given back by hand); the destructor; one on the heap ended through Release; and the lookup run again. Every result goes into the fingerprint's `lock` part. TryLock's failing path needs a second thread and is not driven.
+
+Without the test, a city run reaches the constructor, the destructor, Lock and Unlock; with it, the coverage meter shows all 10 functions reached in the original.
+
+### Parity
+
+All 29 framework groups on against the original (the service start trace on both sides), 12 saves, 7 days, two jobs, 2026-10-12, each leg with a control (the original on both sides):
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 12 same | 12 same |
+| `OPENSC4_TEST_LOCKS=2` | 12 same | 12 same |
+
+All on the first pair. The `lock` part was the same in all 48 runs of the test's leg and its control.
+
+## The string's formatter
+
+`cRZBaseString::Sprintf` (0x0090F574, 1,649 bytes, 463 callers) is a printf of the game's own: it reads the format itself and leaves only the text of floating point numbers to the C runtime. A conversion is `%`, flags (`-`, `+`, space, `0`, `#`, in any order and number), a width (digits or `*`), a precision (`.` and digits or `*`), a size (`h`, `l`, `ll` or `I64`) and a letter.
+
+- **Integers** (`d i u o x X`): a negative `d` or `i` is turned positive and remembered; the digits are those of the 16, 32 or 64 bit value.
+- **Floating point** (`e f g E G`): a negative value is turned positive and remembered; the C runtime's `_snprintf` writes the rest, given only the `#` flag and the precision.
+- **Strings** (`s`): the precision counts characters, not bytes, reading the text as UTF-8; the length of a character is taken from its first two bytes alone.
+- **`c`** is one byte; **`p`** is eight hexadecimal digits; **`n`** stores the length the string had before the call, not what has been written so far.
+- **Around the text**, in this order: the sign now if the `0` flag is set; padding to the width (zeros with the `0` flag, else spaces) unless left-aligned; the sign otherwise; the `#` prefix (`0x`, `0X`, `0`); zeros up to the precision (integers only); the text; padding when left-aligned. The widths count characters, as for strings.
+
+It differs from C's printf in ways that ours keeps:
+
+- The `#` prefix comes after zero padding (`%#08x` of 0x1f gives `00000x1f`) and is written for a value of 0 too.
+- A point without a number (`%.f`) leaves the precision unset instead of 0.
+- A negative width from `*` is no width, not left alignment.
+- `C`, `S` and every other letter are not conversions: nothing is taken from the arguments, the width still pads an empty text, and the letter is then read as plain text.
+- `%hs` and `%ls` are plain `%s`.
+
+The text is built in two buffers of the game's own: a scratch buffer for one conversion (64 bytes on the stack) and the output (1,024 bytes on the stack); each moves to the game's heap and doubles when it fills. Ours grows them at the same moments with the same sizes, so the heap sees the same requests in the same order. One oddity kept: the first floating point conversion of a call always takes a 128-byte heap block, because the scratch buffer's used length is 0 when `_snprintf` is first asked.
+
+`src/core/framework_stringformat.cpp`, an entry detour, off by default:
+
+| Replacement | Functions |
+|---|---|
+| `framework.string.format` | Sprintf 0x0090F574 |
+
+One function hooked. The buffer's helpers (grow 0x0090E25C, resize 0x0090E2C8, append 0x0090E2EB, 0x0090E312 and 0x0090E366), the digit test (0x0090E247) and the two UTF-8 helpers as the formatter uses them (0x009106A9, 0x009107D8) are written out inside ours and not hooked; the game's keep serving their other callers.
+
+Still the game's: the C runtime's `_snprintf` (0x009F2108) for floating point text, the string body's assign and the heap.
+
+### Testing
+
+The game's own format strings (356 of the 463 call sites push one that can be read from the code) use 39 shapes of conversion, from `%d` (226 times), `%s` and `%08x` to `%3.2f`, `%I64d`, `%02.2d` and `%-18.18s`.
+
+`OPENSC4_TEST_STRING_FORMAT=<day>` calls the formatter 130,423 times: each of those 39 shapes; then every combination of 14 sets of flags, 5 widths (with `*`), 6 precisions (with `.` alone and `.*`) and 5 sizes with each integer conversion, and the same without sizes for the floating point conversions, `s`, `c` and `p`, each over 8 values chosen for the signs, the limits of 16, 32 and 64 bits, UTF-8 texts (one cut short in the middle of a character) and star widths that are 0 or negative; letters that are not conversions; results that outgrow each buffer (to the byte around 1,024); `%n`, `%%`, and formats that end in the middle of a conversion. The length and the bytes of every result go into the fingerprint's `fmt` part. The test takes about 50 ms.
+
+A city run reaches the formatter without the test.
+
+### Parity
+
+All 30 framework groups on against the original (the service start trace on both sides), 12 saves, 7 days, two jobs, 2026-10-12, each leg with a control (the original on both sides):
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 12 same | 12 same |
+| `OPENSC4_TEST_STRING_FORMAT=2` | 12 same | 12 same |
+
+All on the first pair. The `fmt` part was the same in all 48 runs of the test's leg and its control.

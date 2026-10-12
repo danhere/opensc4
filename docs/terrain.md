@@ -132,7 +132,7 @@ The sine, cosine and arctangent are x87 instructions the C library cannot repeat
 
 For bigger tiles: both walkers keep two stack arrays of 257 rows (0x00742277, 0x00742499; the wave counter 0x007425AB too), indexed by row: a city of more than 256 cells overruns them. Ours keeps the same 257 ([city-size.md](city-size.md)).
 
-The other three loaders Init runs once stay the game's: the texture and tuning tables from an INI resource (0x0074DC30, 0x0074C800), a tuning exemplar (0x0074B6A0) and an exemplar table (0x0074F410).
+The other three loaders Init runs once are the startup tables, below.
 
 ## Neighbour edges, a new city, the leftovers (`simulators.terrain.edges`, `.newcity`, `.rest`)
 
@@ -144,9 +144,21 @@ The other three loaders Init runs once stay the game's: the texture and tuning t
 
 **The leftovers**: the steep-cell marking the normals call (0x00742FC0: a cell with a steep triangle is marked and its diagonal flipped to follow the slope), the un-flipping (0x00740900), the shore marking (0x007428E0, 0x0074B570), and four small helpers (clear a flag everywhere, a rectangle around a point, grow a rectangle, raise a vertex).
 
-What is left of the class's 259 functions as the game's after this: the drawing side (texture weights per vertex for the view 0x007482C0, 0x00748950; redisplay, lighting, wave producers, the render context functions from 0x007504F0), the three once-only tuning and texture table loaders (0x0074DC30, 0x0074C800, 0x0074B6A0, 0x0074F410 and their container code), three functions that are the water object's (0x00740060, 0x00740160, 0x00740490), and shared container helpers.
+What is left of the class's 259 functions as the game's after this: the drawing side (texture weights per vertex for the view 0x007482C0, 0x00748950; redisplay, lighting, wave producers, the render context functions from 0x007504F0), three functions that are the water object's (0x00740060, 0x00740160, 0x00740490), and shared container helpers.
 
 For bigger tiles: the region unit is 64 cells in shifts at 0x0074210B to 0x00742137 and 0x0074B014, 0x0074B03E, with 65 vertices a unit at 0x0074B057; the strip matching counts with the regional city's width rather than the terrain's own and never tests the strip's length.
+
+## The startup tables (`simulators.terrain.tables_exemplars`, `.tables_tuning`, `.tables_ini`)
+
+[terrain_tables.cpp](../src/core/terrain_tables.cpp), [terrain_tables_ini.cpp](../src/core/terrain_tables_ini.cpp). When the first city loads, Init runs four loaders once (0x0074FE40, guarded by the byte 0x00B4BC3C): the brushes (above) and these three, each a detour on its entry.
+
+**The texture exemplars** (0x0074F410). Exemplars of type 0x6534284A, group 0x89C2A517 go into a hash map at 0x00B4BCDC by instance: a float and five curves of point pairs each (properties 0x09C2AEF0 and 0x09C2AEF3 to F7), with each curve's reach in cells (the last x over 16, rounded up) and last x kept beside it. 56 records with the game's files.
+
+**The tuning exemplar** (0x0074B6A0). One exemplar (group 0x88CD66E9, instance 1) fills about fifty globals: the height limits (200 and 5), the default sea level and new-city height, the flat-area and shore-cliff numbers, the sea level range and step, the edge matching's tolerance, passes and reach curve, the timer's pending-rectangle times, and several arrays the drawing side reads. Most of what the earlier sections quote as constants comes from here; the exe's own values are only the defaults for a missing property. It ends by filling five square tables of random 16-bit words (sides 9, 17, 33, 65 and 129 with the game's data: 22,325 draws from the generator at 0x00B4BC78), so everything that draws from that generator later depends on this loader having drawn exactly as many.
+
+**The settings resource** (0x0074DC30, with 0x0074C800). An INI-style text (group 0x8A5971C5, instance 0xAA597172). The texture map table: per row 16 texture IDs, into a 32 by 16 table at 0x00B4B420, each ID also into a sorted list; the cliff and beach textures. `MiscTerrainTunables`: the raise and lower amount. `WindErosion`: the smoothing passes and the talus angle, from which the two smoothing limits are derived (the tangent times 16, and that times the square root of 2). `Hydrology`: everything erosion uses (iterations, rain, the sediment a flow carries, the dig rates and the ramp between them, the deposit rate) and the water's sediment colour. The tangents are the x87 instruction, executed by small assembly helpers as for the brushes.
+
+Kept as the game has them: no bounds check on a texture table row, a divide by zero for a step of 0, reads at address 0 for two missing array properties. Where the game reads stack memory it never wrote (a texture record's fields when a property is missing, one byte in the tuning loader), ours has zeros; the game's files have every property.
 
 ## Tests
 
@@ -166,6 +178,8 @@ The fingerprint part `terrainobj` prints the object's scalar state the `terrain`
 
 `OPENSC4_TEST_TERRAIN_EDGES=<n>` runs, on the n-th day, the edge search and collecting (both only read) and the leftovers with safe arguments, a state checksum after each. It never applies edge changes.
 
+The fingerprint part `terraintables` prints one hash per loader over everything it writes (the map's records, the list, every tuning value and table, the random words); `OPENSC4_TEST_TERRAIN_TABLES=1` logs each of the 85 destinations with its own hash once.
+
 ## Checked
 
 2026-10-11.
@@ -179,10 +193,11 @@ The fingerprint part `terrainobj` prints the object's scalar state the `terrain`
 - Erosion, the flood, the distance map and the normals (all nine terrain groups ours): the erosion and flood tests' 68 lines (Big City; fewer on smaller maps) are the same after every step, and the `terrain` part afterwards, in every run of the 12 saves and the three plopped ones, original and ours. Plain parity over 7 days: 12 of 12 saves the same. After the erosion test the original does not repeat itself (2 of 12 the same over 4 days, as with the brushes); the plopped city with the flood and brush tests: 2 of 3 the same, the third partly with two outcomes of the original. An independent reading found no difference in any branch, including the NaN and equal cases of every float comparison.
 - The brushes (all eleven terrain groups ours): every brush the game ships applied by the two brush tests, 325 logged applications on the large cities and 181 on Making Money: the map, the random state and each brush's turn and direction are the same after every one, and the `terrain` and `terrainobj` parts (the latter covers the loaded brush table's size), in every run of the 12 saves, original and ours. Plain parity over 7 days: 9 of 12 saves the same, 3 partly or different in `checks`, `citylot` and the first day's `flam` only, the parts the original varies in by itself (above). An independent reading found no difference; it noted two places where the game reads stack bytes it never wrote and ours has zeros (a first layer with picture ID 0, and two pad bytes handed to an effect), neither reachable with a shipped brush. Kinds 3 and 7 and the picture-less walker are read only: no shipped brush uses them.
 - Neighbour edges, a new city, the leftovers (all fourteen terrain groups ours): the edges test's lines (the leftovers with safe arguments, the edge search and collecting) are the same in every run of the 12 saves and the three plopped ones, original and ours. Parity with that test over 7 days: 12 of 12 saves the same; the plopped city with the edit test over 30 days: 3 of 3. What the game runs here is thin, though: in the test region the edge search finds nothing to reconcile (0 vertices), and a loaded city never takes the new-city path. So the neighbour file reading, the strip matching, the tolerance cut, the applying and the whole new-city path have never run in the game with ours; they rest on an independent reading of every instruction, which found no difference.
+- The startup tables (all seventeen terrain groups ours): each of the 85 values and tables the three loaders fill has the same hash with the original and with ours, for each loader alone and all together, and the `terraintables` token is the same in all 46 runs of the batches. Parity over 7 days: 11 of 12 saves the same, Making Money d1095 partly in `flam` and `citylot` only (the parts the original varies in by itself, above); the plopped city with the brush and erosion tests, which run on the loaded numbers, 3 of 3 over 10 days. An independent reading found no difference for any data the original loads without crashing; it also showed that the one stack byte the tuning loader reads unwritten is 0 in the game in the normal sequence (the INI reader's emptied tree count lies there), as in ours.
 - An independent reading of the 24 setters against the disassembly found no difference on any branch, including the ones the tests do not take. Slot 50's clamp in the game is dead code (the height is compared with itself), so ours has none.
 - An independent reading of all 54 against the disassembly found no difference in results. It listed what our C++ cannot repeat and no caller was found to use: the upper bits of EAX where the game sets only AL (nine of the tests leave part of a count there on the out-of-range path), and ECX and EDX, which the game's small getters happen to leave untouched. These are virtual calls, so a caller cannot count on registers being kept.
 - Resting on the build, not checked by a test: no fused multiply-add and no x87 code from the compiler (clang-cl's SSE2 default), and the FPU control word 0x027F wherever the game calls these (measured in the simulator tick only).
 
 ## Still the game's
 
-The drawing side (the view, texture weights, lighting, redisplay, wave producers), the once-only tuning and texture table loaders, and shared container code: listed under the leftovers above.
+The drawing side (the view, texture weights, lighting, redisplay, wave producers) and shared container code: listed under the leftovers above.

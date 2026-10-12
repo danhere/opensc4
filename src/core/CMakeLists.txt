@@ -195,6 +195,11 @@ add_library(opensc4_core SHARED
   occmgr_edit.cpp
   occmgr_queries.cpp
   occmgr_sim.cpp
+  occfilters_1.cpp
+  occfilters_autotest.cpp
+  propmgr_1.cpp
+  propmgr_2.cpp
+  propmgr_autotest.cpp
   bldgocc_autotest.cpp
   bldgocc_sim.cpp
   occbase_autotest.cpp
@@ -205,6 +210,10 @@ add_library(opensc4_core SHARED
   floraocc_sim.cpp
   foundocc_autotest.cpp
   foundocc_sim.cpp
+  netocc_autotest.cpp
+  netocc_geometry.cpp
+  netocc_life.cpp
+  netocc_state.cpp
   landfillocc_autotest.cpp
   landfillocc_sim.cpp
   wallocc_autotest.cpp
@@ -261,6 +270,9 @@ add_library(opensc4_core SHARED
   terrain_queries.cpp
   terrain_rest.cpp
   terrain_save.cpp
+  terrain_tables.cpp
+  terrain_tables_autotest.cpp
+  terrain_tables_ini.cpp
   view_objects.cpp
   water_effects.cpp
   d3d7_probe.cpp
@@ -301,8 +313,16 @@ add_library(opensc4_core SHARED
   protection_autotest.cpp
   flammability_autotest.cpp
   framework_autotest.cpp
+  framework_directors.cpp
+  framework_lock.cpp
+  framework_message.cpp
+  framework_messagepool.cpp
   framework_messagequeue.cpp
   framework_messageserver.cpp
+  framework_run.cpp
+  framework_services.cpp
+  framework_string.cpp
+  framework_stringformat.cpp
   protection_sim.cpp
   fire_sim.cpp
   police_sim.cpp
@@ -363,6 +383,7 @@ add_library(opensc4_core SHARED
   thread_trace.cpp
   rng_trace.cpp
   fixed_ticks.cpp
+  lights_at_once.cpp
   sim_timers.cpp
   mysim_agents.cpp
   mysim_dispatch.cpp
@@ -407,6 +428,8 @@ add_library(opensc4_core SHARED
   ui_panels_5.cpp
   ui_panels_6.cpp
   ui_panels_7.cpp
+  tool_bulldoze.cpp
+  tool_bulldoze_autotest.cpp
   ui_cityview_1.cpp
   ui_cityview_2.cpp
   ui_cityview_3.cpp

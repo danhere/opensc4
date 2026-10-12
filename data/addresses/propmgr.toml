@@ -1,0 +1,624 @@
+# cSC4PropManager (class ID 0xA990BD10), code 0x004A1D20 to 0x004A44E0, its prop filter and tables: the entries our translations hook (src/core/propmgr_1.cpp, propmgr_2.cpp).
+
+[[entry]]
+name = "cSC4PropManager::Vftable"
+address = 0x00A8F928
+kind = "data"
+source = "Name ours. The prop manager's main vtable (cISC4PropManager, 44 slots; class 0xA990BD10, object 0x28 bytes, factory 0x004A28E0). The gzcom-dll header lists the overloaded pairs in the other order."
+
+[[entry]]
+name = "cSC4PropManager::MessageTargetVftable"
+address = 0x00A8F918
+kind = "data"
+source = "Name ours. The prop manager's vtable at +4 (cIGZMessageTarget2, 4 slots: QueryInterface thunk 0x004A21F0, AddRef 0x0068D230, Release thunk 0x004A2710, DoMessage 0x004A34E0)."
+
+[[entry]]
+name = "cSC4PropManager::SerializableVftable"
+address = 0x00A8F900
+kind = "data"
+source = "Name ours. The prop manager's vtable at +8 (cIGZSerializable, 6 slots: thunk 0x004A2200, 0x0068D250, thunk 0x004A2720, Write 0x004A2430, Read 0x004A2470, GetGZCLSID 0x004A1D20); Write and Read get object + 8."
+
+[[entry]]
+name = "cSC4PropFilter::Vftable"
+address = 0x00A8F8E4
+kind = "data"
+source = "Name ours. The prop filter's main vtable (7 slots; slot 3 is IsIncluded 0x004A2210). The filter is a counted object of 0x14 bytes made by Init: vtable at +0, vtable 0x00A8F8CC at +4, count +8, mode +0xC (0 any prop, else the usage 1 city, 2 lot, 3 building, 4 street), building +0x10."
+
+[[entry]]
+name = "cSC4PropFilter::Vftable_4"
+address = 0x00A8F8CC
+kind = "data"
+source = "Name ours. The prop filter's vtable at +4 (6 slots: thunks and shared code)."
+
+[[entry]]
+name = "cSC4PropManager::CleanUpRegistered"
+address = 0x00B21758
+kind = "data"
+source = "Name ours. A byte: 1 while the clean-up 0x004A2A30 is registered with the service at 0x00B43C94 (Init sets it, the clean-up clears it)."
+
+[[entry]]
+name = "cSC4PropManager::TypeTable"
+address = 0x00B21760
+kind = "data"
+source = "Name ours. Hash table (STLport: +4 bucket begin, +8 bucket end, +0x10 count) of the prop types: key at node +4, the resource key (3 dwords) at +8. Its count (0x00B21770) is sent in the types-loaded message."
+
+[[entry]]
+name = "cSC4PropManager::FamilyTable"
+address = 0x00B21774
+kind = "data"
+source = "Name ours. Hash table of the prop families: key at node +4, a vector of prop types (begin +8, end +0xC) at +8. Buckets at 0x00B21778."
+
+[[entry]]
+name = "cSC4PropManager::ProfileTable"
+address = 0x00B2179C
+kind = "data"
+source = "Name ours. Hash table of the prop profiles: key at node +4, the profile at +8. Buckets at 0x00B217A0."
+
+[[entry]]
+name = "cSC4PropManager::GetGZCLSID"
+address = 0x004A1D20
+kind = "function"
+convention = "thiscall"
+expect = "B8 10 BD 90 A9 C3 CC CC"
+source = "Name ours. No arguments: 0xA990BD10. Slot 5 of the serializable part."
+
+[[entry]]
+name = "cSC4PropManager::QueryInterface"
+address = 0x004A1D30
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D AA 94 22"
+source = "Name ours. (iid, out), ret 8: 0x28326F3E the object, 1 and 0x452294AA the message target part (+4), 0xE4FDA3D4 the serializable part (+8); referenced. The thunks 0x004A21F0 and 0x004A2200 jump here with the object."
+
+[[entry]]
+name = "cSC4PropManager::GetCityPropsInRectangle"
+address = 0x004A1DB0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 48 14 85 C9 74"
+source = "Name ours. (list, rect of 4 int32 city cells), ret 8, slot 18: the occupant manager's slot 40 with the filter at mode 1 and no limit; 0 without a manager."
+
+[[entry]]
+name = "cSC4PropManager::GetCityPropsInArea"
+address = 0x004A1DF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 14 83 EC 18 85 C0"
+source = "Name ours. (list, rect of 4 floats in metres), ret 8, slot 17: the occupant manager's slot 36 with a box of the whole height and the filter at mode 1."
+
+[[entry]]
+name = "cSC4PropManager::AddCityPropNew"
+address = 0x004A1E70
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 56 8B F1"
+source = "Name ours. (prop type, position, orientation), ret 0xC, slot 20: makes a prop through slot 15, places it, inserts it in the occupant manager and gives it usage 1; true when all that worked."
+
+[[entry]]
+name = "cSC4PropManager::SetUsage"
+address = 0x004A1F00
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8B 01 8D 54"
+source = "Name ours. (occupant, usage), ret 8, manager not used: asks the occupant for its prop interface 0xE9793A65 and sets the usage (slot 23)."
+
+[[entry]]
+name = "cSC4PropManager::AddCityProp"
+address = 0x004A1F30
+kind = "function"
+convention = "thiscall"
+expect = "53 57 8B F9 8B 47 14 32"
+source = "Name ours. (occupant), ret 4, slot 19: without a flag 1 the occupant is initialised and inserted in the occupant manager and gets usage 1; true when flagged already or done."
+
+[[entry]]
+name = "cSC4PropManager::GetStreetPropsInRectangle"
+address = 0x004A1F90
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 48 14 85 C9 74"
+source = "Name ours. (list, rect of 4 int32 city cells), ret 8, slot 30: as GetCityPropsInRectangle with the filter at mode 4."
+
+[[entry]]
+name = "cSC4PropManager::GetLotPropsAt"
+address = 0x004A1FD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 20 85 C0"
+source = "Name ours. (list, x, z), ret 0xC, slot 23: the lot at the cell from the lot manager (slot 6) then slot 24 with it; 0 without either."
+
+[[entry]]
+name = "cSC4PropManager::AddPropWithUsage"
+address = 0x004A2010
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 54 24 08 53 56 8B"
+source = "Name ours. (prop type, position, orientation, usage), ret 0x10: makes, places, initialises and inserts a prop and gives it the usage; returns its occupant or 0."
+
+[[entry]]
+name = "cSC4PropManager::AddLotProp"
+address = 0x004A20C0
+kind = "function"
+convention = "thiscall"
+expect = "53 57 8B F9 8B 47 14 32"
+source = "Name ours. (lot, occupant), ret 8, slot 25: as AddCityProp with usage 2; the lot is not used."
+
+[[entry]]
+name = "cSC4PropManager::AddStreetPropNew"
+address = 0x004A2120
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 0C 8B 54 24 08"
+source = "Name ours. (prop type, position, orientation), ret 0xC, slot 32: AddPropWithUsage with usage 4."
+
+[[entry]]
+name = "cSC4PropManager::GetBuildingPropsAt"
+address = 0x004A2140
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 46 14 32"
+source = "Name ours. (list, x, z), ret 0xC, slot 34: the building of type 0x278128A0 at the city cell (occupant manager slot 33) then slot 35 with it."
+
+[[entry]]
+name = "cSC4PropManager::RemoveBuildingPropsAt"
+address = 0x004A21A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 46 14 32"
+source = "Name ours. (x, z), ret 8, slot 37: the building at the city cell then slot 38 with it."
+
+[[entry]]
+name = "cSC4PropFilter::IsIncluded"
+address = 0x004A2210
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 8B 6C 24 10 8B"
+source = "Name ours. (occupant), ret 4, slot 3 of the filter: false unless the occupant has type 0xA823821E; mode 0 true; else the prop's usage must be the mode and, for mode 3 with a building set, the occupant must be in the building's prop list (property 0xA8322B7F)."
+
+[[entry]]
+name = "cSC4PropManager::DeletingDestructor"
+address = 0x004A2310
+kind = "function"
+convention = "thiscall"
+expect = "F6 44 24 04 01 56 8B F1"
+source = "Name ours. (flags), ret 4, slot 40: the three vtables back to the class's own; the memory freed when bit 0 is set; returns the object."
+
+[[entry]]
+name = "cSC4PropManager::Release"
+address = 0x004A2340
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 83 F8"
+source = "Name ours. No arguments, slot 2 (the thunk 0x004A2710 jumps here): a count above 1 counts down; else Shutdown and the deleting destructor with 1; returns the count."
+
+[[entry]]
+name = "cSC4PropManager::Shutdown"
+address = 0x004A2370
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 0C 33"
+source = "Name ours. No arguments, slot 4: once; lets go of the five references (+0x24 to +0x14), takes the four notifications (0xA6B79602, 0x06CDB65B, 0x26D31EC1, 0x0BEAF1A2) off the message server and the command 0x0BEAF1A2 off the command service; true."
+
+[[entry]]
+name = "cSC4PropManager::Write"
+address = 0x004A2430
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. (stream), ret 4, this = object + 8: version 1 as a word, then the occupant manager and the lot manager as references; true when the stream has no error."
+
+[[entry]]
+name = "cSC4PropManager::Read"
+address = 0x004A2470
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. (stream), ret 4, this = object + 8: the version word must be 1; then the references 0xC6BB8334 and 0x681905BD into +0x14 and +0x20; true when the stream has no error."
+
+[[entry]]
+name = "cSC4PropManager::CreateGenericProp"
+address = 0x004A24D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D A8 3C B4 00 8B 01"
+source = "Name ours. (resource key, prop out), ret 8, slot 16: the exemplar at the key, its class property 0xA977A86B (default 0x2977AA47), a prop made through the class factory or built here (decal 0x2977AA48, effect 0x2977AA49, plain), given the exemplar and its size; false without an exemplar."
+
+[[entry]]
+name = "cSC4PropManager::AddLotPropNew"
+address = 0x004A2670
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 0C 8B 54 24 08"
+source = "Name ours. (prop type, position, orientation), ret 0xC, slot 26: AddPropWithUsage with usage 2."
+
+[[entry]]
+name = "cSC4PropManager::RemoveProp"
+address = 0x004A2690
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. (occupant), ret 4: clears and lets go of a flag-2 occupant's placeable object, removes a flag-1 occupant from the occupant manager, then shuts it down."
+
+[[entry]]
+name = "cSC4PropManager::PostTypesLoaded"
+address = 0x004A2730
+kind = "function"
+convention = "thiscall"
+expect = "53 57 8B 3D CC 3C B4 00"
+source = "Name ours. No arguments: posts the message 0x896FDC70 (the manager as its two objects, the number of types as its value) through the message server; called by Init 0x004A4380 through 0x004A4310."
+
+[[entry]]
+name = "cSC4PropManager::RemovePropA"
+address = 0x004A27B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 50 E8 D6 FE"
+source = "Name ours. (occupant), ret 4, slot 29: RemoveProp; true."
+
+[[entry]]
+name = "cSC4PropManager::RemoveBuildingProp"
+address = 0x004A27C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 89 4C 24 08"
+source = "Name ours. (building, prop), ret 8, slot 39: takes the prop out of the building's prop list (property 0xA8322B7F), out of the occupant manager (flag 1) and shuts it down; removes the property when the list is empty; true when found."
+
+[[entry]]
+name = "cSC4PropManager::RemoveProps"
+address = 0x004A28A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 8B 18 55"
+source = "Name ours. (list), ret 4: RemoveProp then Release for every occupant of the list."
+
+[[entry]]
+name = "cSC4PropManager::Create"
+address = 0x004A28E0
+kind = "function"
+convention = "cdecl"
+expect = "6A 28 E8 F9 2C 14 00 33"
+source = "Name ours. No arguments: the class factory; a 0x28-byte object with the three vtables, the flag, the count and the five pointers 0; 0 when the allocation fails."
+
+[[entry]]
+name = "cSC4PropManager::InsertRecord"
+address = 0x004A2930
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8B 46 10"
+source = "Name ours. (16-byte key), ret 4, this = a hash table: grows it for one more element (0x004F0940), puts a 0x14-byte node (next, the key at +4) first in the bucket of the first dword; returns the node's copy of the key. Called by 0x004A3470."
+
+[[entry]]
+name = "cSC4PropManager::CleanUp"
+address = 0x004A2A30
+kind = "function"
+convention = "cdecl"
+expect = "A0 58 17 B2 00 84 C0 74"
+source = "Name ours. No arguments: registered by Init with the service at 0x00B43C94 (slot 0x114); once, takes itself off (slot 0x118) and empties the type table; returns 1."
+
+[[entry]]
+name = "cSC4PropManager::SetPropExemplar"
+address = 0x004A2A70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 55 56 57 8B"
+source = "Name ours. (prop, type or 0), ret 8: for a type in the type table (the given one or the prop's own) gives the exemplar at its resource key to the exemplar part of the prop's holder (interface 0x0AC2B5F7), if it has one, and sets the prop's size; true. Called by CreateProp."
+
+[[entry]]
+name = "cSC4PropManager::GetAllPropTypes"
+address = 0x004A2BF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours. (vector), ret 4, slot 5: empties the vector and appends every key of the type table."
+
+[[entry]]
+name = "cSC4PropManager::GetAllPropFamilyTypes"
+address = 0x004A2CB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours. (vector), ret 4, slot 6: the same for the family table."
+
+[[entry]]
+name = "cSC4PropManager::GetPropKeyFromType"
+address = 0x004A2D70
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D 64 17 B2 00 56 8B"
+source = "Name ours. (type, key out of 3 dwords), ret 8, slot 7: the type's resource key; false for an unknown type."
+
+[[entry]]
+name = "cSC4PropManager::IsPropTypeValid"
+address = 0x004A2DD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D 64 17 B2 00 56 8B"
+source = "Name ours. (type), ret 4, slot 8."
+
+[[entry]]
+name = "cSC4PropManager::IsPropFamilyTypeValid"
+address = 0x004A2E10
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 56 8B 35 78"
+source = "Name ours. (family), ret 4, slot 11: in the family table or in the type table."
+
+[[entry]]
+name = "cSC4PropManager::GetPropTypesByFamily"
+address = 0x004A2E90
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D 78 17 B2 00 53 8B"
+source = "Name ours. (vector, family), ret 8, slot 9: copies the family's types into the vector and returns their number; for a type that is no family the vector holds that type and the result is 0; for neither, 0."
+
+[[entry]]
+name = "cSC4PropManager::IsPropInFamily"
+address = 0x004A2F80
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B 74 24"
+source = "Name ours. (type, family), ret 8, slot 10: the same ID, or found in the family's vector."
+
+[[entry]]
+name = "cSC4PropManager::GetPropProfilePtr"
+address = 0x004A2FF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D A0 17 B2 00 56 8B"
+source = "Name ours. (type), ret 4, slot 14: the profile in the type's node of the profile table, or 0."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::Allocate"
+address = 0x005ED9A0
+kind = "function"
+convention = "cdecl"
+expect = "A1 00 A9 B0 00 8B 40 08"
+source = "Name ours. (size): the pool allocator of the visual effect prop (0x94 bytes, constructor 0x005F0210); used by CreateGenericProp."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::Construct"
+address = 0x005F0210
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 8D 7E 04"
+source = "Name ours. No arguments: the visual effect prop's constructor (prop at +4); returns this."
+
+[[entry]]
+name = "cSC4PropManager::CreateProp"
+address = 0x004A3040
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B 5C 24 0C 55 8B"
+source = "Name ours. Slot 15 (type, cISC4PropOccupant** out), ret 8. False for an invalid type; else the class from the type's profile (default 0x2977AA47) is asked of the class factory (RZGetCOM slot 3, interface 0xE9793A65), and when it says no the prop is made by hand: class 0x2977AA48 the terrain decal (0xA0 bytes, pool 0x005ED6E0, constructor 0x005EE360, interface at +4), 0x2977AA49 the visual effect (0x94 bytes, 0x005ED9A0, 0x005F0210, at +4), else the plain prop (0x68 bytes, 0x005ECE60, 0x005EE050); referenced into *out. Then SetPropType and SetPropExemplar 0x004A2A70; on failure the prop is released and *out left pointing at it (docs/propmgr.md)."
+
+[[entry]]
+name = "cSC4PropManager::GetStreetProps"
+address = 0x004A3150
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 55 8B C1 8B"
+source = "Name ours. Slot 31 (list, x, z), ret 0xC: the occupant manager's query by city cells (slot 40) with the prop filter in street mode (4); props whose own cell (city slot 95) is not (x, z) are released and dropped. Answers false on every path that reaches the end."
+
+[[entry]]
+name = "cSC4PropManager::GetLotPropsOfLot"
+address = 0x004A3240
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C 53 56 8B F1 8B"
+source = "Name ours. Slot 24 (list, lot), ret 8: the lot's cell rectangle (lot slot 14, four ints) to the occupant manager's query by city cells with the filter in lot mode (2); props outside the rectangle in metres (city slot 96 on the corner cells, the far one plus one) are released and dropped, a NaN position too."
+
+[[entry]]
+name = "cSC4PropManager::RemoveBuildingPropsOf"
+address = 0x004A3390
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 8B E9 8B"
+source = "Name ours. Slot 38 (building), ret 4: the building's prop list (attachment 0xA8322B7F of its property holder); each prop in the occupant manager is removed from it, each shut down; the list's vector emptied and the attachment removed."
+
+[[entry]]
+name = "cSC4PropManager::DoMessage"
+address = 0x004A34E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 53 56 8B 74 24"
+source = "Name ours. Slot 3 of the message target part (vtable 0x00A8F918, this = object + 4), ret 4. Message 0xA6B79602: two getters called; 0x06CDB65B: replaces the service object at object +0x24; 0x0BEAF1A2 (TextDecal command): with more than two arguments makes a text decal and adds it to the city. True."
+
+[[entry]]
+name = "cSC4PropManager::GetPropProfile"
+address = 0x004A3750
+kind = "function"
+convention = "thiscall"
+expect = "8D 44 24 04 50 B9 9C 17"
+source = "Name ours. Slot 13 (type), ret 4: the profile table's operator[] (0x0065FAD0 on 0x00B2179C), a pointer to the 28-byte profile."
+
+[[entry]]
+name = "cSC4PropManager::GetBuildingPropsOf"
+address = 0x004A3770
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 4C 24 0C 8B 01 53"
+source = "Name ours. Slot 35 (list, building), ret 8: the building's props appended to the list, each referenced; false without a holder or a prop list."
+
+[[entry]]
+name = "cSC4PropManager::RemoveCityPropsInArea"
+address = 0x004A3850
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 8B 0D"
+source = "Name ours. Slot 22 (city cell rectangle), ret 4: slot 18 into a list, 0x004A28A0 removes the props, the list freed. True."
+
+[[entry]]
+name = "cSC4PropManager::RemoveCityPropsInRectangle"
+address = 0x004A38F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 8B 0D"
+source = "Name ours. Slot 21 (rectangle of floats), ret 4: slot 17 into a list, 0x004A28A0 removes the props, the list freed. True."
+
+[[entry]]
+name = "cSC4PropManager::RemoveStreetPropsFromTile"
+address = 0x004A3990
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B D9"
+source = "Name ours. Slot 33 (x, z), ret 8: slot 31 into a list; each prop taken out by 0x004A2690 and released; the list freed. No result."
+
+[[entry]]
+name = "cSC4PropManager::RemoveLotPropsOfLot"
+address = 0x004A3A50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 8B 0D"
+source = "Name ours. Slot 28 (lot), ret 4: slot 24 into a list, 0x004A28A0 removes the props, the list freed. True."
+
+[[entry]]
+name = "cSC4PropManager::RemoveLotPropsAt"
+address = 0x004A3AF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 8B 0D"
+source = "Name ours. Slot 27 (x, z), ret 8: slot 23 into a list, 0x004A28A0 removes the props, the list freed. True."
+
+[[entry]]
+name = "cSC4PropManager::AddBuildingProp"
+address = 0x004A3B90
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 46 14 32"
+source = "Name ours. Slot 36 (building, prop), ret 8: a prop not in the occupant manager is initialised, inserted and set to usage 3 (0x004A1F00); the prop is appended to the building's prop list (attachment 0xA8322B7F, made and attached when missing) unless there; the prop's usage set to 3 again through interface 0xE9793A65 slot 23. False without an occupant manager or when init or insert fail."
+
+[[entry]]
+name = "cBuildingPropList::Release"
+address = 0x004A3CE0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 83 F8"
+source = "Name ours. Slot 2 of the building prop list's vtable 0x00A8F9CC (0x14 bytes: vector at +4, count at +0x10): the count down, or at 1 the vector destroyed and the object freed."
+
+[[entry]]
+name = "cSC4PropManager::LoadPropExemplar"
+address = 0x004A3DB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 64 53 8B 5C 24 6C"
+source = "Name ours. (property holder of a prop exemplar, type, isNew), ret 0xC, this unused: builds the type's 28-byte profile (size 0x27812810, class 0xA977A86B, satisfaction 0x49A1E05A, wealth 0xE9A316EB, crime 0x8AA864D5) in the profile table, reads and drops the name (0x20), with isNew false first removes the type from the profile table and from every family vector, then appends the type to the vector of each family in property 0x27812870 (new family: an empty vector inserted)."
+
+[[entry]]
+name = "cSC4PropManager::AddPropExemplar"
+address = 0x004A4210
+kind = "function"
+convention = "thiscall"
+expect = "55 8B E9 8B 4C 24 0C 85"
+source = "Name ours. (resource key, exemplar or null), ret 8: the exemplar (the resource manager's when null, referenced either way); its key is copied into the type table (0x00B21760) under the instance, LoadPropExemplar(holder, instance, 1) is called, the exemplar released. False."
+
+[[entry]]
+name = "cSC4PropManager::LoadPropExemplarCallback"
+address = 0x004A42A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D A8 3C B4 00 8B 01"
+source = "Name ours. (resource key, manager as context): the callback the resource manager's list of exemplars calls; loads the exemplar and, when its property 0x10 is 0x1E (a prop), AddPropExemplar."
+
+[[entry]]
+name = "cSC4PropManager::LoadAllPropExemplars"
+address = 0x004A4310
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 0D A8 3C"
+source = "Name ours. The resource manager's list of exemplar resources (slot 18, type 0x6534284A) walked with the callback 0x004A42A0 (list slot 7), then 0x004A2730."
+
+[[entry]]
+name = "cSC4PropManager::GetPropName"
+address = 0x004A4360
+kind = "function"
+convention = "thiscall"
+expect = "8D 44 24 04 50 B9 88 17"
+source = "Name ours. Slot 12 (type), ret 4: the name table's map operator (0x004862F0 on 0x00B21788)."
+
+[[entry]]
+name = "cSC4PropManager::Init"
+address = 0x004A4380
+kind = "function"
+convention = "thiscall"
+expect = "51 57 8B F9 8A 47 0C 84"
+source = "Name ours. Slot 3: once per manager (flag at +0xC). The first in the process registers the clean-up 0x004A2A30 with the application (slot 69, +0x114) and loads the exemplars; every one registers the TextDecal command (0x0BEAF1A2, string 0x00A8F9D8), asks the message server for 0xA6B79602, 0x06CDB65B, 0x26D31EC1 and 0x0BEAF1A2, and takes its references (occupant manager, resource manager, a new 0x14-byte prop filter, lot manager, the service 0x00B43DC4's object). True."
+
+[[entry]]
+name = "SC4Uint32Map12::Index"
+address = 0x004A3470
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 51 04 83"
+source = "Name ours. (const uint32_t* key), ret 4: operator[] of a hash table of key and 12 bytes (node: next, key, 12 bytes): a pointer to the value, a new zeroed entry inserted through 0x004A2930 when missing. Template code: the type table 0x00B21760 here and tables of other classes (0x00698F90, 0x00699000, 0x0069D0E6). Left the game's."
+
+[[entry]]
+name = "SC4Uint32VectorMap::Insert"
+address = 0x004A3D10
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 53 55 56 8B"
+source = "Name ours. (pair<iterator, bool>* result, pair* entry), ret 8: inserts {key, vector of uint32} into a hash table of 0x14-byte nodes (the vector copied by 0x00462F00); result is 9 bytes. Used for the family table 0x00B21774 and by 0x0069C1B3. Left the game's."
+
+[[entry]]
+name = "SC4Uint32Map28::Index"
+address = 0x0065FAD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 3C 53"
+source = "Name ours. (const uint32_t* key), ret 4: operator[] of a hash table of key and 28 bytes (the profile table 0x00B2179C): a pointer to the value, inserted zeroed when missing. Left the game's."
+
+[[entry]]
+name = "SC4OccupantVector::PushBack"
+address = 0x0049FC30
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 3B 41 08 74 13"
+source = "Name ours. (void* const* value), ret 4: push_back of a vector of pointers (begin, end, capacity), growing through 0x0049F940. Left the game's (also the occupant manager's)."
+
+[[entry]]
+name = "SC4OccupantVector::Destroy"
+address = 0x0049FB10
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 85 C0 74 12 8B 51"
+source = "Name ours. Frees a vector of pointers (through 0x0049EB30). Left the game's."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::Allocate"
+address = 0x005F7D80
+kind = "function"
+convention = "cdecl"
+expect = "A1 BC A9 B0 00 8B 40 08"
+source = "Name ours. (size_t size): the pool allocator of the text decal prop (0xBC bytes). Left the game's."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::Construct"
+address = 0x005F8300
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 8D 7E 04"
+source = "Name ours. The text decal prop's constructor (calls cSC4PropOccupant's 0x005EE050 on this + 4; vtables 0x00AA5680 at +0, 0x00AA5620 at +4, occupant part 0x00AA5588 at +0xC): returns this. Left the game's."
+
+[[entry]]
+name = "cSC4PropManager::NameTable"
+address = 0x00B21788
+kind = "data"
+source = "Name ours. The prop name hash table (type to string), read by GetPropName; nothing in 0x004A3040 to 0x004A44E0 writes it."
+
+[[entry]]
+name = "cSC4PropManager::TextDecalName"
+address = 0x00A8F9D8
+kind = "data"
+source = "Name ours. The string TextDecal, the name Init gives the command 0x0BEAF1A2."
+
+[[entry]]
+name = "cBuildingPropList::Vftable"
+address = 0x00A8F9CC
+kind = "vtable"
+expect = "B0 1C 81 00 A0 7B 4F 00"
+source = "Name ours. The building's prop list (0x14 bytes): 3 slots, QueryInterface 0x00811CB0, AddRef 0x004F7BA0, Release 0x004A3CE0."
+
+[[entry]]
+name = "cSC4PropManager::Global"
+address = 0x00B43D10
+kind = "data"
+source = "Name ours. The global pointer to the city's prop manager (class 0xA990BD10); the autotest (src/core/propmgr_autotest.cpp) reads it."

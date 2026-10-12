@@ -44,6 +44,25 @@ void Fingerprint(cISC4City* city, std::string& line)
                   x, z, multiplier, *reinterpret_cast<int32_t*>(self + 0x68), *reinterpret_cast<int32_t*>(self + 0x6C),
                   static_cast<int>((hotEnd - hot) / 12), clusters);
     line += text;
+    // OPENSC4_TEST_FLAM_DUMP=<n>: the n-th fingerprint of the run also logs
+    // every cell with a raw value (its raw and grid values and whether the
+    // water simulator says it has water), to find where two runs differ.
+    static int calls = 0;
+    if (++calls == EnvInt("OPENSC4_TEST_FLAM_DUMP", 0)) {
+        const int32_t width = *reinterpret_cast<int32_t*>(self + 0x38);
+        const int32_t depth = *reinterpret_cast<int32_t*>(self + 0x3C);
+        void* const grid = Virtual<void*>(*reinterpret_cast<void**>(self + 0x58), 0x60);
+        void* const raw = Virtual<void*>(*reinterpret_cast<void**>(self + 0x5C), 0x60);
+        void* const water = *reinterpret_cast<void**>(self + 0x48);
+        auto cell = [](void* rows, int32_t cx, int32_t cz) {
+            return reinterpret_cast<uint8_t*>(static_cast<char***>(rows)[0][3 * cx])[cz];
+        };
+        for (int32_t cz = 0; cz < depth; ++cz)
+            for (int32_t cx = 0; cx < width; ++cx)
+                if (const uint8_t r = cell(raw, cx, cz))
+                    log::Write("flam dump: %d,%d raw %u grid %u water %u", cx, cz, r, cell(grid, cx, cz),
+                               Virtual<uint8_t>(water, 0x2C, cx, cz));
+    }
 }
 
 // OPENSC4_TEST_FLAMMABILITY: every cell counts as hot (+0x9C 0), clusters

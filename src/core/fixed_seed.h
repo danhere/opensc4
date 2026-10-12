@@ -20,6 +20,11 @@ bool InstallForGameSeed();
 // counted afresh. Main thread, before a city loads.
 void ReseedForCity(uint32_t seed);
 
+// For our replacements of the sound code's rand() calls (the sites listed
+// in fixed_seed.cpp): the next number of the sound code's own sequence, or
+// the C runtime's rand() when that is not hooked.
+int SoundRand();
+
 // For replacements of code that constructs or seeds generators: the call
 // site clock seeds are counted under is the first exe address up the stack,
 // which from our code is not the original's. While a SiteOverride lives,
