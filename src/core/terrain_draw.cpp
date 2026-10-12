@@ -7927,6 +7927,762 @@ const bool g_registeredTerrainViewInit = registry::Register({
     InstallTerrainViewInit,
 });
 
+// The terrain view's object (docs/renderer.md, "The terrain view's object"):
+// its factory, constructor and destructor, QueryInterface with the parts'
+// thunks and the small methods of its interface. Translated instruction by
+// instruction and entered like the pixel routines above.
+bool g_compareTerrainObject;
+
+void TerrainObjectSideBySide();
+void* g_terrainObjectCreate;
+void __cdecl TerrainObjectCreateOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: Create call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_create.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+void __cdecl TerrainObjectCreate(EntryFrame* frame)
+{
+    if (g_compareTerrainObject)
+        TerrainObjectSideBySide();
+    TerrainObjectCreateOurs(frame);
+}
+DATAMAP_ENTRY(TTerrainObjectCreate, TerrainObjectCreate, g_terrainObjectCreate, 0)
+
+void* g_terrainObjectConstruct;
+void __cdecl TerrainObjectConstruct(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: Construct call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_construct.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectConstruct, TerrainObjectConstruct, g_terrainObjectConstruct, 0)
+
+void* g_terrainObjectDestruct;
+void __cdecl TerrainObjectDestruct(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: Destruct call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_destruct.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+// Compare mode, at the factory: two blocks of our own, filled alike with a
+// byte the constructor never writes, are constructed, one by ours and one by
+// the game's, and compared whole; then one is destructed by ours and one by
+// the game's and they are compared again. A view that was never started
+// holds nothing, so its destructor reaches nothing outside the block.
+void TerrainObjectSideBySide()
+{
+    using Fn = void*(__fastcall*)(char*, void*);
+    alignas(8) char first[kViewSize], second[kViewSize];
+    std::memset(first, 0xA5, sizeof first);
+    std::memset(second, 0xA5, sizeof second);
+    const auto ours = [&](void(__cdecl* body)(EntryFrame*), void* original) {
+        if (g_selfCheck) {
+            g_dataMapGameRun = true;
+            reinterpret_cast<Fn>(original)(first, nullptr);
+            g_dataMapGameRun = false;
+        } else {
+            EntryFrame frame{};
+            frame.ecx = reinterpret_cast<uint32_t>(first);
+            body(&frame);
+        }
+    };
+    const auto theirs = [&](void* original) {
+        g_dataMapGameRun = true;
+        reinterpret_cast<Fn>(original)(second, nullptr);
+        g_dataMapGameRun = false;
+    };
+    const auto check = [&](const char* name) {
+        size_t differing = 0, firstAt = 0, written = 0;
+        for (size_t i = 0; i < sizeof first; ++i) {
+            if (first[i] != second[i] && !differing++)
+                firstAt = i;
+            written += second[i] != static_cast<char>(0xA5);
+        }
+        char detail[160];
+        std::snprintf(detail, sizeof detail, "%zu of %zu bytes differ (first at %zu); at least %zu written", differing, sizeof first, firstAt,
+                      written);
+        log::Write("terrain view object: compared %s: %s", name, detail);
+        compare::Record((std::string("terrain.object.") + name + (g_selfCheck ? ".selfcheck" : "")).c_str(), !differing, "the game's", detail);
+    };
+    ours(TerrainObjectConstruct, g_terrainObjectConstruct);
+    theirs(g_terrainObjectConstruct);
+    check("construct");
+    ours(TerrainObjectDestruct, g_terrainObjectDestruct);
+    theirs(g_terrainObjectDestruct);
+    check("destruct");
+}
+DATAMAP_ENTRY(TTerrainObjectDestruct, TerrainObjectDestruct, g_terrainObjectDestruct, 0)
+
+void* g_terrainObjectDeletingDestruct;
+void __cdecl TerrainObjectDeletingDestruct(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: DeletingDestruct call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_deletingdestruct.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectDeletingDestruct, TerrainObjectDeletingDestruct, g_terrainObjectDeletingDestruct, 4)
+
+void* g_terrainObjectDeletingDestructThunk;
+void __cdecl TerrainObjectDeletingDestructThunk(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: DeletingDestructThunk call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_deletingdestructthunk.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectDeletingDestructThunk, TerrainObjectDeletingDestructThunk, g_terrainObjectDeletingDestructThunk, 4)
+
+void* g_terrainObjectQueryInterface;
+void __cdecl TerrainObjectQueryInterfaceOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: QueryInterface call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_queryinterface.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+// Compare mode: the game's answers the same question after ours; what it
+// handed out is released again.
+void __cdecl TerrainObjectQueryInterface(EntryFrame* frame)
+{
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const uint32_t id = frame->arguments[0];
+    void** const out = reinterpret_cast<void**>(frame->arguments[1]);
+    TerrainObjectQueryInterfaceOurs(frame);
+    if (!g_compareTerrainObject || !out)
+        return;
+    using Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, void**);
+    void* theirs = nullptr;
+    g_dataMapGameRun = true;
+    const uint32_t answer = reinterpret_cast<Fn>(g_terrainObjectQueryInterface)(self, nullptr, id, &theirs);
+    if (theirs)
+        Virtual<uint32_t>(theirs, 0x8);
+    g_dataMapGameRun = false;
+    const bool same = (answer & 0xFF) == (frame->eax & 0xFF) && theirs == *out;
+    char detail[120];
+    std::snprintf(detail, sizeof detail, "interface %08X: ours %u %p, the game's %u %p", id, frame->eax & 0xFF, *out, answer & 0xFF, theirs);
+    if (!same)
+        log::Write("terrain view object: QueryInterface differs: %s", detail);
+    compare::Record("terrain.object.queryinterface", same, "the game's", detail);
+    compare::Record(theirs ? "terrain.object.queryinterface.found" : "terrain.object.queryinterface.notfound", same, "the game's", detail);
+}
+DATAMAP_ENTRY(TTerrainObjectQueryInterface, TerrainObjectQueryInterface, g_terrainObjectQueryInterface, 8)
+
+void* g_terrainObjectQueryInterfaceThunk4;
+void __cdecl TerrainObjectQueryInterfaceThunk4(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: QueryInterfaceThunk4 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_queryinterfacethunk4.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectQueryInterfaceThunk4, TerrainObjectQueryInterfaceThunk4, g_terrainObjectQueryInterfaceThunk4, 8)
+
+void* g_terrainObjectQueryInterfaceThunkC;
+void __cdecl TerrainObjectQueryInterfaceThunkC(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: QueryInterfaceThunkC call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_queryinterfacethunkc.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectQueryInterfaceThunkC, TerrainObjectQueryInterfaceThunkC, g_terrainObjectQueryInterfaceThunkC, 8)
+
+void* g_terrainObjectQueryInterfaceThunk10;
+void __cdecl TerrainObjectQueryInterfaceThunk10(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: QueryInterfaceThunk10 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_queryinterfacethunk10.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectQueryInterfaceThunk10, TerrainObjectQueryInterfaceThunk10, g_terrainObjectQueryInterfaceThunk10, 8)
+
+void* g_terrainObjectQueryInterfaceThunk14;
+void __cdecl TerrainObjectQueryInterfaceThunk14(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: QueryInterfaceThunk14 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_queryinterfacethunk14.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectQueryInterfaceThunk14, TerrainObjectQueryInterfaceThunk14, g_terrainObjectQueryInterfaceThunk14, 8)
+
+void* g_terrainObjectAddRefThunk10;
+void __cdecl TerrainObjectAddRefThunk10(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: AddRefThunk10 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_addrefthunk10.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectAddRefThunk10, TerrainObjectAddRefThunk10, g_terrainObjectAddRefThunk10, 0)
+
+void* g_terrainObjectReleaseThunk10;
+void __cdecl TerrainObjectReleaseThunk10(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: ReleaseThunk10 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_releasethunk10.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectReleaseThunk10, TerrainObjectReleaseThunk10, g_terrainObjectReleaseThunk10, 0)
+
+void* g_terrainObjectAddRefThunk14;
+void __cdecl TerrainObjectAddRefThunk14(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: AddRefThunk14 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_addrefthunk14.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectAddRefThunk14, TerrainObjectAddRefThunk14, g_terrainObjectAddRefThunk14, 0)
+
+void* g_terrainObjectReleaseThunk14;
+void __cdecl TerrainObjectReleaseThunk14(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: ReleaseThunk14 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_releasethunk14.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectReleaseThunk14, TerrainObjectReleaseThunk14, g_terrainObjectReleaseThunk14, 0)
+
+void* g_terrainObjectGetClassID;
+void __cdecl TerrainObjectGetClassIDOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: GetClassID call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_getclassid.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+void __cdecl TerrainObjectGetClassID(EntryFrame* frame)
+{
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const EntryFrame entry = *frame;
+    TerrainObjectGetClassIDOurs(frame);
+    if (!g_compareTerrainObject)
+        return;
+    using Fn = uint32_t(__fastcall*)(char*, void*);
+    g_dataMapGameRun = true;
+    const uint32_t theirs = reinterpret_cast<Fn>(g_terrainObjectGetClassID)(self, nullptr);
+    g_dataMapGameRun = false;
+    const bool same = (theirs & 0xFFFFFFFF) == (frame->eax & 0xFFFFFFFF);
+    char detail[80];
+    std::snprintf(detail, sizeof detail, "argument %08X: ours %08X, the game's %08X", entry.arguments[0], frame->eax & 0xFFFFFFFF, theirs & 0xFFFFFFFF);
+    if (!same)
+        log::Write("terrain view object: GetClassID differs: %s", detail);
+    compare::Record("terrain.object.getclassid", same, "the game's", detail);
+}
+DATAMAP_ENTRY(TTerrainObjectGetClassID, TerrainObjectGetClassID, g_terrainObjectGetClassID, 0)
+
+void* g_terrainObjectGetDrawable;
+void __cdecl TerrainObjectGetDrawableOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: GetDrawable call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_getdrawable.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+void __cdecl TerrainObjectGetDrawable(EntryFrame* frame)
+{
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const EntryFrame entry = *frame;
+    TerrainObjectGetDrawableOurs(frame);
+    if (!g_compareTerrainObject)
+        return;
+    using Fn = uint32_t(__fastcall*)(char*, void*, uint32_t);
+    g_dataMapGameRun = true;
+    const uint32_t theirs = reinterpret_cast<Fn>(g_terrainObjectGetDrawable)(self, nullptr, frame->arguments[0]);
+    g_dataMapGameRun = false;
+    const bool same = (theirs & 0xFFFFFFFF) == (frame->eax & 0xFFFFFFFF);
+    char detail[80];
+    std::snprintf(detail, sizeof detail, "argument %08X: ours %08X, the game's %08X", entry.arguments[0], frame->eax & 0xFFFFFFFF, theirs & 0xFFFFFFFF);
+    if (!same)
+        log::Write("terrain view object: GetDrawable differs: %s", detail);
+    compare::Record("terrain.object.getdrawable", same, "the game's", detail);
+}
+DATAMAP_ENTRY(TTerrainObjectGetDrawable, TerrainObjectGetDrawable, g_terrainObjectGetDrawable, 4)
+
+void* g_terrainObjectAddColourChangedArea;
+void __cdecl TerrainObjectAddColourChangedAreaOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: AddColourChangedArea call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_addcolourchangedarea.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+// Compare mode: the view is copied, ours adds the area, the result is kept
+// and the copy put back, the game's adds it, and the two views are compared.
+void __cdecl TerrainObjectAddColourChangedArea(EntryFrame* frame)
+{
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    if (!g_compareTerrainObject) {
+        TerrainObjectAddColourChangedAreaOurs(frame);
+        return;
+    }
+    char* const view = self - 0xC;
+    char before[kViewSize], first[kViewSize];
+    std::memcpy(before, view, kViewSize);
+    using Fn = void(__fastcall*)(char*, void*, uint32_t);
+    const EntryFrame entry = *frame;
+    const auto game = [&] {
+        g_dataMapGameRun = true;
+        reinterpret_cast<Fn>(g_terrainObjectAddColourChangedArea)(self, nullptr, entry.arguments[0]);
+        g_dataMapGameRun = false;
+    };
+    if (g_selfCheck)
+        game();
+    else
+        TerrainObjectAddColourChangedAreaOurs(frame);
+    std::memcpy(first, view, kViewSize);
+    std::memcpy(view, before, kViewSize);
+    game();
+    const bool same = std::memcmp(first, view, kViewSize) == 0;
+    const bool changed = std::memcmp(before, view, kViewSize) != 0;
+    if (!same)
+        log::Write("terrain view object: AddColourChangedArea differs");
+    const std::string name = std::string("terrain.object.addcolourchangedarea") + (g_selfCheck ? ".selfcheck" : "");
+    compare::Record(name.c_str(), same, "the game's view", "");
+    if (changed)
+        compare::Record((name + ".working").c_str(), same, "the game's view", "");
+    compare::Record((name + (entry.arguments[0] ? ".rect" : ".all")).c_str(), same, "the game's view", "");
+}
+DATAMAP_ENTRY(TTerrainObjectAddColourChangedArea, TerrainObjectAddColourChangedArea, g_terrainObjectAddColourChangedArea, 4)
+
+void* g_terrainObjectSetDetail;
+void __cdecl TerrainObjectSetDetailOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: SetDetail call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_setdetail.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+// A change of detail drops and picks textures and cannot run twice; a call
+// with the detail already kept does nothing in either.
+void __cdecl TerrainObjectSetDetail(EntryFrame* frame)
+{
+    if (g_compareTerrainObject)
+        compare::Record(frame->arguments[0] == Global<uint32_t>(0x00B0D6FC) ? "terrain.object.setdetail.same" : "terrain.object.setdetail.unrepeatable", true, "",
+                        "");
+    TerrainObjectSetDetailOurs(frame);
+}
+DATAMAP_ENTRY(TTerrainObjectSetDetail, TerrainObjectSetDetail, g_terrainObjectSetDetail, 0)
+
+void* g_terrainObjectGetSavedFlag;
+void __cdecl TerrainObjectGetSavedFlagOurs(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: GetSavedFlag call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_getsavedflag.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+
+void __cdecl TerrainObjectGetSavedFlag(EntryFrame* frame)
+{
+    char* const self = reinterpret_cast<char*>(frame->ecx);
+    const EntryFrame entry = *frame;
+    TerrainObjectGetSavedFlagOurs(frame);
+    if (!g_compareTerrainObject)
+        return;
+    using Fn = uint32_t(__fastcall*)(char*, void*);
+    g_dataMapGameRun = true;
+    const uint32_t theirs = reinterpret_cast<Fn>(g_terrainObjectGetSavedFlag)(self, nullptr);
+    g_dataMapGameRun = false;
+    const bool same = (theirs & 0xFF) == (frame->eax & 0xFF);
+    char detail[80];
+    std::snprintf(detail, sizeof detail, "argument %08X: ours %08X, the game's %08X", entry.arguments[0], frame->eax & 0xFF, theirs & 0xFF);
+    if (!same)
+        log::Write("terrain view object: GetSavedFlag differs: %s", detail);
+    compare::Record("terrain.object.getsavedflag", same, "the game's", detail);
+}
+DATAMAP_ENTRY(TTerrainObjectGetSavedFlag, TerrainObjectGetSavedFlag, g_terrainObjectGetSavedFlag, 0)
+
+void* g_terrainObjectPickNoWater;
+void __cdecl TerrainObjectPickNoWater(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: PickNoWater call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_picknowater.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectPickNoWater, TerrainObjectPickNoWater, g_terrainObjectPickNoWater, 16)
+
+void* g_terrainObjectCellMarksForward0;
+void __cdecl TerrainObjectCellMarksForward0(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: CellMarksForward0 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_cellmarksforward0.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectCellMarksForward0, TerrainObjectCellMarksForward0, g_terrainObjectCellMarksForward0, 0)
+
+void* g_terrainObjectCellMarksSetColour;
+void __cdecl TerrainObjectCellMarksSetColour(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: CellMarksSetColour call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_cellmarkssetcolour.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectCellMarksSetColour, TerrainObjectCellMarksSetColour, g_terrainObjectCellMarksSetColour, 12)
+
+void* g_terrainObjectCellMarksForward1;
+void __cdecl TerrainObjectCellMarksForward1(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: CellMarksForward1 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_cellmarksforward1.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectCellMarksForward1, TerrainObjectCellMarksForward1, g_terrainObjectCellMarksForward1, 12)
+
+void* g_terrainObjectCellMarksForward2;
+void __cdecl TerrainObjectCellMarksForward2(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: CellMarksForward2 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_cellmarksforward2.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectCellMarksForward2, TerrainObjectCellMarksForward2, g_terrainObjectCellMarksForward2, 12)
+
+void* g_terrainObjectCellMarksForward3;
+void __cdecl TerrainObjectCellMarksForward3(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: CellMarksForward3 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_cellmarksforward3.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectCellMarksForward3, TerrainObjectCellMarksForward3, g_terrainObjectCellMarksForward3, 28)
+
+void* g_terrainObjectCellMarksForward4;
+void __cdecl TerrainObjectCellMarksForward4(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: CellMarksForward4 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_cellmarksforward4.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectCellMarksForward4, TerrainObjectCellMarksForward4, g_terrainObjectCellMarksForward4, 28)
+
+void* g_terrainObjectSetPickMarks;
+void __cdecl TerrainObjectSetPickMarks(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: SetPickMarks call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_setpickmarks.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectSetPickMarks, TerrainObjectSetPickMarks, g_terrainObjectSetPickMarks, 4)
+
+void* g_terrainObjectGetOption49;
+void __cdecl TerrainObjectGetOption49(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: GetOption49 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_getoption49.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectGetOption49, TerrainObjectGetOption49, g_terrainObjectGetOption49, 0)
+
+void* g_terrainObjectSetOption49;
+void __cdecl TerrainObjectSetOption49(EntryFrame* frame)
+{
+    static uint32_t calls = 0;
+    if (++calls == 1 || (calls & (calls - 1)) == 0)
+        log::Write("terrain view object: SetOption49 call %u", calls);
+    DATAMAP_ENTRY_MACHINE(frame);
+    (void)esp;
+    const auto run = [&]() -> uint32_t {
+#include "core/terrainobject_setoption49.inc"
+    };
+    frame->eax = run();
+    frame->ecx = ecx;
+    frame->edx = edx;
+}
+DATAMAP_ENTRY(TTerrainObjectSetOption49, TerrainObjectSetOption49, g_terrainObjectSetOption49, 4)
+
+bool InstallTerrainObject(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_compareTerrainObject = mode == registry::Mode::Compare;
+    const bool installed = Detour(addr::cSTETerrainView3D_Create, &TTerrainObjectCreate, &g_terrainObjectCreate)
+                           && Detour(addr::cSTETerrainView3D_Construct, &TTerrainObjectConstruct, &g_terrainObjectConstruct)
+                           && Detour(addr::cSTETerrainView3D_Destruct, &TTerrainObjectDestruct, &g_terrainObjectDestruct)
+                           && Detour(addr::cSTETerrainView3D_DeletingDestruct, &TTerrainObjectDeletingDestruct, &g_terrainObjectDeletingDestruct)
+                           && Detour(addr::cSTETerrainView3D_DeletingDestructThunk, &TTerrainObjectDeletingDestructThunk, &g_terrainObjectDeletingDestructThunk)
+                           && Detour(addr::cSTETerrainView3D_QueryInterface, &TTerrainObjectQueryInterface, &g_terrainObjectQueryInterface)
+                           && Detour(addr::cSTETerrainView3D_QueryInterfaceThunkC, &TTerrainObjectQueryInterfaceThunkC, &g_terrainObjectQueryInterfaceThunkC)
+                           && Detour(addr::cSTETerrainView3D_QueryInterfaceThunk14, &TTerrainObjectQueryInterfaceThunk14, &g_terrainObjectQueryInterfaceThunk14)
+                           && Detour(addr::cSTETerrainView3D_AddRefThunk10, &TTerrainObjectAddRefThunk10, &g_terrainObjectAddRefThunk10)
+                           && Detour(addr::cSTETerrainView3D_ReleaseThunk10, &TTerrainObjectReleaseThunk10, &g_terrainObjectReleaseThunk10)
+                           && Detour(addr::cSTETerrainView3D_AddRefThunk14, &TTerrainObjectAddRefThunk14, &g_terrainObjectAddRefThunk14)
+                           && Detour(addr::cSTETerrainView3D_ReleaseThunk14, &TTerrainObjectReleaseThunk14, &g_terrainObjectReleaseThunk14)
+                           && Detour(addr::cSTETerrainView3D_GetDrawable, &TTerrainObjectGetDrawable, &g_terrainObjectGetDrawable)
+                           && Detour(addr::cSTETerrainView3D_AddColourChangedArea, &TTerrainObjectAddColourChangedArea, &g_terrainObjectAddColourChangedArea)
+                           && Detour(addr::cSTETerrainView3D_SetDetail, &TTerrainObjectSetDetail, &g_terrainObjectSetDetail);
+    if (installed)
+        log::Write("terrain view object: %s", g_compareTerrainObject ? "compared with the game's" : "ours");
+    return installed;
+}
+
+const bool g_registeredTerrainObject = registry::Register({
+    "renderer.terrain.object",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_Create,
+    "The terrain view's object: factory, constructor, destructor, QueryInterface with the parts' thunks and three small methods; compare mode constructs and destructs two blocks side by side and runs each query twice (docs/renderer.md, \"The terrain view's object\")",
+    true,
+    InstallTerrainObject,
+});
+
+bool InstallTerrainObjectUntested(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    (void)mode;
+    const bool installed = Detour(addr::cSTETerrainView3D_QueryInterfaceThunk4, &TTerrainObjectQueryInterfaceThunk4, &g_terrainObjectQueryInterfaceThunk4)
+                           && Detour(addr::cSTETerrainView3D_QueryInterfaceThunk10, &TTerrainObjectQueryInterfaceThunk10, &g_terrainObjectQueryInterfaceThunk10)
+                           && Detour(addr::cSTETerrainView3D_GetClassID, &TTerrainObjectGetClassID, &g_terrainObjectGetClassID)
+                           && Detour(addr::cSTETerrainView3D_GetSavedFlag, &TTerrainObjectGetSavedFlag, &g_terrainObjectGetSavedFlag)
+                           && Detour(addr::cSTETerrainView3D_PickNoWater, &TTerrainObjectPickNoWater, &g_terrainObjectPickNoWater)
+                           && Detour(addr::cSTETerrainView3D_CellMarksForward0, &TTerrainObjectCellMarksForward0, &g_terrainObjectCellMarksForward0)
+                           && Detour(addr::cSTETerrainView3D_CellMarksSetColour, &TTerrainObjectCellMarksSetColour, &g_terrainObjectCellMarksSetColour)
+                           && Detour(addr::cSTETerrainView3D_CellMarksForward1, &TTerrainObjectCellMarksForward1, &g_terrainObjectCellMarksForward1)
+                           && Detour(addr::cSTETerrainView3D_CellMarksForward2, &TTerrainObjectCellMarksForward2, &g_terrainObjectCellMarksForward2)
+                           && Detour(addr::cSTETerrainView3D_CellMarksForward3, &TTerrainObjectCellMarksForward3, &g_terrainObjectCellMarksForward3)
+                           && Detour(addr::cSTETerrainView3D_CellMarksForward4, &TTerrainObjectCellMarksForward4, &g_terrainObjectCellMarksForward4)
+                           && Detour(addr::cSTETerrainView3D_SetPickMarks, &TTerrainObjectSetPickMarks, &g_terrainObjectSetPickMarks)
+                           && Detour(addr::cSTETerrainView3D_GetOption49, &TTerrainObjectGetOption49, &g_terrainObjectGetOption49)
+                           && Detour(addr::cSTETerrainView3D_SetOption49, &TTerrainObjectSetOption49, &g_terrainObjectSetOption49);
+    if (installed)
+        log::Write("terrain view object (untested): %s", "ours");
+    return installed;
+}
+
+const bool g_registeredTerrainObjectUntested = registry::Register({
+    "renderer.terrain.object_untested",
+    "renderer/terrain",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::cSTETerrainView3D_QueryInterfaceThunk4,
+    "Fourteen more small methods of the terrain view's interface that no test reaches, so this code has never run (docs/renderer.md, \"The terrain view's object\")",
+    true,
+    InstallTerrainObjectUntested,
+});
+
 // The mini map's drawing (class cSC4WinMiniMap, 0x007A65D0 to 0x007A891C),
 // translated instruction by instruction: the window's paint (0x007A79B0),
 // the terrain's pixels (0x007A7FF0), the picture brought up to date
