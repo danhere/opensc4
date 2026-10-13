@@ -13,11 +13,13 @@
 //
 // Written in three parts: netmgr_state.cpp (identity, the queries, the remap
 // lookups, the crews, the filters, the retrofit list's append and the
-// intersection walk), then life and save (constructor, destructors, factory,
-// Init, Shutdown, LoadRemapping, Write, Read) and the messages, removals
-// and nodes (DoMessage, ProcessRetrofitList, DestroyNetworkOccupants,
-// QueueRemovals, RemoveOrReplaceOccupant, CreateConnectionNode,
-// AutoconnectLotNodes), which are to come.
+// intersection walk), netmgr_life.cpp (life and save: the factory, the
+// constructor, the destructors, Init, Shutdown, LoadRemapping with its four
+// callbacks and the inserts they use, the release helpers, Write, Read, and
+// our own object) and the messages, removals and nodes (DoMessage,
+// ProcessRetrofitList, DestroyNetworkOccupants, QueueRemovals,
+// RemoveOrReplaceOccupant, CreateConnectionNode, AutoconnectLotNodes), which
+// are to come.
 //
 // The class: class ID 0xC990BD46 (registered at 0x004603C5 with the factory
 // 0x00613750), 0xBC bytes, constructor 0x00613330 (only reached by the jump
@@ -77,6 +79,18 @@
 // and the intersection walk 0x00612300 (GetAllIntersectionPieces and
 // itself).
 //
+// Not virtual, in the second part: the factory 0x00613750, the constructor
+// 0x00613330 and the destructor 0x00612000; LoadRemapping 0x00613140 (the
+// constructor only) with the four callbacks the ini reader calls, cdecl
+// (key string, value string, the manager): 0x00612F70 "Texture remapping",
+// 0x00612EB0 "Shadow remapping", 0x00613030 "Shadow edge remapping" and
+// 0x006130E0 "UK path remapping"; the two appends 0x006125B0 (an edge into
+// the table at +0x30, through the table's insert 0x00611890) and 0x00612610
+// (a path entry); ReleaseTools 0x00610880 (cdecl: first, last, the address
+// of a tool pointer: every slot of the range is given that pointer),
+// ShutdownCrews 0x00610B80, and the retrofit list's clear 0x00611A20 and
+// destroy 0x00611AA0 (this the list's word at +0x78).
+//
 // The two filters the manager makes (slots 18 and 19) are classes of their
 // own, 0xC bytes on the occupant filter base (constructor 0x005EA080,
 // reference count at +8, AddRef 0x004BDF00, Release 0x007CB920, which calls
@@ -116,6 +130,8 @@
 //                allocator cached at 0x00B45238
 //   +0x7C vector of construction crews (referenced)
 //   +0x88 the 13 network tools, by network type
+// Never written by the constructor (as operator new left them): +0x13, the
+// table's first word at +0x30 and +0x75 to +0x77.
 // A remap entry (+0x44 and +0x50): +0 match, +4 mask (an ID matches when ID
 // & mask == match), +8 base, +0xC and +0x10 two masks (the new ID is base +
 // (ID & mask C) - (ID & mask 10)), +0x14 a rotation byte (bit 7: the
@@ -123,6 +139,10 @@
 // always & 0x83), +0x15 a byte: non-zero goes on to the next entries with
 // the new ID. A path entry (+0x5C): +0 match, +4 mask, +8 base, +0xC mask
 // (the new ID is base + (ID & mask C)).
+//
+// The save record (type = the class ID; Write 0x006111E0, Read 0x006124C0):
+// uint16 version 1, uint32 count, then count references: the vector at +0x24
+// in its order (tools/re/save_schemas/netmgr.py).
 #pragma once
 
 #include "core/game_access.h"
@@ -168,6 +188,22 @@ inline constexpr uint32_t kShadowFlagMask = 0x304;
 // Sizes of the tool objects GetNetworkTool makes.
 inline constexpr std::size_t kToolSize = 0x368, kPipeToolSize = 0x398, kPowerLineToolSize = 0x3B8;
 inline constexpr std::size_t kFilterSize = 0xC, kNetworkFilterSize = 0x10;
+
+// The save record's version, the number of buckets the constructor asks the
+// shadow edge table for (the table takes the next of its primes), the size
+// of a table node, and the key of the remap resource (type 0, group
+// 0x8A5971C5, instance 0x8A5993B9: an ini text).
+inline constexpr uint16_t kRecordVersion = 1;
+inline constexpr uint32_t kEdgeBuckets = 100;
+inline constexpr std::size_t kEdgeNodeSize = 0x18;
+inline constexpr uint32_t kRemapGroup = 0x8A5971C5, kRemapInstance = 0x8A5993B9;
+
+// The language service Init asks (class and IID), and the eleven messages
+// Init subscribes the part at +4 to, in Init's order. Shutdown takes them
+// off in the same order but for the sixth and the seventh, which it swaps.
+inline constexpr uint32_t kLanguageClass = 0x441E5070, kIidLanguage = 0x0054B7D5;
+inline constexpr uint32_t kMessages[] = {0xA6B79602, 0x278E6003, 0xEA3B0AF1, 0x6A3B0AFD, 0x6AB97795, 0x26D31EC2,
+                                         0x26D31EC1, 0x99EF1142, 0x99EF1143, 0xC9DA96E8, 0xC9DA96E9};
 
 namespace field {
 inline constexpr std::size_t kRefCount = 0x0C;
@@ -216,6 +252,27 @@ inline constexpr std::size_t kAddToRetrofitList = 0x5C, kDeletingDestructor = 0x
 inline constexpr std::size_t kWrite = 0x0C, kRead = 0x10, kGetGZCLSID = 0x14;
 } // namespace slot
 
+// The slots of the services and streams the second part calls: the message
+// server (0x00B43CCC; both take the target and the message ID), the
+// language service and its utility, a stream (the same offsets for writing
+// and reading), a crew and the node allocator.
+namespace server_slot {
+inline constexpr std::size_t kAddNotification = 0x14, kRemoveNotification = 0x18;
+} // namespace server_slot
+namespace language_slot {
+inline constexpr std::size_t kGetLanguageUtility = 0x98; // slot 38: (language ID; 0 the current)
+inline constexpr std::size_t kGetRoadDrivingSide = 0x64; // the utility's slot 25: no arguments
+} // namespace language_slot
+namespace stream_slot {
+inline constexpr std::size_t kUint16 = 0x1C, kUint32 = 0x24, kGetError = 0x48;
+} // namespace stream_slot
+namespace crew_slot {
+inline constexpr std::size_t kShutdown = 0x14; // slot 5: the crew unregisters itself
+} // namespace crew_slot
+namespace allocator_slot {
+inline constexpr std::size_t kAllocate = 0xC, kFree = 0x10;
+} // namespace allocator_slot
+
 // An occupant filter's slots (the two the manager makes and the network
 // filter 0x0061F530).
 namespace filter {
@@ -254,10 +311,60 @@ struct ListNode {
     void* value;
 };
 
+// A string of the game as the ini reader hands it to a callback and as
+// LoadRemapping makes one on its stack (0x14 bytes; constructor 0x00408480
+// from a text; vtable 0x00A80810): the characters are at `begin`.
+struct GameString {
+    std::uintptr_t vtable;
+    char* begin;
+    char* end;
+    char* capacity;
+    uint32_t references;
+};
+
 inline uint32_t AddRefOf(void* object) { return Virtual<uint32_t>(object, 0x4); }
 inline uint32_t ReleaseOf(void* object) { return Virtual<uint32_t>(object, 0x8); }
 
+// A game function at its address: thiscall with `self` in ECX, or cdecl.
+template <typename R, typename... Args>
+inline R CallThis(std::uintptr_t address, void* self, Args... args)
+{
+    return reinterpret_cast<R(__thiscall*)(void*, Args...)>(address)(self, args...);
+}
+
+template <typename R, typename... Args>
+inline R CallCdecl(std::uintptr_t address, Args... args)
+{
+    return reinterpret_cast<R(__cdecl*)(Args...)>(address)(args...);
+}
+
 // Logs "netmgr: first <name>" once per flag (netmgr_state.cpp).
 void FirstCall(const char* name, bool& logged);
+
+// Shared by the parts (netmgr_state.cpp has them). A new network tool of the
+// general class (0x368 bytes, constructor 0x0062C5F0 with the network type)
+// and one of the three classes of their own (the size and the constructor,
+// which takes no argument); each null when operator new gives none, else the
+// constructor's EAX. The number of buckets of the shadow edge table.
+void* MakeTool(uint32_t type);
+void* MakeOwnTool(std::size_t size, std::uintptr_t constructor);
+uint32_t BucketCount(char* table);
+
+// A detour of a group: the game's address and our function. Skipped says
+// whether OPENSC4_NETMGR_SKIP (function addresses, hex, eight digits) lists
+// the address; InstallDetours installs a group's list but for those and logs
+// "netmgr <what>: <n> detours".
+struct Detour {
+    std::uintptr_t address;
+    void* ours;
+};
+#define OPENSC4_NETMGR_DETOUR(address, fn) {address, reinterpret_cast<void*>(&fn)}
+bool Skipped(std::uintptr_t address);
+bool InstallDetourList(const Detour* detours, std::size_t count, const char* what);
+template <std::size_t N>
+inline bool InstallDetours(const Detour (&detours)[N], const char* what)
+{
+    return InstallDetourList(detours, N, what);
+}
 
 } // namespace opensc4::netmgr_sim
