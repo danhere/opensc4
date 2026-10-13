@@ -84,19 +84,71 @@ void FirstCall(const char* name, bool& logged)
     log::Write("netmgr: first %s", name);
 }
 
+// A new network tool of the general class (0x368 bytes, constructor
+// 0x0062C5F0 with the network type); null when operator new gives none. The
+// answer is the constructor's EAX. (Shared with netmgr_life.cpp's Init.)
+void* MakeTool(uint32_t type)
+{
+    void* const raw = CallCdecl<void*, std::size_t>(addr::SC4_operator_new, kToolSize);
+    if (!raw)
+        return nullptr;
+    return CallThis<void*, uint32_t>(addr::cSC4NetworkManager_NetworkToolConstruct, raw, type);
+}
+
+// A new tool of one of the three classes of their own: the size and the
+// constructor, which takes no argument.
+void* MakeOwnTool(std::size_t size, std::uintptr_t constructor)
+{
+    void* const raw = CallCdecl<void*, std::size_t>(addr::SC4_operator_new, size);
+    if (!raw)
+        return nullptr;
+    return CallThis<void*>(constructor, raw);
+}
+
+// The number of buckets of the shadow edge table (the words between the
+// pointers at +4 and +8; the byte difference shifted right as a signed
+// number).
+uint32_t BucketCount(char* table)
+{
+    return static_cast<uint32_t>(
+        static_cast<int32_t>(At<uint32_t>(table, edge::kBucketsEnd) - At<uint32_t>(table, edge::kBuckets)) >> 2);
+}
+
+// Hooks to leave out, for bisecting: OPENSC4_NETMGR_SKIP lists function
+// addresses (hex, eight digits), as OPENSC4_NETOCC_SKIP does.
+bool Skipped(std::uintptr_t address)
+{
+    char list[1024] = {};
+    if (!GetEnvironmentVariableA("OPENSC4_NETMGR_SKIP", list, sizeof list))
+        return false;
+    char wanted[16];
+    std::snprintf(wanted, sizeof wanted, "%08X", static_cast<unsigned>(address));
+    return std::strstr(list, wanted) != nullptr;
+}
+
+bool InstallDetourList(const Detour* detours, std::size_t count, const char* what)
+{
+    if (!game::IsBuild641())
+        return false;
+    for (std::size_t i = 0; i < count; ++i)
+        if (!addr_check::Find(detours[i].address)) {
+            log::Write("netmgr %s: no address entry for 0x%08X", what, static_cast<unsigned>(detours[i].address));
+            return false;
+        }
+    unsigned installed = 0;
+    for (std::size_t i = 0; i < count; ++i) {
+        if (Skipped(detours[i].address))
+            continue;
+        void* original = nullptr;
+        if (!hook::Install(*addr_check::Find(detours[i].address), detours[i].ours, &original))
+            return false;
+        ++installed;
+    }
+    log::Write("netmgr %s: %u detours", what, installed);
+    return true;
+}
+
 namespace {
-
-template <typename R, typename... Args>
-R CallThis(std::uintptr_t address, void* self, Args... args)
-{
-    return reinterpret_cast<R(__thiscall*)(void*, Args...)>(address)(self, args...);
-}
-
-template <typename R, typename... Args>
-R CallCdecl(std::uintptr_t address, Args... args)
-{
-    return reinterpret_cast<R(__cdecl*)(Args...)>(address)(args...);
-}
 
 uint32_t AsWord(const void* pointer)
 {
@@ -198,27 +250,6 @@ uint32_t __fastcall FindPipeConnectionOccupant(void*, void*, uint32_t x, uint32_
     FirstCall("FindPipeConnectionOccupant", logged);
     return CallCdecl<uint32_t, uint32_t, uint32_t, void**>(addr::cSC4NetworkManager_ToolFindPipeConnection, x, z,
                                                            out);
-}
-
-// A new network tool of the general class (0x368 bytes, constructor
-// 0x0062C5F0 with the network type); null when operator new gives none. The
-// answer is the constructor's EAX.
-void* MakeTool(uint32_t type)
-{
-    void* const raw = CallCdecl<void*, std::size_t>(addr::SC4_operator_new, kToolSize);
-    if (!raw)
-        return nullptr;
-    return CallThis<void*, uint32_t>(addr::cSC4NetworkManager_NetworkToolConstruct, raw, type);
-}
-
-// A new tool of one of the three classes of their own: the size and the
-// constructor, which takes no argument.
-void* MakeOwnTool(std::size_t size, std::uintptr_t constructor)
-{
-    void* const raw = CallCdecl<void*, std::size_t>(addr::SC4_operator_new, size);
-    if (!raw)
-        return nullptr;
-    return CallThis<void*>(constructor, raw);
 }
 
 // Slot 5 (0x006108D0, ret 8): a type of 13 or more (unsigned) gives null.
@@ -564,15 +595,6 @@ uint32_t __fastcall MapPreviewTexture(char* self, void*, uint32_t id, uint8_t* r
     return id;
 }
 
-// The number of buckets of the shadow edge table (the words between the
-// pointers at +4 and +8; the byte difference shifted right as a signed
-// number).
-uint32_t BucketCount(char* table)
-{
-    return static_cast<uint32_t>(
-        static_cast<int32_t>(At<uint32_t>(table, edge::kBucketsEnd) - At<uint32_t>(table, edge::kBuckets)) >> 2);
-}
-
 // The first node of the first bucket after `index` that has one, or null
 // (the game's two loops read the bucket count once or at every step; nothing
 // changes the table meanwhile).
@@ -715,47 +737,7 @@ uint32_t __fastcall MapPath(char* self, void*, uint32_t id)
 // Installation
 // ====================================================================================
 
-struct Detour {
-    std::uintptr_t address;
-    void* ours;
-};
-
-#define OPENSC4_DETOUR(address, fn) {address, reinterpret_cast<void*>(&fn)}
-
-// Hooks to leave out, for bisecting: OPENSC4_NETMGR_SKIP lists function
-// addresses (hex, eight digits), as OPENSC4_NETOCC_SKIP does.
-bool Skipped(std::uintptr_t address)
-{
-    char list[1024] = {};
-    if (!GetEnvironmentVariableA("OPENSC4_NETMGR_SKIP", list, sizeof list))
-        return false;
-    char wanted[16];
-    std::snprintf(wanted, sizeof wanted, "%08X", static_cast<unsigned>(address));
-    return std::strstr(list, wanted) != nullptr;
-}
-
-template <std::size_t N>
-bool InstallDetours(const Detour (&detours)[N], const char* what)
-{
-    if (!game::IsBuild641())
-        return false;
-    for (const Detour& detour : detours)
-        if (!addr_check::Find(detour.address)) {
-            log::Write("netmgr %s: no address entry for 0x%08X", what, static_cast<unsigned>(detour.address));
-            return false;
-        }
-    unsigned installed = 0;
-    for (const Detour& detour : detours) {
-        if (Skipped(detour.address))
-            continue;
-        void* original = nullptr;
-        if (!hook::Install(*addr_check::Find(detour.address), detour.ours, &original))
-            return false;
-        ++installed;
-    }
-    log::Write("netmgr %s: %u detours", what, installed);
-    return true;
-}
+#define OPENSC4_DETOUR(address, fn) OPENSC4_NETMGR_DETOUR(address, fn)
 
 const Detour kIdentity[] = {
     OPENSC4_DETOUR(addr::cSC4NetworkManager_QueryInterface, QueryInterface),
