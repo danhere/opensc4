@@ -228,7 +228,7 @@ name = "cSC4PrebuiltNetworkOccupant::vftable_C"
 address = 0x00AA6F30
 kind = "vtable"
 expect = "B0 4E 60 00 30 86 64 00"
-source = "The property holder (+0xC) vtable of the pre-built-model network occupant, 26 slots: slot 22 the deleting destructor thunk, 23 and 24 the save thunks."
+source = "The property holder (+0xC) vtable of the pre-built-model network occupant, 25 slots: slot 22 the deleting destructor thunk, 23 and 24 the save thunks."
 
 [[entry]]
 name = "cSC4PrebuiltNetworkOccupant::vftable_20"

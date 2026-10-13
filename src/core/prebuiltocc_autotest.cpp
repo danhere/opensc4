@@ -3,6 +3,7 @@
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/game_access.h"
+#include "core/occ_vtables.h"
 #include "core/occmgr_sim.h"
 #include "core/prebuiltocc_sim.h"
 
@@ -349,7 +350,8 @@ uint32_t Life()
     hash.Mix(At<uint32_t>(self, field::kPathOriginX));
     hash.Mix(At<uint32_t>(self, field::kPathOriginZ));
     hash.Mix(At<uint32_t>(self, field::kVbaseShift));
-    hash.Mix(At<std::uintptr_t>(self, field::kVbase) == addr::cSC4PrebuiltNetworkOccupant_vbase_vftable);
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kVbase),
+                                  addr::cSC4PrebuiltNetworkOccupant_vbase_vftable));
     hash.Mix(At<std::uintptr_t>(self, field::kVbtable) == addr::cSC4PrebuiltNetworkOccupant_vbtable);
     hash.Mix(Virtual<uint32_t>(self, slot::kIsSupportPylonPresent));
     MixPylon(hash, self);
