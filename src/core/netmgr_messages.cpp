@@ -36,9 +36,9 @@
 // (each loads the registers it reads next again). None reads a register it
 // did not load again after the call.
 //
-// Left as the game's and called at their addresses: ProcessRetrofitList
-// 0x00612820 (the second half of this part), ShutdownCrews 0x00610B80 and
-// ReleaseTools 0x00610880 (the second part's, hooked there); the tools'
+// Called at their addresses: ProcessRetrofitList 0x00612820 (hooked in
+// netmgr_nodes.cpp), ShutdownCrews 0x00610B80 and ReleaseTools 0x00610880
+// (the second part's, hooked there). Left as the game's: the tools'
 // code (0x006588D0, 0x00633220 and the tools' slots); the partition
 // 0x00611840 (also called from 0x0047EAA8 and 0x0048ACA8) and the point
 // vector's assignment 0x00611B00 (eighteen callers in other classes); the
