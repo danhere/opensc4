@@ -486,3 +486,223 @@ kind = "function"
 convention = "cdecl"
 expect = "55 8B EC 51 53 E8 73 31"
 source = "Name ours. The C library compare of two texts without regard to case (two arguments, 0 when equal; per character through the locale of the thread when one is set, else 0x009FFF40). The shadow edge callback 0x00613030 of the network manager looks a network name up with it."
+
+[[entry]]
+name = "cSC4NetworkManager::DoMessage"
+address = 0x00613950
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Slot 3 of the network manager message target (vtable 0x00AA7ABC; this is the object + 4), ret 4 (the message), 1,964 bytes: by the message type (its slot 4) 0x26D31EC2 ShutdownCrews and ReleaseTools with a null; 0x26D31EC1 ProcessRetrofitList 0x00612820, then when the clock 0x00B43DBC slot 28 says so the managed pieces that can be lit are lit; 0x278E6003 the cells of data 1 and 2 cut to the city (slots 93 and 94) and merged into or stored as the dirty rectangle at +0x14, then unless data 4 is 5 the pieces of the cells (occupant manager slot 40, filter mask 0x1FFF) that are off the terrain (0x006105F0) go to slot 6 and occupant manager slot 48, then unless batching the flush; 0x6A3B0AFD the flush (pipes and subways of the rectangle rebuilt by 0x006588D0, the rectangle emptied, +0x12 cleared); 0x6AB97795 occupant manager slot 45 with the callback 0x00610BB0; 0x99EF1142 and 0x99EF1143 the vector at +0x24 of globally managed pieces; 0xA6B79602 RefreshAllPieces 0x00612690 when the two carried words differ; 0xC9DA96E8 and 0xC9DA96E9 the managed pieces unlit and lit; 0xEA3B0AF1 the rectangle emptied and +0x12 set; AL 1 always (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::OnOccupantPostChanged"
+address = 0x00610BB0
+kind = "function"
+convention = "cdecl"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Name ours. The callback the network manager DoMessage hands to the occupant manager slot 45 for message 0x6AB97795 (the occupant, a context that is not read; plain ret): the occupant is asked for the network occupant interface 0xA821EF94 and the piece used without a test; a piece with the flag 0x40000 whose occupant slot 32 says flag 4 is set posts 0x99EF1145 through the occupant slot 15; the piece released when not null; AL 1 (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::RefreshAllPieces"
+address = 0x00612690
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3B 44 24 08"
+source = "Name ours. Ret 8 (two values; this is not read), called by DoMessage 0x00613FF2 for message 0xA6B79602 only: nothing when the two are equal or the occupant manager 0x00B43D0C is null; else a list (a head node of the allocator cached at 0x00B207E4) filled by occupant manager slot 37 with every occupant of type 0xC772BF98, each that answers the network occupant interface gets its slot 46 (MarkLightingUpdateNeeded) and is released, each occupant released, the list destroyed (0x00413FE0); ECX and EDX kept when the values are equal (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::DestroyNetworkOccupants"
+address = 0x00612110
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 8A 41 74 84 C0"
+source = "Slot 6 of the network manager, ret 4 (the address of a list of occupants): while queueing (+0x74) every occupant is referenced and appended to the vector at +0x68; else three passes with the masks at 0x00AA7B40 (0x1F4F, 0x10, 0x80) and the tools of the types at 0x00AA7B34 (0, 4, 7): the pieces whose flags (slot 12) meet the mask go, referenced, into a vector, and when there are any the tool from slot 5 runs Init, slot 50 with the vector and Shutdown; reached through the vtable only (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::QueueRemovals"
+address = 0x00613450
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 83 EC 08 53"
+source = "Slot 7 of the network manager, ret 4 (a byte): nothing when +0x74 has the value; else stored, and when switched off with occupants in the vector at +0x68 the vector is sorted by address (0x006132E0), each occupant equal to the one before released and the others put into a list (allocator cached at 0x00B207E4), the vector emptied, the list handed to slot 6 and to occupant manager slot 48 and destroyed; ECX and EDX kept when nothing is stored or the value is not 0; cSC4Demolition::DemolishRegion calls it with 1 and 0 (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::RemoveOrReplaceOccupant"
+address = 0x006110B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 57 8B"
+source = "Slot 8 of the network manager, ret 0xC (a network tool, an occupant, the address of a byte; this is not read), called by the tool code at 0x0062B213: AL 0 for a null occupant, one whose flags (slot 33) have bit 0 clear or that is no network piece; a piece without the flag 0x100000 is removed by occupant manager slot 21 and AL is its answer; one with the flag: its cell (slot 59), the tool 0x00633220 with (z << 16) + x, occupant manager slot 21, then the tool byte +0x50 set, the tool slot 72 with that answer, a zeroed 12-byte record and 0, the byte set to 1 and AL 1 (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::SortPointers"
+address = 0x006132E0
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. The sort of a range of unsigned 32-bit words, ascending (first, last), 75 bytes, called by QueueRemovals 0x00613483 only: nothing for an empty range; the depth is twice the number of halvings of the count down to 1; the loop 0x00612E00 (first, last, 0, depth, a comparison word that is its own first argument), then the last pass 0x0048A460 (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::IntroSortLoop"
+address = 0x00612E00
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 57 8B 7C"
+source = "Name ours. The introsort loop of the pointer sort (first, last, a null, the depth, the comparison), 169 bytes, called by 0x00613314 and by itself at 0x00612E79: while the range is longer than 16 words, with no depth left 0x0048A4B0 (first, last, last, 0, comparison) and return; else the median of the first, middle and last word, the partition 0x00611840 around it, the upper part by a call of itself and the loop goes on with the lower part (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::ResizePointLists"
+address = 0x00613920
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 8B 54 24 10 33"
+source = "Name ours. Resize of a vector of point vectors (elements of 0xC bytes) with an empty point vector as the value, ret 4 (the count), 36 bytes; DoMessage 0x00613CC0 calls it with 13 on an empty vector; forwards to 0x006138B0 (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::ResizePointListsWith"
+address = 0x006138B0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 59 04 56 8B 74 24"
+source = "Name ours. Resize of a vector of point vectors, ret 8 (a count, the address of a value), called by 0x00613939 only: fewer than the size (unsigned) erases from that element on (0x006135E0), else count less size copies are inserted at the end (0x00613770) (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::InsertPointLists"
+address = 0x00613770
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 57 8B 7C 24"
+source = "Name ours. Insert of n copies of a point vector into a vector of them, ret 0xC (where, the count, the address of the value), 314 bytes, called by 0x00613907 only: nothing for 0; without room the growing insert 0x00613640; else a copy of the value (0x007CED60) and the two in-place cases through 0x00611BD0, 0x00611CB0, 0x00611C00 and 0x00611C30; the copy freed (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::InsertPointListsGrowing"
+address = 0x00613640
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B D9 8B 03"
+source = "Name ours. The growing insert of a vector of point vectors, ret 0x14 (where, the address of a value, a tag that is not read, the count, a byte that says the insert is at the end), 266 bytes, called by 0x0061389D only: new memory (0x0090CF54) for the size plus the larger of size and count, the elements before where, the copies and unless the byte is set the elements behind copy constructed into it, the old vector destroyed (0x004638B0) (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::ErasePointLists"
+address = 0x006135E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Name ours. Erase of a range of a vector of point vectors, ret 8 (first, last), 84 bytes, called by 0x006138DC only: the elements behind assigned down (0x00611C60), the points of the elements left over freed, the end set; EAX first (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::ConstructPointListsFrom"
+address = 0x00611BD0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. Copy construction of a range of point vectors at a place (first, last, to, a tag that is not read), 47 bytes, called by 0x0061371A, 0x006137ED and 0x0061384C: each element through 0x007CED60 unless the place is null; EAX the place after the last; ECX and EDX kept for an empty range (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::FillPointLists"
+address = 0x00611C00
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. Assignment of one point vector to every element of a range (first, last, the address of the value), 38 bytes, called by 0x00613816 and 0x00613866: each through 0x00611B00; ECX and EDX kept for an empty range (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::ConstructPointListCopies"
+address = 0x00611C30
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. Construction of n copies of a point vector at a place (to, the count, the address of the value), 45 bytes, called by 0x0061382D only: each through 0x007CED60 unless the place is null; EAX the place after the last; ECX and EDX kept for a count of 0 (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::AssignPointLists"
+address = 0x00611C60
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. Forward assignment of a range of point vectors (first, last, to, two words that are not read), 68 bytes, called by 0x006135FB only: each element through 0x00611B00; EAX the place after the last, or to when the count is not positive (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::AssignPointListsBackward"
+address = 0x00611CB0
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 04 56 8B 74 24"
+source = "Name ours. Backward assignment of a range of point vectors (first, last, the end of the target, two words that are not read), 77 bytes, called by 0x00613808 only: from the last element down through 0x00611B00; EAX the lowest place written, or the target end when the count is not positive (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::ProcessRetrofitList"
+address = 0x00612820
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 94 00 00 00 56 8B"
+source = "Name ours. The retrofit pass of the network manager, no arguments, 1,498 bytes, called by DoMessage 0x006139D1 for message 0x26D31EC1 only; left as the game code for the second half of the third part; our DoMessage calls it at this address (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::PartitionPointers"
+address = 0x00611840
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 0C 8B 4C 24 08"
+source = "Name ours. The partition of a range of unsigned 32-bit words around a value (first, last, the value, a comparison that is not read), 70 bytes; EAX the cut; shared template code, also called from 0x0047EAA8 and 0x0048ACA8, so not hooked: the network manager sort loop 0x00612E00 calls it at this address (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::PointVectorAssign"
+address = 0x00611B00
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Name ours. Assignment of a vector of 8-byte points from another (ret 4: the source; EAX this), 208 bytes; shared template code with eighteen callers in other classes (0x0062CA26, 0x0063E0A5, 0x0076166A, 0x007CF4A5 and more), so not hooked: the network manager point list loops call it at this address (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "SC4::FinalInsertionSortUint32"
+address = 0x0048A460
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 53 8B 5C 24"
+source = "Name ours. The last pass of the sort of unsigned 32-bit words (first, last, a comparison that is not read): 0x0048A100 over the first 16 words, then 0x0047B810 over the rest, or 0x0048A100 over all of a range of 16 or fewer; shared, also called from 0x0048AD30; the network manager sort 0x006132E0 calls it (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "SC4::PartialSortUint32"
+address = 0x0048A4B0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 55 8B 6C"
+source = "Name ours. What the introsort loops call when their depth is used up (first, middle, last, a null, a comparison that is not read; it calls 0x00489C90); shared, also called from 0x0047EADC and 0x0048ACDC; the network manager loop 0x00612E00 calls it with middle equal to last (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::NetworkFilterConstructDefault"
+address = 0x0061F510
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 68 AB FC FF"
+source = "Name ours. The constructor of the network occupant filter (0x10 bytes; vtables 0x00AA8290 and 0x00AA8278 on the occupant filter base 0x005EA080) that takes no mask, no arguments; EAX this; the network manager DoMessage makes two and stores the mask at +0xC itself (0x1FFF and 0x90); also called from 0x00626AC7 and 0x0062943E (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::ToolRebuildPieces"
+address = 0x006588D0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 30 01 00 00 53 55"
+source = "Name ours. Tool code of the underground networks, ret 0x14 (a vector of points by value, which is three words, the address of a list of pieces, the network type), this the tool; called only by the network manager DoMessage flush at 0x00613E8F (pipes, type 4) and 0x00613ED7 (subways, type 7) between the tool Init and Shutdown; game code, called at this address (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::ToolCellEntry"
+address = 0x00633220
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours. Network tool code, ret 4 (a cell key, (z << 16) + x), this the tool: the entry of the key in the map at the tool +0x1C (0x00647A20), made by 0x00633030 when there is none; EAX the entry; RemoveOrReplaceOccupant 0x00611131 calls it and hands the answer to the tool slot 72 (src/core/netmgr_messages.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::RemovalMasks"
+address = 0x00AA7B40
+kind = "data"
+source = "Three dwords, the network flag masks of the three passes of DestroyNetworkOccupants 0x00612110: 0x1F4F (the surface networks), 0x10 (pipes), 0x80 (subways)."
+
+[[entry]]
+name = "cSC4NetworkManager::RemovalToolTypes"
+address = 0x00AA7B34
+kind = "data"
+source = "Three dwords, the network types whose tools the three passes of DestroyNetworkOccupants 0x00612110 use: 0, 4, 7."
