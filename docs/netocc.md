@@ -6,7 +6,7 @@ The first piece is 43 small functions of the interface (state and queries). The 
 
 ## The class
 
-Class ID 0xC9C05C6E, occupant type 0xC772BF98, interface IID 0xA821EF94. Virtual inheritance: the primary interface (vtable 0x00AA8080, 74 slots) at +0, the cISC4Occupant part at +4 (0x00AA7FF8; the base starts there), the property holder at +0xC, more parts at +0x8, +0x20, +0x38 and a virtual base through the table at +0x3C. The bridge, tunnel and pipe classes put the same functions in their vtables, and some are called directly: each function is replaced by a detour at its address.
+Class ID 0xC9C05C6E, occupant type 0xC772BF98, interface IID 0xA821EF94. Virtual inheritance: the primary interface (vtable 0x00AA8080, 74 slots) at +0, the cISC4Occupant part at +4 (0x00AA7FF8; the base starts there), the property holder at +0xC, more parts at +0x8, +0x20, +0x38 and a virtual base through the table at +0x3C. The bridge, tunnel and pipe classes put the same functions in their vtables, and some are called directly: each function is replaced by a detour at its address. The derived classes have their own documents: the pre-built model kind ([prebuiltocc.md](prebuiltocc.md)), the bridge ([bridgeocc.md](bridgeocc.md)) and the tunnel ([tunnelocc.md](tunnelocc.md)), which derive from it, and the pipe ([pipeocc.md](pipeocc.md)).
 
 | Offset | What |
 | --- | --- |
@@ -62,7 +62,7 @@ Write is the cIGZSerializable part's slot 3 (this = object + 8), version 8; Read
 
 After Read the model state (virtual base slots 0x3C and 0x40) is set when corner 0's last byte is not 0xFF or bit 1 of the state's first byte is set: that bit cleared, all four corners' last byte set to 0xFF, the state's float at +0x10 set to 255 times 1/255.
 
-The derived classes write their own version first and then this whole record, then their own fields: the bridge (0x49CC1BCD) and the pre-built model (0x49C1A034) start with a uint16 of 4 and then this record; the pipe (0x49C05B9F) with two uint16 of 3. None has only the base's part, so no schema is written for them.
+The derived classes write their own version first and then this whole record, then their own fields: the bridge (0x49CC1BCD) and the pre-built model (0x49C1A034) start with a uint16 of 4 and then this record; the pipe (0x49C05B9F) with two uint16 of 3. None has only the base's part; each has a schema of its own (`tools/re/save_schemas/bridgeocc.py`, `prebuiltocc.py`, `tunnelocc.py`, `pipeocc.py`), which runs this record's decoder on the part inside.
 
 ## What is ours
 

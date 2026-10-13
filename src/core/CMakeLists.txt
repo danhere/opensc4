@@ -216,6 +216,12 @@ add_library(opensc4_core SHARED
   powerlineocc_sim.cpp
   powerpoleocc_autotest.cpp
   powerpoleocc_sim.cpp
+  bridgeocc_autotest.cpp
+  bridgeocc_sim.cpp
+  prebuiltocc_autotest.cpp
+  prebuiltocc_sim.cpp
+  tunnelocc_autotest.cpp
+  tunnelocc_sim.cpp
   netocc_autotest.cpp
   netocc_geometry.cpp
   netocc_life.cpp
