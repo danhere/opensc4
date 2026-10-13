@@ -19,9 +19,9 @@
 // our own object), netmgr_messages.cpp (DoMessage with its occupant callback
 // and RefreshAllPieces, and the removals: DestroyNetworkOccupants,
 // QueueRemovals, RemoveOrReplaceOccupant, with the sort and the vector of
-// point vectors they use) and the retrofit pass and the lots' nodes
-// (ProcessRetrofitList, CreateConnectionNode, AutoconnectLotNodes), which
-// are to come.
+// point vectors they use) and netmgr_nodes.cpp (the retrofit pass and the
+// lots' nodes: ProcessRetrofitList, CreateConnectionNode,
+// AutoconnectLotNodes).
 //
 // The class: class ID 0xC990BD46 (registered at 0x004603C5 with the factory
 // 0x00613750), 0xBC bytes, constructor 0x00613330 (only reached by the jump
@@ -110,6 +110,23 @@
 // 0x00611C60 (assign a range forward) and 0x00611CB0 (backward). The
 // partition 0x00611840 and the point vector's assignment 0x00611B00 are
 // shared with other classes' code and stay the game's.
+//
+// The retrofit pass and the lots' nodes (netmgr_nodes.cpp):
+// ProcessRetrofitList 0x00612820 (no arguments; DoMessage's 0x006139D1 is its
+// only caller) with the table of eleven pairs of words at 0x00AA7B50 (an old
+// path ID override, the base of the new piece IDs):
+//   0x02010000 -> 0x0C000000   0x02010100 -> 0x0C001000
+//   0x02010200 -> 0x0C002000   0x02010300 -> 0x0C003000
+//   0x02011000 -> 0x0C004000   0x02011100 -> 0x0C005000
+//   0x02011200 -> 0x0C006000   0x02012000 -> 0x0C008000
+//   0x02012100 -> 0x0C009000   0x02012200 -> 0x0C00A000
+//   0x02012300 -> 0x0C00B000
+// CreateConnectionNode 0x00611300 (slot 20, ret 0x1C: the address of an
+// occupant pointer, the network type, the address of a cell (x, z), the
+// node's two words of edge types, a path ID override or 0, a rotation byte)
+// and AutoconnectLotNodes 0x00611530 (slot 21, ret 8: the lot, the address
+// of a list of the node occupants). The lot developer's 0x006C9C80 calls
+// both (src/core/lot_build.cpp).
 //
 // The messages DoMessage answers (the message's slots: 4 the type, 9 and 10
 // the first data word, 14 and 15 the second, 24 the fourth):
@@ -242,6 +259,25 @@ inline constexpr int32_t kEmptyLow = 0x7FFFFFFF, kEmptyHigh = -1;
 inline constexpr double kTerrainTolerance = 0.01, kCellMetres = 16.0;
 inline constexpr uint32_t kPointVectorSize = 0xC;
 
+// The retrofit pass and the lots' nodes. The number of pairs of the table at
+// 0x00AA7B50; the bits of the origin piece's rotation and flip byte that turn
+// a cell's offset; the key of a pre-built piece's exemplar (type, group; the
+// instance is the new piece ID) and the interface it is asked for; the
+// pre-built piece's interface; the network flags the pass and the node
+// maker set and clear; the flag CreateConnectionNode's tool call carries;
+// the mask of AutoconnectLotNodes' second filter (pipe, power line, subway);
+// and the arithmetic that turns a word of four edge bytes into four bits
+// (bit n: byte n has one of its low three bits set).
+inline constexpr uint32_t kRetrofitPairs = 11;
+inline constexpr uint8_t kTurnFlip = 0x80, kTurnHalf = 0x02, kTurnQuarter = 0x01;
+inline constexpr uint32_t kExemplarType = 0x6534284A, kPrebuiltExemplarGroup = 0xA8434037;
+inline constexpr uint32_t kIidExemplar = 0xA52160F5, kIidPrebuilt = 0x49C1A034;
+inline constexpr uint32_t kFlagNode = 0x00200000, kFlagRetrofitted = 0x08000000;
+inline constexpr uint32_t kFlagNew1 = 0x02000000, kFlagNew2 = 0x04000000;
+inline constexpr uint32_t kNodeToolFlag = 0x100;
+inline constexpr uint32_t kOtherNetworksMask = 0xB0;
+inline constexpr uint32_t kEdgeLowBits = 0x07070707, kEdgeHighBits = 0x08080808, kEdgeGather = 0x01020408;
+
 // The messages by name (kMessages has Init's order).
 inline constexpr uint32_t kMsgOccupantInserted = 0x99EF1142, kMsgOccupantRemoved = 0x99EF1143;
 inline constexpr uint32_t kMsgUnlight = 0xC9DA96E8, kMsgLight = 0xC9DA96E9;
@@ -357,6 +393,19 @@ inline constexpr std::size_t kGetComplexPieceOrigin = 0x11C;
 // 62 (none).
 inline constexpr std::size_t kIsManagedGlobally = 0x14, kGetNetworkFlag = 0x30, kIsOfType = 0x58;
 inline constexpr std::size_t kMarkLightingUpdateNeeded = 0xB8, kGetAltitude = 0xE0, kSetLit = 0xF4, kCanBeLit = 0xF8;
+// The retrofit pass's and the nodes': slot 6 and 26 (no arguments), 7, 9, 10,
+// 11, 16, 20, 36 and 51 (one), 13 and 14 (two addresses, two words), 23 and
+// 52 (none: the words at +0xFC and +0x164), 30 (a piece ID and a rotation
+// byte: 0x0061B490 stores both, sets the flags 0x2000000 and 0x4000000 on a
+// piece without 0x200000, lets the path information go and sets the corners
+// up again), 40 (none: four bits in AL) and 72 (x, z).
+inline constexpr std::size_t kCheckForRetrofit = 0x18, kSetRetrofitFlag = 0x1C, kHasAnyNetworkFlag = 0x24;
+inline constexpr std::size_t kSetNetworkFlag = 0x28;
+inline constexpr std::size_t kClearNetworkFlag = 0x2C, kGetConnectionNodeEdgeTypes = 0x34;
+inline constexpr std::size_t kSetConnectionNodeEdgeTypes = 0x38, kSetConnectionPathIDOverride = 0x40;
+inline constexpr std::size_t kSetUsable = 0x50, kPieceId = 0x5C, kGetRotationAndFlip = 0x68;
+inline constexpr std::size_t kSetPieceAndRotation = 0x78, kSetVertexHeights = 0x90, kGetActiveEdges = 0xA0;
+inline constexpr std::size_t kSetPathIDOverride = 0xCC, kGetPathIDOverride = 0xD0, kSetComplexPieceOrigin = 0x120;
 } // namespace piece_slot
 namespace occupants_slot {
 inline constexpr std::size_t kRemoveOccupant = 0x54;     // slot 21: (occupant, 0, 0)
@@ -371,6 +420,7 @@ inline constexpr std::size_t kReleaseOccupantList = 0xC0; // slot 48: (list)
 // network tool's, the terrain's and the 24 hour clock's.
 namespace occupant_slot {
 inline constexpr std::size_t kPostOccupantMessage = 0x3C, kIsFlagSet = 0x80, kGetFlags = 0x84;
+inline constexpr std::size_t kGetPosition = 0x20;
 } // namespace occupant_slot
 namespace message_slot {
 inline constexpr std::size_t kGetType = 0x10, kGetData1 = 0x24, kGetVoid1 = 0x28, kGetData2 = 0x38;
@@ -381,7 +431,29 @@ inline constexpr std::size_t kInit = 0x0C, kShutdown = 0x10;
 inline constexpr std::size_t kDestroyOccupantsAndResolve = 0xC8; // slot 50: (the address of a vector of pieces)
 inline constexpr std::size_t kSlot72 = 0x120;                    // (what 0x00633220 gave, a 12-byte record, 0)
 inline constexpr std::size_t kFieldReplacing = 0x50;             // a byte RemoveOrReplaceOccupant sets
+// The nodes': slot 7 (x, z, to x, to z, 0, 0, 1, -1; 0x00629210, ret 0x20),
+// slot 8 (x, z, 0x100, 0, the type; 0x00624FD0, ret 0x14) and slot 74 (a
+// float; the answer in ST0; the general tool's 0x0062C990 gives it back).
+inline constexpr std::size_t kSlot7 = 0x1C, kSlot8 = 0x20, kSlot74 = 0x128;
 } // namespace tool_slot
+// The nodes' other objects: a lot (src/core/citylot_sim.h: slot 14 with the
+// address of four words, slot 48 without arguments), the lot manager
+// (0x00B43D08; slot 6: x, z, a byte), a building (slot 3, no arguments: its
+// occupant part), an occupant's slot 8 (the address of three floats) and the
+// resource manager's slot 3 (the address of a key, an IID, the address of
+// the out pointer, two more words).
+namespace lot_slot {
+inline constexpr std::size_t kGetBoundingRect = 0x38, kGetBuilding = 0xC0;
+} // namespace lot_slot
+namespace lots_slot {
+inline constexpr std::size_t kGetLot = 0x18;
+} // namespace lots_slot
+namespace building_slot {
+inline constexpr std::size_t kAsOccupant = 0x0C;
+} // namespace building_slot
+namespace resources_slot {
+inline constexpr std::size_t kGetResource = 0x0C;
+} // namespace resources_slot
 namespace terrain_slot {
 inline constexpr std::size_t kGetAltitude = 0x34; // slot 13: (x, z as floats); the height in ST0
 } // namespace terrain_slot

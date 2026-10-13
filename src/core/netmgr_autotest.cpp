@@ -19,6 +19,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <map>
+#include <set>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -1170,14 +1172,390 @@ bool MessageTest(cISC4City* city, char* manager, const std::vector<Piece>& piece
     return true;
 }
 
+// The network flags a save keeps of a piece: Read clears the bits 0xE000
+// after a load (path information, translucent, 0x8000) and the lit bit
+// follows the view.
+constexpr uint32_t kSavedFlags = 0xDFFF1FFF;
+
+// What the retrofit pass can change of a piece, each through the piece's
+// vtable: its cell (slot 59), its piece ID (slot 23), its rotation and flip
+// byte (slot 26), its flags (slot 12, the saved bits), its path ID override
+// (slot 52), whether it has the retrofit property (slot 6), its complex
+// piece origin (slot 71; the two words only when it has one) and whether its
+// occupant part answers the pre-built piece's interface.
+struct PieceState {
+    uint32_t x = 0, z = 0, id = 0, turn = 0, flags = 0, pathId = 0, originX = 0, originZ = 0;
+    bool retrofit = false, origin = false, prebuilt = false;
+};
+
+PieceState StateOf(char* self)
+{
+    PieceState state;
+    Virtual<void>(self, piece_slot::kGetOccupiedCell, &state.x, &state.z);
+    state.id = Virtual<uint32_t>(self, piece_slot::kPieceId);
+    state.turn = Virtual<uint8_t>(self, piece_slot::kGetRotationAndFlip);
+    state.flags = Virtual<uint32_t>(self, piece_slot::kGetNetworkFlag) & kSavedFlags;
+    state.pathId = Virtual<uint32_t>(self, piece_slot::kGetPathIDOverride);
+    state.retrofit = Virtual<uint8_t>(self, piece_slot::kCheckForRetrofit) != 0;
+    uint32_t originX = 0, originZ = 0;
+    state.origin = Virtual<uint8_t>(self, piece_slot::kGetComplexPieceOrigin, &originX, &originZ) != 0;
+    if (state.origin) {
+        state.originX = originX;
+        state.originZ = originZ;
+    }
+    void* prebuilt = nullptr;
+    state.prebuilt = Virtual<uint8_t>(self + 4, 0x0, netmgr_sim::kIidPrebuilt, &prebuilt) != 0 && prebuilt != nullptr;
+    if (prebuilt)
+        ReleaseOf(prebuilt);
+    return state;
+}
+
+void MixState(Hash& hash, const PieceState& state)
+{
+    for (const uint32_t word : {state.x, state.z, state.id, state.turn, state.flags, state.pathId, state.originX,
+                                state.originZ})
+        hash.Mix(word);
+    hash.Mix(state.retrofit);
+    hash.Mix(state.origin);
+    hash.Mix(state.prebuilt);
+}
+
+// The roles of the pieces the retrofit test lists. A structure is two pieces
+// on neighbouring cells, the first of them the origin.
+enum Role : uint32_t {
+    kRoleOriginX,  // the origin of a structure whose second piece lies at x + 1
+    kRolePartX,    // that second piece
+    kRoleOriginZ,  // the origin of a structure whose second piece lies at z + 1
+    kRolePartZ,    // that second piece
+    kRoleSingle,   // a piece that is its own origin and not pre-built
+    kRolePrebuilt, // a pre-built piece that is its own origin
+    kRoleNoMatch,  // the property and an origin, but a path ID override the table does not hold (0)
+    kRoleNoOrigin, // the property only
+};
+constexpr const char* kRoleNames[] = {"origin-x", "part-x", "origin-z", "part-z", "single", "prebuilt", "no-match",
+                                      "no-origin"};
+
+// The old path ID overrides the test gives its origins, by role: first words
+// of the pairs 5, 6, 1 and 2 of the table at 0x00AA7B50, whose new bases
+// (0x0C005000, 0x0C006000, 0x0C001000, 0x0C002000) have an exemplar and a
+// path file in the game's own data at the base itself and, for the two
+// structures, at the base + 0x10 and + 0x100 (the IDs two neighbouring cells
+// can get).
+constexpr uint32_t kOldStructureX = 0x02011100, kOldStructureZ = 0x02011200;
+constexpr uint32_t kOldSingle = 0x02010100, kOldPrebuilt = 0x02010200;
+
+// The class IDs of the two piece classes the test takes: the plain network
+// piece and the pre-built one. The bridge and tunnel pieces, which derive
+// from the pre-built class and answer its interface, are left out.
+constexpr uint32_t kClassPlainPiece = 0xC9C05C6E, kClassPrebuiltPiece = 0x49C1A034;
+
+// The class ID a piece's serializable part answers (0 without one); the
+// reference QueryInterface gave is released.
+uint32_t ClassOf(char* self)
+{
+    uint32_t classId = 0;
+    void* part = nullptr;
+    if (Virtual<uint8_t>(self, 0x0, netmgr_sim::kIidSerializable, &part) && part) {
+        classId = Virtual<uint32_t>(part, slot::kGetGZCLSID);
+        ReleaseOf(part);
+    }
+    return classId;
+}
+
+struct Listed {
+    char* self = nullptr;
+    uint32_t role = 0;
+    PieceState before, prepared, after;
+};
+
+// What the last step of the drive did, for its log line.
+struct RetroRun {
+    bool lot = false;
+    uint32_t lotX = 0, lotZ = 0;
+    bool asked = false, ran = false;
+    const char* why = "";
+    uint32_t listed = 0, changed = 0, prebuilt = 0, kept = 0, cleared = 0;
+    uint32_t lengthBefore = 0, lengthAfter = 0, candidates = 0;
+    std::string pieces;
+};
+
+using CellKey = std::pair<uint32_t, uint32_t>; // z, then x: the order of the walk
+
+// The first occupant a filter takes on a cell, as the retrofit pass asks the
+// occupant manager for the piece at a structure's origin (slot 32); the
+// reference the call gives is released, the pointer is only compared.
+void* FirstOnCell(char* occupants, void* filter, uint32_t x, uint32_t z)
+{
+    void* found = nullptr;
+    if (!Virtual<uint8_t>(occupants, netmgr_sim::occupants_slot::kGetFirstByCityCell, &found, x, z, filter))
+        found = nullptr;
+    if (found)
+        ReleaseOf(found);
+    return found;
+}
+
+// AutoconnectLotNodes (slot 21) with a lot of the city and an empty list of
+// nodes: by the asm the function makes its two filters, asks the lot for its
+// rectangle (slot 14: four bytes of the lot copied out), finds the list
+// empty and releases the filters. Nothing of the city is changed. The lot is
+// the first the lot manager (0x00B43D08, slot 6: a lookup) names over the
+// city's cells by z, then x. CreateConnectionNode (slot 20) is not called:
+// it has no way out before its tool has placed a piece on the cell.
+uint32_t AutoconnectNothing(cISC4City* city, char* manager, RetroRun& run)
+{
+    Hash hash;
+    void* const lots = Global<void*>(addr::SC4_LotManager);
+    void* lot = nullptr;
+    if (lots) {
+        const uint32_t cellsX = Virtual<uint32_t>(city, netmgr_sim::city_slot::kCellCountX);
+        const uint32_t cellsZ = Virtual<uint32_t>(city, netmgr_sim::city_slot::kCellCountZ);
+        for (uint32_t z = 0; z < cellsZ && !lot; ++z)
+            for (uint32_t x = 0; x < cellsX && !lot; ++x) {
+                lot = Virtual<void*>(lots, netmgr_sim::lots_slot::kGetLot, x, z, 0u);
+                if (lot) {
+                    run.lotX = x;
+                    run.lotZ = z;
+                }
+            }
+    }
+    run.lot = lot != nullptr;
+    hash.Mix(run.lot);
+    if (lot) {
+        ListNode nothing = {&nothing, &nothing, nullptr};
+        ListNode* empty = &nothing;
+        Virtual<void>(manager, slot::kAutoconnectLotNodes, lot, &empty);
+        hash.Mix(nothing.next == &nothing && nothing.previous == &nothing && empty == &nothing);
+    }
+    return hash.h;
+}
+
+// OPENSC4_TEST_NETMGR_RETROFIT=1: the retrofit pass on pieces the test makes
+// eligible. No piece of a city this build saved is: the pass acts on a piece
+// that has the retrofit property (Read gives it to a piece of a record older
+// than version 8 with a path ID override, and OccupantInit then hands the
+// piece to AddToRetrofitList), that has a complex piece origin, and whose
+// origin cell holds a surface piece with one of the eleven old path ID
+// overrides of the table at 0x00AA7B50. So the test gives at most eight
+// pieces (two structures of two and four by themselves) what Read gives an
+// old one, through the pieces' own setters, and
+// lists them as OccupantInit does (the property first, then the manager's
+// slot 23):
+//   - two structures of two neighbouring pieces (the second at x + 1, and at
+//     z + 1): both pieces get the first one's cell as their origin (slot
+//     72), the flag 0x100000 (slot 10; the walk over a structure only takes
+//     neighbours that have it), an old path ID override (slot 51) and the
+//     property (slot 7), and both are listed. The pass must give both a new
+//     piece ID by their place (the origin's rotation and flip byte turns the
+//     offset) and take the second off by its cleared property when it comes
+//     to it;
+//   - a single piece that is its own origin, and a pre-built one when the
+//     city has one that fits (the pass loads its exemplar and sets it up);
+//   - a piece with the property and its own cell as origin but no path ID
+//     override (0 is not in the table), and one with the property only (no
+//     origin): the pass must leave both as they are, the property included.
+// Candidates are surface pieces (a flag of 0x1F4F) alone on their cell, the
+// piece the pass's filter finds there, without the flag 0x100000, an origin,
+// the property or an override, of the plain or the pre-built piece class
+// (no bridge, no tunnel), inside the city, with no neighbour that has
+// the flag or is one of the test's pieces (so no walk meets a piece whose
+// answer depends on stack leftovers, docs/netocc.md); each role takes the
+// first that fits by z, then x.
+//
+// The pass is called at its address (0x00612820: the game's function or
+// ours), not through the message 0x26D31EC1: DoMessage would add its lit
+// pass when the clock says night, and that changes the lit flags, which
+// follow the view. Each piece's state is read before anything is set, after
+// the setters and after the pass; all three, the roles, the list's length
+// before and after and the manager's state are mixed.
+//
+// What it leaves in the city, the same on both sides: the changed pieces
+// with their new IDs (as an old save's would be), their origins, the
+// structures' flag 0x100000, and on the two pieces the pass leaves alone the
+// property (and for one its origin). By the asm the pass also leaves one
+// reference too many on each of those two (it frees the list of a structure
+// it gives up on without releasing the entries).
+uint32_t RetrofitTest(cISC4City* city, char* manager, char* occupants, const std::vector<Piece>& pieces,
+                      RetroRun& run)
+{
+    Hash hash;
+    run.lengthBefore = RetrofitLength(manager);
+    if (run.lengthBefore != 0) {
+        run.why = "the retrofit list is not empty";
+        return hash.h;
+    }
+    void* filter = nullptr;
+    if (void* const raw = netmgr_sim::CallCdecl<void*, std::size_t>(addr::SC4_operator_new,
+                                                                     netmgr_sim::kNetworkFilterSize))
+        filter = netmgr_sim::CallThis<void*, uint32_t>(addr::cSC4NetworkManager_NetworkFilterConstruct, raw,
+                                                       netmgr_sim::kSurfaceMask);
+    if (!filter) {
+        run.why = "no filter";
+        return hash.h;
+    }
+    Virtual<uint32_t>(filter, filter::kAddRef);
+
+    const uint32_t cellsX = Virtual<uint32_t>(city, netmgr_sim::city_slot::kCellCountX);
+    const uint32_t cellsZ = Virtual<uint32_t>(city, netmgr_sim::city_slot::kCellCountZ);
+    std::map<CellKey, uint32_t> onCell;
+    std::set<CellKey> blocked;
+    for (const Piece& piece : pieces) {
+        ++onCell[CellKey(piece.z, piece.x)];
+        if (piece.flagged)
+            blocked.insert(CellKey(piece.z, piece.x));
+    }
+    std::map<CellKey, char*> candidates;
+    for (const Piece& piece : pieces) {
+        const CellKey cell(piece.z, piece.x);
+        if (piece.x >= cellsX || piece.z >= cellsZ || piece.flagged || piece.origin || onCell[cell] != 1)
+            continue;
+        if (!Virtual<uint8_t>(piece.self, piece_slot::kHasAnyNetworkFlag, netmgr_sim::kSurfaceMask) ||
+            Virtual<uint8_t>(piece.self, piece_slot::kCheckForRetrofit) ||
+            Virtual<uint32_t>(piece.self, piece_slot::kGetPathIDOverride) != 0)
+            continue;
+        const uint32_t classId = ClassOf(piece.self);
+        if (classId != kClassPlainPiece && classId != kClassPrebuiltPiece)
+            continue;
+        if (FirstOnCell(occupants, filter, piece.x, piece.z) != piece.self + 4)
+            continue;
+        candidates[cell] = piece.self;
+    }
+    Virtual<uint32_t>(filter, filter::kRelease);
+    run.candidates = static_cast<uint32_t>(candidates.size());
+
+    // A cell is free when neither it nor one of its four neighbours has a
+    // flagged piece or a piece the test took already.
+    const auto isFree = [&](const CellKey& cell) {
+        const uint32_t z = cell.first, x = cell.second;
+        for (const CellKey& beside :
+             {cell, CellKey(z, x - 1), CellKey(z, x + 1), CellKey(z - 1, x), CellKey(z + 1, x)})
+            if (blocked.count(beside))
+                return false;
+        return true;
+    };
+    std::vector<Listed> listed;
+    const auto take = [&](const CellKey& cell, uint32_t role) {
+        Listed entry;
+        entry.self = candidates[cell];
+        entry.role = role;
+        listed.push_back(entry);
+    };
+    const auto isPrebuilt = [](char* self) { return ClassOf(self) == kClassPrebuiltPiece; };
+    // The two structures.
+    for (const uint32_t role : {static_cast<uint32_t>(kRoleOriginX), static_cast<uint32_t>(kRoleOriginZ)})
+        for (const auto& candidate : candidates) {
+            const CellKey cell = candidate.first;
+            const CellKey part = role == kRoleOriginX ? CellKey(cell.first, cell.second + 1)
+                                                      : CellKey(cell.first + 1, cell.second);
+            if (!candidates.count(part) || !isFree(cell) || !isFree(part))
+                continue;
+            take(cell, role);
+            take(part, role + 1);
+            blocked.insert(cell);
+            blocked.insert(part);
+            break;
+        }
+    // The pieces by themselves.
+    for (const uint32_t role : {static_cast<uint32_t>(kRoleSingle), static_cast<uint32_t>(kRolePrebuilt),
+                                static_cast<uint32_t>(kRoleNoMatch), static_cast<uint32_t>(kRoleNoOrigin)})
+        for (const auto& candidate : candidates) {
+            const CellKey cell = candidate.first;
+            if (!isFree(cell) || isPrebuilt(candidate.second) != (role == kRolePrebuilt))
+                continue;
+            take(cell, role);
+            blocked.insert(cell);
+            break;
+        }
+    if (listed.empty()) {
+        run.why = "the city has no piece that fits";
+        return hash.h;
+    }
+
+    // What Read gives a piece of an old record, by role; a structure's
+    // second piece comes right after its origin.
+    for (std::size_t i = 0; i < listed.size(); ++i) {
+        Listed& entry = listed[i];
+        char* const self = entry.self;
+        entry.before = StateOf(self);
+        const bool part = entry.role == kRolePartX || entry.role == kRolePartZ;
+        const PieceState& origin = part ? listed[i - 1].before : entry.before;
+        if (entry.role != kRoleNoOrigin)
+            Virtual<void>(self, piece_slot::kSetComplexPieceOrigin, origin.x, origin.z);
+        uint32_t old = 0;
+        switch (entry.role) {
+        case kRoleOriginX:
+        case kRolePartX:
+            old = kOldStructureX;
+            break;
+        case kRoleOriginZ:
+        case kRolePartZ:
+            old = kOldStructureZ;
+            break;
+        case kRoleSingle:
+            old = kOldSingle;
+            break;
+        case kRolePrebuilt:
+            old = kOldPrebuilt;
+            break;
+        default:
+            break;
+        }
+        if (entry.role <= kRolePartZ)
+            Virtual<void>(self, piece_slot::kSetNetworkFlag, netmgr_sim::kFlagIntersectionPart);
+        if (old != 0)
+            Virtual<void>(self, piece_slot::kSetPathIDOverride, old);
+        Virtual<void>(self, piece_slot::kSetRetrofitFlag, 1u);
+        entry.prepared = StateOf(self);
+    }
+
+    // Onto the list by z, then x, as a load would bring them.
+    std::vector<std::size_t> order(listed.size());
+    for (std::size_t i = 0; i < order.size(); ++i)
+        order[i] = i;
+    std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+        return CellKey(listed[a].before.z, listed[a].before.x) < CellKey(listed[b].before.z, listed[b].before.x);
+    });
+    for (const std::size_t i : order)
+        Virtual<void*>(manager, slot::kAddToRetrofitList, listed[i].self);
+    run.listed = RetrofitLength(manager);
+    hash.Mix(run.listed);
+
+    netmgr_sim::CallThis<void>(addr::cSC4NetworkManager_ProcessRetrofitList, manager);
+
+    run.ran = true;
+    run.lengthAfter = RetrofitLength(manager);
+    hash.Mix(run.lengthAfter);
+    MixMessageState(hash, manager);
+    for (const std::size_t i : order) {
+        Listed& entry = listed[i];
+        entry.after = StateOf(entry.self);
+        hash.Mix(entry.role);
+        MixState(hash, entry.before);
+        MixState(hash, entry.prepared);
+        MixState(hash, entry.after);
+        const bool changed = entry.after.id != entry.prepared.id;
+        run.changed += changed;
+        run.prebuilt += entry.before.prebuilt;
+        run.kept += entry.after.retrofit;
+        run.cleared += entry.prepared.pathId != 0 && entry.after.pathId == 0;
+        char text[96];
+        std::snprintf(text, sizeof text, "%s%u,%u %s %08X>%08X r%02X", run.pieces.empty() ? "" : "; ", entry.before.x,
+                      entry.before.z, kRoleNames[entry.role], entry.prepared.id, entry.after.id, entry.after.turn);
+        run.pieces += text;
+    }
+    return hash.h;
+}
+
 // The drive's results (OPENSC4_TEST_NETMGR=<day>): the first part's, the
-// second part's (life and save) and the third part's (messages and
-// removals; g_msgRan says whether the drive got that far).
+// second part's (life and save), the third part's first half's (messages and
+// removals; g_msgRan says whether the drive got that far) and its second
+// half's (the retrofit pass and the nodes).
 uint32_t g_setSum = 0;
 uint32_t g_lifeSum = 0;
 uint32_t g_msgSum = 0;
+uint32_t g_retroSum = 0;
 bool g_setDone = false;
 bool g_msgRan = false;
+bool g_retroRan = false;
 
 // OPENSC4_TEST_NETMGR=<day>: on that day the calls that make or change
 // something and put it back: the construction crews (CrewTest), the two
@@ -1200,6 +1578,12 @@ bool g_msgRan = false;
 // own (HelperTest) and the messages and removals (MessageTest), again with a
 // checksum of both (the fingerprint's ` msg` field, after ` life`) and a log
 // line of their own, which says so when the messages were not sent.
+//
+// Last the third part's second half (the fingerprint's ` retro` field, after
+// ` msg`, and the log line `autotest: netmgr: retro: ...`): AutoconnectLotNodes
+// with no nodes (AutoconnectNothing), and only with
+// OPENSC4_TEST_NETMGR_RETROFIT=1 the retrofit pass on pieces the test makes
+// eligible (RetrofitTest), which changes the city for good.
 void Drive(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_NETMGR") || !game::IsBuild641() || g_setDone)
@@ -1278,21 +1662,59 @@ void Drive(const Day& day)
                    "%08X",
                    helpers, At<uint8_t>(manager, field::kBatching), At<uint8_t>(manager, field::kQueueing),
                    Count(manager, field::kQueue, 4), g_msgSum);
-        return;
+    } else {
+        char cell[96];
+        if (run.cell)
+            std::snprintf(cell, sizeof cell, "at %d,%d (%u pieces before, %u after; candidate %u)", run.x, run.z,
+                          run.before, run.after, run.tried);
+        else
+            std::snprintf(cell, sizeof cell, "left out (%u cells tried)", run.tried);
+        log::Write("autotest: netmgr: msg: helpers %08X, unknown type %u, another occupant %s, an unmanaged piece "
+                   "%s, the last managed piece %s (%u managed), refresh and post %s, batch %08X, cell change of "
+                   "reason 4 %s, queue %08X, remove nobody %u (byte %u), messages %08X, msg %08X",
+                   helpers, run.unknown, run.other ? "sent" : "none", run.unmanaged ? "sent" : "none",
+                   run.managed ? "removed and inserted" : "none", Count(manager, field::kManaged, 4),
+                   run.refreshed ? "sent" : "left out", run.batch, cell, run.queue, run.removedNull, run.replaced,
+                   messages, g_msgSum);
     }
-    char cell[96];
-    if (run.cell)
-        std::snprintf(cell, sizeof cell, "at %d,%d (%u pieces before, %u after; candidate %u)", run.x, run.z,
-                      run.before, run.after, run.tried);
+
+    Hash fourth;
+    RetroRun retro;
+    const uint32_t autoconnect = AutoconnectNothing(day.city, manager, retro);
+    fourth.Mix(autoconnect);
+    retro.asked = EnvInt("OPENSC4_TEST_NETMGR_RETROFIT", 0) != 0;
+    fourth.Mix(retro.asked);
+    uint32_t retrofit = 0;
+    if (retro.asked) {
+        char* const occupants = collected ? Virtual<char*>(day.city, kCityOccupantManager) : nullptr;
+        if (occupants)
+            retrofit = RetrofitTest(day.city, manager, occupants, pieces, retro);
+        else
+            retro.why = "no occupant manager";
+        fourth.Mix(retro.ran);
+        fourth.Mix(retrofit);
+    }
+    g_retroSum = fourth.h;
+    g_retroRan = true;
+    char lot[64];
+    if (retro.lot)
+        std::snprintf(lot, sizeof lot, "on the lot at %u,%u", retro.lotX, retro.lotZ);
     else
-        std::snprintf(cell, sizeof cell, "left out (%u cells tried)", run.tried);
-    log::Write("autotest: netmgr: msg: helpers %08X, unknown type %u, another occupant %s, an unmanaged piece %s, the "
-               "last managed piece %s (%u managed), refresh and post %s, batch %08X, cell change of reason 4 %s, "
-               "queue %08X, remove nobody %u (byte %u), messages %08X, msg %08X",
-               helpers, run.unknown, run.other ? "sent" : "none", run.unmanaged ? "sent" : "none",
-               run.managed ? "removed and inserted" : "none", Count(manager, field::kManaged, 4),
-               run.refreshed ? "sent" : "left out", run.batch, cell, run.queue, run.removedNull, run.replaced,
-               messages, g_msgSum);
+        std::snprintf(lot, sizeof lot, "left out (no lot)");
+    if (!retro.asked)
+        log::Write("autotest: netmgr: retro: autoconnect of no nodes %s %08X, retrofit test left out "
+                   "(OPENSC4_TEST_NETMGR_RETROFIT), retro %08X",
+                   lot, autoconnect, g_retroSum);
+    else if (!retro.ran)
+        log::Write("autotest: netmgr: retro: autoconnect of no nodes %s %08X, retrofit test: no eligible piece (%s; "
+                   "%u candidates, list %u), nothing listed, retro %08X",
+                   lot, autoconnect, retro.why, retro.candidates, retro.lengthBefore, g_retroSum);
+    else
+        log::Write("autotest: netmgr: retro: autoconnect of no nodes %s %08X, retrofit test: %u pieces listed of %u "
+                   "candidates, %u changed, %u pre-built, %u overrides cleared, %u still with the property, list %u "
+                   "after the pass [%s], retrofit %08X, retro %08X",
+                   lot, autoconnect, retro.listed, retro.candidates, retro.changed, retro.prebuilt, retro.cleared,
+                   retro.kept, retro.lengthAfter, retro.pieces.c_str(), retrofit, g_retroSum);
 }
 
 // The fingerprint part, everything through the manager's vtable (the game's
@@ -1315,8 +1737,9 @@ void Drive(const Day& day)
 //          with the flag 0x100000; then the sum and the exclusive or of the
 //          per-piece checksums (WalkPieces)
 // and after OPENSC4_TEST_NETMGR's day ` set <checksum> life <checksum> msg
-// <checksum>` (the first part's calls, the second part's and the third
-// part's; ` msg none` when the drive found no manager).
+// <checksum> retro <checksum>` (the first part's calls, the second part's
+// and the third part's two halves; ` msg none retro none` when the drive
+// found no manager).
 void Fingerprint(cISC4City* city, std::string& line)
 {
     char* const manager = Manager(city);
@@ -1357,6 +1780,11 @@ void Fingerprint(cISC4City* city, std::string& line)
             std::snprintf(text, sizeof text, " msg %08X", g_msgSum);
         else
             std::snprintf(text, sizeof text, " msg none");
+        line += text;
+        if (g_retroRan)
+            std::snprintf(text, sizeof text, " retro %08X", g_retroSum);
+        else
+            std::snprintf(text, sizeof text, " retro none");
         line += text;
     }
 }

@@ -226,6 +226,7 @@ add_library(opensc4_core SHARED
   netmgr_autotest.cpp
   netmgr_life.cpp
   netmgr_messages.cpp
+  netmgr_nodes.cpp
   netmgr_state.cpp
   subwayocc_autotest.cpp
   subwayocc_sim.cpp
