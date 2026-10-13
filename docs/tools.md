@@ -1,12 +1,140 @@
 # The city view's tools
 
-The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool and the lot (plop) tool. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, about 0x005FAFC0 to 0x005FB320; the base stays the game's). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
+The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool and the lot (plop) tool. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
 
 | Tool | State |
 | --- | --- |
 | Bulldoze | ours (`ui.tools.bulldoze`, below) |
 | Zone | ours (`ui.tools.zone`, below) |
 | Lot (plop) | ours (`ui.tools.plop1` to `ui.tools.plop3`, below) |
+| Base class | ours (`ui.tools.base`, below) |
+
+## The tool classes
+
+Every city tool is a view input control: a class on the base class below, with a main vtable of 30 slots (the effect trigger tool and the common disaster tool have 31). There are 27 derived classes. The sizes are the sizes of the objects; the code ranges are the class's own code, and a few contain foreign functions (the obliterate tool's range holds a tract iterator, the U-Drive control's range holds a few helpers of other classes). Purposes marked "guess" are read from strings and IDs and not confirmed. Counts of functions are given for the classes that are not ours.
+
+| Class | Constructor | Main vtable | Size | Code range | Functions | State |
+| --- | --- | --- | --- | --- | --- | --- |
+| MySim home tool | 0x00437AF0 | 0x00A85800 | 0x4C | 0x00437AF0 to 0x00438390 | | ours (`ui.mysim_tools.part1` to `part3`, [ui.md](ui.md)) |
+| MySim job tool | 0x00438740 | 0x00A858D0 | 0x4C | 0x00438740 to 0x00439377 | | ours (same groups) |
+| MySim dispatch tool | 0x00439E50 | 0x00A85998 | 0x90 | 0x00439380 to 0x00439F7E | | ours (same groups) |
+| MySim move-in tool | 0x00439FC0 | 0x00A85A20 | 0x4C | 0x00439FC0 to 0x0043A724 | | ours (same groups) |
+| Microphone tool (the MySim street sim's advisor) | 0x0043E760 | 0x00A85F40 | 0x30 | 0x0043E740 to 0x0043EB90 | | ours (`simulators.mysim_agents.street_tool`) |
+| Obliterate city tool (strings obliterate_finale, sparkles_on_demolish) | 0x0049CF90 | 0x00A8F6D8 | 0xA8 | 0x0049C790 to 0x0049D8A8 | 18 | still the game's |
+| Scroll drag tool (right button drag; made by 0x007E6A00) | 0x004B7DC0 | 0x00A90040 | 0x48 | 0x004B7DC0 to 0x004B8479 | 8 | still the game's |
+| Mission icon click control (a persistent control the view makes at city load, 0x007ED0F0) | 0x004B8690 | 0x00A900D8 | 0x3C | 0x004B84B0 to 0x004B8822 | 9 | still the game's |
+| Bulldoze | 0x004B9070 | 0x00A901A0 | 0xD8 | 0x004B8830 to 0x004B9D56 | 18 | ours (`ui.tools.bulldoze`, below) |
+| Dispatch tool (police and fire dispatch; guess) | 0x004BA7D0 | 0x00A90268 | 0x90 | 0x004B9D60 to 0x004BABC0 | 15 | still the game's |
+| Effect trigger tool, the base of the common disaster tool (strings _button_trigger, _trigger; never made by itself) | 0x004BAF60 | 0x00A902E0 | | 0x004BABE0 to 0x004BB8FD | 13 | still the game's |
+| Flora (plant trees) tool | 0x004BB900 | 0x00A903B8 | 0x50 | 0x004BB900 to 0x004BBE41 | 7 | still the game's |
+| Cell painting tool, made by a cheat (purpose a guess) | 0x004BC310 | 0x00A90458 | 0x88 | 0x004BBE50 to 0x004BC975 | 16 | still the game's |
+| Text decal tool (a label on the ground; guess) | 0x004BD230 | 0x00A90528 | 0x44 | 0x004BC980 to 0x004BDAFC | 16 | still the game's |
+| Level-a-rectangle terrain tool | 0x004BDC60 | 0x00A905C0 | 0x58 | 0x004BDB00 to 0x004BDEBC | 8 | still the game's |
+| Lot (plop) | 0x004C0430 | 0x00A90738 | 0x158 | 0x004BDF70 to 0x004C36C0 | 36 | ours (`ui.tools.plop1` to `plop3`, below) |
+| Query tool (`cSC4ViewInputControlQuery`; strings Query.txt, "Query cell (%d, %d)") | 0x004C4590 | 0x00A90A88 | 0xA0 | 0x004C3730 to 0x004D767F | 223 | still the game's; not a network tool |
+| Signpost pick tool (guess) | 0x004D76F0 | 0x00A928A0 | 0x30 | 0x004D7680 to 0x004D7AE2 | 8 | still the game's |
+| Sign text tool (types the text of a sign; guess) | 0x004D7F00 | 0x00A92968 | 0x80 | 0x004D7AF0 to 0x004D8ABA | 17 | still the game's |
+| Terrain brush tool | 0x004D9430 | 0x00A92A10 | 0x130 | 0x004D8AC0 to 0x004D9E50 | 23 | still the game's |
+| Cheat tool (building footprint) | 0x004D9E80 | 0x00A92AC0 | 0x38 | 0x004D9E50 to 0x004DA593 | 6 | partly ours: four functions in `ui.tools.zone`; the footprint drawing (0x004D9EE0) and OnMouseMove (0x004DA1B0) stay the game's |
+| Zone | 0x004DAE80 | 0x00A92CA8 | 0x98 | 0x004DA5A0 to 0x004DC1A0 | 25 | ours (`ui.tools.zone`, below) |
+| U-Drive-It driving control (made by the park automaton 0x00506850, not by the view) | 0x00565480 | 0x00A9D9B0 | 0xC0 | 0x00562C90 to 0x00566D55 | 45 | still the game's |
+| Fire (torch) disaster tool | 0x005805C0 | 0x00A9EB40 | 0x80 | 0x00580510 to 0x00580B46 | 13 | still the game's |
+| Common disaster tool, on the effect trigger tool | 0x00580220 | 0x00A9EAA0 | 0xB4 | 0x00580220 to 0x005804F4 | 7 | still the game's |
+| Network intersection placement tool | 0x00661130 | 0x00AAAF20 | 0x90 | 0x00660C30 to 0x00661D5F | 11 | networks (not part of this work) |
+| Network drawing tool (13 kinds, one per network type) | 0x006620A0 | 0x00AAB008 | 0x58 | 0x00661DC0 to 0x006625E9 | 10 | networks (not part of this work) |
+
+The network tools are the last two rows, at 0x00660C30 to 0x006625F0. The range 0x004C3730 to 0x004D767F belongs to the query tool.
+
+The classes that are not ours, apart from the two network tools, come to about 446 functions and 126 KB, of which the query tool is 223 functions and 78 KB. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the terrain brush's cursor, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
+
+## The base class
+
+The view input control base class: 0x24 bytes, vtable 0x00AA6658 with 30 slots, code 0x005FAFC0 to 0x005FB339 and Release at 0x004B9E20. Every tool above sits on it. It holds the window, the city view and the window manager, the cursor, the reference count and the tool's ID, and does the mouse capture. It does no work of a tool's own.
+
+Group `ui.tools.base`, 28 detours at the game's entries, installed at PreAppInit, off by default (src/core/tool_base.cpp). They are detours at the game's entries because our tools and the game's remaining ones call these functions by address and have them in their vtables. Three parts: the base class's 17 functions, the small model holder's 4 and 7 small functions several tool classes share.
+
+### The base class's functions
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| Constructor (sets the vtable and clears +4, +8, +0x14, +0x18, +0x1C; leaves +0xC, +0x10 and +0x20) | 0x005FB320 | |
+| Destructor (sets the vtable) | 0x005FAFC0 | |
+| QueryInterface (IDs 1 and 0xC6BB8345 give the object, referenced) | 0x005FB100 | 0 |
+| Release (the count goes down while above 1; the last reference, and a count of 0, destroys through slot 29) | 0x004B9E20 | 2 |
+| Init (once: the cursor of the ID at +0x10 from the window manager's cursor set, the cursor to the window, the view and the window manager kept) | 0x005FB1D0 | 3 |
+| Shutdown (lets go of the window manager, the view and the cursor) | 0x005FAFD0 | 4 |
+| SetCursor by ID (only an ID the cursor set knows changes anything) | 0x005FB070 | 8 |
+| SetCursor | 0x005FB020 | 9 |
+| SetWindow | 0x005FB0B0 | 10 |
+| AmCapturing (the window manager says the window has the mouse) | 0x005FB170 | 25 |
+| Deleting destructor | 0x005FB1B0 | 26 |
+| PutAway (asks the view to put its current tool away: view slot 0x68 with 0) | 0x005FB0C0 | 27 |
+| PlaySound (an ID that is not zero goes to the sound service 0x00B43CB8, slot 0x2C) | 0x005FB260 | 28 |
+| Destroy (Shutdown, then the deleting destructor with 1) | 0x005FB0E0 | 29 |
+| BeginCapture (window manager slot 0x74 with the window) | 0x005FB130 | |
+| EndCapture (window manager slot 0x78 with the window) | 0x005FB150 | |
+| IsCurrent (the view's current control, view slot 0x60, is this one) | 0x005FB190 | |
+
+### Fields
+
+| Offset | Field |
+| --- | --- |
+| +0x04 | initialised (byte, set by Init) |
+| +0x08 | the reference count |
+| +0x0C | the tool's ID |
+| +0x10 | the cursor ID |
+| +0x14 | the cursor (referenced) |
+| +0x18 | the window (not referenced) |
+| +0x1C | the city view (global 0x00B43DC4, referenced by Init) |
+| +0x20 | the window manager (referenced by Init) |
+
+The tools put their own fields from +0x24 on. The ones with a message target (a second vtable inside the object) have it at +0x28.
+
+### The model holder
+
+A holder is one pointer; the plop and zone tools keep one for the pointer model and one for the outline model (the plop and zone sections give the offsets). The game's model objects are the holder's callee, not part of it.
+
+| Function | Address | What |
+| --- | --- | --- |
+| Construct | 0x005FB290 | the holder starts empty |
+| Reset | 0x005FB2A0 | hides the model when it is shown (slot 5 asked, slot 4 with 0), clears the holder and releases the model |
+| Show | 0x005FB2D0 | with 1 shows the model (slot 3 with 0) unless it is shown; with 0 hides it when it is shown; nothing without a model |
+| Make | 0x005FB340 | when the holder is empty, asks the service 0x00B43D1C (slot 7) for the model named local_grid |
+
+### Shared by several tool classes
+
+| Function | Address | Used by |
+| --- | --- | --- |
+| Deleting destructor with nothing of its own to destroy | 0x004B7ED0 | scroll drag, flora, terrain command |
+| Deleting destructor that runs the cheat tool's destructor body (0x004DA180) | 0x004D7AA0 | cheat tool, sign pick tool |
+| QueryInterface: the message target's ID gives the object itself and counts the reference at +8 without the vtable; the rest is the base's | 0x004B8480 | the view's default control, the cell paint tool, U-Drive |
+| QueryInterface: the IDs 1 and 0x452294AA give the part at +0x28; nothing else, the control's own ID included | 0x004B9DE0 | dispatch tool, MySim dispatch tool |
+| QueryInterface: the message target's ID gives the part at +0x28; the rest is the base's | 0x00661D70 | obliterate, terrain brush, zone, network drawing tool |
+| A key slot that answers false (the opposite of 0x00505BE0) | 0x004BDBE0 | six tools |
+| SetGrabOffset: where on the screen the figure's occupant is, less the cursor, truncated, into +0x34 and +0x38 | 0x004BA070 | dispatch tool, MySim dispatch tool |
+
+### Left the game's
+
+- The vtable slots the base shares with unrelated classes, folded into one stub each: AddRef 0x004BDF00, GetID 0x00517F70, SetID 0x00989960, GetCursor 0x0040CE70, and the handlers that only answer (0x00648EF0, 0x00648F00, 0x005DEB40, 0x0062C980, 0x005BE2E0, 0x00735290, 0x00407990).
+- The adjustor thunks of the message target at +0x28 (0x00565570, 0x00565580, 0x00565590, 0x004BA870, 0x004BD2A0, 0x00661DB0) and three jump thunks of one instruction (0x004BD280, 0x004BD290, 0x00580500). What they jump to is ours.
+- The model holder's 0x005FB360, which builds the model's transform. It is drawing, called from the OnMouseMove functions left as drawing (0x004C2660, 0x004DBE40, 0x00661260, 0x00662290).
+- Two overlay helper functions, 0x004BC3B0 and 0x004BC4A0 (they append cells). The fenced map drawing calls them.
+
+### Test
+
+`OPENSC4_TEST_TOOL_BASE=<day>` (src/core/tool_base_autotest.cpp, token ` toolbase`, sub-hashes on the log lines `autotest: toolbase: ...`). It calls only the game's addresses and the vtable slots, never our functions, so a run with the group on and one with it off compare. Pointers are left out of the hashes. PlaySound is only called with 0 (no sound). Five sections:
+
+1. Object: a bare base object of 0x24 bytes, filled with 0x5A, then made. What the constructor writes and leaves; AddRef and QueryInterface (slot 0 and the three shared variants) with good and bad IDs, each good one released again; the key slot 0x004BDBE0; the capture functions without a window; Init twice, IsCurrent, SetCursor by ID with an unknown and a known ID, SetCursor with null, the old cursor and the same again, PlaySound with 0, PutAway (only while the view has no tool), Shutdown twice. Then SetWindow with the view's window, Init, AmCapturing around BeginCapture and EndCapture, a cursor change, and the last Release, which destroys through slots 29 and 26.
+2. Destructors: 0x005FAFC0, 0x005FB1B0 and 0x004B7ED0 without and with the free bit, on objects whose vtable word was cleared; 0x004D7AA0 on a 0x38 byte object holding two stand-in models that count their releases.
+3. Model: the holder's Construct, Show and Reset while empty, Make twice, Show 1, 1, 0, 0, 1, Reset; whether a model is held and shown after each step.
+4. Grab: SetGrabOffset on a scratch block with a stand-in figure whose occupant stands at the middle of the city; the two offsets it stores.
+5. Tool: a bulldoze tool made the way the city view makes it (the view's slot 0x64): IsCurrent, the base fields, the capture and cursor functions and PlaySound through the tool's vtable; PutAway takes it off the view; the last Release destroys it. Two more tools that never saw the view go by Release at a count of 0 and of 1.
+
+### Trial results
+
+Single runs of 7 days on Making Money d0090, Big City d0000 and Rush Hour d0090, the original twice and ours once per case. Plain runs with the group on: identical on all three saves. With the base group and the bulldoze, zone and lot tool tests on: identical on two saves; on Making Money ours equals one of the original's two outcomes (the original's lot test places its lot at a different point between its own two runs).
+
+Parity (batch t1b1, 7 days): plain, 12 of 12 saves identical. With the base, bulldoze, zone and lot tool tests on and their commits: 8 of 12 identical and 4 partly, none failed; on the plopped corpus 1 of 3 identical and 2 partly. Every partly save of the 12 has all daily fingerprints identical and differs only in the saved prop developer record, where the prop types 0x2977AA47 and 0x2977AA49 stand in swapped order in its lists. Two control legs from the same build, one without `ui.tools.base` and one with it, show the same swap in runs of the original (Big City d0090, Rush Hour d1095), so it is the original's own variation, as in the zone tool's batch. The plopped corpus varies in the original too (3 outcomes on two of its saves).
 
 ## The bulldoze tool
 
@@ -111,7 +239,7 @@ The logs say which case applies. The tool's group writes `bulldoze tool: ours at
 ### Left the game's
 
 - 0x004B8860, which lies inside the tool's range between OnKeyDown and IsOccupantShown and is not the tool's.
-- The view input control base class (constructor, destructor, Init, Shutdown, current-tool test, BeginCapture, EndCapture).
+- The base class is ours, in its own group (see "The base class"); this tool calls its functions by address.
 - Shared helpers: the cell region's constructor and cell destructor, the overlay helper's methods (made, scaled, coloured and cleared by calls), the reference set's subtree erase, the operator new and delete, the STL allocator.
 
 ### Oddities of the original, kept
@@ -203,7 +331,7 @@ Fields (from the start): +0x10 cursor ID (table 0x00A92C40), +0x1C the view, +0x
 
 ### Left the game's
 
-OnMouseMove; the view input control base class; the cell region's constructor and destructor, the overlay's methods, the string helpers, the operator new and delete.
+OnMouseMove; the cell region's constructor and destructor, the overlay's methods, the string helpers, the operator new and delete.
 
 ### How it is tested
 
@@ -325,9 +453,9 @@ The smoke flag is not display only. Placing with it off changes the `occbase` an
 
 - UpdatePreview (0x004C2660) and its footprint builder (0x004C2090): drawing, the cursor's overlay objects (the arrow, the footprint rectangles and their tint), built with inline vertex arithmetic through the effects service.
 - BuildPreview (0x004C0680): it mixes logic with building the preview texture.
-- The shared helpers 0x004BDF10 (QueryInterface, also the network lot tool's), 0x004BDF90 (the filter slot), 0x004BDFD0 (RotateRectangle), 0x004BFF30 (the reference vector's fill insert), 0x004C1390, 0x004C3730, 0x004C3750 and 0x004C37A0.
-- The adjustor thunks 0x004BFB00, 0x004BFB10 and 0x004BFB20 (the network lot tool's message vtable shares them).
-- The view input control base class.
+- The shared helpers 0x004BDF10 (QueryInterface, also the query tool's), 0x004BDF90 (the filter slot), 0x004BDFD0 (RotateRectangle), 0x004BFF30 (the reference vector's fill insert), 0x004C1390, 0x004C3730, 0x004C3750 and 0x004C37A0.
+- The adjustor thunks 0x004BFB00, 0x004BFB10 and 0x004BFB20 (the query tool's message vtable shares them).
+- The base class is ours, in its own group (see "The base class"); this tool calls its functions by address.
 
 ### Two slips found at the merge
 

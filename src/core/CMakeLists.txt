@@ -442,6 +442,8 @@ add_library(opensc4_core SHARED
   ui_panels_5.cpp
   ui_panels_6.cpp
   ui_panels_7.cpp
+  tool_base.cpp
+  tool_base_autotest.cpp
   tool_bulldoze.cpp
   tool_bulldoze_autotest.cpp
   tool_zone.cpp

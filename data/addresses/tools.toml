@@ -134,7 +134,7 @@ address = 0x005FB190
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8B 4E 1C 8B 01"
-source = "Name ours. No arguments: true when the view's current input control (view slot 0x60) is this one."
+source = "Name ours. No arguments: true when the view's current input control (view slot 0x60) is this one. Ours in ui.tools.base (src/core/tool_base.cpp)."
 
 [[entry]]
 name = "SC4ViewInputControl::BeginCapture"
@@ -142,7 +142,7 @@ address = 0x005FB130
 kind = "function"
 convention = "thiscall"
 expect = "8B 41 18 85 C0 74 0A 8B"
-source = "Name ours. No arguments: when +0x18 is set, the window manager's slot 0x74 with it (captures the mouse); false otherwise."
+source = "Name ours. No arguments: when +0x18 is set, the window manager's slot 0x74 with it (captures the mouse); false otherwise. Ours in ui.tools.base (src/core/tool_base.cpp)."
 
 [[entry]]
 name = "SC4ViewInputControl::EndCapture"
@@ -150,7 +150,7 @@ address = 0x005FB150
 kind = "function"
 convention = "thiscall"
 expect = "8B 41 18 85 C0 74 0A 8B"
-source = "Name ours. No arguments: when +0x18 is set, the window manager's slot 0x78 with it (releases the capture); false otherwise."
+source = "Name ours. No arguments: when +0x18 is set, the window manager's slot 0x78 with it (releases the capture); false otherwise. Ours in ui.tools.base (src/core/tool_base.cpp)."
 
 [[entry]]
 name = "SC4ViewInputControl::PlaySound"
@@ -158,7 +158,7 @@ address = 0x005FB260
 kind = "function"
 convention = "thiscall"
 expect = "8B 44 24 04 85 C0 74 18"
-source = "Name ours. (id), ret 4, slot 28 of the tools: when the ID is not zero and the service 0x00B43CB8 exists, its slot 0x2C with 1, the ID and zeros."
+source = "Name ours. (id), ret 4, slot 28 of the tools: when the ID is not zero and the service 0x00B43CB8 exists, its slot 0x2C with 1, the ID and zeros. Ours in ui.tools.base (src/core/tool_base.cpp)."
 
 [[entry]]
 name = "SC4UI::MapOverlay_SetScale"
@@ -256,7 +256,7 @@ address = 0x005FB290
 kind = "function"
 convention = "thiscall"
 expect = "8B C1 C7 00 00 00 00 00"
-source = "Name ours. No arguments: sets the holder's model pointer to null (a holder is one pointer; the view tools keep one at +0x90 and another at +0x94)."
+source = "Name ours. No arguments: sets the holder's model pointer to null (a holder is one pointer; the view tools keep one at +0x90 and another at +0x94). Ours in ui.tools.base (src/core/tool_base.cpp)."
 
 [[entry]]
 name = "SC4ViewModel::Reset"
@@ -264,7 +264,7 @@ address = 0x005FB2A0
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8B 0E 85 C9 74"
-source = "Name ours. No arguments: hides the held model if it is shown (slot 5 asked, slot 4 with 0), clears the holder and releases the model."
+source = "Name ours. No arguments: hides the held model if it is shown (slot 5 asked, slot 4 with 0), clears the holder and releases the model. Ours in ui.tools.base (src/core/tool_base.cpp)."
 
 [[entry]]
 name = "SC4ViewModel::Show"
@@ -272,7 +272,7 @@ address = 0x005FB2D0
 kind = "function"
 convention = "thiscall"
 expect = "8A 44 24 04 84 C0 56 8B"
-source = "Name ours. One argument, a byte, ret 4: with 1 shows the held model (slot 3 with 0) unless it is shown already; with 0 hides it (slot 4 with 0) when it is shown. Nothing without a model."
+source = "Name ours. One argument, a byte, ret 4: with 1 shows the held model (slot 3 with 0) unless it is shown already; with 0 hides it (slot 4 with 0) when it is shown. Nothing without a model. Ours in ui.tools.base (src/core/tool_base.cpp)."
 
 [[entry]]
 name = "SC4ViewModel::Make"
@@ -280,7 +280,7 @@ address = 0x005FB340
 kind = "function"
 convention = "thiscall"
 expect = "83 39 00 75 12 A1 1C 3D"
-source = "Name ours. No arguments: when the holder is empty, asks Service43D1C (slot 7) for the model named at 0x00AA66D0 (local_grid) and keeps it in the holder."
+source = "Name ours. No arguments: when the holder is empty, asks Service43D1C (slot 7) for the model named at 0x00AA66D0 (local_grid) and keeps it in the holder. Ours in ui.tools.base (src/core/tool_base.cpp)."
 
 [[entry]]
 name = "SC4LotSet::EraseNodes"
@@ -921,3 +921,136 @@ name = "cSC4ViewInputControlPlaceLot::PositionEpsilon"
 address = 0x00A90688
 kind = "data"
 source = "Name ours. float 0.0001: the plop tool's mouse move updates the preview when the picked point moved by this much or more."
+
+[[entry]]
+name = "SC4ViewInputControl::Vtable"
+address = 0x00AA6658
+kind = "vtable"
+expect = "00 B1 5F 00 00 DF 4B 00"
+source = "Name ours. Vtable of the view input control base class (30 slots): QueryInterface 0x005FB100, AddRef 0x004BDF00 (shared), Release 0x004B9E20, Init 0x005FB1D0, Shutdown 0x005FAFD0, GetID and SetID (shared stubs), GetCursor 0x0040CE70 (shared), SetCursor by ID 0x005FB070 (8), SetCursor 0x005FB020 (9), SetWindow 0x005FB0B0 (10), the input handlers (shared stubs, 11 to 24), AmCapturing 0x005FB170 (25), the deleting destructor 0x005FB1B0 (26), PutAway 0x005FB0C0 (27), PlaySound 0x005FB260 (28), Destroy 0x005FB0E0 (29). Never made by itself. Ours in ui.tools.base (src/core/tool_base.cpp) but the shared stubs."
+
+[[entry]]
+name = "SC4ViewInputControl::QueryInterface"
+address = 0x005FB100
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "Name ours. (id, out), ret 8, slot 0: for the IDs 1 and 0xC6BB8345 stores this, calls AddRef (slot 1) and answers true; false otherwise, out untouched. Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewInputControl::Release"
+address = 0x004B9E20
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 83 F8 01 76 05"
+source = "Name ours. No arguments, slot 2: a count at +8 above 1 goes down by one and is returned; else slot 29 (Destroy) is called and 0 returned. Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewInputControl::SetCursorID"
+address = 0x005FB070
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 CE 8B 31 00"
+source = "Name ours. (id), ret 4, slot 8: asks the window manager (0x00913C46) slot 32 for its cursor set and that, when there is one, for the cursor of the ID (slot 9); when it has one, the ID goes to +0x10 and the cursor to SetCursor (slot 9). Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewInputControl::SetCursor"
+address = 0x005FB020
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 14 57 8B"
+source = "Name ours. (cursor), ret 4, slot 9: when it differs from +0x14, references the new one, releases the old, keeps it, and when it is not null, the control is inited and has a window (+0x18), gives it to the window (slot 0x154 with 1). Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewInputControl::SetWindow"
+address = 0x005FB0B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 41 18 C2"
+source = "Name ours. (window), ret 4, slot 10: stores it at +0x18 (not referenced). Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewInputControl::PutAway"
+address = 0x005FB0C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 1C 85 C0 74 09 8B"
+source = "Name ours. No arguments, slot 27: when the view at +0x1C is set, its slot 0x68 (RemoveCurrentViewInputControl) with 0; the answer of that is the answer, 0 without a view. The scroll drag tool's 0x004B7E70 and the U-Drive control's 0x005650E0 end in a jump to it. Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewInputControl::Destroy"
+address = 0x005FB0E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 10"
+source = "Name ours. No arguments, slot 29: Shutdown (slot 4), then the deleting destructor (slot 26) with 1. Release calls it for the last reference. Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewInputControl::AmCapturing"
+address = 0x005FB170
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 18 85 C0"
+source = "Name ours. No arguments, slot 25: 1 when the control has a window (+0x18) and the window manager at +0x20 says (slot 0x70) that it is the one capturing the mouse; else 0. Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewInputControl::DeletingDestructor"
+address = 0x005FB1B0
+kind = "function"
+convention = "thiscall"
+expect = "F6 44 24 04 01 56 8B F1"
+source = "Name ours. (flags), ret 4, slot 26 of the base vtable only: stores the base vtable, frees the object when bit 0 is set, returns this. Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewInputControl::PlainDeletingDestructor"
+address = 0x004B7ED0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 E8 30 14 00"
+source = "Name ours. (flags), ret 4: the deleting destructor of the tools that add nothing to destroy (slot 26 of the scroll drag tool 0x00A90040, the flora tool 0x00A903B8 and the terrain command tool 0x00A905C0): the base destructor 0x005FAFC0, frees the object when bit 0 is set, returns this. Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4CheatTool::DeletingDestructor"
+address = 0x004D7AA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 D8 26 00 00"
+source = "Name ours. (flags), ret 4: slot 26 of the cheat tool 0x00A92AC0 and of the sign pick tool 0x00A928A0 (same layout): the destructor body 0x004DA180, frees the object when bit 0 is set, returns this. Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewInputControl::QueryInterfaceSelfTarget"
+address = 0x004B8480
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D AA 94 22"
+source = "Name ours. (id, out), ret 8: slot 0 of the view's default control 0x00A900D8, the cell paint tool and the U-Drive control: for the ID 0x452294AA stores this (not the part at +0x28), counts the reference at +8 up (the shared AddRef 0x004BDF00, called directly) and answers true; every other ID goes to the base QueryInterface 0x005FB100. Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewInputControl::QueryInterfaceTargetOnly"
+address = 0x004B9DE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 48 74 0C 2D"
+source = "Name ours. (id, out), ret 8: slot 0 of the dispatch tool 0x00A90268 and the MySim dispatch tool 0x00A85998: for the IDs 1 and 0x452294AA stores the message target part at +0x28, calls AddRef (slot 1) and answers true; false for every other ID, 0xC6BB8345 included (it does not ask the base). Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewInputControl::QueryInterfaceTarget"
+address = 0x00661D70
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D AA 94 22"
+source = "Name ours. (id, out), ret 8: slot 0 of the obliterate tool, the terrain brush tool, the zone tool 0x00A92CA8 and the network drawing tool: for the ID 0x452294AA stores the message target part at +0x28, calls AddRef (slot 1) and answers true; every other ID goes to the base QueryInterface 0x005FB100. Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewInputControl::OnKeyUnhandled"
+address = 0x004BDBE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 8B 54 24 04"
+source = "Name ours. (key, modifiers), ret 8: a key slot of six tools (the dispatch, flora, cell paint, terrain command and the two disaster tools): calls 0x00505BE0 with the two arguments and answers the opposite, which is false always. Ours in ui.tools.base."
+
+[[entry]]
+name = "SC4ViewModel::GridName"
+address = 0x00AA66D0
+kind = "data"
+source = "Name ours. The string local_grid: the name of the model SC4ViewModel::Make asks Service43D1C (slot 7) for."
