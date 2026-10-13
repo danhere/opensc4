@@ -2,6 +2,7 @@
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/game_access.h"
+#include "core/occ_vtables.h"
 #include "core/occmgr_sim.h"
 #include "core/pipeocc_sim.h"
 
@@ -237,7 +238,7 @@ uint32_t Life()
             AskInterface(hash, self, self + offset, iid);
     hash.Mix(At<uint32_t>(self, field::kWatered));
     hash.Mix(At<uint32_t>(self, field::kVbaseShift));
-    hash.Mix(At<std::uintptr_t>(self, field::kVbase) == addr::cSC4PipeOccupant_vbase_vftable);
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kVbase), addr::cSC4PipeOccupant_vbase_vftable));
     hash.Mix(At<std::uintptr_t>(self, field::kVbtable) == addr::cSC4PipeOccupant_vbtable);
     uint32_t tint[3] = {};
     Virtual<uint32_t*>(self, slot::kGetTint, static_cast<uint32_t*>(tint));

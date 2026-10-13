@@ -72,6 +72,11 @@ target_link_libraries(opensc4_settings_test PRIVATE opensc4_core_support)
 add_test(NAME settings COMMAND opensc4_settings_test)
 set_tests_properties(settings PROPERTIES PASS_REGULAR_EXPRESSION "settings test OK")
 
+add_executable(opensc4_occ_vtables_test occ_vtables_test.cpp)
+target_link_libraries(opensc4_occ_vtables_test PRIVATE opensc4_options)
+add_test(NAME occ_vtables COMMAND opensc4_occ_vtables_test)
+set_tests_properties(occ_vtables PROPERTIES PASS_REGULAR_EXPRESSION "occ vtables test OK")
+
 add_executable(opensc4_iat_test iat_test.cpp)
 target_link_libraries(opensc4_iat_test PRIVATE opensc4_core_support)
 add_test(NAME iat_patching COMMAND opensc4_iat_test)

@@ -56,8 +56,13 @@ Version 2 of the tunnel, then version 4 of the parent, the network occupant's wh
 | `simulators.tunnelocc.slots` | 5 detours: QueryInterface, GetGZCLSID, the occupant part's Init, slot 4, SetOtherEnd |
 | `simulators.tunnelocc.save` | 2 detours: Write and Read |
 | `simulators.tunnelocc.object` | 6 detours: the constructor, the destructor, the deleting destructor, the pool's page set-up and allocation, the factory |
+| `simulators.tunnelocc.own` | no detour: the objects carry our copies of the class's seven vtables (only with `simulators.tunnelocc.object`; see below) |
 
 `OPENSC4_TUNNELOCC_SKIP` takes a list of function addresses (hex, eight digits) to leave out of a group, for bisecting. The deleting destructor calls the destructor, and the factory the constructor, at the game's addresses, so a skipped one is the game's there too.
+
+### Our own object
+
+`simulators.tunnelocc.own` makes the objects carry our copies of the class's seven vtables instead of the game's: the interface's (0x00AA9308, 82 slots), the occupant part's (0x00AA9280, 34 slots), the cIGZSerializable part's (0x00AA9264, 6 slots), the property holder's (0x00AA9200, 25 slots), the exemplar holder part's (0x00AA91E8, 5 slots), the model part's (0x00AA91E4, 1 slot) and the virtual base's (0x00AA9198, 19 slots), 172 slots in all. The counts are from the executable: each table ends where the next one the constructor stores begins, or at the virtual base table, padding or other data, and nothing refers to an address inside one. The virtual base table (0x00AA9450) is data and stays the game's. The copies are taken once, the first time the constructor or the destructor wants them, so after every replacement is installed; each has the word before the game's table too. Every entry is what the game's table holds, a function's address or an adjustor thunk, so the other groups' detours decide what runs exactly as before. An entry that holds a function of the `object` group directly would be pointed at ours; this class has none (thunks reach the deleting destructor), so no entry is redirected. The group installs nothing: it only has an effect together with `simulators.tunnelocc.object`, whose constructor and destructor store the tables, and it does not turn that group on. The log has one line when the copies are taken (`tunnelocc own: vtables copied ...`, with the table sizes and the number of redirected entries). What was checked in the game for all eight classes is in [netocc.md](netocc.md), "Our own object".
 
 ## What is left, and why
 
@@ -89,3 +94,5 @@ The save: `saves-networks/Rush Hour Tutorial/t0000.sc4` was made on 2026-10-13 b
 The audit found no difference.
 
 Ran with ours (first-call log lines over the whole batch): all 13 replaced functions (Allocate, Construct, Create, DeletingDestructor, Destroy, GetGZCLSID, InitPoolPage, OccupantInit, QueryInterface, Read, SetOtherEnd, Shutdown and Write). Write and the full Read ran only on t0000.
+
+Our own objects (batch o1, 2026-10-13): the original against every network occupant group and the eight `.own` groups for a week, every class's copies in use in the runs that made or destroyed its objects (the `own: vtables copied` log line). Plain: the 12 saves 12 of 12 the same on the first pair, `saves-networks` 3 of 3, `saves-plopped` 3 of 3, `saves-ports` 3 of 3. With the test switches of all the network occupant classes but `OPENSC4_TEST_NETOCC`: `saves-networks` 3 of 3 and the 12 saves 11 of 12 on the first pair; on Making Money d0365 one run of ours in four gave other `adv` and `advisors` values from the first day on (two days before the tests run; every decoded record the same), and twelve more pairs of that save were all the same, so one run of ours in 16 against none of the original's 16: not explained and not reproduced.

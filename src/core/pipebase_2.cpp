@@ -54,6 +54,7 @@
 #include "core/game.h"
 #include "core/hook.h"
 #include "core/log.h"
+#include "core/occ_vtables.h"
 #include "core/registry.h"
 
 #include <opensc4/addresses.h>
@@ -134,20 +135,37 @@ void ClearVectors(char* self)
 // simulators.pipebase.object: construction, destruction and Shutdown
 // ====================================================================================
 
-// The vtables the constructor and the destructor store (the game's, not
-// copies): the six parts', then the virtual base's and the displacement
-// word before it, both found through the table at +0x3C as the game does
-// (the table is read twice).
+// simulators.pipebase.own: with it the objects carry our copies of the class's
+// seven vtables (106, 34, 6, 25, 5, 1 and 19 slots) instead of the game's
+// tables. The copies are taken at the first use (BuildOwnVtables, with the
+// installation: it needs the object group's detour list).
+bool g_own = false;
+occ_vtables::VtableCopy<106> g_vtable;
+occ_vtables::VtableCopy<34> g_vtable4;
+occ_vtables::VtableCopy<6> g_vtable8;
+occ_vtables::VtableCopy<25> g_vtableC;
+occ_vtables::VtableCopy<5> g_vtable20;
+occ_vtables::VtableCopy<1> g_vtable38;
+occ_vtables::VtableCopy<19> g_vbaseVtable;
+void BuildOwnVtables();
+
+// The vtables the constructor and the destructor store (the game's, or with
+// simulators.pipebase.own our copies of them): the six parts', then the
+// virtual base's and the displacement word before it, both found through the
+// table at +0x3C as the game does (the table is read twice).
 void SetVtables(char* self)
 {
-    At<std::uintptr_t>(self, 0x0) = addr::SC4PipeBase_vftable;
-    At<std::uintptr_t>(self, field::kOccupant) = addr::SC4PipeBase_vftable_4;
-    At<std::uintptr_t>(self, field::kSerializable) = addr::SC4PipeBase_vftable_8;
-    At<std::uintptr_t>(self, field::kHolder) = addr::SC4PipeBase_vftable_C;
-    At<std::uintptr_t>(self, field::kExemplarPart) = addr::SC4PipeBase_vftable_20;
-    At<std::uintptr_t>(self, field::kModelPart) = addr::SC4PipeBase_vftable_38;
+    if (g_own && !g_vtable.Built())
+        BuildOwnVtables();
+    At<std::uintptr_t>(self, 0x0) = g_own ? g_vtable.Address() : addr::SC4PipeBase_vftable;
+    At<std::uintptr_t>(self, field::kOccupant) = g_own ? g_vtable4.Address() : addr::SC4PipeBase_vftable_4;
+    At<std::uintptr_t>(self, field::kSerializable) = g_own ? g_vtable8.Address() : addr::SC4PipeBase_vftable_8;
+    At<std::uintptr_t>(self, field::kHolder) = g_own ? g_vtableC.Address() : addr::SC4PipeBase_vftable_C;
+    At<std::uintptr_t>(self, field::kExemplarPart) = g_own ? g_vtable20.Address() : addr::SC4PipeBase_vftable_20;
+    At<std::uintptr_t>(self, field::kModelPart) = g_own ? g_vtable38.Address() : addr::SC4PipeBase_vftable_38;
     const uint32_t displacement = At<uint32_t>(At<char*>(self, field::kVbtable), 4);
-    At<std::uintptr_t>(self, displacement + field::kVbtable) = addr::SC4PipeBase_vbase_vftable;
+    At<std::uintptr_t>(self, displacement + field::kVbtable) =
+        g_own ? g_vbaseVtable.Address() : addr::SC4PipeBase_vbase_vftable;
     const uint32_t again = At<uint32_t>(At<char*>(self, field::kVbtable), 4);
     At<uint32_t>(self, again + field::kModelPart) = again - kVbaseDisplacement;
 }
@@ -614,6 +632,41 @@ bool InstallObject(registry::Mode) { return InstallDetours(kObject, "object"); }
 bool InstallInit(registry::Mode) { return InstallDetours(kInit, "init"); }
 bool InstallWalls(registry::Mode) { return InstallDetours(kWalls, "walls"); }
 
+// simulators.pipebase.own: the copies, taken at the first construction or
+// destruction that wants them, so after every PostAppInit replacement. Each is
+// the game's table word for word. An entry that holds a function of the object
+// group directly becomes ours without the detour: Shutdown, slot 4 of the
+// interface's table (the deleting destructor is behind thunks only). Every
+// other entry stays the game's address or adjustor thunk, which the other
+// groups' detours still decide.
+void BuildOwnVtables()
+{
+    g_vtable.Build(reinterpret_cast<const void*>(addr::SC4PipeBase_vftable));
+    g_vtable4.Build(reinterpret_cast<const void*>(addr::SC4PipeBase_vftable_4));
+    g_vtable8.Build(reinterpret_cast<const void*>(addr::SC4PipeBase_vftable_8));
+    g_vtableC.Build(reinterpret_cast<const void*>(addr::SC4PipeBase_vftable_C));
+    g_vtable20.Build(reinterpret_cast<const void*>(addr::SC4PipeBase_vftable_20));
+    g_vtable38.Build(reinterpret_cast<const void*>(addr::SC4PipeBase_vftable_38));
+    g_vbaseVtable.Build(reinterpret_cast<const void*>(addr::SC4PipeBase_vbase_vftable));
+    unsigned redirected = 0;
+    for (const Detour& detour : kObject) {
+        if (Skipped(detour.address))
+            continue;
+        const void* const game = reinterpret_cast<const void*>(detour.address);
+        redirected += occ_vtables::RedirectAll(game, detour.ours, g_vtable, g_vtable4, g_vtable8, g_vtableC, g_vtable20,
+                                               g_vtable38, g_vbaseVtable);
+    }
+    log::Write("pipebase own: vtables copied (106, 34, 6, 25, 5, 1 and 19 slots), %u entries redirected", redirected);
+}
+
+// simulators.pipebase.own installs nothing: it only says which tables the
+// object group's constructor and destructor store.
+bool InstallOwn(registry::Mode)
+{
+    g_own = true;
+    return true;
+}
+
 const bool g_registered[] = {
     registry::Register({"simulators.pipebase.object", "simulators/pipebase", registry::Kind::Detour,
                         registry::Phase::PostAppInit, addr::SC4PipeBase_cSC4PipeBase,
@@ -630,6 +683,11 @@ const bool g_registered[] = {
                         "Our side walls and floor of the underground pieces (slots 89 and 90 and the wall helper "
                         "0x0065CFF0; 3 detours; src/core/pipebase_2.cpp)",
                         false, InstallWalls}),
+    registry::Register({"simulators.pipebase.own", "simulators/pipebase", registry::Kind::Api,
+                        registry::Phase::PostAppInit, addr::SC4PipeBase_vftable,
+                        "Our own underground pieces' intermediate class: objects carry our copies of the class's seven "
+                        "vtables; only has an effect with simulators.pipebase.object (src/core/pipebase_2.cpp)",
+                        false, InstallOwn}),
 };
 
 } // namespace

@@ -3,6 +3,7 @@
 #include "core/game.h"
 #include "core/game_access.h"
 #include "core/log.h"
+#include "core/occ_vtables.h"
 #include "core/occmgr_sim.h"
 #include "core/subwayocc_sim.h"
 
@@ -562,13 +563,13 @@ void* Create()
 // The eight vtable and table pointers the constructor stores.
 void MixVtables(Hash& hash, char* self)
 {
-    hash.Mix(At<std::uintptr_t>(self, 0x0) == addr::cSC4SubwayOccupant_vftable);
-    hash.Mix(At<std::uintptr_t>(self, field::kOccupant) == addr::cSC4SubwayOccupant_vftable_4);
-    hash.Mix(At<std::uintptr_t>(self, field::kSerializable) == addr::cSC4SubwayOccupant_vftable_8);
-    hash.Mix(At<std::uintptr_t>(self, field::kHolder) == addr::cSC4SubwayOccupant_vftable_C);
-    hash.Mix(At<std::uintptr_t>(self, field::kExemplarPart) == addr::cSC4SubwayOccupant_vftable_20);
-    hash.Mix(At<std::uintptr_t>(self, field::kModelPart) == addr::cSC4SubwayOccupant_vftable_38);
-    hash.Mix(At<std::uintptr_t>(self, field::kVbase) == addr::cSC4SubwayOccupant_vbase_vftable);
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, 0x0), addr::cSC4SubwayOccupant_vftable));
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kOccupant), addr::cSC4SubwayOccupant_vftable_4));
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kSerializable), addr::cSC4SubwayOccupant_vftable_8));
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kHolder), addr::cSC4SubwayOccupant_vftable_C));
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kExemplarPart), addr::cSC4SubwayOccupant_vftable_20));
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kModelPart), addr::cSC4SubwayOccupant_vftable_38));
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kVbase), addr::cSC4SubwayOccupant_vbase_vftable));
     hash.Mix(At<std::uintptr_t>(self, field::kVbtable) == addr::cSC4SubwayOccupant_vbtable);
     hash.Mix(At<uint32_t>(self, field::kVbaseShift));
 }

@@ -566,7 +566,7 @@ name = "cSC4NetworkOccupant::vftable"
 address = 0x00AA8080
 kind = "vtable"
 expect = "C0 92 61 00 F0 28 5E 00"
-source = "The primary cISC4NetworkOccupant vtable (74 slots plus slot 80; the class map is in src/core/netocc_sim.h)."
+source = "The primary cISC4NetworkOccupant vtable (81 slots: the 74 of the interface, then the class's own 74 to 80; the class map is in src/core/netocc_sim.h)."
 
 [[entry]]
 name = "cSC4NetworkOccupant::vftable_4"

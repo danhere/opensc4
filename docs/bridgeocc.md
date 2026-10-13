@@ -54,8 +54,13 @@ Version 3 (read only) has six more uint32 after the three floats and one more at
 | --- | --- |
 | `simulators.bridgeocc.slots` | 4 detours: GetGZCLSID, QueryInterface, the occupant part's Init, Shutdown |
 | `simulators.bridgeocc.object` | 7 detours: the constructor, the destructor, the deleting destructor, the pool's free, page set-up and allocation, the factory |
+| `simulators.bridgeocc.own` | no detour: the objects carry our copies of the class's seven vtables (only with `simulators.bridgeocc.object`; see below) |
 
 `OPENSC4_BRIDGEOCC_SKIP` takes a list of function addresses (hex, eight digits) to leave out of a group, for bisecting.
+
+### Our own object
+
+`simulators.bridgeocc.own` makes the objects carry our copies of the class's seven vtables instead of the game's: the interface's (0x00AA7300, 82 slots), the occupant part's (0x00AA7278, 34 slots), the cIGZSerializable part's (0x00AA725C, 6 slots), the property holder's (0x00AA71F8, 25 slots), the exemplar holder part's (0x00AA71E0, 5 slots), the model part's (0x00AA71DC, 1 slot) and the virtual base's (0x00AA7190, 19 slots), 172 slots in all. The counts are from the executable: each table ends where the next one the constructor stores begins, or at the virtual base table, padding or other data, and nothing refers to an address inside one. The virtual base table (0x00AA7448) is data and stays the game's. The copies are taken once, the first time the constructor or the destructor wants them, so after every replacement is installed; each has the word before the game's table too. Every entry is what the game's table holds, a function's address or an adjustor thunk, so the other groups' detours decide what runs exactly as before. An entry that holds a function of the `object` group directly would be pointed at ours; this class has none (thunks reach the deleting destructor), so no entry is redirected. The group installs nothing: it only has an effect together with `simulators.bridgeocc.object`, whose constructor and destructor store the tables, and it does not turn that group on. The log has one line when the copies are taken (`bridgeocc own: vtables copied ...`, with the table sizes and the number of redirected entries). What was checked in the game for all eight classes is in [netocc.md](netocc.md), "Our own object".
 
 ## What is left, and why
 
@@ -82,3 +87,5 @@ Plain: the 12 saves 12 of 12 the same on the first pair, `saves-networks` 3 of 3
 The audit found no difference.
 
 Ran with ours (first-call log lines over the whole batch): Construct, Create, DeletingDestructor, Destroy, GetGZCLSID, OccupantInit, QueryInterface and Shutdown. Not run: PoolFree (0x00605120), InitPoolPage (0x00604C60) and Allocate (0x00605040). Slot 81 is the game's. Write and Read of a bridge piece are the pre-built class's ([prebuiltocc.md](prebuiltocc.md)), which ran.
+
+Our own objects (batch o1, 2026-10-13): the original against every network occupant group and the eight `.own` groups for a week, every class's copies in use in the runs that made or destroyed its objects (the `own: vtables copied` log line). Plain: the 12 saves 12 of 12 the same on the first pair, `saves-networks` 3 of 3, `saves-plopped` 3 of 3, `saves-ports` 3 of 3. With the test switches of all the network occupant classes but `OPENSC4_TEST_NETOCC`: `saves-networks` 3 of 3 and the 12 saves 11 of 12 on the first pair; on Making Money d0365 one run of ours in four gave other `adv` and `advisors` values from the first day on (two days before the tests run; every decoded record the same), and twelve more pairs of that save were all the same, so one run of ours in 16 against none of the original's 16: not explained and not reproduced.
