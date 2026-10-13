@@ -1,0 +1,242 @@
+# The subway occupant (class ID 0xCA16374F): its own code (src/core/subwayocc_sim.cpp, the class map in src/core/subwayocc_sim.h). The parent class's entries are in pipeocc.toml and pipebase.toml.
+
+[[entry]]
+name = "cSC4SubwayOccupant::QueryInterface"
+address = 0x00652D00
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 4F 37 16"
+source = "Name ours (the class has no name in the game ID table). Slot 0, ret 8: the subway IID 0xCA16374F gives the object itself (AddRef through slot 1); every other ID is a tail jump to the intermediate class QueryInterface 0x0065A080 (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::GetDescriptor"
+address = 0x00652CD0
+kind = "function"
+convention = "thiscall"
+expect = "B8 C8 CD B0 00 C3 CC CC"
+source = "Name ours. Slot 101: the address 0x00B0CDC8 of the subway descriptor, which the intermediate class occupant Init stores at +0x26C (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::GetDefaultFlags"
+address = 0x00652CE0
+kind = "function"
+convention = "thiscall"
+expect = "B8 00 00 00 07 C3 CC CC"
+source = "Name ours. Slot 105: the constant 0x07000000, the network flags a new piece starts with (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::GetPieceKey"
+address = 0x00652D30
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 2C FD FF"
+source = "Name ours. Slot 17 of the virtual base (this = object + 0x2D4; behind the thunk 0x00652FC0), ret 4: writes the word at +0xFC when any of the flags 0x06000000 is set, else the class ID 0xCA16374F (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::GetAltitude"
+address = 0x00652D70
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 74 02 00 00 D9 44"
+source = "Name ours. Slot 56, ret 8 (x and z floats), the answer in ST0: the height at a point from the four corner records at +0x270, on one of two triangles chosen by comparing x less corner 0 x with z less corner 0 z, less 0.5; keeps ECX and EDX (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::InitPoolPage"
+address = 0x00652E00
+kind = "function"
+convention = "cdecl"
+expect = "56 57 6A 10 E8 D7 AA 2B"
+source = "Name ours. Slot 2 of the pool tables 0x00AAA578 and 0x00AAA590: a 64 KB page (allocator order 0x10) of 90 items of 0x2D8 bytes chained upwards from +0x10, free list at +8, used count 0 at +0xC; returns the page; called by the pool Grow 0x0090CF9A and once at start-up from 0x00A73F15 (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::Allocate"
+address = 0x00652FE0
+kind = "function"
+convention = "cdecl"
+expect = "A1 BC CD B0 00 8B 40 08"
+source = "Name ours. One argument, not read (the maker class function 0x00653A00 pushes 0x2D8): an item of the subway pool 0x00B0CDB8 (the current page free head, refilled by 0x0090CF9A) (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::Write"
+address = 0x00653010
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Serializable slot 3, ret 4, this = object + 8: version 2, then the intermediate class Write 0x0065B140 and nothing of its own; answers the stream state (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::Read"
+address = 0x00653040
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Serializable slot 4, ret 4, this = object + 8: version 2 only, the intermediate class Read 0x0065E510; sets the byte at object + 0x260 to 1 when that read is good (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::cSC4SubwayOccupant"
+address = 0x006530B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 56 8B"
+source = "Name ours. Constructor, ret 4 (non-zero argument for the most derived object): the intermediate class constructor 0x0065C330 with 0, then the vtables. Called by the factory 0x00653560 and by the maker class function 0x00653A00 (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::UpdateCorners"
+address = 0x00653130
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B F1"
+source = "Name ours. Slot 106, no arguments (only caller GetPathInfo 0x0065380E): the four corner records at +0x270 from the vector at +0x1B4, or for the piece keys 0x300 and 0x4B00 from records 4 to 7 of the vector at +0x1E4 turned by the rotation, lowered when slot 99 answers 0 (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::PoolFree"
+address = 0x00653520
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 85 D2 74 34"
+source = "Name ours. Slot 1 of the pool tables 0x00AAA578 and 0x00AAA590, ECX the pool, ret 4: an item back to its page (page at address & 0xFFFF0000); page released at count 0 (0x0090D031), reopened at 0x40000043 (0x0090CFF9) (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::Create"
+address = 0x00653560
+kind = "function"
+convention = "cdecl"
+expect = "A1 BC CD B0 00 8B 40 08"
+source = "Name ours. The factory (the class registration pointer, pushed at 0x004606B3): an item of the subway pool constructed as the most derived object; returns the occupant part (object + 4) (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::DeletingDestructor"
+address = 0x006535A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 3C C7 06"
+source = "Name ours. Ret 4 (flags): the vtables, the intermediate class destructor 0x0065C0C0, and with flag 1 the item back to the subway pool; the holder part slot 22 and the model part slot 0 reach it through the thunks 0x00652E80 and 0x00652EA0 (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::InitStatics"
+address = 0x00653640
+kind = "function"
+convention = "cdecl"
+expect = "A0 20 68 B4 00 83 EC 0C"
+source = "Name ours. Once (byte 0x00B46820): five distances between table points (0x00B0C960 picked by 0x00B0CB58 and 0x00B0CB80) in a vector of five, the ratios stored at 0x00B467F8 to 0x00B4681C, then the intermediate class 0x0065B040 when the network occupant statics are not done (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::OccupantInit"
+address = 0x00653770
+kind = "function"
+convention = "thiscall"
+expect = "A0 20 68 B4 00 84 C0 56"
+source = "Name ours. Slot 3 of the occupant part (this = object + 4): the statics, and for an object not initialised the intermediate class occupant Init 0x0065C070 and 0x0065AE80; returns true (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::Init"
+address = 0x006537A0
+kind = "function"
+convention = "thiscall"
+expect = "A0 20 68 B4 00 84 C0 56"
+source = "Name ours. Slot 3 of the interface, ret 4 (one argument handed on): the statics, and for an object not initialised the intermediate class Init 0x0065C6B0 with the argument, the class ID 0xCA16374F and the descriptor 0x00B0CDC8; returns true (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::GetPathInfo"
+address = 0x006537E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 55 8B E9 8B 85"
+source = "Name ours. Slot 49, no arguments: makes the path information (+0x140) when there is none: slot 86 when the byte at +0x262 is clear, slot 106, the path resource for the piece ID with 0x06000000 or the path ID override, every path point given the height slot 56 answers and every path its length, then the path connection table as the network occupant does (src/core/subwayocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::Pool"
+address = 0x00B0CDB8
+kind = "data"
+source = "Name ours. The pool of the 0x2D8-byte subway occupants (table 0x00AAA578 in the exe data, replaced by its copy 0x00AAA590 by the static initialiser 0x00A73F10, which also sets up the first page; +4 the current page; pages of 64 KB at address & 0xFFFF0000 with the free list at +8 and the used count at +0xC; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at count 0x40000043)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::Descriptor"
+address = 0x00B0CDC8
+kind = "data"
+source = "Name ours. The subway descriptor (a table of pointers into the data before it): slot 101 answers its address and the subway Init gives it to the intermediate class Init as the third argument."
+
+[[entry]]
+name = "cSC4SubwayOccupant::Points"
+address = 0x00B0C960
+kind = "data"
+source = "Name ours. Table of 24-byte point records (x at +0, z at +8) the statics 0x00653640 measures distances between."
+
+[[entry]]
+name = "cSC4SubwayOccupant::FromPoints"
+address = 0x00B0CB58
+kind = "data"
+source = "Name ours. Five record indices (1 3 5 7 9): the first point of each distance in 0x00653640."
+
+[[entry]]
+name = "cSC4SubwayOccupant::ToPoints"
+address = 0x00B0CB80
+kind = "data"
+source = "Name ours. Five record indices (0 2 4 6 8): the second point of each distance in 0x00653640."
+
+[[entry]]
+name = "cSC4SubwayOccupant::Statics"
+address = 0x00B467F8
+kind = "data"
+source = "Name ours. The subway statics set once by 0x00653640: ten floats from +0 (ratios, and ones at +0x10 and +0x14) and the done byte at +0x28 (0x00B46820)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::PathStart"
+address = 0x00B46824
+kind = "data"
+source = "Name ours. One word GetPathInfo 0x006537E0 copies three times as the point before the first point of each path (never read for the first point)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::vftable"
+address = 0x00AAA3C8
+kind = "vtable"
+expect = "00 2D 65 00 60 A8 65 00"
+source = "The primary cISC4NetworkOccupant vtable of the subway occupant, 107 slots: QueryInterface 0x00652D00, Init 0x006537A0, GetPathInfo 0x006537E0, slot 56 0x00652D70, slots 101, 105 and 106 the subway own (0x00652CD0, 0x00652CE0, 0x00653130)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::vftable_4"
+address = 0x00AAA340
+kind = "vtable"
+expect = "40 2E 65 00 D0 85 64 00"
+source = "The cISC4Occupant part (+4) vtable of the subway occupant, slot 3 is OccupantInit 0x00653770."
+
+[[entry]]
+name = "cSC4SubwayOccupant::vftable_8"
+address = 0x00AAA324
+kind = "vtable"
+expect = "60 2E 65 00 00 86 64 00"
+source = "The cIGZSerializable part (+8) vtable of the subway occupant, 6 slots: Write 0x00653010, Read 0x00653040, GetGZCLSID 0x00653D90."
+
+[[entry]]
+name = "cSC4SubwayOccupant::vftable_C"
+address = 0x00AAA2C0
+kind = "vtable"
+expect = "70 2E 65 00 30 86 64 00"
+source = "The property holder (+0xC) vtable of the subway occupant: slot 22 the deleting destructor thunk, 23 and 24 the save thunks."
+
+[[entry]]
+name = "cSC4SubwayOccupant::vftable_20"
+address = 0x00AAA2A8
+kind = "vtable"
+expect = "90 2E 65 00 70 86 64 00"
+source = "The exemplar holder part (+0x20) vtable of the subway occupant."
+
+[[entry]]
+name = "cSC4SubwayOccupant::vftable_38"
+address = 0x00AAA2A4
+kind = "vtable"
+expect = "A0 2E 65 00 90 2E 65 00"
+source = "The vtable at +0x38 of the subway occupant (one slot, a thunk to the deleting destructor)."
+
+[[entry]]
+name = "cSC4SubwayOccupant::vbase_vftable"
+address = 0x00AAA258
+kind = "vtable"
+expect = "B0 2E 65 00 C0 2E 65 00"
+source = "The virtual base vtable of the subway occupant (at +0x2D4), 19 slots; slot 17 is the subway piece key 0x00652D30 behind the thunk 0x00652FC0."
+
+[[entry]]
+name = "cSC4SubwayOccupant::vbtable"
+address = 0x00AAA588
+kind = "data"
+source = "Name ours. The virtual base table of the subway occupant: -4, then the displacement 0x298 of the virtual base from the model part."
