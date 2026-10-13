@@ -3,6 +3,7 @@
 #include "core/bridgeocc_sim.h"
 #include "core/game.h"
 #include "core/game_access.h"
+#include "core/occ_vtables.h"
 #include "core/occmgr_sim.h"
 
 #include <cISC4City.h>
@@ -240,7 +241,8 @@ uint32_t Life()
     hash.Mix(At<uint8_t>(self, field::kSavedByte));
     hash.Mix(At<uint32_t>(self, field::kSavedCount));
     hash.Mix(At<uint32_t>(self, field::kVbaseShift));
-    hash.Mix(At<std::uintptr_t>(self, field::kVbase) == addr::cSC4NetworkBridgeOccupant_vbase_vftable);
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kVbase),
+                                  addr::cSC4NetworkBridgeOccupant_vbase_vftable));
     hash.Mix(At<std::uintptr_t>(self, field::kVbtable) == addr::cSC4NetworkBridgeOccupant_vbtable);
     hash.Mix(At<std::uintptr_t>(member, 0) == addr::cSC4NetworkBridgeOccupant_Attachments_vftable);
     hash.Mix(At<void*>(member, attachments::kOwner) == nullptr);
