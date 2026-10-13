@@ -1,6 +1,6 @@
 # The city view's tools
 
-The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool, the level terrain tool, the dispatch tool, the sign removal tool and the Life tool. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
+The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool, the level terrain tool, the dispatch tool, the sign removal tool, the Life tool, the label tool and the sign tool. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
 
 | Tool | State |
 | --- | --- |
@@ -14,6 +14,8 @@ The view input controls that the city view makes current while the player holds 
 | Dispatch tool | ours (`ui.tools.dispatch`, below) |
 | Sign removal tool | ours (`ui.tools.signpick`, below) |
 | Life tool (the cheat GOL) | ours (`ui.tools.cellpaint`, below) |
+| Label tool | ours (`ui.tools.decal`, below) |
+| Sign tool | ours (`ui.tools.signtext`, below) |
 | Base class | ours (`ui.tools.base`, below) |
 
 ## The tool classes
@@ -35,12 +37,12 @@ Every city tool is a view input control: a class on the base class below, with a
 | Effect trigger tool, the base of the common disaster tool (strings _button_trigger, _trigger; never made by itself) | 0x004BAF60 | 0x00A902E0 | | 0x004BABE0 to 0x004BB8FD | 13 | still the game's |
 | Flora (plant trees) tool | 0x004BB900 | 0x00A903B8 | 0x50 | 0x004BB900 to 0x004BBE41 | 7 | ours (`ui.tools.small2`, below) |
 | Life tool (Conway's Game of Life, made by the cheat GOL) | 0x004BC310 | 0x00A90458 | 0x88 | 0x004BBE50 to 0x004BC975 | 16 | ours (`ui.tools.cellpaint`, below) |
-| Text decal tool (a label on the ground; guess) | 0x004BD230 | 0x00A90528 | 0x44 | 0x004BC980 to 0x004BDAFC | 16 | still the game's |
+| Label tool (text decals on the ground, command 0x0B980587) | 0x004BD230 | 0x00A90528 | 0x44 | 0x004BC980 to 0x004BDAFC | 16 | ours (`ui.tools.decal`, below) |
 | Level-a-rectangle terrain tool | 0x004BDC60 | 0x00A905C0 | 0x58 | 0x004BDB00 to 0x004BDEBC | 8 | ours (`ui.tools.small2`, below) |
 | Lot (plop) | 0x004C0430 | 0x00A90738 | 0x158 | 0x004BDF70 to 0x004C36C0 | 36 | ours (`ui.tools.plop1` to `plop3`, below) |
 | Query tool (`cSC4ViewInputControlQuery`; strings Query.txt, "Query cell (%d, %d)") | 0x004C4590 | 0x00A90A88 | 0xA0 | 0x004C3730 to 0x004D767F | 223 | still the game's; not a network tool |
 | Sign removal tool (removes signs; the survey had called it a pick tool) | 0x004D76F0 | 0x00A928A0 | 0x30 | 0x004D7680 to 0x004D7AE2 | 8 | ours (`ui.tools.signpick`, below) |
-| Sign text tool (types the text of a sign; guess) | 0x004D7F00 | 0x00A92968 | 0x80 | 0x004D7AF0 to 0x004D8ABA | 17 | still the game's |
+| Sign tool (places signs, drags them and edits their text; the survey had called it a sign text tool) | 0x004D7F00 | 0x00A92968 | 0x80 | 0x004D7AF0 to 0x004D8ABA | 16 | ours (`ui.tools.signtext`, below) |
 | Terrain brush tool | 0x004D9430 | 0x00A92A10 | 0x130 | 0x004D8AC0 to 0x004D9E50 | 23 | still the game's |
 | Cheat tool (building footprint) | 0x004D9E80 | 0x00A92AC0 | 0x38 | 0x004D9E50 to 0x004DA593 | 6 | partly ours: four functions in `ui.tools.zone`; the footprint drawing (0x004D9EE0) and OnMouseMove (0x004DA1B0) stay the game's |
 | Zone | 0x004DAE80 | 0x00A92CA8 | 0x98 | 0x004DA5A0 to 0x004DC1A0 | 25 | ours (`ui.tools.zone`, below) |
@@ -52,7 +54,7 @@ Every city tool is a view input control: a class on the base class below, with a
 
 The network tools are the last two rows, at 0x00660C30 to 0x006625F0. The range 0x004C3730 to 0x004D767F belongs to the query tool.
 
-The classes that are not ours, apart from the two network tools, come to about 375 functions and 114 KB, of which the query tool is 223 functions and 78 KB. The 114 KB is the earlier 126 KB less about 5 KB for the four small classes and about 7 KB for the dispatch, sign removal and Life tools (39 functions), taken from their function sizes. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the terrain brush's cursor, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
+The classes that are not ours, apart from the two network tools, come to about 343 functions and 106 KB, of which the query tool is 223 functions and 78 KB. The 106 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions) and about 8 KB for the label and sign tools (32 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the terrain brush's cursor, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
 
 ## The base class
 
@@ -975,7 +977,7 @@ Log sections:
 
 Not reached:
 
-- Sign marking and removal and the hit branches of SignAt: none of the corpus saves has a sign, so only the no-sign paths run.
+- Sign marking and removal and the hit branches of SignAt: none of the corpus saves has a sign, so this test runs only the no-sign paths. The label and sign tools' test makes a label and a sign and runs this tool on them (see "The label and sign tools: test").
 - The dispatch tool's pick-up, vehicle selection and double-click branches, and its Post function: they need a marker picked from a drawn frame, and the pick reads what the last frame drew. The test sets the held pylon by hand instead.
 - The tool-changed handling when the tool is replaced by the scroll control, and DoMessage's type 0x99EF1143 (the tool never asks for it).
 - PutDown's revoke branch, where a held pylon is put down inside the building it came from: the pylon the test holds has no such building.
@@ -994,3 +996,222 @@ The dispatch step changes the city and the original is noisy after a dispatch (t
 | The full list of groups, test with commits | parted from the original after the first dispatch until `determinism.dispatch_info` was added to the base list; identical with it (see [audio.md](audio.md), "The runs that parted after a dispatch") |
 
 Parity (batch t3b1, 7 days, with the base class's and the small tools' tests): plain 12 of 12 saves identical; with the tests and their commits but without the dispatch step (`OPENSC4_TEST_TOOLS3_SEND=0`) 12 of 12; with the dispatch step and the groups `audio.part5` and `audio.part6` left out 12 of 12, and 3 of 3 on the plopped corpus; all on the first pair. With the dispatch step and the full list of groups 0 of 12 in that batch: every save parted from the original after the dispatch. The cause was the tutorial system reading a record of the called-off dispatch that nobody had filled ([audio.md](audio.md), "The runs that parted after a dispatch"), not the tools' code or the sound code. With `determinism.dispatch_info` in the base list (batch aud9, the dispatch tool's test with its commits, the full list): 12 of 12 and 3 of 3 on the plopped corpus, plain 12 of 12, all on the first pair.
+
+## The label tool
+
+The tool that writes text on the ground. The survey had called it a text decal tool and marked it "guess"; it is the label tool: 0x44 bytes, main vtable 0x00A90528, window procedure part with vtable 0x00A90518 at +0x28, code 0x004BC980 to 0x004BDAFC, 16 functions, group `ui.tools.decal` (src/core/tool_decal.cpp). The constructor is 0x004BD230 (our name `SC4LabelTool::Construct`). The view makes it for its command 0x0B980587, sent by the button 0xCB95412C, with `new` of 0x44 bytes, the constructor with no arguments and the view's slot 0x64 with the operation 2 (src/core/ui_cityview_6.cpp). A label is a text decal prop occupant (`cSC4PropOccupantTextDecal`, 0xBC bytes, kind 0xCB79919B, interface 0x2B3B7D86). It is the "sign on a network" that the sign removal tool also takes.
+
+What it does:
+
+1. Init gives it the ID 0x8B3CE416 and the cursor 0xEB72FEF4, turns the city's signs and labels on (the prop developer's ShowSignsAndLabels with true; this changes a city display setting) and makes the filter (0xC bytes, vtables 0x00A904FC and, at +4, 0x00A904E4), which takes a prop occupant of type 0xA823821E that answers the label interface.
+2. A click on empty ground adds a new decal to the city (the prop manager's AddCityProp, slot 19), opens the text window and, when it ends with text, places the label and sets the text. A click on a label presses it (state 1); letting go without a drag opens the text window for that label.
+3. A move while the label is held (state 2) places it again at the point under the pointer. While idle, the label under the pointer is shown at 0.7 and the one before at 0.5.
+4. Delete, while idle, removes the label under the pointer (RemoveProp, prop manager slot 29). Home (0x24) and End (0x23) turn the label: they step the direction at +0x40 through the table at 0x00A905A0 (3 2, 2 3, 0 1, 1 0) and place it again.
+
+### Where a label goes
+
+Place gives a label its colour, size, position and direction from what is in the cell under it (the report does not say how the position is set on water and open ground, so those rows give no position):
+
+| Cell | Colour | Size | Position and direction |
+| --- | --- | --- | --- |
+| Water (terrain slot 34) | 0.5, 0.5, 1 | 2 | |
+| A network piece with flag 0x40 (rail) | 1, 0.9, 0 | 2 | RailPlacement |
+| Another network piece | 1, 0.9, 0 | 0.8 if the piece has any of the flags 0x403, else 0.64 | RoadPlacement |
+| Open ground | 0.5, 1, 0.5 | 2 | |
+
+RoadPlacement and RailPlacement read the edge value of the traffic network's piece in the cell (the traffic network is the global 0x00B43D54, the city's slot 40, not the network manager) and give a direction from 0 to 3, a shift of plus or minus 4 (road) or 8 (rail), and the cell's centre. The survey had called these three functions "preview geometry". They are logic, and nothing in the tool draws. RailPlacement fills a static table on first use (0x00B2180C, guard bit 0 of 0x00B2182C); ours writes the game's own table and guard.
+
+### The text window
+
+EditText loads the window 0x8A8DFCF5 of the layout {0, 0x96A006B0, 0x6B704690} under the window at 0x00B43DC8, makes the tool's +0x28 part its window procedure, fills the edit field 0xAA4149BF with the label's text, selects it all, sets the length limit to 0x20 and runs the window manager's modal loop (slot 0xA4). The text is kept in the decal's game string at +0x6C.
+
+| Ended with | Result |
+| --- | --- |
+| 0x8A8DFD4E (OK) | the field's text goes to the label; empty text means the label does not stay |
+| 0x8A8DFD4A (cancel) | the label does not stay and the caller removes it; cancelling the edit of an existing label deletes that label |
+| 0x6BA18178 or anything else | unchanged, the label stays |
+
+The window procedure ends the run on those three buttons, and on Enter (message 0x1A, 4, key 0x0D) as OK.
+
+### Pieces
+
+One group, `ui.tools.decal`, PostAppInit, off by default, 16 hooks, all the tool's functions. The three jumps and the thunk at 0x004BD280 to 0x004BD2A0 stay the game's (project rule for such tiny code).
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| Init | 0x004BC980 | 3 |
+| FilterIncludes | 0x004BC9B0 | 3 of the filter |
+| DoWinProc (ret 8: window and message) | 0x004BCA10 | 3 of the part at +0x28 |
+| RoadPlacement (ret 8: position and direction) | 0x004BCB00 | |
+| LabelAt (ret 4: a terrain point) | 0x004BCDC0 | |
+| SetLabel (ret 4) | 0x004BCE80 | |
+| RailPlacement (ret 8) | 0x004BCEE0 | |
+| Constructor | 0x004BD230 | |
+| Deleting destructor | 0x004BD2B0 | 26 |
+| Shutdown | 0x004BD2E0 | 4 |
+| Place (ret 0x10: x, y, z by value and the label) | 0x004BD320 | |
+| OnKeyDown | 0x004BD4B0 | 14 |
+| OnMouseMove | 0x004BD5A0 | 20 |
+| EditText (ret 4: the label; returns whether it stays) | 0x004BD6B0 | |
+| OnMouseDownL | 0x004BD890 | 16 |
+| OnMouseUpL | 0x004BDA40 | 18 |
+
+### Fields
+
+| Offset | Field |
+| --- | --- |
+| +0x04 | initialised (set by the base Init) |
+| +0x0C | the tool's ID |
+| +0x10 | the cursor ID |
+| +0x1C | the city view |
+| +0x28 | the window procedure part |
+| +0x2C | state: 0 idle, 1 a label pressed, 2 dragging |
+| +0x30 | the label (referenced); while idle the one under the pointer |
+| +0x34 | three floats: the label's position less the picked point at the press; written and never read |
+| +0x40 | the direction for placing (1 from the constructor) |
+
+### Behaviour as the game has it
+
+- A drag snaps the label to the point under the pointer; the grab offsets at +0x34 are computed and never used.
+- A failed allocation of a new decal is not checked (a null dereference, as in the game).
+- DoWinProc and EditText hand an unset `edit` pointer to GetChildAs, as the game does.
+
+### Left the game's
+
+- The base class's functions the tool shares (see "The base class"), the prop manager, the occupant manager, the traffic network, the renderer's terrain pick, the window manager and its modal loop, the sound service (the sounds 0x2C16DA45 on picking up and 0x2C16DA29 on putting down).
+- Nothing wraps these functions. No wrapper in `src/core/game_*.cpp` has a range or a return-address test that reaches either tool, and neither calls DemolishRegion, PlaceZone or PlaceLot: their changes to the city go through the prop manager's AddCityProp and RemoveProp, which are ours and carry no return-address test.
+
+## The sign tool
+
+The tool that places signs on the terrain, drags them and edits their text in place. The survey had called it a sign text tool and marked it "guess", and it had listed only the typing; it is the whole sign tool: 0x80 bytes, main vtable 0x00A92968, notice target part with vtable 0x00A92958 at +0x28, code 0x004D7AF0 to 0x004D8ABA, 16 functions, group `ui.tools.signtext` (src/core/tool_signtext.cpp). The constructor is 0x004D7F00 (our name `SC4SignPlaceTool::Construct`). The view makes it for its command 0x0B980581, sent by the button 0x0B954123, with `new` of 0x80 bytes, the constructor with no arguments and the view's slot 0x64 with the operation 2. A sign is a prop of 0x590 bytes (kind 0xAB72FBB3, interface 0x4B44FBE2, primary vtable 0x00AA5478, constructor 0x005F5510). The exe has no name string for that class: `SC4TerrainSignProp` is our name, and the survey's `cSC4SignpostOccupant` is unconfirmed.
+
+The 0x004D7AF0 to 0x004D8ABA range also holds six functions that are not the class's: the reference holder helpers 0x004D7B30, 0x004D7B60 and 0x004D7BB0, and the shared string code 0x004D7E50, 0x004D7ED0 and 0x004D8650. They stay the game's, and 0x004D7B60 and 0x004D7ED0 are called by address. So the class has 16 functions and one thunk (the target's adjustor thunk 0x004D7FB0), not the 17 the survey counted.
+
+What it does:
+
+1. Init gives it the ID 0x8B4CE5A0 and the cursor 0x6B72FECF, reads the text encoding (0x00940DA8) into +0x64, takes the clipboard service (0x27EBFFFD, interface 0x07EC0010) into +0x7C, asks the service 0x64063387 for notice 0x0BE10A20 for the part at +0x28, and turns the city's signs and labels on (ShowSignsAndLabels with true).
+2. A click on empty ground adds a new sign to the city at the picked point (the prop manager's AddCityProp), its height the higher of the terrain's height and its slot 29 (GroundHeight), with empty text, and starts editing it (state 3). A click on a sign presses it (state 1), found through the renderer's pick of a model and then the model's owner asked for the sign interface.
+3. A move with a pressed sign starts the drag (state 2) and moves the sign to the terrain point under the pointer plus the grab offset. Letting go puts it down with the put-down sound (0x2C16DA29), or, when it has no text, or when it was only pressed, edits its text (state 3).
+4. While idle, the sign under the pointer becomes the kept one and is marked. Delete (0x2E) removes it (RemoveProp).
+5. A sign whose text is empty is removed from the city whenever the tool lets go of it: SetSign with another sign or with none, Shutdown, and Enter.
+
+The prop developer keeps signs (kind 0xAB72FBB3) and labels in its list at +0xA6C, which is saved. It moves signs with the terrain and drops labels when the network piece in their cell is removed (prop.toml entries at 0x006F5104 and 0x006F5228). A label test followed by bulldozing its road therefore reaches that code too.
+
+### Typing
+
+The view's `WindowCharacter` (0x007E6600, ours) calls the tool's slot 13 with one dword per byte of typed text. The encoding from 0x00940DA8 is the constant 8, which the string helpers at 0x009106A9 to 0x009108ED treat as UTF-8, so text arrives as UTF-8 bytes, one call per byte. A lead byte (0xC0 to 0xFD) with nothing pending is kept at +0x68; the following bytes are added there until the string holds the lead byte's trailing bytes plus one, and then AppendText adds the whole character to the text at +0x3C and +0x68 is cleared. The path for a single-byte encoding (neither 8 nor 100 or above) is translated and cannot run in this build.
+
+OnCharacter returns false unless a text is being edited. While editing:
+
+| Input | Result |
+| --- | --- |
+| 0x1B (Escape as a character) | taken, nothing done |
+| 0x0D (Enter) | the edit ends, SetSign(null), state 0; a sign with empty text is removed |
+| 8 (Backspace) | the last whole character is taken off |
+| another byte below 0x20 | taken and dropped |
+
+OnKeyDown, not editing: Delete with a sign removes it and returns true; any other key returns false. Editing: Escape puts the text the edit began with (+0x50) back into the sign and the text, stays in state 3 and returns false; V (0x56) with the modifier bit of the value 2 set and the bits of the values 1 and 4 clear appends the clipboard's text (service slot 18); every key but Escape returns true.
+
+The length limit: AppendText counts the characters in the text (0x009107D8) and stops before a character only when the count is over 32, so 33 characters fit. A line feed is skipped, and is counted in a paste. There is no limit in bytes; a paste with a cut-off UTF-8 tail would read past the string, and ours does the same. After every change the sign's slot 4 gets the text, which the sign keeps in its game string at +0x98.
+
+The caret is not the tool's. It is the sign's own: its slot 7 (SetEditing) registers with the service 0x86AD10EC for notice 0x80 and keeps a counter at +0xB0 and a caret byte at +0xAD. That code belongs to the prop class and is outside this piece; which clock drives that notice was not read.
+
+### The notice part
+
+Init asks the service 0x64063387 (interface 0xC1085722, slot 5) for notice 0x0BE10A20, and Shutdown gives it back (slot 6). The only sender found is the framework's window code at 0x00993DE0. The handler answers only in state 3: it writes 1 into the answer and the screen point over the middle of the sign's box into the last two words (the camera view's WorldToView, truncated). The survey had read this as placing a text window; the tool has no window. That the notice places the input method's window is a guess; the sender was not traced.
+
+### Pieces
+
+One group, `ui.tools.signtext`, PostAppInit, off by default, 16 hooks, all the tool's functions. The filter is a 0xC byte object with the vtables 0x00A9293C and, at +4, 0x00A92924.
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| QueryInterface (0xE98B2F57 gives the part at +0x28) | 0x004D7AF0 | 0 |
+| Init | 0x004D7BE0 | 3 |
+| FilterIncludes (a prop occupant that answers the terrain sign interface) | 0x004D7CC0 | 3 of the filter |
+| GroundHeight (ret 8: x and z; the result in st(0)) | 0x004D7D20 | |
+| DoNotice (ret 4: the four words of a notice) | 0x004D7D70 | 3 of the part at +0x28 |
+| Constructor | 0x004D7F00 | |
+| SetSign (ret 4) | 0x004D7FC0 | |
+| Deleting destructor | 0x004D80A0 | 26 |
+| Destructor body (jumps to the base destructor 0x005FAFC0; ours pops no argument) | 0x004D80C0 | |
+| Shutdown | 0x004D8130 | 4 |
+| OnMouseDownL | 0x004D81D0 | 16 |
+| OnMouseMove | 0x004D84B0 | 20 |
+| AppendText (ret 4: a string) | 0x004D8670 | |
+| OnMouseUpL | 0x004D8730 | 18 |
+| OnCharacter | 0x004D8830 | 13 |
+| OnKeyDown | 0x004D89D0 | 14 |
+
+### Fields
+
+| Offset | Field |
+| --- | --- |
+| +0x04 | initialised (set by the base Init) |
+| +0x0C | the tool's ID |
+| +0x10 | the cursor ID |
+| +0x1C | the city view |
+| +0x28 | the notice target part |
+| +0x2C | state: 0 idle, 1 a sign pressed, 2 dragging, 3 editing |
+| +0x30 | the sign (referenced; marked through its slot 6) |
+| +0x34, +0x38 | integers: the sign's screen place less the pointer at the press |
+| +0x3C | a game string: the text being edited |
+| +0x50 | a game string: the text the edit began with |
+| +0x64 | the text encoding |
+| +0x68 | a game string: the bytes of a character not yet whole |
+| +0x7C | the clipboard service (referenced) |
+
+The constructor does not set +0x34, +0x38 and +0x64.
+
+### Behaviour as the game has it
+
+- OnMouseDownL never releases the model that the renderer's pick returned on a hit (the sign removal tool does release it). One reference leaks per click on a sign.
+- The state 3 test inside the pick path is dead (state 3 is handled at the top); kept.
+- A dragged sign takes the picked terrain point as its position without GroundHeight; only a new sign gets the height.
+- A failed allocation of a new sign is not checked.
+- QueryInterface with a null `this` writes null and then faults, as the game.
+- The grab offset is the truncated pointer position subtracted as integers (the base class's SetGrabOffset subtracts floats).
+
+### Left the game's
+
+- The base class's functions the tool shares, the five helpers listed above, the prop class (including its caret), the clipboard, the notice service, the string and encoding code at 0x009106A9 to 0x009108ED, 0x00940DA8 and 0x009107D8, the renderer's pick, the prop manager.
+- Nothing wraps these functions (see the label tool).
+
+## The label and sign tools: test
+
+`OPENSC4_TEST_TOOLS4=<day>` (src/core/tool_t4_autotest.cpp, token ` tools4`, eight sub-hash lines `autotest: tools4: ...`). It calls only the game's addresses and the tools' vtable slots, never our functions, so a run with `ui.tools.decal` and `ui.tools.signtext` on and one with them off compare. The tools are made as the view makes them: `new` filled with 0x5A, the constructor, the view's slot 0x64 with 2. Pointers are left out of the hashes, and so are the notice's screen point (it is the camera's), the sign's caret and counter, and the sounds. The paste is not tested.
+
+Without any switch the test leaves the city as it was. Switches:
+
+- `OPENSC4_TEST_TOOLS4_COMMIT=1` adds what changes the city (a tutorial city may hold it back: `OPENSC4_TEST_TUTORIAL_OFF=1`). It leaves one label "Label 2" and one sign "Sign é", and runs the label tool's text window under the modal stand-in (the player reads the edit field, sets its text, sends the tool's window procedure the keyboard message with the real window and answers a button). It also runs the cancel and empty-text variants, which remove their labels, and the Place sweep over every third cell.
+- `OPENSC4_TEST_TOOLS4_REMOVE=1` needs the commit. It makes one extra label and one extra sign and runs the sign removal tool (0x004D76F0, see above) on each.
+- `OPENSC4_TEST_TOOLS4_PARTS=<bits>` picks the parts: 1 the label tool, 2 the sign tool, 4 and 8 their round trips without the commit. The default is 15.
+
+What the parts do:
+
+1. Label: the fields after the constructor and after Init; the filter over every prop and the first trees; the window procedure with no window (the three buttons, another button, another command, Enter, another key, an unknown message); RoadPlacement and RailPlacement by address on every cell; LabelAt on the grid's terrain points; the keys with no label; the handlers at a point off the ground and over the grid of screen points. Then a label of the test's own, added to the city: Place by address, SetLabel, Home and End, LabelAt where it stands, a drag (state 1 set by hand, OnMouseMove twice, OnMouseUpL), the hover over it, Delete.
+2. Sign: the fields, QueryInterface, the filter, GroundHeight on every fourth cell, the notice with nothing edited, the keys and a character while idle, the handlers off the ground and over the grid. Then signs that are gone again when the test ends. A new sign is edited by typing: 'A', 'b', the two bytes of U+00E9 one at a time, Backspace, a tab, the three bytes of U+20AC, a lead byte followed by a letter, Escape as a character, Backspace until nothing is left and once more, 40 letters, two more bytes, a key that is not Escape, V without a modifier, AppendText with a line feed in the text, Escape, and Enter with no text (the sign is removed). A sign typed "D" and ended with Enter stays until SetSign and Delete remove it. A sign typed "Hi" is dragged, pressed and let go (edited again), extended and cut with '!' and Backspace, and removed when the view puts the tool away while it is edited with no text.
+
+Typing, in the original and in ours alike: the text is unchanged after the lead byte 0xC3 and reads "Abé" after 0xA9; Backspace takes the whole character; 40 letters leave 33; a line feed is skipped.
+
+### Why some round trips need an empty cell
+
+Adding and removing a prop makes the original's flammability simulator recalculate (docs/propmgr.md), and that shows in the daily fingerprint's `flam` part. So the round trips without the commit are done only at terrain points under the grid whose 64 m cell of the occupant manager is empty. A city with fewer than two such points gets no round trips without the commit (the first log line says so); the three acceptance saves have 11, 25 and 57.
+
+### The sign removal tool on real objects
+
+The sign removal tool's first run on real objects was in this test. OnMouseMove finds the label and the sign, and OnMouseUpL removes each; it removes both kinds. The original and ours did the same on three saves.
+
+### Not reached
+
+- A sign picked on screen through its model, and the hover in OnMouseMove that finds a sign: the pick reads what the last frame drew, so the test sets the kept sign by hand.
+- The paste, and the single-byte encoding path.
+- DoWinProc ending a real modal run with a real window.
+- RailPlacement's first-use table fill, unless the save has the right rail piece.
+- No coverage run was made.
+
+### Trial results
+
+2026-10-13, 7 days on Making Money d0090, Big City d0000 and Rush Hour d0090, four cases (plain, the test alone, the test with the commit, the test with the commit and the removal), each as the original twice, with all groups ours and with only the tools groups ours. 48 runs, all finished. All four sides were identical in every cell, and the test alone equals the never-run reference.
+
+Parity (batch t4b1, on a5860eb, 7 days): plain 12 of 12 the same, the test alone 12 of 12, the test with the commit and the removal 12 of 12, plopped 3 of 3.

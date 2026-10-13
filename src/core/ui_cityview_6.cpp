@@ -433,12 +433,12 @@ uint8_t __fastcall ProcessCommand(char* self, void*, uint32_t id, void* paramete
 
     case 0x0B980587: {
         void* const memory = New(0x44);
-        SetTool(self, Held(memory ? This<void*>(addr::SC4ViewInputControls_F4BD230, memory) : nullptr), 2);
+        SetTool(self, Held(memory ? This<void*>(addr::SC4LabelTool_Construct, memory) : nullptr), 2);
         break;
     }
     case 0x0B980581: {
         void* const memory = New(0x80);
-        SetTool(self, Held(memory ? This<void*>(addr::SC4ViewInputControls_F4D7F00, memory) : nullptr), 2);
+        SetTool(self, Held(memory ? This<void*>(addr::SC4SignPlaceTool_Construct, memory) : nullptr), 2);
         break;
     }
 

@@ -1735,3 +1735,407 @@ convention = "thiscall"
 signature = "bool (uint32_t id, DispatchInfo* record)"
 expect = "8B 49 20 8B 01 3B C1 56"
 source = "Name from gzcom-dll (cISC4DispatchManager, slot 10 of the vtable 0x00A88108; the header calls the first argument a type, it is the dispatch's ID). Walks the list at +0x20 for the record with that ID (node +0xC) and copies its 0x2C bytes (node +0x8) to the caller's; false and the caller's record untouched when there is none. Of its five callers (0x004447A6, 0x006ACB0C, 0x006DF9DC, 0x006F5A5C, 0x006F620C) only the tutorial system's (0x004447A6, in the handler 0x00444480) does not test the answer. Wrapped by determinism.dispatch_info (src/core/dispatch_info.cpp)."
+
+[[entry]]
+name = "SC4LabelTool::Vtable"
+address = 0x00A90528
+kind = "data"
+source = "Name ours. Main vtable of the label tool (a view input control of 0x44 bytes, ID 0x8B3CE416, constructor 0x004BD230, made by the city view's command 0x0B980587): the jump 0x00580500 to the base QueryInterface at slot 0, Init 0x004BC980 at 3, Shutdown 0x004BD2E0 at 4, OnKeyDown 0x004BD4B0 at 14, OnMouseDownL 0x004BD890 at 16, OnMouseUpL 0x004BDA40 at 18, OnMouseMove 0x004BD5A0 at 20, the deleting destructor 0x004BD2B0 at 26; every other slot the base's or a shared stub."
+
+[[entry]]
+name = "SC4LabelTool::ProcVtable"
+address = 0x00A90518
+kind = "data"
+source = "Name ours. Vtable of the label tool's window procedure part at +0x28, four slots: the thunks 0x004BD2A0, 0x00565580, 0x00565590 and the procedure 0x004BCA10 the text window calls."
+
+[[entry]]
+name = "SC4LabelTool::FilterVtable"
+address = 0x00A904FC
+kind = "data"
+source = "Name ours. Vtable of the label tool's 12-byte occupant filter (slot 3 0x004BC9B0; the rest the filter base's)."
+
+[[entry]]
+name = "SC4LabelTool::FilterVtable4"
+address = 0x00A904E4
+kind = "data"
+source = "Name ours. The label tool filter's second vtable (+4, 6 slots, the filter base's)."
+
+[[entry]]
+name = "SC4LabelTool::Zero"
+address = 0x00B21830
+kind = "data"
+source = "Name ours. A dword of zero-initialised data the label tool copies into the three floats of its grab offset and of the points it hands the renderer's PickTerrain; read by the tool only and written nowhere."
+
+[[entry]]
+name = "SC4LabelTool::RailShifts"
+address = 0x00B2180C
+kind = "data"
+source = "Name ours. Eight floats, a pair of x and z a side (-8 0, 0 -8, 8 0, 0 8), that 0x004BCEE0 fills on its first use and adds up for a label on rail."
+
+[[entry]]
+name = "SC4LabelTool::RailShiftsGuard"
+address = 0x00B2182C
+kind = "data"
+source = "Name ours. A dword whose bit 0 says the table at 0x00B2180C is filled."
+
+[[entry]]
+name = "SC4LabelTool::Turns"
+address = 0x00A905A0
+kind = "data"
+source = "Name ours. Eight dwords, two a direction (3 2, 2 3, 0 1, 1 0): the direction the Home key and the End key turn a label to."
+
+[[entry]]
+name = "SC4LabelTool::Half"
+address = 0x00A904D4
+kind = "data"
+source = "Name ours. The float 0.5 that 0x004BD320 loads as the first colour number of a label on water or on open ground."
+
+[[entry]]
+name = "SC4LabelTool::Init"
+address = 0x004BC980
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 3: unless inited, the ID 0x8B3CE416, the cursor 0xEB72FEF4, the prop developer's ShowSignsAndLabels (0x00B43DB8 slot 8) with true, the base Init. Returns true. Ours in ui.tools.decal (src/core/tool_decal.cpp)."
+
+[[entry]]
+name = "SC4LabelTool::FilterIncludes"
+address = 0x004BC9B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 8B"
+source = "Name ours. Slot 3 of the filter, (occupant), ret 4, this not read: true for an occupant of type 0xA823821E that answers the label interface 0x2B3B7D86. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4LabelTool::DoWinProc"
+address = 0x004BCA10
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 10 8B 07"
+source = "Name ours. Slot 3 of the part at +0x28, (window, message), ret 8, this not read: the text window's procedure. Message 3 with command 0x287259F6 of the buttons 0x8A8DFD4E, 0x8A8DFD4A or 0x6BA18178 ends the modal run with the button (the window manager's slot 9 with 0xF), true; message 0x11 gives the keyboard to the edit field 0xAA4149BF, true; message 0x1A with 4 and key 0x0D ends the run with 0x8A8DFD4E, false. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4LabelTool::RoadPlacement"
+address = 0x004BCB00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 8B 44 24 24 56"
+source = "Name ours. (float* position, int* direction), ret 8, this not read: the direction and shift of a label on a road from the edge value of the traffic network's piece in the position's cell (0x00B43D54 slot 8 with mask 0x40B; the piece's slots 22 and 38), then the position moved to the cell's centre plus the shift. Called by Place only. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4LabelTool::LabelAt"
+address = 0x004BCDC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 57 6A 0C C7"
+source = "Name ours. (float* point), ret 4, this not read: the label standing at a terrain point as its interface 0x2B3B7D86, already released, or null: the occupant manager's GetFirstOccupantByPosition (0x00B43D0C slot 28) with a new filter. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4LabelTool::SetLabel"
+address = 0x004BCE80
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 43 30 56 8B"
+source = "Name ours. (label), ret 4: the label kept at +0x30 changes: the new one gets 0.7 through its slot 10, the old one 0.5, the new one is kept (referenced, the old released). Nothing for the same label. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4LabelTool::RailPlacement"
+address = 0x004BCEE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 83 EC 28 C7"
+source = "Name ours. (float* position, int* direction), ret 8, this not read: the direction and shift of a label on rail from the edge value for kind 6 of the traffic network's piece at the position (0x00B43D54 slot 7 with mask 0x40 and 1), then the position moved to its cell's centre plus the shift; without a piece only the direction is set to 1. Fills the table 0x00B2180C on first use. Called by Place only. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4LabelTool::DeletingDestructor"
+address = 0x004BD2B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 30 85 C9"
+source = "Name ours. Slot 26, (flags), ret 4: releases the label at +0x30, the base destructor, frees the object when bit 0 is set, returns this. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4LabelTool::Shutdown"
+address = 0x004BD2E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 4: when inited, the label at +0x30 gets 0.5 and is released (field cleared first), then the base Shutdown. Returns true. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4LabelTool::Place"
+address = 0x004BD320
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 55 56 8B 74"
+source = "Name ours. (float x, float y, float z, label), ret 0x10: gives a label the colour (slot 8), size (slot 6), position (its occupant's slot 9) and direction (slot 9) for what is in the position's cell: water (terrain slot 34), rail (a piece with flag 0x40: RailPlacement), another network piece (RoadPlacement) or open ground. Nothing for a null label. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4LabelTool::OnKeyDown"
+address = 0x004BD4B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 0C 83"
+source = "Name ours. Slot 14, (key, modifiers), ret 8: Delete 0x2E removes the label at +0x30 while idle (prop manager slot 29), true; Home 0x24 and End 0x23 turn the direction at +0x40 through the table 0x00A905A0 and place the label again, false. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4LabelTool::OnMouseMove"
+address = 0x004BD5A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B F1"
+source = "Name ours. Slot 20, (x, z, modifiers), ret 0xC: a pressed label starts to be dragged (its slot 7 with true), a dragged one is placed at the terrain point under the pointer, and while idle the label at that point becomes the kept one. Returns true. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4LabelTool::EditText"
+address = 0x004BD6B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 55 57 8B 7C 24"
+source = "Name ours. (label), ret 4: asks for the label's text in the modal window 0x8A8DFCF5 of layout 0x6B704690 (edit field 0xAA4149BF, limit 32, the tool's part at +0x28 as window procedure) and returns whether the label stays: false when the run ended with the cancel button or with OK and an empty text. True without a label or when the window does not load. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4LabelTool::OnMouseDownL"
+address = 0x004BD890
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B F1"
+source = "Name ours. Slot 16, (x, z, modifiers), ret 0xC: a label at the terrain point under the pointer is pressed (state 1, kept, pick-up sound); with none a new text decal (0x005F7D80, 0x005F8300) is added to the city (prop manager slot 19), its text asked for (removed again without one) and it is placed. False without a terrain point. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4LabelTool::OnMouseUpL"
+address = 0x004BDA40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 2C 83 F8"
+source = "Name ours. Slot 18, (x, z, modifiers), ret 0xC: a pressed label has its text asked for (removed when it does not stay), a dragged one stops being dragged (slot 7 with false, put-down sound); state 0 after. Returns true. Ours in ui.tools.decal."
+
+[[entry]]
+name = "SC4SignPlaceTool::Vtable"
+address = 0x00A92968
+kind = "data"
+source = "Name ours. Main vtable of the sign tool (a view input control of 0x80 bytes, ID 0x8B4CE5A0, constructor 0x004D7F00, made by the city view's command 0x0B980581): QueryInterface 0x004D7AF0 at slot 0, Init 0x004D7BE0 at 3, Shutdown 0x004D8130 at 4, OnCharacter 0x004D8830 at 13, OnKeyDown 0x004D89D0 at 14, OnMouseDownL 0x004D81D0 at 16, OnMouseUpL 0x004D8730 at 18, OnMouseMove 0x004D84B0 at 20, the deleting destructor 0x004D80A0 at 26; every other slot the base's or a shared stub."
+
+[[entry]]
+name = "SC4SignPlaceTool::TargetVtable"
+address = 0x00A92958
+kind = "data"
+source = "Name ours. Vtable of the sign tool's notice target part at +0x28, four slots: the thunks 0x004D7FB0, 0x00565580, 0x00565590 and the handler 0x004D7D70."
+
+[[entry]]
+name = "SC4SignPlaceTool::FilterVtable"
+address = 0x00A9293C
+kind = "data"
+source = "Name ours. Vtable of the sign tool's 12-byte occupant filter (slot 3 0x004D7CC0; the rest the filter base's)."
+
+[[entry]]
+name = "SC4SignPlaceTool::FilterVtable4"
+address = 0x00A92924
+kind = "data"
+source = "Name ours. The sign tool filter's second vtable (+4, 6 slots, the filter base's)."
+
+[[entry]]
+name = "SC4SignPlaceTool::Zero"
+address = 0x00B21920
+kind = "data"
+source = "Name ours. A dword of zero-initialised data the sign tool copies into the three floats of the points it hands the renderer's PickTerrain and a sign's GetPosition; read by the tool only and written nowhere."
+
+[[entry]]
+name = "SC4SignPlaceTool::QueryInterface"
+address = 0x004D7AF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 57 2F 8B"
+source = "Name ours. Slot 0, (id, void** out), ret 8: 0xE98B2F57 gives the part at +0x28 with a reference on the object; anything else goes to the base QueryInterface 0x005FB100. Ours in ui.tools.signtext (src/core/tool_signtext.cpp)."
+
+[[entry]]
+name = "SC4SignPlaceTool::Init"
+address = 0x004D7BE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 8A 46"
+source = "Name ours. Slot 3: unless inited, the ID 0x8B4CE5A0, the cursor 0x6B72FECF, the text encoding (0x00940DA8) at +0x64, the framework's service 0x27EBFFFD (interface 0x07EC0010, the clipboard) kept at +0x7C, notice 0x0BE10A20 asked of the service 0x64063387 for the part at +0x28, the prop developer's ShowSignsAndLabels with true, the base Init. Returns true. Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4SignPlaceTool::FilterIncludes"
+address = 0x004D7CC0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 8B"
+source = "Name ours. Slot 3 of the filter, (occupant), ret 4, this not read: true for an occupant of type 0xA823821E that answers the terrain sign interface 0x4B44FBE2. Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4SignPlaceTool::GroundHeight"
+address = 0x004D7D20
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 8B 0D F4 3C"
+source = "Name ours. (float x, float z), ret 8, this not read, a float in st(0): the higher of the terrain's height at the place (0x00B43CF4 slot 13) and its slot 29; the first when they do not compare. Called by OnMouseDownL only. Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4SignPlaceTool::DoNotice"
+address = 0x004D7D70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 56 8B 74 24 2C"
+source = "Name ours. Slot 3 of the part at +0x28, (uint32_t notice[4]), ret 4: for notice 0x0BE10A20 while a text is edited (state 3 with a sign) sets the answered dword and the screen point over the middle of the sign's box (occupant slot 10, the camera view's WorldToView, truncated). Returns false. Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4SignPlaceTool::SetSign"
+address = 0x004D7FC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 55 8B 6C 24 1C"
+source = "Name ours. (sign), ret 4: the sign kept at +0x30 changes: the old one is removed from the city when its text is empty (prop manager slot 29) or else unmarked (its slot 6 with false), the new one kept (referenced, the old released) and marked. Nothing for the same sign. Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4SignPlaceTool::DeletingDestructor"
+address = 0x004D80A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. Slot 26, (flags), ret 4: the destructor 0x004D80C0, frees the object when bit 0 is set, returns this. Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4SignPlaceTool::Destruct"
+address = 0x004D80C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 7C 85 C9"
+source = "Name ours. The destructor: releases the clipboard service at +0x7C, destroys the strings at +0x68, +0x50 and +0x3C, releases the sign at +0x30, then the base destructor. Called by the deleting destructor only. Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4SignPlaceTool::Shutdown"
+address = 0x004D8130
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8A 46 04 84"
+source = "Name ours. Slot 4: when inited, ends an edit (the sign's slots 7 with false and 6 with true), SetSign with null, releases the clipboard service, gives notice 0x0BE10A20 back, the base Shutdown. Returns true. Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4SignPlaceTool::OnMouseDownL"
+address = 0x004D81D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 8B F1 83 7E"
+source = "Name ours. Slot 16, (x, z, modifiers), ret 0xC: ends an edit; else a sign under the pointer (renderer slot 0x104 with a new filter) is pressed (state 1, grab offset at +0x34 and +0x38), and with none a new sign (0x005F5050, 0x005F5510) is added to the city at the terrain point (prop manager slot 19) and its text edited (state 3). False without a terrain point. Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4SignPlaceTool::OnMouseMove"
+address = 0x004D84B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 56 8B F1 83"
+source = "Name ours. Slot 20, (x, z, modifiers), ret 0xC: a pressed sign starts to be dragged, a dragged one moves to the terrain point under the pointer plus the grab offset, and while idle the sign under the pointer becomes the kept one. Returns true. Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4SignPlaceTool::AppendText"
+address = 0x004D8670
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B D9"
+source = "Name ours. (string), ret 4: appends the string's characters (sized by 0x009106A9, line feeds left out) to the text at +0x3C while it has no more than 32 characters (0x009107D8), then hands the text to the sign (its slot 4). Called by OnCharacter and OnKeyDown. Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4SignPlaceTool::OnMouseUpL"
+address = 0x004D8730
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 56 8B F1 8B"
+source = "Name ours. Slot 18, (x, z, modifiers), ret 0xC: a pressed sign, or a dragged one without text, has its text edited (state 3; the text copied to +0x3C and +0x50, the sign's slot 7 with true); a dragged one plays the put-down sound; state 0 unless editing. Returns true. Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4SignPlaceTool::OnCharacter"
+address = 0x004D8830
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 8B F1 83 7E"
+source = "Name ours. Slot 13, (character), ret 4: false unless a text is edited; 0x1B taken; 0x0D ends the edit and lets the sign go; 8 takes the last character off; other bytes below 0x20 dropped; else the byte is gathered at +0x68 until a character of the encoding at +0x64 is whole (0x009108B4, 0x009108ED) and appended (AppendText). Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4SignPlaceTool::OnKeyDown"
+address = 0x004D89D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 57 8B F9 83"
+source = "Name ours. Slot 14, (key, modifiers), ret 8: not editing, Delete 0x2E removes the kept sign (prop manager slot 29), true, anything else false; editing, Escape 0x1B puts the text of +0x50 back, false; V 0x56 with modifier bit 1 alone of bits 0 to 2 appends the clipboard's text (service slot 18); true for every key but Escape. Ours in ui.tools.signtext."
+
+[[entry]]
+name = "SC4RefPtr::ReleaseGuarded"
+address = 0x004D7B60
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 6A FF 68 10 EF"
+source = "Name ours. A reference holder's destructor inside a try block: releases the object when the holder has one; the holder is not cleared. Twenty callers across the exe; left the game's."
+
+[[entry]]
+name = "SC4String::ConstructRepeated"
+address = 0x004D7ED0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 56 8B F1 8B"
+source = "Name ours. (character, count), ret 8: constructs a game string of `count` copies of the byte (0x004D7E50 on the body at +4, then the vtable 0x00A80810 and 0 at +0x10); returns this. Ten callers across the exe; left the game's."
+
+[[entry]]
+name = "RZText::DefaultEncoding"
+address = 0x00940DA8
+kind = "function"
+convention = "cdecl"
+expect = "6A 08 58 C3 8B 01 FF 50"
+source = "Name ours. No arguments: returns 8, the text encoding the sign tool keeps at +0x64 (the value the text helpers at 0x009106A9 to 0x009108ED treat as UTF-8)."
+
+[[entry]]
+name = "RZText::CharacterSize"
+address = 0x009106A9
+kind = "function"
+convention = "cdecl"
+expect = "83 7C 24 08 00 0F 84 85"
+source = "Name ours. (const char* text, uint32_t bytes left, encoding), caller cleans up 12 bytes: the size in bytes of the character at text; 0 when no bytes are left. For encoding 8 (or 0xFFFFFFFE) the UTF-8 lead byte decides (2 to 6 when a continuation byte follows, else 1). Left the game's."
+
+[[entry]]
+name = "RZText::PreviousCharacterSize"
+address = 0x0091073C
+kind = "function"
+convention = "cdecl"
+expect = "53 56 33 DB 57 8B 7C 24"
+source = "Name ours. (const char* end, uint32_t bytes before, encoding), caller cleans up 12 bytes: the size in bytes of the character that ends at `end`; 0 when there are no bytes before. Left the game's."
+
+[[entry]]
+name = "RZText::CountCharacters"
+address = 0x009107D8
+kind = "function"
+convention = "cdecl"
+expect = "53 56 8B 74 24 10 33 DB"
+source = "Name ours. (const char* text, uint32_t bytes, encoding), caller cleans up 12 bytes: the number of characters in the bytes (for encoding 8 the bytes that are not UTF-8 continuation bytes). Left the game's."
+
+[[entry]]
+name = "RZText::IsLeadByte"
+address = 0x009108B4
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 83 F8 FE 74"
+source = "Name ours. (character, encoding), caller cleans up 8 bytes: whether the byte starts a character of several bytes (for encoding 8: 0xC0 to 0xFD). Left the game's."
+
+[[entry]]
+name = "RZText::TrailingBytes"
+address = 0x009108ED
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 83 F8 FE 74"
+source = "Name ours. (character, encoding), caller cleans up 8 bytes: how many bytes follow this first byte in its character (for encoding 8: 0 to 5 by the UTF-8 lead byte). Left the game's."
+
+[[entry]]
+name = "SC4TerrainSignProp::Allocate"
+address = 0x005F5050
+kind = "function"
+convention = "cdecl"
+expect = "A1 70 A9 B0 00 8B 40 08"
+source = "Name ours. (size_t size, not read), caller cleans up 4 bytes: takes an item from the pool at 0x00B0A96C for the sign prop on the terrain (0x590 bytes, kind 0xAB72FBB3, interface 0x4B44FBE2). Left the game's."
+
+[[entry]]
+name = "SC4TerrainSignProp::Construct"
+address = 0x005F5510
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 33 DB 3B"
+source = "Name ours. (most derived flag), ret 4: the constructor of the sign prop on the terrain (primary vtable 0x00AA5478, cSC4PropOccupant part at +4, its text a game string at +0x98); returns this. The sign tool passes 1. Left the game's."

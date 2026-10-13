@@ -465,6 +465,9 @@ add_library(opensc4_core SHARED
   tool_signpick.cpp
   tool_cellpaint.cpp
   tool_t3_autotest.cpp
+  tool_decal.cpp
+  tool_signtext.cpp
+  tool_t4_autotest.cpp
   ui_cityview_1.cpp
   ui_cityview_2.cpp
   ui_cityview_3.cpp
