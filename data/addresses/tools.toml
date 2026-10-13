@@ -2139,3 +2139,469 @@ kind = "function"
 convention = "thiscall"
 expect = "8B 44 24 04 53 33 DB 3B"
 source = "Name ours. (most derived flag), ret 4: the constructor of the sign prop on the terrain (primary vtable 0x00AA5478, cSC4PropOccupant part at +4, its text a game string at +0x98); returns this. The sign tool passes 1. Left the game's."
+
+[[entry]]
+name = "SC4TerraformTool::Vtable"
+address = 0x00A92A10
+kind = "data"
+source = "Name ours. Main vtable of the terraform tool (a view input control of 0x130 bytes, ID 0x68E29401, constructor 0x004D9430, made by the city view's 0x007E5910 with a brush's exemplar ID and whether it is free): QueryInterface 0x00661D70 at slot 0, Init 0x004D9080 at 3, Shutdown 0x004D8DD0 at 4, OnKeyDown 0x004D95D0 at 14, OnKeyUp 0x004D96E0 at 15, OnMouseDownL 0x004D9B90 at 16, OnMouseUpL 0x004D9970 at 18, OnMouseMove 0x004D9D80 at 20, OnMouseExit 0x004D9720 at 22, the deleting destructor 0x004D9950 at 26; every other slot the base's or a shared stub."
+
+[[entry]]
+name = "SC4TerraformTool::TargetVtable"
+address = 0x00A92A00
+kind = "data"
+source = "Name ours. Vtable of the terraform tool's message target part at +0x28, four slots: the thunks 0x00661DB0, 0x00565580, 0x00565590 and DoMessage 0x004D9AC0."
+
+[[entry]]
+name = "SC4TerraformTool::UpdatesPerFlush"
+address = 0x00B097A8
+kind = "data"
+source = "Name ours. uint32, 100 as shipped, tuning property 0x69DB8D00: after more applications of the brush than this the terrain lets its gathered texture updates out (slot 79) and gathers again (slot 78); 0 means no gathering."
+
+[[entry]]
+name = "SC4TerraformTool::Bit1Strength"
+address = 0x00B097AC
+kind = "data"
+source = "Name ours. float 0.25 as shipped, tuning property 0x69DB8D01: the brush strength while modifier bit 1 is held."
+
+[[entry]]
+name = "SC4TerraformTool::Bit1Radius"
+address = 0x00B097B0
+kind = "data"
+source = "Name ours. float 0.25 as shipped, tuning property 0x69DB8D02: the radius scaling while modifier bit 1 is held."
+
+[[entry]]
+name = "SC4TerraformTool::Bit0Strength"
+address = 0x00B097B4
+kind = "data"
+source = "Name ours. float 4.0 as shipped, tuning property 0x69DB8D03: the brush strength while modifier bit 0 is held (and bit 1 is not)."
+
+[[entry]]
+name = "SC4TerraformTool::Bit0Radius"
+address = 0x00B097B8
+kind = "data"
+source = "Name ours. float 1.0 as shipped, tuning property 0x69DB8D04: the radius scaling while modifier bit 0 is held (and bit 1 is not)."
+
+[[entry]]
+name = "SC4TerraformTool::StrengthRate"
+address = 0x00B097BC
+kind = "data"
+source = "Name ours. float 10.0 as shipped: one over tuning property 0x69DB8D05 (seconds). An application's strength is multiplied by the seconds since the one before times this, at most 2."
+
+[[entry]]
+name = "SC4TerraformTool::TuningLoaded"
+address = 0x00B21924
+kind = "data"
+source = "Name ours. A byte: the tuning was loaded; cleared by the callback 0x004D8B70."
+
+[[entry]]
+name = "SC4TerraformTool::Zero"
+address = 0x00B21928
+kind = "data"
+source = "Name ours. A dword of zero-initialised data the tool copies into the three floats of its points before a pick; written nowhere."
+
+[[entry]]
+name = "SC4TerraformTool::ApplyModifiers"
+address = 0x004D8AC0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 E0 00 00 00 8B 91"
+source = "Name ours. (modifiers), ret 4: the parameter block's strength (+0x8C) and radius scaling (+0x90) from the keys' choice (+0xE0, +0xE4), or the tuning pair of modifier bit 1, or else of bit 0. ECX is left as it came and the game's key handlers rely on it. Ours in ui.tools.brush (src/core/tool_brush.cpp), through a thunk that keeps ECX."
+
+[[entry]]
+name = "SC4TerraformTool::CountApplication"
+address = 0x004D8B20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 96 B0 00 00"
+source = "Name ours. No arguments: the frame count at +0x58 cleared, the application count at +0xB0 one up; past the tuning's count the terrain's slot 79, the count cleared, and slot 78 when the tuning's count is not 0 (a jump). Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::TuningReset"
+address = 0x004D8B70
+kind = "function"
+convention = "cdecl"
+expect = "A0 24 19 B2 00 84 C0 B0"
+source = "Name ours. No arguments: clears the loaded byte 0x00B21924, returns true. Registered with the application's slot 69 by Init. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::LoadTuning"
+address = 0x004D8BC0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 8B 0D A8 3C B4"
+source = "Name ours. No arguments: the exemplar of group 0x6534284A, instance 0x88CD66E9 and 1: properties 0x69DB8D00 to 0x69DB8D05 into 0x00B097A8 to 0x00B097BC (the last inverted when above 0). Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::PressAltitude"
+address = 0x004D8CB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 6A 01 8D 54"
+source = "Name ours. (x, z screen ints), ret 8: PickTerrain with the flag 1 and the terrain's GetAltitude at the picked x and z into +0x124; false when nothing is picked. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::CursorPoint"
+address = 0x004D8D10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 55 8B 6C 24"
+source = "Name ours. (x, z screen ints, float point[3] out), ret 0xC: the ground under the pointer (PickTerrain with 0), true; with Caps Lock in a scrub, or without ground (false), where the camera's ray meets the level plane of the pressed altitude. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::Shutdown"
+address = 0x004D8DD0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 04 33"
+source = "Name ours. Slot 4: ends a scrub that is on, gives up the two view messages, hides the effects, lets go of the window manager, the terrain view and the terrain, then the base Shutdown. Returns true. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::PowInt"
+address = 0x004D8EF0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 0C 83 EC 08 85"
+source = "Name ours. (double base, int exponent), the result in ST0: the base to a whole power by squaring, 1.0 for 0; meant for exponents of 0 and above. Its one caller, 0x004D9160, pushes the exponent twice (0x10 bytes of arguments). Left the game's; our UpdateCursor calls it at its address."
+
+[[entry]]
+name = "SC4TerraformTool::SetLooks"
+address = 0x004D8F50
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 83 EC 10 84"
+source = "Name ours. (bool scrubbing), ret 4: the cursor ID for a scrub or the idle tool into +0xFC, both effects dropped and, when the preferences' byte +0x23C is set, made anew by the effects manager's slot 6 from the brush's IDs at +0x30. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::Init"
+address = 0x004D9080
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 3: the tuning when not loaded, the base Init, the terrain with the brush's ten IDs (slot 63) and the terrain view, the window manager, the two view messages 0xA6B79602 and 0xA6B79612, the idle looks, the cursor at +0x100. Returns true. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::UpdateCursor"
+address = 0x004D9160
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 53 8A 5C 24 44"
+source = "Name ours. (const float point[3], bool show), ret 8: keeps the point at +0xF0, places the two effects there (the first scaled by the brush's radius times the radius scaling, the second by 3 over 1.7 to the camera's zoom), starts or stops them, and sets the cursor at +0xFC (shown) or +0x100. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::Destruct"
+address = 0x004D9560
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. The destructor: Shutdown when inited, the queue (0x005650A0), the stopwatches, the effects released, the base destructor (a jump). Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::OnKeyDown"
+address = 0x004D95D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 B8 1B 12 00"
+source = "Name ours. Slot 14, (key, modifiers), ret 8: false unless the tool is the view's current one; with modifier bit 0 the keys F1 to F10 set the strength and the digits the radius scaling to tenths, true; the keys 0x10 and 0x11 apply the modifiers, false. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::OnKeyUp"
+address = 0x004D96E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 10 74"
+source = "Name ours. Slot 15, (key, modifiers), ret 8: the keys 0x10 and 0x11 apply the modifiers and refresh the looks when there is a first effect. Returns false. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::OnMouseExit"
+address = 0x004D9720
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 E8 00 00 00 85 C0"
+source = "Name ours. Slot 22, no arguments: +0x65 cleared and the looks hidden when there is a first effect. Returns true. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::Apply"
+address = 0x004D9740
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 83 EC 24 84"
+source = "Name ours. (bool flush), ret 4: takes the queued stretches whose time has come (all when flushing) and applies the brush along the last of them (the terrain's ApplyBrush with the block at +0x74): the strength scaled by the real time since the last application (not the first of a scrub), the cost withdrawn first when the brush is not free. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::DeletingDestructor"
+address = 0x004D9950
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 08 FC FF FF"
+source = "Name ours. Slot 26, (flags), ret 4: the destructor 0x004D9560, frees the object when bit 0 is set, returns this. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::OnMouseUpL"
+address = 0x004D9970
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 64 84 C0"
+source = "Name ours. Slot 18, (x, z, modifiers), ret 0xC: false when no scrub is on; else the queue applied, the cell cursor put back, the idle looks, the cost indicator cleared, the mouse let go, the frame service told, the terrain's EndBrushScrub and slot 79. Returns true. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::Queue"
+address = 0x004D9A30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 8B F1 57 8D"
+source = "Name ours. (const float from[2], const float to[2]), ret 8: a node of 0x1C bytes (time, the four floats) at the end of the list at +0x128; the time is the stopwatch at +0x108 in milliseconds plus +0x120. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::DoMessage"
+address = 0x004D9AC0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4C 24 0C"
+source = "Name ours. Slot 3 of the part at +0x28, (message), ret 4: the frame service's message 0x86AD10EE keeps a scrub working (every third one queues the last point again; what is due is applied); the view messages 0xA6B79602 and 0xA6B79612 move the looks to where the pointer is when the tool is the current one. Returns true. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::OnMouseDownL"
+address = 0x004D9B90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C A1 28 19 B2 00"
+source = "Name ours. Slot 16, (x, z, modifiers), ret 0xC: false without a view; begins a scrub at the ground under the pointer (the terrain's BeginBrushScrub, the mouse captured, the first application, the frame service asked for its message) unless the brush costs and the funds are not above 0. Returns true. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4TerraformTool::OnMouseMove"
+address = 0x004D9D80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 A1 28 19 B2 00"
+source = "Name ours. Slot 20, (x, z, modifiers), ret 0xC: in a scrub queues and applies the stretch from the last point to the one under the pointer, once between two messages; moves the looks. Returns true. Ours in ui.tools.brush."
+
+[[entry]]
+name = "SC4CameraView::ZoomAndRotation"
+address = 0x007F66A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 8B 54 24 04 89"
+source = "Name ours. (int* zoom out, int* rotation out), ret 8: the camera's +0xC and +0x10. The Renderer's; called by the terraform tool's UpdateCursor."
+
+[[entry]]
+name = "SC4CameraView::RayToLevel"
+address = 0x007F6AB0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 4C 24 08"
+source = "Name ours. (const float origin[3], const float direction[3], float out[3]): the point of the ray at height 0: origin minus direction times origin y over direction y, in x87. The Renderer's; called by the terraform tool's CursorPoint."
+
+[[entry]]
+name = "SC4CameraView::F7F7710"
+address = 0x007F7710
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Placeholder name, not analysed. (float point[3]), ret 4: puts the point's x and z through 0x007F6620 and writes them back. The Renderer's; called by the terraform tool's CursorPoint."
+
+[[entry]]
+name = "SC4ObliterateTool::Vtable"
+address = 0x00A8F6D8
+kind = "data"
+source = "Name ours. Main vtable of the obliterate tool (a view input control of 0xA8 bytes, ID 0xCA58C969, constructor 0x0049CF90, made by the city view's 0x007E9150): QueryInterface 0x00661D70 at slot 0, Init 0x0049D390 at 3, Shutdown 0x0049C8B0 at 4, OnKeyDown 0x0049C790 at 14, the shared stub 0x0049C7B0 (true, ret 0xC) at 16, 18 and 20, the deleting destructor 0x0049D020 at 26; every other slot the base's or a shared stub."
+
+[[entry]]
+name = "SC4ObliterateTool::TargetVtable"
+address = 0x00A8F6C4
+kind = "data"
+source = "Name ours. Vtable of the obliterate tool's message target part at +0x28, four slots: the thunks 0x00661DB0, 0x00565580, 0x00565590 and DoMessage 0x0049D820."
+
+[[entry]]
+name = "SC4ObliterateTool::FilterVtable"
+address = 0x00A8F694
+kind = "data"
+source = "Name ours. Vtable of the obliterate tool's 12-byte occupant filter (slot 4, IsOccupantTypeIncluded, 0x0049C7E0; the rest the filter base's)."
+
+[[entry]]
+name = "SC4ObliterateTool::FilterVtable4"
+address = 0x00A8F67C
+kind = "data"
+source = "Name ours. The obliterate tool filter's second vtable (+4, 6 slots, the filter base's)."
+
+[[entry]]
+name = "SC4ObliterateTool::BlockSize"
+address = 0x00B09530
+kind = "data"
+source = "Name ours. int32, 8 as shipped, tuning property 0x6A5A6700: the side in cells of the blocks the city is demolished in."
+
+[[entry]]
+name = "SC4ObliterateTool::FinaleTime"
+address = 0x00B09534
+kind = "data"
+source = "Name ours. uint32, 250000 as shipped: tuning property 0x6A5A6702 (seconds) times 1000000, truncated: the microseconds of the finale before the whole city is wiped."
+
+[[entry]]
+name = "SC4ObliterateTool::SweepSeconds"
+address = 0x00B21734
+kind = "data"
+source = "Name ours. float: the last time of the curve at 0x00B21740; the sweep ends there."
+
+[[entry]]
+name = "SC4ObliterateTool::TuningLoaded"
+address = 0x00B21738
+kind = "data"
+source = "Name ours. A byte: the tuning was loaded; cleared by the callback 0x0049C7C0."
+
+[[entry]]
+name = "SC4ObliterateTool::SweepCurve"
+address = 0x00B21740
+kind = "data"
+source = "Name ours. A curve object (SC4Curve) loaded from tuning property 0x6A5A6701: blocks demolished over seconds since the tool's Init."
+
+[[entry]]
+name = "SC4ObliterateTool::OnKeyDown"
+address = 0x0049C790
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 04 1B 75 05 8B"
+source = "Name ours. Slot 14, (key, modifiers), ret 8: Escape 0x1B calls the tool's slot 27 (the base's: asks the view to put the tool away). Returns true. Ours in ui.tools.obliterate (src/core/tool_obliterate.cpp)."
+
+[[entry]]
+name = "SC4ObliterateTool::TuningReset"
+address = 0x0049C7C0
+kind = "function"
+convention = "cdecl"
+expect = "A0 38 17 B2 00 84 C0 B0"
+source = "Name ours. No arguments: clears the loaded byte 0x00B21738, returns true. Registered with the application's slot 69 by Init. Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::FilterIncludesType"
+address = 0x0049C7E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 26 89 75"
+source = "Name ours. Slot 4 of the filter, (occupant type), ret 4, this not read: false for 0x74758926 (flora) and 0x69D25C5F, true for every other type. Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::Shutdown"
+address = 0x0049C8B0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 04 33"
+source = "Name ours. Slot 4: gives up message 0xEA623590 and the frame service, stops and releases the finale's effect, releases the zone manager, the occupant manager and the demolition service, HiddenResume, releases the filter, the city's slot 103 and the situation manager's switch put back, the mouse let go, the base Shutdown. Returns true. Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::LoadTuning"
+address = 0x0049C9B0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 8B 0D A8 3C B4"
+source = "Name ours. No arguments: the property holder of group 0x6534284A, instance 0x7A4A8458 and 0xCA5A576F: property 0x6A5A6700 into 0x00B09530, the curve 0x6A5A6701 into 0x00B21740 with its last time into 0x00B21734, 0x6A5A6702 times 1000000 into 0x00B09534. Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::Post"
+address = 0x0049CA70
+kind = "function"
+convention = "cdecl"
+expect = "57 8B 3D CC 3C B4 00 85"
+source = "Name ours. (type, three numbers): posts a framework message with the type and the numbers through the message server (slot 4 with 0). Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::End"
+address = 0x0049CC30
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 44 B8 04 00 00 00"
+source = "Name ours. No arguments: unless the state at +0x44 is 4 already, sets it to 4, calls the tool's slot 27 and posts message 0xEA65224E. Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::StartEffect"
+address = 0x0049CC60
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D 1C 3D B4 00 83 EC"
+source = "Name ours. (const char* name, const float place[2], float lift, bool keep, effect** out): an effect by name from the effects manager (0x00B43D1C slot 7), placed at x, the terrain's altitude plus lift, z (slot 8), started (slot 3 with 0), and released again unless kept. Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::StartFinale"
+address = 0x0049CD90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 57 C7"
+source = "Name ours. No arguments: state 2, the finale's time cleared, the effect obliterate_finale in the middle of the city kept at +0x98 and given message 0xEA623590 with the tool (its slot 10). Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::AfterWipe"
+address = 0x0049CE20
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours. (microseconds), ret 4: state 3: past 20000000 microseconds since the wipe the effect is stopped and released; without an effect the scene ends as 0x0049CC30. Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::DemolishRect"
+address = 0x0049CEA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 8B 44 24 2C 56"
+source = "Name ours. (const int rect[4], bool dezone), ret 8: DemolishRegion (1, a full cell region of the rectangle, 0, 0x2000, 0, the tool's filter, five zeros) and with dezone the zone manager's PlaceZone (region, 0, 1, 1, 1, 1, four zeros). Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::DeletingDestructor"
+address = 0x0049D020
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 26, (flags), ret 4: Shutdown when inited, the iterator's list at +0x60 freed, the base destructor, frees the object when bit 0 is set, returns this. Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::FinaleTick"
+address = 0x0049D070
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours. (microseconds), ret 4: state 2: when the finale has lasted the time at 0x00B09534: state 3, the occupant manager's RemoveOccupants (filter, 1, 0), the whole city demolished and dezoned (0x0049CEA0 with 1), +0x94 cleared. Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::BlockHasOccupants"
+address = 0x0049D0E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 56 8B F1 8B"
+source = "Name ours. (const int rect[4]), ret 4: whether the occupant manager's slot 40 (list, low cell, high cell, the tool's filter, 1) finds anything in the rectangle; the list is given back (slot 48) and destroyed. Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::Init"
+address = 0x0049D390
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8A 46 04 84"
+source = "Name ours. Slot 3: the tuning when not loaded, the base Init, the mouse captured, the city's slot 104, the filter, the city's size, HiddenPause, the three services, the frame service under 0xC0, the block iterator at +0x48 restarted with 1 (a list shuffled with rand), message 0xEA623590 asked for, state 1, the situation manager's switch kept at +0xA4 and turned off, messages 0xAA650861 (1, 0, 0) and 0x2A611B51 posted. Returns true. Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::SweepTick"
+address = 0x0049D5A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 60 56 57 8B F9 8B"
+source = "Name ours. No arguments: state 1: the blocks the curve asks for at the seconds since Init are taken from the iterator and demolished (DemolishRegion as 0x0049CEA0, no dezoning) with the effect sparkles_on_demolish; past the curve's last time or without blocks left the finale begins (0x0049CD90). Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4ObliterateTool::DoMessage"
+address = 0x0049D820
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Name ours. Slot 3 of the part at +0x28, (message), ret 4: the frame service's message 0x86AD10EE adds its microseconds (slot 14) to +0x78 and does the state's step (1 0x0049D5A0, 2 0x0049D070, 3 0x0049CE20; nothing in 4); message 0xEA623590 releases the finale's effect and ends the scene. Returns true. Ours in ui.tools.obliterate."
+
+[[entry]]
+name = "SC4Curve::LastX"
+address = 0x005F42E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 39 01 75 05 32"
+source = "Name ours. (float* out), ret 4: the x of the curve's last point into out, true; false and nothing written for a curve without points."
+
+[[entry]]
+name = "CRT::getptd"
+address = 0x009F7604
+kind = "function"
+convention = "cdecl"
+expect = "53 56 FF 15 04 03 A8 00"
+source = "Name by use. No arguments: the calling thread's data block of the statically linked C runtime (made when the thread has none); the state of rand() is the dword at +0x14 (srand 0x009EFB92 and rand 0x009EFB9F read and write it there). Left the game's; the tools5 test keeps and puts back the state around the obliterate tool's Init, which shuffles with rand()."

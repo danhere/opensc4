@@ -1,6 +1,6 @@
 # The city view's tools
 
-The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool, the level terrain tool, the dispatch tool, the sign removal tool, the Life tool, the label tool and the sign tool. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
+The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool, the level terrain tool, the dispatch tool, the sign removal tool, the Life tool, the label tool, the sign tool, the terraform tool and the obliterate tool. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
 
 | Tool | State |
 | --- | --- |
@@ -16,6 +16,8 @@ The view input controls that the city view makes current while the player holds 
 | Life tool (the cheat GOL) | ours (`ui.tools.cellpaint`, below) |
 | Label tool | ours (`ui.tools.decal`, below) |
 | Sign tool | ours (`ui.tools.signtext`, below) |
+| Terraform tool | ours (`ui.tools.brush`, below) |
+| Obliterate tool | ours (`ui.tools.obliterate`, below) |
 | Base class | ours (`ui.tools.base`, below) |
 
 ## The tool classes
@@ -29,7 +31,7 @@ Every city tool is a view input control: a class on the base class below, with a
 | MySim dispatch tool | 0x00439E50 | 0x00A85998 | 0x90 | 0x00439380 to 0x00439F7E | | ours (same groups) |
 | MySim move-in tool | 0x00439FC0 | 0x00A85A20 | 0x4C | 0x00439FC0 to 0x0043A724 | | ours (same groups) |
 | Microphone tool (the MySim street sim's advisor) | 0x0043E760 | 0x00A85F40 | 0x30 | 0x0043E740 to 0x0043EB90 | | ours (`simulators.mysim_agents.street_tool`) |
-| Obliterate city tool (strings obliterate_finale, sparkles_on_demolish) | 0x0049CF90 | 0x00A8F6D8 | 0xA8 | 0x0049C790 to 0x0049D8A8 | 18 | still the game's |
+| Obliterate city tool (strings obliterate_finale, sparkles_on_demolish) | 0x0049CF90 | 0x00A8F6D8 | 0xA8 | 0x0049C790 to 0x0049D8A8 | 18 | ours (`ui.tools.obliterate`, below) |
 | Scroll drag tool (right button drag; made by 0x007E6A00) | 0x004B7DC0 | 0x00A90040 | 0x48 | 0x004B7DC0 to 0x004B8479 | 8 | ours (`ui.tools.small1`, below) |
 | Mission icon click control (a persistent control the view makes at city load, 0x007ED0F0) | 0x004B8690 | 0x00A900D8 | 0x3C | 0x004B84B0 to 0x004B8822 | 9 | ours (`ui.tools.small1`, below) |
 | Bulldoze | 0x004B9070 | 0x00A901A0 | 0xD8 | 0x004B8830 to 0x004B9D56 | 18 | ours (`ui.tools.bulldoze`, below) |
@@ -43,7 +45,7 @@ Every city tool is a view input control: a class on the base class below, with a
 | Query tool (`cSC4ViewInputControlQuery`; strings Query.txt, "Query cell (%d, %d)") | 0x004C4590 | 0x00A90A88 | 0xA0 | 0x004C3730 to 0x004D767F | 223 | still the game's; not a network tool |
 | Sign removal tool (removes signs; the survey had called it a pick tool) | 0x004D76F0 | 0x00A928A0 | 0x30 | 0x004D7680 to 0x004D7AE2 | 8 | ours (`ui.tools.signpick`, below) |
 | Sign tool (places signs, drags them and edits their text; the survey had called it a sign text tool) | 0x004D7F00 | 0x00A92968 | 0x80 | 0x004D7AF0 to 0x004D8ABA | 16 | ours (`ui.tools.signtext`, below) |
-| Terrain brush tool | 0x004D9430 | 0x00A92A10 | 0x130 | 0x004D8AC0 to 0x004D9E50 | 23 | still the game's |
+| Terraform tool (the terrain brush tool) | 0x004D9430 | 0x00A92A10 | 0x130 | 0x004D8AC0 to 0x004D9E50 | 22 | ours (`ui.tools.brush`, below) |
 | Cheat tool (building footprint) | 0x004D9E80 | 0x00A92AC0 | 0x38 | 0x004D9E50 to 0x004DA593 | 6 | partly ours: four functions in `ui.tools.zone`; the footprint drawing (0x004D9EE0) and OnMouseMove (0x004DA1B0) stay the game's |
 | Zone | 0x004DAE80 | 0x00A92CA8 | 0x98 | 0x004DA5A0 to 0x004DC1A0 | 25 | ours (`ui.tools.zone`, below) |
 | U-Drive-It driving control (made by the park automaton 0x00506850, not by the view) | 0x00565480 | 0x00A9D9B0 | 0xC0 | 0x00562C90 to 0x00566D55 | 45 | still the game's |
@@ -54,7 +56,7 @@ Every city tool is a view input control: a class on the base class below, with a
 
 The network tools are the last two rows, at 0x00660C30 to 0x006625F0. The range 0x004C3730 to 0x004D767F belongs to the query tool.
 
-The classes that are not ours, apart from the two network tools, come to about 343 functions and 106 KB, of which the query tool is 223 functions and 78 KB. The 106 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions) and about 8 KB for the label and sign tools (32 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the terrain brush's cursor, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
+The classes that are not ours, apart from the two network tools, come to about 302 functions and 97 KB, of which the query tool is 223 functions and 78 KB. The 97 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions) and about 9 KB for the terraform and obliterate tools (40 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
 
 ## The base class
 
@@ -1215,3 +1217,253 @@ The sign removal tool's first run on real objects was in this test. OnMouseMove 
 2026-10-13, 7 days on Making Money d0090, Big City d0000 and Rush Hour d0090, four cases (plain, the test alone, the test with the commit, the test with the commit and the removal), each as the original twice, with all groups ours and with only the tools groups ours. 48 runs, all finished. All four sides were identical in every cell, and the test alone equals the never-run reference.
 
 Parity (batch t4b1, on a5860eb, 7 days): plain 12 of 12 the same, the test alone 12 of 12, the test with the commit and the removal 12 of 12, plopped 3 of 3.
+
+## The terraform tool
+
+The tool that raises and lowers the ground while the button is held. The survey had called it the terrain brush tool; the view makes it for the terraform commands, with a brush ID and a flag that says whether the brush is free. It is 0x130 bytes, main vtable 0x00A92A10, message target part with vtable 0x00A92A00 at +0x28, code 0x004D8AC0 to 0x004D9E50, 22 functions, group `ui.tools.brush` (src/core/tool_brush.cpp). The constructor is 0x004D9430 (our name `SC4TerraformTool::Construct`). The view's StartTool130 (0x007E5910, ours) makes it with `free` = 1 for command 0x4A2B2462 and layout button 0x899231E6 (god mode), and with `free` = 0 for command 0x8A313C52, button 0x0A32DDD2 and the three fixed brushes 0x0A33E37B, 0xEA33E2FD and 0x4A524342 (mayor mode, which costs money).
+
+What it does:
+
+1. A press on the ground (OnMouseDownL) picks the terrain point, records the altitude there, and starts a scrub. The tool captures the pointer and shows its looks (two effects and a cursor, chosen by brush ID from the terrain).
+2. Every application is one call of the terrain's ApplyBrush (slot 57) with the brush parameters at +0x74. The first application of a scrub is made at the press. Moves queue a stretch from the last point to the new one, and a move is applied at most once between two frame messages.
+3. While the button is held, every third frame message without a move queues the last point again, so a brush held still keeps digging at frame cadence.
+4. A paid brush takes its price from the budget at each application. The price is the cost per application times the strength, rounded; a refusal by the budget ends the application.
+5. Letting go (OnMouseUpL) ends the scrub, takes the tool off the frame service and flushes the terrain's textures. The texture flush also happens on its own after a fixed number of applications (the first tuning value below).
+6. With Caps Lock on, the scrub follows the level plane of the altitude at the press, not the ground.
+
+The keys (OnKeyDown, with the modifier bit of the value 1): F1 to F10 set the strength 0.1 to 1.0 and the digits 1 to 9 and 0 set the radius scaling 0.1 to 1.0. Which key each modifier bit is has not been checked (shift and control are assumed from the key codes 0x10 and 0x11), so the spec names the bits neutrally.
+
+### Pieces
+
+One group, `ui.tools.brush`, PostAppInit, off by default, 22 hooks, all the tool's functions.
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| ApplyModifiers (ret 4; hooked through a naked thunk that keeps ECX, because two callers use ECX after the call) | 0x004D8AC0 | |
+| CountApplication | 0x004D8B20 | |
+| TuningReset (cdecl callback) | 0x004D8B70 | |
+| LoadTuning (cdecl) | 0x004D8BC0 | |
+| PressAltitude (ret 8: x and z) | 0x004D8CB0 | |
+| CursorPoint (ret 0xC: x, z and a result of three floats) | 0x004D8D10 | |
+| Shutdown | 0x004D8DD0 | 4 |
+| SetLooks (ret 4: whether scrubbing) | 0x004D8F50 | |
+| Init | 0x004D9080 | 3 |
+| UpdateCursor (ret 8: a point of three floats and whether to show) | 0x004D9160 | |
+| Constructor (ret 8: brush and free) | 0x004D9430 | |
+| Destructor body (jumps to the base destructor) | 0x004D9560 | |
+| OnKeyDown | 0x004D95D0 | 14 |
+| OnKeyUp | 0x004D96E0 | 15 |
+| OnMouseExit | 0x004D9720 | 22 |
+| Apply (ret 4: whether to flush) | 0x004D9740 | |
+| Deleting destructor | 0x004D9950 | 26 |
+| OnMouseUpL | 0x004D9970 | 18 |
+| Queue (ret 8: from and to, two floats each) | 0x004D9A30 | |
+| DoMessage | 0x004D9AC0 | 3 of the part at +0x28 |
+| OnMouseDownL | 0x004D9B90 | 16 |
+| OnMouseMove | 0x004D9D80 | 20 |
+
+Two functions in the range are not in the group. 0x004D8B90 is the terrain's brush parameters constructor (an entry in terrainsim4.toml, called from 0x006F37BF and 0x0074AA06 in the terrain code), not the tool's. 0x004D8EF0 (PowInt, a power function in x87 that serves only the effect's zoom scale) is called by address: it has one caller, and calling it gives the same floating point for free. The survey's count of 23 included PowInt; the class itself has 22 functions.
+
+UpdateCursor and CursorPoint are translated: the cursor is a few virtual calls on an effect object plus one camera getter, and CursorPoint is a terrain pick or a camera ray onto a level plane. Neither draws.
+
+### Fields
+
+| Offset | Field |
+| --- | --- |
+| +0x24 | byte: the terrain view's cell cursor state saved for the scrub |
+| +0x28 | the message target part |
+| +0x2C | brush ID |
+| +0x30 to +0x54 | ten IDs from the terrain's slot 63: [0, 1] and [4, 5] the two effects while scrubbing, [2, 3] and [6, 7] the two effects while idle, [8] and [9] the cursor while scrubbing and idle |
+| +0x58 | frame messages since the last application |
+| +0x5C, +0x60, +0x70 | the terrain, the terrain view, the window manager |
+| +0x64 | scrubbing |
+| +0x65 | pointer inside |
+| +0x68, +0x6C | the last scrub point (x, z) |
+| +0x74 to +0xAB | the brush parameters: from and to (x, z each), zoom -1 at +0x84, redisplay 1 at +0x88, strength at +0x8C, radius scaling at +0x90, message data at +0x94 (3, then 1 free or 2 paid), altitude at +0xA8 (100, then the pressed point's y) |
+| +0xAC | a move was applied since the last message |
+| +0xB0 | applications since the texture flush |
+| +0xB4 | free |
+| +0xB8 | 64-bit integer: spent in this scrub |
+| +0xC0 | the real-time stopwatch (mode 3, microseconds) |
+| +0xD8 | "first application of the scrub" |
+| +0xDC | float 1.0, read nowhere |
+| +0xE0, +0xE4 | the strength and the radius scaling the keys set |
+| +0xE8, +0xEC | the two effects (pointers) |
+| +0xF0 | the last looks point (three floats) |
+| +0xFC, +0x100 | the cursor when shown and when hidden |
+| +0x108 | the second stopwatch (mode 4, milliseconds) |
+| +0x120 | the queue's delay, always 0 |
+| +0x124 | the altitude at the press |
+| +0x128 | the queue's list sentinel; the nodes are 0x1C bytes (next, previous, time, four floats) |
+
+### Tuning
+
+LoadTuning reads the property group 0x6534284A, instance 0x88CD66E9 (language 1), into six globals. The exe's own defaults, and the values the shipped exemplars give:
+
+| Global | Meaning | Exe default | Loaded |
+| --- | --- | --- | --- |
+| 0x00B097A8 | applications per texture flush | 100 | 1000 |
+| 0x00B097AC, 0x00B097B0 | strength and radius scaling for the modifier bit of the value 2 | 0.25, 0.25 | 0.25, 0.8 |
+| 0x00B097B4, 0x00B097B8 | the same for the modifier bit of the value 1 | 4.0, 1.0 | 2.0, 2.0 |
+| 0x00B097BC | strength rate, one over property 0x69DB8D05 | 10.0 | 10 |
+
+### Clocks
+
+The terrain result of a scrub depends on real time in the original, and it is not on sim time.
+
+- **Stopwatch +0xC0 (microseconds).** Read in Apply and restarted there. For every application except the first of a scrub, the strength is the base strength times the smaller of (elapsed seconds times the rate) and 2.0. With the rate of 10, 100 ms between applications gives the factor 1.0, and 200 ms or more the cap of 2.0. A paid brush's price follows the same factor.
+- **Stopwatch +0x108 (milliseconds).** Started in OnMouseDownL, read in Queue and Apply. It only stamps the queued stretches. Since the delay at +0x120 is always 0, every stretch is due at once, so no outcome depends on it.
+- **The frame service (0x86AD10EC, code 0xC0).** The frame messages above.
+- 0x004D8AC0 to 0x004D9E50 is in none of the `sim_timers` owner ranges, so the stopwatches read the same clock in the original and in ours. If the tool is ever to be deterministic under the harness, `sim_timers::Claim` on +0xC0 is the lever; nothing claims it now.
+
+There are no random draws in the tool.
+
+### Behaviour as the game has it
+
+- Shutdown releases an effect only when it is shown, and the second effect's block releases the first effect's pointer again (0x004D8E88). The destructor releases both.
+- Shutdown does not take the tool off the frame service; only OnMouseUpL does.
+- Apply uses the budget without a null test.
+- DoMessage hands the window manager two out slots, one unset and one holding the message pointer.
+- Brush type 5 (0x8A31301C) is not in the terrain's brush table; the lookup says not found and the cost is the default of 32.
+- OnKeyDown on a tool the view has put away crashes the original (0x005FB196): IsCurrent reads the view pointer that the base class's Shutdown cleared. Ours does the same; the test does not do it.
+- The OnMouseMove inside a scrub asks the real keyboard whether Caps Lock is on. With Caps Lock on, both sides take the level plane path and the terrain result changes.
+
+### Left the game's
+
+- PowInt (0x004D8EF0), the base class's functions the tool shares (see "The base class"; the QueryInterface at 0x00661D70 is shared with the obliterate tool), the terrain's ApplyBrush and the other terrain slots, the effects manager and the effects, the camera getters (0x007F66A0, 0x007F6AB0, 0x007F7710), the budget, the window manager.
+- Nothing wraps these functions. No wrapper in `src/core/game_*.cpp` has a range or a return-address test that reaches the tool.
+
+## The obliterate tool
+
+The tool that wipes the city. The view makes it after the question window 0x2A41436C is answered 0x6A41BBB5 (AskAndStartTool, 0x007E9150, ours). It takes no clicks: it runs the "wipe the city" scene off the frame service's message. It is 0xA8 bytes, main vtable 0x00A8F6D8, message target part with vtable 0x00A8F6C4 at +0x28, code 0x0049C790 to 0x0049D8A8, 18 functions, group `ui.tools.obliterate` (src/core/tool_obliterate.cpp). The constructor is 0x0049CF90 (our name `SC4ObliterateTool::Construct`).
+
+**This tool ends by rewriting the save on disk.** When the scene is over, End (0x0049CC30) posts the message 0xEA65224E. The application handles it with its Obliterate (0x00454E50, `ui_app_5.cpp`): it writes the city to a temporary file, destroys the city, deletes the city's file and saves again under the old path. Anything that reaches End, AfterWipe (0x0049CE20) or the tool's message 0xEA623590 destroys the file the city was loaded from. The test (below) keeps away from it.
+
+What it does:
+
+1. Init captures the mouse, turns off the city's saving (slot 104), pauses the simulator (HiddenPause), turns the situation manager off, registers with the frame service, shuffles the list of blocks, and posts 0xAA650861 (1, 0, 0) and 0x2A611B51 (the audio code handles both). It does this in every run, test or not.
+2. State 1, the sweep: on each frame message, DemolishRegion(1, the block's region, 0, 0x2000, 0, the filter, 0 five times) on as many blocks as the curve of blocks over seconds asks for, with the effect `sparkles_on_demolish`.
+3. State 2, the finale: the effect `obliterate_finale`. After the tuning's time, RemoveOccupants(filter, 1, 0), DemolishRegion on the whole city, and PlaceZone(region, 0, 1, 1, 1, 1, 0, 0, 0, 0), which dezones everything.
+4. State 3, the wipe is done: it waits for the message 0xEA623590 from the effect, or 20 seconds.
+5. State 4, End: PutAway, and posting 0xEA65224E.
+
+Terrain and flora are not touched. The filter (0xC bytes, vtables 0x00A8F694 and, at +4, 0x00A8F67C) refuses types 0x74758926 (flora) and 0x69D25C5F. Escape (OnKeyDown 0x1B) puts the tool away mid-sweep and leaves a half-demolished city, as in the game.
+
+### Pieces
+
+One group, `ui.tools.obliterate`, PostAppInit, off by default, 18 hooks.
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| OnKeyDown (Escape calls slot 27, PutAway) | 0x0049C790 | 14 |
+| TuningReset (cdecl callback) | 0x0049C7C0 | |
+| FilterIncludesType (ret 4) | 0x0049C7E0 | 4 of the filter |
+| Shutdown | 0x0049C8B0 | 4 |
+| LoadTuning (cdecl) | 0x0049C9B0 | |
+| Post (cdecl: type and three words) | 0x0049CA70 | |
+| End | 0x0049CC30 | |
+| StartEffect (cdecl, 5 arguments: name, place, lift, keep, out) | 0x0049CC60 | |
+| StartFinale | 0x0049CD90 | |
+| AfterWipe (ret 4: microseconds) | 0x0049CE20 | |
+| DemolishRect (ret 8: a rectangle and whether to dezone) | 0x0049CEA0 | |
+| Constructor | 0x0049CF90 | |
+| Deleting destructor | 0x0049D020 | 26 |
+| FinaleTick (ret 4: microseconds) | 0x0049D070 | |
+| BlockHasOccupants (ret 4: a rectangle) | 0x0049D0E0 | |
+| Init | 0x0049D390 | 3 |
+| SweepTick | 0x0049D5A0 | |
+| DoMessage | 0x0049D820 | 3 of the part at +0x28 |
+
+Left the game's inside the range: the stub 0x0049C7B0 (it returns true; slots 16, 18 and 20 hold it, and five other classes' vtables do too), and the foreign code of the tract iterator (0x0049C800, 0x0049C820 SetBounds, 0x0049C860, 0x0049CAF0, 0x0049CB10 Next, 0x0049CBE0 the rand() shuffle, 0x0049CF50, 0x0049D0C0 and 0x0049D1C0 Restart). The iterator is not hooked anywhere; the tool calls Next and Restart by address and writes the inlined constructor and SetBounds field by field, as the original does.
+
+### Fields
+
+| Offset | Field |
+| --- | --- |
+| +0x28 | the message target part |
+| +0x2C | the filter (0xC bytes) |
+| +0x30, +0x34, +0x38 | the occupant manager, the zone manager, the demolition service |
+| +0x3C, +0x40 | the city's last cell along x and along z |
+| +0x44 | state: 0 made, 1 sweep, 2 finale, 3 wiped, 4 over |
+| +0x48 to +0x77 | the tract iterator over the blocks |
+| +0x78 | microseconds since Init |
+| +0x7C | microseconds of the finale |
+| +0x80 to +0x8C | the city's rectangle |
+| +0x90 | blocks asked for so far |
+| +0x94 | microseconds since the wipe |
+| +0x98 | the finale effect |
+| +0x9C | blocks demolished |
+| +0xA0 | empty blocks in a row |
+| +0xA4 | the situation manager's switch before Init |
+
+### Tuning
+
+LoadTuning reads the property group 0x6534284A, instances 0x7A4A8458 and 0xCA5A576F:
+
+| Global | Meaning | Exe default | Loaded |
+| --- | --- | --- | --- |
+| 0x00B09530 | block side, in cells | 8 | 4 (1024 blocks on the tutorial cities) |
+| 0x00B21740 and 0x00B21734 | the curve of blocks over seconds, and its last x | | sweep 10 seconds |
+| 0x00B09534 | the finale, in microseconds | 250000 | 10 seconds |
+
+### Clocks and random numbers
+
+- There is no stopwatch. All timing is the frame message's slot 14 value, added into +0x78. It is microseconds by the arithmetic (times 1e-6 against curve seconds; tuning seconds times 1e6; the limit of 20000000 in state 3). It is real frame time, so how many blocks each message takes, and how the DemolishRegion calls are batched, vary from run to run. The end state (everything gone and dezoned) does not.
+- Init calls the iterator's Restart in list mode, which shuffles the blocks with the C runtime's `rand()` (0x0049CBE0): one draw per block after the first, from the sequence the simulation shares. No generator objects are made, so no `fixed_seed::SiteOverride` is needed.
+
+### Behaviour as the game has it
+
+- Post uses a message that failed to allocate unchecked (it crashes as the game would).
+- Init uses the city, the filter and the result of operator new unchecked.
+- LoadTuning's sweep seconds stay unset in the game when property 0x6A5A6702 is missing; ours start at 0.
+- SweepTick takes the cell region apart in line, where DemolishRect calls 0x00441A60.
+
+### Left the game's
+
+- The stub and the iterator code above, the demolition service, the zone manager, the occupant manager, the situation manager, the effects, the frame service, the application's Obliterate.
+- Wrappers: `game.bulldoze` detours DemolishRegion and tests the return address against [0x004B8830, 0x004B9E20); the tool's calls return to 0x0049CF0F and 0x0049D77D, outside it, and they pass a filter and flags 0x2000, so no branch of the wrapper applies. `game.dezone` tests PlaceZone callers against [0x004DA7A0, 0x004DC1A0); the tool's call returns to 0x0049CF36, outside it. `game.quiet.demolish` is not reached (the flags' low byte is 0). No marking is needed.
+
+## The terraform and obliterate tools: test
+
+`OPENSC4_TEST_TOOLS5=<day>` (src/core/tool_t5_autotest.cpp, token ` tools5` in the fingerprint line, details on the log lines `autotest: tools5: ...`). It calls only the game's addresses and the tools' vtable slots, never our functions, so a run with `ui.tools.brush` and `ui.tools.obliterate` on and one with them off compare. Without any further switch the test leaves the city as it was.
+
+**The test never reaches the obliterate tool's End.** End, AfterWipe and the tool's message 0xEA623590 are not called. In the wipe leg the test sets the state of the put-away tool to 4 (End does nothing then), keeps a reference to the tool (a deliberate 0xA8-byte leak, so the tool is never freed) and listens for 0xEA65224E for the rest of the run. The last log line says how often it came: "the day after: message 0xEA65224E came 0 times". A token with "SCENEOVER" on the fingerprint line would say it came.
+
+Switches:
+
+- `OPENSC4_TEST_TOOLS5_PARTS=<bits>`: 1 the terraform tool, 2 the obliterate tool. The default is 3.
+- `OPENSC4_TEST_TOOLS5_COMMIT=1` adds what changes the ground and, for the brush that costs, the funds: a scrub with a free brush and with a paid one.
+- `OPENSC4_TEST_TOOLS5_OBLITERATE=1` sweeps and wipes the city in memory, up to state 3.
+- The commit and obliterate legs need `OPENSC4_TEST_TUTORIAL_OFF=1`; a tutorial city holds them back.
+
+What the parts do:
+
+1. Terraform: what the terrain says of the ten brushes (types 0 to 6 of its slot 58 and the mayor's three fixed ones): radius, cost and the ten looks IDs. The tool made as the view makes it (constructor on 0x130 new bytes filled with 0x5A, with a brush and the free flag; the view's slot 0x64 with 2): the fields after the constructor (free and paid) and after Init; LoadTuning and the six values; TuningReset; SetLooks, UpdateCursor and ApplyModifiers (0 to 3) by address; the keys (F1 to F10 and the digits with modifier 1, other keys, 0x10 and 0x11 down and up with modifiers 0 to 3); CountApplication once and at the tuning's count; Apply with nothing queued; PressAltitude and CursorPoint by address and OnMouseMove over a grid of screen points; the handlers at a point off the ground (a press there begins nothing); the frame message with no scrub; two stretches queued by address (the destructor drops them); the view puts the tool away. The test sends no key after that.
+2. Obliterate: the fields; LoadTuning, the three values and the curve at a few times; TuningReset; the filter's function over a few types; Init through the view's slot 0x64, the fields after it, the filter object, the list of blocks; BlockHasOccupants over every block; a key; the frame message in states 4 and 0 (set by hand; in state 1 it would demolish); Post with a type nobody takes; Escape, which has the view put the tool away before any frame message reaches it.
+3. The commit leg, for a free brush and for a paid one, in one hook: OnMouseDownL on the ground (the first application), OnMouseMove to a second point (an application), a second move (not taken before a message), three frame messages (the third queues the last point again: an application), OnMouseExit, OnMouseUpL. Then a press at a third point, with the view putting the tool away in the scrub. The test sets +0xD8 before each application, so every application has the plain strength and the stopwatch is never read. Shutdown leaves the frame service to OnMouseUpL, so the test takes the tool off it.
+4. The obliterate leg: a second tool is inited, 50000 microseconds at a time are added to its time and SweepTick is called until the finale begins (state 2), then FinaleTick with the tuning's time removes, demolishes and dezones everything (state 3), and the view puts the tool away. All of it in one hook: no frame message reaches the tool.
+
+### Rules the test keeps
+
+- **rand().** Init shuffles the block list with the C runtime's `rand()`, which the simulation shares. In the leg without the commit, the test saves the generator's state before Init and puts it back after, so the tool leaves no trace in the simulation's sequence.
+- **Audio messages.** The obliterate Init posts 0xAA650861 and 0x2A611B51 to the audio code in every leg, as the game does. They are the same on both sides.
+- **Caps Lock.** The OnMouseMove in a scrub asks the real keyboard for Caps Lock. Run the commit leg with it off; with it on, both sides take the level plane and the terrain result changes.
+- **After put-away, no key.** OnKeyDown on a terraform tool the view has put away crashes the original (see "Behaviour as the game has it" above), so the test does not send one.
+
+### What the token holds
+
+The hashes leave out every pointer (only whether it is set), the two stopwatches, the order of the shuffled blocks and the count of empty blocks in a row at the end (both follow rand()). These are on the log.
+
+**Finding: a prop that comes and goes.** On Making Money d0090 the original itself differs from run to run in whether one prop (type 0xA823821E, block 0x37F at the east edge) exists: 120 or 121 blocks have occupants (3 of 8 extra runs of the original had it). The token therefore does not hash which blocks have occupants. It hashes how many blocks BlockHasOccupants answers the same as the test's own occupant-manager query (1024 of 1024 on the tutorial cities). The list of blocks with occupants is on the `tools5: varies:` log lines.
+
+### Not reached
+
+- The terraform DoMessage's two view messages (they ask the window manager where the real pointer is), CursorPoint's Caps Lock and level plane path, Apply's time-scaled strength and the budget refusing, OnMouseDownL with funds at 0.
+- The obliterate tool's End (0x0049CC30), AfterWipe (0x0049CE20), the 0xEA623590 branch of DoMessage, and its dispatch in states 1 to 3.
+- No coverage run was made.
+
+### Trial results
+
+2026-10-13, 7 days on Making Money d0090, Big City d0000 and Rush Hour d0090, four cases (the test alone, the test switch set to a day that never comes as the unchanged-city reference, the test with the commit, the test with the wipe), each as the original twice, with all groups ours and with only the T5 groups ours. 48 runs, all equal in every cell. The commit leg: the paid scrub spends 30 and the second press 10. The obliterate leg: 20 blocks swept, then the wipe; lots 429 to 16, 3569 to 12, 451 to 13 on the three saves.
+
+Parity (batch t5b1, 7 days): plain 11 of 12 and 1 failed, test 11 of 12 and 1 failed, test with commit 11 of 12 and 1 partly, test with obliterate 12 of 12, plopped with commit 3 of 3. The three odd pairs were all a d0365 save and none repeated: in the plain leg a run with our groups exited silently while Making Money d0365 loaded, before any day ran; in the test leg a run of the original died on the first day of Rush Hour d0365; in the commit leg on Rush Hour d0365 only the prop developer's list differed, in the known swapped pair 0x2977AA47 and 0x2977AA49. Each of the three pairs was run again on the same build and was the same on its first pair. All 81 logs of the legs with the test say the message 0xEA65224E came 0 times.
