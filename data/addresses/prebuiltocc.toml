@@ -1,0 +1,258 @@
+# The pre-built-model network occupant (the name cSC4PrebuiltNetworkOccupant is ours, class ID 0x49C1A034), the base of the bridge and tunnel occupants (src/core/prebuiltocc_sim.cpp, the class map in src/core/prebuiltocc_sim.h).
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::QueryInterface"
+address = 0x0061D060
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 34 A0 C1"
+source = "Name ours. Slot 0, ret 8: the class IID 0x49C1A034 gives the object itself (AddRef through slot 1); every other ID is a tail jump to the network occupant QueryInterface 0x006192C0; the bridge and tunnel QueryInterface end here (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::IsSupportPylonPresent"
+address = 0x0061D040
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 9C 01 00 00 85 C0"
+source = "Name ours. Slot 73, no arguments: 1 when the pylon model at +0x19C is not zero, else whether the network occupant answer 0x006199C0 is not zero (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::SetSupportPylon"
+address = 0x0061D340
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. Ret 0x14, not virtual (caller 0x00628252): stores the pylon model at +0x19C, its angle at +0x1A0 and its offset x y z at +0x1A4; ECX untouched (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::SetUp"
+address = 0x0061D120
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 57 8B 7C 24"
+source = "Name ours. Ret 0xC, not virtual (callers 0x00612C94, 0x006248A8, 0x006282E7): (exemplar, pointer to the model offset, rotation and flip byte); sets the exemplar, slot 74, the offset at +0x178, slot 80 into +0x124 and +0x130, and adds property 0x4835C6A6 (true) when the exemplar has no property 0x6A845768 (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::Shutdown"
+address = 0x0061D0D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 8D 4E"
+source = "Name ours. Slot 4, no arguments: for an initialised object releases the model instances at +0x1C4 and +0x1C8 and jumps to the occupant base Shutdown through the thunk 0x00619100; else AL 1 (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::OccupantInit"
+address = 0x0061DB00
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 06 B3 01"
+source = "Name ours. Slot 3 of the occupant part (this = object + 4), no arguments: for an object not initialised the network occupant OccupantInit 0x0061CB50, the word at object + 0x4C without 0x10 and with 0x40, SetLit with the answer of slot 0x24 of the object at 0x00B43DDC, then the planes 0x0061D230 (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::UpdatePlanes"
+address = 0x0061D230
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 46"
+source = "Name ours. No arguments, not virtual (callers 0x0061DB45, 0x006243D3, 0x006277AB, 0x00627C24): the two planes of the surface (six floats at +0x184) from the corner heights, the position and flag 0x01000000 (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::TransformNode"
+address = 0x0061D660
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8B 06 57"
+source = "Name ours. Slot 65, ret 4 (a vector): turns its x and z by the rotation and flip, adds the floats at +0x168 and +0x16C with a path ID override, and adds the height of the plane under it to its y (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::GetAltitude"
+address = 0x0061D790
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 06"
+source = "Name ours. Slot 56, ret 8 (x, z), answer in ST0: the height of the plane under the point, from the planes at +0x184 and +0x190 and the position (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::GetNormal"
+address = 0x0061D840
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 06"
+source = "Name ours. Slot 57, ret 0xC (out vector, x, z): the negated slopes of the plane under the point and 1.0 for y; returns the out pointer (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::GetPathInfo"
+address = 0x0061D380
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 55 56 8B F1 8B"
+source = "Name ours. Slot 49, no arguments: the path information at +0x140, made from the path resource the exemplar key or the path ID override names (group 0xA966883F, class 0xA9667793) (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::Write"
+address = 0x0061D8E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Serializable slot 3, ret 4, this = object + 8: version 4, the network occupant Write 0x0061A190, the model offset, the piece override and its byte, the pylon model and with one its angle and offset; the tunnel Write calls it (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::Read"
+address = 0x0061D9B0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Name ours. Serializable slot 4, ret 4, this = object + 8: versions 3 and 4, the network occupant Read 0x0061CC00, then the fields Write puts (version 3 has seven more uint32, dropped); the tunnel Read calls it (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::cSC4PrebuiltNetworkOccupant"
+address = 0x0061E1A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 33 DB 3B"
+source = "Name ours. Constructor, ret 4 (non-zero argument for the most derived object): the network occupant constructor 0x0061BDD0 with 0, the vtables, the class fields, the immovable flag. One function (the function list splits it at 0x0061E1A9). Called by the factory 0x0061E820, the maker at 0x00624306 and the bridge and tunnel constructors (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::DeletingDestructor"
+address = 0x00605020
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 78 FC FF FF"
+source = "Name ours. Ret 4 (flags): the destructor 0x00604CA0, and with flag 1 the free 0x0061E300; the holder part slot 22 and the model part slot 0 reach it through the thunks 0x00604EC0 and 0x00604EE0 (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::Free"
+address = 0x0061E300
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 85 C9 74 37"
+source = "Name ours. One argument (the item, null does nothing): the item back to its page of the pool 0x00B0B3A8 (page at address & 0xFFFF8000; released at count 0 by 0x0090D031, reopened at 0x40000033 by 0x0090CFF9) (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::PoolFree"
+address = 0x0061E7E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 85 D2 74 34"
+source = "Name ours. Slot 1 of the pool table 0x00AA81EC, ECX the pool, ret 4: an item back to its page as 0x0061E300 does, the pool calls by tail jumps (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::InitPoolPage"
+address = 0x0061D090
+kind = "function"
+convention = "cdecl"
+expect = "56 57 6A 0F E8 47 08 2F"
+source = "Name ours. Slot 2 of the pool table 0x00AA81EC (also called by the static initialiser at 0x00A73CB5): a 32 KB page (allocator order 0xF) of 69 items of 0x1D8 bytes chained upwards from +0x10, free list at +8, used count 0 at +0xC; returns the page (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::Allocate"
+address = 0x0061D200
+kind = "function"
+convention = "cdecl"
+expect = "A1 AC B3 B0 00 8B 40 08"
+source = "Name ours. One argument, not read (the maker at 0x006242F6 pushes 0x1D8): an item of the pool 0x00B0B3A8 (the current page free head, refilled by 0x0090CF9A) (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::Create"
+address = 0x0061E820
+kind = "function"
+convention = "cdecl"
+expect = "A1 AC B3 B0 00 8B 40 08"
+source = "Name ours. The factory (the class registration pointer): an item of the pool constructed as the most derived object; returns the occupant part (object + 4) (src/core/prebuiltocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::Destroy"
+address = 0x00604CA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 3C C7 06"
+source = "Name ours. The destructor, no arguments, not hooked (the bridge and tunnel deleting destructors call it too): the vtables, the model instances at +0x1C8 and +0x1C4 released, then a tail jump to the network occupant destructor 0x0061C170."
+
+[[entry]]
+name = "SC4ScriptNumber::FromBool"
+address = 0x00915E8E
+kind = "function"
+convention = "thiscall"
+expect = "8A 54 24 04 8B C1 33 C9"
+source = "Name ours. ret 4: constructs a 0x14-byte script number (vtable 0x00ACECD0, type word 1 at +0xE) holding a bool."
+
+[[entry]]
+name = "SC4::FourWordsFromPointers"
+address = 0x00466590
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name ours. ret 0x10: copies the dword each of the four pointer arguments points at into the four dwords at ECX; returns ECX."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::Pool"
+address = 0x00B0B3A8
+kind = "data"
+source = "Name ours. The pool of the 0x1D8-byte pre-built-model network occupants (table 0x00AA81EC; +4 the current page; pages of 32 KB at address & 0xFFFF8000 with the free list at +8 and the used count at +0xC)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::ZeroFloat"
+address = 0x00B45298
+kind = "data"
+source = "Name ours. A float, zero (in the uninitialised data), that the constructor 0x0061E1A0 copies into the plane floats and the pylon offset."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::PlaneScale"
+address = 0x00AA81E4
+kind = "data"
+source = "Name ours. The float 0.0625 (1/16) the planes 0x0061D230 multiply the corner height differences by."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::vftable"
+address = 0x00AA7038
+kind = "vtable"
+expect = "60 D0 61 00 60 A8 65 00"
+source = "The primary cISC4NetworkOccupant vtable of the pre-built-model network occupant, 82 slots; the class own: 0, 4, 33, 49, 56, 57, 58, 61, 65, 73, 79, 80."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::vftable_4"
+address = 0x00AA6FB0
+kind = "vtable"
+expect = "80 4E 60 00 D0 85 64 00"
+source = "The cISC4Occupant part (+4) vtable of the pre-built-model network occupant, 34 slots; slot 3 is OccupantInit 0x0061DB00, 18 and 30 are 0x0061F430 and 0x0061F460."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::vftable_8"
+address = 0x00AA6F94
+kind = "vtable"
+expect = "A0 4E 60 00 00 86 64 00"
+source = "The cIGZSerializable part (+8) vtable of the pre-built-model network occupant, 6 slots: Write 0x0061D8E0, Read 0x0061D9B0, GetGZCLSID 0x00604E50."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::vftable_C"
+address = 0x00AA6F30
+kind = "vtable"
+expect = "B0 4E 60 00 30 86 64 00"
+source = "The property holder (+0xC) vtable of the pre-built-model network occupant, 26 slots: slot 22 the deleting destructor thunk, 23 and 24 the save thunks."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::vftable_20"
+address = 0x00AA6F18
+kind = "vtable"
+expect = "D0 4E 60 00 70 86 64 00"
+source = "The exemplar holder part (+0x20) vtable of the pre-built-model network occupant, 5 slots."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::vftable_38"
+address = 0x00AA6F14
+kind = "vtable"
+expect = "E0 4E 60 00 D0 4E 60 00"
+source = "The vtable at +0x38 of the pre-built-model network occupant (one slot, a thunk to the deleting destructor)."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::vbase_vftable"
+address = 0x00AA6EC8
+kind = "vtable"
+expect = "F0 4E 60 00 00 4F 60 00"
+source = "The virtual base vtable of the pre-built-model network occupant (at +0x1D4), 19 slots of adjustor thunks; slot 12 reaches the class draw 0x0061E860."
+
+[[entry]]
+name = "cSC4PrebuiltNetworkOccupant::vbtable"
+address = 0x00AA81FC
+kind = "data"
+source = "Name ours. The virtual base table of the pre-built-model network occupant: -4, then the displacement 0x198 of the virtual base from the model part."

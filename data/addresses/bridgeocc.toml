@@ -1,0 +1,173 @@
+# The bridge occupant (cSC4NetworkBridgeOccupant, class ID 0x49CC1BCD): its own code (src/core/bridgeocc_sim.cpp, the class map in src/core/bridgeocc_sim.h). The parent class's entries are in prebuiltocc.toml.
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::GetGZCLSID"
+address = 0x00604BB0
+kind = "function"
+convention = "thiscall"
+expect = "B8 CD 1B CC 49 C3 CC CC"
+source = "Name ours. Slot 5 of the serializable part (this = object + 8, not read): the class ID 0x49CC1BCD; only EAX is touched; also called directly by the class registration at 0x00460748 (src/core/bridgeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::QueryInterface"
+address = 0x00604BC0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D CD 1B CC"
+source = "Name ours. Slot 0, ret 8: the bridge IID 0x49CC1BCD gives the object itself (AddRef through slot 1); every other ID is a tail jump to the pre-built class QueryInterface 0x0061D060 (src/core/bridgeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::OccupantInit"
+address = 0x00604BF0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 06 B3 01"
+source = "Name ours. Slot 3 of the occupant part (this = object + 4), no argument: an object not initialised goes to the pre-built class occupant Init 0x0061DB00 by a tail jump, an initialised one answers true (src/core/bridgeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::Shutdown"
+address = 0x00604C10
+kind = "function"
+convention = "thiscall"
+expect = "53 57 8B F9 8B 47 04 8D"
+source = "Name ours. Slot 4, no argument (the occupant part slot 4 is the thunk 0x00605200): not initialised answers true; else the member at +0x1D0 is stopped and loses its owner when it has one, then the pre-built class slot 4 0x0061D0D0 by a tail jump (src/core/bridgeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::InitPoolPage"
+address = 0x00604C60
+kind = "function"
+convention = "cdecl"
+expect = "56 57 6A 0F E8 77 8C 30"
+source = "Name ours. Slot 2 of the bridge pool tables 0x00AA7180 and 0x00AA6EB8, also called by the pool static initialiser 0x00A73B30: a 32 KB page (allocator order 0xF) of 66 items of 0x1F0 bytes chained upwards from +0x10, free list at +8, used count 0 at +0xC; returns the page (src/core/bridgeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::Allocate"
+address = 0x00605040
+kind = "function"
+convention = "cdecl"
+expect = "A1 D4 B2 B0 00 8B 40 08"
+source = "Name ours. One argument, not read (the maker function at 0x006242D3 pushes 0x1F0): an item of the bridge pool 0x00B0B2D0 (the current page free head, refilled by 0x0090CF9A) (src/core/bridgeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::PoolFree"
+address = 0x00605120
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 85 D2 74 34"
+source = "Name ours. Slot 1 of the bridge pool tables 0x00AA7180 and 0x00AA6EB8, ECX the pool, ret 4: an item back to its page (page at address & 0xFFFF8000); page released at count 0 (0x0090D031), reopened at 0x40000031 (0x0090CFF9) (src/core/bridgeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::cSC4NetworkBridgeOccupant"
+address = 0x00605160
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 56 8B"
+source = "Name ours. Constructor, ret 4 (non-zero argument for the most derived object): the pre-built class constructor 0x0061E1A0 with 0, the vtables, the member constructor 0x005E8670 on +0x1D0, the flags 0x00C00000 set at +0x13C. Called by the factory 0x00605450 and by the maker function at 0x006242E8 (src/core/bridgeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::DeletingDestructor"
+address = 0x00605390
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 58 00 00 00"
+source = "Name ours. Ret 4 (flags): the destructor 0x006053F0, and with flag 1 and a non-null object the item back to the bridge pool; the holder part slot 22 and the model part slot 0 reach it through the thunks 0x00605230 and 0x00605250 (src/core/bridgeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::Destroy"
+address = 0x006053F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 3C C7 06"
+source = "Name ours. The destructor, no argument, called only by the deleting destructor: the vtables, the member destructor 0x00513E00 on +0x1D0, then the pre-built class destructor 0x00604CA0 by a tail jump (src/core/bridgeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::Create"
+address = 0x00605450
+kind = "function"
+convention = "cdecl"
+expect = "A1 D4 B2 B0 00 8B 40 08"
+source = "Name ours. The factory (the class registration pointer, pushed at 0x00460743): an item of the bridge pool constructed as the most derived object; returns the occupant part (object + 4) (src/core/bridgeocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::AttachmentsConstruct"
+address = 0x005E8670
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 C7 06 60 40"
+source = "Name ours, class not analysed. No argument: the constructor of the container the bridge keeps at +0x1D0 (vtable 0x00AA4060): owner +4 zero, a 0x40-byte tree head from the STL allocator at +8, count +0xC zero; returns this."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::AttachmentsDestroy"
+address = 0x00513E00
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 47 0C 85"
+source = "Name ours, class not analysed. No argument: the destructor of the container the bridge keeps at +0x1D0: the tree emptied (0x00511900) and its head freed, the owner at +4 released."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::Attachments_vftable"
+address = 0x00AA4060
+kind = "vtable"
+expect = "50 5E 5E 00 B0 86 5E 00"
+source = "Name ours, class not analysed. The vtable of the container the bridge keeps at +0x1D0: 0 start 0x005E5E50, 1 stop 0x005E86B0, 2 set owner 0x005E5E60 (ret 4), 3 owner 0x0060CE80, 5 place 0x005E6160, 6 activate 0x005E7580 (ret 4)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::Pool"
+address = 0x00B0B2D0
+kind = "data"
+source = "Name ours. The pool of the 0x1F0-byte bridge occupants (table 0x00AA7180, and 0x00AA6EB8 from its exit handler on; +4 the current page; pages of 32 KB at address & 0xFFFF8000 with the free list at +8 and the used count at +0xC; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at 0x40000031)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::vftable"
+address = 0x00AA7300
+kind = "vtable"
+expect = "C0 4B 60 00 60 A8 65 00"
+source = "The primary cISC4NetworkOccupant vtable of the bridge, 82 slots: QueryInterface 0x00604BC0, slot 4 0x00604C10, slot 62 the stub 0x00648F00, slot 81 0x00605070; the rest the network occupant and the pre-built class."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::vftable_4"
+address = 0x00AA7278
+kind = "vtable"
+expect = "F0 51 60 00 D0 85 64 00"
+source = "The cISC4Occupant part (+4) vtable of the bridge, 34 slots, slot 3 is OccupantInit 0x00604BF0, slots 0 and 4 the thunks 0x006051F0 and 0x00605200."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::vftable_8"
+address = 0x00AA725C
+kind = "vtable"
+expect = "10 52 60 00 00 86 64 00"
+source = "The cIGZSerializable part (+8) vtable of the bridge, 6 slots: Write 0x0061D8E0 and Read 0x0061D9B0 of the pre-built class, GetGZCLSID 0x00604BB0."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::vftable_C"
+address = 0x00AA71F8
+kind = "vtable"
+expect = "20 52 60 00 30 86 64 00"
+source = "The property holder (+0xC) vtable of the bridge, 25 slots: slot 22 the deleting destructor thunk 0x00605230."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::vftable_20"
+address = 0x00AA71E0
+kind = "vtable"
+expect = "40 52 60 00 70 86 64 00"
+source = "The exemplar holder part (+0x20) vtable of the bridge, 5 slots."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::vftable_38"
+address = 0x00AA71DC
+kind = "vtable"
+expect = "50 52 60 00 40 52 60 00"
+source = "The vtable at +0x38 of the bridge (one slot, the thunk 0x00605250 to the deleting destructor)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::vbase_vftable"
+address = 0x00AA7190
+kind = "vtable"
+expect = "60 52 60 00 70 52 60 00"
+source = "The virtual base vtable of the bridge (at +0x1EC), 19 slots, all adjustor thunks (0x00605260 to 0x00605380)."
+
+[[entry]]
+name = "cSC4NetworkBridgeOccupant::vbtable"
+address = 0x00AA7448
+kind = "data"
+source = "Name ours. The virtual base table of the bridge: -4, then the displacement 0x1B0 of the virtual base from the model part."
