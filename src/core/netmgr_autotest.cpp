@@ -6,6 +6,9 @@
 #include "core/netmgr_sim.h"
 #include "core/occmgr_sim.h"
 
+#include <cIGZIStream.h>
+#include <cIGZOStream.h>
+#include <cIGZString.h>
 #include <cIGZUnknown.h>
 #include <cISC4City.h>
 
@@ -16,6 +19,7 @@
 #include <cstring>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace opensc4::autotest {
@@ -269,6 +273,37 @@ uint32_t RetrofitLength(char* manager)
         for (const ListNode* node = head->next; node != head && length < 100000; node = node->next)
             ++length;
     return length;
+}
+
+// The vector at +0x24, the pieces the save record holds, in the order they
+// are stored (at most 100,000): each piece's cell (slot 59) and the class ID
+// of its serializable part (asked through QueryInterface; the reference is
+// released), as a checksum that depends on the order and as a sum that does
+// not. No address and no reference count.
+void SavedHash(char* manager, uint32_t& ordered, uint32_t& sum)
+{
+    Hash hash;
+    sum = 0;
+    const Vector* const managed = reinterpret_cast<const Vector*>(manager + field::kManaged);
+    uint32_t taken = 0;
+    for (char* at = managed->begin; at != managed->end && taken < 100000; at += 4, ++taken) {
+        char* const piece = At<char*>(at, 0);
+        uint32_t x = 0, z = 0;
+        Virtual<void>(piece, piece_slot::kGetOccupiedCell, &x, &z);
+        uint32_t classId = 0;
+        void* part = nullptr;
+        if (Virtual<uint8_t>(piece, 0x0, netmgr_sim::kIidSerializable, &part) && part) {
+            classId = Virtual<uint32_t>(part, slot::kGetGZCLSID);
+            ReleaseOf(part);
+        }
+        Hash one;
+        one.Mix(x);
+        one.Mix(z);
+        one.Mix(classId);
+        hash.Mix(one.h);
+        sum += one.h;
+    }
+    ordered = hash.h;
 }
 
 // A network piece of the city for the walks below: the interface part, its
@@ -558,8 +593,227 @@ uint32_t ToolTest(char* manager, bool every, uint32_t& made)
     return hash.h;
 }
 
-// The drive's result (OPENSC4_TEST_NETMGR=<day>).
+// An output stream that keeps the bytes written to it, as
+// src/core/save_autotest.cpp's. It answers no interface, so the game's
+// SC4Stream::WriteReference (0x005D99A0), which first asks the stream for the
+// save file's segment interface 0x6999A8FB, writes nothing for a reference
+// and does not touch the object. `error` is what GetError answers.
+class ByteOStream final : public cIGZOStream {
+public:
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    void Flush() override {}
+    bool SetSint8(int8_t v) override { return Put(v); }
+    bool SetUint8(uint8_t v) override { return Put(v); }
+    bool SetSint16(int16_t v) override { return Put(v); }
+    bool SetUint16(uint16_t v) override { return Put(v); }
+    bool SetSint32(int32_t v) override { return Put(v); }
+    bool SetUint32(uint32_t v) override { return Put(v); }
+    bool SetSint64(int64_t v) override { return Put(v); }
+    bool SetUint64(uint64_t v) override { return Put(v); }
+    bool SetFloat32(float v) override { return Put(v); }
+    bool SetFloat64(double v) override { return Put(v); }
+    bool SetRZCharStr(char const* text) override { return SetVoid(text, static_cast<uint32_t>(std::strlen(text))); }
+    bool SetGZStr(cIGZString const& text) override
+    {
+        const uint32_t length = text.Strlen();
+        Put(length);
+        return SetVoid(text.ToChar(), length);
+    }
+    bool SetGZSerializable(cIGZSerializable const&) override { return false; }
+    bool SetVoid(void const* data, uint32_t size) override
+    {
+        const uint8_t* const from = static_cast<const uint8_t*>(data);
+        bytes.insert(bytes.end(), from, from + size);
+        return true;
+    }
+    int32_t GetError() override { return error; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+
+    std::vector<uint8_t> bytes;
+    int32_t error = 0;
+
+private:
+    template <typename T>
+    bool Put(const T& value)
+    {
+        return SetVoid(&value, sizeof value);
+    }
+};
+
+// An input stream over a few bytes, as src/core/save_autotest.cpp's: a read
+// past the end stores nothing, fails and leaves the stream in error. It
+// answers no interface, so SC4Stream::ReadReference (0x005D9730) reads
+// nothing from it and fails.
+class ByteIStream final : public cIGZIStream {
+public:
+    explicit ByteIStream(std::vector<uint8_t> data) : bytes(std::move(data)) {}
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Skip(uint32_t count) override
+    {
+        if (bytes.size() - at < count)
+            return Fail();
+        at += count;
+        return true;
+    }
+    bool GetSint8(int8_t& v) override { return Get(v); }
+    bool GetUint8(uint8_t& v) override { return Get(v); }
+    bool GetSint16(int16_t& v) override { return Get(v); }
+    bool GetUint16(uint16_t& v) override { return Get(v); }
+    bool GetSint32(int32_t& v) override { return Get(v); }
+    bool GetUint32(uint32_t& v) override { return Get(v); }
+    bool GetSint64(int64_t& v) override { return Get(v); }
+    bool GetUint64(uint64_t& v) override { return Get(v); }
+    bool GetFloat32(float& v) override { return GetVoid(&v, sizeof v); }
+    bool GetFloat64(double& v) override { return GetVoid(&v, sizeof v); }
+    bool GetRZCharStr(char*, uint32_t) override { return Fail(); }
+    bool GetGZStr(cIGZString&) override { return Fail(); }
+    bool GetGZSerializable(cIGZSerializable&) override { return Fail(); }
+    bool GetVoid(void* out, uint32_t size) override
+    {
+        if (bytes.size() - at < size)
+            return Fail();
+        std::memcpy(out, bytes.data() + at, size);
+        at += size;
+        return true;
+    }
+    int32_t GetError() override { return error; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+
+    std::vector<uint8_t> bytes;
+    std::size_t at = 0;
+    int32_t error = 0;
+
+private:
+    bool Fail()
+    {
+        error = 1;
+        return false;
+    }
+    template <typename T>
+    bool Get(T& value)
+    {
+        return GetVoid(&value, sizeof value);
+    }
+};
+
+// Write (the serializable part's slot 3) of a manager into a stream of the
+// test's own, once into a stream without an error and once into one that
+// reports one: the answer (1, then 0) and the bytes. With such a stream the
+// record is the version and the count only (six bytes): the game's
+// WriteReference is called for every piece of the vector at +0x24 and writes
+// nothing (ByteOStream). Nothing of the manager or the pieces is changed.
+uint32_t WriteTest(char* object, uint32_t& length)
+{
+    Hash hash;
+    for (const int32_t error : {0, 1}) {
+        ByteOStream out;
+        out.error = error;
+        cIGZOStream* const stream = &out;
+        hash.Mix(Virtual<uint8_t>(object + netmgr_sim::kSerializablePart, slot::kWrite, static_cast<void*>(stream)));
+        hash.Mix(static_cast<uint32_t>(out.bytes.size()));
+        hash.Mix(BytesChecksum(out.bytes.data(), out.bytes.size()));
+        length = static_cast<uint32_t>(out.bytes.size());
+    }
+    return hash.h;
+}
+
+// Read (the serializable part's slot 4) on a manager of the test's own, with
+// streams that end before a reference is stored:
+//   - an empty stream (the version's slot then keeps the low word of the
+//     stream's address, a multiple of four, so never 1), version 2 and
+//     version 0: AL 0 after the one uint16;
+//   - version 1 and nothing else: the count's read fails and the stream is
+//     in error: AL 0 (in the game by the way of its unset count, see
+//     src/core/netmgr_life.cpp);
+//   - version 1 and a count of 0: AL 1, six bytes taken;
+//   - version 1 and a count of 2: the first reference cannot be read from a
+//     stream that answers no interface: AL 0, six bytes taken;
+//   - a stream that is in error before the call: AL 0, nothing taken.
+// The answer, the bytes taken, the stream's error and the number of entries
+// of the vector at +0x24 (0 throughout) are mixed.
+void ReadRefusals(Hash& hash, char* object)
+{
+    const std::vector<uint8_t> streams[] = {
+        {}, {2, 0, 0xEE, 0xEE}, {0, 0}, {1, 0}, {1, 0, 0, 0, 0, 0}, {1, 0, 2, 0, 0, 0}, {1, 0, 0, 0, 0, 0}};
+    for (std::size_t i = 0; i < sizeof streams / sizeof streams[0]; ++i) {
+        ByteIStream in(streams[i]);
+        if (i == 6)
+            in.error = 1;
+        cIGZIStream* const stream = &in;
+        hash.Mix(Virtual<uint8_t>(object + netmgr_sim::kSerializablePart, slot::kRead, static_cast<void*>(stream)));
+        hash.Mix(static_cast<uint32_t>(in.at));
+        hash.Mix(static_cast<uint32_t>(in.error));
+        hash.Mix(Count(object, field::kManaged, 4));
+    }
+}
+
+// A second manager, made by the class's factory (0x00613750, at its address)
+// and destroyed again. Safe by the asm: the constructor subscribes to
+// nothing and asks no service but the resource manager (LoadRemapping opens,
+// reads and closes the ini record, as it does for every city), and the
+// destructor of a manager that was never initialised frees its own memory
+// only (its Shutdown returns at once). Init is NOT called on it (that would
+// subscribe it and make thirteen tools). Mixed:
+//   - as constructed: the four state bytes, the dirty rectangle, the sizes
+//     of the vectors at +0x24, +0x68 and +0x7C, the retrofit list's length,
+//     how many of the thirteen tool slots are null, the number of buckets
+//     of the shadow edge table, whether its three vtable pointers are the
+//     city's manager's, and whether the remap tables it loaded are the
+//     city's manager's (TablesHash and the four sizes);
+//   - the identity through its three parts (IdentityHash);
+//   - Shutdown (slot 4) on it: AL 1 and the initialised byte still 0;
+//   - Write (WriteTest) and Read (ReadRefusals);
+//   - the last Release's answer (0: the deleting destructor ran).
+uint32_t SecondObjectTest(char* manager, bool& made)
+{
+    Hash hash;
+    char* const second = reinterpret_cast<char*(__cdecl*)()>(addr::cSC4NetworkManager_Create)();
+    made = second != nullptr;
+    hash.Mix(made);
+    if (!second)
+        return hash.h;
+    Virtual<uint32_t>(second, slot::kAddRef);
+    for (const std::size_t byte : {field::kInitialized, field::kLeftHand, field::kBatching, field::kQueueing})
+        hash.Mix(At<uint8_t>(second, byte));
+    for (std::size_t i = 0; i < 4; ++i)
+        hash.Mix(At<uint32_t>(second, field::kDirtyRect + 4 * i));
+    hash.Mix(Count(second, field::kManaged, 4));
+    hash.Mix(Count(second, field::kQueue, 4));
+    hash.Mix(Count(second, field::kCrews, 4));
+    hash.Mix(RetrofitLength(second));
+    uint32_t noTools = 0;
+    for (uint32_t type = 0; type < kTypes; ++type)
+        noTools += At<void*>(second, field::kTools + 4 * type) == nullptr;
+    hash.Mix(noTools);
+    hash.Mix(netmgr_sim::BucketCount(second + field::kShadowEdges));
+    for (const std::size_t part : {std::size_t{0}, netmgr_sim::kMessagePart, netmgr_sim::kSerializablePart})
+        hash.Mix(At<std::uintptr_t>(second, part) == At<std::uintptr_t>(manager, part));
+    hash.Mix(TablesHash(second) == TablesHash(manager));
+    hash.Mix(Count(second, field::kPreviewRemap, remap::kSize) == Count(manager, field::kPreviewRemap, remap::kSize));
+    hash.Mix(Count(second, field::kShadowRemap, remap::kSize) == Count(manager, field::kShadowRemap, remap::kSize));
+    hash.Mix(Count(second, field::kPathRemap, remap::kPathSize) == Count(manager, field::kPathRemap, remap::kPathSize));
+    hash.Mix(At<uint32_t>(second, field::kShadowEdges + edge::kCount) ==
+             At<uint32_t>(manager, field::kShadowEdges + edge::kCount));
+    hash.Mix(IdentityHash(second));
+    hash.Mix(Virtual<uint8_t>(second, slot::kShutdown));
+    hash.Mix(At<uint8_t>(second, field::kInitialized));
+    uint32_t length = 0;
+    hash.Mix(WriteTest(second, length));
+    ReadRefusals(hash, second);
+    hash.Mix(Virtual<uint32_t>(second, slot::kRelease));
+    return hash.h;
+}
+
+// The drive's results (OPENSC4_TEST_NETMGR=<day>): the first part's and the
+// second part's (life and save).
 uint32_t g_setSum = 0;
+uint32_t g_lifeSum = 0;
 bool g_setDone = false;
 
 // OPENSC4_TEST_NETMGR=<day>: on that day the calls that make or change
@@ -570,6 +824,14 @@ bool g_setDone = false;
 // and one log line says what ran, also without a manager. Not called:
 // AddToRetrofitList (nothing takes an entry off the list before the next
 // retrofit pass).
+//
+// Then the second part's calls, with a checksum and a log line of their own
+// (the fingerprint's ` life` field, after ` set`): Init (slot 3) on the
+// city's manager, which is initialised and so answers 1 and does nothing;
+// Write of the city's manager into a stream of the test's own (WriteTest);
+// and, unless OPENSC4_TEST_NETMGR_OBJECT=0, a second manager made, asked,
+// written, read into and destroyed (SecondObjectTest). Not called: Shutdown
+// on the city's manager, and Init on the second one.
 void Drive(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_NETMGR") || !game::IsBuild641() || g_setDone)
@@ -613,6 +875,25 @@ void Drive(const Day& day)
                "tools %08X (%u made and released%s), set %08X%s",
                crews, there, waterSum, subwaySum, static_cast<unsigned>(all.size()), water, subway, stations, tools,
                made, every ? "" : ", type 0 only", g_setSum, collected ? "" : " (no occupant manager)");
+
+    Hash life;
+    const uint8_t again = Virtual<uint8_t>(manager, slot::kInit);
+    life.Mix(again);
+    uint32_t length = 0;
+    const uint32_t written = WriteTest(manager, length);
+    life.Mix(written);
+    const bool object = EnvInt("OPENSC4_TEST_NETMGR_OBJECT", 1) != 0;
+    bool second = false;
+    uint32_t secondSum = 0;
+    if (object) {
+        secondSum = SecondObjectTest(manager, second);
+        life.Mix(secondSum);
+    }
+    g_lifeSum = life.h;
+    log::Write("autotest: netmgr: life: Init again %u, write %08X (%u bytes for %u pieces), second object %08X (%s), "
+               "life %08X",
+               again, written, length, Count(manager, field::kManaged, 4), secondSum,
+               !object ? "left out" : second ? "made, written, read into and destroyed" : "not made", g_lifeSum);
 }
 
 // The fingerprint part, everything through the manager's vtable (the game's
@@ -623,6 +904,9 @@ void Drive(const Day& day)
 //   rect   a checksum of the dirty cell rectangle
 //   mg q crews retro   the sizes of the vectors at +0x24, +0x68 and +0x7C
 //          and the length of the retrofit list
+//   saved  (at the end of the part) the pieces of the vector at +0x24, the
+//          save record's: SavedHash's checksum in the stored order and its
+//          sum without an order
 //   tools  ToolBits; names NamesHash; id IdentityHash
 //   tab    TablesHash and the sizes of the three remap vectors and the edge
 //          table; maps MapsHash
@@ -631,7 +915,8 @@ void Drive(const Day& day)
 //          asked and skipped, the entries it gave in all and the pieces
 //          with the flag 0x100000; then the sum and the exclusive or of the
 //          per-piece checksums (WalkPieces)
-// and after OPENSC4_TEST_NETMGR's day ` set <checksum>`.
+// and after OPENSC4_TEST_NETMGR's day ` set <checksum> life <checksum>` (the
+// first part's calls and the second part's).
 void Fingerprint(cISC4City* city, std::string& line)
 {
     char* const manager = Manager(city);
@@ -646,10 +931,13 @@ void Fingerprint(cISC4City* city, std::string& line)
     Walked walked;
     if (Collect(city, pieces, nullptr))
         WalkPieces(city, manager, Virtual<char*>(city, kCityOccupantManager), pieces, walked);
+    uint32_t savedOrdered = 0, savedSum = 0;
+    SavedHash(manager, savedOrdered, savedSum);
     char text[512];
     std::snprintf(text, sizeof text,
                   " | netmgr st %u%u%u%u rect %08X mg %u q %u crews %u retro %u tools %04X names %08X id %08X tab "
-                  "%08X,%u,%u,%u,%u maps %08X occ %u station %u pipe %u conn %u isect %u,%u,%u,%u %08X,%08X",
+                  "%08X,%u,%u,%u,%u maps %08X occ %u station %u pipe %u conn %u isect %u,%u,%u,%u %08X,%08X saved "
+                  "%08X,%08X",
                   At<uint8_t>(manager, field::kInitialized), At<uint8_t>(manager, field::kLeftHand),
                   At<uint8_t>(manager, field::kBatching), At<uint8_t>(manager, field::kQueueing), rect.h,
                   Count(manager, field::kManaged, 4), Count(manager, field::kQueue, 4),
@@ -659,10 +947,11 @@ void Fingerprint(cISC4City* city, std::string& line)
                   Count(manager, field::kPathRemap, remap::kPathSize),
                   At<uint32_t>(manager, field::kShadowEdges + edge::kCount), MapsHash(manager),
                   static_cast<unsigned>(pieces.size()), walked.stations, walked.pipes, walked.connections,
-                  walked.asked, walked.skipped, walked.entries, walked.flagged, walked.sum, walked.mixed);
+                  walked.asked, walked.skipped, walked.entries, walked.flagged, walked.sum, walked.mixed, savedOrdered,
+                  savedSum);
     line += text;
     if (g_setDone) {
-        std::snprintf(text, sizeof text, " set %08X", g_setSum);
+        std::snprintf(text, sizeof text, " set %08X life %08X", g_setSum, g_lifeSum);
         line += text;
     }
 }
