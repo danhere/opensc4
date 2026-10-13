@@ -369,9 +369,12 @@ uint32_t __fastcall DStepShake(char* self, void*, uint32_t step)
     return Traced(3, g_stepShake, self, step);
 }
 
+// The clean-up by the mode of its own replacement, defined with it.
+uint32_t __fastcall AfterDrawByMode(char* self, void*);
+
 uint32_t __fastcall DAfterDraw(char* self, void*)
 {
-    return Traced(4, g_afterDraw, self);
+    return Traced(4, &AfterDrawByMode, self);
 }
 
 // --- An effect -----------------------------------------------------------------------------
@@ -8214,6 +8217,709 @@ const bool g_registeredDecal = registry::Register({
     InstallDecal,
 });
 
+// --- The effects manager's clean-up ----------------------------------------------------------
+
+// The clean-up after the draw and the three functions under it
+// (effects_cleanup.inc). The clean-up cannot run twice: a compound effect
+// that has ended lets go of its effects, and the other lists go by who still
+// holds what. So its comparison runs the game's first, noting the answers of
+// the end test (0x005BFD70) and the erases, and stops it at its last call
+// (the start of the waiting effects), where nothing has changed yet but
+// what the clean-up itself does. There ours runs on a copy of the manager
+// with copies of the twelve vectors, the compound effects put back as they
+// were, the end test answered from the notes and the erase only noted, each
+// with what the game's call changed in any of the compound effects (one
+// ends itself in the test, and the effects an erase lets go of may let go of
+// another); the
+// other lists' questions are asked again for real, being plain reads. Then
+// the calls, the vectors (what they hold and their room), the count and the
+// compound effects are compared.
+constexpr uint32_t kAssignEffectRecord = 0x0058DBA0; // (this = record, from), ret 4
+constexpr uint32_t kInsertWords = 0x00414040;        // (this = vector, at, first, last, unused), ret 0x10
+
+StepMode g_cleanMode = StepMode::Original;
+// The manager object, once its clean-up has run.
+char* g_effectsManager = nullptr;
+Call0Fn g_SC4EffectsManager_StartQueued = nullptr, g_SC4CompoundEffect_Ended = nullptr;
+Call2Fn g_SC4EffectsManager_StartCompound = nullptr, g_SC4EffectRecords_Erase = nullptr;
+using CopyRecordsFn = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+CopyRecordsFn g_SC4EffectRecords_Copy = nullptr;
+
+struct CleanCall {
+    uint32_t target, self, a, b;
+    bool operator==(const CleanCall& other) const
+    {
+        return target == other.target && self == other.self && a == other.a && b == other.b;
+    }
+};
+bool g_cleanNoting = false, g_cleanReplay = false, g_cleanReplayed = false;
+std::vector<CleanCall> g_cleanGameCalls, g_cleanOurCalls;
+std::vector<uint32_t> g_cleanAnswers;
+std::vector<std::vector<std::pair<uint32_t, char>>> g_cleanChanges;
+std::size_t g_cleanAnswer = 0;
+constexpr std::size_t kCompoundSize = 0x120;
+char* g_cleanSelf = nullptr;
+char* g_cleanMine = nullptr;
+std::vector<char*> g_cleanCompounds;
+std::vector<char> g_cleanBefore, g_cleanShadow;
+uint64_t g_cleanCompared = 0, g_cleanEnded = 0, g_cleanFreed = 0;
+
+bool g_queueNoting = false, g_queueReplay = false;
+std::vector<CleanCall> g_queueGameCalls, g_queueOurCalls;
+std::vector<std::vector<uint32_t>> g_queueAfter;
+char* g_queueSelf = nullptr;
+uint64_t g_queueCompared = 0, g_queueStarted = 0;
+
+void RecordEnd(char* held)
+{
+    BOurs(0x20, reinterpret_cast<uint32_t>(held), 0, 0,
+          [&] { return CallThis<uint32_t>(At<uint32_t>(At<char*>(held, 0), 0x20), held); });
+}
+
+// What a noted call of the game's changed in the compound effects, by its
+// place in the copy of them all; the replay makes the same changes at the
+// same call. The end test is made of each compound effect in turn, and
+// one that leaves its own unchanged has ended nothing: only that one is
+// looked at then (`own`, its place among them).
+void CleanNoteChanges(std::size_t own)
+{
+    std::vector<std::pair<uint32_t, char>> changes;
+    if (own < g_cleanCompounds.size() &&
+        std::memcmp(g_cleanCompounds[own], g_cleanShadow.data() + own * kCompoundSize, kCompoundSize) == 0) {
+        g_cleanChanges.push_back(std::move(changes));
+        return;
+    }
+    for (std::size_t i = 0; i < g_cleanCompounds.size(); ++i) {
+        char* const shadow = g_cleanShadow.data() + i * kCompoundSize;
+        if (std::memcmp(g_cleanCompounds[i], shadow, kCompoundSize) == 0)
+            continue;
+        for (std::size_t at = 0; at < kCompoundSize; ++at) {
+            if (g_cleanCompounds[i][at] != shadow[at])
+                changes.push_back({static_cast<uint32_t>(i * kCompoundSize + at), g_cleanCompounds[i][at]});
+        }
+        std::memcpy(shadow, g_cleanCompounds[i], kCompoundSize);
+    }
+    g_cleanChanges.push_back(std::move(changes));
+}
+
+void CleanApplyChanges()
+{
+    const std::size_t call = g_cleanOurCalls.size() - 1;
+    if (call >= g_cleanChanges.size())
+        return;
+    for (const auto& [at, value] : g_cleanChanges[call])
+        g_cleanCompounds[at / kCompoundSize][at % kCompoundSize] = value;
+}
+
+uint32_t CleanEnded(char* compound)
+{
+    if (!g_cleanReplay)
+        return CallThis<uint32_t>(addr::SC4CompoundEffect_Ended, compound) & 0xFF;
+    g_cleanOurCalls.push_back({addr::SC4CompoundEffect_Ended, reinterpret_cast<uint32_t>(compound), 0, 0});
+    CleanApplyChanges();
+    return g_cleanAnswer < g_cleanAnswers.size() ? g_cleanAnswers[g_cleanAnswer++] : 0u;
+}
+
+char* CopyEffectRecords(char* first, char* last, char* to);
+char* EraseEffectRecords(char* records, char* first, char* last);
+void StartQueuedEffects(char* self);
+
+void CleanErase(char* records, char* first, char* last)
+{
+    if (!g_cleanReplay) {
+        EraseEffectRecords(records, first, last);
+        return;
+    }
+    g_cleanOurCalls.push_back({addr::SC4EffectRecords_Erase, reinterpret_cast<uint32_t>(records),
+                               reinterpret_cast<uint32_t>(first), reinterpret_cast<uint32_t>(last)});
+    CleanApplyChanges();
+}
+
+void CleanStartQueued(char* self)
+{
+    if (!g_cleanReplay) {
+        StartQueuedEffects(self);
+        return;
+    }
+    g_cleanOurCalls.push_back({addr::SC4EffectsManager_StartQueued, reinterpret_cast<uint32_t>(g_cleanSelf), 0, 0});
+}
+
+// What a start left waiting, put into the copy's vector in the replay.
+void AssignWords(char* vector, const std::vector<uint32_t>& words);
+
+void QueueStart(char* self, char* compound)
+{
+    if (!g_queueReplay) {
+        CallThis<void>(addr::SC4EffectsManager_StartCompound, self, compound, 1u);
+        return;
+    }
+    const std::size_t at = g_queueOurCalls.size();
+    g_queueOurCalls.push_back({addr::SC4EffectsManager_StartCompound, reinterpret_cast<uint32_t>(g_queueSelf),
+                               reinterpret_cast<uint32_t>(compound), 1});
+    if (at < g_queueAfter.size())
+        AssignWords(self + 0xBA0, g_queueAfter[at]);
+}
+
+#include "core/effects_cleanup.inc"
+
+WordVector CloneWords(const WordVector& vector)
+{
+    const std::size_t used = static_cast<std::size_t>(vector.end - vector.begin);
+    const std::size_t room = static_cast<std::size_t>(vector.room - vector.begin);
+    WordVector clone{nullptr, nullptr, nullptr};
+    if (room) {
+        clone.begin = reinterpret_cast<uint32_t*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(room * 4);
+        if (used)
+            std::memcpy(clone.begin, vector.begin, used * 4);
+    }
+    clone.end = clone.begin + used;
+    clone.room = clone.begin + room;
+    return clone;
+}
+
+void FreeWords(WordVector& vector)
+{
+    if (vector.begin)
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(vector.begin);
+    vector = {nullptr, nullptr, nullptr};
+}
+
+void AssignWords(char* at, const std::vector<uint32_t>& words)
+{
+    WordVector& vector = At<WordVector>(at, 0);
+    if (static_cast<std::size_t>(vector.room - vector.begin) < words.size()) {
+        FreeWords(vector);
+        vector.begin = reinterpret_cast<uint32_t*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(words.size() * 4);
+        vector.room = vector.begin + words.size();
+    }
+    if (!words.empty())
+        std::memcpy(vector.begin, words.data(), words.size() * 4);
+    vector.end = vector.begin + words.size();
+}
+
+bool SameWords(const WordVector& a, const WordVector& b, bool room)
+{
+    const std::size_t used = static_cast<std::size_t>(a.end - a.begin);
+    return used == static_cast<std::size_t>(b.end - b.begin) &&
+           (!room || a.room - a.begin == b.room - b.begin) &&
+           (used == 0 || std::memcmp(a.begin, b.begin, used * 4) == 0);
+}
+
+// The index vector and the free vector of each list, the compound effects' first.
+constexpr std::size_t kCleanVectors[12] = {0xBAC, 0xBB8, 0xBF4, 0xC00, 0xC3C, 0xC48,
+                                           0xC60, 0xC6C, 0xC18, 0xC24, 0xBD0, 0xBDC};
+// How many effects of the five other lists are in use.
+std::size_t IndexedEffects(char* self)
+{
+    std::size_t count = 0;
+    for (std::size_t i = 2; i < 12; i += 2)
+        count += static_cast<std::size_t>(At<WordVector>(self, kCleanVectors[i]).end -
+                                          At<WordVector>(self, kCleanVectors[i]).begin);
+    return count;
+}
+
+std::string CallsText(const std::vector<CleanCall>& calls, const std::vector<CleanCall>& other)
+{
+    std::size_t at = 0;
+    while (at < calls.size() && at < other.size() && calls[at] == other[at])
+        ++at;
+    char text[96];
+    if (at < calls.size())
+        std::snprintf(text, sizeof text, "call %zu of %zu: %08X on %08X (%08X, %08X)", at, calls.size(),
+                      calls[at].target, calls[at].self, calls[at].a, calls[at].b);
+    else
+        std::snprintf(text, sizeof text, "%zu calls", calls.size());
+    return text;
+}
+
+// Ours against what the game's has done when it reaches its last call.
+void CleanReplay()
+{
+    char* const self = g_cleanSelf;
+    char* const mine = g_cleanMine;
+    g_cleanNoting = false;
+    g_cleanReplayed = true;
+    g_cleanGameCalls.push_back({addr::SC4EffectsManager_StartQueued, reinterpret_cast<uint32_t>(self), 0, 0});
+    std::vector<char> after(g_cleanBefore.size()), ours(g_cleanBefore.size());
+    for (std::size_t i = 0; i < g_cleanCompounds.size(); ++i) {
+        std::memcpy(after.data() + i * kCompoundSize, g_cleanCompounds[i], kCompoundSize);
+        std::memcpy(g_cleanCompounds[i], g_cleanBefore.data() + i * kCompoundSize, kCompoundSize);
+    }
+    const std::size_t indexed = IndexedEffects(mine);
+    g_cleanOurCalls.clear();
+    g_cleanAnswer = 0;
+    g_cleanReplay = true;
+    CleanUpEffects(mine);
+    g_cleanReplay = false;
+    for (std::size_t i = 0; i < g_cleanCompounds.size(); ++i) {
+        std::memcpy(ours.data() + i * kCompoundSize, g_cleanCompounds[i], kCompoundSize);
+        std::memcpy(g_cleanCompounds[i], after.data() + i * kCompoundSize, kCompoundSize);
+    }
+    ++g_cleanCompared;
+    for (const CleanCall& call : g_cleanGameCalls)
+        g_cleanEnded += call.target == addr::SC4EffectRecords_Erase;
+    g_cleanFreed += indexed - IndexedEffects(mine);
+    if ((g_cleanCompared & (g_cleanCompared - 1)) == 0)
+        log::Write("water effects: effects.cleanup: %llu clean-ups compared so far, %llu compound effects emptied, "
+                   "%llu effects of the other lists freed",
+                   static_cast<unsigned long long>(g_cleanCompared), static_cast<unsigned long long>(g_cleanEnded),
+                   static_cast<unsigned long long>(g_cleanFreed));
+    const char* const id = "effects.cleanup";
+    if (!(g_cleanGameCalls == g_cleanOurCalls)) {
+        compare::Record(id, false, CallsText(g_cleanGameCalls, g_cleanOurCalls),
+                        CallsText(g_cleanOurCalls, g_cleanGameCalls));
+        return;
+    }
+    char text[64];
+    for (const std::size_t vector : kCleanVectors) {
+        const WordVector& theirs = At<WordVector>(self, vector);
+        const WordVector& own = At<WordVector>(mine, vector);
+        if (SameWords(theirs, own, true))
+            continue;
+        std::snprintf(text, sizeof text, "vector +%zX: %zu words, room for %zu", vector,
+                      static_cast<std::size_t>(theirs.end - theirs.begin),
+                      static_cast<std::size_t>(theirs.room - theirs.begin));
+        const std::string game = text;
+        std::snprintf(text, sizeof text, "vector +%zX: %zu words, room for %zu", vector,
+                      static_cast<std::size_t>(own.end - own.begin), static_cast<std::size_t>(own.room - own.begin));
+        compare::Record(id, false, game, text);
+        return;
+    }
+    if (At<uint32_t>(self, 0xC94) != At<uint32_t>(mine, 0xC94) || At<uint8_t>(self, 0x1B4) != At<uint8_t>(mine, 0x1B4)) {
+        std::snprintf(text, sizeof text, "count %u, flag %u", At<uint32_t>(self, 0xC94), At<uint8_t>(self, 0x1B4));
+        const std::string game = text;
+        std::snprintf(text, sizeof text, "count %u, flag %u", At<uint32_t>(mine, 0xC94), At<uint8_t>(mine, 0x1B4));
+        compare::Record(id, false, game, text);
+        return;
+    }
+    if (after != ours) {
+        std::size_t at = 0;
+        while (after[at] == ours[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "compound %zu +%zX ", at / kCompoundSize, at % kCompoundSize);
+        compare::Record(id, false, text + Hex(after.data() + at, 4), text + Hex(ours.data() + at, 4));
+        return;
+    }
+    compare::Record(id, true, std::string(), std::string());
+}
+
+uint32_t CleanCompared(char* self)
+{
+    std::vector<char> copy(self, self + kManagerSize);
+    char* const mine = copy.data();
+    for (const std::size_t vector : kCleanVectors)
+        At<WordVector>(mine, vector) = CloneWords(At<WordVector>(self, vector));
+    g_cleanCompounds.clear();
+    const WordVector& index = At<WordVector>(self, 0xBAC);
+    for (const uint32_t* it = index.begin; it != index.end; ++it)
+        g_cleanCompounds.push_back(At<char**>(self, 0xB94)[*it]);
+    g_cleanBefore.resize(g_cleanCompounds.size() * kCompoundSize);
+    for (std::size_t i = 0; i < g_cleanCompounds.size(); ++i)
+        std::memcpy(g_cleanBefore.data() + i * kCompoundSize, g_cleanCompounds[i], kCompoundSize);
+    g_cleanGameCalls.clear();
+    g_cleanAnswers.clear();
+    g_cleanChanges.clear();
+    g_cleanShadow = g_cleanBefore;
+    g_cleanSelf = self;
+    g_cleanMine = mine;
+    g_cleanReplayed = false;
+    g_cleanNoting = true;
+    const uint32_t result = g_afterDraw(self, nullptr);
+    g_cleanNoting = false;
+    if (!g_cleanReplayed)
+        compare::Record("effects.cleanup", false, "the last call was not reached", "not run");
+    for (const std::size_t vector : kCleanVectors)
+        FreeWords(At<WordVector>(mine, vector));
+    return result;
+}
+
+uint32_t __fastcall AfterDrawByMode(char* self, void*)
+{
+    g_effectsManager = self;
+    if (g_cleanMode == StepMode::Original)
+        return g_afterDraw(self, nullptr);
+    if (g_cleanMode == StepMode::Compare)
+        return CleanCompared(self);
+    CleanUpEffects(self);
+    return 0;
+}
+
+uint32_t __fastcall EndedNoted(char* self, void*)
+{
+    if (!g_cleanNoting)
+        return g_SC4CompoundEffect_Ended(self, nullptr);
+    const uint32_t result = g_SC4CompoundEffect_Ended(self, nullptr);
+    g_cleanGameCalls.push_back({addr::SC4CompoundEffect_Ended, reinterpret_cast<uint32_t>(self), 0, 0});
+    const std::size_t own = g_cleanAnswers.size();
+    g_cleanAnswers.push_back(result & 0xFF);
+    CleanNoteChanges(own < g_cleanCompounds.size() && g_cleanCompounds[own] == self ? own : ~std::size_t{0});
+    return result;
+}
+OPENSC4_THUNK(TSC4CompoundEffect_Ended, EndedNoted, 0)
+
+// The start of the waiting effects is compared the same way round: the
+// game's first, each start it makes noted with what was left waiting after
+// it; then ours on a copy of the manager with copies of the two vectors,
+// the starts only noted and the waiting ones set from the notes.
+int g_queueDepth = 0;
+
+uint32_t __fastcall StartCompoundNoted(char* self, void*, uint32_t compound, uint32_t flag)
+{
+    const bool noting = g_queueNoting && self == g_queueSelf && g_queueDepth == 0;
+    if (noting)
+        g_queueGameCalls.push_back({addr::SC4EffectsManager_StartCompound, reinterpret_cast<uint32_t>(self), compound, flag});
+    ++g_queueDepth;
+    const uint32_t result = g_SC4EffectsManager_StartCompound(self, nullptr, compound, flag);
+    --g_queueDepth;
+    if (noting) {
+        const WordVector& queued = At<WordVector>(self, 0xBA0);
+        g_queueAfter.emplace_back(queued.begin, queued.end);
+    }
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectsManager_StartCompound, StartCompoundNoted, 8)
+
+uint32_t QueueCompared(char* self)
+{
+    std::vector<char> copy(self, self + kManagerSize);
+    char* const mine = copy.data();
+    At<WordVector>(mine, 0xBA0) = CloneWords(At<WordVector>(self, 0xBA0));
+    At<WordVector>(mine, 0xBAC) = CloneWords(At<WordVector>(self, 0xBAC));
+    g_queueGameCalls.clear();
+    g_queueAfter.clear();
+    g_queueSelf = self;
+    g_queueNoting = true;
+    const uint32_t result = g_SC4EffectsManager_StartQueued(self, nullptr);
+    g_queueNoting = false;
+    // A start may have made the table grow: the copy gets it as it is now.
+    std::memcpy(mine + 0xB94, self + 0xB94, 12);
+    g_queueOurCalls.clear();
+    g_queueReplay = true;
+    StartQueuedEffects(mine);
+    g_queueReplay = false;
+    ++g_queueCompared;
+    g_queueStarted += g_queueGameCalls.size();
+    if ((g_queueCompared & (g_queueCompared - 1)) == 0)
+        log::Write("water effects: effects.cleanup.queue: %llu calls compared so far, %llu effects started",
+                   static_cast<unsigned long long>(g_queueCompared), static_cast<unsigned long long>(g_queueStarted));
+    const char* const id = "effects.cleanup.queue";
+    if (!(g_queueGameCalls == g_queueOurCalls))
+        compare::Record(id, false, CallsText(g_queueGameCalls, g_queueOurCalls),
+                        CallsText(g_queueOurCalls, g_queueGameCalls));
+    else if (!SameWords(At<WordVector>(self, 0xBAC), At<WordVector>(mine, 0xBAC), true))
+        compare::Record(id, false, "the indices in use", "others, or other room");
+    else if (!SameWords(At<WordVector>(self, 0xBA0), At<WordVector>(mine, 0xBA0), false))
+        compare::Record(id, false, "the effects left waiting", "others");
+    else
+        compare::Record(id, true, std::string(), std::string());
+    FreeWords(At<WordVector>(mine, 0xBA0));
+    FreeWords(At<WordVector>(mine, 0xBAC));
+    return result;
+}
+
+uint32_t __fastcall StartQueuedByMode(char* self, void*)
+{
+    if (g_cleanNoting && self == g_cleanSelf)
+        CleanReplay();
+    if (g_cleanMode == StepMode::Original || g_queueNoting || g_queueReplay)
+        return g_SC4EffectsManager_StartQueued(self, nullptr);
+    if (g_cleanMode == StepMode::Compare)
+        return QueueCompared(self);
+    StartQueuedEffects(self);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectsManager_StartQueued, StartQueuedByMode, 0)
+
+// The erase is compared as the setters of what an effect holds are: what
+// each record to go holds gets a copy of its table of functions whose slot
+// 0x20 notes the call. Only an erase to the end of the vector, the one the
+// test cities make, which copies no record down.
+uint32_t EraseCompared(char* records, uint32_t first, uint32_t last);
+
+uint32_t __fastcall EraseByMode(char* records, void*, uint32_t first, uint32_t last)
+{
+    if (!g_cleanNoting)
+        return EraseCompared(records, first, last);
+    g_cleanGameCalls.push_back({addr::SC4EffectRecords_Erase, reinterpret_cast<uint32_t>(records), first, last});
+    const uint32_t result = EraseCompared(records, first, last);
+    CleanNoteChanges(~std::size_t{0});
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectRecords_Erase, EraseByMode, 8)
+
+uint32_t EraseCompared(char* records, uint32_t first, uint32_t last)
+{
+    if (g_cleanMode == StepMode::Ours)
+        return reinterpret_cast<uint32_t>(EraseEffectRecords(records, reinterpret_cast<char*>(first),
+                                                             reinterpret_cast<char*>(last)));
+    if (g_cleanMode == StepMode::Original || BBusy())
+        return g_SC4EffectRecords_Erase(records, nullptr, first, last);
+    if (last != At<uint32_t>(records, 4)) {
+        static bool logged = false;
+        if (!logged)
+            log::Write("water effects: effects.cleanup.erase: an erase short of the end, not compared");
+        logged = true;
+        return g_SC4EffectRecords_Erase(records, nullptr, first, last);
+    }
+    for (char* record = reinterpret_cast<char*>(first); record != reinterpret_cast<char*>(last); record += 0x44)
+        BSwap(At<char*>(record, 0x38), 0x20, reinterpret_cast<uint32_t>(&BEnd));
+    return HolderCompared(
+        "effects.cleanup.erase", records, 0xC, [&] { return g_SC4EffectRecords_Erase(records, nullptr, first, last); },
+        [&] {
+            return reinterpret_cast<uint32_t>(EraseEffectRecords(records, reinterpret_cast<char*>(first),
+                                                                 reinterpret_cast<char*>(last)));
+        });
+}
+
+// The copy changes what the records hold, so only one of no record (the
+// only kind the test cities make) is run twice.
+uint32_t __cdecl CopyRecordsByMode(uint32_t first, uint32_t last, uint32_t to, uint32_t unused, uint32_t zero)
+{
+    const auto ours = [&] {
+        return reinterpret_cast<uint32_t>(CopyEffectRecords(reinterpret_cast<char*>(first), reinterpret_cast<char*>(last),
+                                                            reinterpret_cast<char*>(to)));
+    };
+    if (g_cleanMode == StepMode::Ours)
+        return ours();
+    const uint32_t result = g_SC4EffectRecords_Copy(first, last, to, unused, zero);
+    if (g_cleanMode == StepMode::Original)
+        return result;
+    if (static_cast<int32_t>(last - first) / 0x44 > 0) {
+        static bool logged = false;
+        if (!logged)
+            log::Write("water effects: effects.cleanup.copy: a copy of records, not compared");
+        logged = true;
+        return result;
+    }
+    const uint32_t mine = ours();
+    char theirs[16], own[16];
+    std::snprintf(theirs, sizeof theirs, "%08X", result);
+    std::snprintf(own, sizeof own, "%08X", mine);
+    compare::Record("effects.cleanup.copy", mine == result, mine == result ? std::string() : std::string(theirs),
+                    mine == result ? std::string() : std::string(own));
+    return result;
+}
+
+bool HookAfterDraw()
+{
+    return g_afterDraw || Detour(addr::SC4EffectsManager_AfterDraw, &TAfterDraw, &g_afterDraw);
+}
+
+bool InstallCleanup(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(HookAfterDraw() &&
+          Detour(addr::SC4EffectsManager_StartQueued, &TSC4EffectsManager_StartQueued,
+                 &g_SC4EffectsManager_StartQueued) &&
+          Detour(addr::SC4EffectRecords_Erase, &TSC4EffectRecords_Erase, &g_SC4EffectRecords_Erase) &&
+          Detour(addr::SC4EffectRecords_Copy, reinterpret_cast<void (*)()>(&CopyRecordsByMode),
+                 &g_SC4EffectRecords_Copy)))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(Detour(addr::SC4CompoundEffect_Ended, &TSC4CompoundEffect_Ended, &g_SC4CompoundEffect_Ended) &&
+          Detour(addr::SC4EffectsManager_StartCompound, &TSC4EffectsManager_StartCompound,
+                 &g_SC4EffectsManager_StartCompound)))
+        return false;
+    g_cleanMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the manager's clean-up after its draw %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredCleanup = registry::Register({
+    "renderer.effects.cleanup",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectsManager_AfterDraw,
+    "The effects manager's clean-up after its draw: the compound effects that have ended emptied, the effects "
+    "nothing holds any more freed for reuse, the waiting ones started (the start itself still the game's); compare "
+    "mode runs the game's with its calls noted and replays ours on a copy of the lists (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallCleanup,
+});
+
+// --- The effects manager's sort by depth -----------------------------------------------------
+
+// The six functions the draw sorts the effects in view with
+// (effects_sort.inc). Each only moves entries of the manager's vector at
+// +0xDA4, so each is compared by running the game's and then ours from the
+// same vector; the game's calls of the ones under it are compared on the
+// way.
+constexpr uint32_t kDepthHeapSort = 0x0058F9D0; // cdecl (first, middle, last, unused, unused)
+
+#include "core/effects_sort.inc"
+
+StepMode g_sortMode = StepMode::Original;
+using Sort3Fn = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t);
+using Sort4Fn = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t);
+using Sort5Fn = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+Sort5Fn g_SC4EffectDepths_SortLoop = nullptr, g_SC4EffectDepths_Partition = nullptr, g_SC4EffectDepths_Insert = nullptr;
+Sort4Fn g_SC4EffectDepths_InsertBelow = nullptr, g_SC4EffectDepths_InsertionSortAfter = nullptr;
+Sort3Fn g_SC4EffectDepths_InsertionSort = nullptr;
+
+template <typename Game, typename Ours>
+uint32_t SortCompared(const char* id, uint32_t first, uint32_t last, Game&& game, Ours&& ours)
+{
+    char* const begin = g_effectsManager ? At<char*>(g_effectsManager, 0xDA4) : nullptr;
+    char* const end = g_effectsManager ? At<char*>(g_effectsManager, 0xDA8) : nullptr;
+    if (!begin || first < reinterpret_cast<uint32_t>(begin) || last > reinterpret_cast<uint32_t>(end) || first > last) {
+        static bool logged = false;
+        if (!logged)
+            log::Write("water effects: effects.sort: a sort outside the manager's vector, not compared");
+        logged = true;
+        return game();
+    }
+    const std::vector<char> before(begin, end);
+    const uint32_t result = game();
+    const std::vector<char> after(begin, end);
+    std::memcpy(begin, before.data(), before.size());
+    const uint32_t mine = ours();
+    const bool same = mine == result && std::memcmp(begin, after.data(), after.size()) == 0;
+    if (same) {
+        compare::Record(id, true, std::string(), std::string());
+        return result;
+    }
+    std::size_t at = 0;
+    while (at < after.size() && begin[at] == after[at])
+        ++at;
+    at &= ~std::size_t{7};
+    char theirs[64], own[64];
+    std::snprintf(theirs, sizeof theirs, "%08X, entry %zu: %s", result, at / 8,
+                  at < after.size() ? Hex(after.data() + at, 8).c_str() : "same");
+    std::snprintf(own, sizeof own, "%08X, entry %zu: %s", mine, at / 8,
+                  at < after.size() ? Hex(begin + at, 8).c_str() : "same");
+    compare::Record(id, false, theirs, own);
+    std::memcpy(begin, after.data(), after.size());
+    return result;
+}
+
+DepthEntry* Depths(uint32_t at)
+{
+    return reinterpret_cast<DepthEntry*>(at);
+}
+
+uint32_t __cdecl DepthSortLoopByMode(uint32_t first, uint32_t last, uint32_t zero, uint32_t depth, uint32_t unused)
+{
+    const auto ours = [&] {
+        DepthSortLoop(Depths(first), Depths(last), depth, unused);
+        return 0u;
+    };
+    if (g_sortMode == StepMode::Ours)
+        return ours();
+    const auto game = [&] {
+        g_SC4EffectDepths_SortLoop(first, last, zero, depth, unused);
+        return 0u;
+    };
+    return g_sortMode == StepMode::Original ? game() : SortCompared("effects.sort.loop", first, last, game, ours);
+}
+
+uint32_t __cdecl DepthPartitionByMode(uint32_t first, uint32_t last, uint32_t depth, uint32_t effect, uint32_t unused)
+{
+    const auto ours = [&] {
+        return reinterpret_cast<uint32_t>(DepthPartition(Depths(first), Depths(last), {depth, effect}));
+    };
+    if (g_sortMode == StepMode::Ours)
+        return ours();
+    const auto game = [&] { return g_SC4EffectDepths_Partition(first, last, depth, effect, unused); };
+    return g_sortMode == StepMode::Original ? game() : SortCompared("effects.sort.partition", first, last, game, ours);
+}
+
+uint32_t __cdecl DepthInsertionSortByMode(uint32_t first, uint32_t last, uint32_t unused)
+{
+    const auto ours = [&] {
+        DepthInsertionSort(Depths(first), Depths(last));
+        return 0u;
+    };
+    if (g_sortMode == StepMode::Ours)
+        return ours();
+    const auto game = [&] {
+        g_SC4EffectDepths_InsertionSort(first, last, unused);
+        return 0u;
+    };
+    return g_sortMode == StepMode::Original ? game() : SortCompared("effects.sort.insertion", first, last, game, ours);
+}
+
+uint32_t __cdecl DepthInsertByMode(uint32_t first, uint32_t at, uint32_t depth, uint32_t effect, uint32_t unused)
+{
+    const auto ours = [&] {
+        DepthInsert(Depths(first), Depths(at), {depth, effect});
+        return 0u;
+    };
+    if (g_sortMode == StepMode::Ours)
+        return ours();
+    const auto game = [&] {
+        g_SC4EffectDepths_Insert(first, at, depth, effect, unused);
+        return 0u;
+    };
+    return g_sortMode == StepMode::Original ? game() : SortCompared("effects.sort.insert", first, at + 8, game, ours);
+}
+
+uint32_t __cdecl DepthInsertBelowByMode(uint32_t at, uint32_t depth, uint32_t effect, uint32_t unused)
+{
+    const auto ours = [&] {
+        DepthInsertBelow(Depths(at), {depth, effect});
+        return 0u;
+    };
+    if (g_sortMode == StepMode::Ours)
+        return ours();
+    const auto game = [&] {
+        g_SC4EffectDepths_InsertBelow(at, depth, effect, unused);
+        return 0u;
+    };
+    return g_sortMode == StepMode::Original ? game() : SortCompared("effects.sort.insert_below", at, at + 8, game, ours);
+}
+
+uint32_t __cdecl DepthInsertionSortAfterByMode(uint32_t first, uint32_t last, uint32_t zero, uint32_t unused)
+{
+    const auto ours = [&] {
+        DepthInsertionSortAfter(Depths(first), Depths(last));
+        return 0u;
+    };
+    if (g_sortMode == StepMode::Ours)
+        return ours();
+    const auto game = [&] {
+        g_SC4EffectDepths_InsertionSortAfter(first, last, zero, unused);
+        return 0u;
+    };
+    return g_sortMode == StepMode::Original ? game()
+                                            : SortCompared("effects.sort.insertion_after", first, last, game, ours);
+}
+
+bool InstallSort(registry::Mode mode)
+{
+    const auto plain = [](auto* function) { return reinterpret_cast<void (*)()>(function); };
+    // The comparison finds the vector through the manager, which the clean-up's detour sees.
+    if (!game::IsBuild641() || (mode == registry::Mode::Compare && !HookAfterDraw()) ||
+        !(Detour(addr::SC4EffectDepths_SortLoop, plain(&DepthSortLoopByMode), &g_SC4EffectDepths_SortLoop) &&
+          Detour(addr::SC4EffectDepths_Partition, plain(&DepthPartitionByMode), &g_SC4EffectDepths_Partition) &&
+          Detour(addr::SC4EffectDepths_InsertionSort, plain(&DepthInsertionSortByMode),
+                 &g_SC4EffectDepths_InsertionSort) &&
+          Detour(addr::SC4EffectDepths_Insert, plain(&DepthInsertByMode), &g_SC4EffectDepths_Insert) &&
+          Detour(addr::SC4EffectDepths_InsertBelow, plain(&DepthInsertBelowByMode), &g_SC4EffectDepths_InsertBelow) &&
+          Detour(addr::SC4EffectDepths_InsertionSortAfter, plain(&DepthInsertionSortAfterByMode),
+                 &g_SC4EffectDepths_InsertionSortAfter)))
+        return false;
+    g_sortMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the sort of the effects in view %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredSort = registry::Register({
+    "renderer.effects.sort",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDepths_SortLoop,
+    "The sort of the effects in view by depth, six functions under the effects manager's draw; compare mode runs "
+    "the game's and ours from the same vector (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallSort,
+});
+
 bool InstallEffects(registry::Mode mode)
 {
     if (!game::IsBuild641())
@@ -8223,7 +8929,7 @@ bool InstallEffects(registry::Mode mode)
         !(Detour(addr::SC4EffectsManager_BeforeDraw, &TBeforeDraw, &g_beforeDraw) &&
           Detour(addr::SC4EffectsManager_DrawFlash, &TDrawFlash, &g_drawFlash) &&
           Detour(addr::SC4EffectsManager_StepShake, &TStepShake, &g_stepShake) &&
-          Detour(addr::SC4EffectsManager_AfterDraw, &TAfterDraw, &g_afterDraw) &&
+          HookAfterDraw() &&
           HookEffectDraw() &&
           HookDecalDraw()))
         return false;
