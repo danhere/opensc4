@@ -417,20 +417,6 @@ void* __fastcall AllocateRetrofitNodes(void*, void*, uint32_t count, uint32_t)
     return Virtual<void*>(allocator, 0xC, count * 12u);
 }
 
-// A node linked in before the head node of a list (at its end). The game
-// tests the address of the node's value word for null before the store; that
-// is only null for a node at -8.
-void LinkLast(ListNode* head, ListNode* node, void* value)
-{
-    if (reinterpret_cast<std::uintptr_t>(node) + offsetof(ListNode, value) != 0)
-        node->value = value;
-    ListNode* const last = head->previous;
-    node->next = head;
-    node->previous = last;
-    last->next = node;
-    head->previous = node;
-}
-
 // Slot 23 (0x00612480, ret 4): the piece referenced (its slot 1) and
 // appended to the retrofit list at +0x78 (the head node is read before the
 // new node is allocated by 0x00611240, at its address). Nothing takes a
