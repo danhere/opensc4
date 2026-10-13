@@ -11234,12 +11234,12 @@ expect = "53 56 8B F1 E8 07 F0 13"
 source = "Name ours. No arguments, returns this: constructor of the Game of Life tool, a view input control of 0x88 bytes (vtable 0x00A90458, ID 0x69701127). The city view's cheat GOL (0x8973A69C) makes it. Ours in ui.tools.cellpaint (src/core/tool_cellpaint.cpp)."
 
 [[entry]]
-name = "SC4ViewInputControls::F4BD230"
+name = "SC4LabelTool::Construct"
 address = 0x004BD230
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 E8 E8 E0 13 00"
-source = "Placeholder name. No arguments, returns this: constructor of a view input control of 0x44 bytes (vtable 0x00A90528). The city view's command 0x0B980587 makes it."
+source = "Name ours. No arguments, returns this: constructor of the label tool, a view input control of 0x44 bytes (vtable 0x00A90528, window procedure part 0x00A90518 at +0x28): the state at +0x2C and the label at +0x30 cleared, the three floats at +0x34 zero, the direction at +0x40 set to 1. The city view's command 0x0B980587 makes it. Ours in ui.tools.decal (src/core/tool_decal.cpp)."
 
 [[entry]]
 name = "SC4SignRemoveTool::Construct"
@@ -11250,12 +11250,12 @@ expect = "56 8B F1 E8 28 3C 12 00"
 source = "Name ours. No arguments, returns this: constructor of the sign removal tool, a view input control of 0x30 bytes (vtable 0x00A928A0), +0x28 and +0x2C cleared. The city view's command 0xABCDEE11 makes it. Ours in ui.tools.signpick (src/core/tool_signpick.cpp)."
 
 [[entry]]
-name = "SC4ViewInputControls::F4D7F00"
+name = "SC4SignPlaceTool::Construct"
 address = 0x004D7F00
 kind = "function"
 convention = "thiscall"
 expect = "53 56 8B F1 E8 17 34 12"
-source = "Placeholder name. No arguments, returns this: constructor of a view input control of 0x80 bytes (vtable 0x00A92968). The city view's command 0x0B980581 makes it."
+source = "Name ours. No arguments, returns this: constructor of the sign tool, a view input control of 0x80 bytes (vtable 0x00A92968, notice target part 0x00A92958 at +0x28): the state at +0x2C and the sign at +0x30 cleared, three empty strings at +0x3C, +0x50 and +0x68, the clipboard service at +0x7C cleared; +0x34, +0x38 and +0x64 are left unset. The city view's command 0x0B980581 makes it. Ours in ui.tools.signtext (src/core/tool_signtext.cpp)."
 
 [[entry]]
 name = "SC4ViewInputControls::F4D9E80"
