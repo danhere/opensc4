@@ -210,6 +210,9 @@ add_library(opensc4_core SHARED
   floraocc_sim.cpp
   foundocc_autotest.cpp
   foundocc_sim.cpp
+  pipebase_1.cpp
+  pipebase_2.cpp
+  pipebase_autotest.cpp
   pipeocc_autotest.cpp
   pipeocc_sim.cpp
   powerlineocc_autotest.cpp
@@ -220,6 +223,8 @@ add_library(opensc4_core SHARED
   bridgeocc_sim.cpp
   prebuiltocc_autotest.cpp
   prebuiltocc_sim.cpp
+  subwayocc_autotest.cpp
+  subwayocc_sim.cpp
   tunnelocc_autotest.cpp
   tunnelocc_sim.cpp
   netocc_autotest.cpp

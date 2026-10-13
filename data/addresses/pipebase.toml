@@ -1,0 +1,416 @@
+# The class between the network occupant and the pipe and subway pieces (primary vtable 0x00AAAD40): entries added with src/core/pipebase_1.cpp and pipebase_2.cpp. Earlier SC4PipeBase entries are in pipeocc.toml.
+
+[[entry]]
+name = "SC4PipeBase::DeletingDestructor"
+address = 0x0065C650
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 68 FA FF FF"
+source = "Name ours. Ret 4 (flags): the intermediate class destructor 0x0065C0C0, and with flag 1 for a non-null object the item back to the pool 0x00B0D008 (page at address & 0xFFFF0000; released at count 0, reopened at 0x4000004D). Only the thunks 0x0065C1C0 and 0x0065C1E3 of the class own vtables reach it, so the game never runs it (src/core/pipebase_2.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::Shutdown"
+address = 0x0065CD90
+kind = "function"
+convention = "thiscall"
+expect = "51 55 56 8B F1 8B 8E B0"
+source = "Name ours. Slot 4, plain ret: releases the eight texture bindings (+0x1B0, +0x178, +0x1CC to +0x1E0) through 0x008090E0 and zeroes them, empties the eight vectors, releases the object at +0x244, then the occupant base Shutdown 0x005E8980 through the thunk 0x00619100; the occupant part thunk 0x0065CFE0 and the subway jump 0x00652CF0 reach it (src/core/pipebase_2.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::AddSideWall"
+address = 0x0065CFF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 55 56 8B F1"
+source = "Name ours. Ret 0xC (corner from, corner to, vector): pushes the four records of one side wall onto the vector through 0x00627100: the two corners at the heights Init was given (+0x24C) and as they are, with 0 or 1 across and the height difference over 16 up; called only by slot 89 (src/core/pipebase_2.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::SetSideWalls"
+address = 0x0065E260
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 53 55 56 8B F1"
+source = "Name ours. Slot 89, ret 4 (a byte: refresh after): empties the four wall vectors at +0x180, calls slot 88, zeroes the count at +0x17C, then adds a wall through 0x0065CFF0 for the piece own pair of corners and for every edge without a connected neighbour; ends in slot 100 with 1 when the byte is set (src/core/pipebase_2.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::SetFloor"
+address = 0x0065E410
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 55 56 57 8B"
+source = "Name ours. Slot 90, ret 4 (a byte: refresh after): empties the vector at +0x1B4 and pushes the four corners onto it with their first three bytes 0xFF; ends in slot 100 with 1 when the byte is set (src/core/pipebase_2.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::F65A640"
+address = 0x0065A640
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 06 FF 50"
+source = "Placeholder name, not hooked here (the first half of the class owns it). Ret 4 (the edge): false unless the piece has bit 31 of its network flags; then looks for the piece of the same type in the cell over that edge (0x006584D0) and answers whether that one lacks the bit. Slot 89 calls it (src/core/pipebase_2.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::FindPieceAt"
+address = 0x006585E0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 8B 4C 24 14 8B"
+source = "Name ours, not hooked. Four arguments (cell x, cell z, piece type, out pointer): walks the occupants of the cell for one that answers the interface 0x8A139184 and whose slot 0x98 gives the type; stores it referenced and returns true, else stores null and returns false. Slot 89 of the intermediate class calls it (src/core/pipebase_2.cpp)."
+
+[[entry]]
+name = "SC4CornerVector::CopyRange"
+address = 0x006240D0
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 08 8B 4C 24 04"
+source = "Name ours, not hooked. Copies 0x18-byte corner records (first, last, destination; two more arguments are pushed by the callers and not read) and returns the destination end; with first equal to last it returns the destination, which is how the underground pieces empty a vector (src/core/pipebase_2.cpp)."
+
+[[entry]]
+name = "SC4CornerVector::PushBack"
+address = 0x00627100
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 3B 41 08 74 33"
+source = "Name ours, not hooked. Ret 4 (pointer to a 0x18-byte record), this is the vector: stores the record at the end when there is room, else the growing insert 0x0082CDF0 (src/core/pipebase_2.cpp)."
+
+[[entry]]
+name = "SC4CornerVector::InsertOverflow"
+address = 0x0082CDF0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 06"
+source = "Name ours, not hooked. Ret 0x14, this is a vector of 0x18-byte records: (position, record, a pointer that is not read, count, a byte that says the position is the end); allocates the larger block through 0x0090CF54, copies and frees the old one (src/core/pipebase_2.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::vftable"
+address = 0x00AAAD40
+kind = "vtable"
+expect = "80 A0 65 00 60 A8 65 00"
+source = "The primary vtable of the class between the underground pieces and the network occupant, 106 slots: QueryInterface 0x0065A080, Shutdown 0x0065CD90, Init at slot 81 0x0065C6B0, slots 89 and 90 0x0065E260 and 0x0065E410; slots 101, 102 and 105 are pure."
+
+[[entry]]
+name = "SC4PipeBase::vftable_4"
+address = 0x00AAACB8
+kind = "vtable"
+expect = "90 C1 65 00 D0 85 64 00"
+source = "The cISC4Occupant part (+4) vtable of the intermediate class of the underground pieces, stored by its constructor 0x0065C330 and destructor 0x0065C0C0."
+
+[[entry]]
+name = "SC4PipeBase::vftable_8"
+address = 0x00AAAC9C
+kind = "vtable"
+expect = "A0 C1 65 00 00 86 64 00"
+source = "The cIGZSerializable part (+8) vtable of the intermediate class of the underground pieces: Write 0x0065B140 and Read 0x0065E510."
+
+[[entry]]
+name = "SC4PipeBase::vftable_C"
+address = 0x00AAAC38
+kind = "vtable"
+expect = "B0 C1 65 00 30 86 64 00"
+source = "The property holder (+0xC) vtable of the intermediate class of the underground pieces; its deleting destructor thunk is 0x0065C1C0."
+
+[[entry]]
+name = "SC4PipeBase::vftable_20"
+address = 0x00AAAC20
+kind = "vtable"
+expect = "D0 C1 65 00 70 86 64 00"
+source = "The exemplar holder part (+0x20) vtable of the intermediate class of the underground pieces."
+
+[[entry]]
+name = "SC4PipeBase::vftable_38"
+address = 0x00AAAC1C
+kind = "vtable"
+expect = "E0 C1 65 00 D0 C1 65 00"
+source = "The vtable at +0x38 of the intermediate class of the underground pieces (a thunk to the deleting destructor)."
+
+[[entry]]
+name = "SC4PipeBase::vbase_vftable"
+address = 0x00AAABD0
+kind = "vtable"
+expect = "F0 C1 65 00 00 C2 65 00"
+source = "The virtual base vtable of the intermediate class of the underground pieces, stored at +0x3C plus the displacement by its constructor and destructor."
+
+[[entry]]
+name = "SC4PipeBase::vbtable"
+address = 0x00AAAEE8
+kind = "data"
+source = "Name ours. The virtual base table of the intermediate class of the underground pieces: -4, then the displacement 0x238 of the virtual base from +0x3C; stored only when the class is the most derived, which it never is."
+
+[[entry]]
+name = "SC4PipeBase::Pool"
+address = 0x00B0D008
+kind = "data"
+source = "Name ours. The pool the deleting destructor 0x0065C650 of the intermediate class returns an item to (pages of 64 KB at address & 0xFFFF0000, free list at +8, used count at +0xC; 0x0090D031 at count 0, 0x0090CFF9 at count 0x4000004D)."
+
+[[entry]]
+name = "SC4PipeBase::StaticsDone"
+address = 0x00B46870
+kind = "data"
+source = "Name ours. The byte the intermediate class of the underground pieces sets once its statics ran (0x0065AE80 and the network occupant statics): tested by its occupant Init 0x0065C070, its Init 0x0065C6B0 and 0x0065B040."
+
+[[entry]]
+name = "SC4PipeBase::MatrixFill"
+address = 0x00B46874
+kind = "data"
+source = "Name ours. A float, zero in the exe: the constructor 0x0065C330 fills the 4 by 4 matrix at +0x1FC with it before it stores the identity."
+
+[[entry]]
+name = "SC4PipeBase::GetClassId"
+address = 0x00648460
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 64 02 00 00 C3 CC"
+source = "Name ours. Slot 82 of the intermediate class of the underground pieces (in the pipe and the subway vtables too), plain ret: the word at +0x264, the derived class ID that Init was given; touches only EAX (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::IsPlaced"
+address = 0x00648470
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 8D 4E"
+source = "Name from the interface. Slot 21, plain ret: 1 when bit 0 of the occupant part flags (its slot 0x84) is set and the object at +0x244 or the descriptor at +0x26C is there, else 0 (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::GetBoundingBox"
+address = 0x00659B00
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name from the interface. Occupant part slot 10, ret 8 (low and high out), this = object + 4: the position twice (slot 8), widened by the four corners, the high y by the heights of the ground at +0x24C (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::GetModelInstances"
+address = 0x00659D70
+kind = "function"
+convention = "thiscall"
+expect = "85 C9 8B 44 24 14 C7 00"
+source = "Name from the network occupant interface, not hooked (left to the renderer as the network occupant slot 33 was). Slot 33, ret 0x14: stores 1 through the fifth argument and the object virtual base through the third, then AddRef (slot 1)."
+
+[[entry]]
+name = "SC4PipeBase::SetDepthStatics"
+address = 0x00659DB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8A 4C 24 08"
+source = "Name ours. Slot 97, ret 0xC, this not read: stores the three depth statics at 0x00B0CFD0 (a float, a byte, a float); EAX is the first argument (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::GetSurfaceHeights"
+address = 0x00659DD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 4C 02 00 00 8B 44"
+source = "Name ours. Slot 94, ret 4: copies the four heights of the ground over the corners (+0x24C) out; EAX is the out pointer (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::ComputeBoundingBox"
+address = 0x00659E00
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8B 46 04"
+source = "Name from the network occupant slot 80. Ret 8 (low and high out): the same box as the occupant part slot 10 (0x00659B00), worked out from the object start; the refresh and slot 95 call it with +0x124 and +0x130 (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::GetPieceKey"
+address = 0x0065A0E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 8C FD FF"
+source = "Name ours. Slot 17 of the virtual base behind the thunk 0x0065C2F0, ret 4, this = object + 0x274: the word at +0xFC when any of the flags 0x06000000 is set (slot 9), else the IID 0x4A10AFC2; never reached, the pipe and the subway have their own (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::CountRun"
+address = 0x0065A120
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B 5C 24 0C 81 BB"
+source = "Name ours. Slot 98, ret 0xC (a piece, a direction, how many more to follow): the number of flat pieces 0x4B00 in a row from that piece in that direction, 0 when the piece is not flat or its cell holds a piece of this type (0x006585E0); follows the neighbour over the edge (0x006584D0) through the slot itself (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::GetSideRuns"
+address = 0x0065A200
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 81 BE"
+source = "Name ours. Slot 99, ret 4 (a byte out): for a subway flat piece 0x4B00 the runs (slot 98, 4 more) from the two edges across its direction: 2 when both are 2 or more, 1 with the byte 1 or 0 when one is exactly 1 and the other 3 or more, else 0 (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::UpdateSides"
+address = 0x0065A3F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 86 FC 00"
+source = "Name ours. Slot 88, no arguments: the three bytes at +0x248 from the piece key, the rotation and the flip (jump table 0x0065A5A4, tables 0x00AAAB9C and 0x00AAABA0), then the network flags 0x01000000, 0x02000000 and 0x04000000 after them through slots 10 and 11 (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::GetSides"
+address = 0x0065A6F0
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 48 02 00 00 8B 54"
+source = "Name ours. Slot 92, ret 0xC (three byte pointers): the bytes at +0x248, +0x249 and +0x24A (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::GetPosition"
+address = 0x0065A720
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 C7 42 08 00"
+source = "Name from the interface. Occupant part slot 8, ret 4 (three floats out), this = object + 4: x and z the mean of the four corners, y the lowest of the four heights of the ground at +0x24C (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::GetShape"
+address = 0x0065A810
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 FC 00 00 00 8B 54"
+source = "Name ours. Slot 96, ret 0x10: copies out the piece key (+0xFC), the word at +0x268, the four corner heights and the floor depth (+0x25C); EAX is the floor depth bits (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::GetTextures"
+address = 0x0065A880
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 30"
+source = "Name ours, not hooked (the draw 0x0065B290 is its only caller: left to the renderer). Slot 104, ret 8: two texture bindings, the pair at +0x1DC with the network flag 0x20000, else +0x1D4 with 0x10000, else +0x1CC."
+
+[[entry]]
+name = "SC4PipeBase::SetNetworkFlag"
+address = 0x0065A900
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 57 FF 50"
+source = "Name from the interface. Slot 10, ret 4: the network occupant setter 0x00619EC0, and the dirty byte +0x260 set when the flag bits 0x30000 changed (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::ClearNetworkFlag"
+address = 0x0065A940
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 57 FF 50"
+source = "Name from the interface. Slot 11, ret 4: the network occupant function 0x00619F70, and the dirty byte +0x260 set when the flag bits 0x30000 changed (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::PostOccupantMessage"
+address = 0x0065A980
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 10 57 8B"
+source = "Name from the interface. Occupant part slot 15, ret 8 (message, data), this = object + 4: the occupant base post 0x005E9010, then for 0x99EF1142 and 0x99EF1143 a second queued message 0x8B87A974 or 0x8B87A975 with the occupant, its flag 4, its type and the data (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::GetEdgeDepth"
+address = 0x0065AA70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 B8 03 00 00 00"
+source = "Name ours. Slot 93, ret 0xC (a float out, a byte out, the edge): the floor depth, and for a flat piece the mean of the two corner heights at the ends of the edge plus the rise static; the byte is 1 for a slope (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::ComputeFloorDepth"
+address = 0x0065AB50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B F1 8B 46"
+source = "Name ours. No arguments, plain ret; slots 30, 84, 86 and 95 call it: the floor depth at +0x25C from the piece key, the rotation and flip byte (jump table 0x0065AD14), the heights of the ground or the corners and the depth statics at 0x00B0CFD0 (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::SetPiece"
+address = 0x0065ADB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8A 54 24 08"
+source = "Name ours. Slot 30, ret 8: stores the piece key (+0xFC) and the rotation and flip byte (+0x104), then the floor depth 0x0065AB50 (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::Rebuild"
+address = 0x0065ADD0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8B 06 57"
+source = "Name ours. Slot 86, ret 4 (a byte handed on): the floor depth, the matrix (slot 85), slot 87 with the rotation and the flip, the side walls (slot 89) and the floor (slot 90) (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::SetHeights"
+address = 0x0065AE30
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours. Slot 84, ret 4 (four floats): stores the four corner heights, then the floor depth, the side walls (slot 89) and the floor (slot 90), each with 1 (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::Refresh"
+address = 0x0065AF10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 96 40 02 00"
+source = "Name ours. Slot 100, ret 4 (a byte: tell the neighbours): for a piece inside the city (slot 0x18C of the city) that is not dirty: the dirty and rebuild bytes set, the box into +0x124 (slot 80), the view told (0x00B43DD0 slot 0x7C) when the occupant flag 2 is set, and with the byte the refresh of each connected neighbour found by 0x006584D0 (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::GetTint"
+address = 0x0065B020
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 B9 00 00 80"
+source = "Name ours. Slot 103, ret 4, this not read: three floats of 1.0 through the argument; EAX is the argument; the pipe has its own slot, the subway uses this one (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::WriteCornerVector"
+address = 0x0065B070
+kind = "function"
+convention = "cdecl"
+expect = "8B 13 8B 4B 04 2B CA B8"
+source = "Name ours, not hooked: the vector comes in EBX and the stream in ESI, no stack arguments. Writes the count and each 0x18-byte corner record (five floats, then the bytes at +0xE, +0xD, +0xC, +0xF); the intermediate class Write and two other classes call it (0x0064B4D0, 0x00654C81)."
+
+[[entry]]
+name = "SC4PipeBase::Draw"
+address = 0x0065B290
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 55 56 57 8B"
+source = "Name ours, not hooked (drawing). Slot 12 of the virtual base behind the thunks 0x0065C320, 0x00648760 and 0x00652F70, ret 8, this = object + 0x274: rebuilds the piece through slot 87 when the byte at +0x261 is set, then draws the walls, the floor and the model through the render context (0x007D2990, 0x007D4070) and clears the dirty byte."
+
+[[entry]]
+name = "SC4PipeBase::SetSurfaceHeights"
+address = 0x0065B6B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours. Slot 95, ret 4 (four floats): stores the four heights of the ground at +0x24C, then the box into +0x124 and +0x130 (slot 80) and the floor depth 0x0065AB50 (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::FindByInterfaceAt"
+address = 0x006584D0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 8B 4C 24 14 8B"
+source = "Name ours, not hooked. Four arguments (cell x, cell z, out pointer, interface ID): walks the occupants of the cell (the occupant manager slot 0xA0) and asks each for the interface; stores the last one that answers, referenced, and returns true, else stores null and returns false. The intermediate class of the underground pieces calls it with its class ID word (src/core/pipebase_1.cpp)."
+
+[[entry]]
+name = "SC4PipeBase::DepthStatics"
+address = 0x00B0CFD0
+kind = "data"
+source = "Name ours. The three depth statics of the underground pieces, set by slot 97: +0 a float, the depth of the floor under the ground (3.0); +4 a byte, 1 when the floor is measured from the ground; +8 a float, the rise of the floor over the corners used otherwise (10.0)."
+
+[[entry]]
+name = "SC4PipeBase::EdgeSteps"
+address = 0x00B0CFE8
+kind = "data"
+source = "Name ours. Four pairs of int32, the cell steps (x, z) over the four edges of an underground piece: (-1, 0), (0, -1), (1, 0), (0, 1)."
+
+[[entry]]
+name = "SC4PipeBase::SideByRotation"
+address = 0x00AAAB9C
+kind = "data"
+source = "Name ours. Four bytes (1, 0, 1, 0): the byte slot 88 (0x0065A3F0) stores at +0x248 for a slope, by the rotation."
+
+[[entry]]
+name = "SC4PipeBase::EndByRotation"
+address = 0x00AAABA0
+kind = "data"
+source = "Name ours. Four int32 (1, 0, 0, 1): by the rotation, which of the bytes at +0x249 and +0x24A slot 88 (0x0065A3F0) sets for a slope (0 the first, 1 the second)."
+
+[[entry]]
+name = "SC4PipeBase::FloatMax"
+address = 0x00AAABB0
+kind = "data"
+source = "Name ours. The float 3.4028235e38 the occupant part slot 8 (0x0065A720) compares the first height of the ground with."
