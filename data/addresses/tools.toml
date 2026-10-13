@@ -1054,3 +1054,299 @@ name = "SC4ViewModel::GridName"
 address = 0x00AA66D0
 kind = "data"
 source = "Name ours. The string local_grid: the name of the model SC4ViewModel::Make asks Service43D1C (slot 7) for."
+
+[[entry]]
+name = "SC4ScrollDragTool::Vtable"
+address = 0x00A90040
+kind = "data"
+source = "Name ours. Main vtable of the drag-to-scroll control (a view input control of 0x48 bytes, constructor 0x004B7DC0, made by the view's WindowMouseDownR 0x007E6A00): Init 0x004B82A0 at slot 3, Shutdown 0x004B7E00 at 4, slots 11 and 12 both the shared stub that answers true, OnMouseUpR 0x004B7EC0 at 19, OnMouseMove 0x004B7EF0 at 20, the shared deleting destructor 0x004B7ED0 at 26, PutAway 0x004B7E70 at 27."
+
+[[entry]]
+name = "SC4ScrollDragTool::Shutdown"
+address = 0x004B7E00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 4 of the drag-to-scroll control: when inited, finds the anchor picture's window (ID 0x48E945B4) among the view window's children, releases the mouse unless it was captured before Init (+0x39), the view's ScrollStop (slot 34), takes the anchor window off (window slot 16), releases the picture at +0x3C, then the base Shutdown. Returns true. Ours in ui.tools.small1 (src/core/tool_small_1.cpp)."
+
+[[entry]]
+name = "SC4ScrollDragTool::PutAway"
+address = 0x004B7E70
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 1C 8B 01"
+source = "Name ours. Slot 27 of the drag-to-scroll control, no arguments: the view's ScrollStop, the anchor picture's window taken off the view's window, then a jump to the base's slot 27 (0x005FB0C0: the view drops its current control), whose answer is the answer. Ours in ui.tools.small1."
+
+[[entry]]
+name = "SC4ScrollDragTool::OnMouseUpR"
+address = 0x004B7EC0
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 FF 50 6C B0 01 C2"
+source = "Name ours. Slot 19 of the drag-to-scroll control, (x, z, modifiers), ret 0xC: calls slot 27 and answers true. Ours in ui.tools.small1."
+
+[[entry]]
+name = "SC4ScrollDragTool::OnMouseMove"
+address = 0x004B7EF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 6A 17 8B F1"
+source = "Name ours. Slot 20 of the drag-to-scroll control, (x, z, modifiers), ret 0xC: GetSystemMetrics(SM_SWAPBUTTON) and GetAsyncKeyState of the right button (the left when swapped); when it is up, slot 19 with the same arguments and its answer. Else the offset (pointer less anchor, halved) gives the rates at +0x30 and +0x34, one of eight arrow cursors by the inner distance at +0x40 (the neutral one 0xC2A676AC inside it), the byte at +0x38 once an arrow was shown, and the view's SetScrolling (slot 33) with a flag, the angle of the offset and its length over outer less inner held to 1. Returns false. Ours in ui.tools.small1."
+
+[[entry]]
+name = "SC4ScrollDragTool::LoadTuning"
+address = 0x004B8220
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 57 6A 00 6A 00"
+source = "Name ours. No arguments: the exemplar (0x6534284A, 0x690F693F, 0xE90F6C84) from the resource manager; its properties 0xE90F5DE4 into +0x40 (inner distance, 12 by the constructor) and 0xA90F5DEC into +0x44 (outer distance, 80). Nothing without the exemplar. Called by Init only. Ours in ui.tools.small1."
+
+[[entry]]
+name = "SC4ScrollDragTool::Init"
+address = 0x004B82A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 3 of the drag-to-scroll control: unless inited, the ID 0x48E2A1F8, the cursor 0xC2A676AC, +0x38 cleared, LoadTuning, the base Init, then AmCapturing (slot 25) kept at +0x39 and the mouse captured when it was not. Returns true. Ours in ui.tools.small1."
+
+[[entry]]
+name = "User32::GetSystemMetrics"
+address = 0x00A804B8
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "User32::GetAsyncKeyState"
+address = 0x00A804BC
+kind = "data"
+source = "The exe's import slot."
+
+[[entry]]
+name = "SC4MissionIconControl::Vtable"
+address = 0x00A900D8
+kind = "data"
+source = "Name ours. Main vtable of the view's mission icon control (a view input control of 0x3C bytes, ID 0xABEC6CFE, constructor 0x004B8690, made a persistent control at city load by 0x007ED0F0): the shared QueryInterface 0x004B8480 at slot 0, AddRef and Release thunks, Init 0x004B84B0 at 3, Shutdown 0x004B8550 at 4, OnMouseDownL 0x004B8720 at 16, OnMouseUpL 0x004B8790 at 18, OnMouseMove 0x004B8620 at 20, the deleting destructor 0x004B86D0 at 26."
+
+[[entry]]
+name = "SC4MissionIconControl::TargetVtable"
+address = 0x00A900C4
+kind = "data"
+source = "Name ours. Vtable of the mission icon control's message target at +0x28 (4 slots: the thunks 0x00565570, 0x00565580, 0x00565590 and DoMessage 0x004B85B0)."
+
+[[entry]]
+name = "SC4MissionIconControl::Init"
+address = 0x004B84B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 3: unless inited, the base Init, the city's situation manager (city slot 49) into +0x2C and dispatch manager (city slot 39) into +0x30, both counted, and the message 0xA6B79602 asked of the message server for the target at +0x28. Returns true. Ours in ui.tools.small1 (src/core/tool_small_1.cpp)."
+
+[[entry]]
+name = "SC4MissionIconControl::Shutdown"
+address = 0x004B8550
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 4: when inited, takes the message 0xA6B79602 back, releases the situation manager and the dispatch manager (fields cleared first), then the base Shutdown. Returns true. Ours in ui.tools.small1."
+
+[[entry]]
+name = "SC4MissionIconControl::DoMessage"
+address = 0x004B85B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "Name ours. (message), ret 4; this is the target part at +0x28. On 0x06CDB65B, 0xA6B79602 or 0xA6B79612 (the view's filter, zoom or rotation, position changed): the lit icon (+0x34) goes dark and the vehicle view gets no active icon (when there is a lit icon and a vehicle view), and +0x34 and +0x38 are cleared. Returns true. Ours in ui.tools.small1."
+
+[[entry]]
+name = "SC4MissionIconControl::OnMouseMove"
+address = 0x004B8620
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 4B 30 85 C9"
+source = "Name ours. Slot 20, (x, z, modifiers), ret 0xC: with a dispatch manager and its vehicle view (slot 22), picks the icon at the point; with no lit icon it is lit, kept at +0x34 and made active with state 3 (also when it is 0); with a lit icon that is not the picked one, that goes dark and +0x34 is cleared. Returns false. Ours in ui.tools.small1."
+
+[[entry]]
+name = "SC4MissionIconControl::DeletingDestructor"
+address = 0x004B86D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. Slot 26, (flags), ret 4: Destruct, then frees the object when bit 0 is set; returns this. Ours in ui.tools.small1."
+
+[[entry]]
+name = "SC4MissionIconControl::Destruct"
+address = 0x004B86F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 30 85 C9"
+source = "Name ours. No arguments: releases the dispatch manager (+0x30) and the situation manager (+0x2C) when set, then the base destructor (a jump). Ours in ui.tools.small1."
+
+[[entry]]
+name = "SC4MissionIconControl::OnMouseDownL"
+address = 0x004B8720
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 0D C4 3D B4"
+source = "Name ours. Slot 16, (x, z, modifiers), ret 0xC: false unless the view global 0x00B43DC4 is set and shows view level 1 (slot 22). Clears +0x38; the icon picked at the point is made active with state 2 and kept at +0x38, true; false without one. Ours in ui.tools.small1."
+
+[[entry]]
+name = "SC4MissionIconControl::OnMouseUpL"
+address = 0x004B8790
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 0D C4 3D B4"
+source = "Name ours. Slot 18, (x, z, modifiers), ret 0xC: in view level 1 with both managers and a vehicle view, the icon picked at the point is made active with state 1; when it is the one kept at +0x38 and the vehicle view gives the active icon's occupant, the situation manager's slot 22 (InitiateSituationForOccupant) gets the occupant and 0 and the answer is true (+0x38 kept). Every other way clears +0x38 and answers false. Ours in ui.tools.small1."
+
+[[entry]]
+name = "SC4DispatchVehicleView::SetHover"
+address = 0x0046BEB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 50"
+source = "Name ours, the class a guess (the object the dispatch manager's slot 22 gives; it draws the mission icons). (icon, flag byte), ret 8: finds the icon's record (0x0046BE40) and sets or clears bit 0x80 of its flags at +0x110; nothing when it is not there. Called by the mission icon control only."
+
+[[entry]]
+name = "SC4DispatchVehicleView::PickAt"
+address = 0x0046C4B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 8B E9 8B"
+source = "Name ours, not analysed in full. (x, z), ret 8: walks the icon records and returns the ID (+0x14) of the last one that is shown (flag bits 2 and 5 set, 4 clear, the float at +0x10C not below the one at 0x00A88218), whose key is in the table at +0x54 and whose screen rectangle (+0xEC to +0xF8) holds the point; 0 for none. Reads what the last frame drew. Called by the mission icon control only."
+
+[[entry]]
+name = "SC4DispatchVehicleView::SetActive"
+address = 0x0046D310
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Name ours, not analysed in full. (icon, state), ret 8: nothing when the icon is the active one (+0x98) already. Else the active one gets state 1 (its +0x108) and is redone (0x0046C8B0) and +0x98 is cleared; then, for an icon that is not 0 and has a record that 0x0046C1F0 accepts, it becomes the active one with the state and is redone. Called by the mission icon control only."
+
+[[entry]]
+name = "SC4DispatchVehicleView::ActiveOccupant"
+address = 0x0046BF70
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 86 98 00"
+source = "Name ours. No arguments: the object at +0x1C of the active icon's record (the occupant the icon stands over), null when there is no such record. Called by the mission icon control only."
+
+[[entry]]
+name = "SC4FloraTool::Vtable"
+address = 0x00A903B8
+kind = "data"
+source = "Name ours. Main vtable of the flora tool (a view input control of 0x50 bytes, constructor 0x004BB900 with the flora type, made by the view's menu command 0xEA5AD08D): Init 0x004BBA20 at slot 3, Shutdown 0x004BB940 at 4, the shared key slot 0x004BDBE0 at 14, OnMouseDownL 0x004BBAF0 at 16, OnMouseUpL 0x004BB980 at 18, OnMouseMove 0x004BBC80 at 20, the shared deleting destructor 0x004B7ED0 at 26."
+
+[[entry]]
+name = "SC4FloraTool::Shutdown"
+address = 0x004BB940
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 4 of the flora tool: when inited, releases the flora simulator at +0x2C, the view's ClearCostIndicator (slot 44) with 1, then the base Shutdown. Returns true. Ours in ui.tools.small2 (src/core/tool_small_2.cpp)."
+
+[[entry]]
+name = "SC4FloraTool::OnMouseUpL"
+address = 0x004BB980
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 46 44 33"
+source = "Name ours. Slot 18 of the flora tool, (x, z, modifiers), ret 0xC: clears the planting byte at +0x31; when the sum at +0x40 (int64) is above zero the cost indicator is cleared (with 1), else it is set to the price twice (slot 42, the low dword of +0x38); then +0x48 and the sum are cleared. Returns true. Ours in ui.tools.small2."
+
+[[entry]]
+name = "SC4FloraTool::Init"
+address = 0x004BBA20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 3 of the flora tool: unless inited, the ID 0x26D7881C, the cursor 0x66DB057F, the base Init, the flora simulator (0x00B43D80, counted) into +0x2C, the 64 bits at +0x160 of the type's record (simulator slot 7 with +0x28; not tested for null) into +0x38 as the price, the sum at +0x40 cleared and the cost indicator set to the price (slot 43); +0x31 cleared. Returns true. Ours in ui.tools.small2."
+
+[[entry]]
+name = "SC4FloraTool::IsWaterAt"
+address = 0x004BBAA0
+kind = "function"
+convention = "cdecl"
+expect = "53 56 8B 35 F4 3C B4 00"
+source = "Name ours. (float x, float z): holds the terrain (0x00B43CF4, not tested for null) and returns its slot 37 (IsWaterVertex) for the two coordinates times 0.0625 (the float at 0x00A903B0), truncated. The flora tool plays the refused sound when no tree was made and this is true. Ours in ui.tools.small2."
+
+[[entry]]
+name = "SC4FloraTool::OnMouseDownL"
+address = 0x004BBAF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 4E"
+source = "Name ours. Slot 16 of the flora tool, (x, z, modifiers), ret 0xC: when the view picks the ground (slot 36 with 0) and the budget's funds (slot 6) reach the price, the flora simulator's slot 17 (type, the picked point, 0) makes a tree; with one: two sound calls (0xEA451903 with 0x49DC0C90, 0xCA45190F with the truncated point), WithdrawFunds (slot 8) and, when that agrees, the sum at +0x40 raised and the cost indicator set to (sum, price), then the aura simulator's (0x00B43D60) slot 6 with (x, z, 1); without one the sound 0xAA62C9D5 when IsWaterAt. A picked ground sets +0x31. Last the tool's sound slot 28 with 0xAA62C9D5 when +0x48 is set, else with 0. Returns true. Ours in ui.tools.small2."
+
+[[entry]]
+name = "SC4FloraTool::OnMouseMove"
+address = 0x004BBC80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 56 8B F1 8B"
+source = "Name ours. Slot 20 of the flora tool, (x, z, modifiers), ret 0xC: with +0x31 set, as OnMouseDownL at the new point, but funds below the price set +0x48 and the sum and cost indicator are raised whatever WithdrawFunds answers; with +0x31 clear, the flora simulator's slot 15 (type, x, z, 0) says whether the spot takes a tree, kept at +0x30. The same last sound call. Returns true. Ours in ui.tools.small2."
+
+[[entry]]
+name = "SC4TerrainLevelTool::Vtable"
+address = 0x00A905C0
+kind = "data"
+source = "Name ours. Main vtable of the level terrain tool (a view input control of 0x58 bytes, ID 0x88CEA620, constructor 0x004BDC60, made by the view's terrain command 7 in 0x007E75B0): Init 0x004BDC90 at slot 3, Shutdown 0x004BDC00 at 4, the shared key slot 0x004BDBE0 at 14, OnMouseDownL 0x004BDCE0 at 16, OnMouseUpL 0x004BDD80 at 18, OnMouseMove 0x004BDE30 at 20, the shared deleting destructor 0x004B7ED0 at 26."
+
+[[entry]]
+name = "SC4TerrainLevelTool::UnsetPoint"
+address = 0x00B21834
+kind = "data"
+source = "Name ours. A float the level terrain tool copies into the three floats it hands the view's PickTerrain (slot 36); nothing in the exe writes it by address (zero)."
+
+[[entry]]
+name = "SC4TerrainLevelTool::UpdateRect"
+address = 0x004BDB00
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 34 8B 51 3C 3B C2"
+source = "Name ours. No arguments: orders the drag's start (+0x34, +0x38) and end (+0x3C, +0x40) cells into the rectangle at +0x44 (x0, z0, x1, z1) and, when the terrain view at +0x2C is set, its slot 7 (MarkSelected) with the rectangle, 2 and 1. Ours in ui.tools.small2 (src/core/tool_small_2.cpp)."
+
+[[entry]]
+name = "SC4TerrainLevelTool::Apply"
+address = 0x004BDB50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 56 8B F1 8B"
+source = "Name ours. No arguments: the altitude of the vertex the drag began at (terrain slots 7 and 8 for the size in cells, slot 12 with the index (cells along x + 1) * start z + start x), then the terrain's slot 49 (SetAltitude for a rectangle) with (x0, z0, x1 + 1 and z1 + 1 held to the size), the altitude, 1 and 1. Called by OnMouseUpL only. Ours in ui.tools.small2."
+
+[[entry]]
+name = "SC4TerrainLevelTool::Shutdown"
+address = 0x004BDC00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 4 of the level terrain tool: when inited, ends a drag (the mouse released), clears the terrain view's marks (slot 9) and releases it and the terrain, then the base Shutdown. Returns true. Ours in ui.tools.small2."
+
+[[entry]]
+name = "SC4TerrainLevelTool::Init"
+address = 0x004BDC90
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 3 of the level terrain tool: unless inited, the base Init, the terrain (0x00B43CF4, counted) into +0x28, its cell size (slot 6) into the float at +0x54 and its view (slot 66, counted) into +0x2C. Returns true. Ours in ui.tools.small2."
+
+[[entry]]
+name = "SC4TerrainLevelTool::OnMouseDownL"
+address = 0x004BDCE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C A1 34 18 B2 00"
+source = "Name ours. Slot 16 of the level terrain tool, (x, z, modifiers), ret 0xC: false without a view; when the view picks the ground (slot 36 with 0) the drag begins: +0x30 set, the mouse captured, the cell (x and z over the cell size, truncated) into the start and the end, and the terrain view's slot 10 with 0, its answer kept at +0x24. Returns true. Ours in ui.tools.small2."
+
+[[entry]]
+name = "SC4TerrainLevelTool::OnMouseUpL"
+address = 0x004BDD80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C A1 34 18 B2 00"
+source = "Name ours. Slot 18 of the level terrain tool, (x, z, modifiers), ret 0xC: false when no drag is on. The end moves to the picked cell when the ground is picked; then UpdateRect, Apply, the terrain view's slot 9 and slot 10 with the byte kept at +0x24, the mouse released, +0x30 cleared. Returns true. Ours in ui.tools.small2."
+
+[[entry]]
+name = "SC4TerrainLevelTool::OnMouseMove"
+address = 0x004BDE30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C A1 34 18 B2 00"
+source = "Name ours. Slot 20 of the level terrain tool, (x, z, modifiers), ret 0xC: false when no drag is on. When the ground is picked and its cell (x and z times one over the cell size, truncated) is not the drag's end, the end moves and UpdateRect runs. Returns true. Ours in ui.tools.small2."

@@ -1,12 +1,16 @@
 # The city view's tools
 
-The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool and the lot (plop) tool. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
+The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool and the level terrain tool. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
 
 | Tool | State |
 | --- | --- |
 | Bulldoze | ours (`ui.tools.bulldoze`, below) |
 | Zone | ours (`ui.tools.zone`, below) |
 | Lot (plop) | ours (`ui.tools.plop1` to `ui.tools.plop3`, below) |
+| Drag-to-scroll control | ours (`ui.tools.small1`, below) |
+| Mission icon control | ours (`ui.tools.small1`, below) |
+| Flora tool | ours (`ui.tools.small2`, below) |
+| Level terrain tool | ours (`ui.tools.small2`, below) |
 | Base class | ours (`ui.tools.base`, below) |
 
 ## The tool classes
@@ -21,15 +25,15 @@ Every city tool is a view input control: a class on the base class below, with a
 | MySim move-in tool | 0x00439FC0 | 0x00A85A20 | 0x4C | 0x00439FC0 to 0x0043A724 | | ours (same groups) |
 | Microphone tool (the MySim street sim's advisor) | 0x0043E760 | 0x00A85F40 | 0x30 | 0x0043E740 to 0x0043EB90 | | ours (`simulators.mysim_agents.street_tool`) |
 | Obliterate city tool (strings obliterate_finale, sparkles_on_demolish) | 0x0049CF90 | 0x00A8F6D8 | 0xA8 | 0x0049C790 to 0x0049D8A8 | 18 | still the game's |
-| Scroll drag tool (right button drag; made by 0x007E6A00) | 0x004B7DC0 | 0x00A90040 | 0x48 | 0x004B7DC0 to 0x004B8479 | 8 | still the game's |
-| Mission icon click control (a persistent control the view makes at city load, 0x007ED0F0) | 0x004B8690 | 0x00A900D8 | 0x3C | 0x004B84B0 to 0x004B8822 | 9 | still the game's |
+| Scroll drag tool (right button drag; made by 0x007E6A00) | 0x004B7DC0 | 0x00A90040 | 0x48 | 0x004B7DC0 to 0x004B8479 | 8 | ours (`ui.tools.small1`, below) |
+| Mission icon click control (a persistent control the view makes at city load, 0x007ED0F0) | 0x004B8690 | 0x00A900D8 | 0x3C | 0x004B84B0 to 0x004B8822 | 9 | ours (`ui.tools.small1`, below) |
 | Bulldoze | 0x004B9070 | 0x00A901A0 | 0xD8 | 0x004B8830 to 0x004B9D56 | 18 | ours (`ui.tools.bulldoze`, below) |
 | Dispatch tool (police and fire dispatch; guess) | 0x004BA7D0 | 0x00A90268 | 0x90 | 0x004B9D60 to 0x004BABC0 | 15 | still the game's |
 | Effect trigger tool, the base of the common disaster tool (strings _button_trigger, _trigger; never made by itself) | 0x004BAF60 | 0x00A902E0 | | 0x004BABE0 to 0x004BB8FD | 13 | still the game's |
-| Flora (plant trees) tool | 0x004BB900 | 0x00A903B8 | 0x50 | 0x004BB900 to 0x004BBE41 | 7 | still the game's |
+| Flora (plant trees) tool | 0x004BB900 | 0x00A903B8 | 0x50 | 0x004BB900 to 0x004BBE41 | 7 | ours (`ui.tools.small2`, below) |
 | Cell painting tool, made by a cheat (purpose a guess) | 0x004BC310 | 0x00A90458 | 0x88 | 0x004BBE50 to 0x004BC975 | 16 | still the game's |
 | Text decal tool (a label on the ground; guess) | 0x004BD230 | 0x00A90528 | 0x44 | 0x004BC980 to 0x004BDAFC | 16 | still the game's |
-| Level-a-rectangle terrain tool | 0x004BDC60 | 0x00A905C0 | 0x58 | 0x004BDB00 to 0x004BDEBC | 8 | still the game's |
+| Level-a-rectangle terrain tool | 0x004BDC60 | 0x00A905C0 | 0x58 | 0x004BDB00 to 0x004BDEBC | 8 | ours (`ui.tools.small2`, below) |
 | Lot (plop) | 0x004C0430 | 0x00A90738 | 0x158 | 0x004BDF70 to 0x004C36C0 | 36 | ours (`ui.tools.plop1` to `plop3`, below) |
 | Query tool (`cSC4ViewInputControlQuery`; strings Query.txt, "Query cell (%d, %d)") | 0x004C4590 | 0x00A90A88 | 0xA0 | 0x004C3730 to 0x004D767F | 223 | still the game's; not a network tool |
 | Signpost pick tool (guess) | 0x004D76F0 | 0x00A928A0 | 0x30 | 0x004D7680 to 0x004D7AE2 | 8 | still the game's |
@@ -45,7 +49,7 @@ Every city tool is a view input control: a class on the base class below, with a
 
 The network tools are the last two rows, at 0x00660C30 to 0x006625F0. The range 0x004C3730 to 0x004D767F belongs to the query tool.
 
-The classes that are not ours, apart from the two network tools, come to about 446 functions and 126 KB, of which the query tool is 223 functions and 78 KB. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the terrain brush's cursor, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
+The classes that are not ours, apart from the two network tools, come to about 414 functions and 121 KB, of which the query tool is 223 functions and 78 KB. The 121 KB is the earlier 126 KB less about 5 KB for the four small classes, taken from their code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the terrain brush's cursor, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
 
 ## The base class
 
@@ -504,3 +508,208 @@ The commit:
 Quiet plop: the wrapper's line reads "return address in the game's tool" on the original and "marked call of our tool" on ours. Both count one lot placed without smoke.
 
 One B run of the no-test case on Big City d0000 differed in the `adv` part from day 2 while a build ran on the machine. The repeat was identical to both A runs.
+
+## The drag-to-scroll control
+
+The control the city view makes when the right button goes down and no other tool took the press: 0x48 bytes, ID 0x48E2A1F8, vtable 0x00A90040, code 0x004B7DC0 to 0x004B8479 (src/core/tool_small_1.cpp). The constructor is 0x004B7DC0; the view's WindowMouseDownR (0x007E6A00) makes it, puts it on the tool stack (view slot 0x64 with 0) and calls Start with the point of the press. One group with the mission icon control, `ui.tools.small1`, PostAppInit, off by default: 17 hooks in all, 8 of them this control's.
+
+What it does:
+
+1. Start (0x004B82F0) keeps the screen point as the anchor. The first time it also loads the anchor picture (PNG 0x094AC89A of the interface group, magenta see-through), has the window factory make a window of it with the ID 0x48E945B4, centres that on the point and gives it to the view's window as a child.
+2. Every mouse move asks Windows whether the right button is still down (the left one when the buttons are swapped). When it is not, the move is an OnMouseUpR: the control puts itself away.
+3. While the button is held, the offset is half the way from the anchor to the pointer. Within the inner distance in both directions the cursor is the neutral one and the view does not scroll. Outside it the cursor is one of eight arrows by direction, and the view's SetScrolling (slot 0x84) gets a direction (an angle: 0 along +x, a quarter turn along +z) and a speed, the offset's length over the span between the two distances, 1 at most.
+4. The inner distance (12) and the outer one (80) are the constructor's values. Init replaces them from the properties 0xE90F5DE4 and 0xA90F5DEC of the exemplar 0x6534284A, 0x690F693F, 0xE90F6C84; either keeps its value when the exemplar or the property is not there.
+5. Releasing the button, or the view taking the control off, stops the scroll and takes the anchor picture's window away.
+
+It reads the button through GetSystemMetrics(SM_SWAPBUTTON) and GetAsyncKeyState, so it follows the real button and real time, not the simulation. It draws nothing itself (the anchor picture is the game's window) and draws no random number.
+
+### Pieces
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| Constructor | 0x004B7DC0 | |
+| Shutdown (lets go of the mouse unless it was captured before Init, stops the scroll, takes the anchor window away, lets go of the picture) | 0x004B7E00 | 4 |
+| PutAway (stops the scroll, takes the anchor window away, then the base's PutAway) | 0x004B7E70 | 27 |
+| OnMouseUpR (calls slot 27, answers true) | 0x004B7EC0 | 19 |
+| OnMouseMove | 0x004B7EF0 | 20 |
+| LoadTuning (the two distances from the exemplar) | 0x004B8220 | |
+| Init (the ID, the neutral cursor, the tuning, the base Init, the mouse captured unless it already is) | 0x004B82A0 | 3 |
+| Start (ret 8: the anchor point and the picture) | 0x004B82F0 | |
+
+### Fields
+
+| Offset | Field |
+| --- | --- |
+| +0x28, +0x2C | the press point (the anchor), screen pixels |
+| +0x30, +0x34 | two floats, the offset held to the outer distance; written by OnMouseMove and read nowhere in the class |
+| +0x38 | an arrow cursor has been shown (byte; cleared by Init) |
+| +0x39 | the mouse was already captured when Init ran (byte; Shutdown lets go of it only when this is 0) |
+| +0x3C | the anchor picture (referenced) |
+| +0x40 | inner distance (12) |
+| +0x44 | outer distance (80) |
+
+### Left the game's
+
+- The shared deleting destructor 0x004B7ED0 and the key and mouse slots that only answer, which are the base's and the shared stubs (see "The base class").
+- The window factory, the image loader, the window methods and the view's SetScrolling are called by address or by slot.
+
+### Oddities of the original, kept
+
+- The two floats at +0x30 and +0x34 are written and never read by the class.
+- The angle comes from the x87 instruction sequence (FILD, FDIV, FLD1, FPATAN, with pi added for a negative x) in a single rounding to a float, so ours uses the same instructions.
+- The flag handed to SetScrolling is the low byte of the stack slot the modifiers came in, as in the game.
+
+## The mission icon control
+
+A persistent view input control: 0x3C bytes, ID 0xABEC6CFE, main vtable 0x00A900D8, message target vtable 0x00A900C4 at +0x28, code 0x004B84B0 to 0x004B8822, 9 functions, group `ui.tools.small1` (src/core/tool_small_1.cpp). The constructor is 0x004B8690; the view makes one for every loaded city, in 0x007ED0F0, and keeps it under the tools. "Mission icons" is our reading of the code; it was not seen in a running game.
+
+What it does: in view level 1 the dispatch manager's vehicle view (dispatch manager slot 22) draws icons over buildings. The control lights the icon under the pointer. A press on an icon marks it as the pressed one, and a release on the same icon asks the city situation manager (slot 22) to start the situation for that icon's occupant. A zoom, a turn or a change of the view's filter makes it forget the lit and the pressed icon.
+
+### Pieces
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| Init (the base Init, the city's situation manager and dispatch manager, the message 0xA6B79602 asked for) | 0x004B84B0 | 3 |
+| Shutdown (the message given back, the two managers let go) | 0x004B8550 | 4 |
+| DoMessage (on 0x06CDB65B, 0xA6B79602 and 0xA6B79612 the lit icon goes dark and the lit and the pressed icon are forgotten; true always) | 0x004B85B0 | 3 of the part at +0x28 |
+| OnMouseMove | 0x004B8620 | 20 |
+| Constructor | 0x004B8690 | |
+| Deleting destructor | 0x004B86D0 | 26 |
+| Destructor body | 0x004B86F0 | |
+| OnMouseDownL | 0x004B8720 | 16 |
+| OnMouseUpL | 0x004B8790 | 18 |
+
+### Fields
+
+| Offset | Field |
+| --- | --- |
+| +0x28 | the message target part |
+| +0x2C | the city situation manager (city slot 49, referenced) |
+| +0x30 | the dispatch manager (city slot 39, referenced) |
+| +0x34 | the lit icon (0 for none) |
+| +0x38 | the pressed icon (0 for none) |
+
+### Behaviour as the game has it
+
+- OnMouseMove with no lit icon lights the icon under the pointer, keeps it and makes it the active one with state 3; the pick answers 0 when there is none, and that is stored all the same. With a lit icon it does nothing while the pointer stays on it; when the pointer has left it, the icon goes dark and is forgotten, and the next move lights the new one. It answers false.
+- OnMouseDownL needs view level 1 (read from the view global 0x00B43DC4, not from the control's own pointer). The icon under the pointer becomes the active one with state 2 and the pressed one, and the answer is true. With no icon it answers false and the pressed icon is 0.
+- OnMouseUpL in view level 1 makes the icon under the pointer the active one with state 1. When that icon is the pressed one and the vehicle view has an occupant for it, the situation manager gets the occupant (with a null second argument) and the answer is true with the pressed icon kept. Everything else forgets the pressed icon and answers false.
+
+### Left the game's
+
+- The shared QueryInterface 0x004B8480 and the adjustor thunks of the message target (0x00565570, 0x00565580, 0x00565590), which are the base's group.
+- The vehicle view's methods (pick at a point, light, make active, the active icon's occupant), which are called by address.
+
+## The flora tool
+
+`cSC4ViewInputControl` for planting trees: 0x50 bytes, ID 0x26D7881C (set by Init), vtable 0x00A903B8, code 0x004BB900 to 0x004BBE41, 7 functions, group `ui.tools.small2`, PostAppInit, off by default (src/core/tool_small_2.cpp). The constructor is 0x004BB900 and takes the flora type; the view makes it from its menu command 0xEA5AD08D.
+
+What it does: the press plants one tree of the type at the point under the cursor, and each mouse move with the button held plants one more. A planting asks the flora simulator (slot 17) to add a flora occupant at the picked point, plays two sounds, withdraws the type's price from the budget and starts the aura simulator's transient effect 1 at the point. The cost indicator shows the sum of the drag. A move with the button up only asks the simulator (slot 15) whether the spot would take a tree and keeps the answer. A planting that fails over water plays the refused sound (0xAA62C9D5); a press with the funds below the price plants nothing.
+
+### Pieces
+
+Group `ui.tools.small2`, 15 hooks in all, 7 of them the flora tool's.
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| Constructor (the type; the ID and the cursor are Init's) | 0x004BB900 | |
+| Shutdown (lets go of the simulator, clears the cost indicator, the base) | 0x004BB940 | 4 |
+| OnMouseUpL | 0x004BB980 | 18 |
+| Init (the ID, the cursor 0x66DB057F, the base Init, the simulator, the price from the type's record, shown on the cost indicator) | 0x004BBA20 | 3 |
+| IsWaterAt (cdecl, two floats: whether the vertex of the cell is under water) | 0x004BBAA0 | |
+| OnMouseDownL | 0x004BBAF0 | 16 |
+| OnMouseMove | 0x004BBC80 | 20 |
+
+### Fields
+
+| Offset | Field |
+| --- | --- |
+| +0x28 | the flora type |
+| +0x2C | the flora simulator (referenced) |
+| +0x30 | the spot under the pointer would take a tree (byte) |
+| +0x31 | planting: the button is down (byte) |
+| +0x38 | the price of one tree, 64 bits (from the type's record at +0x160) |
+| +0x40 | the sum of this drag, 64 bits |
+| +0x48 | a move found the funds below the price (byte) |
+
+### Behaviour as the game has it
+
+- A press with funds at or above the price plants, and a picked ground starts the planting whatever came of it.
+- In OnMouseDownL the sum and the cost indicator move only when the budget agreed to the withdrawal. In OnMouseMove they move whether it agreed or not.
+- A move with funds below the price sets the flag at +0x48; from then on every move ends with the refused sound. The press does not set it.
+- A release after a drag that spent something clears the cost indicator; after one that spent nothing it shows the price again. The sum and the flag start over.
+- A type the simulator does not know is not tested for in Init.
+- IsWaterAt holds the terrain and does not test it for null.
+
+### Left the game's
+
+- The shared deleting destructor 0x004B7ED0 and the shared key slot 0x004BDBE0 (see "The base class").
+
+## The level terrain tool
+
+Drags a rectangle of cells over the terrain and levels it: 0x58 bytes, ID 0x88CEA620, vtable 0x00A905C0, code 0x004BDB00 to 0x004BDEBC, 8 functions, group `ui.tools.small2` (src/core/tool_small_2.cpp). The constructor is 0x004BDC60. The view makes it from its terrain command 7 (0x007E75B0). Which button, if any, sends that command in the shipped menus was not found.
+
+What it does: a press picks a cell and starts a drag; the mouse is captured and the terrain view's cell cursor is turned off (what it was is kept). Every move to a new cell orders the two cells into a rectangle and has the terrain view mark it (colour 2). The release moves the end to the cell under the pointer when the ground is picked, orders the rectangle, and sets every vertex of it to the altitude of the vertex where the drag began (the terrain's SetAltitude for a rectangle, slot 49). The rectangle's far side is one past the last cell, held to the size of the terrain. The marks are cleared, the cell cursor is put back as it was and the mouse is let go.
+
+### Pieces
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| UpdateRect (orders the drag's cells into the rectangle at +0x44 and marks it) | 0x004BDB00 | |
+| Apply (the levelling) | 0x004BDB50 | |
+| Shutdown (ends a drag, clears the marks, lets go of the terrain view and the terrain) | 0x004BDC00 | 4 |
+| Constructor | 0x004BDC60 | |
+| Init (the base Init, the terrain, its cell size, its view) | 0x004BDC90 | 3 |
+| OnMouseDownL | 0x004BDCE0 | 16 |
+| OnMouseUpL | 0x004BDD80 | 18 |
+| OnMouseMove | 0x004BDE30 | 20 |
+
+### Fields
+
+| Offset | Field |
+| --- | --- |
+| +0x24 | the terrain view's cell cursor state before the drag (byte) |
+| +0x28 | the terrain (referenced) |
+| +0x2C | the terrain view (terrain slot 66, referenced) |
+| +0x30 | dragging (byte) |
+| +0x34, +0x38 | the cell the drag began on |
+| +0x3C, +0x40 | the cell under the pointer (the drag's end) |
+| +0x44 to +0x50 | the ordered rectangle (x0, z0, x1, z1) |
+| +0x54 | the cell size, a float from the terrain (16.0) |
+
+### Behaviour as the game has it
+
+- The cell of a picked point is the coordinate over the cell size, truncated. OnMouseMove multiplies by one over the cell size instead of dividing, so ours does the same; the other two handlers divide.
+- OnMouseMove only marks again when the cell changed.
+- The altitude is read by vertex index: the cells along x plus one, times the start row, plus the start column.
+- The three floats handed to the view's pick are set to the float at 0x00B21834 first (zero in the file).
+- Shutdown in a drag lets go of the mouse but does not put the cell cursor back.
+
+### Left the game's
+
+- The shared deleting destructor 0x004B7ED0 and the shared key slot 0x004BDBE0 (see "The base class").
+
+## The small tools: test
+
+`OPENSC4_TEST_SMALL_TOOLS=<day>` (src/core/tool_small_autotest.cpp, token ` smalltools`, sub-hashes on the log lines `autotest: smalltools: ...`). It calls only the game's addresses and the tools' vtable slots, never our functions, so a run with `ui.tools.small1` and `ui.tools.small2` on and one with them off compare. Pointers are left out of the hashes. `OPENSC4_TEST_SMALL_TOOLS_COMMIT=1` adds the steps that change the city (a tutorial city may hold them back: `OPENSC4_TEST_TUTORIAL_OFF=1`); `OPENSC4_TEST_SMALL_TOOLS_LEVEL=0` leaves the levelling step out. Six sections:
+
+1. Scroll: the control made as the view's right button handler makes it (constructor on 0x48 new bytes filled with 0x5A, the view's slot 0x64 with 0, Start at 400, 300). The fields after the constructor, Init and Start; whether the anchor picture's window is a child of the view's window and where; Start again at another point; Init again. It goes twice: once taken off by the view (slot 0x68), once by its own OnMouseMove (slot 20), which with the button up is OnMouseUpR and PutAway. Should the button really be down then, OnMouseUpR is called instead and the log says so. After each: the anchor window gone, the view's tool as before, the fields and what the last Release answers.
+2. Icons: the view's own mission icon control. Its fields; OnMouseMove, OnMouseDownL and OnMouseUpL at a point far off the screen, with and without a made-up lit or pressed icon in +0x34 and +0x38; DoMessage with the three message types it knows and one it does not; Shutdown and Init, each twice. Then a control of our own: the constructor, Init without a window, the last Release, and the deleting destructor without the free bit on one that holds the two managers.
+3. Flora: the tool made as the menu command makes it (the lowest flora type that has a price, the view's slot 0x64 with 2). The fields; the three handlers at a point off the ground; OnMouseMove over a grid of screen points with the button up (whether each spot would take a tree); put away by the view.
+4. Level: the tool made the same way. The fields; the handlers with no drag on; a drag set by hand and UpdateRect with the cells in both orders; a real press at the first screen point that picks the ground and a move to the last one; then the view takes the tool off in the drag (Shutdown lets go of the mouse) and the test puts the terrain view's cell cursor back as OnMouseUpL would have.
+5. Plant (commit): a second flora tool. OnMouseDownL at the first spot that takes a tree, three OnMouseMove with the button down at the next spots, OnMouseUpL; then with the tool's price field set far above the funds a press, a move (the refused sound) and a release; then the same three at the first screen point over water. The fields, the answers and the funds after every call. Afterwards the trees that were not there before are found and counted (see "The lot tag of a planted tree").
+6. Flatten (commit, unless `_LEVEL=0`): a second level tool with a drag of two by two cells set by hand in the middle of the first eight by eight cells the lot manager calls free; OnMouseUpL at a point off the ground levels them to the altitude of the start vertex. The nine altitudes before and after.
+
+The grid for the screen points is rows z = 60 to 700 in steps of 40 and columns x = 40 to 980 in steps of 60.
+
+Not reached: the scroll control's OnMouseMove with the button held (the rates, the arrow cursors, SetScrolling: it moves the camera on frame time); anything with a real mission icon (the pick reads what the last frame drew, and a press and release on one starts a mission); the flora tool with a withdrawal the budget refuses while the funds suffice (the poor-funds steps stop at the funds test); the level tool's release with a successful ground pick (the release is called at a point off the ground). They rest on reading the code.
+
+### The lot tag of a planted tree
+
+Planting made the original stop repeating on Rush Hour d0090: six runs, six outcomes, and only the tree occupants' part of the fingerprint differed. A newly planted tree's lot tag field (+0x3C of the flora occupant), which the class never writes at planting, held a value that differed in every run on one of the four planted trees. Making Money d0090 and Big City d0000 showed none. So the test clears the lot tag of the trees it planted, on both sides, hashes how many trees were new, and only logs the old value (`a new tree's lot tag was ...`). After that the original repeated 3 of 3. Where the value comes from is not found. A player planting trees gets the same.
+
+### Trial results
+
+First acceptance, 7 days on Making Money d0090, Big City d0000 and Rush Hour d0090: the original twice, ours once, and once with only the tools groups ours. Identical in every case, plain and with the test and its commits. The test without the commit switch leaves the city unchanged.
+
+Parity (batch t2b1, 7 days, with the base class's test too): plain 12 of 12 saves identical; with the tests and their commits 12 of 12; the plopped corpus with the tests 3 of 3. All on the first pair.
