@@ -1350,7 +1350,7 @@ void __fastcall MenuChoice(char* self, void*, uint32_t passed, const uint32_t* m
         return;
     }
     void* const memory = New(0x90);
-    void* const tool = memory ? This<void*>(addr::SC4ViewInputControls_F4BA7D0, memory, kind) : nullptr;
+    void* const tool = memory ? This<void*>(addr::SC4DispatchTool_Construct, memory, kind) : nullptr;
     if (tool)
         AddRef(tool);
     Virtual<uint8_t>(self, 0x64, tool, kReplaceTools);

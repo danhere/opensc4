@@ -1,6 +1,6 @@
 # The city view's tools
 
-The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool and the level terrain tool. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
+The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool, the level terrain tool, the dispatch tool, the sign removal tool and the Life tool. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
 
 | Tool | State |
 | --- | --- |
@@ -11,6 +11,9 @@ The view input controls that the city view makes current while the player holds 
 | Mission icon control | ours (`ui.tools.small1`, below) |
 | Flora tool | ours (`ui.tools.small2`, below) |
 | Level terrain tool | ours (`ui.tools.small2`, below) |
+| Dispatch tool | ours (`ui.tools.dispatch`, below) |
+| Sign removal tool | ours (`ui.tools.signpick`, below) |
+| Life tool (the cheat GOL) | ours (`ui.tools.cellpaint`, below) |
 | Base class | ours (`ui.tools.base`, below) |
 
 ## The tool classes
@@ -28,15 +31,15 @@ Every city tool is a view input control: a class on the base class below, with a
 | Scroll drag tool (right button drag; made by 0x007E6A00) | 0x004B7DC0 | 0x00A90040 | 0x48 | 0x004B7DC0 to 0x004B8479 | 8 | ours (`ui.tools.small1`, below) |
 | Mission icon click control (a persistent control the view makes at city load, 0x007ED0F0) | 0x004B8690 | 0x00A900D8 | 0x3C | 0x004B84B0 to 0x004B8822 | 9 | ours (`ui.tools.small1`, below) |
 | Bulldoze | 0x004B9070 | 0x00A901A0 | 0xD8 | 0x004B8830 to 0x004B9D56 | 18 | ours (`ui.tools.bulldoze`, below) |
-| Dispatch tool (police and fire dispatch; guess) | 0x004BA7D0 | 0x00A90268 | 0x90 | 0x004B9D60 to 0x004BABC0 | 15 | still the game's |
+| Dispatch tool (police and fire dispatch) | 0x004BA7D0 | 0x00A90268 | 0x90 | 0x004B9D60 to 0x004BABC0 | 15 | ours (`ui.tools.dispatch`, below) |
 | Effect trigger tool, the base of the common disaster tool (strings _button_trigger, _trigger; never made by itself) | 0x004BAF60 | 0x00A902E0 | | 0x004BABE0 to 0x004BB8FD | 13 | still the game's |
 | Flora (plant trees) tool | 0x004BB900 | 0x00A903B8 | 0x50 | 0x004BB900 to 0x004BBE41 | 7 | ours (`ui.tools.small2`, below) |
-| Cell painting tool, made by a cheat (purpose a guess) | 0x004BC310 | 0x00A90458 | 0x88 | 0x004BBE50 to 0x004BC975 | 16 | still the game's |
+| Life tool (Conway's Game of Life, made by the cheat GOL) | 0x004BC310 | 0x00A90458 | 0x88 | 0x004BBE50 to 0x004BC975 | 16 | ours (`ui.tools.cellpaint`, below) |
 | Text decal tool (a label on the ground; guess) | 0x004BD230 | 0x00A90528 | 0x44 | 0x004BC980 to 0x004BDAFC | 16 | still the game's |
 | Level-a-rectangle terrain tool | 0x004BDC60 | 0x00A905C0 | 0x58 | 0x004BDB00 to 0x004BDEBC | 8 | ours (`ui.tools.small2`, below) |
 | Lot (plop) | 0x004C0430 | 0x00A90738 | 0x158 | 0x004BDF70 to 0x004C36C0 | 36 | ours (`ui.tools.plop1` to `plop3`, below) |
 | Query tool (`cSC4ViewInputControlQuery`; strings Query.txt, "Query cell (%d, %d)") | 0x004C4590 | 0x00A90A88 | 0xA0 | 0x004C3730 to 0x004D767F | 223 | still the game's; not a network tool |
-| Signpost pick tool (guess) | 0x004D76F0 | 0x00A928A0 | 0x30 | 0x004D7680 to 0x004D7AE2 | 8 | still the game's |
+| Sign removal tool (removes signs; the survey had called it a pick tool) | 0x004D76F0 | 0x00A928A0 | 0x30 | 0x004D7680 to 0x004D7AE2 | 8 | ours (`ui.tools.signpick`, below) |
 | Sign text tool (types the text of a sign; guess) | 0x004D7F00 | 0x00A92968 | 0x80 | 0x004D7AF0 to 0x004D8ABA | 17 | still the game's |
 | Terrain brush tool | 0x004D9430 | 0x00A92A10 | 0x130 | 0x004D8AC0 to 0x004D9E50 | 23 | still the game's |
 | Cheat tool (building footprint) | 0x004D9E80 | 0x00A92AC0 | 0x38 | 0x004D9E50 to 0x004DA593 | 6 | partly ours: four functions in `ui.tools.zone`; the footprint drawing (0x004D9EE0) and OnMouseMove (0x004DA1B0) stay the game's |
@@ -49,7 +52,7 @@ Every city tool is a view input control: a class on the base class below, with a
 
 The network tools are the last two rows, at 0x00660C30 to 0x006625F0. The range 0x004C3730 to 0x004D767F belongs to the query tool.
 
-The classes that are not ours, apart from the two network tools, come to about 414 functions and 121 KB, of which the query tool is 223 functions and 78 KB. The 121 KB is the earlier 126 KB less about 5 KB for the four small classes, taken from their code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the terrain brush's cursor, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
+The classes that are not ours, apart from the two network tools, come to about 375 functions and 114 KB, of which the query tool is 223 functions and 78 KB. The 114 KB is the earlier 126 KB less about 5 KB for the four small classes and about 7 KB for the dispatch, sign removal and Life tools (39 functions), taken from their function sizes. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the terrain brush's cursor, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
 
 ## The base class
 
@@ -110,8 +113,8 @@ A holder is one pointer; the plop and zone tools keep one for the pointer model 
 | Function | Address | Used by |
 | --- | --- | --- |
 | Deleting destructor with nothing of its own to destroy | 0x004B7ED0 | scroll drag, flora, terrain command |
-| Deleting destructor that runs the cheat tool's destructor body (0x004DA180) | 0x004D7AA0 | cheat tool, sign pick tool |
-| QueryInterface: the message target's ID gives the object itself and counts the reference at +8 without the vtable; the rest is the base's | 0x004B8480 | the view's default control, the cell paint tool, U-Drive |
+| Deleting destructor that runs the cheat tool's destructor body (0x004DA180) | 0x004D7AA0 | cheat tool, sign removal tool |
+| QueryInterface: the message target's ID gives the object itself and counts the reference at +8 without the vtable; the rest is the base's | 0x004B8480 | the view's default control, the Life tool, U-Drive |
 | QueryInterface: the IDs 1 and 0x452294AA give the part at +0x28; nothing else, the control's own ID included | 0x004B9DE0 | dispatch tool, MySim dispatch tool |
 | QueryInterface: the message target's ID gives the part at +0x28; the rest is the base's | 0x00661D70 | obliterate, terrain brush, zone, network drawing tool |
 | A key slot that answers false (the opposite of 0x00505BE0) | 0x004BDBE0 | six tools |
@@ -713,3 +716,281 @@ Planting made the original stop repeating on Rush Hour d0090: six runs, six outc
 First acceptance, 7 days on Making Money d0090, Big City d0000 and Rush Hour d0090: the original twice, ours once, and once with only the tools groups ours. Identical in every case, plain and with the test and its commits. The test without the commit switch leaves the city unchanged.
 
 Parity (batch t2b1, 7 days, with the base class's test too): plain 12 of 12 saves identical; with the tests and their commits 12 of 12; the plopped corpus with the tests 3 of 3. All on the first pair.
+
+## The dispatch tool
+
+The police and fire dispatch tool: 0x90 bytes, ID 0x68E1900A, main vtable 0x00A90268, message target vtable 0x00A90258 at +0x28, code 0x004B9D60 to 0x004BABC0, 15 functions, group `ui.tools.dispatch` (src/core/tool_dispatch.cpp). The constructor is 0x004BA7D0 and takes the dispatch type. The survey had marked it "guess"; it is the dispatch tool: its markers are pylons (`cISC4PylonOccupant`, interface 0xC9B6D7D6, occupant type 0xA9B6D7DE) and the service at 0x00B43D04 is the dispatch manager (`cISC4DispatchManager`, the city's slot 39, filled from city slot 0x9C).
+
+The dispatch types are 0 police, 1 fire, 5 fire plane and 6 police helicopter. Type 4 is the MySim dispatch tool's, which has its own class; type 8 is refused by the tool's own code.
+
+The view makes it for four commands and four menu choices, with `new` of 0x90 bytes, the constructor with the type, and the view's slot 0x64 with the operation 2:
+
+| Command | Menu choice (0x007E7130) | Type |
+| --- | --- | --- |
+| 0xCA935DBD (only in an established city) | 0x33 | 0 |
+| 0x6A935D39 (only in an established city) | 0x69A30679 | 1 |
+| 0x8C0B0E46 | 0x6BFC8C55 | 5 |
+| 0xEC0B0E6A | 0x4BFC8C2F | 6 |
+
+What it does:
+
+1. A click on the ground, with no marker held, asks the manager whether a dispatch of the tool's type is allowed there (CanDispatch, slot 5) and then for one (Dispatch, slot 6). That puts a pylon on the ground and sends a vehicle out.
+2. A click on a pylon that is not the held one picks it up: any held one is put down first, the pylon becomes the manager's active pylon, its place and dispatch state are kept in the tool, the offset of the pointer from the pylon is kept (SetGrabOffset, the base's), and message 0xC9F1011A is posted. Pylons of a MySim are not taken (the filter refuses them).
+3. While a pylon is held, a move puts it at the pointer plus the offset, with state 3 when a dispatch is allowed there and state 1 when not. The allowed flag is kept at +0x30. The modifier bit with the value 2 on a move says never allowed.
+4. The next click puts the pylon down (PutDown). A pylon back inside the cells of the building it came from calls the dispatch off (the manager's RevokeDispatchByPylon, slot 8). Anywhere else a dispatch is asked for at the new place. Either way the manager has no active pylon after.
+5. A click with the modifier bit of the value 1, or a second click within 500 ms of the first, selects the pylon's vehicle (the vehicle manager's slot 34) and posts message 0x49F10111.
+6. The cursor text shows how many units of the type are free (the manager's GetAvailablePylonCount, slot 21). The text 0x4A54ED13 of group 0x6A231EAA is the format; the view shows it under 0x49D02C4D.
+
+The 500 ms stopwatch (+0x40, mode 4) pairs two clicks into a double click. It is real time, not sim time, as in the original: the range 0x004B9D60 to 0x004BABC0 is not one of the `determinism.sim_timers` ranges, and ours claims nothing. It gates only the pairing of clicks. The tool draws nothing and draws no random number. The picks (the renderer's pick of a model, and the view's ground pick) are a function of the camera and of what the last frame drew.
+
+### Pieces
+
+One group, `ui.tools.dispatch`, PostAppInit, off by default, 15 hooks, all the tool's functions. The occupant filter is a 0xC byte object with the vtables 0x00A9023C and, at +4, 0x00A90224.
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| OnKeyDown (true for key 9, Tab; for any other the opposite of the shared key stub, so false) | 0x004B9D60 | 14 |
+| SetHighlighted (the pylon under the pointer changes; the old one gets state 1, the new one state 3) | 0x004B9D90 | |
+| FilterIncludes (a pylon occupant with a UI state, not being dragged, whose owner is not a MySim) | 0x004B9E40 | 3 of the filter |
+| Shutdown | 0x004B9EF0 | 4 |
+| PickMarker (the pylon at a screen point, referenced, through the renderer's pick with the filter) | 0x004B9FF0 | |
+| Dispatch (type, position, really: the manager's Dispatch; false for type 8) | 0x004BA0D0 | |
+| Post (posts a message of the framework with a type, an object and four numbers) | 0x004BA120 | |
+| PutDown | 0x004BA1B0 | |
+| OnMouseMove | 0x004BA320 | 20 |
+| OnMouseDownL | 0x004BA510 | 16 |
+| Constructor (the type) | 0x004BA7D0 | |
+| Deleting destructor | 0x004BA880 | 26 |
+| UpdateCursorText | 0x004BA8B0 | |
+| DoMessage | 0x004BA940 | 3 of the part at +0x28 |
+| Init | 0x004BAAB0 | 3 |
+
+Init sets the ID, the cursor by the type (0xC2E4353D for 0 and 6, 0x02E43537 for 1 and 5, else 1, also kept at +0x58), has the manager begin the dispatch tool (slot 16), makes the stopwatch again (mode 4), runs the base Init, asks the message server for five messages (0x09C8B8EA the view's tool changed, 0xE94671EB to 0xE94671ED dispatches made, moved or called off, 0x894671F6 a dispatch called back), sets +0x74, shows the cursor text and makes the filter. Shutdown gives the five messages back, puts a held pylon back where it was picked up (place and state), has the manager end the dispatch tool (slot 17) and lets go of the filter.
+
+Shared code is the base's: QueryInterface 0x004B9DE0, SetGrabOffset 0x004BA070, the target's adjustor thunk 0x004BA870 (see "The base class").
+
+### Fields
+
+| Offset | Field |
+| --- | --- |
+| +0x04 | initialised (set by the base Init) |
+| +0x0C | the tool's ID |
+| +0x10 | the cursor ID |
+| +0x1C | the city view |
+| +0x28 | the message target part |
+| +0x2C | the dispatch type |
+| +0x30 | a dispatch is allowed under the pointer (byte) |
+| +0x34, +0x38 | the pointer's offset from the held pylon when it was picked up |
+| +0x40 | the stopwatch between clicks (0x18 bytes, mode 4) |
+| +0x58 | the idle cursor |
+| +0x5C | the pylon under the pointer (lit, referenced) |
+| +0x60 | the cursor text (a game string) |
+| +0x74 | the tool is the view's current one (byte) |
+| +0x78 | the occupant filter (referenced) |
+| +0x7C | the held pylon's place when it was picked up, three floats |
+| +0x88 | its dispatch state then |
+
+### Makers
+
+The ones in the table above, all in the city view's code (src/core/ui_cityview_1.cpp, ui_cityview_6.cpp).
+
+### Behaviour as the game has it
+
+- The constructor never sets +0x88. Shutdown and the tool-changed message write it into the dispatch state of a pylon that the manager has as active and this tool did not pick up.
+- The destructor does not let go of the pylon at +0x5C or of the filter; Shutdown does. Init overwrites +0x78 without releasing the old filter, and a failed allocation of the filter is not checked.
+- Shutdown releases the lit pylon without putting its UI state back to 1. The tool-changed message does put it back.
+- The message 0x99EF1143 (an occupant removed) reads +0x5C without testing it for null. Init never asks for it, so the case is dead in practice.
+- PutDown reads the manager from its global each time; where the game jumps to its last call with a null manager, ours calls through the null pointer as the game does.
+- The filter's QueryInterface out slot is not set before the call.
+- The inside test in PutDown is the four comparisons as the x87 flags give them: inside when x is at or above the first corner and at or below the second, the same for z, and outside when a value is unordered.
+- The constructor writes a vtable word into the target slot and then the proper one; ours does the same.
+
+### Left the game's
+
+- The base class's functions the tool shares (see "The base class").
+- The dispatch manager, the pylon, the vehicle manager, the renderer's pick, the stopwatch (called by address: IsRunning 0x0088FEFB, ElapsedMilliseconds 0x00890198, Start 0x0089058F, Reset 0x0088FF0A), the localised string, the message class.
+- Nothing wraps this tool's functions. `game.bulldoze` has a return-address range that reaches 0x004B9D60 and 0x004B9D90 (its end is 0x004B9E20), but neither function calls the demolition service, so moving them to core.dll changes nothing there.
+
+## The sign removal tool
+
+The survey had called this a signpost pick tool. It removes signs: 0x30 bytes, ID 0xCBCC987E, vtable 0x00A928A0, code 0x004D7680 to 0x004D7AE2, 8 functions, group `ui.tools.signpick` (src/core/tool_signpick.cpp). The constructor is 0x004D76F0. The view makes it for its command 0xABCDEE11 with `new` of 0x30 bytes, and puts it away when signs and labels are switched off (src/core/ui_cityview_6.cpp). The class is on the cheat tool's layout and shares its destructor body 0x004DA180 and deleting destructor 0x004D7AA0, both already ours.
+
+What it does:
+
+1. Init gives it the ID and the cursor 0x8BD4B428, makes the occupant filter (0xC bytes, vtables 0x00A92880 and, at +4, 0x00A92868), and turns the city's signs and labels on (the prop developer's slot 8 with true). This changes a city display setting.
+2. A move asks SignAt for the sign under the pointer and hands it to SetSign. SignAt first asks the renderer to pick a model with the filter. When that finds nothing, the terrain point under the pointer goes to the occupant manager, which gives the first occupant there that the filter takes. A sign is a prop occupant (type 0xA823821E, interface 0xE9793A65) of kind 0xAB72FBB3 (a sign on the terrain) or 0xCB79919B (a sign on a network).
+3. SetSign marks the hovered sign and unmarks the old one. A sign on a network gets 0.7 when hovered and 0.5 when not, through its interface 0x2B3B7D86 (slot 10). A sign on the terrain has its flag set to 1 or 0 through 0x4B44FBE2 (slot 6).
+4. Letting the left button go removes the kept sign through the prop manager (slot 29, RemoveProp) and plays the sound 0x8A5EC047 through the sound service. It does not use the demolition service, so `game.bulldoze` and `game.quiet.demolish` never see it, in the original or in ours.
+
+There is no drag, no cost and no clock, and no random number.
+
+### Pieces
+
+One group, `ui.tools.signpick`, PostAppInit, off by default, 8 hooks, all the tool's functions.
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| FilterIncludes (a prop occupant that is a sign on the terrain or on a network) | 0x004D7680 | 3 of the filter |
+| Constructor | 0x004D76F0 | |
+| Init | 0x004D7710 | 3 |
+| Shutdown (lets go of the filter, then the base; the sign at +0x2C is left to the destructor) | 0x004D7790 | 4 |
+| OnMouseUpL | 0x004D77C0 | 18 |
+| SignAt (ret 8: x and z) | 0x004D7820 | |
+| SetSign (ret 4) | 0x004D7950 | |
+| OnMouseMove | 0x004D7AC0 | 20 |
+
+### Fields
+
+| Offset | Field |
+| --- | --- |
+| +0x28 | the occupant filter (referenced) |
+| +0x2C | the sign under the pointer (its interface 0xE9793A65, referenced) |
+
+### With the UI Modernization probe
+
+A probe of the UI Modernization mod sits on 0x004D7950, the function that makes the hovered sign change. With `ui.tools.signpick` on, our detour is installed at that address too, and two detours cannot share one address, so the two cannot both be installed. The mod's probe is off by default (patch-census.md), and no wrapper of ours touches this tool. Do not run both.
+
+### Behaviour as the game has it
+
+- SignAt hands back a pointer that it has already released; whoever keeps it references it again. The owner of the first model is not tested for null.
+- SetSign with the same sign again unmarks and marks it again.
+- Shutdown does not let go of the sign at +0x2C.
+
+### Left the game's
+
+- The cheat tool's destructor body 0x004DA180 and the deleting destructor 0x004D7AA0 are ours already, in other groups (`ui.tools.zone`, `ui.tools.base`).
+- The renderer's pick, the occupant manager, the prop manager and the prop developer are called by slot.
+
+## The Life tool
+
+The cheat GOL (0x8973A69C, the first name in the city view's cheat table) makes Conway's Game of Life on one byte per city cell, with the live cells shown through a map overlay. The survey had called the class a cell painting tool. 0x88 bytes, ID 0x69701127, main vtable 0x00A90458, message target vtable 0x00A90448 at +0x28, code 0x004BBE50 to 0x004BC975, 16 functions, group `ui.tools.cellpaint` (src/core/tool_cellpaint.cpp). The constructor is 0x004BC310; the cheat handler 0x007F3510 makes it with `new` of 0x88 bytes and no arguments. The class holds a grid of 0x24 bytes at +0x40 (the game's "SC4LifeGrid" in our names).
+
+It changes no city state. It reads the terrain's size and the terrain pick, and nothing else of the city.
+
+What it does:
+
+1. Init fills the grid at random (see the random fill below), asks the framework's frame service (0x86AD10EC, slot 5, with the code 0xFF) for its message, and makes the overlay once: scaled to the cell width, coloured from the four floats at 0x00A90438 (0, 0.8, 0.2, 0.7) and handed to the renderer.
+2. Every message the frame service sends is one generation (DoMessage does not look at the type): the overlay's cells are emptied and the grid steps, which tells the overlay every live cell. The number of generations a game day therefore depends on the frame rate.
+3. A step counts the live cells among the eight neighbours of each cell in the generation before, the grid wrapped at its edges. Three neighbours make a dead cell live; two or three let a live cell go on, a year older until 0xBF; anything else is dead.
+4. A press on a cell flips it and decides what the drag does: on a dead cell the drag paints live cells, on a live one it erases.
+5. C, Delete and Backspace empty the grid; R fills it at random again.
+
+### Pieces
+
+One group, `ui.tools.cellpaint`, PostAppInit, off by default, 16 hooks, all the tool's functions.
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| CellLives (cdecl: x, z, the tool; the grid's function for a live cell) | 0x004BBE50 | |
+| OnMouseUpL (lets go of the mouse when the tool has it) | 0x004BBE70 | 18 |
+| Grid Randomize | 0x004BBE90 | |
+| Grid Paint (ret 8: x and z) | 0x004BBF00 | |
+| Grid Step | 0x004BBF50 | |
+| Shutdown | 0x004BC190 | 4 |
+| Grid Resize (ret 0xC: width, height, random) | 0x004BC230 | |
+| DoMessage | 0x004BC2F0 | 3 of the part at +0x28 |
+| Constructor | 0x004BC310 | |
+| Deleting destructor | 0x004BC420 | 26 |
+| Destructor body | 0x004BC440 | |
+| Refresh (the live cells into the vector at +0x68 and from there into the overlay) | 0x004BC4D0 | |
+| Init | 0x004BC670 | 3 |
+| OnKeyDown | 0x004BC7D0 | 14 |
+| OnMouseDownL | 0x004BC870 | 16 |
+| OnMouseMove | 0x004BC900 | 20 |
+
+### Fields
+
+The tool:
+
+| Offset | Field |
+| --- | --- |
+| +0x04 | initialised (set by the base Init) |
+| +0x0C | the tool's ID |
+| +0x10 | the cursor ID (0) |
+| +0x1C | the city view |
+| +0x28 | the message target part |
+| +0x2C | the terrain (referenced) |
+| +0x30 | the width of a cell, a float |
+| +0x34 | one over it, a float |
+| +0x38, +0x3C | the cell the drag was last at (-1 for none) |
+| +0x40 | the grid (0x24 bytes, below) |
+| +0x64 | the overlay (referenced) |
+| +0x68 | the live cells as a vector of (x, z) pairs: begin, end, capacity |
+| +0x74 | a string; the text 0x4A56B5FB of group 0x6A231EAA is loaded into it by Init and never shown |
+
+The grid, offsets from its start (+0x40 in the tool):
+
+| Offset | Field |
+| --- | --- |
+| +0x00 | stopped (byte; no generations; nothing in the game sets it) |
+| +0x04 | what a drag does: 0 paints, 1 erases |
+| +0x08, +0x0C | width, height in cells |
+| +0x10 | the cells (0 dead, else the age, at most 0xBF) |
+| +0x14 | the cells of the generation before |
+| +0x18 | the function called with (x, z, context) for a cell that lives |
+| +0x1C | the same for a cell that does not (always null) |
+| +0x20 | their context (the tool) |
+
+### The random fill
+
+Randomize makes a generator of 0x18 bytes on its stack with seed -1, which the game's constructor turns into a clock seed (time xor the clock), and then draws one number below 2 for every cell, row by row, and puts the low byte into both arrays. It uses no city generator, so the tool cannot move the simulation's random streams. Ours wraps the generator's construction in `fixed_seed::SiteOverride(0x004BBEA2)`, the original's return address, so that the fixed seed replacement gives the site what the original's site gets, and keeps the draws one for one. It runs from Init (through Resize) and from key R.
+
+### The overlay helpers
+
+Two helper functions of the map overlay, 0x004BC3B0 and 0x004BC4A0, stay the game's (the map drawing calls them too). Only 0x004BC3B0 (append every pair of a vector to the overlay's cells) is called by us, by address, from Refresh. 0x004BC4A0 (empty the overlay's cells, then jump to 0x004BC3B0) is not called: its body is inlined in the game's Refresh and ours writes the emptying inline. The overlay's other methods (construct, start, scale, colour, add a cell, clear, stop) are also called by address.
+
+### Behaviour as the game has it
+
+- OnMouseDownL and the grid's Paint do not check the picked cell against the grid: a pick outside the map writes out of bounds, as in the game.
+- Init stores the game's address 0x004BBE50 as the live-cell callback, which is where our detour sits, so memory holds the same value as in the original.
+- A step also writes the new age back into the generation before while it passes; it does not change the count, which tests for not zero.
+- In a grid one cell wide or high, a cell counts itself as a neighbour. Ours wraps all eight offsets, so it does the same.
+- Ours writes the wrapped form of the neighbour count for every cell. The game reads an inner cell's neighbours directly and wraps only the edges; the eight bytes read are the same.
+- The grid's stopped byte, the dead-cell callback and the text of Init are never used.
+- Resize takes a width or height of 0 as 16.
+
+### Left the game's
+
+- The overlay helpers above, and the map overlay class's methods.
+- The shared slots: QueryInterface 0x004B8480 and the key-up slot 0x004BDBE0 are the base's; the adjustor thunks of the target stay the game's.
+
+## The dispatch, sign removal and Life tools: test
+
+`OPENSC4_TEST_TOOLS3=<day>` (src/core/tool_t3_autotest.cpp, token ` tools3`, sub-hashes on the log lines `autotest: tools3: ...`). It calls only the game's addresses and the tools' vtable slots, never our functions, so a run with `ui.tools.dispatch`, `ui.tools.signpick` and `ui.tools.cellpaint` on and one with them off compare. Pointers are left out of the hashes. The three tools are made as the view makes them: `new` filled with 0x5A, the constructor, the view's slot 0x64 with 2. The screen points are the same grid as the small tools' test, and the point (-1000, -1000) picks nothing. The random fills are logged and kept out of the token.
+
+Switches:
+
+- `OPENSC4_TEST_TOOLS3_COMMIT=1` adds the two steps that change the city (a tutorial city may hold them back: `OPENSC4_TEST_TUTORIAL_OFF=1`).
+- `OPENSC4_TEST_TOOLS3_SEND=0` leaves the dispatch step out of the commit (all that stays is the removal).
+- `OPENSC4_TEST_TOOLS3_PARTS=<bits>` picks the parts: 1 the dispatch tool, 2 the sign removal tool, 4 the Life tool. The default is 7.
+
+Log sections:
+
+1. Dispatch, once for the police type (0) and once for the fire type (1): the fields after the constructor and after Init, the cursor text, the manager's counts of the type; the filter over every pylon of the city and the first 20 trees; the key slot (Tab and another key); the handlers at a point off the ground (the stopwatch is reset after the press); OnMouseMove over the grid, which notes where a dispatch is allowed, and once more with the modifier of the value 2; then by address PickMarker, Dispatch with type 8 and with really false, PutDown with nothing held, SetHighlighted with null and UpdateCursorText; DoMessage of the part at +0x28 with the dispatch messages, an unknown one and the tool-changed message in four shapes; put away by the view and the last Release. Line `dispatch type <n>`.
+2. Signs: whether signs and labels were shown before and after Init (put back at the end), the fields, the filter over every prop and over the first trees, how many props are signs, the handlers off the ground and over the grid, SignAt and SetSign by address (with a sign of the city when there is one), put away. Line `signs`.
+3. Grid: the grid's functions on a scratch grid: Resize, Paint in both modes and with a mode that is neither, Step with counting functions (a glider on 7 by 6 for 30 generations, a block for 200 generations so the age stops at 0xBF), grids one cell wide, high and square, the stopped byte, a 16 by 16 grid from Resize with zeroes and a random fill of 24 by 10. Line `grid`.
+4. Life: the tool as the cheat makes it: the fields, the random grid of Init (hashed apart, then emptied by key C so that the rest does not depend on the seed), the keys (C, R, Delete, Backspace and one the tool does not take), a press, a drag and a release on the ground, a glider by hand and three generations through the message target, the handlers off the ground, put away. Line `life`.
+5. Send (commit): with the fire type, OnMouseDownL at the first grid point where a dispatch is allowed; the manager's records of the type; the new pylon made the manager's active one by hand (as a pick-up does) and moved with OnMouseMove to the next allowed point; PutDown; then every dispatch called off (the manager's slot 9). The records after each step. Line `send`. With `_SEND=0` this step is left out.
+6. Remove (commit): with a sign in the city, the first one by position is kept with SetSign and removed with OnMouseUpL, and the signs left are counted. A city without signs keeps what it has. Line `signs` (the commit adds to the same section).
+
+Not reached:
+
+- Sign marking and removal and the hit branches of SignAt: none of the corpus saves has a sign, so only the no-sign paths run.
+- The dispatch tool's pick-up, vehicle selection and double-click branches, and its Post function: they need a marker picked from a drawn frame, and the pick reads what the last frame drew. The test sets the held pylon by hand instead.
+- The tool-changed handling when the tool is replaced by the scroll control, and DoMessage's type 0x99EF1143 (the tool never asks for it).
+- PutDown's revoke branch, where a held pylon is put down inside the building it came from: the pylon the test holds has no such building.
+
+The dispatch step changes the city and the original is noisy after a dispatch (the vehicles travel on frame time): judge the commit legs by outcome sets and compare the manager's records, not the vehicles' positions.
+
+### Trial results
+
+2026-10-13, single runs of 7 days on Making Money d0090, Big City d0000 and Rush Hour d0090. The original twice and ours once per case.
+
+| Case | Result |
+| --- | --- |
+| Plain, tools groups on | identical on all three saves |
+| The test alone, no commit | the city unchanged on all three saves |
+| Only the tools groups ours (`ui.tools.base` and the three), test with commits | identical to the original on all three saves |
+| The full list of groups, test with commits | the runs part from the original after the first dispatch (see [audio.md](audio.md), "Open: runs part from the original after a dispatch") |
+
+Parity (batch t3b1, 7 days, with the base class's and the small tools' tests): plain 12 of 12 saves identical; with the tests and their commits but without the dispatch step (`OPENSC4_TEST_TOOLS3_SEND=0`) 12 of 12; with the dispatch step and the groups `audio.part5` and `audio.part6` left out 12 of 12, and 3 of 3 on the plopped corpus; all on the first pair. With the dispatch step and the full list of groups 0 of 12: every save parts from the original after the dispatch, which is the open problem in [audio.md](audio.md), not the tools' code.

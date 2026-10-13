@@ -1047,7 +1047,7 @@ address = 0x004BDBE0
 kind = "function"
 convention = "thiscall"
 expect = "8B 44 24 08 8B 54 24 04"
-source = "Name ours. (key, modifiers), ret 8: a key slot of six tools (the dispatch, flora, cell paint, terrain command and the two disaster tools): calls 0x00505BE0 with the two arguments and answers the opposite, which is false always. Ours in ui.tools.base."
+source = "Name ours. (key, modifiers), ret 8: a key slot of six tools (the effect trigger base 0x00A902E0, flora, Game of Life, terrain command and the two disaster tools; slot 14, in the Game of Life tool slot 15): calls 0x00505BE0 with the two arguments and answers the opposite, which is false always. Ours in ui.tools.base."
 
 [[entry]]
 name = "SC4ViewModel::GridName"
@@ -1350,3 +1350,379 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 0C A1 34 18 B2 00"
 source = "Name ours. Slot 20 of the level terrain tool, (x, z, modifiers), ret 0xC: false when no drag is on. When the ground is picked and its cell (x and z times one over the cell size, truncated) is not the drag's end, the end moves and UpdateRect runs. Returns true. Ours in ui.tools.small2."
+
+[[entry]]
+name = "SC4DispatchTool::Vtable"
+address = 0x00A90268
+kind = "data"
+source = "Name ours. Main vtable of the dispatch tool (a view input control of 0x90 bytes, ID 0x68E1900A, constructor 0x004BA7D0 with a dispatch type: 0 police, 1 fire, 5 fire plane, 6 police helicopter; made by the city view's commands 0x6A935D39, 0xCA935DBD, 0x8C0B0E46, 0xEC0B0E6A and its menu choices 0x33, 0x69A30679, 0x6BFC8C55, 0x4BFC8C2F): the shared QueryInterface 0x004B9DE0 at slot 0, Init 0x004BAAB0 at 3, Shutdown 0x004B9EF0 at 4, OnKeyDown 0x004B9D60 at 14, OnMouseDownL 0x004BA510 at 16, OnMouseMove 0x004BA320 at 20, the deleting destructor 0x004BA880 at 26; every other slot the base's or a shared stub."
+
+[[entry]]
+name = "SC4DispatchTool::TargetVtable"
+address = 0x00A90258
+kind = "data"
+source = "Name ours. Vtable of the dispatch tool's message target at +0x28 (4 slots: the thunks 0x004BA870, 0x004BFB10, 0x004BFB20 and DoMessage 0x004BA940)."
+
+[[entry]]
+name = "SC4DispatchTool::FilterVtable"
+address = 0x00A9023C
+kind = "data"
+source = "Name ours. Vtable of the dispatch tool's 12-byte occupant filter (slot 3 0x004B9E40; the rest the filter base's)."
+
+[[entry]]
+name = "SC4DispatchTool::FilterVtable4"
+address = 0x00A90224
+kind = "data"
+source = "Name ours. The dispatch tool filter's second vtable (+4, 6 slots, the filter base's)."
+
+[[entry]]
+name = "SC4DispatchTool::Zero"
+address = 0x00B21800
+kind = "data"
+source = "Name ours. A dword of zero-initialised data the dispatch tool's constructor copies three times into the held marker's start position (+0x7C); read at three places of 0x004BA7D0 and written nowhere."
+
+[[entry]]
+name = "SC4DispatchTool::OnKeyDown"
+address = 0x004B9D60
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 09 74"
+source = "Name ours. Slot 14, (key, modifiers), ret 8: true for key 9; else calls the shared key stub 0x00505BE0 with both and answers the opposite (false, as the stub answers true). Inside game.bulldoze's return address range (0x004B8830 to 0x004B9E20) but calls nothing of the demolition service. Ours in ui.tools.dispatch (src/core/tool_dispatch.cpp)."
+
+[[entry]]
+name = "SC4DispatchTool::SetHighlighted"
+address = 0x004B9D90
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 5C 57 8B"
+source = "Name ours. (pylon), ret 4: nothing when it is the one at +0x5C; else the old one gets UI state 1 (pylon slot 6) and is released, the new one is stored, referenced and gets state 3 (a tail jump). Inside game.bulldoze's return address range, calls nothing of the demolition service. Called by OnMouseMove only. Ours in ui.tools.dispatch."
+
+[[entry]]
+name = "SC4DispatchTool::FilterIncludes"
+address = 0x004B9E40
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B 74 24 10 8B"
+source = "Name ours. Slot 3 of the filter, (occupant), ret 4, this not read: true for an occupant of type 0xA9B6D7DE whose interface 0xC9B6D7D6 (cISC4PylonOccupant) has a UI state (slot 7 not 0), is not dragged (slot 16) and whose owner (slot 20) is null or does not answer the MySim interface 0x0A1DA42F. Ours in ui.tools.dispatch."
+
+[[entry]]
+name = "SC4DispatchTool::Shutdown"
+address = 0x004B9EF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 4: when inited, the view's ClearCursorText (slot 41) with 0x49D02C4D, the messages 0x09C8B8EA, 0xE94671EB, 0xE94671EC, 0xE94671ED, 0x894671F6 given back for the target at +0x28, the pylon at +0x5C released, the dispatch manager's (city slot 39) active pylon put back at +0x7C with dispatch state +0x88 and SetActivePylon(0), EndDispatchTool (slot 17) with the type, the filter at +0x78 released, the base Shutdown. Returns true. Ours in ui.tools.dispatch."
+
+[[entry]]
+name = "SC4DispatchTool::PickMarker"
+address = 0x004B9FF0
+kind = "function"
+convention = "thiscall"
+expect = "51 A1 D0 3D B4 00 53 56"
+source = "Name ours. (x, z, void** out), ret 0xC: clears out; the renderer 0x00B43DD0 slot 0x104 (Pick with the filter at +0x78) gives a model, whose slot 3 object is asked for interface 0xC9B6D7D6 into out; the model released. True when out was filled (referenced). Called by OnMouseMove and OnMouseDownL. Ours in ui.tools.dispatch."
+
+[[entry]]
+name = "SC4DispatchTool::Dispatch"
+address = 0x004BA0D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 32 DB 83"
+source = "Name ours. (type, float* position, bool really), ret 0xC, this not read: false for type 8, without the dispatch manager 0x00B43D04 or with really false; else the manager's Dispatch (slot 6) with the type and the position's x and z, true when it gave an ID. Called by OnMouseDownL only. Ours in ui.tools.dispatch."
+
+[[entry]]
+name = "SC4DispatchTool::Post"
+address = 0x004BA120
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 2C E8 B2 92 45 00"
+source = "Name ours. (message type, object, four dwords), ret 0x18, this not read: makes a cGZMessage (0x2C bytes, not checked for null), sets its type (slot 5), the object (slot 33) and the four numbers (slots 11, 16, 21, 26), posts it through the message server's slot 4 with 0 and releases it. Called by OnMouseDownL with 0x49F10111 and 0xC9F1011A. Ours in ui.tools.dispatch."
+
+[[entry]]
+name = "SC4DispatchTool::PutDown"
+address = 0x004BA1B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 56 57 8B F9"
+source = "Name ours. No arguments: false without an active pylon of the dispatch manager 0x00B43D04. When the pylon has a source occupant (slot 18) and its position lies inside that occupant's cell rectangle (GetBoundingCityCells, corners from the city's slot 96, both edges in), RevokeDispatchByPylon (slot 8); else, when CanDispatch (slot 5) allows the tool's type at the position and the type is not 8, Dispatch (slot 6), true when it gave an ID. SetActivePylon(0) in every case. Called by OnMouseDownL only. Ours in ui.tools.dispatch."
+
+[[entry]]
+name = "SC4DispatchTool::OnMouseMove"
+address = 0x004BA320
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 8B F1"
+source = "Name ours. Slot 20, (x, z, modifiers), ret 0xC: with a held pylon (the manager's active one) the cursor 0x13B138D0 and, unless the stopwatch at +0x40 runs and shows under 500 ms, the point pointer plus +0x34, +0x38; without one the pylon picked under the pointer is highlighted when it has a UI state, else the highlight is dropped and the cursor +0x58 set. Then the view's PickTerrain (slot 36) and the terrain height; CanDispatch unless modifier bit 1 is set; a held pylon is moved there with dispatch state 3 when allowed and gets state 1 when not; the answer into +0x30. Returns true. Ours in ui.tools.dispatch."
+
+[[entry]]
+name = "SC4DispatchTool::OnMouseDownL"
+address = 0x004BA510
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 8B F1"
+source = "Name ours. Slot 16, (x, z, modifiers), ret 0xC: a second click within 500 ms (stopwatch +0x40) puts the held pylon down and selects its vehicle; else the stopwatch starts and a picked pylon that is not the held one is picked up (SetActivePylon, position kept at +0x7C and state at +0x88, SetGrabOffset, the vehicle manager's slot 34 with 0, message 0xC9F1011A) or with modifier bit 0 has its vehicle selected (GetAutomatonFromPylon, vehicle manager slot 34, message 0x49F10111); with none picked a held pylon is moved to the terrain point and put down, and with none held a dispatch is made there when CanDispatch allows. Slot 28 (PlaySound) with 0 at the end. True when a pylon was taken or a dispatch made. Ours in ui.tools.dispatch."
+
+[[entry]]
+name = "SC4DispatchTool::DeletingDestructor"
+address = 0x004BA880
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 60 E8 C5"
+source = "Name ours. Slot 26, (flags), ret 4: destroys the string at +0x60 and the stopwatch at +0x40, the base destructor, frees the object when bit 0 is set; returns this. Ours in ui.tools.dispatch."
+
+[[entry]]
+name = "SC4DispatchTool::UpdateCursorText"
+address = 0x004BA8B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 55 56 8B F1"
+source = "Name ours. No arguments: prints the dispatch manager's GetAvailablePylonCount (slot 21) of the tool's type with the localized format (group 0x6A231EAA, instance 0x4A54ED13) into the string at +0x60 (its slot 27) and gives it to the view's SetCursorText (slot 40) under 0x49D02C4D. Called by Init and DoMessage. Ours in ui.tools.dispatch."
+
+[[entry]]
+name = "SC4DispatchTool::DoMessage"
+address = 0x004BA940
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Name ours. (message), ret 4; this is the target part at +0x28. 0x09C8B8EA (the view's tool changed): leaving for a tool that is not the drag-to-scroll control 0x48E2A1F8 clears +0x74 and the cursor text, drops the highlight and puts a held pylon back; becoming current sets +0x74 and shows the cursor text. 0xE94671EB to 0xE94671ED and 0x894671F6: the cursor text again while +0x74 is set. 0x99EF1143: releases the highlighted pylon when it is the removed occupant's (+0x5C not checked for null; Init does not ask for this message). True for these, false otherwise. Ours in ui.tools.dispatch."
+
+[[entry]]
+name = "SC4DispatchTool::Init"
+address = 0x004BAAB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 3: unless inited, the ID 0x68E1900A, the cursor by type (0xC2E4353D for 0 and 6, 0x02E43537 for 1 and 5, else 1; jump table 0x004BABC0 with its index bytes at 0x004BABCC) also into +0x58, the dispatch manager's BeginDispatchTool (slot 16), the stopwatch at +0x40 made again with mode 4, the base Init, five messages asked for the target, +0x74 set, the cursor text, and a new 12-byte filter (vtables 0x00A9023C, 0x00A90224) at +0x78, referenced. Returns true. Ours in ui.tools.dispatch."
+
+[[entry]]
+name = "SC4SignRemoveTool::Vtable"
+address = 0x00A928A0
+kind = "data"
+source = "Name ours. Main vtable of the sign removal tool (a view input control of 0x30 bytes, ID 0xCBCC987E, constructor 0x004D76F0, made by the city view's command 0xABCDEE11): the base QueryInterface, Init 0x004D7710 at slot 3, Shutdown 0x004D7790 at 4, OnMouseUpL 0x004D77C0 at 18, OnMouseMove 0x004D7AC0 at 20, the deleting destructor 0x004D7AA0 (shared with the cheat tool) at 26; every other slot the base's or a shared stub."
+
+[[entry]]
+name = "SC4SignRemoveTool::FilterVtable"
+address = 0x00A92880
+kind = "data"
+source = "Name ours. Vtable of the sign removal tool's 12-byte occupant filter (slot 3 0x004D7680; the rest the filter base's)."
+
+[[entry]]
+name = "SC4SignRemoveTool::FilterVtable4"
+address = 0x00A92868
+kind = "data"
+source = "Name ours. The sign removal tool filter's second vtable (+4, 6 slots, the filter base's)."
+
+[[entry]]
+name = "SC4SignRemoveTool::Zero"
+address = 0x00B2191C
+kind = "data"
+source = "Name ours. A dword of zero-initialised data 0x004D7820 copies three times into the point it hands to the renderer's PickTerrain; read there only and written nowhere."
+
+[[entry]]
+name = "SC4SignRemoveTool::FilterIncludes"
+address = 0x004D7680
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 8B"
+source = "Name ours. Slot 3 of the filter, (occupant), ret 4, this not read: true for an occupant of type 0xA823821E whose prop interface 0xE9793A65 gives the kind (slot 7) 0xAB72FBB3 (sign on the terrain) or 0xCB79919B (sign on a network). Ours in ui.tools.signpick (src/core/tool_signpick.cpp)."
+
+[[entry]]
+name = "SC4SignRemoveTool::Init"
+address = 0x004D7710
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 3: unless inited, the ID 0xCBCC987E, the cursor 0x8BD4B428, a new 12-byte filter (vtables 0x00A92880, 0x00A92868) kept at +0x28 (referenced, the old one released), the prop developer's ShowSignsAndLabels (0x00B43DB8 slot 8) with true, the base Init. Returns true. Ours in ui.tools.signpick."
+
+[[entry]]
+name = "SC4SignRemoveTool::Shutdown"
+address = 0x004D7790
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 4: when inited, releases the filter at +0x28 (cleared first) and calls the base Shutdown. Returns true. Ours in ui.tools.signpick."
+
+[[entry]]
+name = "SC4SignRemoveTool::OnMouseUpL"
+address = 0x004D77C0
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 4F 2C 85 C9"
+source = "Name ours. Slot 18, (x, z, modifiers), ret 0xC: with a sign at +0x2C, the prop manager's slot 29 (RemoveProp) with the sign's occupant (prop slot 3), the sign released (field cleared first), and the sound service 0x00B43CB8 slot 11 with (0xEA451903, 0x8A5EC047, 0, 0, 0) when it is there. Returns true. Ours in ui.tools.signpick."
+
+[[entry]]
+name = "SC4SignRemoveTool::SignAt"
+address = 0x004D7820
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 8B 6C 24"
+source = "Name ours. (x, z), ret 8: the sign at a screen point as its prop interface 0xE9793A65, already released, or null. First the renderer 0x00B43DD0 slot 0x104 (Pick with the filter at +0x28), the model's slot 3 object asked for the interface; with nothing from that, the renderer's PickTerrain (slot 0xF0, with 0 and 1) and the occupant manager's GetFirstOccupantByPosition (0x00B43D0C slot 28) with the filter. Called by OnMouseMove only. Ours in ui.tools.signpick."
+
+[[entry]]
+name = "SC4SignRemoveTool::SetSign"
+address = 0x004D7950
+kind = "function"
+convention = "thiscall"
+expect = "51 55 56 8B F1 8B 4E 2C"
+source = "Name ours. (sign), ret 4: the sign under the pointer changes. The one kept at +0x2C is unmarked (a network sign 0xCB79919B gets 0.5 through interface 0x2B3B7D86 slot 10, a terrain sign 0xAB72FBB3 gets false through 0x4B44FBE2 slot 6), the new one is kept (referenced, the old released) and marked (0.7, or true). Called by OnMouseMove only. A UI Modernization mod probes this address (docs/patch-census.md). Ours in ui.tools.signpick."
+
+[[entry]]
+name = "SC4SignRemoveTool::OnMouseMove"
+address = 0x004D7AC0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 8B F1 8B"
+source = "Name ours. Slot 20, (x, z, modifiers), ret 0xC: SignAt of the point, then SetSign with it. Returns true. Ours in ui.tools.signpick."
+
+[[entry]]
+name = "SC4LifeTool::Vtable"
+address = 0x00A90458
+kind = "data"
+source = "Name ours. Main vtable of the Game of Life tool (a view input control of 0x88 bytes, ID 0x69701127, constructor 0x004BC310, made by the city view's cheat GOL 0x8973A69C): the shared QueryInterface 0x004B8480 at slot 0, the AddRef and Release thunks 0x004BD280 and 0x004BD290, Init 0x004BC670 at 3, Shutdown 0x004BC190 at 4, OnKeyDown 0x004BC7D0 at 14, the shared 0x004BDBE0 at 15, OnMouseDownL 0x004BC870 at 16, OnMouseUpL 0x004BBE70 at 18, OnMouseMove 0x004BC900 at 20, the deleting destructor 0x004BC420 at 26."
+
+[[entry]]
+name = "SC4LifeTool::TargetVtable"
+address = 0x00A90448
+kind = "data"
+source = "Name ours. Vtable of the Game of Life tool's message target at +0x28 (4 slots: the thunks 0x00565570, 0x00565580, 0x00565590 and DoMessage 0x004BC2F0)."
+
+[[entry]]
+name = "SC4LifeTool::Color"
+address = 0x00A90438
+kind = "data"
+source = "Name ours. Four floats (0, 0.8, 0.2, 0.7): the fill colour the Game of Life tool's Init gives its map overlay."
+
+[[entry]]
+name = "SC4UI::MapOverlay_AddCell"
+address = 0x007DCD30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 41 14 8B 54"
+source = "Name ours. (x, z), ret 8, this is the overlay helper: appends the pair to the vector of 8-byte items at +0x10 (end +0x14, capacity +0x18), growing through 0x007C61A0. Called by the Game of Life tool's cell function 0x004BBE50; left the game's."
+
+[[entry]]
+name = "SC4UI::MapOverlay_AppendCells"
+address = 0x004BC3B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours. (vector of 8-byte pairs: begin, end), ret 4, this is the overlay helper: appends every pair to the overlay's vector at +0x10. Called by the Game of Life tool, by 0x004BC4A0 (which empties the overlay's vector first; the map drawing 0x007A2F60 calls that) and by the map drawing's 0x007A2380 and 0x007A2740: left the game's, called by address."
+
+[[entry]]
+name = "SC4LifeTool::CellLives"
+address = 0x004BBE50
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "Name ours. (x, z, tool): the function the grid calls for a live cell: the overlay at tool +0x64 gets the cell (0x007DCD30). Init stores this address in the grid (+0x18). Ours in ui.tools.cellpaint (src/core/tool_cellpaint.cpp)."
+
+[[entry]]
+name = "SC4LifeTool::OnMouseUpL"
+address = 0x004BBE70
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 64"
+source = "Name ours. Slot 18, (x, z, modifiers), ret 0xC: releases the mouse capture when the tool has it (slot 25). Returns true. Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "SC4LifeGrid::Randomize"
+address = 0x004BBE90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 56 8B F1 6A"
+source = "Name ours. No arguments, this is the grid (the tool's +0x40): constructs a generator of 0x18 bytes on the stack with seed -1 (a clock seed; 0x00913A5C, returning to 0x004BBEA2) and for every cell, row by row, draws below 2 (0x009136B1) and stores the low byte in both arrays (+0x14, then +0x10). Called by Resize and the tool's OnKeyDown. Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "SC4LifeGrid::Paint"
+address = 0x004BBF00
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 0F AF 44 24 08"
+source = "Name ours. (x, z), ret 8, this is the grid: with +4 at 0 the cell becomes 1 in +0x10 and, when 0 in +0x14, 2 there (true); with +4 at 1 it becomes 0 in +0x10 and, when not 0 in +0x14, 0 there (true); false otherwise. No range check. Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "SC4LifeGrid::Step"
+address = 0x004BBF50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 57 8B F9 80 3F"
+source = "Name ours. No arguments, this is the grid: nothing when the byte +0 is set; else swaps the arrays +0x10 and +0x14 and computes one generation of Conway's Life from +0x14 into +0x10 with the grid wrapped at its edges (2 or 3 live neighbours keep a live cell, whose age byte grows to 0xBF in both arrays; 3 make a dead one 1), calling the cdecl function at +0x18 (x, z, +0x20) for each cell that lives and the one at +0x1C for each that does not, when set. Called by the tool's DoMessage only. Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "SC4LifeTool::Shutdown"
+address = 0x004BC190
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 04 33"
+source = "Name ours. Slot 4: when inited, the view's ClearCursorText with 0xA9C87D93, the overlay at +0x64 taken off the renderer (0x00B43DD0 slot 0x84), stopped and released, the grid's functions cleared and its arrays freed, the terrain at +0x2C released, the frame service 0x86AD10EC told to stop (slot 6 with the target and 0xFF), the base Shutdown. Returns true. Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "SC4LifeGrid::Resize"
+address = 0x004BC230
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 50 E8"
+source = "Name ours. (width, height, bool random), ret 0xC, this is the grid: frees both arrays, stores the size (16 for a 0), allocates +0x14 then +0x10 with operator new (width x height bytes each) and fills them at random (Randomize) or with zeroes. Called by the tool's Init only. Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "SC4LifeTool::DoMessage"
+address = 0x004BC2F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 3C E8 05"
+source = "Name ours. (message), ret 4; this is the target part at +0x28. Whatever the message (the frame service's, every frame): empties the overlay's cells (0x007DCD00) and runs one generation of the grid at +0x40. Returns true. Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "SC4LifeTool::DeletingDestructor"
+address = 0x004BC420
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. Slot 26, (flags), ret 4: Destruct, then frees the object when bit 0 is set; returns this. Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "SC4LifeTool::Destruct"
+address = 0x004BC440
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 46 74 10 08"
+source = "Name ours. No arguments: frees the buffer of the string at +0x74 and of the vector at +0x68, the grid's two arrays (+0x50, +0x54), then the base destructor (a jump). Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "SC4LifeTool::Refresh"
+address = 0x004BC4D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 8B D9 8B 43"
+source = "Name ours. No arguments: empties the vector at +0x68 and appends the (x, z) of every cell of the grid's array +0x50 that is not 0, row by row (growing by its size, at least one, through the STL allocator), then empties the overlay's cells and appends the vector (0x004BC3B0). Called by Init, OnKeyDown, OnMouseDownL and OnMouseMove. Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "SC4LifeTool::Init"
+address = 0x004BC670
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8A 46 04 84"
+source = "Name ours. Slot 3: unless inited, the base Init, the frame service 0x86AD10EC asked for its message (slot 5 with the target and 0xFF), once the terrain (+0x2C, cell width +0x30, its reciprocal +0x34) and once the map overlay (+0x64: started, scaled, coloured from 0x00A90438, given to the renderer's slot 0x80 with 5 and 1000; the terrain's slot 66 object gets 0 in its slot 10), the grid resized to the terrain's cell counts and filled at random, its live-cell function 0x004BBE50 with the tool as context, Refresh, and the text 0x4A56B5FB of group 0x6A231EAA loaded into the string at +0x74. Returns true. Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "SC4LifeTool::OnKeyDown"
+address = 0x004BC7D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 43 56"
+source = "Name ours. Slot 14, (key, modifiers), ret 8: 0x43, 0x2E and 0x08 zero both arrays and empty the overlay; 0x52 fills the grid at random and refreshes; true for those. Else the opposite of the shared key stub 0x00505BE0 (false). Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "SC4LifeTool::OnMouseDownL"
+address = 0x004BC870
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 6A 00 8D 54"
+source = "Name ours. Slot 16, (x, z, modifiers), ret 0xC: with a terrain point from the view's PickTerrain (slot 36, flag 0): captures the mouse, keeps the cell (position times +0x34, truncated) at +0x38 and +0x3C, sets the grid's +4 to 1 when that cell is live and 0 when not, paints the cell and refreshes. No range check on the cell. Returns true. Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "SC4LifeTool::OnMouseMove"
+address = 0x004BC900
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 06"
+source = "Name ours. Slot 20, (x, z, modifiers), ret 0xC: while the tool has the mouse (slot 25) and PickTerrain (flag 1) gives a point whose cell is not the one at +0x38, +0x3C: keeps it, paints it and refreshes. Returns true. Ours in ui.tools.cellpaint."

@@ -346,7 +346,7 @@ void SetKindTool(char* self, uint32_t kind)
 void SetModeTool(char* self, uint32_t mode)
 {
     void* const memory = New(0x90);
-    SetTool(self, Held(memory ? This<void*>(addr::SC4ViewInputControls_F4BA7D0, memory, mode) : nullptr), 2);
+    SetTool(self, Held(memory ? This<void*>(addr::SC4DispatchTool_Construct, memory, mode) : nullptr), 2);
 }
 
 // The camera control's scroll at full strength, when no key scroll runs.
@@ -766,7 +766,7 @@ uint8_t __fastcall ProcessCommand(char* self, void*, uint32_t id, void* paramete
         void* const memory = New(0x90);
         void* control = nullptr;
         if (memory) {
-            control = This<void*>(addr::SC4ViewInputControls_F4BA7D0, memory,
+            control = This<void*>(addr::SC4DispatchTool_Construct, memory,
                                   uint32_t{id == 0xEC0B0E6A ? 6u : 5u});
             if (control)
                 AddRef(control);
@@ -776,7 +776,7 @@ uint8_t __fastcall ProcessCommand(char* self, void*, uint32_t id, void* paramete
     }
     case 0xABCDEE11: {
         void* const memory = New(0x30);
-        SetTool(self, Held(memory ? This<void*>(addr::SC4ViewInputControls_F4D76F0, memory) : nullptr), 2);
+        SetTool(self, Held(memory ? This<void*>(addr::SC4SignRemoveTool_Construct, memory) : nullptr), 2);
         break;
     }
 
@@ -984,7 +984,7 @@ uint8_t __fastcall OnCheat(char* self, void*, uint32_t id, void* words)
     }
     case 0x8973A69C: {
         void* const memory = New(0x88);
-        SetTool(self, Held(memory ? This<void*>(addr::SC4ViewInputControls_F4BC310, memory) : nullptr), 2);
+        SetTool(self, Held(memory ? This<void*>(addr::SC4LifeTool_Construct, memory) : nullptr), 2);
         return 1;
     }
     case 0x6976AFA0:
