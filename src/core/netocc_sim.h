@@ -35,8 +35,8 @@
 //   cSC4Occupant starts here), +0x8, +0xC (the property holder), +0x20,
 //   +0x38 and a virtual base found through the table at +0x3C.
 //
-// +0x00 primary cISC4NetworkOccupant, vtable 0x00AA8080, 74 slots: three
-//   IUnknown slots then the interface in gzcom-dll's order (its header
+// +0x00 primary cISC4NetworkOccupant, vtable 0x00AA8080, 81 slots (the 74 of the
+//   interface, then the class's own): three IUnknown slots then the interface in gzcom-dll's order (its header
 //   cISC4NetworkOccupant.h is right for the order; the byte offset of a
 //   slot is its number x 4). The 43 functions of this piece, with the
 //   argument counts from their own `ret N`:

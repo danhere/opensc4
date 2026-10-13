@@ -3,6 +3,7 @@
 #include "core/game.h"
 #include "core/game_access.h"
 #include "core/log.h"
+#include "core/occ_vtables.h"
 #include "core/occmgr_sim.h"
 #include "core/tunnelocc_sim.h"
 
@@ -367,13 +368,18 @@ uint32_t Life(bool pool, uint32_t& elsewhere)
     hash.Mix(At<void*>(self, field::kOtherEnd) == nullptr);
     hash.Mix(At<uint32_t>(self, field::kFlags));
     hash.Mix(At<uint32_t>(self, field::kVbaseShift));
-    hash.Mix(At<std::uintptr_t>(self, 0x0) == addr::cSC4NetworkTunnelOccupant_vftable);
-    hash.Mix(At<std::uintptr_t>(self, field::kOccupant) == addr::cSC4NetworkTunnelOccupant_vftable_4);
-    hash.Mix(At<std::uintptr_t>(self, field::kSerializable) == addr::cSC4NetworkTunnelOccupant_vftable_8);
-    hash.Mix(At<std::uintptr_t>(self, field::kHolder) == addr::cSC4NetworkTunnelOccupant_vftable_C);
-    hash.Mix(At<std::uintptr_t>(self, field::kExemplarPart) == addr::cSC4NetworkTunnelOccupant_vftable_20);
-    hash.Mix(At<std::uintptr_t>(self, field::kModelPart) == addr::cSC4NetworkTunnelOccupant_vftable_38);
-    hash.Mix(At<std::uintptr_t>(self, field::kVbase) == addr::cSC4NetworkTunnelOccupant_vbase_vftable);
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, 0x0), addr::cSC4NetworkTunnelOccupant_vftable));
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kOccupant),
+                                  addr::cSC4NetworkTunnelOccupant_vftable_4));
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kSerializable),
+                                  addr::cSC4NetworkTunnelOccupant_vftable_8));
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kHolder), addr::cSC4NetworkTunnelOccupant_vftable_C));
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kExemplarPart),
+                                  addr::cSC4NetworkTunnelOccupant_vftable_20));
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kModelPart),
+                                  addr::cSC4NetworkTunnelOccupant_vftable_38));
+    hash.Mix(occ_vtables::IsTable(At<std::uintptr_t>(self, field::kVbase),
+                                  addr::cSC4NetworkTunnelOccupant_vbase_vftable));
     hash.Mix(At<std::uintptr_t>(self, field::kVbtable) == addr::cSC4NetworkTunnelOccupant_vbtable);
     hash.Mix(At<uint32_t>(self, field::kWord19C));
     hash.Mix(At<uint32_t>(self, field::kWord1B0));
