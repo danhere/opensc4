@@ -209,3 +209,6 @@ Version 6, `Write` 0x0069F600, `Read` 0x006A05E0, the `cIGZSerializable` part at
 
 Version 2 each, `Write` 0x006A2680 and 0x005D5080. Layouts in [demand.md](demand.md), "Save records"; decoded by `sc4save.py`. All of a city's cSC4Demand objects are in one entry, in an order that differs from run to run, so they are compared in ID order.
 
+## cSC4NetworkManager (0xC990BD46)
+
+Version 1, `Write` 0x006111E0, `Read` 0x006124C0, the `cIGZSerializable` part at +0x8. Layout in [netmgr.md](netmgr.md), "The save record": a count and that many references to the globally managed pieces; decoded by `sc4save.py` (all 18 records of the corpus; the three d0000 tutorial cities have none).

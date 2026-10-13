@@ -297,3 +297,192 @@ address = 0x00AA7A70
 kind = "vtable"
 expect = "E0 4E 42 00 00 05 5C 00"
 source = "Name ours. The serializable part (+4) vtable of the subway occupant filter, 6 slots, all the filter base code."
+
+[[entry]]
+name = "cSC4NetworkManager::Create"
+address = 0x00613750
+kind = "function"
+convention = "cdecl"
+expect = "68 BC 00 00 00 E8 86 1E"
+source = "The class factory of the network manager, no arguments (the class registration at 0x004603B8 pushes its address with the class ID 0xC990BD46): operator new of 0xBC bytes, null when there are none, else a jump to the constructor 0x00613330 whose EAX, the object with a reference count of 0, is the answer; 26 bytes (functions.csv has it with 300) (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::cSC4NetworkManager"
+address = 0x00613330
+kind = "function"
+convention = "thiscall"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "The constructor of the network manager, no arguments, 273 bytes, reached only by the jump from the factory 0x00613750 (not in functions.csv): the base vtables 0x00A81174 and 0x00A80784 at +4 and +8, then the three of the class; every field cleared; the shadow edge table at +0x30 made with 100 buckets (0x00829BC0); the retrofit list head node from 0x00611240; the dirty rectangle emptied; last LoadRemapping 0x00613140; EAX the object (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::Destroy"
+address = 0x00612000
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 C7 06 D0"
+source = "Name ours. The destructor of the network manager, no arguments, called by the deleting destructor 0x00612590 only: the three vtables, Shutdown 0x00611EB0 directly, the thirteen tools released from the last to the first, the crew vector memory freed, the retrofit list destroyed (0x00611AA0), the queue, path, shadow and preview vector memory freed, the table at +0x30 cleared (0x008EBA60) and its buckets freed, the memory of the vector at +0x24 freed (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::DeletingDestructor"
+address = 0x00612590
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 68 FA FF FF"
+source = "True slot 24 of the network manager (the Ghidra label AddToRetrofitList sits on it), ret 4 (flags): the destructor 0x00612000, with bit 0 operator delete; EAX the object. Release 0x006107D0 calls it with 1 (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::Init"
+address = 0x00610C10
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B E9 8A 45 10 84"
+source = "Slot 3 of the network manager, no arguments, AL 1: once per object (byte at +0x10); the byte at +0x11 is 1 when the low byte of the current language utility road driving side (language service 0x441E5070 slot 38 with 0, then slot 25) is 0; with a message server (0x00B43CCC) the part at +4 is subscribed to eleven messages (0xA6B79602, 0x278E6003, 0xEA3B0AF1, 0x6A3B0AFD, 0x6AB97795, 0x26D31EC2, 0x26D31EC1, 0x99EF1142, 0x99EF1143, 0xC9DA96E8, 0xC9DA96E9), the byte at +0x12 cleared and the thirteen tools made in type order into +0x88 (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::Shutdown"
+address = 0x00611EB0
+kind = "function"
+convention = "thiscall"
+expect = "51 57 8B F9 8A 47 10 84"
+source = "Slot 4 of the network manager, no arguments, AL 1, also called by the destructor: nothing unless initialised; clears the byte at +0x10, releases and empties the vector at +0x24, releases the pieces of the retrofit list and clears it (0x00611A20), assigns null to the thirteen tools (0x00610880) and takes the part at +4 off the eleven messages of Init (0x26D31EC1 before 0x26D31EC2 here) (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::LoadRemapping"
+address = 0x00613140
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 58 56 6A 00 8B F1"
+source = "Name ours. No arguments, called by the constructor only: empties the vectors at +0x44, +0x50 and +0x5C and the table at +0x30, opens the resource record of type 0, group 0x8A5971C5, instance 0x8A5993B9 (0x005F9670) as an ini file and runs the sections Texture remapping, Shadow remapping, Shadow edge remapping and UK path remapping with the callbacks 0x00612F70, 0x00612EB0, 0x00613030 and 0x006130E0 and the manager as context; releases the record (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::OnTextureRemapEntry"
+address = 0x00612F70
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 34 8B 44 24 3C 8B"
+source = "Name ours. Ini callback of the section Texture remapping, three arguments (key string, value string, the manager): scans the value with the format at 0x00AA7BA8 (match, mask, base, keep mask in hex, rotation, mirror, go on in decimal, drop mask in hex; at least four) and appends a 0x18-byte entry to the vector at +0x44 by 0x00627100 (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::OnShadowRemapEntry"
+address = 0x00612EB0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 34 8B 44 24 3C 8B"
+source = "Name ours. Ini callback of the section Shadow remapping, three arguments (key string, value string, the manager): as 0x00612F70 for the vector at +0x50 (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::OnShadowEdgeRemapEntry"
+address = 0x00613030
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 50 8B 44 24 58 8B"
+source = "Name ours. Ini callback of the section Shadow edge remapping, three arguments (key string, value string, the manager): scans the value with the format at 0x00AA7BD4 (a name of up to 64 characters, key, base, mask in hex, rotation and mirror in decimal; at least four), finds the name among the thirteen English network names (0x00AA845C, compare 0x00A04487) and calls 0x006125B0 with its type; other names are left out (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::OnPathRemapEntry"
+address = 0x006130E0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 8B 40 04 83"
+source = "Name ours. Ini callback of the section UK path remapping, three arguments (key string, value string, the manager): scans four hex words (format at 0x00AA7BFC: match, mask, base, keep mask) and calls 0x00612610 with them (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::AddShadowEdgeRemap"
+address = 0x006125B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 8B 44 24 28 8A"
+source = "Name ours. Ret 0x14 (network type, key, base, mask, rotation byte): resizes the hash table at +0x30 for one element more (0x004F0940) and inserts the value (key, type, base, mask, rotation) through 0x00611890 (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::AddPathRemap"
+address = 0x00612610
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 41 60 8B 54"
+source = "Name ours. Ret 0x10 (match, mask, base, keep mask): appends a 0x10-byte entry to the vector at +0x5C, in place or through the growing insert 0x00638C60 (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::InsertShadowEdge"
+address = 0x00611890
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 53 55 56 57"
+source = "Name ours. The insert of the shadow edge hash table (this = manager + 0x30) that keeps equal keys, ret 8 (out pair of node and table, address of a value of five words): a 0x18-byte node from 0x0090CF54 goes in behind the first node of its key or at the head of the bucket of key modulo bucket count; the count at +0x10 goes up; EAX the out pair. Called by 0x006125B0 only (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::ReleaseTools"
+address = 0x00610880
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 53 8B 5C 24"
+source = "Name ours. Three arguments (first slot, last slot, address of a pointer): assigns the pointer to every slot of the range with AddRef of the new and Release of the old; Shutdown 0x00611EB0 and DoMessage 0x00613950 call it over the thirteen tool slots with a null (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::ShutdownCrews"
+address = 0x00610B80
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 7C 3B 86"
+source = "Name ours. No arguments: while the crew vector at +0x7C is not empty, calls slot 5 of its first crew (the crew unregisters itself). Called by DoMessage 0x00613950 for message 0x26D31EC2 only (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::ClearRetrofitList"
+address = 0x00611A20
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B D9 8B 03 56 8B"
+source = "Name ours. No arguments, this is the list word at manager + 0x78: gives every node but the head node back to the node allocator cached at 0x00B45238 (slot 4) and points the head node at itself. Called by Shutdown, by the list destroy 0x00611AA0 and by ProcessRetrofitList 0x00612820 (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::DestroyRetrofitList"
+address = 0x00611AA0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 E8 77 FF FF"
+source = "Name ours. No arguments, this is the list word at manager + 0x78: the clear 0x00611A20, then the head node back to the node allocator. Called by the destructor 0x00612000 only (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::Write"
+address = 0x006111E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Slot 3 of the network manager serializable part (vtable 0x00AA7AA4, this = object + 8), ret 4 (stream): uint16 version 1, uint32 count, then every entry of the vector at +0x24 as a reference (0x005D99A0); EAX 1 when the stream has no error, else 0 (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::Read"
+address = 0x006124C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Slot 4 of the network manager serializable part (this = object + 8), ret 4 (stream): AL 0 for a stream in error or a version other than 1; then a count and that many references (0x005D9730 with IID 0xA821EF94) appended to the vector at +0x24, each keeping the reference the read gave; AL 0 when a reference cannot be read, else whether the stream has no error (src/core/netmgr_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::vftable"
+address = 0x00AA7AD0
+kind = "vtable"
+expect = "50 07 61 00 A0 64 46 00"
+source = "The primary vtable of the network manager (cISC4NetworkManager), 25 slots in the true order of src/core/netmgr_sim.h: QueryInterface 0x00610750, the shared AddRef 0x004664A0, Release 0x006107D0, Init 0x00610C10, Shutdown 0x00611EB0 and so on to slot 24, the deleting destructor 0x00612590."
+
+[[entry]]
+name = "cSC4NetworkManager::vftable_4"
+address = 0x00AA7ABC
+kind = "vtable"
+expect = "D0 20 61 00 70 22 6C 00"
+source = "The cIGZMessageTarget2 vtable of the network manager (+4), 4 slots: the thunks 0x006120D0, 0x006C2270 and 0x006120E0, then DoMessage 0x00613950."
+
+[[entry]]
+name = "cSC4NetworkManager::vftable_8"
+address = 0x00AA7AA4
+kind = "vtable"
+expect = "F0 20 61 00 90 22 6C 00"
+source = "The cIGZSerializable vtable of the network manager (+8), 6 slots: the thunks 0x006120F0, 0x006C2290 and 0x00612100, Write 0x006111E0, Read 0x006124C0, GetGZCLSID 0x00610530."
+
+[[entry]]
+name = "SC4::stricmp"
+address = 0x00A04487
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 53 E8 73 31"
+source = "Name ours. The C library compare of two texts without regard to case (two arguments, 0 when equal; per character through the locale of the thread when one is set, else 0x009FFF40). The shadow edge callback 0x00613030 of the network manager looks a network name up with it."

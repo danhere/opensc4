@@ -1,6 +1,6 @@
 # The network manager (cSC4NetworkManager)
 
-The city's desk for the networks. It holds the thirteen network tools (one per network type: road, rail, highway, street, pipe, power line, avenue, subway, light rail, monorail, one-way road, dirt road, ground highway), the remap tables of the networks' ini resource, the list of the pieces that are managed globally, the queue of removals, the retrofit list and the construction crews. The tools, the lot code and the pieces ask it for lookups (a pipe at a cell, a subway station, the pieces of one intersection, a remapped texture or path ID); the demolition and lot code go through it to remove pieces and to make a lot's connection nodes. It has no grid and nothing sized from the city. The class has 70 functions (14.7 KB) and is reimplemented in three parts; this page has the first (state and queries, 22 functions) and what the survey found of the rest. Build 641 addresses throughout (data/addresses/netmgr.toml).
+The city's desk for the networks. It holds the thirteen network tools (one per network type: road, rail, highway, street, pipe, power line, avenue, subway, light rail, monorail, one-way road, dirt road, ground highway), the remap tables of the networks' ini resource, the list of the pieces that are managed globally, the queue of removals, the retrofit list and the construction crews. The tools, the lot code and the pieces ask it for lookups (a pipe at a cell, a subway station, the pieces of one intersection, a remapped texture or path ID); the demolition and lot code go through it to remove pieces and to make a lot's connection nodes. It has no grid and nothing sized from the city. The class has 70 functions (14.7 KB) and is reimplemented in three parts; this page has the first (state and queries, 22 functions), the second (life and save, 20 functions; 42 of the 70 are ours with both) and what the survey found of the third. Build 641 addresses throughout (data/addresses/netmgr.toml).
 
 ## The class
 
@@ -54,7 +54,7 @@ Two more things the header has wrong or open: FindPipeOccupant and FindPipeConne
 | --- | --- |
 | +0x0C | reference count |
 | +0x10 | initialised (Init sets it, Shutdown clears it) |
-| +0x11 | a byte Init sets from a service; MapPath maps only when it is set (the ini section is "UK path remapping": left-hand traffic) |
+| +0x11 | left-hand traffic: Init sets it when the current language's road driving side (the language service's utility, `GetLanguageRoadDrivingSide`) has a low byte of 0; MapPath maps only when it is set (the ini section is "UK path remapping") |
 | +0x12 | batching cell changes (DoMessage) |
 | +0x14 | the dirty cell rectangle (min x, min z, max x, max z; empty is 0x7FFFFFFF twice and -1 twice) |
 | +0x24 | vector of the globally managed pieces, referenced; this is the save record |
@@ -66,6 +66,8 @@ Two more things the header has wrong or open: FindPipeOccupant and FindPipeConne
 | +0x78 | the retrofit list (a pointer to the head node; nodes of 12 bytes from the allocator cached at 0x00B45238), referenced |
 | +0x7C | vector of construction crews, referenced |
 | +0x88 | the 13 network tools by type |
+
+The constructor never writes +0x13, the first word of the table at +0x30 and +0x75 to +0x77; they stay as operator new left them.
 
 A remap entry: a match word and a mask (an ID matches when ID and mask give the match word), a base and two more masks (the new ID is the base plus the ID's bits under the first less its bits under the second), a rotation byte (bit 7 mirrors) and a byte that says to go on with the next entries. A path entry: match, mask, base and one mask.
 
@@ -101,16 +103,60 @@ Copied on purpose from the game and commented in the code: the walk hands the oc
 
 The walk's answer is not always a function of the city: slot 66 (0x006198A0, the network occupant's, left the game's: [netocc.md](netocc.md)) compares the complex piece origins of two pieces from four stack words, and a piece without an origin leaves its two words as the stack held them. The test below asks only where that cannot happen.
 
-## The rest of the class (to come)
+## What each function of the second part does
 
-The other two parts hold the remaining 48 functions of the 70.
+| Function | Address | Ours | What |
+| --- | --- | --- | --- |
+| the factory | 0x00613750 | `object` | cdecl, no arguments: 0xBC bytes from operator new, then the constructor (the game jumps to it); the object with a reference count of 0, or null |
+| the constructor | 0x00613330 | `object` | the base classes' vtables at +4 and +8, then the class's three; every field cleared in the order of the table above; the shadow edge table made with 100 buckets (0x00829BC0); the retrofit list's head node from 0x00611240, pointed at itself; the dirty rectangle emptied; last LoadRemapping. It subscribes to nothing and asks no service but the resource manager |
+| the destructor | 0x00612000 | `object` | the three vtables, Shutdown (called directly), the thirteen tools released from the last to the first, then the memory let go in this order: the crews' vector, the retrofit list (0x00611AA0), the queue, the path, shadow and preview vectors, the table's nodes (0x008EBA60) and buckets, the vector at +0x24. The queued occupants and the crews themselves are not released |
+| the deleting destructor | 0x00612590 | `object` | slot 24: the destructor, and with flag 1 operator delete |
+| Init | 0x00610C10 | `life` | slot 3, once per object (+0x10): the byte at +0x11 from the language service (class 0x441E5070, slot 38 with 0, then the utility's slot 25: 1 when the answer's low byte is 0; neither pointer is tested for null). Unless there is no message server: the part at +4 subscribed to eleven messages in this order: 0xA6B79602, 0x278E6003, 0xEA3B0AF1, 0x6A3B0AFD, 0x6AB97795, 0x26D31EC2, 0x26D31EC1, 0x99EF1142, 0x99EF1143, 0xC9DA96E8, 0xC9DA96E9; +0x12 cleared; the thirteen tools made in the order of their types (each allocated and constructed, then referenced and stored at +0x88 + 4 x type). AL 1 |
+| Shutdown | 0x00611EB0 | `life` | slot 4, nothing unless initialised: +0x10 cleared; the pieces of +0x24 released and the vector emptied; the pieces of the retrofit list released and the list cleared; the thirteen tools released and their slots nulled (ReleaseTools); the part at +4 taken off the eleven messages (Init's order, but 0x26D31EC1 before 0x26D31EC2). The queue and the crews are not touched. AL 1 |
+| LoadRemapping | 0x00613140 | `life` | empties the three remap vectors and the shadow edge table, opens the ini resource and runs its four sections (below); called by the constructor only |
+| the four section callbacks | 0x00612F70, 0x00612EB0, 0x00613030, 0x006130E0 | `life` | cdecl (key string, value string, the manager), one call per line of a section; each scans the line's value and appends an entry (below) |
+| the shadow edge append | 0x006125B0 | `life` | (type, key, base, mask, rotation): the table at +0x30 resized for one more (0x004F0940) and the value inserted |
+| the table's insert | 0x00611890 | `life` | an insert that keeps equal keys: a new 0x18-byte node goes right behind the first node of its key, or at the head of the bucket (key modulo the bucket count) |
+| the path append | 0x00612610 | `life` | (match, mask, base, mask): a 0x10-byte entry at the end of +0x5C |
+| ReleaseTools | 0x00610880 | `life` | cdecl (first, last, the address of a pointer): assigns the pointer to every slot of the range, the new one referenced and the old one released; Shutdown and DoMessage (0x26D31EC2) call it with the thirteen tool slots and a null |
+| ShutdownCrews | 0x00610B80 | `life` | while +0x7C holds a crew, the first crew's slot 5 (the crew unregisters itself); DoMessage (0x26D31EC2) is the only caller |
+| the retrofit list's clear and destroy | 0x00611A20, 0x00611AA0 | `life` | every node but the head node back to the allocator cached at 0x00B45238 and the head node pointed at itself; the destroy also gives the head node back |
+| Write | 0x006111E0 | `save` | the record below; 1 when the stream has no error |
+| Read | 0x006124C0 | `save` | refuses a stream in error and any version but 1; appends each reference it reads to +0x24 and keeps the reference the read gave (no AddRef of its own); a reference that cannot be read ends it with 0 and the pieces read so far stay; the vector is not emptied first |
 
-- **Life and save** (part 2, 20 functions, to come): factory, constructor, destructor, deleting destructor, Init (makes the 13 tools, subscribes to 11 messages), Shutdown, LoadRemapping 0x00613140 with its four ini section callbacks ("Texture remapping", "Shadow remapping", "Shadow edge remapping", "UK path remapping"; resource group 0x8A5971C5, instance 0x8A5993B9), Write and Read with a schema, and our own object.
-- **Messages, removals, nodes and retrofit processing** (part 3, 24 functions, to come): DoMessage 0x00613950, ProcessRetrofitList 0x00612820, DestroyNetworkOccupants, QueueRemovals, RemoveOrReplaceOccupant, CreateConnectionNode, AutoconnectLotNodes.
+Copied on purpose from the game and commented in the code: Read's version word is its stream argument's stack slot, so a stream that gives no version leaves the low word of the stream's address there; Init does not test the language service for null; ShutdownCrews loops for ever on a crew that does not unregister. Not reproduced, and nothing reads them: the last two bytes of a 0x18-byte remap entry and the three bytes after a table node's rotation byte are what the game's stack held (zero in ours); the name buffer of the shadow edge callback is the 64 bytes under the game's return address, so a name of exactly 64 characters would write its end mark into the return address (ours has room).
+
+### The remap resource
+
+Type 0, group 0x8A5971C5, instance 0x8A5993B9: an ini text, opened with `SC4::OpenResourceRecord` 0x005F9670 and read by the game's ini reader (0x0091CF46, `ForEachEntry` 0x0091D91C, 0x0091CDE3), which calls a callback for every `key = value` line of a section (lines that begin with `;` are comments). The key is not looked at; the value is scanned with sscanf. The sections are read in this order:
+
+| Section | Value | Becomes |
+| --- | --- | --- |
+| `Texture remapping` | `match, mask, base, keep, rotation, mirror, go on, drop`: four hexadecimal words, three decimal numbers, one hexadecimal word (` %lx , %lx , %lx , %lx , %d , %d , %d , %lx`). At least the first four; the rest are 0 when the line ends before them | a 0x18-byte entry of +0x44: +0 match, +4 mask, +8 base, +0xC keep mask, +0x10 drop mask, +0x14 the rotation byte (the rotation's low two bits, plus 0x80 when mirror is not 0), +0x15 1 when go on is not 0 |
+| `Shadow remapping` | the same | the same in +0x50 |
+| `Shadow edge remapping` | `name, key, base, mask, rotation, mirror`: a name of up to 64 characters that ends at a comma or blank, three hexadecimal words, two decimal numbers (` %64[^, ] , %lx , %lx , %lx , %d , %d`). At least the first four | the name is looked up without regard to case among the thirteen English network names; a line with another name is left out. A node of the table at +0x30: key, the name's network type, base, mask, the rotation byte as above |
+| `UK path remapping` | `match, mask, base, mask`: four hexadecimal words, all needed | a 0x10-byte entry of +0x5C |
+
+A line with fewer values than needed is left out without a message. In the shipped game the tables hold 3, 110 and 16 entries and 16 edges (the `tab` field of the test).
 
 ### The save record
 
-As far as the survey has it (Write and Read are part 2's, to come): the record's type is the class ID 0xC990BD46. Version 1 (uint16), a count (uint32), then that many references: the pieces of the vector at +0x24. Read refuses any other version. The three shipped tutorial cities have no such record (the city then makes the manager); saves made by this build have one, 18 bytes when no piece is managed globally.
+The record's type is the class ID 0xC990BD46. After the save framework's header (size, CRC, address-ID): uint16 version 1, uint32 count, then count references (8 bytes each: address-ID and class ID): the pieces of the vector at +0x24 in the vector's order. Nothing else of the manager is saved. `tools/re/save_schemas/netmgr.py` decodes it.
+
+Checked with `tools/re/sc4save.py --check`, every record decoded to its last byte:
+
+| Corpus | Records | Counts seen |
+| --- | --- | --- |
+| `saves` (12 files) | 9 | 0 in all nine (18 bytes); the three d0000 files, the shipped tutorial cities, have no such record (the city then makes the manager) |
+| `saves-networks` (3) | 3 | 62 in Big City n0000 and n0090 (514 bytes; 48 references of class 0x49CC1BCD and 14 of 0x49C1A034), 2 in Rush Hour t0000 (34 bytes; class 0x8A4BD52B) |
+| `saves-plopped` (3) | 3 | 0 |
+| `saves-ports` (3) | 3 | 0 |
+
+## The rest of the class (to come)
+
+The third part holds the remaining 24 functions of the 70 (14 of them template helpers of the point vectors).
+
+- **Messages, removals, nodes and retrofit processing** (part 3, to come): DoMessage 0x00613950, ProcessRetrofitList 0x00612820, DestroyNetworkOccupants, QueueRemovals, RemoveOrReplaceOccupant, CreateConnectionNode, AutoconnectLotNodes. The second part calls none of them; they call the second part's ReleaseTools, ShutdownCrews and the retrofit list's clear at their addresses.
 
 ## What is ours
 
@@ -119,10 +165,18 @@ As far as the survey has it (Write and Read are part 2's, to come): the record's
 | `simulators.netmgr.identity` | QueryInterface, Release, GetGZCLSID (3 detours) |
 | `simulators.netmgr.queries` | the subway station test and the two pipe lookups (forwards), GetNetworkTool, GetEnglishNetworkName, the two filter getters and the filters' deleting destructors, Register and UnregisterConstructionCrew, AddToRetrofitList with its node allocation, GetAllIntersectionPieces with its walk (15 detours) |
 | `simulators.netmgr.maps` | MapPreviewTexture, MapShadowTexture with the equal range, MapPath (4 detours) |
+| `simulators.netmgr.life` | Init, Shutdown, LoadRemapping, the four section callbacks, the shadow edge and path appends, the table's insert, ReleaseTools, ShutdownCrews, the retrofit list's clear and destroy (14 detours) |
+| `simulators.netmgr.save` | Write and Read (2 detours) |
+| `simulators.netmgr.object` | the factory, the constructor, the destructor and the deleting destructor (4 detours) |
+| `simulators.netmgr.own` | no detour: with it and `object`, a manager carries our copies of the class's three vtables |
 
-All detours at the game's addresses (the thunks of the other vtable parts and the game's direct calls reach them), off by default; `OPENSC4_NETMGR_SKIP` takes a list of addresses to leave out. Each function logs `netmgr: first <name>` once.
+All detours at the game's addresses (the thunks of the other vtable parts and the game's direct calls reach them), off by default; `OPENSC4_NETMGR_SKIP` takes a list of addresses to leave out. Each function logs `netmgr: first <name>` once. Every call from one of our functions to another of the class goes through the game's address, so a group that is off or a skipped function is the game's.
 
-Still the game's in the first part's range: the four adjustor thunks (0x006120D0, 0x006120E0, 0x006120F0, 0x00612100: they jump to our QueryInterface and Release), the AddRef stub 0x004664A0 and the thunks 0x006C2270 and 0x006C2290 (shared with other classes). Called at their addresses and not this class's: the tools' code behind the three forwards, the four tool constructors, the filters' test functions, the network filter's constructor 0x0061F530, the vector, list and search helpers.
+### Our own object
+
+With `simulators.netmgr.object` and `simulators.netmgr.own` the constructor and the destructor store the addresses of our copies of the three vtables (25, 4 and 6 slots; `src/core/occ_vtables.h`, as the network occupant classes do) instead of the game's tables. A copy is the game's table word for word, taken at the first construction, after every replacement is in place; then the entries that hold a function of the `object` group directly are pointed at ours: slot 24 of the primary table, the deleting destructor (the log line `netmgr own: vtables copied (25, 4 and 6 slots), 1 entries redirected`). Every other entry stays the game's address or adjustor thunk, which the other groups' detours still decide. `own` without `object` does nothing.
+
+Still the game's in the first two parts' range: the four adjustor thunks (0x006120D0, 0x006120E0, 0x006120F0, 0x00612100: they jump to our QueryInterface and Release), the AddRef stub 0x004664A0 and the thunks 0x006C2270 and 0x006C2290 (shared with other classes). Called at their addresses and not this class's: the tools' code behind the three forwards, the four tool constructors, the filters' test functions, the network filter's constructor 0x0061F530, the vector, list and search helpers; for the second part the string and the ini reader, the resource record's opener, the hash table's constructor, clear and resize (0x00829BC0, 0x008EBA60, 0x004F0940: shared with other classes), the vectors' growing inserts (0x0051CA60, 0x00638C60, 0x00627100), the stream's reference helpers (0x005D99A0, 0x005D9730) and the C library's sscanf and compare (0x009EF536, 0x00A04487).
 
 ## The test
 
@@ -132,11 +186,12 @@ The fingerprint's `netmgr` part (order 131) asks everything through the manager'
 - `tools`: a bit per type for which GetNetworkTool (not making) gives a tool, and bits 13 to 15 for types 13, 14 and 0xFFFFFFFF, which must give none: 1FFF.
 - `names`: the characters of the 13 English names. `id`: the class ID and QueryInterface through the three parts for four IDs the class answers and three it does not, each reference released (so Release counts down every day).
 - `tab`: a checksum of the three remap vectors and the shadow edge table as they are, then their four sizes. `maps`: MapPreviewTexture, MapShadowTexture and MapPath over three IDs made from every table entry (one it takes plainly, one with every unmasked bit set, one it refuses) and five IDs no table should hold, with several rotations, the five network flags that matter and up to eight edge keys of the table plus two it should not hold.
+- `saved o,s` (at the end of the part): the pieces of the vector at +0x24, the save record's, in the order they are stored: each piece's cell and the class ID of its serializable part, as a checksum that depends on the order (`o`) and a sum that does not (`s`); `811C9DC5,00000000` when there are none.
 - `occ`: the number of network pieces. `station`, `pipe`, `conn`: for how many of them IsOccupantSubwayStation, FindPipeOccupant and FindPipeConnectionOccupant (at the piece's cell) said yes. `isect a,s,e,f`: GetAllIntersectionPieces asked for `a` pieces and skipped for `s`, `e` list entries in all, `f` pieces with the flag 0x100000. Then the sum and the exclusive or of a checksum per piece (its cell, the three answers, and for the intersection the answer, the number of entries, the entries' cells without order, and that a second call adds nothing). The entries are released and the list freed.
 
 GetAllIntersectionPieces is asked for every piece when no piece of the city has the flag 0x100000 (slot 66 is then never reached and each answer is the piece alone); otherwise only for pieces that have a complex piece origin, and only when every flagged piece has one. The rest are skipped, because their answer could depend on stack leftovers (above).
 
-On a city without network pieces the walk fields are `occ 0 station 0 pipe 0 conn 0 isect 0,0,0,0 00000000,00000000`; the rest does not depend on the city's networks.
+On a city without network pieces the walk fields are `occ 0 station 0 pipe 0 conn 0 isect 0,0,0,0 00000000,00000000 saved 811C9DC5,00000000`; the rest does not depend on the city's networks.
 
 `OPENSC4_TEST_NETMGR=<day>` drives, once, what makes or changes something and puts it back, and adds ` set <checksum>` to the part and one log line `autotest: netmgr: ...`. The checksum mixes the results of the four items below (crews, both filters, the station count, the tools). The number of occupants of the city is only in the log line, not in the checksum: it is not the same in two runs of the original (82,730 and 82,729 on one save).
 
@@ -145,7 +200,15 @@ On a city without network pieces the walk fields are `occ 0 station 0 pipe 0 con
 - IsOccupantSubwayStation over every occupant of the city (the daily part only asks network pieces, which are never stations);
 - GetNetworkTool in its making form for type 0: the tool is made, compared with the manager's own (another object, the same vtables), referenced and released. This is what the game's ProcessRetrofitList does with a road tool of its own. `OPENSC4_TEST_NETMGR_TOOLS=1` does it for all 13 types; the game itself never drops a tool of the other types without Init, so that is not on by default.
 
-Not called by any test: AddToRetrofitList (nothing takes an entry off the list before the next retrofit pass, which only runs at a city load). Its node allocation 0x00611240 still runs with every city: the constructor calls it for the list's head node.
+The same day also drives the second part and adds ` life <checksum>` after ` set <checksum>` and a second log line `autotest: netmgr: life: ...`:
+
+- Init on the city's manager: it is initialised, so the answer is 1 and nothing happens;
+- Write of the city's manager into a stream of the test's own, once into a stream without an error (answer 1) and once into one that reports one (answer 0). Such a stream answers no interface, so the game's `WriteReference` writes nothing for a piece and does not touch it: the bytes are the version and the count (six bytes);
+- unless `OPENSC4_TEST_NETMGR_OBJECT=0`: a second manager made by the factory and destroyed again. As constructed: its state bytes, the empty rectangle, the empty vectors and list, no tools, the table's bucket count, the same vtable pointers and the same remap tables as the city's manager (so LoadRemapping ran a second time and gave the same); its identity through the three parts; Shutdown on it (nothing, 1); Write (six bytes with a count of 0); Read with seven streams that end before a reference is stored (empty, versions 2 and 0, version 1 without a count, a count of 0, a count of 2 on a stream no reference can be read from, a stream that is in error already); the last Release, which runs the deleting destructor. Safe by the disassembly: the constructor subscribes to nothing, and the destructor of a manager that was never initialised frees its own memory only. Init is not called on it.
+
+What runs without any switch: the factory, the constructor, LoadRemapping with its callbacks and inserts and Init at every city load; Shutdown, ReleaseTools, the list's clear and destroy and both destructors when the city is closed (the quit); ShutdownCrews and ReleaseTools from DoMessage's 0x26D31EC2. Read runs at the load of a save that has the record (every save this build made; with references only on `saves-networks`), Write only at a save.
+
+Not called by any test: Shutdown on the city's manager and Init on a second one; Read with a reference that resolves (a load of `saves-networks` does that); AddToRetrofitList (nothing takes an entry off the list before the next retrofit pass, which only runs at a city load). Its node allocation 0x00611240 still runs with every city: the constructor calls it for the list's head node.
 
 ## Parity
 
@@ -158,3 +221,9 @@ With `OPENSC4_TEST_NETMGR=3` (and the underground pieces' switches): the 12 save
 A first trial had the `set` checksum differ on two saves: the drive mixed the city's number of occupants, which is not the same in two runs (82,730 and 82,729); it is in the log line only now.
 
 Ran with ours (first-call log lines over the batch): 21 of the 22 functions; AddToRetrofitList did not (the test does not call it and no piece of the corpus is retrofitted in a week).
+
+Batch p0 (2026-10-13), the second part with the first: the original against every network occupant group and all seven groups of this class (`identity`, `queries`, `maps`, `life`, `save`, `object`, `own`) for a week. Before the first run: `ret N` of the 20 new functions against our signatures (no mismatch), the caller register scan and the EAX scan (no hit), every record of the class in the corpus decoded with every byte consumed (18 records: 62 references in `saves-networks` n0000 and n0090, 2 in t0000, none elsewhere; the three d0000 saves have no record), and an independent reading of all 20 functions against the disassembly, the remap file's format strings and section names compared with the exe's byte for byte (no difference in behaviour).
+
+Plain: the 12 saves 12 of 12 the same on the first pair, `saves-networks` 3 of 3, `saves-plopped` 3 of 3, `saves-ports` 3 of 3. With `OPENSC4_TEST_NETMGR=3`: the 12 saves 12 of 12 and `saves-networks` 3 of 3 on the first pair, the part with its `saved`, `set` and `life` fields the same on both sides in every save, and the class's save record identical in all 36 pairs. On `saves-networks` Big City n0000 the part ends `saved D675B803,2EDECF03 set 25352B6A life 20CC0568`.
+
+Ran with ours (first-call log lines over the batch): 41 of the 42 functions of the two parts; AddToRetrofitList did not. The manager carried our vtable copies in every run (`netmgr own: vtables copied (25, 4 and 6 slots), 1 entries redirected`).
