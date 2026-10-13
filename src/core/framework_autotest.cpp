@@ -4,6 +4,7 @@
 #include "core/address_check.h"
 #include "core/autotest_hooks.h"
 #include "core/framework_containers.h"
+#include "core/framework_servicebase.h"
 #include "core/game.h"
 #include "core/game_access.h"
 #include "core/hook.h"
@@ -842,7 +843,7 @@ bool g_startTraceOn = false;
 uint32_t g_startHash = 2166136261u;
 uint32_t g_startCalls = 0;
 
-uint8_t __fastcall TraceSetServiceRunning(char* service, void*, uint8_t running)
+void TraceSetServiceRunning(char* service, uint8_t running)
 {
     const uint32_t id = *reinterpret_cast<uint32_t*>(service + 0xC);
     MixInto(g_startHash, id);
@@ -850,17 +851,12 @@ uint8_t __fastcall TraceSetServiceRunning(char* service, void*, uint8_t running)
     ++g_startCalls;
     if (!running)
         log::Write("service_start: stop %08X, hash %08X after %u calls", id, g_startHash, g_startCalls);
-    *reinterpret_cast<uint8_t*>(service + 0x18) = running;
-    return running;
 }
 
+// The detour is shared with our SetServiceRunning (framework_servicebase.h).
 bool InstallStartTrace(registry::Mode)
 {
-    if (!game::IsBuild641())
-        return false;
-    const addr::Entry* entry = addr_check::Find(addr::cRZBaseSystemService_SetServiceRunning);
-    void* original = nullptr;
-    if (!entry || !hook::Install(*entry, reinterpret_cast<void*>(&TraceSetServiceRunning), &original))
+    if (!framework::TraceSetServiceRunning(&TraceSetServiceRunning))
         return false;
     g_startTraceOn = true;
     return true;
@@ -1835,6 +1831,104 @@ void StringHelpersFingerprint(cISC4City*, std::string& line)
     line += text;
 }
 
+// The service base test (OPENSC4_TEST_SERVICE_BASE).
+bool g_serviceBaseOn = false;
+uint32_t g_serviceBaseHash = 2166136261u;
+
+// OPENSC4_TEST_SERVICE_BASE=<day>: plain service base objects made by the
+// game's two constructors and taken through the class's slots: the fields
+// and vtables after construction, QueryInterface for the service's
+// interface, for the unknown's and for one it does not have (through the
+// main vtable and through the unknown part's), SetServiceRunning both ways
+// with IsServiceRunning, the getters, one Release, the destructor and the
+// deleting destructor with and without the free. Everything goes into the
+// fingerprint's `sbase` part. The calls of SetServiceRunning here are seen
+// by diagnostics.trace.service_start like any other.
+void DriveServiceBase(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_SERVICE_BASE") || !game::IsBuild641())
+        return;
+    g_serviceBaseOn = true;
+    uint32_t& h = g_serviceBaseHash;
+    using Construct2Fn = char*(__thiscall*)(char*, uint32_t, int32_t);
+    using Construct3Fn = char*(__thiscall*)(char*, uint32_t, int32_t, int32_t);
+    const auto construct2 = reinterpret_cast<Construct2Fn>(addr::cRZBaseSystemService_cRZBaseSystemService);
+    const auto construct3 = reinterpret_cast<Construct3Fn>(addr::cRZBaseSystemService_ConstructWithTickPriority);
+    const auto destroy = reinterpret_cast<void(__thiscall*)(char*)>(addr::cRZBaseSystemService_Destroy);
+    const auto deleting = reinterpret_cast<char*(__thiscall*)(char*, uint32_t)>(addr::cRZBaseSystemService_DeletingDestructor);
+    // The vtables by name, then the fields.
+    const auto state = [](const char* object) {
+        uint32_t& h = g_serviceBaseHash;
+        const uint32_t main = *reinterpret_cast<const uint32_t*>(object);
+        const uint32_t unknown = *reinterpret_cast<const uint32_t*>(object + 0x4);
+        MixInto(h, main == addr::cRZBaseSystemService_Vtable ? 1 : 0);
+        MixInto(h, unknown == addr::cRZBaseSystemService_UnknownVtable ? 1 : unknown == addr::cRZBaseUnknown_Vtable ? 2 : 0);
+        for (const std::size_t offset : {0x8u, 0xCu, 0x10u, 0x14u})
+            MixInto(h, *reinterpret_cast<const uint32_t*>(object + offset));
+        MixInto(h, static_cast<uint8_t>(object[0x18]));
+    };
+
+    char first[0x1C];
+    char second[0x1C];
+    std::memset(first, 0xC5, sizeof first);
+    std::memset(second, 0xC5, sizeof second);
+    MixInto(h, construct2(first, 0x7E570B01, -123456) == first ? 1 : 0);
+    state(first);
+    MixInto(h, construct3(second, 0x7E570B02, 5, 77) == second ? 1 : 0);
+    state(second);
+
+    void* out = nullptr;
+    bool found = Virtual<bool>(first, 0x0, uint32_t{0x287FB697}, &out);
+    MixInto(h, found ? 1 : 0);
+    MixInto(h, out == first ? 1 : 0);
+    out = nullptr;
+    found = Virtual<bool>(first, 0x0, uint32_t{1}, &out);
+    MixInto(h, found ? 1 : 0);
+    MixInto(h, out == first + 0x4 ? 1 : 0);
+    out = nullptr;
+    found = Virtual<bool>(first, 0x0, uint32_t{0x7E570EFE}, &out);
+    MixInto(h, found ? 1 : 0);
+    MixInto(h, out == nullptr ? 1 : 0);
+    out = nullptr;
+    found = Virtual<bool>(first + 0x4, 0x0, uint32_t{0x287FB697}, &out);
+    MixInto(h, found ? 1 : 0);
+    MixInto(h, out == first ? 1 : 0);
+    state(first);
+
+    for (const uint32_t running : {uint32_t{1}, uint32_t{1}, uint32_t{0}, uint32_t{0x101}}) {
+        MixInto(h, Virtual<uint32_t>(first, 0x1C, running) & 0xFF);
+        MixInto(h, Virtual<uint32_t>(first, 0x18) & 0xFF);
+        state(first);
+    }
+    MixInto(h, Virtual<uint32_t>(second, 0xC));
+    MixInto(h, Virtual<uint32_t>(second, 0x14));
+    MixInto(h, Virtual<uint32_t>(second, 0x30));
+    Virtual<uint32_t>(second, 0x10, uint32_t{0x7E570B03});
+    MixInto(h, Virtual<uint32_t>(second, 0xC));
+    // Three references are held: one goes back.
+    MixInto(h, Virtual<uint32_t>(first, 0x8));
+    state(first);
+
+    destroy(first);
+    state(first);
+    MixInto(h, deleting(second, 0) == second ? 1 : 0);
+    state(second);
+    char* const heaped =
+        construct2(reinterpret_cast<char*(__cdecl*)(uint32_t)>(addr::SC4_operator_new)(0x1C), 0x7E570B04, 9);
+    state(heaped);
+    MixInto(h, deleting(heaped, 1) == heaped ? 1 : 0);
+    log::Write("autotest: service base driven (hash %08X)", h);
+}
+
+void ServiceBaseFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_serviceBaseOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | sbase %08X", g_serviceBaseHash);
+    line += text;
+}
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     if (!g_on)
@@ -1876,6 +1970,8 @@ const FingerprintPart kStringFormatFingerprint{"string_format", 4, &StringFormat
 const DayHook kDriveStringFormat{"string_format", 4, &DriveStringFormat};
 const FingerprintPart kStringHelpersFingerprint{"string_helpers", 4, &StringHelpersFingerprint};
 const DayHook kDriveStringHelpers{"string_helpers", 4, &DriveStringHelpers};
+const FingerprintPart kServiceBaseFingerprint{"service_base", 4, &ServiceBaseFingerprint};
+const DayHook kDriveServiceBase{"service_base", 4, &DriveServiceBase};
 
 } // namespace
 } // namespace opensc4::autotest
