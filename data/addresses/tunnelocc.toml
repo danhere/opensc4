@@ -1,0 +1,166 @@
+# The tunnel occupant (cSC4NetworkTunnelOccupant, class ID 0x8A4BD52B): its own code (src/core/tunnelocc_sim.cpp, the class map in src/core/tunnelocc_sim.h). The parent class's entries are in prebuiltocc.toml.
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::QueryInterface"
+address = 0x00647170
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 2B D5 4B"
+source = "Name ours. Slot 0, ret 8: the tunnel IID 0x8A4BD52B gives the object itself (AddRef through slot 1, AL 1); every other ID is a tail jump to the pre-built class QueryInterface 0x0061D060; the other parts thunks 0x006472E0, 0x00647310, 0x00647340, 0x00647380 and 0x006473C0 jump here (src/core/tunnelocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::OccupantInit"
+address = 0x006471C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 14"
+source = "Name ours. Slot 3 of the occupant part (this = object + 4), no arguments: an initialised object answers 1; otherwise the pre-built class occupant Init 0x0061DB00, whose AL is the answer, then the network flag 0x4000 cleared through slot 11 of the interface (src/core/tunnelocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::InitPoolPage"
+address = 0x006471F0
+kind = "function"
+convention = "cdecl"
+expect = "56 57 6A 0F E8 E7 66 2C"
+source = "Name ours. Slot 2 of the pool table 0x00AA9188 (and of its copy at 0x00AA9458), also called by the static initialiser 0x00A73DE0; ECX not read: a 32 KB page (allocator order 0xF) of 68 items of 0x1E0 bytes chained upwards from +0x10, free list at +8, used count 0 at +0xC; returns the page (src/core/tunnelocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::Allocate"
+address = 0x00647230
+kind = "function"
+convention = "cdecl"
+expect = "A1 74 B5 B0 00 8B 40 08"
+source = "Name ours. One argument, not read (0x006242B5 pushes 0x1E0): an item of the tunnel pool 0x00B0B570 (the current page free head, refilled by 0x0090CF9A); called at 0x006242BA before the constructor (src/core/tunnelocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::Destroy"
+address = 0x00647260
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 3C C7 06"
+source = "Name ours. The destructor, no arguments, called by the deleting destructor 0x00647790 only: the vtables, the other entrance at +0x1D0 released when not null, then a tail jump to the pre-built class destructor 0x00604CA0 (src/core/tunnelocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::GetGZCLSID"
+address = 0x006472D0
+kind = "function"
+convention = "thiscall"
+expect = "B8 2B D5 4B 8A C3 CC CC"
+source = "Name ours. Slot 5 of the serializable part and called by the class registration at 0x0046075A: the constant class ID 0x8A4BD52B; touches only EAX (src/core/tunnelocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::Shutdown"
+address = 0x006474F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 8D 4E"
+source = "Name ours. Slot 4 of the interface, no arguments (the occupant part slot 4 is the thunk 0x006476C0): an object not initialised answers 1; otherwise the other entrance at +0x1D0 is zeroed and released and the pre-built class slot 4 0x0061D0D0 is jumped to (src/core/tunnelocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::SetOtherEnd"
+address = 0x00647530
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B D9"
+source = "Name ours. ret 4 (the other tunnel entrance, may be null): when it differs from the pointer at +0x1D0 the new one is referenced, stored and the old one released; called for both entrances of a new tunnel at 0x00628AFE and 0x00628B08 (src/core/tunnelocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::Write"
+address = 0x00647580
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Serializable slot 3, ret 4, this = object + 8: version 2, the pre-built class Write 0x0061D8E0, then a byte 1 and a reference (0x005D99A0) to the other entrance at object + 0x1D0 when it answers IID 0xE4FDA3D4, else a byte 0 (src/core/tunnelocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::Read"
+address = 0x00647610
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 57 8B 7C 24"
+source = "Name ours. Serializable slot 4, ret 4, this = object + 8: version 2 only, the pre-built class Read 0x0061D9B0, then the byte; the other entrance held is released and, for a non-zero byte, read as a reference (0x005D9730, IID 0x8A4BD52B) into object + 0x1D0 (src/core/tunnelocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::cSC4NetworkTunnelOccupant"
+address = 0x006476F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 56 8B"
+source = "Name ours. Constructor, ret 4 (non-zero argument for the most derived object): the pre-built class constructor 0x0061E1A0 with 0, the vtables, the other entrance null, network flag 0x4000 cleared and 0x10C00000 set. Called by the factory 0x006477F0 and at 0x006242CA (src/core/tunnelocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::DeletingDestructor"
+address = 0x00647790
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 C8 FA FF FF"
+source = "Name ours. ret 4 (flags): the destructor 0x00647260, and with flag 1 the item back to its pool page (page at address & 0xFFFF8000; released at count 0 by 0x0090D031, reopened at 0x40000033 by 0x0090CFF9); the holder part slot 22 and the model part slot 0 reach it through the thunks 0x00647370 and 0x006473B0 (src/core/tunnelocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::Create"
+address = 0x006477F0
+kind = "function"
+convention = "cdecl"
+expect = "A1 74 B5 B0 00 8B 40 08"
+source = "Name ours. The factory (the class registration pointer, pushed at 0x00460755): an item of the tunnel pool constructed as the most derived object; returns the occupant part (object + 4) (src/core/tunnelocc_sim.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::Pool"
+address = 0x00B0B570
+kind = "data"
+source = "Name ours. The pool of the 0x1E0-byte tunnel occupants (table 0x00AA9188; +4 the current page; pages of 32 KB at address & 0xFFFF8000 with the free list at +8 and the used count at +0xC, 68 items each; refill 0x0090CF9A, 0x0090D031 at count 0, 0x0090CFF9 at 0x40000033)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::vftable"
+address = 0x00AA9308
+kind = "vtable"
+expect = "70 71 64 00 A0 71 64 00"
+source = "The primary cISC4NetworkOccupant vtable of the tunnel occupant, 82 slots: QueryInterface 0x00647170 and slot 4 0x006474F0 are the tunnel own."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::vftable_4"
+address = 0x00AA9280
+kind = "vtable"
+expect = "E0 72 64 00 F0 72 64 00"
+source = "The cISC4Occupant part (+4) vtable of the tunnel occupant, 34 slots, slot 3 is OccupantInit 0x006471C0."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::vftable_8"
+address = 0x00AA9264
+kind = "vtable"
+expect = "10 73 64 00 20 73 64 00"
+source = "The cIGZSerializable part (+8) vtable of the tunnel occupant, 6 slots: Write 0x00647580, Read 0x00647610, GetGZCLSID 0x006472D0."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::vftable_C"
+address = 0x00AA9200
+kind = "vtable"
+expect = "40 73 64 00 50 73 64 00"
+source = "The property holder (+0xC) vtable of the tunnel occupant, 25 slots: slot 22 the deleting destructor thunk, 23 and 24 the save thunks."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::vftable_20"
+address = 0x00AA91E8
+kind = "vtable"
+expect = "80 73 64 00 90 73 64 00"
+source = "The exemplar holder part (+0x20) vtable of the tunnel occupant, 5 slots."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::vftable_38"
+address = 0x00AA91E4
+kind = "vtable"
+expect = "B0 73 64 00 80 73 64 00"
+source = "The vtable at +0x38 of the tunnel occupant (one slot, a thunk to the deleting destructor)."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::vbase_vftable"
+address = 0x00AA9198
+kind = "vtable"
+expect = "C0 73 64 00 D0 73 64 00"
+source = "The virtual base vtable of the tunnel occupant (at +0x1DC), 19 slots, all adjustor thunks."
+
+[[entry]]
+name = "cSC4NetworkTunnelOccupant::vbtable"
+address = 0x00AA9450
+kind = "data"
+source = "Name ours. The virtual base table of the tunnel occupant: -4, then the displacement 0x1A0 of the virtual base from the model part."
