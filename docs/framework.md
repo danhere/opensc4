@@ -577,3 +577,58 @@ All 33 framework groups on against the original (the service start trace on both
 | `OPENSC4_TEST_STRING_HELPERS=2` | 12 same | 12 same |
 
 All on the first pair. The `shlp` part was the same in all 48 runs of the test's leg and its control.
+
+## The system service base
+
+`cRZBaseSystemService` is what the framework's services derive from (40 constructors call its own). Its part of an object is 0x1C bytes: the vtable (0x00ACF1CC, 13 slots), an unknown part at +4 with the reference count, the service's ID at +0xC, its priority at +0x10, its tick priority at +0x14 and a byte at +0x18 that says whether it is running.
+
+- **The constructors.** One takes an ID and a priority and uses the priority as the tick priority too; the other (2 callers) takes all three. Both leave the service not running, with no reference.
+- **The destructor** sets the class's vtables back, then the unknown base's: a subclass's destructor ends in it. The deleting destructor adds the free.
+- **QueryInterface** answers the service's interface (0x287FB697) itself and hands anything else to the unknown part.
+- **SetServiceRunning** stores the byte. Nearly every service uses the base's, which is why the start-order trace watches it.
+
+`src/core/framework_servicebase.cpp`, entry detours, off by default, both put in when core.dll is injected (services are built and started while the app starts):
+
+| Replacement | Functions |
+|---|---|
+| `framework.service.lifetime` | the constructors 0x0091DE0F and 0x0091DDCF, the destructor 0x0091DD53, the deleting destructor 0x0091DDB3 |
+| `framework.service.interface` | QueryInterface 0x0091DD67, SetServiceRunning 0x0091DD91 |
+
+6 functions. The destructor changes no register but ECX in the game, and most of its 42 callers are other destructors that jump to it, so ours is entered through a thunk that keeps EAX as well as ECX and EDX.
+
+Left to the game:
+
+- **Too small to detour safely:** Release (0x0091DD89) and the unknown part's three thunks (0x0091DD9B, 0x0091DDA3, 0x0091DDAB). Each is 8 bytes, a pointer adjustment and a jump, and ends where the next function begins.
+- **Shared with unrelated classes:** the getters and setter of the ID, the priorities and the running byte (0x009CEDE1, 0x00894F6D, 0x0099BE66, 0x00932B83, 0x009D4714), AddRef (0x009297A0) and the empty Init, Shutdown, OnTick and OnIdle (0x00949ADE, 0x0091559A).
+- The unknown base's own QueryInterface and Release.
+
+### The start-order trace shares the detour
+
+`diagnostics.trace.service_start` used to put its own detour on SetServiceRunning, and two detours cannot sit on one address. Now there is one detour (`framework_servicebase.h`) that either setting installs: each call is reported to the trace when it is on, and is then carried out by our translation when `framework.service.interface` is on, else by the game's function. What the trace records is unchanged: a run with the reworked trace gives the same `start` part, the same logged stops and the same final hash as a run from before, with the original and with ours.
+
+### Testing
+
+`OPENSC4_TEST_SERVICE_BASE=<day>` builds plain service base objects with both constructors on memory filled with a pattern and reads every field and both vtables; asks QueryInterface for the service's interface, the unknown's and one it does not have, through the main vtable and through the unknown part; sets the service running and not, with a value above 1 too; reads the getters; gives one reference back; and ends the objects with the destructor and the deleting destructor, with and without the free. The results go into the fingerprint's `sbase` part. The test's four calls of SetServiceRunning are seen by the trace like any others.
+
+With the test on, the coverage meter shows five of the six reached in the original (three of them in a city run without the test); SetServiceRunning is not in the meter's function list, and the trace counts its calls (34 while a city starts).
+
+### Parity
+
+All 35 framework groups on against the original (the service start trace on both sides), 12 saves, 7 days, two jobs, 2026-10-12, each leg with a control (the original on both sides):
+
+| Leg | Ours against the original | Original against itself |
+|---|---|---|
+| Plain | 12 same | 12 same |
+| `OPENSC4_TEST_SERVICE_BASE=2`, first pass | 11 same, 1 partly | 12 same |
+| `OPENSC4_TEST_SERVICE_BASE=2`, second pass | 12 same | |
+
+The `sbase` part was the same in every run, and the `start` part in every run of every leg.
+
+**The one run that differed is not explained.** In the first pass, on Rush Hour d0090, the first of four runs with ours had another value in one MySim's hashed fields (the `ms` part: `E8E91AB4` where every other run has `9A730D93`), from the first day on, which is before the test runs; the rest of that run's fingerprint was the same on all eight days. What is known:
+
+- That value is in none of the earlier runs of this save that are still on disk: 363 of the original, 354 with our code.
+- It did not come back: 16 single runs with all 35 groups, then 12 copies of the save run two at a time as in a batch, three legs with the service base groups (36 runs with ours, 36 of the original) and three legs without them (36 and 36), then the second pass above. Every run has the usual value.
+- The saved city of that run does not show it: its MySim record differs from the original's in the same byte positions as a normal run's does (the positions that differ in every pair of runs). So the difference is in state the `ms` part reads from memory and the save does not keep, which on this class is the two stored stopwatches and the pacing fields.
+- No MySim code calls the service base: none of its 132 call sites is in the MySim classes.
+
+So it was seen once in 58 runs of this save with the service base groups on and never in about 830 others, it could not be reproduced, and there is no path from the new code to that field. It may be a rare timing difference at city load that these hooks make more likely (they are on the start-up path), or chance; one occurrence cannot tell. If it shows up again in a later batch, the first thing to do is log those MySim bytes field by field instead of as one hash.
