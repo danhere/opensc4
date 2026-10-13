@@ -254,6 +254,23 @@ The fire run adds 15 functions of the scape manager. What was not entered:
 - Start-up code, which the meter cannot see (it is armed after start-up) and which a run does not reach as ours either: the event system's bank loading, constructors and Init of the seven objects, the director's own functions.
 - Code that needs a person or a real event: pointer sounds, clicks outside a window, the tool, occupant and placed-sound messages of the event handler, the play and track functions of the options dialog, the sound manager's ask and let-go calls.
 
+## Open: runs part from the original after a dispatch
+
+Not solved. Found on 2026-10-13 by the test of the dispatch tool ([tools.md](tools.md), "The dispatch, sign removal and Life tools: test"), the first test that makes a dispatch.
+
+What is seen: with `audio.part5` or `audio.part6` ours (either one alone is enough), a run parts from the original at the first fingerprint line after a fire unit is dispatched. On Making Money d0090 and Rush Hour d0090 the parts `weather`, `adv`, `zone`, `terrainobj` and `powerpoleocc` differ; on Big City d0000 only `adv` does. Afterwards the view differs too: the next day's ground-pick grid finds 256 of 272 points on one side and 126 on the other. The outcome is stable in ours (the same in repeated runs).
+
+What it is not: it is the same when the game's own dispatch tool makes the dispatch, so it is not the tools' code. With both audio groups off the runs are identical.
+
+Not explained. Leads:
+
+- The dispatch messages 0xE94671EB and 0x894671F6 reach the handler at 0x004EE300 (`OnToolMessages`, src/core/audio_5.cpp) through the message dispatcher in src/core/audio_6.cpp. The handler was compared with the disassembly again without finding a slip.
+- Either half alone gives the difference, so the candidates are the message registration list (part 5), another case of the dispatcher (part 6), or the random draw of the sound made for a dispatch.
+
+Repro, about 40 s a run: the tools test with `OPENSC4_TEST_TOOLS3=2 OPENSC4_TEST_TOOLS3_COMMIT=1 OPENSC4_TEST_TUTORIAL_OFF=1` on Making Money d0090, the original against a run with only `audio.part5=ours`.
+
+Until it is fixed, parity legs that dispatch run without those two groups or with `OPENSC4_TEST_TOOLS3_SEND=0`.
+
 ## Not done
 
 - The functions in the fence table above that are shared with other classes or are generic container code. They could become ours only together with their other users.

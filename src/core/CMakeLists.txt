@@ -455,6 +455,10 @@ add_library(opensc4_core SHARED
   tool_small_1.cpp
   tool_small_2.cpp
   tool_small_autotest.cpp
+  tool_dispatch.cpp
+  tool_signpick.cpp
+  tool_cellpaint.cpp
+  tool_t3_autotest.cpp
   ui_cityview_1.cpp
   ui_cityview_2.cpp
   ui_cityview_3.cpp

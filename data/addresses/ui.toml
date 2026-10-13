@@ -11194,12 +11194,12 @@ expect = "53 56 8B F1 E8 77 92 F9"
 source = "Placeholder name. (uint32 kind), ret 4, returns this: constructor of a view input control of 0x58 bytes (vtable 0x00AAB008, +0x28 0x00AAAFF8), the kind (0 to 0xC) kept at +0x50. The city view's command handler makes one per terrain command."
 
 [[entry]]
-name = "SC4ViewInputControls::F4BA7D0"
+name = "SC4DispatchTool::Construct"
 address = 0x004BA7D0
 kind = "function"
 convention = "thiscall"
 expect = "53 56 8B F1 E8 47 0B 14"
-source = "Placeholder name. (uint32 mode), ret 4, returns this: constructor of a view input control of 0x90 bytes (vtable 0x00A90268), the mode (0, 1, 5 or 6 from the city view's commands) kept at +0x2C."
+source = "Name ours. (uint32 type), ret 4, returns this: constructor of the dispatch tool, a view input control of 0x90 bytes (vtable 0x00A90268), the dispatch type (0 police, 1 fire, 5 fire plane, 6 police helicopter, from the city view's commands) kept at +0x2C; +0x88 is left unset. Ours in ui.tools.dispatch (src/core/tool_dispatch.cpp)."
 
 [[entry]]
 name = "SC4ViewInputControls::F4C4590"
@@ -11226,12 +11226,12 @@ expect = "53 56 8B F1 E8 A7 22 14"
 source = "Placeholder name. No arguments, returns this: constructor of a view input control of 0xD8 bytes (vtable 0x00A901A0), ID 0x46DDB5F1 as the city view's command handler compares it."
 
 [[entry]]
-name = "SC4ViewInputControls::F4BC310"
+name = "SC4LifeTool::Construct"
 address = 0x004BC310
 kind = "function"
 convention = "thiscall"
 expect = "53 56 8B F1 E8 07 F0 13"
-source = "Placeholder name. No arguments, returns this: constructor of a view input control of 0x88 bytes (vtable 0x00A90458, ID 0x69701127). A cheat of the city view makes it."
+source = "Name ours. No arguments, returns this: constructor of the Game of Life tool, a view input control of 0x88 bytes (vtable 0x00A90458, ID 0x69701127). The city view's cheat GOL (0x8973A69C) makes it. Ours in ui.tools.cellpaint (src/core/tool_cellpaint.cpp)."
 
 [[entry]]
 name = "SC4ViewInputControls::F4BD230"
@@ -11242,12 +11242,12 @@ expect = "56 8B F1 E8 E8 E0 13 00"
 source = "Placeholder name. No arguments, returns this: constructor of a view input control of 0x44 bytes (vtable 0x00A90528). The city view's command 0x0B980587 makes it."
 
 [[entry]]
-name = "SC4ViewInputControls::F4D76F0"
+name = "SC4SignRemoveTool::Construct"
 address = 0x004D76F0
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 E8 28 3C 12 00"
-source = "Placeholder name. No arguments, returns this: constructor of a view input control of 0x30 bytes (vtable 0x00A928A0). The city view's command 0xABCDEE11 makes it."
+source = "Name ours. No arguments, returns this: constructor of the sign removal tool, a view input control of 0x30 bytes (vtable 0x00A928A0), +0x28 and +0x2C cleared. The city view's command 0xABCDEE11 makes it. Ours in ui.tools.signpick (src/core/tool_signpick.cpp)."
 
 [[entry]]
 name = "SC4ViewInputControls::F4D7F00"
