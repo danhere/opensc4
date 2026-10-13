@@ -7,6 +7,7 @@
 #include "core/occmgr_sim.h"
 
 #include <cIGZIStream.h>
+#include <cIGZMessage2Standard.h>
 #include <cIGZOStream.h>
 #include <cIGZString.h>
 #include <cIGZUnknown.h>
@@ -14,6 +15,7 @@
 
 #include <opensc4/addresses.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -810,11 +812,372 @@ uint32_t SecondObjectTest(char* manager, bool& made)
     return hash.h;
 }
 
-// The drive's results (OPENSC4_TEST_NETMGR=<day>): the first part's and the
-// second part's (life and save).
+// A message of the framework's standard class (0x2C bytes from the
+// framework's operator new, the game's constructor), with a type and its
+// first, second and fourth data words, handed straight to the manager's
+// message target (the part at +4, slot 3: the game's DoMessage or ours) and
+// released. Nothing goes through the message server, so nobody else hears
+// it. The answer is DoMessage's AL (0xFF when no message could be made).
+uint8_t Deliver(char* manager, uint32_t type, uint32_t data1, uint32_t data2, uint32_t data4)
+{
+    using NewFn = void*(__cdecl*)(std::size_t size);
+    using MessageFn = cIGZMessage2Standard*(__thiscall*)(void* memory);
+    void* const memory = reinterpret_cast<NewFn>(addr::RZ_operator_new)(0x2C);
+    cIGZMessage2Standard* const message =
+        memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr;
+    if (!message)
+        return 0xFF;
+    message->AddRef();
+    message->SetType(type);
+    message->SetData1(static_cast<intptr_t>(data1));
+    message->SetData2(static_cast<intptr_t>(data2));
+    message->SetData4(static_cast<intptr_t>(data4));
+    const uint8_t answer =
+        Virtual<uint8_t>(manager + netmgr_sim::kMessagePart, 0xC, static_cast<void*>(message));
+    message->Release();
+    return answer;
+}
+
+uint32_t AsData(const void* pointer)
+{
+    return static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(pointer));
+}
+
+// What the messages and the removals may change: the batching and queueing
+// bytes, the dirty rectangle, and the sizes of the vectors at +0x24 and
+// +0x68.
+void MixMessageState(Hash& hash, char* manager)
+{
+    hash.Mix(At<uint8_t>(manager, field::kBatching));
+    hash.Mix(At<uint8_t>(manager, field::kQueueing));
+    for (std::size_t i = 0; i < 4; ++i)
+        hash.Mix(At<uint32_t>(manager, field::kDirtyRect + 4 * i));
+    hash.Mix(Count(manager, field::kManaged, 4));
+    hash.Mix(Count(manager, field::kQueue, 4));
+}
+
+// How many occupants a network filter of the given mask finds on one cell,
+// asked as DoMessage asks (the occupant manager's slot 40 into a list, with
+// a filter of the game's class, here made with the mask by 0x0061F530); the
+// occupants are released and the list freed (slot 48, 0x00413FE0).
+// 0xFFFFFFFF when no filter could be made.
+uint32_t OnCell(char* occupants, uint32_t mask, int32_t x, int32_t z)
+{
+    void* filter = nullptr;
+    if (void* const raw = netmgr_sim::CallCdecl<void*, std::size_t>(addr::SC4_operator_new,
+                                                                     netmgr_sim::kNetworkFilterSize))
+        filter = netmgr_sim::CallThis<void*, uint32_t>(addr::cSC4NetworkManager_NetworkFilterConstruct, raw, mask);
+    if (!filter)
+        return 0xFFFFFFFFu;
+    Virtual<uint32_t>(filter, filter::kAddRef);
+    ListNode* const head = Virtual<ListNode*>(ListNodeAllocator(), 0xC, 0xCu);
+    head->next = head;
+    head->previous = head;
+    ListNode* list = head;
+    int32_t low[2] = {x, z}, high[2] = {x, z};
+    Virtual<uint8_t>(occupants, netmgr_sim::occupants_slot::kGetByCityCells, &list, &low[0], &high[0], filter,
+                     0xFFFFFFFFu);
+    uint32_t count = 0;
+    for (const ListNode* node = head->next; node != head; node = node->next)
+        ++count;
+    Virtual<uint32_t>(occupants, netmgr_sim::occupants_slot::kReleaseOccupantList, &list);
+    reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4List_Destroy2)(&list);
+    Virtual<uint32_t>(filter, filter::kRelease);
+    return count;
+}
+
+// A vector of point vectors as it is: the number of elements, and for each
+// its number of points and the points' words. No address.
+uint32_t PointListsHash(const Vector& lists)
+{
+    Hash hash;
+    hash.Mix(static_cast<uint32_t>((lists.end - lists.begin) / netmgr_sim::kPointVectorSize));
+    for (const char* at = lists.begin; at != lists.end; at += netmgr_sim::kPointVectorSize) {
+        const Vector* const points = reinterpret_cast<const Vector*>(at);
+        hash.Mix(static_cast<uint32_t>((points->end - points->begin) / 8));
+        for (const char* word = points->begin; word != points->end; word += 4)
+            hash.Mix(*reinterpret_cast<const uint32_t*>(word));
+    }
+    return hash.h;
+}
+
+// The template code of the third part, called at the game's addresses (so
+// the game's functions or ours) on memory of the test's own; nothing of the
+// city is touched. In the game only two forms ever run (the removal queue's
+// sort, and the flush's resize of an empty vector to thirteen), so most of
+// the vector's branches are reached by nothing else.
+//   - the sort 0x006132E0 over ranges of 0, 1, 2, 16, 17, 40 and 300 words
+//     from a fixed generator, every fifth one small so that there are equal
+//     words: the sorted words. From 17 on its loop 0x00612E00 partitions.
+//   - a vector of point vectors: resized from nothing to 13 (the growing
+//     insert); points appended to the elements 0, 4 and 7; resized to 5 (the
+//     erase, which frees element 7's points); to 9 (the insert in place at
+//     the end: four copies constructed); one copy of a value of two points
+//     inserted at the start (in place, more elements behind than inserted:
+//     the tail constructed, the rest assigned backward, the value assigned);
+//     three inserted before the last two (in place, fewer behind: copies
+//     constructed, the tail constructed behind them, the value assigned);
+//     two inserted at the second place (no room: the growing insert in the
+//     middle, with the tail copied); the second and third elements erased
+//     (the elements behind assigned forward). The vector's contents are
+//     mixed after each step, and what the erase answers. Then everything is
+//     freed (0x004638B0 and the value's points).
+uint32_t HelperTest()
+{
+    Hash hash;
+    static uint32_t words[300];
+    uint32_t state = 0x2545F491u;
+    for (const uint32_t size : {0u, 1u, 2u, 16u, 17u, 40u, 300u}) {
+        for (uint32_t i = 0; i < size; ++i) {
+            state = state * 1664525u + 1013904223u;
+            words[i] = i % 5 == 0 ? (state >> 8) % 97u : state;
+        }
+        netmgr_sim::CallCdecl<void, uint32_t*, uint32_t*>(addr::cSC4NetworkManager_SortPointers, &words[0],
+                                                          &words[0] + size);
+        for (uint32_t i = 0; i < size; ++i)
+            hash.Mix(words[i]);
+    }
+
+    using netmgr_sim::CallThis;
+    const std::size_t element = netmgr_sim::kPointVectorSize;
+    const auto append = [](char* points, uint32_t x, uint32_t z) {
+        uint32_t cell[2] = {x, z};
+        CallThis<void, uint32_t*>(addr::SC4PairVector_PushBack, points, &cell[0]);
+    };
+    Vector lists = {nullptr, nullptr, nullptr};
+    CallThis<void, uint32_t>(addr::cSC4NetworkManager_ResizePointLists, &lists, 13u);
+    hash.Mix(PointListsHash(lists));
+    for (const uint32_t index : {0u, 4u, 7u})
+        for (uint32_t n = 0; n <= index; ++n)
+            append(lists.begin + index * element, index * 100u + n, n);
+    hash.Mix(PointListsHash(lists));
+    CallThis<void, uint32_t>(addr::cSC4NetworkManager_ResizePointLists, &lists, 5u);
+    hash.Mix(PointListsHash(lists));
+    CallThis<void, uint32_t>(addr::cSC4NetworkManager_ResizePointLists, &lists, 9u);
+    hash.Mix(PointListsHash(lists));
+    Vector value = {nullptr, nullptr, nullptr};
+    append(reinterpret_cast<char*>(&value), 0xAAAAu, 0xBBBBu);
+    append(reinterpret_cast<char*>(&value), 0xCCCCu, 0xDDDDu);
+    const std::uintptr_t insert = addr::cSC4NetworkManager_InsertPointLists;
+    CallThis<void, char*, uint32_t, const Vector*>(insert, &lists, lists.begin, 1u, &value);
+    hash.Mix(PointListsHash(lists));
+    CallThis<void, char*, uint32_t, const Vector*>(insert, &lists, lists.begin + 8 * element, 3u, &value);
+    hash.Mix(PointListsHash(lists));
+    CallThis<void, char*, uint32_t, const Vector*>(insert, &lists, lists.begin + element, 2u, &value);
+    hash.Mix(PointListsHash(lists));
+    char* const erased = CallThis<char*, char*, char*>(addr::cSC4NetworkManager_ErasePointLists, &lists,
+                                                        lists.begin + element, lists.begin + 3 * element);
+    hash.Mix(static_cast<uint32_t>(erased - lists.begin));
+    hash.Mix(PointListsHash(lists));
+    CallThis<void>(addr::SC4ShortVectorVector_Destroy, &lists);
+    if (value.begin)
+        netmgr_sim::CallCdecl<void, void*>(addr::SC4_Free, value.begin);
+    return hash.h;
+}
+
+// What the third part's drive did, for its log line.
+struct MessageRun {
+    bool other = false, unmanaged = false, managed = false, refreshed = false, cell = false;
+    int32_t x = -1, z = -1;
+    uint32_t before = 0, after = 0, tried = 0;
+    uint32_t batch = 0, queue = 0;
+    uint8_t unknown = 0, removedNull = 0, replaced = 0;
+};
+
+// The third part's calls (messages and removals), each chosen so that the
+// asm shows it changes nothing lasting, with the state read after each:
+//   - a message of a type the manager does not know: AL 1;
+//   - occupant inserted (0x99EF1142) and removed (0x99EF1143) with no
+//     occupant; with an occupant that is no network piece (QueryInterface
+//     says no); with a network piece that is not managed globally (the piece
+//     is released again). Which occupant or piece does not matter to what is
+//     mixed (the first found);
+//   - with the LAST piece of the vector at +0x24 (when there is one):
+//     removed, which takes it off the vector's end (no entry moves), then
+//     inserted, which appends it again: the vector and the reference counts
+//     are as before (the test holds a reference of its own meanwhile). The
+//     size after each and whether the last entry is the piece again are
+//     mixed;
+//   - 0xA6B79602 with two things whose words at +4 are equal: nothing; and
+//     only with OPENSC4_TEST_NETMGR_REFRESH=1 with two that differ
+//     (RefreshAllPieces: every piece is told its lighting needs an update)
+//     and 0x6AB97795 (pieces with the flag 0x40000 post their "changed"
+//     message): drawing state, so off unless asked for;
+//   - a batch: begin (0xEA3B0AF1), two cell changes of reason 5 (which only
+//     grow the dirty rectangle: one inside the city, one from cell 0 to
+//     0xFFFF, which is cut to the city), the rectangle mixed after each and
+//     then set empty by hand, end (0x6A3B0AFD), which with an empty
+//     rectangle only clears the batching byte; and a begin and end with
+//     nothing between;
+//   - a cell change of reason 4 outside a batch, on the first cell (by z,
+//     then x, of the first 64 cells with a network piece) on which the
+//     filter of the flush (pipes and subways) finds nothing: reason 4 keeps
+//     every piece, so the pass releases what it found, hands an empty list
+//     to DestroyNetworkOccupants and the occupant manager, and the flush
+//     finds no pipe or subway, rebuilds nothing and empties the rectangle.
+//     The number of pieces on the cell before and after is mixed;
+//   - QueueRemovals(1), DestroyNetworkOccupants with an empty list (while
+//     queueing: nothing is queued), QueueRemovals(1) again (nothing),
+//     QueueRemovals(0) (an empty queue: nothing), DestroyNetworkOccupants
+//     with the empty list (three passes over nothing);
+//   - RemoveOrReplaceOccupant with no occupant: AL 0, the byte untouched.
+// Not sent: 0x26D31EC1 and 0x26D31EC2 (the retrofit pass; the tools let go),
+// the lighting pair 0xC9DA96E8 / 0xC9DA96E9 (the lit flag follows the game's
+// day and night, and the netocc part counts it), and cell changes of other
+// reasons (they remove pieces). The dirty rectangle is put back as it was.
+// False, with nothing done, when the manager is batching or queueing or has
+// occupants queued.
+bool MessageTest(cISC4City* city, char* manager, const std::vector<Piece>& pieces, const std::vector<void*>& all,
+                 bool collected, uint32_t& sum, MessageRun& run)
+{
+    if (At<uint8_t>(manager, field::kBatching) || At<uint8_t>(manager, field::kQueueing) ||
+        Count(manager, field::kQueue, 4) != 0)
+        return false;
+    Hash hash;
+    uint32_t rect[4];
+    for (std::size_t i = 0; i < 4; ++i)
+        rect[i] = At<uint32_t>(manager, field::kDirtyRect + 4 * i);
+
+    run.unknown = Deliver(manager, kIidNobody, 1u, 2u, 3u);
+    hash.Mix(run.unknown);
+    MixMessageState(hash, manager);
+
+    for (const uint32_t type : {netmgr_sim::kMsgOccupantInserted, netmgr_sim::kMsgOccupantRemoved})
+        hash.Mix(Deliver(manager, type, 0u, 0u, 0u));
+    for (void* const occupant : all) {
+        if (Virtual<uint32_t>(occupant, kOccupantGetType) == kNetworkOccupantType)
+            continue;
+        run.other = true;
+        for (const uint32_t type : {netmgr_sim::kMsgOccupantInserted, netmgr_sim::kMsgOccupantRemoved})
+            hash.Mix(Deliver(manager, type, AsData(occupant), 0u, 0u));
+        break;
+    }
+    hash.Mix(run.other);
+    for (const Piece& piece : pieces) {
+        if (Virtual<uint8_t>(piece.self, piece_slot::kIsManagedGlobally))
+            continue;
+        run.unmanaged = true;
+        void* const part = Virtual<void*>(piece.self, piece_slot::kAsOccupant);
+        for (const uint32_t type : {netmgr_sim::kMsgOccupantInserted, netmgr_sim::kMsgOccupantRemoved})
+            hash.Mix(Deliver(manager, type, AsData(part), 0u, 0u));
+        break;
+    }
+    hash.Mix(run.unmanaged);
+    MixMessageState(hash, manager);
+
+    const Vector* const managed = reinterpret_cast<const Vector*>(manager + field::kManaged);
+    if (managed->begin != managed->end) {
+        run.managed = true;
+        void* const last = At<void*>(managed->end - 4, 0);
+        Virtual<uint32_t>(last, piece_slot::kAddRef);
+        void* const part = Virtual<void*>(last, piece_slot::kAsOccupant);
+        hash.Mix(Deliver(manager, netmgr_sim::kMsgOccupantRemoved, AsData(part), 0u, 0u));
+        hash.Mix(Count(manager, field::kManaged, 4));
+        hash.Mix(Deliver(manager, netmgr_sim::kMsgOccupantInserted, AsData(part), 0u, 0u));
+        hash.Mix(Count(manager, field::kManaged, 4));
+        hash.Mix(managed->begin != managed->end && At<void*>(managed->end - 4, 0) == last);
+        Virtual<uint32_t>(last, piece_slot::kRelease);
+    }
+    hash.Mix(run.managed);
+
+    uint32_t one[2] = {0u, 7u}, other[2] = {0u, 7u};
+    hash.Mix(Deliver(manager, netmgr_sim::kMsgRefresh, AsData(one), AsData(other), 0u));
+    run.refreshed = EnvInt("OPENSC4_TEST_NETMGR_REFRESH", 0) != 0;
+    if (run.refreshed) {
+        other[1] = 8u;
+        hash.Mix(Deliver(manager, netmgr_sim::kMsgRefresh, AsData(one), AsData(other), 0u));
+        hash.Mix(Deliver(manager, netmgr_sim::kMsgPostChanged, 0u, 0u, 0u));
+    }
+    hash.Mix(run.refreshed);
+
+    Hash batch;
+    batch.Mix(Deliver(manager, netmgr_sim::kMsgBatchBegin, 0u, 0u, 0u));
+    MixMessageState(batch, manager);
+    const uint32_t noRemoval = netmgr_sim::kReasonNoRemoval;
+    batch.Mix(Deliver(manager, netmgr_sim::kMsgCellsChanged, (3u << 16) | 5u, (4u << 16) | 7u, noRemoval));
+    MixMessageState(batch, manager);
+    batch.Mix(Deliver(manager, netmgr_sim::kMsgCellsChanged, 0xFFFFu, 0xFFFFu, noRemoval));
+    MixMessageState(batch, manager);
+    At<int32_t>(manager, field::kDirtyRect + 0x0) = netmgr_sim::kEmptyLow;
+    At<int32_t>(manager, field::kDirtyRect + 0x4) = netmgr_sim::kEmptyLow;
+    At<int32_t>(manager, field::kDirtyRect + 0x8) = netmgr_sim::kEmptyHigh;
+    At<int32_t>(manager, field::kDirtyRect + 0xC) = netmgr_sim::kEmptyHigh;
+    batch.Mix(Deliver(manager, netmgr_sim::kMsgBatchEnd, 0u, 0u, 0u));
+    MixMessageState(batch, manager);
+    batch.Mix(Deliver(manager, netmgr_sim::kMsgBatchBegin, 0u, 0u, 0u));
+    batch.Mix(Deliver(manager, netmgr_sim::kMsgBatchEnd, 0u, 0u, 0u));
+    MixMessageState(batch, manager);
+    run.batch = batch.h;
+    hash.Mix(run.batch);
+
+    char* const occupants = collected ? Virtual<char*>(city, kCityOccupantManager) : nullptr;
+    if (occupants) {
+        std::vector<std::pair<uint32_t, uint32_t>> cells;
+        cells.reserve(pieces.size());
+        for (const Piece& piece : pieces)
+            cells.emplace_back(piece.z, piece.x);
+        std::sort(cells.begin(), cells.end());
+        cells.erase(std::unique(cells.begin(), cells.end()), cells.end());
+        for (std::size_t i = 0; i < cells.size() && i < 64 && !run.cell; ++i) {
+            ++run.tried;
+            const int32_t x = static_cast<int32_t>(cells[i].second), z = static_cast<int32_t>(cells[i].first);
+            if (OnCell(occupants, netmgr_sim::kUndergroundMask, x, z) != 0)
+                continue;
+            run.cell = true;
+            run.x = x;
+            run.z = z;
+        }
+    }
+    if (run.cell) {
+        const uint32_t x = static_cast<uint32_t>(run.x), z = static_cast<uint32_t>(run.z);
+        run.before = OnCell(occupants, netmgr_sim::kEveryTypeMask, run.x, run.z);
+        hash.Mix(Deliver(manager, netmgr_sim::kMsgCellsChanged, ((x + 1) << 16) | x, ((z + 1) << 16) | z,
+                         netmgr_sim::kReasonKeep));
+        MixMessageState(hash, manager);
+        run.after = OnCell(occupants, netmgr_sim::kEveryTypeMask, run.x, run.z);
+        hash.Mix(x);
+        hash.Mix(z);
+        hash.Mix(run.before);
+        hash.Mix(run.after);
+    }
+    hash.Mix(run.cell);
+
+    Hash queue;
+    ListNode nothing = {&nothing, &nothing, nullptr};
+    ListNode* empty = &nothing;
+    Virtual<void>(manager, slot::kQueueRemovals, 1u);
+    MixMessageState(queue, manager);
+    Virtual<void>(manager, slot::kDestroyNetworkOccupants, &empty);
+    MixMessageState(queue, manager);
+    Virtual<void>(manager, slot::kQueueRemovals, 1u);
+    Virtual<void>(manager, slot::kQueueRemovals, 0u);
+    MixMessageState(queue, manager);
+    Virtual<void>(manager, slot::kDestroyNetworkOccupants, &empty);
+    MixMessageState(queue, manager);
+    queue.Mix(nothing.next == &nothing && nothing.previous == &nothing && empty == &nothing);
+    run.queue = queue.h;
+    hash.Mix(run.queue);
+
+    void* const nobody = nullptr;
+    run.replaced = 7;
+    run.removedNull = Virtual<uint8_t>(manager, slot::kRemoveOrReplaceOccupant, nobody, nobody, &run.replaced);
+    hash.Mix(run.removedNull);
+    hash.Mix(run.replaced);
+
+    for (std::size_t i = 0; i < 4; ++i)
+        At<uint32_t>(manager, field::kDirtyRect + 4 * i) = rect[i];
+    sum = hash.h;
+    return true;
+}
+
+// The drive's results (OPENSC4_TEST_NETMGR=<day>): the first part's, the
+// second part's (life and save) and the third part's (messages and
+// removals; g_msgRan says whether the drive got that far).
 uint32_t g_setSum = 0;
 uint32_t g_lifeSum = 0;
+uint32_t g_msgSum = 0;
 bool g_setDone = false;
+bool g_msgRan = false;
 
 // OPENSC4_TEST_NETMGR=<day>: on that day the calls that make or change
 // something and put it back: the construction crews (CrewTest), the two
@@ -832,6 +1195,11 @@ bool g_setDone = false;
 // and, unless OPENSC4_TEST_NETMGR_OBJECT=0, a second manager made, asked,
 // written, read into and destroyed (SecondObjectTest). Not called: Shutdown
 // on the city's manager, and Init on the second one.
+//
+// Then the third part's calls: the template code on memory of the test's
+// own (HelperTest) and the messages and removals (MessageTest), again with a
+// checksum of both (the fingerprint's ` msg` field, after ` life`) and a log
+// line of their own, which says so when the messages were not sent.
 void Drive(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_NETMGR") || !game::IsBuild641() || g_setDone)
@@ -894,6 +1262,37 @@ void Drive(const Day& day)
                "life %08X",
                again, written, length, Count(manager, field::kManaged, 4), secondSum,
                !object ? "left out" : second ? "made, written, read into and destroyed" : "not made", g_lifeSum);
+
+    Hash third;
+    const uint32_t helpers = HelperTest();
+    third.Mix(helpers);
+    MessageRun run;
+    uint32_t messages = 0;
+    const bool sent = MessageTest(day.city, manager, pieces, all, collected, messages, run);
+    third.Mix(sent);
+    third.Mix(messages);
+    g_msgSum = third.h;
+    g_msgRan = true;
+    if (!sent) {
+        log::Write("autotest: netmgr: msg: helpers %08X, nothing sent (batching %u, queueing %u, %u queued), msg "
+                   "%08X",
+                   helpers, At<uint8_t>(manager, field::kBatching), At<uint8_t>(manager, field::kQueueing),
+                   Count(manager, field::kQueue, 4), g_msgSum);
+        return;
+    }
+    char cell[96];
+    if (run.cell)
+        std::snprintf(cell, sizeof cell, "at %d,%d (%u pieces before, %u after; candidate %u)", run.x, run.z,
+                      run.before, run.after, run.tried);
+    else
+        std::snprintf(cell, sizeof cell, "left out (%u cells tried)", run.tried);
+    log::Write("autotest: netmgr: msg: helpers %08X, unknown type %u, another occupant %s, an unmanaged piece %s, the "
+               "last managed piece %s (%u managed), refresh and post %s, batch %08X, cell change of reason 4 %s, "
+               "queue %08X, remove nobody %u (byte %u), messages %08X, msg %08X",
+               helpers, run.unknown, run.other ? "sent" : "none", run.unmanaged ? "sent" : "none",
+               run.managed ? "removed and inserted" : "none", Count(manager, field::kManaged, 4),
+               run.refreshed ? "sent" : "left out", run.batch, cell, run.queue, run.removedNull, run.replaced,
+               messages, g_msgSum);
 }
 
 // The fingerprint part, everything through the manager's vtable (the game's
@@ -915,8 +1314,9 @@ void Drive(const Day& day)
 //          asked and skipped, the entries it gave in all and the pieces
 //          with the flag 0x100000; then the sum and the exclusive or of the
 //          per-piece checksums (WalkPieces)
-// and after OPENSC4_TEST_NETMGR's day ` set <checksum> life <checksum>` (the
-// first part's calls and the second part's).
+// and after OPENSC4_TEST_NETMGR's day ` set <checksum> life <checksum> msg
+// <checksum>` (the first part's calls, the second part's and the third
+// part's; ` msg none` when the drive found no manager).
 void Fingerprint(cISC4City* city, std::string& line)
 {
     char* const manager = Manager(city);
@@ -952,6 +1352,11 @@ void Fingerprint(cISC4City* city, std::string& line)
     line += text;
     if (g_setDone) {
         std::snprintf(text, sizeof text, " set %08X life %08X", g_setSum, g_lifeSum);
+        line += text;
+        if (g_msgRan)
+            std::snprintf(text, sizeof text, " msg %08X", g_msgSum);
+        else
+            std::snprintf(text, sizeof text, " msg none");
         line += text;
     }
 }

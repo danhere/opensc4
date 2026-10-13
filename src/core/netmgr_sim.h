@@ -11,14 +11,16 @@
 // and nothing sized from the city: the two places that need the city's size
 // ask the city (slots 93 and 94).
 //
-// Written in three parts: netmgr_state.cpp (identity, the queries, the remap
+// Written in parts: netmgr_state.cpp (identity, the queries, the remap
 // lookups, the crews, the filters, the retrofit list's append and the
 // intersection walk), netmgr_life.cpp (life and save: the factory, the
 // constructor, the destructors, Init, Shutdown, LoadRemapping with its four
 // callbacks and the inserts they use, the release helpers, Write, Read, and
-// our own object) and the messages, removals and nodes (DoMessage,
-// ProcessRetrofitList, DestroyNetworkOccupants, QueueRemovals,
-// RemoveOrReplaceOccupant, CreateConnectionNode, AutoconnectLotNodes), which
+// our own object), netmgr_messages.cpp (DoMessage with its occupant callback
+// and RefreshAllPieces, and the removals: DestroyNetworkOccupants,
+// QueueRemovals, RemoveOrReplaceOccupant, with the sort and the vector of
+// point vectors they use) and the retrofit pass and the lots' nodes
+// (ProcessRetrofitList, CreateConnectionNode, AutoconnectLotNodes), which
 // are to come.
 //
 // The class: class ID 0xC990BD46 (registered at 0x004603C5 with the factory
@@ -90,6 +92,41 @@
 // of a tool pointer: every slot of the range is given that pointer),
 // ShutdownCrews 0x00610B80, and the retrofit list's clear 0x00611A20 and
 // destroy 0x00611AA0 (this the list's word at +0x78).
+//
+// Not virtual, in the third part: PieceOffTerrain 0x006105F0 (register
+// arguments: the cell's x in ECX and z in EAX, the piece in EDI, the terrain
+// in ESI; DoMessage's 0x00613BEA is its only caller: written inside our
+// DoMessage, not hooked); the occupant callback 0x00610BB0 (cdecl: the
+// occupant, a context that is not read) that DoMessage hands to the occupant
+// manager for 0x6AB97795; RefreshAllPieces 0x00612690 (ret 8: two values;
+// `this` is not read); the sort of a range of pointers 0x006132E0 (cdecl:
+// first, last) with its loop 0x00612E00 (cdecl: first, last, a null, the
+// depth, the comparison, which is empty); and the vector of point vectors of
+// the cell-change flush, elements of 0xC bytes that are vectors of 8-byte
+// points: 0x00613920 (resize with an empty vector), 0x006138B0 (resize),
+// 0x00613770 (insert n), 0x00613640 (the growing insert), 0x006135E0
+// (erase), and the cdecl loops 0x00611BD0 (copy construct a range),
+// 0x00611C00 (assign one value to a range), 0x00611C30 (construct n copies),
+// 0x00611C60 (assign a range forward) and 0x00611CB0 (backward). The
+// partition 0x00611840 and the point vector's assignment 0x00611B00 are
+// shared with other classes' code and stay the game's.
+//
+// The messages DoMessage answers (the message's slots: 4 the type, 9 and 10
+// the first data word, 14 and 15 the second, 24 the fourth):
+//   0x99EF1142 an occupant was inserted, 0x99EF1143 removed (data 1 the
+//              occupant): the vector at +0x24 of the pieces that say they
+//              are managed globally
+//   0xC9DA96E8 / 0xC9DA96E9 the pieces of that vector that can be lit are
+//              unlit / lit
+//   0x26D31EC1 the retrofit pass, then the lit pass when the clock says night
+//   0x26D31EC2 the crews shut down and the tools let go
+//   0xEA3B0AF1 a batch of cell changes begins; 0x6A3B0AFD it ends (the flush)
+//   0x278E6003 cells changed (data 1 the x range, data 2 the z range, each
+//              (low + 1) << 16 | high; data 4 the reason)
+//   0x6AB97795 every network occupant with the flag 0x40000 whose occupant
+//              flag 4 is set posts its "changed" message
+//   0xA6B79602 when the two things the message carries differ at +4, every
+//              piece is told that its lighting needs an update
 //
 // The two filters the manager makes (slots 18 and 19) are classes of their
 // own, 0xC bytes on the occupant filter base (constructor 0x005EA080,
@@ -184,6 +221,33 @@ inline constexpr uint32_t kTypePipe = 4, kTypePowerLine = 5, kTypeSubway = 7;
 inline constexpr uint32_t kSurfaceMask = 0x1F4F;
 inline constexpr uint32_t kFlagIntersectionPart = 0x00100000;
 inline constexpr uint32_t kShadowFlagMask = 0x304;
+
+// The third part's numbers. The masks of the two filters DoMessage makes
+// (every type for the pieces a cell change may take off; pipe and subway for
+// the flush); the flag of a piece that a cell change of reason 6 leaves, and
+// the flag the occupant callback asks for; the occupant flag it asks for;
+// the occupant's "changed" message; the values of a cell-change message's
+// reason (its fourth data word) that DoMessage tells apart; the three passes
+// of DestroyNetworkOccupants (their masks are the table at 0x00AA7B40:
+// 0x1F4F, 0x10, 0x80, and their tools' types the table at 0x00AA7B34: 0, 4,
+// 7); the empty dirty rectangle; and PieceOffTerrain's tolerance (the double
+// at 0x00A92688) and cell size (the float at 0x00A8D45C; the shift is by 4).
+inline constexpr uint32_t kEveryTypeMask = 0x1FFF, kUndergroundMask = 0x90;
+inline constexpr uint32_t kFlagKeptByReason6 = 0x00080000, kFlagCallback = 0x00040000;
+inline constexpr uint32_t kOccupantFlagCallback = 4;
+inline constexpr uint32_t kMessageOccupantChanged = 0x99EF1145;
+inline constexpr uint32_t kReasonNoUnderground = 3, kReasonKeep = 4, kReasonNoRemoval = 5, kReasonKeepFlagged = 6;
+inline constexpr uint32_t kRemovalPasses = 3;
+inline constexpr int32_t kEmptyLow = 0x7FFFFFFF, kEmptyHigh = -1;
+inline constexpr double kTerrainTolerance = 0.01, kCellMetres = 16.0;
+inline constexpr uint32_t kPointVectorSize = 0xC;
+
+// The messages by name (kMessages has Init's order).
+inline constexpr uint32_t kMsgOccupantInserted = 0x99EF1142, kMsgOccupantRemoved = 0x99EF1143;
+inline constexpr uint32_t kMsgUnlight = 0xC9DA96E8, kMsgLight = 0xC9DA96E9;
+inline constexpr uint32_t kMsgRetrofit = 0x26D31EC1, kMsgLetGo = 0x26D31EC2;
+inline constexpr uint32_t kMsgBatchBegin = 0xEA3B0AF1, kMsgBatchEnd = 0x6A3B0AFD, kMsgCellsChanged = 0x278E6003;
+inline constexpr uint32_t kMsgPostChanged = 0x6AB97795, kMsgRefresh = 0xA6B79602;
 
 // Sizes of the tool objects GetNetworkTool makes.
 inline constexpr std::size_t kToolSize = 0x368, kPipeToolSize = 0x398, kPowerLineToolSize = 0x3B8;
@@ -288,10 +352,42 @@ namespace piece_slot {
 inline constexpr std::size_t kAddRef = 0x04, kRelease = 0x08, kHasNetworkFlag = 0x20, kAsOccupant = 0xC0;
 inline constexpr std::size_t kGetOccupiedCell = 0xEC, kIsPartOfTheSameStructure = 0x108;
 inline constexpr std::size_t kGetComplexPieceOrigin = 0x11C;
+// The third part's: slot 5 (no arguments), 12 (none: the flags), 22 (the
+// type), 46 (none), 56 (x, z as floats; the height in ST0), 61 (a byte) and
+// 62 (none).
+inline constexpr std::size_t kIsManagedGlobally = 0x14, kGetNetworkFlag = 0x30, kIsOfType = 0x58;
+inline constexpr std::size_t kMarkLightingUpdateNeeded = 0xB8, kGetAltitude = 0xE0, kSetLit = 0xF4, kCanBeLit = 0xF8;
 } // namespace piece_slot
 namespace occupants_slot {
+inline constexpr std::size_t kRemoveOccupant = 0x54;     // slot 21: (occupant, 0, 0)
 inline constexpr std::size_t kGetFirstByCityCell = 0x80; // slot 32: (out, x, z, filter)
+inline constexpr std::size_t kGetByBBoxByType = 0x94;    // slot 37: (list, low, high, type, limit)
+inline constexpr std::size_t kGetByCityCells = 0xA0;     // slot 40: (list, low cell, high cell, filter, limit)
+inline constexpr std::size_t kIterateByType = 0xB4;      // slot 45: (callback, context, low, high, type)
+inline constexpr std::size_t kReleaseOccupantList = 0xC0; // slot 48: (list)
 } // namespace occupants_slot
+// An occupant's (cISC4Occupant; a piece's occupant part is the piece + 4),
+// a message's (the framework's standard message, vtable 0x00ACEC00), a
+// network tool's, the terrain's and the 24 hour clock's.
+namespace occupant_slot {
+inline constexpr std::size_t kPostOccupantMessage = 0x3C, kIsFlagSet = 0x80, kGetFlags = 0x84;
+} // namespace occupant_slot
+namespace message_slot {
+inline constexpr std::size_t kGetType = 0x10, kGetData1 = 0x24, kGetVoid1 = 0x28, kGetData2 = 0x38;
+inline constexpr std::size_t kGetVoid2 = 0x3C, kGetData4 = 0x60;
+} // namespace message_slot
+namespace tool_slot {
+inline constexpr std::size_t kInit = 0x0C, kShutdown = 0x10;
+inline constexpr std::size_t kDestroyOccupantsAndResolve = 0xC8; // slot 50: (the address of a vector of pieces)
+inline constexpr std::size_t kSlot72 = 0x120;                    // (what 0x00633220 gave, a 12-byte record, 0)
+inline constexpr std::size_t kFieldReplacing = 0x50;             // a byte RemoveOrReplaceOccupant sets
+} // namespace tool_slot
+namespace terrain_slot {
+inline constexpr std::size_t kGetAltitude = 0x34; // slot 13: (x, z as floats); the height in ST0
+} // namespace terrain_slot
+namespace clock_slot {
+inline constexpr std::size_t kIsNight = 0x70; // slot 28, no arguments
+} // namespace clock_slot
 namespace city_slot {
 inline constexpr std::size_t kCellCountX = 0x174, kCellCountZ = 0x178; // slots 93 and 94
 } // namespace city_slot
@@ -321,6 +417,21 @@ struct GameString {
     char* capacity;
     uint32_t references;
 };
+
+// A node linked in before the head node of a list (at its end), as the game
+// has it inline wherever it appends to one. The game tests the address of
+// the node's value word for null before the store; that is only null for a
+// node at -8.
+inline void LinkLast(ListNode* head, ListNode* node, void* value)
+{
+    if (reinterpret_cast<std::uintptr_t>(node) + offsetof(ListNode, value) != 0)
+        node->value = value;
+    ListNode* const last = head->previous;
+    node->next = head;
+    node->previous = last;
+    last->next = node;
+    head->previous = node;
+}
 
 inline uint32_t AddRefOf(void* object) { return Virtual<uint32_t>(object, 0x4); }
 inline uint32_t ReleaseOf(void* object) { return Virtual<uint32_t>(object, 0x8); }
