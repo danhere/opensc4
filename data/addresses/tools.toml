@@ -1726,3 +1726,12 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 0C 56 8B F1 8B 06"
 source = "Name ours. Slot 20, (x, z, modifiers), ret 0xC: while the tool has the mouse (slot 25) and PickTerrain (flag 1) gives a point whose cell is not the one at +0x38, +0x3C: keeps it, paints it and refreshes. Returns true. Ours in ui.tools.cellpaint."
+
+[[entry]]
+name = "cSC4DispatchManager::GetDispatchInfo"
+address = 0x00469D40
+kind = "function"
+convention = "thiscall"
+signature = "bool (uint32_t id, DispatchInfo* record)"
+expect = "8B 49 20 8B 01 3B C1 56"
+source = "Name from gzcom-dll (cISC4DispatchManager, slot 10 of the vtable 0x00A88108; the header calls the first argument a type, it is the dispatch's ID). Walks the list at +0x20 for the record with that ID (node +0xC) and copies its 0x2C bytes (node +0x8) to the caller's; false and the caller's record untouched when there is none. Of its five callers (0x004447A6, 0x006ACB0C, 0x006DF9DC, 0x006F5A5C, 0x006F620C) only the tutorial system's (0x004447A6, in the handler 0x00444480) does not test the answer. Wrapped by determinism.dispatch_info (src/core/dispatch_info.cpp)."

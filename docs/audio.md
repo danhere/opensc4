@@ -254,22 +254,23 @@ The fire run adds 15 functions of the scape manager. What was not entered:
 - Start-up code, which the meter cannot see (it is armed after start-up) and which a run does not reach as ours either: the event system's bank loading, constructors and Init of the seven objects, the director's own functions.
 - Code that needs a person or a real event: pointer sounds, clicks outside a window, the tool, occupant and placed-sound messages of the event handler, the play and track functions of the options dialog, the sound manager's ask and let-go calls.
 
-## Open: runs part from the original after a dispatch
+## The runs that parted after a dispatch: not the sound code
 
-Not solved. Found on 2026-10-13 by the test of the dispatch tool ([tools.md](tools.md), "The dispatch, sign removal and Life tools: test"), the first test that makes a dispatch.
+Found on 2026-10-13 by the test of the dispatch tool ([tools.md](tools.md), "The dispatch, sign removal and Life tools: test"), the first test that makes a dispatch; explained and closed the same day.
 
-What is seen: with `audio.part5` or `audio.part6` ours (either one alone is enough), a run parts from the original at the first fingerprint line after a fire unit is dispatched. On Making Money d0090 and Rush Hour d0090 the parts `weather`, `adv`, `zone`, `terrainobj` and `powerpoleocc` differ; on Big City d0000 only `adv` does. Afterwards the view differs too: the next day's ground-pick grid finds 256 of 272 points on one side and 126 on the other. The outcome is stable in ours (the same in repeated runs).
+What was seen: with `audio.part5` or `audio.part6` ours (either one alone was enough), a run parted from the original at the first fingerprint line after a fire unit was dispatched and called off. On Making Money d0090 and Rush Hour d0090 the parts `weather`, `adv`, `zone`, `terrainobj` and `powerpoleocc` differed, on Big City d0000 only `adv`.
 
-What it is not: it is the same when the game's own dispatch tool makes the dispatch, so it is not the tools' code. With both audio groups off the runs are identical.
+The cause is in the game's tutorial system, and the sound code only moved it:
 
-Not explained. Leads:
+- The message for a dispatch made (0xE94671EB) is posted, so it is delivered after the tick that made the dispatch. The test calls the dispatch off in that same tick. When the message comes there is no such dispatch any more.
+- The event handler here is one receiver of that message (0x004EE300, `OnToolMessages`); the tutorial system is the next (handler 0x00444480). It asks the dispatch manager for the dispatch's record (GetDispatchInfo, 0x00469D40, the call at 0x004447A6) and does not test the answer. The manager leaves the caller's record alone when it finds nothing, and the tutorial system's record is a local it never set. It takes the position out of it, and when that cell lies in the rectangle of the tutorial's step it moves the tutorial on a step, which sets the view's zoom.
+- So the position is whatever the receiver before it left on the stack. With the game's sound code those bytes are a place outside the step's rectangle. With ours (our `OnToolMessages` under the game's dispatcher, or our dispatcher calling the game's function: the stack is used differently either way) they are zeros, the map's corner cell, which a step with no rectangle set takes for its place. The tutorial moved on, the zoom went from 0 to 1, and the parts that differed are the ones that follow the zoom.
 
-- The dispatch messages 0xE94671EB and 0x894671F6 reach the handler at 0x004EE300 (`OnToolMessages`, src/core/audio_5.cpp) through the message dispatcher in src/core/audio_6.cpp. The handler was compared with the disassembly again without finding a slip.
-- Either half alone gives the difference, so the candidates are the message registration list (part 5), another case of the dispatcher (part 6), or the random draw of the sound made for a dispatch.
+How it was found: the hooks of `audio.part5` were halved until the one on 0x004EE300 was left; that function and the dispatcher's cases were compared with the disassembly again and are the same; a trace line added to the function made the difference go away; a list of the return addresses on the stack at the view's SetZoom showed the tutorial system's handler calling it with the dispatcher's return address still below. Of the five callers of GetDispatchInfo in the game, the tutorial system's is the only one that does not test the answer.
 
-Repro, about 40 s a run: the tools test with `OPENSC4_TEST_TOOLS3=2 OPENSC4_TEST_TOOLS3_COMMIT=1 OPENSC4_TEST_TUTORIAL_OFF=1` on Making Money d0090, the original against a run with only `audio.part5=ours`.
+Nothing in the sound code was changed. The fix is a switch for test runs, `determinism.dispatch_info` (src/core/dispatch_info.cpp, [experiments/determinism.md](experiments/determinism.md), "A dispatch called off before its message"): a record that is not found is cleared and given a place off the map. It is in the base list of scripts/run-parity.sh for both sides.
 
-Until it is fixed, parity legs that dispatch run without those two groups or with `OPENSC4_TEST_TOOLS3_SEND=0`.
+Parity (batch aud9, 7 days, the full list of groups with `audio.part5` and `audio.part6` in it, the switch on both sides): with the dispatch tool's test and its commits (`OPENSC4_TEST_TOOLS3=2 OPENSC4_TEST_TOOLS3_COMMIT=1 OPENSC4_TEST_TUTORIAL_OFF=1`) 12 of 12 saves identical and 3 of 3 on the plopped corpus, where the batch before had 0 of 12; plain 12 of 12; all on the first pair. Single runs on Making Money d0090, Big City d0000 and Rush Hour d0090: the original with and without the switch, and `audio.part5`, `audio.part6` and both with it, have one fingerprint per save; `audio.part5` without the switch has another.
 
 ## Not done
 

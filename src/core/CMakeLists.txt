@@ -398,6 +398,7 @@ add_library(opensc4_core SHARED
   rng_trace.cpp
   fixed_ticks.cpp
   lights_at_once.cpp
+  dispatch_info.cpp
   sim_timers.cpp
   mysim_agents.cpp
   mysim_dispatch.cpp
