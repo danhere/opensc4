@@ -732,7 +732,7 @@ void __fastcall AskAndStartTool(char* self, void*)
     if (At<int32_t>(self, view::kSetUp) == 4)
         HideSet(self, nullptr, 4);
     void* const memory = Cdecl<void*>(addr::SC4_operator_new, uint32_t{0xA8});
-    void* const control = memory ? This<void*>(addr::SC4ViewInputControls_F49CF90, memory) : nullptr;
+    void* const control = memory ? This<void*>(addr::SC4ObliterateTool_Construct, memory) : nullptr;
     if (control)
         AddRef(control);
     Virtual<uint8_t>(self, 0x64, control, uint32_t{2});

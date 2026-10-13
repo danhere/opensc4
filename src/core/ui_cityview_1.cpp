@@ -483,7 +483,7 @@ uint8_t __fastcall GetTerrainQueryEnabled(char* self, void*)
 void __fastcall StartTool130(char* self, void*, uint32_t first, uint32_t second)
 {
     void* const memory = New(0x130);
-    void* const tool = memory ? This<void*>(addr::SC4ViewTool_Construct4D9430, memory, first, second) : nullptr;
+    void* const tool = memory ? This<void*>(addr::SC4TerraformTool_Construct, memory, first, second) : nullptr;
     AddRef(tool);
     Virtual<uint8_t>(self, 0x64, tool, kReplaceTools);
     Release(tool);

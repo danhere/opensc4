@@ -11584,12 +11584,12 @@ expect = "8B 41 0C 83 F8 01 76 05"
 source = "Name ours. No arguments; this is a framework window. The window base class's Release: above 1 the count at +0xC goes down and comes back; at the last reference the window is destroyed. The city view's Release 0x007E56E0 jumps here with its window part (+0xC)."
 
 [[entry]]
-name = "SC4ViewTool::Construct4D9430"
+name = "SC4TerraformTool::Construct"
 address = 0x004D9430
 kind = "function"
 convention = "thiscall"
 expect = "53 56 57 8B F1 E8 E6 1E"
-source = "Placeholder name, not analysed. (a, b), ret 8: constructor of a view input control of 0x130 bytes (vtable 0x00A92A10); returns this. The city view's 0x007E5910 makes one its only tool."
+source = "Name ours. (brush exemplar ID, bool free), ret 8: constructor of the terraform tool, a view input control of 0x130 bytes (vtable 0x00A92A10, message target part 0x00A92A00 at +0x28): the brush at +0x2C, whether it costs nothing at +0xB4, the parameter block at +0x74, two stopwatches (+0xC0 mode 3, +0x108 mode 4), an empty queue at +0x128; returns this. The city view's 0x007E5910 makes one its only tool. Ours in ui.tools.brush."
 
 [[entry]]
 name = "SC4ViewTool::Construct4DAE80"
@@ -11718,12 +11718,12 @@ expect = "8B 09 85 C9 74 05 8B 01"
 source = "Name ours. No arguments, this = a pointer to a reference: Release when it is not null. The city view gives it to the array destructor 0x0041D3C0 for three held services (0x007EA0D6)."
 
 [[entry]]
-name = "SC4ViewInputControls::F49CF90"
+name = "SC4ObliterateTool::Construct"
 address = 0x0049CF90
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 E8 88 E3 15 00"
-source = "Placeholder name. No arguments, returns this: constructor of a view input control of 0xA8 bytes (vtable 0x00A8F6D8). The city view makes it after its question window 0x2A41436C is answered with 0x6A41BBB5 (0x007E9150)."
+source = "Name ours. No arguments, returns this: constructor of the obliterate tool, a view input control of 0xA8 bytes (vtable 0x00A8F6D8, message target part 0x00A8F6C4 at +0x28): the state at +0x44 is 0, the tract iterator at +0x48 as its own constructor sets it, the times at +0x78 and +0x94 and the count at +0x90 are 0. The city view makes it after its question window 0x2A41436C is answered with 0x6A41BBB5 (0x007E9150). Ours in ui.tools.obliterate."
 
 [[entry]]
 name = "SC4FloraTool::Construct"

@@ -470,6 +470,9 @@ add_library(opensc4_core SHARED
   tool_decal.cpp
   tool_signtext.cpp
   tool_t4_autotest.cpp
+  tool_brush.cpp
+  tool_obliterate.cpp
+  tool_t5_autotest.cpp
   ui_cityview_1.cpp
   ui_cityview_2.cpp
   ui_cityview_3.cpp
