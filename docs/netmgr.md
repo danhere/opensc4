@@ -1,6 +1,6 @@
 # The network manager (cSC4NetworkManager)
 
-The city's desk for the networks. It holds the thirteen network tools (one per network type: road, rail, highway, street, pipe, power line, avenue, subway, light rail, monorail, one-way road, dirt road, ground highway), the remap tables of the networks' ini resource, the list of the pieces that are managed globally, the queue of removals, the retrofit list and the construction crews. The tools, the lot code and the pieces ask it for lookups (a pipe at a cell, a subway station, the pieces of one intersection, a remapped texture or path ID); the demolition and lot code go through it to remove pieces and to make a lot's connection nodes. It has no grid and nothing sized from the city. The class has 70 functions (14.7 KB) and is reimplemented in three parts; this page has the first (state and queries, 22 functions), the second (life and save, 20 functions; 42 of the 70 are ours with both) and what the survey found of the third. Build 641 addresses throughout (data/addresses/netmgr.toml).
+The city's desk for the networks. It holds the thirteen network tools (one per network type: road, rail, highway, street, pipe, power line, avenue, subway, light rail, monorail, one-way road, dirt road, ground highway), the remap tables of the networks' ini resource, the list of the pieces that are managed globally, the queue of removals, the retrofit list and the construction crews. The tools, the lot code and the pieces ask it for lookups (a pipe at a cell, a subway station, the pieces of one intersection, a remapped texture or path ID); the demolition and lot code go through it to remove pieces and to make a lot's connection nodes. It has no grid and nothing sized from the city. The class has 70 functions (14.7 KB) and is reimplemented in three parts; this page has the first (state and queries, 22 functions), the second (life and save, 20 functions), the first half of the third (messages and removals, 18 functions; PieceOffTerrain is written inside DoMessage) and what is left for its second half. With all three that is 60 of the 70 functions ours. Build 641 addresses throughout (data/addresses/netmgr.toml).
 
 ## The class
 
@@ -55,8 +55,8 @@ Two more things the header has wrong or open: FindPipeOccupant and FindPipeConne
 | +0x0C | reference count |
 | +0x10 | initialised (Init sets it, Shutdown clears it) |
 | +0x11 | left-hand traffic: Init sets it when the current language's road driving side (the language service's utility, `GetLanguageRoadDrivingSide`) has a low byte of 0; MapPath maps only when it is set (the ini section is "UK path remapping") |
-| +0x12 | batching cell changes (DoMessage) |
-| +0x14 | the dirty cell rectangle (min x, min z, max x, max z; empty is 0x7FFFFFFF twice and -1 twice) |
+| +0x12 | batching cell changes: set by the message 0xEA3B0AF1, cleared by the flush |
+| +0x14 | the dirty cell rectangle (min x, min z, max x, max z; empty is 0x7FFFFFFF twice and -1 twice): the cells changed since the batch began, or of the one change outside a batch |
 | +0x24 | vector of the globally managed pieces, referenced; this is the save record |
 | +0x30 | the shadow edge table: a hash table (100 buckets at first) of 0x18-byte nodes: next, edge key, network type, base, mask, rotation byte |
 | +0x44 | vector of 0x18-byte preview texture remap entries |
@@ -152,11 +152,47 @@ Checked with `tools/re/sc4save.py --check`, every record decoded to its last byt
 | `saves-plopped` (3) | 3 | 0 |
 | `saves-ports` (3) | 3 | 0 |
 
+## What each function of the third part's first half does
+
+Messages and removals (`src/core/netmgr_messages.cpp`).
+
+| Function | Address | Ours | What |
+| --- | --- | --- | --- |
+| DoMessage | 0x00613950 | `messages` | slot 3 of the message target at +4, `ret 4`, 1,964 bytes: eleven messages, see the table below. AL 1 for every message, known or not |
+| PieceOffTerrain | 0x006105F0 | inside our DoMessage | register arguments (the cell's x in ECX, z in EAX, the piece in EDI, the terrain in ESI) and one caller, DoMessage's 0x00613BEA, so it is not hooked: our DoMessage has its own copy. Whether a piece no longer sits on the ground: at the four corners of its cell, (x, z), (x + 16, z), (x, z + 16), (x + 16, z + 16) in metres, the piece's height (slot 56, stored as a float) less the terrain's (slot 13); below 0 or above 0.01 at any corner is yes, and the first such corner ends it. A difference that is not a number counts as on the ground |
+| the occupant callback | 0x00610BB0 | `messages` | cdecl (an occupant, a context that is not read); DoMessage hands it to the occupant manager for 0x6AB97795. A piece with the flag 0x40000 whose occupant has the flag 4 set posts its "changed" message 0x99EF1145. AL 1 |
+| RefreshAllPieces | 0x00612690 | `messages` | `ret 8` (two values; `this` is not read): nothing when they are equal. Else every occupant of the network type (the occupant manager's slot 37 into a list) that is a piece is told that its lighting needs an update (slot 46, the game's: drawing state) |
+| DestroyNetworkOccupants | 0x00612110 | `removals` | slot 6, `ret 4` (the address of a list of occupants). While removals are queued (+0x74) every occupant is referenced and appended to +0x68, nothing else. Otherwise three passes with the masks at 0x00AA7B40 (0x1F4F the surface networks, 0x10 pipes, 0x80 subways) and the tools of the types at 0x00AA7B34 (0, 4, 7): the pieces of the list whose flags meet the mask are collected, each referenced, and when there are any the manager's tool of the type runs Init, slot 50 (`DestroyOccupantsAndResolve`) with the collection and Shutdown. The demolition utility calls it with the pieces a removal took ([demolition.md](demolition.md)); so does our own DoMessage and the lot developer |
+| QueueRemovals | 0x00613450 | `removals` | slot 7, `ret 4` (a byte): the queueing switch. Switching on only sets +0x74. Switching off with occupants queued: the queue is sorted by address, an occupant queued more than once is released for each time beyond the first, the rest go into a list that DestroyNetworkOccupants (not queueing now) and the occupant manager's slot 48 get; the queue is emptied. DemolishRegion switches it on before it finishes its lots and off after it told the manager of the removed occupants, so the pieces of one drag go to the tools in one call |
+| RemoveOrReplaceOccupant | 0x006110B0 | `removals` | slot 8, `ret 0xC` (a tool, an occupant, the address of a byte); the tool's slot 50 calls it per piece (0x0062B213). 0 for no occupant, for one whose flag bit 0 is clear and for one that is no piece. A piece without the flag 0x100000 is removed from the occupant manager (slot 21) and that answer is the answer. A piece with the flag (part of an intersection of several cells): the tool's entry for the cell (0x00633220 with (z << 16) + x), the removal, then the tool's byte +0x50 set and its slot 72 called with the entry: the byte is set to 1 and the answer is 1 |
+| the sort and its loop | 0x006132E0, 0x00612E00 | `removals` | cdecl (first, last): an introsort of unsigned words, ascending: the loop takes the median of three, partitions (0x00611840, shared) and calls itself for the upper part while a range is longer than 16; then one insertion pass (0x0048A460, shared). Only QueueRemovals calls it |
+| the vector of point vectors | 0x00613920, 0x006138B0, 0x00613770, 0x00613640, 0x006135E0, 0x00611BD0, 0x00611C00, 0x00611C30, 0x00611C60, 0x00611CB0 | `messages` | resize with an empty value, resize, insert n, the growing insert, erase, and five loops (copy construct a range, assign a value to a range, construct n copies, assign a range forward and backward) over elements of 0xC bytes that are vectors of 8-byte points. Only the flush calls the first, with 13 on an empty vector, so in the game only the growing insert ever runs; the other branches are reached by the test alone |
+
+Left the game's and called at their addresses: the partition 0x00611840 (also called from 0x0047EAA8 and 0x0048ACA8) and the point vector's assignment 0x00611B00 (eighteen callers in other classes): shared template code. The tools' code: 0x006588D0, 0x00633220 and the tools' slots.
+
+### The messages
+
+The message's type is its slot 4; "data 1" is its slots 9 and 10, "data 2" 14 and 15, "data 4" 24.
+
+| Message | What DoMessage does |
+| --- | --- |
+| 0x99EF1142, an occupant was inserted (data 1 the occupant) | an occupant that is a network piece and says it is managed globally (slot 5) is appended to +0x24, which keeps the reference |
+| 0x99EF1143, an occupant was removed | such a piece is looked for in +0x24; when found its reference is released, the last entry takes its place and the vector shrinks by one |
+| 0xC9DA96E8, 0xC9DA96E9 | every piece of +0x24 that can be lit (slot 62) is unlit, lit (slot 61, the game's: drawing state) |
+| 0x26D31EC1 (a city was loaded) | ProcessRetrofitList 0x00612820 (the game's); then, when the 24 hour clock (0x00B43DBC, slot 28) says it is night, the lit pass |
+| 0x26D31EC2 | ShutdownCrews, then the thirteen tools released and their slots nulled (ReleaseTools) |
+| 0xEA3B0AF1, a long terrain operation begins | the dirty rectangle emptied, +0x12 set |
+| 0x278E6003, cells changed (data 1 the x range, data 2 the z range, each (low + 1) << 16 or high; data 4 the reason) | the cells are cut to the city (the city's slots 93 and 94: nothing assumes a size) and merged into the dirty rectangle (batching) or stored as it. Unless the reason is 5: the pieces of the cells (the occupant manager's slot 40 with a network filter of the mask 0x1FFF) that PieceOffTerrain says are off the ground go to DestroyNetworkOccupants and the occupant manager's slot 48. Reason 4 keeps every piece; every reason but 3 keeps pipes and subways; reason 6 keeps pieces with the flag 0x80000. Then, unless batching, the flush |
+| 0x6A3B0AFD, the operation ends: the flush | with a rectangle that is not empty: the pipes and subways in it (filter mask 0x90) are collected, every piece's cell goes into the point vector of each type it is of (thirteen vectors), and when there are pipes the pipe tool runs Init, 0x006588D0 (the pipes' points, the pipes, 4) and Shutdown; the same for subways with 7. The rectangle is emptied. With or without a rectangle +0x12 is cleared |
+| 0x6AB97795 (the terrain's "show water" changed) | the occupant manager's slot 45 over every occupant of the network type with the callback 0x00610BB0 |
+| 0xA6B79602 (the view changed; data 1 and data 2 each point at something) | when the words at +4 of the two differ, RefreshAllPieces with them |
+| any other | nothing |
+
+Copied on purpose from the game and commented in the code: the filter DoMessage makes, the clock, the tool the flush gets and the occupant manager are used without a test for null; the callback uses the piece without looking at QueryInterface's answer; QueueRemovals would release through a null pointer for a null first entry; the flush gets the manager from `SC4::GetNetworkManager` and not from its own `this`; the references of the pieces handed to a tool (DestroyNetworkOccupants' collection, the flush's two lists) are not given back by the manager. The comparison object of the sort is empty, and the game pushes whatever its own first argument is in its place: ours does the same. Not reproduced, and nothing reads them: the three bytes after the byte of RemoveOrReplaceOccupant's record and the words of a cell before slot 59 writes them are what the game's stack held (zero in ours).
+
 ## The rest of the class (to come)
 
-The third part holds the remaining 24 functions of the 70 (14 of them template helpers of the point vectors).
-
-- **Messages, removals, nodes and retrofit processing** (part 3, to come): DoMessage 0x00613950, ProcessRetrofitList 0x00612820, DestroyNetworkOccupants, QueueRemovals, RemoveOrReplaceOccupant, CreateConnectionNode, AutoconnectLotNodes. The second part calls none of them; they call the second part's ReleaseTools, ShutdownCrews and the retrofit list's clear at their addresses.
+Ten functions of the 70 are still the game's. Three are the second half of the third part: ProcessRetrofitList 0x00612820 (1,498 bytes; DoMessage calls it at its address), CreateConnectionNode 0x00611300 (slot 20) and AutoconnectLotNodes 0x00611530 (slot 21). They call the second part's ReleaseTools, ShutdownCrews and the retrofit list's clear at their addresses. The other seven are left on purpose: the two template helpers shared with other classes (the partition 0x00611840 and the point vector's assignment 0x00611B00), the four adjustor thunks, and PieceOffTerrain's original 0x006105F0, which ours does not use.
 
 ## What is ours
 
@@ -168,6 +204,8 @@ The third part holds the remaining 24 functions of the 70 (14 of them template h
 | `simulators.netmgr.life` | Init, Shutdown, LoadRemapping, the four section callbacks, the shadow edge and path appends, the table's insert, ReleaseTools, ShutdownCrews, the retrofit list's clear and destroy (14 detours) |
 | `simulators.netmgr.save` | Write and Read (2 detours) |
 | `simulators.netmgr.object` | the factory, the constructor, the destructor and the deleting destructor (4 detours) |
+| `simulators.netmgr.messages` | DoMessage (PieceOffTerrain inside it), the occupant callback, RefreshAllPieces and the ten functions of the vector of point vectors (13 detours) |
+| `simulators.netmgr.removals` | DestroyNetworkOccupants, QueueRemovals, RemoveOrReplaceOccupant and the sort with its loop (5 detours) |
 | `simulators.netmgr.own` | no detour: with it and `object`, a manager carries our copies of the class's three vtables |
 
 All detours at the game's addresses (the thunks of the other vtable parts and the game's direct calls reach them), off by default; `OPENSC4_NETMGR_SKIP` takes a list of addresses to leave out. Each function logs `netmgr: first <name>` once. Every call from one of our functions to another of the class goes through the game's address, so a group that is off or a skipped function is the game's.
@@ -176,7 +214,7 @@ All detours at the game's addresses (the thunks of the other vtable parts and th
 
 With `simulators.netmgr.object` and `simulators.netmgr.own` the constructor and the destructor store the addresses of our copies of the three vtables (25, 4 and 6 slots; `src/core/occ_vtables.h`, as the network occupant classes do) instead of the game's tables. A copy is the game's table word for word, taken at the first construction, after every replacement is in place; then the entries that hold a function of the `object` group directly are pointed at ours: slot 24 of the primary table, the deleting destructor (the log line `netmgr own: vtables copied (25, 4 and 6 slots), 1 entries redirected`). Every other entry stays the game's address or adjustor thunk, which the other groups' detours still decide. `own` without `object` does nothing.
 
-Still the game's in the first two parts' range: the four adjustor thunks (0x006120D0, 0x006120E0, 0x006120F0, 0x00612100: they jump to our QueryInterface and Release), the AddRef stub 0x004664A0 and the thunks 0x006C2270 and 0x006C2290 (shared with other classes). Called at their addresses and not this class's: the tools' code behind the three forwards, the four tool constructors, the filters' test functions, the network filter's constructor 0x0061F530, the vector, list and search helpers; for the second part the string and the ini reader, the resource record's opener, the hash table's constructor, clear and resize (0x00829BC0, 0x008EBA60, 0x004F0940: shared with other classes), the vectors' growing inserts (0x0051CA60, 0x00638C60, 0x00627100), the stream's reference helpers (0x005D99A0, 0x005D9730) and the C library's sscanf and compare (0x009EF536, 0x00A04487).
+Still the game's in the first two parts' range: the four adjustor thunks (0x006120D0, 0x006120E0, 0x006120F0, 0x00612100: they jump to our QueryInterface and Release), the AddRef stub 0x004664A0 and the thunks 0x006C2270 and 0x006C2290 (shared with other classes). Called at their addresses and not this class's: the tools' code behind the three forwards, the four tool constructors, the filters' test functions, the network filter's constructor 0x0061F530, the vector, list and search helpers; for the second part the string and the ini reader, the resource record's opener, the hash table's constructor, clear and resize (0x00829BC0, 0x008EBA60, 0x004F0940: shared with other classes), the vectors' growing inserts (0x0051CA60, 0x00638C60, 0x00627100), the stream's reference helpers (0x005D99A0, 0x005D9730) and the C library's sscanf and compare (0x009EF536, 0x00A04487); for the third part's first half the reference holder and the list, vector and search helpers (0x004F20C0, 0x00414270, 0x00413FE0, 0x00467B50, 0x004F5A00, 0x00427640, 0x005650A0, 0x004467A0, 0x007CED60, 0x004638B0, 0x007EBD30, 0x008BC520), the network filter's other constructor 0x0061F510, the two shared sorts of small ranges (0x0048A460, 0x0048A4B0), and the two shared helpers of the class's own range named above (0x00611840, 0x00611B00).
 
 ## The test
 
@@ -206,6 +244,30 @@ The same day also drives the second part and adds ` life <checksum>` after ` set
 - Write of the city's manager into a stream of the test's own, once into a stream without an error (answer 1) and once into one that reports one (answer 0). Such a stream answers no interface, so the game's `WriteReference` writes nothing for a piece and does not touch it: the bytes are the version and the count (six bytes);
 - unless `OPENSC4_TEST_NETMGR_OBJECT=0`: a second manager made by the factory and destroyed again. As constructed: its state bytes, the empty rectangle, the empty vectors and list, no tools, the table's bucket count, the same vtable pointers and the same remap tables as the city's manager (so LoadRemapping ran a second time and gave the same); its identity through the three parts; Shutdown on it (nothing, 1); Write (six bytes with a count of 0); Read with seven streams that end before a reference is stored (empty, versions 2 and 0, version 1 without a count, a count of 0, a count of 2 on a stream no reference can be read from, a stream that is in error already); the last Release, which runs the deleting destructor. Safe by the disassembly: the constructor subscribes to nothing, and the destructor of a manager that was never initialised frees its own memory only. Init is not called on it.
 
+The same day drives the third part's first half and adds ` msg <checksum>` after ` life <checksum>` and a third log line `autotest: netmgr: msg: ...`. Only what the disassembly shows to change nothing lasting is called; the state (the batching and queueing bytes, the dirty rectangle, the sizes of +0x24 and +0x68) is read after each step, and the rectangle is put back as it was at the end. Nothing goes through the message server: the messages are objects of the game's own message class handed straight to the manager's message target.
+
+- the template code on memory of the test's own (`helpers` on the log line): the sort over ranges of 0, 1, 2, 16, 17, 40 and 300 words with equal ones among them; a vector of point vectors resized to 13, filled, resized to 5 and to 9, then inserts at the start, before the last two and without room, and an erase in the middle, the contents mixed after each. This is the only thing that reaches the erase, the in-place inserts and four of the five loops with ours or with the game's;
+- a message of a type the manager does not know;
+- inserted and removed with no occupant, with an occupant that is no network piece, with a piece that is not managed globally;
+- the last piece of +0x24 (where there is one: `saves-networks`) removed and inserted again: the vector and the reference counts are as before;
+- 0xA6B79602 with two equal states (nothing). With `OPENSC4_TEST_NETMGR_REFRESH=1` also with two that differ (RefreshAllPieces over every piece) and 0x6AB97795 (the callback over every network occupant): both only touch drawing state and post "changed" messages, so they are off unless asked for;
+- a batch: begin, two cell changes of reason 5 (the rectangle grows, one of them cut to the city), the rectangle emptied by hand, end; and begin and end with nothing between;
+- one cell change of reason 4 outside a batch, on the first cell with a network piece (by z, then x, of the first 64) where the flush's filter finds no pipe and no subway: the pass finds the pieces and keeps them all, DestroyNetworkOccupants and the occupant manager get an empty list, the flush finds nothing to rebuild and empties the rectangle. The number of pieces on the cell before and after is mixed;
+- QueueRemovals on, DestroyNetworkOccupants with an empty list, on again, off, DestroyNetworkOccupants with the empty list again; RemoveOrReplaceOccupant with no occupant.
+
+Not sent by the test: 0x26D31EC1 and 0x26D31EC2 (the retrofit pass; the tools let go), the lighting pair (the lit flag follows the game's day and night and the `netocc` part counts it), cell changes of the reasons that remove pieces. The whole step is left out, and the log line says so, when the manager is batching or queueing on that day.
+
+Real removals come from the switches that exist for them. The table is read from the code of those tests and of the senders, not from a run: the first-call log lines (`netmgr: first <name>`) of a batch say what was reached.
+
+| Switches | What the game then calls |
+| --- | --- |
+| none | DoMessage for every occupant inserted or removed, the lighting pair with the game's day and night, 0x26D31EC1 at the load, 0x26D31EC2; the batch and cell-change messages whenever the simulation changes terrain (lots being built), with the flush and the growing insert; QueueRemovals and DestroyNetworkOccupants whenever the simulation demolishes |
+| `OPENSC4_TEST_BULLDOZE=<day>`, alone and with `OPENSC4_TEST_BULLDOZE_MODE=2` (networks only) | DemolishRegion over the middle half of the city: QueueRemovals on, DestroyNetworkOccupants queueing, QueueRemovals off with a queue (the sort with real addresses), the three passes with the tools, and from the tools' slot 50 RemoveOrReplaceOccupant for every piece; on `saves-networks` roads, rails, pipes and the subway |
+| `OPENSC4_TEST_BULLDOZE_TOOL=<day> OPENSC4_TEST_BULLDOZE_TOOL_COMMIT=1` | the same through the tool for a 4 by 4 block; network pieces only where the block has some |
+| `OPENSC4_TEST_TERRAIN_SEA=<day>` and `OPENSC4_TEST_TERRAIN_EDIT=<day>` | the terrain's batch and cell-change messages over land that has networks: PieceOffTerrain, removals by DoMessage, and on `saves-networks` the flush with pipes and subways (0x006588D0). The edit's hide and show of the water sends 0x6AB97795 (the callback) |
+| `OPENSC4_TEST_SMALL_TOOLS=<day> OPENSC4_TEST_SMALL_TOOLS_COMMIT=1` | the level tool's cell change on four free cells: the pass and the flush with nothing found |
+| `OPENSC4_TEST_CITY_ZOOM=<day>` | the view's 0xA6B79602 for every zoom and rotation: RefreshAllPieces when the word at +4 changed |
+
 What runs without any switch: the factory, the constructor, LoadRemapping with its callbacks and inserts and Init at every city load; Shutdown, ReleaseTools, the list's clear and destroy and both destructors when the city is closed (the quit); ShutdownCrews and ReleaseTools from DoMessage's 0x26D31EC2. Read runs at the load of a save that has the record (every save this build made; with references only on `saves-networks`), Write only at a save.
 
 Not called by any test: Shutdown on the city's manager and Init on a second one; Read with a reference that resolves (a load of `saves-networks` does that); AddToRetrofitList (nothing takes an entry off the list before the next retrofit pass, which only runs at a city load). Its node allocation 0x00611240 still runs with every city: the constructor calls it for the list's head node.
@@ -227,3 +289,24 @@ Batch p0 (2026-10-13), the second part with the first: the original against ever
 Plain: the 12 saves 12 of 12 the same on the first pair, `saves-networks` 3 of 3, `saves-plopped` 3 of 3, `saves-ports` 3 of 3. With `OPENSC4_TEST_NETMGR=3`: the 12 saves 12 of 12 and `saves-networks` 3 of 3 on the first pair, the part with its `saved`, `set` and `life` fields the same on both sides in every save, and the class's save record identical in all 36 pairs. On `saves-networks` Big City n0000 the part ends `saved D675B803,2EDECF03 set 25352B6A life 20CC0568`.
 
 Ran with ours (first-call log lines over the batch): 41 of the 42 functions of the two parts; AddToRetrofitList did not. The manager carried our vtable copies in every run (`netmgr own: vtables copied (25, 4 and 6 slots), 1 entries redirected`).
+
+Batch q1 (2026-10-13), part 3a with the first two parts: the original against every network occupant group and all nine groups of this class for a week. Before the first run: `ret N` of the 18 new functions against our signatures (no mismatch), the caller register scan (one hit, IntroSortLoop's call of itself, inside the replaced function) and the EAX scan (no hit), the wrapper files and the patch-site list searched for anything in the class's range (nothing), and an independent reading of the 18 functions and the inlined PieceOffTerrain against the disassembly (no difference in behaviour; 0x006588D0 frees the vector it is handed by value, so ours does not).
+
+The six legs of the earlier parts, every pair on the first try: the 12 saves 12 of 12 plain and 12 of 12 with `OPENSC4_TEST_NETMGR=3`, `saves-networks` 3 of 3 and 3 of 3, `saves-plopped` 3 of 3, `saves-ports` 3 of 3.
+
+Legs that make the game remove and re-check pieces, up to four pairs each:
+
+| Leg | Saves | Result |
+|---|---|---|
+| `OPENSC4_TEST_BULLDOZE=3` (the middle half of the city bulldozed) | the 12 saves | 12 of 12 the same on the first pair |
+| `OPENSC4_TEST_BULLDOZE=3` | `saves-networks` | n0000 and n0090 the same; t0000 partly (below) |
+| `OPENSC4_TEST_BULLDOZE=3 OPENSC4_TEST_BULLDOZE_MODE=2` (networks only) | `saves-networks` | 3 of 3 |
+| `OPENSC4_TEST_TERRAIN_SEA=3` | `saves-networks` | 3 of 3 |
+| `OPENSC4_TEST_TERRAIN_EDIT=3` | `saves-networks` | 3 of 3 |
+| `OPENSC4_TEST_CITY_ZOOM=3` | `saves-networks` | n0090 and t0000 the same; n0000 partly (below) |
+
+t0000 after the bulldoze: the fingerprints are the same in every run of both sides. What differs is the saved file: in some runs one or two pieces that were removed (the placed bit clear) are still referenced when the city is saved and so are written, 466 or 467 network pieces in place of 465. The original does this by itself: over 18 runs of each side (the batch, a bisection over five group lists and eight more pairs) it wrote a stray piece in 5 runs (at 632,1576 four times, at 488,1544 once) and ours in 3 (632,1576 once with the lists before this part; 488,1560 once; 488,1544 and 616,1576 together once). The removal order follows the pieces' addresses (the queue is sorted by pointer), which differ from run to run.
+
+n0000 after the zoom: the `netocc` part changes from the fifth day on and the original's four runs gave two values (two runs each); ours gave the more common one three times and a third value once. The original does not repeat after the view moves.
+
+Ran with ours (first-call log lines over the batch): 59 of the 60 functions of the class that are ours; AddToRetrofitList did not. The helpers that the game never reaches (the point lists' erase and in-place inserts) ran from the test.
