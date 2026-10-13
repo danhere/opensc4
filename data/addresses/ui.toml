@@ -11096,12 +11096,12 @@ expect = "8B 44 24 10 53 8B 5C 24"
 source = "Placeholder name (docs/ui.md); a start the splitter missed inside the list entry 0x007EC590 (part 3's range). this = the city view; (anchor, button ID, kind, kind property, menu holder*), ret 0x14: makes a build menu with 0x0078F100 (group 0x6A01FC2A) and hands it to the pop-up menu maker 0x007EAEB0 with layout 0x14215ED0; the twin of 0x007EC680. 0x007ED720 calls it for four buttons."
 
 [[entry]]
-name = "SC4View3DWin::DefaultControlConstruct"
+name = "SC4MissionIconControl::Construct"
 address = 0x004B8690
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 E8 88 2C 14 00"
-source = "Name ours. No arguments, this 0x3C bytes of new memory: the constructor of a view input control (base constructor 0x005FB320, vtable 0x00A900D8, a second vtable 0x00A900C4 at +0x28, +0x2C to +0x38 zeroed, IDs 0xABEC6CFE and 0x43401C71 at +0xC and +0x10); returns this. The city view makes one for a loaded city (0x007ED0F0) and adds it as a persistent control."
+source = "Name ours. No arguments, this 0x3C bytes of new memory: the constructor of a view input control (base constructor 0x005FB320, vtable 0x00A900D8, a second vtable 0x00A900C4 at +0x28, +0x2C to +0x38 zeroed, IDs 0xABEC6CFE and 0x43401C71 at +0xC and +0x10); returns this. The city view makes one for a loaded city (0x007ED0F0) and adds it as a persistent control: the mission icon control. Ours in ui.tools.small1 (src/core/tool_small_1.cpp)."
 
 [[entry]]
 name = "SC4Sound::StaticObject"
@@ -11600,12 +11600,12 @@ expect = "53 56 8B F1 E8 97 04 12"
 source = "Placeholder name, not analysed. (a), ret 4: constructor of a view input control of 0x98 bytes (vtable 0x00A92CA8); returns this. The city view's 0x007E6DA0 makes one its only tool in an established city."
 
 [[entry]]
-name = "SC4ViewTool::Construct4BDC60"
+name = "SC4TerrainLevelTool::Construct"
 address = 0x004BDC60
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 E8 B8 D6 13 00"
-source = "Placeholder name, not analysed. No arguments: constructor of a view input control of 0x58 bytes (vtable 0x00A905C0); returns this. The city view's terrain command 7 (0x007E75B0) makes one its only tool."
+source = "Name ours. No arguments: constructor of the level terrain tool, a view input control of 0x58 bytes (vtable 0x00A905C0, ID 0x88CEA620); returns this. The city view's terrain command 7 (0x007E75B0) makes one its only tool. Ours in ui.tools.small2 (src/core/tool_small_2.cpp)."
 
 [[entry]]
 name = "SC4ScrollDragTool::Construct"
@@ -11726,12 +11726,12 @@ expect = "56 8B F1 E8 88 E3 15 00"
 source = "Placeholder name. No arguments, returns this: constructor of a view input control of 0xA8 bytes (vtable 0x00A8F6D8). The city view makes it after its question window 0x2A41436C is answered with 0x6A41BBB5 (0x007E9150)."
 
 [[entry]]
-name = "SC4ViewInputControls::F4BB900"
+name = "SC4FloraTool::Construct"
 address = 0x004BB900
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 E8 18 FA 13 00"
-source = "Placeholder name. (uint32 value), ret 4, returns this: constructor of a view input control of 0x50 bytes (vtable 0x00A903B8). The city view's menu command 0xEA5AD08D makes it (0x007E9FA0)."
+source = "Name ours. (uint32 flora type), ret 4, returns this: constructor of the flora tool, a view input control of 0x50 bytes (vtable 0x00A903B8). The city view's menu command 0xEA5AD08D makes it (0x007E9FA0). Ours in ui.tools.small2 (src/core/tool_small_2.cpp)."
 
 [[entry]]
 name = "SC4ViewInputControls::F580220"

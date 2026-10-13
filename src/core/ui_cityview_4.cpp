@@ -753,7 +753,7 @@ void __fastcall CityLoaded(char* self, void*)
 
     At<uint8_t>(self, view::kFlagE5) = 0;
     char* const memory = Cdecl<char*>(addr::SC4_operator_new, uint32_t{0x3C});
-    void* const control = memory ? This<void*>(addr::SC4View3DWin_DefaultControlConstruct, memory) : nullptr;
+    void* const control = memory ? This<void*>(addr::SC4MissionIconControl_Construct, memory) : nullptr;
     if (control)
         AddRef(control);
     Virtual<void>(self, 0x70, control);

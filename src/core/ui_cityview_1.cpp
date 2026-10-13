@@ -1518,7 +1518,7 @@ void __fastcall TerrainCommand(char* self, void*, uint32_t command)
         break;
     case 7: {
         void* const memory = New(0x58);
-        void* const tool = memory ? This<void*>(addr::SC4ViewTool_Construct4BDC60, memory) : nullptr;
+        void* const tool = memory ? This<void*>(addr::SC4TerrainLevelTool_Construct, memory) : nullptr;
         AddRef(tool);
         Virtual<uint8_t>(self, 0x64, tool, kReplaceTools);
         Release(tool);

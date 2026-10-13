@@ -1277,7 +1277,7 @@ void __fastcall StartCommand(char* self, void*, uint32_t command, uint32_t value
         if (close)
             Virtual<void>(self, 0xF0);
         void* const memory = Cdecl<void*>(addr::SC4_operator_new, uint32_t{0x50});
-        void* const control = memory ? This<void*>(addr::SC4ViewInputControls_F4BB900, memory, value) : nullptr;
+        void* const control = memory ? This<void*>(addr::SC4FloraTool_Construct, memory, value) : nullptr;
         if (control)
             AddRef(control);
         Virtual<uint8_t>(self, 0x64, control, uint32_t{2});
