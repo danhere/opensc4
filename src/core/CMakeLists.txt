@@ -223,6 +223,8 @@ add_library(opensc4_core SHARED
   bridgeocc_sim.cpp
   prebuiltocc_autotest.cpp
   prebuiltocc_sim.cpp
+  netmgr_autotest.cpp
+  netmgr_state.cpp
   subwayocc_autotest.cpp
   subwayocc_sim.cpp
   tunnelocc_autotest.cpp
