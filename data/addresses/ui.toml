@@ -944,7 +944,7 @@ address = 0x005FB320
 kind = "function"
 convention = "thiscall"
 expect = "8B C1 33 C9 C7 00 58 66"
-source = "Name ours. No arguments: the view input control base class's constructor (vtable 0x00AA6658; +4 the inited byte, +8, +0x14, +0x18, +0x1C zeroed); returns this."
+source = "Name ours. No arguments: the view input control base class's constructor (vtable 0x00AA6658; +4 the inited byte, +8, +0x14, +0x18, +0x1C zeroed); returns this. Ours in ui.tools.base (src/core/tool_base.cpp)."
 
 [[entry]]
 name = "SC4ViewInputControl::Destruct"
@@ -952,7 +952,7 @@ address = 0x005FAFC0
 kind = "function"
 convention = "thiscall"
 expect = "C7 01 58 66 AA 00 C3 CC"
-source = "Name ours. No arguments: the base class's destructor (stores vtable 0x00AA6658)."
+source = "Name ours. No arguments: the base class's destructor (stores vtable 0x00AA6658). Ours in ui.tools.base (src/core/tool_base.cpp)."
 
 [[entry]]
 name = "SC4ViewInputControl::Shutdown"
@@ -960,7 +960,7 @@ address = 0x005FAFD0
 kind = "function"
 convention = "thiscall"
 expect = "53 56 8B F1 8A 46 04 33"
-source = "Name ours. No arguments: the base class's Shutdown: when inited (+4) releases +0x20, +0x1C (the view) and +0x14 (the cursor) and clears the byte; returns true."
+source = "Name ours. No arguments: the base class's Shutdown: when inited (+4) releases +0x20, +0x1C (the view) and +0x14 (the cursor) and clears the byte; returns true. Ours in ui.tools.base (src/core/tool_base.cpp)."
 
 [[entry]]
 name = "SC4InfoTip::Construct"
@@ -1172,7 +1172,7 @@ address = 0x005FB1D0
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8A 46 04 84 C0"
-source = "Name ours. No arguments: the view input control base class's Init: unless inited (+4), takes the cursor of ID +0x10 from the window manager's slot 32 (when +0x14 is empty), gives it to the window at +0x18 (slot 0x154), keeps the city view (0x00B43DC4) at +0x1C and the window manager at +0x20 and sets the byte; returns true."
+source = "Name ours. No arguments: the view input control base class's Init: unless inited (+4), takes the cursor of ID +0x10 from the window manager's slot 32 (when +0x14 is empty), gives it to the window at +0x18 (slot 0x154), keeps the city view (0x00B43DC4) at +0x1C and the window manager at +0x20 and sets the byte; returns true. Ours in ui.tools.base (src/core/tool_base.cpp)."
 
 [[entry]]
 name = "SC4ViewInputControl::OnKeyDefault"
@@ -1188,7 +1188,7 @@ address = 0x004BA070
 kind = "function"
 convention = "thiscall"
 expect = "83 EC 0C 56 8B F1 8B 4C"
-source = "Name ours. (figure (interface 0xC9B6D7D6), int32_t x, int32_t z), ret 0xC: the figure's occupant's position projected to the screen by the camera at 0x00B43DD8 (0x007F78E0), minus the cursor, truncated, into +0x34 and +0x38. Callers 0x00439C27 (the MySim dispatch tool) and 0x004BA72D; left the game's."
+source = "Name ours. (figure (interface 0xC9B6D7D6), int32_t x, int32_t z), ret 0xC: the figure's occupant's position projected to the screen by the camera at 0x00B43DD8 (0x007F78E0), minus the cursor, truncated, into +0x34 and +0x38. Callers 0x00439C27 (the MySim dispatch tool) and 0x004BA72D (the dispatch tool). Ours in ui.tools.base (src/core/tool_base.cpp)."
 
 [[entry]]
 name = "SC4UI::MySimDispatchToolVtable"
