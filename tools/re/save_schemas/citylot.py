@@ -8,8 +8,10 @@ from .common import header
 # Sizes of the property values the holder part writes (the stream's variant
 # writer behind 0x005DA120): 1, 2, 3 and 8 are seen in the corpus (uint8,
 # uint16, uint32, sint64); 7, 9 and 0xB are taken from the exemplar format's
-# numbering (sint32, float32, bool), which the seen ones follow.
-VALUE_SIZES = {1: 'B', 2: 'H', 3: 'I', 7: 'i', 8: 'q', 9: 'f', 0xB: 'B'}
+# numbering (sint32, float32, bool), which the seen ones follow. 0xC is a
+# string, written as an array of its bytes: a building the player renamed has
+# its name in property 0x899AFBAD (the query tool's name filler 0x004C70C0).
+VALUE_SIZES = {1: 'B', 2: 'H', 3: 'I', 7: 'i', 8: 'q', 9: 'f', 0xB: 'B', 0xC: 'B'}
 
 
 def holder(r):
