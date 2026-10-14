@@ -228,6 +228,7 @@ add_library(opensc4_core SHARED
   prebuiltocc_sim.cpp
   netlot_autotest.cpp
   netlot_life.cpp
+  netlot_lots.cpp
   netlot_state.cpp
   netmgr_autotest.cpp
   netmgr_life.cpp

@@ -18,10 +18,12 @@
 // lot and of the configuration); netlot_life.cpp (the second part, life and
 // save: the factory, the constructor, the destructors, Init, Shutdown,
 // Write, Read and the loading of the configurations, with the
-// configuration's constructor and deleting destructor); the third (the
-// lots' work: DoMessage, UpdateCell, UpdateLot, CreateLot, RemoveLot,
-// BuildLotObjects, ObjectPosition, CreateProp, RedevelopLot, Pothole,
-// UpdateConnectedPieces, WriteLotConfiguration) is to come. UpdatePieceStyle
+// configuration's constructor and deleting destructor); netlot_lots.cpp (the
+// third part, the lots' work: DoMessage, UpdateCell, ProcessPending,
+// UpdateLot, CreateLot, RemoveLot, BuildLotObjects, ObjectPosition,
+// CreateProp, RedevelopLot, Pothole and UpdateConnectedPieces).
+// WriteLotConfiguration 0x0060E810 (slot 14; the lot editor's, and the
+// rewrite of an old exemplar) is left the game's. UpdatePieceStyle
 // 0x0060F510 stays the
 // game's for good: the plugin sc4-network-texture-test patches it in the
 // middle (a jump at 0x0060F580 that comes back at 0x0060F5E7).
@@ -69,6 +71,16 @@
 // resource key and the manager), AddConfiguration 0x0060E7A0 (ret 4) and
 // LoadLotConfiguration 0x0060F5F0 (ret 8: a property holder and a
 // configuration; the lot editor window's 0x0049C570 calls it too).
+//
+// Not virtual, in the third part (each `ret N` is the function's own):
+// ObjectPosition 0x0060C9B0 (ret 0x10: lot, object, three floats out, the
+// rotation out; `this` is not read), BuildLotObjects 0x0060D410 (ret 4: a
+// lot), RemoveLot 0x0060D8B0 (ret 4: a piece), CreateLot 0x0060DCE0 (ret
+// 0xC: piece, zone, wealth), Pothole 0x0060DF50 (ret 0xC: x, z, a byte: add
+// or remove), UpdateLot 0x0060E2D0 (ret 0x14: piece, x, z, zone, wealth),
+// UpdateConnectedPieces 0x0060EF40 (ret 8: x, z), UpdatePieceStyle
+// 0x0060F510 (ret 0xC: x, z, piece; the game's), UpdateCell 0x0060F980 (ret
+// 8: x, z) and ProcessPending 0x0060FA10 (no arguments).
 //
 // Not virtual, in the first part: ConfigurationFits 0x0060CD30 (ret 0x1C;
 // `this` is not read; CreateLot and UpdateLot call it), the lot map's
@@ -354,6 +366,144 @@ inline constexpr std::size_t kAsPropertyHolder = 0x1C; // an exemplar resource's
 namespace pothole_slot {
 inline constexpr std::size_t kStop = 0x20;
 } // namespace pothole_slot
+
+// What the third part calls.
+//
+// A network piece (cISC4NetworkOccupant, the primary vtable 0x00AA8080; the
+// argument counts are each function's own `ret N`, src/core/netocc_sim.h has
+// the class map): whether it has all of some flags, any of some flags, a
+// flag set, its flags, whether it is usable, its piece ID, its rotation (0
+// to 3) and whether it is flipped, its variation (the style byte) and its
+// under texture set, the edge value of a network type (four bytes, one per
+// side: the low three bits say the side connects), its active sides, the
+// occupant part, the byte the flood groups pieces by, the height at a
+// point and the cell it stands on.
+namespace piece_slot {
+inline constexpr std::size_t kHasNetworkFlag = 0x20;    // slot 8 (0x00604D10, ret 4)
+inline constexpr std::size_t kHasAnyNetworkFlag = 0x24; // slot 9 (0x00604D30, ret 4)
+inline constexpr std::size_t kSetNetworkFlag = 0x28;    // slot 10 (0x00619EC0, ret 4); the game's UpdatePieceStyle
+inline constexpr std::size_t kGetNetworkFlags = 0x30;   // slot 12 (0x006E3000, plain ret)
+inline constexpr std::size_t kIsUsable = 0x4C;          // slot 19 (0x00604D80, plain ret); AL
+inline constexpr std::size_t kGetPieceId = 0x5C;        // slot 23 (0x00459960, plain ret)
+inline constexpr std::size_t kGetRotation = 0x60;       // slot 24 (0x00604DC0, plain ret); AL
+inline constexpr std::size_t kGetFlip = 0x64;           // slot 25 (0x00604DD0, plain ret); AL
+inline constexpr std::size_t kSetVariation = 0x6C;      // slot 27 (0x0061B7F0, ret 4)
+inline constexpr std::size_t kGetVariation = 0x70;      // slot 28 (0x00619880, plain ret); the test reads it
+inline constexpr std::size_t kSetUnderTexture = 0x74;   // slot 29 (0x0061B880, ret 4)
+inline constexpr std::size_t kGetEdgeTypesFlag = 0x98;  // slot 38 (thunk 0x0061AF80 to the edge store's Get, ret 4)
+inline constexpr std::size_t kGetActiveEdges = 0xA0;    // slot 40 (0x0061AE90, plain ret); AL
+inline constexpr std::size_t kAsOccupant = 0xC0;        // slot 48 (0x005FD7E0: this + 4)
+inline constexpr std::size_t kIsIntersection = 0xDC;    // slot 55 (0x0061BD80, plain ret); AL
+inline constexpr std::size_t kGetAltitude = 0xE0;       // slot 56 (0x006197F0, ret 8): (x, z) as floats; ST0
+inline constexpr std::size_t kGetOccupiedCell = 0xEC;   // slot 59 (0x0061B010, ret 8): (x out, z out)
+inline constexpr std::size_t kUnderTexture = 0x100;     // the field SetUnderTexture stores (the test reads it)
+} // namespace piece_slot
+// The network flags: bit n is network type n. The surface networks are
+// kSurfaceMask; type 6 (Avenue in gzcom-dll's eNetworkType) is the one
+// whose pieces are styled as a connected group (UpdateConnectedPieces), a
+// piece with 0x200000 has no lot, UpdateCell passes over a piece with any
+// of 0x80200000, and a piece whose low 13 bits are exactly bit 1 (rail)
+// gets the rail pothole.
+inline constexpr uint32_t kGroupedNetworkFlag = 0x40, kGroupedNetworkType = 6;
+inline constexpr uint32_t kNoLotFlag = 0x00200000, kNoUpdateFlags = 0x80200000;
+inline constexpr uint32_t kNetworkTypeBits = 0x1FFF, kRailOnly = 0x2;
+// An occupant (cISC4Occupant; src/core/occbase_sim.h): its type, its
+// position (three floats out, or in), the lot tag, a flag set, its flags
+// (bit 0: it is in the occupant manager).
+namespace occupant_slot {
+inline constexpr std::size_t kGetType = 0x1C, kGetPosition = 0x20, kSetPosition = 0x24;
+inline constexpr std::size_t kSetLotTag = 0x70; // slot 28 (0x004302C0 for a prop, 0x006CE240 for flora; ret 4)
+inline constexpr std::size_t kSetFlag = 0x74;   // slot 29 (0x005E8B70, ret 4)
+inline constexpr std::size_t kGetFlags = 0x84;
+inline constexpr uint32_t kMirroredFlag = 0x80; // what CreateProp sets on a prop of a flipped piece
+} // namespace occupant_slot
+// The prop manager (0x00B43D10; vtable 0x00A8F928): a street prop made
+// (type, position, orientation; 0x004A2120, ret 0xC; the answer is the
+// prop's occupant part or null) and the street props of a cell removed (x,
+// z; 0x004A3990, ret 8).
+namespace props_slot {
+inline constexpr std::size_t kAddStreetProp = 0x80, kRemoveStreetPropsFromTile = 0x84;
+} // namespace props_slot
+// The flora simulator (0x00B43D80; vtable 0x00AB13C0): a flora occupant
+// made (type, position, 1; 0x006B1EA0, ret 0xC; the occupant or null) and
+// the flora of a cell rectangle removed (the rectangle's address, 0;
+// 0x006B24F0, ret 8).
+namespace flora_slot {
+inline constexpr std::size_t kAddFlora = 0x44, kRemoveFloraInRect = 0x50;
+} // namespace flora_slot
+// The lot configuration manager (0x00B43D18; vtable 0x00A8EC58): the
+// candidate types of a lot configuration object (the object, a vector of
+// uint32 to fill; 0x0048BA10, ret 8).
+namespace lotconfigs_slot {
+inline constexpr std::size_t kGetObjectIdArray = 0x6C;
+} // namespace lotconfigs_slot
+// The occupant manager (0x00B43D0C; vtable 0x00A8F7F0): an occupant put in
+// (occupant, 0; 0x0049EF60, ret 8), taken out (occupant, 1, 0; 0x0049F240,
+// ret 0xC), and the first occupant of a cell that passes a filter (out, x,
+// z, filter; 0x0049E690, ret 0x10; AL, the occupant referenced).
+namespace occupants_slot {
+inline constexpr std::size_t kInsertOccupant = 0x50, kRemoveOccupant = 0x54, kGetFirstByCell = 0x80;
+} // namespace occupants_slot
+// The terrain (0x00B43CF4): the height at a point (x, z as floats;
+// 0x00741260, ret 8; ST0). The traffic network (the city's slot 40, also
+// the global 0x00B43D54; vtable 0x00A8FED8): told that a piece's lot was
+// built (the piece; 0x004B27E0, ret 4). The city: a position's cell (x, z
+// as floats, x out, z out) and a cell's position (x, z, x out, z out as
+// floats): four pushes each, and the frames' offsets after the calls are
+// those of a callee that took four words off. The framework's COM
+// (0x0090DDF1 gives it): an object of a class (class ID, IID, out; AL).
+namespace terrain_slot {
+inline constexpr std::size_t kGetAltitude = 0x34;
+} // namespace terrain_slot
+namespace traffic_slot {
+inline constexpr std::size_t kOnLotBuilt = 0x90; // slot 36
+} // namespace traffic_slot
+namespace city_slot {
+inline constexpr std::size_t kPositionToCell = 0x17C, kCellToPosition = 0x184; // slots 95 and 97
+} // namespace city_slot
+namespace com_slot {
+inline constexpr std::size_t kGetClassObject = 0x0C;
+} // namespace com_slot
+// A pothole: a visual effect prop (class 0x2977AA49, 0x94 bytes) by its
+// interface 0x09820792 (vtable 0x00AA4ED8, at the object's start): its
+// occupant part (0x005F8400: this + 0xC), the effect's name set (a C
+// string; 0x005F0780, ret 4), the effect started and stopped (a byte;
+// 0x005EDA50 and 0x005EDAA0, ret 4). The name is the string at +0x70
+// (characters from +0x74 to +0x78) and the byte at +0x90 says the effect
+// was started.
+inline constexpr uint32_t kPotholeClass = 0x2977AA49;
+namespace effect_slot {
+inline constexpr std::size_t kAsOccupant = 0x0C, kSetEffectName = 0x18, kStart = 0x1C, kStop = 0x20;
+inline constexpr std::size_t kNameBegin = 0x74, kNameEnd = 0x78, kStarted = 0x90;
+} // namespace effect_slot
+// A message (the framework's standard message, vtable 0x00ACEC00): its
+// type, its first data word as a number and as a pointer, its second and
+// third data words, and the object it carries.
+namespace message_slot {
+inline constexpr std::size_t kGetType = 0x10, kGetData1 = 0x24, kGetVoid1 = 0x28, kGetData2 = 0x38;
+inline constexpr std::size_t kGetData3 = 0x4C, kGetIGZUnknown = 0x80;
+} // namespace message_slot
+// A city lot (cISC4Lot, IID 0xE818FCED): its cell rectangle (four words
+// out; slot 14, 0x006BF320, ret 4).
+inline constexpr uint32_t kIidCityLot = 0xE818FCED;
+namespace citylot_slot {
+inline constexpr std::size_t kGetBoundingRect = 0x38;
+} // namespace citylot_slot
+// A lot configuration object (0x34 bytes; src/core/lotcfg_sim.h): its kind
+// (1 a prop, 4 flora), a flag byte (bit 0: not built by the manager), the
+// orientation byte, its place on the cell (three floats) and its ID.
+namespace lotobject {
+inline constexpr std::size_t kKind = 0x0, kFlags = 0x1, kOrientation = 0x2, kPlace = 0x4, kId = 0x24;
+inline constexpr uint8_t kProp = 1, kFlora = 4;
+} // namespace lotobject
+
+// What the hash set of cell keys answers an insert with (0x0060D270 and
+// 0x0060E210 write nine bytes: the node, the table, whether it was new).
+struct SetInsertResult {
+    char* node;
+    char* table;
+    uint8_t inserted;
+};
 
 // The six messages Init subscribes the part at +4 to and Shutdown takes it
 // off, both in this order: a piece's usable flag changed, an occupant was
