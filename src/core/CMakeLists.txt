@@ -476,6 +476,10 @@ add_library(opensc4_core SHARED
   tool_brush.cpp
   tool_obliterate.cpp
   tool_t5_autotest.cpp
+  tool_effect.cpp
+  tool_disaster.cpp
+  tool_torch.cpp
+  tool_t6_autotest.cpp
   ui_cityview_1.cpp
   ui_cityview_2.cpp
   ui_cityview_3.cpp
