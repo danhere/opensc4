@@ -10,9 +10,10 @@
 // destructor, Release, Init, Shutdown, DoMessage, OnOccupantRemoved, the
 // static pair, PostMessage, FinishPiece and FinishPieces, the two work
 // property counters, and the job record's and the piece list's helpers);
-// the second part (C2, the work: the workers, the dust effect, the
-// pedestrians, AddSegment, PlanJobs, Start, the job's Begin, NextPiece and
-// End, and Tick) is to come. docs/netlot.md has both.
+// the second part (C2, the work) is in crew_workers.cpp (the workers, the
+// dust effect, the job's End) and crew_work.cpp (AddSegment, PlanJobs,
+// Start, the job's Begin and NextPiece, Tick; the pedestrians stay the
+// game's). docs/netlot.md has all of it.
 //
 // === cSC4NetworkConstructionCrew ==========================================
 // 0x54 bytes, no class ID. Made only by the network tool's PlaceAllSegments
@@ -96,7 +97,10 @@
 // sim_timers; AssignJob and CopyJob copy the stopwatch's 0x18 bytes inline.
 // Shutdown calls the job's End 0x00606750 at its address, so End's Stop
 // (0x00606855) still returns into the crew's range, and DoMessage calls Tick
-// at its address, where sim_timers' hook sits.
+// at its address, where sim_timers' hook sits, or ours with
+// simulators.crew.running (then sim_timers leaves Tick alone). Our C2 code
+// calls the stopwatch through sim_timers::CrewStopwatchStart/Elapsed/Stop
+// (our End too), which serve it as a call from the crew's range.
 #pragma once
 
 #include "core/game_access.h"
