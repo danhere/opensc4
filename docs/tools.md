@@ -21,7 +21,7 @@ The view input controls that the city view makes current while the player holds 
 | Effect trigger tool | ours (`ui.tools.disaster_effect`, below) |
 | Common disaster tool | ours (`ui.tools.disaster`, below) |
 | Fire (torch) disaster tool | ours (`ui.tools.disaster_fire`, below) |
-| Query tool | still the game's overall; Q1, 57 of its 223 functions, is ours (`ui.tools.query1a`, `ui.tools.query1b`, below) |
+| Query tool | still the game's overall; Q1 and Q2, 92 of its 223 functions, are ours (`ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, below) |
 | Base class | ours (`ui.tools.base`, below) |
 
 ## The tool classes
@@ -46,7 +46,7 @@ Every city tool is a view input control: a class on the base class below, with a
 | Label tool (text decals on the ground, command 0x0B980587) | 0x004BD230 | 0x00A90528 | 0x44 | 0x004BC980 to 0x004BDAFC | 16 | ours (`ui.tools.decal`, below) |
 | Level-a-rectangle terrain tool | 0x004BDC60 | 0x00A905C0 | 0x58 | 0x004BDB00 to 0x004BDEBC | 8 | ours (`ui.tools.small2`, below) |
 | Lot (plop) | 0x004C0430 | 0x00A90738 | 0x158 | 0x004BDF70 to 0x004C36C0 | 36 | ours (`ui.tools.plop1` to `plop3`, below) |
-| Query tool (`cSC4ViewInputControlQuery`; strings Query.txt, "Query cell (%d, %d)") | 0x004C4590 | 0x00A90A88 | 0xA0 | 0x004C3730 to 0x004D767F | 223 | partly ours: 57 functions (0x004C3730 to 0x004C56F0, `ui.tools.query1a`, `ui.tools.query1b`, below); the other 166 are still the game's; not a network tool |
+| Query tool (`cSC4ViewInputControlQuery`; strings Query.txt, "Query cell (%d, %d)") | 0x004C4590 | 0x00A90A88 | 0xA0 | 0x004C3730 to 0x004D767F | 223 | partly ours: 92 functions (0x004C3730 to 0x004C7A70, `ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, below); the other 131 are still the game's; not a network tool |
 | Sign removal tool (removes signs; the survey had called it a pick tool) | 0x004D76F0 | 0x00A928A0 | 0x30 | 0x004D7680 to 0x004D7AE2 | 8 | ours (`ui.tools.signpick`, below) |
 | Sign tool (places signs, drags them and edits their text; the survey had called it a sign text tool) | 0x004D7F00 | 0x00A92968 | 0x80 | 0x004D7AF0 to 0x004D8ABA | 16 | ours (`ui.tools.signtext`, below) |
 | Terraform tool (the terrain brush tool) | 0x004D9430 | 0x00A92A10 | 0x130 | 0x004D8AC0 to 0x004D9E50 | 22 | ours (`ui.tools.brush`, below) |
@@ -60,7 +60,7 @@ Every city tool is a view input control: a class on the base class below, with a
 
 The network tools are the last two rows, at 0x00660C30 to 0x006625F0. The range 0x004C3730 to 0x004D767F belongs to the query tool.
 
-The classes that are not ours, apart from the two network tools, come to about 212 functions and 84 KB: the rest of the query tool (166 functions, Q2 to Q7, about 70 KB), the U-Drive control (45 functions, T7 and T8) and the two functions of the cheat tool that stay the game's. The 84 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions), about 9 KB for the terraform and obliterate tools (40 functions) and about 6 KB for the three disaster tools (33 functions) and about 7 KB for the first piece of the query tool (57 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
+The classes that are not ours, apart from the two network tools, come to about 212 functions and 84 KB: the rest of the query tool (131 functions, Q3 to Q7; the KB figures in this paragraph were not redone for Q2), the U-Drive control (45 functions, T7 and T8) and the two functions of the cheat tool that stay the game's. The 84 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions), about 9 KB for the terraform and obliterate tools (40 functions) and about 6 KB for the three disaster tools (33 functions) and about 7 KB for the first piece of the query tool (57 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
 
 ## The base class
 
@@ -1799,3 +1799,121 @@ What the parts do:
 Second pass, snapshot q1c, 7 days, on Making Money d0090, Big City d0000, Rush Hour d0090 and the plopped p0000: the original twice (A1, A2), all groups ours (B) and only `ui.tools.base` with the two Q1 groups ours (M) were the same in the test, the commit and the never-run cases. The city after the test alone equals the never-run city on all four.
 
 Parity (batch q1b1, 7 days): plain 12 of 12, test 12 of 12, test with commit 12 of 12, plopped with the test and commit 3 of 3, every pair the same on its first run.
+
+## The query tool, second piece
+
+Q2 is 35 functions in the range 0x004C56F0 to 0x004C7A70 (41 functions in the function list: 6 stay the game's, see below). One group, off by default, PostAppInit, detours at the game's entries: `ui.tools.query2`, src/core/tool_query_2.cpp. Layouts are in src/core/tool_query.h (the field comments for Init's fields, the text entry, Init's layout IDs). The remaining 131 functions of the query tool (Q3 to Q7) are still the game's and call these by address.
+
+| What | Functions | Addresses |
+| --- | --- | --- |
+| Init, destructor | Init (slot 3), the deleting destructor (slot 26) and the destructor it calls | 0x004C57A0, 0x004C5730, 0x004C5750 |
+| ShowTip | the info tip's text and place | 0x004C5BA0 |
+| Map levels | two, pollution and garbage | 0x004C5C90, 0x004C5D70 |
+| Window helpers | the edit's text, a number, a percent, money, money one control on, the slider | 0x004C6B10, 0x004C6BF0, 0x004C6CA0, 0x004C6D50, 0x004C6E00, 0x004C6E30 |
+| Panel fillers | 16, with their table indexes below | 0x004C67F0, 0x004C70C0 to 0x004C7660, 0x004C7910, 0x004C7980 |
+| Airport and seaport helpers | six, called by fillers and by 0x004CC240 | 0x004C7690 to 0x004C78B0 |
+| Window runner | the deleting destructor (slot 3 of 0x00A90B6C) | 0x004C68E0 |
+| Text entry | destroys the string of a (key, string) pair; 13 callers in 0x004D5xxx | 0x004C6AF0 |
+
+### Init
+
+Init (slot 3, no arguments, returns true, and at once if the tool is already inited) does this:
+
+1. ID and cursor by kind (+0x8C): kind 0 gets ID 0xC7AF928E and cursor 0x816D7F74, kind 1 gets 0xC7AF928F and 0xCB8D5B54. Then the base's Init.
+2. When the message server exists, the target part at +0x28 is registered for six messages: 0x0A456D95, 0x0A456D96 (the two timer messages), 0x26D31EC2, 0xA6B79602, 0x66956814 and 0x69247DC7.
+3. The timer at +0x50 gets the callback 0x004C4E70 (TimerPost) with the tool. It is not started. The timer stays on real time, as in Q1.
+4. +0x78 is set to 1, and +0x94 gets the view's slot 39.
+5. A new info tip (0x1B4 bytes) replaces the one at +0x44. It gets the picture 0xA85F1A83, the text key 0x0A52F5C6 and the box -40, -40, 40, 40; its window is hidden and made a child of the view's window.
+6. Kind 1 also loads the window 0x6BB92BCB of the layout {0, 0x96A006B0, 0xABB0120F} into the view's window. When it comes, a panel target (0xC bytes, vtable 0x00A90980) is made, and the layout's children 0x0BB0F5E7 and 0x6BB92BCA replace the windows at +0x48 and +0x4C. Each is taken out of the layout window and made a child of the view's window, gets the panel target as its target, and is shown or hidden. The first goes 2 from the view window's right edge and 2 from the top and is shown. The second goes next to the first, by its own width, and is hidden. Then the layout window is taken out of the view.
+
+Nothing made is checked for null except the panel target. A tip that failed to build calls through null, as in the game.
+
+### Panel fillers
+
+These are entries of the table at 0x00A92488 described in the first piece (cdecl, window, control ID, fill, occupant).
+
+| Index | Address | Value |
+| --- | --- | --- |
+| 0 | 0x004C70C0 | the building's name into a text edit; without fill a changed text renames the building |
+| 2 | 0x004C7200 | a fire station's funding as a slider; without fill the slider's number over 100 is set |
+| 3 | 0x004C72E0 | the third of a station's numbers from the fire simulator |
+| 4 | 0x004C7350 | a fire station's cost as money |
+| 7 | 0x004C7390 | arrests (police simulator slot 43) |
+| 8 | 0x004C73D0 | crimes (slot 44) |
+| 9 | 0x004C7410 | a police station's funding as a slider; without fill it sets the share |
+| 10 | 0x004C74F0 | the third of a station's numbers from the police simulator |
+| 11 | 0x004C7560 | a police station's cost as money |
+| 13 | 0x004C75A0 | the jail capacity (slot 28) times 0.8, truncated |
+| 14 | 0x004C75F0 | the jailed share (slot 36) times the capacity, truncated |
+| 15 | 0x004C7660 | the jail's upkeep as money (a tail jump to SetChildMoney 0x004C6D50) |
+| 17 | 0x004C67F0 | the lot share's second value at the occupant's first cell (0x004C5280) |
+| 22 | 0x004C7910 | the second number of the occupant's property 0x27812851 |
+| 23 | 0x004C7980 | the residential simulator's school record, its float at +0x28 as the value |
+
+Readers: only indexes 0, 2 and 9 (as well as Q1's 122) read the control back without `fill`; the rest answer true.
+
+The six airport and seaport helpers take (window, control ID, fill, cell x, cell z) instead of an occupant: 0x004C7690 airport cost, 0x004C76F0 and 0x004C7760 the airport's two usage numbers, 0x004C77D0 and 0x004C7840 the seaport's two usage numbers, 0x004C78B0 seaport cost. The airport developer is city slot 77's object and the seaport developer city slot 76's. The game's own fillers reach them through the table at indexes 19 (airport cost, 0x004C9E60), 123 (0x004C9EA0), 124 (0x004C9EE0), 125 (0x004C9F20), 126 (0x004C9F60) and 120 (seaport cost, 0x004C9FA0), each at the first cell of the occupant's box; those are Q3 or later.
+
+### Window helpers: SetChildSlider
+
+SetChildSlider (0x004C6E30, 7 callers) takes (window, child ID, low, high, value, int64 cost, an argument it does not read, handler, table of IDs, count). The last two are a table of uint32 control IDs and its count. The game copies them into a window property value (a uint32 array, type 0x8006). The first reading of the translation had them as "two extra numbers". It sets the number control's range when low is below high, and the value; the properties 0x6A8CC9D6 (handler), 0x2AA6E8AD (cost) and 0x0AB3F6DB (the table copy, when the table is not null); and the money value times 0.01 times the cost plus 0.5 into the child ID plus 0x100.
+
+### Left the game's
+
+- 0x004C56F0 (a folded tree erase, `SC4Uint32FloatMap::EraseSubtree`) and 0x004C6920 (`SC4BuildingCellHash::Find`): generic containers, with callers outside the tool. They already have address entries in other files.
+- 0x004C69A0 (`SC4LotTravelMap::CopySubtree`): a tree copy that audio code calls too (0x004C9470 and 0x004E3F80 are two of its callers).
+- 0x004C5E20 (BuildRouteLine, seven arguments, ret 0x1C, one caller 0x004CA460): builds the route line's display geometry (calls 0x007DDB30 and 0x007DDC50). Drawing.
+- 0x004C6830: the bar painter's message slot (slot 3 of the vtable 0x00A90B38). It is undefined code in Ghidra. On message type 0x16 it draws the window's value (property 0xEA563AB0) as a bar with 0x004C5040. Drawing. The painter is a 4-byte object the tool makes at 0x004CCAD7, 0x004CCDAF and 0x004D3D96 and gives to every child of a query window.
+- 0x004C6A60 (LogDestination): the arguments are in registers (cell x in EBX, cell z in EDI, one stack argument). It only writes a debug log line.
+
+Correction to the first piece: the one caller of DrawBar 0x004C5040 is the bar painter 0x004C6830, not the filler 0x004C67F0 (the address file said so; fixed in data/addresses/tools.toml).
+
+Calls still waiting for later pieces: DoMessage 0x004D7160 calls ShowTip, 0x004D4FD0 calls the two levels, 0x004D3F40 calls SetChildMoneyNext, and the overlay builder 0x004CA460 (drawing) calls 0x004C5E20.
+
+### Behaviour as the game has it
+
+Some game functions read locals they never set. Ours set them to 0, which is a reading, not something the game does the same way every run:
+
+- The fire and police cost fillers' cost, when the getter fails (the building is not a station).
+- The station filler's three outputs.
+- The port usage helper's other place.
+- The funding slider's number when the window has no child.
+- The school record's unset words.
+- The bounds of the two levels.
+
+The test only runs these on real stations, or with its stand-in's child present, so the game's stack leftovers do not reach the hashes. Where the game keeps a local in an argument slot, ours mirrors that: ShowTip's mouse point starts as the two string pointers, and the cost out and the shown place of the cost and usage fillers start as the fill dword.
+
+Every function here calls virtuals, so no caller can keep ECX or EDX across them (the register scan agrees). If a run dies in a query window after this group is on, drop the hook of 0x004C6AF0 first: it has 13 callers.
+
+No wrapper in `src/core/game_*.cpp` touches this range, and no mod patch site is inside it.
+
+## The query tool, second piece: test
+
+`OPENSC4_TEST_Q2=<day>` (src/core/tool_q2_autotest.cpp, token ` query2` in the fingerprint line, order 22, sub-hashes on the log lines `autotest: query2: ...`). It calls only the game's addresses and vtable slots, never our functions. Without more switches it leaves the city as it was.
+
+Switches:
+
+- `OPENSC4_TEST_Q2_PARTS=<bits>` (default 31): 1 helpers, 2 fillers, 4 levels, 8 object, 16 small classes.
+- `OPENSC4_TEST_Q2_COMMIT=1`: renames the first named building and puts the name back (filler 0 with fill 0); sets the first fire station's and the first police station's funding to 50 (fillers 2 and 9 with fill 0), then restores the exact share they had through the simulator's own setter.
+
+What the parts do:
+
+1. Helpers, on stand-ins: the number, percent and money helpers over fixed numbers, with and without a window or child; the slider with a range, without one, with and without the table of IDs (the number control's calls, the three property values, the money text); the edit's text.
+2. Fillers through the table's reader 0x004D3A90 with fill 1: indexes 0, 7, 8, 13, 14, 15, 17, 22, 23 and the port fillers 19, 120, 123 to 126 for up to 24 buildings; 2, 3, 4 for up to three fire stations and 7 to 11 and 13 to 15 for up to three police stations. A station is a building the simulator's funding getter knows: on anything else the game reads unset stack. A save without stations skips them and logs it.
+3. Levels: the two levels at the first cell of each building's lot.
+4. Object: the tool made as the view makes it for 0x6A935CF3 and 0x6A935CF4 (Init): the fields, whether the tip and the two windows are there and shown, their places; the tip at the pointer hidden, shown and hidden again (whether it shows, never where: that is the mouse); then the view puts the tool away (the destructor).
+5. Small classes: the window runner made on a counting stand-in and deleted through its slot 3; a text entry destroyed.
+
+### Not reached
+
+- Police stations: only Making Money d0090 has any.
+- No save has a port, so the airport and seaport helpers meet no lot with a port (they answer false).
+- The tool's own destructor runs after the test's tick, so the test only sees it as far as the view's put-away.
+- Delivery of the timer messages (as in Q1).
+- Any use with mods installed.
+
+### Trial results
+
+First pass, snapshot q2b, on Making Money d0090, Big City d0000 and Rush Hour d0090: the original twice (A1, A2), all groups ours (B) and only `ui.tools.base` with `ui.tools.query2` ours (M) were the same in the whole test and fingerprint lines, in the test, the commit and the never-run cases. The test without commit leaves the city as the untouched run on all three. Build debug and release clean, ctest 20 of 20, retcheck 33 OK and 2 tail jumps (0x004C5750, 0x004C7660), register scan and EAX scan clean. One pass sufficed; nothing moved out of the hash.
+
+Parity (batch q2b1, 7 days): plain 12 of 12, test 12 of 12, every pair the same on its first run. The commit legs (12 saves, and 3 plopped) had every day's fingerprint identical on every pair, but run-parity called them different: the renamed building keeps its name in property 0x899AFBAD, a string (type 0x800C), and the save decoder (`tools/re/sc4save.py`) stopped on it in both saves. With string properties decoded (`tools/re/save_schemas/citylot.py`), every record of all 15 first pairs is identical, judged again from the saved runs: test with commit 12 of 12, plopped with the test and commit 3 of 3. Renaming a building back to its old name leaves the name property in the save (the original does the same).
