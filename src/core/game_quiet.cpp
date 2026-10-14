@@ -52,8 +52,11 @@
 //     nothing (and does not send its start and end messages, 0x89F10866 and
 //     0xA9F10E45). Nothing later in Init reads +0x18 or the service. Ours
 //     wraps Init: if it stored the service, the reference is given back and
-//     +0x18 put back as it was.
+//     +0x18 put back as it was. When simulators.crew.life has put our Init
+//     at that entry (crew_sim.h), the wrapper is a switch in our Init
+//     instead, with the same counters and log lines.
 #include "core/address_check.h"
+#include "core/crew_sim.h"
 #include "core/demolition.h"
 #include "core/hook.h"
 #include "core/log.h"
@@ -147,6 +150,15 @@ uint32_t __fastcall CrewInit(void* self, void* edx, uint32_t a1, uint32_t a2, ui
             log::Write("quiet: first construction crew started without the sound service");
     }
     return result;
+}
+
+// The same, as the switch in our Init (crew_sim.h): told after every call
+// whether it held the service back.
+void OurCrewInit(bool withheld)
+{
+    ++g_crewInits;
+    if (withheld && g_crewSilenced++ == 0)
+        log::Write("quiet: first construction crew started without the sound service");
 }
 
 bool g_demolishOn = false, g_plopOn = false, g_networkOn = false;
@@ -301,8 +313,18 @@ bool InstallPlop(registry::Mode)
 
 bool InstallNetwork(registry::Mode)
 {
-    const addr::Entry* const entry = addr_check::Find(addr::cSC4NetworkConstructionCrew_Init);
-    g_networkOn = entry && hook::Install(*entry, &CrewInit, &g_crewInit);
+    // A switch in our translation when simulators.crew.life has put it at
+    // the game's entry (crew_sim.h), else a wrapper on the game's entry.
+    const bool ours = crew_sim::InitIsOurs();
+    log::Write("quiet: construction crew Init wrapper %s",
+               ours ? "is a switch in our translation" : "sits on the game's entry");
+    if (ours) {
+        crew_sim::SetQuietObserver(&OurCrewInit);
+        g_networkOn = true;
+    } else {
+        const addr::Entry* const entry = addr_check::Find(addr::cSC4NetworkConstructionCrew_Init);
+        g_networkOn = entry && hook::Install(*entry, &CrewInit, &g_crewInit);
+    }
     log::Write("quiet: network construction sounds %s", g_networkOn ? "off" : "NOT turned off (hook failed)");
     if (g_networkOn)
         Listen();
