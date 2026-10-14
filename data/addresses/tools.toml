@@ -3366,7 +3366,7 @@ address = 0x004C5040
 kind = "function"
 convention = "cdecl"
 expect = "83 EC 24 56 8B 74 24 2C"
-source = "Name ours. (window, float share): locks the window's buffer (0x8010) and blits a picture twice with 0x008D8BC0, a part of it by the share. Left the game's: drawing; its one caller is the filler 0x004C67F0."
+source = "Name ours. (window, float share): locks the window's buffer (0x8010) and blits a picture twice with 0x008D8BC0, a part of it by the share. Left the game's: drawing; its one caller is 0x004C6830, slot 3 of the bar painter 0x00A90B38 (a paint hook on the windows of a query)."
 
 [[entry]]
 name = "SC4QueryTool::FillFloatD78"
@@ -3471,3 +3471,321 @@ kind = "function"
 convention = "cdecl"
 expect = "83 EC 1C 53 56 8B 74 24"
 source = "Name ours, a guess. (lot): the object (by its curves at +0x74 to +0x84 a growth developer) the map level functions 0x004C4750 to 0x004C4A30 take, found through the development service from the lot's building type; may be null. Still the game's; the Q1 autotest calls it."
+
+[[entry]]
+name = "SC4QueryBarPainter::Vtable"
+address = 0x00A90B38
+kind = "data"
+source = "Name ours. Vtable (4 slots) of a 4-byte object the query tool makes at 0x004CCAD7, 0x004CCDAF and 0x004D3D96 and hands to every child of a query window through the walk 0x004C4340 (the child's slot 116): slots 0 to 2 shared stubs (0x0062C980, 0x008CD450, 0x004E13E0), slot 3 the paint hook 0x004C6830."
+
+[[entry]]
+name = "SC4QueryTool::DeletingDestructor"
+address = 0x004C5730
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. Slot 26 of 0x00A90A88, (flags), ret 4: 0x004C5750, delete for bit 0; returns this. Ours in ui.tools.query2 (src/core/tool_query_2.cpp)."
+
+[[entry]]
+name = "SC4QueryTool::Destruct"
+address = 0x004C5750
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 8E 9C 00 00"
+source = "Name ours. No arguments (called only by 0x004C5730): lets go +0x9C, destroys the timer at +0x50, lets go +0x4C, +0x48, +0x44 (fields kept), tail jump to the base destructor 0x005FAFC0. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::Init"
+address = 0x004C57A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 56 8B F1 8A 46"
+source = "Name ours. Slot 3 of 0x00A90A88, no arguments, returns true: ID and cursor by kind (+0x8C), base Init, the target part registered for six messages, the timer given 0x004C4E70, +0x78, +0x94 from the view's slot 39, a new info tip at +0x44; kind 1 also loads the layout window 0x6BB92BCB and takes its children 0x0BB0F5E7 and 0x6BB92BCA into +0x48 and +0x4C. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::ShowTip"
+address = 0x004C5BA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 5C 24 14"
+source = "Name ours. (title string, text string), ret 8, called by DoMessage 0x004D7160: both empty, the view's pointer text cleared and the tip hidden; else the tip gets both and, when hidden, goes to the mouse position over the view (window manager slot 34) and is shown. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::LevelPollution"
+address = 0x004C5C90
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 53 55 56 57 8B"
+source = "Name ours. (object, cell x, cell z, int out), only caller 0x004D4FD0: kind 0 bounds (object slot 30); pollution types 0, 1, 3 through the curves at the object's +0x50 summed (type 2 read, not used); 2 below, 0 above, 1 between. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::LevelGarbage"
+address = 0x004C5D70
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Name ours. (object, cell x, cell z, int out), only caller 0x004D4FD0: kind 1 bounds; pollution type 2 through the object's third curve at +0x50; 2 below, 0 above, 1 between. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::BuildRouteLine"
+address = 0x004C5E20
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 28 01 00 00 A1 54"
+source = "Name ours. Seven arguments, ret 0x1C, one caller 0x004CA460: walks a trip's route (0x006D64B0, 0x006D6510) and adds points to the route line object at +0x9C (0x007DDC50, 0x007DDB30) through 0x004C38D0. Left the game's: drawing (builds display geometry)."
+
+[[entry]]
+name = "SC4QueryTool::FillOccupantLotShareSecond"
+address = 0x004C67F0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 10 83 EC 10 85"
+source = "Name ours. Filler 17 (window, child ID, fill, occupant): 0x004C5280 at the first cell of the occupant's box (its slot 11); false without the occupant. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryBarPainter::OnMessage"
+address = 0x004C6830
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 0C 83 38 16"
+source = "Name ours. Slot 3 of 0x00A90B38, (window, message), ret 8; undefined code in Ghidra: on message type 0x16 draws the window's value (property 0xEA563AB0, slot 81) as a bar with 0x004C5040. Left the game's: drawing."
+
+[[entry]]
+name = "SC4QueryWindowRunner::DeletingDestructor"
+address = 0x004C68E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 6C 0B A9"
+source = "Name ours. Slot 3 of 0x00A90B6C, (flags), ret 4: the three vtables set again, the window at +0x10 let go once, the counted base's destructor 0x0090D990, delete for bit 0; returns this. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4LotTravelMap::CopySubtree"
+address = 0x004C69A0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B 7C 24"
+source = "Name ours. (source node, parent node), ret 8: copies a red-black subtree of 0x18-byte nodes (6-byte value at +0x10) from the STL allocator. Left the game's: generic container code with callers outside the tool (0x004C9470, 0x004E3F80)."
+
+[[entry]]
+name = "SC4QueryTool::LogDestination"
+address = 0x004C6A60
+kind = "function"
+convention = "custom"
+expect = "83 EC 14 56 8B 35 8C 3D"
+source = "Name ours. Register convention: cell x in EBX, cell z in EDI, one stack argument, the caller cleans: when 0x006CE7A0 accepts the cell, logs the name of what the month-end service 0x00B43D8C has there (slots 11, 12; SimNation by default) through 0x004C3750. Left the game's: register arguments; debug log only."
+
+[[entry]]
+name = "SC4QueryTool::DestroyTextEntry"
+address = 0x004C6AF0
+kind = "function"
+convention = "thiscall"
+expect = "C7 41 04 10 08 A8 00 8B"
+source = "Name ours. No arguments, 13 calls in 0x004D5xxx: destroys the string at +4 of a text entry (key, string; made by 0x004CCF20). Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::GetChildEdit"
+address = 0x004C6B10
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 83 EC 14 53"
+source = "Name ours. (window, child ID, string out, uint32 length out): the text of a text edit (interface 0x231A1C57; slots 47 and 45) into the string (its slots 15 and 4); false without the window or the child. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::SetChildInt"
+address = 0x004C6BF0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 53 56 33 F6 6A"
+source = "Name ours. (window, child ID, int value), 33 calls: the number as text (%d) into a text control's caption (interface 0x212CDC1F, slot 4). Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::SetChildPercent"
+address = 0x004C6CA0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 53 56 33 F6 6A"
+source = "Name ours. (window, child ID, int value), 11 calls: the same with a percent sign (%d%%). Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::SetChildMoney"
+address = 0x004C6D50
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 53 56 33 F6 6A"
+source = "Name ours. (window, child ID, int64 amount), 12 calls: the amount as money (0x005F9AB0) into a text control's caption. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::SetChildMoneyNext"
+address = 0x004C6E00
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 10 8B 4C 24 0C"
+source = "Name ours. (window, child ID, int64 amount), called by 0x004D3F40: 0x004C6D50 for the child ID plus 0x100. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::SetChildSlider"
+address = 0x004C6E30
+kind = "function"
+convention = "cdecl"
+expect = "51 53 57 8B 7C 24 10 33"
+source = "Name ours. (window, child ID, low, high, value, int64 cost, about (not read), handler, ID table, its count), 7 calls: a number control's range (when low is below high) and value; the window properties 0x6A8CC9D6 (handler), 0x2AA6E8AD (cost), 0x0AB3F6DB (a copy of a table of IDs and its count, when the table is not null); the money value times 0.01 times the cost plus 0.5 into the child ID plus 0x100. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillName"
+address = 0x004C70C0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 28 53 56 57 8D 44"
+source = "Name ours. Filler 0 (window, child ID, fill, occupant): the building's name (the occupant's interface 0x87DDA3A9, slot 19) into a text edit; without fill a changed text renames the building (slot 18). Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillFireFunding"
+address = 0x004C7200
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 08 84"
+source = "Name ours. Filler 2: a fire station's funding as a slider (the fire simulator's slot 8; the filler's own address as the slider's handler); without fill the slider's number over 100 is set (slot 9). Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillFireStation"
+address = 0x004C72E0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 0C 84"
+source = "Name ours. Filler 3: the third of a station's numbers from the fire simulator's part 0xC9C00435 (slot 7). Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillFireCost"
+address = 0x004C7350
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 31"
+source = "Name ours. Filler 4: a fire station's cost (the fire simulator's slot 8) as money. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillArrests"
+address = 0x004C7390
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 27"
+source = "Name ours. Filler 7: the police simulator's slot 43 for the station as a number. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillCrimes"
+address = 0x004C73D0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 27"
+source = "Name ours. Filler 8: the police simulator's slot 44 for the station as a number. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillPoliceFunding"
+address = 0x004C7410
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 08 84"
+source = "Name ours. Filler 9: a police station's funding as a slider (the police simulator's slots 7 and 8). Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillPoliceStation"
+address = 0x004C74F0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 0C 84"
+source = "Name ours. Filler 10: the third of a station's numbers from the police simulator's part 0xC9C00435 (slot 7). Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillPoliceCost"
+address = 0x004C7560
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 31"
+source = "Name ours. Filler 11: a police station's cost (the police simulator's slot 7) as money. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillJailShare"
+address = 0x004C75A0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 37"
+source = "Name ours. Filler 13: the jail capacity (police slot 28, signed) times 0.8, truncated, as a number. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillJailed"
+address = 0x004C75F0
+kind = "function"
+convention = "cdecl"
+expect = "51 8A 44 24 10 84 C0 74"
+source = "Name ours. Filler 14: the jailed share (police slot 36) times the jail capacity (slot 28, unsigned), truncated, as a number. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillJailUpkeep"
+address = 0x004C7660
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 20"
+source = "Name ours. Filler 15: the jail's upkeep (police slot 37, 64 bits) as money; a tail jump to 0x004C6D50. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillAirportCost"
+address = 0x004C7690
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 4E"
+source = "Name ours. (window, child ID, fill, cell x, cell z), called by 0x004C9E60 and 0x004CC240: the airport developer's cost of the lot at the cell (city slot 77, its slot 14) as money; false without a lot. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillAirportUsageFirst"
+address = 0x004C76F0
+kind = "function"
+convention = "cdecl"
+expect = "51 8A 44 24 10 84 C0 74"
+source = "Name ours. Same arguments, called by 0x004C9EA0 and 0x004CC240: the first of the airport developer's two usage numbers (slot 12) for the lot. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillAirportUsageSecond"
+address = 0x004C7760
+kind = "function"
+convention = "cdecl"
+expect = "51 8A 44 24 10 84 C0 74"
+source = "Name ours. Same arguments, called by 0x004C9EE0 and 0x004CC240: the second usage number. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillSeaportUsageFirst"
+address = 0x004C77D0
+kind = "function"
+convention = "cdecl"
+expect = "51 8A 44 24 10 84 C0 74"
+source = "Name ours. Same arguments, called by 0x004C9F20 and 0x004CC240: the seaport developer's (city slot 76) first usage number. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillSeaportUsageSecond"
+address = 0x004C7840
+kind = "function"
+convention = "cdecl"
+expect = "51 8A 44 24 10 84 C0 74"
+source = "Name ours. Same arguments, called by 0x004C9F60 and 0x004CC240: the seaport's second usage number. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillSeaportCost"
+address = 0x004C78B0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 4E"
+source = "Name ours. Same arguments, called by 0x004C9FA0 and 0x004CC240: the seaport developer's cost of the lot as money. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillPropertySecond"
+address = 0x004C7910
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 62"
+source = "Name ours. Filler 22: the second number of the occupant's property 0x27812851 as a number; false without the property. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillSchoolValue"
+address = 0x004C7980
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 40 53"
+source = "Name ours. Filler 23: the residential simulator's school record (0x00B43DA4 slot 26, 0x40 bytes) for the occupant, its float at +0x28 as the control's value (0x004C3CA0); false when the simulator says no. Ours in ui.tools.query2."
