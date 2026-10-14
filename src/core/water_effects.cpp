@@ -8323,6 +8323,11 @@ uint32_t CleanEnded(char* compound)
 char* CopyEffectRecords(char* first, char* last, char* to);
 char* EraseEffectRecords(char* records, char* first, char* last);
 void StartQueuedEffects(char* self);
+// The start of a compound effect by the mode of its own replacement, and
+// what its comparison notes of an erase; defined with it.
+uint32_t StartCompoundRun(char* self, uint32_t compound, uint32_t flag);
+bool ScNoting();
+uint32_t ScErased(char* records, uint32_t first, uint32_t last);
 
 void CleanErase(char* records, char* first, char* last)
 {
@@ -8570,7 +8575,7 @@ uint32_t __fastcall StartCompoundNoted(char* self, void*, uint32_t compound, uin
     if (noting)
         g_queueGameCalls.push_back({addr::SC4EffectsManager_StartCompound, reinterpret_cast<uint32_t>(self), compound, flag});
     ++g_queueDepth;
-    const uint32_t result = g_SC4EffectsManager_StartCompound(self, nullptr, compound, flag);
+    const uint32_t result = StartCompoundRun(self, compound, flag);
     --g_queueDepth;
     if (noting) {
         const WordVector& queued = At<WordVector>(self, 0xBA0);
@@ -8639,6 +8644,8 @@ uint32_t EraseCompared(char* records, uint32_t first, uint32_t last);
 
 uint32_t __fastcall EraseByMode(char* records, void*, uint32_t first, uint32_t last)
 {
+    if (ScNoting())
+        return ScErased(records, first, last);
     if (!g_cleanNoting)
         return EraseCompared(records, first, last);
     g_cleanGameCalls.push_back({addr::SC4EffectRecords_Erase, reinterpret_cast<uint32_t>(records), first, last});
@@ -8706,20 +8713,34 @@ bool HookAfterDraw()
     return g_afterDraw || Detour(addr::SC4EffectsManager_AfterDraw, &TAfterDraw, &g_afterDraw);
 }
 
+// The start of a compound effect and the erase of records each have one
+// detour, which the clean-up and the start's own replacement share.
+bool HookStartCompound()
+{
+    return g_SC4EffectsManager_StartCompound ||
+           Detour(addr::SC4EffectsManager_StartCompound, &TSC4EffectsManager_StartCompound,
+                  &g_SC4EffectsManager_StartCompound);
+}
+
+bool HookEraseRecords()
+{
+    return g_SC4EffectRecords_Erase ||
+           Detour(addr::SC4EffectRecords_Erase, &TSC4EffectRecords_Erase, &g_SC4EffectRecords_Erase);
+}
+
 bool InstallCleanup(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
         !(HookAfterDraw() &&
           Detour(addr::SC4EffectsManager_StartQueued, &TSC4EffectsManager_StartQueued,
                  &g_SC4EffectsManager_StartQueued) &&
-          Detour(addr::SC4EffectRecords_Erase, &TSC4EffectRecords_Erase, &g_SC4EffectRecords_Erase) &&
+          HookEraseRecords() &&
           Detour(addr::SC4EffectRecords_Copy, reinterpret_cast<void (*)()>(&CopyRecordsByMode),
                  &g_SC4EffectRecords_Copy)))
         return false;
     if (mode == registry::Mode::Compare &&
         !(Detour(addr::SC4CompoundEffect_Ended, &TSC4CompoundEffect_Ended, &g_SC4CompoundEffect_Ended) &&
-          Detour(addr::SC4EffectsManager_StartCompound, &TSC4EffectsManager_StartCompound,
-                 &g_SC4EffectsManager_StartCompound)))
+          HookStartCompound()))
         return false;
     g_cleanMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: the manager's clean-up after its draw %s",
@@ -8734,7 +8755,7 @@ const bool g_registeredCleanup = registry::Register({
     registry::Phase::PostAppInit,
     addr::SC4EffectsManager_AfterDraw,
     "The effects manager's clean-up after its draw: the compound effects that have ended emptied, the effects "
-    "nothing holds any more freed for reuse, the waiting ones started (the start itself still the game's); compare "
+    "nothing holds any more freed for reuse, the waiting ones started (the start is renderer.effects.compound); compare "
     "mode runs the game's with its calls noted and replays ours on a copy of the lists (docs/renderer.md, \"Water "
     "effects, sky and clouds\")",
     true,
@@ -8918,6 +8939,719 @@ const bool g_registeredSort = registry::Register({
     "the game's and ours from the same vector (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallSort,
+});
+
+// --- The start of a compound effect ----------------------------------------------------------
+
+// The start and the four small functions under it (effects_compound.inc).
+// The start makes effects, so it cannot run twice. Its comparison runs the
+// game's first, noting each call it makes that ours makes too: the level's
+// values, the assign and the erase of records, the grow of the vector, the
+// making of a record's effect, the compound effect's own values (through
+// detours), and the stop, the letting go, the transform and the start of a
+// record's effect (through a copy of the effect's table of functions, as
+// the setters of what an effect holds are compared). With each note goes
+// what the call changed in the compound effect and its records. Then ours
+// runs on a copy of the compound effect as it was, with a copy of its
+// records, from the same state of the manager's generator; its calls are
+// only noted, each followed by the changes the game's made. The calls
+// (the transform's block and the record put into the vector among them),
+// the compound effect, its records and the generator are compared. A start
+// with the manager's byte +0xB8C set (no test city has one) is not
+// compared.
+constexpr uint32_t kFindDescriptionByName = 0x0058F5A0; // (this = manager, name), ret 4
+constexpr uint32_t kFindDescriptionByID = 0x0058F2E0;   // (this = manager, a, b), ret 8
+constexpr std::size_t kScCompound = 0x13C, kScRecord = 0x44, kScGenerator = 0x9C8;
+constexpr uint32_t kScRoom = 4096; // the most records a copy has room for
+constexpr uint32_t kScRole = 0x005919D0;
+
+StepMode g_scMode = StepMode::Original;
+Call0Fn g_SC4EffectRecord_Construct = nullptr, g_SC4CompoundEffect_ApplyValues = nullptr;
+Call1Fn g_SC4EffectRecord_CopyConstruct = nullptr, g_SC4EffectRecord_Assign = nullptr;
+Call2Fn g_SC4EffectsManager_FadeByLevel = nullptr;
+Call3Fn g_SC4EffectsManager_MakeRecordEffect = nullptr;
+Call5Fn g_SC4EffectRecords_GrowInsert = nullptr;
+
+struct ScCall {
+    uint32_t target, a, b, c, made;
+    char data[kScRecord];
+    // What the game's call changed: bytes of the compound effect (below
+    // kScCompound) and of its records (from there on), and the records'
+    // count and room when those changed.
+    std::vector<std::pair<uint32_t, char>> changes;
+    bool resized;
+    uint32_t used, room;
+    bool operator==(const ScCall& other) const
+    {
+        return target == other.target && a == other.a && b == other.b && c == other.c &&
+               std::memcmp(data, other.data, sizeof data) == 0;
+    }
+};
+struct ScImage {
+    std::vector<char> bytes;
+    uint32_t used, room;
+};
+bool g_scNoting = false, g_scReplay = false;
+int g_scDepth = 0;
+DWORD g_scThread = 0;
+// The compound effect whose records a note's places are counted in: the
+// game's while it runs, ours' copy in the replay.
+char* g_scCurrent = nullptr;
+std::vector<ScCall> g_scGame, g_scOurs;
+std::vector<char*> g_scSwapped;
+uint64_t g_scCompared = 0, g_scCalls = 0, g_scMade = 0, g_scStopped = 0;
+
+bool ScNoting()
+{
+    return g_scNoting && g_scDepth == 0 && GetCurrentThreadId() == g_scThread;
+}
+
+uint32_t ScIndex(const char* record)
+{
+    return static_cast<uint32_t>(static_cast<int32_t>(record - At<char*>(g_scCurrent, 0x114)) /
+                                 static_cast<int32_t>(kScRecord));
+}
+
+// The compound effect without the three pointers of its vector, then its
+// records without the two bytes of each that nothing sets.
+ScImage ScTakeImage(char* compound)
+{
+    ScImage image;
+    char* const begin = At<char*>(compound, 0x114);
+    image.used = static_cast<uint32_t>((At<char*>(compound, 0x118) - begin) / static_cast<int32_t>(kScRecord));
+    image.room = static_cast<uint32_t>((At<char*>(compound, 0x11C) - begin) / static_cast<int32_t>(kScRecord));
+    image.bytes.assign(compound, compound + kScCompound);
+    std::memset(image.bytes.data() + 0x114, 0, 12);
+    if (image.used)
+        image.bytes.insert(image.bytes.end(), begin, begin + image.used * kScRecord);
+    for (uint32_t i = 0; i < image.used; ++i)
+        image.bytes[kScCompound + i * kScRecord + 2] = image.bytes[kScCompound + i * kScRecord + 3] = 0;
+    return image;
+}
+
+void ScNoteChanges(ScCall& call, const ScImage& before, const ScImage& after)
+{
+    call.resized = before.used != after.used || before.room != after.room;
+    call.used = after.used;
+    call.room = after.room;
+    for (std::size_t at = 0; at < after.bytes.size(); ++at) {
+        if (at >= before.bytes.size() || before.bytes[at] != after.bytes[at])
+            call.changes.push_back({static_cast<uint32_t>(at), after.bytes[at]});
+    }
+}
+
+template <typename Real>
+uint32_t ScNoted(ScCall call, Real&& real, uint32_t* out = nullptr)
+{
+    char* const compound = g_scCurrent;
+    const ScImage before = ScTakeImage(compound);
+    ++g_scDepth;
+    const uint32_t result = real();
+    --g_scDepth;
+    ScNoteChanges(call, before, ScTakeImage(compound));
+    if (out)
+        call.made = *out;
+    g_scGame.push_back(std::move(call));
+    return result;
+}
+
+// Ours' call in the replay: noted, and the compound effect's copy changed
+// as the game's call at the same place changed the game's.
+void ScReplayed(const ScCall& call, uint32_t* out = nullptr)
+{
+    const std::size_t at = g_scOurs.size();
+    g_scOurs.push_back(call);
+    if (at >= g_scGame.size() || !(g_scGame[at] == call))
+        return;
+    const ScCall& game = g_scGame[at];
+    char* const begin = At<char*>(g_scCurrent, 0x114);
+    if (game.resized && game.room <= kScRoom) {
+        At<char*>(g_scCurrent, 0x118) = begin + game.used * kScRecord;
+        At<char*>(g_scCurrent, 0x11C) = begin + game.room * kScRecord;
+    }
+    for (const auto& [offset, value] : game.changes) {
+        if (offset < kScCompound)
+            g_scCurrent[offset] = value;
+        else if (offset - kScCompound < kScRoom * kScRecord)
+            begin[offset - kScCompound] = value;
+    }
+    if (out)
+        *out = game.made;
+}
+
+ScCall ScMakeCall(uint32_t target, uint32_t a = 0, uint32_t b = 0, uint32_t c = 0)
+{
+    return {target, a, b, c, 0, {}, {}, false, 0, 0};
+}
+
+// A record as the grow of the vector is given it, without what nothing has set yet.
+ScCall ScGrowCall(const char* at, const char* record)
+{
+    ScCall call = ScMakeCall(addr::SC4EffectRecords_GrowInsert, ScIndex(at));
+    std::memcpy(call.data, record, kScRecord);
+    std::memset(call.data + 2, 0, 2);
+    std::memset(call.data + 0x3C, 0, 4);
+    return call;
+}
+
+ScCall ScTransformCall(char* held, uint32_t block, const char* place)
+{
+    ScCall call = ScMakeCall(0xC, reinterpret_cast<uint32_t>(held), static_cast<uint32_t>(place - g_scCurrent));
+    CopyBlock(call.data, block);
+    return call;
+}
+
+uint32_t HeldSlot(char* held, uint32_t slot)
+{
+    return At<uint32_t>(At<char*>(held, 0), slot);
+}
+
+void FadeEffectByLevel(char* self, char* part, char* record);
+void ApplyCompoundValues(char* compound);
+
+// What the start calls: the real thing, or in the replay its note.
+void ScStop(char* held)
+{
+    if (g_scReplay)
+        ScReplayed(ScMakeCall(0x4, reinterpret_cast<uint32_t>(held), 1));
+    else
+        CallThis<void>(HeldSlot(held, 0x4), held, 1u);
+}
+
+void ScEnd(char* held)
+{
+    if (g_scReplay)
+        ScReplayed(ScMakeCall(0x20, reinterpret_cast<uint32_t>(held)));
+    else
+        CallThis<void>(HeldSlot(held, 0x20), held);
+}
+
+void ScFade(char* self, char* part, char* record)
+{
+    if (g_scReplay)
+        ScReplayed(ScMakeCall(addr::SC4EffectsManager_FadeByLevel, reinterpret_cast<uint32_t>(part), ScIndex(record)));
+    else
+        FadeEffectByLevel(self, part, record);
+}
+
+void ScAssign(char* to, char* from)
+{
+    if (g_scReplay)
+        ScReplayed(ScMakeCall(addr::SC4EffectRecord_Assign, ScIndex(to), ScIndex(from)));
+    else
+        CallThis<void>(addr::SC4EffectRecord_Assign, to, from);
+}
+
+void ScErase(char* records, char* first, char* last)
+{
+    if (g_scReplay)
+        ScReplayed(ScMakeCall(addr::SC4EffectRecords_Erase, ScIndex(first), ScIndex(last)));
+    else
+        CallThis<void>(addr::SC4EffectRecords_Erase, records, first, last);
+}
+
+void ScGrow(char* records, char* at, char* record, uint8_t* tag)
+{
+    if (!g_scReplay) {
+        CallThis<void>(addr::SC4EffectRecords_GrowInsert, records, at, record, tag, 1u, 1u);
+        return;
+    }
+    const char* const end = At<char*>(records, 4);
+    ScReplayed(ScGrowCall(at, record));
+    // The translation goes on to the record before the end: one there must be.
+    if (At<char*>(records, 4) == end)
+        At<char*>(records, 4) += kScRecord;
+}
+
+void ScMake(char* self, char* part, char* record, uint32_t* made)
+{
+    if (g_scReplay)
+        ScReplayed(ScMakeCall(addr::SC4EffectsManager_MakeRecordEffect, reinterpret_cast<uint32_t>(part),
+                              ScIndex(record), *made),
+                   made);
+    else
+        CallThis<void>(addr::SC4EffectsManager_MakeRecordEffect, self, part, record, made);
+}
+
+void ScTransform(char* held, char* block, char* place)
+{
+    if (g_scReplay)
+        ScReplayed(ScTransformCall(held, reinterpret_cast<uint32_t>(block), place));
+    else
+        CallThis<void>(HeldSlot(held, 0xC), held, block, place);
+}
+
+void ScBegin(char* held, uint32_t value)
+{
+    if (g_scReplay)
+        ScReplayed(ScMakeCall(0x0, reinterpret_cast<uint32_t>(held), value));
+    else
+        CallThis<void>(HeldSlot(held, 0x0), held, value);
+}
+
+void ScValues(char* compound)
+{
+    if (g_scReplay)
+        ScReplayed(ScMakeCall(addr::SC4CompoundEffect_ApplyValues));
+    else
+        ApplyCompoundValues(compound);
+}
+
+#include "core/effects_compound.inc"
+
+// The stand-ins for six of a held effect's functions. The four the start
+// calls are noted; the values (slot 0x14) and the hold (slot 0x1C) are
+// what the small functions' own comparisons look at: mode 1 notes the call
+// and makes it, mode 2 only notes it.
+struct ScValueCall {
+    uint32_t object, which, count;
+    char data[64];
+    bool operator==(const ScValueCall& other) const
+    {
+        return object == other.object && which == other.which && count == other.count &&
+               std::memcmp(data, other.data, sizeof data) == 0;
+    }
+};
+int g_scValueMode = 0, g_scHoldMode = 0;
+std::vector<ScValueCall> g_scValueCalls;
+uint32_t g_scHolds = 0;
+
+uint32_t __fastcall ScBeginStub(char* object, void*, uint32_t value)
+{
+    const uint32_t real = BRealSlot(object, 0x0);
+    if (!ScNoting())
+        return CallThis<uint32_t>(real, object, value);
+    return ScNoted(ScMakeCall(0x0, reinterpret_cast<uint32_t>(object), value),
+                   [&] { return CallThis<uint32_t>(real, object, value); });
+}
+
+uint32_t __fastcall ScStopStub(char* object, void*, uint32_t value)
+{
+    const uint32_t real = BRealSlot(object, 0x4);
+    if (!ScNoting())
+        return CallThis<uint32_t>(real, object, value);
+    ++g_scStopped;
+    return ScNoted(ScMakeCall(0x4, reinterpret_cast<uint32_t>(object), value),
+                   [&] { return CallThis<uint32_t>(real, object, value); });
+}
+
+uint32_t __fastcall ScTransformStub(char* object, void*, uint32_t block, uint32_t place)
+{
+    const uint32_t real = BRealSlot(object, 0xC);
+    if (!ScNoting())
+        return CallThis<uint32_t>(real, object, block, place);
+    return ScNoted(ScTransformCall(object, block, reinterpret_cast<const char*>(place)),
+                   [&] { return CallThis<uint32_t>(real, object, block, place); });
+}
+
+uint32_t __fastcall ScValueStub(char* object, void*, uint32_t which, uint32_t values, uint32_t count)
+{
+    const uint32_t real = BRealSlot(object, 0x14);
+    if (g_scValueMode) {
+        ScValueCall call{reinterpret_cast<uint32_t>(object), which, count, {}};
+        std::memcpy(call.data, reinterpret_cast<const void*>(values), (count < 16 ? count : 16) * 4);
+        g_scValueCalls.push_back(call);
+        if (g_scValueMode == 2)
+            return 0;
+    }
+    return CallThis<uint32_t>(real, object, which, values, count);
+}
+
+uint32_t __fastcall ScHoldStub(char* object, void*)
+{
+    const uint32_t real = BRealSlot(object, 0x1C);
+    if (g_scHoldMode) {
+        ++g_scHolds;
+        if (g_scHoldMode == 2)
+            return 0;
+    }
+    return CallThis<uint32_t>(real, object);
+}
+
+// The call may be the effect's last: it gets its own table back first.
+uint32_t __fastcall ScEndStub(char* object, void*)
+{
+    const uint32_t real = BRealSlot(object, 0x20);
+    const bool noting = ScNoting();
+    BGiveBack(object, true);
+    if (!noting)
+        return CallThis<uint32_t>(real, object);
+    return ScNoted(ScMakeCall(0x20, reinterpret_cast<uint32_t>(object)), [&] { return CallThis<uint32_t>(real, object); });
+}
+
+// False for nothing, and for an object another comparison has given a table.
+bool ScSwap(char* held)
+{
+    if (!held)
+        return false;
+    BSwapRole(held, kScRole,
+              {{0x0, reinterpret_cast<uint32_t>(&ScBeginStub)},
+               {0x4, reinterpret_cast<uint32_t>(&ScStopStub)},
+               {0xC, reinterpret_cast<uint32_t>(&ScTransformStub)},
+               {0x14, reinterpret_cast<uint32_t>(&ScValueStub)},
+               {0x1C, reinterpret_cast<uint32_t>(&ScHoldStub)},
+               {0x20, reinterpret_cast<uint32_t>(&ScEndStub)}});
+    const auto found = g_bReal.find(held);
+    return found != g_bReal.end() && found->second.slot == kScRole;
+}
+
+void ScLogOnce(bool& logged, const char* what)
+{
+    if (!logged)
+        log::Write("water effects: effects.compound: %s, not compared", what);
+    logged = true;
+}
+
+// A new record: the game's and ours on the same bytes.
+uint32_t __fastcall ConstructRecordByMode(char* record, void*)
+{
+    if (g_scMode == StepMode::Ours)
+        return reinterpret_cast<uint32_t>(ConstructEffectRecord(record));
+    if (g_scMode == StepMode::Original)
+        return g_SC4EffectRecord_Construct(record, nullptr);
+    char mine[kScRecord];
+    std::memcpy(mine, record, kScRecord);
+    const uint32_t result = g_SC4EffectRecord_Construct(record, nullptr);
+    ConstructEffectRecord(mine);
+    const bool same = result == reinterpret_cast<uint32_t>(record) && std::memcmp(record, mine, kScRecord) == 0;
+    compare::Record("effects.compound.record", same, same ? std::string() : Hex(record, kScRecord),
+                    same ? std::string() : Hex(mine, kScRecord));
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectRecord_Construct, ConstructRecordByMode, 0)
+
+// A record's copy: the game's, then ours on the bytes the place had, with
+// the hold of the effect only counted.
+uint32_t __fastcall CopyConstructRecordByMode(char* record, void*, uint32_t from)
+{
+    char* const source = reinterpret_cast<char*>(from);
+    if (g_scMode == StepMode::Ours)
+        return reinterpret_cast<uint32_t>(CopyConstructEffectRecord(record, source));
+    char* const held = At<char*>(source, 0x38);
+    if (g_scMode == StepMode::Original || g_scHoldMode || (held && !ScSwap(held))) {
+        static bool logged = false;
+        if (g_scMode != StepMode::Original && !g_scHoldMode)
+            ScLogOnce(logged, "a record's copy whose effect another comparison watches");
+        return g_SC4EffectRecord_CopyConstruct(record, nullptr, from);
+    }
+    char mine[kScRecord];
+    std::memcpy(mine, record, kScRecord);
+    g_scHolds = 0;
+    g_scHoldMode = 1;
+    const uint32_t result = g_SC4EffectRecord_CopyConstruct(record, nullptr, from);
+    const uint32_t holds = g_scHolds;
+    g_scHolds = 0;
+    g_scHoldMode = 2;
+    CopyConstructEffectRecord(mine, source);
+    g_scHoldMode = 0;
+    if (held)
+        BGiveBack(held, false);
+    const bool same = result == reinterpret_cast<uint32_t>(record) && holds == g_scHolds && holds == (held ? 1u : 0u) &&
+                      std::memcmp(record, mine, kScRecord) == 0;
+    char text[32];
+    std::snprintf(text, sizeof text, ", %u holds", holds);
+    const std::string theirs = Hex(record, kScRecord) + text;
+    std::snprintf(text, sizeof text, ", %u holds", g_scHolds);
+    compare::Record("effects.compound.record_copy", same, same ? std::string() : theirs,
+                    same ? std::string() : Hex(mine, kScRecord) + text);
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectRecord_CopyConstruct, CopyConstructRecordByMode, 4)
+
+// The values an effect is told, ours' first and only noted, then the game's.
+template <typename Ours, typename Game>
+uint32_t ScValuesCompared(const char* id, Ours&& ours, Game&& game)
+{
+    g_scValueCalls.clear();
+    g_scValueMode = 2;
+    ours();
+    const std::vector<ScValueCall> mine = std::move(g_scValueCalls);
+    g_scValueCalls.clear();
+    g_scValueMode = 1;
+    const uint32_t result = game();
+    g_scValueMode = 0;
+    const bool same = mine == g_scValueCalls;
+    char text[48];
+    std::snprintf(text, sizeof text, "%zu values told", g_scValueCalls.size());
+    const std::string theirs = text;
+    std::snprintf(text, sizeof text, "%zu values told", mine.size());
+    compare::Record(id, same, same ? std::string() : theirs, same ? std::string() : std::string(text));
+    return result;
+}
+
+uint32_t FadeRun(char* self, uint32_t part, uint32_t record)
+{
+    const auto game = [&] { return g_SC4EffectsManager_FadeByLevel(self, nullptr, part, record); };
+    if (g_scMode == StepMode::Ours) {
+        FadeEffectByLevel(self, reinterpret_cast<char*>(part), reinterpret_cast<char*>(record));
+        return 0;
+    }
+    char* const held = At<char*>(reinterpret_cast<char*>(record), 0x38);
+    if (g_scMode == StepMode::Original || g_scValueMode || !ScSwap(held)) {
+        static bool logged = false;
+        if (g_scMode != StepMode::Original && !g_scValueMode)
+            ScLogOnce(logged, "the level's values for an effect another comparison watches");
+        return game();
+    }
+    const uint32_t result = ScValuesCompared(
+        "effects.compound.fade",
+        [&] { FadeEffectByLevel(self, reinterpret_cast<char*>(part), reinterpret_cast<char*>(record)); }, game);
+    BGiveBack(held, false);
+    return result;
+}
+
+uint32_t __fastcall FadeByMode(char* self, void*, uint32_t part, uint32_t record)
+{
+    if (!ScNoting())
+        return FadeRun(self, part, record);
+    return ScNoted(ScMakeCall(addr::SC4EffectsManager_FadeByLevel, part, ScIndex(reinterpret_cast<char*>(record))),
+                   [&] { return FadeRun(self, part, record); });
+}
+OPENSC4_THUNK(TSC4EffectsManager_FadeByLevel, FadeByMode, 8)
+
+uint32_t ValuesRun(char* compound)
+{
+    const auto game = [&] { return g_SC4CompoundEffect_ApplyValues(compound, nullptr); };
+    if (g_scMode == StepMode::Ours) {
+        ApplyCompoundValues(compound);
+        return 0;
+    }
+    if (g_scMode == StepMode::Original || g_scValueMode)
+        return game();
+    std::vector<char*> swapped;
+    bool all = true;
+    for (char* record = At<char*>(compound, 0x114); record != At<char*>(compound, 0x118); record += kScRecord) {
+        if (ScSwap(At<char*>(record, 0x38)))
+            swapped.push_back(At<char*>(record, 0x38));
+        else
+            all = false;
+    }
+    uint32_t result = 0;
+    if (all) {
+        result = ScValuesCompared("effects.compound.values", [&] { ApplyCompoundValues(compound); }, game);
+    } else {
+        static bool logged = false;
+        ScLogOnce(logged, "a compound effect's values for an effect another comparison watches");
+        result = game();
+    }
+    for (char* const held : swapped)
+        BGiveBack(held, false);
+    return result;
+}
+
+uint32_t __fastcall ValuesByMode(char* compound, void*)
+{
+    if (!ScNoting())
+        return ValuesRun(compound);
+    return ScNoted(ScMakeCall(addr::SC4CompoundEffect_ApplyValues), [&] { return ValuesRun(compound); });
+}
+OPENSC4_THUNK(TSC4CompoundEffect_ApplyValues, ValuesByMode, 0)
+
+// The game's functions the start's comparison notes.
+uint32_t __fastcall AssignRecordNoted(char* to, void*, uint32_t from)
+{
+    if (!ScNoting())
+        return g_SC4EffectRecord_Assign(to, nullptr, from);
+    return ScNoted(ScMakeCall(addr::SC4EffectRecord_Assign, ScIndex(to), ScIndex(reinterpret_cast<char*>(from))),
+                   [&] { return g_SC4EffectRecord_Assign(to, nullptr, from); });
+}
+OPENSC4_THUNK(TSC4EffectRecord_Assign, AssignRecordNoted, 4)
+
+uint32_t ScErased(char* records, uint32_t first, uint32_t last)
+{
+    return ScNoted(ScMakeCall(addr::SC4EffectRecords_Erase, ScIndex(reinterpret_cast<char*>(first)),
+                              ScIndex(reinterpret_cast<char*>(last))),
+                   [&] { return EraseCompared(records, first, last); });
+}
+
+uint32_t __fastcall GrowRecordsNoted(char* records, void*, uint32_t at, uint32_t record, uint32_t tag, uint32_t count,
+                                     uint32_t atEnd)
+{
+    if (!ScNoting())
+        return g_SC4EffectRecords_GrowInsert(records, nullptr, at, record, tag, count, atEnd);
+    return ScNoted(ScGrowCall(reinterpret_cast<char*>(at), reinterpret_cast<char*>(record)),
+                   [&] { return g_SC4EffectRecords_GrowInsert(records, nullptr, at, record, tag, count, atEnd); });
+}
+OPENSC4_THUNK(TSC4EffectRecords_GrowInsert, GrowRecordsNoted, 20)
+
+// The effect a record has just been given is watched from here on.
+uint32_t __fastcall MakeRecordEffectNoted(char* self, void*, uint32_t part, uint32_t record, uint32_t made)
+{
+    if (!ScNoting())
+        return g_SC4EffectsManager_MakeRecordEffect(self, nullptr, part, record, made);
+    ++g_scMade;
+    return ScNoted(
+        ScMakeCall(addr::SC4EffectsManager_MakeRecordEffect, part, ScIndex(reinterpret_cast<char*>(record)),
+                   M<uint32_t>(made)),
+        [&] {
+            const uint32_t result = g_SC4EffectsManager_MakeRecordEffect(self, nullptr, part, record, made);
+            char* const held = At<char*>(reinterpret_cast<char*>(record), 0x38);
+            if (ScSwap(held))
+                g_scSwapped.push_back(held);
+            return result;
+        },
+        &M<uint32_t>(made));
+}
+OPENSC4_THUNK(TSC4EffectsManager_MakeRecordEffect, MakeRecordEffectNoted, 12)
+
+std::string ScCallsText(const std::vector<ScCall>& calls, const std::vector<ScCall>& other)
+{
+    std::size_t at = 0;
+    while (at < calls.size() && at < other.size() && calls[at] == other[at])
+        ++at;
+    char text[96];
+    if (at >= calls.size()) {
+        std::snprintf(text, sizeof text, "%zu calls", calls.size());
+        return text;
+    }
+    std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X, %08X, %08X) ", at, calls.size(), calls[at].target,
+                  calls[at].a, calls[at].b, calls[at].c);
+    return text + Hex(calls[at].data, kScRecord);
+}
+
+uint32_t CompoundCompared(char* self, char* compound, uint8_t first)
+{
+    const auto game = [&] {
+        return g_SC4EffectsManager_StartCompound(self, nullptr, reinterpret_cast<uint32_t>(compound), first);
+    };
+    char* const begin = At<char*>(compound, 0x114);
+    const uint32_t used = static_cast<uint32_t>((At<char*>(compound, 0x118) - begin) / static_cast<int32_t>(kScRecord));
+    const uint32_t room = static_cast<uint32_t>((At<char*>(compound, 0x11C) - begin) / static_cast<int32_t>(kScRecord));
+    if (At<uint8_t>(self, 0xB8C) || room > kScRoom / 4) {
+        static bool logged = false;
+        ScLogOnce(logged, At<uint8_t>(self, 0xB8C) ? "a start with the manager's byte +0xB8C set"
+                                                   : "a compound effect of very many records");
+        return game();
+    }
+    const std::vector<char> before(compound, compound + kScCompound);
+    const std::vector<char> recordsBefore(begin, begin + used * kScRecord);
+    const std::vector<char> generator(self + 0x1C0, self + 0x1C0 + kScGenerator);
+    g_scGame.clear();
+    g_scSwapped.clear();
+    for (uint32_t i = 0; i < used; ++i) {
+        if (ScSwap(At<char*>(begin + i * kScRecord, 0x38)))
+            g_scSwapped.push_back(At<char*>(begin + i * kScRecord, 0x38));
+    }
+    g_scCurrent = compound;
+    g_scThread = GetCurrentThreadId();
+    g_scDepth = 0;
+    g_scNoting = true;
+    const uint32_t result = game();
+    g_scNoting = false;
+    for (char* const held : g_scSwapped)
+        BGiveBack(held, true);
+    g_scSwapped.clear();
+    const ScImage after = ScTakeImage(compound);
+    const std::vector<char> generatorAfter(self + 0x1C0, self + 0x1C0 + kScGenerator);
+
+    // Ours, on a copy of the compound effect and its records as they were.
+    static std::vector<char> storage((kScRoom + 2) * kScRecord);
+    std::vector<char> mine = before;
+    char* const mineBegin = storage.data() + kScRecord;
+    if (used)
+        std::memcpy(mineBegin, recordsBefore.data(), recordsBefore.size());
+    At<char*>(mine.data(), 0x114) = mineBegin;
+    At<char*>(mine.data(), 0x118) = mineBegin + used * kScRecord;
+    At<char*>(mine.data(), 0x11C) = mineBegin + room * kScRecord;
+    std::memcpy(self + 0x1C0, generator.data(), kScGenerator);
+    g_scOurs.clear();
+    g_scCurrent = mine.data();
+    g_scReplay = true;
+    StartCompoundEffect(self, mine.data(), first);
+    g_scReplay = false;
+    const ScImage ours = ScTakeImage(mine.data());
+    g_scCurrent = nullptr;
+    const bool sameGenerator = std::memcmp(self + 0x1C0, generatorAfter.data(), kScGenerator) == 0;
+    std::memcpy(self + 0x1C0, generatorAfter.data(), kScGenerator);
+
+    ++g_scCompared;
+    g_scCalls += g_scGame.size();
+    if ((g_scCompared & (g_scCompared - 1)) == 0)
+        log::Write("water effects: effects.compound: %llu starts compared so far, %llu calls, %llu effects made, "
+                   "%llu stopped",
+                   static_cast<unsigned long long>(g_scCompared), static_cast<unsigned long long>(g_scCalls),
+                   static_cast<unsigned long long>(g_scMade), static_cast<unsigned long long>(g_scStopped));
+    const char* const id = "effects.compound";
+    char text[96];
+    if (!(g_scGame == g_scOurs)) {
+        compare::Record(id, false, ScCallsText(g_scGame, g_scOurs), ScCallsText(g_scOurs, g_scGame));
+    } else if (after.used != ours.used || after.room != ours.room) {
+        std::snprintf(text, sizeof text, "%u records, room for %u", after.used, after.room);
+        const std::string theirs = text;
+        std::snprintf(text, sizeof text, "%u records, room for %u", ours.used, ours.room);
+        compare::Record(id, false, theirs, text);
+    } else if (after.bytes != ours.bytes) {
+        std::size_t at = 0;
+        while (after.bytes[at] == ours.bytes[at])
+            ++at;
+        at &= ~std::size_t{3};
+        if (at < kScCompound)
+            std::snprintf(text, sizeof text, "compound +%zX ", at);
+        else
+            std::snprintf(text, sizeof text, "record %zu +%zX ", (at - kScCompound) / kScRecord,
+                          (at - kScCompound) % kScRecord);
+        compare::Record(id, false, text + Hex(after.bytes.data() + at, 4), text + Hex(ours.bytes.data() + at, 4));
+    } else if (!sameGenerator) {
+        compare::Record(id, false, "the generator's state", "another");
+    } else {
+        compare::Record(id, true, std::string(), std::string());
+    }
+    return result;
+}
+
+uint32_t StartCompoundRun(char* self, uint32_t compound, uint32_t flag)
+{
+    if (g_scMode == StepMode::Ours) {
+        StartCompoundEffect(self, reinterpret_cast<char*>(compound), static_cast<uint8_t>(flag));
+        return 0;
+    }
+    if (g_scMode == StepMode::Compare && !g_scNoting && !g_scReplay)
+        return CompoundCompared(self, reinterpret_cast<char*>(compound), static_cast<uint8_t>(flag));
+    // A start inside a start that is being noted is part of the call it is in.
+    ++g_scDepth;
+    const uint32_t result = g_SC4EffectsManager_StartCompound(self, nullptr, compound, flag);
+    --g_scDepth;
+    return result;
+}
+
+bool InstallCompoundStart(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(HookStartCompound() &&
+          Detour(addr::SC4EffectRecord_Construct, &TSC4EffectRecord_Construct, &g_SC4EffectRecord_Construct) &&
+          Detour(addr::SC4EffectRecord_CopyConstruct, &TSC4EffectRecord_CopyConstruct,
+                 &g_SC4EffectRecord_CopyConstruct) &&
+          Detour(addr::SC4EffectsManager_FadeByLevel, &TSC4EffectsManager_FadeByLevel,
+                 &g_SC4EffectsManager_FadeByLevel) &&
+          Detour(addr::SC4CompoundEffect_ApplyValues, &TSC4CompoundEffect_ApplyValues,
+                 &g_SC4CompoundEffect_ApplyValues)))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(HookEraseRecords() &&
+          Detour(addr::SC4EffectRecord_Assign, &TSC4EffectRecord_Assign, &g_SC4EffectRecord_Assign) &&
+          Detour(addr::SC4EffectRecords_GrowInsert, &TSC4EffectRecords_GrowInsert, &g_SC4EffectRecords_GrowInsert) &&
+          Detour(addr::SC4EffectsManager_MakeRecordEffect, &TSC4EffectsManager_MakeRecordEffect,
+                 &g_SC4EffectsManager_MakeRecordEffect)))
+        return false;
+    g_scMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the start of a compound effect %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredCompoundStart = registry::Register({
+    "renderer.effects.compound",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectsManager_StartCompound,
+    "The effects manager's start of a compound effect: the records of parts no longer within the level of detail "
+    "stopped and erased, a record made for each part new to it (the making of its effect still the game's), each "
+    "given its transform and started; with a record's two constructors, the level's values and the compound "
+    "effect's own; compare mode runs the game's with its calls noted and replays ours on a copy of the compound "
+    "effect (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallCompoundStart,
 });
 
 bool InstallEffects(registry::Mode mode)
