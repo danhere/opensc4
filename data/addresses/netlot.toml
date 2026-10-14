@@ -594,3 +594,242 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 0C 53 57 8B F9 8B"
 source = "Name ours. Ret 4 (the microseconds of the frame message; only caller DoMessage 0x00607F14 on 0x86AD10EE): per job the workers moved by that time (0x00606500), the stopwatch of the job (+0x20, GZStopwatch::ElapsedMilliseconds at 0x00607CCB) compared with the time of the piece (twice it while a worker is under way), the work property of the piece taken down, the next piece begun (0x00607AD0); slot 5 of the crew when no job is left. determinism.sim_timers hooks it to pass the simulation time of the last frame (src/core/sim_timers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::vftable"
+address = 0x00AA74AC
+kind = "vtable"
+expect = "30 3E 5C 00 A0 7B 4F 00"
+source = "The crew's only vtable (cIGZMessageTarget2, 8 slots: QueryInterface 0x005C3E30 and AddRef 0x004F7BA0 shared, Release, DoMessage, Init, Shutdown, StaticInit, StaticShutdown); the constructor and the destructor store it (src/core/crew_sim.h)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::StaticInitialized"
+address = 0x00B43E60
+kind = "data"
+source = "Name ours. A byte: Init calls slot 6 (StaticInit) while it is 0; StaticInit sets it and StaticShutdown clears it (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::JobPointDefault"
+address = 0x00B43E64
+kind = "data"
+source = "Name ours. A 32-bit word no code writes (bss): ConstructJob copies it into each of a job's two workers' three floats (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::SoundJump"
+address = 0x006071FC
+kind = "data"
+source = "The first byte of the je inside the game's Init (0x74; 0xEB once sc4-disable-network-construction-sounds has patched it): our Init reads it at every call and skips storing the sound service when it is 0xEB. No expected bytes: the plugin changes them (src/core/crew_life.cpp, docs/patch-census.md)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::NetworkToolTuning"
+address = 0x00B452C8
+kind = "data"
+source = "Name ours. The network tool's tuning, one record of 0x114 bytes per network type: PlaceAllSegments 0x0063BDC0 hands +0x1C, +0xC8, +0xCC, +0xD0, +0xD4 and +0xD8 to the crew's Init; the crew test reads the road record (src/core/crew_autotest.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::StaticInit"
+address = 0x00605620
+kind = "function"
+convention = "thiscall"
+expect = "A0 60 3E B4 00 84 C0 B0"
+source = "Name ours. Slot 6 of the crew, no arguments: sets the byte 0x00B43E60 when it is clear; AL 1; ECX and EDX untouched (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::StaticShutdown"
+address = 0x00605640
+kind = "function"
+convention = "thiscall"
+expect = "A0 60 3E B4 00 84 C0 B0"
+source = "Name ours. Slot 7 of the crew, no arguments, no caller found: clears the byte 0x00B43E60 when it is set; AL 1; ECX and EDX untouched (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::IncrementWork"
+address = 0x00605660
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 4C 24 08 8B 01 56"
+source = "Name ours. One argument, the piece: the property 0xAA24AE57 of its occupant's property holder raised by one, added first (holder slot 0x28) when missing; returns the value before (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::DecrementWork"
+address = 0x006056D0
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 4C 24 08 8B 01 56"
+source = "Name ours. One argument, the piece: the property 0xAA24AE57 lowered by one when above 0; returns the new value (only caller Tick 0x00607CE6; src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::DismissWorker"
+address = 0x00605800
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Name ours, second part (C2) of the crew. Ret 4, the worker record (job + 0x3C or + 0x5C): its vehicle let go; called at its address by OnOccupantRemoved (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::FinishPiece"
+address = 0x00605870
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 85 F6 74"
+source = "Name ours. One argument, the piece (null: nothing): flag 0x4000 cleared when the service 0x00B43DC4 slot 22 is 1, the occupant slot 0x48 with 1 and 1, the usable flag 0x10000000 set (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::PostMessage"
+address = 0x006058C0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 2C 8B F9 E8 0F"
+source = "Name ours. Ret 0x10 (type, object, data 2, data 3): a new framework message with the crew as data 1, posted on the message server slot 4 and released; the job start and piece done messages (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::ResetJob"
+address = 0x00605A40
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B 74 24 10 33"
+source = "Name ours. Ret 4, the job: state 0, the time per piece from the crew +0x4, its piece list emptied, both workers reset with the crew +0x20 and +0x24 (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::SegmentStep"
+address = 0x00605AC0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 1C 8B 49 3C 53"
+source = "Name ours. Ret 0x1C (x, z, dx, dz, stepX, stepZ, index): true at the 8-byte record index of the vector +0x3C, else one step and the two step bytes flipped (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::FinishPieces"
+address = 0x00605B30
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 85 C0 74 71"
+source = "Name ours. Two arguments (the address of a list head pointer, a release byte): every piece of the list finished as FinishPiece does and released when the byte is set. Also called by the network tools 0x0062BC6C, 0x0062D3FA, 0x0063BD15 (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::NextPiece"
+address = 0x00605BB0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 8B 08 8B"
+source = "Name ours. Ret 0x10 (list, current, out, adjacent), this not read: the piece after current in the list, referenced, and whether the two cells are one apart; AL whether there is one (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::FindPieceAtCell"
+address = 0x00605C60
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 10 56 57"
+source = "Name ours. Ret 0x10 (out, list, x, z), this not read: the first node whose piece is on cell x, z, or the head; returns out (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::ConstructJob"
+address = 0x00605CC0
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 56 8B F1 89 46 10"
+source = "Name ours. The 0x80-byte job record constructor, no arguments, returns this: pedestrian vector cleared, list head made, stopwatch constructed in mode 4, the workers points from 0x00B43E64 (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::EndJob"
+address = 0x00606750
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B 74 24 14"
+source = "Name ours, second part (C2) of the crew. Ret 8 (the job, final): the job stopwatch stopped, workers dismissed, pedestrians removed, effect stopped, pieces finished; called at its address by Shutdown with 1 (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::AssignJob"
+address = 0x006068A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. Ret 4, the source job, returns this: operator= of the job record (the pedestrian vector by SC4PtrVector::Assign, the list by SC4List::Assign2, the rest field by field) (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::CopyJob"
+address = 0x00606980
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 57 8B 7C"
+source = "Name ours. Ret 4, the source job, returns this: the job record copy constructor (SC4PtrVector::Copy, a new list head with the source nodes inserted, the rest field by field) (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::CopyJobs"
+address = 0x00606A90
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 57 8B 7C 24"
+source = "Name ours. First, last, destination (two more pushed words not read): AssignJob over the range; returns the destination end (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::DestroyJobs"
+address = 0x00606AE0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. First, last and a word not read: for each job the stopwatch destructor, the list nodes and head freed, the pedestrian vector memory freed; nothing released (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::cSC4NetworkConstructionCrew"
+address = 0x006070C0
+kind = "function"
+convention = "thiscall"
+expect = "53 33 DB 56 8B F1 C7 06"
+source = "Name ours. The constructor, no arguments, returns this: vtable 0x00AA74AC, every field zero, the piece list head made; only caller the network tool 0x0063BE17 after operator new 0x54 (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::Destroy"
+address = 0x00607130
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 C7 06 AC 74"
+source = "Name ours. The destructor, no arguments, not virtual (only caller Release 0x00608C3A): the jobs destroyed, the three vectors memory freed, the piece list destroyed by SC4PairList::Destroy (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::Shutdown"
+address = 0x00607920
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8A 46 14 84"
+source = "Name ours. Slot 5 of the crew, no arguments: notifications removed, the frame service left, every job ended, the pieces finished and released, the containers emptied, the sound service released, network manager slot 17; AL 1 (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::NextJobPiece"
+address = 0x00607AD0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B 74"
+source = "Name ours, second part (C2) of the crew. Ret 4, the job: the job ends its piece and begins the next; AL whether there was one; called at its address by OnOccupantRemoved (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::OnOccupantRemoved"
+address = 0x00607DA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 8B 41 4C 53 56"
+source = "Name ours. Ret 4, the occupant removed (only caller DoMessage on 0x99EF1143): the piece taken out of the jobs and out of the crew list (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::DoMessage"
+address = 0x00607ED0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Slot 3 of the crew, ret 4: 0x26D31EC2 slot 5, 0x86AD10EE Tick with the message data 2, 0x99EF1143 OnOccupantRemoved with its void 1; AL 1 (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::Release"
+address = 0x00608C20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 83 F8"
+source = "Name ours. Slot 2 of the crew: above 1 the count at +0x10 goes down by one and is the answer, else slot 5, the destructor, operator delete and 0 (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "SC4List::Assign2"
+address = 0x0064B660
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8B 4C 24"
+source = "Name ours. Ret 4, the source list, returns this: operator= of a list of 4-byte values (values copied over the existing nodes, then the surplus erased by 0x006A2600 or the rest inserted by SC4StdList::InsertRangeUint32); the crew job AssignJob uses it (src/core/crew_life.cpp)."
