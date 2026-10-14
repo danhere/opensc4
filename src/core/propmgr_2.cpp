@@ -326,8 +326,8 @@ uint8_t __fastcall CreateProp(char* self, void*, uint32_t type, void** out)
     if (!Virtual<uint8_t>(com, 0xC, classId, kIidProp, out)) {
         void* made = nullptr;
         if (classId == kPropClassDecal) {
-            if (void* const memory = Cdecl<void*>(addr::SC4CraterProp_Allocate, std::size_t{0xA0})) {
-                if (void* const object = This<void*>(addr::SC4CraterProp_Construct, memory))
+            if (void* const memory = Cdecl<void*>(addr::cSC4PropOccupantTerrainDecal_Allocate, std::size_t{0xA0})) {
+                if (void* const object = This<void*>(addr::cSC4PropOccupantTerrainDecal_Construct, memory))
                     made = static_cast<char*>(object) + 4;
             }
         } else if (classId == kPropClassEffect) {
