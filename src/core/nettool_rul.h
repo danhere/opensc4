@@ -224,4 +224,121 @@ inline constexpr std::size_t kEnded = 0x34, kPushedBack = 0x35;
 inline constexpr uint32_t kFirstBuffer = 8; // what the constructor allocates for each string
 } // namespace reader
 
+// === Part r3: the RUL parsers, first part (src/core/nettool_rul_3.cpp) =========
+// The RUL0 lexer (on the stack of 0x00640320; the constructor 0x0063C720
+// writes up to +0x42): +0x0 the vtable (0x00AA8C58, then 0x00AA8C5C: one
+// slot, `ret 4`), +0x4 the text's begin, +0x8 the cursor, +0xC the text's
+// end, +0x10 a pushed-back token (-1 none), +0x14 the last identifier (an
+// STL string body: begin, end, capacity; 8 bytes first), +0x20 the last
+// integer, +0x24 the last float, +0x2C a word (-1), +0x40 / +0x41 / +0x42
+// bytes (0, 1, 0). The constructor does not write +0x20, +0x24, +0x28,
+// +0x2E to +0x3F. NextToken 0x0063DDF0 answers 0 (the end, a line end or
+// ';'), kInteger, kFloat, kIdentifier or the character sign-extended.
+namespace lexer {
+inline constexpr std::size_t kSize = 0x44; // at least: the constructor's last write is +0x42
+inline constexpr std::size_t kVtable = 0x0, kBegin = 0x4, kCursor = 0x8, kEnd = 0xC, kPushed = 0x10;
+inline constexpr std::size_t kIdent = 0x14, kIdentBegin = 0x14, kIdentEnd = 0x18, kIdentCapacity = 0x1C;
+inline constexpr std::size_t kInteger = 0x20, kFloat = 0x24, kWord2C = 0x2C;
+inline constexpr std::size_t kByte40 = 0x40, kByte41 = 0x41, kByte42 = 0x42;
+inline constexpr uint32_t kFirstBuffer = 8;
+inline constexpr int32_t kNoToken = -1;
+inline constexpr int32_t kTokenEnd = 0, kTokenInteger = 0x100, kTokenFloat = 0x101, kTokenIdentifier = 0x102;
+} // namespace lexer
+
+// A type row's placement parameters (row +0x50, 0xAC bytes), as Load
+// 0x0063CBE0 reads them from the exemplar (group 0x084344E0, type
+// 0x6534284A, the row's instance): floats (the angles +0x0, +0x4, +0x8,
+// +0x18, +0x1C in degrees, stored in radians), a bool +0x24, the diagonal
+// byte +0x25 (0 here), uint32 vectors +0x28, +0x54, +0x60, +0xA0, a float
+// vector +0x6C, words and floats. LoadParams 0x0063D460 derives the row's
+// +0x100 to +0x110 from the angles +0x0, +0x8 and +0x4 (FPTAN).
+namespace placement {
+inline constexpr std::size_t kSize = 0xAC;
+inline constexpr std::size_t kAngle0 = 0x00, kAngle1 = 0x04, kAngle2 = 0x08;
+inline constexpr std::size_t kBool24 = 0x24, kDiagonal = 0x25, kVector28 = 0x28, kBool44 = 0x44;
+inline constexpr std::size_t kWord50 = 0x50, kVector54 = 0x54, kVector60 = 0x60, kFloats6C = 0x6C;
+inline constexpr std::size_t kFloat78 = 0x78, kFloat7C = 0x7C, kWord80 = 0x80, kWord84 = 0x84, kWord88 = 0x88;
+inline constexpr std::size_t kWord8C = 0x8C, kWord90 = 0x90, kWord94 = 0x94, kFloat98 = 0x98, kWord9C = 0x9C;
+inline constexpr std::size_t kVectorA0 = 0xA0;
+// The plain words and floats (hashed as words) and the vectors.
+inline constexpr std::size_t kScalars[] = {0x00, 0x04, 0x08, 0x0C, 0x10, 0x14, 0x18, 0x1C, 0x20, 0x34,
+                                           0x38, 0x3C, 0x40, 0x48, 0x4C, 0x50, 0x78, 0x7C, 0x80, 0x84,
+                                           0x88, 0x8C, 0x90, 0x94, 0x98, 0x9C};
+inline constexpr std::size_t kBytes[] = {0x24, 0x25, 0x44};
+inline constexpr std::size_t kVectors[] = {0x28, 0x54, 0x60, 0x6C, 0xA0};
+} // namespace placement
+
+// A RUL1 pair table (the value of a node of the RUL1 map 0x00B460DC, at
+// the node's +0x18): a hash table (`table`) of 20-byte nodes: next, the two
+// network types (the key; bucket (second + 2 * first) % buckets), a word
+// and a byte (+0x10: turns | 0x80 flipped; the three bytes after it are
+// stack leftovers of the RUL1 pair line callback 0x0063D080 in the
+// original, zeros in ours; the solver 0x00634BD3 reads the byte only).
+namespace pairtable {
+inline constexpr std::size_t kNodeSize = 0x14, kFirst = 0x4, kSecond = 0x8, kValue = 0xC, kByte = 0x10;
+inline constexpr std::size_t kValueSize = 0x10; // the inserted value: first, second, word, byte word
+} // namespace pairtable
+
+// The RUL1 map 0x00B460DC: a tree (`tree`) whose node value is two words
+// (a type pair) and a pair table.
+namespace rul1map {
+inline constexpr std::size_t kFirst = 0x10, kSecond = 0x14, kTable = 0x18;
+} // namespace rul1map
+
+// A type row's table +0x3C: 32-byte nodes: next, a key, a uint32 vector
+// (+0x8), a float vector (+0x14). The inserted value is the key and the
+// two vectors (0x1C bytes).
+namespace table3c {
+inline constexpr std::size_t kNodeSize = 0x20, kKey = 0x4, kUints = 0x8, kFloats = 0x14;
+inline constexpr std::size_t kValueUints = 0x4, kValueFloats = 0x10;
+} // namespace table3c
+
+// A hash table of 20-byte nodes: next, a key, a point vector (+0x8)
+// (0x0063D7E0; the value is the key and the vector).
+namespace pointtable {
+inline constexpr std::size_t kNodeSize = 0x14, kKey = 0x4, kPoints = 0x8;
+} // namespace pointtable
+
+// A RUL0 check type's value as FindOrInsert 0x0063C890 inserts it (0x1C
+// bytes: the key byte, three bytes the game leaves unwritten, six words).
+namespace checkvalue {
+inline constexpr std::size_t kSize = 0x1C, kKey = 0x0, kWords = 0x4, kWordCount = 6;
+} // namespace checkvalue
+
+// The string-keyed hash map of the bridge loader (0x00640E10; nodes of
+// 0x30 bytes: next, then the pair): the pair (0x2C bytes) is a game string
+// (+0x0), a vector of 20-byte elements (+0x14) and a float vector (+0x20);
+// the value FindOrInsert hands out is the pair's +0x14. Every node goes to
+// bucket 0 (the game's hash is 0).
+namespace stringmap {
+inline constexpr std::size_t kNodeSize = 0x30, kPair = 0x4;
+inline constexpr std::size_t kPairSize = 0x2C, kKey = 0x0, kVector20 = 0x14, kFloats = 0x20;
+inline constexpr std::size_t kValueFloats = 0xC; // the value's float vector (after the 20-byte vector)
+// The 20-byte elements (the bridge parser 0x0063EA50 builds them): a float,
+// a word, a byte at +0x8 (the three bytes after it are that parser's stack
+// leftovers, copied along as words), two words.
+inline constexpr std::size_t kElement = 0x14;
+} // namespace stringmap
+
+// The int-keyed map of a bridge record (+0x16C; 0x0063DAE0 to 0x0063DD30):
+// a tree (`tree`, the count at +0x4) of 0x2C-byte nodes whose value
+// (+0x10, 0x1C bytes) is a signed key, a vector of 20-byte elements (+0x14)
+// and a float vector (+0x20).
+namespace intmap {
+inline constexpr std::size_t kNodeSize = 0x2C, kKey = 0x10, kVector20 = 0x14, kFloats = 0x20;
+inline constexpr std::size_t kValueVector20 = 0x4, kValueFloats = 0x10, kValueSize = 0x1C;
+inline constexpr std::size_t kColor = 0x0;
+} // namespace intmap
+
+// A bridge record (0x178 bytes, a type row's vector +0x30): what part r3
+// can read of it: a game string at +0x158, the int-keyed map at +0x16C.
+namespace bridge {
+inline constexpr std::size_t kName = 0x158, kIntMap = 0x16C;
+} // namespace bridge
+
+// The RUL2 multimap's node (0x34 bytes) and value (0x24 bytes).
+namespace rul2node {
+inline constexpr std::size_t kNodeSize = 0x34, kValueSize = 0x24, kValueWords = 9;
+} // namespace rul2node
+
 } // namespace opensc4::nettool_sim::rul
