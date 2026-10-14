@@ -6,7 +6,7 @@
 // bytes on the view input control base class (0x005FB320):
 //
 //   +0x00 main vtable 0x00A90738 (QueryInterface 0x004BDF10 shared with the
-//         network lot tool, AddRef 0x004BDF00 and Release 0x004B9E20
+//         query tool, AddRef 0x004BDF00 and Release 0x004B9E20
 //         shared, Init 0x004C13E0, Shutdown 0x004C0300, then base class
 //         slots, OnMouseDownL 0x004C3120 and OnMouseMove 0x004C3300 in the
 //         mouse part, deleting destructor 0x004C0070 at slot 26)
@@ -93,11 +93,11 @@
 //     deleting destructor (0x004C0070), Shutdown (0x004C0300) and
 //     ClearPreview (0x004C0090).
 //
-// Left the game's: QueryInterface 0x004BDF10 (the network lot tool's vtable
+// Left the game's: QueryInterface 0x004BDF10 (the query tool's vtable
 // 0x00A90A88 shares it), the filter slot 0x004BDF90 (shared), RotateRectangle
 // 0x004BDFD0 and SC4RefVector::FillInsert 0x004BFF30 (generic code with
 // callers elsewhere), the three adjustor thunks 0x004BFB00 to 0x004BFB20
-// (the network lot tool's message vtable shares them), and the two window
+// (the query tool's message vtable shares them), and the two window
 // builders 0x004BEEF0 and 0x004BF2F0 (never ran; modal windows made from
 // code; see the report).
 //

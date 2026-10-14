@@ -555,7 +555,7 @@ name = "cSC4ViewInputControlPlaceLot::Vtable"
 address = 0x00A90738
 kind = "vtable"
 expect = "10 DF 4B 00 00 DF 4B 00"
-source = "Name ours. Main vtable of the plop tool (0x158 bytes, constructor 0x004C0430): QueryInterface 0x004BDF10 (shared with the network lot tool), AddRef 0x004BDF00, Release 0x004B9E20, Init 0x004C13E0, Shutdown 0x004C0300, then the base class slots, the mouse handlers and the deleting destructor 0x004C0070 at slot 26."
+source = "Name ours. Main vtable of the plop tool (0x158 bytes, constructor 0x004C0430): QueryInterface 0x004BDF10 (shared with the query tool), AddRef 0x004BDF00, Release 0x004B9E20, Init 0x004C13E0, Shutdown 0x004C0300, then the base class slots, the mouse handlers and the deleting destructor 0x004C0070 at slot 26."
 
 [[entry]]
 name = "cSC4ViewInputControlPlaceLot::MessageVtable"
@@ -2865,3 +2865,609 @@ kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8B 4E 30 85 C9"
 source = "Name ours. Slot 22, no arguments: as 0x005807F0 in line; returns true. Ours in ui.tools.disaster_fire."
+
+[[entry]]
+name = "SC4QueryTool::Vtable"
+address = 0x00A90A88
+kind = "data"
+source = "Name ours. Main vtable of the query tool (cSC4ViewInputControlQuery: a view input control of 0xA0 bytes, 30 slots, constructor 0x004C4590, made by the city view's commands 0x6A935CF3 and 0x6A935CF4, IDs 0xC7AF928E and 0xC7AF928F): Init 0x004C57A0 at slot 3, Shutdown 0x004CBA80 at 4, OnMouseDownL 0x004D4D70 at 16, OnMouseUpL 0x004C4C50 at 18, OnMouseMove 0x004CBC70 at 20, 0x004CC0B0 at 22, the deleting destructor 0x004C5730 at 26; every other slot the base's or a shared stub."
+
+[[entry]]
+name = "SC4QueryTool::TargetVtable"
+address = 0x00A90A78
+kind = "data"
+source = "Name ours. Vtable of the query tool's message target part at +0x28: three shared thunks and DoMessage 0x004D7160 at slot 3."
+
+[[entry]]
+name = "SC4QueryPanelTarget::Vtable"
+address = 0x00A90980
+kind = "data"
+source = "Name ours. Vtable (6 slots) of the 0xC-byte object the query tool gives a window of its own as target (count at +4, the tool at +8; made in line at 0x004C5982 by Init): the window's message handler 0x004CB900 at slot 3, the deleting destructor 0x004C4570 at 5."
+
+[[entry]]
+name = "SC4QueryTool::AskableFilterVtable"
+address = 0x00A909B0
+kind = "data"
+source = "Name ours. Filter vtable (7 slots; the serializable part's is 0x00A90998) of the occupant filter the query tool makes at 0x004CBCE3: slot 3 0x004C37B0."
+
+[[entry]]
+name = "SC4QueryTool::BuildingFilterVtable"
+address = 0x00A909E4
+kind = "data"
+source = "Name ours. Filter vtable (the serializable part's is 0x00A909CC) of the occupant filter the query tool makes at 0x004CBCB8: slot 3 0x004C39A0."
+
+[[entry]]
+name = "SC4QueryTool::AutomatonFilterVtable"
+address = 0x00A90A18
+kind = "data"
+source = "Name ours. Filter vtable of the 0xC-byte occupant filter 0x004C4D10 makes for one pick: slot 3 the shared stub 0x004BDF90, slot 4 0x004C3AB0."
+
+[[entry]]
+name = "SC4QueryTool::AutomatonFilterVtable2"
+address = 0x00A90A00
+kind = "data"
+source = "Name ours. The serializable part's vtable (+4) of the filter 0x004C4D10 makes: the base's thunks."
+
+[[entry]]
+name = "SC4QueryTool::PropFilterVtable"
+address = 0x00A90A4C
+kind = "data"
+source = "Name ours. Filter vtable of the 0xC-byte occupant filter 0x004C4DC0 makes for one pick: slot 3 0x004C3AD0."
+
+[[entry]]
+name = "SC4QueryTool::PropFilterVtable2"
+address = 0x00A90A34
+kind = "data"
+source = "Name ours. The serializable part's vtable (+4) of the filter 0x004C4DC0 makes: the base's thunks."
+
+[[entry]]
+name = "SC4QueryTool::UnmarkedFilterVtable"
+address = 0x00A90B18
+kind = "data"
+source = "Name ours. Filter vtable (the serializable part's is 0x00A90B00) of the occupant filter 0x004D4140 makes at 0x004D42A2 for its pick (0x004C4C90): slot 3 0x004C46C0."
+
+[[entry]]
+name = "SC4QueryWindowRunner::Vtable"
+address = 0x00A90B6C
+kind = "data"
+source = "Name ours. Main vtable (7 slots) of the 0x18-byte object that runs a window of the query (constructor 0x004C5620; a counted object with a window procedure part at +8 and a message target part at +0xC, the window at +0x10, an object at +0x14): QueryInterface 0x004C44E0 at slot 0, 0x004C68E0 at 3, 0x004C4530 at 6."
+
+[[entry]]
+name = "SC4QueryWindowRunner::ProcedureVtable"
+address = 0x00A90B58
+kind = "data"
+source = "Name ours. Vtable of the window runner's procedure part at +8 (IID 0x22E85D8E): the thunk 0x004429A0 to QueryInterface at slot 0, the window procedure 0x004D3F40 at 3."
+
+[[entry]]
+name = "SC4QueryWindowRunner::TargetVtable"
+address = 0x00A90B48
+kind = "data"
+source = "Name ours. Vtable of the window runner's message target part at +0xC (IID 0x452294AA): the thunk 0x004429B0 to QueryInterface at slot 0, the shared stub 0x004FC900 at 3."
+
+[[entry]]
+name = "SC4QueryTool::Fillers"
+address = 0x00A92488
+kind = "data"
+source = "Name ours. Table of 0x7F function pointers (24 null), one for each control of the query's windows whose ID has the bit 0x1000, by the ID's low 12 bits; each cdecl (window, control ID, fill, what is asked about). Read at 0x004D3AB9, 0x004D3B06, 0x004D3BF6. The plugin sc4-advanced-water-management changes the word at 0x00A92570 (index 58, 0x004C42F0 as shipped)."
+
+[[entry]]
+name = "SC4QueryTool::LogSink"
+address = 0x00B21850
+kind = "data"
+source = "Name ours. A pointer (past the initialised data, null at load): the object the query tool's log lines go to (its slot 14); set at 0x004D12DF, cleared at 0x004D3108."
+
+[[entry]]
+name = "SC4QueryTool::FloatB21854"
+address = 0x00B21854
+kind = "data"
+source = "Name ours. A float (past the initialised data, 0 at load, never written in the listing) that 0x004C3EE0, 0x004C84F6 and 0x004D695B compare with."
+
+[[entry]]
+name = "SC4QueryTool::DwordB21858"
+address = 0x00B21858
+kind = "data"
+source = "Name ours. A dword (past the initialised data, 0 at load, never written in the listing) the query tool's constructor copies into +0x7C to +0x84; read at five more places in the tool (0x004C5E4C, 0x004C60A9, 0x004C6293, 0x004C658B, 0x004CBDE2)."
+
+[[entry]]
+name = "CRT::vsnprintf"
+address = 0x009EFBC1
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 20 8B 45"
+source = "Name ours. The C runtime's _vsnprintf as the query tool's log line calls it: (buffer, count, format, arguments)."
+
+[[entry]]
+name = "SC4::FloatAbove"
+address = 0x004C3730
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 D9 01 D8 18"
+source = "Name ours. (const float* other), ret 4: whether the float this points to is above the other; touches only EAX. Left the game's: also called from 0x006B9F53 in another class (folded), and one caller in the query tool (0x004D696A)."
+
+[[entry]]
+name = "SC4QueryTool::Log"
+address = 0x004C3750
+kind = "function"
+convention = "cdecl"
+expect = "81 EC 00 02 00 00 8B 8C"
+source = "Name ours. Variadic (format, ...): a log line, formatted into 0x200 bytes on the stack (0x009EFBC1 with 0x1FF) and given to the object at 0x00B21850 (slot 14) when there is one; 207 calls in the class. Ours in ui.tools.query1a (src/core/tool_query_1a.cpp)."
+
+[[entry]]
+name = "SC4::PowFloats"
+address = 0x004C37A0
+kind = "function"
+convention = "cdecl"
+expect = "D9 44 24 04 D9 44 24 08"
+source = "Name ours. (float base, float exponent): the C runtime's _CIpow of the two. Left the game's: its one caller is 0x008993BB, outside the query tool."
+
+[[entry]]
+name = "SC4QueryTool::IsAskable"
+address = 0x004C37B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 8B"
+source = "Name ours. Slot 3 of the filter 0x00A909B0, (occupant), ret 4: buildings, power poles (0x2890D4DE), network occupants and the type 0x6A11BD2B always; flora and props when their property holder has the property 0x8A416A99; called directly by 0x004C46C0. Ours in ui.tools.query1b (src/core/tool_query_1b.cpp)."
+
+[[entry]]
+name = "SC4QueryTool::OccupantName"
+address = 0x004C3810
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 2C 8B 01 56 57 FF"
+source = "Name ours. (string out, a dword not read), ret 8: a name for the occupant at +0x2C from its property holder: the string property 0x899AFBAD, else the text of the key property 0x8A416A99, else the string property 0x20. Both of its callers (0x004D747F, 0x004D74BF) are calls the plugin sc4-query-ui-hooks patches. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::RouteKinds"
+address = 0x004C3860
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8A 48 1E 83"
+source = "Name ours. (trip record, bool way back), ret 8, this not read: the kinds of a trip's route cells as bits. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::AddClampedPoint"
+address = 0x004C38D0
+kind = "function"
+convention = "custom"
+expect = "83 EC 08 8B 06 8B CE FF"
+source = "Name ours. Register convention: an object in ESI, two floats on the stack, the caller cleans: the two floats held to 0 and the object's slots 7 and 8 times its slot 6, then the object's slot 13 with them. Left the game's: ESI argument, and its two callers are the overlay builders 0x004C5E20 and 0x004CA460 (drawing)."
+
+[[entry]]
+name = "SC4QueryTool::IsBuildingOrNetwork"
+address = 0x004C39A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 8B"
+source = "Name ours. Slot 3 of the filter 0x00A909E4, (occupant), ret 4: buildings, and network occupants (interface 0xA821EF94) whose slot 22 says yes for one of 0, 1, 2, 3, 6, 7, 8, 9, 12, 10, 11. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::IsAutomatonType"
+address = 0x004C3AB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 83 57 6E"
+source = "Name ours. Slot 4 of the filter 0x00A90A18, (type), ret 4: the occupant types 0x496E5783 and 0xC7CC75F1. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::IsGroupProp"
+address = 0x004C3AD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 8B"
+source = "Name ours. Slot 3 of the filter 0x00A90A4C, (occupant), ret 4: props of the occupant group 0x5002 or 0x5003. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::Share"
+address = 0x004C3B10
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 4C 24 0C 85 C9 C7"
+source = "Name ours. (used, capacity), both unsigned, the result on the x87 stack: 0 without a capacity, 1 while no more than 0.8 of it is used, else what is not used over 0.2 of the capacity. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::SetChildEdit"
+address = 0x004C3B90
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 53 32 DB 85"
+source = "Name ours. (window, child ID, text): the child as the interface 0x231A1C57: its slot 48 with the text and 0, slot 78 with 8, slot 76 with 0x200; false without the window or the child. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::SetChildText"
+address = 0x004C3C00
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 53 32 DB 85"
+source = "Name ours. (window, child ID, text): the child as the interface 0x212CDC1F, its slot 4 with the text; 16 calls. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::GetChildNumber"
+address = 0x004C3C50
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 53 32 DB 85"
+source = "Name ours. (window, child ID, uint32 out): the child as the interface 0x21325207, its slot 4 into the out. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::SetChildValue"
+address = 0x004C3CA0
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 4C 24 08 53 33 DB"
+source = "Name ours. (window, child ID, float value): the child as the interface 0xC12CEA13; the value object that is its window's property 0xEA563AB0 (made, 0x14 bytes, when missing) is set (slot 38) and made the property again. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::FillLotShareFirst"
+address = 0x004C3D70
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 08 84"
+source = "Name ours. (window, child ID, fill, cell x, cell z): with fill, the share left (0x004C3B10) of the two numbers the city's slot 76 object gives for the lot at the cell (its slot 12), as the child's value; 0 without a lot. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::FillCityShare"
+address = 0x004C3E10
+kind = "function"
+convention = "cdecl"
+expect = "8A 4C 24 0C 33 C0 83 EC"
+source = "Name ours. (window, child ID, fill; two more pushed and not read): with fill, the share left of the two numbers of the object at 0x00B43D28 (slot 10). Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::FillPollutionPercent"
+address = 0x004C3E70
+kind = "function"
+convention = "cdecl"
+expect = "51 8A 44 24 10 84 C0 74"
+source = "Name ours. Filler 41 (window, child ID, fill, about): the pollution simulator's slot 57 float times 100, truncated. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::FillPollutionShare"
+address = 0x004C3EE0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 08 84"
+source = "Name ours. Filler 94: the pollution simulator's slot 55 float over its slot 54 float, at most 1, when the slot 55 float is above the float at 0x00B21854; else 0. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::FillFloatDA0"
+address = 0x004C3F90
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 34"
+source = "Name ours. Filler 52: the float the service at 0x00B43DA0 gives through a place (slot 45). Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::FillCellShare"
+address = 0x004C3FD0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 28 84"
+source = "Name ours. Filler 65 (about = an occupant): the service at 0x00B43DA8 fills five dwords for the occupant's cell (slot 35): the first over the fourth, at most 1; 1 when the fourth is 0; 0 when it says no or the first is 0. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::KindOfNumber"
+address = 0x004C40B0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 48 83 F8 0B"
+source = "Name ours. (number): 2, 3, 8, 10, 12 give 3, 4 gives 1, 5 gives 2, every other -1 (a jump table at 0x004C40E0 with its index bytes at 0x004C40F0); the game's touches only EAX. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::TypesOfKind"
+address = 0x004C4100
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 48 74 37 48"
+source = "Name ours. (kind, uint32 out, uint32 out): the two occupant types of kind 1 (0x4773FFE0, 0x4773FFE1), 2 (..E2, ..E3) or 3 (..E4, ..E5); false for another. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::LotCapacity"
+address = 0x004C4160
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 53 56 57 8B 7C"
+source = "Name ours. (occupant): the capacity (lot slot 51) for the occupant wealth (slot 41) of the lot at the occupant's cell; when 0, the 16 bits at +8 of what the occupant's interface 0x87DDA3A9 gives by its slot 11; 0 without a lot. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::CellGradeOf"
+address = 0x004C4210
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 01 83 EC"
+source = "Name ours. (occupant): the EAX of the service at 0x00B43D88, slot 5, for the occupant's cell. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::LevelText"
+address = 0x004C4260
+kind = "function"
+convention = "cdecl"
+expect = "D9 44 24 08 D8 1D 74 0A"
+source = "Name ours. (string out, float level): the text 0x4A5FE266 below 33.3, 0x0A5FE260 below 66.6, else 0xAA5FE249, of the group 0xEA5524EB. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::FillWater"
+address = 0x004C42F0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 44"
+source = "Name ours. Fillers 58 and 109: the plumbing simulator's float (0x00B43D94, slot 24: about, 0, 0, the float out, 0, 0); false when it says no. The table word for filler 58 (0x00A92570) is what sc4-advanced-water-management changes. Ours in ui.tools.query1a, hooked at the entry."
+
+[[entry]]
+name = "SC4QueryTool::AttachChildren"
+address = 0x004C4340
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 10 8B 06 57"
+source = "Name ours. What a window's slot 32 calls for each child (child, ID, child as 0x22BA0121, value): the child's slot 116 with the value, then the same walk over its children; given by address at 0x004CCAED, 0x004CCDC1, 0x004D3DAE and by itself. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::DetachChildren"
+address = 0x004C4370
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 14 56 8B 74"
+source = "Name ours. The same four arguments: the child's slot 117 with the value, five window properties taken off and let go twice (0xEA563AB0, 0x8ADC29D4, 0x6A8CC9D6, 0x2AA6E8AD, 0x0AB3F6DB), then the same walk over its children; given by address at 0x004CCBB6, 0x004CCEA8, 0x004D3E8D and by itself. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryWindowRunner::QueryInterface"
+address = 0x004C44E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "Name ours. Slot 0 of the vtable 0x00A90B6C, (iid, out), ret 8, and where the thunks 0x004429A0 and 0x004429B0 jump: the part at +8 for 0x22E85D8E, at +0xC for 0x452294AA, else the base's 0x009457C6. Not in the function list (Ghidra has it as a tail of 0x004429B0). Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryWindowRunner::SetObject"
+address = 0x004C4530
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 14 85 C9"
+source = "Name ours. Slot 6, (object), ret 4: the object at +0x14 let go, the given one kept with a reference; false for null. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryPanelTarget::DeletingDestructor"
+address = 0x004C4570
+kind = "function"
+convention = "thiscall"
+expect = "F6 44 24 04 01 56 8B F1"
+source = "Name ours. Slot 5 of the vtable 0x00A90980, (flags), ret 4: the vtable set again, delete for bit 0; returns this. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::ShowOtherPanel"
+address = 0x004C4630
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 56 8B"
+source = "Name ours. (bool other), ret 4: of the windows at +0x48 and +0x4C one is hidden and the other shown; the second is moved by the first's place when it is the one shown. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::IsAskableUnmarked"
+address = 0x004C46C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Slot 3 of the filter 0x00A90B18, (occupant), ret 4: 0x004C37B0, but false when the property holder has the property 0xCAA9AB92. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::DebugKeysDown"
+address = 0x004C4700
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D 94 3C B4 00 8B 01"
+source = "Name ours. No arguments, this not read: the application's slot 21 says yes and the keys 0x10, 0x11, 0x12 are down. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::LevelFirst"
+address = 0x004C4750
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Name ours. (the object 0x004D32D0 gives for a lot, by its curves a growth developer; cell x, cell z, int out): bounds of kind 2 (the object's slot 30), the float grid of the service at 0x00B43DA4 (slot 39) through the curve at +0x74: 0 and the value negated below the lower bound, 2 and half the value from the upper bound, else 1 and 0. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::LevelSecond"
+address = 0x004C47F0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Name ours. As 0x004C4750 with kind 3, the same service's slot 40 grid and the curve at +0x78. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::LevelThird"
+address = 0x004C4890
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Name ours. As 0x004C4750 with kind 4, the byte grid of the service at 0x00B43D70 (slot 5) and the curve at +0x7C; 2 below, 0 above. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::LevelFourth"
+address = 0x004C4930
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 56 8B 74 24 14"
+source = "Name ours. Kind 5, the byte grid of the service at 0x00B43DA8 (slot 9), the curve at +0x84 taken at the byte and at the byte plus 1; the answer also depends on which of the two is larger. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::LevelFifth"
+address = 0x004C4A30
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Name ours. As 0x004C4890 with kind 6, the byte grid of the service at 0x00B43DA8 (slot 13; 0 taken as 0xFF) and the curve at +0x80. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::RouteTouches"
+address = 0x004C4AE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 0F BF 50 22"
+source = "Name ours. (trip record, box of four cells, bool way back), ret 0xC: whether the record's own cell or a cell of its route is inside the box; the mode at +0x98 passes over cells of kind 6 (1) or all others (2). Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::OnMouseUpL"
+address = 0x004C4C50
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 50 8D 4E"
+source = "Name ours. Slot 18, (x, z, modifiers), ret 0xC: the timer at +0x50 stopped, the view's text 0x2A456CB1 cleared, the window of the object at +0x44 hidden, +0x89 cleared; true. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::PickOccupant"
+address = 0x004C4C90
+kind = "function"
+convention = "cdecl"
+expect = "51 53 56 8B 74 24 18 33"
+source = "Name ours. (x, z, out, filter): the object at 0x00B43DD0 picks at the screen point with the filter (slot 65); the picked one's occupant (interface 0x26BB767E) goes to the out with its reference. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::PickAutomaton"
+address = 0x004C4D10
+kind = "function"
+convention = "cdecl"
+expect = "51 53 55 8B 6C 24 18 33"
+source = "Name ours. (x, z, out): the same pick with a filter of the two automaton types made for the call; the interface 0xA9B40F05. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::PickGroupProp"
+address = 0x004C4DC0
+kind = "function"
+convention = "cdecl"
+expect = "51 53 55 8B 6C 24 18 33"
+source = "Name ours. (x, z, out): the same pick with a filter of the props of the groups 0x5002 and 0x5003; the interface 0xE9793A65. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::TimerPost"
+address = 0x004C4E70
+kind = "function"
+convention = "cdecl"
+expect = "57 8B 3D CC 3C B4 00 85"
+source = "Name ours. (tool): what Init gives the tool's timer (0x004C5846): posts the message 0x0A456D95 to the tool's target part (the message server's slot 7). Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::TimerSend"
+address = 0x004C4EE0
+kind = "function"
+convention = "cdecl"
+expect = "57 8B 3D CC 3C B4 00 85"
+source = "Name ours. No arguments: what 0x004D3C30 gives a timer of its own (0x004D3CF8): sends the message 0x0A456D96 to all (the message server's slot 4). Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::QuerySound"
+address = 0x004C4F40
+kind = "function"
+convention = "cdecl"
+expect = "51 53 8B 1D B8 3C B4 00"
+source = "Name ours. (occupant): the sound of asking about it: its property 0x0A902434 on a lot of condition 4, 0xAA905AB9 on one of condition 2 or 3, else 0xAA1DD397, to the sound service's slot 11. Its one caller (0x004D4406) is a call the plugin sc4-query-ui-hooks patches. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::DrawBar"
+address = 0x004C5040
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 24 56 8B 74 24 2C"
+source = "Name ours. (window, float share): locks the window's buffer (0x8010) and blits a picture twice with 0x008D8BC0, a part of it by the share. Left the game's: drawing; its one caller is the filler 0x004C67F0."
+
+[[entry]]
+name = "SC4QueryTool::FillFloatD78"
+address = 0x004C5180
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 31"
+source = "Name ours. Filler 1: the float the service at 0x00B43D78 gives through a place (slot 10). Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::FillFloatPolice"
+address = 0x004C51C0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 31"
+source = "Name ours. Filler 6: the float the police simulator gives through a place (slot 25). Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::FillPoliceShare"
+address = 0x004C5200
+kind = "function"
+convention = "cdecl"
+expect = "51 8A 44 24 10 84 C0 74"
+source = "Name ours. Filler 12: the police simulator's slot 36 float times its slot 28 number, truncated, as what is used of that number; the share left. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::FillLotShareSecond"
+address = 0x004C5280
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 08 84"
+source = "Name ours. As 0x004C3D70 with the city's slot 77 object. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::FillOccupantLotShare"
+address = 0x004C5310
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 10 83 EC 10 85"
+source = "Name ours. Filler 21 (about = an occupant): 0x004C3D70 at the first cell of the occupant's box (its slot 11); false without the occupant. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::FillFloatDA0Other"
+address = 0x004C5350
+kind = "function"
+convention = "cdecl"
+expect = "51 8A 44 24 10 84 C0 74"
+source = "Name ours. Filler 45: as 0x004C3F90. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::LotPopulation"
+address = 0x004C53A0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 53 8B 5C 24 1C"
+source = "Name ours. (occupant): the capacity of its lot (0x004C4160) times the lot's occupancy (slot 61), truncated; 0 without a lot or a building type. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::LotAverage"
+address = 0x004C5490
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 34 8B 4C 24 38 8B"
+source = "Name ours. (occupant), the result on the x87 stack: the average over the cells of its lot of the signed byte of the service at 0x00B43D60 (slot 5) plus 0x80, times 100 / 255. Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryTool::FillHistorical"
+address = 0x004C55A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D 08 3D B4 00 8B 54"
+source = "Name ours. Filler 122 (about = an occupant): with fill the check box is set as the occupant's lot is historical (lot slot 43); without it the lot is made historical as the box is checked (slot 44). Ours in ui.tools.query1a."
+
+[[entry]]
+name = "SC4QueryWindowRunner::Construct"
+address = 0x004C5620
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 E8 F4 83"
+source = "Name ours. (window), ret 4: the constructor of the 0x18-byte window runner; the window kept and referenced twice; returns this. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryWindowRunner::End"
+address = 0x004C5690
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 57 8B 7E"
+source = "Name ours. (code), ret 4: the window manager's slot 9 (0xF, the window, the code), then the window and the object at +0x14 let go and cleared; called by the window procedure 0x004D3F40 with 0 or 1. Ours in ui.tools.query1b."
+
+[[entry]]
+name = "SC4QueryTool::FillControl"
+address = 0x004D3A90
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 F6 C5 10 75"
+source = "Name ours. (window, control ID, fill, about): the filler of the table 0x00A92488 for a control ID with the bit 0x1000 (index = the low 12 bits, below 0x7F), called with the four arguments; false for another ID, a null window or about, or a null entry. Still the game's; the Q1 autotest fills through it."
+
+[[entry]]
+name = "SC4QueryTool::DeveloperOfLot"
+address = 0x004D32D0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 1C 53 56 8B 74 24"
+source = "Name ours, a guess. (lot): the object (by its curves at +0x74 to +0x84 a growth developer) the map level functions 0x004C4750 to 0x004C4A30 take, found through the development service from the lot's building type; may be null. Still the game's; the Q1 autotest calls it."
