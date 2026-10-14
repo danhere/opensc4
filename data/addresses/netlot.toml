@@ -833,3 +833,167 @@ kind = "function"
 convention = "thiscall"
 expect = "53 55 56 8B F1 8B 4C 24"
 source = "Name ours. Ret 4, the source list, returns this: operator= of a list of 4-byte values (values copied over the existing nodes, then the surplus erased by 0x006A2600 or the rest inserted by SC4StdList::InsertRangeUint32); the crew job AssignJob uses it (src/core/crew_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::Direction"
+address = 0x00605490
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 04 8B 01 83 EC"
+source = "Name ours, part C2a of the crew. Ret 8 (from, to), this not read: the two pieces cells (slot 0xEC); -1 unless one apart, else 1 for dz below 0, 3 above, 0 for dx below 0, 2 above; only caller ChooseWorkerPath (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::FindPathSide"
+address = 0x00605530
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 8B 41 28 8B 4C"
+source = "Name ours, part C2a of the crew. Ret 0xC (piece, side, flag): the side among side + 2, + 3, + 1, + 0 for which the path information slot 0x10 answers non-zero with the kinds 1 and the crew +0x28, else -1 (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::MakeWorkerVehicle"
+address = 0x00605740
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 8B 5C 24 20"
+source = "Name ours, part C2a of the crew. Ret 8 (piece, worker), this not read: an automaton made by the vehicle manager slot 0x3C at the piece position with the key 0x5AD0E817, 0xBADB57F1 and the worker value, its slot 0x78 (2, 0), kept by the worker with the piece (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::MakeDustEffect"
+address = 0x00605940
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 60 8B 0D 1C 3D B4"
+source = "Name ours, part C2a of the crew. Ret 4 (piece), this not read: the effects manager slot 7 with road_construction_dust, placed at the piece position (y from its box) and started; the effect or null (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::ChooseWorkerPath"
+address = 0x00605D30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 55 8B 6C 24 2C"
+source = "Name ours, part C2a of the crew. Ret 0x18 (piece, from, to, point out, path out, swap), AL: the path of the piece path information between the sides toward from and to (slot 0x94, or slot 0x24 with the generator 0x00B43E88), its end point, or the piece position and false (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::PlaceWorker"
+address = 0x00605F60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 55 8B 6C 24 2C"
+source = "Name ours, part C2a of the crew. Ret 0x10 (piece, next, worker, swap): the worker vehicle made if needed and placed on the piece toward the next one, following the chosen path, or the piece finished at once when there is none (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::StartWorker"
+address = 0x006061B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 55 56 57 8B E9"
+source = "Name ours, part C2a of the crew. Ret 0x10 (list, piece, worker, swap): PlaceWorker with the next piece of the list when it is one cell away, the worker piece shown (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::AdvanceWorker"
+address = 0x00606250
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 8B 74"
+source = "Name ours, part C2a of the crew. Ret 0x10 (list, worker, job piece, swap), AL: the worker moved on to the next piece of the list (path followed, or placed there), dismissed at the end of the list or when worker B reaches the job current piece (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::AdvanceWorkerToPiece"
+address = 0x006063C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B 74 24 20"
+source = "Name ours, part C2a of the crew. Ret 0x10 (list, job piece, worker, swap), AL: the worker sent toward the next piece of the list (its point set, or placed there), the next piece shown for worker A (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::TickWorker"
+address = 0x00606500
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 DB 44 24 04"
+source = "Name ours, part C2a of the crew. Ret 0xC (microseconds, worker, job): the worker vehicle moved by the frame time times the crew +0x8 toward the worker point, arrived within 0.6 (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::StartJobWorkers"
+address = 0x006066E0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 46 44"
+source = "Name ours, part C2a of the crew. Ret 4 (job): worker A sent on (AdvanceWorkerToPiece) when it has a vehicle, else started on the job current piece (StartWorker) (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::Random"
+address = 0x00B43E88
+kind = "data"
+source = "Name ours. The static generator (cRZRandomSuper) of the crew, seeded at startup by 0x00A73BD0; ChooseWorkerPath passes it to the path information slot 9, Job_SpawnPedestrians draws from it (src/core/crew_workers.cpp, docs/netlot.md)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::DustEffectName"
+address = 0x00AA7464
+kind = "data"
+source = "The text road_construction_dust, the effect MakeDustEffect asks the effects manager for (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::NoPathFormat"
+address = 0x00AA747C
+kind = "data"
+source = "The format Network piece with ID %08x has no path info! that ChooseWorkerPath formats into a game string and drops (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "SC4::FloatSixteenthAA7458"
+address = 0x00AA7458
+kind = "data"
+source = "The float 0.0625: PlaceWorker turns a position into a cell with it (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "SC4::FloatOneB0B2E4"
+address = 0x00B0B2E4
+kind = "data"
+source = "The float 1.0 in .data: PlaceWorker and TickWorker divide it by a length to normalise the direction (src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "SC4::Float0_6"
+address = 0x00A9809C
+kind = "data"
+source = "The float 0.6: a worker whose distance to its point is below it has arrived (TickWorker, src/core/crew_workers.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::AddSegment"
+address = 0x00606B50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 55 56 57 8B"
+source = "Name ours. Ret 0xC (the address of the list of the segment new pieces, the network tool vector of 12-byte segment records +0x54, its vector of 8-byte cell records +0x60); only caller the network tool 0x0063BD09: the cells of each segment appended to the crew records from the end nearer the tool first segment, new segments (first and last index raised by the old record count, in the tool vector) appended to the crew segments, then for every crew cell record a new piece on it moved from the given list to the crew list (in place of the crew own piece there, which is released), last FinishPieces with 0 (src/core/crew_work.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::SpawnPedestrians"
+address = 0x006072E0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours, not hooked. Ret 4 (the job): 4 plus a draw below 4 pedestrians (pedestrian manager, city slot 44, slot 15 with 0x4101 and 0x3A000) at points along the current piece path objects, headings from fsin and fcos of draws of the static generator 0x00B43E88, a generator on the stack seeded with SC4::TimeNow at 0x006077CB for 0x0080B680; pushed on the job vector +0x10. Stays the game one (src/core/crew_work.cpp says why); BeginJob and NextJobPiece call it here."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::BeginJob"
+address = 0x00607890
+kind = "function"
+convention = "thiscall"
+expect = "55 56 8B 74 24 0C 8B 46"
+source = "Name ours. Ret 4 (the job; callers PlanJobs 0x006084B9 and 0x006084C5, Start 0x006089D7): the first piece of the job list current and referenced, its dust effect, the pedestrians, with the sound service the message 0x89F10866, worker A started on the piece (0x006061B0); nothing for an empty list or a null first piece (src/core/crew_work.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::PlanJobs"
+address = 0x00607F30
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 3C 01 00 00 53 55"
+source = "Name ours. Ret 0xC (first and last segment record, the crew piece list), EAX last plus 1; only caller Start 0x00608ADB for crews whose +0xC is not 1: two jobs on the stack filled from the segments (two cursors along a diagonal, or the first and last cells of each segment along a straight line), begun and pushed on the job vector (src/core/crew_work.cpp)."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::Start"
+address = 0x00608770
+kind = "function"
+convention = "thiscall"
+expect = "81 EC A4 00 00 00 53 55"
+source = "Name ours. No arguments (ret); only caller the network tool 0x0063BEEA: fewer than 5 segment records finish the pieces and shut the crew down; else the jobs made (with +0xC at 1 each takes its pieces off the crew list, else PlanJobs), the crew joins the frame service (0xC0), the pieces left finished and released, the records emptied, every job stopwatch started (src/core/crew_work.cpp)."
