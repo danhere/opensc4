@@ -419,4 +419,37 @@ inline constexpr std::size_t kNameVtable = 0x158, kNameBegin = 0x15C, kNameEnd =
 inline constexpr std::size_t kNameReferences = 0x168, kMapHead = 0x16C, kMapCount = 0x170;
 } // namespace bridgerecord
 
+// === Part r5: the RUL parsers, third part (src/core/nettool_rul_5.cpp) =========
+// The bridge lexer (0x00641F00; the RUL0 lexer's fields, then the ones in
+// `bridgelexer` above): +0x28 the type row's bridge record vector (+0x30),
+// +0x2C the list of string map scopes (a circular list: each node 0x1C
+// bytes, next, previous, the map at +0x8), +0x30 the divisor. The original
+// keeps it in a 0x34-byte stack frame slot of 0x006436D0.
+namespace bridgelexer5 {
+inline constexpr std::size_t kRecords = 0x28, kMaps = 0x2C, kDivisor = 0x30;
+inline constexpr std::size_t kListNodeSize = 0x1C, kNext = 0x0, kPrevious = 0x4, kMap = 0x8;
+inline constexpr std::size_t kFrameSize = 0x34; // the original's lexer slot
+} // namespace bridgelexer5
+
+// What the bridge ini line callback 0x00642220 writes into a bridge record
+// (0x178 bytes) from the exemplar (`bridgerecord` above has the
+// constructor's fields): +0x0 the ID, +0x4 / +0x8 the range of lengths
+// (0x00641310), +0xC / +0x10 two counts, +0x2C a word, +0x30 a BYTE (the
+// variant's GetValUint8: the three bytes after it are never written), +0x34
+// to +0x40 words (+0x3C a float), +0x5C a float, +0x78 / +0x7C words, the
+// bytes +0x98 / +0x99, the words +0x9C to +0xD4, the byte +0xD8 (1 when the
+// whole tail chain +0xDC to +0x144 was found), +0xDC, +0xE0, +0xE4 to +0x128
+// (three float sextets), +0x12C to +0x140 derived from them, +0x144, +0x148
+// to +0x154 two key pairs. Only some are written when a property is missing
+// (src/core/nettool_rul_5.cpp lists which keep the temporary record's stack
+// leftovers in the original).
+namespace bridgefields {
+inline constexpr std::size_t kId = 0x0, kMinLength = 0x4, kMaxLength = 0x8, kWordC = 0xC, kCount10 = 0x10;
+inline constexpr std::size_t kWord2C = 0x2C, kByte30 = 0x30, kWord34 = 0x34, kWord38 = 0x38, kFloat3C = 0x3C;
+inline constexpr std::size_t kCount40 = 0x40, kFloat5C = 0x5C, kWord78 = 0x78, kWord7C = 0x7C;
+inline constexpr std::size_t kByte98 = 0x98, kByte99 = 0x99, kWords9C = 0x9C, kWordsD4 = 0xD4, kChained = 0xD8;
+inline constexpr std::size_t kWordDC = 0xDC, kFloatE0 = 0xE0, kSextets = 0xE4, kDerived = 0x12C, kWord144 = 0x144;
+inline constexpr std::size_t kKeys148 = 0x148, kKeys150 = 0x150;
+} // namespace bridgefields
+
 } // namespace opensc4::nettool_sim::rul

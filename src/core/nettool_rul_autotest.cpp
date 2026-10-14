@@ -139,6 +139,24 @@
 // The 'length(n)' leg uses only a loaded part whose float vector is long
 // enough for the divisor (else it is skipped); every other part is the
 // test's own, and every scan line of the RUL0 callback is complete.
+//
+// Part r5 (src/core/nettool_rul_5.cpp) appends, on every day, after
+// everything above, ` y<records>:<hash>/<hash>`: the rows' bridge records'
+// fields the bridge line callback 0x00642220 fills from the exemplars
+// (BridgeRecordFieldsHash): first those it always writes, after the slash
+// those it writes only when the exemplar has the property (the original
+// keeps stack leftovers in them otherwise, ours zeros: an exemplar without
+// one would show as noise between A runs there). The RUL0 store (s: the
+// Ordering rings +0xEC to +0xF8 that 0x006416B0 and 0x00641A50 write), the
+// RUL1 map (r) and the bridges' int maps (b) above already cover the rest
+// of what part r5 builds. From the drive day on, ` h<hash>` at the very
+// end: a RUL1 map of the test's own (FindOrInsert, InsertUnique and the
+// hinted insert with leftmost, head, middle and rightmost hints) and the
+// bridge layouts read again (LoadBridgeLayouts with each row's ID and
+// divisor, the same resources the load reads) into copies of the loaded
+// records with emptied int maps, then the record vector's InsertOverflow of
+// two (UninitializedFillN) and Erase (CopyRange). The Ordering callback is
+// not driven (it needs a store of rules; the load runs it every time).
 #include "core/autotest_hooks.h"
 #include "core/game_access.h"
 #include "core/log.h"
@@ -1869,11 +1887,222 @@ uint32_t DriveRul4()
     return total.h;
 }
 
+// --- Part r5 -----------------------------------------------------------------------
+
+// The bridge records' fields the bridge line callback 0x00642220 writes,
+// in row order: `always` gets the ones it always writes (+0x0 to +0x10,
+// +0x34, +0x38, +0x40, +0x78, +0x9C to +0xD4, the byte +0xD8, +0x148 to
+// +0x154; +0x3C when +0x40 is set; +0x7C when +0x10 is zero; +0xDC, +0xE0,
+// +0x144 when +0xD8 is set); `property` the ones it writes only when the
+// exemplar has the property (+0x2C, the byte +0x30, +0x5C, +0x7C with +0x10
+// set, the bytes +0x98 / +0x99): in the original they keep stack leftovers
+// without it, so they are kept apart. Never the bytes +0x31 to +0x33.
+void BridgeRecordFieldsHash(uint32_t& records, uint32_t& always, uint32_t& property)
+{
+    using namespace rul;
+    using namespace rul::bridgefields;
+    Hash a, p;
+    records = 0;
+    for (uint32_t type = 0; type < nettool_sim::kTypes; ++type) {
+        const Vector& v = At<Vector>(Row(type), typerow::kBridges);
+        for (char* r = v.begin; r != v.end; r += typerow::kBridgeSize) {
+            ++records;
+            for (std::size_t at = 0; at <= kCount10; at += 4)
+                a.Mix(Word(r, at));
+            a.Mix(Word(r, kWord34));
+            a.Mix(Word(r, kWord38));
+            a.Mix(Word(r, kCount40));
+            if (Word(r, kCount40))
+                a.Mix(Word(r, kFloat3C));
+            a.Mix(Word(r, kWord78));
+            for (std::size_t at = kWords9C; at <= kWordsD4; at += 4)
+                a.Mix(Word(r, at));
+            a.Mix(Byte(r, kChained));
+            if (Byte(r, kChained)) {
+                a.Mix(Word(r, kWordDC));
+                a.Mix(Word(r, kFloatE0));
+                a.Mix(Word(r, kWord144));
+            }
+            for (std::size_t at = kKeys148; at <= kKeys150 + 4; at += 4)
+                a.Mix(Word(r, at));
+            if (Word(r, kCount10))
+                p.Mix(Word(r, kWord7C));
+            else
+                a.Mix(Word(r, kWord7C));
+            p.Mix(Word(r, kWord2C));
+            p.Mix(Byte(r, kByte30));
+            p.Mix(Word(r, kFloat5C));
+            p.Mix(Byte(r, kByte98));
+            p.Mix(Byte(r, kByte99));
+        }
+    }
+    always = a.h;
+    property = p.h;
+}
+
+// A RUL1 map of the test's own (a 0x2C-byte head): FindOrInsert 0x00641C40
+// on 40 type pairs (repeats among them; LowerBound, the hinted insert
+// 0x006413B0, InsertAt and CreateNode under it), InsertUnique 0x00640EF0 on
+// 12 pairs (half already there) and the hinted insert with the leftmost
+// node, the head and middle nodes as hints; per call the answer's pair (and
+// InsertUnique's byte), then the map in key order (pairs and their tables'
+// counts). Erased by EraseSubtree 0x00635C60, the head freed.
+uint32_t DriveRul1Map()
+{
+    using namespace rul;
+    Hash hash;
+    char* map[2] = {MakeHead(rul1node::kNodeSize), nullptr};
+    char* const self = reinterpret_cast<char*>(map);
+    alignas(4) char value[rul1map::kTable - rul1map::kFirst + table::kSize] = {};
+    char* const valueTable = value + rul1node::kValueTable;
+    CallThis<void, uint32_t>(addr::SC4Uint32HashSet_Construct, valueTable, table::kFirstBuckets);
+    const auto pairOf = [](uint32_t n, int32_t* key) {
+        key[0] = static_cast<int32_t>((n * 7) % 13) - 1;
+        key[1] = static_cast<int32_t>((n * 5) % 11) - 3;
+    };
+    for (uint32_t n = 0; n < 40; ++n) {
+        int32_t key[2];
+        pairOf(n, key);
+        char* const t = CallThis<char*, int32_t*>(addr::SC4Rul1Map_FindOrInsert, self, key);
+        hash.Mix(Word(t - rul1map::kTable + rul1map::kFirst, 0));
+        hash.Mix(Word(t - rul1map::kTable + rul1map::kSecond, 0));
+        hash.Mix(BucketCount(t));
+    }
+    for (uint32_t n = 0; n < 12; ++n) {
+        At<int32_t>(value, 0) = static_cast<int32_t>(n % 2 ? n * 3 : (n * 7) % 13 - 1) + 20 * (n % 2);
+        At<int32_t>(value, 4) = static_cast<int32_t>(n) - 6;
+        alignas(4) char result[8] = {};
+        CallThis<char*, char*, char*>(addr::SC4Rul1Map_InsertUnique, self, result, value);
+        hash.Mix(Word(At<char*>(result, 0), rul1map::kFirst));
+        hash.Mix(Word(At<char*>(result, 0), rul1map::kSecond));
+        hash.Mix(Byte(result, 4));
+    }
+    for (uint32_t n = 0; n < 24; ++n) {
+        char* const head = map[0];
+        char* hint = head;
+        if (n % 4 == 0) {
+            hint = At<char*>(head, tree::kLeft);
+        } else if (n % 4 == 2) {
+            // the (n / 4)-th node in order, bounded by the count
+            uint32_t steps = (n / 4) % (Word(self, tree::kCount) + 1);
+            hint = At<char*>(head, tree::kLeft);
+            while (steps-- && hint != head)
+                hint = NextNode(hint);
+        } else if (n % 4 == 3) {
+            hint = At<char*>(head, tree::kRight);
+        }
+        At<int32_t>(value, 0) = static_cast<int32_t>((n * 11) % 17) - 4;
+        At<int32_t>(value, 4) = static_cast<int32_t>((n * 3) % 7) - 2;
+        char* result = nullptr;
+        CallThis<char**, char**, char*, char*>(addr::SC4Rul1Map_InsertHint, self, &result, hint, value);
+        hash.Mix(Word(result, rul1map::kFirst));
+        hash.Mix(Word(result, rul1map::kSecond));
+    }
+    hash.Mix(ForEachInOrder(self, [&](char* node) {
+        hash.Mix(Word(node, rul1map::kFirst));
+        hash.Mix(Word(node, rul1map::kSecond));
+        hash.Mix(Word(node + rul1map::kTable, table::kCount));
+    }));
+    if (Word(self, tree::kCount))
+        CallThis<void, char*>(addr::SC4Rul1Map_EraseSubtree, self, At<char*>(map[0], tree::kParent));
+    GameFree(map[0]);
+    CallThis<void>(addr::SC4Uint32HashSet_Clear, valueTable);
+    GameFree(At<char*>(valueTable, table::kBuckets));
+    return hash.h;
+}
+
+// The bridge layouts read again into records of the test's own: for each
+// row with loaded bridge records, a test vector filled with copies of them
+// (CopyConstruct 0x00640FA0; when full, InsertOverflow 0x00642030 as the
+// line callback does) whose int maps are emptied (Assign from a new
+// record's); LoadBridgeLayouts 0x006436D0 with the row's ID and divisor
+// (the bridge lexer, Parse, ParseBridge, ParseLength, PushMap, ClearMaps,
+// the int map's and string map's FindOrInsert under it); the records' int
+// maps hashed (not the three bytes after each element's +0x8); then
+// InsertOverflow of two copies in the middle (UninitializedFillN), Erase of
+// the first record (CopyRange), the IDs and names hashed; every record
+// destroyed and the buffers freed.
+uint32_t DriveBridgeLayouts()
+{
+    using namespace rul;
+    struct Setup {
+        uint32_t type, divisor;
+    };
+    static constexpr Setup kSetups[] = {{0, 1}, {10, 1}, {11, 1}, {1, 1}, {8, 1}, {9, 1},
+                                        {3, 1}, {2, 2}, {12, 2}, {6, 2}, {4, 1}, {7, 1}};
+    Hash hash, elements;
+    alignas(4) char fresh[bridgerecord::kSize] = {};
+    CallThis<char*>(addr::SC4NetworkBridgeRecord_Construct, fresh);
+    for (const Setup& s : kSetups) {
+        const Vector& loaded = At<Vector>(Row(s.type), typerow::kBridges);
+        if (loaded.begin == loaded.end)
+            continue;
+        Vector v{};
+        for (char* r = loaded.begin; r != loaded.end; r += bridgerecord::kSize) {
+            alignas(4) char copy[bridgerecord::kSize] = {};
+            CallThis<char*, char*>(addr::SC4NetworkBridgeRecord_CopyConstruct, copy, r);
+            CallThis<char*, char*>(addr::SC4BridgeIntMap_Assign, copy + bridgerecord::kMapHead,
+                                   fresh + bridgerecord::kMapHead);
+            if (v.end != v.capacity) {
+                CallThis<char*, char*>(addr::SC4NetworkBridgeRecord_CopyConstruct, v.end, copy);
+                v.end += bridgerecord::kSize;
+            } else {
+                uint8_t tag = 0;
+                CallThis<char*, char*, char*, uint8_t*, uint32_t, uint32_t>(
+                    addr::SC4BridgeRecordVector_InsertOverflow, &v, v.end, copy, &tag, 1u, 1u);
+            }
+            CallThis<void>(addr::SC4NetworkBridgeRecord_Destruct, copy);
+        }
+        CallCdecl<void, uint32_t, Vector*, uint32_t>(addr::SC4NetworkTypeInfo_LoadBridgeLayouts, 0x1000u + s.type, &v,
+                                                     s.divisor);
+        hash.Mix(s.type);
+        for (char* r = v.begin; r != v.end; r += bridgerecord::kSize)
+            MixIntMap(hash, elements, r + bridgerecord::kMapHead);
+        // Two copies of the first record inserted before the last one.
+        {
+            const uint32_t count = static_cast<uint32_t>((v.end - v.begin) / bridgerecord::kSize);
+            alignas(4) char copy[bridgerecord::kSize] = {};
+            CallThis<char*, char*>(addr::SC4NetworkBridgeRecord_CopyConstruct, copy, v.begin);
+            uint8_t tag = 0;
+            char* const where = v.begin + (count - 1) * bridgerecord::kSize;
+            CallThis<char*, char*, char*, uint8_t*, uint32_t, uint32_t>(addr::SC4BridgeRecordVector_InsertOverflow,
+                                                                         &v, where, copy, &tag, 2u, 0u);
+            CallThis<void>(addr::SC4NetworkBridgeRecord_Destruct, copy);
+        }
+        CallThis<char*, char*, char*>(addr::SC4BridgeRecordVector_Erase, &v, v.begin, v.begin + bridgerecord::kSize);
+        hash.Mix(static_cast<uint32_t>((v.end - v.begin) / bridgerecord::kSize));
+        for (char* r = v.begin; r != v.end; r += bridgerecord::kSize) {
+            hash.Mix(Word(r, 0));
+            const GameString& name = At<GameString>(r, bridgerecord::kNameVtable);
+            MixText(hash, name.begin, name.end);
+            hash.Mix(Word(r, bridgerecord::kMapCount));
+        }
+        for (char* r = v.begin; r != v.end; r += bridgerecord::kSize)
+            CallThis<void>(addr::SC4NetworkBridgeRecord_Destruct, r);
+        GameFree(v.begin);
+    }
+    CallThis<void>(addr::SC4NetworkBridgeRecord_Destruct, fresh);
+    hash.Mix(elements.h);
+    return hash.h;
+}
+
+uint32_t DriveRul5()
+{
+    const uint32_t rul1 = DriveRul1Map();
+    const uint32_t layouts = DriveBridgeLayouts();
+    Hash total;
+    total.Mix(rul1);
+    total.Mix(layouts);
+    log::Write("autotest: ntrul: drive r5: rul1 map %08X, bridge layouts %08X, total %08X", rul1, layouts, total.h);
+    return total.h;
+}
+
 bool g_done = false;
 uint32_t g_drive = 0;
 uint32_t g_drive2 = 0;
 uint32_t g_drive3 = 0;
 uint32_t g_drive4 = 0;
+uint32_t g_drive5 = 0;
 
 void Drive(const Day& day)
 {
@@ -1895,6 +2124,7 @@ void Drive(const Day& day)
         g_drive2 = DriveRuleRecords();
         g_drive3 = DriveRul3();
         g_drive4 = DriveRul4();
+        g_drive5 = DriveRul5();
         return;
     }
 
@@ -1939,6 +2169,7 @@ void Drive(const Day& day)
     log::Write("autotest: ntrul: drive r2 %08X", g_drive2);
     g_drive3 = DriveRul3();
     g_drive4 = DriveRul4();
+    g_drive5 = DriveRul5();
 }
 
 // Once per run, a log line (never hashed) on the fields FindOrInsert's
@@ -2017,6 +2248,15 @@ void Fingerprint(cISC4City*, std::string& line)
     line += text;
     if (g_done) {
         std::snprintf(text, sizeof text, " k%08X", g_drive4);
+        line += text;
+    }
+    // Part r5, after everything of r1 to r4.
+    uint32_t bridgeRecords = 0, always = 0, property = 0;
+    BridgeRecordFieldsHash(bridgeRecords, always, property);
+    std::snprintf(text, sizeof text, " y%u:%08X/%08X", bridgeRecords, always, property);
+    line += text;
+    if (g_done) {
+        std::snprintf(text, sizeof text, " h%08X", g_drive5);
         line += text;
     }
 }
