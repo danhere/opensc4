@@ -6,6 +6,7 @@
 #include "core/netlot_sim.h"
 
 #include <cIGZIStream.h>
+#include <cIGZMessage2Standard.h>
 #include <cIGZOStream.h>
 #include <cIGZString.h>
 #include <cISC4City.h>
@@ -43,6 +44,10 @@ namespace configuration = netlot_sim::configuration;
 namespace configuration_slot = netlot_sim::configuration_slot;
 namespace city_slot = netlot_sim::city_slot;
 namespace traffic_slot = netlot_sim::traffic_slot;
+namespace piece_slot = netlot_sim::piece_slot;
+namespace occupant_slot = netlot_sim::occupant_slot;
+namespace effect_slot = netlot_sim::effect_slot;
+namespace lotobject = netlot_sim::lotobject;
 
 // An IID nobody answers, the step of the sample of cells without a network
 // piece, and where the second walk of IterateAllNetworkLots stops.
@@ -785,6 +790,436 @@ void DriveLife(char* manager)
                !object ? "left out" : second ? "made, written, read into and destroyed" : "not made", g_lifeSum);
 }
 
+// --- the third part: the lots ----------------------------------------------------------
+
+// A message of the framework's standard class (0x2C bytes from the
+// framework's operator new, the game's constructor), as
+// src/core/netmgr_autotest.cpp's: a type, its first three data words and,
+// when not null, an object to carry (the message references it and lets it
+// go when it is destroyed). It is handed straight to the manager's message
+// target (the part at +4, slot 3: the game's DoMessage or ours) and
+// released. Nothing goes through the message server, so nobody else hears
+// it. The answer is DoMessage's AL (0xFF when no message could be made).
+struct Note {
+    uint32_t type = 0;
+    uint32_t data1 = 0, data2 = 0, data3 = 0;
+    void* carried = nullptr;
+};
+uint8_t Deliver(char* manager, const Note& note)
+{
+    using NewFn = void*(__cdecl*)(std::size_t size);
+    using MessageFn = cIGZMessage2Standard*(__thiscall*)(void* memory);
+    void* const memory = reinterpret_cast<NewFn>(addr::RZ_operator_new)(0x2C);
+    cIGZMessage2Standard* const message =
+        memory ? reinterpret_cast<MessageFn>(addr::cGZMessage_cGZMessage)(memory) : nullptr;
+    if (!message)
+        return 0xFF;
+    message->AddRef();
+    message->SetType(note.type);
+    message->SetData1(static_cast<intptr_t>(note.data1));
+    message->SetData2(static_cast<intptr_t>(note.data2));
+    message->SetData3(static_cast<intptr_t>(note.data3));
+    if (note.carried)
+        message->SetIGZUnknown(static_cast<cIGZUnknown*>(note.carried));
+    const uint8_t answer =
+        Virtual<uint8_t>(manager + netlot_sim::kMessagePart, slot::kDoMessage, static_cast<void*>(message));
+    message->Release();
+    return answer;
+}
+
+// The messages the manager knows by type.
+constexpr uint32_t kUsableChanged = 0x89D3E9F3, kOccupantRemoved = 0x99EF1143, kCellsChanged = 0x07699455;
+constexpr uint32_t kLotStateChanged = 0xE8BDA2E7, kPotholeMessage = 0x69247DC8;
+// How many objects of a lot ObjectPosition is asked for, every which lot is
+// built anew, and how many cells the sub-tests pick.
+constexpr uint32_t kObjectsAsked = 4, kRedevelopStep = 50, kPicks = 3;
+// The bytes of the lot manager's static generator that the log line's
+// checksum covers (the state up to the crew's tables; never in the
+// fingerprint: the seed is the run's business).
+constexpr std::size_t kGeneratorBytes = 0x9C8;
+
+uint32_t FloatBits(float value)
+{
+    uint32_t bits = 0;
+    std::memcpy(&bits, &value, sizeof bits);
+    return bits;
+}
+
+uint32_t TablesState(char* manager)
+{
+    uint32_t state = 0;
+    for (const std::size_t table : {field::kLots, field::kConfigurations, field::kPotholes, field::kPending})
+        state = state * 31 + TableCount(manager, table);
+    return state;
+}
+
+uint32_t GeneratorState()
+{
+    Hash hash;
+    const auto* const bytes = reinterpret_cast<const uint8_t*>(addr::cSC4NetworkLotManager_Random);
+    for (std::size_t i = 0; i < kGeneratorBytes; i += 4) {
+        uint32_t word = 0;
+        std::memcpy(&word, bytes + i, sizeof word);
+        hash.Mix(word);
+    }
+    return hash.h;
+}
+
+// A cell with a network piece, in cell order (z then x), and the piece's
+// network type bits.
+struct PieceCell {
+    uint32_t x, z;
+    uint32_t types;
+};
+
+std::vector<PieceCell> PieceCells(cISC4City* city, uint32_t mask)
+{
+    std::vector<PieceCell> cells;
+    void* const traffic = Virtual<void*>(city, city_slot::kTrafficNetwork);
+    if (!traffic)
+        return cells;
+    const uint32_t sizeX = Virtual<uint32_t>(city, city_slot::kCellCountX);
+    const uint32_t sizeZ = Virtual<uint32_t>(city, city_slot::kCellCountZ);
+    for (uint32_t z = 0; z < sizeZ; ++z)
+        for (uint32_t x = 0; x < sizeX; ++x)
+            if (void* const piece = Virtual<void*>(traffic, traffic_slot::kGetPiece, x, z, mask, 1u))
+                cells.push_back({x, z,
+                                 Virtual<uint32_t>(piece, piece_slot::kGetNetworkFlags) &
+                                     netlot_sim::kNetworkTypeBits});
+    return cells;
+}
+
+// kPicks cells of a list, by their place in it (the first, then every
+// third of the way), each once.
+std::vector<PieceCell> Pick(const std::vector<PieceCell>& cells)
+{
+    std::vector<PieceCell> picked;
+    std::size_t last = cells.size();
+    for (uint32_t i = 0; i < kPicks && !cells.empty(); ++i) {
+        const std::size_t at = cells.size() * i / kPicks;
+        if (at != last)
+            picked.push_back(cells[at]);
+        last = at;
+    }
+    return picked;
+}
+
+// (1) ObjectPosition (0x0060C9B0, at its address: the game's or ours) for
+// the first four objects of every lot of the lot map that has a piece: the
+// cell key, the object's index, the three floats' bits and the rotation.
+// The function only asks the piece (its cell, rotation, height at a point
+// and flip) and reads the object, so nothing changes. An order-independent
+// count, sum and exclusive or.
+struct Positions {
+    Bag places;
+    uint32_t lots = 0, bare = 0;
+};
+void AskPositions(char* manager, Positions& positions)
+{
+    char* const table = manager + field::kLots;
+    for (char* node = netlot_sim::FirstNode(table); node; node = netlot_sim::NextNode16(table, node)) {
+        char* const networkLot = At<char*>(node, hashnode::kValue);
+        if (!Virtual<void*>(networkLot, lot_slot::kGetNetworkOccupant)) {
+            ++positions.bare;
+            continue;
+        }
+        ++positions.lots;
+        const Vector* const objects = Virtual<const Vector*>(networkLot, lot_slot::kGetObjectArray);
+        const uint32_t count = Virtual<uint32_t>(networkLot, lot_slot::kGetObjectCount);
+        for (uint32_t i = 0; i < count && i < kObjectsAsked; ++i) {
+            float place[3] = {0.0f, 0.0f, 0.0f};
+            int32_t rotation = 0;
+            CallThis<int32_t*, void*, char*, float*, int32_t*>(addr::cSC4NetworkLotManager_ObjectPosition, manager,
+                                                               networkLot,
+                                                               objects->begin + i * configuration::kObjectSize,
+                                                               &place[0], &rotation);
+            Hash hash;
+            hash.Mix(At<uint16_t>(node, hashnode::kKey));
+            hash.Mix(i);
+            for (const float value : place)
+                hash.Mix(FloatBits(value));
+            hash.Mix(static_cast<uint32_t>(rotation));
+            positions.places.Add(hash.h);
+        }
+    }
+}
+
+// The pothole the pothole map has for a cell, or null.
+void* PotholeAt(char* manager, uint32_t x, uint32_t z)
+{
+    char* const table = manager + field::kPotholes;
+    const uint16_t key = netlot_sim::CellKey(x, z);
+    for (char* node = netlot_sim::BucketHead(table, key); node; node = At<char*>(node, hashnode::kNext))
+        if (At<uint16_t>(node, hashnode::kKey) == key)
+            return At<void*>(node, hashnode::kValue);
+    return nullptr;
+}
+
+// The messages that must change nothing, each AL 1 and the four tables'
+// counts as before: a type the manager does not know; "an occupant was
+// removed" whose occupant is the manager itself (it refuses the network
+// occupant interface, so nothing is removed); "a piece's usable flag
+// changed" and "a lot's state changed" that carry the manager itself (it
+// refuses the network occupant and the lot interface; the message's
+// reference to the manager is given back when the message goes); and "a
+// pothole" that takes the pothole off a cell that has none (left out should
+// the cell have one).
+uint32_t Refusals(char* manager, uint32_t x, uint32_t z)
+{
+    Hash hash;
+    const uint32_t before = TablesState(manager);
+    const uint32_t self = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(manager));
+    std::vector<Note> notes = {{kIidNobody, 1, 2, 3, nullptr},
+                               {kOccupantRemoved, self, 0, 0, nullptr},
+                               {kUsableChanged, 1, 0, 0, manager},
+                               {kLotStateChanged, 0, 0, 0, manager}};
+    if (!PotholeAt(manager, x, z))
+        notes.push_back({kPotholeMessage, x, z, 0, nullptr});
+    for (const Note& note : notes) {
+        hash.Mix(Deliver(manager, note));
+        hash.Mix(TablesState(manager) == before);
+    }
+    return hash.h;
+}
+
+// (2) OPENSC4_TEST_NETLOT_POTHOLES=1: the pothole message for a few cells
+// with a piece of a surface network (three by their place in cell order,
+// and the first cell whose piece is rail alone, for the other name), each
+// only when the cell has no pothole: add; the pothole map's count, and of
+// the effect in the map: its name's characters, its started byte, its
+// occupant part's type, position (float bits) and whether the occupant
+// manager has it (bit 0 of its flags); add again (nothing: the cell has
+// one); remove; the count back, the cell empty, and the effect, kept alive
+// by a reference of the test's own, no longer in the occupant manager. Then
+// the test's reference is given back, which destroys the effect.
+// Off by default: a pothole is a visual effect prop that the occupant
+// manager takes in and gives up again (its insert and remove messages go
+// to every subscriber) and whose effect is started through the effects
+// manager, which may draw from the effects' generator; and the framework
+// allocates it.
+struct Potholes {
+    uint32_t cells = 0, added = 0, rail = 0, removed = 0;
+};
+uint32_t PotholeTest(char* manager, const std::vector<PieceCell>& cells, Potholes& counts)
+{
+    Hash hash;
+    std::vector<PieceCell> picked = Pick(cells);
+    for (const PieceCell& cell : cells)
+        if (cell.types == netlot_sim::kRailOnly) {
+            picked.push_back(cell);
+            break;
+        }
+    for (const PieceCell& cell : picked) {
+        if (PotholeAt(manager, cell.x, cell.z))
+            continue;
+        ++counts.cells;
+        const uint32_t before = TableCount(manager, field::kPotholes);
+        hash.Mix(cell.x);
+        hash.Mix(cell.z);
+        hash.Mix(Deliver(manager, {kPotholeMessage, cell.x, cell.z, 1, nullptr}));
+        hash.Mix(TableCount(manager, field::kPotholes) - before);
+        void* const effect = PotholeAt(manager, cell.x, cell.z);
+        hash.Mix(effect != nullptr);
+        if (!effect)
+            continue;
+        ++counts.added;
+        AddRefOf(effect);
+        const char* const nameBegin = At<const char*>(effect, effect_slot::kNameBegin);
+        const char* const nameEnd = At<const char*>(effect, effect_slot::kNameEnd);
+        hash.Mix(static_cast<uint32_t>(nameEnd - nameBegin));
+        for (const char* at = nameBegin; at != nameEnd; ++at)
+            hash.Mix(static_cast<uint8_t>(*at));
+        counts.rail += nameEnd - nameBegin == 12;
+        hash.Mix(At<uint8_t>(effect, effect_slot::kStarted));
+        void* const occupant = Virtual<void*>(effect, effect_slot::kAsOccupant);
+        hash.Mix(Virtual<uint32_t>(occupant, occupant_slot::kGetType));
+        float place[3] = {0.0f, 0.0f, 0.0f};
+        Virtual<void>(occupant, occupant_slot::kGetPosition, &place[0]);
+        for (const float value : place)
+            hash.Mix(FloatBits(value));
+        hash.Mix(Virtual<uint32_t>(occupant, occupant_slot::kGetFlags) & 1u);
+        hash.Mix(Deliver(manager, {kPotholeMessage, cell.x, cell.z, 1, nullptr}));
+        hash.Mix(TableCount(manager, field::kPotholes) - before);
+        hash.Mix(PotholeAt(manager, cell.x, cell.z) == effect);
+        hash.Mix(Deliver(manager, {kPotholeMessage, cell.x, cell.z, 0, nullptr}));
+        const bool gone = TableCount(manager, field::kPotholes) == before && !PotholeAt(manager, cell.x, cell.z);
+        counts.removed += gone;
+        hash.Mix(gone);
+        hash.Mix(At<uint8_t>(effect, effect_slot::kStarted));
+        hash.Mix(Virtual<uint32_t>(occupant, occupant_slot::kGetFlags) & 1u);
+        ReleaseOf(effect);
+    }
+    return hash.h;
+}
+
+// (3) OPENSC4_TEST_NETLOT_REDEVELOP=1: RedevelopLot (slot 12) on every 50th
+// lot in cell order (z then x; the first, the 51st, ...): the cell's street
+// props and flora are removed and the lot's objects built again, which
+// draws from the lot manager's generator once per object that has
+// candidates. Counted: the lots, and of their configurations the objects
+// that are props for the manager to build (kind 1 without flag bit 0) and
+// flora (kind 4): what BuildLotObjects is asked for, not what the managers
+// then made (the prop manager's and the flora simulator's fingerprint
+// parts show that). It changes the city for good, the same on both sides
+// as long as the draws are the same.
+struct Redeveloped {
+    uint32_t lots = 0, props = 0, flora = 0;
+};
+uint32_t RedevelopTest(cISC4City* city, char* manager, Redeveloped& counts)
+{
+    Hash hash;
+    const uint32_t sizeX = Virtual<uint32_t>(city, city_slot::kCellCountX);
+    const uint32_t sizeZ = Virtual<uint32_t>(city, city_slot::kCellCountZ);
+    uint32_t seen = 0;
+    for (uint32_t z = 0; z < sizeZ; ++z)
+        for (uint32_t x = 0; x < sizeX; ++x) {
+            char* const networkLot = Virtual<char*>(manager, slot::kGetNetworkLot, x, z);
+            if (!networkLot || seen++ % kRedevelopStep != 0)
+                continue;
+            if (!At<void*>(networkLot, lot::kOccupant))
+                continue;
+            ++counts.lots;
+            const Vector* const objects = Virtual<const Vector*>(networkLot, lot_slot::kGetObjectArray);
+            for (char* object = objects->begin; object != objects->end; object += configuration::kObjectSize) {
+                const uint8_t kind = At<uint8_t>(object, lotobject::kKind);
+                counts.props += kind == lotobject::kProp && !(At<uint8_t>(object, lotobject::kFlags) & 1);
+                counts.flora += kind == lotobject::kFlora;
+            }
+            Virtual<void>(manager, slot::kRedevelopLot, x, z, static_cast<void*>(networkLot));
+            hash.Mix(x);
+            hash.Mix(z);
+            hash.Mix(Virtual<char*>(manager, slot::kGetNetworkLot, x, z) == networkLot);
+        }
+    hash.Mix(counts.lots);
+    hash.Mix(counts.props);
+    hash.Mix(counts.flora);
+    return hash.h;
+}
+
+// (4) OPENSC4_TEST_NETLOT_CELLS=1: the cells-changed message for the
+// rectangle of one cell around each of three cells with a piece of a
+// surface network (by their place in cell order). DoMessage grows the
+// rectangle by one more cell, puts every cell of it that is inside the
+// city into the waiting set and works the set off: UpdateCell, the game's
+// UpdatePieceStyle, and UpdateLot with ConfigurationFits for every piece
+// in the 5 by 5 cells. After each: the answer, the waiting set's count (0)
+// and the lot map's count. It can change the city for good: a piece's
+// texture and style are set again from the zone and wealth around it as
+// they are now, and a lot whose configuration no longer fits is chosen
+// again (a draw).
+uint32_t CellsTest(char* manager, const std::vector<PieceCell>& cells, uint32_t& sent)
+{
+    Hash hash;
+    for (const PieceCell& cell : Pick(cells)) {
+        int32_t rectangle[4] = {static_cast<int32_t>(cell.x) - 1, static_cast<int32_t>(cell.z) - 1,
+                                static_cast<int32_t>(cell.x) + 1, static_cast<int32_t>(cell.z) + 1};
+        const uint32_t where = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&rectangle[0]));
+        hash.Mix(Deliver(manager, {kCellsChanged, 0, where, 0, nullptr}));
+        hash.Mix(TableCount(manager, field::kPending));
+        hash.Mix(TableCount(manager, field::kLots));
+        ++sent;
+    }
+    return hash.h;
+}
+
+// (5) OPENSC4_TEST_NETLOT_STYLES=1: UpdateConnectedPieces (0x0060EF40, at
+// its address: the game's or ours) on three cells that have a piece with
+// the network flag 0x40 (the pieces UpdatePieceStyle hands to it; by their
+// place in cell order). After each: the piece's style byte (its slot 28)
+// and under texture (the word at +0x100), the waiting set's count and the
+// lot map's count. It sets the texture and the style of every usable piece
+// of the connected group and may choose lots again (draws), so it changes
+// the city for good.
+uint32_t StylesTest(cISC4City* city, char* manager, const std::vector<PieceCell>& cells, uint32_t& called)
+{
+    Hash hash;
+    void* const traffic = Virtual<void*>(city, city_slot::kTrafficNetwork);
+    for (const PieceCell& cell : Pick(cells)) {
+        CallThis<void, uint32_t, uint32_t>(addr::cSC4NetworkLotManager_UpdateConnectedPieces, manager, cell.x, cell.z);
+        ++called;
+        hash.Mix(cell.x);
+        hash.Mix(cell.z);
+        if (void* const piece = Virtual<void*>(traffic, traffic_slot::kGetPiece, cell.x, cell.z,
+                                               netlot_sim::kGroupedNetworkFlag, 1u)) {
+            hash.Mix(Virtual<uint8_t>(piece, piece_slot::kGetVariation));
+            hash.Mix(At<uint32_t>(piece, piece_slot::kUnderTexture));
+        }
+        hash.Mix(TableCount(manager, field::kPending));
+        hash.Mix(TableCount(manager, field::kLots));
+    }
+    return hash.h;
+}
+
+// The third part's calls of the drive, with a checksum (the fingerprint's
+// ` lots` field, after ` life`) and a log line of their own. Always:
+// ObjectPosition over every lot (AskPositions) and the messages that change
+// nothing (Refusals). Each behind its own switch, off by default, because
+// it leaves a trace in the city: the potholes (OPENSC4_TEST_NETLOT_POTHOLES),
+// RedevelopLot on every 50th lot (OPENSC4_TEST_NETLOT_REDEVELOP), the
+// cells-changed message (OPENSC4_TEST_NETLOT_CELLS) and
+// UpdateConnectedPieces (OPENSC4_TEST_NETLOT_STYLES). The log line also has
+// a checksum of the lot manager's static generator before and after (not in
+// the fingerprint): it moves exactly when something drew.
+uint32_t g_lotsSum = 0;
+
+void DriveLots(cISC4City* city, char* manager)
+{
+    Hash lots;
+    const uint32_t generatorBefore = GeneratorState();
+    Positions positions;
+    AskPositions(manager, positions);
+    lots.Mix(positions.places.count);
+    lots.Mix(positions.places.sum);
+    lots.Mix(positions.places.mixed);
+    lots.Mix(positions.lots);
+    lots.Mix(positions.bare);
+    const std::vector<PieceCell> surface = PieceCells(city, netlot_sim::kSurfaceMask);
+    const uint32_t refusals =
+        Refusals(manager, surface.empty() ? 0 : surface.front().x, surface.empty() ? 0 : surface.front().z);
+    lots.Mix(refusals);
+    lots.Mix(GeneratorState() == generatorBefore);
+
+    const bool withPotholes = EnvInt("OPENSC4_TEST_NETLOT_POTHOLES", 0) != 0;
+    const bool withRedevelop = EnvInt("OPENSC4_TEST_NETLOT_REDEVELOP", 0) != 0;
+    const bool withCells = EnvInt("OPENSC4_TEST_NETLOT_CELLS", 0) != 0;
+    const bool withStyles = EnvInt("OPENSC4_TEST_NETLOT_STYLES", 0) != 0;
+    Potholes potholes;
+    uint32_t potholeSum = 0;
+    if (withPotholes) {
+        potholeSum = PotholeTest(manager, surface, potholes);
+        lots.Mix(potholeSum);
+    }
+    Redeveloped redeveloped;
+    uint32_t redevelopSum = 0;
+    if (withRedevelop) {
+        redevelopSum = RedevelopTest(city, manager, redeveloped);
+        lots.Mix(redevelopSum);
+    }
+    uint32_t cellsSent = 0, cellsSum = 0;
+    if (withCells) {
+        cellsSum = CellsTest(manager, surface, cellsSent);
+        lots.Mix(cellsSum);
+    }
+    uint32_t grouped = 0, stylesCalled = 0, stylesSum = 0;
+    if (withStyles) {
+        const std::vector<PieceCell> pieces = PieceCells(city, netlot_sim::kGroupedNetworkFlag);
+        grouped = static_cast<uint32_t>(pieces.size());
+        stylesSum = StylesTest(city, manager, pieces, stylesCalled);
+        lots.Mix(stylesSum);
+    }
+    g_lotsSum = lots.h;
+    log::Write("autotest: netlot: lots: positions %u of %u lots (%u without a piece) %08X,%08X; refusals %08X; "
+               "potholes %s: %u cells, %u added (%u rail), %u removed, %08X; redevelop %s: %u lots, %u prop and %u "
+               "flora objects, %08X; cells %s: %u messages, %08X; styles %s: %u cells with a grouped piece, %u "
+               "calls, %08X; surface cells %u; generator %08X -> %08X; lots %08X",
+               positions.places.count, positions.lots, positions.bare, positions.places.sum, positions.places.mixed,
+               refusals, withPotholes ? "on" : "left out", potholes.cells, potholes.added, potholes.rail,
+               potholes.removed, potholeSum, withRedevelop ? "on" : "left out", redeveloped.lots, redeveloped.props,
+               redeveloped.flora, redevelopSum, withCells ? "on" : "left out", cellsSent, cellsSum,
+               withStyles ? "on" : "left out", grouped, stylesCalled, stylesSum,
+               static_cast<unsigned>(surface.size()), generatorBefore, GeneratorState(), g_lotsSum);
+}
+
 // OPENSC4_TEST_NETLOT=<day>: once. GetNetworkLotConfigurationSet twice into
 // one set (the second call empties a set that is not empty), then
 // SetLotConfigurationForNextPiece (slot 13) with the configuration of the
@@ -794,7 +1229,7 @@ void DriveLife(char* manager)
 // +0x34 is what was set, and how far the configuration's reference count is
 // from where it began (never the count itself). The function references
 // the new one and releases the old one, so every count ends where it began.
-// Then the second part's calls (DriveLife).
+// Then the second part's calls (DriveLife) and the third part's (DriveLots).
 void Drive(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_NETLOT") || !game::IsBuild641() || g_ran)
@@ -863,6 +1298,7 @@ void Drive(const Day& day)
                g_setSum, collected ? "made" : "not made", counts.first, counts.second, before ? "one" : "none",
                chosenId, steps, afterSet, afterAgain, afterNull);
     DriveLife(manager);
+    DriveLots(day.city, manager);
 }
 
 // The fingerprint part, everything through the manager's vtable (the game's
@@ -894,8 +1330,8 @@ void Drive(const Day& day)
 //   byid   GetNetworkLotConfigurationById: the IDs asked (of the lots and
 //          of the set), how many it knew, how many of two strangers it
 //          knew, and whether its second argument's word was left alone
-// and after OPENSC4_TEST_NETLOT's day ` set <checksum> life <checksum>`
-// (` set none` when the drive found no manager).
+// and after OPENSC4_TEST_NETLOT's day ` set <checksum> life <checksum> lots
+// <checksum>` (` set none` when the drive found no manager).
 void Fingerprint(cISC4City* city, std::string& line)
 {
     char* const manager = Manager(city);
@@ -945,7 +1381,7 @@ void Fingerprint(cISC4City* city, std::string& line)
     line += text;
     if (g_ran) {
         if (g_driven)
-            std::snprintf(text, sizeof text, " set %08X life %08X", g_setSum, g_lifeSum);
+            std::snprintf(text, sizeof text, " set %08X life %08X lots %08X", g_setSum, g_lifeSum, g_lotsSum);
         else
             std::snprintf(text, sizeof text, " set none");
         line += text;
