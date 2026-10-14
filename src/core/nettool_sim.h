@@ -402,6 +402,75 @@ inline constexpr int kUpdateOnZoneChange = 10, kGetPreferredBridge = 31, kSetPre
 inline constexpr int kDoNetworkSpecificPlacement = 53;
 } // namespace slot_index
 
+// === The third part (nettool_life.cpp) =====================================
+// The fields the constructor, Init, Shutdown, Reset and the destructor
+// touch beyond the ones above (offsets from the tool's start):
+//   +0x08 a pointer the destructor frees (the constructor clears it)
+//   +0xF0 the rule cell records (vector of 0x14; Reset empties it through
+//         0x00624070), +0xE4, +0x100 vectors the destructor frees
+//   +0x210 a preview list object (ClearCellPreviews frees it: +0x10 a
+//         vtable it resets to 0x00A86364, +0x14 a count, +0x20 an array of
+//         that many objects from operator new)
+//   +0x214 / +0x218 the cell previews' tree (head node, count; nodes hold
+//         an object at +0x10 whose slot 0x44 ClearCellPreviews calls with
+//         two zeros), +0x228 / +0x22C the highlighted occupants' tree (nodes
+//         hold a referenced occupant at +0x10)
+//   +0x238 float the terrain's slot 0x18, +0x23C tan(+0x2A8) * +0x238
+//   +0x248, +0x24C the vertices per row and per column (cells + 1);
+//         +0x250 to +0x28C sixteen words Init derives from them (inf: the
+//         vertex index steps of the four corners)
+//   +0x2A8 a float of the placement parameters (their +0x18)
+//   +0x33C, +0x348 the indices of the type's bridge records whose byte
+//         +0x99 and +0x98 is set (vectors of uint32; 0x0062F9D0)
+namespace life {
+inline constexpr std::size_t kFreedPointer = 0x08, kRuleCells = 0xF0, kVectorE4 = 0xE4, kVector100 = 0x100;
+inline constexpr std::size_t kPreviewList = 0x210, kCellPreviews = 0x214, kHighlights = 0x228;
+inline constexpr std::size_t kTerrainScale = 0x238, kTerrainTan = 0x23C, kVerticesX = 0x248, kVerticesZ = 0x24C;
+inline constexpr std::size_t kVertexSteps = 0x250, kAngle = 0x2A8;
+inline constexpr std::size_t kBridgesBy99 = 0x33C, kBridgesBy98 = 0x348;
+inline constexpr uint32_t kRefreshMessage = 0xA6B79602;
+inline constexpr std::size_t kTreeNodeSize = 0x14; // the tool's two trees' head nodes
+inline constexpr std::size_t kSatisfierSize = 0x64;
+inline constexpr uint32_t kTempOccupantSize = 0x180, kUIToolSize = 0x134, kFilterSize = 0x10;
+// What Init gives the render service's slot 0x80 with the preview drawable.
+inline constexpr uint32_t kPreviewLayer = 5, kPreviewPriority = 1000;
+// The vtables the constructors write before their final ones, and the one
+// ClearCellPreviews writes into the preview list.
+inline constexpr std::uintptr_t kToolFirstMessageVtable = 0x00A81174, kPreviewFirstVtable = 0x00A881C0;
+inline constexpr std::uintptr_t kPreviewListVtable = 0x00A86364;
+} // namespace life
+
+// A bridge record's two bytes 0x0062F9D0 sorts by.
+namespace bridge_kind {
+inline constexpr std::size_t kByte98 = 0x98, kByte99 = 0x99;
+} // namespace bridge_kind
+
+// The preview drawable (0x58 bytes, constructor 0x00620AD0, made by Init and
+// kept at +0x1F0, registered with the render service 0x00B43DD0 at layer 5).
+// +0x0 its own vtable 0x00AA8314, +0x4 a cRZBaseUnknown part (vtable
+// 0x00AA82FC, the reference count at +0x8), +0xC a material object made by
+// the render state setup 0x0061FD10 (released when +0x54 is set), +0x10 /
+// +0x14 a tree of cell nodes (0x7C bytes; head and count), +0x1C / +0x20 a
+// tree of textured nodes (0x80 bytes; a texture binding at +0x7C), +0x28 to
+// +0x44 four 8-byte render states the setup fills (0x007D2B50), +0x48 to
+// +0x53 bytes of render state, +0x54 the setup has run. Its drawing
+// (0x0061FD10, 0x00620160, 0x00620500) stays the game's.
+namespace preview {
+inline constexpr std::size_t kSize = 0x58, kBase = 0x4, kMaterial = 0xC;
+inline constexpr std::size_t kCells = 0x10, kTextured = 0x1C, kStates = 0x28, kStatesEnd = 0x48;
+inline constexpr std::size_t kSetUp = 0x54;
+inline constexpr std::size_t kCellNodeSize = 0x7C, kTexturedNodeSize = 0x80, kTexture = 0x7C;
+} // namespace preview
+
+// A tree as the game's STL keeps it (the tool's and the drawable's): the
+// object is +0x0 the head node, +0x4 the count; a node is +0x0 its colour,
+// +0x4 the parent, +0x8 the left child, +0xC the right child, +0x10 the
+// value (the head: +0x4 the root, +0x8 the leftmost, +0xC the rightmost).
+namespace tree {
+inline constexpr std::size_t kHead = 0x0, kCount = 0x4;
+inline constexpr std::size_t kParent = 0x4, kLeft = 0x8, kRight = 0xC, kValue = 0x10;
+} // namespace tree
+
 // What other objects the first part calls. The occupant manager (+0x48):
 // the first occupant of a cell that passes a filter (out, x, z, filter;
 // 0x0049E690, ret 0x10; AL, the occupant referenced). A string (cIGZString,
