@@ -1,6 +1,6 @@
 # The city view's tools
 
-The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool, the level terrain tool, the dispatch tool, the sign removal tool, the Life tool, the label tool, the sign tool, the terraform tool and the obliterate tool. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
+The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool, the level terrain tool, the dispatch tool, the sign removal tool, the Life tool, the label tool, the sign tool, the terraform tool, the obliterate tool, the effect trigger tool, the common disaster tool and the fire (torch) disaster tool. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
 
 | Tool | State |
 | --- | --- |
@@ -18,6 +18,9 @@ The view input controls that the city view makes current while the player holds 
 | Sign tool | ours (`ui.tools.signtext`, below) |
 | Terraform tool | ours (`ui.tools.brush`, below) |
 | Obliterate tool | ours (`ui.tools.obliterate`, below) |
+| Effect trigger tool | ours (`ui.tools.disaster_effect`, below) |
+| Common disaster tool | ours (`ui.tools.disaster`, below) |
+| Fire (torch) disaster tool | ours (`ui.tools.disaster_fire`, below) |
 | Base class | ours (`ui.tools.base`, below) |
 
 ## The tool classes
@@ -36,7 +39,7 @@ Every city tool is a view input control: a class on the base class below, with a
 | Mission icon click control (a persistent control the view makes at city load, 0x007ED0F0) | 0x004B8690 | 0x00A900D8 | 0x3C | 0x004B84B0 to 0x004B8822 | 9 | ours (`ui.tools.small1`, below) |
 | Bulldoze | 0x004B9070 | 0x00A901A0 | 0xD8 | 0x004B8830 to 0x004B9D56 | 18 | ours (`ui.tools.bulldoze`, below) |
 | Dispatch tool (police and fire dispatch) | 0x004BA7D0 | 0x00A90268 | 0x90 | 0x004B9D60 to 0x004BABC0 | 15 | ours (`ui.tools.dispatch`, below) |
-| Effect trigger tool, the base of the common disaster tool (strings _button_trigger, _trigger; never made by itself) | 0x004BAF60 | 0x00A902E0 | | 0x004BABE0 to 0x004BB8FD | 13 | still the game's |
+| Effect trigger tool, the base of the common disaster tool (strings _button_trigger, _trigger; never made by itself) | 0x004BAF60 | 0x00A902E0 | | 0x004BABE0 to 0x004BB8FD | 13 | ours (`ui.tools.disaster_effect`, below) |
 | Flora (plant trees) tool | 0x004BB900 | 0x00A903B8 | 0x50 | 0x004BB900 to 0x004BBE41 | 7 | ours (`ui.tools.small2`, below) |
 | Life tool (Conway's Game of Life, made by the cheat GOL) | 0x004BC310 | 0x00A90458 | 0x88 | 0x004BBE50 to 0x004BC975 | 16 | ours (`ui.tools.cellpaint`, below) |
 | Label tool (text decals on the ground, command 0x0B980587) | 0x004BD230 | 0x00A90528 | 0x44 | 0x004BC980 to 0x004BDAFC | 16 | ours (`ui.tools.decal`, below) |
@@ -49,14 +52,14 @@ Every city tool is a view input control: a class on the base class below, with a
 | Cheat tool (building footprint) | 0x004D9E80 | 0x00A92AC0 | 0x38 | 0x004D9E50 to 0x004DA593 | 6 | partly ours: four functions in `ui.tools.zone`; the footprint drawing (0x004D9EE0) and OnMouseMove (0x004DA1B0) stay the game's |
 | Zone | 0x004DAE80 | 0x00A92CA8 | 0x98 | 0x004DA5A0 to 0x004DC1A0 | 25 | ours (`ui.tools.zone`, below) |
 | U-Drive-It driving control (made by the park automaton 0x00506850, not by the view) | 0x00565480 | 0x00A9D9B0 | 0xC0 | 0x00562C90 to 0x00566D55 | 45 | still the game's |
-| Fire (torch) disaster tool | 0x005805C0 | 0x00A9EB40 | 0x80 | 0x00580510 to 0x00580B46 | 13 | still the game's |
-| Common disaster tool, on the effect trigger tool | 0x00580220 | 0x00A9EAA0 | 0xB4 | 0x00580220 to 0x005804F4 | 7 | still the game's |
+| Fire (torch) disaster tool | 0x005805C0 | 0x00A9EB40 | 0x80 | 0x00580510 to 0x00580B46 | 13 | ours (`ui.tools.disaster_fire`, below) |
+| Common disaster tool, on the effect trigger tool | 0x00580220 | 0x00A9EAA0 | 0xB4 | 0x00580220 to 0x005804F4 | 7 | ours (`ui.tools.disaster`, below) |
 | Network intersection placement tool | 0x00661130 | 0x00AAAF20 | 0x90 | 0x00660C30 to 0x00661D5F | 11 | networks (not part of this work) |
 | Network drawing tool (13 kinds, one per network type) | 0x006620A0 | 0x00AAB008 | 0x58 | 0x00661DC0 to 0x006625E9 | 10 | networks (not part of this work) |
 
 The network tools are the last two rows, at 0x00660C30 to 0x006625F0. The range 0x004C3730 to 0x004D767F belongs to the query tool.
 
-The classes that are not ours, apart from the two network tools, come to about 302 functions and 97 KB, of which the query tool is 223 functions and 78 KB. The 97 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions) and about 9 KB for the terraform and obliterate tools (40 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
+The classes that are not ours, apart from the two network tools, come to about 269 functions and 91 KB: the query tool (223 functions, 78 KB), the U-Drive control (45 functions) and the two functions of the cheat tool that stay the game's. The 91 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions), about 9 KB for the terraform and obliterate tools (40 functions) and about 6 KB for the three disaster tools (33 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
 
 ## The base class
 
@@ -1467,3 +1470,173 @@ The hashes leave out every pointer (only whether it is set), the two stopwatches
 2026-10-13, 7 days on Making Money d0090, Big City d0000 and Rush Hour d0090, four cases (the test alone, the test switch set to a day that never comes as the unchanged-city reference, the test with the commit, the test with the wipe), each as the original twice, with all groups ours and with only the T5 groups ours. 48 runs, all equal in every cell. The commit leg: the paid scrub spends 30 and the second press 10. The obliterate leg: 20 blocks swept, then the wipe; lots 429 to 16, 3569 to 12, 451 to 13 on the three saves.
 
 Parity (batch t5b1, 7 days): plain 11 of 12 and 1 failed, test 11 of 12 and 1 failed, test with commit 11 of 12 and 1 partly, test with obliterate 12 of 12, plopped with commit 3 of 3. The three odd pairs were all a d0365 save and none repeated: in the plain leg a run with our groups exited silently while Making Money d0365 loaded, before any day ran; in the test leg a run of the original died on the first day of Rush Hour d0365; in the commit leg on Rush Hour d0365 only the prop developer's list differed, in the known swapped pair 0x2977AA47 and 0x2977AA49. Each of the three pairs was run again on the same build and was the same on its first pair. All 81 logs of the legs with the test say the message 0xEA65224E came 0 times.
+
+## The disaster tools
+
+Three classes the view makes when the player starts a disaster from the disaster menu: the effect trigger tool, the common disaster tool built on it, and the fire (torch) disaster tool. 33 functions in three groups, off by default, PostAppInit. Nothing in the three ranges draws and nothing was fenced. The disaster managers they talk to are described in [disasters.md](disasters.md).
+
+The maker is the view's StartDisaster (0x007E9DB0, ours, `ui_cityview_2.cpp`), run from the view command 0x4A2B2464 with the disaster's ID:
+
+- ID 0xA9DE8784 makes the torch tool.
+- Any other ID loads the exemplar {0x6534284A, 0x29B6C670, id} and makes the common disaster tool. If property 0x4A08C700 exists, SetEffectName (0x004BB590) gets it; otherwise SetEffectNumber (0x004BB160) gets property 0x4A08C702. Then SetDisasterType (0x00580460) is called if property 0x4A08C701 is not 0.
+
+The effect trigger tool is never made by itself.
+
+### The effect trigger tool
+
+0x004BAF60 is the constructor (our name `SC4EffectTool::Construct`); main vtable 0x00A902E0 with 31 slots; code 0x004BABE0 to 0x004BB8FD; 13 functions; group `ui.tools.disaster_effect` (src/core/tool_effect.cpp). The constructor builds the first 0xA4 bytes of the common disaster tool's 0xB4.
+
+It holds five effects from the effects manager, found by name plus suffix or by number and kind:
+
+| Offset | Suffix | Kind | Use |
+| --- | --- | --- | --- |
+| +0x90 | `_button` | 5 | started when the tool takes it |
+| +0x94 | `_control` | 7 | what slot 30 (Switch) starts and stops |
+| +0x98 | `_single` | 4 | started again at each press |
+| +0x9C | `_active` | 1 | runs during a press |
+| +0xA0 | `_inactive` | 2 | follows the pointer between presses |
+
+When the manager knows the name, a one-shot `_trigger` effect (kind 3) also runs at each press.
+
+- **Press (OnMouseDownL).** Picks the ground, captures the mouse and records at +0x2A whether a control effect exists and is not running.
+- **Release (OnMouseUpL).** Calls slot 30 with 1 when +0x2A is set, otherwise slot 30 with 0 when modifier bit 2 is set.
+- The tool touches no city state. The object layout is in the layout comment of the source.
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| Init | 0x004BABE0 | 3 |
+| Shutdown | 0x004BAC30 | 4 |
+| OnMouseMove (ret 0xC) | 0x004BAD30 | 20 |
+| OnMouseUpL (ret 0xC) | 0x004BAE20 | 18 |
+| OnMouseExit | 0x004BAF00 | 22 |
+| Switch (ret 4) | 0x004BAF20 | 30 |
+| Constructor | 0x004BAF60 | |
+| Destructor body | 0x004BB0B0 | |
+| Deleting destructor | 0x004BB140 | 26 |
+| SetEffectNumber | 0x004BB160 | |
+| Trigger (ret 4) | 0x004BB360 | |
+| OnMouseDownL (ret 0xC) | 0x004BB410 | 16 |
+| SetEffectName | 0x004BB590 | |
+
+### The common disaster tool
+
+Vtable 0x00A9EAA0 (31 slots), object 0xB4 bytes, constructor 0x00580220, code 0x00580220 to 0x005804F4, 7 functions, group `ui.tools.disaster` (src/core/tool_disaster.cpp). It calls the effect tool's functions by address, so it works with or without `ui.tools.disaster_effect`.
+
+- Init takes the effect disaster's manager (0x6A7B4397).
+- Slot 30 with 1 asks the manager for its effect part (0xCA7B3F3C) and calls the part's slot 3 with the control effect, the place and the type. The result is an effect disaster instance, kept at +0xB0, and the disaster layer is told that a disaster began. Slot 30 with 0 ends that instance.
+- With a type given by the view (+0xA4), every successful release also calls the type manager's slot 6 with the pick's x and z. They are in metres, truncated to integers, where the manager takes cells. A run confirmed it: with the pointer at 0.5 m and 62.7 m, the "cell" was 0,62. Kept as the game has it.
+- Shutdown drops the control effect without stopping it (kept).
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| Constructor | 0x00580220 | |
+| Init | 0x00580290 | 3 |
+| Shutdown | 0x00580300 | 4 |
+| OnMouseUpL (ret 0xC) | 0x00580370 | 18 |
+| Switch (ret 4) | 0x005803D0 | 30 |
+| SetDisasterType | 0x00580460 | |
+| Deleting destructor | 0x005804B0 | 26 |
+
+The shipped exemplars of group 0x29B6C670 (12 of them):
+
+| Instance | Disaster | Type | Effects |
+| --- | --- | --- | --- |
+| 1 | volcano | 0xC4C90997 | control, active, inactive |
+| 2 | earthquake | 0x42963812 | active, inactive |
+| 3 | by effect number 1 | 0x4A1332E8 (pipe burst) | none |
+| 4 | by effect number 1 | none | none |
+| 5 | MeteorStrike | 0x6A6D0EE7 | control, active, inactive |
+| 6 | tornado | 0x02963821 | control, active, inactive |
+| 7 | LightningStrike | none | active, inactive (`_trigger` is known) |
+| 0x0A760F65 | robot_attack | 0xCA9C3DA7 | control, active, inactive |
+| 0x0C059A77 | tsaurus_attack | 0x6A6D0EE7 | control, active, inactive |
+| 0x4A38206D | by effect number 1 | none | none |
+| 0x4B9547F1 | ufo | 0x6A6D0EE7 | control, active, inactive |
+| 0xC9B6B73D | fire tuning | | no tool |
+
+Only the volcano, the earthquake and the pipe burst have a manager of their own type (+0xA4 = 1). For the others the type goes to the effect disaster.
+
+### The torch tool
+
+Vtable 0x00A9EB40 (30 slots), message target part at +0x28 with vtable 0x00A9EB30, object 0x80 bytes, constructor 0x005805C0, code 0x00580510 to 0x00580B46, 13 functions, group `ui.tools.disaster_fire` (src/core/tool_torch.cpp).
+
+- Init queries the fire manager (0x621CDA33) for its part 0x49B43F57, kept at +0x2C.
+- A press over ground lights the torch, subscribes the +0x28 target to the frame service, calls the part's slot 5 StartFireAt(cell x, cell z, byChance 0, forced 1, group 0) and the part's slot 9 with 1, and sets the cursor 0x0A08C54E.
+- A move with modifier 0x10 lights a torch that is out. While it burns the tool keeps the pointer's cell at +0x40 and +0x44.
+- Every frame message (0x86AD10EE) while burning calls StartFireAt(the kept cell, byChance 1, forced 1, group 0). How many fires a held torch starts therefore depends on real frame time.
+- Release unsubscribes and puts the torch out. The tool never captures the mouse.
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| DoMessage | 0x00580510 | 3 of the part at +0x28 |
+| PlaySound (ret 0x10) | 0x00580550 | |
+| Constructor | 0x005805C0 | |
+| Deleting destructor | 0x00580630 | 26 |
+| Init | 0x00580660 | 3 |
+| SetBurning (ret 4) | 0x005806D0 | |
+| MoveTorch | 0x00580760 | |
+| DropTorch | 0x005807F0 | |
+| Shutdown | 0x00580840 | 4 |
+| OnMouseDownL (ret 0xC) | 0x005808B0 | 16 |
+| OnMouseUpL (ret 0xC) | 0x005809D0 | 18 |
+| OnMouseMove (ret 0xC) | 0x00580A30 | 20 |
+| OnMouseExit | 0x00580B00 | 22 |
+
+### Clocks and random numbers
+
+- The stopwatch at +0x68 is real time. It feeds only a number passed to three sounds.
+- A random generator at +0x48 is constructed from the clock and never used. Ours constructs it under `fixed_seed::SiteOverride(0x0058060F)`.
+
+### Behaviour as the game has it
+
+- The torch's press does not set the kept cell. Frame messages right after a press fire at the cell of the last drag, which is 0,0 in a new tool.
+- The torch's destructor releases nothing.
+- The common tool's metres-as-cells call and the unstopped control effect at Shutdown (above).
+
+### Left the game's
+
+- 0x00580500, a 5-byte jump to the base QueryInterface, shared with other classes. It is not hooked.
+- The base class's functions (see "The base class"), the effects manager and the effects, the disaster managers, the fire manager and its part, the frame service, the sound service.
+- No wrapper in `src/core/game_*.cpp` touches these ranges.
+- Checks on the translation: ret N of every hooked function and of every virtual callee (the effect interface vtable 0x00AA1170, the effects manager 0x00A9F264, the city 0x00A87620), and no caller relies on ECX or EDX after any hooked function, so no naked thunks.
+
+## The disaster tools: test
+
+`OPENSC4_TEST_TOOLS6=<day>` (src/core/tool_t6_autotest.cpp, token ` tools6 <hash>` in the fingerprint line, details on the log lines `autotest: tools6: ...`). Without any further switch the test leaves the city as it was.
+
+Switches:
+
+- `OPENSC4_TEST_TOOLS6_PARTS=<bits>`: 1 the common tool, 2 the torch.
+- `OPENSC4_TEST_TOOLS6_COMMIT=1` with `OPENSC4_TEST_TUTORIAL_OFF=1` changes the city. The camera-to-disaster option is turned off first.
+- `OPENSC4_TEST_TOOLS6_LEGS=<bits>`: 1 torch, 2 effect disaster, 4 typed. The default is 7.
+- `OPENSC4_TEST_TOOLS6_FRAME=1`: one hand-made frame message to a burning torch, log only.
+
+What the parts do:
+
+1. Common tool: enumerates the exemplar group and makes each of the 11 tools through the view's StartDisaster. It hashes the fields after making, then runs an off-ground move, press, release and exit, moves over a 17 by 16 screen grid, and puts the tool away through view slot 0x68. There is no press on the ground at this level: a press starts effects that, for the meteor, the lightning and the like, are the disaster itself.
+2. Torch: the fields, moves, exit and release; MoveTorch, SetBurning and DropTorch by address; a frame message while the torch is not burning.
+3. Commit leg, torch: a press and an immediate release until the layer counts a disaster (one forced fire).
+4. Commit leg, effect disaster: with MeteorStrike, press and release make the instance and the layer count rises by 1. The test ends it the day after with a new tool's slot 30 with 0, so the fingerprint shows two token values.
+5. Commit leg, typed: with the pipe burst exemplar.
+
+### Finding: ending an effect disaster in the step that started it
+
+Ending the effect disaster (slot 30 with 0) in the same test step that started it makes the ORIGINAL game exit silently within the day (Making Money d0090). Holding a reference to the instance did not cure it; ending a day later is fine. The cause is not established. The test ends it a day later and keeps one reference to the instance on purpose.
+
+### Not reached
+
+- Trigger (0x004BB360) and the press's trigger branch (only LightningStrike knows `_trigger`).
+- The base's own slot 30 (0x004BAF20). The common tool overrides it, so the game cannot reach it either.
+- OnMouseUpL's modifier-bit-2 branch (0x004BAE20) and a press that finds the control effect running.
+- A typed start that starts something (the volcano and earthquake tools were made and moved, never released).
+- The torch's DoMessage while burning, lighting by a move with modifier 0x10, and the kept cell.
+- The destructors of a tool that is still inited.
+- No coverage run was made.
+
+### Trial results
+
+2026-10-13, Making Money d0090, Big City d0000 and Rush Hour d0090, sides original twice, all groups ours, and only the base and the three disaster groups ours: 36 runs, all finished. The test alone and the plain leg were identical on all sides, and the city equals the never-run reference. The commit leg was identical on Big City and Rush Hour; on Making Money one run of the original differed from the other three in the `adv` part only, and its rerun matched.
+
+Per save, the commit leg's torch fire was at cell 109,37 (Making Money), 21,98 (Big City) and 61,67 after 2 presses (Rush Hour). The pipe burst leg took nothing (the layer was unchanged) on Making Money and Big City and was skipped on Rush Hour, which has no ground point whose metres are cells.
+
+Parity (batch t6b1, 7 days): plain 12 of 12, test 12 of 12, test with commit and the tutorial off 12 of 12, plopped with the test 3 of 3; every pair the same on its first run. The token was in all 54 logs of the legs with the test.

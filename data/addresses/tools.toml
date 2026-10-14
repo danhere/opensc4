@@ -2605,3 +2605,263 @@ kind = "function"
 convention = "cdecl"
 expect = "53 56 FF 15 04 03 A8 00"
 source = "Name by use. No arguments: the calling thread's data block of the statically linked C runtime (made when the thread has none); the state of rand() is the dword at +0x14 (srand 0x009EFB92 and rand 0x009EFB9F read and write it there). Left the game's; the tools5 test keeps and puts back the state around the obliterate tool's Init, which shuffles with rand()."
+
+[[entry]]
+name = "SC4EffectTool::Vtable"
+address = 0x00A902E0
+kind = "data"
+source = "Name ours. Main vtable of the effect trigger tool (a view input control, 31 slots, the base of the common disaster tool; constructor 0x004BAF60, never made by itself): Init 0x004BABE0 at slot 3, Shutdown 0x004BAC30 at 4, OnMouseDownL 0x004BB410 at 16, OnMouseUpL 0x004BAE20 at 18, OnMouseMove 0x004BAD30 at 20, 0x004BAF00 at 22, the deleting destructor 0x004BB140 at 26, 0x004BAF20 at 30; every other slot the base's or a shared stub."
+
+[[entry]]
+name = "SC4::Global21804"
+address = 0x00B21804
+kind = "data"
+source = "Name ours. A dword (0 in the file image, past the initialised data) the effect trigger tool's constructor copies into its place at +0x2C to +0x34 (and into its block before setting it)."
+
+[[entry]]
+name = "SC4EffectTool::Init"
+address = 0x004BABE0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 3, no arguments: unless inited, the base Init, the effects manager (0x00B43D1C) kept at +0x70 (referenced) and +0x29 cleared; returns true. Ours in ui.tools.disaster_effect (src/core/tool_effect.cpp)."
+
+[[entry]]
+name = "SC4EffectTool::Shutdown"
+address = 0x004BAC30
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 04 33"
+source = "Name ours. Slot 4, no arguments: when inited, a press ended (EndCapture), the effects manager let go, the five effects at +0x90, +0x9C, +0xA0, +0x98, +0x94 stopped (slot 4 with 0) and let go, the base Shutdown; returns true. Ours in ui.tools.disaster_effect."
+
+[[entry]]
+name = "SC4EffectTool::OnMouseMove"
+address = 0x004BAD30
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 4E 1C 8B"
+source = "Name ours. Slot 20, (x, z, modifiers), ret 0xC: the view's pick (slot 0x90 with the byte +0x8F) into +0x2C and the block at +0x38; the effects told the place; off the ground the inactive effect stopped; returns true. Ours in ui.tools.disaster_effect."
+
+[[entry]]
+name = "SC4EffectTool::OnMouseUpL"
+address = 0x004BAE20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 28 84 C0"
+source = "Name ours. Slot 18, (x, z, modifiers), ret 0xC: false without a press (+0x28); else the active effect stopped, the inactive one started, the control and button effects told a value of 0, slot 30 with 1 when the control effect was not running at the press (+0x2A) or with 0 for modifier bit 2, EndCapture; returns true. Ours in ui.tools.disaster_effect."
+
+[[entry]]
+name = "SC4EffectTool::OnMouseExit"
+address = 0x004BAF00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 8E A0 00 00"
+source = "Name ours. Slot 22, no arguments: the inactive effect stopped, then a jump to the base's stub 0x00648EF0 (false). Ours in ui.tools.disaster_effect."
+
+[[entry]]
+name = "SC4EffectTool::Switch"
+address = 0x004BAF20
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 56 8B"
+source = "Name ours. Slot 30, (bool on), the callee pops 4: the control effect (+0x94, not checked) told the block and started (slot 3 with 0), or stopped (slot 4 with 0); ends in a jump to the effect's slot. Ours in ui.tools.disaster_effect."
+
+[[entry]]
+name = "SC4EffectTool::Construct"
+address = 0x004BAF60
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 B7 03 14"
+source = "Name ours. No arguments, returns this: constructor of the effect trigger tool (vtable 0x00A902E0; 0xA4 bytes of the common disaster tool's 0xB4): the block at +0x38 a unit rotation with scale 1, an empty string at +0x74, the effects 0. Only the common disaster tool's constructor 0x00580220 calls it. Ours in ui.tools.disaster_effect."
+
+[[entry]]
+name = "SC4EffectTool::Destruct"
+address = 0x004BB0B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. No arguments: the destructor: Shutdown when inited, the five effects let go, the name freed, the effects manager let go, the base destructor. Called by 0x004BB140 and 0x005804B0. Ours in ui.tools.disaster_effect."
+
+[[entry]]
+name = "SC4EffectTool::DeletingDestructor"
+address = 0x004BB140
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 68 FF FF FF"
+source = "Name ours. Slot 26, (flags), ret 4: 0x004BB0B0, then delete for bit 1; returns this. Ours in ui.tools.disaster_effect."
+
+[[entry]]
+name = "SC4EffectTool::Trigger"
+address = 0x004BB360
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B F1 8B 46"
+source = "Name ours. (one argument, not read), ret 4: the trigger effect made by name + _trigger (the effects manager's slot 7) or by the number at +0x88 with kind 3 (slot 6), told the block, started and let go. Ours in ui.tools.disaster_effect."
+
+[[entry]]
+name = "SC4EffectTool::OnMouseDownL"
+address = 0x004BB410
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 1C 85 C9"
+source = "Name ours. Slot 16, (x, z, modifiers), ret 0xC: false without a view; over ground the trigger effect (when +0x8E), the active effect started, the inactive stopped, the single effect started again, +0x2A whether a control effect does not run, the control and button effects told 1 and the place otherwise, BeginCapture, the cursor set again; returns true. Ours in ui.tools.disaster_effect."
+
+[[entry]]
+name = "SC4DisasterTool::Vtable"
+address = 0x00A9EAA0
+kind = "data"
+source = "Name ours. Main vtable of the common disaster tool (the effect trigger tool with a disaster manager, 0xB4 bytes, 31 slots, ID 0x6A40222A, constructor 0x00580220): Init 0x00580290 at slot 3, Shutdown 0x00580300 at 4, OnMouseUpL 0x00580370 at 18, the deleting destructor 0x005804B0 at 26, 0x005803D0 at 30; every other slot the effect trigger tool's."
+
+[[entry]]
+name = "SC4DisasterTool::Init"
+address = 0x00580290
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 3, no arguments: false when inited; else the effect trigger tool's Init, the effect disaster's manager (the city's disaster layer, slot 7 with 0x6A7B4397) kept at +0xAC (referenced), +0xA4 cleared, +0xA8 the effect disaster; returns true. Ours in ui.tools.disaster (src/core/tool_disaster.cpp)."
+
+[[entry]]
+name = "SC4DisasterTool::Shutdown"
+address = 0x00580300
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 4, no arguments: false unless inited; else the manager (+0xAC), the instance (+0xB0) and the control effect (+0x94) let go and the effect trigger tool's Shutdown; returns true. Ours in ui.tools.disaster."
+
+[[entry]]
+name = "SC4DisasterTool::OnMouseUpL"
+address = 0x00580370
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 0C 8B 54 24 04"
+source = "Name ours. Slot 18, (x, z, modifiers), ret 0xC: the effect trigger tool's (false when that is); with a manager and the byte +0xA4 the manager's slot 6 with the place's x and z truncated (ftol); returns true. Ours in ui.tools.disaster."
+
+[[entry]]
+name = "SC4DisasterTool::Switch"
+address = 0x005803D0
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 56 8B"
+source = "Name ours. Slot 30, (bool on), ret 4: on: the control effect told the block and, unless +0xA4, the manager's effect part (0xCA7B3F3C) makes an instance (its slot 3 with the effect, the place, the type +0xA8) kept at +0xB0; off: the instance at +0xB0 ended (its slot 8). Ours in ui.tools.disaster."
+
+[[entry]]
+name = "SC4DisasterTool::DeletingDestructor"
+address = 0x005804B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 A0 EA A9"
+source = "Name ours. Slot 26, (flags), ret 4: the instance and the manager let go, the effect trigger tool's destructor 0x004BB0B0, then delete for bit 1; returns this. Ours in ui.tools.disaster."
+
+[[entry]]
+name = "SC4TorchTool::Vtable"
+address = 0x00A9EB40
+kind = "data"
+source = "Name ours. Main vtable of the fire (torch) disaster tool (a view input control of 0x80 bytes, 30 slots, ID 0xE9C24AC4, constructor 0x005805C0, made by the city view for the disaster 0xA9DE8784): the jump 0x00580500 to the base QueryInterface at slot 0, Init 0x00580660 at 3, Shutdown 0x00580840 at 4, OnMouseDownL 0x005808B0 at 16, OnMouseUpL 0x005809D0 at 18, OnMouseMove 0x00580A30 at 20, 0x00580B00 at 22, the deleting destructor 0x00580630 at 26; every other slot the base's or a shared stub."
+
+[[entry]]
+name = "SC4TorchTool::TargetVtable"
+address = 0x00A9EB30
+kind = "data"
+source = "Name ours. Vtable of the torch tool's message target part at +0x28: three shared thunks and DoMessage 0x00580510 at slot 3."
+
+[[entry]]
+name = "SC4::Global22BC0"
+address = 0x00B22BC0
+kind = "data"
+source = "Name ours. A dword (past the initialised data, 0 at load) the torch tool's constructor copies into its place at +0x34 to +0x3C."
+
+[[entry]]
+name = "SC4TorchTool::DoMessage"
+address = 0x00580510
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "Name ours. Slot 3 of the message target at +0x28, (message), ret 4, this = the target part: at the frame message 0x86AD10EE while the torch burns (+0x60), the fire part's slot 5 with the kept cell (+0x40, +0x44), 1, 1, 0 and its slot 9 with 1; returns true. Ours in ui.tools.disaster_fire (src/core/tool_torch.cpp)."
+
+[[entry]]
+name = "SC4TorchTool::PlaySound"
+address = 0x00580550
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 35 B8 3C B4 00"
+source = "Name ours. (sound, a, b, c), ret 0x10, this not read: the sound service 0x00B43CB8 makes the sound's object (slot 13: sound, 0x5B523BA4, out, a, b, c, 0) and is given it (slot 12). Ours in ui.tools.disaster_fire."
+
+[[entry]]
+name = "SC4TorchTool::DeletingDestructor"
+address = 0x00580630
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 68 E8 FC"
+source = "Name ours. Slot 26, (flags), ret 4: the stopwatch's and the base's destructors, then delete for bit 1; returns this. Ours in ui.tools.disaster_fire."
+
+[[entry]]
+name = "SC4TorchTool::Init"
+address = 0x00580660
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 3, no arguments: unless inited, the ID 0xE9C24AC4 and cursor 0x4A08C57E, the fire manager's part 0x49B43F57 into +0x2C, the base Init, the stopwatch at +0x68 started, the sound 0x2A106113; returns true. Ours in ui.tools.disaster_fire."
+
+[[entry]]
+name = "SC4TorchTool::SetBurning"
+address = 0x005806D0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 4F 30 85"
+source = "Name ours. (bool burning), ret 4: with a torch effect (+0x30) and a change of +0x60, the effect is stopped, let go and made again as torch_active or torch_inactive (the effects manager's slot 7) and started; the sounds 0x0A106122 (going out) and 0xAA96FE8F. Ours in ui.tools.disaster_fire."
+
+[[entry]]
+name = "SC4TorchTool::MoveTorch"
+address = 0x00580760
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 30 83 EC 38 85 C0"
+source = "Name ours. No arguments: the torch effect, when there is one, told a block of 0x38 bytes with the place at +0x34 (its slot 8). Ours in ui.tools.disaster_fire."
+
+[[entry]]
+name = "SC4TorchTool::DropTorch"
+address = 0x005807F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 30 85 C9"
+source = "Name ours. No arguments: the torch effect stopped (slot 4 with 1) when it runs, let go and cleared; +0x60 cleared; the sound 0xAA96FE8F with 0. Ours in ui.tools.disaster_fire."
+
+[[entry]]
+name = "SC4TorchTool::Shutdown"
+address = 0x00580840
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 4, no arguments: when inited, the stopwatch stopped, the torch taken away, the sound 0x8A10611A, the fire part let go, the frame service's message given up (0xC0), the base Shutdown; returns true. Ours in ui.tools.disaster_fire."
+
+[[entry]]
+name = "SC4TorchTool::OnMouseDownL"
+address = 0x005808B0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 57 8D 4E"
+source = "Name ours. Slot 16, (x, z, modifiers), ret 0xC: the press's sound with the stopwatch's milliseconds; over ground (the view's pick with 0) the torch lit, the frame service's message asked for under 0xC0, a fire at the place's cell (the fire part's slot 5 with the cell, 0, 1, 0; slot 9 with 1), the cursor 0x0A08C54E; returns true. Ours in ui.tools.disaster_fire."
+
+[[entry]]
+name = "SC4TorchTool::OnMouseUpL"
+address = 0x005809D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 68 E8 BD"
+source = "Name ours. Slot 18, (x, z, modifiers), ret 0xC: the sound 0x0A106122 with the stopwatch's milliseconds, the frame service's message given up, the torch put out, the tool's cursor set again; returns true. Ours in ui.tools.disaster_fire."
+
+[[entry]]
+name = "SC4TorchTool::OnMouseMove"
+address = 0x00580A30
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8D 4E 68"
+source = "Name ours. Slot 20, (x, z, modifiers), ret 0xC: over ground the torch made if missing, lit with modifier 0x10, told the place, and while it burns the place's cell kept at +0x40, +0x44; off the ground the torch taken away; the move's sound 0x4A106126 with the stopwatch's milliseconds; returns true. Ours in ui.tools.disaster_fire."
+
+[[entry]]
+name = "SC4TorchTool::OnMouseExit"
+address = 0x00580B00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 30 85 C9"
+source = "Name ours. Slot 22, no arguments: as 0x005807F0 in line; returns true. Ours in ui.tools.disaster_fire."
