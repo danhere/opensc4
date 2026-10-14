@@ -237,10 +237,12 @@ add_library(opensc4_core SHARED
   nettool_autotest.cpp
   nettool_rul_autotest.cpp
   nettool_satisfier_autotest.cpp
+  nettool_preview_autotest.cpp
   nettool_cache.cpp
   nettool_life.cpp
   nettool_satisfier_1.cpp
   nettool_satisfier_2.cpp
+  nettool_preview.cpp
   nettool_rul_1.cpp
   nettool_rul_2.cpp
   nettool_rul_3.cpp

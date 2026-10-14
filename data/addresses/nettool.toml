@@ -2786,3 +2786,207 @@ name = "SC4::FloatMinusOne"
 address = 0x00A8FE78
 kind = "data"
 source = "Name ours. The float -1.0 (the bridge line callback 0x00642220 negates two angles with it)."
+
+[[entry]]
+name = "cSC4NetworkTool::AddCellPreview"
+address = 0x006246A0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Slot 58 of the network tool family, ret 8 (a cell info, its solved cell: piece ID, turn and flip byte): when the cell is in the placement (+0x10), the texture instance from the network manager's MapPreviewTexture, the colour (+0x52), the cell's previews erased (0x00620CF0), then one textured cell (0x00620BC0) for the lowest flag's type, or for a layered cell (flags 0x304 and another) one per type whose rule files give a piece (0x00633FA0) (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::UpdateOccupantHighlights"
+address = 0x006299A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 55 8B E9 8B 45"
+source = "Slot 59 of the network tool family, ret 4 (a count): no valid step: slot 17 and 0. Else the cells of the valid steps and rule cell records that are not network lot cells, the region +0x210 deleted, a new set, the collector 0x0061F7C0, the diff 0x0061F5D0, the new set into +0x214; EAX the count, one less when the collector answered 0 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::DestroyHighlightedOccupants"
+address = 0x00624920
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 83 10 02 00"
+source = "Slot 60 of the network tool family, no arguments: with a region at +0x210, DemolishRegion(1, region, 1, 0x2001, 0, a new highlight filter, 0, 0, 0, 0, 0); then a tail jump to slot 17 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetQuadTrianglesToDraw"
+address = 0x00623CE0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 68"
+source = "Slot 80 of the network tool family, ret 8 (a network occupant, the address of its edge word): the occupant's network flags 0x1000000, 0x2000000 and 0x4000000 set or cleared from the edge word when it has 0x40000000, else 0x2000000 and 0x4000000 set (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::CollectHighlights"
+address = 0x0061F7C0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 3C 8B 0D EC 3C B4"
+source = "Name ours. cdecl (cells vector*, region out, cost out (8 bytes), set, filter): the box of the cells and their lots, a cell region (0x24 bytes) with the lots' zoned cells that have no occupant passing the filter marked; AL 0 for a zone type 10 to 15, else DemolishRegion in query mode (0) into the cost and the set; AL 1 at once for no cells or an empty box. Called by 0x00609A00, 0x006299A0 and the guarded 0x0062CD50 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::DiffHighlights"
+address = 0x0061F5D0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 4C 24 08"
+source = "Name ours. cdecl (old set, new set; SC4RefSets ordered by address): SetHighlight(0, 0) on occupants only in the old, SetHighlight(5, 0) on those only in the new. Called by 0x006299A0 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkToolPreview::AddCell"
+address = 0x00620820
+kind = "function"
+convention = "thiscall"
+expect = "81 EC D8 00 00 00 8B 84"
+source = "Name ours. Ret 0x14 (x and z*, colour, heights*, the type's height word, a flag): the record by 0x0061FE60 (no turn, no flip), a cell node of the key and record inserted into the cell tree +0x10 (0x006203E0). Called by 0x00620BC0, 0x00624BF0, 0x006258C0, 0x006287D0, 0x0064F2B0 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkToolPreview::AddTexturedCell"
+address = 0x00620BC0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC E0 00 00 00 8B 84"
+source = "Name ours. Ret 0x20 (x and z*, colour, heights*, TGI*, turn, flip, the type's height word, a flag): the record (0x0061FE60), the texture from the texture service 0x00B43CD4 slot 0x18 and a textured node (0x00620A90), or without a texture 0x00620820. Drawing: stays the game's. Called by 0x006246A0 and 0x006258C0."
+
+[[entry]]
+name = "cSC4NetworkToolPreview::EraseCell"
+address = 0x00620CF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 8B 74 24"
+source = "Name ours. Ret 4 (x and z*): the cell's nodes erased from the cell tree +0x10 and the textured tree +0x1C (EqualRange 0x00474150, 0x006202E0, 0x006206A0). Called by 0x006246A0, 0x00624BF0, 0x006287D0 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkToolPreview::InsertTextured"
+address = 0x00620A90
+kind = "function"
+convention = "thiscall"
+expect = "8B 11 8B 42 04 85 C0 56"
+source = "Name ours. Ret 8 (iterator out, value*), this the textured tree: equal-key insert (parent search, then 0x006205C0); EAX the out. Called by 0x00620BC0 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkToolPreview::InsertTexturedNode"
+address = 0x006205C0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 14 8B D9"
+source = "Name ours. Ret 0x14 (iterator out, x, y, value*, flag), this the textured tree: STLport _M_insert of a 0x80-byte node (0x006204B0 for the right side), the binding referenced; EAX the out. Called by 0x00620A90 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkToolPreview::CreateTexturedNode"
+address = 0x006204B0
+kind = "function"
+convention = "thiscall"
+expect = "53 68 80 00 00 00 E8 99"
+source = "Name ours. Ret 4 (value*): a 0x80-byte textured node with the 0x70-byte value copied, the texture binding (+0x7C) referenced; EAX the node. Called by 0x006205C0 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkToolPreview::InsertCellNode"
+address = 0x006203E0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 14 8B D9"
+source = "Name ours. Ret 0x14 (iterator out, x, y, value*, flag), this the cell tree: STLport _M_insert of a 0x7C-byte node; EAX the out. Called by 0x00620820 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkToolPreview::MakeVertices"
+address = 0x0061FE60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B 74"
+source = "Name ours. Ret 0x20 (record out, x and z*, colour, heights*, turn, flip byte, the type's height word, a flag): the four vertices of a preview cell (positions, colour, UVs turned and flipped) and their heights (0x0061FBF0). Drawing: stays the game's. Called by 0x00620820 and 0x00620BC0."
+
+[[entry]]
+name = "cSC4NetworkToolPreview::VertexHeights"
+address = 0x0061FBF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 8B 0D F4 3C B4"
+source = "Name ours. Ret 0x10 (record, x and z*, heights*, a flag): the four vertex heights from the terrain (slots 0x14C, 0x38, 0x84; x87) or the given ones, plus the record's height word. Drawing: stays the game's. Called by 0x0061FE60 and 0x00620930."
+
+[[entry]]
+name = "cSC4NetworkTool::NeighborConstruct"
+address = 0x00627080
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8B 44 24 08"
+source = "Name ours. Ret 0x14 (x, z, the tool, a type, a byte): the neighbour walker (0x28 bytes, vtable 0x00AA8700): memo vector +0x8 empty, the cell, tool, type, the mask (0 with the byte, else the other networks), +0x4 the cell's edge word for the type (0x00633220); EAX this. Called by 0x00633FA0 and 0x006340D0 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::FindPreviewPiece"
+address = 0x00633FA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C 53 8B 5C 24 48"
+source = "Name ours. Ret 0x14 (x and z*, a type, piece out, turn byte out, flip byte out): the first rule file of the type row's +0x24 whose matching entry has a tile on the cell itself gives its piece, turn and flip; AL. Called by 0x006246A0 and 0x006258C0 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "SC4RuleFile::Match"
+address = 0x006220D0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 55 8B 6C"
+source = "Name ours. Ret 8 (the walker, the tiles' vector out), this a rule file (multimap at +0x4): the entries keyed by the walker's edge word (+0x4), in order, until one matches (0x00622040); AL. Called by 0x00633FA0 and 0x006340D0 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "SC4RuleFile::EntryMatches"
+address = 0x00622040
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 8B 6C 24 10 56"
+source = "Name ours. Ret 8 (the walker, the tiles' vector out), this a rule entry: every check's edges under its mask at its neighbour (0x00621D30), every tile's place clear (the walker's slot 0); the out gets the entry's tile vector (+0x10); AL. Called by 0x006220D0 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::NeighborEdgesCached"
+address = 0x00621D30
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 8B 54 24 04 83"
+source = "Name ours. Ret 8 (a direction, the edge word out), this the neighbour walker: the memo +0x8's word for the direction, else the walker's slot 1 and a new memo record (in place or 0x00621A40). Called by 0x00622040 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "SC4RuleCheckVector::UninitializedFillN"
+address = 0x00621550
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 85 C9 8B 44"
+source = "Name ours. cdecl (where, count, value*, tag): count copies of a 12-byte record (byte, word, word); EAX the end. Called by 0x00621A40 (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "SC4Vector16::UninitializedCopy"
+address = 0x00637E20
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. cdecl (first, last, where, tag): 16-byte elements copied word by word (none written at a null place); EAX the end. Called by the highlight collector 0x0061F7C0."
+
+[[entry]]
+name = "SC4TextureBinding::AddRef"
+address = 0x004664A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 40 89 41 0C C3"
+source = "Name ours. No arguments: the count +0xC up by one (code folded with the demolition service's AddRef). Called for texture bindings by 0x006204B0 and 0x006205C0."
+
+[[entry]]
+name = "cSC4NetworkTool::HighlightFilterVtable"
+address = 0x00AA825C
+kind = "vtable"
+expect = "D0 95 5E 00 00 DF 4B 00"
+source = "Name ours. The occupant filter the highlight collector and slot 60 make (0xC bytes on the filter base 0x005EA080): slot 3 0x0061F590 passes occupants without the interface 0xA9764C8C (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::HighlightFilterVtable2"
+address = 0x00AA8244
+kind = "vtable"
+expect = "E0 4E 42 00 00 05 5C 00"
+source = "Name ours. The second vtable (+4) of the highlight filter of 0x00AA825C (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PreviewHeightByType"
+address = 0x00AA83F0
+kind = "data"
+source = "Name ours. 13 floats by network type (15.5 for types 2, 8 and 9, else 0): the height word AddCellPreview hands the preview record (+0x64) (src/core/nettool_preview.cpp)."

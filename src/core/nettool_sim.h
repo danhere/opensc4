@@ -137,9 +137,11 @@
 //         altitude override (-1.0), +0x208 uint32 1
 //   +0x20C uint32 the failure reason (0 or 0xF00000nn; the constructor does
 //         not write it: Reset clears it through slot 13)
-//   +0x210..+0x218 and +0x224..+0x22C two trees (head node at +0x214 and
-//         +0x228, count at +0x218 and +0x22C; inf: cell previews and
-//         highlights)
+//   +0x210 the highlight region (an SC4CellRegion, 0x24 bytes), +0x214 /
+//         +0x218 the highlighted occupants (a set ordered by address),
+//         +0x220 the cost of the last highlight query (8 bytes), +0x228 /
+//         +0x22C a tree of referenced occupants slot 16 releases (part t4,
+//         nettool_preview.cpp, has the evidence)
 //   +0x234 uint8 EnablePreviewUpdate's (1)
 //   +0x238 float the terrain's slot 6, +0x23C a float from it and +0x2A8
 //   +0x240, +0x244 the city's cells in x and z; +0x248 to +0x28C sizes and
@@ -408,13 +410,15 @@ inline constexpr int kDoNetworkSpecificPlacement = 53;
 //   +0x08 a pointer the destructor frees (the constructor clears it)
 //   +0xF0 the rule cell records (vector of 0x14; Reset empties it through
 //         0x00624070), +0xE4, +0x100 vectors the destructor frees
-//   +0x210 a preview list object (ClearCellPreviews frees it: +0x10 a
-//         vtable it resets to 0x00A86364, +0x14 a count, +0x20 an array of
-//         that many objects from operator new)
-//   +0x214 / +0x218 the cell previews' tree (head node, count; nodes hold
-//         an object at +0x10 whose slot 0x44 ClearCellPreviews calls with
-//         two zeros), +0x228 / +0x22C the highlighted occupants' tree (nodes
-//         hold a referenced occupant at +0x10)
+//   +0x210 the highlight region (an SC4CellRegion from operator new;
+//         ClearCellPreviews frees it: its cells part at +0x10 gets the vtable
+//         0x00A86364, +0x14 the row count, +0x20 the rows, each from operator
+//         new). The names kPreviewList and kCellPreviews below are from before
+//         part t4 found what these are.
+//   +0x214 / +0x218 the highlighted occupants (a set ordered by address;
+//         ClearCellPreviews calls each one's SetHighlight, slot 0x44, with
+//         two zeros), +0x228 / +0x22C a tree of referenced occupants (slot 16
+//         gives each to the occupant manager's slot 0x54 and releases it)
 //   +0x238 float the terrain's slot 0x18, +0x23C tan(+0x2A8) * +0x238
 //   +0x248, +0x24C the vertices per row and per column (cells + 1);
 //         +0x250 to +0x28C sixteen words Init derives from them (inf: the
@@ -435,7 +439,7 @@ inline constexpr uint32_t kTempOccupantSize = 0x180, kUIToolSize = 0x134, kFilte
 // What Init gives the render service's slot 0x80 with the preview drawable.
 inline constexpr uint32_t kPreviewLayer = 5, kPreviewPriority = 1000;
 // The vtables the constructors write before their final ones, and the one
-// ClearCellPreviews writes into the preview list.
+// ClearCellPreviews writes into the highlight region's cells part.
 inline constexpr std::uintptr_t kToolFirstMessageVtable = 0x00A81174, kPreviewFirstVtable = 0x00A881C0;
 inline constexpr std::uintptr_t kPreviewListVtable = 0x00A86364;
 } // namespace life
