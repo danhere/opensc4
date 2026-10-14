@@ -23,6 +23,10 @@ bool InSlice();
 // GZStopwatch::ElapsedMilliseconds and where the stopwatches it does not
 // own go instead of it.
 uint64_t Checks();
+// The checks of the last top-level slice (one runs every frame), 0 when
+// pacing held it back or it made none: the simulation time of the last
+// frame, for determinism.sim_timers' frame time of the construction crews.
+uint32_t LastSliceChecks();
 void* ElapsedOriginal();
 void SetElapsedPass(void* thunk);
 

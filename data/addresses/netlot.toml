@@ -586,3 +586,11 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 0C 56 8B F1 8B 46"
 source = "Name ours. Generic container code, not hooked: (out record of nine bytes: node, table, a byte that says new; the address of a uint16 key), ret 8: grows the table for one more (0x00710DD0) and inserts the key unless it is there (0x0060D270). DoMessage 0x0060FE45 and 0x0060FFBF, UpdateConnectedPieces 0x0060F267 and 60 other sites call it."
+
+[[entry]]
+name = "cSC4NetworkConstructionCrew::Tick"
+address = 0x00607C30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 57 8B F9 8B"
+source = "Name ours. Ret 4 (the microseconds of the frame message; only caller DoMessage 0x00607F14 on 0x86AD10EE): per job the workers moved by that time (0x00606500), the stopwatch of the job (+0x20, GZStopwatch::ElapsedMilliseconds at 0x00607CCB) compared with the time of the piece (twice it while a worker is under way), the work property of the piece taken down, the next piece begun (0x00607AD0); slot 5 of the crew when no job is left. determinism.sim_timers hooks it to pass the simulation time of the last frame (src/core/sim_timers.cpp)."

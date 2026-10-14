@@ -32,12 +32,14 @@ What to change, and where, is from three plugins by Nicholas Hayes (MIT License;
 
 ## Checked
 
-2026-10-11, unattended, windowed, Making Money, with the test switch `OPENSC4_TEST_QUIET` (when the city has started: `demolish` clears the cells from a quarter to three quarters of the city through the game's demolition utility, `network` lays six short roads with the game's road tool; nothing is saved):
+2026-10-11, unattended, windowed, Making Money, with the test switch `OPENSC4_TEST_QUIET` (when the city has started: `demolish` clears the cells from a quarter to three quarters of the city through the game's demolition utility, `network` calls the game's road tool for six short roads (its roads were never built, see below); nothing is saved):
 
 - `game.quiet.* = ours`, `demolish`: the demolition was done (cost 13,333) and the wrapped function was entered 3,888 times, each returning without an animation.
 - `game.quiet.* = ours`, `network`: six construction crews were started by the road tool, all six left without the sound service; the city then ran ten days and closed. The same run with only `game.quiet.demolish` on started no wrapped crew (the hook is not there).
 - Off: the log has the three `original` lines of the registry and nothing else of this file; no hook is installed.
 
 Not checked: `game.quiet.plop`. Its hook installs, but only a lot placed by hand with the lot tool reaches it (PlaceLot was called 0 times in these runs); the lot plops of the unattended tests go through the lot manager, not the tool. Nor has anyone looked or listened: that the animation and the sounds are in fact gone is by the code paths above, not by eye and ear.
+
+The `network` test counted crew Inits only: its roads were never built, because it drew them with DrawNetworkLine and PlaceAllSegments without anchor points, and PlaceAllSegments builds nothing without them (the crew it makes ends at once; [netlot.md](netlot.md), "The crew's clocks and seeds"). So the six crews above were started and left, but did no work.
 
 The road test leaves its tool to the network manager, and both road runs, with and without the network hook, ended with a game crash while quitting (0x00626E40, network code, after "quitting without saving"): the test's doing, not the setting's.

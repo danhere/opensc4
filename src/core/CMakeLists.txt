@@ -226,6 +226,7 @@ add_library(opensc4_core SHARED
   bridgeocc_sim.cpp
   prebuiltocc_autotest.cpp
   prebuiltocc_sim.cpp
+  crew_autotest.cpp
   netlot_autotest.cpp
   netlot_life.cpp
   netlot_lots.cpp
