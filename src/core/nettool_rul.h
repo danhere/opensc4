@@ -230,7 +230,7 @@ inline constexpr uint32_t kFirstBuffer = 8; // what the constructor allocates fo
 // slot, `ret 4`), +0x4 the text's begin, +0x8 the cursor, +0xC the text's
 // end, +0x10 a pushed-back token (-1 none), +0x14 the last identifier (an
 // STL string body: begin, end, capacity; 8 bytes first), +0x20 the last
-// integer, +0x24 the last float, +0x2C a word (-1), +0x40 / +0x41 / +0x42
+// integer, +0x24 the last float, +0x2C a 16-bit 0xFFFF (two -1 bytes), +0x40 / +0x41 / +0x42
 // bytes (0, 1, 0). The constructor does not write +0x20, +0x24, +0x28,
 // +0x2E to +0x3F. NextToken 0x0063DDF0 answers 0 (the end, a line end or
 // ';'), kInteger, kFloat, kIdentifier or the character sign-extended.
@@ -340,5 +340,83 @@ inline constexpr std::size_t kName = 0x158, kIntMap = 0x16C;
 namespace rul2node {
 inline constexpr std::size_t kNodeSize = 0x34, kValueSize = 0x24, kValueWords = 9;
 } // namespace rul2node
+
+// === Part r4: the RUL parsers, second part (src/core/nettool_rul_4.cpp) ========
+// What the check type parser 0x0063F1F0 writes into the RUL0 lexer (after
+// the constructor's fields): +0x28 the key character, +0x2C / +0x2D the two
+// network types (the constructor's -1 when absent), +0x30 / +0x34 the first
+// type's edge word and mask, +0x38 / +0x3C the second's, +0x40 multiok,
+// +0x41 checked (the constructor's 1; 'check' and 'optional' clear it),
+// +0x42 optional. The RUL0 line callback copies the six words +0x2C to
+// +0x40 into the check type's node (+0x8): +0x2E, +0x2F, +0x43 and, for a
+// side without a type, its edge word and mask are never written (the
+// original's stack leftovers, zeros in ours; readers skip a side whose type
+// is negative).
+namespace checklexer {
+inline constexpr std::size_t kKey = 0x28, kTypes = 0x2C, kValue = 0x2C, kValueWords = 6;
+inline constexpr std::size_t kEdges = 0x30, kSide = 0x8; // edge word at +0x30 + 8 * side, mask 4 after
+inline constexpr std::size_t kMultiOk = 0x40, kChecked = 0x41, kOptional = 0x42;
+inline constexpr uint32_t kMaxTypes = 2;
+} // namespace checklexer
+
+// The bridge lexer (the bridge loaders' 0x00641310, 0x00643330, 0x00643580):
+// the RUL0 lexer's fields and +0x2C a list (a circular list head: next at
+// +0x0; each node's +0x8 a string map, `stringmap`), +0x30 the number of
+// elements per float step (a divisor).
+namespace bridgelexer {
+inline constexpr std::size_t kMaps = 0x2C, kDivisor = 0x30, kListMap = 0x8;
+} // namespace bridgelexer
+
+// The value the bridge parser 0x0063EA50 fills: a vector of 20-byte
+// elements (+0x0) and a float vector (+0xC); an element: +0x0 a float (the
+// position), +0x4 a word, +0x8 a byte (2 toggled by 'rev'; the three bytes
+// after it are the parser's stack leftovers in the original, zeros in
+// ours), +0xC a float, +0x10 a word (0, 1 pylon, 2 end).
+namespace bridgevalue {
+inline constexpr std::size_t kElements = 0x0, kFloats = 0xC;
+inline constexpr std::size_t kPosition = 0x0, kWord4 = 0x4, kByte8 = 0x8, kFloatC = 0xC, kEnd = 0x10;
+} // namespace bridgevalue
+
+// The RUL0 loader's context (on LoadRul0 0x00641B60's stack; the line
+// callback's third argument): +0x0 the ini, +0x4 the store, +0x8 the
+// current rule (the section callback 0x00641A50 sets it), +0xC / +0x10 /
+// +0x14 lists of strings (CellLayout and ConsLayout lines go to the first
+// two), +0x18 a word (-1).
+namespace rul0ctx {
+inline constexpr std::size_t kSize = 0x1C;
+inline constexpr std::size_t kIni = 0x0, kStore = 0x4, kRule = 0x8, kCellLines = 0xC, kConsLines = 0x10;
+inline constexpr std::size_t kList14 = 0x14, kWord18 = 0x18;
+inline constexpr std::size_t kListNodeSize = 0x1C; // a list node: next, previous, a game string
+} // namespace rul0ctx
+
+// A tile verifier table entry (8 bytes, in the point vector of a node of the
+// table 0x00B466DC): +0x0 a word, +0x4 a byte (d | 0x80 when flipped),
+// +0x5 a byte, +0x6 / +0x7 the two upper bytes of the table's own address
+// (the line callback 0x0063F7A0 builds the entry in the slot where the
+// insert left {node, table}).
+namespace tileverifier {
+inline constexpr std::size_t kEntrySize = 0x8, kWord = 0x0, kFlags = 0x4, kByte5 = 0x5;
+} // namespace tileverifier
+
+// The RUL1 map's node (0x2C bytes; the value at +0x10: two signed type
+// words, then a pair table at +0x18 whose +0x0 the code here never writes).
+namespace rul1node {
+inline constexpr std::size_t kNodeSize = 0x2C, kValueTable = 0x8;
+} // namespace rul1node
+
+// A bridge record (0x178 bytes) as its constructor 0x00640030, destructor
+// 0x00640230 and Assign 0x0063FCD0 see it: vectors at +0x14, +0x20, +0x44,
+// +0x50, +0x60, +0x6C, +0x80, +0x8C (the ones at +0x14 and +0x44 of 8-byte
+// points, the rest of 4-byte items), 24 floats +0xE4 to +0x140, the name (a
+// game string +0x158), the int map (+0x16C head, +0x170 count). The other
+// words and bytes are copied by Assign but written by the loaders.
+namespace bridgerecord {
+inline constexpr std::size_t kSize = 0x178;
+inline constexpr std::size_t kVectors[] = {0x14, 0x20, 0x44, 0x50, 0x60, 0x6C, 0x80, 0x8C};
+inline constexpr std::size_t kPointVectors[] = {0x14, 0x44};
+inline constexpr std::size_t kFloats = 0xE4, kFloatCount = 24;
+inline constexpr std::size_t kNameVtable = 0x158, kNameBegin = 0x15C, kNameEnd = 0x160, kNameCapacity = 0x164;
+inline constexpr std::size_t kNameReferences = 0x168, kMapHead = 0x16C, kMapCount = 0x170;
+} // namespace bridgerecord
 
 } // namespace opensc4::nettool_sim::rul
