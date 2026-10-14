@@ -1,0 +1,292 @@
+# The network lot manager (cSC4NetworkLotManager, class ID 0xE9A6CD3B), the network lot and the network lot configuration: their own code (src/core/netlot_state.cpp, the class maps in src/core/netlot_sim.h).
+
+[[entry]]
+name = "cSC4NetworkLotManager::GetGZCLSID"
+address = 0x0060C720
+kind = "function"
+convention = "thiscall"
+expect = "B8 3B CD A6 E9 C3 CC CC"
+source = "Slot 5 of the network lot manager serializable part (vtable 0x00AA7930), also called by the class registration at 0x0046043B: the class ID 0xE9A6CD3B; touches only EAX (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::AddRef"
+address = 0x0060C730
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 6C 40 89 41 6C C3"
+source = "Slot 1 of the network lot manager (vtable 0x00AA7958); the thunks 0x0060E520 and 0x0060E550 jump to it: the count at +0x6C up by one, the new count in EAX; touches only EAX (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::Release"
+address = 0x0060C740
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 6C 83 F8 01 76 05"
+source = "Slot 2 of the network lot manager; the thunks 0x0060E530 and 0x0060E560 jump to it: above 1 the count at +0x6C goes down by one and is the answer, else slot 15 (the deleting destructor) is called with 1 and the answer is 0 (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::QueryInterface"
+address = 0x0060C760
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 3F BA A5"
+source = "Slot 0 of the network lot manager, ret 8; the thunks 0x0060E510 and 0x0060E540 jump to it: IIDs 1 and 0x89A5BA3F give the object, 0x452294AA the part at +4, 0xE4FDA3D4 the part at +8, each referenced through slot 1; AL 1, or 0 for any other ID (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLot::Release"
+address = 0x0060C7E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 10 83 F8 01 76 05"
+source = "Name ours (the class has no name in the game ID table). Slot 2 of the network lot (vtable 0x00AA78E0): above 1 the count at +0x10 goes down by one and is the answer, else slot 6 (the deleting destructor) is called with 1 and the answer is 0 (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLot::QueryInterface"
+address = 0x0060C800
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "Name ours. Slot 0 of the network lot, ret 8: IIDs 1 and 0x89A5BA66 give the lot, referenced through slot 1; AL 1, or 0 for any other ID (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotConfiguration::AddRef"
+address = 0x0060C830
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 68 40 89 41 68 C3"
+source = "Name ours (the class has no name in the game ID table). Slot 1 of the network lot configuration (vtable 0x00AA7998): the count at +0x68 up by one, the new count in EAX; touches only EAX (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotConfiguration::Release"
+address = 0x0060C840
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 68 83 F8 01 76 05"
+source = "Name ours. Slot 2 of the network lot configuration: above 1 the count at +0x68 goes down by one and is the answer, else slot 7 (the deleting destructor) is called with 1 and the answer is 0 (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::CellIteratorReset"
+address = 0x0060C930
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 33 C9 88 08 88 48"
+source = "Name ours. No stack arguments; this is a cell iterator (0x20 bytes); only DoMessage calls it (0x0060FF36): the two bytes and the current cell 0, the step 1, the rectangle 0x80000000 twice and 0x7FFFFFFF twice; EAX the iterator; keeps EDX (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::CellIteratorSetRectangle"
+address = 0x0060C960
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 8B 5C 24"
+source = "Name ours. Ret 0x10 (low x, low z, high x, high z); this is a cell iterator; DoMessage calls it at 0x0060FD96 and 0x0060FF53: stores the rectangle at +0x10 and raises a high bound that is below its low bound; EAX the low z; keeps ECX (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::SetLotConfigurationForNextPiece"
+address = 0x0060CB80
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B D9"
+source = "Slot 13 of the network lot manager, ret 4: the configuration at +0x34 replaced (the new one referenced, the old one released) unless it is the same. The code is FOLDED: the same address is slot 10 of the cSC4Lot vtable (0x00AB19D8), so it is replaced by the manager vtable slot only, never by a detour (simulators.netlot.slots, src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::GetWealthForNetwork"
+address = 0x0060CBB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 8B 0D EC 3C B4"
+source = "Slot 10 of the network lot manager, ret 8 (x, z); this is not read: the commonest wealth 0 to 3 of the lots on the four neighbour cells, or on the four diagonals when no neighbour has a lot (offset tables 0x00AA7858 and 0x00AA7878; lot manager 0x00B43D08 slot 6, building development 0x00B43D68 slot 40) (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::ConfigurationFits"
+address = 0x0060CD30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 8B 6C 24"
+source = "Name ours. Ret 0x1C (configuration, x, z, zone, wealth, piece value, piece flag); this is not read; CreateLot 0x0060DDEE and UpdateLot 0x0060E377 call it: whether a network lot configuration fits a cell by its cell masks, zone and wealth bit vectors, piece mask and rule and the cell slope between the floats at +0x5C and +0x60; AL only (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLot::GetLotConfigurationObjectCount"
+address = 0x0060CE50
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 08 85 C9 74 1C 8B"
+source = "Name ours. Slot 4 of the network lot: the number of 0x34-byte objects in the vector that slot 3 of its configuration gives, 0 without a configuration (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLot::GetNetworkOccupant"
+address = 0x0060CE80
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 C3 CC CC CC CC"
+source = "Name ours. Slot 3 of the network lot: the word at +4. The four bytes mov eax,[ecx+4] and ret are FOLDED into about 150 vtables of other classes, so the lot is given ours by its vtable slot only, never by a detour (simulators.netlot.slots, src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::GetZoneTypeForNetwork"
+address = 0x0060D030
+kind = "function"
+convention = "thiscall"
+expect = "8B 0D 14 3D B4 00 8B 01"
+source = "Slot 9 of the network lot manager, ret 8 (x, z); this is not read: the zone byte of the cell in the zone manager grid when not 0, else the best ranked zone (table 0x00AA76E8, lowest wins) of the four neighbours and, when that leaves 0, 7 or 14, of the four diagonals too (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLot::DeletingDestructor"
+address = 0x0060D130
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 E0 78 AA"
+source = "Name ours. Slot 6 of the network lot, ret 4 (flags): stores the vtable 0x00AA78E0, releases the configuration at +8 and the network piece at +4 when not null, frees the memory with flag 1; EAX the lot (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::GetNetworkLot"
+address = 0x0060D650
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 33 C0 8A 64"
+source = "Slot 5 of the network lot manager, ret 8 (x, z): the lot of the cell in the hash table at +0xC under the uint16 key ((x and 0xFF) shl 8) or z, or null; not referenced (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::IterateAllNetworkLots"
+address = 0x0060D820
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 57 8D"
+source = "Slot 11 of the network lot manager, ret 8 (callback, context): calls the cdecl callback (key shr 8, key and 0xFF, lot, context) for every lot of the table at +0xC until it answers false; AL the last answer (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::GetNetworkLotConfigurationById"
+address = 0x0060D9A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 57 8D"
+source = "Slot 7 of the network lot manager, ret 8 (ID, a word that is never read): AL 1 when slot 4 of some configuration of the map at +0x20 gives the ID (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::LotMapIndex"
+address = 0x0060DA50
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 08 56"
+source = "Name ours. Ret 4 (the address of a uint16 key); this is the lot map or the pothole map; Read, CreateLot and Pothole call it: operator[] of the table, the address of the value word of the key node, which is inserted with a null value by 0x00712120 when missing (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::GetNetworkLotConfigurationSet"
+address = 0x0060DBF0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Slot 6 of the network lot manager, ret 4 (a tree set of pointers): empties the set (0x00499F50) and inserts every configuration of the map at +0x20 (0x0049A050), each referenced for the caller (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::ConfigMapInsertNode"
+address = 0x0060E250
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 46"
+source = "Name ours. Ret 4 (an entry: piece ID and a vector); this is the configuration map; only 0x0060E3C0 calls it: grows the table (0x004F0940), allocates a 0x14-byte node (0x0090CF54), copies the key and the vector (0x004B03E0) and links it first in its bucket; EAX the address of the node key (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::ConfigMapIndex"
+address = 0x0060E3C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 8B 44 24 24 53"
+source = "Name ours. Ret 4 (the address of a piece ID); this is the configuration map; AddConfiguration 0x0060E7C3 and WriteLotConfiguration 0x0060ECA1 call it: operator[] of the map, the address of the vector of the ID, a node with an empty vector being inserted by 0x0060E250 when missing (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotConfiguration::GetObjectArray"
+address = 0x0060FB50
+kind = "function"
+convention = "thiscall"
+expect = "8D 41 04 C3 CC CC CC CC"
+source = "Name ours. Slot 3 of the network lot configuration: the address of the vector of objects at +4. The four bytes lea eax,[ecx+4] and ret are FOLDED into 44 vtables, so the configuration is given ours by its vtable slot only (simulators.netlot.slots, src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotConfiguration::GetName"
+address = 0x0060FB60
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name ours. Slot 5 of the network lot configuration, one argument (a string): jumps to slot 13 of the string with the argument replaced by the name at +0x14. FOLDED with the vtable at 0x00AB0EC0 (the Ghidra names call it cSC4DepartmentBudget::GetDepartmentName), so replaced by the vtable slot only (simulators.netlot.slots, src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLot::GetLotConfigurationObjectArray"
+address = 0x00610020
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 08 33 C0 3B C8 74"
+source = "Name ours. Slot 5 of the network lot: slot 3 of its configuration by a jump, or without a configuration the static empty vector at 0x00B44858, made on first use (guard 0x00B44864, exit function 0x00A7C050 through atexit 0x009EF059) (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::vftable"
+address = 0x00AA7958
+kind = "vtable"
+expect = "60 C7 60 00 30 C7 60 00"
+source = "The primary cISC4NetworkLotManager vtable (16 slots; QueryInterface 0x0060C760 first; the header order is right). Slot 13 replaced by simulators.netlot.slots (src/core/netlot_sim.h)."
+
+[[entry]]
+name = "cSC4NetworkLot::vftable"
+address = 0x00AA78E0
+kind = "vtable"
+expect = "00 C8 60 00 A0 7B 4F 00"
+source = "Name ours. The vtable of the network lot (cISC4NetworkLot, 7 slots; QueryInterface 0x0060C800 first); the deleting destructor 0x0060D130 stores it. Slot 3 replaced by simulators.netlot.slots (src/core/netlot_sim.h)."
+
+[[entry]]
+name = "cSC4NetworkLotConfiguration::vftable"
+address = 0x00AA7998
+kind = "vtable"
+expect = "40 C9 48 00 30 C8 60 00"
+source = "Name ours. The vtable of the network lot configuration (cISC4NetworkLotConfiguration, 8 slots; the shared QueryInterface 0x0048C940 first). Slots 3 to 6 replaced by simulators.netlot.slots (src/core/netlot_sim.h)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::ZoneRanks"
+address = 0x00AA76E8
+kind = "data"
+source = "Name ours. Sixteen int32 ranks by zone type (0x12, 4, 7, 6, 5, 4, 3, 8, 2, 1, 0x10 four times, 0x11, 0x10); GetZoneTypeForNetwork 0x0060D030 takes the neighbour zone of the lowest rank. Read from the game memory at every call (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::NeighborDx"
+address = 0x00AA7858
+kind = "data"
+source = "Name ours. Eight int32 x offsets: the four neighbours (-1, 0, 1, 0) then the four diagonals (-1, -1, 1, 1); GetZoneTypeForNetwork and GetWealthForNetwork read it from the game memory at every call (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::NeighborDz"
+address = 0x00AA7878
+kind = "data"
+source = "Name ours. Eight int32 z offsets beside 0x00AA7858: 0, -1, 0, 1, then -1, 1, -1, 1 (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLot::EmptyObjects"
+address = 0x00B44858
+kind = "data"
+source = "Name ours. The static empty vector of lot configuration objects (three words) that slot 5 of a network lot without a configuration answers (0x00610020) (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLot::EmptyObjectsGuard"
+address = 0x00B44864
+kind = "data"
+source = "Name ours. The guard word of the static at 0x00B44858: bit 0 is set once the vector is made and its exit function registered (0x00610020) (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLot::EmptyObjectsAtExit"
+address = 0x00A7C050
+kind = "function"
+convention = "cdecl"
+expect = "B9 58 48 B4 00 E9 06 D7"
+source = "Name ours. The exit function of the static vector at 0x00B44858 (it calls the object vector destructor); 0x00610020 hands it to atexit on first use (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "SC4PtrSet::EraseSubtree"
+address = 0x00499F50
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Generic container code: (node), ret 4, on a tree set of pointers: frees the node and everything below it (the right subtree by a call of itself, then down the left links; nodes freed by 0x0090CF63); values are not released. GetNetworkLotConfigurationSet 0x0060DC12 and the lot editor window 0x0049A7B1 call it with the root (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "SC4Uint16PtrMap::InsertNode"
+address = 0x00712120
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8B 46 10"
+source = "Name ours. Generic container code: (the address of a pair of a uint16 key and a word), ret 4, on a hash table keyed by uint16: grows the table for one more (0x00710DD0), allocates a 0xC-byte node, copies the pair and links it first in its bucket; EAX the address of the node key. The network lot manager map operator[] 0x0060DA50 calls it (src/core/netlot_state.cpp)."
