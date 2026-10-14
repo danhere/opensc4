@@ -1123,7 +1123,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (SC4EffectsManager* this)"
 expect = "83 EC 08 53 56 8B F1 8B"
-source = "Name ours, not analysed. this = the manager object. Makes an effect of particles of the first class (constructor 0x005B2B50): one of the free ones of its list or a new one, entered in the list. Called by MakeRecordEffect. The game's; noted by the comparison of renderer.effects.make."
+source = "Name ours. this = the manager object. Makes an effect of particles of the first class: the last free index taken, or else a new one allocated (0x005E55E0), constructed and set up; the index goes among those in use and a new one into the table, held. Its list: the table at +0xBE8, in use +0xBF4, free +0xC00; a new one is 0x220 bytes (constructor 0x005B2B50), has its sub-object's slot 0x10 called and is given the manager's block at +0xCA0 (slot 0x34), and with the options' byte +0x33C set and an object at the manager's +0xDEC is given it (SC4Effect::SetObject). Called by MakeRecordEffect. Ours in renderer.effects.makers (src/core/effects_makers.inc)."
 
 [[entry]]
 name = "SC4EffectsManager::NewEffectB"
@@ -1132,7 +1132,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (SC4EffectsManager* this)"
 expect = "83 EC 08 53 56 8B F1 8B"
-source = "Name ours, not analysed. this = the manager object. Makes an effect of particles of the second class (constructor 0x005AC510): one of the free ones of its list or a new one, entered in the list. Called by MakeRecordEffect. The game's; noted by the comparison of renderer.effects.make."
+source = "Name ours. this = the manager object. Makes an effect of particles of the second class: the last free index taken, or else a new one allocated (0x005E55E0), constructed and set up; the index goes among those in use and a new one into the table, held. Its list: the table at +0xC30, in use +0xC3C, free +0xC48; a new one is 0x280 bytes (constructor 0x005AC510), has its sub-object's slot 0x10 called and is given the manager's block at +0xCA0 (slot 0x34). Called by MakeRecordEffect. Ours in renderer.effects.makers (src/core/effects_makers.inc)."
 
 [[entry]]
 name = "SC4EffectsManager::NewEffectC"
@@ -1159,7 +1159,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (SC4EffectsManager* this)"
 expect = "83 EC 08 53 56 8B F1 8B"
-source = "Name ours, not analysed. this = the manager object. Makes a decal (constructor 0x00583190): one of the free ones of its list or a new one, entered in the list. Called by MakeRecordEffect. The game's; noted by the comparison of renderer.effects.make."
+source = "Name ours. this = the manager object. Makes a decal: the last free index taken, or else a new one allocated (0x005E55E0), constructed and set up; the index goes among those in use and a new one into the table, held. Its list: the table at +0xBC4, in use +0xBD0, free +0xBDC; a new one is 0x124 bytes (constructor 0x00583190) and is reset (SC4EffectDecal::Reset). Called by MakeRecordEffect. Ours in renderer.effects.makers (src/core/effects_makers.inc)."
 
 [[entry]]
 name = "SC4EffectsManager::NewCompound"
@@ -1168,7 +1168,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (SC4EffectsManager* this)"
 expect = "83 EC 08 56 8B F1 8B 86"
-source = "Name ours, not analysed. this = the manager object. Makes a compound effect (constructor 0x005C0150); also called from 0x00593A84 and 0x00593B3B: one of the free ones of its list or a new one, entered in the list. Called by MakeRecordEffect. The game's; noted by the comparison of renderer.effects.make."
+source = "Name ours. this = the manager object. Makes a compound effect: the last free index taken, or else a new one allocated (0x005E55E0), constructed and set up; the index goes among those in use and a new one into the table, held. Its list: the table at +0xB94, free +0xBB8, the index going to those waiting to start (+0xBA0) rather than those in use; a new one is 0x14C bytes (constructor 0x005C0150) and holds the manager at +0x148 (the manager's slot 4); also called from 0x00593A84 and 0x00593B3B. Called by MakeRecordEffect. Ours in renderer.effects.makers (src/core/effects_makers.inc)."
 
 [[entry]]
 name = "SC4EffectB::SetLinked"
@@ -1214,3 +1214,39 @@ convention = "thiscall"
 signature = "void (SC4CompoundEffect* this, const void* description)"
 expect = "53 56 8B 74 24 0C 8B 06"
 source = "Name ours, not analysed. Ret 4. A compound effect given its description (0x38 bytes, the manager's table at +0xAC). Called by MakeRecordEffect (0x00591913) and from 0x00593AA9 and 0x00593B61. The game's; noted by the comparison of renderer.effects.make."
+
+[[entry]]
+name = "SC4EffectDecal::Construct"
+address = 0x00583190
+kind = "function"
+convention = "thiscall"
+signature = "void* (SC4EffectDecal* this)"
+expect = "53 56 8B F1 33 DB 57 8D"
+source = "Name ours, not analysed. A decal of 0x124 bytes (vtable 0x00A9EE78). Called by NewDecal only. The game's; noted by the comparison of renderer.effects.makers."
+
+[[entry]]
+name = "SC4CompoundEffect::Construct"
+address = 0x005C0150
+kind = "function"
+convention = "thiscall"
+signature = "void* (SC4CompoundEffect* this)"
+expect = "53 56 8B F1 C7 46 04 E4"
+source = "Name ours, not analysed. A compound effect of 0x14C bytes (vtables 0x00AA1170 and, at +4, 0x00AA1148). Called by NewCompound only. The game's; noted by the comparison of renderer.effects.makers."
+
+[[entry]]
+name = "SC4EffectDecal::Reset"
+address = 0x00581F80
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectDecal* this)"
+expect = "33 C0 88 41 08 38 41 75"
+source = "Name ours. The byte +8 cleared; when the byte +0x75 is set, the thirteen floats from +0x78 (a matrix, a place, a scale) made the identity's, +0x75 cleared and the count at +0x74 one more; the word at +0x70 set to -1. Called by NewDecal only. Ours in renderer.effects.makers (src/core/effects_makers.inc)."
+
+[[entry]]
+name = "SC4::PoolAllocate"
+address = 0x005B9FC0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* pool, size_t size)"
+expect = "56 57 8B 7C 24 0C 83 C7"
+source = "Name ours, not analysed. Ret 4. The allocator under SC4::operator_new (this = 0x00B230E8): the size plus a word of header, from the smallest of nine size classes (8 bytes doubling) that fits, or from malloc (0x009F066E) above them with the header's top bit set; answers the memory after the header. The game's; noted by the comparison of renderer.effects.makers."
