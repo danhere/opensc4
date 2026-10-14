@@ -10130,14 +10130,25 @@ uint32_t __fastcall MkMarkNoted(char* second, void*)
 }
 OPENSC4_THUNK(TSC4Effect_SetMarked, MkMarkNoted, 0)
 
+uint32_t DecalDescriptionRun(char* decal, uint32_t description);
+
 uint32_t __fastcall MkDecalDescriptionNoted(char* decal, void*, uint32_t description)
 {
     if (!MkNoting())
-        return g_SC4EffectDecal_SetDescription(decal, nullptr, description);
+        return DecalDescriptionRun(decal, description);
     return MkNoted(MkMakeCall(addr::SC4EffectDecal_SetDescription, MkPlace(decal), description),
-                   [&] { return g_SC4EffectDecal_SetDescription(decal, nullptr, description); });
+                   [&] { return DecalDescriptionRun(decal, description); });
 }
 OPENSC4_THUNK(TSC4EffectDecal_SetDescription, MkDecalDescriptionNoted, 4)
+
+// The decal's description has one detour, which the making's comparison
+// and its own replacement share.
+bool HookDecalDescription()
+{
+    return g_SC4EffectDecal_SetDescription ||
+           Detour(addr::SC4EffectDecal_SetDescription, &TSC4EffectDecal_SetDescription,
+                  &g_SC4EffectDecal_SetDescription);
+}
 
 // The look-up and the compound effect's description by the modes of
 // their own replacements (further down).
@@ -10401,8 +10412,7 @@ bool InstallMake(registry::Mode mode)
           HookMaker(addr::SC4EffectsManager_NewDecal) && HookMaker(addr::SC4EffectsManager_NewCompound) &&
           Detour(addr::SC4EffectB_SetLinked, &TSC4EffectB_SetLinked, &g_SC4EffectB_SetLinked) &&
           Detour(addr::SC4Effect_SetMarked, &TSC4Effect_SetMarked, &g_SC4Effect_SetMarked) &&
-          Detour(addr::SC4EffectDecal_SetDescription, &TSC4EffectDecal_SetDescription,
-                 &g_SC4EffectDecal_SetDescription) &&
+          HookDecalDescription() &&
           HookFindDescriptionByName() && HookCompoundDescription()))
         return false;
     g_mkMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
@@ -11056,6 +11066,200 @@ const bool g_registeredCompoundDescription = registry::Register({
     "on the compound effect's bytes (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallCompoundDescription,
+});
+
+// --- A decal's taking of its description ----------------------------------------------------
+
+// The decal's description (effects_decal_description.inc). It copies the
+// description in, which can allocate, and lets go of a texture, so it
+// cannot run twice. Its comparison runs the game's first, noting the copy
+// with what it changed in the decal (through a detour), then puts the
+// decal and the generator back and replays ours: the copy only noted and
+// its changes made, the letting go only noted, the generator's draws and
+// the city's sizes asked again for real (both only read, the generator
+// being put back between the two runs). The calls (the game's letting go
+// being of the texture the decal held), the decal's bytes and the
+// generator's are compared.
+constexpr uint32_t kDecalGenerator = 0x00B22C10, kTextureRelease = 0x008090E0;
+constexpr std::size_t kDecalSize = 0x124, kDecalGeneratorSize = 0x10;
+
+StepMode g_dsMode = StepMode::Original;
+Call1Fn g_SC4DecalDescription_Assign = nullptr;
+
+struct DsNote {
+    uint32_t target, a;
+    bool operator==(const DsNote& other) const
+    {
+        return target == other.target && a == other.a;
+    }
+};
+bool g_dsNoting = false, g_dsReplay = false;
+DWORD g_dsThread = 0;
+char* g_dsDecal = nullptr;
+std::vector<DsNote> g_dsGame, g_dsOurs;
+std::vector<std::pair<uint32_t, char>> g_dsChanges;
+uint64_t g_dsCompared = 0, g_dsReleases = 0, g_dsFlagged = 0;
+
+void DsCopy(char* to, char* description)
+{
+    if (!g_dsReplay) {
+        CallThis<void>(addr::SC4DecalDescription_Assign, to, description);
+        return;
+    }
+    g_dsOurs.push_back({addr::SC4DecalDescription_Assign, static_cast<uint32_t>(to - g_dsDecal)});
+    for (const auto& [offset, value] : g_dsChanges)
+        g_dsDecal[offset] = value;
+}
+
+void DsRelease(char* texture)
+{
+    if (g_dsReplay)
+        g_dsOurs.push_back({kTextureRelease, reinterpret_cast<uint32_t>(texture)});
+    else
+        CallThis<void>(kTextureRelease, texture);
+}
+
+double DsUniform(double low, double high)
+{
+    return reinterpret_cast<double(__thiscall*)(void*, double, double)>(addr::SC4Random_Uniform)(
+        reinterpret_cast<void*>(kDecalGenerator), low, high);
+}
+
+double DsCityFloat(char* city, uint32_t slot)
+{
+    return reinterpret_cast<double(__thiscall*)(void*)>(At<uint32_t>(At<char*>(city, 0), slot))(city);
+}
+
+#include "core/effects_decal_description.inc"
+
+// The copy of the game's while a decal's description is noted.
+uint32_t __fastcall DecalDescriptionAssignNoted(char* to, void*, uint32_t description)
+{
+    if (!g_dsNoting || GetCurrentThreadId() != g_dsThread || to != g_dsDecal + 0xC)
+        return g_SC4DecalDescription_Assign(to, nullptr, description);
+    char before[kDecalSize];
+    std::memcpy(before, g_dsDecal, kDecalSize);
+    const uint32_t result = g_SC4DecalDescription_Assign(to, nullptr, description);
+    for (uint32_t at = 0; at < kDecalSize; ++at) {
+        if (before[at] != g_dsDecal[at])
+            g_dsChanges.push_back({at, g_dsDecal[at]});
+    }
+    g_dsGame.push_back({addr::SC4DecalDescription_Assign, 0xC});
+    return result;
+}
+OPENSC4_THUNK(TSC4DecalDescription_Assign, DecalDescriptionAssignNoted, 4)
+
+std::string DsNotesText(const std::vector<DsNote>& notes)
+{
+    std::string text;
+    char note[32];
+    for (const DsNote& at : notes) {
+        std::snprintf(note, sizeof note, "%s%08X(%08X)", text.empty() ? "" : " ", at.target, at.a);
+        text += note;
+    }
+    return text.empty() ? std::string("no calls") : text;
+}
+
+uint32_t DecalDescriptionCompared(char* decal, uint32_t description)
+{
+    const auto game = [&] { return g_SC4EffectDecal_SetDescription(decal, nullptr, description); };
+    if (g_dsNoting || g_dsReplay)
+        return game();
+    char* const generator = reinterpret_cast<char*>(kDecalGenerator);
+    char before[kDecalSize], after[kDecalSize], mine[kDecalSize];
+    char generatorBefore[kDecalGeneratorSize], generatorAfter[kDecalGeneratorSize], generatorMine[kDecalGeneratorSize];
+    std::memcpy(before, decal, kDecalSize);
+    std::memcpy(generatorBefore, generator, kDecalGeneratorSize);
+    g_dsGame.clear();
+    g_dsChanges.clear();
+    g_dsDecal = decal;
+    g_dsThread = GetCurrentThreadId();
+    g_dsNoting = true;
+    const uint32_t result = game();
+    g_dsNoting = false;
+    if (const uint32_t texture = At<uint32_t>(before, 0x11C)) {
+        g_dsGame.push_back({kTextureRelease, texture});
+        ++g_dsReleases;
+    }
+    std::memcpy(after, decal, kDecalSize);
+    std::memcpy(generatorAfter, generator, kDecalGeneratorSize);
+
+    // Ours, on the decal and the generator as they were.
+    std::memcpy(decal, before, kDecalSize);
+    std::memcpy(generator, generatorBefore, kDecalGeneratorSize);
+    g_dsOurs.clear();
+    g_dsReplay = true;
+    SetDecalDescription(decal, reinterpret_cast<char*>(description));
+    g_dsReplay = false;
+    std::memcpy(mine, decal, kDecalSize);
+    std::memcpy(generatorMine, generator, kDecalGeneratorSize);
+    std::memcpy(decal, after, kDecalSize);
+    std::memcpy(generator, generatorAfter, kDecalGeneratorSize);
+    g_dsDecal = nullptr;
+
+    ++g_dsCompared;
+    if (At<uint32_t>(after, 0xC) >> 4 & 1)
+        ++g_dsFlagged;
+    if ((g_dsCompared & (g_dsCompared - 1)) == 0)
+        log::Write("water effects: effects.decal_description: %llu compared so far, %llu letting go of a texture, "
+                   "%llu with the city's sizes",
+                   static_cast<unsigned long long>(g_dsCompared), static_cast<unsigned long long>(g_dsReleases),
+                   static_cast<unsigned long long>(g_dsFlagged));
+    const char* const id = "effects.decal_description";
+    char text[48];
+    if (!(g_dsGame == g_dsOurs)) {
+        compare::Record(id, false, DsNotesText(g_dsGame), DsNotesText(g_dsOurs));
+    } else if (std::memcmp(after, mine, kDecalSize) != 0) {
+        std::size_t at = 0;
+        while (after[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "+%zX ", at);
+        compare::Record(id, false, text + Hex(after + at, 4), text + Hex(mine + at, 4));
+    } else if (std::memcmp(generatorAfter, generatorMine, kDecalGeneratorSize) != 0) {
+        compare::Record(id, false, "the generator's state", "another");
+    } else {
+        compare::Record(id, true, std::string(), std::string());
+    }
+    return result;
+}
+
+uint32_t DecalDescriptionRun(char* decal, uint32_t description)
+{
+    if (g_dsMode == StepMode::Ours) {
+        SetDecalDescription(decal, reinterpret_cast<char*>(description));
+        return 0;
+    }
+    if (g_dsMode == StepMode::Original)
+        return g_SC4EffectDecal_SetDescription(decal, nullptr, description);
+    return DecalDescriptionCompared(decal, description);
+}
+
+bool InstallDecalDescription(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookDecalDescription())
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !Detour(addr::SC4DecalDescription_Assign, &TSC4DecalDescription_Assign, &g_SC4DecalDescription_Assign))
+        return false;
+    g_dsMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the decal's taking of its description %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDecalDescription = registry::Register({
+    "renderer.effects.decal_description",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDecal_SetDescription,
+    "A decal's taking of its description: the description copied in (the copy still the game's), the texture it held "
+    "let go, its rate and three scales drawn from the generator, and with the description's flag the city's sizes; "
+    "compare mode runs the game's with the copy noted and replays ours (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallDecalDescription,
 });
 
 bool InstallEffects(registry::Mode mode)
