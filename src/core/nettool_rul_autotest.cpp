@@ -45,6 +45,25 @@
 // and the erasers run at every city load (the first network tool Init after
 // a resource load), so the daily checksum covers them; the pair table's Find
 // (0x00633970) and the static constructor are not driven.
+//
+// Part r2 (src/core/nettool_rul_2.cpp) appends, on every day,
+// ` f<files>:<hash>`: the type rows' rule files (+0x24), each multimap
+// walked in order (its order comes from the insertion order, not from
+// addresses): per node the key, the edges, the checks (position, edges,
+// mask; not the three bytes after the position), the tiles (ID, position,
+// turn byte; not the two bytes after them) and the mask. From the drive day
+// on, ` e<hash>` after ` d`: part r2's functions called at the game's
+// addresses on the test's own memory: MirrorEdges and RotateEdges on 64
+// words (turns 0 to 3, 5 and -1), RotateCheck and RotateTile on made-up
+// records (positions 0 to 31, turns 0 to 3, flipped or not); for the first
+// 48 entries of row 0's first rule file: Mirror into an empty entry, Rotate
+// that by 0 to 3, Equals both ways, the made entries' buffers freed; a local
+// multimap (Construct) given copies of its first 32 entries with mask 0xFF
+// (Insert, CreateNode), Transmogrify into a second one (InsertRange, the
+// vectors' copies, assignments and growth, EraseSubtree under it), both
+// destroyed (Destruct); and the same RUL file read again into a new rule
+// file object (operator new, Construct, Load: the reader and the three
+// parsers under it), compared with the loaded one and deleted by its slot 0.
 #include "core/autotest_hooks.h"
 #include "core/game_access.h"
 #include "core/log.h"
@@ -59,6 +78,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <utility>
 #include <vector>
@@ -326,8 +346,219 @@ uint32_t DriveMirror()
     return hash.h;
 }
 
+// --- Part r2: the rule files ---------------------------------------------------
+
+char* Row(uint32_t type)
+{
+    return reinterpret_cast<char*>(addr::cSC4NetworkConstructionCrew_NetworkToolTuning + type * nettool_sim::kRowSize);
+}
+
+// The in-order successor of a multimap node.
+char* NextNode(char* node)
+{
+    if (char* right = At<char*>(node, tree::kRight)) {
+        while (char* const left = At<char*>(right, tree::kLeft))
+            right = left;
+        return right;
+    }
+    char* x = node;
+    char* y = At<char*>(x, tree::kParent);
+    while (x == At<char*>(y, tree::kRight)) {
+        x = y;
+        y = At<char*>(y, tree::kParent);
+    }
+    if (At<char*>(x, tree::kRight) != y)
+        x = y;
+    return x;
+}
+
+void MixEntry(Hash& hash, char* e)
+{
+    using namespace rul;
+    hash.Mix(Word(e, entry::kEdges));
+    {
+        const Vector& v = At<Vector>(e, entry::kChecks);
+        hash.Mix(static_cast<uint32_t>(v.end - v.begin) / check::kSize);
+        for (char* c = v.begin; c != v.end; c += check::kSize) {
+            hash.Mix(Byte(c, check::kPosition));
+            hash.Mix(Word(c, check::kEdges));
+            hash.Mix(Word(c, check::kMask));
+        }
+    }
+    {
+        const Vector& v = At<Vector>(e, entry::kTiles);
+        hash.Mix(static_cast<uint32_t>(v.end - v.begin) / tile::kSize);
+        for (char* t = v.begin; t != v.end; t += tile::kSize) {
+            hash.Mix(Word(t, tile::kId));
+            hash.Mix(Byte(t, tile::kPosition));
+            hash.Mix(Byte(t, tile::kTurn));
+        }
+    }
+}
+
+// A multimap {head, count} in order (at most count + 1 nodes).
+uint32_t MapHash(char* map)
+{
+    using namespace rul;
+    Hash hash;
+    const uint32_t count = Word(map, tree::kCount);
+    hash.Mix(count);
+    char* const head = At<char*>(map, tree::kHead);
+    if (!head)
+        return hash.h;
+    uint32_t seen = 0;
+    for (char* node = At<char*>(head, tree::kLeft); node != head && seen <= count; node = NextNode(node), ++seen) {
+        char* const value = node + tree::kValue;
+        hash.Mix(Word(value, rulevalue::kKey));
+        MixEntry(hash, value + rulevalue::kEntry);
+        hash.Mix(Word(value, rulevalue::kEntry + entry::kMask));
+    }
+    hash.Mix(seen);
+    return hash.h;
+}
+
+void FilesHash(uint32_t& files, uint32_t& value)
+{
+    Hash hash;
+    files = 0;
+    for (uint32_t type = 0; type < nettool_sim::kTypes; ++type) {
+        const Vector& v = At<Vector>(Row(type), rul::typerow::kFiles);
+        hash.Mix(static_cast<uint32_t>(v.end - v.begin) / 4);
+        for (char* p = v.begin; p != v.end; p += 4) {
+            char* const file = At<char*>(p, 0);
+            ++files;
+            hash.Mix(file ? MapHash(file + rul::rulefile::kMap) : 0u);
+        }
+    }
+    value = hash.h;
+}
+
+// The buffers of an entry the test made through the game's code.
+void FreeEntry(char* e)
+{
+    for (const std::size_t at : {rul::entry::kChecks, rul::entry::kTiles}) {
+        if (char* const begin = At<char*>(e, at))
+            CallCdecl<void, void*>(addr::SC4_Free, begin);
+    }
+}
+
+uint32_t DriveRuleRecords()
+{
+    using namespace rul;
+    Hash hash;
+    // Edge words.
+    uint32_t state = 777u;
+    for (int i = 0; i < 64; ++i) {
+        state = state * 1103515245u + 12345u;
+        uint32_t word = i < 8 ? (0x01020304u * static_cast<uint32_t>(i)) ^ 0x0B111302u : (state & 0x3F3F3F3Fu);
+        uint32_t out = 0xDEADBEEFu;
+        CallThis<void, uint32_t*>(addr::SC4RuleEdges_Mirror, &word, &out);
+        hash.Mix(out);
+        for (const uint32_t turns : {0u, 1u, 2u, 3u, 5u, 0xFFFFFFFFu}) {
+            out = 0xDEADBEEFu;
+            CallThis<void, uint32_t, uint32_t*>(addr::SC4RuleEdges_Rotate, &word, turns, &out);
+            hash.Mix(out);
+        }
+    }
+    // Made-up checks and tiles.
+    for (uint32_t position = 0; position < 32; ++position) {
+        for (uint32_t turns = 0; turns < 4; ++turns) {
+            alignas(4) char in[check::kSize] = {};
+            alignas(4) char out[check::kSize] = {};
+            At<uint8_t>(in, check::kPosition) = static_cast<uint8_t>(position);
+            At<uint32_t>(in, check::kEdges) = 0x0B020311u + position;
+            At<uint32_t>(in, check::kMask) = 0xFF00FFFFu;
+            CallThis<void, uint32_t, char*>(addr::SC4RuleCheck_Rotate, in, turns, out);
+            hash.Mix(Byte(out, check::kPosition));
+            hash.Mix(Word(out, check::kEdges));
+            hash.Mix(Word(out, check::kMask));
+            for (const uint8_t turn : {uint8_t{0}, uint8_t{1}, uint8_t{2}, uint8_t{3}, uint8_t{0x80}, uint8_t{0x81},
+                                       uint8_t{0x82}, uint8_t{0x83}}) {
+                alignas(4) char tin[tile::kSize] = {};
+                alignas(4) char tout[tile::kSize] = {};
+                At<uint32_t>(tin, tile::kId) = 0x5E540000u + position;
+                At<uint8_t>(tin, tile::kPosition) = static_cast<uint8_t>(position);
+                At<uint8_t>(tin, tile::kTurn) = turn;
+                CallThis<void, uint32_t, char*>(addr::SC4RuleTile_Rotate, tin, turns, tout);
+                hash.Mix(Word(tout, tile::kId));
+                hash.Mix(Byte(tout, tile::kPosition));
+                hash.Mix(Byte(tout, tile::kTurn));
+            }
+        }
+    }
+    // Row 0's first rule file.
+    const Vector& files = At<Vector>(Row(0), typerow::kFiles);
+    char* const file = files.begin != files.end ? At<char*>(files.begin, 0) : nullptr;
+    hash.Mix(file != nullptr);
+    if (!file)
+        return hash.h;
+    char* const map = file + rulefile::kMap;
+    char* const head = At<char*>(map, tree::kHead);
+    uint32_t k = 0;
+    for (char* node = At<char*>(head, tree::kLeft); node != head && k < 48; node = NextNode(node), ++k) {
+        char* const e = node + tree::kValue + rulevalue::kEntry;
+        alignas(4) char mirrored[entry::kSize] = {};
+        alignas(4) char turned[entry::kSize] = {};
+        CallThis<void, char*>(addr::SC4RuleEntry_Mirror, e, mirrored);
+        CallThis<void, uint32_t, char*>(addr::SC4RuleEntry_Rotate, mirrored, k & 3, turned);
+        MixEntry(hash, mirrored);
+        MixEntry(hash, turned);
+        hash.Mix(CallThis<uint8_t, char*>(addr::SC4RuleEntry_Equals, e, turned));
+        hash.Mix(CallThis<uint8_t, char*>(addr::SC4RuleEntry_Equals, turned, e));
+        hash.Mix(CallThis<uint8_t, char*>(addr::SC4RuleEntry_Equals, e, e));
+        FreeEntry(turned);
+        FreeEntry(mirrored);
+    }
+    // A local multimap of copies with every variant asked, transmogrified.
+    alignas(4) char local[8] = {};
+    alignas(4) char out[8] = {};
+    CallThis<char*>(addr::SC4RuleFileMap_Construct, local);
+    k = 0;
+    for (char* node = At<char*>(head, tree::kLeft); node != head && k < 32; node = NextNode(node), ++k) {
+        alignas(4) char value[rulevalue::kSize];
+        std::memcpy(value, node + tree::kValue, rulevalue::kSize); // the vectors are only read (copied)
+        At<uint32_t>(value, rulevalue::kEntry + entry::kMask) = entry::kAllVariants;
+        char* y = At<char*>(local, tree::kHead);
+        char* x = At<char*>(y, tree::kParent);
+        while (x) {
+            y = x;
+            x = Word(value, rulevalue::kKey) < Word(x, tree::kValue + rulevalue::kKey) ? At<char*>(x, tree::kLeft)
+                                                                                         : At<char*>(x, tree::kRight);
+        }
+        char* result = nullptr;
+        CallThis<char**, char**, char*, char*, char*, char*>(addr::SC4RuleFileMap_Insert, local, &result, x, y, value,
+                                                             nullptr);
+    }
+    hash.Mix(MapHash(local));
+    CallThis<char*>(addr::SC4RuleFileMap_Construct, out);
+    CallThis<void, char*, char*, uint32_t>(addr::SC4NetworkRuleFile_Transmogrify, file, out, local, 0u);
+    hash.Mix(MapHash(out));
+    CallThis<void>(addr::SC4RuleFileMap_Destruct, out);
+    CallThis<void>(addr::SC4RuleFileMap_Destruct, local);
+    // The file read again (row 0's first key, as LoadTypeInfo gives it).
+    constexpr std::uintptr_t kRow0FirstFile = 0x00B0B424;
+    char* const fresh = CallCdecl<char*, uint32_t>(addr::SC4_operator_new, rulefile::kSize);
+    uint8_t loaded = 0;
+    uint32_t again = 0;
+    if (fresh) {
+        CallThis<char*>(addr::SC4NetworkRuleFile_Construct, fresh);
+        loaded = CallThis<uint8_t, const void*, uint32_t>(addr::SC4NetworkRuleFile_Load, fresh,
+                                                          reinterpret_cast<const void*>(kRow0FirstFile), 0u);
+        again = MapHash(fresh + rulefile::kMap);
+        Virtual<char*, uint32_t>(fresh, 0, 1u);
+    }
+    const uint32_t original = MapHash(map);
+    hash.Mix(loaded);
+    hash.Mix(again);
+    hash.Mix(again == original);
+    log::Write("autotest: ntrul: drive r2: row 0 file %u entries, reload %s (%08X vs %08X)", Word(map, tree::kCount),
+               loaded ? (again == original ? "same" : "DIFFERENT") : "FAILED", again, original);
+    return hash.h;
+}
+
 bool g_done = false;
 uint32_t g_drive = 0;
+uint32_t g_drive2 = 0;
 
 void Drive(const Day& day)
 {
@@ -346,6 +577,7 @@ void Drive(const Day& day)
     if (rules.empty()) {
         log::Write("autotest: ntrul: drive: mirror %08X, the store is empty", mirror);
         g_drive = total.h;
+        g_drive2 = DriveRuleRecords();
         return;
     }
 
@@ -386,6 +618,8 @@ void Drive(const Day& day)
     log::Write("autotest: ntrul: drive: mirror %08X, lookup %s, %u of %u rules transformed (hash %08X), total %08X",
                mirror, same ? "same node" : "OTHER NODE", transformed, static_cast<uint32_t>(rules.size()), steps.h,
                g_drive);
+    g_drive2 = DriveRuleRecords();
+    log::Write("autotest: ntrul: drive r2 %08X", g_drive2);
 }
 
 // Once per run, a log line (never hashed) on the fields FindOrInsert's
@@ -435,12 +669,14 @@ void Fingerprint(cISC4City*, std::string& line)
     uint32_t storeCount = 0, storeHash = 0, mapCount = 0, mapHash = 0;
     StoreHash(storeCount, storeHash);
     MultimapHash(mapCount, mapHash);
-    char text[96];
-    std::snprintf(text, sizeof text, " | ntrul s%u:%08X m%u:%08X t%08X", storeCount, storeHash, mapCount, mapHash,
-                  RowsHash());
+    uint32_t files = 0, filesHash = 0;
+    FilesHash(files, filesHash);
+    char text[128];
+    std::snprintf(text, sizeof text, " | ntrul s%u:%08X m%u:%08X t%08X f%u:%08X", storeCount, storeHash, mapCount,
+                  mapHash, RowsHash(), files, filesHash);
     line += text;
     if (g_done) {
-        std::snprintf(text, sizeof text, " d%08X", g_drive);
+        std::snprintf(text, sizeof text, " d%08X e%08X", g_drive, g_drive2);
         line += text;
     }
 }
