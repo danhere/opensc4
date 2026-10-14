@@ -242,6 +242,7 @@ add_library(opensc4_core SHARED
   nettool_satisfier_1.cpp
   nettool_satisfier_2.cpp
   nettool_rul_1.cpp
+  nettool_rul_2.cpp
   nettool_state.cpp
   netmgr_autotest.cpp
   netmgr_life.cpp

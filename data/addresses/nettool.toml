@@ -1650,3 +1650,322 @@ name = "cSC4NetworkTool::Rul2Overrides"
 address = 0x00B466D0
 kind = "data"
 source = "Name ours. The RUL2 override multimap: the head node, the count at 0x00B466D4; nodes (STLport tree) with the value at +0x10 (the key, then four (ID, rotation byte) pairs). Emptied by LoadRules 0x006253D0, filled by 0x0063D3E0; NAM reads it by layout."
+
+[[entry]]
+name = "SC4RulReader::Open"
+address = 0x006210B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 80 3E 00 74 06"
+source = "Name ours. Ret 4 (a resource key*), AL: the rule file load's text reader (0x38 bytes on 0x00623020's stack) opened on that key through SC4::OpenResourceRecord (a cIGZFile); 0 when it was open already or the key is missing (then operator delete on the record slot). Called by the rule file load 0x00623020 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleTileVector::UninitializedCopy"
+address = 0x00621110
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 44 24 0C"
+source = "Name ours. Four arguments (first, last, destination, tag), EAX the destination's end: 8-byte rule tiles copied (byte +4, word +0, byte +5; a null destination skips the writes). Called by 0x00621970 and 0x00621B40 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleTileVector::UninitializedFill"
+address = 0x00621150
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 85 C9 8B 44"
+source = "Name ours. Four arguments (destination, count, value*, tag), EAX the end: count copies of an 8-byte rule tile. Called by 0x00621B40 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleTile::Rotate"
+address = 0x00621180
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 04 84 C0 56 8B 74"
+source = "Name ours. Ret 8 (quarter turns, out*): a rule tile turned: its position (1 to 8 by 2 a turn in the ring of 8, 9 to 24 by 4 in the ring of 16), its ID copied, its turn byte (+ turns & 3, or from the table 0x00AA8328 when flipped). Called by 0x00621F30 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleEdges::Mirror"
+address = 0x00621210
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 57 8B"
+source = "Name ours. Ret 4 (out*): four edge bytes mirrored (each: low bits 1 and 3 swapped, 2 with the bits 0x10 and 0x20 swapped) and bytes 0 and 2 exchanged. Called by 0x00621DF0 and the tool's slot 72 0x006278A0 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleEdges::Rotate"
+address = 0x00621380
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 53 55 56 57"
+source = "Name ours. Ret 8 (quarter turns, out*): the four edge bytes moved by that many places (byte k to (turns + k) % 4). Called by 0x00621680 and 0x00621F30 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleEntry::Equals"
+address = 0x006214A0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 8B 10 56"
+source = "Name ours. Ret 4 (another entry*), AL: the same edges and the same set of checks by position and edges (masks and tiles not compared). Called by Transmogrify 0x00622B50 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleCheckVector::AllocateCopy"
+address = 0x006215C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 74 11"
+source = "Name ours. Ret 0xC (count, first, last), EAX a new buffer of count 12-byte checks with the range copied (byte, word, word). Called by 0x00621850 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleTileVector::AllocateCopy"
+address = 0x00621620
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 74 0E"
+source = "Name ours. Ret 0xC (count, first, last), EAX a new buffer of count 8-byte tiles with the range copied. Called by 0x00621970 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleCheck::Rotate"
+address = 0x00621680
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8A 03 84 C0 56"
+source = "Name ours. Ret 8 (quarter turns, out*): a 12-byte check turned (its position as a tile's, its edges and mask by 0x00621380). Called by 0x00621F30 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleCheckVector::CopyConstruct"
+address = 0x00621700
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B 03 56"
+source = "Name ours. Ret 4 (the source vector), EAX this: a vector of 12-byte checks copied (SC4::stl_allocate). Called by the rule file code 0x006221F0, 0x00622460, 0x00622B50, 0x00623020 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleTileVector::CopyConstruct"
+address = 0x00621790
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B 13 56"
+source = "Name ours. Ret 4 (the source vector), EAX this: a vector of 8-byte tiles copied. Called by the rule file code 0x006221F0, 0x00622460, 0x00622B50, 0x00623020 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleCheckVector::Assign"
+address = 0x00621850
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. Ret 4 (the source vector), EAX this: vector<12-byte check> operator= (0x006215C0, SC4Vector12::Copy 0x006143E0, 0x00621580). Called by Transmogrify 0x00622B50 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleTileVector::Assign"
+address = 0x00621970
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Name ours. Ret 4 (the source vector), EAX this: vector<8-byte tile> operator= (0x00621620, 0x00463DF0, 0x00621110). Called by Transmogrify 0x00622B50 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleTileVector::InsertOverflow"
+address = 0x00621B40
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 57 8B F9 8B 37"
+source = "Name ours. Ret 0x14 (where, value*, tag*, count, at end): the 8-byte tile vector regrown (size + max(size, count)) with count copies inserted. Called by 0x00621CF0, 0x00621DF0, 0x00621F30 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RulReader::Construct"
+address = 0x00621C30
+kind = "function"
+convention = "thiscall"
+expect = "53 33 DB 56 8B F1 88 1E"
+source = "Name ours. No arguments, EAX this: the rule file text reader made closed with two empty game strings (8-byte buffers). Called by the rule file load 0x00623020 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RulReader::Destruct"
+address = 0x00621C90
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 80 3E 00 74 1A"
+source = "Name ours. No arguments: the reader closed (its record released) and its two strings freed. Called by the rule file load 0x00623020 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleTileVector::PushBack"
+address = 0x00621CF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 3B 41 08 74 21"
+source = "Name ours. Ret 4 (value*): an 8-byte tile appended (in place or 0x00621B40). Called by the entry parser 0x00622870 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleEntry::Mirror"
+address = 0x00621DF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 57 8B"
+source = "Name ours. Ret 4 (out entry*): a rule entry mirrored into out: edges and each check's edges and mask by 0x00621210, positions through the tables 0x00B0B3F4 / 0x00B0B3D8 / 0x00B0B3C8, tiles' flip bit toggled. Called by Transmogrify 0x00622B50 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleEntry::Rotate"
+address = 0x00621F30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 44 24 18 53"
+source = "Name ours. Ret 8 (quarter turns, out entry*): a rule entry turned into out (0x00621380, 0x00621680 per check, 0x00621180 per tile). Called by Transmogrify 0x00622B50 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleFileMap::EraseSubtree"
+address = 0x00622190
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Ret 4 (a node), this a rule file's multimap: the subtree freed (right by recursion), each node's two vectors first. Called by 0x006225D0, 0x00622AE0, 0x00622B50 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleFileMap::CreateNode"
+address = 0x006221F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 6A 34 E8 5B AD 2E"
+source = "Name ours. Ret 4 (value*), EAX a new 0x34-byte node holding a copy of the 0x24-byte value (links not written). Called by Insert 0x00622460 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RulReader::ReadLine"
+address = 0x00622240
+kind = "function"
+convention = "cdecl"
+expect = "81 EC C0 00 00 00 53 56"
+source = "Name ours. Two arguments (a cIGZFile record, a cIGZString), AL whether anything was read: the record opened when needed, the text up to the next CR or LF (a CR LF or LF CR pair taken as one) read in 128-byte pieces and given to the string. Called by NextToken 0x00622620 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleFileMap::Insert"
+address = 0x00622460
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 56 57 8B"
+source = "Name ours. Ret 0x14 (result*, x, y, value*, w), EAX result: STLport _Rb_tree::_M_insert for a rule file's multimap (new node, SC4Tree::RebalanceForInsert, the count). Called by 0x00622540, 0x00622B50, 0x00623020 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleFileMap::InsertRange"
+address = 0x00622540
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 10 56 8B"
+source = "Name ours. Ret 8 (first, last node): insert_equal of each value of the range. Called by Transmogrify 0x00622B50 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleFileMap::Destruct"
+address = 0x006225D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Name ours. No arguments: a rule file multimap emptied (0x00622190) and its head freed. Called by the rule file load 0x00623020 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RulReader::NextToken"
+address = 0x00622620
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 56 8B F1 8A 46"
+source = "Name ours. No arguments, EAX the token's characters or null: the pushed back token, else the next comma separated token (lines read by 0x00622240, ';' lines skipped, a ',' added after each line). Called by the rule file parsers and the load (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleFileMap::Construct"
+address = 0x00622750
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 6A 34 C7 06 00"
+source = "Name ours. No arguments, EAX this: an empty rule file multimap (a 0x34-byte head). Called by the rule file load 0x00623020 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleTile::Parse"
+address = 0x00622790
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours. Ret 4 (the reader), AL 1: a tile line's four tokens: the position, the ID (SC4::TextToUint32), the turn, and a flip number (0x80 when not 0). Called by the entry parser 0x00622870 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleEdges::Parse"
+address = 0x00622800
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 57 8B"
+source = "Name ours. Ret 4 (the reader), AL: four tokens n as edge bytes ((n / 10) << 3) | n % 10; 0 when a token is missing. Called by the entry parser 0x00622870 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleEntry::Parse"
+address = 0x00622870
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 8B 5C 24 20"
+source = "Name ours. Ret 4 (the reader), AL: one rule entry (noflip/notrans, 1 and the edges, its 2 check lines and 3 tile lines; the next entry's token pushed back); 1 when it has tiles. Called by the rule file load 0x00623020 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4NetworkRuleFile::Construct"
+address = 0x00622A90
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 38 83 AA"
+source = "Name ours. No arguments, EAX this: a type row's rule file object (0x10 bytes): the vtable 0x00AA8338 and an empty multimap. Called by AddRuleFile 0x0063D360 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4NetworkRuleFile::DeletingDestructor"
+address = 0x00622AE0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8D 77 04 C7"
+source = "Name ours. Ret 4 (flags), EAX this: slot 0 of 0x00AA8338: the multimap freed, the object deleted (operator delete) when bit 0 is set. Called through the vtable by the row's Clear 0x006421D0 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4NetworkRuleFile::Transmogrify"
+address = 0x00622B50
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 88 01 00 00 8B 84"
+source = "Name ours. Ret 0xC (out multimap*, source multimap*, an unread word): for each source entry its distinct variants (up to 8 by its mask: turns 0 to 3, mirrored or not; 0x00621DF0, 0x00621F30, 0x006214A0) inserted into out with mask 1. Called by the rule file load 0x00623020 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4NetworkRuleFile::Load"
+address = 0x00623020
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 90 00 00 00 53 55"
+source = "Name ours. Ret 8 (a resource key*, an unread word), AL: the rule file read from that RUL text resource into its multimap (insert_equal by the edges), transmogrified when the first token is #Transmogrify. Called by AddRuleFile 0x0063D360 (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4NetworkRuleFile::Vtable"
+address = 0x00AA8338
+kind = "vtable"
+expect = "E0 2A 62 00 6E 6F 74 72"
+source = "Name ours. The type row rule file's vtable (one slot: the deleting destructor 0x00622AE0) (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleCheckVector::InsertOverflow"
+address = 0x00621A40
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8B 06 8B"
+source = "Name ours. Ret 0x14 (where, value*, tag*, count, at end): the 12-byte check vector regrown with count copies inserted (byte, word, word copies). The rule entry code calls it (src/core/nettool_rul_2.cpp)."
+
+[[entry]]
+name = "SC4RuleCheckVector::UninitializedCopy"
+address = 0x00621580
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 44 24 0C"
+source = "Name ours. Four arguments (first, last, destination, tag), EAX the end: 12-byte checks copied (byte, word, word). Called by 0x00621850."
+
+[[entry]]
+name = "SC4Vector8::Copy"
+address = 0x00463DF0
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 08 8B 4C 24 04"
+source = "Name ours. Four arguments (first, last, destination, tag): std::copy of 8-byte elements as two words each (count from (last - first) >> 3). Called by 0x00621970 among others."
+
+[[entry]]
+name = "SC4::isdigit"
+address = 0x009EF61D
+kind = "function"
+convention = "cdecl"
+expect = "E8 E2 7F 00 00 8B 40 64"
+source = "The C runtime's isdigit (one int). The rule entry parser 0x00622870 calls it."
