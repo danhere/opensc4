@@ -2579,3 +2579,210 @@ name = "SC4::FloatHalfPi"
 address = 0x00AA8D30
 kind = "data"
 source = "Name ours. The float 1.5707964 (the exemplar callback 0x0063F400 multiplies the quarter turns by it)."
+
+[[entry]]
+name = "SC4BridgeIntMap::FindOrInsert"
+address = 0x00640D40
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 83 EC 34 53"
+source = "Name ours. Ret 4 (the key*): the bridge record int-keyed map's operator[]: the node of the key (lower bound), else a node with an empty value inserted by InsertHint 0x0063E500 (hint the lower bound); EAX the value's element vector (node + 0x14). Called by 0x00641310 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4Rul1Map::InsertUnique"
+address = 0x00640EF0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 10 8B D9"
+source = "Name ours. Ret 8 (result*, value*: two signed types, a pair table): the RUL1 map's insert_unique (InsertAt 0x0063FBF0 unless the key exists); result {node, inserted byte}; EAX result. Called by 0x006413B0 and LoadRul1 0x00641D30 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4NetworkBridgeRecord::CopyConstruct"
+address = 0x00640FA0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 57 8B 7C"
+source = "Name ours. Ret 4 (the source record*): a bridge record (0x178 bytes) copy-constructed field by field (vectors 0x007CED60, 0x00464760, the name's body 0x004089B0, the int map 0x0063E710); EAX this. Called by 0x00641640, 0x00641680, 0x00642030, 0x00642220 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4NetworkBridgeRecord::CopyRange"
+address = 0x006412B0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. (first, last, dest): the records of [first, last) assigned (0x0063FCD0) to dest onwards; EAX the dest end. Called by the erase 0x00641EB0 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4BridgeLexer::ParseLength"
+address = 0x00641310
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B E9 E8 D7 CA FF"
+source = "Name ours. Ret 4 (a bridge record*), this the bridge lexer: 'length <n>' with n in [+0x4, +0x8] and not yet in the record's int map: the layout (0x0063EA50) into the map's new value (0x00640D40); AL. Called by 0x00643330 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4Rul1Map::InsertHint"
+address = 0x006413B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "Name ours. Ret 0xC (result*, hint, value*): the RUL1 map's insert_unique with a hint (STLport: before, after or at the hint through InsertAt 0x0063FBF0, else InsertUnique 0x00640EF0; comparisons 0x006337B0, iterator steps 0x005D17C0 / 0x006809E0); EAX result. Called by 0x00641C40 (never ran in the coverage runs; src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4NetworkBridgeRecord::UninitializedCopy"
+address = 0x00641640
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. (first, last, dest, tag): each record of [first, last) copy-constructed (0x00640FA0) at dest onwards; EAX the dest end. Called by 0x00642030 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4NetworkBridgeRecord::UninitializedFillN"
+address = 0x00641680
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. (dest, n, value*, tag): n copies of the record (0x00640FA0) at dest; EAX the end. Called by 0x00642030 (never ran in the coverage runs; src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul0OrderingLineCallback"
+address = 0x006416B0
+kind = "function"
+convention = "cdecl"
+expect = "8A 0D C8 66 B4 00 83 EC"
+source = "Name ours. (key, value, the RUL0 loader's context): the RUL0 'Ordering' lines: RotationRing (a ring of rule IDs through the rules' +0xEC / +0xF0, the first ID into the context's +0x18) and AddTypes (rules linked into that ring and, through +0xF4 / +0xF8, into the ring of the context's +0x18); the two key strings 0x00B466B4 / 0x00B466A0 made once (guard 0x00B466C8). Passed by 0x00641A50 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul0SectionCallback"
+address = 0x00641A50
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 18 55 8B 6C 24 20"
+source = "Name ours. (a section name, an empty string, the RUL0 loader's context): 'Ordering' sections through 0x006416B0; 'HighwayIntersectionInfo_<hex ID>' sections: the store's rule of the ID (0x0062C2F0, ID into +0x0 and +0xEC to +0xF8), the context's two layout lists cleared, the lines through 0x00640320, then ParseCellLayout / ParseConsLayout of the lists. Passed by LoadRul0 0x00641B60 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4BridgeLexer::ClearMaps"
+address = 0x00641BF0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B E9 8B 45 00 56 8B"
+source = "Name ours. No arguments, this the bridge lexer's list (+0x2C): every node's string map cleared (0x0063DA30) and freed, the head relinked to itself. Called by 0x006436D0 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4Rul1Map::FindOrInsert"
+address = 0x00641C40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 53 55 56 57 8B"
+source = "Name ours. Ret 4 (a type pair*): the RUL1 map's operator[]: the node of the pair (0x0063C070), else one with an empty pair table (100 buckets) inserted by 0x006413B0; EAX the node's pair table (node + 0x18). Called by LoadRul1 0x00641D30 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4BridgeRecordVector::Erase"
+address = 0x00641EB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Name ours. Ret 8 (first, last): the records after last moved down (0x006412B0), the leftover tail destroyed (0x00640230); EAX first. Called by the type row's Clear 0x006421D0 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4BridgeLexer::Construct"
+address = 0x00641F00
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 C7 06 58 8C"
+source = "Name ours. Ret 8 (the bridge record vector*, the divisor): the RUL0 lexer's base fields (vtable 0x00AA8C58 then 0x00AA8EB4, pushed token -1, an empty identifier), +0x28 the records, +0x2C an empty list head (0x1C bytes), +0x30 the divisor; EAX this. Called by 0x006436D0 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4BridgeRecordVector::InsertOverflow"
+address = 0x00642030
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 16"
+source = "Name ours. Ret 0x14 (position, value*, tag, n, at end): the vector of bridge records regrown (size + max(size, n)), the records before, n copies of the value and (unless at end) the records after copy-constructed into it, the old ones destroyed and freed. Called by 0x00642220 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4BridgeLexer::PushMap"
+address = 0x00642150
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 56 33 DB 57"
+source = "Name ours. No arguments: a list node (0x1C bytes) with an empty string map (100 buckets, copied by 0x0063E7C0) appended to the bridge lexer's list (+0x2C). Called by 0x00643330 and 0x00643580 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::BridgeLineCallback"
+address = 0x00642220
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. (key, value, a type row's bridge record vector +0x30): a record appended (constructor 0x00640030, copy 0x00640FA0 or 0x00642030), its ID from the key; the value 'type,group,instance,name': the exemplar's properties 0x482CB441 to 0x482CD466 into the record (vectors resized, points turned by 0x005D77A0), the name (a localized one when 0x482CD466 is set). Passed by LoadBridges 0x006437A0 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4BridgeLexer::ParseBridge"
+address = 0x00643330
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 8B D9 E8 B5"
+source = "Name ours. No arguments, this the bridge lexer: 'bridge <ID>' (a record of +0x28 with that ID): a map scope pushed (0x00642150), then 'section <name>' layouts (0x00640E10, 0x0063EA50), 'length <n>' (0x00641310) until 'end', the scope popped; AL. Called by 0x00643580 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4BridgeLexer::Parse"
+address = 0x00643580
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 14 53"
+source = "Name ours. Ret 8 (the text, its size), this the bridge lexer: a map scope pushed, then 'section <name>' layouts and 'bridge' blocks (0x00643330) until 'stop' or the end; AL. Called by 0x006436D0 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::LoadBridgeLayouts"
+address = 0x006436D0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 44 8B 44 24 48 6A"
+source = "Name ours. (an ID, the row's bridge record vector, a divisor): the resource 0x0A5BCF4B/0xAA5BCF57/ID read whole (0x005F9670, slot 0x38) and parsed by a bridge lexer on the stack (0x00641F00, 0x00643580), the lexer's maps and buffers freed. Called by LoadBridges 0x006437A0 (src/core/nettool_rul_5.cpp)."
+
+[[entry]]
+name = "SC4PairLess::Compare"
+address = 0x006337B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 8B 02 56 8B"
+source = "Name ours. Ret 8 (a*, b*: pairs of int32): a < b (first, then second; signed); AL. The RUL1 map's hinted insert 0x006413B0 calls it on the map's +0x8."
+
+[[entry]]
+name = "SC4PointVector::Resize"
+address = 0x0066D1E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 11 56 8B 71"
+source = "Name ours. Ret 4 (n): resize() of a vector of 8-byte points, new points (0, 0). The bridge line callback 0x00642220 sizes a record's +0x14 with it."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul0OrderingKeyGuard"
+address = 0x00B466C8
+kind = "data"
+source = "Name ours. The guard bits of 0x006416B0's two static key strings (bit 0 RotationRing 0x00B466B4, bit 1 AddTypes 0x00B466A0)."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul0RotationRingKey"
+address = 0x00B466B4
+kind = "data"
+source = "Name ours. The static game string 'RotationRing' of the RUL0 Ordering line callback 0x006416B0 (made once, destroyed at exit by 0x00A7C290)."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul0AddTypesKey"
+address = 0x00B466A0
+kind = "data"
+source = "Name ours. The static game string 'AddTypes' of the RUL0 Ordering line callback 0x006416B0 (made once, destroyed at exit by 0x00A7C270)."
+
+[[entry]]
+name = "SC4BridgeLexer::Vtable"
+address = 0x00AA8EB4
+kind = "vtable"
+expect = "10 8F 64 00 73 65 63 74"
+source = "Name ours. One slot (0x00648F10, the lexer's error report that does nothing): the bridge lexer's vtable, written by its constructor 0x00641F00 after the RUL0 lexer's base vtable."
+
+[[entry]]
+name = "SC4::FloatMinusOne"
+address = 0x00A8FE78
+kind = "data"
+source = "Name ours. The float -1.0 (the bridge line callback 0x00642220 negates two angles with it)."
