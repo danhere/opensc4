@@ -19,18 +19,21 @@ constexpr std::size_t kCursor = 0x10; // cursor ID
 constexpr std::size_t kView = 0x1C;   // the city view
 } // namespace base
 
-// The tool's fields as far as the first piece (0x004C3730 to 0x004C56F0)
-// shows them. +0x30 to +0x3F are not set by the constructor; +0x79 to +0x7B,
-// +0x8A, +0x8B and +0x95 to +0x97 are padding.
+// The tool's fields as far as the first two pieces (0x004C3730 to
+// 0x004C7A70) show them. +0x30 to +0x3F are not set by the constructor;
+// +0x79 to +0x7B, +0x8A, +0x8B and +0x95 to +0x97 are padding. Init
+// (0x004C57A0) reads +0x4, +0x1C and +0x8C and sets +0xC, +0x10, +0x44 to
+// +0x4C (the two windows only for kind 1), +0x78 and +0x94; it gives the
+// timer at +0x50 its callback and registers the target part at +0x28.
 namespace field {
 constexpr std::size_t kTarget = 0x28;    // the message target part (vtable 0x00A90A78)
 constexpr std::size_t kOccupant = 0x2C;  // the occupant asked about (0x004C3810 reads its property holder)
 constexpr std::size_t kBox = 0x30;       // 16 bytes handed to 0x004CA460; not set by the constructor
 constexpr std::size_t kField40 = 0x40;   // a dword, 0; not let go by the destructor
-constexpr std::size_t kTip = 0x44;       // an object (referenced) whose window OnMouseUpL hides
-constexpr std::size_t kPanel = 0x48;     // a window (referenced)
-constexpr std::size_t kPanelOther = 0x4C; // a window (referenced): 0x004C4630 shows one for the other
-constexpr std::size_t kTimer = 0x50;     // a cRZTimer of 0x28 bytes (vtable 0x00AD1F14)
+constexpr std::size_t kTip = 0x44;       // the tool's info tip (0x1B4 bytes, made by Init; referenced)
+constexpr std::size_t kPanel = 0x48;     // kind 1: the layout's child 0x0BB0F5E7, moved to the view (referenced)
+constexpr std::size_t kPanelOther = 0x4C; // kind 1: the layout's child 0x6BB92BCA, moved to the view (referenced)
+constexpr std::size_t kTimer = 0x50;     // a cRZTimer of 0x28 bytes (vtable 0x00AD1F14); Init gives it 0x004C4E70
 constexpr std::size_t kFlag78 = 0x78;    // byte, 1 from the constructor and from Init
 constexpr std::size_t kPlace = 0x7C;     // three dwords, each the dword at 0x00B21858
 constexpr std::size_t kFlag88 = 0x88;    // byte, 0
@@ -39,7 +42,7 @@ constexpr std::size_t kKind = 0x8C;      // the constructor's first argument: 0 
 constexpr std::size_t kSecond = 0x90;    // the constructor's second argument: 0x32 from the view
 constexpr std::size_t kFlag94 = 0x94;    // byte, 0; Init stores the view's slot 39 here
 constexpr std::size_t kRouteMode = 0x98; // 3; 1 = all route cells but kind 6, 2 = only kind 6 (0x004C4AE0)
-constexpr std::size_t kObject9C = 0x9C;  // an object (referenced), let go by the destructor
+constexpr std::size_t kObject9C = 0x9C;  // the route line object (referenced) 0x004C5E20 adds points to (drawing)
 constexpr std::size_t kSize = 0xA0;
 } // namespace field
 
@@ -67,6 +70,23 @@ constexpr std::size_t kObject = 0x14;   // an object (referenced) set by slot 6,
 constexpr std::size_t kSize = 0x18;
 } // namespace window_runner
 
+// A pair the query's texts are kept in (key, string; made by 0x004CCF20,
+// put into a map by 0x004D4F90, destroyed by 0x004C6AF0).
+namespace text_entry {
+constexpr std::size_t kKey = 0x00;
+constexpr std::size_t kText = 0x04; // an SC4String (vtable 0x00A80810, body +0x8 to +0x13, a zero dword)
+constexpr std::size_t kSize = 0x18;
+} // namespace text_entry
+
+// What Init loads for kind 1: the layout {0, 0x96A006B0, 0xABB0120F},
+// window 0x6BB92BCB (interface 0x22BA0121), and its two children that
+// become the tool's windows.
+constexpr uint32_t kLayoutGroup = 0x96A006B0;
+constexpr uint32_t kLayoutInstance = 0xABB0120F;
+constexpr uint32_t kLayoutWindow = 0x6BB92BCB;
+constexpr uint32_t kPanelId = 0x0BB0F5E7;
+constexpr uint32_t kPanelOtherId = 0x6BB92BCA;
+
 constexpr uint32_t kToolIdFirst = 0xC7AF928E;  // kind 0
 constexpr uint32_t kToolIdSecond = 0xC7AF928F; // kind 1
 
@@ -74,7 +94,8 @@ constexpr uint32_t kToolIdSecond = 0xC7AF928F; // kind 1
 // the query's windows whose ID has the bit 0x1000; the index is the ID's low
 // 12 bits. Each is cdecl (window, control ID, fill, what is asked about):
 // with `fill` it puts the control's value into the window, without it it is
-// to read the control back (only 0x004C55A0 does). The readers are
+// to read the control back (0x004C55A0, 0x004C70C0, 0x004C7200 and
+// 0x004C7410 do; the rest answer true). The readers are
 // 0x004D3A90, 0x004D3AE0 and 0x004D3BD0.
 constexpr uint32_t kFillerCount = 0x7F;
 
