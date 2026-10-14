@@ -290,3 +290,115 @@ kind = "function"
 convention = "thiscall"
 expect = "53 55 56 8B F1 8B 46 10"
 source = "Name ours. Generic container code: (the address of a pair of a uint16 key and a word), ret 4, on a hash table keyed by uint16: grows the table for one more (0x00710DD0), allocates a 0xC-byte node, copies the pair and links it first in its bucket; EAX the address of the node key. The network lot manager map operator[] 0x0060DA50 calls it (src/core/netlot_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::Write"
+address = 0x0060D6B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 57 8B"
+source = "Slot 3 of the network lot manager serializable part (vtable 0x00AA7930; this is the object + 8), ret 4 (the stream): the version 2, the lot count, per lot the uint16 cell key, a reference to its network piece and its configuration ID, the pothole count, per pothole the cell key and a reference; EAX 1 when the stream has no error (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::Read"
+address = 0x0060DAC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 89 4C 24 08 56"
+source = "Slot 4 of the network lot manager serializable part (this is the object + 8), ret 4 (the stream): refuses any version but 2; builds each lot in place (0x18 bytes, vtable 0x00AA78E0), reads its key, its piece reference (IID 0xA821EF94) and its configuration ID into +0xC and stores it in the lot map; then the potholes (IID 0x09820792); EAX 1 when the stream has no error (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::Destroy"
+address = 0x0060E480
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 74 8B"
+source = "The network lot manager destructor (no arguments; called by the deleting destructor at 0x0060EF23 only): stores the three vtables, frees the nodes and buckets of the waiting set, the pothole map, the configuration map (0x00584660) and the lot map, releases the forced configuration; does not call Shutdown (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::Shutdown"
+address = 0x0060E570
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 55 8B E9 8A 45"
+source = "Slot 4 of the network lot manager (vtable 0x00AA7958), no arguments: nothing unless initialised (+0x70); six unsubscriptions at the message server, every lot released (the lot map keeps its nodes), every configuration released and the configuration map cleared, every pothole occupant given slot 8 with 1 and released and the pothole map cleared; AL 1 (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::AddConfiguration"
+address = 0x0060E7A0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "ret 4 (a configuration; called at 0x0060FC13 only): the configuration referenced and appended to the vector of its network piece ID in the configuration map (operator[] 0x0060E3C0, growing insert 0x0051CA60) (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::cSC4NetworkLotManager"
+address = 0x0060EE50
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 C7 46 04 74"
+source = "The network lot manager constructor (no arguments; reached by the jump of the factory 0x0060F4F0): base vtables 0x00A81174 and 0x00A80784, then the three of the class; four hash tables of 100 buckets (0x00829BC0) at +0xC, +0x20, +0x58 and +0x74; the cell iterator at +0x38 reset; subscribes to nothing; EAX the object (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::DeletingDestructor"
+address = 0x0060EF20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 58 F5 FF FF"
+source = "Slot 15 of the network lot manager (vtable 0x00AA7958), ret 4 (the flags): the destructor 0x0060E480 and with flag bit 0 operator delete; EAX the object (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::Create"
+address = 0x0060F4F0
+kind = "function"
+convention = "cdecl"
+expect = "68 88 00 00 00 E8 E6 60"
+source = "The network lot manager factory, registered at 0x00460443 with the class ID 0xE9A6CD3B: operator new of 0x88 bytes and a jump to the constructor 0x0060EE50; null without memory (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::LoadLotConfiguration"
+address = 0x0060F5F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 56 8B 74 24 44"
+source = "ret 8 (a property holder, a network lot configuration; called at 0x0060FC07 and by the lot editor at 0x0049C5B4): fills the configuration from the properties 0x88EDC789, 0xC9A5A1BE, 0x20, 0x21, 0x88EDC793, 0x88EDC795, 0x49D55951, 0xCA81B8D4, 0xAA120972, 0xAA120973, 0xEC3BD470 and 0xCC3E4755 and the objects through cSC4LotConfiguration::LoadObjects; a version below 2 is written back through slot 14; AL 0 for a null configuration or without the piece ID (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotConfiguration::cSC4NetworkLotConfiguration"
+address = 0x0060FA90
+kind = "function"
+convention = "thiscall"
+expect = "53 55 33 DB 56 8B F1 C7"
+source = "The network lot configuration constructor (no arguments; called at 0x0060FBF1 and by the lot editor window at 0x00499E85): vtable 0x00AA7998, an empty object vector, an empty name string with 8 bytes of storage, period 4, mask bytes 0x0F, bit vectors of 16 and 4 clear bits (0x0060D310), slopes 0 and 64; EAX the object (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::OnConfigurationResource"
+address = 0x0060FB90
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D A8 3C B4 00 8B 01"
+source = "The callback LoadConfigurations hands to the resource key list (a key, the manager as context): the exemplar of the key; when its property 0x10 is 0x21 a new configuration (0x6C bytes) is constructed, filled by LoadLotConfiguration and added by AddConfiguration (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotConfiguration::DeletingDestructor"
+address = 0x00610070
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 98 79 AA"
+source = "Slot 7 of the network lot configuration (vtable 0x00AA7998), ret 4 (the flags): frees the two bit vectors and the name, destroys the object vector (0x00479760), and with flag bit 0 operator delete; EAX the object (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::LoadConfigurations"
+address = 0x006100D0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 0D A8 3C"
+source = "No arguments (called by Init at 0x0061020E only): the resource manager (0x00B43CA8) slot 18 gives the key list of the exemplar type 0x6534284A, whose slot 7 walks it with the callback 0x0060FB90 and the manager (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::Init"
+address = 0x00610120
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 57 8B F9 8A 47"
+source = "Slot 3 of the network lot manager (vtable 0x00AA7958), no arguments: once (+0x70); six subscriptions at the message server, the cell iterator at +0x38 set to the city (slots 94 and 93), LoadConfigurations, then every loaded lot gets the configuration of its saved ID or is erased from the lot map (0x00710910) without being released; AL 1 (src/core/netlot_life.cpp)."

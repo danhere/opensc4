@@ -16,8 +16,10 @@
 namespace opensc4::occ_vtables {
 
 // Every copy built in this run with the table it was taken from, for
-// IsTable. The eight classes have 57 tables between them.
-constexpr std::size_t kMaxCopies = 64;
+// IsTable. The network occupant classes have 57 tables between them and the
+// two network managers three each; a copy past the limit is still made but
+// IsTable would not know it, so the limit is kept well above the count.
+constexpr std::size_t kMaxCopies = 128;
 struct CopyRecord {
     std::uintptr_t source;
     std::uintptr_t copy;

@@ -5,6 +5,9 @@
 #include "core/log.h"
 #include "core/netlot_sim.h"
 
+#include <cIGZIStream.h>
+#include <cIGZOStream.h>
+#include <cIGZString.h>
 #include <cISC4City.h>
 
 #include <opensc4/addresses.h>
@@ -12,8 +15,10 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace opensc4::autotest {
@@ -28,6 +33,9 @@ using netlot_sim::Vector;
 namespace field = netlot_sim::field;
 namespace slot = netlot_sim::slot;
 namespace hashtable = netlot_sim::hashtable;
+namespace hashnode = netlot_sim::hashnode;
+namespace iterator = netlot_sim::iterator;
+namespace bitvector = netlot_sim::bitvector;
 namespace tree = netlot_sim::tree;
 namespace lot = netlot_sim::lot;
 namespace lot_slot = netlot_sim::lot_slot;
@@ -342,6 +350,63 @@ uint32_t ConfigurationHash(void* config)
     return hash.h;
 }
 
+// A bit of one of a configuration's two bit vectors, read as the game's
+// 0x00477A40 finds it: the first bit's offset plus the index, divided by 32
+// toward zero for the word, the remainder for the bit, and for a negative
+// remainder the word before and the bit plus 32.
+uint32_t BitOf(char* vector, uint32_t index)
+{
+    const int32_t at = At<int32_t>(vector, bitvector::kOffset) + static_cast<int32_t>(index);
+    const uint32_t* word = At<const uint32_t*>(vector, bitvector::kWords) + at / 32;
+    int32_t shift = at % 32;
+    if (shift < 0) {
+        shift += 32;
+        --word;
+    }
+    return (*word >> shift) & 1u;
+}
+
+// The size of a bit vector and its bits (the first 32) as a word.
+void MixBits(Hash& hash, char* vector)
+{
+    const uint32_t size = netlot_sim::BitCount(vector);
+    uint32_t bits = 0;
+    for (uint32_t i = 0; i < size && i < 32; ++i)
+        bits |= BitOf(vector, i) << i;
+    hash.Mix(size);
+    hash.Mix(bits);
+}
+
+// What LoadLotConfiguration (and the constructor before it) left in a
+// configuration, read from its fields: the ID, the name's length and
+// characters, the network piece ID, the four mask bytes, the period, the
+// zone types' and the wealths' bit vectors, the two slopes as float bits,
+// the piece mask, the rule byte and the number of objects. The bytes the
+// constructor never writes (+0x31 to +0x33, +0x66, +0x67) are not read.
+uint32_t LoadedHash(char* config)
+{
+    Hash hash;
+    hash.Mix(At<uint32_t>(config, configuration::kId));
+    const auto* const name = reinterpret_cast<const netlot_sim::GameString*>(config + configuration::kName);
+    hash.Mix(static_cast<uint32_t>(name->end - name->begin));
+    for (const char* at = name->begin; at != name->end; ++at)
+        hash.Mix(static_cast<uint8_t>(*at));
+    hash.Mix(At<uint32_t>(config, configuration::kPieceId));
+    for (std::size_t i = 0; i < configuration::kCellMaskCount; ++i)
+        hash.Mix(At<uint8_t>(config, configuration::kCellMasks + i));
+    hash.Mix(At<uint8_t>(config, configuration::kPeriod));
+    MixBits(hash, config + configuration::kZones);
+    MixBits(hash, config + configuration::kWealths);
+    hash.Mix(At<uint32_t>(config, configuration::kLeastSlope));
+    hash.Mix(At<uint32_t>(config, configuration::kGreatestSlope));
+    hash.Mix(At<uint8_t>(config, configuration::kPieceMask));
+    hash.Mix(At<uint8_t>(config, configuration::kPieceFlagRule));
+    const Vector* const objects = reinterpret_cast<const Vector*>(config + configuration::kObjects);
+    hash.Mix(static_cast<uint32_t>(static_cast<std::size_t>(objects->end - objects->begin) /
+                                   configuration::kObjectSize));
+    return hash.h;
+}
+
 // GetNetworkLotConfigurationById (slot 7) for every ID of `ids` (sorted,
 // each once) and for two that are not among them: how many of each kind it
 // knew. Its second argument is never read: a word of the test's own, which
@@ -381,6 +446,345 @@ uint32_t Bit(bool set, uint32_t number)
     return static_cast<uint32_t>(set) << number;
 }
 
+// --- the second part: life and save ---------------------------------------------------
+
+// An output stream that keeps the bytes written to it, as
+// src/core/netmgr_autotest.cpp's. It answers no interface, so the game's
+// SC4Stream::WriteReference (0x005D99A0), which first asks the stream for the
+// save file's segment interface 0x6999A8FB, writes nothing for a reference
+// and does not touch the object. `error` is what GetError answers.
+class ByteOStream final : public cIGZOStream {
+public:
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    void Flush() override {}
+    bool SetSint8(int8_t v) override { return Put(v); }
+    bool SetUint8(uint8_t v) override { return Put(v); }
+    bool SetSint16(int16_t v) override { return Put(v); }
+    bool SetUint16(uint16_t v) override { return Put(v); }
+    bool SetSint32(int32_t v) override { return Put(v); }
+    bool SetUint32(uint32_t v) override { return Put(v); }
+    bool SetSint64(int64_t v) override { return Put(v); }
+    bool SetUint64(uint64_t v) override { return Put(v); }
+    bool SetFloat32(float v) override { return Put(v); }
+    bool SetFloat64(double v) override { return Put(v); }
+    bool SetRZCharStr(char const* text) override { return SetVoid(text, static_cast<uint32_t>(std::strlen(text))); }
+    bool SetGZStr(cIGZString const& text) override
+    {
+        const uint32_t length = text.Strlen();
+        Put(length);
+        return SetVoid(text.ToChar(), length);
+    }
+    bool SetGZSerializable(cIGZSerializable const&) override { return false; }
+    bool SetVoid(void const* data, uint32_t size) override
+    {
+        const uint8_t* const from = static_cast<const uint8_t*>(data);
+        bytes.insert(bytes.end(), from, from + size);
+        return true;
+    }
+    int32_t GetError() override { return error; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+
+    std::vector<uint8_t> bytes;
+    int32_t error = 0;
+
+private:
+    template <typename T>
+    bool Put(const T& value)
+    {
+        return SetVoid(&value, sizeof value);
+    }
+};
+
+// An input stream over a few bytes, as src/core/netmgr_autotest.cpp's: a
+// read past the end stores nothing, fails and leaves the stream in error. It
+// answers no interface, so SC4Stream::ReadReference (0x005D9730) clears the
+// pointer it is to fill, reads nothing and fails.
+class ByteIStream final : public cIGZIStream {
+public:
+    explicit ByteIStream(std::vector<uint8_t> data) : bytes(std::move(data)) {}
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Skip(uint32_t count) override
+    {
+        if (bytes.size() - at < count)
+            return Fail();
+        at += count;
+        return true;
+    }
+    bool GetSint8(int8_t& v) override { return Get(v); }
+    bool GetUint8(uint8_t& v) override { return Get(v); }
+    bool GetSint16(int16_t& v) override { return Get(v); }
+    bool GetUint16(uint16_t& v) override { return Get(v); }
+    bool GetSint32(int32_t& v) override { return Get(v); }
+    bool GetUint32(uint32_t& v) override { return Get(v); }
+    bool GetSint64(int64_t& v) override { return Get(v); }
+    bool GetUint64(uint64_t& v) override { return Get(v); }
+    bool GetFloat32(float& v) override { return GetVoid(&v, sizeof v); }
+    bool GetFloat64(double& v) override { return GetVoid(&v, sizeof v); }
+    bool GetRZCharStr(char*, uint32_t) override { return Fail(); }
+    bool GetGZStr(cIGZString&) override { return Fail(); }
+    bool GetGZSerializable(cIGZSerializable&) override { return Fail(); }
+    bool GetVoid(void* out, uint32_t size) override
+    {
+        if (bytes.size() - at < size)
+            return Fail();
+        std::memcpy(out, bytes.data() + at, size);
+        at += size;
+        return true;
+    }
+    int32_t GetError() override { return error; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+
+    std::vector<uint8_t> bytes;
+    std::size_t at = 0;
+    int32_t error = 0;
+
+private:
+    bool Fail()
+    {
+        error = 1;
+        return false;
+    }
+    template <typename T>
+    bool Get(T& value)
+    {
+        return GetVoid(&value, sizeof value);
+    }
+};
+
+uint32_t TableCount(char* manager, std::size_t table)
+{
+    return At<uint32_t>(manager, table + hashtable::kCount);
+}
+
+// The lots of the lot map that have no configuration (read from the table's
+// nodes). Write asks every lot's configuration for its ID, so a manager with
+// such a lot cannot be written, by the game's function or by ours.
+uint32_t BareLots(char* manager)
+{
+    char* const table = manager + field::kLots;
+    uint32_t bare = 0;
+    for (char* node = netlot_sim::FirstNode(table); node; node = netlot_sim::NextNode16(table, node))
+        bare += At<void*>(At<char*>(node, hashnode::kValue), lot::kConfiguration) == nullptr;
+    return bare;
+}
+
+// Write (the serializable part's slot 3) of a manager into a stream of the
+// test's own, once into a stream without an error and once into one that
+// reports one: the answer (1, then 0), the length and the bytes. With such a
+// stream a reference writes nothing (ByteOStream), so the record is the
+// version, the lot count, per lot the cell key and the configuration's ID,
+// the pothole count and per pothole the cell key: 10 bytes, 6 per lot and 2
+// per pothole, in the hash tables' order. Nothing of the manager, the lots
+// or the pieces is changed.
+uint32_t WriteTest(char* object, uint32_t& length)
+{
+    Hash hash;
+    for (const int32_t error : {0, 1}) {
+        ByteOStream out;
+        out.error = error;
+        cIGZOStream* const stream = &out;
+        hash.Mix(Virtual<uint8_t>(object + netlot_sim::kSerializablePart, slot::kWrite, static_cast<void*>(stream)));
+        hash.Mix(static_cast<uint32_t>(out.bytes.size()));
+        for (const uint8_t byte : out.bytes)
+            hash.Mix(byte);
+        length = static_cast<uint32_t>(out.bytes.size());
+    }
+    return hash.h;
+}
+
+// Read (the serializable part's slot 4) on a manager of the test's own, with
+// streams that build nothing:
+//   - an empty stream (the version's slot then keeps the low word of the
+//     stream's address, a multiple of four, so never 2), version 1 and
+//     version 3: AL 0 after the one uint16;
+//   - version 2 and a count of 0, then nothing: the pothole count's read
+//     fails, its word still holds the 0 of the lot count, and the stream is
+//     in error: AL 0, six bytes taken;
+//   - version 2, a count of 0 and a pothole count of 0: AL 1, ten bytes
+//     taken, nothing read into the maps;
+//   - the same bytes in a stream that is in error before the call: Read does
+//     not ask first, takes the ten bytes and answers 0;
+//   - an empty stream that is in error: AL 0.
+// NOT fed: version 2 and nothing else. The game reads its count into a stack
+// word it never set, so on a stream that ends there it would build as many
+// lots as that word says.
+// The answer, the bytes taken, the stream's error and the counts of the lot
+// map and of the pothole map (0 throughout) are mixed.
+void ReadRefusals(Hash& hash, char* object)
+{
+    struct Case {
+        std::vector<uint8_t> bytes;
+        int32_t error;
+    };
+    const Case cases[] = {{{}, 0},
+                          {{1, 0, 0xEE, 0xEE}, 0},
+                          {{3, 0, 0, 0, 0, 0}, 0},
+                          {{2, 0, 0, 0, 0, 0}, 0},
+                          {{2, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0},
+                          {{2, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 1},
+                          {{}, 1}};
+    for (const Case& one : cases) {
+        ByteIStream in(one.bytes);
+        in.error = one.error;
+        cIGZIStream* const stream = &in;
+        hash.Mix(Virtual<uint8_t>(object + netlot_sim::kSerializablePart, slot::kRead, static_cast<void*>(stream)));
+        hash.Mix(static_cast<uint32_t>(in.at));
+        hash.Mix(static_cast<uint32_t>(in.error));
+        hash.Mix(TableCount(object, field::kLots));
+        hash.Mix(TableCount(object, field::kPotholes));
+    }
+}
+
+// Read of a record with one lot and one pothole, on the manager of the
+// test's own: version 2; one lot at cell (0x34, 0x12) with the
+// configuration ID 0xAABBCCDD; one pothole at cell (0x34, 0x56). The stream
+// answers no interface, so neither reference is read (ReadReference clears
+// the lot's piece and the pothole's pointer and takes no byte), and the
+// record is 18 bytes. Mixed: the answer (1), the bytes taken, the stream's
+// state, both maps' counts (1 and 1); GetNetworkLot (slot 5) of the cell and
+// of the cell with x and z swapped (null); of the lot Read built: whether
+// its vtable is the game's lot vtable, whether it has a piece and a
+// configuration (neither), the saved ID, whether it holds exactly the one
+// reference Read gave it, and the forced byte; of the pothole map's one
+// node: the key and whether its occupant is null.
+//
+// Then the lot is released (its count is 1, so its deleting destructor runs
+// with nothing to release), which gives back what Read allocated. The lot
+// map's node then points at freed memory; the manager's destructor frees the
+// nodes without looking at what they hold (0x008EBA60), and Shutdown, which
+// would release the lots, does nothing on a manager that was never
+// initialised. Write is not called after this (it would ask the null
+// configuration for its ID).
+void ReadOne(Hash& hash, char* object)
+{
+    ByteIStream in({2, 0, 1, 0, 0, 0, 0x12, 0x34, 0xDD, 0xCC, 0xBB, 0xAA, 1, 0, 0, 0, 0x56, 0x34});
+    cIGZIStream* const stream = &in;
+    hash.Mix(Virtual<uint8_t>(object + netlot_sim::kSerializablePart, slot::kRead, static_cast<void*>(stream)));
+    hash.Mix(static_cast<uint32_t>(in.at));
+    hash.Mix(static_cast<uint32_t>(in.error));
+    hash.Mix(TableCount(object, field::kLots));
+    hash.Mix(TableCount(object, field::kPotholes));
+    char* const networkLot = Virtual<char*>(object, slot::kGetNetworkLot, 0x34u, 0x12u);
+    hash.Mix(networkLot != nullptr);
+    hash.Mix(Virtual<void*>(object, slot::kGetNetworkLot, 0x12u, 0x34u) != nullptr);
+    char* const potholes = object + field::kPotholes;
+    if (char* const node = netlot_sim::FirstNode(potholes)) {
+        hash.Mix(At<uint16_t>(node, hashnode::kKey));
+        hash.Mix(At<void*>(node, hashnode::kValue) == nullptr);
+    }
+    if (!networkLot)
+        return;
+    hash.Mix(At<std::uintptr_t>(networkLot, 0x0) == addr::cSC4NetworkLot_vftable);
+    hash.Mix(At<void*>(networkLot, lot::kOccupant) != nullptr);
+    hash.Mix(At<void*>(networkLot, lot::kConfiguration) != nullptr);
+    hash.Mix(At<uint32_t>(networkLot, lot::kSavedConfigurationId));
+    hash.Mix(At<uint32_t>(networkLot, lot::kRefCount) == 1);
+    hash.Mix(At<uint8_t>(networkLot, lot::kForced));
+    ReleaseOf(networkLot);
+}
+
+// A second manager, made by the class's factory (0x0060F4F0, at its address)
+// and destroyed again. Safe by the asm: the constructor makes its four hash
+// tables and nothing else (no subscription, no service asked), and the
+// destructor frees the tables' memory and releases the forced configuration
+// (none); it does not call Shutdown. Init is NOT called on it (that would
+// subscribe it and load every configuration again). Mixed:
+//   - as constructed: the initialised byte, whether a configuration is
+//     forced, the four tables' counts and bucket counts, the cell iterator
+//     (the state byte, the current cell, the step, the rectangle), and
+//     whether its three vtable pointers are the city's manager's;
+//   - the identity through its three parts (IdentityHash);
+//   - Shutdown (slot 4) on it: AL 1 and the initialised byte still 0;
+//   - Write of the empty object (WriteTest: ten bytes);
+//   - Read (ReadRefusals, then ReadOne);
+//   - the last Release's answer (0: the deleting destructor ran).
+uint32_t SecondObjectTest(char* manager, bool& made)
+{
+    Hash hash;
+    char* const second = CallCdecl<char*>(addr::cSC4NetworkLotManager_Create);
+    made = second != nullptr;
+    hash.Mix(made);
+    if (!second)
+        return hash.h;
+    Virtual<uint32_t>(second, slot::kAddRef);
+    hash.Mix(At<uint8_t>(second, field::kInitialized));
+    hash.Mix(At<void*>(second, field::kForced) != nullptr);
+    for (const std::size_t table : {field::kLots, field::kConfigurations, field::kPotholes, field::kPending}) {
+        hash.Mix(TableCount(second, table));
+        hash.Mix(netlot_sim::BucketCount(second + table));
+    }
+    char* const cells = second + field::kIterator;
+    hash.Mix(At<uint8_t>(cells, iterator::kState));
+    for (const std::size_t word : {iterator::kX, iterator::kZ, iterator::kStep, iterator::kLowX, iterator::kLowZ,
+                                   iterator::kHighX, iterator::kHighZ})
+        hash.Mix(At<uint32_t>(cells, word));
+    for (const std::size_t part : {std::size_t{0}, netlot_sim::kMessagePart, netlot_sim::kSerializablePart})
+        hash.Mix(At<std::uintptr_t>(second, part) == At<std::uintptr_t>(manager, part));
+    hash.Mix(IdentityHash(second));
+    hash.Mix(Virtual<uint8_t>(second, slot::kShutdown));
+    hash.Mix(At<uint8_t>(second, field::kInitialized));
+    uint32_t length = 0;
+    hash.Mix(WriteTest(second, length));
+    hash.Mix(length);
+    ReadRefusals(hash, second);
+    ReadOne(hash, second);
+    hash.Mix(Virtual<uint32_t>(second, slot::kRelease));
+    return hash.h;
+}
+
+// The second part's calls of the drive, with a checksum (the fingerprint's
+// ` life` field, after ` set`) and a log line of their own: Init (slot 3) on
+// the city's manager, which is initialised and so answers 1 and does
+// nothing (the four tables' counts are the same after it); Write of the
+// city's manager into a stream of the test's own (WriteTest; left out, and
+// said so, when a lot has no configuration); and, unless
+// OPENSC4_TEST_NETLOT_OBJECT=0, a second manager made, asked, written, read
+// into and destroyed (SecondObjectTest). Not called: Shutdown on the city's
+// manager, and Init on the second one.
+uint32_t g_lifeSum = 0;
+
+void DriveLife(char* manager)
+{
+    Hash life;
+    uint32_t before = 0, after = 0;
+    for (const std::size_t table : {field::kLots, field::kConfigurations, field::kPotholes, field::kPending})
+        before = before * 31 + TableCount(manager, table);
+    const uint8_t again = Virtual<uint8_t>(manager, slot::kInit);
+    for (const std::size_t table : {field::kLots, field::kConfigurations, field::kPotholes, field::kPending})
+        after = after * 31 + TableCount(manager, table);
+    life.Mix(again);
+    life.Mix(At<uint8_t>(manager, field::kInitialized));
+    life.Mix(before == after);
+    const uint32_t bare = BareLots(manager);
+    life.Mix(bare);
+    uint32_t length = 0, written = 0;
+    if (bare == 0) {
+        written = WriteTest(manager, length);
+        life.Mix(written);
+        life.Mix(length);
+    }
+    const bool object = EnvInt("OPENSC4_TEST_NETLOT_OBJECT", 1) != 0;
+    bool second = false;
+    uint32_t secondSum = 0;
+    if (object) {
+        secondSum = SecondObjectTest(manager, second);
+        life.Mix(secondSum);
+    }
+    g_lifeSum = life.h;
+    log::Write("autotest: netlot: life: Init again %u (tables %s), write %08X (%u bytes for %u lots and %u "
+               "potholes%s), second object %08X (%s), life %08X",
+               again, before == after ? "as before" : "CHANGED", written, length,
+               TableCount(manager, field::kLots), TableCount(manager, field::kPotholes),
+               bare == 0 ? "" : "; NOT written: a lot has no configuration", secondSum,
+               !object ? "left out" : second ? "made, written, read into and destroyed" : "not made", g_lifeSum);
+}
+
 // OPENSC4_TEST_NETLOT=<day>: once. GetNetworkLotConfigurationSet twice into
 // one set (the second call empties a set that is not empty), then
 // SetLotConfigurationForNextPiece (slot 13) with the configuration of the
@@ -390,6 +794,7 @@ uint32_t Bit(bool set, uint32_t number)
 // +0x34 is what was set, and how far the configuration's reference count is
 // from where it began (never the count itself). The function references
 // the new one and releases the old one, so every count ends where it began.
+// Then the second part's calls (DriveLife).
 void Drive(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_NETLOT") || !game::IsBuild641() || g_ran)
@@ -457,6 +862,7 @@ void Drive(const Day& day)
                "%s; configuration %08X set: steps %02X, references %+d, again %+d, after null %+d)",
                g_setSum, collected ? "made" : "not made", counts.first, counts.second, before ? "one" : "none",
                chosenId, steps, afterSet, afterAgain, afterNull);
+    DriveLife(manager);
 }
 
 // The fingerprint part, everything through the manager's vtable (the game's
@@ -482,11 +888,14 @@ void Drive(const Day& day)
 //   cfg    GetNetworkLotConfigurationSet: the set's count, the
 //          configurations walked, the sum and the exclusive or of their
 //          checksums (each released once)
+//   load   the same configurations' loaded fields (LoadedHash: what the
+//          constructor and LoadLotConfiguration left): how many, the sum
+//          and the exclusive or
 //   byid   GetNetworkLotConfigurationById: the IDs asked (of the lots and
 //          of the set), how many it knew, how many of two strangers it
 //          knew, and whether its second argument's word was left alone
-// and after OPENSC4_TEST_NETLOT's day ` set <checksum>` (` set none` when
-// the drive found no manager).
+// and after OPENSC4_TEST_NETLOT's day ` set <checksum> life <checksum>`
+// (` set none` when the drive found no manager).
 void Fingerprint(cISC4City* city, std::string& line)
 {
     char* const manager = Manager(city);
@@ -505,11 +914,12 @@ void Fingerprint(cISC4City* city, std::string& line)
 
     std::vector<void*> configs;
     SetCounts counts;
-    Bag set;
+    Bag set, loaded;
     if (CollectConfigurations(manager, configs, 1, counts))
         for (void* const config : configs) {
             ids.push_back(ConfigurationId(config));
             set.Add(ConfigurationHash(config));
+            loaded.Add(LoadedHash(static_cast<char*>(config)));
             ReleaseOf(config);
         }
     uint32_t known = 0, strangers = 0, untouched = 0;
@@ -519,7 +929,7 @@ void Fingerprint(cISC4City* city, std::string& line)
     std::snprintf(text, sizeof text,
                   " | netlot st %u%u id %08X maps %u,%u,%u,%u lots %u,%08X,%08X,%u,%u,%u,%u net %u zone %u,%08X,%08X "
                   "wealth %u,%08X,%08X off %u,%u,%08X,%08X,%u,%08X,%08X iter %u,%08X,%08X,%u,%u,%u cfg %u,%u,%08X,%08X "
-                  "byid %u,%u,%u,%u",
+                  "load %u,%08X,%08X byid %u,%u,%u,%u",
                   At<uint8_t>(manager, field::kInitialized), Bit(At<void*>(manager, field::kForced) != nullptr, 0),
                   IdentityHash(manager), At<uint32_t>(manager, field::kLots + hashtable::kCount),
                   At<uint32_t>(manager, field::kConfigurations + hashtable::kCount),
@@ -530,11 +940,12 @@ void Fingerprint(cISC4City* city, std::string& line)
                   cells.wealth.mixed, cells.offZone.count, cells.offZoneSum, cells.offZone.sum, cells.offZone.mixed,
                   cells.offWealthSum, cells.offWealth.sum, cells.offWealth.mixed, all.lots.count, all.lots.sum,
                   all.lots.mixed, allAnswer, some.lots.count, someAnswer, counts.first, set.count, set.sum, set.mixed,
-                  static_cast<unsigned>(ids.size()), known, strangers, untouched);
+                  loaded.count, loaded.sum, loaded.mixed, static_cast<unsigned>(ids.size()), known, strangers,
+                  untouched);
     line += text;
     if (g_ran) {
         if (g_driven)
-            std::snprintf(text, sizeof text, " set %08X", g_setSum);
+            std::snprintf(text, sizeof text, " set %08X life %08X", g_setSum, g_lifeSum);
         else
             std::snprintf(text, sizeof text, " set none");
         line += text;
