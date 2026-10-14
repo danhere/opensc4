@@ -1,6 +1,6 @@
 # The network tool (cSC4NetworkTool)
 
-The tool a player's drag of a network goes through: it turns the dragged cells into solved cells (a piece ID, a rotation and a flip per cell), fits the heights to the terrain, picks bridges and tunnels, asks the player about intersections, previews the result, works out the cost and places the pieces (handing them to a construction crew where the type has one). The network manager keeps one tool per network type and hands them to the network view's input controls, to its own lot and removal code and to the demolition. Nothing of the tool is saved. With it come the RUL engine that loads the networks' rule files at every city load, a vertex height constraint satisfier, a world cache of cell infos, a tool UI object and three tools of their own (pipe, subway, power line). The whole piece is 612 functions (196.5 KB); the tool proper is about 250. It is reimplemented in parts (below); this page has the first, the state and queries (46 functions, 43 of them ours). Build 641 addresses throughout (the address entries of this part come from the spec `p6/nettool1.spec` in the tools folder, with the survey's files).
+The tool a player's drag of a network goes through: it turns the dragged cells into solved cells (a piece ID, a rotation and a flip per cell), fits the heights to the terrain, picks bridges and tunnels, asks the player about intersections, previews the result, works out the cost and places the pieces (handing them to a construction crew where the type has one). The network manager keeps one tool per network type and hands them to the network view's input controls, to its own lot and removal code and to the demolition. Nothing of the tool is saved. With it come the RUL engine that loads the networks' rule files at every city load, a vertex height constraint satisfier, a world cache of cell infos, a tool UI object and three tools of their own (pipe, subway, power line). The whole piece is 612 functions (196.5 KB); the tool proper is about 250. It is reimplemented in parts (below); this page has the first, the state and queries (46 functions, 43 of them ours), and the second, the world cache and the cell infos (25 functions, 23 of them ours). Build 641 addresses throughout (the address entries of these parts come from the specs `p6/nettool1.spec` and `p6/nettool2.spec` in the tools folder, with the survey's files).
 
 ## The class
 
@@ -121,7 +121,7 @@ The NAM DLL and sc4fix patch inside nine functions of the piece; they stay the g
 
 What NAM needs beyond those bytes, and every part keeps:
 
-- NAM calls the game at fixed addresses in the piece: 0x00633220 (a cell's entry), 0x00647A20 (the world cache's GetCell), 0x00623E60 (GetFirstNetworkTypeFromFlags, this part), 0x00636000, 0x00636030, 0x00636360, 0x0065FF60. A detour there is fine (NAM then calls ours) if it keeps the function's convention, its arguments and the registers its game callers rely on.
+- NAM calls the game at fixed addresses in the piece: 0x00633220 (a cell's entry), 0x00647A20 (the world cache's GetCell), 0x00623E60 (GetFirstNetworkTypeFromFlags, this part), 0x00636000, 0x00636030, 0x00636360, 0x0065FF60. A detour there is fine (NAM then calls ours) if it keeps the function's convention, its arguments and the registers its game callers rely on. One thing is checked by reading only: our replacements leave the processor flags as their own last instruction leaves them, not as the game's last compare did. No compiled caller in the exe reads the flags across a call; whether NAM's hand-written stubs do could not be checked (NAM is not installed in parity runs, and its binary is not on the test machine).
 - NAM reads and writes by layout: the tool object (+0x1C, +0x54, +0x60, +0x98, +0xCC, +0x124, +0x188, +0x240, +0x244, +0x2B5), the 0xBC-byte cell info (+0x8 flags, +0xC occupant, +0x18 the words by type, +0x4C edge flags, +0x53, +0x56, +0xA8 vertices, +0xB8 the solved cell's index), the 0xC-byte solved cells, the type table's rows (+0xF0 to +0x110 among others), the RUL0 rule objects (0xFC bytes, edited in place by FlexPieces) and the RUL2 multimap at 0x00B466D0. So every part reads and writes these in the game's memory with the game's layouts, and nothing is cached privately across a call into a guarded function.
 - NAM is not installed on the test machine, so parity runs the guarded functions without the stubs: the rule above is a compatibility rule that parity cannot show.
 
@@ -132,7 +132,7 @@ The survey's split (`p6/survey.txt`, section 5), in the order planned: state and
 | Part | Functions | Bytes | Guarded | What |
 | --- | --- | --- | --- | --- |
 | t1 state and queries | 46 | 1,749 | none | this page |
-| t2 cache and cells | 25 | 4,834 | none | the world cache, the cell info lookup and making (NAM calls 0x00647A20 and 0x00633220), slot 71 |
+| t2 cache and cells | 25 | 4,834 | none | the world cache, the cell info lookup and making (NAM calls 0x00647A20 and 0x00633220), slot 71; [below](#what-the-second-part-covers) |
 | t3 life and previews | 27 | 5,715 | none | constructor, destructors, Init, Shutdown, Reset, DoMessage, GetUITool, the two Clear slots, the preview drawable (its three drawing functions may stay for the Renderer) |
 | s1 satisfier | 46 | 8,850 | 0x0065ED80 | the vertex height constraint satisfier |
 | r1 to r5 the RUL engine | 157 | 47,007 | 0x0063D1E0 | the load, the network ini, the rule records and the three parsers |
@@ -194,6 +194,88 @@ Registers: GetFirstNetworkTypeFromFlags, its lowest-flag form and the two edge b
 - SetAnchorPoints 0x0062CA20 (`add ecx, 0x118; jmp 0x00611B00`): the shape of an adjustor thunk, into the point vector's assignment, shared template code with eighteen callers that is the game's everywhere.
 - Called at their addresses and not this part's: the cell entry 0x00633220 (t2), MarkInvalidSteps 0x00624BF0 (t6), the vector assignments 0x00611B00, 0x00462C10 and 0x00464430, the localized text 0x00603040, the string helpers 0x00408480 and 0x00408A70, the STL allocator and free.
 
+## What the second part covers
+
+All in `src/core/nettool_cache.cpp`, two groups, off by default: `simulators.nettool.cache` (13 detours) and `simulators.nettool.cells` (10 detours). The same skip list (`OPENSC4_NETTOOL_SKIP`) and first-call lines (`nettool: first <name>`) as the first part. Every call between these functions goes to the game's address, so each detour stands alone and the skip list bisects them. None of the nine guarded functions is in this part, and none of its functions calls one (0x0062CD50, guarded, is a caller of the cache's Reset, not a callee).
+
+### The cell info
+
+0xBC bytes, the world cache's unit: what the tool knows of one cell while it solves a drag. The layout from the makers (0x00633030 from a cell's network occupant, 0x00632EF0 for a network type, slot 71 for the placement), the constructor 0x00647850, the copy 0x006478A0 and the assignment 0x00632D50; the names in brackets are NAM's (`NetworkStubs.h`, `cSC4NetworkCellInfo`):
+
+| Offset | What |
+| --- | --- |
+| +0x00, +0x04 | x and z |
+| +0x08 | network flags [networkTypeFlags]: the occupant's slot 0x30 & 0x1FFF, or the type's flag from 0x00AA8980; slot 71 ORs 0x40000 for a step of kind 1 and 0x80000 for kind 2 |
+| +0x0C | the network occupant, referenced (copy and assignment take a reference, the clear of a table releases it) [networkOccupant] |
+| +0x10 | byte: in the current placement (slot 71 sets it) |
+| +0x14 | the index of the step that has the cell (slot 71); -1 from an occupant, 0 from 0x00632EF0 |
+| +0x18 | 13 edge words, one per network type: the occupant's slot 0x98 for each type its slot 0x58 says it is [edgesPerNetwork] |
+| +0x4C | the 13 words ORed (0x00647830) [edgeFlagsCombined] |
+| +0x50 | byte: the occupant's slot 0x114 (inferred: its one-way directions; the RUL0 marking compares it with a rule's rotation byte) |
+| +0x51 | byte: made from an existing occupant (OccupantExists tests it) |
+| +0x52 | byte: the occupant has the flag 0x100000 |
+| +0x53 | byte: immovable: the occupant's slot 0x44, or a step whose kind is not 0 [isImmovable] |
+| +0x54, +0x57 | bytes, always 0 |
+| +0x55 | byte: the step's kind is 3 |
+| +0x56 | byte: the occupant has the flag 0x200000 [isNetworkLot] |
+| +0x58 | the four corners' heights (floats: the occupant's slot 0x88 or the terrain's altitude) |
+| +0x68 | four (low, high) pairs of floats, one per corner: -FLT_MAX, FLT_MAX from an occupant; the height less and plus a margin in slot 71; water raises the low |
+| +0x88 | four more pairs: the same start, the height twice in slot 71, or 0xFDFFFFFF, 0x7DFFFFFF for a new cell; water raises the low |
+| +0xA8 | the four corners' vertex indices NW, SW, SE, NE (stride the tool's +0x248) [vertices] |
+| +0xB8 | the index into the solved cells, -1 [idxInCellsBuffer] |
+
+The bytes +0x11 to +0x13 are padding: no function copies them.
+
+### The world cache
+
+cSC4NetworkWorldCache, 0x28 bytes at the tool's +0x1C (constructor 0x00648000, from the tool's constructor; destructor 0x00647AE0, from the tool's). Two hash tables of cell infos keyed by (z << 16) + x: the cells at +0x0, a copy at +0x14. A table: +0x4 the bucket vector (100 buckets to start, from 0x00829BC0; it grows by 0x004F0940), +0x10 the count. A node: 0xC4 bytes from the STL allocator: the next node, the key, the cell info. GetCell looks only in the cells' table.
+
+| Function | Address | Group | What it does |
+| --- | --- | --- | --- |
+| Construct | 0x00648000 | `cache` | both tables' bucket vectors and counts cleared, 100 buckets each |
+| Destruct | 0x00647AE0 | `cache` | the copy cleared and its buckets freed, then the cells |
+| Reset | 0x00647B20 | `cache` | both tables cleared (the tool's Reset, the placement code, the underground tools' rebuild) |
+| ClearTable | 0x006479B0 | `cache` | every node freed after its cell's occupant is released, every bucket null, the count 0 |
+| GetCell | 0x00647A20 | `cache` | the cell info of a key or 0; NAM calls it (below) |
+| InsertNode | 0x00647A60 | `cache` | the table grown for one more, a node with the key and a copy of the cell info first in its bucket |
+| FindOrInsert | 0x00647BB0 | `cache` | the cell info of a key, inserted as a default cell info when missing |
+| FindOrInsertByValue | 0x00647E10 | `cache` | the same with the key by value (what the makers call) |
+| ClearCellIndices | 0x00647B40 | `cache` | every cell's +0xB8 set to -1 |
+| AssignTable | 0x00647CC0 | `cache` | a table made a copy of another (buckets reserved and filled with nulls, the chains copied in order) |
+| RestoreCells, SaveCells | 0x00647E20, 0x00647E40 | `cache` | the copy into the cells, the cells into the copy (the drag code 0x0063B830) |
+| CollectCells | 0x00647E60 | `cache` | every cell appended by copy to a vector of 0xBC-byte cell infos (the underground tools' slot 70, 0x00658710) |
+
+### The cell infos and the tool's code that makes them
+
+| Function | Address | Group | What it does |
+| --- | --- | --- | --- |
+| CombineEdges | 0x00647830 | `cells` | the 13 edge words ORed into +0x4C |
+| the constructor | 0x00647850 | `cells` | the occupant, the edge words, +0x4C and +0x50 cleared, +0xB8 -1; nothing else |
+| the copy | 0x006478A0 | `cells` | every field (the occupant referenced; the edge words through CopyWord 0x00620DD0, part t1) |
+| the assignment | 0x00632D50 | `cells` | every field; the occupant as a reference (the new one referenced, the old released) |
+| the cell entry | 0x00633220 | `cells` | the cache's cell info, else a new one from the cell's occupant; NAM calls it (below) |
+| MakeCellInfo | 0x00633030 | `cells` | the cell's network occupant through 0x00624B70 (the tool's filter); none: 0; else a cell info from its types, edges, flags, bytes and heights, written into the cache |
+| slot 71 CreateCellInfosForCurrentPlacementTiles | 0x00633250 | `cells` | every dragged cell of every valid step: its cell info (cached, made, or new from the terrain where there is no occupant), marked with the type's flag, the step and its kind, the height margins (the parameters' +0x14 for a known cell, +0x34 for a new one) and the water's height at each corner |
+| MarkRuleCells | 0x006097E0 | `cells` | a RUL0 rule's cells at an offset: each cell info tested against the rule's edge patterns by type (the one-way type 10 also by its directions against the rule's rotation byte, table 0x00AA752C); a record for each that does not fit (0x00629170) |
+| NeighborIsClear, NeighborEdges | 0x00623F40, 0x00623EE0 | `cells` | the two slots of the neighbour walker (vtable 0x00AA8700, made by 0x00627080 in part t4: a cell, the tool, a type, a mask): whether the cell one step in a direction has none of the mask's networks, and its edge word for the type |
+
+### How NAM's two entries are kept
+
+NAM's DLL calls GetCell 0x00647A20 (with the cache) and the cell entry 0x00633220 (with the tool, `GetCellInfo` in its source) from compiled C++, both `__thiscall` with one argument through function pointers; its RUL2 engine and its NetworkSlopes hook read the cell infos they give by layout. Both detours keep the convention and `ret 4` and go through naked thunks:
+
+- GetCell leaves what the game's leaves: EAX the cell info (the node + 8) or 0, ECX the cache (the game's never writes it), EDX the node or 0, and the flags of the game's last instruction (`test edx, edx` when found, `xor eax, eax` when not).
+- The cell entry, when the cache has the cell, leaves ECX the cache (the tool + 0x1C) and EDX the node, as the game's does after its GetCell, and the flags of its `test eax, eax`. When the cache has not, the thunk calls the maker 0x00633030 itself, last, at its address, so whatever the maker leaves comes back as in the game (the game's maker ends with one or two Release calls of occupants, so that was never a fixed state).
+- The register scan of every game caller (76 of 0x00633220, 10 of 0x00647A20, both branches followed) found none that reads ECX or EDX before writing it and no call that takes a stale ECX as `this`. The same scan over the callers of every other function of the part found nothing either; CombineEdges (ECX the cell, EDX the cell + 0x4C) and the constructor (ECX and EDX 0) keep the game's registers through thunks anyway.
+- The cell infos and the cache stay where the game keeps them, in its layout: nodes of 0xC4 bytes and vectors of 0xBC-byte cell infos from the game's STL allocator, the buckets through the game's own vector and hash helpers, temporaries on the stack as the game has them. Nothing is copied or cached by our code, and nothing here calls a guarded function.
+
+### What stays the game's
+
+- 0x00632EF0 (ret 0xC: x, z, a network type; called by 0x006371E0 and 0x006384E0 of part t9): it builds a cell info for a type on its stack and writes it into the cache, but never sets the second pairs (+0x88 to +0xA4), so eight words of the cache are its stack's leftovers. A replacement cannot write the same words, and leaving it the game's does not keep the game's bytes either: they are what its callers' earlier calls (the cell entry 0x00633220 and its maker, ours in this part) left at that depth. No reader of those pairs is known: slot 71 sets them before it compares the water, and slot 76 reads only the first pairs (+0x68).
+- 0x00629170 (ret 0x18; called only by MarkRuleCells): it appends a 0x14-byte record (the cell, a pattern, a type and two bytes) to the tool's vector +0xF0 from a copy on its stack whose last two bytes it never writes; the vector gets its stack's leftovers there. MarkRuleCells calls it at its address.
+- FindOrInsert (ours) builds its default cell info with the constructor's fields set and the other words 0, where the game's has its stack's leftovers (which the copy writes into the node). Every game caller of 0x00647E10 either assigns a whole cell info over the answer at once (0x00632EF0, 0x00633030, slot 71, 0x00657DA0) or asks for keys it inserted just before (0x006588D0 at 0x00658CED and 0x00658EBC), so the leftovers are never read.
+
+The cache's life (constructor, destructor, clear) runs at every load. Slot 71, ClearCellIndices, SaveCells and RestoreCells are called by the segment placer 0x0063B830 (at 0x0063BA6E, 0x0063BA5D and around them), which PlaceAllSegments runs for each segment: the crew test's drags (`OPENSC4_TEST_CREW`) reach them, though no coverage run has measured it yet. CollectCells is called only by the underground tools' slot 70 (StartPlacing, 0x00658710), which no test drives. MarkRuleCells is reached only by the network view's puzzle piece controls: no test reaches it.
+
 ## The test
 
 `src/core/nettool_autotest.cpp`. The fingerprint part ` | nettool ...` (order 175) is always on (` | nettool none` before the network manager is initialised). It reads the manager's 13 kept tools (GetNetworkTool with `unique` 0) through their vtables, so it runs the game's functions or ours, and mixes:
@@ -209,6 +291,10 @@ The tools are met in four states: untouched (never initialised: no row, empty ve
 Not in it: OccupantExists, because its lookup makes a cell info when the cache has none (and on a tool that was never initialised the maker would use the null occupant manager at +0x48). The failure reason at +0x20C is not written by the constructor; on a tool that was never Reset it is what the allocator left, zero under `determinism.zero_alloc` (in the parity base list).
 
 `OPENSC4_TEST_NETTOOL=<day>` (day hook `nettool.drive`, order 197) on that day calls the setters on each of the 13 tools and puts the old values back: SetPreferredBridge, SetBridgeAltitudeOverride (the old four bytes back as they were), EnablePreviewUpdate, ForceReload (the byte written back: no setter clears it), ClearFailureReason around a reason the test writes (0xF0000003) with GetFailureState and GetFailureReasonString before and after, slot 52 with three of the game's reasons and one without a text, SetValidStepCount (only on a tool with no steps, where MarkInvalidSteps has nothing to mark), SetAnchorPoints with two points of the test's and then the old points, GetDraggedCells, and UpdateOnZoneChange. The power line tool gets neither the texts (its slot 52 does other work for a reason of 0) nor UpdateOnZoneChange (its own slot 10). The part then ends with ` set <checksum>`, and one log line `autotest: nettool: drive: ...` says on how many tools each step ran.
+
+The part also prints, for part t2, ` cells <cells>,<copies>,<found> ch <hash>`: over the 13 tools' world caches, the cells walked in the cells' tables, the cells in the copies, how many walked cells GetCell (through its address) gives back as the same node, and per tool the type, both tables' counts and an order-free sum and xor of each cell's hash (the key and every field but the occupant pointer, the padding and the second pairs +0x88 to +0xA4, which the game's 0x00632EF0 leaves as its stack had them: that stack differs once our code has run at that depth before it). The drive below hashes the second pairs too: its cells come only from the maker 0x00633030, which sets them. It only reads: the cell entry 0x00633220 is not called (it makes cell infos, and on a shut-down tool its maker would use the null terrain and occupant manager). The cache is valid in every state the game leaves a tool in: the constructor makes it, Shutdown leaves it, only Reset and the placement code clear it.
+
+`OPENSC4_TEST_NETTOOL_CELLS=1`, with `OPENSC4_TEST_NETTOOL=<day>`, adds on that day the world cache's functions on the road tool (type 0), as the game's own callers use a tool (AddRef, Init, the calls, Shutdown, Release), and only when the game has not left it initialised: the cache emptied (Reset 0x00647B20), the cell entry 0x00633220 for every fourth cell in x and z (it makes the cell info of each cell that has a network occupant, through the maker, the constructor, the edge sum, the copy, the assignment, the find-or-insert and the node insert) and each found cell's hash; the cache's sums; SaveCells and the copy's sums; the cells' table cleared and RestoreCells; ClearCellIndices; CollectCells into a vector of the test's (each cell's hash in order; the occupants released and the memory freed after); the neighbour walker's two slots in four directions on the first 16 cells found (an object on the test's stack with the vtable 0x00AA8700, laid out as 0x00627080 makes it); and the cache emptied again. It leaves the road tool's cache empty, whatever a drag had left there, so it is a switch of its own. One log line `autotest: nettool: cells: ...` gives the counts; the checksum goes into ` set`.
 
 Unreached by these tests and by every coverage run so far: everything that needs a drag (the steps, the dragged cells, the major bridges, the neighbour connections and the possible bridges are empty on the kept tools), GetNetworkOccupantAt, the direction and edge helpers, CopyWord and GetLowestNetworkTypeFromFlags (their callers are drag and placement code). OPENSC4_TEST_CREW's drags reach some of them through PlaceAllSegments.
 
@@ -229,3 +315,17 @@ On a city where no tool has been used the part reads only the shallow state (`to
 A first version of the part asked every tool with a type row for its cost; on a tool the crew test had used and shut down that makes the game's own cost function look up its solved cells through the terrain and occupant manager Shutdown has nulled, and both sides, the original included, left the game silently. The cost is now asked of an empty solution only.
 
 Ran with ours (first-call log lines): 41 of the 43.
+
+Batch z1 (2026-10-14), part t2: before the first run `ret N` of the plain detours against our signatures (no mismatch), the caller register scan (one hit, 0x00633B0E after the cell entry: the next call, 0x00623C90, is cdecl and loads ECX itself before using it) and an independent reading of all 23 functions and the four naked thunks against the disassembly, with every game caller of 0x00633220, 0x00647A20 and 0x00647830 scanned for a read of ECX, EDX or the flags they leave (no difference in behaviour; no caller reads a register the thunks leave differently).
+
+The original against every network group of main, the seven crew groups and the five groups of parts t1 and t2:
+
+| Leg | Saves | Result |
+|---|---|---|
+| plain | the 12 saves; `saves-networks` | 12 of 12; 3 of 3, the first pair |
+| `OPENSC4_TEST_NETLOT=3 OPENSC4_TEST_NETTOOL=3 OPENSC4_TEST_NETTOOL_CELLS=1` (with the other network tests) | the 12 saves; `saves-networks` | 12 of 12; 3 of 3, the first pair |
+| `OPENSC4_TEST_CREW=2 OPENSC4_TEST_NETTOOL=3 OPENSC4_TEST_TUTORIAL_OFF=1`, 20 days | `saves-networks` Rush Hour t0000 | the same on all 21 days, the first pair |
+
+The cells drive on Rush Hour t0000 asks 1,024 cells, finds 46, and caches, saves, restores and collects 46 and walks 16, the same on both sides.
+
+Ran with ours (first-call log lines): 22 of the 23. MarkRuleCells did not run: it is reached only when a RUL0 override rule matches during a drag, and no test drag in these cities meets one.
