@@ -8615,8 +8615,15 @@ OPENSC4_THUNK(TSC4CompoundEffect_Ended, EndedNoted, 0)
 // the starts only noted and the waiting ones set from the notes.
 int g_queueDepth = 0;
 
+bool SbNoting();
+template <typename Real>
+uint32_t SbNotedStart(uint32_t target, uint32_t a, uint32_t b, Real&& real);
+
 uint32_t __fastcall StartCompoundNoted(char* self, void*, uint32_t compound, uint32_t flag)
 {
+    if (SbNoting())
+        return SbNotedStart(addr::SC4EffectsManager_StartCompound, compound, flag,
+                            [&] { return StartCompoundNoted(self, nullptr, compound, flag); });
     const bool noting = g_queueNoting && self == g_queueSelf && g_queueDepth == 0;
     if (noting)
         g_queueGameCalls.push_back({addr::SC4EffectsManager_StartCompound, reinterpret_cast<uint32_t>(self), compound, flag});
@@ -8671,6 +8678,9 @@ uint32_t QueueCompared(char* self)
 
 uint32_t __fastcall StartQueuedByMode(char* self, void*)
 {
+    if (SbNoting())
+        return SbNotedStart(addr::SC4EffectsManager_StartQueued, 0, 0,
+                            [&] { return StartQueuedByMode(self, nullptr); });
     if (g_cleanNoting && self == g_cleanSelf)
         CleanReplay();
     if (g_cleanMode == StepMode::Original || g_queueNoting || g_queueReplay)
@@ -8681,6 +8691,15 @@ uint32_t __fastcall StartQueuedByMode(char* self, void*)
     return 0;
 }
 OPENSC4_THUNK(TSC4EffectsManager_StartQueued, StartQueuedByMode, 0)
+
+// The queued start has one detour, which the clean-up's replacement and the
+// starts' comparison share.
+bool HookStartQueued()
+{
+    return g_SC4EffectsManager_StartQueued ||
+           Detour(addr::SC4EffectsManager_StartQueued, &TSC4EffectsManager_StartQueued,
+                  &g_SC4EffectsManager_StartQueued);
+}
 
 // The erase is compared as the setters of what an effect holds are: what
 // each record to go holds gets a copy of its table of functions whose slot
@@ -8778,8 +8797,7 @@ bool InstallCleanup(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
         !(HookAfterDraw() &&
-          Detour(addr::SC4EffectsManager_StartQueued, &TSC4EffectsManager_StartQueued,
-                 &g_SC4EffectsManager_StartQueued) &&
+          HookStartQueued() &&
           HookEraseRecords() &&
           Detour(addr::SC4EffectRecords_Copy, reinterpret_cast<void (*)()>(&CopyRecordsByMode),
                  &g_SC4EffectRecords_Copy)))
@@ -10066,11 +10084,14 @@ bool MkWatched(char* object)
 // A maker by the mode of its own replacement (further down).
 uint32_t MakerRun(uint32_t maker, char* self);
 
+bool SbNoting();
+uint32_t SbMakerNoted(uint32_t target, char* self);
+
 // A maker of the game's: what it made is watched from here on.
 uint32_t MkMakerNoted(uint32_t target, char* self)
 {
     if (!MkNoting())
-        return MakerRun(target, self);
+        return SbNoting() ? SbMakerNoted(target, self) : MakerRun(target, self);
     char* const made = reinterpret_cast<char*>(MkNoted(MkMakeCall(target), [&] { return MakerRun(target, self); }));
     g_mkMadeGame.push_back(made);
     ++g_mkMakerCounts[target];
@@ -10187,6 +10208,7 @@ bool HookDecalDescription()
 // their own replacements (further down).
 uint32_t FindRun(char* self, uint32_t name);
 uint32_t CompoundDescriptionRun(char* compound, uint32_t description);
+uint32_t SbCompoundDescriptionNoted(char* compound, uint32_t description);
 
 uint32_t __fastcall MkFindNoted(char* self, void*, uint32_t name)
 {
@@ -10200,7 +10222,8 @@ OPENSC4_THUNK(TSC4EffectsManager_FindDescriptionByName, MkFindNoted, 4)
 uint32_t __fastcall MkCompoundDescriptionNoted(char* compound, void*, uint32_t description)
 {
     if (!MkNoting())
-        return CompoundDescriptionRun(compound, description);
+        return SbNoting() ? SbCompoundDescriptionNoted(compound, description)
+                          : CompoundDescriptionRun(compound, description);
     return MkNoted(MkMakeCall(addr::SC4CompoundEffect_SetDescription, MkPlace(compound), description),
                    [&] { return CompoundDescriptionRun(compound, description); });
 }
@@ -11082,10 +11105,13 @@ uint32_t CompoundDescriptionRun(char* compound, uint32_t description)
     return result;
 }
 
+bool InstallIdLookup();
+
 bool InstallLookup(registry::Mode mode)
 {
     if (!game::IsBuild641() || !HookFindDescriptionByName() ||
-        !Detour(addr::SC4NameMap_EqualRange, &TSC4NameMap_EqualRange, &g_SC4NameMap_EqualRange))
+        !Detour(addr::SC4NameMap_EqualRange, &TSC4NameMap_EqualRange, &g_SC4NameMap_EqualRange) ||
+        !InstallIdLookup())
         return false;
     g_lookupMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: the look-up of a compound description by name %s",
@@ -11769,6 +11795,394 @@ const bool g_registeredRecords = registry::Register({
     "ours (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallRecords,
+});
+
+// --- The look-up by IDs and two of the manager's starts ------------------------------------
+
+// The ID map's equal range, the look-up by IDs (effects_starts.inc, in
+// renderer.effects.lookup with the look-up by name: only read, so compare
+// mode runs the game's and then ours), and the start by IDs and the
+// restart of those in use (renderer.effects.starts). The starts make and
+// start compound effects, so their comparison is the noted kind: the
+// game's first, noting the look-ups, the maker, the description, the
+// starts and the new compound effect's hold (through a copy of its table
+// of functions), then ours replayed with each call answered; the calls,
+// the answer, the place the caller gets the compound effect and the three
+// words written into it are compared. The restart's replay goes through a
+// copy of the indices in use as they were before the game's run.
+constexpr uint32_t kSbRole = 0x00593AE0;
+StepMode g_sbMode = StepMode::Original;
+Call1Fn g_SC4IdMap_FindNode = nullptr;
+Call2Fn g_SC4IdMap_EqualRange = nullptr;
+using FindByIdFn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t);
+FindByIdFn g_SC4EffectsManager_FindDescriptionById = nullptr;
+Call3Fn g_SC4EffectsManager_StartById = nullptr;
+Call0Fn g_SC4EffectsManager_RestartInUse = nullptr;
+
+struct SbNote {
+    uint32_t target, a, b, result;
+    bool operator==(const SbNote& other) const
+    {
+        return target == other.target && a == other.a && b == other.b;
+    }
+};
+bool g_sbNoting = false, g_sbReplay = false;
+int g_sbDepth = 0;
+DWORD g_sbThread = 0;
+char* g_sbMade = nullptr;
+char g_sbMadeFields[0xC];
+std::vector<SbNote> g_sbGame, g_sbOurs;
+std::vector<char*> g_sbSwapped;
+uint64_t g_sbStarts = 0, g_sbRestarts = 0, g_sbIdLookups = 0;
+
+bool SbNoting()
+{
+    return g_sbNoting && g_sbDepth == 0 && GetCurrentThreadId() == g_sbThread;
+}
+
+template <typename Real>
+uint32_t SbNoted(SbNote note, Real&& real)
+{
+    ++g_sbDepth;
+    note.result = real();
+    --g_sbDepth;
+    g_sbGame.push_back(note);
+    return note.result;
+}
+
+template <typename Real>
+uint32_t SbNotedStart(uint32_t target, uint32_t a, uint32_t b, Real&& real)
+{
+    return SbNoted({target, a, b, 0}, real);
+}
+
+uint32_t SbReplayed(const SbNote& note)
+{
+    const std::size_t at = g_sbOurs.size();
+    g_sbOurs.push_back(note);
+    return at < g_sbGame.size() && g_sbGame[at] == note ? g_sbGame[at].result : 0;
+}
+
+int32_t FindDescriptionById(char* self, uint32_t group, uint32_t instance);
+
+// What the starts call: the real thing, or in the replay its note.
+int32_t SbFindById(char* self, uint32_t group, uint32_t instance)
+{
+    if (g_sbReplay)
+        return static_cast<int32_t>(SbReplayed({addr::SC4EffectsManager_FindDescriptionById, group, instance, 0}));
+    return FindDescriptionById(self, group, instance);
+}
+
+bool SbFindNode(char* map, const uint32_t* key)
+{
+    if (g_sbReplay)
+        return SbReplayed({addr::SC4IdMap_FindNode, key[0], key[1], 0}) != 0;
+    return CallThis<uint32_t>(addr::SC4IdMap_FindNode, map, key) != 0;
+}
+
+char* SbNewCompound(char* self)
+{
+    if (!g_sbReplay)
+        return CallThis<char*>(addr::SC4EffectsManager_NewCompound, self);
+    char* const made = reinterpret_cast<char*>(SbReplayed({addr::SC4EffectsManager_NewCompound, 0, 0, 0}));
+    // What the game's maker left in the three words the start writes.
+    if (made && made == g_sbMade)
+        std::memcpy(made + 0x18, g_sbMadeFields, sizeof g_sbMadeFields);
+    return made ? made : g_mkDummy;
+}
+
+void SbCompoundDescription(char* compound, char* description)
+{
+    if (g_sbReplay)
+        SbReplayed({addr::SC4CompoundEffect_SetDescription, reinterpret_cast<uint32_t>(compound),
+                    reinterpret_cast<uint32_t>(description), 0});
+    else
+        CallThis<void>(addr::SC4CompoundEffect_SetDescription, compound, description);
+}
+
+void SbStartQueued(char* self)
+{
+    if (g_sbReplay)
+        SbReplayed({addr::SC4EffectsManager_StartQueued, 0, 0, 0});
+    else
+        CallThis<void>(addr::SC4EffectsManager_StartQueued, self);
+}
+
+void SbStartCompound(char* self, char* compound, uint32_t first)
+{
+    if (g_sbReplay)
+        SbReplayed({addr::SC4EffectsManager_StartCompound, reinterpret_cast<uint32_t>(compound), first, 0});
+    else
+        CallThis<void>(addr::SC4EffectsManager_StartCompound, self, compound, first);
+}
+
+void SbHold(char* compound)
+{
+    if (g_sbReplay)
+        SbReplayed({0x4, reinterpret_cast<uint32_t>(compound), 0, 0});
+    else
+        CallThis<void>(At<uint32_t>(At<char*>(compound, 0), 0x4), compound);
+}
+
+#include "core/effects_starts.inc"
+
+// The game's calls the starts' comparison notes.
+uint32_t __fastcall SbHoldStub(char* object, void*)
+{
+    const uint32_t real = BRealSlot(object, 0x4);
+    if (!SbNoting())
+        return CallThis<uint32_t>(real, object);
+    return SbNoted({0x4, reinterpret_cast<uint32_t>(object), 0, 0}, [&] { return CallThis<uint32_t>(real, object); });
+}
+
+uint32_t SbMakerNoted(uint32_t target, char* self)
+{
+    char* const made =
+        reinterpret_cast<char*>(SbNoted({target, 0, 0, 0}, [&] { return MakerRun(target, self); }));
+    if (made && target == addr::SC4EffectsManager_NewCompound) {
+        g_sbMade = made;
+        std::memcpy(g_sbMadeFields, made + 0x18, sizeof g_sbMadeFields);
+        if (g_bReal.find(made) == g_bReal.end()) {
+            BSwapRole(made, kSbRole, {{0x4, reinterpret_cast<uint32_t>(&SbHoldStub)}});
+            g_sbSwapped.push_back(made);
+        }
+    }
+    return reinterpret_cast<uint32_t>(made);
+}
+
+uint32_t SbCompoundDescriptionNoted(char* compound, uint32_t description)
+{
+    return SbNoted({addr::SC4CompoundEffect_SetDescription, reinterpret_cast<uint32_t>(compound), description, 0},
+                   [&] { return CompoundDescriptionRun(compound, description); });
+}
+
+uint32_t __fastcall FindNodeNoted(char* map, void*, uint32_t key)
+{
+    if (!SbNoting())
+        return g_SC4IdMap_FindNode(map, nullptr, key);
+    return SbNoted({addr::SC4IdMap_FindNode, M<uint32_t>(key), M<uint32_t>(key + 4), 0},
+                   [&] { return g_SC4IdMap_FindNode(map, nullptr, key); });
+}
+OPENSC4_THUNK(TSC4IdMap_FindNode, FindNodeNoted, 4)
+
+// The look-up by IDs and its equal range, by the look-up's mode.
+uint32_t FindByIdRun(char* self, uint32_t group, uint32_t instance)
+{
+    if (g_lookupMode == StepMode::Ours)
+        return static_cast<uint32_t>(FindDescriptionById(self, group, instance));
+    const uint32_t result = g_SC4EffectsManager_FindDescriptionById(self, nullptr, group, instance);
+    if (g_lookupMode == StepMode::Original)
+        return result;
+    const uint32_t mine = static_cast<uint32_t>(FindDescriptionById(self, group, instance));
+    char theirs[16], own[16];
+    std::snprintf(theirs, sizeof theirs, "%d", static_cast<int32_t>(result));
+    std::snprintf(own, sizeof own, "%d", static_cast<int32_t>(mine));
+    compare::Record("effects.lookup.id", mine == result, mine == result ? std::string() : std::string(theirs),
+                    mine == result ? std::string() : std::string(own));
+    ++g_sbIdLookups;
+    return result;
+}
+
+uint32_t __fastcall FindByIdByMode(char* self, void*, uint32_t group, uint32_t instance)
+{
+    if (!SbNoting())
+        return FindByIdRun(self, group, instance);
+    return SbNoted({addr::SC4EffectsManager_FindDescriptionById, group, instance, 0},
+                   [&] { return FindByIdRun(self, group, instance); });
+}
+OPENSC4_THUNK(TSC4EffectsManager_FindDescriptionById, FindByIdByMode, 8)
+
+uint32_t __fastcall IdEqualRangeByMode(char* map, void*, uint32_t out, uint32_t key)
+{
+    if (g_lookupMode == StepMode::Ours)
+        return reinterpret_cast<uint32_t>(
+            IdEqualRange(map, reinterpret_cast<char*>(out), reinterpret_cast<const uint32_t*>(key)));
+    const uint32_t result = g_SC4IdMap_EqualRange(map, nullptr, out, key);
+    if (g_lookupMode == StepMode::Original)
+        return result;
+    char mine[0x10];
+    const bool same = IdEqualRange(map, mine, reinterpret_cast<const uint32_t*>(key)) == mine && result == out &&
+                      std::memcmp(mine, reinterpret_cast<char*>(out), sizeof mine) == 0;
+    compare::Record("effects.lookup.id_range", same, same ? std::string() : Hex(reinterpret_cast<char*>(out), 0x10),
+                    same ? std::string() : Hex(mine, 0x10));
+    return result;
+}
+OPENSC4_THUNK(TSC4IdMap_EqualRange, IdEqualRangeByMode, 8)
+
+// The look-up by IDs has one detour, which renderer.effects.lookup and the
+// starts' comparison share; its equal range is the look-up's alone.
+bool HookFindById()
+{
+    return g_SC4EffectsManager_FindDescriptionById ||
+           Detour(addr::SC4EffectsManager_FindDescriptionById, &TSC4EffectsManager_FindDescriptionById,
+                  &g_SC4EffectsManager_FindDescriptionById);
+}
+
+bool InstallIdLookup()
+{
+    return HookFindById() && Detour(addr::SC4IdMap_EqualRange, &TSC4IdMap_EqualRange, &g_SC4IdMap_EqualRange);
+}
+
+std::string SbNotesText(const std::vector<SbNote>& notes, const std::vector<SbNote>& other)
+{
+    std::size_t at = 0;
+    while (at < notes.size() && at < other.size() && notes[at] == other[at])
+        ++at;
+    char text[96];
+    if (at >= notes.size())
+        std::snprintf(text, sizeof text, "%zu calls", notes.size());
+    else
+        std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X, %08X)", at, notes.size(), notes[at].target,
+                      notes[at].a, notes[at].b);
+    return text;
+}
+
+// The noting of a game's start, around `game`.
+template <typename Game>
+uint32_t SbNoteGame(Game&& game)
+{
+    g_sbGame.clear();
+    g_sbSwapped.clear();
+    g_sbMade = nullptr;
+    g_sbThread = GetCurrentThreadId();
+    g_sbDepth = 0;
+    g_sbNoting = true;
+    const uint32_t result = game();
+    g_sbNoting = false;
+    for (char* const object : g_sbSwapped)
+        BGiveBack(object, true);
+    g_sbSwapped.clear();
+    return result;
+}
+
+void SbLog()
+{
+    const uint64_t all = g_sbStarts + g_sbRestarts;
+    if ((all & (all - 1)) == 0)
+        log::Write("water effects: effects.starts: %llu starts by IDs and %llu restarts compared so far, %llu look-ups "
+                   "by IDs",
+                   static_cast<unsigned long long>(g_sbStarts), static_cast<unsigned long long>(g_sbRestarts),
+                   static_cast<unsigned long long>(g_sbIdLookups));
+}
+
+uint32_t StartByIdRun(char* self, uint32_t group, uint32_t instance, uint32_t outArg)
+{
+    char** const out = reinterpret_cast<char**>(outArg);
+    if (g_sbMode == StepMode::Ours)
+        return StartCompoundById(self, group, instance, out) ? 1 : 0;
+    const auto game = [&] { return g_SC4EffectsManager_StartById(self, nullptr, group, instance, outArg); };
+    if (g_sbMode == StepMode::Original || g_sbNoting || g_sbReplay)
+        return game();
+    char* const outBefore = out ? *out : nullptr;
+    const uint32_t result = SbNoteGame(game);
+    char* const made = g_sbMade;
+    char* const outAfter = out ? *out : nullptr;
+    char madeAfter[0xC];
+    if (made)
+        std::memcpy(madeAfter, made + 0x18, sizeof madeAfter);
+    if (out)
+        *out = outBefore;
+    g_sbOurs.clear();
+    g_sbReplay = true;
+    const uint32_t mine = StartCompoundById(self, group, instance, out) ? 1 : 0;
+    g_sbReplay = false;
+    char* const outMine = out ? *out : nullptr;
+    char madeMine[0xC];
+    if (made) {
+        std::memcpy(madeMine, made + 0x18, sizeof madeMine);
+        std::memcpy(made + 0x18, madeAfter, sizeof madeAfter);
+    }
+    if (out)
+        *out = outAfter;
+    ++g_sbStarts;
+    SbLog();
+    const char* const id = "effects.starts.by_id";
+    char text[64];
+    if (!(g_sbGame == g_sbOurs)) {
+        compare::Record(id, false, SbNotesText(g_sbGame, g_sbOurs), SbNotesText(g_sbOurs, g_sbGame));
+    } else if ((result & 0xFF) != mine || outAfter != outMine ||
+               (made && std::memcmp(madeAfter, madeMine, sizeof madeAfter) != 0)) {
+        std::snprintf(text, sizeof text, "%u, %08X, %s", result & 0xFF, reinterpret_cast<uint32_t>(outAfter),
+                      made ? Hex(madeAfter, 0xC).c_str() : "");
+        const std::string theirs = text;
+        std::snprintf(text, sizeof text, "%u, %08X, %s", mine, reinterpret_cast<uint32_t>(outMine),
+                      made ? Hex(madeMine, 0xC).c_str() : "");
+        compare::Record(id, false, theirs, text);
+    } else {
+        compare::Record(id, true, std::string(), std::string());
+    }
+    return result;
+}
+
+uint32_t __fastcall StartByIdByMode(char* self, void*, uint32_t group, uint32_t instance, uint32_t out)
+{
+    return StartByIdRun(self, group, instance, out);
+}
+OPENSC4_THUNK(TSC4EffectsManager_StartById, StartByIdByMode, 12)
+
+uint32_t __fastcall RestartInUseByMode(char* self, void*)
+{
+    if (g_sbMode == StepMode::Ours) {
+        RestartCompoundsInUse(self);
+        return 0;
+    }
+    const auto game = [&] { return g_SC4EffectsManager_RestartInUse(self, nullptr); };
+    if (g_sbMode == StepMode::Original || g_sbNoting || g_sbReplay)
+        return game();
+    // The indices in use as they were: the game's queued start at its end
+    // adds to them, so ours goes through a copy.
+    const std::vector<uint32_t> inUse(At<uint32_t*>(self, 0xBAC), At<uint32_t*>(self, 0xBB0));
+    const uint32_t result = SbNoteGame(game);
+    char header[0xC];
+    std::memcpy(header, self + 0xBAC, sizeof header);
+    std::vector<uint32_t> copy = inUse;
+    At<uint32_t*>(self, 0xBAC) = copy.data();
+    At<uint32_t*>(self, 0xBB0) = copy.data() + copy.size();
+    At<uint32_t*>(self, 0xBB4) = copy.data() + copy.size();
+    g_sbOurs.clear();
+    g_sbReplay = true;
+    RestartCompoundsInUse(self);
+    g_sbReplay = false;
+    std::memcpy(self + 0xBAC, header, sizeof header);
+    ++g_sbRestarts;
+    SbLog();
+    const bool same = g_sbGame == g_sbOurs;
+    compare::Record("effects.starts.restart", same, same ? std::string() : SbNotesText(g_sbGame, g_sbOurs),
+                    same ? std::string() : SbNotesText(g_sbOurs, g_sbGame));
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectsManager_RestartInUse, RestartInUseByMode, 0)
+
+bool InstallStarts(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4EffectsManager_StartById, &TSC4EffectsManager_StartById, &g_SC4EffectsManager_StartById) &&
+          Detour(addr::SC4EffectsManager_RestartInUse, &TSC4EffectsManager_RestartInUse,
+                 &g_SC4EffectsManager_RestartInUse)))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(HookFindById() && HookMaker(addr::SC4EffectsManager_NewCompound) && HookCompoundDescription() &&
+          HookStartQueued() && HookStartCompound() &&
+          Detour(addr::SC4IdMap_FindNode, &TSC4IdMap_FindNode, &g_SC4IdMap_FindNode)))
+        return false;
+    g_sbMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the manager's start by IDs and restart of those in use %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredStarts = registry::Register({
+    "renderer.effects.starts",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectsManager_StartById,
+    "Two of the effects manager's starts: a compound effect started by its IDs (made, given the description of those "
+    "IDs, the waiting ones started, handed to the caller held) and every compound effect in use started again; "
+    "compare mode runs the game's with its calls noted and replays ours (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallStarts,
 });
 
 bool InstallEffects(registry::Mode mode)
