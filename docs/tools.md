@@ -1,6 +1,6 @@
 # The city view's tools
 
-The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool, the level terrain tool, the dispatch tool, the sign removal tool, the Life tool, the label tool, the sign tool, the terraform tool, the obliterate tool, the effect trigger tool, the common disaster tool and the fire (torch) disaster tool. The query tool is partly ours (Q1 to Q3, 147 of its 223 functions). Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
+The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool, the level terrain tool, the dispatch tool, the sign removal tool, the Life tool, the label tool, the sign tool, the terraform tool, the obliterate tool, the effect trigger tool, the common disaster tool and the fire (torch) disaster tool. The query tool is partly ours (Q1 to Q4, 172 of its 223 functions). Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
 
 | Tool | State |
 | --- | --- |
@@ -21,7 +21,7 @@ The view input controls that the city view makes current while the player holds 
 | Effect trigger tool | ours (`ui.tools.disaster_effect`, below) |
 | Common disaster tool | ours (`ui.tools.disaster`, below) |
 | Fire (torch) disaster tool | ours (`ui.tools.disaster_fire`, below) |
-| Query tool | still the game's overall; Q1 to Q3, 147 of its 223 functions, are ours (`ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, `ui.tools.query3a`, `ui.tools.query3b`, below) |
+| Query tool | still the game's overall; Q1 to Q4, 172 of its 223 functions, are ours (`ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, `ui.tools.query3a`, `ui.tools.query3b`, `ui.tools.query4a`, `ui.tools.query4b`, below) |
 | Base class | ours (`ui.tools.base`, below) |
 
 ## The tool classes
@@ -46,7 +46,7 @@ Every city tool is a view input control: a class on the base class below, with a
 | Label tool (text decals on the ground, command 0x0B980587) | 0x004BD230 | 0x00A90528 | 0x44 | 0x004BC980 to 0x004BDAFC | 16 | ours (`ui.tools.decal`, below) |
 | Level-a-rectangle terrain tool | 0x004BDC60 | 0x00A905C0 | 0x58 | 0x004BDB00 to 0x004BDEBC | 8 | ours (`ui.tools.small2`, below) |
 | Lot (plop) | 0x004C0430 | 0x00A90738 | 0x158 | 0x004BDF70 to 0x004C36C0 | 36 | ours (`ui.tools.plop1` to `plop3`, below) |
-| Query tool (`cSC4ViewInputControlQuery`; strings Query.txt, "Query cell (%d, %d)") | 0x004C4590 | 0x00A90A88 | 0xA0 | 0x004C3730 to 0x004D767F | 223 | partly ours: 147 functions (0x004C3730 to 0x004CA460, `ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, `ui.tools.query3a`, `ui.tools.query3b`, below); the other 76 are still the game's; not a network tool |
+| Query tool (`cSC4ViewInputControlQuery`; strings Query.txt, "Query cell (%d, %d)") | 0x004C4590 | 0x00A90A88 | 0xA0 | 0x004C3730 to 0x004D767F | 223 | partly ours: 172 functions (0x004C3730 to 0x004CC6E0, `ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, `ui.tools.query3a`, `ui.tools.query3b`, `ui.tools.query4a`, `ui.tools.query4b`, below); the other 51 are still the game's; not a network tool |
 | Sign removal tool (removes signs; the survey had called it a pick tool) | 0x004D76F0 | 0x00A928A0 | 0x30 | 0x004D7680 to 0x004D7AE2 | 8 | ours (`ui.tools.signpick`, below) |
 | Sign tool (places signs, drags them and edits their text; the survey had called it a sign text tool) | 0x004D7F00 | 0x00A92968 | 0x80 | 0x004D7AF0 to 0x004D8ABA | 16 | ours (`ui.tools.signtext`, below) |
 | Terraform tool (the terrain brush tool) | 0x004D9430 | 0x00A92A10 | 0x130 | 0x004D8AC0 to 0x004D9E50 | 22 | ours (`ui.tools.brush`, below) |
@@ -60,7 +60,7 @@ Every city tool is a view input control: a class on the base class below, with a
 
 The network tools are the last two rows, at 0x00660C30 to 0x006625F0. The range 0x004C3730 to 0x004D767F belongs to the query tool.
 
-The classes that are not ours, apart from the two network tools, come to about 157 functions: the rest of the query tool (76 functions, Q4 to Q7; the KB figures in this paragraph were not redone for Q2 or Q3, so they are too high; the 84 KB is the figure before them), the U-Drive control (45 functions, T7 and T8) and the two functions of the cheat tool that stay the game's. The 84 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions), about 9 KB for the terraform and obliterate tools (40 functions) and about 6 KB for the three disaster tools (33 functions) and about 7 KB for the first piece of the query tool (57 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
+The classes that are not ours, apart from the two network tools, come to about 98 functions: the rest of the query tool (51 functions, Q5 to Q7; the KB figures in this paragraph were not redone for Q2 to Q4, so they are too high; the 84 KB is the figure before them), the U-Drive control (45 functions, T7 and T8) and the two functions of the cheat tool that stay the game's. The 84 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions), about 9 KB for the terraform and obliterate tools (40 functions) and about 6 KB for the three disaster tools (33 functions) and about 7 KB for the first piece of the query tool (57 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
 
 ## The base class
 
@@ -1868,7 +1868,7 @@ SetChildSlider (0x004C6E30, 7 callers) takes (window, child ID, low, high, value
 
 Correction to the first piece: the one caller of DrawBar 0x004C5040 is the bar painter 0x004C6830, not the filler 0x004C67F0 (the address file said so; fixed in data/addresses/tools.toml).
 
-Calls still waiting for later pieces (Q4 onward): DoMessage 0x004D7160 calls ShowTip, 0x004D4FD0 calls the two levels, 0x004D3F40 calls SetChildMoneyNext, and the overlay builder 0x004CA460 (drawing) calls 0x004C5E20.
+Calls still waiting for later pieces (Q4 onward): DoMessage 0x004D7160 calls ShowTip, 0x004D4FD0 calls the two levels, 0x004D3F40 calls SetChildMoneyNext, and the overlay builder 0x004CA460 calls 0x004C5E20. (Q4 made 0x004CA460 ours: it is route selection, not drawing; 0x004C5E20 stays the game's.)
 
 ### Behaviour as the game has it
 
@@ -1987,3 +1987,89 @@ Every filler is called through the table's reader 0x004D3A90 with fill 1 on Q2's
 First pass, snapshot q3a, on Making Money d0090, Big City d0000 and Rush Hour d0090, each with the test, with the test and commit, and never run: the original twice (A1, A2), all groups ours (B) and only `ui.tools.base` with the Q3 groups ours (M) were the same in the whole test and fingerprint lines, in all nine cases (36 of 36 runs finished, none crashed). The fingerprint without the token is the same in the untouched, test and commit runs on all three saves (the commit puts everything back). Build debug and release clean, ctest 20 of 20, retcheck 54 OK and 1 to check (0x004C9520: the function list's size stops before its plain ret at 0x004C9E46; it is cdecl), register scan 55 hooked and none suspicious, EAX scan clean. One pass sufficed; nothing moved out of the hash. One sweep stopped at the wait script's 20-minute budget (other threads' games running) and was resumed; finished runs were skipped.
 
 Parity (batch q3b1, 7 days): plain 12 of 12, test 12 of 12, test with commit 11 of 12 plus 1 partly, plopped with test and commit 3 of 3, every same pair on its first run. The partly one is Making Money d0365: the first B run differs from day 1 in the advisor part (`adv`) only, the day before the test runs; the two retried pairs (b1, b2) equal every A run. Not Q3 code (nothing of the piece runs before the test day); left as a one-off of that part.
+
+## The query tool, fourth piece
+
+Q4 is 25 functions in the range 0x004CA460 to 0x004CC6E0 (24 in the function list plus filler 107 at 0x004CB880, which the list had not split from the tail of the lister 0x004CB740). Two groups, off by default, PostAppInit, detours at the game's entries: `ui.tools.query4a` (11 functions, src/core/tool_query_4a.cpp: the route lines, the highlight, the kind 1 window's message handler and three of the tool's slots) and `ui.tools.query4b` (14 functions, src/core/tool_query_4b.cpp: panel fillers and the two child walks). Everything in the range is ours; nothing is left the game's. The remaining 51 functions (Q5 to Q7, 0x004CC6E0 to 0x004D767F) are still the game's and call these by address.
+
+| Address | Name | What it does |
+| --- | --- | --- |
+| 0x004CA460 | BuildRoutes (ret 4) | Draws nothing itself: decides which routes the line gets (below) |
+| 0x004CAA60 | LotRoutes | The box for a building's lot, then BuildRoutes |
+| 0x004CAAE0 | NetworkRoutes | The box for a network piece, then BuildRoutes |
+| 0x004CAC30 | RebuildRoutes | Empties the line's points and builds again |
+| 0x004CAC50 | ShowRoutes | Takes the old line off, then LotRoutes or NetworkRoutes by the occupant's type (tail calls) |
+| 0x004CACC0 | HighlightLot (ret 4) | Highlights or restores the occupants of the picked occupant's lot |
+| 0x004CADE0 | FillLotNetworkNumber | Filler for the lot's network number |
+| 0x004CAF80, 0x004CB140, 0x004CB340, 0x004CB4E0 | FillNeighbourDealText, Amount (7 arguments, float last), Cost, Kind | Neighbour deal fillers |
+| 0x004CB740, 0x004CB880 | FillMayorRatingCurve, FillOccupantMayorRating (filler 107) | Mayor rating through a curve property |
+| 0x004CB8B0 | EraseTexts (ret 4) | Frees a subtree of the query's text map |
+| 0x004CB900 | SC4QueryPanelTarget::OnMessage (ret 8) | The kind 1 window's message handler |
+| 0x004CBA80, 0x004CBC70, 0x004CC0B0 | Shutdown, OnMouseMove (ret 0xC), OnMouseExit | Slots 4, 20 and 22 of the tool |
+| 0x004CC120, 0x004CC160 | FillOccupantLotNetworkNumber (filler 18), FillCityMayorRating | Fillers |
+| 0x004CC1D0, 0x004CC210 | FillNeighbourDealScaled, FillNeighbourDealCount | Deal amount with a scale |
+| 0x004CC240 | FillCell | The filler for a cell: a switch over 22 control IDs |
+| 0x004CC660, 0x004CC6A0 | FillCellChildren, ReadCellChildren | Child walks (with fill, without) |
+
+The thiscall functions are hooked as `__fastcall` with a dummy EDX; the fillers are cdecl. Filler 18 (0x004CC120) and filler 107 (0x004CB880) are the only entries of the filler table at 0x00A92488 inside Q4.
+
+### The overlay builder
+
+0x004CA460 was expected to be drawing. It is not: it is route selection logic, so it is ours. It picks the lots (the lot manager's slot 15 iterator) and the neighbour connections (the neighbours simulator's slot 16) whose trips cover the box in the tool's +0x30 or whose route touches it (0x004C4AE0), reads the window's check boxes at +0x48 for the route flag and the mask of route kinds, makes the line object when there is none and sets its width by zoom (six floats; the zoom indexes them unchecked, as in the game). The drawing stays the game's and is called by address: the line object (0x007DDD50 construct, 0x007DCD90 set up, 0x007DDC30 empty, 0x0053C940 unset; the last is folded and has six callers in several classes), the route line 0x004C5E20 for each route, and the render service's slots 32 (take the line, layer 5, order 1000) and 33 (give it back). 0x004C38D0 takes the terrain in ESI, so it is called through a naked thunk. The four line functions are in the address file under SC4RouteLine (the Renderer's code).
+
+### The main vtable slots
+
+0x004CBA80, 0x004CBC70 and 0x004CC0B0 are slots 4, 20 and 22 of the tool's main vtable 0x00A90A88, not of 0x00A90A78 as the first notes said (0x00A90A78 is the target part; its slots are not these). 0x004CB900 is slot 3 of the panel target (vtable 0x00A90980).
+
+### How the cell walks are reached
+
+0x004CC660 and 0x004CC6A0 are given to a window's slot 32 (interface 0x22BA0121, a function and a cell query) by code in Q5: 0x004CCB3A and 0x004CCE1C give 0x004CC660, 0x004CCE93 gives 0x004CC6A0. 0x004CCB01 and 0x004CCDF2 also keep 0x004CC660 at 0x00B21848 (window at 0x00B2184C, cell at 0x00B21840 and 0x00B21844) for DoMessage (0x004D75B8, 0x004D75E4); 0x004D3DC0 stores 0x004D3B40 there instead. The walks always recurse into the children, because FillCell returns false. FillCell takes five arguments (window, ID, fill, x, z) for 13 IDs and six (window, ID plus the cell query's offset, fill, x, z, the cell query's type) for 9: 0x1011 to 0x1015, 0x1026, 0x1027, 0x1028, 0x1078 and 0x107B to 0x107E take five; 0x104B to 0x104E, 0x1066 to 0x1069 and 0x106A take six. The jump table is at 0x004CC588 with its index bytes at 0x004CC5E4 (control ID less 0x1011); the translation is a switch.
+
+### Fields and layouts
+
+New layouts in src/core/tool_query.h, no field renamed: the route line object (`route_line`: set up byte +0xC, width +0x10, points +0x14, 0x2C bytes), the trip node a traffic source keeps (`trip_node`: next, record from +0x8, flags byte at +0x26; routes with bit 8 set and bit 2 clear are drawn, the way back when bit 1 is clear), the text map's node (`text_node`: left +0x8, right +0xC, key +0x10, game string from +0x14) and the cell query (`cell_query`: x, z, ID offset, type; 0x10 bytes). Field comments of the tool now say what Q4 shows: +0x2C the occupant under the pointer (highlighted with 7), +0x30 the box, +0x40 the occupant's own highlight, given back when it is let go, +0x7C the ground point (three floats), +0x88 whether something was picked, +0x90 the timer's milliseconds (50 from the view), +0x94 whether the ground point counts for a pick, +0x9C the line.
+
+### Behaviour as the game has it, kept
+
+- BuildRoutes never gives back the lot manager's slot 15 iterator (8 bytes, registered in the manager's list), on every call.
+- A kind 0 tool has no window at +0x48 and BuildRoutes calls through null there in the original too; only a kind 1 tool after Init is driven.
+- Some locals are never set in the game and are 0 in ours: NetworkRoutes' position, FillOccupantLotNetworkNumber's cells, the deal fillers' two types, FillCityMayorRating's exemplar.
+- The flag handed to 0x004C4AE0 and 0x004C5E20 is a dword with stack leftovers in its upper bytes; both read only the low byte.
+- FillCityMayorRating never releases the exemplar it fetched.
+
+### Clocks and random numbers
+
+No random numbers. OnMouseMove stops and starts the tool's timer at +0x50 (a cRZTimer on real time, +0x90 milliseconds) unless the left button is down; Shutdown and OnMouseExit stop it. Nothing reads a clock otherwise.
+
+### Mods
+
+No patch site is inside the range (0x004D4406, 0x004D4494, 0x004D4EAA, 0x004D7335 to 0x004D74BF and 0x004D09D1 are all outside; the word at 0x00A92570 is filler 58, Q1's). No Q4 function is the target of a patched call (0x004C4F40, 0x004D3C30, 0x0090F574, 0x004C3810) and none calls one. No wrapper in `src/core/game_*.cpp` and no return-address test touches the range. The patch sites are expected in Q5 and Q7.
+
+If a run dies in the route view after these groups are on, drop 0x004CA460 first (0x004CAC50 and 0x004CB900 still call it by address).
+
+## The query tool, fourth piece: test
+
+`OPENSC4_TEST_Q4=<day>` (src/core/tool_q4_autotest.cpp, token ` query4` in the fingerprint line, order 24, day hook 64, sub-hashes on the log lines `autotest: query4: ...`). It calls only the game's addresses and vtable slots, never our functions. There is no commit switch: nothing here changes the city (highlights are put back; FillCell with fill 0 reaches only fillers of Q1 to Q3 that read nothing back).
+
+`OPENSC4_TEST_Q4_PARTS=<bits>` (default 63):
+
+- 1 the fillers by cell: FillCell for its 22 control IDs and one it does not know, with fill 1 and 0, at cells inside the city, at the sample's lots and at every fourth cell just outside the edges with the connection types 0 to 12, on Q3's stand-in window; the two walks on a stand-in whose slot 32 records its arguments.
+- 2 fillers 18 and 107 through the table's reader 0x004D3A90, 0x004CADE0 at the lots' cells and at a cell without a lot, 0x004CC160, and 0x004CB740 with a holder that has no curve property.
+- 4 the tool of kind 1 as the view makes it (view slot 0x1C with command 0x6A935CF4): OnMouseMove over Q1's screen grid and once off the screen, then OnMouseExit.
+- 8 the routes: the occupant set to buildings and network pieces, then 0x004CAC50 (the box, the mode, the line, its width bits and its point count); the panel target's handler with fake messages on the real window (radio pair and shown states); 0x004CAC30.
+- 16 HighlightLot with 7 then 0 on a sample lot (the occupants' highlights before, between and after).
+- 32 EraseTexts on a three-node tree made with the game's allocator (no hash; it must not crash).
+
+The tool is put away with view slot 0x68 (Shutdown) at the end. Pointers are not hashed, only whether they are set. Samples (original, test): Making Money d0090 24 buildings and 3 network pieces, route line points 10 6 9 9 8 9 for the buildings and 0 318 150 for the pieces, the pointer grid found an occupant at 12 of 272 points, a lot of 14 occupants highlighted; Big City d0000 24 and 3, points 8 6 8 5 5 6 and 24 58 77, 81 of 272, 33 occupants; Rush Hour d0090 24 and 3, points 0 for all six buildings and 223 10 29, 14 of 272, 10 occupants. The mayor rating read 53, 65 and 74.
+
+### Not reached
+
+- The deal fillers ran only their "none" paths: the tutorial saves have no neighbour deals.
+- The walks over real query windows (Q5) and EraseTexts on the real text map.
+- Any use with mods installed. No coverage run.
+
+### Trial results
+
+First pass, snapshot q4a, on Making Money d0090, Big City d0000 and Rush Hour d0090, with the test and never run: the original twice (A1, A2), all groups ours (B) and only `ui.tools.base` with the Q4 groups ours (M) were identical in every autotest and fingerprint line, in all cases (24 of 24 runs finished, none crashed). The fingerprint without the token is the same in the test and untouched runs on all three saves (n == z). Build debug and release clean, ctest 20 of 20, retcheck 23 OK and 2 to check (0x004CAC50 tail jumps into 0x004CAA60 and 0x004CAAE0, both ours with a plain ret; 0x004CB880 is not in the function list, plain ret at 0x004CB8A6 by hand), register scan 25 hooked and none suspicious, EAX scan clean. One pass sufficed; nothing moved out of the hash.
+
+Parity (batch q4b1, 7 days): plain 12 of 12, test on day 2 12 of 12, test on day 5 12 of 12, plopped with the test 3 of 3, every pair the same on its first run (39 of 39). No commit leg: nothing in Q4 changes the city.
