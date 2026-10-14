@@ -27,8 +27,14 @@
 // reads, so the day a road became usable did too. Their stopwatches go on
 // the counter for every call from the crew's code, and the frame time the
 // crew's Tick gets is the simulation time of the last frame
-// (CrewFrameMicroseconds).
+// (CrewFrameMicroseconds). Our translation of the crew (crew_work.cpp)
+// calls the stopwatch from core.dll, outside that range: it goes through
+// CrewStopwatchStart, CrewStopwatchElapsed and CrewStopwatchStop, which serve
+// it as the range's calls are served. When our Tick is at 0x00607C30
+// (simulators.crew.running, crew_sim::TickIsOurs) the hook here stays off
+// that entry and our Tick asks CrewFrameMicroseconds itself.
 #include "core/address_check.h"
+#include "core/crew_work.h"
 #include "core/fixed_ticks.h"
 #include "core/hook.h"
 #include "core/log.h"
@@ -79,6 +85,7 @@ int g_ownedCount = 0;
 DWORD g_mainThread = 0;
 bool g_read = false; // the flag virtual_clock checks (through SetSimTimerRead)
 bool g_byCall = false; // the running read is a call-by-call owner's
+bool g_elapsedServed = false; // fixed_ticks passes ElapsedMilliseconds' other stopwatches to ThunkElapsed
 int64_t g_byCallLast = 0;
 
 int64_t Counter()
@@ -154,6 +161,17 @@ void __cdecl Enter(void* stopwatch, uint32_t caller)
     if (!byCall && !Take(stopwatch, Owner(caller), caller))
         return;
     g_byCall = byCall;
+    g_read = true;
+    virtual_clock::SetSimTimerRead(true);
+}
+
+// As Enter for a caller in kCallOwners, for our crew's calls (the caller's
+// address is ours, so Enter would not see it).
+void EnterCrew()
+{
+    if (GetCurrentThreadId() != g_mainThread)
+        return;
+    g_byCall = true;
     g_read = true;
     virtual_clock::SetSimTimerRead(true);
 }
@@ -268,6 +286,13 @@ bool Install(registry::Mode)
         {addr::cSC4NetworkConstructionCrew_Tick, reinterpret_cast<void*>(&CrewTick), &g_crewTick},
     };
     for (const auto& h : hooks) {
+        if (h.address == addr::cSC4NetworkConstructionCrew_Tick && crew_sim::TickIsOurs()) {
+            // Our Tick is at that entry (simulators.crew.running, installed
+            // at PreAppInit) and asks CrewFrameMicroseconds itself.
+            log::Write("sim_timers: crew Tick is ours (simulators.crew.running): no hook on 0x%08X",
+                       static_cast<unsigned>(h.address));
+            continue;
+        }
         const addr::Entry* found = addr_check::Find(h.address);
         if (!found || !hook::Install(*found, h.thunk, h.original))
             return false;
@@ -276,6 +301,7 @@ bool Install(registry::Mode)
     // install first); stopwatches it does not handle come here, and the
     // original is looked up on the first call (Enter).
     fixed_ticks::SetElapsedPass(reinterpret_cast<void*>(&ThunkElapsed));
+    g_elapsedServed = true;
     log::Write("sim_timers: installed (MySim, advisor and construction crew stopwatches on simulation time, 10 ms per "
                "tick)");
     return true;
@@ -312,6 +338,46 @@ uint32_t CrewFrameMicroseconds(uint32_t frameMicroseconds)
                    frameMicroseconds, simulated);
     }
     return simulated;
+}
+
+using StopwatchFn = void(__thiscall*)(void* stopwatch);
+using ElapsedFn = uint32_t(__thiscall*)(void* stopwatch);
+
+void CrewStopwatchStart(void* stopwatch)
+{
+    if (!g_mainThread || !g_Restart) {
+        reinterpret_cast<StopwatchFn>(addr::GZStopwatch_Start)(stopwatch);
+        return;
+    }
+    EnterCrew();
+    reinterpret_cast<StopwatchFn>(g_Restart)(stopwatch);
+    Leave();
+}
+
+uint32_t CrewStopwatchElapsed(void* stopwatch)
+{
+    // The game's call goes through fixed_ticks' hook, which passes a crew
+    // stopwatch (never the slice's, the pacing one or the frame one) to
+    // ThunkElapsed; without that pass the game's call reaches the method
+    // with no thunk at all.
+    void* const original = fixed_ticks::ElapsedOriginal();
+    if (!g_mainThread || !g_elapsedServed || !original)
+        return reinterpret_cast<ElapsedFn>(addr::GZStopwatch_ElapsedMilliseconds)(stopwatch);
+    EnterCrew();
+    const uint32_t milliseconds = reinterpret_cast<ElapsedFn>(original)(stopwatch);
+    Leave();
+    return milliseconds;
+}
+
+void CrewStopwatchStop(void* stopwatch)
+{
+    if (!g_mainThread || !g_Stop) {
+        reinterpret_cast<StopwatchFn>(addr::SC4Stopwatch_Stop)(stopwatch);
+        return;
+    }
+    EnterCrew();
+    reinterpret_cast<StopwatchFn>(g_Stop)(stopwatch);
+    Leave();
 }
 
 void Claim(void* stopwatch)
