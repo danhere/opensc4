@@ -442,3 +442,206 @@ name = "cSC4NetworkTool::MissingFailureText"
 address = 0x00AA8714
 kind = "data"
 source = "Name ours. The C string ## Missing failure reason ## that slot 52 gives when the LTEXT of a reason is missing."
+
+[[entry]]
+name = "cSC4NetworkWorldCache::Construct"
+address = 0x00648000
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 33 FF 89 7E"
+source = "Name ours. The world cache constructor (no arguments; the tool constructor 0x0062C5F0 at +0x1C): for the cells table at +0x0 and the copy at +0x14 the bucket vector and the count cleared, then 0x00829BC0 with 100 buckets; EAX this (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkWorldCache::Destruct"
+address = 0x00647AE0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 14 8B"
+source = "Name ours. The world cache destructor (no arguments; the tool destructor 0x0062CAF0): the copy table cleared (0x006479B0) and its buckets freed, then the same for the cells (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkWorldCache::Reset"
+address = 0x00647B20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 88 FE FF FF"
+source = "Name ours. No arguments: the cells table and the copy cleared by 0x006479B0 (the second a tail jump); called by Reset 0x00626F90, 0x00629210, 0x0062A5C0, 0x0062CD50, 0x0062D450 and 0x006588D0 (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkWorldCache::ClearTable"
+address = 0x006479B0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B D9 8B 43 08 56"
+source = "Name ours. No arguments, this a table of the world cache: every node freed (0x0090CF63) after its cell info occupant at node +0x14 is released, every bucket nulled, the count +0x10 cleared (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkWorldCache::GetCell"
+address = 0x00647A20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 04 57 8B 79 08"
+source = "Name from NAM. Ret 4 (the key (z << 16) + x): the cell info (node + 8) of the key in the cells table or 0; ECX this, EDX the node or 0. NAM calls it at this address (src/core/nettool_cache.cpp, through a thunk)."
+
+[[entry]]
+name = "cSC4NetworkWorldCache::InsertNode"
+address = 0x00647A60
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 46"
+source = "Name ours. Ret 4 (a pair of a key and a cell info): the table grown (0x004F0940), a 0xC4-byte node with the key and a copy of the cell info (0x006478A0) put first in its bucket, the count up; EAX the node + 4. Called by 0x00647BB0 only (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkWorldCache::FindOrInsert"
+address = 0x00647BB0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 80 01 00 00 53 55"
+source = "Name ours. Ret 4 (the address of a key): the cell info of the key, inserted (0x00647A60) as a default cell info when missing; EAX the cell info. Called by 0x00647E10 only (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkWorldCache::FindOrInsertByValue"
+address = 0x00647E10
+kind = "function"
+convention = "thiscall"
+expect = "8D 44 24 04 50 E8 96 FD"
+source = "Name ours. Ret 4 (the key by value): 0x00647BB0 with its address. Called by 0x00632EF0, 0x00633030, 0x00633250, 0x00657DA0 and 0x006588D0 (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkWorldCache::ClearCellIndices"
+address = 0x00647B40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8D 44 24 04"
+source = "Name ours. No arguments, this the cells table: every cell info index into the solved cells (+0xB8) set to -1, walking from 0x004B0390. Called by 0x0063B830 (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkWorldCache::AssignTable"
+address = 0x00647CC0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 8B D9 8B 43 08"
+source = "Name ours. Ret 4 (the other table): the bucket vector emptied, reserved (0x0045D4F0) and filled with nulls (0x004FBA20) to the other bucket count, each chain copied into new 0xC4-byte nodes (0x006478A0), the count copied. Called by 0x00647E20 and 0x00647E40 (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkWorldCache::RestoreCells"
+address = 0x00647E20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 14 3B"
+source = "Name ours. No arguments: the cells table cleared and the copy at +0x14 assigned to it (0x00647CC0). Called by 0x0063B830 (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkWorldCache::SaveCells"
+address = 0x00647E40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 14 3B"
+source = "Name ours. No arguments: the copy at +0x14 cleared and the cells table assigned to it (0x00647CC0). Called by 0x0063B830 (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkWorldCache::CollectCells"
+address = 0x00647E60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 56 57 8D 44 24"
+source = "Name ours. Ret 4 (a vector of 0xBC-byte cell infos): every cell of the cells table appended by copy (0x006478A0), the vector grown to its size plus the larger of its size and 1. Called by 0x00658710 (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkCellInfo::CombineEdges"
+address = 0x00647830
+kind = "function"
+convention = "thiscall"
+expect = "56 33 C0 8D 51 18 BE 0D"
+source = "Name ours. No arguments, this a cell info: the 13 edge words +0x18 ORed into +0x4C; EAX the result, ECX this, EDX this + 0x4C (src/core/nettool_cache.cpp, through a thunk)."
+
+[[entry]]
+name = "cSC4NetworkCellInfo::Construct"
+address = 0x00647850
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 33 D2 33 C9 89 48"
+source = "Name ours. The cell info constructor (no arguments): the occupant +0xC, the edge words, +0x4C and the byte +0x50 cleared, +0xB8 -1; EAX this, ECX and EDX 0 (src/core/nettool_cache.cpp, through a thunk)."
+
+[[entry]]
+name = "cSC4NetworkCellInfo::CopyConstruct"
+address = 0x006478A0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 0C 8B 45"
+source = "Name ours. Ret 4 (the cell info to copy): every field copied, the occupant referenced, the edge words through 0x00620DD0; EAX this (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkCellInfo::Assign"
+address = 0x00632D50
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 57 8B 7C"
+source = "Name ours. Ret 4 (the cell info to assign): every field copied, the occupant +0xC as a reference (the new one referenced, the old released); EAX this (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::MakeCellInfo"
+address = 0x00633030
+kind = "function"
+convention = "thiscall"
+expect = "81 EC C0 00 00 00 53 56"
+source = "Name ours. Ret 4 (the key): a cell info made from the cell network occupant (0x00624B70 with the filter +0x364; its types, edges, flags, heights) and written into the world cache (0x00647E10, 0x00632D50); EAX the cached cell info, 0 without an occupant. Called by 0x00633220 and 0x00633250 (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::CreateCellInfosForCurrentPlacementTiles"
+address = 0x00633250
+kind = "function"
+convention = "thiscall"
+expect = "81 EC D4 00 00 00 57 8B"
+source = "Slot 71 of the general and the power line tool, ret 4 (a network type): the cell info of every dragged cell of every valid step, cached or made, marked with the type flag (0x00AA8980), the step and its height margins; water raises the low bounds (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::MarkRuleCells"
+address = 0x006097E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 56 8B F1 0F B6"
+source = "Name ours. Ret 0xC (an x offset, a z offset, the tool), this a RUL0 rule: for each rule cell and network type of its entry, the tool cell info (0x00633220) tested against the entry edge pattern (type 10 also its one-way bits), a record through 0x00629170 where it does not match; AL 1. Called by 0x00661010 and 0x00661260 (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::AddRuleCellRecord"
+address = 0x00629170
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8A 44 24 28 8B"
+source = "Name ours. Ret 0x18 (x, z, an edge pattern, a network type, two bytes): a 0x14-byte record appended to the tool vector +0xF0 (0x00626330 when full); its last two bytes are its stack leftovers. Game code, called at this address by 0x006097E0 (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::NeighborIsClear"
+address = 0x00623F40
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 54 24 08 56 8D 44"
+source = "Name ours. Slot 0 of the neighbour walker vtable 0x00AA8700, ret 4 (a direction): 0 when the neighbouring cell info (0x00620D80, 0x00633220) has a network flag of the walker mask +0x24, else 1 (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::NeighborEdges"
+address = 0x00623EE0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 54 24 08 56 57 8D"
+source = "Name ours. Slot 1 of the neighbour walker vtable 0x00AA8700, ret 8 (a direction, a word out): the neighbouring cell info edge word for the walker type +0x20, or 0; EAX the cell info (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::NeighborVtable"
+address = 0x00AA8700
+kind = "vtable"
+expect = "40 3F 62 00 E0 3E 62 00"
+source = "Name ours. The two-slot vtable of the network tool neighbour walker (constructor 0x00627080: x +0x14, z +0x18, the tool +0x1C, a type +0x20, a network mask +0x24): 0x00623F40, 0x00623EE0 (src/core/nettool_autotest.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::CellTypeFlags"
+address = 0x00AA8980
+kind = "data"
+source = "Name ours. 13 words, the flag 1 << type of each network type, which the cell info makers 0x00632EF0 and 0x00633250 put into a cell flags (src/core/nettool_cache.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::RuleRotationMasks"
+address = 0x00AA752C
+kind = "data"
+source = "Name ours. A byte table read by a RUL0 rule byte +0xE8 in 0x006097E0, compared with a cell one-way byte (src/core/nettool_cache.cpp)."

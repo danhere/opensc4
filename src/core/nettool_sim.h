@@ -8,11 +8,12 @@
 // type (13, made by its Init 0x00610C10) and hands them out by GetNetworkTool
 // 0x006108D0 (docs/netmgr.md). Nothing of the tool is saved.
 //
-// Written in parts (docs/nettool.md has the plan). This file starts with the
-// first part, nettool_state.cpp: identity, the getters and setters, the
-// failure state and its text, the type row's IDs, the bridge and neighbour
-// queries, OccupantExists, the placement parameters' copy and the small cell
-// helpers next to them.
+// Written in parts (docs/nettool.md has the plan). The first part,
+// nettool_state.cpp: identity, the getters and setters, the failure state
+// and its text, the type row's IDs, the bridge and neighbour queries,
+// OccupantExists, the placement parameters' copy and the small cell helpers
+// next to them. The second, nettool_cache.cpp: the world cache and the cell
+// infos (their layouts below).
 //
 // THE NAM GUARD. Nine functions of the tool's range stay the game's for good
 // because the NAM DLL or sc4fix patch inside them: 0x006099A0, 0x0062CD50,
@@ -214,7 +215,12 @@ inline constexpr std::size_t kFailure = 0x20C;
 inline constexpr std::size_t kPreviewCount = 0x218, kHighlightCount = 0x22C;
 inline constexpr std::size_t kPreviewUpdate = 0x234;
 inline constexpr std::size_t kCellsX = 0x240, kCellsZ = 0x244;
+inline constexpr std::size_t kVertexStride = 0x248; // vertices per row (the cell makers' index)
 inline constexpr std::size_t kParams = 0x290;
+// Two floats of the placement parameters (+0x14 and +0x34): the margins
+// slot 71 puts around the heights of a cell already cached and of a new one.
+inline constexpr std::size_t kMarginCached = 0x2A4, kMarginNew = 0x2C4;
+inline constexpr std::size_t kRuleCellRecords = 0xF0; // a vector of 0x14-byte records (0x00629170)
 inline constexpr std::size_t kHasBridge = 0x354, kRow = 0x358, kType = 0x35C;
 inline constexpr std::size_t kClassMask = 0x360, kFilter = 0x364;
 } // namespace field
@@ -265,11 +271,99 @@ inline constexpr std::size_t kByte24 = 0x24, kDiagonal = 0x25, kVector28 = 0x28,
 inline constexpr std::size_t kVector54 = 0x54, kVector60 = 0x60, kFloats6C = 0x6C, kVectorA0 = 0xA0;
 } // namespace params
 
-// The cell info (0xBC bytes, the world cache's): OccupantExists reads its
-// network flags, its occupied byte and its words by network type.
+// The cell info (0xBC bytes, the world cache's; NAM's cSC4NetworkCellInfo
+// has the names in brackets). Evidence: the makers 0x00633030 (from a
+// network occupant), 0x00632EF0 (for a network type) and slot 71
+// 0x00633250 (for the current placement), the constructor 0x00647850, the
+// copy 0x006478A0 and the assignment 0x00632D50 (nettool_cache.cpp).
+//   +0x00 x, +0x04 z (the cell)
+//   +0x08 network flags [networkTypeFlags]: the occupant's slot 0x30 & 0x1FFF,
+//         or the type's flag (0x00AA8980); slot 71 ORs 0x40000 (step kind 1)
+//         or 0x80000 (kind 2)
+//   +0x0C the network occupant, referenced [networkOccupant]
+//   +0x10 uint8 in the current placement (slot 71 sets it)
+//   +0x14 the index of the step (slot 71), -1 from an occupant, 0 by type
+//   +0x18 the edge words by network type, 13 [edgesPerNetwork] (occupant
+//         slot 0x98 for the types its slot 0x58 says it is)
+//   +0x4C the 13 words ORed (0x00647830) [edgeFlagsCombined]
+//   +0x50 uint8 the occupant's slot 0x114 (its one-way byte, inf)
+//   +0x51 uint8 made from an existing occupant (OccupantExists' test)
+//   +0x52 uint8 the occupant has the flag 0x100000 (slot 0x20)
+//   +0x53 uint8 immovable: the occupant's slot 0x44, or the step's kind is
+//         not 0 [isImmovable]
+//   +0x54 uint8 0; +0x55 uint8 the step's kind is 3
+//   +0x56 uint8 the occupant has the flag 0x200000 [isNetworkLot]
+//   +0x57 uint8 0
+//   +0x58 four corner heights (floats: occupant slot 0x88 or the terrain)
+//   +0x68 four pairs of floats (low, high) per corner, +0x88 four more
+//   +0xA8 the four corners' vertex indices NW, SW, SE, NE [vertices]
+//   +0xB8 int32 the index into the solved cells, -1 [idxInCellsBuffer]
+// The bytes +0x11 to +0x13 are padding (no function copies them).
 namespace cell {
-inline constexpr std::size_t kFlags = 0x8, kByType = 0x18, kOccupied = 0x51;
+inline constexpr std::size_t kSize = 0xBC;
+inline constexpr std::size_t kX = 0x0, kZ = 0x4, kFlags = 0x8, kOccupant = 0xC, kInPlacement = 0x10;
+inline constexpr std::size_t kStep = 0x14, kByType = 0x18, kEdgeWords = 13, kCombined = 0x4C;
+inline constexpr std::size_t kOneWay = 0x50, kOccupied = 0x51, kHasFlag100000 = 0x52, kImmovable = 0x53;
+inline constexpr std::size_t kByte54 = 0x54, kKind3 = 0x55, kNetworkLot = 0x56, kByte57 = 0x57;
+inline constexpr std::size_t kHeights = 0x58, kRanges = 0x68, kRanges2 = 0x88, kVertices = 0xA8;
+inline constexpr std::size_t kSolvedIndex = 0xB8;
+inline constexpr uint32_t kStepKind1Flag = 0x40000, kStepKind2Flag = 0x80000;
+inline constexpr uint32_t kOccupantFlagMask = 0x1FFF;
+inline constexpr uint32_t kOccupantFlag100000 = 0x100000, kOccupantFlagNetworkLot = 0x200000;
+// What 0x00633030 starts the pairs with (-FLT_MAX, FLT_MAX), and slot 71
+// the second pairs of a cell it makes.
+inline constexpr uint32_t kLowestBits = 0xFF7FFFFF, kHighestBits = 0x7F7FFFFF;
+inline constexpr uint32_t kNewLowBits = 0xFDFFFFFF, kNewHighBits = 0x7DFFFFFF;
 } // namespace cell
+
+// The world cache (cSC4NetworkWorldCache, 0x28 bytes at the tool's +0x1C,
+// constructor 0x00648000): two hash tables of cell infos keyed by
+// (z << 16) + x, the cells at +0x0 (GetCell 0x00647A20 looks only there)
+// and a copy at +0x14 (SaveCells 0x00647E40 and RestoreCells 0x00647E20).
+// A table: +0x0 not written (inf: the hash functor), +0x4 the bucket vector
+// (begin, end, capacity; 100 buckets from 0x00829BC0), +0x10 the count. A
+// node is 0xC4 bytes from the STL allocator: +0x0 the next node, +0x4 the
+// key, +0x8 the cell info.
+namespace cache {
+inline constexpr std::size_t kSize = 0x28, kMain = 0x0, kBackup = 0x14;
+inline constexpr std::size_t kBuckets = 0x4, kCount = 0x10;
+inline constexpr uint32_t kFirstBuckets = 100;
+} // namespace cache
+namespace node {
+inline constexpr std::size_t kSize = 0xC4, kNext = 0x0, kKey = 0x4, kValue = 0x8;
+} // namespace node
+
+// The little object of the vtable 0x00AA8700 (constructor 0x00627080, t4):
+// a cell and the tool, for its two slots that look at a neighbouring cell
+// (0x00623F40 and 0x00623EE0).
+namespace walker {
+inline constexpr std::size_t kSize = 0x28, kX = 0x14, kZ = 0x18, kTool = 0x1C, kType = 0x20, kMask = 0x24;
+inline constexpr std::size_t kIsClearSlot = 0x0, kEdgesSlot = 0x4;
+} // namespace walker
+
+// A RUL0 rule as 0x006097E0 reads it: +0x58 a vector of 0xC-byte cells (x
+// and z offsets, a byte key), +0x68 the bucket vector of a hash table keyed
+// by that byte (node: +0x0 next, +0x4 the key, +0x8 two signed network
+// types, +0xC two pairs of words (edge pattern, mask), +0x1D a byte), +0xE8
+// an index into the byte table 0x00AA752C.
+namespace rule {
+inline constexpr std::size_t kCells = 0x58, kCellSize = 0xC, kCellKey = 0x8, kBuckets = 0x68, kRotation = 0xE8;
+inline constexpr std::size_t kNodeKey = 0x4, kNodeTypes = 0x8, kNodePairs = 0xC, kNodeByte1D = 0x1D;
+inline constexpr int8_t kOneWayType = 10;
+} // namespace rule
+
+// The terrain's slots (+0x44) and the water's (0x00B43CF0) the cell code
+// calls; and the network occupant's.
+namespace terrain_slot {
+inline constexpr std::size_t kVertexCell = 0x28, kVertexAltitude = 0x30;
+} // namespace terrain_slot
+namespace water_slot {
+inline constexpr std::size_t kAltitude = 0x28;
+} // namespace water_slot
+namespace netocc_slot {
+inline constexpr std::size_t kHasFlag = 0x20, kFlags = 0x30, kIsImmovable = 0x44, kIsOfType = 0x58;
+inline constexpr std::size_t kVertexHeights = 0x88, kEdges = 0x98, kOneWay = 0x114;
+} // namespace netocc_slot
 
 // The failure texts: LTEXT group 0x2A592FD1, instance = the failure reason.
 inline constexpr uint32_t kFailureTextGroup = 0x2A592FD1;
