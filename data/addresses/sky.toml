@@ -1195,7 +1195,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4EffectDecal* this, const void* description)"
 expect = "55 8B EC 83 E4 F8 51 53"
-source = "Name ours, not analysed. Ret 4. A decal given its description (0x64 bytes, the manager's table at +0x10C). Called by MakeRecordEffect (0x005918C8) only. The game's; noted by the comparison of renderer.effects.make."
+source = "Name ours. Ret 4. A decal given its description (0x64 bytes, the manager's table at +0x10C): copied to +0xC (SC4DecalDescription::Assign); 1 over its speed (+0xC; over 0.0001 when the speed is not above that) at +0x118; the texture at +0x11C let go (0x008090E0); scales drawn from the generator at 0x00B22C10 (SC4Random::Uniform) at +0xF4, +0xF8 and, when its +0x54 is above 0, +0xFC; and with its flag 0x10 the city's (0x00B43CEC) slots 0x168 and 0x164 halved at +0xE8 and +0xE4 and slot 0x164 at +0xEC. Called by MakeRecordEffect (0x005918C8) only. Ours in renderer.effects.decal_description (src/core/effects_decal_description.inc)."
 
 [[entry]]
 name = "SC4EffectsManager::FindDescriptionByName"
@@ -1259,3 +1259,12 @@ convention = "thiscall"
 signature = "void* (void* this, void* out, const void* key)"
 expect = "83 EC 08 53 55 56 8B 74"
 source = "Name ours. Ret 8. this = the effects manager's hash multimap of names to compound descriptions (+0x98: buckets as a vector of nodes at +4; a node is next +0, the key's text +4 to +8, the index +0x10). out gets the first node with the key's text and the node after the last (the next node, or the head of the next bucket with one), each with the map; none for none. The bucket is the string hash's (0x0051C9B0). Answers out. Called by FindDescriptionByName and from 0x00587186, 0x0058B689, 0x0058CE33 and 0x005901CA. Ours in renderer.effects.lookup (src/core/effects_lookup.inc)."
+
+[[entry]]
+name = "SC4DecalDescription::Assign"
+address = 0x005833F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours, not analysed. Ret 4. A decal's description (0x64 bytes) given another's: words and bytes copied, the vectors at +0x10, +0x1C, +0x28 and +0x40 assigned (0x00464430) and the one at +0x34 (0x0050C540). Answers this. Called by SC4EffectDecal::SetDescription (0x00583493) and from seven more places. The game's; noted by the comparison of renderer.effects.decal_description."
