@@ -149,4 +149,79 @@ inline constexpr std::size_t kDiagonal = 0x75, kRul1Id = 0xFC, kFloats = 0x100, 
 inline constexpr std::size_t kBridgeSize = 0x178;
 } // namespace typerow
 
+// === Part r2: the type rows' rule files (src/core/nettool_rul_2.cpp) ==========
+// A row's vector +0x24 holds pointers to rule file objects: AddRuleFile
+// 0x0063D360 makes each (operator new 0x10, the constructor 0x00622A90, the
+// load 0x00623020 with a resource key from LoadTypeInfo's table, two a row
+// but row 5), the row's Clear 0x006421D0 deletes them by their slot 0
+// (0x00622AE0, flag 1), and the tile solver reads them (its loop at
+// 0x00635D70 over the 13 rows hands each to 0x006358C0, 0x006340D0 under
+// it, just before the guarded RUL2 engine 0x00634D70). Not the RUL2 multimap (0x00B466D0: its own nodes, freed by
+// 0x00624CE0 without vectors), not the RUL1 map (0x00B460DC, a hash set per
+// node) and not the row's table +0x3C (exemplars).
+//
+// The object: +0x0 the vtable 0x00AA8338 (one slot, the deleting
+// destructor), +0x4 an STLport multimap (nettool_sim.h's `tree`: the head
+// node, the count at +0x8) keyed by a word, nodes of 0x34 bytes with a
+// 0x24-byte value at +0x10: the key, then an entry (below) whose edge word
+// is the key's source. The text format the load reads (comma separated,
+// ';' lines are comments): a first token "#Transmogrify" (or any other
+// '#...'; else the file is refused), then entries: an optional "noflip" or
+// "notrans", "1" and four edges, then lines "2,<position>,<four edges or
+// ?>" (checks) and "3,<position>,<ID>,<turn>,<flip>" (tiles) until a token
+// that is not a digit (pushed back for the next entry) or the end. With
+// #Transmogrify each entry is replaced by its distinct turned and mirrored
+// variants (0x00622B50).
+namespace rulefile {
+inline constexpr std::size_t kSize = 0x10; // what AddRuleFile allocates (+0xC unused)
+inline constexpr std::size_t kVtable = 0x0, kMap = 0x4, kCount = 0x8;
+} // namespace rulefile
+
+// The multimap's node value (0x24 bytes at the node's +0x10).
+namespace rulevalue {
+inline constexpr std::size_t kNodeSize = 0x34, kSize = 0x24;
+inline constexpr std::size_t kKey = 0x0, kEntry = 0x4;
+} // namespace rulevalue
+
+// An entry (0x20 bytes): +0x0 the four edges (a byte each: ((n / 10) << 3)
+// | n % 10 of the text's number n), +0x4 a vector of checks (below), +0x10 a
+// vector of tiles (below), +0x1C which of the eight variants (bit i: quarter
+// turns i & 3, mirrored when i & 4) Transmogrify makes: 0xFF, "noflip" 0xF,
+// "notrans" 1; Transmogrify's own entries have 1.
+namespace entry {
+inline constexpr std::size_t kSize = 0x20;
+inline constexpr std::size_t kEdges = 0x0, kChecks = 0x4, kTiles = 0x10, kMask = 0x1C;
+inline constexpr uint32_t kAllVariants = 0xFF, kNoFlip = 0xF, kNoTrans = 1;
+} // namespace entry
+
+// A check (12 bytes): +0x0 uint8 a position (0 the cell, 1 to 8 the ring
+// around it, 9 to 24 the ring after; the three bytes after it are not
+// written by the game's in-place appends), +0x4 the four edges a neighbour
+// must have, +0x8 their mask (0xFF a byte, 0 for '?').
+namespace check {
+inline constexpr std::size_t kSize = 0xC, kPosition = 0x0, kEdges = 0x4, kMask = 0x8;
+} // namespace check
+
+// A tile (8 bytes): +0x0 the tile's ID, +0x4 uint8 its position (as a
+// check's), +0x5 uint8 its quarter turns (low bits) and 0x80 flipped; the
+// two bytes after it are not written by the game's appends.
+namespace tile {
+inline constexpr std::size_t kSize = 0x8, kId = 0x0, kPosition = 0x4, kTurn = 0x5;
+inline constexpr uint8_t kFlipped = 0x80;
+} // namespace tile
+
+// The load's text reader (0x38 bytes, on 0x00623020's stack): +0x0 uint8
+// open, +0x4 the record (a cIGZFile from SC4::OpenResourceRecord), +0x8
+// uint8 what the open answered, +0xC the current line and +0x20 the current
+// token (game strings: the vtable 0x00A80810, begin, end, capacity, a
+// reference count), +0x34 uint8 the record is used up, +0x35 uint8 the
+// token is pushed back.
+namespace reader {
+inline constexpr std::size_t kSize = 0x38;
+inline constexpr std::size_t kOpen = 0x0, kRecord = 0x4, kOpened = 0x8;
+inline constexpr std::size_t kLine = 0xC, kLineBegin = 0x10, kToken = 0x20, kTokenBegin = 0x24;
+inline constexpr std::size_t kEnded = 0x34, kPushedBack = 0x35;
+inline constexpr uint32_t kFirstBuffer = 8; // what the constructor allocates for each string
+} // namespace reader
+
 } // namespace opensc4::nettool_sim::rul
