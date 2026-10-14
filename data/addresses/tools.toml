@@ -3789,3 +3789,527 @@ kind = "function"
 convention = "cdecl"
 expect = "8A 44 24 0C 83 EC 40 53"
 source = "Name ours. Filler 23: the residential simulator's school record (0x00B43DA4 slot 26, 0x40 bytes) for the occupant, its float at +0x28 as the control's value (0x004C3CA0); false when the simulator says no. Ours in ui.tools.query2."
+
+[[entry]]
+name = "SC4QueryTool::FillSchoolFunding"
+address = 0x004C7A70
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 44 53 56 33 DB 57"
+source = "Name ours. Filler 24 (window, child ID, fill, occupant): the residential simulator's school record (slot 26; false when it says no); with fill the first share (+0x2C) times 100 rounded as a slider (cost +0x30, handler itself, the ID table 0x00B096DC with the count at 0x00B096EC); without fill the slider's number (0x004C3C50) over 100 into +0x2C and both shares to slot 19 with 1: the school's funding changes. Ours in ui.tools.query3a (src/core/tool_query_3a.cpp)."
+
+[[entry]]
+name = "SC4QueryTool::FillSchoolFundingSecond"
+address = 0x004C7BB0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 44 53 56 33 DB 57"
+source = "Name ours. Filler 25: as filler 24 for the second share (+0x34, cost +0x38), no ID table. Changes the city without fill. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillCapacityFirst"
+address = 0x004C7CE0
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D A4 3D B4 00 8B 01"
+source = "Name ours. Fillers 27, 29, 31 and 36: the residential simulator's slot 28 (occupant, two numbers out; asked with or without fill, not cleared before), with fill the first as text. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillSchoolNumber"
+address = 0x004C7D30
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 44 53 33 DB 56 6A"
+source = "Name ours. Fillers 28 and 30: the school record (slot 26; false when it says no), with fill its +0x24 as text. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillHospitalValue"
+address = 0x004C7E10
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 40 53"
+source = "Name ours. Filler 32: with fill the hospital record (slot 27; false when it says no) and its float +0x28 as the control's value (0x004C3CA0); an unused 8-byte buffer taken and given back. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillHospitalFunding"
+address = 0x004C7F00
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 44 53 56 33 DB 57"
+source = "Name ours. Filler 33: as filler 24 with the hospital record (slot 27), the ID table 0x00B096F0 with the count at 0x00B096F8, and 0 to slot 19. Changes the city without fill. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillHospitalFundingSecond"
+address = 0x004C8030
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 44 53 56 33 DB 57"
+source = "Name ours. Filler 34: as filler 25 with the hospital record and 0 to slot 19. Changes the city without fill. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillCapacitySecond"
+address = 0x004C8160
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D A4 3D B4 00 8B 01"
+source = "Name ours. Fillers 26 and 35: as 0x004C7CE0, the second number. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillHospitalNumber"
+address = 0x004C81B0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 44 53 33 DB 56 6A"
+source = "Name ours. Filler 37: as 0x004C7D30 with the hospital record (slot 27). Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillGarbageLandfilled"
+address = 0x004C8290
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 08 84"
+source = "Name ours. (window, child ID, fill, x, z; the cell not read), one caller 0x004CC240: with fill the pollution simulator's garbage landfilled last month (slot 41, int64 rounded to a float) times its scaling factor (slot 48), truncated, as text. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillLandfillCost"
+address = 0x004C82F0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 2A"
+source = "Name ours. (window, child ID, fill, x, z; the cell not read), one caller 0x004CC240: with fill the landfill developer's (city slot 78) current budget (slot 8, int64) as money. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillIncineratorPercent"
+address = 0x004C8330
+kind = "function"
+convention = "cdecl"
+expect = "51 8A 44 24 10 84 C0 74"
+source = "Name ours. Filler 42: with fill the pollution simulator's slot 58 (used) over slot 60 (capacity) in percent, 32-bit unsigned; 0 without a capacity. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillIncineratorUsed"
+address = 0x004C83B0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 5F"
+source = "Name ours. Filler 43: with fill slot 58 (unsigned) times the scaling factor (slot 48), truncated, as text. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillPropertyFirst"
+address = 0x004C8420
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 43"
+source = "Name ours. Filler 44: with fill the first number of the occupant's property 0x27812851 (holder slot 9, value slot 5, numbers slot 105) as text; false without the property. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillRecycledShare"
+address = 0x004C8470
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 14 84"
+source = "Name ours. Filler 95: with fill last month's recycled over produced garbage (slots 38 and 35, int64; 0 when nothing was produced) over the recycling centre's capacity (slot 55, float), at most 1, in percent; 0 when the capacity is not above the float 0x00B21854. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillRecycledPerCenter"
+address = 0x004C8550
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 08 84"
+source = "Name ours. Filler 96: with fill last month's recycled garbage times the scaling factor, truncated to 64 bits, divided by the recycling centre count (slot 44; 0 without one), as text. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillWasteToEnergyUsed"
+address = 0x004C85F0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 5F"
+source = "Name ours. Filler 51: with fill the pollution simulator's slot 59 (unsigned) times the scaling factor, truncated, as text. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillPowerUsedPercent"
+address = 0x004C8660
+kind = "function"
+convention = "cdecl"
+expect = "51 8A 44 24 10 84 C0 74"
+source = "Name ours. Filler 53 (and 46 through the jump 0x004C9FE0): with fill the power simulator's slot 33 (produced, used; both 0 before) as used over produced in percent, 32-bit unsigned; 0 when nothing is produced. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillPowerMaxProduced"
+address = 0x004C86D0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 2F"
+source = "Name ours. Fillers 47 and 54: with fill slot 34 (the most produced; its place the fill argument, not cleared) as text; true. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillPowerProduced"
+address = 0x004C8710
+kind = "function"
+convention = "cdecl"
+expect = "51 8A 4C 24 10 33 C0 3A"
+source = "Name ours. Fillers 48 and 55: with fill the first of slot 33's numbers as text. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillPlantFunding"
+address = 0x004C8760
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 0C 84"
+source = "Name ours. Filler 99: with fill the plant's funding share (power slot 50) and monthly cost (slot 49, int64), false when either says no, as a slider (handler itself); without fill the slider's number over 100 to slot 51: the plant's funding changes. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillWaterUsedPercent"
+address = 0x004C8880
+kind = "function"
+convention = "cdecl"
+expect = "51 8A 44 24 10 84 C0 74"
+source = "Name ours. Filler 59: with fill the plumbing simulator's slot 24 (production, used), used over production in percent, 32-bit unsigned; false when it says no. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillWaterCapacity"
+address = 0x004C8900
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 3C"
+source = "Name ours. Filler 60: with fill slot 24's capacity as text; false when it says no. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillWaterProduction"
+address = 0x004C8950
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 3C"
+source = "Name ours. Filler 61: with fill slot 24's production as text. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillWaterUsed"
+address = 0x004C89A0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 3C"
+source = "Name ours. Filler 62: with fill slot 24's amount used as text. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillWaterCondition"
+address = 0x004C89F0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 59"
+source = "Name ours. Filler 115: with fill the plumbing simulator's slot 25 (condition, a float) times 100, truncated, as a percentage; 0 when it says no. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillTransitPercent"
+address = 0x004C8A60
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 28 84"
+source = "Name ours. Filler 66: with fill the traffic simulator's slot 35 record (GetTransitSwitchQueryData) for the occupant's cell (slot 8, city slot 95): +0xC over +0x4 in percent; 0 when it says no or +0x4 is 0. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillTransitCost"
+address = 0x004C8B30
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 24 84"
+source = "Name ours. Filler 67: the same record's +0x10 as money (unsigned); false when it says no. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillTransitFourth"
+address = 0x004C8BC0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 24 84"
+source = "Name ours. Filler 68: the record's +0xC as text. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillTransitSecond"
+address = 0x004C8C50
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 24 84"
+source = "Name ours. Filler 69: the record's +0x4 as text. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillTransportFunding"
+address = 0x004C8CE0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 51"
+source = "Name ours. Filler 70: with fill the funding of the budget department 0xC921CEEB (budget slot 28; the department's slot 10) times 100, truncated, as a percentage; 0 without it. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillBudgetItemCost"
+address = 0x004C8D40
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 20 84"
+source = "Name ours. Filler 71: with fill the occupant's budget item for the purpose 0xAA59670C (budget slot 51; the answer not looked at) and its cost as money. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillBudgetItemFundedCost"
+address = 0x004C8DB0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 20 84"
+source = "Name ours. Filler 73: the same item's cost times its department's funding (slot 28, not checked for null), truncated to 64 bits, as money. The lister took it for the tail of 0x004C8D40. Ours in ui.tools.query3a."
+
+[[entry]]
+name = "SC4QueryTool::FillNeighbourMayor"
+address = 0x004C8E30
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 14 53"
+source = "Name ours. (window, child ID, fill, cell x, cell z, connection type), one caller 0x004CC240: with fill, when the cell lies just outside one city edge (0x006CE7A0) and the neighbours simulator (0x00B43D8C) has a connection there (slot 11) and a city across (slot 12), the city's mayor name (its slot 35) as text; false otherwise. Ours in ui.tools.query3b (src/core/tool_query_3b.cpp)."
+
+[[entry]]
+name = "SC4QueryTool::FillTrafficCellPercent"
+address = 0x004C8F20
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 08 84"
+source = "Name ours. (window, child ID, fill, x, z; the caller passes a sixth), one caller 0x004CC240: with fill the cell held inside the city (city slots 93, 94), the traffic simulator's slot 10 map there (8 bits) over 255 in percent. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillLotPopulationText"
+address = 0x004C8FF0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 14 53"
+source = "Name ours. Filler 81: with fill and an occupant, 0x004C53A0 and 0x004C4160 as %d/%d; true. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillLotCapacityText"
+address = 0x004C90A0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 14 84"
+source = "Name ours. Filler 82: with fill and an occupant, the lot capacity (0x004C4160) as text when not 0; true. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillCellGradeText"
+address = 0x004C9120
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 14 53"
+source = "Name ours. Filler 86: with fill and an occupant, the text of the grade 0x004C4210 gives (2 0x0A5FE260, 3 0xAA5FE249, else 0x4A5FE266; group 0xEA5524EB); true. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillLotAverageText"
+address = 0x004C9200
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 14 53"
+source = "Name ours. Filler 88: with fill and an occupant, the level text (0x004C4260) of the lot average (0x004C5490); true. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillLotOccupancy"
+address = 0x004C92A0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 5A"
+source = "Name ours. Filler 92: with fill and an occupant, 0x004C53A0 over 0x004C4160 times 100, truncated, as a number; true. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillBudgetItemsCost"
+address = 0x004C9310
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 34 84"
+source = "Name ours. Filler 108 (and 16 through the jump 0x004C9E50): with fill the occupant's budget purposes (property 0xEA54D285, 0x005FF510; false without it) looked up with budget slot 51 and the costs found added up, as money. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4StdList::CopyConstructUint32"
+address = 0x004C9430
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F1 6A 0C C7 06"
+source = "Name ours. (source list), ret 4: a new list head (0xC-byte node from the STL allocator) and the source's nodes inserted (0x006F1570); callers 0x004D12A0 and 0x0051A7D0. Left the game's: generic container code with a caller outside the tool."
+
+[[entry]]
+name = "SC4QueryTool::LogDesirability"
+address = 0x004C9520
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 34 8B 0D 68 3D B4"
+source = "Name ours. (cell x, cell z, developer type), called by the cell log 0x004D12A0 for the types 0x1010 to 0x1030 and so on: log lines (0x004C3750) of how the developer (development service slot 32) sums the desirability of the tract (base +0x90, sixteen curved effects of the city maps, four of them by pollution type with the static names at 0x00B21898), the growth lock of the tract (the service's hash +0x9C, days +0xBC) and the tract's population, capacities and desirability. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillBudgetItemsCostJump"
+address = 0x004C9E50
+kind = "function"
+convention = "cdecl"
+expect = "E9 BB F4 FF FF CC CC CC"
+source = "Name ours. Filler 16: a five-byte jump to 0x004C9310. Left the game's: a jump to a hooked function."
+
+[[entry]]
+name = "SC4QueryTool::FillOccupantAirportCost"
+address = 0x004C9E60
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 10 83 EC 10 85"
+source = "Name ours. Filler 19: false without the occupant; else 0x004C7690 at the first cell of its box (slot 11). Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillOccupantAirportUsageFirst"
+address = 0x004C9EA0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 10 83 EC 10 85"
+source = "Name ours. Filler 123: the same with 0x004C76F0. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillOccupantAirportUsageSecond"
+address = 0x004C9EE0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 10 83 EC 10 85"
+source = "Name ours. Filler 124: the same with 0x004C7760. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillOccupantSeaportUsageFirst"
+address = 0x004C9F20
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 10 83 EC 10 85"
+source = "Name ours. Filler 125: the same with 0x004C77D0. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillOccupantSeaportUsageSecond"
+address = 0x004C9F60
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 10 83 EC 10 85"
+source = "Name ours. Filler 126: the same with 0x004C7840. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillOccupantSeaportCost"
+address = 0x004C9FA0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 10 83 EC 10 85"
+source = "Name ours. Filler 120: the same with 0x004C78B0. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillPowerUsedPercentJump"
+address = 0x004C9FE0
+kind = "function"
+convention = "cdecl"
+expect = "E9 7B E6 FF FF CC CC CC"
+source = "Name ours. Filler 46: a five-byte jump to 0x004C8660. Left the game's: a jump to a hooked function."
+
+[[entry]]
+name = "SC4QueryTool::FillPowerUsed"
+address = 0x004C9FF0
+kind = "function"
+convention = "cdecl"
+expect = "51 8A 4C 24 10 33 C0 3A"
+source = "Name ours. Fillers 49 and 56: with fill the second of the power simulator's slot 33 numbers (used) as text. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillPlantCondition"
+address = 0x004CA040
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 84 C0 74 3B"
+source = "Name ours. Fillers 97 and 98: with fill the power simulator's slot 46 (an SC4Percentage through the place given first, then the plant; the place the fill argument) times 100, truncated, as a percentage. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillWaterFlagText"
+address = 0x004CA090
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 20 84"
+source = "Name ours. Filler 64: with fill the flag byte of the plumbing simulator's slot 24 (false when it says no) as the string 0x0A5D4F43 (set) or 0x2A5D4F3B of the group 0xEA5524EB. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillPropertyText"
+address = 0x004CA130
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 2C 84"
+source = "Name ours. Filler 74; code Ghidra has not defined, reached only through the table: with fill the localized text keyed by the occupant's property 0xAA5C23FA (0x005FD5B0; false without it). Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillNeighbourName"
+address = 0x004CA1E0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 20 84"
+source = "Name ours. (window, child ID, fill, x, z, connection type), one caller 0x004CC240: with fill the name of the neighbour city there (its slot 33; 0x004C8E30's conditions) or the string 0x0A8E15F9 of the group 0x6A231EAA as the caption; whether the control took it. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillPoweredText"
+address = 0x004CA2C0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 40 84"
+source = "Name ours. Filler 118: with fill the string 0xCA5D4F33 when the power simulator's slot 31 says the building has power, 0x6A5D4F37 when not, as the caption. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::FillWateredText"
+address = 0x004CA390
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 40 84"
+source = "Name ours. Filler 119: the same with the plumbing simulator's slot 9. Ours in ui.tools.query3b."
+
+[[entry]]
+name = "SC4QueryTool::SchoolSliderIds"
+address = 0x00B096DC
+kind = "data"
+source = "Name ours. Four control IDs (0x101A, 0x101B, 0x101D, 0x101F) the school funding slider (filler 24) keeps as its window property 0x0AB3F6DB."
+
+[[entry]]
+name = "SC4QueryTool::SchoolSliderIdCount"
+address = 0x00B096EC
+kind = "data"
+source = "Name ours. Their count (4), read by filler 24 at each call."
+
+[[entry]]
+name = "SC4QueryTool::HospitalSliderIds"
+address = 0x00B096F0
+kind = "data"
+source = "Name ours. The hospital funding slider's control IDs (0x1023, 0x1024; filler 33)."
+
+[[entry]]
+name = "SC4QueryTool::HospitalSliderIdCount"
+address = 0x00B096F8
+kind = "data"
+source = "Name ours. The count filler 33 reads for them: holds 4, so the copy takes two more dwords (4 and 0x3F800000), as in the game."
+
+[[entry]]
+name = "SC4QueryTool::PollutionNames"
+address = 0x00B21898
+kind = "data"
+source = "Name ours. Four game strings (0x14 bytes each: Air, Water, Garbage, Radiation), a function-local static of 0x004C9520 made on its first use."
+
+[[entry]]
+name = "SC4QueryTool::PollutionNamesGuard"
+address = 0x00B218E8
+kind = "data"
+source = "Name ours. The guard of that static (bit 0)."
+
+[[entry]]
+name = "SC4QueryTool::PollutionNamesAtExit"
+address = 0x00A7B120
+kind = "function"
+convention = "cdecl"
+expect = "56 57 BE E8 18 B2 00 BF"
+source = "Name ours. The exit handler 0x004C9520 registers: destroys the four strings at 0x00B21898. Left the game's (only its address is used)."
+
+[[entry]]
+name = "SC4::IsOnOneCityEdge"
+address = 0x006CE7A0
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 44 24 10 85 C0 75"
+source = "Name ours. (cell x, cell z, city or null for the app's city): true when the cell lies just outside exactly one of the city's edges (-1, or the city's size by its slot 7, in tiles, times 64, on one axis but not both). Called by the query tool's neighbour helpers 0x004C8E30 and 0x004CA1E0."
+
+[[entry]]
+name = "cRZDate::ToString"
+address = 0x00912C79
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 8B 45 0C 85 C0"
+source = "Name ours. (string out, format 0 to 9), ret 8: the date as text through the string's slot 27."
