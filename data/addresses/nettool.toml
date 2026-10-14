@@ -1,0 +1,444 @@
+# The network tool (cSC4NetworkTool, vtable 0x00AA8748): its own code (src/core/nettool_state.cpp, the class map in src/core/nettool_sim.h).
+
+[[entry]]
+name = "cSC4NetworkTool::DirectionOffsets"
+address = 0x00620D80
+kind = "function"
+convention = "cdecl"
+expect = "0F B6 44 24 04 8A 88 D8"
+source = "Name ours. Three arguments (a direction byte, x step out, z step out): the bytes of the step tables 0x00B0B3D8 and 0x00B0B3F4 by the direction; EAX the z byte. Called by 0x00623EE0, 0x00623F40 and 0x00635290 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::DirectionStep"
+address = 0x00620DA0
+kind = "function"
+convention = "thiscall"
+expect = "0F B6 41 04 8A 88 F4 B3"
+source = "Name ours. Ret 0x10 (x, z, x out, z out); this a record whose byte +4 is a direction: the cell one step that way by the two step tables (signed bytes); EAX the new z. Called by 0x00633FA0 and 0x006340D0 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::CopyWord"
+address = 0x00620DD0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name ours. Ret 4 (the address of a word): the word copied into this; EAX this, ECX the argument, EDX the word. Called by the world cache 0x006478A0 only (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::EdgeByte"
+address = 0x00620DE0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 00"
+source = "Name ours. Ret 4 (an index); this a word of four side bytes: the word shifted right by 8 times the index, not masked; EDX kept, ECX the shift count. Called by 0x00628BD0 and 0x00636360 (src/core/nettool_state.cpp, through a thunk that keeps the registers)."
+
+[[entry]]
+name = "cSC4NetworkTool::EdgeConnects"
+address = 0x00620EC0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 00 8B 4C 24 04"
+source = "Name ours. Ret 4 (an index): 1 when the low two bits of that side byte of the word at this are not both 0, else 0; EDX kept, ECX the shift count. Called by 0x006345B0, 0x00643FB0 and 0x00659240 (src/core/nettool_state.cpp, through a thunk)."
+
+[[entry]]
+name = "cSC4NetworkTool::Release"
+address = 0x00623270
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 14 83 F8 01 76 05"
+source = "Slot 2 of the network tool family (vtables 0x00AA8748, 0x00AA99A8, 0x00AA9F30, 0x00AAA5C0, 0x00AAA950); the thunk 0x0062C9B0 jumps to it: above 1 the count at +0x14 goes down by one and is the answer, else slot 51 (the deleting destructor) with 1 and the answer 0 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::QueryInterface"
+address = 0x00623290
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 48 74 3C 2D"
+source = "Slot 0 of the network tool family, ret 8; the thunk 0x0062C9A0 jumps to it: IIDs 1 and 0x0A74CA15 give the object, 0x452294AA the part at +4, each referenced through slot 1; AL 1, else 0 over the ID less 0x452294AA (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetPreferredBridge"
+address = 0x00623B70
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 00 02 00 00 C3 CC"
+source = "Slot 31 of the network tool family: the word at +0x200. Folded: the same code is slot 38 of the city vtable 0x00A87620 (GetNetworkManager), so ours goes in by slot swap in the tool vtables only (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetPreferredBridge"
+address = 0x00623B80
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 81 00 02"
+source = "Slot 32 of the network tool family, ret 4: the word stored at +0x200, EAX the argument. Folded with 19 other vtables, so ours goes in by slot swap in the tool vtables only (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetBridgeAltitudeOverride"
+address = 0x00623B90
+kind = "function"
+convention = "thiscall"
+expect = "D9 81 04 02 00 00 C3 CC"
+source = "Slot 33 of the network tool family: the float at +0x204 in ST0 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetBridgeAltitudeOverride"
+address = 0x00623BA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 81 04 02"
+source = "Slot 34 of the network tool family, ret 4 (a float): its four bytes stored at +0x204 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetFirstNetworkTypeFromFlags"
+address = 0x00623E60
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 33 C0 85 0C"
+source = "Name from NAM. One argument (network flags): the first type 0 to 11 whose flag in the table 0x00AA835C shares a bit with them, else 12; EDX kept, ECX the flags (the caller at 0x0062B8E9 pushes EDX after the call). NAM NetworkSlopes calls it at this address (src/core/nettool_state.cpp, through a thunk)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetLowestNetworkTypeFromFlags"
+address = 0x00623EC0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8D 48 FF F7"
+source = "Name ours. One argument (network flags): the lowest bit written over the argument, then a jump to 0x00623E60; EDX kept. Called by 0x00636690 and 0x00643FB0 (src/core/nettool_state.cpp, through a thunk)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetMajorBridge"
+address = 0x00624130
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 D8 00 00 00 8B 91"
+source = "Slot 36 of the network tool family: -1 when the vector at +0xD8 is empty, else the word 0x1C before its end (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetMajorBridgeReferenceAltitude"
+address = 0x00624150
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 D8 00 00 00 3B 81"
+source = "Slot 38 of the network tool family, ret 4 (a float out): false for an empty vector at +0xD8, else the four bytes 0x14 before its end stored and true (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetMajorBridgeAltitude"
+address = 0x00624180
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 D8 00 00 00 3B 81"
+source = "Slot 37 of the network tool family, ret 4 (a float out): false for an empty vector at +0xD8, else the four bytes 0x18 before its end stored and true (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::IsMajorBridgeLandBridge"
+address = 0x006241B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 D8 00 00 00 3B 81"
+source = "Slot 39 of the network tool family: false for an empty vector at +0xD8, else the byte 0x10 before its end (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetPossibleNeighborConnection"
+address = 0x006241D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 0C 01 00 00 3B 81"
+source = "Slot 41 of the network tool family, ret 4 (a record out): false for an empty vector at +0x10C, else the first element words +0x8, +0xC, +0x10 and byte +0x14 copied and true (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::OccupantExists"
+address = 0x006248D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 8B F1 8B"
+source = "Slot 9 of the network tool family, ret 0x10 (x, z, mask, ID out): the cell entry 0x00633220 with (z << 16) + x (which makes one when the world cache has none); true and the entry word +0x18 + 4 x type when the entry byte +0x51 is set and its flags +0x8 meet the mask (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetBridgeName"
+address = 0x00624AF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 0C 69 F6 78"
+source = "Slot 35 of the network tool family, ret 8 (a string, a bridge ID): the C string at +0x15C of the type row bridge record (0x178 bytes each, vector at row +0x30) given to the string slot 4 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetBridgeBitmapKey"
+address = 0x00624B20
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 89 58 03"
+source = "Slot 40 of the network tool family, ret 0xC (a bridge ID, group out, instance out): true and both stored when the bridge record words +0x148 and +0x14C are not 0 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetNetworkOccupantAt"
+address = 0x00624B70
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 3B 91 40 02"
+source = "Name ours. Ret 0x10 (x, z, an occupant filter, a network occupant out): false outside the tool city size (+0x240, +0x244); else the occupant manager at +0x48 slot 0x80 and the found occupant asked for IID 0xA821EF94, then released. Called by 0x00629210, 0x00629CF0 and 0x00633030 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::MarkInvalidSteps"
+address = 0x00624BF0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours, not hooked (part t6). Ret 4, the argument not read: from the valid step count at +0x78 to the step count at +0x70, the cells of each step marked in the preview drawable at +0x1F0 (0x00620CF0, 0x00620820 with the color 0x80FF0000). SetValidStepCount jumps to it."
+
+[[entry]]
+name = "cSC4NetworkTool::GetCostOfSolution"
+address = 0x00625640
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 55 8B E9 8B"
+source = "Slot 20 of the network tool family (not the power line tool), no arguments, not hooked (part t7): the cost of the solved cells, the major bridges (stride 0x28), the vector at +0xE4 and the intersections. The nettool autotest calls it where the slot holds this address."
+
+[[entry]]
+name = "cSC4NetworkTool::CopyPlacementParams"
+address = 0x00626860
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. Ret 4 (the parameters to copy): the 0xAC-byte placement parameters assigned member by member (vectors by 0x00462C10 and 0x00464430); EAX this. Init copies the type row +0x50 into the tool +0x290, slot 48 the tool into the caller (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetPossibleBridges"
+address = 0x00626E80
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 F8 01 00 00 8D 81"
+source = "Slot 30 of the network tool family, ret 4 (a vector out): false for an empty vector at +0x1F4, else it is assigned to the caller vector (0x00462C10) and true (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetFailureReasonText"
+address = 0x0062BF60
+kind = "function"
+convention = "thiscall"
+expect = "8B 4C 24 08 8B 41 04 8B"
+source = "Slot 52 of the network tool family (not the power line tool, whose 0x0064F570 jumps here for a reason that is not 0), ret 8 (a reason, a game string), this not read: the string emptied, then the LTEXT 0x2A592FD1 of the reason (0x00603040), else the text at 0x00AA8714 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::ForceReload"
+address = 0x0062C8C0
+kind = "function"
+convention = "thiscall"
+expect = "C6 41 53 01 C3 CC CC CC"
+source = "Slot 11 of the network tool family: the byte +0x53 set to 1 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::EnablePreviewUpdate"
+address = 0x0062C8D0
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 88 81 34 02"
+source = "Slot 21 of the network tool family, ret 4 (a byte): stored at +0x234 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::ClearFailureReason"
+address = 0x0062C8E0
+kind = "function"
+convention = "thiscall"
+expect = "C7 81 0C 02 00 00 00 00"
+source = "Slot 13 of the network tool family: the failure reason at +0x20C cleared; Reset calls it (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetFailureState"
+address = 0x0062C8F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 0C 02 00 00 33 C0"
+source = "Slot 14 of the network tool family: 1 when the failure reason at +0x20C is not 0, else 0 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::UpdateOnZoneChange"
+address = 0x0062C900
+kind = "function"
+convention = "thiscall"
+expect = "C2 14 00 CC CC CC CC CC"
+source = "Slot 10 of the general, underground, pipe and subway tool vtables: ret 0x14 and nothing else (five arguments, not none as the header has it); three bytes, so ours goes in by slot swap (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::ViewInputControlId"
+address = 0x0062C910
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 58 03 00 00 8B 40"
+source = "Slot 42 of the network tool family: the word +0x8 of the type row at +0x358 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetToolViewId"
+address = 0x0062C920
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 58 03 00 00 8B 40"
+source = "Slot 47 of the network tool family: the word +0x10 of the type row (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::CursorId"
+address = 0x0062C930
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 58 03 00 00 8B 40"
+source = "Slot 43 of the network tool family: the word +0x14 of the type row (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::DirectionalCursorBase"
+address = 0x0062C940
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 58 03 00 00 8B 40"
+source = "Slot 44 of the network tool family: the word +0x18 of the type row (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PenWidth"
+address = 0x0062C950
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 58 03 00 00 8B 50"
+source = "Slot 45 of the network tool family, ret 8 (x out, z out): the words +0x1C and +0x20 of the type row (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::DoNetworkSpecificPlacement"
+address = 0x0062C980
+kind = "function"
+convention = "thiscall"
+expect = "32 C0 C2 08 00 CC CC CC"
+source = "Slot 53 of the general, underground, pipe and subway tool vtables, ret 8: xor al, al. Folded into about 70 vtables, so ours goes in by slot swap in the tool vtables only (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetNetworkHeightForTerrainHeight"
+address = 0x0062C990
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 C2 04 00 CC"
+source = "Slot 74 of the general and power line tool vtables, ret 4 (a float): the float back in ST0 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::MessageQueryInterfaceThunk"
+address = 0x0062C9A0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 E8 68 FF FF"
+source = "Name ours, not hooked. Slot 0 of the network tool part at +4 (vtable 0x00AA8738): sub ecx, 4 and a jump to QueryInterface 0x00623290."
+
+[[entry]]
+name = "cSC4NetworkTool::MessageReleaseThunk"
+address = 0x0062C9B0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 B8 68 FF FF"
+source = "Name ours, not hooked. Slot 2 of the network tool part at +4: sub ecx, 4 and a jump to Release 0x00623270."
+
+[[entry]]
+name = "cSC4NetworkTool::IsRegularStep"
+address = 0x0062C9C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 49 54 8D"
+source = "Slot 28 of the network tool family, ret 4 (a step index): whether the third word of that 0xC-byte step of the vector at +0x54 is 0 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetLastValidPoint"
+address = 0x0062C9E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 78 8B 51 54 8D 04"
+source = "Slot 29 of the network tool family, ret 4 (a point out): the dragged cell (+0x60) whose index is the second word of the last valid step (+0x78 less one; no bounds) (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetValidStepCount"
+address = 0x0062CA10
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 41 78 89"
+source = "Slot 24 of the network tool family, ret 4 (a count): stored at +0x78, then a jump to 0x00624BF0 with the same stack (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetAnchorPoints"
+address = 0x0062CA20
+kind = "function"
+convention = "thiscall"
+expect = "81 C1 18 01 00 00 E9 D5"
+source = "Name from the header, not hooked. Slot 22 of the network tool family, one argument: add ecx, 0x118 and a jump to the point vector assignment 0x00611B00 (docs/netlot.md)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetDraggedCells"
+address = 0x0062CA30
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 60 51 8B 4C 24 08"
+source = "Slot 23 of the network tool family, ret 4 (a vector out): the cells at +0x60 assigned to it by 0x00611B00 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetFailureReasonString"
+address = 0x0062CA40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 56 33 DB 6A"
+source = "Slot 15 of the network tool family, ret 4 (a string): a game string made on the stack (8 bytes from 0x0090CF54, vtable 0x00A80810), slot 52 with the reason at +0x20C, then the caller string slot 3 with its characters (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetPlacementParams"
+address = 0x0062CAD0
+kind = "function"
+convention = "thiscall"
+expect = "81 C1 90 02 00 00 51 8B"
+source = "Slot 48 of the network tool family, ret 4 (the caller parameters): 0x00626860 from the tool +0x290 (src/core/nettool_state.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::vftable"
+address = 0x00AA8748
+kind = "vtable"
+expect = "90 32 62 00 30 53 69 00"
+source = "The general network tool vtable, 81 slots (3 IUnknown, 48 cISC4NetworkTool, the deleting destructor, 29 cSC4NetworkTool); the part at +4 has 0x00AA8738 (docs/nettool.md)."
+
+[[entry]]
+name = "cSC4NetworkTool::UndergroundVftable"
+address = 0x00AAA950
+kind = "vtable"
+expect = "90 32 62 00 30 53 69 00"
+source = "The vtable of the base class of the pipe and subway tools (constructor 0x00657FD0), 81 slots; the part at +4 has 0x00AAA93C (docs/nettool.md)."
+
+[[entry]]
+name = "cSC4NetworkTool::PipeVftable"
+address = 0x00AA99A8
+kind = "vtable"
+expect = "90 32 62 00 30 53 69 00"
+source = "The pipe tool vtable (constructor 0x00648EC0), 83 slots; the part at +4 has 0x00AA9994 (docs/nettool.md)."
+
+[[entry]]
+name = "cSC4NetworkTool::SubwayVftable"
+address = 0x00AAA5C0
+kind = "vtable"
+expect = "90 32 62 00 30 53 69 00"
+source = "The subway tool vtable (constructor 0x00653D60), 83 slots; the part at +4 has 0x00AAA5AC (docs/nettool.md)."
+
+[[entry]]
+name = "cSC4NetworkTool::PowerLineVftable"
+address = 0x00AA9F30
+kind = "vtable"
+expect = "90 32 62 00 30 53 69 00"
+source = "The power line tool vtable (constructor 0x006503C0), 83 slots; the part at +4 has 0x00AA9F20 (docs/nettool.md)."
+
+[[entry]]
+name = "cSC4NetworkTool::TypeFlags"
+address = 0x00AA835C
+kind = "data"
+source = "Name ours. The network flag of each type, 13 words (1 shifted by the type), followed by 0xFFFFFFFF; the tool constructor, Init and 0x00623E60 read it."
+
+[[entry]]
+name = "cSC4NetworkTool::DirectionDx"
+address = 0x00B0B3D8
+kind = "data"
+source = "Name ours. 28 signed bytes: the x step of each direction of the tool cell helpers (0x00620D80, 0x00620DA0)."
+
+[[entry]]
+name = "cSC4NetworkTool::DirectionDz"
+address = 0x00B0B3F4
+kind = "data"
+source = "Name ours. 28 signed bytes: the z step of each direction of the tool cell helpers (0x00620D80, 0x00620DA0)."
+
+[[entry]]
+name = "cSC4NetworkTool::MissingFailureText"
+address = 0x00AA8714
+kind = "data"
+source = "Name ours. The C string ## Missing failure reason ## that slot 52 gives when the LTEXT of a reason is missing."
