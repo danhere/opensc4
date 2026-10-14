@@ -19,30 +19,34 @@ constexpr std::size_t kCursor = 0x10; // cursor ID
 constexpr std::size_t kView = 0x1C;   // the city view
 } // namespace base
 
-// The tool's fields as far as the first two pieces (0x004C3730 to
-// 0x004C7A70) show them. +0x30 to +0x3F are not set by the constructor;
+// The tool's fields as far as the first four pieces (0x004C3730 to
+// 0x004CC6E0) show them. +0x30 to +0x3F are not set by the constructor;
 // +0x79 to +0x7B, +0x8A, +0x8B and +0x95 to +0x97 are padding. Init
 // (0x004C57A0) reads +0x4, +0x1C and +0x8C and sets +0xC, +0x10, +0x44 to
 // +0x4C (the two windows only for kind 1), +0x78 and +0x94; it gives the
 // timer at +0x50 its callback and registers the target part at +0x28.
+// OnMouseMove (0x004CBC70) keeps the occupant under the pointer at +0x2C
+// (highlighted 7, its own highlight saved at +0x40), the last ground point
+// at +0x7C and whether something was picked at +0x88; it starts the timer
+// with +0x90 milliseconds. Shutdown (0x004CBA80) lets everything go.
 namespace field {
 constexpr std::size_t kTarget = 0x28;    // the message target part (vtable 0x00A90A78)
-constexpr std::size_t kOccupant = 0x2C;  // the occupant asked about (0x004C3810 reads its property holder)
-constexpr std::size_t kBox = 0x30;       // 16 bytes handed to 0x004CA460; not set by the constructor
-constexpr std::size_t kField40 = 0x40;   // a dword, 0; not let go by the destructor
+constexpr std::size_t kOccupant = 0x2C;  // the occupant asked about, referenced (0x004C3810 reads its holder)
+constexpr std::size_t kBox = 0x30;       // four cells (min x, min z, max x, max z) the routes are drawn for
+constexpr std::size_t kField40 = 0x40;   // the occupant's own highlight (its slot 16), given back when it is let go
 constexpr std::size_t kTip = 0x44;       // the tool's info tip (0x1B4 bytes, made by Init; referenced)
 constexpr std::size_t kPanel = 0x48;     // kind 1: the layout's child 0x0BB0F5E7, moved to the view (referenced)
 constexpr std::size_t kPanelOther = 0x4C; // kind 1: the layout's child 0x6BB92BCA, moved to the view (referenced)
 constexpr std::size_t kTimer = 0x50;     // a cRZTimer of 0x28 bytes (vtable 0x00AD1F14); Init gives it 0x004C4E70
 constexpr std::size_t kFlag78 = 0x78;    // byte, 1 from the constructor and from Init
-constexpr std::size_t kPlace = 0x7C;     // three dwords, each the dword at 0x00B21858
-constexpr std::size_t kFlag88 = 0x88;    // byte, 0
+constexpr std::size_t kPlace = 0x7C;     // three floats: the ground point under the pointer (at first 0x00B21858's)
+constexpr std::size_t kFlag88 = 0x88;    // byte: OnMouseMove found something under the pointer
 constexpr std::size_t kPressed = 0x89;   // byte, 0; cleared by OnMouseUpL
 constexpr std::size_t kKind = 0x8C;      // the constructor's first argument: 0 or 1
-constexpr std::size_t kSecond = 0x90;    // the constructor's second argument: 0x32 from the view
-constexpr std::size_t kFlag94 = 0x94;    // byte, 0; Init stores the view's slot 39 here
+constexpr std::size_t kSecond = 0x90;    // the constructor's second argument, 0x32 from the view: the timer's ms
+constexpr std::size_t kFlag94 = 0x94;    // byte, 0; Init stores the view's slot 39: ground point also for a pick
 constexpr std::size_t kRouteMode = 0x98; // 3; 1 = all route cells but kind 6, 2 = only kind 6 (0x004C4AE0)
-constexpr std::size_t kObject9C = 0x9C;  // the route line object (referenced) 0x004C5E20 adds points to (drawing)
+constexpr std::size_t kObject9C = 0x9C;  // the route line (referenced; route_line below) 0x004C5E20 adds points to
 constexpr std::size_t kSize = 0xA0;
 } // namespace field
 
@@ -55,6 +59,50 @@ constexpr std::size_t kCount = 0x04; // the reference count
 constexpr std::size_t kTool = 0x08;  // the tool (not referenced)
 constexpr std::size_t kSize = 0x0C;
 } // namespace panel_target
+
+// The line the tool's routes are drawn with (0x2C bytes, vtable 0x00ABB648,
+// constructor 0x007DDD50; the Renderer's code). 0x004CA460 makes it when
+// there is none, sets it up (0x007DCD90) and gives it to the render service
+// (0x00B43DD0, slot 32: layer 5, order 1000); the service's slot 33 takes
+// it off again.
+namespace route_line {
+constexpr std::size_t kPrepared = 0x0C; // byte: set up (0x007DCD90 sets it, 0x0053C940 clears it)
+constexpr std::size_t kWidth = 0x10;    // float, 2 from the constructor; set by zoom (0x008B6DE0)
+constexpr std::size_t kPoints = 0x14;   // the points (0x007DDC30 empties them)
+constexpr std::size_t kSize = 0x2C;
+} // namespace route_line
+
+// A trip as a traffic source keeps it (the source's slot 3 gives the list):
+// a list node (next, previous) with the trip record from +0x8. The
+// record's byte at +0x1E (the node's +0x26) has flags: the routes drawn are
+// those with 8 set and 2 clear, the way back (0x004C4AE0) when 1 is clear.
+namespace trip_node {
+constexpr std::size_t kNext = 0x00;
+constexpr std::size_t kRecord = 0x08;
+constexpr std::size_t kFlags = 0x26;
+} // namespace trip_node
+
+// The node of the query's text map (a red-black tree of key and game
+// string; 0x004CB8B0 frees a subtree): the left child at +0x8, the right at
+// +0xC, the key at +0x10 and the string (vtable, buffer, ...) from +0x14.
+namespace text_node {
+constexpr std::size_t kLeft = 0x08;
+constexpr std::size_t kRight = 0x0C;
+constexpr std::size_t kText = 0x14;
+constexpr std::size_t kTextBuffer = 0x18;
+} // namespace text_node
+
+// What the fillers by cell (0x004CC240) are given: a cell, a number added
+// to the control's ID for the six-argument ones, and their sixth argument
+// (a neighbour connection's occupant type). The walks 0x004CC660 and
+// 0x004CC6A0 pass it on to each child.
+namespace cell_query {
+constexpr std::size_t kX = 0x00;
+constexpr std::size_t kZ = 0x04;
+constexpr std::size_t kIdOffset = 0x08;
+constexpr std::size_t kType = 0x0C;
+constexpr std::size_t kSize = 0x10;
+} // namespace cell_query
 
 // The object that runs a window of the query for the tool (vtable
 // 0x00A90B6C, 0x18 bytes, constructor 0x004C5620, made at 0x004CCA95,
