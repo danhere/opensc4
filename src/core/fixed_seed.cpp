@@ -134,13 +134,15 @@ int g_siteCount = 0;
 CRITICAL_SECTION g_siteLock;
 
 // Generators the game seeds from the time of day itself, not with 0xFFFFFFFF:
-// the prop developer's (made in cSC4PropDeveloper::Create) and the traffic
+// the prop developer's (made in cSC4PropDeveloper::Create), the traffic
 // simulator's (Init, 0x0071F1A5; our own Init calls from core.dll and is not
-// covered). Under the virtual clock their seeds are constant; in play they
-// change every second. After ReseedForCity they count as clock seeds.
+// covered) and the construction crew's, one on the stack per pedestrian
+// (Job_SpawnPedestrians, 0x006077CB: its heading, 0x0080B680). Under the
+// virtual clock their seeds are constant; in play they change every second.
+// After ReseedForCity they count as clock seeds.
 bool IsTimeSeedSite(uint32_t site)
 {
-    return site == 0x006F34B6 || site == 0x0071F1A5;
+    return site == 0x006F34B6 || site == 0x0071F1A5 || site == 0x006077CB;
 }
 
 uint32_t NextSeed(uint32_t requested, const char* which, void** retSlot)

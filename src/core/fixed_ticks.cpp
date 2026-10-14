@@ -72,6 +72,7 @@ int g_depth = 0;
 bool g_survey = false;
 bool g_active = false;
 uint64_t g_totalChecks = 0; // slice stopwatch checks over all slices
+uint32_t g_lastSlice = 0;   // checks of the last top-level slice: 0 when it was held or paused
 
 // Survey: each stopwatch once (main thread or not; a race only risks a
 // duplicate line).
@@ -241,6 +242,7 @@ bool __fastcall Slice(void* self, void* edx, uint32_t arg)
     if (g_depth == 0 && g_pace) {
         if (!PaceAllows()) {
             ++g_slicesHeld;
+            g_lastSlice = 0;
             return true;
         }
         ++g_slicesRun;
@@ -258,6 +260,7 @@ bool __fastcall Slice(void* self, void* edx, uint32_t arg)
         g_gateSw = nullptr;
         g_frameSw = nullptr;
         g_totalChecks += g_checks;
+        g_lastSlice = g_checks;
     }
     return result;
 }
@@ -308,6 +311,11 @@ bool InSlice()
 uint64_t Checks()
 {
     return g_totalChecks + g_checks;
+}
+
+uint32_t LastSliceChecks()
+{
+    return g_lastSlice;
 }
 
 void* ElapsedOriginal()
