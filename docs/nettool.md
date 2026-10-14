@@ -1,6 +1,6 @@
 # The network tool (cSC4NetworkTool)
 
-The tool a player's drag of a network goes through: it turns the dragged cells into solved cells (a piece ID, a rotation and a flip per cell), fits the heights to the terrain, picks bridges and tunnels, asks the player about intersections, previews the result, works out the cost and places the pieces (handing them to a construction crew where the type has one). The network manager keeps one tool per network type and hands them to the network view's input controls, to its own lot and removal code and to the demolition. Nothing of the tool is saved. With it come the RUL engine that loads the networks' rule files at every city load, a vertex height constraint satisfier, a world cache of cell infos, a tool UI object and three tools of their own (pipe, subway, power line). The whole piece is 612 functions (196.5 KB); the tool proper is about 250. It is reimplemented in parts (below); this page has the first, the state and queries (46 functions, 43 of them ours), the second, the world cache and the cell infos (25 functions, 23 of them ours), and the third, the tool's life and its preview drawable (27 functions, 23 of them ours). Build 641 addresses throughout (the address entries of these parts come from the specs `p6/nettool1.spec`, `p6/nettool2.spec` and `t3/nettool3.spec` in the tools folder, with the survey's files).
+The tool a player's drag of a network goes through: it turns the dragged cells into solved cells (a piece ID, a rotation and a flip per cell), fits the heights to the terrain, picks bridges and tunnels, asks the player about intersections, previews the result, works out the cost and places the pieces (handing them to a construction crew where the type has one). The network manager keeps one tool per network type and hands them to the network view's input controls, to its own lot and removal code and to the demolition. Nothing of the tool is saved. With it come the RUL engine that loads the networks' rule files at every city load, a vertex height constraint satisfier, a world cache of cell infos, a tool UI object and three tools of their own (pipe, subway, power line). The whole piece is 612 functions (196.5 KB); the tool proper is about 250. It is reimplemented in parts (below); this page has the first, the state and queries (46 functions, 43 of them ours), the second, the world cache and the cell infos (25 functions, 23 of them ours), the third, the tool's life and its preview drawable (27 functions, 23 of them ours), and the vertex height constraint satisfier (s1: 46 functions, 45 of them ours). Build 641 addresses throughout (the address entries of these parts come from the specs `p6/nettool1.spec`, `p6/nettool2.spec`, `t3/nettool3.spec` and `t3/nettool_s1.spec` in the tools folder, with the survey's files).
 
 ## The class
 
@@ -134,7 +134,7 @@ The survey's split (`p6/survey.txt`, section 5), in the order planned: state and
 | t1 state and queries | 46 | 1,749 | none | this page |
 | t2 cache and cells | 25 | 4,834 | none | the world cache, the cell info lookup and making (NAM calls 0x00647A20 and 0x00633220), slot 71; [below](#what-the-second-part-covers) |
 | t3 life and previews | 27 | 5,715 | none | constructor, destructors, Init, Shutdown, Reset, DoMessage, GetUITool, the two Clear slots, the preview drawable but its three drawing functions; [below](#what-the-third-part-covers) |
-| s1 satisfier | 46 | 8,850 | 0x0065ED80 | the vertex height constraint satisfier |
+| s1 satisfier | 46 | 8,850 | 0x0065ED80 | the vertex height constraint satisfier; [below](#the-satisfier-part-s1) |
 | r1 to r5 the RUL engine | 157 | 47,007 | 0x0063D1E0 | the load, the network ini, the rule records and the three parsers |
 | t4 previews and highlights | 23 | 6,671 | none | AddCellPreview, UpdateOccupantHighlights, DestroyHighlighted, SetQuadTrianglesToDraw |
 | t5 drag | 17 | 9,520 | 0x0063AF40, 0x00637EB0 | the drag path builder 0x00639790 and the start, reserved and terrain slots |
@@ -322,6 +322,52 @@ One oddity kept: Init's +0x354 ("the type has a bridge record") tests the addres
 
 Registers: plain detours (ECX and EDX clobbered). The register scan of every direct game caller (52 call sites of the 23 functions) found none that reads ECX or EDX after the call; the only callers that read EAX take the constructors' `this`, which ours return.
 
+## The satisfier (part s1)
+
+`src/core/nettool_satisfier.h` (the layouts and shared inline helpers), `nettool_satisfier_1.cpp` and `nettool_satisfier_2.cpp`, two groups, off by default: `simulators.nettool.satisfier` (22 detours: the object's life, its containers, the vertex and constraint inserts and the results) and `simulators.nettool.solve` (23 detours: the range arithmetic, the constraint propagation and the solve). Either group works without the other; every call between part functions goes to the game's address. The source files' top comments have the full call list with argument counts.
+
+The satisfier fits the heights of a drag's vertices to its constraints. The tool keeps two (+0x124 and +0x188). Its height pass 0x00637A80 runs Reset, Begin(-FLT_MAX, FLT_MAX), adds vertices and constraints (through slot 76, the NAM-guarded 0x00636690 and 0x00636030), then Solve, and reads the results through slot 57 and GetResult. The underground tools use it too.
+
+### Layout
+
+0x64 bytes (constructor 0x00660810, destructor 0x006602C0, deleting destructor 0x006606C0 in the one-slot vtable 0x00AAAEF8):
+
+| Offset | What |
+| --- | --- |
+| +0x00 | the vtable |
+| +0x04 | byte: begun (Begin sets it; Reset and the destructor clear it and then Clear) |
+| +0x05 | byte: Solve's last answer |
+| +0x08, +0x0C | floats: the start range of a new vertex (Begin's arguments) |
+| +0x10 | the vertex whose range came out empty |
+| +0x14 | a hash table from vertex to settled height (100 buckets; the buckets at +0x18, the count at +0x24) |
+| +0x28 | a hash table from vertex to entry (0x24-byte nodes: next, key, seven words; the buckets at +0x2C, the count at +0x38) |
+| +0x3C | the equality groups (a list of sets of vertices) |
+| +0x40 | the slope constraints: abs(a - b) <= s |
+| +0x44 | the curvature constraints: abs(v1 - 2 v2 + v3) <= k |
+| +0x48 | the sum constraints: a + b in [lo, hi] |
+| +0x4C | the midpoint constraints: a - 2b in [lo, hi] |
+| +0x50 | the pending vector of (vertex, height) pairs NextEntry takes first |
+| +0x5C, +0x60 | the results iterator |
+
+An entry: +0x0 and +0x4 its range, +0x8 the preferred height (flag 2), +0xC and +0x10 the preferred range (flag 4), +0x14 the wanted height, +0x18 flags (1 restricted, 2 and 4 the preferences, 8 in a group, 0x10 slope, 0x20 curvature, 0x40 pushed as pending).
+
+### What stays the game's
+
+- NextEntry 0x0065ED80 (guarded: sc4fix patches it, and `fixes.puzzle_piece` detours its entry). Solve calls it at its address.
+- The template code under it all: the vertex set's insert, subtree erase and construction (0x0046C0E0, 0x0065E740, 0x0065E8C0), the hash tables' construction, clear, begin and next bucket, the map lookup, erase and index (0x004F8D30, 0x00489CF0, 0x0065FAD0), the list's destroy and remove (0x005650A0, 0x00809580), the vector insert 0x007C61A0, the string append 0x0040EBC0.
+
+### NAM, registers and floats
+
+NAM's DLL calls InsertSlopeConstraint 0x0065FF60 at its address (thiscall, `ret 0xC`, kept), and its slopes hook inside 0x00636690 calls it and InsertEqualityConstraint 0x0065FDB0 and reads the satisfier by layout: every field, list, set and table stays in the game's memory, in its layout, from its allocator, and nothing is cached across a call. The game leaves EAX, ECX and EDX of those entries path-dependent (a node, flags, the caller's own values on early exits), and the scan of every game caller (127 call sites of the 45) found none that reads ECX or EDX after the call, so they are plain detours. AL is the answer where the game's is a byte (every caller tests AL); EAX where it is a pointer.
+
+The x87 work is sums, differences, products with -0.5 and doublings of floats: done in double in the game's order and association, rounded to float where the game stores a float, with -0.5 (0x00A949FC) and the gap 0.01 (0x00AA8A74) read from the game's data. Every compare is written so that NaN takes the game's branch (the test masks 5, 0x41, 1 and 0x44 of the x87 status word). There is no transcendental, no float-to-integer conversion and no x87 value kept across a call.
+
+Three places where the game reads or writes leftovers of its stack, none observable: AddVertex 0x0065FB60 writes the entry's preferred height and range words from its stack (ours writes 0; they are read only under flags 2 and 4, which the two setters write together with the words); ApplyMidpointFixed 0x0065EFA0 and ApplyMidpointRange 0x0065F180 read an unwritten "changed" byte only when a midpoint constraint's other vertex has left the entry table, which a vertex does only after its midpoint constraints were removed (ours starts it at 0); DumpGroups 0x006608C0 walks three lists at its end without effect (ours does not). DumpGroups' body never runs in the game either: Solve clears the groups before it calls it.
+
+### The test
+
+`src/core/nettool_satisfier_autotest.cpp`. `OPENSC4_TEST_NETTOOL_SOLVER=<day>` (day hook order 198; the fingerprint part ` | ntsolve set <hash>`, order 176, once it has run) makes satisfiers of its own (operator new and the constructor at the game's address; the tools' two are never touched) and calls every function at the game's address, with vertex numbers from the city's size: a solvable problem (a fixed vertex, free ones, slopes, equalities that make, join and merge groups, curvatures, both preferences, the results read every way), one with real ranges (RestrictVertex, the sum and midpoint merges called directly, PropagateAll alone, the entry table hashed, then Solve; deleted through the vtable), an impossible one (Solve fails, +0x10 and +0x05 hashed, DumpGroups), and the range arithmetic on pairs of the test's. Only values are hashed. One log line per scenario, `autotest: ntsolve: ...`.
+
 ## The test
 
 `src/core/nettool_autotest.cpp`. The fingerprint part ` | nettool ...` (order 175) is always on (` | nettool none` before the network manager is initialised). It reads the manager's 13 kept tools (GetNetworkTool with `unique` 0) through their vtables, so it runs the game's functions or ours, and mixes:
@@ -391,3 +437,15 @@ The original against every network group of main, the seven crew groups and the 
 The life drive makes, initialises, resets, shuts down and deletes 13 tools, with 13 UI objects and 13 messages, the same on both sides.
 
 Ran with ours (first-call log lines): 22 of the 23. The drawable's cell tree eraser 0x0061FCD0 did not run: the drives never left nodes in that tree when it was emptied (the crew's drags reached the range erasers and the textured tree's eraser).
+
+Batch s1b1 (2026-10-14), part s1: before the first run `ret N` of the 45 detours against our signatures (no mismatch), the caller register scan (127 call sites; none reads ECX or EDX after the call), the EAX scan (every read is AL or a pointer answer ours gives) and an independent reading of all 45 against the disassembly, every x87 compare's NaN branch included (no difference in behaviour). A trial pair on Rush Hour t0000 with the solver test: the four scenario hashes the same on both sides, all 45 functions run with ours.
+
+The original against every network group of main, the crew groups and the nine groups of parts t1, t2, t3 and s1 (B list `nall20.txt`):
+
+| Leg | Saves | Result |
+|---|---|---|
+| plain | the 12 saves; `saves-networks` | 12 of 12 (Rush Hour d0000 on the second pair: the original gave two outcomes there, ours one of them); 3 of 3, the first pair |
+| `OPENSC4_TEST_NETTOOL=3 OPENSC4_TEST_NETTOOL_CELLS=1 OPENSC4_TEST_NETTOOL_LIFE=3 OPENSC4_TEST_NETTOOL_SOLVER=3` (with the other network tests) | the 12 saves; `saves-networks` | 12 of 12; 3 of 3, the first pair |
+| `OPENSC4_TEST_CREW=2 OPENSC4_TEST_NETTOOL=3 OPENSC4_TEST_NETTOOL_LIFE=3 OPENSC4_TEST_TUTORIAL_OFF=1`, 20 days | `saves-networks` Rush Hour t0000 | the same on all 21 days, the first pair |
+
+Ran with ours (first-call log lines): all 45 with the solver test; the crew's drags alone reach 44 (all but the deleting destructor, which has no caller in the game: only the vtable slot).

@@ -911,3 +911,394 @@ kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8A 46 04 84 C0"
 source = "Name ours. The satisfier's destructor (no arguments; part s1). Called by the network tool's destructor 0x0062CAF0."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::vftable"
+address = 0x00AAAEF8
+kind = "vtable"
+expect = "C0 06 66 00 20 3E 00 00"
+source = "Name ours. The vertex height satisfier's vtable: one slot, the deleting destructor 0x006606C0 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::Epsilon"
+address = 0x00AA8A74
+kind = "data"
+source = "Name ours. float in .rdata: 0.01, the gap by which a range may come out inverted before the satisfier collapses it (hi = lo) instead of failing (0x00635FA0, 0x0065E6A0 and their inlined copies, NextEntry 0x0065ED80)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::DumpOpen"
+address = 0x00AA1B78
+kind = "data"
+source = "Name ours. The string '<' the satisfier's debug dump 0x006608C0 starts each group's text with (memmove of 1 byte)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::DumpVertexFormat"
+address = 0x00AAAF00
+kind = "data"
+source = "Name ours. The format ' %d,%d' the satisfier's debug dump 0x006608C0 writes each member's cell with."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::DumpClose"
+address = 0x00AAAEFC
+kind = "data"
+source = "Name ours. The two characters ' >' (0x00AAAEFC to 0x00AAAEFE) the satisfier's debug dump 0x006608C0 ends each group's text with."
+
+[[entry]]
+name = "SC4Uint32Set::Insert"
+address = 0x0046C0E0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Name ours. STLport set<int>::insert_unique, ret 8 (out pair of node and a bool byte at +4, the key's address); this the set (0xC bytes: head node, count); signed compare of the key with node +0x10. Called by the network tool's vertex height satisfier (src/core/nettool_satisfier.cpp) among others. Left the game's."
+
+[[entry]]
+name = "SC4Uint32Set::EraseSubtree"
+address = 0x0065E740
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Ret 4 (a node), this a set of the vertex height satisfier: the node's subtree freed (0x14-byte nodes), right subtrees by recursion, down the left children (src/core/nettool_satisfier.cpp calls it). Left the game's."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::RangeIntersect"
+address = 0x00635FA0
+kind = "function"
+convention = "thiscall"
+expect = "D9 01 8B 54 24 04 D8 1A"
+source = "Name ours. Ret 4 (a pair lo, hi), this a vertex's range: lo raised to the pair's when below, hi lowered when above; an inverted range collapses to hi = lo when lo - hi <= 0.01 (0x00AA8A74), else AL 0. Called by RestrictVertex 0x0065FED0 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::RangeIntersectChanged"
+address = 0x0065E6A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 56 8B 74 24"
+source = "Name ours. Ret 8 (a pair, a changed byte out), this a vertex's range: as 0x00635FA0, the byte set when a limit moved (cleared first). AL 0 when the range is empty (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::Begin"
+address = 0x0065E710
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 04 84 C0 74 05 32"
+source = "Name ours. Ret 8 (the start range's lo and hi): AL 0 when already begun (+4); else the range kept at +8/+0xC, +4 and +5 set, AL 1. Called by 0x0062A5C0, 0x00637A80, 0x00644B20 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::FindGroup"
+address = 0x0065E810
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 69 3C 56 57 8B"
+source = "Name ours. Ret 4 (a vertex): the set of the first equality group (list +0x3C) that has the vertex, or 0 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::AppendCurvature"
+address = 0x0065E870
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 31 57 6A 18 E8 D9"
+source = "Name ours. Ret 4 (four words v1, v2, v3, k), this the satisfier's list +0x44: a 0x18-byte node with the words linked at the back; EAX the node. Called by InsertCurvatureConstraint 0x00660010 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::MergeMidpoint"
+address = 0x0065E930
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 4C 8B 0E 3B CE"
+source = "Name ours. Ret 4 (a, b, lo, hi: a - 2b in [lo, hi]): merged into the list +0x4C (same a, b: the limits narrowed, AL 0 when empty; else appended, AL 1) (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::MergeSum"
+address = 0x0065E9E0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 57 8B"
+source = "Name ours. Ret 4 (a, b, lo, hi: a + b in [lo, hi]): merged into the list +0x48, matched in either order (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::DeleteGroup"
+address = 0x0065EAA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Name ours. Ret 4 (flags), this an equality group's set: emptied (0x0065E740 on the root), its head freed, operator delete when bit 0 is set; EAX this (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::GetResult"
+address = 0x0065EB00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 18 57 8B 79 1C"
+source = "Name ours. Ret 8 (a vertex, a height out): the settled height from the results +0x14; AL whether there is one. Called by 0x00629EB0, 0x006444F0, 0x00644B20, 0x00657790, 0x006588D0 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::NextResult"
+address = 0x0065EB50
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 5C 85 C0 56 8D 71"
+source = "Name ours. Ret 8 (vertex out, height out): the results' iterator +0x5C read and moved on (NextBucket 0x0053DCF0 at a chain's end); AL 0 at the end. Called by 0x00644530 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::SetPreferredHeight"
+address = 0x0065EB90
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 2C 57 8B 79 30"
+source = "Name ours. Ret 8 (a vertex, a height): flag 2 and the entry's +8 when the vertex has an entry (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::SetPreferredRange"
+address = 0x0065EBE0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 2C 57 8B 79 30"
+source = "Name ours. Ret 0xC (a vertex, lo, hi): flag 4 and the entry's +0xC/+0x10 when the vertex has an entry (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::IntersectVertexRange"
+address = 0x0065EC40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 2C 57 8B 79 30"
+source = "Name ours. Ret 0xC (a vertex, a pair, changed out): AL 1 when the vertex has no entry; else 0x0065E6A0 on its range (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::OrVertexFlags"
+address = 0x0065ECA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 2C 57 8B 79 30"
+source = "Name ours. Ret 8 (a vertex, flags): the flags ORed into the entry's +0x18; AL whether the vertex has an entry (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::MergeGroups"
+address = 0x0065ED00
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 83 EC 08 53"
+source = "Name ours. Ret 8 (into, from; this not read): every member of the set `from` inserted into `into` (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::BeginResults"
+address = 0x0065EF70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 8D 44"
+source = "Name ours. No arguments: the results' iterator +0x5C/+0x60 set by Begin 0x004B0390 on +0x14. Called by 0x00644530 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::ApplyMidpointFixed"
+address = 0x0065EFA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 57 8B"
+source = "Name ours. Ret 0xC (a vertex, its height, the next set): the midpoint constraints (+0x4C) of a fixed vertex applied to the other vertex and taken out; AL 0 on an empty range (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::ApplyMidpointRange"
+address = 0x0065F180
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Ret 0xC (a vertex, its range, the next set): the midpoint constraints of a vertex with a range applied, kept (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::ApplyGroupFixed"
+address = 0x0065F2C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 18 53"
+source = "Name ours. Ret 0xC (a vertex, its height, the next set): its equality group's members fixed to the height, flag 8 cleared, the group taken out and deleted (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::ApplyGroupRange"
+address = 0x0065F440
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 8B 6C 24"
+source = "Name ours. Ret 0xC (a vertex, its range, the next set): its equality group's members narrowed to the range (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::ApplySumFixed"
+address = 0x0065F510
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 57 8B"
+source = "Name ours. Ret 0xC (a vertex, its height, the next set): the sum constraints (+0x48) of a fixed vertex applied and taken out (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::ApplySumRange"
+address = 0x0065F640
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 55 56 57 8B"
+source = "Name ours. Ret 0xC (a vertex, its range, the next set): the sum constraints of a vertex with a range applied, kept (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::ApplySlopeFixed"
+address = 0x0065F720
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 57 8B"
+source = "Name ours. Ret 0xC (a vertex, its height, the next set): the slope constraints (+0x40) of a fixed vertex applied and taken out (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::ApplySlopeRange"
+address = 0x0065F850
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 55 56 57 8B"
+source = "Name ours. Ret 0xC (a vertex, its range, the next set): the slope constraints of a vertex with a range applied, kept (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::ApplyCurvatureFixed"
+address = 0x0065F930
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 56 57 8B F9"
+source = "Name ours. Ret 8 (a vertex, its height): its curvature constraints (+0x44) turned into midpoint or sum constraints and taken out (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::ApplyCurvatureRange"
+address = 0x0065FA10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 55 8B D9 8B"
+source = "Name ours. Ret 8 (a vertex, its range): its curvature constraints turned into midpoint or sum constraints, kept (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::AddVertex"
+address = 0x0065FB60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 56 8B F1 8B"
+source = "Name ours. Ret 8 (a vertex, its wanted height): an entry with the start range, the wanted height (+0x14) and flag 1 when it has none (Index 0x0065FAD0); the game leaves the entry's words +8 to +0x10 to its stack. Called by 0x006360C0, 0x00644710, 0x00644B20, 0x00658040, 0x00660360 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::Clear"
+address = 0x0065FBE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 55 56 8B F1 57"
+source = "Name ours. No arguments: the entries cleared, the groups' sets deleted, the five lists' nodes freed, the pending vector emptied. Called by the destructor, Reset 0x006601A0 and Solve 0x00660B10 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::InsertEqualityConstraint"
+address = 0x0065FDB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 57 8B"
+source = "Name ours. Ret 8 (two vertices): the two put in one equality group (flag 8; new group, join or merge). Called by the guarded 0x00636690, 0x00644710, 0x00657860 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::RestrictVertex"
+address = 0x0065FED0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 56 57 8B 7C 24"
+source = "Name ours. Ret 0xC (a vertex, lo, hi): flag 1 and the vertex's range narrowed (0x00635FA0) when it has an entry. Called by 0x006360C0, 0x00644B20, 0x00658040, 0x00660360 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::InsertSlopeConstraint"
+address = 0x0065FF60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 8B 5C 24 18"
+source = "Name ours (NAM's NetworkSlopes calls it at this address). Ret 0xC (v1, v2, a slope): |v1 - v2| <= slope in the list +0x40 (flag 0x10; an existing pair keeps the smaller slope). Called by the guarded 0x00636690 and 0x00644710 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::InsertCurvatureConstraint"
+address = 0x00660010
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 55 8B 6C 24 1C"
+source = "Name ours. Ret 0x10 (v1, v2, v3, k): |v1 - 2 v2 + v3| <= k in the list +0x44 (flag 0x20; an existing triple keeps the smaller k). Called by 0x00636030 and 0x00644710 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::PushPending"
+address = 0x006600D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 44 24 10 8B"
+source = "Name ours. Ret 8 (a vertex, its height): the pair pushed on the pending vector +0x50 (InsertN 0x007C61A0 when full); AL 1 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::SettleVertex"
+address = 0x00660130
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 57 8B F1 8D"
+source = "Name ours. Ret 8 (a vertex, its height): the height kept in the results +0x14, the vertex's entry erased from +0x28. Called by Solve 0x00660B10 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::Reset"
+address = 0x006601A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. No arguments: when begun, +4 cleared, Clear 0x0065FBE0 and the results cleared; AL 1. Called by 0x0062A5C0, 0x00637A80, 0x00644B20 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::ApplyFixed"
+address = 0x006601C0
+kind = "function"
+convention = "thiscall"
+expect = "F6 44 24 0C 08 53 8B 5C"
+source = "Name ours. Ret 0x10 (a vertex, its height, its flags, the next set): the Fixed Apply functions its flags call for (8 group, 0x10 slope, 0x20 curvature, sum, midpoint) (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::ApplyRange"
+address = 0x00660240
+kind = "function"
+convention = "thiscall"
+expect = "F6 44 24 0C 08 53 8B 5C"
+source = "Name ours. Ret 0x10 (a vertex, its range, its flags, the next set): the Range Apply functions its flags call for (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::AddFixedVertex"
+address = 0x00660360
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 57 8B"
+source = "Name ours. Ret 8 (a vertex, a height): AddVertex 0x0065FB60 then RestrictVertex 0x0065FED0 to (height, height). Called by 0x0062A5C0, 0x006360C0, 0x00644B20, 0x00658040 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::Propagate"
+address = 0x00660390
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 55 56 57 33"
+source = "Name ours. Ret 4 (a set of vertices): rounds of applying each changed vertex's constraints until no range changes; AL 0 (and the vertex at +0x10) on an empty range (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::DeletingDestructor"
+address = 0x006606C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 F8 FB FF FF"
+source = "Name ours. Slot 0 of the vtable 0x00AAAEF8, ret 4 (flags): the destructor 0x006602C0, operator delete when bit 0 is set; EAX this (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::PropagateAll"
+address = 0x006606E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 55 56 57 8B"
+source = "Name ours. No arguments: Propagate 0x00660390 on a set of every vertex that has an entry; AL its answer. Called by Solve (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::DumpGroups"
+address = 0x006608C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C 8B D1 8B 4A 3C"
+source = "Name ours. No arguments: a debug dump of the equality groups into strings that go nowhere (heap traffic and terrain queries only). Called by Solve when it fails (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4VertexHeightSatisfier::Solve"
+address = 0x00660B10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 56 57 33 DB"
+source = "Name ours. No arguments: PropagateAll, then NextEntry 0x0065ED80 / Propagate / SettleVertex until no entry is left; Clear; AL (and +5) whether every vertex got a height. Called by 0x00637A80 and 0x00644B20 (src/core/nettool_satisfier.cpp)."
