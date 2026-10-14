@@ -97,6 +97,48 @@
 // to a copy, to itself and from an empty map: CopySubtree, CloneNode,
 // CreateNode, EraseSubtree under them) and a RUL2 multimap (24
 // InsertEquals), every table and node freed after.
+//
+// Part r4 (src/core/nettool_rul_4.cpp) appends, on every day, after
+// everything above, ` v<nodes>:<hash> w<hash>`: v the tile verifier table
+// 0x00B466DC (LoadTileVerifiers and its line callback fill it: count, bucket
+// count, the order-free sum over nodes of the key and the 8-byte entries,
+// both words: the upper bytes of the second are the table's own address,
+// the same in every run); w the rows' bridge records' 24 floats +0xE4 to
+// +0x140 and eight vectors (the record constructor sets them up, the bridge
+// loader fills them). The RUL0 store (s), the rows' tables +0x3C (x), the
+// RUL1 map (r) and the bridges (b) above already cover what the RUL0 line
+// callback, the exemplar load, the RUL1 section reader and the bridge
+// layout parser build. From the drive day on, ` k<hash>` at the very end:
+// part r4's functions called at the game's addresses on the test's own
+// memory: AppendTypeName for 0 to 13 (a naked call with ECX and EAX),
+// ParseInt and ParseFloat over a text, the check type parser on nine
+// values (accepted ones: the key, the types, each present side's edge word
+// and mask, the three flags; not the bytes the parser never writes); the
+// RUL0 line callback on a rule of the test's own (the game's constructor)
+// with a LoadRul0-like context (the real store for CopyFrom, three list
+// heads): CopyFrom of the smallest stored rule with a cell grid, then
+// every other key (Piece, StepOffsets, CellLayout, ConsLayout, AutoTileBase,
+// AutoPathBase, CheckType, Transpose, Rotate, Translate,
+// ReplacementIntersection, ConvertQueryID, PlaceQueryID, HandleOffset,
+// PreviewEffect, Costs, AutoPlace, OneWayDir, an unknown one) with
+// complete scans only (a missing number keeps a pointer's value), the rule
+// and its two lists hashed, all freed; the rule Assign on copies of stored
+// rules with a cell grid (and to itself); the int-keyed map's hinted insert
+// (hints at the leftmost node, the head, middle nodes, an empty map) and
+// its copy constructor; the string map's CopyFrom into an empty map; the
+// RUL1 map's InsertAt (left, right through CreateNode, by key, copying a
+// real pair table) on a map of the test's own; the type row table's
+// FindOrInsert; the tile verifier line callback on a test table (the
+// entries' second words hashed without their upper half: the test
+// table's address); the bridge record's constructor, Assign (from a loaded
+// record with an int map, when there is one) and destructor; the bridge
+// layout parser on a lexer of the test's own (+0x2C a list of one test
+// string map, divisor 2): a part 'arch', layouts naming it (in order,
+// reversed, counted), a loaded record's 'length(n)', refused and unsigned
+// lines (the elements without the three bytes after +0x8, the floats).
+// The 'length(n)' leg uses only a loaded part whose float vector is long
+// enough for the divisor (else it is skipped); every other part is the
+// test's own, and every scan line of the RUL0 callback is complete.
 #include "core/autotest_hooks.h"
 #include "core/game_access.h"
 #include "core/log.h"
@@ -1172,10 +1214,666 @@ uint32_t DriveRul3()
     return total.h;
 }
 
+// --- Part r4: the daily checksums and the drive -----------------------------------
+
+// The tile verifier table 0x00B466DC: count, bucket count, the order-free
+// sum over nodes of the key and the entries (both words: the upper bytes of
+// the second are the table's own fixed address in both runs).
+uint32_t TileVerifiersHash(uint32_t& count)
+{
+    using namespace rul;
+    char* const t = reinterpret_cast<char*>(addr::cSC4NetworkTool_TileVerifiers);
+    count = Word(t, table::kCount);
+    Hash hash;
+    hash.Mix(count);
+    hash.Mix(BucketCount(t));
+    uint32_t sum = 0;
+    ForEachNode(t, [&](char* node) {
+        Hash one;
+        one.Mix(Word(node, pointtable::kKey));
+        MixVector(one, node, pointtable::kPoints, tileverifier::kEntrySize, 2);
+        sum += one.h;
+    });
+    hash.Mix(sum);
+    return hash.h;
+}
+
+// A bridge record's fields its constructor sets up and the loaders fill:
+// the 24 floats +0xE4 to +0x140 (bits) and the eight vectors' words.
+void MixBridgeFields(Hash& hash, char* r)
+{
+    using namespace rul;
+    for (std::size_t i = 0; i < bridgerecord::kFloatCount; ++i)
+        hash.Mix(Word(r, bridgerecord::kFloats + 4 * i));
+    for (const std::size_t at : bridgerecord::kVectors)
+        MixWords(hash, r, at);
+}
+
+uint32_t BridgeFieldsHash()
+{
+    using namespace rul;
+    Hash hash;
+    for (uint32_t type = 0; type < nettool_sim::kTypes; ++type) {
+        const Vector& v = At<Vector>(Row(type), typerow::kBridges);
+        for (char* r = v.begin; r != v.end; r += typerow::kBridgeSize)
+            MixBridgeFields(hash, r);
+    }
+    return hash.h;
+}
+
+// Calls a game function that takes ECX and EAX (0x0063E240).
+__declspec(naked) void __cdecl CallEcxEax(std::uintptr_t /*function*/, uint32_t /*ecx*/, void* /*eax*/)
+{
+    __asm {
+        mov ecx, [esp + 8]
+        mov eax, [esp + 12]
+        call dword ptr [esp + 4]
+        ret
+    }
+}
+
+// An empty game string with an 8-byte buffer from the game's allocator.
+void MakeGameString(GameString& s)
+{
+    char* const buffer = GameAllocate(8);
+    s.vtable = 0x00A80810;
+    s.begin = buffer;
+    s.end = buffer;
+    s.capacity = buffer + 8;
+    s.references = 0;
+    *buffer = 0;
+}
+
+void MixText(Hash& hash, const char* begin, const char* end)
+{
+    hash.Mix(static_cast<uint32_t>(end - begin));
+    for (const char* c = begin; c != end; ++c)
+        hash.Mix(static_cast<uint8_t>(*c));
+}
+
+// AppendTypeName for 0 to 13 on one string; ParseInt and ParseFloat over a
+// text; the check type parser on accepted and refused values.
+uint32_t DriveLexerNumbers()
+{
+    using namespace rul;
+    Hash hash;
+    {
+        GameString s{};
+        MakeGameString(s);
+        for (uint32_t type = 0; type <= 13; ++type) {
+            CallEcxEax(addr::cSC4NetworkTool_AppendTypeName, type, &s);
+            MixText(hash, s.begin, s.end);
+        }
+        GameFree(s.begin);
+    }
+    {
+        TestString source("12 -3 2.5 0x10 -1.25 word 7 .5 4294967295");
+        alignas(4) char lexer[0x48] = {};
+        CallThis<char*, GameString*>(addr::SC4RulLexer_Construct, lexer, &source.s);
+        for (int i = 0; i < 12; ++i) {
+            uint32_t word = 0x5A5A5A5Au;
+            float value = 0.0f;
+            const bool asFloat = (i & 1) != 0;
+            const uint8_t ok = asFloat ? CallThis<uint8_t, float*>(addr::SC4RulLexer_ParseFloat, lexer, &value)
+                                       : CallThis<uint8_t, uint32_t*>(addr::SC4RulLexer_ParseInt, lexer, &word);
+            hash.Mix(ok);
+            uint32_t bits = 0;
+            std::memcpy(&bits, &value, sizeof bits);
+            hash.Mix(asFloat ? bits : word);
+        }
+        GameFree(At<char*>(lexer, lexer::kIdentBegin));
+    }
+    static const char* const kChecks[] = {
+        "a - Road:0x02020202",
+        "b - Street:0x01000100,0xFF00FF00 Avenue:2 optional",
+        "c - check multiok",
+        "Zz - Road:1",
+        "d - Road:1 Rail:2 Pipe:3",
+        "e - Nowhere:1",
+        "f - road:3,0x0F street:4",
+        "g - Monorail",
+        "h Road:1",
+    };
+    for (const char* text : kChecks) {
+        TestString source(text);
+        alignas(4) char lexer[0x48] = {};
+        CallThis<char*, GameString*>(addr::SC4RulLexer_Construct, lexer, &source.s);
+        const uint8_t ok = CallThis<uint8_t>(addr::SC4RulLexer_ParseCheckType, lexer);
+        hash.Mix(ok);
+        if (ok) {
+            hash.Mix(Byte(lexer, checklexer::kKey));
+            for (uint32_t side = 0; side < checklexer::kMaxTypes; ++side) {
+                const int8_t type = static_cast<int8_t>(Byte(lexer, checklexer::kTypes + side));
+                hash.Mix(static_cast<uint32_t>(type));
+                if (type >= 0) {
+                    hash.Mix(Word(lexer, checklexer::kEdges + checklexer::kSide * side));
+                    hash.Mix(Word(lexer, checklexer::kEdges + checklexer::kSide * side + 4));
+                }
+            }
+            hash.Mix(Byte(lexer, checklexer::kMultiOk) | (Byte(lexer, checklexer::kChecked) << 8) |
+                     (Byte(lexer, checklexer::kOptional) << 16));
+        }
+        GameFree(At<char*>(lexer, lexer::kIdentBegin));
+    }
+    return hash.h;
+}
+
+// The RUL0 line callback on a rule of the test's own (the game's
+// constructor) with a context like LoadRul0's (the real store for
+// CopyFrom's lookup, three list heads from the game's allocator): CopyFrom
+// a stored rule with a cell grid first, then every other key; the rule,
+// the fields RuleHash leaves out (set here by the keys) and the two lists'
+// lines hashed; the rule destroyed, the lists freed (0x0063C470).
+uint32_t DriveRul0Lines()
+{
+    using namespace rul;
+    Hash hash;
+    alignas(4) char rule[rul0::kSize] = {};
+    CallThis<char*>(addr::SC4Rul0Rule_Construct, rule);
+    alignas(4) char context[rul0ctx::kSize] = {};
+    At<char*>(context, rul0ctx::kStore) = Store();
+    At<char*>(context, rul0ctx::kRule) = rule;
+    for (const std::size_t list : {rul0ctx::kCellLines, rul0ctx::kConsLines, rul0ctx::kList14}) {
+        char* const head = GameAllocate(rul0ctx::kListNodeSize);
+        At<char*>(head, 0) = head;
+        At<char*>(head, 4) = head;
+        At<char*>(context, list) = head;
+    }
+    At<int32_t>(context, rul0ctx::kWord18) = -1;
+    // The smallest stored ID whose rule has a cell grid (no CopyFrom when
+    // there is none).
+    uint32_t source = 0;
+    bool haveSource = false;
+    ForEachNode(Store(), [&](char* node) {
+        const uint32_t id = Word(node, table::kKey);
+        if (HasCellGrid(node + store::kRule) && (!haveSource || id < source)) {
+            source = id;
+            haveSource = true;
+        }
+    });
+    hash.Mix(haveSource);
+    char copyFrom[16];
+    std::snprintf(copyFrom, sizeof copyFrom, "0x%08X", source);
+    struct Line {
+        const char* key;
+        const char* value;
+    };
+    const Line lines[] = {
+        {"CopyFrom", haveSource ? copyFrom : "0x0"},
+        {"Piece", "1.5,-2.25,1,0,0x5D4A1234"},
+        {"Piece", "0.5,4,3,1,0xABC"},
+        {"Piece", "2,3"},
+        {"StepOffsets", "2, -3"},
+        {"CellLayout", "..+.."},
+        {"CellLayout", ".a+b."},
+        {"ConsLayout", "-|/"},
+        {"AutoTileBase", "0x5E000000"},
+        {"AutoPathBase", "123"},
+        {"CheckType", "a - Road:0x02020202"},
+        {"CheckType", "b - Street:0x01000100,0xFF00FF00 Avenue:2 optional"},
+        {"CheckType", "c - check"},
+        {"CheckType", "Zz - Road:1"},
+        {"Transpose", ""},
+        {"Rotate", "1"},
+        {"Translate", "4,5"},
+        {"ReplacementIntersection", "4660, 7"},
+        {"ConvertQueryID", "0x1111"},
+        {"PlaceQueryID", "0x2222"},
+        {"HandleOffset", "1, 2"},
+        {"PreviewEffect", "Effect_Name"},
+        {"Costs", "25"},
+        {"AutoPlace", ""},
+        {"OneWayDir", "3"},
+        {"Nothing", "1"},
+        {"piece", "9,9,1,1,0x1"},
+    };
+    for (const Line& line : lines) {
+        TestString key(line.key);
+        TestString value(line.value);
+        CallCdecl<void, GameString*, GameString*, char*>(addr::cSC4NetworkTool_Rul0LineCallback, &key.s, &value.s,
+                                                         context);
+    }
+    hash.Mix(RuleHash(rule));
+    hash.Mix(Word(rule, rul0::kWord40));
+    hash.Mix(Word(rule, rul0::kWord44));
+    hash.Mix(Byte(rule, rul0::kByte48));
+    hash.Mix(Word(rule, rul0::kWord7C));
+    for (const std::size_t list : {rul0ctx::kCellLines, rul0ctx::kConsLines}) {
+        char* const head = At<char*>(context, list);
+        for (char* node = At<char*>(head, 0); node != head; node = At<char*>(node, 0))
+            MixText(hash, At<char*>(node, 0xC), At<char*>(node, 0x10));
+    }
+    CallThis<void>(addr::SC4Rul0Rule_Destruct, rule);
+    CallThis<void>(addr::SC4Rul0LoaderLists_Destruct, context);
+    return hash.h;
+}
+
+// A stored rule with a cell grid copied (the game's copy constructor), a
+// second one assigned over it (0x0063E060), hashed, destroyed; for the
+// first 8 pairs of such rules.
+uint32_t DriveRuleAssign()
+{
+    using namespace rul;
+    Hash hash;
+    std::vector<std::pair<uint32_t, char*>> rules;
+    ForEachNode(Store(), [&](char* node) {
+        if (HasCellGrid(node + store::kRule))
+            rules.emplace_back(Word(node, table::kKey), node + store::kRule);
+    });
+    std::sort(rules.begin(), rules.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    hash.Mix(static_cast<uint32_t>(rules.size()));
+    for (std::size_t i = 0; i + 1 < rules.size() && i < 16; i += 2) {
+        alignas(4) char copy[rul0::kSize] = {};
+        CallThis<char*, char*>(addr::SC4Rul0Rule_CopyConstruct, copy, rules[i].second);
+        CallThis<char*, char*>(addr::SC4Rul0Rule_Assign, copy, rules[i + 1].second);
+        hash.Mix(RuleHash(copy));
+        CallThis<char*, char*>(addr::SC4Rul0Rule_Assign, copy, copy);
+        hash.Mix(RuleHash(copy));
+        CallThis<void>(addr::SC4Rul0Rule_Destruct, copy);
+    }
+    return hash.h;
+}
+
+// The nodes of a test int-keyed map freed with their vectors (post-order).
+void FreeIntSubtree(char* node)
+{
+    using namespace rul;
+    while (node) {
+        FreeIntSubtree(At<char*>(node, tree::kRight));
+        char* const left = At<char*>(node, tree::kLeft);
+        GameFree(At<char*>(node, intmap::kFloats));
+        GameFree(At<char*>(node, intmap::kVector20));
+        GameFree(node);
+        node = left;
+    }
+}
+
+char* IntNodeOf(char* map, int32_t key)
+{
+    char* found = nullptr;
+    ForEachInOrder(map, [&](char* node) {
+        if (!found && At<int32_t>(node, rul::intmap::kKey) == key)
+            found = node;
+    });
+    return found;
+}
+
+// The int-keyed map's hinted insert (0x0063E500) with hints at the
+// leftmost node, the head and a middle node and keys before, at and after
+// them; then its copy constructor (0x0063E710).
+uint32_t DriveIntMapHints()
+{
+    using namespace rul;
+    Hash hash, elements;
+    char* map[2] = {MakeHead(intmap::kNodeSize), nullptr};
+    char* const self = reinterpret_cast<char*>(map);
+    const auto valueOf = [](int32_t key, char* value) {
+        std::memset(value, 0, intmap::kValueSize);
+        At<int32_t>(value, 0) = key;
+    };
+    for (const int32_t key : {20, 0, 40, 10, 30}) {
+        alignas(4) char value[intmap::kValueSize];
+        valueOf(key, value);
+        alignas(4) char result[8] = {};
+        CallThis<char*, char*, char*>(addr::SC4BridgeIntMap_InsertUnique, self, result, value);
+    }
+    struct Hint {
+        int32_t at; // the hint's key; 1000 the leftmost, 2000 the head
+        int32_t key;
+    };
+    static const Hint kHints[] = {{1000, -5}, {1000, -5}, {1000, -20}, {1000, -4}, {2000, 50}, {2000, 25},
+                                  {20, 15},   {20, 22},   {20, 20},    {20, 35},   {40, 45},  {40, 38},
+                                  {0, -1},    {30, 31},   {10, 9},     {2000, 51}};
+    for (const Hint& h : kHints) {
+        char* const head = map[0];
+        char* hint = h.at == 1000 ? At<char*>(head, tree::kLeft) : h.at == 2000 ? head : IntNodeOf(self, h.at);
+        if (!hint)
+            hint = head;
+        alignas(4) char value[intmap::kValueSize];
+        valueOf(h.key, value);
+        char* result = nullptr;
+        CallThis<char**, char**, char*, char*>(addr::SC4BridgeIntMap_InsertHint, self, &result, hint, value);
+        hash.Mix(static_cast<uint32_t>(At<int32_t>(result, intmap::kKey)));
+        hash.Mix(Word(self, tree::kCount));
+    }
+    MixIntMap(hash, elements, self);
+    char* copy[2] = {};
+    CallThis<char*, char*>(addr::SC4BridgeIntMap_CopyConstruct, copy, self);
+    MixIntMap(hash, elements, reinterpret_cast<char*>(copy));
+    char* single[2] = {MakeHead(intmap::kNodeSize), nullptr};
+    {
+        alignas(4) char value[intmap::kValueSize];
+        valueOf(77, value);
+        char* result = nullptr;
+        CallThis<char**, char**, char*, char*>(addr::SC4BridgeIntMap_InsertHint, single, &result, single[0], value);
+        hash.Mix(static_cast<uint32_t>(At<int32_t>(result, intmap::kKey)));
+        hash.Mix(Word(reinterpret_cast<char*>(single), tree::kCount));
+    }
+    char* empty[2] = {MakeHead(intmap::kNodeSize), nullptr};
+    char* copyEmpty[2] = {};
+    CallThis<char*, char*>(addr::SC4BridgeIntMap_CopyConstruct, copyEmpty, reinterpret_cast<char*>(empty));
+    hash.Mix(At<char*>(copyEmpty[0], tree::kLeft) == copyEmpty[0]);
+    hash.Mix(Word(reinterpret_cast<char*>(copyEmpty), tree::kCount));
+    for (char** m : {map, copy, single, empty, copyEmpty}) {
+        FreeIntSubtree(At<char*>(m[0], tree::kParent));
+        GameFree(m[0]);
+    }
+    hash.Mix(elements.h);
+    return hash.h;
+}
+
+// The string map copied (0x0063E7C0) into an empty one, the RUL1 map's
+// InsertAt and CreateNode, the type row table's FindOrInsert, the tile
+// verifier line callback, the bridge records' constructor, Assign and
+// destructor.
+uint32_t DriveContainers2()
+{
+    using namespace rul;
+    Hash hash;
+    {
+        TestTable source;
+        static const char* const kKeys[] = {"Road", "Rail", "", "A_b", "Avenue", "x"};
+        for (const char* text : kKeys) {
+            TestString key(text);
+            CallThis<char*, GameString*>(addr::SC4StringHashMap_FindOrInsert, source.t, &key.s);
+        }
+        alignas(4) char copy[table::kSize] = {};
+        CallThis<void, char*>(addr::SC4StringHashMap_CopyFrom, copy, source.t);
+        hash.Mix(Word(copy, table::kCount));
+        hash.Mix(BucketCount(copy));
+        for (uint32_t i = 0; i < BucketCount(copy); ++i) {
+            for (char* node = At<char**>(copy, table::kBuckets)[i]; node; node = At<char*>(node, table::kNext)) {
+                const GameString& s = At<GameString>(node, stringmap::kPair);
+                hash.Mix(i);
+                MixText(hash, s.begin, s.end);
+                hash.Mix(static_cast<uint32_t>(s.vtable == 0x00A80810));
+            }
+        }
+        CallThis<void>(addr::SC4StringHashMap_Clear, copy);
+        GameFree(At<char*>(copy, table::kBuckets));
+        CallThis<void>(addr::SC4StringHashMap_Clear, source.t);
+    }
+    {
+        char* map[2] = {MakeHead(rul1node::kNodeSize), nullptr};
+        char* const self = reinterpret_cast<char*>(map);
+        // A real pair table to copy when the RUL1 map has one.
+        char* const rul1 = reinterpret_cast<char*>(addr::cSC4NetworkTool_Rul1Map);
+        char* const realHead = At<char*>(rul1, tree::kHead);
+        char* realTable = nullptr;
+        if (realHead && At<char*>(realHead, tree::kLeft) != realHead)
+            realTable = At<char*>(realHead, tree::kLeft) + rul1map::kTable;
+        const auto insert = [&](char* x, char* y, int32_t a, int32_t b, char* w, bool real) {
+            alignas(4) char value[0x8 + table::kSize] = {};
+            At<int32_t>(value, 0) = a;
+            At<int32_t>(value, 4) = b;
+            if (real && realTable)
+                std::memcpy(value + 8, realTable, table::kSize);
+            char* result = nullptr;
+            CallThis<char**, char**, char*, char*, char*, char*>(addr::SC4Rul1Map_InsertAt, self, &result, x, y,
+                                                                 value, w);
+            return result;
+        };
+        // The node under which (a, b) goes, by InsertAt's own order (first
+        // word, then second; signed): its child on that side is null.
+        const auto parentOf = [&](int32_t a, int32_t b) {
+            char* y = map[0];
+            char* x = At<char*>(map[0], tree::kParent);
+            while (x) {
+                y = x;
+                const int32_t first = At<int32_t>(x, rul1map::kFirst);
+                const bool left = first > a || (first == a && b < At<int32_t>(x, rul1map::kSecond));
+                x = left ? At<char*>(x, tree::kLeft) : At<char*>(x, tree::kRight);
+            }
+            return y;
+        };
+        char* const head = map[0];
+        insert(nullptr, head, 5, 5, nullptr, false);
+        insert(nullptr, At<char*>(head, tree::kRight), 7, 1, head, true);
+        insert(head, At<char*>(head, tree::kLeft), 3, 9, nullptr, false);
+        insert(nullptr, parentOf(7, 2), 7, 2, nullptr, false);
+        insert(nullptr, parentOf(4, 0), 4, 0, nullptr, false);
+        insert(nullptr, parentOf(6, 6), 6, 6, nullptr, true);
+        insert(head, At<char*>(head, tree::kLeft), 1, 1, nullptr, false);
+        hash.Mix(Word(self, tree::kCount));
+        hash.Mix(ForEachInOrder(self, [&](char* node) {
+            hash.Mix(Word(node, rul1map::kFirst));
+            hash.Mix(Word(node, rul1map::kSecond));
+            hash.Mix(PairTableHash(node + rul1map::kTable));
+        }));
+        std::vector<char*> nodes;
+        ForEachInOrder(self, [&](char* node) { nodes.push_back(node); });
+        for (char* node : nodes) {
+            char* const t = node + rul1map::kTable;
+            std::vector<char*> pairs;
+            ForEachNode(t, [&](char* p) { pairs.push_back(p); });
+            for (char* p : pairs)
+                GameFree(p);
+            GameFree(At<char*>(t, table::kBuckets));
+            GameFree(node);
+        }
+        GameFree(head);
+    }
+    {
+        alignas(4) char t[table::kSize] = {};
+        CallThis<void, uint32_t>(addr::SC4Uint32HashSet_Construct, t, 100u);
+        char* first = nullptr;
+        for (const uint32_t key : {5u, 105u, 5u, 7u, 205u, 105u}) {
+            uint32_t k = key;
+            char* const value = CallThis<char*, uint32_t*>(addr::SC4NetworkTypeInfo_Table3CFindOrInsert, t, &k);
+            if (!first)
+                first = value;
+            hash.Mix(value == first);
+            hash.Mix(Word(t, table::kCount));
+            hash.Mix(static_cast<uint32_t>(At<Vector>(value, 0).end - At<Vector>(value, 0).begin));
+        }
+        CallThis<void>(addr::SC4NetworkTypeInfo_DestroyTable3C, t);
+        GameFree(At<char*>(t, table::kBuckets));
+    }
+    {
+        TestTable points;
+        struct Line {
+            const char* key;
+            const char* value;
+        };
+        static const Line kLines[] = {
+            {"12", "1,2,3,0,1,4,5,6,7,0,9,10,11,12,1"},
+            {"12", "0,0,0,0,0"},
+            {"7", "255,65536,1,256,-1"},
+            {"0x10", "1,2,3,4"},
+        };
+        for (const Line& line : kLines) {
+            TestString key(line.key);
+            TestString value(line.value);
+            CallCdecl<void, GameString*, GameString*, char*>(addr::cSC4NetworkTool_TileVerifierLineCallback, &key.s,
+                                                             &value.s, points.t);
+        }
+        hash.Mix(Word(points.t, table::kCount));
+        uint32_t sum = 0;
+        ForEachNode(points.t, [&](char* node) {
+            Hash one;
+            one.Mix(Word(node, pointtable::kKey));
+            const Vector& v = At<Vector>(node, pointtable::kPoints);
+            one.Mix(static_cast<uint32_t>(v.end - v.begin) / tileverifier::kEntrySize);
+            // The entry's second word's upper half is the table's address
+            // (here the test's stack): only its low half is hashed.
+            for (char* e = v.begin; e != v.end; e += tileverifier::kEntrySize) {
+                one.Mix(Word(e, tileverifier::kWord));
+                one.Mix(Word(e, tileverifier::kFlags) & 0xFFFFu);
+            }
+            sum += one.h;
+        });
+        hash.Mix(sum);
+        ForEachNode(points.t, [&](char* node) { GameFree(At<char*>(node, pointtable::kPoints)); });
+    }
+    {
+        // A loaded bridge record with an int map, when there is one.
+        char* real = nullptr;
+        for (uint32_t type = 0; type < nettool_sim::kTypes && !real; ++type) {
+            const Vector& v = At<Vector>(Row(type), typerow::kBridges);
+            for (char* r = v.begin; r != v.end && !real; r += typerow::kBridgeSize) {
+                if (Word(r, bridgerecord::kMapCount))
+                    real = r;
+            }
+        }
+        alignas(4) char a[bridgerecord::kSize] = {};
+        alignas(4) char b[bridgerecord::kSize] = {};
+        CallThis<char*>(addr::SC4NetworkBridgeRecord_Construct, a);
+        CallThis<char*>(addr::SC4NetworkBridgeRecord_Construct, b);
+        Hash elements;
+        MixBridgeFields(hash, a);
+        hash.Mix(Word(a, bridgerecord::kMapCount));
+        hash.Mix(real != nullptr);
+        if (real)
+            CallThis<char*, char*>(addr::SC4NetworkBridgeRecord_Assign, b, real);
+        CallThis<char*, char*>(addr::SC4NetworkBridgeRecord_Assign, a, b);
+        for (char* r : {a, b}) {
+            MixBridgeFields(hash, r);
+            const GameString& name = At<GameString>(r, bridgerecord::kNameVtable);
+            MixText(hash, name.begin, name.end);
+            MixIntMap(hash, elements, r + bridgerecord::kMapHead);
+        }
+        hash.Mix(elements.h);
+        CallThis<void>(addr::SC4NetworkBridgeRecord_Destruct, a);
+        CallThis<void>(addr::SC4NetworkBridgeRecord_Destruct, b);
+    }
+    return hash.h;
+}
+
+// The bridge layout parser (0x0063EA50) on a lexer of the test's own: the
+// lexer's constructor, then +0x2C a list of one string map (a test table)
+// and +0x30 the divisor 2. A part 'arch' parsed into the map's value, then
+// layouts using it (by name, reversed, counted), a record's 'length(n)'
+// when a loaded record has an int map, a refused line and an unsigned
+// height. The elements (not the three bytes after +0x8) and floats hashed,
+// the buffers freed.
+uint32_t DriveBridgeParser()
+{
+    using namespace rul;
+    Hash hash;
+    alignas(4) char head[8] = {};
+    alignas(4) char item[bridgelexer::kListMap + table::kSize] = {};
+    At<char*>(head, 0) = item;
+    At<char*>(head, 4) = item;
+    At<char*>(item, 0) = head;
+    At<char*>(item, 4) = head;
+    char* const listMap = item + bridgelexer::kListMap;
+    CallThis<void, uint32_t>(addr::SC4Uint32HashSet_Construct, listMap, 100u);
+
+    char* real = nullptr;
+    int32_t realKey = 0;
+    for (uint32_t type = 0; type < nettool_sim::kTypes && !real; ++type) {
+        const Vector& v = At<Vector>(Row(type), typerow::kBridges);
+        for (char* r = v.begin; r != v.end && !real; r += typerow::kBridgeSize) {
+            char* const h = At<char*>(r, bridgerecord::kMapHead);
+            if (!Word(r, bridgerecord::kMapCount))
+                continue;
+            // Only a part whose float vector is long enough for divisor 2:
+            // the parser reads the part's floats [i / 2 + 1] (forward) and
+            // [(n - 1) / 2] (reversed) for n elements, and its last one.
+            char* const node = At<char*>(h, tree::kLeft);
+            const Vector& elements = At<Vector>(node, intmap::kVector20);
+            const Vector& floats = At<Vector>(node, intmap::kFloats);
+            const uint32_t n = static_cast<uint32_t>(elements.end - elements.begin) / stringmap::kElement;
+            const uint32_t f = static_cast<uint32_t>(floats.end - floats.begin) / 4;
+            if (f >= n / 2 + 2) {
+                real = r;
+                realKey = At<int32_t>(node, intmap::kKey);
+            }
+        }
+    }
+    char lengthText[64];
+    std::snprintf(lengthText, sizeof lengthText, "piece length(%d)\npiece 2 * length(%d)\nend\n", realKey, realKey);
+
+    const auto parse = [&](const char* text, char* record, char* value) {
+        TestString source(text);
+        alignas(4) char lexer[0x48] = {};
+        CallThis<char*, GameString*>(addr::SC4RulLexer_Construct, lexer, &source.s);
+        At<char*>(lexer, bridgelexer::kMaps) = head;
+        At<uint32_t>(lexer, bridgelexer::kDivisor) = 2;
+        const uint8_t ok = CallThis<uint8_t, char*, char*>(addr::SC4RulLexer_ParseBridgeLayout, lexer, record, value);
+        GameFree(At<char*>(lexer, lexer::kIdentBegin));
+        return ok;
+    };
+    const auto mixValue = [&](char* value) {
+        const Vector& e = At<Vector>(value, bridgevalue::kElements);
+        hash.Mix(static_cast<uint32_t>(e.end - e.begin) / stringmap::kElement);
+        for (char* p = e.begin; p != e.end; p += stringmap::kElement) {
+            hash.Mix(Word(p, bridgevalue::kPosition));
+            hash.Mix(Word(p, bridgevalue::kWord4));
+            hash.Mix(Byte(p, bridgevalue::kByte8));
+            hash.Mix(Word(p, bridgevalue::kFloatC));
+            hash.Mix(Word(p, bridgevalue::kEnd));
+        }
+        MixWords(hash, value, bridgevalue::kFloats);
+    };
+    const auto freeValue = [](char* value) {
+        GameFree(At<char*>(value, bridgevalue::kElements));
+        GameFree(At<char*>(value, bridgevalue::kFloats));
+    };
+    {
+        TestString name("arch");
+        char* const arch = CallThis<char*, GameString*>(addr::SC4StringHashMap_FindOrInsert, listMap, &name.s);
+        hash.Mix(parse("height 0\npiece <1, 2, 0.5, 1.0> : pylon\npiece 2 * <3, 4, 0.25, 0.75> : 1.5, end\n"
+                       "piece <5, 6>\n",
+                       nullptr, arch));
+        mixValue(arch);
+    }
+    static const char* const kTexts[] = {
+        "height 2.5\npiece arch\npiece 3 * rev(arch)\npiece <7, 8>\nend\n",
+        "piece 2 * arch <9, 10, 1, 2> : end\n# a comment\npiece rev(arch) arch\n",
+        "height 4294967295\npiece 2 * <1, 1>\n",
+        "height -1\npiece <1, 1, 0.5>\nend\npiece <2, 2>\n",
+        "piece <1 2>\n",
+        "piece missing\n",
+        "piece 0 * <1, 2>\npiece <3, 4> : 7, pylon, 2.5\n",
+        "nonsense\n",
+        "end extra\n",
+    };
+    for (const char* text : kTexts) {
+        alignas(4) char value[0x18] = {};
+        hash.Mix(parse(text, nullptr, value));
+        mixValue(value);
+        freeValue(value);
+    }
+    {
+        alignas(4) char value[0x18] = {};
+        hash.Mix(real != nullptr);
+        hash.Mix(parse(lengthText, real, value));
+        mixValue(value);
+        freeValue(value);
+        alignas(4) char value2[0x18] = {};
+        hash.Mix(parse("piece length(3)\n", nullptr, value2));
+        freeValue(value2);
+    }
+    // The map's nodes with their values (Clear), then its buckets.
+    hash.Mix(Word(listMap, table::kCount));
+    CallThis<void>(addr::SC4StringHashMap_Clear, listMap);
+    GameFree(At<char*>(listMap, table::kBuckets));
+    return hash.h;
+}
+
+uint32_t DriveRul4()
+{
+    const uint32_t numbers = DriveLexerNumbers();
+    const uint32_t lines = DriveRul0Lines();
+    const uint32_t assign = DriveRuleAssign();
+    const uint32_t hints = DriveIntMapHints();
+    const uint32_t containers = DriveContainers2();
+    const uint32_t bridges = DriveBridgeParser();
+    Hash total;
+    for (const uint32_t h : {numbers, lines, assign, hints, containers, bridges})
+        total.Mix(h);
+    log::Write("autotest: ntrul: drive r4: lexer %08X, rul0 lines %08X, assign %08X, int map hints %08X, "
+               "containers %08X, bridge parser %08X, total %08X",
+               numbers, lines, assign, hints, containers, bridges, total.h);
+    return total.h;
+}
+
 bool g_done = false;
 uint32_t g_drive = 0;
 uint32_t g_drive2 = 0;
 uint32_t g_drive3 = 0;
+uint32_t g_drive4 = 0;
 
 void Drive(const Day& day)
 {
@@ -1196,6 +1894,7 @@ void Drive(const Day& day)
         g_drive = total.h;
         g_drive2 = DriveRuleRecords();
         g_drive3 = DriveRul3();
+        g_drive4 = DriveRul4();
         return;
     }
 
@@ -1239,6 +1938,7 @@ void Drive(const Day& day)
     g_drive2 = DriveRuleRecords();
     log::Write("autotest: ntrul: drive r2 %08X", g_drive2);
     g_drive3 = DriveRul3();
+    g_drive4 = DriveRul4();
 }
 
 // Once per run, a log line (never hashed) on the fields FindOrInsert's
@@ -1308,6 +2008,15 @@ void Fingerprint(cISC4City*, std::string& line)
     line += text;
     if (g_done) {
         std::snprintf(text, sizeof text, " g%08X", g_drive3);
+        line += text;
+    }
+    // Part r4, after everything of r1 to r3.
+    uint32_t verifiers = 0;
+    const uint32_t verifiersHash = TileVerifiersHash(verifiers);
+    std::snprintf(text, sizeof text, " v%u:%08X w%08X", verifiers, verifiersHash, BridgeFieldsHash());
+    line += text;
+    if (g_done) {
+        std::snprintf(text, sizeof text, " k%08X", g_drive4);
         line += text;
     }
 }

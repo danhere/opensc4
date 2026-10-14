@@ -2359,3 +2359,223 @@ name = "cSC4NetworkTool::Rul1Map"
 address = 0x00B460DC
 kind = "data"
 source = "Name ours. The RUL1 map: a tree {head, count} whose nodes hold a type pair (+0x10, +0x14) and a pair table (+0x18; 20-byte nodes: next, two types, a word, a byte). Filled by LoadRul1 0x00641D30 (the callback 0x0063D080 per pair), read by the solver at 0x00634B78; the r3 test hashes it (src/core/nettool_rul_autotest.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::Assign"
+address = 0x0063E060
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B 7C 24 14"
+source = "Name ours. Ret 4 (the source rule*): a RUL0 rule's operator= (the records 0x0063C4F0, point vectors 0x00611B00, cells 0x007AD7A0, check types and cons cells cleared 0x008EBA60 and copied 0x00626430 / 0x006265B0 unless the same, the string 0x00408A70, the grids 0x00461210, the words and bytes); EAX this. Called by the RUL0 line callback 0x00640320 for CopyFrom (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::AppendTypeName"
+address = 0x0063E240
+kind = "function"
+convention = "thiscall"
+expect = "83 F9 0C 0F 87 BC 00 00"
+source = "Name ours. No stack arguments: ECX a network type (0 to 12; above: nothing), EAX a game string: the type's name (Road, Rail, Highway, Street, Pipe, PowerLine, Avenue, Subway, LightRail, Monorail, OneWayRoad, DirtRoad, GroundHighway; a jump table at 0x0063E308) appended to the string's body (0x00410F00). Called by 0x0063E340 (src/core/nettool_rul_4.cpp: a naked thunk)."
+
+[[entry]]
+name = "cSC4NetworkTool::ReadRul1Pairs"
+address = 0x0063E340
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 53 56 33 DB 57"
+source = "Name ours. Four arguments (the RUL 0x10000001 ini, two network types, a RUL1 pair table): the section '<smaller type's name><larger's>IntersectionSolutions' read with the ini's slot 0x34 and the pair line callback 0x0063D080. Called by LoadRul1 0x00641D30 for each pair of types (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::Table3CFindOrInsert"
+address = 0x0063E400
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 38 8B 44 24 3C 53"
+source = "Name ours. Ret 4 (a key*): the value (node + 8: a uint32 vector, a float vector) of a type row's table +0x3C, inserted with empty vectors (0x00462F00, 0x00464760, 0x0063D9A0) when absent; EAX the value. Called by the exemplar callback 0x0063F400 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4BridgeIntMap::InsertHint"
+address = 0x0063E500
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "Name ours. Ret 0xC (result*, a hint node, value*): the bridge record int-keyed map's insert_unique with a hint (STLport: before, after or at the hint through InsertAt 0x0063DAE0, else InsertUnique 0x0063DC70; iterator steps 0x005D17C0 / 0x006809E0); EAX result. Called by 0x00640D40 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4BridgeIntMap::CopyConstruct"
+address = 0x0063E710
+kind = "function"
+convention = "thiscall"
+expect = "55 56 8B F1 6A 2C C7 06"
+source = "Name ours. Ret 4 (the source map*): the int-keyed map copy-constructed (a 0x2C-byte head, CopySubtree 0x0063DBB0, leftmost and rightmost, the count); EAX this. Called by the bridge record copy constructor 0x00640FA0 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4StringHashMap::CopyFrom"
+address = 0x0063E7C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 55 8B E9 8B"
+source = "Name ours. Ret 4 (the source map*): this string map's buckets emptied (old nodes not freed), reserved and filled with nulls (0x0045D4F0, 0x004FBA20), each source bucket's chain copied in order (the first node through CopyPair 0x0063D940, the rest inline: 0x00408420, 0x0063C150, 0x00464760), the count copied. Called by 0x00642150 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4Rul1Map::CreateNode"
+address = 0x0063E980
+kind = "function"
+convention = "thiscall"
+expect = "56 57 6A 2C E8 CB E5 2C"
+source = "Name ours. Ret 4 (a value*: two types, a pair table): a 0x2C-byte node of the RUL1 map with the pair and a copy of the table (0x0063CAA0); EAX the node. Called by InsertAt 0x0063FBF0 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4RulLexer::ParseInt"
+address = 0x0063E9D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 18 F4 FF FF"
+source = "Name ours. Ret 4 (out*): the next token (0x0063DDF0); an integer goes to out (AL 1), else AL 0. Called by the bridge parser 0x0063EA50 and the check type parser 0x0063F1F0 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4RulLexer::ParseFloat"
+address = 0x0063EA00
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 E8 E7 F3 FF"
+source = "Name ours. Ret 4 (a float out*): the next token; a float as is, an integer as an unsigned number (FILD, + 2^32 when negative, FSTP float); AL 1, else AL 0. Called by the bridge parser 0x0063EA50 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4RulLexer::ParseBridgeLayout"
+address = 0x0063EA50
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Ret 8 (a bridge record or null, a value: a vector of 20-byte elements and a float vector), this the bridge lexer (+0x2C a list of string maps, +0x30 a divisor): the 'height', 'piece' (counted, rev(...), length(n), a named part, or <a,b[,f[,f]]>[:pylon|end|number,...]) and 'end' lines into the vectors, then every element's float and every float raised by the height; AL. Called by 0x00641310, 0x00643330, 0x00643580 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4RulLexer::ParseCheckType"
+address = 0x0063F1F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 55 8B E9 C7 44"
+source = "Name ours. No arguments, this a RUL0 lexer: a 'CheckType' value (<char> - then network:edges[,mask] at most twice, check, multiok, optional) into the lexer's +0x28 to +0x42; errors through the lexer's slot 0; AL. Called by the RUL0 line callback 0x00640320 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::ExemplarCallback"
+address = 0x0063F400
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Two arguments (a resource key*, a type row's table +0x3C): the exemplar's key 0xE974EAA1, uint32s 0xE974EAA2 and floats 0xE974EAA3, the first four float pairs turned by 90, 180, 270 degrees (0x005D77A0) and appended, the table's value (0x0063E400) assigned. Passed by 0x0063F700 to a resource list's slot 0x1C (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::LoadExemplarsInto"
+address = 0x0063F700
+kind = "function"
+convention = "cdecl"
+expect = "51 56 57 8B 3D A8 3C B4"
+source = "Name ours. Two arguments (an ID, a type row's table +0x3C): a resource key filter (operator new 0x14, 0x00682020 with type 0x6534284A and the ID), the resource manager's slot 0x44 list, each key handed to 0x0063F400. Called by LoadExemplars 0x0063F780 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::TileVerifierLineCallback"
+address = 0x0063F7A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 40 04 81"
+source = "Name ours. Three arguments (key, value, the tile verifier table 0x00B466DC): the key's number, a node with an empty point vector inserted (0x004F0940, 0x0063D7E0), then the value's comma-separated fives (b, c, d, e) as 8-byte entries {c, d | 0x80 when e, b, and the two upper bytes of the table's address}. Passed by LoadTileVerifiers 0x0063FAF0 to the ini's slot 0x34 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4StringHashMap::InsertNoResize"
+address = 0x0063FB80
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 46"
+source = "Name ours. Ret 4 (a pair*): the string map grown (0x0063C290) and a 0x30-byte node with a copy of the pair (0x0063D940) put first in bucket 0; EAX the node + 4. Called by FindOrInsert 0x00640E10 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4Rul1Map::InsertAt"
+address = 0x0063FBF0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 55 8B 6C"
+source = "Name ours. Ret 0x14 (result*, x, y, value*, w): the RUL1 map's _M_insert (keys two signed words, in order), right nodes from CreateNode 0x0063E980, left ones copied inline; rebalanced (0x0040D5E0), the count + 1; EAX result. Called by 0x00640EF0 and 0x006413B0 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4NetworkBridgeRecord::Assign"
+address = 0x0063FCD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. Ret 4 (the source record*): a bridge record (0x178 bytes) assigned field by field (vectors 0x00611B00, 0x00464430, the name's body 0x00408A70, the int map 0x0063DD30); EAX this. Called by 0x006412B0 (never ran in the coverage runs; src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4NetworkBridgeRecord::Construct"
+address = 0x00640030
+kind = "function"
+convention = "thiscall"
+expect = "53 33 DB 56 8B F1 89 5E"
+source = "Name ours. No arguments: a bridge record's vectors emptied, the 24 floats +0xE4 to +0x140 from 0x00B466CC, the name an empty game string, the int map an empty tree (0x2C-byte head); EAX this. Called by the bridge loader 0x00642220 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul0LineCallback"
+address = 0x00640320
+kind = "function"
+convention = "cdecl"
+expect = "A0 9C 66 B4 00 83 EC 64"
+source = "Name ours. Three arguments (key, value, the RUL0 loader's context: +4 the store, +8 the current rule, +0xC / +0x10 string lists): its 21 key strings made once (guard 0x00B4669C, atexit), then one key: Piece, StepOffsets, CellLayout, ConsLayout, AutoTileBase, AutoPathBase, CheckType, CopyFrom, Transpose, Rotate, Translate, ReplacementIntersection, ConvertQueryID, PlaceQueryID, HandleOffset, PreviewEffect, Costs, AutoPlace, OneWayDir. Passed by 0x00641A50 to the ini's slot 0x34 (src/core/nettool_rul_4.cpp)."
+
+[[entry]]
+name = "SC4FloatVector::PushBack"
+address = 0x00496C50
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 3B 41 08 74 13"
+source = "Name ours. Ret 4 (a float*): appended in place or through InsertN5 0x00676CC0. Called by the bridge parser 0x0063EA50 among others."
+
+[[entry]]
+name = "SC4Vector20::PushBack"
+address = 0x00889C90
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 3B 41 08 74 2D"
+source = "Name ours. Ret 4 (an element*): a 20-byte element appended (five words copied) in place or through an insert. Called by the bridge parser 0x0063EA50 among others."
+
+[[entry]]
+name = "SC4::RotatePoint"
+address = 0x005D77A0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 08 8B 44 24 0C 8B"
+source = "Name ours. Four arguments (centre*, point*, angle float, out*): the point turned about the centre by the angle (FCOS, FSIN), two floats out. Called by the exemplar callback 0x0063F400 among others."
+
+[[entry]]
+name = "cSC4NetworkTool::TileVerifiers"
+address = 0x00B466DC
+kind = "data"
+source = "Name ours. The tile verifier table: a hash table of 20-byte nodes (next, a key, a vector of 8-byte entries), cleared by LoadTileVerifiers 0x0063FAF0 (0x00584660) and filled by its line callback 0x0063F7A0."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul0KeyGuard"
+address = 0x00B4669C
+kind = "data"
+source = "Name ours. The guard bits of the RUL0 line callback 0x00640320's 21 static key strings (bit 0 PieceType 0x00B46688 ... bit 20 OneWayDir 0x00B464F8)."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul0Keys"
+address = 0x00B464F8
+kind = "data"
+source = "Name ours. The RUL0 line callback 0x00640320's 21 static key strings (game strings, 0x14 bytes each, from OneWayDir here up to PieceType 0x00B46688)."
+
+[[entry]]
+name = "SC4NetworkBridgeRecord::DefaultFloat"
+address = 0x00B466CC
+kind = "data"
+source = "Name ours. The float the bridge record constructor 0x00640030 gives +0xE4 to +0x140."
+
+[[entry]]
+name = "cSC4NetworkTool::TypeBits"
+address = 0x00AA8C10
+kind = "data"
+source = "Name ours. 1 << i for the 13 network types (the RUL0 line callback ORs them into a rule's +0xE4)."
+
+[[entry]]
+name = "SC4::FloatHalfPi"
+address = 0x00AA8D30
+kind = "data"
+source = "Name ours. The float 1.5707964 (the exemplar callback 0x0063F400 multiplies the quarter turns by it)."
