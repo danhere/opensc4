@@ -3279,6 +3279,22 @@ void BSwap(char* object, uint32_t slot, uint32_t stub)
     BSwapRole(object, slot, {{slot, stub}});
 }
 
+// Every object this engine gave a table gets its own back. Its roles are
+// slots (and 0x1000, 0x2000); the noted comparisons of the compound
+// effects' start, the making and the makers name theirs by function
+// addresses, and theirs are left for them to give back.
+void BGiveBackOwn()
+{
+    for (auto it = g_bReal.begin(); it != g_bReal.end();) {
+        if (it->second.slot < 0x10000) {
+            At<uint32_t>(it->first, 0) = it->second.real;
+            it = g_bReal.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
 // The second class loading its model (0x005AC610, slot 0x54, with the
 // model's instance ID; nothing for 0), translated instruction by
 // instruction. The resource manager (0x00B43CA8, slot 0xC) is asked for
@@ -3480,9 +3496,7 @@ uint32_t __fastcall DescriptionBByMode(char* self, void*, uint32_t description)
     std::memcpy(self, after, kEffectSizeB);
     std::memcpy(generator, generatorAfter, kGeneratorSize);
     // What is still wearing a copy was not released: its own table back.
-    for (const auto& [object, standIn] : g_bReal)
-        At<uint32_t>(object, 0) = standIn.real;
-    g_bReal.clear();
+    BGiveBackOwn();
     ++g_bCompared;
     g_bCallsCompared += g_bGameCalls.size();
     if ((g_bCompared & (g_bCompared - 1)) == 0)
@@ -4026,9 +4040,7 @@ uint32_t __fastcall GiveBackBByMode(char* base, void*, uint32_t particle)
     for (std::size_t offset = 0; offset < after.size(); ++offset)
         *BRegionByte(offset) = after[offset];
     BSwapManager(false);
-    for (const auto& [object, standIn] : g_bReal)
-        At<uint32_t>(object, 0) = standIn.real;
-    g_bReal.clear();
+    BGiveBackOwn();
     ++g_giveBacksBCompared;
     g_giveBackBCallsCompared += g_bGameCalls.size();
     if ((g_giveBacksBCompared & (g_giveBacksBCompared - 1)) == 0)
@@ -4157,9 +4169,7 @@ uint32_t HolderCompared(const char* id, char* at, std::size_t size, Game&& game,
     g_bReplay = false;
     const std::vector<char> mine = BSaveRegions();
     std::memcpy(at, after.data(), size);
-    for (const auto& [object, standIn] : g_bReal)
-        At<uint32_t>(object, 0) = standIn.real;
-    g_bReal.clear();
+    BGiveBackOwn();
     const bool same = g_bGameCalls == g_bOurCalls && after == mine;
     char text[48];
     std::snprintf(text, sizeof text, "%zu calls", g_bGameCalls.size());
@@ -4169,7 +4179,7 @@ uint32_t HolderCompared(const char* id, char* at, std::size_t size, Game&& game,
     return result;
 }
 
-uint32_t __fastcall SetObjectByMode(char* self, void*, uint32_t object)
+uint32_t SetObjectRun(char* self, uint32_t object)
 {
     if (g_holdersMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
         BBusy())
@@ -4184,6 +4194,14 @@ uint32_t __fastcall SetObjectByMode(char* self, void*, uint32_t object)
     return HolderCompared(
         object == old ? "effects.holders.object.same" : "effects.holders.object", self, 0x1F0,
         [&] { return g_SC4Effect_SetObject(self, nullptr, object); }, [&] { return SetEffectObject(self, object); });
+}
+bool MxNoting();
+uint32_t MxSetObjectNoted(char* self, uint32_t object, uint32_t (*run)(char*, uint32_t));
+
+// While a maker is noted, its call is noted too.
+uint32_t __fastcall SetObjectByMode(char* self, void*, uint32_t object)
+{
+    return MxNoting() ? MxSetObjectNoted(self, object, &SetObjectRun) : SetObjectRun(self, object);
 }
 OPENSC4_THUNK(TSC4Effect_SetObject, SetObjectByMode, 4)
 
@@ -5511,13 +5529,25 @@ uint32_t __fastcall BaseCtorByMode(char* base, void*)
 }
 OPENSC4_THUNK(TSC4EffectBase_Construct, BaseCtorByMode, 0)
 
-uint32_t __fastcall EffectCtorByMode(char* self, void*)
+bool MxNoting();
+template <typename Real>
+uint32_t MxConstructNoted(uint32_t constructor, char* object, Real&& real);
+
+uint32_t EffectCtorRun(char* self)
 {
     if (g_ctorMode == StepMode::Original)
         return g_SC4Effect_Construct(self, nullptr);
     if (g_ctorMode == StepMode::Ours)
         return ConstructEffect(self);
     return CtorCompared("effects.ctor", self, kEffectSize, 0x14, g_SC4Effect_Construct, &ConstructEffect);
+}
+
+// While a maker is noted, its constructor call is noted too.
+uint32_t __fastcall EffectCtorByMode(char* self, void*)
+{
+    if (!MxNoting())
+        return EffectCtorRun(self);
+    return MxConstructNoted(addr::SC4Effect_Construct, self, [&] { return EffectCtorRun(self); });
 }
 OPENSC4_THUNK(TSC4Effect_Construct, EffectCtorByMode, 0)
 
@@ -5547,7 +5577,7 @@ uint32_t ConstructEffectB(char* self)
 
 Call0Fn g_SC4EffectB_Construct = nullptr;
 
-uint32_t __fastcall EffectBCtorByMode(char* self, void*)
+uint32_t EffectBCtorRun(char* self)
 {
     if (g_ctorMode == StepMode::Original)
         return g_SC4EffectB_Construct(self, nullptr);
@@ -5555,7 +5585,24 @@ uint32_t __fastcall EffectBCtorByMode(char* self, void*)
         return ConstructEffectB(self);
     return CtorCompared("effects.ctor.b", self, kEffectSizeB, 0x14, g_SC4EffectB_Construct, &ConstructEffectB);
 }
+
+uint32_t __fastcall EffectBCtorByMode(char* self, void*)
+{
+    if (!MxNoting())
+        return EffectBCtorRun(self);
+    return MxConstructNoted(addr::SC4EffectB_Construct, self, [&] { return EffectBCtorRun(self); });
+}
 OPENSC4_THUNK(TSC4EffectB_Construct, EffectBCtorByMode, 0)
+
+// The two effect classes' constructors have one detour each, which their
+// own replacement and the makers' comparison share.
+bool HookEffectConstructors()
+{
+    return (g_SC4Effect_Construct ||
+            Detour(addr::SC4Effect_Construct, &TSC4Effect_Construct, &g_SC4Effect_Construct)) &&
+           (g_SC4EffectB_Construct ||
+            Detour(addr::SC4EffectB_Construct, &TSC4EffectB_Construct, &g_SC4EffectB_Construct));
+}
 
 // An effect's destructor (0x005A62B0, also the end of a third class's at
 // 0x005A90xx), written by hand: the objects at +0x1F0 and +0x1EC released
@@ -6245,8 +6292,7 @@ bool InstallCtor(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
         !(Detour(addr::SC4EffectBase_Construct, &TSC4EffectBase_Construct, &g_SC4EffectBase_Construct) &&
-          Detour(addr::SC4Effect_Construct, &TSC4Effect_Construct, &g_SC4Effect_Construct) &&
-          Detour(addr::SC4EffectB_Construct, &TSC4EffectB_Construct, &g_SC4EffectB_Construct)))
+          HookEffectConstructors()))
         return false;
     g_ctorMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: effects' constructors %s",
@@ -9984,12 +10030,15 @@ bool MkWatched(char* object)
            (found->second.slot == kMkRole || found->second.slot == kMkRole10 || found->second.slot == kMkHoldRole);
 }
 
+// A maker by the mode of its own replacement (further down).
+uint32_t MakerRun(uint32_t maker, char* self);
+
 // A maker of the game's: what it made is watched from here on.
-uint32_t MkMakerNoted(uint32_t target, Call0Fn original, char* self)
+uint32_t MkMakerNoted(uint32_t target, char* self)
 {
     if (!MkNoting())
-        return original(self, nullptr);
-    char* const made = reinterpret_cast<char*>(MkNoted(MkMakeCall(target), [&] { return original(self, nullptr); }));
+        return MakerRun(target, self);
+    char* const made = reinterpret_cast<char*>(MkNoted(MkMakeCall(target), [&] { return MakerRun(target, self); }));
     g_mkMadeGame.push_back(made);
     ++g_mkMakerCounts[target];
     if (target == addr::SC4EffectsManager_NewDecal || target == addr::SC4EffectsManager_NewCompound || !made)
@@ -10017,7 +10066,7 @@ uint32_t MkMakerNoted(uint32_t target, Call0Fn original, char* self)
     Call0Fn g_##Name = nullptr;                                                                                          \
     uint32_t __fastcall Name##Noted(char* self, void*)                                                                   \
     {                                                                                                                    \
-        return MkMakerNoted(addr::Name, g_##Name, self);                                                                 \
+        return MkMakerNoted(addr::Name, self);                                                                 \
     }                                                                                                                    \
     OPENSC4_THUNK(T##Name, Name##Noted, 0)
 OPENSC4_MK_MAKER(SC4EffectsManager_NewEffect)
@@ -10027,6 +10076,40 @@ OPENSC4_MK_MAKER(SC4EffectsManager_NewEffect10)
 OPENSC4_MK_MAKER(SC4EffectsManager_NewDecal)
 OPENSC4_MK_MAKER(SC4EffectsManager_NewCompound)
 #undef OPENSC4_MK_MAKER
+
+// The six makers have one detour each, which the making's comparison and
+// the makers' own replacement share.
+struct MkMakerHook {
+    uint32_t address;
+    void (*thunk)();
+    Call0Fn* original;
+};
+const MkMakerHook kMkMakerHooks[] = {
+    {addr::SC4EffectsManager_NewEffect, &TSC4EffectsManager_NewEffect, &g_SC4EffectsManager_NewEffect},
+    {addr::SC4EffectsManager_NewEffectB, &TSC4EffectsManager_NewEffectB, &g_SC4EffectsManager_NewEffectB},
+    {addr::SC4EffectsManager_NewEffectC, &TSC4EffectsManager_NewEffectC, &g_SC4EffectsManager_NewEffectC},
+    {addr::SC4EffectsManager_NewEffect10, &TSC4EffectsManager_NewEffect10, &g_SC4EffectsManager_NewEffect10},
+    {addr::SC4EffectsManager_NewDecal, &TSC4EffectsManager_NewDecal, &g_SC4EffectsManager_NewDecal},
+    {addr::SC4EffectsManager_NewCompound, &TSC4EffectsManager_NewCompound, &g_SC4EffectsManager_NewCompound},
+};
+
+Call0Fn MakerOriginal(uint32_t maker)
+{
+    for (const MkMakerHook& hook : kMkMakerHooks) {
+        if (hook.address == maker)
+            return *hook.original;
+    }
+    return nullptr;
+}
+
+bool HookMaker(uint32_t maker)
+{
+    for (const MkMakerHook& hook : kMkMakerHooks) {
+        if (hook.address == maker)
+            return *hook.original || Detour(hook.address, hook.thunk, hook.original);
+    }
+    return false;
+}
 
 // The game's other functions the making's comparison notes.
 uint32_t __fastcall MkLinkNoted(char* before, void*, uint32_t second)
@@ -10292,14 +10375,9 @@ bool InstallMake(registry::Mode mode)
           Detour(addr::SC4EffectHolder_Assign, &TSC4EffectHolder_Assign, &g_SC4EffectHolder_Assign)))
         return false;
     if (mode == registry::Mode::Compare &&
-        !(Detour(addr::SC4EffectsManager_NewEffect, &TSC4EffectsManager_NewEffect, &g_SC4EffectsManager_NewEffect) &&
-          Detour(addr::SC4EffectsManager_NewEffectB, &TSC4EffectsManager_NewEffectB, &g_SC4EffectsManager_NewEffectB) &&
-          Detour(addr::SC4EffectsManager_NewEffectC, &TSC4EffectsManager_NewEffectC, &g_SC4EffectsManager_NewEffectC) &&
-          Detour(addr::SC4EffectsManager_NewEffect10, &TSC4EffectsManager_NewEffect10,
-                 &g_SC4EffectsManager_NewEffect10) &&
-          Detour(addr::SC4EffectsManager_NewDecal, &TSC4EffectsManager_NewDecal, &g_SC4EffectsManager_NewDecal) &&
-          Detour(addr::SC4EffectsManager_NewCompound, &TSC4EffectsManager_NewCompound,
-                 &g_SC4EffectsManager_NewCompound) &&
+        !(HookMaker(addr::SC4EffectsManager_NewEffect) && HookMaker(addr::SC4EffectsManager_NewEffectB) &&
+          HookMaker(addr::SC4EffectsManager_NewEffectC) && HookMaker(addr::SC4EffectsManager_NewEffect10) &&
+          HookMaker(addr::SC4EffectsManager_NewDecal) && HookMaker(addr::SC4EffectsManager_NewCompound) &&
           Detour(addr::SC4EffectB_SetLinked, &TSC4EffectB_SetLinked, &g_SC4EffectB_SetLinked) &&
           Detour(addr::SC4Effect_SetMarked, &TSC4Effect_SetMarked, &g_SC4Effect_SetMarked) &&
           Detour(addr::SC4EffectDecal_SetDescription, &TSC4EffectDecal_SetDescription,
@@ -10328,6 +10406,512 @@ const bool g_registeredMake = registry::Register({
     "calls noted and replays ours on a copy of the record (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallMake,
+});
+
+// --- The makers of what a record holds ------------------------------------------------------
+
+// The four makers the test cities use and the decal's reset
+// (effects_makers.inc). A maker that takes a free one only moves an index
+// between two vectors, so its comparison runs the game's and ours on the
+// same memory: the manager's vectors and their storage, put back as they
+// were between the two. One that makes a new one allocates and constructs
+// it, so it cannot run twice: the game's runs first with its calls noted
+// (the allocation, in the pool allocator under operator new, the
+// constructor, the effect's taking of the manager's object and the
+// decal's reset through detours,
+// the calls on the new one, its sub-object and the manager through copies
+// of their tables of functions), then ours is replayed on the vectors put
+// back, each call answered as the game's was, and the calls, the vectors,
+// the answer and the manager a new compound effect holds at +0x148 are
+// compared. A making that would grow a vector is not compared.
+constexpr uint32_t kMxRole = 0x00590BC0, kMxSubRole = 0x00590BC4, kMxManagerRole = 0x00590A64;
+constexpr uint32_t kMxEffectInsert = 0x0058FF70; // (this = table, at, const value*, tag*, count, atEnd), ret 0x14
+constexpr std::size_t kMxListsAt = 0xB94, kMxListsSize = 0xC54 - 0xB94;
+
+// What one maker works on: its list, the size of a new one and its
+// constructor.
+struct MxSpec {
+    uint32_t maker, table, used, freed, size, constructor;
+};
+
+const MxSpec kMxSpecs[] = {
+    {addr::SC4EffectsManager_NewEffect, 0xBE8, 0xBF4, 0xC00, 0x220, addr::SC4Effect_Construct},
+    {addr::SC4EffectsManager_NewEffectB, 0xC30, 0xC3C, 0xC48, 0x280, addr::SC4EffectB_Construct},
+    {addr::SC4EffectsManager_NewDecal, 0xBC4, 0xBD0, 0xBDC, 0x124, addr::SC4EffectDecal_Construct},
+    {addr::SC4EffectsManager_NewCompound, 0xB94, 0xBA0, 0xBB8, 0x14C, addr::SC4CompoundEffect_Construct},
+};
+
+StepMode g_mxMode = StepMode::Original;
+using NewFn = void*(__cdecl*)(uint32_t);
+Call1Fn g_SC4_PoolAllocate = nullptr;
+Call0Fn g_SC4EffectDecal_Construct = nullptr, g_SC4CompoundEffect_Construct = nullptr, g_SC4EffectDecal_Reset = nullptr;
+
+struct MxNote {
+    uint32_t target, a, b, result;
+    bool operator==(const MxNote& other) const
+    {
+        return target == other.target && a == other.a && b == other.b;
+    }
+};
+bool g_mxNoting = false, g_mxReplay = false;
+int g_mxDepth = 0;
+DWORD g_mxThread = 0;
+char* g_mxSelf = nullptr;
+char* g_mxMade = nullptr;
+uint32_t g_mxHeld148 = 0;
+std::vector<MxNote> g_mxGame, g_mxOurs;
+std::vector<char*> g_mxSwapped;
+uint64_t g_mxTaken = 0, g_mxNew = 0, g_mxGrows = 0, g_mxResets = 0, g_mxObjects = 0;
+std::map<uint32_t, uint64_t> g_mxCounts;
+
+bool MxNoting()
+{
+    return g_mxNoting && g_mxDepth == 0 && GetCurrentThreadId() == g_mxThread;
+}
+
+// A pointer into what is being made or into the manager, by place.
+uint32_t MxPlace(const void* pointer)
+{
+    const char* const at = static_cast<const char*>(pointer);
+    if (g_mxMade && at >= g_mxMade && at < g_mxMade + 0x10)
+        return 0xE0000000u | static_cast<uint32_t>(at - g_mxMade);
+    if (g_mxSelf && at >= g_mxSelf && at < g_mxSelf + 0x1000)
+        return 0xF0000000u | static_cast<uint32_t>(at - g_mxSelf);
+    return reinterpret_cast<uint32_t>(pointer);
+}
+
+template <typename Real>
+uint32_t MxNoted(MxNote call, Real&& real)
+{
+    ++g_mxDepth;
+    call.result = real();
+    --g_mxDepth;
+    g_mxGame.push_back(call);
+    return call.result;
+}
+
+uint32_t MxReplayed(const MxNote& call)
+{
+    const std::size_t at = g_mxOurs.size();
+    g_mxOurs.push_back(call);
+    return at < g_mxGame.size() && g_mxGame[at] == call ? g_mxGame[at].result : 0;
+}
+
+// What the makers call: the real thing, or in the replay its note.
+char* MxNew(uint32_t size)
+{
+    if (!g_mxReplay)
+        return static_cast<char*>(reinterpret_cast<NewFn>(addr::SC4_operator_new)(size));
+    g_mxMade = reinterpret_cast<char*>(MxReplayed({addr::SC4_operator_new, size, 0, 0}));
+    return g_mxMade;
+}
+
+char* MxConstruct(uint32_t constructor, char* object)
+{
+    if (!g_mxReplay)
+        return CallThis<char*>(constructor, object);
+    char* const made = reinterpret_cast<char*>(MxReplayed({constructor, MxPlace(object), 0, 0}));
+    // The compound effect's holder as the game's constructor left it.
+    if (made && constructor == addr::SC4CompoundEffect_Construct)
+        At<uint32_t>(made, 0x148) = g_mxHeld148;
+    return made;
+}
+
+void MxCall(char* object, uint32_t slot, char* argument = nullptr)
+{
+    if (g_mxReplay)
+        MxReplayed({slot, MxPlace(object), argument ? MxPlace(argument) : 0, 0});
+    else if (slot == 0x34)
+        CallThis<void>(At<uint32_t>(At<char*>(object, 0), slot), object, argument);
+    else
+        CallThis<void>(At<uint32_t>(At<char*>(object, 0), slot), object);
+}
+
+void MxResetDecal(char* decal)
+{
+    if (g_mxReplay)
+        MxReplayed({addr::SC4EffectDecal_Reset, MxPlace(decal), 0, 0});
+    else
+        CallThis<void>(addr::SC4EffectDecal_Reset, decal);
+}
+
+void MxSetObject(char* effect, uint32_t object)
+{
+    if (g_mxReplay)
+        MxReplayed({addr::SC4Effect_SetObject, MxPlace(effect), object, 0});
+    else
+        CallThis<void>(addr::SC4Effect_SetObject, effect, object);
+}
+
+void MxGrowIndex(char* vector, uint32_t* at, uint32_t index)
+{
+    uint8_t tag = 0;
+    if (g_mxReplay)
+        MxReplayed({addr::SC4PtrVector_InsertN, MxPlace(vector), index, 0});
+    else
+        CallThis<void>(addr::SC4PtrVector_InsertN, vector, at, &index, &tag, 1u, 1u);
+}
+
+void MxGrowTable(bool compound, char* table, char** at, char* object)
+{
+    uint8_t tag = 0;
+    const uint32_t insert = compound ? addr::SC4RefPtrVector_InsertN : kMxEffectInsert;
+    if (g_mxReplay)
+        MxReplayed({insert, MxPlace(table), MxPlace(object), 0});
+    else
+        CallThis<void>(insert, table, at, &object, &tag, 1u, 1u);
+}
+
+#include "core/effects_makers.inc"
+
+// The stand-ins for the calls on what is made and on the manager. The
+// letting go may be an object's last: it gets its own table back first.
+uint32_t MxSlotNoted(char* object, uint32_t slot, char* argument, bool last)
+{
+    const uint32_t real = BRealSlot(object, slot);
+    const bool noting = MxNoting();
+    const MxNote call{slot, MxPlace(object), argument ? MxPlace(argument) : 0, 0};
+    if (last)
+        BGiveBack(object, true);
+    const auto run = [&] {
+        return argument ? CallThis<uint32_t>(real, object, argument) : CallThis<uint32_t>(real, object);
+    };
+    return noting ? MxNoted(call, run) : run();
+}
+
+uint32_t __fastcall MxSlot04(char* object, void*)
+{
+    return MxSlotNoted(object, 0x4, nullptr, false);
+}
+
+uint32_t __fastcall MxSlot08(char* object, void*)
+{
+    return MxSlotNoted(object, 0x8, nullptr, true);
+}
+
+uint32_t __fastcall MxSlot10(char* object, void*)
+{
+    return MxSlotNoted(object, 0x10, nullptr, false);
+}
+
+uint32_t __fastcall MxSlot1C(char* object, void*)
+{
+    return MxSlotNoted(object, 0x1C, nullptr, false);
+}
+
+uint32_t __fastcall MxSlot20(char* object, void*)
+{
+    return MxSlotNoted(object, 0x20, nullptr, true);
+}
+
+uint32_t __fastcall MxSlot34(char* object, void*, char* block)
+{
+    return MxSlotNoted(object, 0x34, block, false);
+}
+
+void MxWatch(char* object, uint32_t role, std::initializer_list<std::pair<uint32_t, uint32_t>> slots)
+{
+    if (!object || g_bReal.find(object) != g_bReal.end())
+        return;
+    BSwapRole(object, role, slots);
+    g_mxSwapped.push_back(object);
+}
+
+// A constructor of the game's while a maker is noted: what it made is
+// watched from here on.
+template <typename Real>
+uint32_t MxConstructNoted(uint32_t constructor, char* object, Real&& real)
+{
+    char* const made = reinterpret_cast<char*>(MxNoted({constructor, MxPlace(object), 0, 0}, real));
+    if (!made)
+        return 0;
+    if (constructor == addr::SC4CompoundEffect_Construct) {
+        g_mxHeld148 = At<uint32_t>(made, 0x148);
+        MxWatch(made, kMxRole,
+                {{0x4, reinterpret_cast<uint32_t>(&MxSlot04)}, {0x8, reinterpret_cast<uint32_t>(&MxSlot08)}});
+    } else if (constructor == addr::SC4EffectDecal_Construct) {
+        MxWatch(made, kMxRole,
+                {{0x1C, reinterpret_cast<uint32_t>(&MxSlot1C)}, {0x20, reinterpret_cast<uint32_t>(&MxSlot20)}});
+    } else {
+        MxWatch(made, kMxRole,
+                {{0x1C, reinterpret_cast<uint32_t>(&MxSlot1C)},
+                 {0x20, reinterpret_cast<uint32_t>(&MxSlot20)},
+                 {0x34, reinterpret_cast<uint32_t>(&MxSlot34)}});
+        MxWatch(made + 4, kMxSubRole, {{0x10, reinterpret_cast<uint32_t>(&MxSlot10)}});
+    }
+    return reinterpret_cast<uint32_t>(made);
+}
+
+// The allocation is noted in the pool allocator under operator new
+// (whose own entry determinism.zero_alloc has): a maker allocates nothing
+// else outside the constructor.
+uint32_t __fastcall MxAllocateNoted(char* pool, void*, uint32_t size)
+{
+    if (!MxNoting())
+        return g_SC4_PoolAllocate(pool, nullptr, size);
+    g_mxMade = reinterpret_cast<char*>(
+        MxNoted({addr::SC4_operator_new, size, 0, 0}, [&] { return g_SC4_PoolAllocate(pool, nullptr, size); }));
+    return reinterpret_cast<uint32_t>(g_mxMade);
+}
+OPENSC4_THUNK(TSC4_PoolAllocate, MxAllocateNoted, 4)
+
+uint32_t __fastcall DecalConstructNoted(char* object, void*)
+{
+    if (!MxNoting())
+        return g_SC4EffectDecal_Construct(object, nullptr);
+    return MxConstructNoted(addr::SC4EffectDecal_Construct, object,
+                            [&] { return g_SC4EffectDecal_Construct(object, nullptr); });
+}
+OPENSC4_THUNK(TSC4EffectDecal_Construct, DecalConstructNoted, 0)
+
+uint32_t __fastcall CompoundConstructNoted(char* object, void*)
+{
+    if (!MxNoting())
+        return g_SC4CompoundEffect_Construct(object, nullptr);
+    return MxConstructNoted(addr::SC4CompoundEffect_Construct, object,
+                            [&] { return g_SC4CompoundEffect_Construct(object, nullptr); });
+}
+OPENSC4_THUNK(TSC4CompoundEffect_Construct, CompoundConstructNoted, 0)
+
+uint32_t MxSetObjectNoted(char* self, uint32_t object, uint32_t (*run)(char*, uint32_t))
+{
+    ++g_mxObjects;
+    return MxNoted({addr::SC4Effect_SetObject, MxPlace(self), object, 0}, [&] { return run(self, object); });
+}
+
+// The decal's reset: its own comparison runs both on the decal's bytes.
+uint32_t ResetRun(char* decal)
+{
+    if (g_mxMode == StepMode::Ours) {
+        ResetDecal(decal);
+        return 0;
+    }
+    if (g_mxMode == StepMode::Original || !decal)
+        return g_SC4EffectDecal_Reset(decal, nullptr);
+    char before[0x124], after[0x124];
+    std::memcpy(before, decal, sizeof before);
+    const uint32_t result = g_SC4EffectDecal_Reset(decal, nullptr);
+    std::memcpy(after, decal, sizeof after);
+    std::memcpy(decal, before, sizeof before);
+    ResetDecal(decal);
+    const bool same = std::memcmp(decal, after, sizeof after) == 0;
+    std::size_t at = 0;
+    while (!same && at < sizeof after && decal[at] == after[at])
+        ++at;
+    at &= ~std::size_t{3};
+    char text[24];
+    std::snprintf(text, sizeof text, "+%zX ", at);
+    compare::Record("effects.makers.reset", same, same ? std::string() : text + Hex(after + at, 4),
+                    same ? std::string() : text + Hex(decal + at, 4));
+    std::memcpy(decal, after, sizeof after);
+    ++g_mxResets;
+    return result;
+}
+
+uint32_t __fastcall ResetByMode(char* decal, void*)
+{
+    if (!MxNoting())
+        return ResetRun(decal);
+    return MxNoted({addr::SC4EffectDecal_Reset, MxPlace(decal), 0, 0}, [&] { return ResetRun(decal); });
+}
+OPENSC4_THUNK(TSC4EffectDecal_Reset, ResetByMode, 0)
+
+// The memory a maker may change: the manager's lists and the storage of
+// the two vectors it adds to.
+std::vector<std::pair<char*, std::size_t>> MxRegions(char* self, const MxSpec& spec)
+{
+    std::vector<std::pair<char*, std::size_t>> regions{{self + kMxListsAt, kMxListsSize}};
+    for (const uint32_t vector : {spec.used, spec.table}) {
+        char* const begin = At<char*>(self, vector);
+        const std::size_t room = static_cast<std::size_t>(At<char*>(self, vector + 8) - begin);
+        if (begin && room)
+            regions.push_back({begin, room});
+    }
+    return regions;
+}
+
+std::vector<char> MxSave(const std::vector<std::pair<char*, std::size_t>>& regions)
+{
+    std::vector<char> bytes;
+    for (const auto& [at, size] : regions)
+        bytes.insert(bytes.end(), at, at + size);
+    return bytes;
+}
+
+void MxLoad(const std::vector<std::pair<char*, std::size_t>>& regions, const std::vector<char>& bytes)
+{
+    std::size_t from = 0;
+    for (const auto& [at, size] : regions) {
+        std::memcpy(at, bytes.data() + from, size);
+        from += size;
+    }
+}
+
+void MxLogOnce(bool& logged, const char* what)
+{
+    if (!logged)
+        log::Write("water effects: effects.makers: %s, not compared", what);
+    logged = true;
+}
+
+std::string MxCallsText(const std::vector<MxNote>& calls, const std::vector<MxNote>& other)
+{
+    std::size_t at = 0;
+    while (at < calls.size() && at < other.size() && calls[at] == other[at])
+        ++at;
+    char text[96];
+    if (at >= calls.size())
+        std::snprintf(text, sizeof text, "%zu calls", calls.size());
+    else
+        std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X, %08X)", at, calls.size(), calls[at].target,
+                      calls[at].a, calls[at].b);
+    return text;
+}
+
+uint32_t MakerCompared(char* self, const MxSpec& spec, Call0Fn original)
+{
+    const auto game = [&] { return original(self, nullptr); };
+    char* const freed = self + spec.freed;
+    char* const used = self + spec.used;
+    char* const table = self + spec.table;
+    const bool taking = At<char*>(freed, 0) != At<char*>(freed, 4);
+    const bool full =
+        At<char*>(used, 4) == At<char*>(used, 8) || (!taking && At<char*>(table, 4) == At<char*>(table, 8));
+    if (full || (!taking && g_bReal.find(self) != g_bReal.end())) {
+        static bool logged[2] = {};
+        MxLogOnce(logged[full ? 0 : 1],
+                  full ? "a making that grows a vector" : "a making while another comparison watches the manager");
+        if (full)
+            ++g_mxGrows;
+        return game();
+    }
+    const std::vector<std::pair<char*, std::size_t>> regions = MxRegions(self, spec);
+    const std::vector<char> before = MxSave(regions);
+    g_mxGame.clear();
+    g_mxSwapped.clear();
+    g_mxSelf = self;
+    g_mxMade = nullptr;
+    g_mxHeld148 = 0;
+    if (!taking && spec.maker == addr::SC4EffectsManager_NewCompound)
+        MxWatch(self, kMxManagerRole,
+                {{0x4, reinterpret_cast<uint32_t>(&MxSlot04)}, {0x8, reinterpret_cast<uint32_t>(&MxSlot08)}});
+    g_mxThread = GetCurrentThreadId();
+    g_mxDepth = 0;
+    g_mxNoting = true;
+    const uint32_t result = game();
+    g_mxNoting = false;
+    for (char* const watched : g_mxSwapped)
+        BGiveBack(watched, true);
+    g_mxSwapped.clear();
+    char* const made = g_mxMade;
+    const std::vector<char> after = MxSave(regions);
+    const uint32_t held148 = made && spec.maker == addr::SC4EffectsManager_NewCompound ? At<uint32_t>(made, 0x148) : 0;
+
+    // Ours, on the vectors put back as they were.
+    MxLoad(regions, before);
+    g_mxOurs.clear();
+    g_mxMade = nullptr;
+    g_mxReplay = true;
+    const uint32_t mine = reinterpret_cast<uint32_t>(MakeFromPool(self, spec));
+    g_mxReplay = false;
+    const std::vector<char> ours = MxSave(regions);
+    const uint32_t mine148 = made && spec.maker == addr::SC4EffectsManager_NewCompound ? At<uint32_t>(made, 0x148) : 0;
+    if (made && spec.maker == addr::SC4EffectsManager_NewCompound)
+        At<uint32_t>(made, 0x148) = held148;
+    MxLoad(regions, after);
+    g_mxSelf = nullptr;
+    g_mxMade = nullptr;
+
+    ++(taking ? g_mxTaken : g_mxNew);
+    ++g_mxCounts[spec.maker];
+    if (((g_mxTaken + g_mxNew) & (g_mxTaken + g_mxNew - 1)) == 0) {
+        std::string makers;
+        char text[40];
+        for (const auto& [maker, count] : g_mxCounts) {
+            std::snprintf(text, sizeof text, " %08X x %llu", maker, static_cast<unsigned long long>(count));
+            makers += text;
+        }
+        log::Write("water effects: effects.makers: %llu taken from the free ones and %llu made new compared so far, "
+                   "%llu not for a vector's growth, %llu resets, %llu given the manager's object; by maker%s",
+                   static_cast<unsigned long long>(g_mxTaken), static_cast<unsigned long long>(g_mxNew),
+                   static_cast<unsigned long long>(g_mxGrows), static_cast<unsigned long long>(g_mxResets),
+                   static_cast<unsigned long long>(g_mxObjects),
+                   makers.c_str());
+    }
+    const char* const id = taking ? "effects.makers.free" : "effects.makers.new";
+    char text[64];
+    if (!(g_mxGame == g_mxOurs)) {
+        compare::Record(id, false, MxCallsText(g_mxGame, g_mxOurs), MxCallsText(g_mxOurs, g_mxGame));
+    } else if (after != ours) {
+        std::size_t at = 0;
+        while (after[at] == ours[at])
+            ++at;
+        std::snprintf(text, sizeof text, "byte %zu of the lists ", at);
+        compare::Record(id, false, text + Hex(after.data() + (at & ~std::size_t{3}), 4),
+                        text + Hex(ours.data() + (at & ~std::size_t{3}), 4));
+    } else if (mine != result || mine148 != held148) {
+        std::snprintf(text, sizeof text, "%08X, holding %08X", result, held148);
+        const std::string theirs = text;
+        std::snprintf(text, sizeof text, "%08X, holding %08X", mine, mine148);
+        compare::Record(id, false, theirs, text);
+    } else {
+        compare::Record(id, true, std::string(), std::string());
+    }
+    return result;
+}
+
+const MxSpec* MxFind(uint32_t maker)
+{
+    for (const MxSpec& spec : kMxSpecs) {
+        if (spec.maker == maker)
+            return &spec;
+    }
+    return nullptr;
+}
+
+uint32_t MakerRun(uint32_t maker, char* self)
+{
+    const Call0Fn original = MakerOriginal(maker);
+    const MxSpec* const spec = MxFind(maker);
+    if (!spec || g_mxMode == StepMode::Original || g_mxNoting || g_mxReplay)
+        return original(self, nullptr);
+    if (g_mxMode == StepMode::Ours)
+        return reinterpret_cast<uint32_t>(MakeFromPool(self, *spec));
+    return MakerCompared(self, *spec, original);
+}
+
+bool InstallMakers(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(HookMaker(addr::SC4EffectsManager_NewEffect) && HookMaker(addr::SC4EffectsManager_NewEffectB) &&
+          HookMaker(addr::SC4EffectsManager_NewDecal) && HookMaker(addr::SC4EffectsManager_NewCompound) &&
+          Detour(addr::SC4EffectDecal_Reset, &TSC4EffectDecal_Reset, &g_SC4EffectDecal_Reset)))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(Detour(addr::SC4_PoolAllocate, &TSC4_PoolAllocate, &g_SC4_PoolAllocate) &&
+          HookEffectConstructors() &&
+          (g_SC4Effect_SetObject || Detour(addr::SC4Effect_SetObject, &TSC4Effect_SetObject, &g_SC4Effect_SetObject)) &&
+          Detour(addr::SC4EffectDecal_Construct, &TSC4EffectDecal_Construct, &g_SC4EffectDecal_Construct) &&
+          Detour(addr::SC4CompoundEffect_Construct, &TSC4CompoundEffect_Construct, &g_SC4CompoundEffect_Construct)))
+        return false;
+    g_mxMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the makers of what a record holds %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredMakers = registry::Register({
+    "renderer.effects.makers",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectsManager_NewEffect,
+    "The effects manager's makers of effects of the first and second class, decals and compound effects: a free one "
+    "taken from the manager's list, or a new one allocated, constructed (the constructors are not part of it), set up "
+    "and entered in the list; with the decal's reset; compare mode runs both on the lists for a free one, and for a new "
+    "one the game's with its calls noted, ours replayed (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallMakers,
 });
 
 bool InstallEffects(registry::Mode mode)
