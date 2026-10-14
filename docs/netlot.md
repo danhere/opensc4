@@ -402,6 +402,79 @@ First runs (2026-10-14, the original against itself, 40 days, `OPENSC4_TEST_CREW
 
 Contrast run: the same control with `determinism.sim_timers=original` on both sides, 20 days, twice. The crews progressed the same in all four runs (30 pieces usable by day 20; with the change on, 54 by day 20). So the virtual clock alone already makes a crew repeat within one control, since it reads 1 ms per clock read on the main thread. What the change buys is that the crew's pace no longer depends on how many clock reads the rest of the program makes, which replaced code changes: the case of a parity run of the original against ours. This is also the likely cause of the zone tool's terrain flag that runs along an edge row to a run-dependent length, seen in the network lot work's zone tool leg.
 
+## The construction crew, part C1: state and life
+
+Ours in `src/core/crew_life.cpp` (class map, job record, vtable and fields in `src/core/crew_sim.h`, written so that the second part can include it). 23 functions, all detours at the game's addresses, in three groups that are off by default: `simulators.crew.life` (7), `simulators.crew.messages` (3) and `simulators.crew.pieces` (13). `OPENSC4_CREW_SKIP` lists addresses (hex, eight digits) to leave the game's, for bisecting; each function logs `crew: first <name>` once. Every call from one of them to another function of the crew goes to the game's address, so a group that is off, or a skipped function, is the game's; that includes the second part's job End 0x00606750, the job's NextPiece 0x00607AD0, the worker's Dismiss 0x00605800 and Tick 0x00607C30 (where `determinism.sim_timers` hooks it).
+
+The crew has no class ID, no factory and no save record; it is a bare cIGZMessageTarget2 of 0x54 bytes with one vtable (0x00AA74AC, 8 slots), made only by the network tool's PlaceAllSegments (0x0063BDC0) for the network types 0 to 3, 6 and 8 to 12. The tool calls AddRef, Init with six values from its tuning table (0x00B452C8 + type x 0x114: +0x1C, +0xC8, +0xCC, +0xD0, +0xD4, +0xD8), AddSegment per segment, Start and Release. Init registers the crew with the network manager, which keeps a reference; Shutdown unregisters it, and the manager's Release of it can be the last.
+
+| Function | Address | Group | What it does |
+| --- | --- | --- | --- |
+| constructor | 0x006070C0 | life | the vtable, every field zero, the piece list's head |
+| destructor | 0x00607130 | life | not virtual (Release calls it): the jobs destroyed, the three vectors' memory freed, the piece list destroyed (nothing released) |
+| Release (slot 2) | 0x00608C20 | life | above 1 the count at +0x10 down by one; else Shutdown (slot 5), the destructor, operator delete, 0 |
+| Init (slot 4) | 0x00607190 | life | `ret 0x18`, the two floats as their bits: the static pair's slot 6 when the byte 0x00B43E60 is clear; 1 at once for an initialised crew; else the manager's RegisterConstructionCrew, +0xC the count, +0x4 the truncation of seconds x 1000.0f, +0x8 the float of scale x 1e-6f, +0x20 to +0x28 the last three, the sound service (below), the piece list and the three vectors emptied, the notifications 0x99EF1143 and 0x26D31EC2, +0x14 set |
+| Shutdown (slot 5) | 0x00607920 | life | for an initialised crew: +0x14 cleared, the notifications removed, the frame service left (when +0x15), every job ended (End with 1), the pieces finished and released (FinishPieces with 1), the containers emptied, the sound service released, the manager's UnregisterConstructionCrew (which can destroy the crew: nothing touches it after) |
+| StaticInit (slot 6), StaticShutdown (slot 7) | 0x00605620, 0x00605640 | life | the byte 0x00B43E60 set or cleared; AL 1; nothing calls slot 7 |
+| DoMessage (slot 3) | 0x00607ED0 | messages | 0x26D31EC2 Shutdown; the frame message 0x86AD10EE Tick with its data 2; 0x99EF1143 OnOccupantRemoved with its void 1; AL 1 |
+| OnOccupantRemoved | 0x00607DA0 | messages | the removed occupant's piece out of each job's list (its workers dismissed first; the job's NextPiece when it is the current one) and out of the crew's list |
+| PostMessage | 0x006058C0 | messages | `ret 0x10`: a framework message (type, object, the crew as data 1, two data words) posted and released: the job's start (0x89F10866) and piece-done (0xA9F10E45) messages, sent only by a crew holding the sound service |
+| FinishPiece, FinishPieces | 0x00605870, 0x00605B30 | pieces | cdecl: the 0x4000 flag cleared when the service 0x00B43DC4's slot 22 answers 1, the occupant's slot 0x48 (1, 1), the usable flag set; FinishPieces over a list, releasing each piece when asked. FinishPieces is also called by three network tool functions (0x0062A5C0, 0x0062CD50, 0x0063B830): the detour at its address serves them with the game's convention |
+| IncrementWork, DecrementWork | 0x00605660, 0x006056D0 | pieces | cdecl: the work property 0xAA24AE57 up by one (added when missing; the answer is the value before) or down by one (not below 0; the answer is the new value) |
+| ResetJob | 0x00605A40 | pieces | a job made ready from the crew's values |
+| SegmentStep | 0x00605AC0 | pieces | `ret 0x1C`: one step along a segment, or true at its end record |
+| NextPiece, FindPieceAtCell | 0x00605BB0, 0x00605C60 | pieces | the piece after another in a list (referenced; whether the two cells are one apart), the node of the piece on a cell |
+| the job record | 0x00605CC0, 0x006068A0, 0x00606980, 0x00606A90, 0x00606AE0 | pieces | constructor, operator=, copy constructor, copy of a range, destruction of a range (0x80-byte records) |
+
+Not hooked: QueryInterface 0x005C3E30 and AddRef 0x004F7BA0, code other classes share.
+
+### game.quiet.network with our Init
+
+Two detours cannot share Init's entry. With `simulators.crew.life` on, our Init is at 0x00607190 and `game.quiet.network` does not hook: it hands our Init an observer (`crew_sim::SetQuietObserver`), and our Init then withholds the sound service itself and tells the observer after every call whether it did, which feeds the wrapper's counters and its log line `quiet: first construction crew started without the sound service` as before. The life group installs at PreAppInit and the wrapper at PostAppInit, so the wrapper knows which case it is in; it logs `quiet: construction crew Init wrapper is a switch in our translation` or `... sits on the game's entry`. The cases:
+
+- life on, quiet on: our Init at the entry with the switch on; the wrapper installs nothing.
+- life off, or Init on `OPENSC4_CREW_SKIP`, quiet on: the wrapper on the game's Init, as before (`crew life: Init on the skip list: the game's`).
+- life on, quiet off: our Init, the sound service stored as the game stores it.
+- The other order (a detour of ours already at the entry when the life group installs; not possible with today's phases): our Init stays out (`crew life: Init is already hooked; ours not installed there`) and the wrapper keeps the game's Init.
+
+The counts are the wrapper's: every Init call counts (also the early answer of an initialised crew), and a crew counts as left without sound when Init would have stored the service and did not because of the setting. The wrapper on the game's Init stores the service and gives it back; ours never takes it: the end state is the same.
+
+### The sounds plugin's byte
+
+sc4-disable-network-construction-sounds writes 0xEB over the `je` at 0x006071FC inside the game's Init (patch-census.md). With our Init that byte sits in code that no longer runs, so our Init reads it from the game's memory at every call (`cSC4NetworkConstructionCrew::SoundJump`, no expected bytes in its address entry) and, when it is 0xEB, does not store the service, as the patched game does; such a call is not counted as withheld by the setting, as with the wrapper. Each outcome is logged the first time: `crew: Init: the byte at 0x006071FC is 0xEB (...)`, `crew: Init: game.quiet.network: ...` or `crew: Init: the sound service is stored (byte at 0x006071FC 0x74, no switch)`. The hook layer's foreign-site check (foreign_sites.cpp) only knows jumps and calls, so the byte is handled here and not there.
+
+### The crew's clocks in part C1
+
+No function of C1 calls a stopwatch method that reads the clock, so C1 needs nothing new in `determinism.sim_timers`: the job's constructor calls SC4Stopwatch::Construct (0x0088FEDF: the mode and zeros) and the range destruction SC4Stopwatch::Destruct (0x00A6D837, a bare `ret`), neither hooked there; the job's operator= and copy constructor copy the stopwatch's bytes inline. Shutdown ends the jobs through the second part's End at its address, so End's Stop still returns into the crew's range; DoMessage calls Tick at its address, where the hook is. The second part (Start, the job's NextPiece and End, Tick) is where calls from core.dll would need a claim of their own.
+
+### Left for C2
+
+The workers (0x00605490 to 0x00605800, 0x00605D30 to 0x006066E0), the dust effect 0x00605940, the job's End 0x00606750, AddSegment 0x00606B50, the pedestrians 0x006072E0, the job's Begin 0x00607890 and NextPiece 0x00607AD0, Tick 0x00607C30, PlanJobs 0x00607F30 and Start 0x00608770.
+
+### The test for part C1
+
+`OPENSC4_TEST_CREW=<day>` (src/core/crew_autotest.cpp) makes the crews of six placements; on that day, through the crew's functions at the game's addresses (the game's or ours):
+
+- `life` (before the drags; `OPENSC4_TEST_CREW_LIFE=0` leaves it out): one crew made as the tool makes it (operator new, the constructor, AddRef, Init with the road record of the tool's tuning table), its fields after Init, Init again (the early answer), Shutdown, and the last Release (the destructor and operator delete). A checksum in the daily `crew` part (`life <hash>`) and a log line `autotest: crew: life: ...`.
+- `work` (after the drags): IncrementWork and DecrementWork on the new piece with the lowest cell, the property read before, between and after (it ends as it was).
+- `OPENSC4_TEST_CREW_PLUGIN=1`: the plugin's byte written at 0x006071FC before the life crew and the drags (the page made writable for the one byte and protected again; the main thread writes it, the only thread that runs crew code), so that every crew of the run goes without the sound service: the game's Init by its own patched code, ours by reading the byte. The `life` checksum is then the one a run with `game.quiet.network` gives (the sound bit is 0 in both; the log line shows it).
+
+What reaches each function: the placements reach the constructor, AddRef, Init, Start's calls (IncrementWork, ResetJob, the job record's functions, SegmentStep, FindPieceAtCell, NextPiece through the jobs), FinishPieces and FinishPiece as pieces are done, DecrementWork from Tick, DoMessage every frame, Release, and Shutdown when the last job ends; PostMessage only with the sound service; OnOccupantRemoved only when a piece under a crew is removed (add `OPENSC4_TEST_BULLDOZE` on a day while crews work); the shutdown message with a city closed while a crew works. StaticShutdown has no caller.
+
+Batch w1 (2026-10-14), part C1: before the first run `ret N` of the 23 functions against our signatures (no mismatch), the caller register scan (one hit, a `lea ecx,[ecx+0]` filler after a call of FindPieceAtCell: not a read) and the EAX scan (no hit), and an independent reading of the 23 functions and of the change to game_quiet.cpp against the disassembly (no difference in behaviour; with the switch on, the wrapper's AddRef and Release of the sound service are not made, the count is the same).
+
+The original against every network group of main and the three groups of this part, `OPENSC4_TEST_CREW=2 OPENSC4_TEST_TUTORIAL_OFF=1`, 40 days, `saves-networks` Rush Hour t0000 (six crews, 168 pieces):
+
+| Leg | Result |
+|---|---|
+| plain | the same on all 41 days, first pair; the `crew` part (with its `life` and `work` fields) identical every day |
+| with `game.quiet.network` on both sides | the same (the second pair; the first parted on day 9 in `propocc` only, one of the two values the original gives by itself there with crews at work); the original's wrapper on the game's Init, ours a switch in our Init, counters and crews the same |
+| with `OPENSC4_TEST_CREW_PLUGIN=1` (the sounds plugin's byte written) | the same on all 41 days; our Init saw 0xEB and left the sound service out, as the patched original did |
+
+With the same groups, 7 days: the 12 saves 12 of 12 plain and with the tests, `saves-networks` 3 of 3 plain and with the tests, every pair on the first try.
+
+Ran with ours (first-call log lines): 19 to 20 of the 23 in the crew legs. Not reached: OnOccupantRemoved (a piece removed under a working crew), StaticShutdown (no caller), and PostMessage only with the sound service (not in the quiet legs).
+
 ## The test
 
 The `netlot` part of the daily fingerprint (`src/core/netlot_autotest.cpp`) reaches the manager as the game does, by the city's slot 42, and calls everything through the vtables, so it runs the game's functions or ours. It holds no address and no reference count.

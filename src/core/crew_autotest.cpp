@@ -46,7 +46,34 @@
 // A log line each day while a crew is registered, and one on the day the
 // last has gone: `autotest: crew: day N: crews C, pieces waiting W, usable
 // U, lots L`.
+//
+// Added with our crew's first part (src/core/crew_life.cpp), on the drive
+// day, through the crew's functions at the game's addresses (so the game's
+// or ours, whichever is installed):
+//   life   before the drags, unless OPENSC4_TEST_CREW_LIFE=0: one crew made
+//          as the network tool makes it (operator new 0x54, the constructor,
+//          AddRef, Init with the road record of the tool's tuning table
+//          0x00B452C8), its fields read after Init (the time per piece, the
+//          scale's bits, the count, the initialised and frame-service
+//          bytes, whether it holds the sound service, Init's last three,
+//          the piece list's and the three vectors' lengths, whether the
+//          network manager now holds it, the static byte), Init again
+//          (the early answer), Shutdown (the bytes, the sound service gone,
+//          the manager let go of it), and the last Release (the destructor
+//          runs). A checksum of all of it, `life <hash>`; with
+//          game.quiet.network on, Init is counted by it as a placement's is
+//   work   after the drags: on the new piece with the lowest cell, the work
+//          property read, IncrementWork, read, DecrementWork, read (the
+//          property ends as it was): `work <before>,<inc>,<read>,<dec>,
+//          <read>` (FFFFFFFF for a piece without the property)
+// OPENSC4_TEST_CREW_PLUGIN=1 writes the byte 0xEB of the sounds plugin at
+// 0x006071FC (the game's code, made writable for the write and protected
+// again; the main thread, where every crew function runs, is the one
+// writing) before the life crew and the drags, as the plugin does at load:
+// every crew of the run then goes without the sound service, the game's
+// Init by its own code and ours by reading the byte.
 #include "core/autotest_hooks.h"
+#include "core/crew_sim.h"
 #include "core/game.h"
 #include "core/game_access.h"
 #include "core/log.h"
@@ -62,6 +89,8 @@
 #include <cISC4NetworkTool.h>
 
 #include <opensc4/addresses.h>
+
+#include <windows.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -118,6 +147,8 @@ bool g_driven = false;
 uint32_t g_lastCrews = 0;
 std::set<uint32_t> g_before; // cells ((x << 16) | z) that had a network piece before the drive
 uint32_t g_dialogs = 0;
+uint32_t g_lifeHash = 0;                                             // the `life` checksum
+uint32_t g_work[5] = {0xFFFFFFFFu, 0, 0xFFFFFFFFu, 0, 0xFFFFFFFFu}; // the `work` values
 
 // The city's network manager, once initialised; null otherwise.
 char* Manager(cISC4City* city)
@@ -372,6 +403,126 @@ void DriveTypes(cISC4City* city, char* manager)
     }
 }
 
+namespace crew = crew_sim;
+
+// OPENSC4_TEST_CREW_PLUGIN=1: the plugin's byte at 0x006071FC, written the
+// way the plugin writes it (only over the game's 0x74).
+void PatchSoundJump()
+{
+    if (EnvInt("OPENSC4_TEST_CREW_PLUGIN", 0) != 1)
+        return;
+    auto* const at = reinterpret_cast<uint8_t*>(addr::cSC4NetworkConstructionCrew_SoundJump);
+    const uint8_t was = *at;
+    DWORD protection = 0;
+    if (was != crew::kSoundJumpGame || !VirtualProtect(at, 1, PAGE_EXECUTE_READWRITE, &protection)) {
+        log::Write("autotest: crew: the byte at 0x006071FC is 0x%02X; not written", was);
+        return;
+    }
+    *at = crew::kSoundJumpPlugin;
+    VirtualProtect(at, 1, protection, &protection);
+    FlushInstructionCache(GetCurrentProcess(), at, 1);
+    log::Write("autotest: crew: the sounds plugin's byte written at 0x006071FC (0x%02X, now 0x%02X)", was, *at);
+}
+
+uint32_t VectorLength(char* object, std::size_t offset, std::size_t element)
+{
+    const auto* const v = reinterpret_cast<const crew::Vector*>(object + offset);
+    return static_cast<uint32_t>(static_cast<std::size_t>(v->end - v->begin) / element);
+}
+
+// The `life` part (see the top of the file).
+void LifeTest(char* manager)
+{
+    if (EnvInt("OPENSC4_TEST_CREW_LIFE", 1) == 0)
+        return;
+    const char* const record = reinterpret_cast<const char*>(addr::cSC4NetworkConstructionCrew_NetworkToolTuning) +
+                               cISC4NetworkOccupant::Road * crew::tuning::kRecordSize;
+    auto value = [record](std::size_t offset) { return *reinterpret_cast<const uint32_t*>(record + offset); };
+    const uint32_t count = value(crew::tuning::kCount), seconds = value(crew::tuning::kSeconds);
+    const uint32_t scale = value(crew::tuning::kScale), a = value(crew::tuning::kA), b = value(crew::tuning::kB);
+    const uint32_t c = value(crew::tuning::kC);
+    void* const memory = crew::CallCdecl<void*, uint32_t>(addr::SC4_operator_new, uint32_t{crew::kObjectSize});
+    if (!memory) {
+        log::Write("autotest: crew: life: no memory");
+        return;
+    }
+    char* const self = crew::CallThis<char*>(addr::cSC4NetworkConstructionCrew_cSC4NetworkConstructionCrew, memory);
+    crew::AddRefOf(self);
+    const uint32_t before = CrewCount(manager);
+    Hash h;
+    for (const uint32_t v : {count, seconds, scale, a, b, c})
+        h.Mix(v);
+    const uint8_t first = Virtual<uint8_t>(self, crew::slot::kInit, count, seconds, scale, a, b, c);
+    const uint32_t milliseconds = At<uint32_t>(self, crew::field::kPieceMilliseconds);
+    const bool sound = At<void*>(self, crew::field::kSound) != nullptr;
+    const int32_t registered = static_cast<int32_t>(CrewCount(manager) - before);
+    h.Mix(first);
+    h.Mix(milliseconds);
+    for (const std::size_t offset : {crew::field::kScale, crew::field::kCount, crew::field::kWorkerValueA,
+                                     crew::field::kWorkerValueB, crew::field::kValueC})
+        h.Mix(At<uint32_t>(self, offset));
+    h.Mix(At<uint8_t>(self, crew::field::kInitialized));
+    h.Mix(At<uint8_t>(self, crew::field::kInFrameService));
+    h.Mix(sound);
+    h.Mix(ListLength(self + crew::field::kPieces));
+    h.Mix(VectorLength(self, crew::field::kSegments, 12));
+    h.Mix(VectorLength(self, crew::field::kRecords, 8));
+    h.Mix(VectorLength(self, crew::field::kJobs, crew::kJobSize));
+    h.Mix(static_cast<uint32_t>(registered));
+    h.Mix(Global<uint8_t>(addr::cSC4NetworkConstructionCrew_StaticInitialized));
+    const uint8_t again = Virtual<uint8_t>(self, crew::slot::kInit, count, seconds, scale, a, b, c);
+    h.Mix(again);
+    h.Mix(static_cast<uint32_t>(CrewCount(manager) - before));
+    const uint8_t down = Virtual<uint8_t>(self, crew::slot::kShutdown);
+    const bool soundAfter = At<void*>(self, crew::field::kSound) != nullptr;
+    const int32_t registeredAfter = static_cast<int32_t>(CrewCount(manager) - before);
+    for (const uint32_t v : {uint32_t{down}, uint32_t{At<uint8_t>(self, crew::field::kInitialized)},
+                             uint32_t{soundAfter}, static_cast<uint32_t>(registeredAfter)})
+        h.Mix(v);
+    const uint32_t left = crew::ReleaseOf(self); // 0: the destructor ran and the memory is gone
+    g_lifeHash = h.h;
+    log::Write("autotest: crew: life: Init %u (piece %u ms, count %u, sound %u, registered %d), again %u, Shutdown %u "
+               "(sound %u, registered %d), last Release %u; life %08X",
+               first, milliseconds, count, sound, registered, again, down, soundAfter, registeredAfter, left, h.h);
+}
+
+// The `work` part (see the top of the file).
+void WorkTest(cISC4City* city)
+{
+    std::vector<char*> pieces;
+    char* chosen = nullptr;
+    uint32_t best = 0;
+    if (Collect(city, pieces))
+        for (char* const self : pieces) {
+            const uint32_t cell = CellKey(self);
+            if (g_before.count(cell))
+                continue;
+            if (!chosen || cell < best ||
+                (cell == best &&
+                 Virtual<uint32_t>(self, piece::slot::kPieceId) < Virtual<uint32_t>(chosen, piece::slot::kPieceId))) {
+                chosen = self;
+                best = cell;
+            }
+        }
+    if (!chosen) {
+        log::Write("autotest: crew: work: no new piece");
+        return;
+    }
+    auto read = [](char* self) {
+        uint32_t work = 0;
+        const bool found = netmgr_sim::CallCdecl<uint8_t, void*, uint32_t, uint32_t*>(
+                               addr::SC4_GetPropertyUint32, self + piece::field::kHolder, kWorkProperty, &work) != 0;
+        return found ? work : 0xFFFFFFFFu;
+    };
+    g_work[0] = read(chosen);
+    g_work[1] = crew::CallCdecl<uint32_t, void*>(addr::cSC4NetworkConstructionCrew_IncrementWork, chosen);
+    g_work[2] = read(chosen);
+    g_work[3] = crew::CallCdecl<uint32_t, void*>(addr::cSC4NetworkConstructionCrew_DecrementWork, chosen);
+    g_work[4] = read(chosen);
+    log::Write("autotest: crew: work: piece at (%u,%u): %08X, IncrementWork %u, %08X, DecrementWork %u, %08X",
+               best >> 16, best & 0xFFFF, g_work[0], g_work[1], g_work[2], g_work[3], g_work[4]);
+}
+
 void Drive(const Day& day)
 {
     if (Env("OPENSC4_TEST_CREW").empty() || !day.counted)
@@ -388,7 +539,10 @@ void Drive(const Day& day)
         for (char* const self : pieces)
             g_before.insert(CellKey(self));
         g_driven = true;
+        PatchSoundJump();
+        LifeTest(manager);
         DriveTypes(day.city, manager);
+        WorkTest(day.city);
         const State s = ReadState(day.city, manager);
         log::Write("autotest: crew: drive done: crews %u, jobs %u, %u new pieces, %u dialogs", s.crews, s.jobs,
                    s.made, g_dialogs);
@@ -417,10 +571,13 @@ void Fingerprint(cISC4City* city, std::string& line)
         return;
     }
     const State s = ReadState(city, manager);
-    char text[192];
-    std::snprintf(text, sizeof text, " | crew %u,%u,%u,%u wait %u,%u,%u unusable %u lots %u new %u,%u,%08X,%08X",
+    char text[288];
+    std::snprintf(text, sizeof text,
+                  " | crew %u,%u,%u,%u wait %u,%u,%u unusable %u lots %u new %u,%u,%08X,%08X life %08X work "
+                  "%08X,%u,%08X,%u,%08X",
                   s.crews, s.jobs, s.active, s.queued, s.tagged, s.waiting, s.tagSum, s.unusable, s.lots, s.made,
-                  s.madeUsable, s.madeSum, s.madeXor);
+                  s.madeUsable, s.madeSum, s.madeXor, g_lifeHash, g_work[0], g_work[1], g_work[2], g_work[3],
+                  g_work[4]);
     line += text;
 }
 
