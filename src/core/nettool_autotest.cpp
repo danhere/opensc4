@@ -118,6 +118,21 @@
 // the cache emptied again. It leaves the road tool's cache empty (whatever
 // a drag left in it before is gone) and is therefore behind its own switch.
 // One log line `autotest: nettool: cells: ...` gives the counts.
+//
+// Part t3 adds ` lf <hash>` to the daily part, after `ch`: per tool what the
+// constructor, Init and DoMessage leave (MixLife below: the vertex counts
+// and steps, the terrain's floats, the message's word, the bridge kind
+// lists, the filter's mask and the preview drawable's state, never an
+// address). OPENSC4_TEST_NETTOOL_LIFE=<bits> (with OPENSC4_TEST_NETTOOL=<day>)
+// adds on that day a new tool of each type (GetNetworkTool with `unique`:
+// the constructors, the game's three of their own calling ours) through its
+// life: the fields; AddRef; Init twice (the second does nothing); Reset
+// (its answer the emptied rule records' begin); slots 17 and 16; with bit 2
+// GetUITool (the UI object released); DoMessage with a message of another
+// type and then of 0xA6B79602 (a stand-in message of the test's; the word
+// put back after); Shutdown twice; Init and Shutdown again; Release, which
+// deletes the tool (slot 51, the destructor, the drawable's). One log line
+// `autotest: nettool: life: ...` gives the counts.
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/game_access.h"
@@ -500,6 +515,43 @@ void MixCache(Hash& hash, char* self, uint32_t& cells, uint32_t& saved, uint32_t
     MixTableSum(hash, backup, copy);
 }
 
+// ---- Part t3: the life fields ----------------------------------------------------
+
+namespace life = nettool_sim::life;
+namespace preview = nettool_sim::preview;
+
+// What Init, the constructor and DoMessage leave (the `lf` hash): the vertex
+// counts and steps, the terrain's two floats and the angle, the message's
+// word, the bridge kind lists, the filter and its mask, the preview list's
+// presence and the drawable's non-pointer state (its vtables as known or
+// not, the reference count, the two trees' counts, the state bytes +0x48 to
+// +0x54). Never an address.
+void MixLife(Hash& hash, char* self)
+{
+    hash.Mix(At<uint32_t>(self, field::kType));
+    for (std::size_t at = life::kVerticesX; at < field::kParams; at += 4)
+        hash.Mix(At<uint32_t>(self, at));
+    for (const std::size_t at : {life::kTerrainScale, life::kTerrainTan, life::kAngle, field::kRefreshWord})
+        hash.Mix(At<uint32_t>(self, at));
+    MixWords(hash, At<Vector>(self, life::kBridgesBy99));
+    MixWords(hash, At<Vector>(self, life::kBridgesBy98));
+    char* const filter = At<char*>(self, field::kFilter);
+    hash.Mix(filter ? At<uint32_t>(filter, 0xC) : 0xFFFFFFFFu);
+    hash.Mix(At<void*>(self, life::kPreviewList) ? 1u : 0u);
+    char* const drawable = At<char*>(self, field::kPreview);
+    if (!drawable) {
+        hash.Mix(0xFFFFFFFFu);
+        return;
+    }
+    hash.Mix(At<std::uintptr_t>(drawable, 0) == addr::cSC4NetworkToolPreview_vftable ? 1u : 0u);
+    hash.Mix(At<std::uintptr_t>(drawable, preview::kBase) == addr::cSC4NetworkToolPreview_BaseVftable ? 1u : 0u);
+    hash.Mix(At<uint32_t>(drawable, preview::kBase + 4));
+    hash.Mix(At<uint32_t>(drawable, preview::kCells + 4));
+    hash.Mix(At<uint32_t>(drawable, preview::kTextured + 4));
+    hash.Mix(At<void*>(drawable, preview::kMaterial) ? 1u : 0u);
+    hash.MixBytes(drawable + preview::kStatesEnd, drawable + preview::kSize);
+}
+
 // ---- The drive -------------------------------------------------------------------
 
 bool g_setDone = false;
@@ -690,6 +742,85 @@ void DriveCells(Hash& hash, cISC4NetworkManager* manager, CellsRan& ran)
     Virtual<uint32_t>(self, slot::kRelease);
 }
 
+// OPENSC4_TEST_NETTOOL_LIFE (part t3; see the top of the file): a new tool
+// of each type through its whole life.
+constexpr uint32_t kOtherMessage = 0x0F10A0CC, kMessageWord = 0x00C0FFEE;
+
+uint32_t __fastcall FakeRefreshType(void*, void*) { return life::kRefreshMessage; }
+uint32_t __fastcall FakeOtherType(void*, void*) { return kOtherMessage; }
+uint32_t* __fastcall FakeData(void*, void*)
+{
+    static uint32_t word = kMessageWord;
+    return &word;
+}
+// A message as DoMessage reads it: slot 4 (+0x10) its type, slot 15 (+0x3C)
+// the address of its first data word.
+struct FakeMessage {
+    const void* const* vtable;
+};
+
+struct LifeRan {
+    uint32_t made = 0, inits = 0, resets = 0, uis = 0, messages = 0, deleted = 0;
+};
+
+void DriveLife(Hash& hash, cISC4NetworkManager* manager, int32_t bits, LifeRan& ran)
+{
+    const void* refreshSlots[16] = {};
+    const void* otherSlots[16] = {};
+    refreshSlots[4] = reinterpret_cast<const void*>(&FakeRefreshType);
+    otherSlots[4] = reinterpret_cast<const void*>(&FakeOtherType);
+    refreshSlots[15] = otherSlots[15] = reinterpret_cast<const void*>(&FakeData);
+    FakeMessage refresh{refreshSlots}, other{otherSlots};
+    for (uint32_t type = 0; type < nettool_sim::kTypes; ++type) {
+        char* const self = reinterpret_cast<char*>(manager->GetNetworkTool(static_cast<int32_t>(type), true));
+        hash.Mix(self ? 1u : 0u);
+        if (!self)
+            continue;
+        ++ran.made;
+        hash.Mix(VtableIndex(self));
+        MixFields(hash, self);
+        MixLife(hash, self);
+        Virtual<uint32_t>(self, slot::kAddRef);
+        hash.Mix(Virtual<uint8_t>(self, slot::kInit));
+        hash.Mix(Virtual<uint8_t>(self, slot::kInit));
+        ++ran.inits;
+        MixFields(hash, self);
+        MixLife(hash, self);
+        char* const end = Virtual<char*>(self, slot::kReset);
+        hash.Mix(end == At<Vector>(self, life::kRuleCells).begin ? 1u : 0u);
+        ++ran.resets;
+        MixFields(hash, self);
+        Virtual<void>(self, slot::kClearCellPreviews);
+        Virtual<void>(self, slot::kClearOccupantHighlights);
+        MixLife(hash, self);
+        if (bits & 2) {
+            void* ui = nullptr;
+            hash.Mix(Virtual<uint8_t>(self, slot::kGetUITool, &ui));
+            hash.Mix(ui ? 1u : 0u);
+            if (ui) {
+                ReleaseOf(ui);
+                ++ran.uis;
+            }
+        }
+        const uint32_t wordWas = At<uint32_t>(self, field::kRefreshWord);
+        hash.Mix(Virtual<uint8_t>(self + nettool_sim::kMessagePart, slot::kDoMessage, &other));
+        hash.Mix(At<uint32_t>(self, field::kRefreshWord));
+        hash.Mix(Virtual<uint8_t>(self + nettool_sim::kMessagePart, slot::kDoMessage, &refresh));
+        hash.Mix(At<uint32_t>(self, field::kRefreshWord));
+        At<uint32_t>(self, field::kRefreshWord) = wordWas;
+        ++ran.messages;
+        hash.Mix(Virtual<uint8_t>(self, slot::kShutdown));
+        hash.Mix(Virtual<uint8_t>(self, slot::kShutdown));
+        MixFields(hash, self);
+        MixLife(hash, self);
+        hash.Mix(Virtual<uint8_t>(self, slot::kInit));
+        MixLife(hash, self);
+        hash.Mix(Virtual<uint8_t>(self, slot::kShutdown));
+        hash.Mix(Virtual<uint32_t>(self, slot::kRelease));
+        ++ran.deleted;
+    }
+}
+
 void Drive(const Day& day)
 {
     if (g_setDone || !day.counted || !OnRunDay(day, "OPENSC4_TEST_NETTOOL"))
@@ -715,6 +846,13 @@ void Drive(const Day& day)
                    cells.asked, cells.found, cells.cached, cells.saved, cells.restored, cells.collected,
                    cells.walked);
     }
+    if (const int32_t bits = EnvInt("OPENSC4_TEST_NETTOOL_LIFE", 0); bits > 0) {
+        LifeRan life;
+        DriveLife(hash, manager, bits, life);
+        log::Write("autotest: nettool: life: %u made, %u initialised, %u reset, %u UI objects, %u messages, %u "
+                   "deleted",
+                   life.made, life.inits, life.resets, life.uis, life.messages, life.deleted);
+    }
     g_setDone = true;
     g_setSum = hash.h;
     log::Write("autotest: nettool: drive: %u tools, texts on %u, step counts on %u, anchors on %u, zone change on "
@@ -729,7 +867,7 @@ void Fingerprint(cISC4City* city, std::string& line)
         line += " | nettool none";
         return;
     }
-    Hash fields, queries, ids, bridges, caches;
+    Hash fields, queries, ids, bridges, caches, lives;
     uint32_t tools = 0, initialised = 0, rows = 0, records = 0, keyed = 0, failing = 0, used = 0, costs = 0;
     uint32_t cells = 0, saved = 0, found = 0;
     for (uint32_t type = 0; type < nettool_sim::kTypes; ++type) {
@@ -745,6 +883,7 @@ void Fingerprint(cISC4City* city, std::string& line)
         used += Count(self, field::kSolved, 1) != 0 || Count(self, field::kSteps, 1) != 0;
         costs += MixQueries(queries, self) ? 1u : 0u;
         MixCache(caches, self, cells, saved, found);
+        MixLife(lives, self);
         if (!At<char*>(self, field::kRow))
             continue;
         ++rows;
@@ -758,7 +897,7 @@ void Fingerprint(cISC4City* city, std::string& line)
                   tools, initialised, rows, used, costs, records, keyed, failing, fields.h, queries.h, ids.h,
                   bridges.h);
     line += text;
-    std::snprintf(text, sizeof text, " cells %u,%u,%u ch %08X", cells, saved, found, caches.h);
+    std::snprintf(text, sizeof text, " cells %u,%u,%u ch %08X lf %08X", cells, saved, found, caches.h, lives.h);
     line += text;
     if (g_setDone) {
         std::snprintf(text, sizeof text, " set %08X", g_setSum);

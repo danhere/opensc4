@@ -1,6 +1,6 @@
 # The network tool (cSC4NetworkTool)
 
-The tool a player's drag of a network goes through: it turns the dragged cells into solved cells (a piece ID, a rotation and a flip per cell), fits the heights to the terrain, picks bridges and tunnels, asks the player about intersections, previews the result, works out the cost and places the pieces (handing them to a construction crew where the type has one). The network manager keeps one tool per network type and hands them to the network view's input controls, to its own lot and removal code and to the demolition. Nothing of the tool is saved. With it come the RUL engine that loads the networks' rule files at every city load, a vertex height constraint satisfier, a world cache of cell infos, a tool UI object and three tools of their own (pipe, subway, power line). The whole piece is 612 functions (196.5 KB); the tool proper is about 250. It is reimplemented in parts (below); this page has the first, the state and queries (46 functions, 43 of them ours), and the second, the world cache and the cell infos (25 functions, 23 of them ours). Build 641 addresses throughout (the address entries of these parts come from the specs `p6/nettool1.spec` and `p6/nettool2.spec` in the tools folder, with the survey's files).
+The tool a player's drag of a network goes through: it turns the dragged cells into solved cells (a piece ID, a rotation and a flip per cell), fits the heights to the terrain, picks bridges and tunnels, asks the player about intersections, previews the result, works out the cost and places the pieces (handing them to a construction crew where the type has one). The network manager keeps one tool per network type and hands them to the network view's input controls, to its own lot and removal code and to the demolition. Nothing of the tool is saved. With it come the RUL engine that loads the networks' rule files at every city load, a vertex height constraint satisfier, a world cache of cell infos, a tool UI object and three tools of their own (pipe, subway, power line). The whole piece is 612 functions (196.5 KB); the tool proper is about 250. It is reimplemented in parts (below); this page has the first, the state and queries (46 functions, 43 of them ours), the second, the world cache and the cell infos (25 functions, 23 of them ours), and the third, the tool's life and its preview drawable (27 functions, 23 of them ours). Build 641 addresses throughout (the address entries of these parts come from the specs `p6/nettool1.spec`, `p6/nettool2.spec` and `t3/nettool3.spec` in the tools folder, with the survey's files).
 
 ## The class
 
@@ -133,7 +133,7 @@ The survey's split (`p6/survey.txt`, section 5), in the order planned: state and
 | --- | --- | --- | --- | --- |
 | t1 state and queries | 46 | 1,749 | none | this page |
 | t2 cache and cells | 25 | 4,834 | none | the world cache, the cell info lookup and making (NAM calls 0x00647A20 and 0x00633220), slot 71; [below](#what-the-second-part-covers) |
-| t3 life and previews | 27 | 5,715 | none | constructor, destructors, Init, Shutdown, Reset, DoMessage, GetUITool, the two Clear slots, the preview drawable (its three drawing functions may stay for the Renderer) |
+| t3 life and previews | 27 | 5,715 | none | constructor, destructors, Init, Shutdown, Reset, DoMessage, GetUITool, the two Clear slots, the preview drawable but its three drawing functions; [below](#what-the-third-part-covers) |
 | s1 satisfier | 46 | 8,850 | 0x0065ED80 | the vertex height constraint satisfier |
 | r1 to r5 the RUL engine | 157 | 47,007 | 0x0063D1E0 | the load, the network ini, the rule records and the three parsers |
 | t4 previews and highlights | 23 | 6,671 | none | AddCellPreview, UpdateOccupantHighlights, DestroyHighlighted, SetQuadTrianglesToDraw |
@@ -276,6 +276,52 @@ NAM's DLL calls GetCell 0x00647A20 (with the cache) and the cell entry 0x0063322
 
 The cache's life (constructor, destructor, clear) runs at every load. Slot 71, ClearCellIndices, SaveCells and RestoreCells are called by the segment placer 0x0063B830 (at 0x0063BA6E, 0x0063BA5D and around them), which PlaceAllSegments runs for each segment: the crew test's drags (`OPENSC4_TEST_CREW`) reach them, though no coverage run has measured it yet. CollectCells is called only by the underground tools' slot 70 (StartPlacing, 0x00658710), which no test drives. MarkRuleCells is reached only by the network view's puzzle piece controls: no test reaches it.
 
+## What the third part covers
+
+All in `src/core/nettool_life.cpp`, two groups, off by default: `simulators.nettool.life` (14 detours) and `simulators.nettool.preview` (9 detours). The same skip list (`OPENSC4_NETTOOL_SKIP`) and first-call lines (`nettool: first <name>`) as the other parts; every call between these functions goes to the game's address. None of the nine guarded functions is in this part, NAM's DLL calls none of it, and none of it calls a guarded function.
+
+### The tool's life
+
+| Function | Address | What it does |
+| --- | --- | --- |
+| the constructor | 0x0062C5F0 | ret 4 (the type): the two vtables (the part at +4 first gets 0x00A81174), the world cache (0x00648000), the three hash sets with 100 buckets, the two satisfiers (0x00660810), the mask of the other surface networks, the bridge settings, the two trees' 0x14-byte head nodes, the preview update byte, the type; every other word it writes is 0. The failure reason +0x20C, the byte +0x51 and the words +0x6C to +0x80 are not written. EAX this. The pipe, subway, power line and underground constructors call it at its address |
+| Init (slot 3) | 0x006269C0 | once until Shutdown: the type row; on the first Init after a resource load (the byte 0x00B452A8), the app's slot 0x114 gets the callback 0x006232F0 that clears the byte again and the RUL engine loads (0x006253D0); slot 79 with the type's word of 0x00AA8428; a new preview drawable assigned as a reference, its render state set up (0x0061FD10, the game's) and registered with the render service 0x00B43DD0 (slot 0x80, layer 5, priority 1000); the class mask and a filter of it; the placement parameters; the bridge kind lists (below); +0x354; the city's size and the vertex steps derived from it; the terrain (its slot 0x18 into +0x238), the occupant manager and the city's slot 0x84 object, each referenced; +0x23C = FPTAN of the parameters' float +0x18 times +0x238 (the x87 instructions themselves); the render service's slot 0x28 object's +0x14 into +0xFC; a network occupant made from the pool, its slots 3 and 4 run and released; the message 0xA6B79602 subscribed. AL 1 |
+| Shutdown (slot 4) | 0x00626D30 | when initialised: the message unsubscribed, the possible bridges emptied, slot 17, the anchors and the dragged cells emptied, slot 16, the city object +0x4C, the occupant manager, the terrain and the filter released and nulled, the drawable unregistered (slot 0x84), its material released (0x0061FBC0) and the drawable released; +0x18 cleared. AL 1 |
+| Reset (slot 5) | 0x00626F90 | the world cache emptied, slots 17 and 16, the anchors and dragged cells emptied, the bridge settings back to none, the possible bridges emptied, slot 13, the rule cell records +0xF0 emptied through 0x00624070 (EAX their new end, as the game's last instruction leaves it) |
+| GetUITool (slot 6) | 0x00623B20 | a new 0x134-byte tool UI object (0x00645D50), referenced, attached to the tool and its type (0x00645240, part ui1), given to the caller. AL 1 |
+| DoMessage | 0x00624480 | the part at +4 of every tool of the family: the message 0xA6B79602's first data word into +0xFC. AL 1 |
+| ClearOccupantHighlights (slot 16) | 0x00625580 | the drawable's trees emptied (0x006208D0; the drawable is not tested for null, as in the game), each highlighted occupant given to the occupant manager's slot 0x54 (the occupant, 1, 0) and released, then the tree emptied (SC4RefSet::EraseSubtree, which releases each again, as the game's does) |
+| ClearCellPreviews (slot 17) | 0x00625F10 | each cell preview's slot 0x44 with two zeros, the tree emptied, then the preview list +0x210 freed with the objects it holds |
+| the destructor | 0x0062CAF0 | the vtables back, Shutdown at its address, then every container freed in the game's order and the world cache destroyed |
+| the deleting destructor (slot 51) | 0x0062CD30 | the destructor, operator delete when bit 0 is set; EAX this |
+| DestroyPlacementParams | 0x00624F70 | the parameters' five vectors freed (also the RUL engine's 0x00643510 and the tool UI's 0x00645E90) |
+| DestroyIntersections | 0x0062BE40 | the 0x28-byte elements' pointer +0x1C freed, then the vector (also 0x0062BFE0) |
+| DestroyMajorBridges | 0x0062C590 | cdecl (first, last, a tag): each element's 0x50-byte entries' pointer +0x44 freed, then its vector (also called by 0x0062CD50, 0x006323E0, 0x0063B830) |
+| ListBridgeKinds | 0x0062F9D0 | cdecl (the row's bridge records, the tool's +0x33C, +0x348): both emptied, then each record's index appended to +0x348 when its byte +0x98 is set and to +0x33C when its byte +0x99 is |
+
+One oddity kept: Init's +0x354 ("the type has a bridge record") tests the address of each record's byte +0x98, not the byte, so any record sets it.
+
+### The preview drawable
+
+0x58 bytes (constructor 0x00620AD0, made by Init, kept at +0x1F0): +0x0 its vtable 0x00AA8314, +0x4 a cRZBaseUnknown part (vtable 0x00AA82FC, the reference count +0x8), +0xC a material the render state setup makes, +0x10 / +0x14 a tree of 0x7C-byte cell nodes, +0x1C / +0x20 a tree of 0x80-byte nodes each holding a texture binding at +0x7C, +0x28 to +0x44 four render states, +0x48 to +0x53 render state bytes, +0x54 the setup has run.
+
+| Function | Address | What it does |
+| --- | --- | --- |
+| the constructor | 0x00620AD0 | the first vtable 0x00A881C0, the cRZBaseUnknown part (0x0090DA1E), the final vtables, the two tree heads, the states cleared, the state bytes; EAX this |
+| the destructor | 0x00620770 | both trees emptied and their heads freed, the material released, the cRZBaseUnknown part's destructor (0x0090D990) |
+| the deleting destructor | 0x00620BA0 | the destructor, operator delete when bit 0 is set (the part at +4 reaches it through the game's thunk 0x00620810) |
+| Clear | 0x006208D0 | both trees emptied, the heads kept |
+| ReleaseMaterial | 0x0061FBC0 | when the setup has run, the material released and nulled, the flag cleared |
+| the tree helpers | 0x0061FCD0, 0x006203A0, 0x006202E0, 0x006206A0 | a subtree freed (the textured tree's releasing each texture binding, 0x008090E0) and a range erased node by node (0x0040DAF0), or the whole tree when the range is all of it; the range erasers' caller is part t4 (0x00620CF0) |
+
+### What stays the game's
+
+- The drawable's drawing: the render state setup 0x0061FD10 (Init calls it at its address), the draw slot 0x00620500 and the batch drawing 0x00620160 under it. Drawing is the Renderer thread's.
+- The adjustor thunk 0x00620810 (`sub ecx, 4; jmp 0x00620BA0`) of the drawable's part at +4: it jumps to our deleting destructor.
+- Called at their addresses and not this part's: the rule loader 0x006253D0 and its reset callback 0x006232F0 (r1), the tool UI's constructor and attach (ui1), the satisfiers' constructor and destructor (s1), the network occupant's pool and constructor, the filter's constructor, CopyPlacementParams (t1), the world cache's constructor, destructor and Reset (t2), and the shared template code (the hash set's construction and clear, SC4RefSet::EraseSubtree, SC4PtrVector::InsertN, the record move 0x00624070, the tree rebalance, the texture binding's release).
+
+Registers: plain detours (ECX and EDX clobbered). The register scan of every direct game caller (52 call sites of the 23 functions) found none that reads ECX or EDX after the call; the only callers that read EAX take the constructors' `this`, which ours return.
+
 ## The test
 
 `src/core/nettool_autotest.cpp`. The fingerprint part ` | nettool ...` (order 175) is always on (` | nettool none` before the network manager is initialised). It reads the manager's 13 kept tools (GetNetworkTool with `unique` 0) through their vtables, so it runs the game's functions or ours, and mixes:
@@ -295,6 +341,8 @@ Not in it: OccupantExists, because its lookup makes a cell info when the cache h
 The part also prints, for part t2, ` cells <cells>,<copies>,<found> ch <hash>`: over the 13 tools' world caches, the cells walked in the cells' tables, the cells in the copies, how many walked cells GetCell (through its address) gives back as the same node, and per tool the type, both tables' counts and an order-free sum and xor of each cell's hash (the key and every field but the occupant pointer, the padding and the second pairs +0x88 to +0xA4, which the game's 0x00632EF0 leaves as its stack had them: that stack differs once our code has run at that depth before it). The drive below hashes the second pairs too: its cells come only from the maker 0x00633030, which sets them. It only reads: the cell entry 0x00633220 is not called (it makes cell infos, and on a shut-down tool its maker would use the null terrain and occupant manager). The cache is valid in every state the game leaves a tool in: the constructor makes it, Shutdown leaves it, only Reset and the placement code clear it.
 
 `OPENSC4_TEST_NETTOOL_CELLS=1`, with `OPENSC4_TEST_NETTOOL=<day>`, adds on that day the world cache's functions on the road tool (type 0), as the game's own callers use a tool (AddRef, Init, the calls, Shutdown, Release), and only when the game has not left it initialised: the cache emptied (Reset 0x00647B20), the cell entry 0x00633220 for every fourth cell in x and z (it makes the cell info of each cell that has a network occupant, through the maker, the constructor, the edge sum, the copy, the assignment, the find-or-insert and the node insert) and each found cell's hash; the cache's sums; SaveCells and the copy's sums; the cells' table cleared and RestoreCells; ClearCellIndices; CollectCells into a vector of the test's (each cell's hash in order; the occupants released and the memory freed after); the neighbour walker's two slots in four directions on the first 16 cells found (an object on the test's stack with the vtable 0x00AA8700, laid out as 0x00627080 makes it); and the cache emptied again. It leaves the road tool's cache empty, whatever a drag had left there, so it is a switch of its own. One log line `autotest: nettool: cells: ...` gives the counts; the checksum goes into ` set`.
+
+Part t3 adds ` lf <hash>` after `ch`: per tool what the constructor, Init and DoMessage leave: the vertex counts and the sixteen vertex steps, the terrain's two floats and the angle, the message's word +0xFC, the two bridge kind lists, the filter's mask, whether there is a preview list, and the preview drawable's state (whether its vtables are the known ones, its reference count, its two trees' counts, whether it has a material, and the bytes +0x48 to +0x57). `OPENSC4_TEST_NETTOOL_LIFE=<bits>`, with `OPENSC4_TEST_NETTOOL=<day>`, adds on that day a new tool of each type (GetNetworkTool with `unique`, so the constructors, the three classes of their own calling ours) through its life, each step's fields and `lf` hash mixed: AddRef; Init twice (the second does nothing); Reset (whether its answer is the rule records' begin); slots 17 and 16; with bit 2 GetUITool (the UI object released after); DoMessage with a stand-in message of another type and then of 0xA6B79602 (its word put back after); Shutdown twice; Init and Shutdown again; Release, which deletes the tool through slot 51 (the destructors of the tool and of its drawable). One log line `autotest: nettool: life: ...` gives the counts.
 
 Unreached by these tests and by every coverage run so far: everything that needs a drag (the steps, the dragged cells, the major bridges, the neighbour connections and the possible bridges are empty on the kept tools), GetNetworkOccupantAt, the direction and edge helpers, CopyWord and GetLowestNetworkTypeFromFlags (their callers are drag and placement code). OPENSC4_TEST_CREW's drags reach some of them through PlaceAllSegments.
 
@@ -329,3 +377,17 @@ The original against every network group of main, the seven crew groups and the 
 The cells drive on Rush Hour t0000 asks 1,024 cells, finds 46, and caches, saves, restores and collects 46 and walks 16, the same on both sides.
 
 Ran with ours (first-call log lines): 22 of the 23. MarkRuleCells did not run: it is reached only when a RUL0 override rule matches during a drag, and no test drag in these cities meets one.
+
+Batch b1 (2026-10-14), part t3: before the first run `ret N` of the 23 detours against our signatures (no mismatch), the caller register scan (52 direct call sites; none reads ECX or EDX after the call) and the EAX scan (only the constructors' `this` is read, which ours return), and an independent reading of all 23 functions against the disassembly (no difference in behaviour).
+
+The original against every network group of main, the seven crew groups and the seven groups of parts t1 to t3 (B list `nall19.txt`):
+
+| Leg | Saves | Result |
+|---|---|---|
+| plain | the 12 saves; `saves-networks` | 12 of 12; 3 of 3, the first pair |
+| `OPENSC4_TEST_NETTOOL=3 OPENSC4_TEST_NETTOOL_CELLS=1 OPENSC4_TEST_NETTOOL_LIFE=3` (with the other network tests) | the 12 saves; `saves-networks` | 12 of 12; 3 of 3, the first pair |
+| `OPENSC4_TEST_CREW=2 OPENSC4_TEST_NETTOOL=3 OPENSC4_TEST_NETTOOL_LIFE=3 OPENSC4_TEST_TUTORIAL_OFF=1`, 20 days | `saves-networks` Rush Hour t0000 | partly: from day 9 the `propocc` part has two values (four prop records of one lot in another order), A one of them in 4 runs, B both in 4; B's second value is one the original gives too (both sides of the original-only crew controls `net5c-p1`, `net5c-w1a`, `net5c-y1c`), the known two-valued `propocc` of that save while crews work |
+
+The life drive makes, initialises, resets, shuts down and deletes 13 tools, with 13 UI objects and 13 messages, the same on both sides.
+
+Ran with ours (first-call log lines): 22 of the 23. The drawable's cell tree eraser 0x0061FCD0 did not run: the drives never left nodes in that tree when it was emptied (the crew's drags reached the range erasers and the textured tree's eraser).
