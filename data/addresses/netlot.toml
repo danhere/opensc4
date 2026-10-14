@@ -402,3 +402,187 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 40 57 8B F9 8A 47"
 source = "Slot 3 of the network lot manager (vtable 0x00AA7958), no arguments: once (+0x70); six subscriptions at the message server, the cell iterator at +0x38 set to the city (slots 94 and 93), LoadConfigurations, then every loaded lot gets the configuration of its saved ID or is erased from the lot map (0x00710910) without being released; AL 1 (src/core/netlot_life.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::ObjectPosition"
+address = 0x0060C9B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 55 56 8B 74"
+source = "Name ours. Ret 0x10 (a lot, one of its configuration objects, three floats out, the rotation out); this is not read; CreateProp 0x0060CFC2 and BuildLotObjects 0x0060D546 call it: the object place turned by the piece rotation (slot 24; jump table 0x0060CB68) on the cell the piece stands on (slot 59), the height from the piece (slot 56) plus the object height, x mirrored and the rotation from the table 0x00AA78A0 for a flipped piece (slot 25); EAX the address of the rotation. Ours in simulators.netlot.lots (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::CreateProp"
+address = 0x0060CF80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 56 57 8B 7C"
+source = "Slot 8 of the network lot manager (vtable 0x00AA7958), ret 0xC (lot, object index, prop type): ObjectPosition, then for a type that is not 0 the prop manager 0x00B43D10 slot 32 makes a street prop there; its occupant part gets the object ID as lot tag (slot 28) and the flag 0x80 (slot 29) when the piece is flipped; EAX the occupant part or null. Ours in simulators.netlot.lots (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::BuildLotObjects"
+address = 0x0060D410
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 56 8B 74 24"
+source = "Name ours. Ret 4 (a network lot); CreateLot 0x0060DF1D, RedevelopLot 0x0060D639 and DoMessage 0x00610002 call it: per configuration object of kind 1 without flag bit 0 the candidates of 0x00B43D18 slot 27, one drawn from the static generator 0x00B44870 (SC4Random::Below at 0x0060D4AC) and own slot 8; per object of kind 4 the same draw (0x0060D512), ObjectPosition and the flora simulator 0x00B43D80 slot 17 (type, place, 1) whose occupant gets the object index as lot tag; last the traffic network 0x00B43D54 slot 36 with the lot piece. Ours in simulators.netlot.lots (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::RedevelopLot"
+address = 0x0060D5E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 56 8B 74 24"
+source = "Slot 12 of the network lot manager, ret 0xC (x, z, lot): prop manager slot 33 with the low bytes of x and z, flora simulator slot 20 with the rectangle x z x z and 0, then BuildLotObjects 0x0060D410. Ours in simulators.netlot.lots (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::RemoveLot"
+address = 0x0060D8B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 56 8B F1 8B 4C"
+source = "Name ours. Ret 4 (a network piece); UpdateLot 0x0060E391 and DoMessage 0x0060FEAF call it: the cell of the piece position (city slot 95), prop manager slot 33 and flora simulator slot 20 for the cell, then the lot under the cell key is released and the key erased from the lot map (0x00710910). Ours in simulators.netlot.lots (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::CreateLot"
+address = 0x0060DCE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 55 56 8B 74"
+source = "Name ours. Ret 0xC (piece, zone type, wealth); UpdateLot 0x0060E328 and 0x0060E39F call it: the configurations of the piece ID (slot 23); the forced one (+0x34), else those ConfigurationFits 0x0060CD30 accepts, one drawn from the static generator 0x00B44870 (SC4Random::Below at 0x0060DE59); a new lot of 0x18 bytes (vtable 0x00AA78E0) with the configuration and the piece referenced, stored in the lot map (0x0060DA50), BuildLotObjects; a forced configuration sets the lot byte +0x14 and is released. Ours in simulators.netlot.lots (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::Pothole"
+address = 0x0060DF50
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 0C 83 EC 24 84"
+source = "Name ours. Ret 0xC (x, z, a byte); DoMessage 0x0060FD5C is the only caller. Add: unless the cell has one, a visual effect prop (class 0x2977AA49, IID 0x09820792) from the framework, placed at the cell (city slot 97, terrain slot 13, the piece height and the offsets 0x00AA7910 times 4.0), named pothole_rail for rail alone else pothole, put in the occupant manager (slot 20), started and stored in the pothole map +0x58. Remove: erased, stopped (slot 8), taken out of the occupant manager (slot 21) and released. Ours in simulators.netlot.pothole (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::UpdateLot"
+address = 0x0060E2D0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 14 56 8B"
+source = "Name ours. Ret 0x14 (piece, x, z, zone type, wealth); UpdateCell 0x0060F9FA and UpdateConnectedPieces 0x0060F424 call it: no lot on the cell: CreateLot when the piece is usable (slot 19); a forced lot or one whose configuration still fits (0x0060CD30) stays; else RemoveLot and CreateLot for the piece of the lot. Ours in simulators.netlot.lots (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::WriteLotConfiguration"
+address = 0x0060E810
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 89 4C 24 20 8B"
+source = "Slot 14 of the network lot manager, ret 8 (configuration, segment), 1,560 bytes: writes a configuration as an exemplar (type 0x6534284A, group 0x89AC5643); only the lot editor and LoadLotConfiguration for an exemplar below version 2 call it (through the vtable). Not hooked, the game function (docs/netlot.md)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::UpdateConnectedPieces"
+address = 0x0060EF40
+kind = "function"
+convention = "thiscall"
+expect = "81 EC A8 00 00 00 53 55"
+source = "Name ours. Ret 8 (x, z); only the game UpdatePieceStyle calls it (0x0060F554), for a piece with the network flag 0x40: floods over the connected pieces of that network with the same slot 55 byte by the side bytes of the edge value for type 6 (slot 38), counts zone types and wealths around them (own slots 9 and 10), and gives every usable piece of the group the texture from 0x00AA7758 (slot 29), the style byte from 0x00AA7728 (slot 27) and UpdateLot, erasing its key from the waiting set +0x74. Ours in simulators.netlot.styles (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::UpdatePieceStyle"
+address = 0x0060F510
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 10 8B 06 57"
+source = "Name ours. Ret 0xC (x, z, piece); only UpdateCell calls it (0x0060F9C7). The game for good, never hooked: the plugin sc4-network-texture-test patches it at 0x0060F580 (returns to 0x0060F5E7). Sets the under texture and the style of a usable piece from the tables 0x00AA7758 and 0x00AA7728, or hands a piece with the flag 0x40 to UpdateConnectedPieces. Our UpdateCell calls it at this address (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::UpdateCell"
+address = 0x0060F980
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8B 0D EC"
+source = "Name ours. Ret 8 (x, z); ProcessPending 0x0060FA68 and DoMessage 0x0060FD19 call it: the surface network piece of the cell (traffic network slot 8, mask 0x1F4F) without any flag of 0x80200000: UpdatePieceStyle 0x0060F510, then unless it has the flag 0x40 UpdateLot with own slots 10 and 9. Ours in simulators.netlot.messages (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::ProcessPending"
+address = 0x0060FA10
+kind = "function"
+convention = "thiscall"
+expect = "51 57 8B F9 8B 87 84 00"
+source = "Name ours. No arguments; DoMessage 0x0060FE53 and 0x0060FFDE call it: while the waiting set +0x74 has a key, UpdateCell for the first key (high byte x, low byte z) and the key erased (0x00710910); keeps ECX, and EDX too when the set is empty. Ours in simulators.netlot.messages (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::DoMessage"
+address = 0x0060FC30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 58 55 56 8B 74 24"
+source = "Slot 3 of the network lot manager message part (vtable 0x00AA7948; this is the object + 4), ret 4 (a message): 0x89D3E9F3 UpdateCell or RemoveLot for a piece, 0x99EF1143 RemoveLot, 0x07699455 and 0xE8BDA2E7 cells into the waiting set and ProcessPending, 0x69247DC8 Pothole, 0xA9B6C2D6 BuildLotObjects; AL 1 always. Ours in simulators.netlot.messages (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::Random"
+address = 0x00B44870
+kind = "data"
+source = "Name ours. The static generator of the network lot manager, seeded by the static initialiser 0x00A73BF0: CreateLot (0x0060DE59) and BuildLotObjects (0x0060D4AC, 0x0060D512) draw from it through SC4Random::Below 0x00913A06 and nothing else does (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::ZeroWord"
+address = 0x00B44868
+kind = "data"
+source = "Name ours. A static word nothing writes (0): CreateProp 0x0060CF9E and BuildLotObjects 0x0060D517 copy it into the three floats of a position before ObjectPosition fills them (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::TextureTable"
+address = 0x00AA7758
+kind = "data"
+source = "Name ours. 64 words, a texture per zone type (16) and wealth (4), index wealth + 4 x zone type; read by UpdatePieceStyle 0x0060F5AE and UpdateConnectedPieces 0x0060F370. The plugin sc4-network-texture-test writes 16 bytes at 0x00AA7768 in place, so ours reads it from the game memory at every use, never a copy (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::StyleTable"
+address = 0x00AA7728
+kind = "data"
+source = "Name ours. 48 bytes, a style byte per zone type (16) and wealth column (3: wealth less one, 0 for wealth 0), index 3 x zone type + column; read by UpdatePieceStyle 0x0060F5DA and UpdateConnectedPieces 0x0060F389 and handed to the piece slot 27. Read from the game memory at every use, never a copy (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::MirroredRotations"
+address = 0x00AA78A0
+kind = "data"
+source = "Name ours. 16 words (0 3 2 1, 3 2 1 0, 2 1 0 3, 1 0 3 2): the rotation of an object on a flipped piece, index piece rotation + 4 x the object orientation byte; ObjectPosition 0x0060CB2B reads it (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::PotholeOffsets"
+address = 0x00AA7910
+kind = "data"
+source = "Name ours. 16 pairs of signed bytes (x, z), index the active sides of the piece (slot 40): Pothole 0x0060E09F moves the pothole by them times the float 4.0 at 0x00AA790C (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::PotholeRailName"
+address = 0x00AA78FC
+kind = "data"
+source = "The string pothole_rail: the effect name Pothole 0x0060E101 gives a pothole on a piece whose network flags are rail alone (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "cSC4NetworkLotManager::PotholeName"
+address = 0x00A9F2B0
+kind = "data"
+source = "The string pothole: the effect name Pothole 0x0060E108 gives every other pothole (src/core/netlot_lots.cpp)."
+
+[[entry]]
+name = "SC4Uint16Set::Find"
+address = 0x0060D170
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 66 8B 30"
+source = "Name ours. Generic container code, not hooked: (out pair of node and table, the address of a uint16 key), ret 8, on a hash table keyed by uint16: the node of the key or null; keeps ECX. Pothole 0x0060DF86 and 0x0060E1B0 and the traffic simulator call it."
+
+[[entry]]
+name = "SC4Uint16Set::Count"
+address = 0x0060D1B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 8B 59 08"
+source = "Name ours. Generic container code, not hooked: (the address of a uint16 key), ret 4: the number of nodes with the key in its bucket. UpdateConnectedPieces 0x0060F24D calls it."
+
+[[entry]]
+name = "SC4Uint16Set::ReserveAndInsert"
+address = 0x0060E210
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 46"
+source = "Name ours. Generic container code, not hooked: (out record of nine bytes: node, table, a byte that says new; the address of a uint16 key), ret 8: grows the table for one more (0x00710DD0) and inserts the key unless it is there (0x0060D270). DoMessage 0x0060FE45 and 0x0060FFBF, UpdateConnectedPieces 0x0060F267 and 60 other sites call it."

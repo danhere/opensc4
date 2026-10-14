@@ -2,17 +2,17 @@
 
 The city's desk for what stands beside a road. For every cell that has a piece of a surface network (every network type but pipe, power line and subway) and qualifies, the manager keeps one network lot: it ties the piece to one network lot configuration, a list of props and flora with their places on the cell (street lights, trees, bus shelters). The configurations are loaded once per city from exemplars and kept by the network piece ID they are for; the manager picks one that fits the cell by the zone and the wealth around it and the slope under it. It also keeps the potholes. It has no grid: every city size it needs it asks the city for (slots 93 and 94).
 
-Three classes belong to this piece: the manager, the network lot and the network lot configuration. The last two have no class ID and no factory and are made only by the manager's code (the configuration also by the lot editor window). Together 62 functions (14.1 KB), of which one stays the game's for good. Together with the construction crew (cSC4NetworkConstructionCrew, 43 functions), which decides when a new piece becomes usable and so when its lot appears, the piece is four classes and 105 functions. The rewrite is split in five parts:
+Three classes belong to this piece: the manager, the network lot and the network lot configuration. The last two have no class ID and no factory and are made only by the manager's code (the configuration also by the lot editor window). Together 62 functions (14.1 KB), of which two stay the game's: UpdatePieceStyle for good (a plugin patches it) and WriteLotConfiguration (not translated). Together with the construction crew (cSC4NetworkConstructionCrew, 43 functions), which decides when a new piece becomes usable and so when its lot appears, the piece is four classes and 105 functions. The rewrite is split in five parts:
 
 | Part | What | Functions |
 | --- | --- | --- |
 | L1 | state and queries | 29 |
 | L2 | life and save: factory, constructors, destructors, Init, Shutdown, Write, Read, loading of the configurations | 14 |
-| L3 | the lots: messages, lot creation and removal, props, potholes | 13 |
+| L3 | the lots: messages, lot creation and removal, props, potholes, the styling of connected pieces | 12 ours; UpdatePieceStyle and WriteLotConfiguration stay the game's |
 | C1 | the construction crew's state and life, with the `game.quiet.network` wrapper folded in | 23 |
 | C2 | the construction crew's work | 20 |
 
-L1 and L2 are done: 43 functions are ours. L1 is 29, 23 as detours (`simulators.netlot.identity`, `.queries`, `.lot`) and 6 as swaps of one vtable slot each (`simulators.netlot.slots`, for code that other classes share). L2 is 14, all detours (`simulators.netlot.life`, `.save`, `.object`), with the flag group `simulators.netlot.own` for a manager that carries our copies of its vtables. The six adjustor thunks of the range and the shared container code stay the game's (see "What is left and why").
+L1, L2 and L3 are done: 55 functions are ours. L1 is 29, 23 as detours (`simulators.netlot.identity`, `.queries`, `.lot`) and 6 as swaps of one vtable slot each (`simulators.netlot.slots`, for code that other classes share). L2 is 14, all detours (`simulators.netlot.life`, `.save`, `.object`), with the flag group `simulators.netlot.own` for a manager that carries our copies of its vtables. L3 is 12, all detours (`simulators.netlot.messages` 3, `.lots` 7, `.pothole` 1, `.styles` 1). With that the lot manager is complete but for two functions: UpdatePieceStyle, which stays the game's for good, and WriteLotConfiguration. The six adjustor thunks of the range and the shared container code stay the game's too (see "What is left and why"). C1 and C2, the construction crew (23 and 20 functions), are to come, after its stopwatch is put on simulation time.
 
 ## The classes
 
@@ -44,7 +44,7 @@ gzcom-dll's `cISC4NetworkLotManager.h` has the slots in the right order (each ch
 | 11 | 0x0060D820 | IterateAllNetworkLots(callback, context) | L1 |
 | 12 | 0x0060D5E0 | RedevelopLot(x, z, lot) | L3 |
 | 13 | 0x0060CB80 | SetLotConfigurationForNextPiece(configuration); folded code, see below | L1 |
-| 14 | 0x0060E810 | WriteLotConfiguration(configuration, segment) | L3 |
+| 14 | 0x0060E810 | WriteLotConfiguration(configuration, segment) | the game's |
 | 15 | 0x0060EF20 | the deleting destructor | L2 |
 
 Fields (`src/core/netlot_sim.h` has the list with its evidence):
@@ -206,9 +206,124 @@ So the load order is Read (the lots, with IDs), then Init (the configurations fr
 | 0xEC3BD470 | uint8 | +0x64 the mask over the piece's value |
 | 0xCC3E4755 | uint8 | +0x65 the rule about the piece's flag (0 any, 1 needs, 2 forbids) |
 
-A field whose property is missing keeps what the constructor left (the bit vectors are not cleared first, so a configuration without the zone or wealth property fits no zone or no wealth). After the properties the objects are moved into the cell (the lot configuration's ClampObjects with the rectangle 16, 16, 0, 0). For a version below 2 the manager's own WriteLotConfiguration (slot 14, L3) writes the exemplar back in the current form to the segment that holds the key (type 0x6534284A, group 0x89AC5643, the ID).
+A field whose property is missing keeps what the constructor left (the bit vectors are not cleared first, so a configuration without the zone or wealth property fits no zone or no wealth). After the properties the objects are moved into the cell (the lot configuration's ClampObjects with the rectangle 16, 16, 0, 0). For a version below 2 the manager's own WriteLotConfiguration (slot 14, the game's) writes the exemplar back in the current form to the segment that holds the key (type 0x6534284A, group 0x89AC5643, the ID).
 
 Copied on purpose from the game and commented in the code: the message server and, for an old exemplar, the resource manager are used without a test for null; Read and the callback call slot 1 of what operator new gave without a test; Shutdown leaves the lot map's nodes pointing at released lots (the destructor frees the nodes without reading them); Read overwrites a lot that is already under a key without releasing it. Not reproduced, and the test stays away from it: Read's two counts share a stack word the game never sets, so a stream that ends right after the version makes the game build as many lots as that word says; ours reads 0 there.
+
+## What the functions of L3 do
+
+Twelve functions, each a detour at the game's address (`src/core/netlot_lots.cpp`). A call from one of them to another function of the class goes to the game's address or through the vtable, as the game calls it, so a group that is off, or a function on the skip list, is the game's.
+
+| Function | Address | Group | Arguments (its own `ret N`) |
+| --- | --- | --- | --- |
+| DoMessage | 0x0060FC30 | `messages` | the message part's slot 3: a message (`ret 4`); `this` is the object + 4 |
+| UpdateCell | 0x0060F980 | `messages` | x, z (`ret 8`) |
+| ProcessPending | 0x0060FA10 | `messages` | none |
+| UpdateLot | 0x0060E2D0 | `lots` | piece, x, z, zone type, wealth (`ret 0x14`) |
+| CreateLot | 0x0060DCE0 | `lots` | piece, zone type, wealth (`ret 0xC`) |
+| RemoveLot | 0x0060D8B0 | `lots` | piece (`ret 4`) |
+| BuildLotObjects | 0x0060D410 | `lots` | lot (`ret 4`) |
+| ObjectPosition | 0x0060C9B0 | `lots` | lot, object, three floats out, rotation out (`ret 0x10`) |
+| CreateProp | 0x0060CF80 | `lots` | slot 8: lot, object index, prop type (`ret 0xC`) |
+| RedevelopLot | 0x0060D5E0 | `lots` | slot 12: x, z, lot (`ret 0xC`) |
+| Pothole | 0x0060DF50 | `pothole` | x, z, a byte: add or remove (`ret 0xC`) |
+| UpdateConnectedPieces | 0x0060EF40 | `styles` | x, z (`ret 8`) |
+
+### The six messages
+
+The manager has no timer and no frame message; everything it does to lots starts in DoMessage. It always answers 1.
+
+| Message | What DoMessage does |
+| --- | --- |
+| 0x89D3E9F3, a piece's usable flag changed | The object the message carries is asked for the network occupant interface (0xA821EF94); nothing when it refuses. For a piece that keeps lots (any flag of the surface networks, mask 0x1F4F, and not the flag 0x200000): UpdateCell for the piece's cell when the message's first data word is not 0, RemoveLot when it is 0. The piece is released |
+| 0x99EF1143, an occupant was removed | The occupant (the first data word) is asked the same way; a piece that keeps lots gets RemoveLot; released |
+| 0x07699455, cells changed | The rectangle the second data word points at, grown by one cell on every side: every cell of it inside the city goes into the waiting set (+0x74), row by row; then ProcessPending |
+| 0xE8BDA2E7, a city lot's state changed | The object carried is asked for the lot interface (0xE818FCED). The lot's cell rectangle grown by one on every side goes to a cell iterator, and every cell the game's iterator function (0x0060CEE0, called at its address) gives that is inside the city goes into the waiting set; then ProcessPending; the lot is released |
+| 0x69247DC8, a pothole | Pothole(first data word, second data word, third data word not 0) |
+| 0xA9B6C2D6, a lot's objects are to be built | BuildLotObjects(the network lot in the first data word) |
+
+"Inside the city" is a signed compare of x and z with the city's slots 93 and 94, asked once per message. The cell key put into the set is `((x & 0xFF) << 8) | z`.
+
+Two things in the game's code are worth knowing and are kept as they are. For "cells changed" the game steps a cell iterator of its own on the stack with the stepping written out in place: every cell of the rectangle, x first. For "a lot's state changed" it calls the shared iterator function 0x0060CEE0 instead, which walks only the border of a rectangle (the first and the last row whole, the two end columns of the rows between) and begins at the iterator's current cell; the reset before it (0x0060C930) leaves that at (0, 0) and setting the rectangle does not move it. So what goes into the waiting set is row z = 0 from x = 0 to the rectangle's high x, then the two end columns of every row from 1 up, then the rectangle's last row whole: more cells than the lot's surroundings, and not the lot's first row unless the lot is at the map's top. Every such cell that has a surface piece gets UpdateCell. Ours calls the same function with the same iterator state, so it queues the same cells in the same order.
+
+**ProcessPending** works the waiting set off: while it has a key, UpdateCell for the table's first key (high byte x, low byte z) and the key erased. UpdateCell can take keys out itself (see the flood).
+
+**UpdateCell(x, z)**: the piece of a surface network the traffic network (the city's slot 40) has on the cell; nothing without one or when the piece has any flag of 0x80200000. Then the game's UpdatePieceStyle, **called at its address 0x0060F510**, which sets the piece's texture and style or, for a piece of the grouped network, calls UpdateConnectedPieces. Then, unless the piece has the network flag 0x40: the manager's own GetWealthForNetwork and GetZoneTypeForNetwork (in that order, through the vtable) and UpdateLot.
+
+### How a lot is chosen, kept, chosen again or removed
+
+**UpdateLot(piece, x, z, zone, wealth)** looks the cell up in the lot map.
+
+- No lot: CreateLot, when the piece is usable (its slot 19).
+- A lot whose forced byte is set stays, whatever changed.
+- A lot whose configuration still fits stays: ConfigurationFits with the cell, the zone, the wealth and the piece's rotation and flip.
+- Else the lot is chosen again: RemoveLot, then CreateLot, both for the piece the lot holds (referenced meanwhile). A lot without a piece is left alone.
+
+**CreateLot(piece, zone, wealth)**:
+
+1. The candidates are the configurations loaded for the piece's ID (the piece's slot 23; the configuration map). Without an entry and without a forced configuration there is no lot.
+2. The piece's cell: its position through the city's slot 95.
+3. A forced configuration (SetLotConfigurationForNextPiece) is taken as it is. Else every candidate, in the entry's order, is asked of ConfigurationFits; those that fit are collected in a vector of the function's own. With none there is no lot.
+4. **The draw.** One number from the lot manager's static generator picks among those that fit: `SC4Random::Below(count)` (0x00913A06 on the generator at 0x00B44870, called at 0x0060DE59). No draw when a configuration is forced or nothing fits; a draw also when exactly one fits.
+5. The lot: 0x18 bytes built in place (the vtable 0x00AA78E0), one reference for the map; it references its configuration and its piece. It is stored in the lot map under the cell key, and BuildLotObjects builds its objects.
+6. A forced configuration is used up: the lot's forced byte is set, the manager's word cleared and its reference released.
+
+**RemoveLot(piece)**: the piece's cell; the street props of the cell removed (the prop manager's slot 33) and the flora in the cell (the flora simulator's slot 20); then the lot under the cell's key is released (which releases its configuration and its piece) and the key erased. The props and the flora go even when the cell has no lot.
+
+### How objects become props and flora
+
+**BuildLotObjects(lot)** walks the objects of the lot's configuration (0x34 bytes each, [lotconfig.md](lotconfig.md)) by index:
+
+- **A prop** (kind 1, and bit 0 of the flag byte at +1 clear): the candidate prop types of the object from the lot configuration manager (0x00B43D18, slot 27). With candidates, **one draw**, `SC4Random::Below(number of candidates)` on the same generator (called at 0x0060D4AC), and CreateProp (through the vtable, slot 8) with the lot, the index and the drawn type.
+- **Flora** (kind 4): the candidates the same way. With candidates, **one draw** the same way (called at 0x0060D512), ObjectPosition, and the flora simulator's (0x00B43D80) slot 17 with the drawn type, the place and 1. The flora occupant gets the object's index as its lot tag.
+- Any other kind, a prop with flag bit 0, or an object without candidates: nothing, and no draw.
+
+At the end the traffic network (the global 0x00B43D54) is told of the lot's piece (its slot 36).
+
+So the generator moves once per lot chosen among fitting configurations and once per object built, in the order the messages arrive. Its stream is shared by everything the manager does, so ours draws through the game's own function on the game's own generator object, in the same places, with the same bounds: `src/core/netlot_lots.cpp` has no generator code of its own.
+
+**CreateProp(lot, index, type)**: ObjectPosition for the object; with a type of 0 nothing more. The prop manager (0x00B43D10) makes a street prop of the type at the place with the rotation (its slot 32). The prop's occupant part gets the object's ID (the word at +0x24) as its lot tag and, on a flipped piece, the flag 0x80. The answer is the occupant part or null. The props belong to the prop manager and are saved by it.
+
+**ObjectPosition(lot, object, place out, rotation out)** turns an object's place on the 16 by 16 metre cell into a place in the city. The piece gives the cell it stands on (slot 59); the cell's corner is 16 x the cell and the far corner 16 more. With the piece's rotation (slot 24) and the object's place (px, pz):
+
+| Rotation | x | z |
+| --- | --- | --- |
+| 0 | far x - px | far z - pz |
+| 1 | pz + corner x | far z - px |
+| 2 | px + corner x | pz + corner z |
+| 3 | far x - pz | px + corner z |
+
+The height is the piece's height at that point (slot 56) plus the object's own. The object's rotation is its orientation byte plus the piece's rotation, modulo 4. **The mirror**: on a flipped piece (slot 25) x is mirrored in the cell, x = (16 - 2 (x - corner x)) + x, and the rotation comes from a table of sixteen words at 0x00AA78A0 (index: piece rotation + 4 x orientation; rows 0 3 2 1, 3 2 1 0, 2 1 0 3, 1 0 3 2), read from the game's memory. The game computes all of it on the x87 stack at double precision and stores every result as a float; ours does the sums in doubles in the same operand order and rounds to float where the game stores one. The constants are 16.0 (0x00A8D45C) and 2^32 (0x00A80AA8, the game's way of making an unsigned number a float).
+
+**RedevelopLot(x, z, lot)** (slot 12; it has no direct caller, callers through the vtable were not traced, and no coverage run reached it; the test calls it): the street props of the cell removed (the low bytes of x and z), the flora in the cell removed, BuildLotObjects.
+
+### Potholes
+
+**Pothole(x, z, add)** keeps the pothole map (+0x58, cell key to a prop occupant).
+
+Add, unless the cell has one: a visual effect prop is made by its class ID 0x2977AA49 through the framework (interface 0x09820792); it is placed at the cell's position (the city's slot 97) on the terrain's height; when the occupant manager (0x00B43D0C) finds a piece of a surface network on the cell (its slot 32 with an occupant filter for the mask 0x1F4F), the height is the piece's instead and the place moves by a pair of signed bytes from a table at 0x00AA7910, picked by the piece's active sides, times 4.0; the effect is named `pothole_rail` when the piece's network flags are rail alone, else `pothole`; its occupant part goes into the occupant manager (slot 20), the effect is started, and the pothole map keeps it with the reference the framework gave.
+
+Remove, when the cell has one: the map's node erased, the effect stopped, its occupant part taken out of the occupant manager (slot 21) and the effect released.
+
+Nothing here draws a random number and nothing draws on the screen: the prop is made, placed and handed to the managers. No save of the corpus has a pothole and no coverage run reached the function; who sends the message was not looked for (nothing in this class does).
+
+### The flood: one style for a connected run
+
+**UpdateConnectedPieces(x, z)** is called by the game's UpdatePieceStyle for a usable piece that has the network flag 0x40. Bit n of a piece's network flags is network type n, and the edge value the flood reads is that of type 6, which is Avenue in gzcom-dll's `eNetworkType`: the two halves of an avenue get one texture and one kind of lot along the whole run, where every other network is styled cell by cell.
+
+1. From the cell, the flood collects the group: every cell reached through the sides whose byte of the piece's type-6 edge value has one of its low three bits, as long as the cell has a piece of that network with the same slot-55 byte (intersections and plain pieces do not mix). Cells that fail are remembered so they are looked at once.
+2. Around every piece of the group the zone type and the wealth are asked (the manager's own slots 9 and 10) and counted.
+3. The group's zone type is the type of 1 to 15 counted most often, the lowest of equals (0 when none); its wealth the wealth of 1 to 3 counted most often, the lowest of equals (0 when none).
+4. The texture is the word (wealth + 4 x zone type) of the table at 0x00AA7758, the style the byte (3 x zone type + wealth - 1, or 3 x zone type for wealth 0) of the table at 0x00AA7728.
+5. Every usable piece of the group gets the texture (its slot 29, the under texture) and the style (its slot 27, the variation) and UpdateLot with the group's zone type and wealth; every cell of the group is taken out of the waiting set, so ProcessPending does not come back to it.
+
+**Both tables are read from the game's memory at every call**, never from a copy: the plugin sc4-network-texture-test writes into the texture table in place.
+
+**The neighbour arithmetic is the game's, copied with its edge cases.** A neighbour is computed in 16 bits and passed over when x or z is negative or *above* the city's size, so x equal to the size passes; and its key is built as `z | ((x & 0xFF) << 8)`. On a city smaller than 256 cells a side the cell just outside is then looked up and has no piece. On a city 256 cells wide a neighbour at x = 256 becomes x = 0 of the same row, and one at z = 256 becomes the cell (x | 1, 0): an avenue that runs off the east or south edge with its outward side marked as connected would be joined to whatever avenue stands at that cell on the far side. No such case was looked for in the corpus.
+
+### Reference counts
+
+Every count the twelve functions change, as in the game: DoMessage releases the piece (or the city lot) QueryInterface gave, once, on every path after a successful QueryInterface. UpdateLot holds the old lot's piece across RemoveLot and CreateLot. RemoveLot releases the lot once (the map's reference). CreateLot references the new lot once for the map, the configuration and the piece once each for the lot, and releases a forced configuration once after clearing the manager's word. Pothole keeps the framework's reference in the map and releases it on removal; the occupant filter, the occupant found and the piece asked of it are released before it returns. One thing is kept as compiled: CreateLot stores the new lot over whatever the map has under the key without releasing it; UpdateLot never calls it for a cell that has an entry, so nothing is lost in practice.
 
 ## What is ours
 
@@ -222,8 +337,12 @@ Copied on purpose from the game and commented in the code: the message server an
 | `simulators.netlot.save` | 2 detours: Write and Read |
 | `simulators.netlot.object` | 4 detours: the manager's factory, constructor, destructor and deleting destructor |
 | `simulators.netlot.own` | no detour: with it and `object`, a manager carries our copies of the class's three vtables |
+| `simulators.netlot.messages` | 3 detours: DoMessage, UpdateCell, ProcessPending |
+| `simulators.netlot.lots` | 7 detours: UpdateLot, CreateLot, RemoveLot, BuildLotObjects, ObjectPosition, CreateProp, RedevelopLot |
+| `simulators.netlot.pothole` | 1 detour: Pothole |
+| `simulators.netlot.styles` | 1 detour: UpdateConnectedPieces |
 
-All eight are off by default. `OPENSC4_NETLOT_SKIP` (a list of function addresses, eight hex digits each) leaves single functions out, for bisecting; a slot is named by the address the game has in it. Each function logs `netlot: first <name>` at its first call.
+All twelve are off by default. `OPENSC4_NETLOT_SKIP` (a list of function addresses, eight hex digits each) leaves single functions out, for bisecting; a slot is named by the address the game has in it. Each function logs `netlot: first <name>` at its first call.
 
 **Folded code.** The linker gave six of these functions an address that other classes' vtables hold too, because the bytes are the same: SetLotConfigurationForNextPiece is also slot 10 of the city lot's vtable, and the getters are four-byte functions found in up to 150 vtables. A detour there would change all those classes. So `simulators.netlot.slots` stores our functions in the slots of this class's three vtables only (after checking that each slot still holds the game's address) and every other class keeps the game's code.
 
@@ -235,14 +354,15 @@ With `simulators.netlot.object` and `simulators.netlot.own` the constructor and 
 
 ## What is left and why
 
-- **UpdatePieceStyle 0x0060F510: the game's for good.** The plugin sc4-network-texture-test (`src/cSC4NetworkLotManagerHooks.cpp`) puts a jump in the middle of it, at 0x0060F580, that comes back at 0x0060F5E7 ([patch-census.md](patch-census.md)). A replacement would silently drop the plugin's texture choice. Our UpdateCell (L3) will call it at its address. The tables at 0x00AA7758 (texture) and 0x00AA7728 (style) are patched in place by another DLL (the same plugin writes 16 bytes at 0x00AA7768). Nothing in L1 reads them; the later parts (L3 and the crew) must read both from the game's memory at every use, never from a copy.
+- **UpdatePieceStyle 0x0060F510: the game's for good.** The plugin sc4-network-texture-test (`src/cSC4NetworkLotManagerHooks.cpp`) puts a jump in the middle of it, at 0x0060F580, that comes back at 0x0060F5E7 ([patch-census.md](patch-census.md)). A replacement would silently drop the plugin's texture choice. Our UpdateCell calls it at its address. The tables at 0x00AA7758 (texture) and 0x00AA7728 (style) are patched in place by another DLL (the same plugin writes 16 bytes at 0x00AA7768). Of our code only UpdateConnectedPieces reads them, from the game's memory at every call, never from a copy.
+- **WriteLotConfiguration 0x0060E810 (slot 14): left the game's.** 1,560 bytes that build an exemplar from a configuration and write it to a segment. Its only callers are the lot editor and LoadLotConfiguration's rewrite of an exemplar below version 2; none of the 34 coverage runs reached it, so no test would show a slip, and the rule for a function of that size is to take it only when every instruction is certain. Ours calls it through the vtable where the game does.
 - The six adjustor thunks 0x0060E510 to 0x0060E560: two instructions each, they jump to our functions.
 - The lot's AddRef 0x004F7BA0 and the configuration's QueryInterface 0x0048C940: other classes' code too, and nothing of ours needs them changed.
 - Shared container code in the class's range (cell iterators 0x0060C860, 0x0060C890, 0x0060C8D0, 0x0060CE90, 0x0060CEE0; the hash set of cell keys 0x0060D170 to 0x0060D270 and 0x0060E210; 0x0060D310; 0x0060EE30): other classes use it too. Our code calls the game's containers at their addresses wherever they allocate or free (the tree set's insert and erase, the hash tables' inserts and growth, the vector copy), so every node comes from the game's allocator.
 - Called at their addresses by L2 and not this class's: the hash tables' constructor, clear, begin and erase by key (0x00829BC0, 0x008EBA60, 0x004B0390, 0x00710910), the clear of a table of vectors (0x00584660), the pointer vector's growing insert (0x0051CA60), the bit vector's resize and bit address (0x0060D310, 0x00477A40), the property getters (0x005FD3C0, 0x005FD480, 0x005FD4F0, 0x005FD570, 0x005FFB40), the string's formatter (0x0090F574), the stream's reference helpers (0x005D99A0, 0x005D9730), and the lot configuration's LoadObjects, vector copy, vector destructor and ClampObjects (0x00479D10, 0x00479670, 0x00479760, 0x00477BB0: ours in the lot configuration's groups).
 - Nothing of L2 reads the tables at 0x00AA7758 and 0x00AA7728 or draws from the lot manager's static generator 0x00B44870 (only BuildLotObjects and CreateLot, L3, do).
-- L3, to come: DoMessage, UpdateCell, ProcessPending, UpdateLot, CreateLot, RemoveLot, BuildLotObjects, ObjectPosition, CreateProp, RedevelopLot, Pothole, UpdateConnectedPieces, WriteLotConfiguration.
-- C1 and C2, the construction crew, to come after the manager.
+- Called at their addresses by L3 and not this class's: the hash set of cell keys (find 0x0060D170, count 0x0060D1B0, erase at a node 0x0060D1F0, insert 0x0060D270, growing insert 0x0060E210, growth 0x00710DD0, erase by key 0x00710910), the tables' constructor, clear and begin, the cell iterators (0x0060CE90, 0x0060CEE0), the pointer vector's reserve and growing insert (0x0045D4F0, 0x0051CA60), the generator's Below (0x00913A06), the network manager's occupant filter constructor (0x0061F530) and the framework's COM (0x0090DDF1).
+- C1 and C2, the construction crew, to come.
 
 ### Decisions taken (2026-10-13 and 2026-10-14)
 
@@ -279,6 +399,24 @@ The same day the drive runs the calls of L2, adds ` life <checksum>` after ` set
 - Write (the serializable part's slot 3) of the city's manager into a memory stream of the test's own, once into a stream without an error (answer 1) and once into one that reports one (answer 0). The stream answers no interface, so the game's WriteReference writes nothing for a reference and touches no object: the bytes are the record without its references (10 bytes, 6 per lot, 2 per pothole, in the tables' order), and the length and every byte are in the checksum. Left out, and said so in the log line, if a lot has no configuration (Write would call through null; no such lot exists after Init).
 - Unless `OPENSC4_TEST_NETLOT_OBJECT=0`: a second manager through the factory. As constructed: the initialised byte, no forced configuration, the four tables' counts and bucket counts, the cell iterator, and that its three vtable pointers are the city's manager's. Its identity through the three parts. Shutdown on it (1, nothing done). Write of the empty object (10 bytes). Read from streams that build nothing: empty, version 1, version 3, version 2 with a count of 0 and no pothole count (0, six bytes taken), version 2 with both counts 0 (1, ten bytes), the same bytes in a stream already in error (0: Read does not ask first), an empty stream in error. Then Read of an 18-byte record with one lot (cell 0x34, 0x12, configuration ID 0xAABBCCDD) and one pothole: the answer 1, both maps' counts 1, GetNetworkLot finds the lot at its cell and nothing at the swapped cell, the lot has the game's lot vtable, no piece and no configuration, the saved ID, one reference and no forced byte, and the pothole map's node has the key and a null occupant (the stream gives no reference). The test releases the lot (which destroys it), and the last Release of the manager answers 0: the deleting destructor ran.
 
+The same day the drive runs the calls of L3, adds ` lots <checksum>` after ` life` and writes a third log line, `autotest: netlot: lots: ...`. Two things always run, because they change nothing:
+
+- **ObjectPosition** (at its address) for the first four objects of every lot that has a piece: the cell key, the object's index, the three floats' bits and the rotation, as a count, a sum and an exclusive or. The function only asks the piece and reads the object.
+- **Messages that must be refused**, each answered 1 with the four tables' counts as before: a type the manager does not know; "an occupant was removed" whose occupant is the manager itself, and "a piece's usable flag changed" and "a lot's state changed" that carry the manager itself (it refuses the interface asked for); and a pothole removal on a cell that has no pothole.
+
+Four more are each behind a switch of their own, off by default, because each leaves a trace in the city:
+
+| Switch | What it does | What it leaves |
+| --- | --- | --- |
+| `OPENSC4_TEST_NETLOT_POTHOLES=1` | The pothole message for three cells with a surface piece (by their place in cell order) and for the first cell whose piece is rail alone: add; the map's count, the effect's name, started byte, occupant type, position bits and whether the occupant manager has it; add again (nothing); remove; the count back, the cell empty, the effect out of the occupant manager | Nothing of the manager's. But a visual effect prop went through the occupant manager (its insert and remove messages reach every subscriber), its effect was started through the effects manager (which may draw from the effects' generator), and the framework allocated and freed it |
+| `OPENSC4_TEST_NETLOT_REDEVELOP=1` | RedevelopLot on every 50th lot in cell order (the first, the 51st, ...). The log has the lots and how many prop objects and flora objects their configurations asked BuildLotObjects for (not how many the managers then made: the prop manager's and the flora simulator's fingerprint parts show that) | The cells' street props and flora are removed and built again with new draws: the city is changed for good, the same on both sides as long as the draws are the same. This is the direct test of BuildLotObjects, ObjectPosition and CreateProp |
+| `OPENSC4_TEST_NETLOT_CELLS=1` | The cells-changed message for the one-cell surroundings of three cells with a surface piece. DoMessage grows that by one more, so UpdateCell, the game's UpdatePieceStyle and UpdateLot with ConfigurationFits run on every piece in 5 by 5 cells. After each: the answer, the waiting set's count (0), the lot map's count | A piece's texture and style are set again from the zone and wealth around it as they are now, and a lot whose configuration no longer fits is chosen again (a draw) |
+| `OPENSC4_TEST_NETLOT_STYLES=1` | UpdateConnectedPieces (at its address) on three cells that have a piece with the network flag 0x40. After each: the piece's style byte and under texture, the waiting set's count, the lot map's count. The log has how many such cells the city has | The texture and the style of every usable piece of each connected group are set again, and lots may be chosen again (draws) |
+
+The log line also carries a checksum of the lot manager's generator before and after the drive (`generator X -> Y`). It is not in the fingerprint (the seed is the run's business); it moves exactly when something drew, so on the two sides of a pair with the same seed the second value must agree.
+
+**Which field shows a lot chosen again.** The daily `netlot` part already holds every lot's state: in `lots` the second and third numbers (the sum and the exclusive or of the per-lot checksums, which have the configuration's ID and the objects) and the last (the object counts added up) move when a lot gets another configuration, and `iter` moves with them; the first number of `maps` and of `lots` moves when a lot appears or goes.
+
 Not done, on purpose: Init on the second object (it would subscribe and load every configuration again), Shutdown on the city's manager, and Read of a stream that ends right after version 2 (the game would loop over an unset stack word).
 
 Expected in the life line on a city: `Init again 1 (tables as before)`, and the written length is 10 + 6 x lots + 2 x potholes.
@@ -288,6 +426,10 @@ Expected on a city: the lot map's count, the cells with a lot and the lots Itera
 What runs without any switch from L2: at every city load the factory and the constructor (when the save brings no manager, the city's own creation makes one), Read (a saved city), Init with LoadConfigurations, the callback for every exemplar, and the configuration's constructor, LoadLotConfiguration and AddConfiguration for every network lot exemplar (543 on `saves-networks`; `load` and `cfg` show the result); at every save Write (the save record is compared); at every city close and at quit Shutdown, the last Release, the deleting destructor, the destructor and the configurations' deleting destructors. Only the drive reaches Init on an initialised manager, Write into an error stream, Shutdown on a manager that is not initialised, and Read's refusals.
 
 What runs without any switch from L1 (from the coverage runs): the identity, GetNetworkLot, GetZoneTypeForNetwork, GetWealthForNetwork, ConfigurationFits, the maps and the iterator helpers (every load and every cell change), the lot's Release and destructor when a lot is removed. Only the test reaches GetNetworkLotConfigurationSet, GetNetworkLotConfigurationById, IterateAllNetworkLots, the lot's QueryInterface and its object count; only the drive reaches SetLotConfigurationForNextPiece on the manager.
+
+What runs without any switch from L3 (from the coverage runs): DoMessage, ProcessPending, UpdateCell, UpdateLot and CreateLot with their draws whenever cells change beside a network (growth in a plain week is enough), BuildLotObjects, ObjectPosition and CreateProp when a lot is made, RemoveLot when a piece goes or a lot is chosen again. `OPENSC4_TEST_BULLDOZE` (pieces and buildings removed: RemoveLot, lots chosen again), `OPENSC4_TEST_ZONE_TOOL` and `OPENSC4_TEST_PLOP_TOOL` with their commits and the tutorial off (zones and lots beside roads change: the cells-changed and lot-state messages), and `OPENSC4_TEST_TERRAIN_EDIT` (the slope under a cell changes what fits) drive the same functions harder. Only the sub-switches reach Pothole, RedevelopLot and UpdateConnectedPieces on a city without the grouped network.
+
+Unreached by any test, L3: a forced configuration in CreateLot (it needs SetLotConfigurationForNextPiece and then a new piece: the lot editor's path); the growing insert in CreateLot's candidate vector (the vector is reserved for all candidates first); a pothole on a cell whose piece is rail alone, on a city without rail; the usable-flag message with a real piece arrives only when a construction crew finishes a piece (`OPENSC4_TEST_QUIET=network` builds roads); UpdateConnectedPieces' far-edge neighbours.
 
 Unreached by any test, L2: Init's missing-configuration case (it needs a save whose lot has an ID no loaded exemplar has: none in the corpus); LoadLotConfiguration's rewrite of an exemplar below version 2 (WriteLotConfiguration was hit in none of the 34 coverage runs, so no exemplar the corpus loads is that old), a configuration whose exemplar has no piece ID, the growing insert in AddConfiguration beyond what the shipped pieces need; Shutdown and Write with a pothole (no save has one); the configuration's constructor from the lot editor.
 
@@ -330,3 +472,29 @@ The class's save record was identical in all 66 pairs, and every city loaded its
 The two partly saves have the same fingerprints in every run of both sides and differ in a saved record of another class. t0000 after the bulldoze: one run of ours wrote the removed piece at 632,1576 that the original writes in about a quarter of its runs ([netmgr.md](netmgr.md), Parity, batch q1). Making Money d0365 after the bulldoze: in two of our four runs the prop developer's list has the prop types 0x2977AA47 and 0x2977AA49 in swapped order; ten more pairs of that save had the original's order on both sides. The same swap is on record in runs of the original after tool commits ([tools.md](tools.md), batch t1b1), so it is taken as the original's variation; here it was ours in 2 of 14 runs and the original's in none.
 
 Ran with ours (first-call log lines over the batch): 42 of the 43 functions of the two parts; the configuration's GetName did not. Init's missing-configuration path, the rewrite of an old-version exemplar and the potholes in Write and Shutdown ran in no batch (no save has such a lot, exemplar or pothole).
+
+Batch u1 (2026-10-14), parts L1 to L3: the original against every network occupant group, all of the network manager's groups and the twelve groups of this class for a week. Before the first run: `ret N` of the 12 new functions against our signatures (no mismatch), the caller register scan and the EAX scan (no hit), and an independent reading of the 12 functions against the disassembly: the three draws from the static generator at the game's three places under the game's conditions, the patched tables read from the game's memory with the game's index arithmetic, the jump table and float constants read from the exe (no difference in behaviour). The generator's state was the same on both sides before and after every leg that draws (it is reseeded under `determinism.fixed_seed`).
+
+| Leg | Saves | Result |
+|---|---|---|
+| plain | the 12 saves | 12 of 12 the same on the first pair |
+| plain | `saves-networks`, `saves-plopped`, `saves-ports` | 3 of 3 each, first pair |
+| `OPENSC4_TEST_NETLOT=3` (with the network manager's and the underground pieces' tests) | the 12 saves; `saves-networks` | 12 of 12; 3 of 3 |
+| `OPENSC4_TEST_BULLDOZE=3` | the 12 saves; `saves-networks` | 12 of 12; 3 of 3 |
+| `OPENSC4_TEST_PLOP_TOOL=3` with its commit, tutorial off | the 12 saves; `saves-networks` | 11 of 12 (Big City d0365, below); 3 of 3 |
+| with `OPENSC4_TEST_NETLOT_POTHOLES=1` | the 12 saves; `saves-networks` | 12 of 12; 3 of 3 |
+| with `OPENSC4_TEST_NETLOT_REDEVELOP=1` | the 12 saves; `saves-networks` | 12 of 12; 3 of 3 |
+| with `OPENSC4_TEST_NETLOT_CELLS=1` | the 12 saves; `saves-networks` | 12 of 12; 3 of 3 |
+| with `OPENSC4_TEST_NETLOT_STYLES=1` | the 12 saves; `saves-networks` | 11 of 12 (Rush Hour d1095, below); 3 of 3 |
+| `OPENSC4_TEST_ZONE_TOOL=3` with its commit, tutorial off | the 12 saves; `saves-networks` | 12 of 12; 2 of 3 (n0090, below) |
+
+The rebuilt lots made the same props on both sides (Big City n0000: 36 lots, 52 to 62 props depending on the save's day), the potholes were added and taken away again (four cells, one of them rail), and the restyle flood ran three times on each city that has grouped pieces (43 such cells on the networks saves; the 12 saves have none).
+
+The three partly saves:
+
+- Big City d0365 with the lot tool and Rush Hour d1095 with the styles test: the first run of ours differed from the first day, before any test: the MySim part's checksum once and the advisor generator's once; the three pairs after it were the same. The open item of [parity.md](parity.md).
+- `saves-networks` Big City n0090 after the zone tool: the fingerprints part on the last day in the terrain's flags only: bit 0x200 is set on a run of vertices along the city's edge row (z = 0) up to a point that differs from run to run. Twelve more pairs of that save: without this class's groups the original and ours gave one value 6 of 6; with them the original gave it 5 of 6 and a second one once (the bit on 23 vertices of that row), ours gave it 3 of 6 and a third one three times (the bit on the same vertices and two more). The same row, a different length: something that advances in real time after the zone tool's commit, likely the construction crew, whose progress runs on a real-time stopwatch until that is put on simulation time ("Decisions taken" above). Taken as the original's variation, with the numbers above.
+
+Ran with ours (first-call log lines over the batch): 54 of the 55; the configuration's GetName did not (only the lot editor asks for a name).
+
+Counting: the three classes have 62 functions in their range (the survey's count); 54 of them are ours, the 6 adjustor thunks and the 2 functions named above stay the game's; the 55th of ours is the configuration's GetID, a getter shared with other classes outside the range, replaced in this class's vtable only.
