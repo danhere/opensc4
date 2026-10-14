@@ -212,3 +212,7 @@ Version 2 each, `Write` 0x006A2680 and 0x005D5080. Layouts in [demand.md](demand
 ## cSC4NetworkManager (0xC990BD46)
 
 Version 1, `Write` 0x006111E0, `Read` 0x006124C0, the `cIGZSerializable` part at +0x8. Layout in [netmgr.md](netmgr.md), "The save record": a count and that many references to the globally managed pieces; decoded by `sc4save.py` (all 18 records of the corpus; the three d0000 tutorial cities have none).
+
+## cSC4NetworkLotManager (0xE9A6CD3B)
+
+Version 2, `Write` 0x0060D6B0, `Read` 0x0060DAC0, the `cIGZSerializable` part at +0x8. Layout in [netlot.md](netlot.md), "The save record": the number of lots and per lot the cell key (uint16, `((x & 0xFF) << 8) | z`, so the format holds cities of at most 256 cells a side), a reference to the lot's network piece and the ID of its configuration (uint32); then the number of potholes and per pothole the cell key and a reference to the occupant. Decoded by `sc4save.py` (all 21 records of the corpus, lot counts from 245 to 1,792; no save has a pothole).
