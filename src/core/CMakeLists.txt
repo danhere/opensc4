@@ -206,6 +206,9 @@ add_library(opensc4_core SHARED
   occbase_sim.cpp
   propocc_autotest.cpp
   propocc_sim.cpp
+  propkinds_autotest.cpp
+  propkinds_decal.cpp
+  propkinds_effect.cpp
   floraocc_autotest.cpp
   floraocc_sim.cpp
   foundocc_autotest.cpp
