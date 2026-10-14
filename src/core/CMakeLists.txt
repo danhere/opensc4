@@ -486,6 +486,9 @@ add_library(opensc4_core SHARED
   tool_disaster.cpp
   tool_torch.cpp
   tool_t6_autotest.cpp
+  tool_query_1a.cpp
+  tool_query_1b.cpp
+  tool_q1_autotest.cpp
   ui_cityview_1.cpp
   ui_cityview_2.cpp
   ui_cityview_3.cpp
