@@ -2990,3 +2990,259 @@ name = "cSC4NetworkTool::PreviewHeightByType"
 address = 0x00AA83F0
 kind = "data"
 source = "Name ours. 13 floats by network type (15.5 for types 2, 8 and 9, else 0): the height word AddCellPreview hands the preview record (+0x64) (src/core/nettool_preview.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SplitSidesByKind"
+address = 0x00620DF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 0C 53 8B 5C 24"
+source = "Name ours. Ret 0x10 (twos, odds, two count out, odd count out), this a cell's edge word: the sides whose low three bits are 2 go into the first array, those with 1 or 3 into the second, the counts from 0. Called by 0x00623C90 and 0x00633A60 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetSideHighBits"
+address = 0x00621070
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B D1 8B"
+source = "Name ours. Ret 8 (a side, a value byte), this an edge word: that side's byte becomes its low three bits | (value << 3). Called by 0x00633A60 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::CellRectAround"
+address = 0x00623C20
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 10 8B 44 24 0C"
+source = "Name ours. Ret 0x10 (x, z, the rectangle out, a radius), this the tool: x and z minus the radius (0 below), plus it (cells - 1 at most, +0x240 / +0x244), unsigned; EAX the rectangle. Called by 0x00634480 (src/core/nettool_solve_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::IsDiagonalEdge"
+address = 0x00623C90
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 20 8D 44 24 24 50"
+source = "Name ours. Two arguments (a cell info, a network type): 1 when the type's edge word has no side of kind 2 and one or two of kind 1 or 3, else 0 (0x00620DF0). Called by 0x006335E0 and 0x00633A60 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetSideKind"
+address = 0x006335B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B C1 8B"
+source = "Name ours. Ret 8 (a side, a kind), this an edge word: the side's byte's low three bits replaced by the kind (0x00620FC0). Called by 0x00633A60 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::MarkDiagonalRuns"
+address = 0x006335E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 8B 44 24 34 53"
+source = "Name ours. Ret 0xC (a cell info, four bytes out, a network type), this the tool: for each pair of sides of kinds 1 and 3 that sum to 4, both marked when the diagonal walks from the cell both ways end on a diagonal cell (0x00623C90). Called by 0x00633A60 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PatchTilePair"
+address = 0x006337E0
+kind = "function"
+convention = "thiscall"
+expect = "51 8A 44 24 14 53 55 8B"
+source = "Name NAM's. Ret 0x10 (a range of the RUL2 multimap, two solved cells, a direction); this not read: the first override whose rotations and second piece match the pair (turned by the direction + 2) replaces both pieces; EAX 1, 2 (an override to nothing) or 0. Called by the NAM-guarded 0x00634D70 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "SC4TileVerifierTable::EqualRange"
+address = 0x006339B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 53 8B 18 55"
+source = "Name ours. Ret 8 (the range out, the key*), this the tile verifier table 0x00B466DC: the first node of the key and the first node after its run (or of a later bucket); EAX the out. Called by 0x00635290 (src/core/nettool_solve_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::FixEdgesKind1"
+address = 0x00633A60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C 53 55 8B 6C 24"
+source = "Name ours. Ret 0x10 (a cell info, a network type, a cell set, an apply byte), this the tool: for a cell with sides of kind 2 and of kinds 1 or 3, each unmarked odd side's neighbour checked as diagonal and the side bytes of both adjusted (0x00621070, 0x006335B0); AL 0 when an immovable cell would change. Called by 0x006359B0 for type rows of kind 1 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::FixEdgesKind2"
+address = 0x00633C10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 8B 44 24 20 53"
+source = "Name ours. Ret 0x10 (a cell info, a network type, a cell set, an apply byte), this the tool: each side's level from its neighbouring sides written into its byte and the neighbour's opposite one (0x00620FC0); AL 0 when an immovable cell would change. Called by 0x006359B0 for type rows of kind 2 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetSubtract"
+address = 0x00633E50
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 83 EC 08 57"
+source = "Name ours. Two arguments (a cell set, another): every key of the second erased from the first. Called by the tile solver 0x00635CB0 (src/core/nettool_solve_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetEraseKeys"
+address = 0x00633ED0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 56 8B 30 57"
+source = "Name ours. Two arguments (a cell set, a uint32 vector*): every key of the vector erased from the set. Called by the tile solver 0x00635CB0 (src/core/nettool_solve_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetUnion"
+address = 0x00633F10
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 83 EC 0C 57"
+source = "Name ours. Two arguments (a cell set, another): every key of the second inserted into the first. Called by the tile solver 0x00635CB0 (src/core/nettool_solve_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::MatchRuleFile"
+address = 0x006340D0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. Ret 0x18 (the cells around, the cells to solve, the unmatched cells out, a rule file, the occupant manager (not read), a network type), this the tool: while cells remain, the first cell around is matched against the file (0x00627080, 0x006220D0); a match's tiles become solved cells (+0x98) and leave the sets, else the cell goes to the unmatched. Called by 0x006358C0 (src/core/nettool_solve_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GrowCellSet"
+address = 0x00634480
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 8D 44 24 0C"
+source = "Name ours. Ret 0xC (a cell set, a set out, a radius), this the tool: every cell within the radius of a cell of the first set whose cell info is not immovable (or is the cell itself) inserted into the second. Called by 0x006359B0 and the tile solver 0x00635CB0 (src/core/nettool_solve_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SpreadConnected"
+address = 0x006345B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 89 0C 24 8B 4C"
+source = "Name ours. Ret 8 (a uint32 vector of cell keys, a pass count), this the tool: per pass the neighbours each cell's combined edges connect to (0x00620EC0), in the city, not in +0x84 and neither immovable nor of step kind 3, inserted into +0x84, marked (+0x57) and queued. Called by 0x006355C0 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::ResolveCellTypes"
+address = 0x00634820
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 64 8D 44 24 1C 89"
+source = "Name ours. Ret 0xC (the cells to solve, a uint32 vector out, a preferred network type), this the tool: a cell with three or more types loses the lower-priority ones whose edges the higher one covers; with two, the lower one's edges are merged or dropped and a RUL1 pair override (0x00B460DC) gives the cell its solved piece. Called by the tile solver 0x00635CB0 (src/core/nettool_solve_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::AdjustTileSubsets"
+address = 0x00634D70
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name NAM's. Ret 8 (the solved cells, a byte): the RUL2 tile-conflict pass over neighbouring solved cells (PatchTilePair 0x006337E0, the multimap 0x00B466D0); AL. NAM-GUARDED: NAM's Rul2Engine replaces 0x00634D79 to 0x00635282; stays the game's. The tile solver 0x00635CB0 calls it."
+
+[[entry]]
+name = "cSC4NetworkTool::VerifyTiles"
+address = 0x00635290
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C A1 EC 66 B4 00"
+source = "Name ours. Ret 4 (the solved cells), this the tool: each solved cell with tile verifiers (0x00B466DC) must meet one verifier's pieces around it, else it goes back into +0x84 and out of the vector (later cells' indices +0xB8 lowered); AL 1 when none went. Called by the tile solver 0x00635CB0 (src/core/nettool_solve_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::CollectDraggedCells"
+address = 0x006355C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 53 55 56 8B F1"
+source = "Name ours. No arguments, this the tool: the valid steps' dragged cells that are not immovable and the rule cell records (+0xF0) inserted into +0x84 and marked (+0x57), spread four passes (0x006345B0), then the intersections' (0x0063B1A0), the +0xE4 records' (0x00638BB0) and the major bridges' (0x00638B40) cells. Called by the NAM-guarded 0x0062CD50 and by 0x0063B830 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::ApplyRuleFile"
+address = 0x006358C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 55 56 33 DB"
+source = "Name ours. Ret 0x14 (the cells around, the cells to solve, a rule file, the occupant manager, a network type), this the tool: 0x006340D0 into a local set of unmatched cells, which go back into the cells around while cells remain to solve. Called by the tile solver 0x00635CB0 (src/core/nettool_solve_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::FixCellEdges"
+address = 0x006359B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 53 55 56 57 33"
+source = "Name ours. Ret 0xC (the cells, the failed cells out, a byte), this the tool: the cells grown by one (0x00634480); with the byte, single-type cells of the set get their side bytes' high bits cleared (0x00621440); then each single-type cell goes through 0x00633A60 or 0x00633C10 by its type row's kind, a refusal moving it from the cells to the failed. Called by the tile solver 0x00635CB0 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SolveTiles"
+address = 0x00635CB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C 53 55 56 33 F6"
+source = "Name ours. Ret 8 (a preferred network type, a byte), this the tool: the cells of +0x84 solved into pieces (+0x98): grown, edges fixed, multi-type cells resolved, each type row's rule files applied, then the RUL2 pass 0x00634D70 and the verifiers 0x00635290; EAX the first step whose cells are not all solved (+0x78 when all are, +0x78 - 1 on a refusal). Called by 0x0062A5C0, the NAM-guarded 0x0062CD50 and 0x0063B830 (src/core/nettool_solve_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::EraseBridgeCells"
+address = 0x00638B40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 81 DC 00 00"
+source = "Name ours. Ret 4 (a cell set), this the tool: the cells of the major bridges (+0xD8, records of 0x28 with 0x50-byte cells at +0x1C) of the valid steps erased from the set. Called by 0x006355C0 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::EraseRecordE4Cells"
+address = 0x00638BB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 8B D9 8B 8B"
+source = "Name ours. Ret 4 (a cell set), this the tool: the dragged cells of the steps each +0xE4 record (0x10 bytes: steps +0x8 to +0xC) spans erased from the set, for records of the valid steps. Called by 0x006355C0 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::CollectIntersectionCells"
+address = 0x0063B1A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 53 8B 99 D0 00"
+source = "Name ours. Ret 4 (a cell set), this the tool: for each intersection (+0xCC, 0x28 bytes) of the valid steps, its RUL0 rule's checked points (0x0062C2F0) placed at it erased from the set and appended to its key vector +0x1C. Called by 0x006355C0 (src/core/nettool_solve_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetSideByte"
+address = 0x00620FC0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 C1 E1"
+source = "Name ours. Ret 8 (a side, a byte), this an edge word: that side's byte replaced; EAX this. Called by 0x006335B0 and 0x00633C10 (the game's; part t8 calls it at its address)."
+
+[[entry]]
+name = "cSC4NetworkTool::ClearSideHighBits"
+address = 0x00621440
+kind = "function"
+convention = "thiscall"
+expect = "8A 11 8B 01 25 00 FF FF"
+source = "Name ours. No arguments, this an edge word: each side byte reduced to its low three bits. Called by 0x006359B0 (the game's; part t8 calls it at its address)."
+
+[[entry]]
+name = "SC4::EdgeWordsAgree"
+address = 0x00729EC0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. Two arguments (two edge words): 1 when they agree in every side byte the first uses (low nibble not 0), else 0 (src/core/zone_streets.cpp has it as ConnectionsAgree). Called by the zone developer and by 0x006340D0."
+
+[[entry]]
+name = "cSC4NetworkTool::SolverTypeFlags"
+address = 0x00AA89C4
+kind = "data"
+source = "Name ours. The network flag of each type (13 words, 1 shifted by the type), the copy the tile solver's code reads (0x006340D0, 0x00634820, 0x006359B0)."
+
+[[entry]]
+name = "cSC4NetworkTool::SideDx"
+address = 0x00AA89F8
+kind = "data"
+source = "Name ours. Four int32: the x step of each side (-1, 0, 1, 0), read by the tile solver's code."
+
+[[entry]]
+name = "cSC4NetworkTool::SideDz"
+address = 0x00AA8A08
+kind = "data"
+source = "Name ours. Four int32: the z step of each side (0, -1, 0, 1), read by the tile solver's code."
+
+[[entry]]
+name = "cSC4NetworkTool::TypePriority"
+address = 0x00AA8A18
+kind = "data"
+source = "Name ours. 13 int32 by network type (3, 5, 6, 2, 1, 0, 4, 1, 7, 7, 3, 0, 5): which type of a cell 0x00634820 keeps."
