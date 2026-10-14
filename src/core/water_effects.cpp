@@ -10684,23 +10684,40 @@ uint32_t __fastcall MxAllocateNoted(char* pool, void*, uint32_t size)
 }
 OPENSC4_THUNK(TSC4_PoolAllocate, MxAllocateNoted, 4)
 
+// The two constructors by the mode of their own replacement (further
+// down).
+uint32_t DecalCtorRun(char* self);
+uint32_t CompoundCtorRun(char* self);
+
 uint32_t __fastcall DecalConstructNoted(char* object, void*)
 {
     if (!MxNoting())
-        return g_SC4EffectDecal_Construct(object, nullptr);
-    return MxConstructNoted(addr::SC4EffectDecal_Construct, object,
-                            [&] { return g_SC4EffectDecal_Construct(object, nullptr); });
+        return DecalCtorRun(object);
+    return MxConstructNoted(addr::SC4EffectDecal_Construct, object, [&] { return DecalCtorRun(object); });
 }
 OPENSC4_THUNK(TSC4EffectDecal_Construct, DecalConstructNoted, 0)
 
 uint32_t __fastcall CompoundConstructNoted(char* object, void*)
 {
     if (!MxNoting())
-        return g_SC4CompoundEffect_Construct(object, nullptr);
-    return MxConstructNoted(addr::SC4CompoundEffect_Construct, object,
-                            [&] { return g_SC4CompoundEffect_Construct(object, nullptr); });
+        return CompoundCtorRun(object);
+    return MxConstructNoted(addr::SC4CompoundEffect_Construct, object, [&] { return CompoundCtorRun(object); });
 }
 OPENSC4_THUNK(TSC4CompoundEffect_Construct, CompoundConstructNoted, 0)
+
+// The two constructors have one detour each, which the makers' comparison
+// and their own replacement share.
+bool HookDecalConstruct()
+{
+    return g_SC4EffectDecal_Construct ||
+           Detour(addr::SC4EffectDecal_Construct, &TSC4EffectDecal_Construct, &g_SC4EffectDecal_Construct);
+}
+
+bool HookCompoundConstruct()
+{
+    return g_SC4CompoundEffect_Construct ||
+           Detour(addr::SC4CompoundEffect_Construct, &TSC4CompoundEffect_Construct, &g_SC4CompoundEffect_Construct);
+}
 
 uint32_t MxSetObjectNoted(char* self, uint32_t object, uint32_t (*run)(char*, uint32_t))
 {
@@ -10920,8 +10937,7 @@ bool InstallMakers(registry::Mode mode)
         !(Detour(addr::SC4_PoolAllocate, &TSC4_PoolAllocate, &g_SC4_PoolAllocate) &&
           HookEffectConstructors() &&
           (g_SC4Effect_SetObject || Detour(addr::SC4Effect_SetObject, &TSC4Effect_SetObject, &g_SC4Effect_SetObject)) &&
-          Detour(addr::SC4EffectDecal_Construct, &TSC4EffectDecal_Construct, &g_SC4EffectDecal_Construct) &&
-          Detour(addr::SC4CompoundEffect_Construct, &TSC4CompoundEffect_Construct, &g_SC4CompoundEffect_Construct)))
+          HookDecalConstruct() && HookCompoundConstruct()))
         return false;
     g_mxMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: the makers of what a record holds %s",
@@ -11260,6 +11276,138 @@ const bool g_registeredDecalDescription = registry::Register({
     "clouds\")",
     true,
     InstallDecalDescription,
+});
+
+// --- The constructors of a decal and a compound effect -------------------------------------
+
+// The three constructors (effects_ctors.inc). Each allocates (the decal's
+// description five vectors of one value, the compound effect the room of
+// its name), so their comparison runs ours on a copy of the memory, then
+// the game's on the object itself: the two are compared byte for byte but
+// for the allocated pointers, which are compared by what they hold and by
+// the sizes they give; ours' allocations are then freed.
+StepMode g_ctMode = StepMode::Original;
+Call0Fn g_SC4DecalDescription_Construct = nullptr;
+uint64_t g_ctCompared = 0;
+
+struct CtVector {
+    uint32_t at, used, room, compared;
+};
+
+// The vector's place in the two copies agrees in what it holds and in its
+// sizes; then its three pointers are set aside in both.
+bool CtSameVector(char* theirs, char* mine, const CtVector& vector)
+{
+    char* const a = At<char*>(theirs, vector.at);
+    char* const b = At<char*>(mine, vector.at);
+    const bool same = a && b && At<char*>(theirs, vector.at + 4) - a == static_cast<int32_t>(vector.used) &&
+                      At<char*>(mine, vector.at + 4) - b == static_cast<int32_t>(vector.used) &&
+                      At<char*>(theirs, vector.at + 8) - a == static_cast<int32_t>(vector.room) &&
+                      At<char*>(mine, vector.at + 8) - b == static_cast<int32_t>(vector.room) &&
+                      std::memcmp(a, b, vector.compared) == 0;
+    std::memset(theirs + vector.at, 0, 12);
+    std::memset(mine + vector.at, 0, 12);
+    return same;
+}
+
+template <typename Game>
+uint32_t CtCompared(const char* id, char* object, std::size_t size, Game&& game, char* (*ours)(char*),
+                    std::initializer_list<CtVector> vectors)
+{
+    std::vector<char> mine(object, object + size);
+    ours(mine.data());
+    const uint32_t result = game();
+    std::vector<char> theirs(object, object + size);
+    bool same = result == reinterpret_cast<uint32_t>(object);
+    std::vector<char*> ourAllocations;
+    for (const CtVector& vector : vectors) {
+        ourAllocations.push_back(At<char*>(mine.data(), vector.at));
+        same = CtSameVector(theirs.data(), mine.data(), vector) && same;
+    }
+    for (char* const allocation : ourAllocations) {
+        if (allocation)
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(allocation);
+    }
+    std::size_t at = 0;
+    while (at < size && theirs[at] == mine[at])
+        ++at;
+    same = same && at == size;
+    at &= ~std::size_t{3};
+    char text[24];
+    std::snprintf(text, sizeof text, "+%zX ", at < size ? at : 0);
+    compare::Record(id, same, same ? std::string() : text + Hex(theirs.data() + (at < size ? at : 0), 4),
+                    same ? std::string() : text + Hex(mine.data() + (at < size ? at : 0), 4));
+    ++g_ctCompared;
+    if ((g_ctCompared & (g_ctCompared - 1)) == 0)
+        log::Write("water effects: effects.ctors: %llu constructions compared so far",
+                   static_cast<unsigned long long>(g_ctCompared));
+    return result;
+}
+
+#include "core/effects_ctors.inc"
+
+uint32_t DecalDescriptionCtorRun(char* self)
+{
+    if (g_ctMode == StepMode::Ours)
+        return reinterpret_cast<uint32_t>(ConstructDecalDescription(self));
+    if (g_ctMode == StepMode::Original)
+        return g_SC4DecalDescription_Construct(self, nullptr);
+    return CtCompared(
+        "effects.ctors.decal_description", self, 0x64, [&] { return g_SC4DecalDescription_Construct(self, nullptr); },
+        &ConstructDecalDescription,
+        {{0x10, 4, 4, 4}, {0x1C, 4, 4, 4}, {0x28, 4, 4, 4}, {0x34, 0xC, 0xC, 0xC}, {0x40, 4, 4, 4}});
+}
+
+uint32_t __fastcall DecalDescriptionCtorByMode(char* self, void*)
+{
+    return DecalDescriptionCtorRun(self);
+}
+OPENSC4_THUNK(TSC4DecalDescription_Construct, DecalDescriptionCtorByMode, 0)
+
+uint32_t DecalCtorRun(char* self)
+{
+    if (g_ctMode == StepMode::Ours)
+        return reinterpret_cast<uint32_t>(ConstructDecal(self));
+    if (g_ctMode == StepMode::Original)
+        return g_SC4EffectDecal_Construct(self, nullptr);
+    return CtCompared(
+        "effects.ctors.decal", self, 0x124, [&] { return g_SC4EffectDecal_Construct(self, nullptr); }, &ConstructDecal,
+        {{0x1C, 4, 4, 4}, {0x28, 4, 4, 4}, {0x34, 4, 4, 4}, {0x40, 0xC, 0xC, 0xC}, {0x4C, 4, 4, 4}});
+}
+
+uint32_t CompoundCtorRun(char* self)
+{
+    if (g_ctMode == StepMode::Ours)
+        return reinterpret_cast<uint32_t>(ConstructCompoundEffect(self));
+    if (g_ctMode == StepMode::Original)
+        return g_SC4CompoundEffect_Construct(self, nullptr);
+    return CtCompared(
+        "effects.ctors.compound", self, 0x14C, [&] { return g_SC4CompoundEffect_Construct(self, nullptr); },
+        &ConstructCompoundEffect, {{0xC, 0, 8, 1}});
+}
+
+bool InstallCtors(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookDecalConstruct() || !HookCompoundConstruct() ||
+        !Detour(addr::SC4DecalDescription_Construct, &TSC4DecalDescription_Construct, &g_SC4DecalDescription_Construct))
+        return false;
+    g_ctMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the constructors of a decal and a compound effect %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredCtors = registry::Register({
+    "renderer.effects.ctors",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDecal_Construct,
+    "The constructors of a decal, its description and a compound effect: tables of functions, first values, the "
+    "description's five vectors of one value and the compound effect's empty name; compare mode runs ours on a copy "
+    "and the game's on the object (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallCtors,
 });
 
 bool InstallEffects(registry::Mode mode)
