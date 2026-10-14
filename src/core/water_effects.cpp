@@ -9474,17 +9474,20 @@ uint32_t __fastcall GrowRecordsNoted(char* records, void*, uint32_t at, uint32_t
 }
 OPENSC4_THUNK(TSC4EffectRecords_GrowInsert, GrowRecordsNoted, 20)
 
+// The making by the mode of its own replacement (further down).
+uint32_t MakeRun(char* self, uint32_t part, uint32_t record, uint32_t made);
+
 // The effect a record has just been given is watched from here on.
 uint32_t __fastcall MakeRecordEffectNoted(char* self, void*, uint32_t part, uint32_t record, uint32_t made)
 {
     if (!ScNoting())
-        return g_SC4EffectsManager_MakeRecordEffect(self, nullptr, part, record, made);
+        return MakeRun(self, part, record, made);
     ++g_scMade;
     return ScNoted(
         ScMakeCall(addr::SC4EffectsManager_MakeRecordEffect, part, ScIndex(reinterpret_cast<char*>(record)),
                    M<uint32_t>(made)),
         [&] {
-            const uint32_t result = g_SC4EffectsManager_MakeRecordEffect(self, nullptr, part, record, made);
+            const uint32_t result = MakeRun(self, part, record, made);
             char* const held = At<char*>(reinterpret_cast<char*>(record), 0x38);
             if (ScSwap(held))
                 g_scSwapped.push_back(held);
@@ -9493,6 +9496,15 @@ uint32_t __fastcall MakeRecordEffectNoted(char* self, void*, uint32_t part, uint
         &M<uint32_t>(made));
 }
 OPENSC4_THUNK(TSC4EffectsManager_MakeRecordEffect, MakeRecordEffectNoted, 12)
+
+// The making has one detour, which the start's comparison and the making's
+// own replacement share.
+bool HookMakeRecordEffect()
+{
+    return g_SC4EffectsManager_MakeRecordEffect ||
+           Detour(addr::SC4EffectsManager_MakeRecordEffect, &TSC4EffectsManager_MakeRecordEffect,
+                  &g_SC4EffectsManager_MakeRecordEffect);
+}
 
 std::string ScCallsText(const std::vector<ScCall>& calls, const std::vector<ScCall>& other)
 {
@@ -9630,8 +9642,7 @@ bool InstallCompoundStart(registry::Mode mode)
         !(HookEraseRecords() &&
           Detour(addr::SC4EffectRecord_Assign, &TSC4EffectRecord_Assign, &g_SC4EffectRecord_Assign) &&
           Detour(addr::SC4EffectRecords_GrowInsert, &TSC4EffectRecords_GrowInsert, &g_SC4EffectRecords_GrowInsert) &&
-          Detour(addr::SC4EffectsManager_MakeRecordEffect, &TSC4EffectsManager_MakeRecordEffect,
-                 &g_SC4EffectsManager_MakeRecordEffect)))
+          HookMakeRecordEffect()))
         return false;
     g_scMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: the start of a compound effect %s",
@@ -9646,12 +9657,677 @@ const bool g_registeredCompoundStart = registry::Register({
     registry::Phase::PostAppInit,
     addr::SC4EffectsManager_StartCompound,
     "The effects manager's start of a compound effect: the records of parts no longer within the level of detail "
-    "stopped and erased, a record made for each part new to it (the making of its effect still the game's), each "
-    "given its transform and started; with a record's two constructors, the level's values and the compound "
+    "stopped and erased, a record made for each part new to it (the making of its effect is renderer.effects.make), "
+    "each given its transform and started; with a record's two constructors, the level's values and the compound "
     "effect's own; compare mode runs the game's with its calls noted and replays ours on a copy of the compound "
     "effect (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallCompoundStart,
+});
+
+// --- The making of a record's effect ---------------------------------------------------------
+
+// The making and the small function under it (effects_make.inc). The
+// making makes effects, so it cannot run twice. Its comparison is the
+// start's kind: the game's first, noting each call it makes that ours
+// makes too: the six makers, the taking of a description, the value and
+// the hold of a new effect (through a copy of its table of functions),
+// the two calls for a remembered effect, the decal's description, the
+// look-up of a name, the compound effect's description and the record's
+// taking of what was made (through detours). Then ours runs on a copy of
+// the record with its calls only noted, each maker answered with what the
+// game's made; a compound effect it is answered with is a copy, so that
+// the index ours stores in it can be compared. The calls, the record and
+// the remembered word are compared; pointers into the record and into
+// what was made are compared by place. The name given to a new compound
+// effect is not a noted call (the string's assign is every string's): ours
+// is checked against the name the game's left. The entry a part of the
+// kinds 3 to 0xF asks is watched through a copy of its table too. A making
+// for a record that already holds something is not compared.
+constexpr uint32_t kMkRole = 0x00591730, kMkRole10 = 0x00591000, kMkHoldRole = 0x0058D8D0, kMkAskRole = 0x00591964;
+constexpr uint32_t kMkStringAssign = 0x00408C40; // (this = string, const string*), ret 4
+constexpr std::size_t kMkCompound = 0x13C, kMkRecord = 0x44;
+
+StepMode g_mkMode = StepMode::Original;
+Call1Fn g_SC4EffectHolder_Assign = nullptr, g_SC4EffectB_SetLinked = nullptr, g_SC4EffectDecal_SetDescription = nullptr,
+        g_SC4EffectsManager_FindDescriptionByName = nullptr, g_SC4CompoundEffect_SetDescription = nullptr;
+Call0Fn g_SC4Effect_SetMarked = nullptr;
+
+struct MkCall {
+    uint32_t target, a, b, c, value, result;
+    bool operator==(const MkCall& other) const
+    {
+        return target == other.target && a == other.a && b == other.b && c == other.c && value == other.value;
+    }
+};
+bool g_mkNoting = false, g_mkReplay = false, g_mkSkip = false;
+int g_mkDepth = 0, g_mkHoldMode = 0;
+DWORD g_mkThread = 0;
+// The record and the made objects that pointers are placed in: the game's
+// while it runs, ours' in the replay.
+char* g_mkRecord = nullptr;
+std::vector<char*>* g_mkMade = nullptr;
+std::vector<char*> g_mkMadeGame, g_mkMadeOurs, g_mkSwapped;
+std::vector<MkCall> g_mkGame, g_mkOurs;
+std::vector<std::pair<uint32_t, char*>> g_mkHoldEvents;
+char g_mkScratch[kMkCompound], g_mkDummy[0x400];
+char* g_mkScratchOf = nullptr;
+uint64_t g_mkCompared = 0, g_mkCalls = 0, g_mkAssigns = 0;
+std::map<uint32_t, uint64_t> g_mkMakerCounts;
+uint64_t g_mkAsked = 0;
+
+bool MkNoting()
+{
+    return g_mkNoting && g_mkDepth == 0 && GetCurrentThreadId() == g_mkThread;
+}
+
+// A pointer into the record or to the start of something made, by place.
+uint32_t MkPlace(uint32_t pointer)
+{
+    char* const at = reinterpret_cast<char*>(pointer);
+    if (g_mkRecord && at >= g_mkRecord && at < g_mkRecord + kMkRecord)
+        return 0xD0000000u | static_cast<uint32_t>(at - g_mkRecord);
+    if (g_mkMade) {
+        for (std::size_t i = 0; i < g_mkMade->size(); ++i) {
+            if (at >= (*g_mkMade)[i] && at < (*g_mkMade)[i] + 0x10)
+                return 0xE0000000u | static_cast<uint32_t>(i << 16) | static_cast<uint32_t>(at - (*g_mkMade)[i]);
+        }
+    }
+    return pointer;
+}
+
+uint32_t MkPlace(const char* pointer)
+{
+    return MkPlace(reinterpret_cast<uint32_t>(pointer));
+}
+
+MkCall MkMakeCall(uint32_t target, uint32_t a = 0, uint32_t b = 0, uint32_t c = 0, uint32_t value = 0)
+{
+    return {target, a, b, c, value, 0};
+}
+
+template <typename Real>
+uint32_t MkNoted(MkCall call, Real&& real)
+{
+    ++g_mkDepth;
+    call.result = real();
+    --g_mkDepth;
+    g_mkGame.push_back(call);
+    return call.result;
+}
+
+// Ours' call in the replay: noted, and answered as the game's at the same place was.
+uint32_t MkReplayed(const MkCall& call)
+{
+    const std::size_t at = g_mkOurs.size();
+    g_mkOurs.push_back(call);
+    return at < g_mkGame.size() && g_mkGame[at] == call ? g_mkGame[at].result : 0;
+}
+
+uint32_t MkSlot(char* object, uint32_t slot)
+{
+    return At<uint32_t>(At<char*>(object, 0), slot);
+}
+
+// What the making calls: the real thing, or in the replay its note.
+char* MkMaker(uint32_t target, char* self)
+{
+    if (!g_mkReplay)
+        return CallThis<char*>(target, self);
+    char* result = reinterpret_cast<char*>(MkReplayed(MkMakeCall(target)));
+    if (target == addr::SC4EffectsManager_NewCompound) {
+        g_mkScratchOf = result;
+        if (result)
+            std::memcpy(g_mkScratch, result, kMkCompound);
+        At<int32_t>(g_mkScratch, 0x20) = 0x7FFFFFFE;
+        result = g_mkScratch;
+    } else if (!result) {
+        result = g_mkDummy;
+    }
+    g_mkMadeOurs.push_back(result);
+    return result;
+}
+
+void MkSetDescription(char* effect, char* description)
+{
+    if (g_mkReplay)
+        MkReplayed(MkMakeCall(0x28, MkPlace(effect), reinterpret_cast<uint32_t>(description)));
+    else
+        CallThis<void>(MkSlot(effect, 0x28), effect, description);
+}
+
+void MkValues(char* effect, uint32_t which, float* values, uint32_t count)
+{
+    if (g_mkReplay)
+        MkReplayed(MkMakeCall(0x14, MkPlace(effect), which, count, At<uint32_t>(reinterpret_cast<char*>(values), 0)));
+    else
+        CallThis<void>(MkSlot(effect, 0x14), effect, which, values, count);
+}
+
+void MkHold(char* object)
+{
+    if (g_mkReplay)
+        MkReplayed(MkMakeCall(0x1C, MkPlace(object)));
+    else
+        CallThis<void>(MkSlot(object, 0x1C), object);
+}
+
+void MkEnd(char* object)
+{
+    if (g_mkReplay)
+        MkReplayed(MkMakeCall(0x20, MkPlace(object)));
+    else
+        CallThis<void>(MkSlot(object, 0x20), object);
+}
+
+void MkGive(char* object, uint32_t value)
+{
+    if (g_mkReplay)
+        MkReplayed(MkMakeCall(0x3C, MkPlace(object), value));
+    else
+        CallThis<void>(MkSlot(object, 0x3C), object, value);
+}
+
+void MkLink(char* before, char* second)
+{
+    if (g_mkReplay)
+        MkReplayed(MkMakeCall(addr::SC4EffectB_SetLinked, MkPlace(before), MkPlace(second)));
+    else
+        CallThis<void>(addr::SC4EffectB_SetLinked, before, second);
+}
+
+void MkMark(char* second)
+{
+    if (g_mkReplay)
+        MkReplayed(MkMakeCall(addr::SC4Effect_SetMarked, MkPlace(second)));
+    else
+        CallThis<void>(addr::SC4Effect_SetMarked, second);
+}
+
+void MkDecalDescription(char* decal, char* description)
+{
+    if (g_mkReplay)
+        MkReplayed(
+            MkMakeCall(addr::SC4EffectDecal_SetDescription, MkPlace(decal), reinterpret_cast<uint32_t>(description)));
+    else
+        CallThis<void>(addr::SC4EffectDecal_SetDescription, decal, description);
+}
+
+// In the replay the compound effect is a copy of the game's as the game's
+// making left it: the string ours names must be the one that has the name.
+void MkString(char* string, char* name)
+{
+    if (!g_mkReplay) {
+        CallThis<void>(kMkStringAssign, string, name);
+        return;
+    }
+    const std::size_t size = static_cast<std::size_t>(At<char*>(name, 4) - At<char*>(name, 0));
+    const bool same = string == g_mkScratch + 0xC && g_mkScratchOf &&
+                      static_cast<std::size_t>(At<char*>(string, 4) - At<char*>(string, 0)) == size &&
+                      std::memcmp(At<char*>(string, 0), At<char*>(name, 0), size) == 0;
+    if (!same)
+        g_mkOurs.push_back(MkMakeCall(kMkStringAssign, MkPlace(string), reinterpret_cast<uint32_t>(name)));
+}
+
+int32_t MkFind(char* self, char* name)
+{
+    if (g_mkReplay)
+        return static_cast<int32_t>(
+            MkReplayed(MkMakeCall(addr::SC4EffectsManager_FindDescriptionByName, reinterpret_cast<uint32_t>(name))));
+    return CallThis<int32_t>(addr::SC4EffectsManager_FindDescriptionByName, self, name);
+}
+
+void MkCompoundDescription(char* compound, char* description)
+{
+    if (g_mkReplay)
+        MkReplayed(MkMakeCall(addr::SC4CompoundEffect_SetDescription, MkPlace(compound),
+                              reinterpret_cast<uint32_t>(description)));
+    else
+        CallThis<void>(addr::SC4CompoundEffect_SetDescription, compound, description);
+}
+
+char* MkAsk(char* source)
+{
+    if (g_mkReplay)
+        return reinterpret_cast<char*>(MkReplayed(MkMakeCall(0x4, reinterpret_cast<uint32_t>(source))));
+    return CallThis<char*>(MkSlot(source, 0x4), source);
+}
+
+char* AssignHeld(char* holder, char* object);
+
+void MkAssign(char* holder, char* object)
+{
+    if (g_mkReplay) {
+        MkReplayed(MkMakeCall(addr::SC4EffectHolder_Assign, MkPlace(holder), MkPlace(object)));
+        At<char*>(holder, 0) = object;
+    } else {
+        AssignHeld(holder, object);
+    }
+}
+
+#include "core/effects_make.inc"
+
+// The stand-ins for five functions of what the making makes. The hold and
+// the letting go are also what the small function's own comparison looks
+// at: mode 1 notes the call and makes it, mode 2 only notes it.
+uint32_t __fastcall MkDescriptionStub(char* object, void*, uint32_t description)
+{
+    const uint32_t real = BRealSlot(object, 0x28);
+    if (!MkNoting())
+        return CallThis<uint32_t>(real, object, description);
+    return MkNoted(MkMakeCall(0x28, MkPlace(object), description),
+                   [&] { return CallThis<uint32_t>(real, object, description); });
+}
+
+uint32_t __fastcall MkValuesStub(char* object, void*, uint32_t which, uint32_t values, uint32_t count)
+{
+    const uint32_t real = BRealSlot(object, 0x14);
+    if (!MkNoting())
+        return CallThis<uint32_t>(real, object, which, values, count);
+    return MkNoted(MkMakeCall(0x14, MkPlace(object), which, count, M<uint32_t>(values)),
+                   [&] { return CallThis<uint32_t>(real, object, which, values, count); });
+}
+
+uint32_t __fastcall MkGiveStub(char* object, void*, uint32_t value)
+{
+    const uint32_t real = BRealSlot(object, 0x3C);
+    if (!MkNoting())
+        return CallThis<uint32_t>(real, object, value);
+    return MkNoted(MkMakeCall(0x3C, MkPlace(object), value), [&] { return CallThis<uint32_t>(real, object, value); });
+}
+
+// The object asked of an entry of one of the manager's lists.
+uint32_t __fastcall MkAskStub(char* source, void*)
+{
+    const uint32_t real = BRealSlot(source, 0x4);
+    if (!MkNoting())
+        return CallThis<uint32_t>(real, source);
+    return MkNoted(MkMakeCall(0x4, reinterpret_cast<uint32_t>(source)),
+                   [&] { return CallThis<uint32_t>(real, source); });
+}
+
+uint32_t __fastcall MkHoldStub(char* object, void*)
+{
+    if (g_mkHoldMode) {
+        g_mkHoldEvents.push_back({0x1C, object});
+        if (g_mkHoldMode == 2)
+            return 0;
+    }
+    const uint32_t real = BRealSlot(object, 0x1C);
+    if (g_mkHoldMode || !MkNoting())
+        return CallThis<uint32_t>(real, object);
+    return MkNoted(MkMakeCall(0x1C, MkPlace(object)), [&] { return CallThis<uint32_t>(real, object); });
+}
+
+// The call may be the object's last: it gets its own table back first.
+uint32_t __fastcall MkEndStub(char* object, void*)
+{
+    if (g_mkHoldMode) {
+        g_mkHoldEvents.push_back({0x20, object});
+        if (g_mkHoldMode == 2)
+            return 0;
+    }
+    const uint32_t real = BRealSlot(object, 0x20);
+    const bool noting = !g_mkHoldMode && MkNoting();
+    const uint32_t place = MkPlace(object);
+    BGiveBack(object, true);
+    if (!noting)
+        return CallThis<uint32_t>(real, object);
+    return MkNoted(MkMakeCall(0x20, place), [&] { return CallThis<uint32_t>(real, object); });
+}
+
+// True when the object has been given one of the making's tables.
+bool MkWatched(char* object)
+{
+    const auto found = g_bReal.find(object);
+    return found != g_bReal.end() &&
+           (found->second.slot == kMkRole || found->second.slot == kMkRole10 || found->second.slot == kMkHoldRole);
+}
+
+// A maker of the game's: what it made is watched from here on.
+uint32_t MkMakerNoted(uint32_t target, Call0Fn original, char* self)
+{
+    if (!MkNoting())
+        return original(self, nullptr);
+    char* const made = reinterpret_cast<char*>(MkNoted(MkMakeCall(target), [&] { return original(self, nullptr); }));
+    g_mkMadeGame.push_back(made);
+    ++g_mkMakerCounts[target];
+    if (target == addr::SC4EffectsManager_NewDecal || target == addr::SC4EffectsManager_NewCompound || !made)
+        return reinterpret_cast<uint32_t>(made);
+    if (g_bReal.find(made) != g_bReal.end()) {
+        g_mkSkip = true;
+        return reinterpret_cast<uint32_t>(made);
+    }
+    if (target == addr::SC4EffectsManager_NewEffect10)
+        BSwapRole(made, kMkRole10,
+                  {{0x1C, reinterpret_cast<uint32_t>(&MkHoldStub)},
+                   {0x20, reinterpret_cast<uint32_t>(&MkEndStub)},
+                   {0x3C, reinterpret_cast<uint32_t>(&MkGiveStub)}});
+    else
+        BSwapRole(made, kMkRole,
+                  {{0x14, reinterpret_cast<uint32_t>(&MkValuesStub)},
+                   {0x1C, reinterpret_cast<uint32_t>(&MkHoldStub)},
+                   {0x20, reinterpret_cast<uint32_t>(&MkEndStub)},
+                   {0x28, reinterpret_cast<uint32_t>(&MkDescriptionStub)}});
+    g_mkSwapped.push_back(made);
+    return reinterpret_cast<uint32_t>(made);
+}
+
+#define OPENSC4_MK_MAKER(Name)                                                                                           \
+    Call0Fn g_##Name = nullptr;                                                                                          \
+    uint32_t __fastcall Name##Noted(char* self, void*)                                                                   \
+    {                                                                                                                    \
+        return MkMakerNoted(addr::Name, g_##Name, self);                                                                 \
+    }                                                                                                                    \
+    OPENSC4_THUNK(T##Name, Name##Noted, 0)
+OPENSC4_MK_MAKER(SC4EffectsManager_NewEffect)
+OPENSC4_MK_MAKER(SC4EffectsManager_NewEffectB)
+OPENSC4_MK_MAKER(SC4EffectsManager_NewEffectC)
+OPENSC4_MK_MAKER(SC4EffectsManager_NewEffect10)
+OPENSC4_MK_MAKER(SC4EffectsManager_NewDecal)
+OPENSC4_MK_MAKER(SC4EffectsManager_NewCompound)
+#undef OPENSC4_MK_MAKER
+
+// The game's other functions the making's comparison notes.
+uint32_t __fastcall MkLinkNoted(char* before, void*, uint32_t second)
+{
+    if (!MkNoting())
+        return g_SC4EffectB_SetLinked(before, nullptr, second);
+    return MkNoted(MkMakeCall(addr::SC4EffectB_SetLinked, MkPlace(before), MkPlace(second)),
+                   [&] { return g_SC4EffectB_SetLinked(before, nullptr, second); });
+}
+OPENSC4_THUNK(TSC4EffectB_SetLinked, MkLinkNoted, 4)
+
+uint32_t __fastcall MkMarkNoted(char* second, void*)
+{
+    if (!MkNoting())
+        return g_SC4Effect_SetMarked(second, nullptr);
+    return MkNoted(MkMakeCall(addr::SC4Effect_SetMarked, MkPlace(second)),
+                   [&] { return g_SC4Effect_SetMarked(second, nullptr); });
+}
+OPENSC4_THUNK(TSC4Effect_SetMarked, MkMarkNoted, 0)
+
+uint32_t __fastcall MkDecalDescriptionNoted(char* decal, void*, uint32_t description)
+{
+    if (!MkNoting())
+        return g_SC4EffectDecal_SetDescription(decal, nullptr, description);
+    return MkNoted(MkMakeCall(addr::SC4EffectDecal_SetDescription, MkPlace(decal), description),
+                   [&] { return g_SC4EffectDecal_SetDescription(decal, nullptr, description); });
+}
+OPENSC4_THUNK(TSC4EffectDecal_SetDescription, MkDecalDescriptionNoted, 4)
+
+uint32_t __fastcall MkFindNoted(char* self, void*, uint32_t name)
+{
+    if (!MkNoting())
+        return g_SC4EffectsManager_FindDescriptionByName(self, nullptr, name);
+    return MkNoted(MkMakeCall(addr::SC4EffectsManager_FindDescriptionByName, name),
+                   [&] { return g_SC4EffectsManager_FindDescriptionByName(self, nullptr, name); });
+}
+OPENSC4_THUNK(TSC4EffectsManager_FindDescriptionByName, MkFindNoted, 4)
+
+uint32_t __fastcall MkCompoundDescriptionNoted(char* compound, void*, uint32_t description)
+{
+    if (!MkNoting())
+        return g_SC4CompoundEffect_SetDescription(compound, nullptr, description);
+    return MkNoted(MkMakeCall(addr::SC4CompoundEffect_SetDescription, MkPlace(compound), description),
+                   [&] { return g_SC4CompoundEffect_SetDescription(compound, nullptr, description); });
+}
+OPENSC4_THUNK(TSC4CompoundEffect_SetDescription, MkCompoundDescriptionNoted, 4)
+
+void MkLogOnce(bool& logged, const char* what)
+{
+    if (!logged)
+        log::Write("water effects: effects.make: %s, not compared", what);
+    logged = true;
+}
+
+// True when this call gave the object the table.
+bool MkWatchHeld(char* object)
+{
+    if (!object || g_bReal.find(object) != g_bReal.end())
+        return false;
+    BSwapRole(object, kMkHoldRole,
+              {{0x1C, reinterpret_cast<uint32_t>(&MkHoldStub)}, {0x20, reinterpret_cast<uint32_t>(&MkEndStub)}});
+    return true;
+}
+
+// The record's taking of what was made: the game's with the hold and the
+// letting go noted, then ours from the same pointer with them only noted.
+uint32_t AssignRun(char* holder, uint32_t object)
+{
+    char* const next = reinterpret_cast<char*>(object);
+    if (g_mkMode == StepMode::Ours)
+        return reinterpret_cast<uint32_t>(AssignHeld(holder, next));
+    if (g_mkMode == StepMode::Original || g_mkHoldMode)
+        return g_SC4EffectHolder_Assign(holder, nullptr, object);
+    char* const old = At<char*>(holder, 0);
+    const bool gaveNext = MkWatchHeld(next), gaveOld = old != next && MkWatchHeld(old);
+    if ((next && !MkWatched(next)) || (old && !MkWatched(old))) {
+        static bool logged = false;
+        MkLogOnce(logged, "a record's taking of something another comparison watches");
+        if (gaveNext)
+            BGiveBack(next, true);
+        if (gaveOld)
+            BGiveBack(old, true);
+        return g_SC4EffectHolder_Assign(holder, nullptr, object);
+    }
+    g_mkHoldEvents.clear();
+    g_mkHoldMode = 1;
+    const uint32_t result = g_SC4EffectHolder_Assign(holder, nullptr, object);
+    const std::vector<std::pair<uint32_t, char*>> theirs = std::move(g_mkHoldEvents);
+    g_mkHoldEvents.clear();
+    char* const after = At<char*>(holder, 0);
+    At<char*>(holder, 0) = old;
+    g_mkHoldMode = 2;
+    const uint32_t mine = reinterpret_cast<uint32_t>(AssignHeld(holder, next));
+    g_mkHoldMode = 0;
+    const bool same = result == mine && theirs == g_mkHoldEvents && At<char*>(holder, 0) == after;
+    At<char*>(holder, 0) = after;
+    if (gaveNext)
+        BGiveBack(next, true);
+    if (gaveOld)
+        BGiveBack(old, true);
+    ++g_mkAssigns;
+    char text[64];
+    std::snprintf(text, sizeof text, "%08X, %zu holds and endings", result, theirs.size());
+    const std::string game = text;
+    std::snprintf(text, sizeof text, "%08X, %zu holds and endings", mine, g_mkHoldEvents.size());
+    compare::Record("effects.make.assign", same, same ? std::string() : game, same ? std::string() : std::string(text));
+    return result;
+}
+
+uint32_t __fastcall AssignByMode(char* holder, void*, uint32_t object)
+{
+    if (!MkNoting())
+        return AssignRun(holder, object);
+    return MkNoted(MkMakeCall(addr::SC4EffectHolder_Assign, MkPlace(holder), MkPlace(object)),
+                   [&] { return AssignRun(holder, object); });
+}
+OPENSC4_THUNK(TSC4EffectHolder_Assign, AssignByMode, 4)
+
+std::string MkCallsText(const std::vector<MkCall>& calls, const std::vector<MkCall>& other)
+{
+    std::size_t at = 0;
+    while (at < calls.size() && at < other.size() && calls[at] == other[at])
+        ++at;
+    char text[112];
+    if (at >= calls.size())
+        std::snprintf(text, sizeof text, "%zu calls", calls.size());
+    else
+        std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X, %08X, %08X, %08X)", at, calls.size(),
+                      calls[at].target, calls[at].a, calls[at].b, calls[at].c, calls[at].value);
+    return text;
+}
+
+uint32_t MakeCompared(char* self, uint32_t partArg, uint32_t recordArg, uint32_t madeArg)
+{
+    const auto game = [&] { return g_SC4EffectsManager_MakeRecordEffect(self, nullptr, partArg, recordArg, madeArg); };
+    char* const part = reinterpret_cast<char*>(partArg);
+    char* const record = reinterpret_cast<char*>(recordArg);
+    uint32_t* const made = reinterpret_cast<uint32_t*>(madeArg);
+    const int32_t kind = At<int32_t>(part, 0xC);
+    // The entry a part of the kinds 3 to 0xF asks, to watch its answer.
+    char* source = nullptr;
+    if (kind >= 3 && kind <= 0xF && At<int32_t>(part, 0x68) >= 0) {
+        char* const list = At<char*>(self, 0x158) + (kind - 3) * 0x20 + 0x14;
+        if (At<uint32_t>(part, 0x68) < static_cast<uint32_t>((At<char*>(list, 4) - At<char*>(list, 0)) >> 2))
+            source = At<char**>(list, 0)[At<int32_t>(part, 0x68)];
+    }
+    if (At<char*>(record, 0x38) || (source && g_bReal.find(source) != g_bReal.end())) {
+        static bool logged = false;
+        MkLogOnce(logged, At<char*>(record, 0x38) ? "a making for a record that holds something"
+                                                 : "a making from an entry another comparison watches");
+        return game();
+    }
+    if (source) {
+        BSwapRole(source, kMkAskRole, {{0x4, reinterpret_cast<uint32_t>(&MkAskStub)}});
+        ++g_mkAsked;
+    }
+    char before[kMkRecord], after[kMkRecord], mine[kMkRecord];
+    std::memcpy(before, record, kMkRecord);
+    const uint32_t madeBefore = *made;
+    g_mkGame.clear();
+    g_mkMadeGame.clear();
+    g_mkSwapped.clear();
+    g_mkSkip = false;
+    g_mkMade = &g_mkMadeGame;
+    g_mkRecord = record;
+    g_mkThread = GetCurrentThreadId();
+    g_mkDepth = 0;
+    g_mkNoting = true;
+    const uint32_t result = game();
+    g_mkNoting = false;
+    if (source)
+        BGiveBack(source, true);
+    for (char* const object : g_mkSwapped)
+        BGiveBack(object, true);
+    g_mkSwapped.clear();
+    std::memcpy(after, record, kMkRecord);
+    At<uint32_t>(after, 0x38) = MkPlace(At<uint32_t>(after, 0x38));
+    const uint32_t madeAfter = MkPlace(*made);
+    if (g_mkSkip) {
+        static bool logged = false;
+        MkLogOnce(logged, "a making of an effect another comparison watches");
+        g_mkRecord = nullptr;
+        g_mkMade = nullptr;
+        return result;
+    }
+
+    // Ours, on a copy of the record as it was.
+    std::memcpy(mine, before, kMkRecord);
+    uint32_t mineMade = madeBefore;
+    g_mkOurs.clear();
+    g_mkMadeOurs.clear();
+    g_mkMade = &g_mkMadeOurs;
+    g_mkRecord = mine;
+    g_mkScratchOf = nullptr;
+    g_mkReplay = true;
+    MakeRecordEffect(self, part, mine, &mineMade);
+    g_mkReplay = false;
+    At<uint32_t>(mine, 0x38) = MkPlace(At<uint32_t>(mine, 0x38));
+    mineMade = MkPlace(mineMade);
+    g_mkRecord = nullptr;
+    g_mkMade = nullptr;
+
+    ++g_mkCompared;
+    g_mkCalls += g_mkGame.size();
+    if ((g_mkCompared & (g_mkCompared - 1)) == 0) {
+        std::string makers;
+        char text[40];
+        for (const auto& [target, count] : g_mkMakerCounts) {
+            std::snprintf(text, sizeof text, " %08X x %llu", target, static_cast<unsigned long long>(count));
+            makers += text;
+        }
+        log::Write("water effects: effects.make: %llu makings compared so far, %llu calls, %llu takings, %llu asked of "
+                   "the lists; made by%s",
+                   static_cast<unsigned long long>(g_mkCompared), static_cast<unsigned long long>(g_mkCalls),
+                   static_cast<unsigned long long>(g_mkAssigns), static_cast<unsigned long long>(g_mkAsked),
+                   makers.c_str());
+    }
+    const char* const id = "effects.make";
+    char text[64];
+    if (!(g_mkGame == g_mkOurs)) {
+        compare::Record(id, false, MkCallsText(g_mkGame, g_mkOurs), MkCallsText(g_mkOurs, g_mkGame));
+    } else if (std::memcmp(after, mine, kMkRecord) != 0) {
+        std::size_t at = 0;
+        while (after[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "record +%zX ", at);
+        compare::Record(id, false, text + Hex(after + at, 4), text + Hex(mine + at, 4));
+    } else if (madeAfter != mineMade) {
+        std::snprintf(text, sizeof text, "remembered %08X", madeAfter);
+        const std::string theirs = text;
+        std::snprintf(text, sizeof text, "remembered %08X", mineMade);
+        compare::Record(id, false, theirs, text);
+    } else if (g_mkScratchOf && std::memcmp(g_mkScratch, g_mkScratchOf, kMkCompound) != 0) {
+        std::size_t at = 0;
+        while (g_mkScratch[at] == g_mkScratchOf[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "compound +%zX ", at);
+        compare::Record(id, false, text + Hex(g_mkScratchOf + at, 4), text + Hex(g_mkScratch + at, 4));
+    } else {
+        compare::Record(id, true, std::string(), std::string());
+    }
+    return result;
+}
+
+uint32_t MakeRun(char* self, uint32_t part, uint32_t record, uint32_t made)
+{
+    if (g_mkMode == StepMode::Ours) {
+        MakeRecordEffect(self, reinterpret_cast<char*>(part), reinterpret_cast<char*>(record),
+                         reinterpret_cast<uint32_t*>(made));
+        return 0;
+    }
+    if (g_mkMode == StepMode::Compare && !g_mkNoting && !g_mkReplay)
+        return MakeCompared(self, part, record, made);
+    return g_SC4EffectsManager_MakeRecordEffect(self, nullptr, part, record, made);
+}
+
+bool InstallMake(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(HookMakeRecordEffect() &&
+          Detour(addr::SC4EffectHolder_Assign, &TSC4EffectHolder_Assign, &g_SC4EffectHolder_Assign)))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(Detour(addr::SC4EffectsManager_NewEffect, &TSC4EffectsManager_NewEffect, &g_SC4EffectsManager_NewEffect) &&
+          Detour(addr::SC4EffectsManager_NewEffectB, &TSC4EffectsManager_NewEffectB, &g_SC4EffectsManager_NewEffectB) &&
+          Detour(addr::SC4EffectsManager_NewEffectC, &TSC4EffectsManager_NewEffectC, &g_SC4EffectsManager_NewEffectC) &&
+          Detour(addr::SC4EffectsManager_NewEffect10, &TSC4EffectsManager_NewEffect10,
+                 &g_SC4EffectsManager_NewEffect10) &&
+          Detour(addr::SC4EffectsManager_NewDecal, &TSC4EffectsManager_NewDecal, &g_SC4EffectsManager_NewDecal) &&
+          Detour(addr::SC4EffectsManager_NewCompound, &TSC4EffectsManager_NewCompound,
+                 &g_SC4EffectsManager_NewCompound) &&
+          Detour(addr::SC4EffectB_SetLinked, &TSC4EffectB_SetLinked, &g_SC4EffectB_SetLinked) &&
+          Detour(addr::SC4Effect_SetMarked, &TSC4Effect_SetMarked, &g_SC4Effect_SetMarked) &&
+          Detour(addr::SC4EffectDecal_SetDescription, &TSC4EffectDecal_SetDescription,
+                 &g_SC4EffectDecal_SetDescription) &&
+          Detour(addr::SC4EffectsManager_FindDescriptionByName, &TSC4EffectsManager_FindDescriptionByName,
+                 &g_SC4EffectsManager_FindDescriptionByName) &&
+          Detour(addr::SC4CompoundEffect_SetDescription, &TSC4CompoundEffect_SetDescription,
+                 &g_SC4CompoundEffect_SetDescription)))
+        return false;
+    g_mkMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the making of a record's effect %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredMake = registry::Register({
+    "renderer.effects.make",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectsManager_MakeRecordEffect,
+    "The effects manager's making of what a record of a compound effect holds: an effect of particles of one of "
+    "three classes given its description, a decal, another compound effect or an object of one of the manager's "
+    "lists (the six makers, the decal's and the compound effect's descriptions and the look-up of a name still the "
+    "game's), held by the record through the small function that is ours too; compare mode runs the game's with its "
+    "calls noted and replays ours on a copy of the record (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallMake,
 });
 
 bool InstallEffects(registry::Mode mode)

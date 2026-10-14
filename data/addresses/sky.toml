@@ -1087,7 +1087,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4EffectsManager* this, void* part, void* record, int* made)"
 expect = "83 EC 08 53 8B 5C 24 10"
-source = "Name ours, not analysed. Ret 0xC. this = the manager object. Makes the effect of one part (0x6C bytes) of a compound effect's description and leaves it in the record (+0x38); the last argument is a word the caller keeps from one part to the next. Called by StartCompound (0x00591D14). The game's; noted by the comparison of renderer.effects.compound."
+source = "Name ours (0x00591730 to 0x005919A4). Ret 0xC. this = the manager object. Makes what one part (0x6C bytes) of a compound effect's description says by its word at +0xC and leaves it in the record (+0x38): 0 an effect of particles, as many as the count at +0x4E, of the first class (NewEffect), or for a description with flag 1 of the second (NewEffectB, its float at +0x1D8 being 0) or a third (NewEffectC), given the description (slot 0x28) and, after the first, one value of 0x101 (slot 0x14); 0x10 an object made by NewEffect10 (slot 0x3C); 1 a decal (NewDecal, SC4EffectDecal::SetDescription); 2 another compound effect (NewCompound, its name, FindDescriptionByName, SC4CompoundEffect::SetDescription); 3 to 0xF an object asked of an entry of one of the manager's lists (from +0x158), with the record's flag 2. The last argument is a word the caller keeps from one part to the next: the second-class effect of a part with flag 2, linked to the one before (SC4EffectB::SetLinked, SC4Effect::SetMarked). The record's flag 4 follows the part's flag 1. Called by StartCompound (0x00591D14) only. Ours in renderer.effects.make (src/core/effects_make.inc)."
 
 [[entry]]
 name = "SC4EffectsManager::FadeByLevel"
@@ -1106,3 +1106,111 @@ convention = "thiscall"
 signature = "void (void* this)"
 expect = "53 56 8B F1 8B 9E 14 01"
 source = "Name ours. this = an entry of the effects manager's table at +0xB94. For each of its records and each kind of value (the vector at +0x12C: two words, where the kind's values start in the table at +0x138 and how many) with some, the record's effect is told them (its slot 0x14 with the kind, the values and their count). Called by StartCompound (0x0059219D). Ours in renderer.effects.compound (src/core/effects_compound.inc)."
+
+[[entry]]
+name = "SC4EffectHolder::Assign"
+address = 0x0058D8D0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void** this, void* object)"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Name ours. Ret 4. this = the place of a pointer to something held (a record's +0x38): the new one held (its slot 0x1C), the old one let go (its slot 0x20), nothing for the same one; answers this. Called by MakeRecordEffect only (0x005918D5, 0x00591923, 0x0059196F). Ours in renderer.effects.make (src/core/effects_make.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::NewEffect"
+address = 0x00590BC0
+kind = "function"
+convention = "thiscall"
+signature = "void* (SC4EffectsManager* this)"
+expect = "83 EC 08 53 56 8B F1 8B"
+source = "Name ours, not analysed. this = the manager object. Makes an effect of particles of the first class (constructor 0x005B2B50): one of the free ones of its list or a new one, entered in the list. Called by MakeRecordEffect. The game's; noted by the comparison of renderer.effects.make."
+
+[[entry]]
+name = "SC4EffectsManager::NewEffectB"
+address = 0x00590D40
+kind = "function"
+convention = "thiscall"
+signature = "void* (SC4EffectsManager* this)"
+expect = "83 EC 08 53 56 8B F1 8B"
+source = "Name ours, not analysed. this = the manager object. Makes an effect of particles of the second class (constructor 0x005AC510): one of the free ones of its list or a new one, entered in the list. Called by MakeRecordEffect. The game's; noted by the comparison of renderer.effects.make."
+
+[[entry]]
+name = "SC4EffectsManager::NewEffectC"
+address = 0x00590EA0
+kind = "function"
+convention = "thiscall"
+signature = "void* (SC4EffectsManager* this)"
+expect = "83 EC 08 53 56 8B F1 8B"
+source = "Name ours, not analysed. this = the manager object. Makes an effect of particles of a third class (constructor 0x005A8ED0); no test city makes one: one of the free ones of its list or a new one, entered in the list. Called by MakeRecordEffect. The game's; noted by the comparison of renderer.effects.make."
+
+[[entry]]
+name = "SC4EffectsManager::NewEffect10"
+address = 0x00591000
+kind = "function"
+convention = "thiscall"
+signature = "void* (SC4EffectsManager* this)"
+expect = "83 EC 08 53 56 57 8B F9"
+source = "Name ours, not analysed. this = the manager object. Makes the object of a part of kind 0x10 (constructor 0x00583E40); no test city makes one: one of the free ones of its list or a new one, entered in the list. Called by MakeRecordEffect. The game's; noted by the comparison of renderer.effects.make."
+
+[[entry]]
+name = "SC4EffectsManager::NewDecal"
+address = 0x00591160
+kind = "function"
+convention = "thiscall"
+signature = "void* (SC4EffectsManager* this)"
+expect = "83 EC 08 53 56 8B F1 8B"
+source = "Name ours, not analysed. this = the manager object. Makes a decal (constructor 0x00583190): one of the free ones of its list or a new one, entered in the list. Called by MakeRecordEffect. The game's; noted by the comparison of renderer.effects.make."
+
+[[entry]]
+name = "SC4EffectsManager::NewCompound"
+address = 0x00590A60
+kind = "function"
+convention = "thiscall"
+signature = "void* (SC4EffectsManager* this)"
+expect = "83 EC 08 56 8B F1 8B 86"
+source = "Name ours, not analysed. this = the manager object. Makes a compound effect (constructor 0x005C0150); also called from 0x00593A84 and 0x00593B3B: one of the free ones of its list or a new one, entered in the list. Called by MakeRecordEffect. The game's; noted by the comparison of renderer.effects.make."
+
+[[entry]]
+name = "SC4EffectB::SetLinked"
+address = 0x005AC1C0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectB* this, void* effect)"
+expect = "53 56 8B 74 24 0C 8B D9"
+source = "Name ours. Ret 4. The effect kept at +0x278 changed for another: the new one held (slot 0x1C), the old one let go (slot 0x20). Called by MakeRecordEffect (0x005917FE) only; no test city calls it. The game's; noted by the comparison of renderer.effects.make."
+
+[[entry]]
+name = "SC4Effect::SetMarked"
+address = 0x005B2230
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this)"
+expect = "C6 81 1A 02 00 00 01 C3"
+source = "Name ours. Sets the byte at +0x21A (with it set the effect's draw does not emit). Called by MakeRecordEffect (0x00591805) only; no test city calls it. The game's; noted by the comparison of renderer.effects.make."
+
+[[entry]]
+name = "SC4EffectDecal::SetDescription"
+address = 0x00583480
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectDecal* this, const void* description)"
+expect = "55 8B EC 83 E4 F8 51 53"
+source = "Name ours, not analysed. Ret 4. A decal given its description (0x64 bytes, the manager's table at +0x10C). Called by MakeRecordEffect (0x005918C8) only. The game's; noted by the comparison of renderer.effects.make."
+
+[[entry]]
+name = "SC4EffectsManager::FindDescriptionByName"
+address = 0x0058F5A0
+kind = "function"
+convention = "thiscall"
+signature = "int (SC4EffectsManager* this, const void* name)"
+expect = "83 EC 18 8B 44 24 1C 53"
+source = "Name ours, not analysed. Ret 4. this = the manager object. The index of the compound description (the table at +0xAC) of that name, below 0 for none. Called by MakeRecordEffect (0x005918F9) and StartCompound. The game's; noted by the comparison of renderer.effects.make."
+
+[[entry]]
+name = "SC4CompoundEffect::SetDescription"
+address = 0x005BFF80
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4CompoundEffect* this, const void* description)"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours, not analysed. Ret 4. A compound effect given its description (0x38 bytes, the manager's table at +0xAC). Called by MakeRecordEffect (0x00591913) and from 0x00593AA9 and 0x00593B61. The game's; noted by the comparison of renderer.effects.make."
