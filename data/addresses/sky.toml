@@ -1295,3 +1295,48 @@ convention = "thiscall"
 signature = "void (void* this)"
 expect = "53 56 8B D9 8B 33 57 8B"
 source = "Name ours. this = a vector of 0x44-byte records: what each record holds at +0x38 let go (slot 0x20), then the storage freed (0x0090CF63); the vector itself is left. Called by SC4EffectRecords::GrowInsert and from 0x005C059B. Ours in renderer.effects.records (src/core/effects_records.inc)."
+
+[[entry]]
+name = "SC4IdMap::EqualRange"
+address = 0x0058EE80
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* out, const uint32_t* key)"
+expect = "8B 44 24 08 53 8B 58 04"
+source = "Name ours. Ret 8. this = the effects manager's hash multimap of pairs of IDs to compound descriptions (+0xD00: buckets as a vector of nodes at +4; a node is next +0, the IDs +4 and +8, the index +0xC; the bucket is the IDs exclusive-ored modulo the count). out gets the first node with the pair and the node after the last (the next node, or the head of the next bucket with one), each with the map. Answers out. Called by FindDescriptionById only. Ours in renderer.effects.lookup (src/core/effects_starts.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::FindDescriptionById"
+address = 0x0058F2E0
+kind = "function"
+convention = "thiscall"
+signature = "int (SC4EffectsManager* this, uint32_t group, uint32_t instance)"
+expect = "83 EC 14 53 55 56 57 8B"
+source = "Name ours. Ret 8. this = the manager object. Of the compound descriptions (+0xAC) of that pair of IDs in the ID map (+0xD00, SC4IdMap::EqualRange), the index of the one whose word +4 is the largest above 0 and not above the manager's word at +0xB90; -1 for none. Called by StartCompound (0x00591B6D) and StartById (0x00593B06). Ours in renderer.effects.lookup (src/core/effects_starts.inc)."
+
+[[entry]]
+name = "SC4IdMap::FindNode"
+address = 0x0058EF90
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const uint32_t* key)"
+expect = "8B 44 24 04 8B 51 04 53"
+source = "Name ours, not analysed. Ret 4. this = the ID map at the manager's +0xD00: the node of the pair of IDs, or none. Called by StartById (0x00593B24). The game's; noted by the comparison of renderer.effects.starts."
+
+[[entry]]
+name = "SC4EffectsManager::StartById"
+address = 0x00593AE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4EffectsManager* this, uint32_t group, uint32_t instance, void** out)"
+expect = "8B 44 24 0C 83 EC 08 85"
+source = "Name ours. Ret 0xC. this = the manager object; a slot of its interface (no direct callers). False without out; else the description of the pair of IDs (FindDescriptionById), and with none and no node of them in the ID map (SC4IdMap::FindNode), false. A compound effect is made (NewCompound) with the IDs at +0x18 and +0x1C and the index at +0x20; one with a description is given it (SC4CompoundEffect::SetDescription) and the waiting ones started (StartQueued); out gets it, held once more (slot 4). Ours in renderer.effects.starts (src/core/effects_starts.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::RestartInUse"
+address = 0x00593B90
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectsManager* this)"
+expect = "56 8B F1 8A 86 AD 01 00"
+source = "Name ours. this = the manager object. With the byte +0x1AD set, every compound effect in use (the indices at +0xBAC into the table at +0xB94) started again (StartCompound with first clear), then the waiting ones started (StartQueued). Called from 0x00593CED, 0x00593D42, 0x00593FF5 and 0x00594591. Ours in renderer.effects.starts (src/core/effects_starts.inc)."
