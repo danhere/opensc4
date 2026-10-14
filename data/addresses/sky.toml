@@ -1222,7 +1222,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (SC4EffectDecal* this)"
 expect = "53 56 8B F1 33 DB 57 8D"
-source = "Name ours, not analysed. A decal of 0x124 bytes (vtable 0x00A9EE78). Called by NewDecal only. The game's; noted by the comparison of renderer.effects.makers."
+source = "Name ours. A decal of 0x124 bytes: vtable 0x00A9EE78, no holders (+4), the byte +8 cleared, its description at +0xC constructed (SC4DecalDescription::Construct), +0x70 -1, its two blocks (count, changed flag, matrix, place, scale at +0x74 and +0xAC) cleared, +0xE4, +0xE8, +0xF0 and the byte +0x110 cleared, +0xEC, +0xF4 to +0x10C and +0x118 one, +0x11C and +0x120 cleared. Called by NewDecal only. Ours in renderer.effects.ctors (src/core/effects_ctors.inc)."
 
 [[entry]]
 name = "SC4CompoundEffect::Construct"
@@ -1231,7 +1231,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (SC4CompoundEffect* this)"
 expect = "53 56 8B F1 C7 46 04 E4"
-source = "Name ours, not analysed. A compound effect of 0x14C bytes (vtables 0x00AA1170 and, at +4, 0x00AA1148). Called by NewCompound only. The game's; noted by the comparison of renderer.effects.makers."
+source = "Name ours. A compound effect of 0x14C bytes: vtables 0x00AA1170 and, at +4, 0x00AA1148, no holders (+8), an empty name at +0xC (8 bytes of room from SC4::stl_allocate), +0x18 and +0x1C cleared, +0x20 -1, the bytes +0x24, +0x25 and +0x28 to +0x30 cleared, its four blocks (+0x34, +0x6C, +0xA4, +0xDC) cleared, no records (+0x114), +0x12C to +0x148 cleared. Called by NewCompound only. Ours in renderer.effects.ctors (src/core/effects_ctors.inc)."
 
 [[entry]]
 name = "SC4EffectDecal::Reset"
@@ -1268,3 +1268,12 @@ convention = "thiscall"
 signature = "void* (void* this, const void* from)"
 expect = "56 8B F1 57 8B 7C 24 0C"
 source = "Name ours, not analysed. Ret 4. A decal's description (0x64 bytes) given another's: words and bytes copied, the vectors at +0x10, +0x1C, +0x28 and +0x40 assigned (0x00464430) and the one at +0x34 (0x0050C540). Answers this. Called by SC4EffectDecal::SetDescription (0x00583493) and from seven more places. The game's; noted by the comparison of renderer.effects.decal_description."
+
+[[entry]]
+name = "SC4DecalDescription::Construct"
+address = 0x00582FE0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "51 53 33 DB 56 8B F1 89"
+source = "Name ours. A decal's description (0x64 bytes): +0 and +4 cleared, the byte +8 cleared and +9 set, +0xC 5.0, vectors of one float at +0x10 (0), +0x1C, +0x28 and +0x40 (1; filled by 0x00581F20), a vector of one three-float value at +0x34 (the floats at 0x00B0A214), +0x4C to +0x54 cleared, +0x58 1.0, +0x5C and +0x60 the word at 0x00B22C08. Called by SC4EffectDecal::Construct and from 0x0058BFA1, 0x0059DE52, 0x0059F189 and 0x005A5323. Ours in renderer.effects.ctors (src/core/effects_ctors.inc)."
