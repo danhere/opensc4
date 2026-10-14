@@ -190,7 +190,7 @@ address = 0x00625640
 kind = "function"
 convention = "thiscall"
 expect = "83 EC 18 53 55 8B E9 8B"
-source = "Slot 20 of the network tool family (not the power line tool), no arguments, not hooked (part t7): the cost of the solved cells, the major bridges (stride 0x28), the vector at +0xE4 and the intersections. The nettool autotest calls it where the slot holds this address."
+source = "Slot 20 of the network tool family (not the power line tool), no arguments: the cost of the solved cells (the cells' cost words and their height differences from the terrain), the major bridges (stride 0x28), the vector at +0xE4 and the intersections; EAX an int. Ours in simulators.nettool.cost (src/core/nettool_occupants_2.cpp). The nettool autotest calls it where the slot holds this address."
 
 [[entry]]
 name = "cSC4NetworkTool::CopyPlacementParams"
@@ -3429,7 +3429,7 @@ address = 0x00625860
 kind = "function"
 convention = "thiscall"
 expect = "8B 89 58 03 00 00 56 8B"
-source = "Name ours. Ret 4 (a piece ID): the value of the piece in the type row's hash table +0x3C, or 0. Called by 0x006278A0 and 0x00644B20."
+source = "Name ours. Ret 4 (a piece ID): the value of the piece in the type row's hash table +0x3C, or 0. Called by 0x006278A0 and 0x00644B20. Ours in simulators.nettool.occupants (src/core/nettool_occupants_1.cpp)."
 
 [[entry]]
 name = "SC4::PlaneFromPoints"
@@ -3504,3 +3504,285 @@ name = "cSC4NetworkTool::CrossSideDz"
 address = 0x00AA8A60
 kind = "data"
 source = "Name ours. Four int32 (0, -1, 0, 1): the z step of each side, read by GetCrossSections 0x00636360."
+
+[[entry]]
+name = "cSC4NetworkTool::VertexClearanceCategory"
+address = 0x00623BB0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B 74 24 10 57"
+source = "Name ours. Ret 4 (a cell info): for each corner the cell's height less the terrain's at its vertex (slot 0x30); above 0.01 (0x00AA8424) it counts 1 when below the tool's +0x2C8, else 2; EAX the largest (0 when none). Called by slot 72 0x006278A0 (src/core/nettool_occupants_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::CreateNetworkOccupant"
+address = 0x00624210
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 89 4C 24"
+source = "Slot 54 (NAM's name). Ret 0x10 (a cell info, the occupant out, a box of four corners out, a kind: 0 network, 0x49C1A034 prebuilt, 0x49CC1BCD bridge, 0x8A4BD52B tunnel, else the kind itself is taken as the occupant): the box from the cell (terrain slot 0x18 times x and z, the heights), the occupant made and referenced; placing (+0x50): the cell info's occupant replaced and all its flags set, else its 0xC0000; Init with the box, 0x80000000 cleared or set, UpdatePlanes for a prebuilt one, 0x4000 set (a tunnel: 0x10000000 set, 0x4000 cleared), placing: the edge words and the one-way byte; the demolition cost from +0x32C (src/core/nettool_occupants_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::GetPieceExemplar"
+address = 0x006244B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 8B 44 24 14 33"
+source = "Name ours. Ret 8 (an instance, a group, 0 for the tool's row's +0xC): the exemplar (0x6534284A) from the resource manager; EAX it, or 0. Its out is the caller's second argument slot. Called by 0x00624860, 0x0062EEB0 and 0x00650140 (src/core/nettool_occupants_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::HasNeighborAlongX"
+address = 0x00624510
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 85 DB 55"
+source = "Name ours. Ret 0xC (x, z, a network mask): AL 1 when the cell at x - 1 or x + 1 (inside the city) has a network outside the mask (flags & 0x1FFF), else 0. Called by slot 72 0x006278A0 (src/core/nettool_occupants_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::HasNeighborAlongZ"
+address = 0x00624590
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 55 8B 6C"
+source = "Name ours. Ret 0xC (x, z, a network mask): as 0x00624510 along z. Called by slot 72 0x006278A0 (src/core/nettool_occupants_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetUpPrebuiltOccupant"
+address = 0x00624860
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8D 54 24 04 8B F1"
+source = "Name ours. Ret 0x14 (an occupant, an instance, the model offset's address, a rotation, a group): a prebuilt occupant's SetUp 0x0061D120 with the exemplar 0x006244B0 gives. Called by 0x006276D0, 0x00628390 and 0x0062EEB0 (src/core/nettool_occupants_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0ConsTable::Find"
+address = 0x00624D20
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 53 8A 18 8B"
+source = "Name ours. Ret 8 (an iterator out, the key byte's address), this a RUL0 rule's cons cell table (+0xD0): the node and the table into the out; EAX the out. Called by 0x00624F00 (src/core/nettool_occupants_2.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::ConsCellAt"
+address = 0x00624F00
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 83 EC 08 56"
+source = "Name ours. Ret 8 (x, z relative to the rule), this a RUL0 rule: the cons cell (node + 8) of the cell grid's value at the point, or 0 outside the grid or without one. Called by 0x0062C3A0 (src/core/nettool_occupants_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::InsertOccupantsForSolvedCells"
+address = 0x006258C0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Slot 55 (NAM's name). Ret 0xC (a vector of solved cells, a list or null, a flag byte): placing (+0x50) with the flag clear: per cell slot 72, a network lot's piece updated in place, an immovable one's one-way byte; previewing: the heights (slot 73), slot 58 per cell and the intersections' previews (FindPreviewPiece, AddTexturedCell / AddCell). Called by 0x006599D0, 0x0062B7B0, the guarded 0x0062CD50 and 0x0063BCA6 (src/core/nettool_occupants_1.cpp)."
+
+[[entry]]
+name = "SC4BridgeCell::Assign"
+address = 0x00626750
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours. Ret 4 (the source), this a major bridge's 0x50-byte cell: words and bytes copied (padding not), the vector +0x44 by 0x00625270; EAX this. Called by 0x006272A0 (src/core/nettool_occupants_2.cpp)."
+
+[[entry]]
+name = "SC4BridgeCell::CopyRange"
+address = 0x006272A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. (first, last, destination; two more unread): the cells assigned in order (0x00626750); EAX the destination's end. Called by 0x0062C1E0 (src/core/nettool_occupants_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::ClearCellForOccupant"
+address = 0x006272F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 56 57 8B 7C"
+source = "Name ours. Ret 0xC (x, z, a network occupant filter): the cell's occupants (occupant manager slot 0xA0 into a list of the allocator 0x00B207E4): those the filter matches taken out (slot 0x54), power poles of the cell demolished (0x00B43D00 slot 8) unless the tool is the power line, subway or pipe one. Called by 0x006276D0, 0x006278A0, 0x00628390, 0x0062EEB0 (src/core/nettool_occupants_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PlaceRuleCellOccupant"
+address = 0x006276D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C 53 55 56 8B 74"
+source = "Name ours. Ret 0x20 (a cell info, a list, a flag byte, an instance, a rotation, the complex piece origin x and z, a path ID): a prebuilt occupant for a RUL0 intersection's cell (group 0xA8434037), its flags, the cell cleared, into the occupant manager, appended. Called by 0x0062C3A0 (src/core/nettool_occupants_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::InsertNetworkOccupant"
+address = 0x006278A0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC B4 00 00 00 8B 84"
+source = "Slot 72 (NAM's name). Ret 0xC (a cell info, its solved cell, a list or null): a prebuilt occupant (with its support pylon and SetUp) when a row of the cell's networks has an exemplar for the piece, else a network occupant (slot 54); the piece's supports (0x00643FB0) where its vertices stand above the terrain; the cell cleared, into the occupant manager, appended (src/core/nettool_occupants_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::MakeTunnelPiece"
+address = 0x00628390
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 60 56 8B F1 8B 86"
+source = "Name ours. Ret 0xC (a direction, an index, a cell info): 0 without tunnel pieces (+0x2E4); else a tunnel occupant set up from the index's piece and turn, the entrance corners raised by +0x2FC's float and the terrain set to the cell's heights around it (slots 0xC8, 0x15C, 0x110, 0x160); EAX the occupant (released). Called by 0x006287D0 (src/core/nettool_occupants_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PlaceTunnels"
+address = 0x006287D0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Ret 4 (a network type): the +0xE4 records' tunnels: previewing, their steps' cells green in the preview drawable; placing, tunnel pieces at both entrances paired through SetOtherEnd and their path information. Called by 0x0063B830 (src/core/nettool_occupants_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::AddEdgeConnection"
+address = 0x00628BD0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C 53 55 56 8B F1"
+source = "Name ours. Ret 8 (a word for slot 18, a network type): AL 1 when the drag's last step ends at the city's edge on a connecting side (the neighbours simulator 0x00B43D8C agrees), its records (0x18 bytes) appended to +0x100 and +0x10C; else 0. Called by 0x0063B830 and 0x00652980 (src/core/nettool_occupants_2.cpp)."
+
+[[entry]]
+name = "SC4BridgeCellVector::AllocateCopy"
+address = 0x0062A420
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 53 55"
+source = "Name ours. Ret 0xC (a count, first, last), this unused: memory for the count's 0x50-byte cells and the range copy-constructed (0x006267D0); EAX the memory. Called by 0x0062C1E0 (src/core/nettool_occupants_2.cpp)."
+
+[[entry]]
+name = "SC4BridgeCell::DestroyRange"
+address = 0x0062BEF0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 57 8B 7C 24"
+source = "Name ours. (first, last): each 0x50-byte cell's vector +0x44 freed. Called by 0x0062C1E0 (src/core/nettool_occupants_2.cpp)."
+
+[[entry]]
+name = "SC4BridgeCellVector::Assign"
+address = 0x0062C1E0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. Ret 4 (the other vector), this a major bridge's cell vector (+0x1C): the STL operator=; EAX this. Called by 0x0062C510 (src/core/nettool_occupants_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PlaceRuleOccupants"
+address = 0x0062C3A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8D 44"
+source = "Name ours. Ret 0x18 (x, z, a RUL0 rule ID, a list, a placing byte, a flag byte): +0x50 set to the placing byte for the call; each checked point of the rule (FindOrInsert) with a cell info and a cons cell gets PlaceRuleCellOccupant. Called by 0x0062C4B0 (src/core/nettool_occupants_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetUpPieceSupports"
+address = 0x00643FB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 48 53 8B 5C 24 50"
+source = "Name ours (inf). Ret 0x10 (an occupant, a cell info, the piece record from 0x00625860, a clearance category): part t10's. Called by slot 72 0x006278A0."
+
+[[entry]]
+name = "SC4RefPtr::FromFramework441E5070"
+address = 0x00610800
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 00 00 00"
+source = "Name ours. No arguments, this a pointer: cleared, then the framework's slot 0x14 (0x441E5070, 0x0054B7D5, this); EAX this. Called by 0x00628BD0."
+
+[[entry]]
+name = "SC4BridgeCell::CopyConstruct"
+address = 0x006267D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours. Ret 4 (the source), this a new 0x50-byte bridge cell. Called by 0x0062A420 and 0x0062F6B0."
+
+[[entry]]
+name = "SC4Vector32::Assign"
+address = 0x00625270
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. Ret 4 (the other vector), this a vector of 32-byte elements: the STL operator=. Called by 0x00626750."
+
+[[entry]]
+name = "SC4BridgeCellVector::Free"
+address = 0x0062BF20
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. No arguments, this a vector of 0x50-byte bridge cells: each cell's vector +0x44 freed, then the memory. Called by 0x0062C1E0."
+
+[[entry]]
+name = "SC4BridgeCell::UninitializedCopy"
+address = 0x0062F6B0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. (first, last, destination, a tag): 0x50-byte cells copy-constructed (0x006267D0); EAX the end. Called by 0x0062C1E0."
+
+[[entry]]
+name = "cSC4NetworkTool::EdgeSideDx"
+address = 0x00AA8390
+kind = "data"
+source = "Name ours. Four int32 (-1, 0, 1, 0): the x step of each side, read by 0x00628BD0."
+
+[[entry]]
+name = "cSC4NetworkTool::EdgeSideDz"
+address = 0x00AA83A0
+kind = "data"
+source = "Name ours. Four int32 (0, -1, 0, 1): the z step of each side, read by 0x00628BD0."
+
+[[entry]]
+name = "cSC4NetworkTool::EdgeTypePriority"
+address = 0x00AA83B0
+kind = "data"
+source = "Name ours. 13 int32 (3, 5, 6, 2, 1, 0, 4, 1, 7, 7, 3, 0, 5): a network type's priority at a city-edge cell, read by 0x00628BD0."
+
+[[entry]]
+name = "cSC4NetworkTool::NeighborConnectionKinds"
+address = 0x00AA84C4
+kind = "data"
+source = "Name ours. 13 int32 (2, 1, 3, 0, 5, 4, 8, 6, 7, 11, 0, 10, 12): the neighbours simulator's connection kind of each network type, read by 0x00628BD0."
+
+[[entry]]
+name = "cSC4NetworkTool::PylonDefaultOffset"
+address = 0x00B452AC
+kind = "data"
+source = "Name ours. A float: the pylon offset slot 72 starts with, read by 0x006278A0."
+
+[[entry]]
+name = "cSC4NetworkTool::ClearanceMin"
+address = 0x00AA8424
+kind = "data"
+source = "Name ours. Float 0.01: the height above the terrain from which a vertex counts, read by 0x00623BB0."
+
+[[entry]]
+name = "cSC4NetworkTool::CostRoundMagic"
+address = 0x00AA84F8
+kind = "data"
+source = "Name ours. Float 12582912.0 (1.5 * 2^23): GetCostOfSolution rounds its height cost to an integer by adding it, read by 0x00625640."
+
+[[entry]]
+name = "cSC4NetworkTool::PylonOffsetLow"
+address = 0x00AA8710
+kind = "data"
+source = "Name ours. Float -4.0: a pylon offset, read by 0x006278A0."
+
+[[entry]]
+name = "SC4::FloatFour"
+address = 0x00A8E17C
+kind = "data"
+source = "Name ours. Float 4.0, read by 0x006278A0."
+
+[[entry]]
+name = "cSC4NetworkTool::PylonOffsetFactor"
+address = 0x00AA870C
+kind = "data"
+source = "Name ours. Float 0.65: the pylon offsets' and the slope's factor, read by 0x006278A0."
+
+[[entry]]
+name = "cSC4NetworkTool::PylonAngleStep"
+address = 0x00AA8708
+kind = "data"
+source = "Name ours. Float pi / 16: the pylon angle's step, read by 0x006278A0."
