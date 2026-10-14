@@ -818,8 +818,8 @@ uint8_t __fastcall CreateGenericProp(char*, void*, const uint32_t* key, void** o
     if (!Virtual<uint8_t>(com, 0xC, classId, kIidProp, out)) {
         void* made = nullptr;
         if (classId == kPropClassDecal) {
-            if (void* const memory = Cdecl<void*>(addr::SC4CraterProp_Allocate, std::size_t{0xA0})) {
-                made = This<void*>(addr::SC4CraterProp_Construct, memory);
+            if (void* const memory = Cdecl<void*>(addr::cSC4PropOccupantTerrainDecal_Allocate, std::size_t{0xA0})) {
+                made = This<void*>(addr::cSC4PropOccupantTerrainDecal_Construct, memory);
                 if (made)
                     made = static_cast<char*>(made) + 4;
             }
