@@ -67,6 +67,20 @@
 // OccupantExists is not called: its cell lookup 0x00633220 makes a cell info
 // in the world cache when there is none (and a tool that was never
 // initialised has no occupant manager at +0x48 for that).
+//   cells  the world caches of the 13 tools (part t2): the cells in the
+//          cells' tables (walked bucket by bucket), the cells in the copies
+//          (+0x14), and for how many of the walked cells GetCell 0x00647A20
+//          (through its address: ours or the game's) gives the walked node's
+//          cell info; then `ch`, per tool its type, the tables' counts (+0x10)
+//          and an order-free sum and xor of each cell's hash: the key and
+//          every field but the occupant pointer (+0xC), the padding and the
+//          second pairs +0x88 to +0xA4 (the game's 0x00632EF0, kept the
+//          game's, leaves those as its stack had them). The
+//          walk and GetCell only read: nothing here makes a cell (the cell
+//          entry 0x00633220 would, and on a shut-down tool its maker would
+//          use the null terrain and occupant manager). The cache is valid in
+//          every state the game leaves a tool in: the constructor makes it,
+//          Shutdown leaves it, only Reset and the placement code clear it.
 //
 // OPENSC4_TEST_NETTOOL=<day>: on that day, on each of the 13 tools, the
 // setters of the first part with another value, the value read back, then
@@ -85,6 +99,25 @@
 // tool (its slot 52 does other work for a reason of 0), nor
 // UpdateOnZoneChange (its slot 10 is its own). The part then ends with
 // ` set <checksum>` and one log line `autotest: nettool: ...` says what ran.
+//
+// OPENSC4_TEST_NETTOOL_CELLS=1 (with OPENSC4_TEST_NETTOOL=<day>; part t2)
+// adds, on that day, the world cache's functions on the road tool (type 0)
+// as the game's callers use a tool (AddRef, Init, the calls, Shutdown,
+// Release), only when the game has not left it initialised: the cache
+// emptied (Reset 0x00647B20), the cell entry 0x00633220 for every fourth
+// cell in x and z (it makes the cell info of each cell with a network
+// occupant: 0x00633030, the cell info's constructor, edge sum, copy and
+// assignment, the find-or-insert and the node insert), each found cell's
+// hash; the cache's sums; SaveCells (the copy's sums), the cells' table
+// cleared (0x006479B0) and RestoreCells (the sums again); ClearCellIndices
+// (the sums); CollectCells into a vector of the test's (each cell's hash in
+// order; their occupants released and the memory freed after); the
+// neighbour walker's two slots (vtable 0x00AA8700, an object on the test's
+// stack as 0x00627080 makes it: the cell, the tool, type 0 and the mask of
+// the other networks) in four directions on the first 16 cells found; and
+// the cache emptied again. It leaves the road tool's cache empty (whatever
+// a drag left in it before is gone) and is therefore behind its own switch.
+// One log line `autotest: nettool: cells: ...` gives the counts.
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/game_access.h"
@@ -382,6 +415,91 @@ void MixBridges(Hash& hash, char* self, uint32_t& records, uint32_t& keyed)
     }
 }
 
+// ---- The world caches (part t2) -------------------------------------------------
+
+namespace cell = nettool_sim::cell;
+namespace cache = nettool_sim::cache;
+namespace node = nettool_sim::node;
+namespace walker = nettool_sim::walker;
+
+// A cell info's hash: the key and every field but the occupant pointer and
+// the padding; the second pairs (+0x88 to +0xA4) only with `pairs`: the
+// game's 0x00632EF0 (kept the game's) leaves them as its stack had them, and
+// that stack differs when our code ran before it at that depth.
+uint32_t CellHash(uint32_t key, char* info, bool pairs)
+{
+    Hash h;
+    h.Mix(key);
+    for (const std::size_t offset : {cell::kX, cell::kZ, cell::kFlags})
+        h.Mix(At<uint32_t>(info, offset));
+    h.Mix(At<uint8_t>(info, cell::kInPlacement));
+    h.Mix(At<uint32_t>(info, cell::kStep));
+    for (std::size_t offset = cell::kByType; offset <= cell::kCombined; offset += 4)
+        h.Mix(At<uint32_t>(info, offset));
+    for (std::size_t offset = cell::kOneWay; offset <= cell::kByte57; ++offset)
+        h.Mix(At<uint8_t>(info, offset));
+    for (std::size_t offset = cell::kHeights; offset <= cell::kSolvedIndex; offset += 4)
+        if (pairs || offset < cell::kRanges2 || offset >= cell::kVertices)
+            h.Mix(At<uint32_t>(info, offset));
+    return h.h;
+}
+
+// The bucket count of a table as the game computes it.
+uint32_t BucketCount(char* table)
+{
+    const Vector& buckets = *reinterpret_cast<const Vector*>(table + cache::kBuckets);
+    return static_cast<uint32_t>(static_cast<int32_t>(buckets.end - buckets.begin) >> 2);
+}
+
+// An order-free sum of a table's cells. With `cells` (the cache) each
+// walked node is also looked up through GetCell.
+struct TableSum {
+    uint32_t cells = 0, found = 0, sum = 0, xored = 0;
+};
+TableSum SumTable(char* table, char* cells, bool pairs)
+{
+    TableSum total;
+    const uint32_t count = BucketCount(table);
+    if (!count)
+        return total;
+    char** const buckets = reinterpret_cast<char**>(reinterpret_cast<const Vector*>(table + cache::kBuckets)->begin);
+    for (uint32_t index = 0; index < count; ++index)
+        for (char* at = buckets[index]; at; at = At<char*>(at, node::kNext)) {
+            const uint32_t key = At<uint32_t>(at, node::kKey);
+            const uint32_t h = CellHash(key, at + node::kValue, pairs);
+            ++total.cells;
+            total.sum += h;
+            total.xored ^= h;
+            if (cells && CallThis<char*, uint32_t>(addr::cSC4NetworkWorldCache_GetCell, cells, key) ==
+                             at + node::kValue)
+                ++total.found;
+        }
+    return total;
+}
+
+void MixTableSum(Hash& hash, char* table, const TableSum& total)
+{
+    hash.Mix(At<uint32_t>(table, cache::kCount));
+    hash.Mix(total.cells);
+    hash.Mix(total.sum);
+    hash.Mix(total.xored);
+}
+
+// The daily `cells` and `ch` fields of one tool.
+void MixCache(Hash& hash, char* self, uint32_t& cells, uint32_t& saved, uint32_t& found)
+{
+    char* const worldCache = self + field::kWorldCache;
+    char* const backup = worldCache + cache::kBackup;
+    const TableSum main = SumTable(worldCache, worldCache, false);
+    const TableSum copy = SumTable(backup, nullptr, false);
+    cells += main.cells;
+    saved += copy.cells;
+    found += main.found;
+    hash.Mix(At<uint32_t>(self, field::kType));
+    MixTableSum(hash, worldCache, main);
+    MixTableSum(hash, backup, copy);
+}
+
 // ---- The drive -------------------------------------------------------------------
 
 bool g_setDone = false;
@@ -485,6 +603,93 @@ void DriveTool(Hash& hash, char* self, Ran& ran)
     }
 }
 
+// OPENSC4_TEST_NETTOOL_CELLS: the world cache's functions on the road tool
+// (see the top of the file).
+constexpr uint32_t kCellsType = 0, kCellStep = 4, kMostWalked = 16, kDirections = 4;
+
+struct CellsRan {
+    uint32_t asked = 0, found = 0, cached = 0, saved = 0, restored = 0, collected = 0, walked = 0;
+};
+
+void DriveCells(Hash& hash, cISC4NetworkManager* manager, CellsRan& ran)
+{
+    char* const self = ToolOf(manager, kCellsType);
+    if (!self || At<uint8_t>(self, field::kInitialized)) {
+        log::Write("autotest: nettool: cells: the road tool is %s; not driven", self ? "initialised" : "missing");
+        hash.Mix(0xFFFFFFFFu);
+        return;
+    }
+    char* const worldCache = self + field::kWorldCache;
+    char* const backup = worldCache + cache::kBackup;
+    Virtual<uint32_t>(self, slot::kAddRef);
+    Virtual<uint8_t>(self, slot::kInit);
+    CallThis<void>(addr::cSC4NetworkWorldCache_Reset, worldCache);
+    const uint32_t sizeX = At<uint32_t>(self, field::kCellsX), sizeZ = At<uint32_t>(self, field::kCellsZ);
+    std::vector<uint32_t> walk;
+    for (uint32_t z = 0; z < sizeZ; z += kCellStep)
+        for (uint32_t x = 0; x < sizeX; x += kCellStep) {
+            const uint32_t key = (z << 16) + x;
+            char* const info = CallThis<char*, uint32_t>(addr::cSC4NetworkManager_ToolCellEntry, self, key);
+            ++ran.asked;
+            hash.Mix(info ? 1u : 0u);
+            if (!info)
+                continue;
+            ++ran.found;
+            hash.Mix(CellHash(key, info, true));
+            if (walk.size() < kMostWalked)
+                walk.push_back(key);
+        }
+    TableSum total = SumTable(worldCache, worldCache, true);
+    ran.cached = total.cells;
+    MixTableSum(hash, worldCache, total);
+    hash.Mix(total.found);
+    CallThis<void>(addr::cSC4NetworkWorldCache_SaveCells, worldCache);
+    total = SumTable(backup, nullptr, true);
+    ran.saved = total.cells;
+    MixTableSum(hash, backup, total);
+    CallThis<void>(addr::cSC4NetworkWorldCache_ClearTable, worldCache);
+    hash.Mix(At<uint32_t>(worldCache, cache::kCount));
+    CallThis<void>(addr::cSC4NetworkWorldCache_RestoreCells, worldCache);
+    total = SumTable(worldCache, worldCache, true);
+    ran.restored = total.cells;
+    MixTableSum(hash, worldCache, total);
+    hash.Mix(total.found);
+    CallThis<void>(addr::cSC4NetworkWorldCache_ClearCellIndices, worldCache);
+    MixTableSum(hash, worldCache, SumTable(worldCache, nullptr, true));
+    Vector collected{nullptr, nullptr, nullptr};
+    CallThis<void, Vector*>(addr::cSC4NetworkWorldCache_CollectCells, worldCache, &collected);
+    for (char* at = collected.begin; at && at < collected.end; at += cell::kSize) {
+        ++ran.collected;
+        hash.Mix(CellHash(0, at, true));
+        if (void* const occupant = At<void*>(at, cell::kOccupant))
+            ReleaseOf(occupant);
+    }
+    FreeVector(collected);
+    alignas(4) char walkerObject[walker::kSize] = {};
+    At<std::uintptr_t>(walkerObject, 0) = addr::cSC4NetworkTool_NeighborVtable;
+    At<char*>(walkerObject, walker::kTool) = self;
+    At<uint32_t>(walkerObject, walker::kType) = kCellsType;
+    At<uint32_t>(walkerObject, walker::kMask) =
+        Global<uint32_t>(addr::cSC4NetworkTool_TypeFlags + kCellsType * 4) ^ 0x1FFFu;
+    for (const uint32_t key : walk) {
+        At<uint32_t>(walkerObject, walker::kX) = key & 0xFFFF;
+        At<uint32_t>(walkerObject, walker::kZ) = key >> 16;
+        for (uint32_t direction = 0; direction < kDirections; ++direction) {
+            hash.Mix(Virtual<uint32_t>(walkerObject, walker::kIsClearSlot, direction));
+            uint32_t edges = 0xFFFFFFFFu;
+            char* const info = Virtual<char*>(walkerObject, walker::kEdgesSlot, direction, &edges);
+            hash.Mix(info ? 1u : 0u);
+            hash.Mix(edges);
+        }
+        ++ran.walked;
+    }
+    CallThis<void>(addr::cSC4NetworkWorldCache_Reset, worldCache);
+    hash.Mix(At<uint32_t>(worldCache, cache::kCount));
+    hash.Mix(At<uint32_t>(backup, cache::kCount));
+    Virtual<uint8_t>(self, slot::kShutdown);
+    Virtual<uint32_t>(self, slot::kRelease);
+}
+
 void Drive(const Day& day)
 {
     if (g_setDone || !day.counted || !OnRunDay(day, "OPENSC4_TEST_NETTOOL"))
@@ -502,6 +707,14 @@ void Drive(const Day& day)
         if (self)
             DriveTool(hash, self, ran);
     }
+    if (EnvInt("OPENSC4_TEST_NETTOOL_CELLS", 0) == 1) {
+        CellsRan cells;
+        DriveCells(hash, manager, cells);
+        log::Write("autotest: nettool: cells: %u asked, %u found, %u cached, %u saved, %u restored, %u collected, "
+                   "%u walked",
+                   cells.asked, cells.found, cells.cached, cells.saved, cells.restored, cells.collected,
+                   cells.walked);
+    }
     g_setDone = true;
     g_setSum = hash.h;
     log::Write("autotest: nettool: drive: %u tools, texts on %u, step counts on %u, anchors on %u, zone change on "
@@ -516,8 +729,9 @@ void Fingerprint(cISC4City* city, std::string& line)
         line += " | nettool none";
         return;
     }
-    Hash fields, queries, ids, bridges;
+    Hash fields, queries, ids, bridges, caches;
     uint32_t tools = 0, initialised = 0, rows = 0, records = 0, keyed = 0, failing = 0, used = 0, costs = 0;
+    uint32_t cells = 0, saved = 0, found = 0;
     for (uint32_t type = 0; type < nettool_sim::kTypes; ++type) {
         char* const self = ToolOf(manager, type);
         if (!self) {
@@ -530,6 +744,7 @@ void Fingerprint(cISC4City* city, std::string& line)
         MixFields(fields, self);
         used += Count(self, field::kSolved, 1) != 0 || Count(self, field::kSteps, 1) != 0;
         costs += MixQueries(queries, self) ? 1u : 0u;
+        MixCache(caches, self, cells, saved, found);
         if (!At<char*>(self, field::kRow))
             continue;
         ++rows;
@@ -542,6 +757,8 @@ void Fingerprint(cISC4City* city, std::string& line)
                   "%08X br %08X",
                   tools, initialised, rows, used, costs, records, keyed, failing, fields.h, queries.h, ids.h,
                   bridges.h);
+    line += text;
+    std::snprintf(text, sizeof text, " cells %u,%u,%u ch %08X", cells, saved, found, caches.h);
     line += text;
     if (g_setDone) {
         std::snprintf(text, sizeof text, " set %08X", g_setSum);
