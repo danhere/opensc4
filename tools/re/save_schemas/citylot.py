@@ -23,6 +23,12 @@ def holder(r):
     properties = []
     for _ in range(r.u32()):
         key, again, marker, kind, zero = r.u32(), r.u32(), r.u32(), r.u16(), r.u16()
+        if key == again and not marker and not kind and not zero:
+            # An empty value: nothing follows. The network occupant's retrofit
+            # property 0x4835C6AC is one (docs/netocc.md); no save of the
+            # corpus has it, the network manager's retrofit test makes some.
+            properties.append([key, kind, None])
+            continue
         if key != again or marker or zero or (kind & 0x7FFF) not in VALUE_SIZES:
             raise struct.error('property %08X/%08X: marker %X, type %X, %X' % (key, again, marker, kind, zero))
         fmt = VALUE_SIZES[kind & 0x7FFF]

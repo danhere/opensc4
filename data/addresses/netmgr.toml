@@ -637,7 +637,7 @@ address = 0x00612820
 kind = "function"
 convention = "thiscall"
 expect = "81 EC 94 00 00 00 56 8B"
-source = "Name ours. The retrofit pass of the network manager, no arguments, 1,498 bytes, called by DoMessage 0x006139D1 for message 0x26D31EC1 only; left as the game code for the second half of the third part; our DoMessage calls it at this address (src/core/netmgr_messages.cpp)."
+source = "Name ours. The retrofit pass of the network manager, no arguments, 1,498 bytes, called by DoMessage 0x006139D1 for message 0x26D31EC1 only; ours in src/core/netmgr_nodes.cpp (simulators.netmgr.retrofit); our DoMessage calls it at this address."
 
 [[entry]]
 name = "cSC4NetworkManager::PartitionPointers"
@@ -706,3 +706,25 @@ name = "cSC4NetworkManager::RemovalToolTypes"
 address = 0x00AA7B34
 kind = "data"
 source = "Three dwords, the network types whose tools the three passes of DestroyNetworkOccupants 0x00612110 use: 0, 4, 7."
+
+[[entry]]
+name = "cSC4NetworkManager::CreateConnectionNode"
+address = 0x00611300
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 8B 5C 24 30"
+source = "Slot 20 of the network manager (the gzcom-dll header has it at slot 21), ret 0x1C, 559 bytes: (address of an occupant pointer, network type, address of a cell x z, two words of edge types, a path ID override or 0, a rotation byte); the kept tool of the type places a piece on the cell (Init, slot 8 with the cell, 0x100, 0 and the type, Shutdown), then the first occupant of the type on the cell is made a node: its corners get the height of the building of the lot on the cell, the override and the rotation are stored, flags 0x200000 and 0x8000000 set and 0x2000000 and 0x4000000 cleared, unusable, the edge types stored; the occupant is stored for the caller with a reference and AL is 1, or AL 0 without one; called by the lot developer 0x006C9E89 only (src/core/netmgr_nodes.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::AutoconnectLotNodes"
+address = 0x00611530
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 50 53 56 57 6A 10"
+source = "Slot 21 of the network manager (the gzcom-dll header has it at slot 22), ret 8, 774 bytes: (lot, address of a list of node occupants); for every node and every edge its edge types name that is not active yet the neighbour cell is looked up with a filter of the node's network class (0x1F4F or 0xB0), the walk goes on through the lot's rectangle while cells have such an occupant, and the type's kept tool draws from the node to the cell reached (Init, slot 7 with x, z, to x, to z, 0, 0, 1, -1, Shutdown); called by the lot developer 0x006C9F30 only (src/core/netmgr_nodes.cpp)."
+
+[[entry]]
+name = "cSC4NetworkManager::RetrofitPairs"
+address = 0x00AA7B50
+kind = "data"
+source = "Name ours. Eleven pairs of words ProcessRetrofitList 0x00612820 reads: an old path ID override and the base of the new piece IDs (0x02010000 to 0x0C000000, 0x02010100 to 0x0C001000, 0x02010200 to 0x0C002000, 0x02010300 to 0x0C003000, 0x02011000 to 0x0C004000, 0x02011100 to 0x0C005000, 0x02011200 to 0x0C006000, 0x02012000 to 0x0C008000, 0x02012100 to 0x0C009000, 0x02012200 to 0x0C00A000, 0x02012300 to 0x0C00B000); the format strings of the remap callbacks follow at 0x00AA7BA8."
