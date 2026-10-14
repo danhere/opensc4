@@ -64,6 +64,39 @@
 // destroyed (Destruct); and the same RUL file read again into a new rule
 // file object (operator new, Construct, Load: the reader and the three
 // parsers under it), compared with the loaded one and deleted by its slot 0.
+//
+// Part r3 (src/core/nettool_rul_3.cpp) appends, on every day, after
+// everything above, ` p<hash> x<nodes>:<hash> r<count>:<hash>
+// b<records>:<hash>/<hash>`: p the 13 rows' placement parameters (+0x50:
+// the words and float bits, the bytes +0x24, +0x25, +0x44, the five
+// vectors; the placement Load and LoadParams fill them); x the rows' tables
+// +0x3C (count, bucket count, the order-free sum over nodes of the key and
+// the two vectors); r the RUL1 map 0x00B460DC in key order (each node's type
+// pair and its pair table: count, bucket count, the order-free sum over
+// nodes of the two types, the word and the turn byte, not the three bytes
+// after the byte: the original's stack leftovers); b the rows' bridge
+// records in order (the name's characters and the int-keyed map +0x16C in
+// key order: key, floats, the element count), the 20-byte elements in the
+// hash after the slash (a float, a word, the byte +0x8, two words; not the
+// three bytes after +0x8: the bridge parser 0x0063EA50, still the game's,
+// builds each element on its stack writing only that byte, so they are its
+// stack leftovers, and those change with whatever ran below that frame:
+// part r3's own code among it). From the drive day on, ` g<hash>` at the very
+// end: part r3's functions called at the game's addresses on the test's own
+// memory: the three character tests on 0 to 255; TypeIndexOfName on the 13
+// names and four near misses; the lexer (Construct, NextToken until the
+// text's end, a pushed-back token) on five texts (numbers, hex, floats,
+// '-', identifiers, comments, ';', line ends, bytes above 0x7F); the record
+// vector (40 PushBacks, an InsertOverflow of 3 in the middle, Assign into
+// an empty, a longer and a shorter vector and to itself); a check type
+// table (60 FindOrInserts), a pair table (150 FindOrInserts with Resize
+// under them, CopyFrom into another), a table +0x3C (24 inserts, then
+// DestroyTable3C), a point table (24 equal-key inserts), the string map
+// (FindOrInsert 0x00640E10, which runs ConstructPair, Resize and CopyPair,
+// then FindIterator and Clear), the int-keyed map (24 InsertUniques, Assign
+// to a copy, to itself and from an empty map: CopySubtree, CloneNode,
+// CreateNode, EraseSubtree under them) and a RUL2 multimap (24
+// InsertEquals), every table and node freed after.
 #include "core/autotest_hooks.h"
 #include "core/game_access.h"
 #include "core/log.h"
@@ -88,6 +121,7 @@ namespace {
 
 using nettool_sim::CallCdecl;
 using nettool_sim::CallThis;
+using nettool_sim::GameString;
 using nettool_sim::Vector;
 namespace rul = nettool_sim::rul;
 namespace tree = nettool_sim::tree;
@@ -556,9 +590,592 @@ uint32_t DriveRuleRecords()
     return hash.h;
 }
 
+// --- Part r3: the placement parameters, tables and maps --------------------------
+
+char* GameAllocate(uint32_t size)
+{
+    return CallCdecl<char*, uint32_t>(addr::SC4_stl_allocate, size);
+}
+void GameFree(void* block)
+{
+    if (block)
+        CallCdecl<void, void*>(addr::SC4_Free, block);
+}
+
+// A vector of words: its count and words.
+void MixWords(Hash& hash, char* at, std::size_t vector)
+{
+    const Vector& v = At<Vector>(at, vector);
+    hash.Mix(static_cast<uint32_t>(v.end - v.begin) / 4);
+    for (char* e = v.begin; e != v.end; e += 4)
+        hash.Mix(Word(e, 0));
+}
+
+// The 13 rows' placement parameters (+0x50): the words and floats (bits),
+// the bytes, the vectors.
+uint32_t PlacementHash()
+{
+    using namespace rul;
+    Hash hash;
+    for (uint32_t type = 0; type < nettool_sim::kTypes; ++type) {
+        char* const p = Row(type) + typerow::kParams;
+        for (const std::size_t at : placement::kScalars)
+            hash.Mix(Word(p, at));
+        for (const std::size_t at : placement::kBytes)
+            hash.Mix(Byte(p, at));
+        for (const std::size_t at : placement::kVectors)
+            MixWords(hash, p, at);
+    }
+    return hash.h;
+}
+
+// The 13 rows' tables +0x3C: count, bucket count, the sum over nodes of the
+// key and the two vectors.
+uint32_t Tables3CHash(uint32_t& nodes)
+{
+    using namespace rul;
+    Hash hash;
+    nodes = 0;
+    for (uint32_t type = 0; type < nettool_sim::kTypes; ++type) {
+        char* const t = Row(type) + typerow::kTable;
+        hash.Mix(Word(t, table::kCount));
+        hash.Mix(BucketCount(t));
+        uint32_t sum = 0;
+        ForEachNode(t, [&](char* node) {
+            Hash one;
+            one.Mix(Word(node, table3c::kKey));
+            MixWords(one, node, table3c::kUints);
+            MixWords(one, node, table3c::kFloats);
+            sum += one.h;
+            ++nodes;
+        });
+        hash.Mix(sum);
+    }
+    return hash.h;
+}
+
+// A RUL1 pair table: count, bucket count, the sum over nodes of the key,
+// the word and the byte (not the three bytes after it: stack leftovers in
+// the original).
+uint32_t PairTableHash(char* t)
+{
+    using namespace rul;
+    Hash hash;
+    hash.Mix(Word(t, table::kCount));
+    hash.Mix(BucketCount(t));
+    uint32_t sum = 0;
+    ForEachNode(t, [&](char* node) {
+        Hash one;
+        one.Mix(Word(node, pairtable::kFirst));
+        one.Mix(Word(node, pairtable::kSecond));
+        one.Mix(Word(node, pairtable::kValue));
+        one.Mix(Byte(node, pairtable::kByte));
+        sum += one.h;
+    });
+    hash.Mix(sum);
+    return hash.h;
+}
+
+// Every node of a tree {head, count}, in order (at most count + 1).
+template <typename Fn>
+uint32_t ForEachInOrder(char* map, Fn fn)
+{
+    const uint32_t count = Word(map, tree::kCount);
+    char* const head = At<char*>(map, tree::kHead);
+    uint32_t seen = 0;
+    if (!head)
+        return 0;
+    for (char* node = At<char*>(head, tree::kLeft); node != head && seen <= count; node = NextNode(node), ++seen)
+        fn(node);
+    return seen;
+}
+
+// The RUL1 map 0x00B460DC: its count and, in key order (two words), each
+// node's pair and table.
+uint32_t Rul1MapHash(uint32_t& count)
+{
+    using namespace rul;
+    char* const map = reinterpret_cast<char*>(addr::cSC4NetworkTool_Rul1Map);
+    count = Word(map, tree::kCount);
+    Hash hash;
+    hash.Mix(count);
+    hash.Mix(ForEachInOrder(map, [&](char* node) {
+        hash.Mix(Word(node, rul1map::kFirst));
+        hash.Mix(Word(node, rul1map::kSecond));
+        hash.Mix(PairTableHash(node + rul1map::kTable));
+    }));
+    return hash.h;
+}
+
+// An int-keyed map in key order: per node the key, the 20-byte elements
+// (into `elements`) and the floats.
+void MixIntMap(Hash& hash, Hash& elements, char* map)
+{
+    using namespace rul;
+    hash.Mix(Word(map, tree::kCount));
+    hash.Mix(ForEachInOrder(map, [&](char* node) {
+        hash.Mix(Word(node, intmap::kKey));
+        MixWords(hash, node, intmap::kFloats);
+        const Vector& v = At<Vector>(node, intmap::kVector20);
+        hash.Mix(static_cast<uint32_t>(v.end - v.begin) / stringmap::kElement);
+        // An element: a float, a word, a byte (+0x8; the three bytes after it
+        // are stack leftovers of the bridge parser 0x0063EA50, which builds
+        // the element on its stack with `mov [esp+0x60],dl` and copies it
+        // as words (0x00889C90): not hashed), two words.
+        for (char* e = v.begin; e != v.end; e += stringmap::kElement) {
+            elements.Mix(Word(e, 0x0));
+            elements.Mix(Word(e, 0x4));
+            elements.Mix(Byte(e, 0x8));
+            elements.Mix(Word(e, 0xC));
+            elements.Mix(Word(e, 0x10));
+        }
+    }));
+}
+
+// The bridge records of the 13 rows, in order: the name's characters and
+// the int-keyed map (+0x16C); the 20-byte elements' words go to a hash of
+// their own.
+void BridgesHash(uint32_t& records, uint32_t& value, uint32_t& elementsValue)
+{
+    using namespace rul;
+    Hash hash, elements;
+    records = 0;
+    for (uint32_t type = 0; type < nettool_sim::kTypes; ++type) {
+        const Vector& v = At<Vector>(Row(type), typerow::kBridges);
+        for (char* r = v.begin; r != v.end; r += typerow::kBridgeSize) {
+            ++records;
+            const GameString& name = At<GameString>(r, bridge::kName);
+            hash.Mix(static_cast<uint32_t>(name.end - name.begin));
+            for (const char* c = name.begin; c != name.end; ++c)
+                hash.Mix(static_cast<uint8_t>(*c));
+            MixIntMap(hash, elements, r + bridge::kIntMap);
+        }
+    }
+    value = hash.h;
+    elementsValue = elements.h;
+}
+
+// --- Part r3: the drive ----------------------------------------------------------
+
+// A game string (vtable 0x00A80810) over the test's own characters.
+struct TestString {
+    std::string text;
+    GameString s{};
+    explicit TestString(const char* t) : text(t)
+    {
+        s.vtable = 0x00A80810;
+        s.begin = text.data();
+        s.end = s.begin + text.size();
+        s.capacity = s.end + 1;
+        s.references = 0;
+    }
+    TestString(const TestString&) = delete;
+    TestString& operator=(const TestString&) = delete;
+};
+
+void MixRecord(Hash& hash, char* r)
+{
+    using namespace rul;
+    hash.Mix(Word(r, record::kWord));
+    hash.Mix(Byte(r, record::kTurn));
+    hash.Mix(Byte(r, record::kFlip));
+    hash.Mix(Word(r, record::kX));
+    hash.Mix(Word(r, record::kZ));
+}
+
+void MixRecords(Hash& hash, const Vector& v)
+{
+    hash.Mix(static_cast<uint32_t>(v.end - v.begin) / rul::record::kSize);
+    for (char* r = v.begin; r != v.end; r += rul::record::kSize)
+        MixRecord(hash, r);
+}
+
+void MakeRecord(char* r, uint32_t i)
+{
+    using namespace rul;
+    std::memset(r, 0, record::kSize);
+    At<uint32_t>(r, record::kWord) = 0x5D4A1000u + i * 7;
+    At<uint8_t>(r, record::kTurn) = static_cast<uint8_t>(i & 3);
+    At<uint8_t>(r, record::kFlip) = static_cast<uint8_t>(i & 1);
+    At<float>(r, record::kX) = static_cast<float>(i) * 0.5f;
+    At<float>(r, record::kZ) = -static_cast<float>(i) * 0.25f;
+}
+
+// A vector of `size` made records in a buffer of `capacity` (the game's
+// allocator).
+Vector MakeRecords(uint32_t size, uint32_t capacity, uint32_t seed)
+{
+    Vector v{};
+    v.begin = GameAllocate(capacity * rul::record::kSize);
+    v.end = v.begin + size * rul::record::kSize;
+    v.capacity = v.begin + capacity * rul::record::kSize;
+    for (uint32_t i = 0; i < size; ++i)
+        MakeRecord(v.begin + i * rul::record::kSize, seed + i);
+    return v;
+}
+
+uint32_t DriveLexer()
+{
+    using namespace rul;
+    Hash hash;
+    static const char* const kTexts[] = {
+        "1, 0x1F2e, -3, -.5, 2.25, .75, Name_1 _x #comment\n; rest",
+        "  \t#only a comment",
+        "RotationRing=0x12345678,1,2.5e3,-7x,- 4,(a)b;c",
+        "\xC3\xA9 9.9.9 0x 00x12 abc123_def ~ \r\n2",
+        "",
+    };
+    for (const char* text : kTexts) {
+        TestString source(text);
+        alignas(4) char lexer[0x48] = {};
+        CallThis<char*, GameString*>(addr::SC4RulLexer_Construct, lexer, &source.s);
+        hash.Mix(static_cast<uint32_t>(At<char*>(lexer, lexer::kEnd) - At<char*>(lexer, lexer::kBegin)));
+        hash.Mix(Word(lexer, lexer::kPushed));
+        for (int i = 0; i < 64; ++i) {
+            const int32_t token = CallThis<int32_t>(addr::SC4RulLexer_NextToken, lexer);
+            hash.Mix(static_cast<uint32_t>(token));
+            if (token == lexer::kTokenInteger)
+                hash.Mix(Word(lexer, lexer::kInteger));
+            else if (token == lexer::kTokenFloat)
+                hash.Mix(Word(lexer, lexer::kFloat));
+            else if (token == lexer::kTokenIdentifier) {
+                const char* const begin = At<char*>(lexer, lexer::kIdentBegin);
+                const char* const end = At<char*>(lexer, lexer::kIdentEnd);
+                hash.Mix(static_cast<uint32_t>(end - begin));
+                for (const char* c = begin; c != end; ++c)
+                    hash.Mix(static_cast<uint8_t>(*c));
+            }
+            hash.Mix(static_cast<uint32_t>(At<char*>(lexer, lexer::kCursor) - At<char*>(lexer, lexer::kBegin)));
+            if (token == 0 && At<char*>(lexer, lexer::kCursor) >= At<char*>(lexer, lexer::kEnd))
+                break;
+        }
+        At<int32_t>(lexer, lexer::kPushed) = 0x2C;
+        hash.Mix(static_cast<uint32_t>(CallThis<int32_t>(addr::SC4RulLexer_NextToken, lexer)));
+        hash.Mix(Word(lexer, lexer::kPushed));
+        hash.Mix(At<uint16_t>(lexer, lexer::kWord2C));
+        hash.Mix(Byte(lexer, lexer::kByte40) | (Byte(lexer, lexer::kByte41) << 8) |
+                 (Byte(lexer, lexer::kByte42) << 16));
+        GameFree(At<char*>(lexer, lexer::kIdentBegin));
+    }
+    return hash.h;
+}
+
+uint32_t DriveRecords()
+{
+    using namespace rul;
+    Hash hash;
+    Vector v{};
+    for (uint32_t i = 0; i < 40; ++i) {
+        alignas(4) char r[record::kSize];
+        MakeRecord(r, i);
+        CallThis<void, char*>(addr::SC4Rul0RecordVector_PushBack, &v, r);
+    }
+    MixRecords(hash, v);
+    {
+        alignas(4) char r[record::kSize];
+        MakeRecord(r, 1000);
+        uint32_t tag = 0;
+        CallThis<void, char*, char*, uint32_t*, uint32_t, uint32_t>(addr::SC4Rul0RecordVector_InsertOverflow, &v,
+                                                                    v.begin + 5 * record::kSize, r, &tag, 3u, 0u);
+    }
+    MixRecords(hash, v);
+    Vector empty{};
+    Vector larger = MakeRecords(60, 100, 500);
+    Vector smaller = MakeRecords(2, 100, 900);
+    for (Vector* target : {&empty, &larger, &smaller}) {
+        CallThis<char*, Vector*>(addr::SC4Rul0RecordVector_Assign, target, &v);
+        hash.Mix(static_cast<uint32_t>(target->capacity - target->begin) / record::kSize);
+        MixRecords(hash, *target);
+    }
+    CallThis<char*, Vector*>(addr::SC4Rul0RecordVector_Assign, &v, &v);
+    MixRecords(hash, v);
+    for (Vector* each : {&v, &empty, &larger, &smaller})
+        GameFree(each->begin);
+    return hash.h;
+}
+
+// A hash table made by the game's constructor (100 buckets) on the test's
+// memory, and freed: cleared (SC4Uint32HashSet::Clear) and its buckets.
+struct TestTable {
+    alignas(4) char t[rul::table::kSize] = {};
+    TestTable() { CallThis<void, uint32_t>(addr::SC4Uint32HashSet_Construct, t, 100u); }
+    ~TestTable()
+    {
+        CallThis<void>(addr::SC4Uint32HashSet_Clear, t);
+        GameFree(At<char*>(t, rul::table::kBuckets));
+    }
+    TestTable(const TestTable&) = delete;
+    TestTable& operator=(const TestTable&) = delete;
+};
+
+uint32_t DriveTables()
+{
+    using namespace rul;
+    Hash hash;
+    {
+        TestTable types;
+        for (uint32_t k = 0; k < 60; ++k) {
+            uint8_t key = static_cast<uint8_t>((k * 37u) & 0x7F);
+            char* const value = CallThis<char*, uint8_t*>(addr::SC4Rul0CheckTypes_FindOrInsert, types.t, &key);
+            At<uint32_t>(value, 0) += k + 1;
+            At<uint32_t>(value, 0x10) ^= static_cast<uint32_t>(key) << 8;
+        }
+        hash.Mix(Word(types.t, table::kCount));
+        hash.Mix(BucketCount(types.t));
+        uint32_t sum = 0;
+        ForEachNode(types.t, [&](char* node) {
+            Hash one;
+            one.Mix(Byte(node, table::kKey));
+            for (std::size_t i = 0; i < checkvalue::kWordCount; ++i)
+                one.Mix(Word(node, 8 + 4 * i));
+            sum += one.h;
+        });
+        hash.Mix(sum);
+    }
+    {
+        TestTable pairs, copy;
+        for (uint32_t n = 0; n < 150; ++n) {
+            uint32_t key[2] = {n % 13, (n * 7) % 11};
+            uint32_t* const value = CallThis<uint32_t*, uint32_t*>(addr::SC4PairHashTable_FindOrInsert, pairs.t, key);
+            value[0] += n;
+            value[1] = (value[1] & 0xFFFFFF00u) | ((n & 3) | ((n & 4) << 5));
+        }
+        CallThis<void, char*>(addr::SC4PairHashTable_CopyFrom, copy.t, pairs.t);
+        hash.Mix(PairTableHash(pairs.t));
+        hash.Mix(PairTableHash(copy.t));
+    }
+    {
+        alignas(4) char t[table::kSize] = {};
+        CallThis<void, uint32_t>(addr::SC4Uint32HashSet_Construct, t, 100u);
+        for (uint32_t n = 0; n < 24; ++n) {
+            uint32_t uints[4] = {n, n * 3, 0xA0000000u + n, 7};
+            float floats[3] = {static_cast<float>(n) * 1.5f, -2.0f, 0.1f * static_cast<float>(n)};
+            alignas(4) char value[table3c::kValueFloats + 0xC] = {};
+            At<uint32_t>(value, 0) = 0x10000 + n * 0x101;
+            At<Vector>(value, table3c::kValueUints) = Vector{reinterpret_cast<char*>(uints),
+                                                             reinterpret_cast<char*>(uints + n % 5),
+                                                             reinterpret_cast<char*>(uints + 4)};
+            At<Vector>(value, table3c::kValueFloats) = Vector{reinterpret_cast<char*>(floats),
+                                                              reinterpret_cast<char*>(floats + n % 4),
+                                                              reinterpret_cast<char*>(floats + 3)};
+            CallThis<char*, char*>(addr::SC4NetworkTypeInfo_Table3CInsertNoResize, t, value);
+        }
+        hash.Mix(Word(t, table::kCount));
+        hash.Mix(BucketCount(t));
+        uint32_t sum = 0;
+        ForEachNode(t, [&](char* node) {
+            Hash one;
+            one.Mix(Word(node, table3c::kKey));
+            MixWords(one, node, table3c::kUints);
+            MixWords(one, node, table3c::kFloats);
+            sum += one.h;
+        });
+        hash.Mix(sum);
+        CallThis<void>(addr::SC4NetworkTypeInfo_DestroyTable3C, t);
+        hash.Mix(Word(t, table::kCount));
+        GameFree(At<char*>(t, table::kBuckets));
+    }
+    {
+        TestTable points;
+        for (uint32_t n = 0; n < 24; ++n) {
+            int32_t xy[8] = {static_cast<int32_t>(n), -1, 2, static_cast<int32_t>(n * n), 5, 6, -7, 8};
+            alignas(4) char value[0x10] = {};
+            At<uint32_t>(value, 0) = n % 7;
+            At<Vector>(value, 4) = Vector{reinterpret_cast<char*>(xy), reinterpret_cast<char*>(xy + 2 * (1 + n % 4)),
+                                          reinterpret_cast<char*>(xy + 8)};
+            char* result[2] = {};
+            CallThis<char**, char**, char*>(addr::SC4PointsHashTable_InsertEqualNoResize, points.t, result, value);
+            hash.Mix(result[1] == points.t);
+        }
+        hash.Mix(Word(points.t, table::kCount));
+        uint32_t sum = 0;
+        ForEachNode(points.t, [&](char* node) {
+            Hash one;
+            one.Mix(Word(node, pointtable::kKey));
+            MixWords(one, node, pointtable::kPoints);
+            sum += one.h;
+        });
+        hash.Mix(sum);
+        // Each bucket's chain in order (equal keys follow the first one).
+        for (uint32_t i = 0; i < BucketCount(points.t); ++i) {
+            for (char* node = At<char**>(points.t, table::kBuckets)[i]; node; node = At<char*>(node, table::kNext))
+                hash.Mix(Word(node, pointtable::kKey) ^ (Word(At<char*>(node, pointtable::kPoints), 4) << 8));
+        }
+        ForEachNode(points.t, [&](char* node) { GameFree(At<char*>(node, pointtable::kPoints)); });
+    }
+    return hash.h;
+}
+
+uint32_t DriveStringMap()
+{
+    using namespace rul;
+    Hash hash;
+    TestTable map;
+    static const char* const kKeys[] = {"Road", "Rail", "", "A_b", "road", "Road", "x", "Rail", "Avenue"};
+    for (const char* text : kKeys) {
+        TestString key(text);
+        char* const value = CallThis<char*, GameString*>(addr::SC4StringHashMap_FindOrInsert, map.t, &key.s);
+        hash.Mix(Word(map.t, table::kCount));
+        hash.Mix(static_cast<uint32_t>(At<Vector>(value, 0).end - At<Vector>(value, 0).begin));
+    }
+    hash.Mix(BucketCount(map.t));
+    static const char* const kLook[] = {"Road", "road", "", "missing", "Avenue"};
+    for (const char* text : kLook) {
+        TestString key(text);
+        char* result[2] = {};
+        CallThis<char**, char**, GameString*>(addr::SC4StringHashMap_FindIterator, map.t, result, &key.s);
+        hash.Mix(result[0] != nullptr);
+        hash.Mix(result[1] == map.t);
+        if (result[0]) {
+            const GameString& s = At<GameString>(result[0], stringmap::kPair);
+            hash.Mix(static_cast<uint32_t>(s.end - s.begin));
+            for (const char* c = s.begin; c != s.end; ++c)
+                hash.Mix(static_cast<uint8_t>(*c));
+        }
+    }
+    // Bucket 0's chain in order (every key's bucket).
+    for (char* node = At<char**>(map.t, table::kBuckets)[0]; node; node = At<char*>(node, table::kNext)) {
+        const GameString& s = At<GameString>(node, stringmap::kPair);
+        hash.Mix(static_cast<uint32_t>(s.end - s.begin));
+    }
+    CallThis<void>(addr::SC4StringHashMap_Clear, map.t);
+    hash.Mix(Word(map.t, table::kCount));
+    return hash.h;
+}
+
+// A tree head as the test makes it (zeroed, linked to itself): `size`
+// bytes from the game's allocator.
+char* MakeHead(std::size_t size)
+{
+    char* const head = GameAllocate(static_cast<uint32_t>(size));
+    std::memset(head, 0, size);
+    At<char*>(head, tree::kLeft) = head;
+    At<char*>(head, tree::kRight) = head;
+    return head;
+}
+
+uint32_t DriveIntMap()
+{
+    using namespace rul;
+    Hash hash, elements;
+    char* maps[3][2] = {};
+    for (auto& m : maps) {
+        m[0] = MakeHead(intmap::kNodeSize);
+        m[1] = nullptr;
+    }
+    char* const one = reinterpret_cast<char*>(maps[0]);
+    char* const two = reinterpret_cast<char*>(maps[1]);
+    char* const none = reinterpret_cast<char*>(maps[2]);
+    for (uint32_t n = 0; n < 24; ++n) {
+        uint32_t words[15];
+        for (uint32_t i = 0; i < 15; ++i)
+            words[i] = n * 100 + i;
+        float floats[4] = {1.0f, static_cast<float>(n), -0.5f, 3.25f};
+        alignas(4) char value[intmap::kValueSize] = {};
+        At<int32_t>(value, 0) = static_cast<int32_t>((n * 13) % 17) - 8;
+        At<Vector>(value, intmap::kValueVector20) =
+            Vector{reinterpret_cast<char*>(words), reinterpret_cast<char*>(words + 5 * (n % 3)),
+                   reinterpret_cast<char*>(words + 15)};
+        At<Vector>(value, intmap::kValueFloats) = Vector{reinterpret_cast<char*>(floats),
+                                                         reinterpret_cast<char*>(floats + n % 4),
+                                                         reinterpret_cast<char*>(floats + 4)};
+        alignas(4) char result[8] = {};
+        CallThis<char*, char*, char*>(addr::SC4BridgeIntMap_InsertUnique, one, result, value);
+        hash.Mix(Byte(result, 4));
+        hash.Mix(Word(At<char*>(result, 0), intmap::kKey));
+    }
+    CallThis<char*, char*>(addr::SC4BridgeIntMap_Assign, two, one);
+    MixIntMap(hash, elements, one);
+    MixIntMap(hash, elements, two);
+    CallThis<char*, char*>(addr::SC4BridgeIntMap_Assign, two, two);
+    CallThis<char*, char*>(addr::SC4BridgeIntMap_Assign, two, none);
+    CallThis<char*, char*>(addr::SC4BridgeIntMap_Assign, one, none);
+    MixIntMap(hash, elements, one);
+    MixIntMap(hash, elements, two);
+    for (auto& m : maps)
+        GameFree(m[0]);
+    hash.Mix(elements.h);
+    return hash.h;
+}
+
+// The nodes of a test multimap freed (post-order).
+void FreeSubtree(char* node)
+{
+    while (node) {
+        FreeSubtree(At<char*>(node, tree::kRight));
+        char* const left = At<char*>(node, tree::kLeft);
+        GameFree(node);
+        node = left;
+    }
+}
+
+uint32_t DriveRul2Map()
+{
+    using namespace rul;
+    Hash hash;
+    char* map[2] = {MakeHead(rul2node::kNodeSize), nullptr};
+    char* const self = reinterpret_cast<char*>(map);
+    for (uint32_t n = 0; n < 24; ++n) {
+        uint32_t value[rul2node::kValueWords];
+        value[0] = 0x5D000000u + (n * 7) % 11;
+        for (uint32_t i = 1; i < rul2node::kValueWords; ++i)
+            value[i] = n * 16 + i;
+        char* result = nullptr;
+        CallThis<char**, char**, uint32_t*>(addr::SC4Rul2Multimap_InsertEqual, self, &result, value);
+        hash.Mix(Word(result, tree::kValue));
+    }
+    hash.Mix(ForEachInOrder(self, [&](char* node) {
+        for (uint32_t i = 0; i < rul2node::kValueWords; ++i)
+            hash.Mix(Word(node, tree::kValue + 4 * i));
+    }));
+    FreeSubtree(At<char*>(map[0], tree::kParent));
+    GameFree(map[0]);
+    return hash.h;
+}
+
+uint32_t DriveRul3()
+{
+    using namespace rul;
+    Hash total;
+    {
+        Hash tests;
+        for (uint32_t c = 0; c < 256; ++c) {
+            tests.Mix(CallCdecl<uint32_t, uint32_t>(addr::SC4RulLexer_IsDigit, c) |
+                      (CallCdecl<uint32_t, uint32_t>(addr::SC4RulLexer_IsIdentChar, c) << 1) |
+                      (CallCdecl<uint32_t, uint32_t>(addr::SC4RulLexer_IsAlpha, c) << 2));
+        }
+        total.Mix(tests.h);
+    }
+    {
+        Hash names;
+        static const char* const kNames[] = {"Road",       "Rail",     "Highway", "Street",   "Pipe",
+                                             "PowerLine",  "Avenue",   "Subway",  "LightRail", "Monorail",
+                                             "OneWayRoad", "DirtRoad", "GroundHighway", "road", "Roads", "", "Pipe "};
+        for (const char* text : kNames) {
+            TestString name(text);
+            names.Mix(static_cast<uint32_t>(
+                CallCdecl<int32_t, GameString*>(addr::cSC4NetworkTool_TypeIndexOfName, &name.s)));
+        }
+        total.Mix(names.h);
+    }
+    const uint32_t lexer = DriveLexer();
+    const uint32_t records = DriveRecords();
+    const uint32_t tables = DriveTables();
+    const uint32_t strings = DriveStringMap();
+    const uint32_t ints = DriveIntMap();
+    const uint32_t rul2 = DriveRul2Map();
+    for (const uint32_t h : {lexer, records, tables, strings, ints, rul2})
+        total.Mix(h);
+    log::Write("autotest: ntrul: drive r3: lexer %08X, records %08X, tables %08X, string map %08X, int map %08X, "
+               "rul2 map %08X, total %08X",
+               lexer, records, tables, strings, ints, rul2, total.h);
+    return total.h;
+}
+
 bool g_done = false;
 uint32_t g_drive = 0;
 uint32_t g_drive2 = 0;
+uint32_t g_drive3 = 0;
 
 void Drive(const Day& day)
 {
@@ -578,6 +1195,7 @@ void Drive(const Day& day)
         log::Write("autotest: ntrul: drive: mirror %08X, the store is empty", mirror);
         g_drive = total.h;
         g_drive2 = DriveRuleRecords();
+        g_drive3 = DriveRul3();
         return;
     }
 
@@ -620,6 +1238,7 @@ void Drive(const Day& day)
                g_drive);
     g_drive2 = DriveRuleRecords();
     log::Write("autotest: ntrul: drive r2 %08X", g_drive2);
+    g_drive3 = DriveRul3();
 }
 
 // Once per run, a log line (never hashed) on the fields FindOrInsert's
@@ -677,6 +1296,18 @@ void Fingerprint(cISC4City*, std::string& line)
     line += text;
     if (g_done) {
         std::snprintf(text, sizeof text, " d%08X e%08X", g_drive, g_drive2);
+        line += text;
+    }
+    // Part r3, after everything of r1 and r2.
+    uint32_t nodes3C = 0, rul1Count = 0, records = 0, bridges = 0, elements = 0;
+    const uint32_t tables3C = Tables3CHash(nodes3C);
+    const uint32_t rul1 = Rul1MapHash(rul1Count);
+    BridgesHash(records, bridges, elements);
+    std::snprintf(text, sizeof text, " p%08X x%u:%08X r%u:%08X b%u:%08X/%08X", PlacementHash(), nodes3C, tables3C,
+                  rul1Count, rul1, records, bridges, elements);
+    line += text;
+    if (g_done) {
+        std::snprintf(text, sizeof text, " g%08X", g_drive3);
         line += text;
     }
 }
