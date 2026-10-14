@@ -10139,23 +10139,44 @@ uint32_t __fastcall MkDecalDescriptionNoted(char* decal, void*, uint32_t descrip
 }
 OPENSC4_THUNK(TSC4EffectDecal_SetDescription, MkDecalDescriptionNoted, 4)
 
+// The look-up and the compound effect's description by the modes of
+// their own replacements (further down).
+uint32_t FindRun(char* self, uint32_t name);
+uint32_t CompoundDescriptionRun(char* compound, uint32_t description);
+
 uint32_t __fastcall MkFindNoted(char* self, void*, uint32_t name)
 {
     if (!MkNoting())
-        return g_SC4EffectsManager_FindDescriptionByName(self, nullptr, name);
+        return FindRun(self, name);
     return MkNoted(MkMakeCall(addr::SC4EffectsManager_FindDescriptionByName, name),
-                   [&] { return g_SC4EffectsManager_FindDescriptionByName(self, nullptr, name); });
+                   [&] { return FindRun(self, name); });
 }
 OPENSC4_THUNK(TSC4EffectsManager_FindDescriptionByName, MkFindNoted, 4)
 
 uint32_t __fastcall MkCompoundDescriptionNoted(char* compound, void*, uint32_t description)
 {
     if (!MkNoting())
-        return g_SC4CompoundEffect_SetDescription(compound, nullptr, description);
+        return CompoundDescriptionRun(compound, description);
     return MkNoted(MkMakeCall(addr::SC4CompoundEffect_SetDescription, MkPlace(compound), description),
-                   [&] { return g_SC4CompoundEffect_SetDescription(compound, nullptr, description); });
+                   [&] { return CompoundDescriptionRun(compound, description); });
 }
 OPENSC4_THUNK(TSC4CompoundEffect_SetDescription, MkCompoundDescriptionNoted, 4)
+
+// The look-up and the compound effect's description have one detour each,
+// which the making's comparison and their own replacements share.
+bool HookFindDescriptionByName()
+{
+    return g_SC4EffectsManager_FindDescriptionByName ||
+           Detour(addr::SC4EffectsManager_FindDescriptionByName, &TSC4EffectsManager_FindDescriptionByName,
+                  &g_SC4EffectsManager_FindDescriptionByName);
+}
+
+bool HookCompoundDescription()
+{
+    return g_SC4CompoundEffect_SetDescription ||
+           Detour(addr::SC4CompoundEffect_SetDescription, &TSC4CompoundEffect_SetDescription,
+                  &g_SC4CompoundEffect_SetDescription);
+}
 
 void MkLogOnce(bool& logged, const char* what)
 {
@@ -10382,10 +10403,7 @@ bool InstallMake(registry::Mode mode)
           Detour(addr::SC4Effect_SetMarked, &TSC4Effect_SetMarked, &g_SC4Effect_SetMarked) &&
           Detour(addr::SC4EffectDecal_SetDescription, &TSC4EffectDecal_SetDescription,
                  &g_SC4EffectDecal_SetDescription) &&
-          Detour(addr::SC4EffectsManager_FindDescriptionByName, &TSC4EffectsManager_FindDescriptionByName,
-                 &g_SC4EffectsManager_FindDescriptionByName) &&
-          Detour(addr::SC4CompoundEffect_SetDescription, &TSC4CompoundEffect_SetDescription,
-                 &g_SC4CompoundEffect_SetDescription)))
+          HookFindDescriptionByName() && HookCompoundDescription()))
         return false;
     g_mkMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: the making of a record's effect %s",
@@ -10563,6 +10581,7 @@ void MxGrowTable(bool compound, char* table, char** at, char* object)
 }
 
 #include "core/effects_makers.inc"
+#include "core/effects_lookup.inc"
 
 // The stand-ins for the calls on what is made and on the manager. The
 // letting go may be an object's last: it gets its own table back first.
@@ -10912,6 +10931,131 @@ const bool g_registeredMakers = registry::Register({
     "one the game's with its calls noted, ours replayed (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallMakers,
+});
+
+// --- The look-up by name and the compound effect's description -----------------------------
+
+// The look-up, the name map's equal range and the compound effect's
+// taking of its description (effects_lookup.inc). All three only read, or
+// write plain values into the compound effect, so compare mode runs the
+// game's and then ours: the look-up's answers, the equal range's sixteen
+// bytes and answer, and the compound effect's bytes (put back as the game
+// left them) are compared.
+StepMode g_lookupMode = StepMode::Original, g_compoundDescriptionMode = StepMode::Original;
+Call2Fn g_SC4NameMap_EqualRange = nullptr;
+uint64_t g_lookups = 0;
+
+uint32_t FindRun(char* self, uint32_t name)
+{
+    if (g_lookupMode == StepMode::Ours)
+        return static_cast<uint32_t>(FindDescriptionByName(self, reinterpret_cast<char*>(name)));
+    const uint32_t result = g_SC4EffectsManager_FindDescriptionByName(self, nullptr, name);
+    if (g_lookupMode == StepMode::Original)
+        return result;
+    const uint32_t mine = static_cast<uint32_t>(FindDescriptionByName(self, reinterpret_cast<char*>(name)));
+    char theirs[16], own[16];
+    std::snprintf(theirs, sizeof theirs, "%d", static_cast<int32_t>(result));
+    std::snprintf(own, sizeof own, "%d", static_cast<int32_t>(mine));
+    compare::Record("effects.lookup", mine == result, mine == result ? std::string() : std::string(theirs),
+                    mine == result ? std::string() : std::string(own));
+    ++g_lookups;
+    if ((g_lookups & (g_lookups - 1)) == 0)
+        log::Write("water effects: effects.lookup: %llu look-ups compared so far, the last answering %d",
+                   static_cast<unsigned long long>(g_lookups), static_cast<int32_t>(result));
+    return result;
+}
+
+uint32_t __fastcall EqualRangeByMode(char* map, void*, uint32_t out, uint32_t key)
+{
+    if (g_lookupMode == StepMode::Ours)
+        return reinterpret_cast<uint32_t>(
+            NameEqualRange(map, reinterpret_cast<char*>(out), reinterpret_cast<char*>(key)));
+    const uint32_t result = g_SC4NameMap_EqualRange(map, nullptr, out, key);
+    if (g_lookupMode == StepMode::Original)
+        return result;
+    char mine[0x10];
+    const bool same = reinterpret_cast<uint32_t>(NameEqualRange(map, mine, reinterpret_cast<char*>(key))) ==
+                          reinterpret_cast<uint32_t>(mine) &&
+                      result == out && std::memcmp(mine, reinterpret_cast<char*>(out), sizeof mine) == 0;
+    compare::Record("effects.lookup.range", same, same ? std::string() : Hex(reinterpret_cast<char*>(out), 0x10),
+                    same ? std::string() : Hex(mine, 0x10));
+    return result;
+}
+OPENSC4_THUNK(TSC4NameMap_EqualRange, EqualRangeByMode, 8)
+
+uint32_t CompoundDescriptionRun(char* compound, uint32_t description)
+{
+    if (g_compoundDescriptionMode == StepMode::Ours) {
+        SetCompoundDescription(compound, reinterpret_cast<char*>(description));
+        return 0;
+    }
+    if (g_compoundDescriptionMode == StepMode::Original)
+        return g_SC4CompoundEffect_SetDescription(compound, nullptr, description);
+    constexpr std::size_t size = 0x14C;
+    char before[size], after[size];
+    std::memcpy(before, compound, size);
+    const uint32_t result = g_SC4CompoundEffect_SetDescription(compound, nullptr, description);
+    std::memcpy(after, compound, size);
+    std::memcpy(compound, before, size);
+    SetCompoundDescription(compound, reinterpret_cast<char*>(description));
+    const bool same = std::memcmp(compound, after, size) == 0;
+    std::size_t at = 0;
+    while (!same && at < size && compound[at] == after[at])
+        ++at;
+    at &= ~std::size_t{3};
+    char text[24];
+    std::snprintf(text, sizeof text, "+%zX ", at);
+    compare::Record("effects.compound_description", same, same ? std::string() : text + Hex(after + at, 4),
+                    same ? std::string() : text + Hex(compound + at, 4));
+    std::memcpy(compound, after, size);
+    return result;
+}
+
+bool InstallLookup(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookFindDescriptionByName() ||
+        !Detour(addr::SC4NameMap_EqualRange, &TSC4NameMap_EqualRange, &g_SC4NameMap_EqualRange))
+        return false;
+    g_lookupMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the look-up of a compound description by name %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredLookup = registry::Register({
+    "renderer.effects.lookup",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectsManager_FindDescriptionByName,
+    "The effects manager's look-up of a compound description by name: the nodes of the name in its hash map (the "
+    "string's hash still the game's), and of their descriptions the one of the largest count within the manager's "
+    "limit; compare mode runs the game's and then ours (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLookup,
+});
+
+bool InstallCompoundDescription(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookCompoundDescription())
+        return false;
+    g_compoundDescriptionMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the compound effect's taking of its description %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredCompoundDescription = registry::Register({
+    "renderer.effects.compound_description",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4CompoundEffect_SetDescription,
+    "A compound effect's taking of its description: the description's first word and three more kept, the four "
+    "blocks that changed made the identity's again and the values emptied; compare mode runs the game's and then ours "
+    "on the compound effect's bytes (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallCompoundDescription,
 });
 
 bool InstallEffects(registry::Mode mode)
