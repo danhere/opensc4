@@ -1069,7 +1069,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, const void* from)"
 expect = "55 56 8B F1 FE 06 57 8B"
-source = "Name ours. Ret 4. A record given another's values: the count of changes (+0) one more, the floats, the byte +1, the part and +0x40 copied, and the effect taken over (the new one's slot 0x1C, the old one's slot 0x20) unless it is the same. Called by SC4EffectRecords_Copy and StartCompound (0x00591AB6). The game's; noted by the comparison of renderer.effects.compound."
+source = "Name ours. Ret 4. A record given another's values: the count of changes (+0) one more, the floats, the byte +1, the part and +0x40 copied, and the effect taken over (the new one's slot 0x1C, the old one's slot 0x20) unless it is the same. Called by SC4EffectRecords_Copy and StartCompound (0x00591AB6). Ours in renderer.effects.records (src/core/effects_records.inc)."
 
 [[entry]]
 name = "SC4EffectRecords::GrowInsert"
@@ -1078,7 +1078,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, void* at, const void* record, void* tag, unsigned count, bool atEnd)"
 expect = "51 53 8B D9 8B 03 8B 4B"
-source = "Name ours. Ret 0x14. this = a vector of 0x44-byte records with no room left: new storage for the size plus the larger of the size and count (0x0090CF54), the records before at copied over (CopyConstruct), count copies of record after them, the records from at on too unless atEnd, the old ones destroyed and their storage freed (0x00590040). Called by StartCompound (0x00591CE6) and from 0x005C0788. The game's; noted by the comparison of renderer.effects.compound."
+source = "Name ours. Ret 0x14. this = a vector of 0x44-byte records with no room left: new storage for the size plus the larger of the size and count (0x0090CF54), the records before at copied over (CopyConstruct), count copies of record after them, the records from at on too unless atEnd (SC4EffectRecords_CopyRange), the old ones ended and their storage freed (SC4EffectRecords::Destroy). Called by StartCompound (0x00591CE6) and from 0x005C0788. Ours in renderer.effects.records (src/core/effects_records.inc)."
 
 [[entry]]
 name = "SC4EffectsManager::MakeRecordEffect"
@@ -1277,3 +1277,21 @@ convention = "thiscall"
 signature = "void* (void* this)"
 expect = "51 53 33 DB 56 8B F1 89"
 source = "Name ours. A decal's description (0x64 bytes): +0 and +4 cleared, the byte +8 cleared and +9 set, +0xC 5.0, vectors of one float at +0x10 (0), +0x1C, +0x28 and +0x40 (1; filled by 0x00581F20), a vector of one three-float value at +0x34 (the floats at 0x00B0A214), +0x4C to +0x54 cleared, +0x58 1.0, +0x5C and +0x60 the word at 0x00B22C08. Called by SC4EffectDecal::Construct and from 0x0058BFA1, 0x0059DE52, 0x0059F189 and 0x005A5323. Ours in renderer.effects.ctors (src/core/effects_ctors.inc)."
+
+[[entry]]
+name = "SC4EffectRecords_CopyRange"
+address = 0x0058EF60
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* to, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. The 0x44-byte records of [first, last) made as copies at to onwards (SC4EffectRecord::CopyConstruct; nothing made where to is null); answers the place after the last. Called by SC4EffectRecords::GrowInsert only, for an insert short of the end, which no test city makes. The game's; noted by the comparison of renderer.effects.records."
+
+[[entry]]
+name = "SC4EffectRecords::Destroy"
+address = 0x00590040
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. this = a vector of 0x44-byte records: what each record holds at +0x38 let go (slot 0x20), then the storage freed (0x0090CF63); the vector itself is left. Called by SC4EffectRecords::GrowInsert and from 0x005C059B. Ours in renderer.effects.records (src/core/effects_records.inc)."

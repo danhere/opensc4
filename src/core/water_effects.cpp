@@ -9368,7 +9368,18 @@ OPENSC4_THUNK(TSC4EffectRecord_Construct, ConstructRecordByMode, 0)
 
 // A record's copy: the game's, then ours on the bytes the place had, with
 // the hold of the effect only counted.
+bool GrNoting();
+uint32_t GrCopyConstructNoted(char* record, uint32_t from, uint32_t (*run)(char*, uint32_t));
+uint32_t CopyConstructRecordRun(char* record, uint32_t from);
+
+// While a growth is noted, its copies are noted too.
 uint32_t __fastcall CopyConstructRecordByMode(char* record, void*, uint32_t from)
+{
+    return GrNoting() ? GrCopyConstructNoted(record, from, &CopyConstructRecordRun)
+                      : CopyConstructRecordRun(record, from);
+}
+
+uint32_t CopyConstructRecordRun(char* record, uint32_t from)
 {
     char* const source = reinterpret_cast<char*>(from);
     if (g_scMode == StepMode::Ours)
@@ -9494,12 +9505,15 @@ uint32_t __fastcall ValuesByMode(char* compound, void*)
 OPENSC4_THUNK(TSC4CompoundEffect_ApplyValues, ValuesByMode, 0)
 
 // The game's functions the start's comparison notes.
+uint32_t AssignRecordRun(char* to, uint32_t from);
+uint32_t GrowRun(char* vector, uint32_t at, uint32_t record, uint32_t tag, uint32_t count, uint32_t atEnd);
+
 uint32_t __fastcall AssignRecordNoted(char* to, void*, uint32_t from)
 {
     if (!ScNoting())
-        return g_SC4EffectRecord_Assign(to, nullptr, from);
+        return AssignRecordRun(to, from);
     return ScNoted(ScMakeCall(addr::SC4EffectRecord_Assign, ScIndex(to), ScIndex(reinterpret_cast<char*>(from))),
-                   [&] { return g_SC4EffectRecord_Assign(to, nullptr, from); });
+                   [&] { return AssignRecordRun(to, from); });
 }
 OPENSC4_THUNK(TSC4EffectRecord_Assign, AssignRecordNoted, 4)
 
@@ -9514,11 +9528,32 @@ uint32_t __fastcall GrowRecordsNoted(char* records, void*, uint32_t at, uint32_t
                                      uint32_t atEnd)
 {
     if (!ScNoting())
-        return g_SC4EffectRecords_GrowInsert(records, nullptr, at, record, tag, count, atEnd);
+        return GrowRun(records, at, record, tag, count, atEnd);
     return ScNoted(ScGrowCall(reinterpret_cast<char*>(at), reinterpret_cast<char*>(record)),
-                   [&] { return g_SC4EffectRecords_GrowInsert(records, nullptr, at, record, tag, count, atEnd); });
+                   [&] { return GrowRun(records, at, record, tag, count, atEnd); });
 }
 OPENSC4_THUNK(TSC4EffectRecords_GrowInsert, GrowRecordsNoted, 20)
+
+// The record's assign, the growth and the copy constructor have one detour
+// each, which the start's comparison and the records' replacement share.
+bool HookRecordAssign()
+{
+    return g_SC4EffectRecord_Assign ||
+           Detour(addr::SC4EffectRecord_Assign, &TSC4EffectRecord_Assign, &g_SC4EffectRecord_Assign);
+}
+
+bool HookGrowInsert()
+{
+    return g_SC4EffectRecords_GrowInsert ||
+           Detour(addr::SC4EffectRecords_GrowInsert, &TSC4EffectRecords_GrowInsert, &g_SC4EffectRecords_GrowInsert);
+}
+
+bool HookCopyConstruct()
+{
+    return g_SC4EffectRecord_CopyConstruct ||
+           Detour(addr::SC4EffectRecord_CopyConstruct, &TSC4EffectRecord_CopyConstruct,
+                  &g_SC4EffectRecord_CopyConstruct);
+}
 
 // The making by the mode of its own replacement (further down).
 uint32_t MakeRun(char* self, uint32_t part, uint32_t record, uint32_t made);
@@ -9677,8 +9712,7 @@ bool InstallCompoundStart(registry::Mode mode)
     if (!game::IsBuild641() ||
         !(HookStartCompound() &&
           Detour(addr::SC4EffectRecord_Construct, &TSC4EffectRecord_Construct, &g_SC4EffectRecord_Construct) &&
-          Detour(addr::SC4EffectRecord_CopyConstruct, &TSC4EffectRecord_CopyConstruct,
-                 &g_SC4EffectRecord_CopyConstruct) &&
+          HookCopyConstruct() &&
           Detour(addr::SC4EffectsManager_FadeByLevel, &TSC4EffectsManager_FadeByLevel,
                  &g_SC4EffectsManager_FadeByLevel) &&
           Detour(addr::SC4CompoundEffect_ApplyValues, &TSC4CompoundEffect_ApplyValues,
@@ -9686,8 +9720,7 @@ bool InstallCompoundStart(registry::Mode mode)
         return false;
     if (mode == registry::Mode::Compare &&
         !(HookEraseRecords() &&
-          Detour(addr::SC4EffectRecord_Assign, &TSC4EffectRecord_Assign, &g_SC4EffectRecord_Assign) &&
-          Detour(addr::SC4EffectRecords_GrowInsert, &TSC4EffectRecords_GrowInsert, &g_SC4EffectRecords_GrowInsert) &&
+          HookRecordAssign() && HookGrowInsert() &&
           HookMakeRecordEffect()))
         return false;
     g_scMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
@@ -10674,8 +10707,13 @@ uint32_t MxConstructNoted(uint32_t constructor, char* object, Real&& real)
 // The allocation is noted in the pool allocator under operator new
 // (whose own entry determinism.zero_alloc has): a maker allocates nothing
 // else outside the constructor.
+bool GrNoting();
+uint32_t GrAllocateNoted(char* pool, uint32_t size);
+
 uint32_t __fastcall MxAllocateNoted(char* pool, void*, uint32_t size)
 {
+    if (GrNoting())
+        return GrAllocateNoted(pool, size);
     if (!MxNoting())
         return g_SC4_PoolAllocate(pool, nullptr, size);
     g_mxMade = reinterpret_cast<char*>(
@@ -10683,6 +10721,13 @@ uint32_t __fastcall MxAllocateNoted(char* pool, void*, uint32_t size)
     return reinterpret_cast<uint32_t>(g_mxMade);
 }
 OPENSC4_THUNK(TSC4_PoolAllocate, MxAllocateNoted, 4)
+
+// The pool allocator has one detour, which the makers' and the records'
+// comparisons share.
+bool HookPoolAllocate()
+{
+    return g_SC4_PoolAllocate || Detour(addr::SC4_PoolAllocate, &TSC4_PoolAllocate, &g_SC4_PoolAllocate);
+}
 
 // The two constructors by the mode of their own replacement (further
 // down).
@@ -10934,7 +10979,7 @@ bool InstallMakers(registry::Mode mode)
           Detour(addr::SC4EffectDecal_Reset, &TSC4EffectDecal_Reset, &g_SC4EffectDecal_Reset)))
         return false;
     if (mode == registry::Mode::Compare &&
-        !(Detour(addr::SC4_PoolAllocate, &TSC4_PoolAllocate, &g_SC4_PoolAllocate) &&
+        !(HookPoolAllocate() &&
           HookEffectConstructors() &&
           (g_SC4Effect_SetObject || Detour(addr::SC4Effect_SetObject, &TSC4Effect_SetObject, &g_SC4Effect_SetObject)) &&
           HookDecalConstruct() && HookCompoundConstruct()))
@@ -11408,6 +11453,322 @@ const bool g_registeredCtors = registry::Register({
     "and the game's on the object (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallCtors,
+});
+
+// --- A compound effect's records: the assign and the growth --------------------------------
+
+// The assign, the destroy and the growth (effects_records.inc). The first
+// two hold or let go of effects, so
+// their comparisons are the small holder's (renderer.effects.make's): the
+// game's first with the holds and the endings noted and made, through
+// copies of the effects' tables of functions, then ours on the bytes put
+// back with them only noted (the destroy's free only noted, the game's
+// being of the storage it had). The growth allocates and frees, so its
+// comparison is the noted kind: the game's first, noting the allocation
+// (in the pool allocator under the STL allocator), each copy constructed,
+// the range copy and the destroy, then ours replayed on the vector put
+// back with each call answered; the calls and the vector are compared.
+constexpr uint32_t kGrFree = 0x0090CF63;
+StepMode g_grMode = StepMode::Original;
+using RangeFn = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t);
+RangeFn g_SC4EffectRecords_CopyRange = nullptr;
+Call0Fn g_SC4EffectRecords_Destroy = nullptr;
+
+struct GrNote {
+    uint32_t target, a, b, c, result;
+    bool operator==(const GrNote& other) const
+    {
+        return target == other.target && a == other.a && b == other.b && c == other.c;
+    }
+};
+bool g_grNoting = false, g_grReplay = false;
+int g_grDepth = 0;
+DWORD g_grThread = 0;
+std::vector<GrNote> g_grGame, g_grOurs;
+uint64_t g_grGrows = 0, g_grAssigns = 0, g_grDestroys = 0;
+
+bool GrNoting()
+{
+    return g_grNoting && g_grDepth == 0 && GetCurrentThreadId() == g_grThread;
+}
+
+template <typename Real>
+uint32_t GrNoted(GrNote note, Real&& real)
+{
+    ++g_grDepth;
+    note.result = real();
+    --g_grDepth;
+    g_grGame.push_back(note);
+    return note.result;
+}
+
+uint32_t GrReplayed(const GrNote& note)
+{
+    const std::size_t at = g_grOurs.size();
+    g_grOurs.push_back(note);
+    return at < g_grGame.size() && g_grGame[at] == note ? g_grGame[at].result : 0;
+}
+
+// What the growth calls: the real thing, or in the replay its note.
+char* GrAllocate(uint32_t size)
+{
+    if (g_grReplay)
+        return reinterpret_cast<char*>(GrReplayed({addr::SC4_PoolAllocate, size, 0, 0, 0}));
+    return StlAllocate(size);
+}
+
+void GrCopyConstruct(char* to, char* from)
+{
+    if (g_grReplay)
+        GrReplayed({addr::SC4EffectRecord_CopyConstruct, reinterpret_cast<uint32_t>(to),
+                    reinterpret_cast<uint32_t>(from), 0, 0});
+    else
+        CallThis<void>(addr::SC4EffectRecord_CopyConstruct, to, from);
+}
+
+void DestroyEffectRecords(char* vector);
+
+char* GrCopyRange(char* first, char* last, char* to)
+{
+    if (g_grReplay)
+        return reinterpret_cast<char*>(GrReplayed({addr::SC4EffectRecords_CopyRange,
+                                                   reinterpret_cast<uint32_t>(first), reinterpret_cast<uint32_t>(last),
+                                                   reinterpret_cast<uint32_t>(to), 0}));
+    uint8_t tag = 0;
+    using RangeCopy = char*(__cdecl*)(char*, char*, char*, uint8_t*);
+    return reinterpret_cast<RangeCopy>(addr::SC4EffectRecords_CopyRange)(first, last, to, &tag);
+}
+
+void GrDestroy(char* vector)
+{
+    if (g_grReplay)
+        GrReplayed({addr::SC4EffectRecords_Destroy, reinterpret_cast<uint32_t>(vector), 0, 0, 0});
+    else
+        DestroyEffectRecords(vector);
+}
+
+// The destroy's ending and free: in the holder's comparison (mode 2) only
+// noted.
+void GrEnd(char* held)
+{
+    if (g_mkHoldMode == 2)
+        g_mkHoldEvents.push_back({0x20, held});
+    else
+        CallThis<void>(At<uint32_t>(At<char*>(held, 0), 0x20), held);
+}
+
+void GrFree(char* storage)
+{
+    if (g_mkHoldMode == 2)
+        g_mkHoldEvents.push_back({kGrFree, storage});
+    else
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(storage);
+}
+
+#include "core/effects_records.inc"
+
+uint32_t GrAllocateNoted(char* pool, uint32_t size)
+{
+    return GrNoted({addr::SC4_PoolAllocate, size, 0, 0, 0}, [&] { return g_SC4_PoolAllocate(pool, nullptr, size); });
+}
+
+uint32_t GrCopyConstructNoted(char* record, uint32_t from, uint32_t (*run)(char*, uint32_t))
+{
+    return GrNoted({addr::SC4EffectRecord_CopyConstruct, reinterpret_cast<uint32_t>(record), from, 0, 0},
+                   [&] { return run(record, from); });
+}
+
+// The holder's kind of comparison over some records: `watch` are the
+// effects whose holds and endings are noted, `bytes` the memory the call
+// writes; `extra` is added to the game's events after its run.
+template <typename Game, typename Ours>
+bool GrHeldCompared(const char* id, std::vector<char*> watch, char* bytes, std::size_t size, Game&& game, Ours&& ours,
+                    const std::vector<std::pair<uint32_t, char*>>& extra)
+{
+    std::vector<char*> given;
+    for (char* const held : watch) {
+        if (!held)
+            continue;
+        if (MkWatchHeld(held))
+            given.push_back(held);
+        else if (!MkWatched(held)) {
+            for (char* const object : given)
+                BGiveBack(object, true);
+            static bool logged = false;
+            if (!logged)
+                log::Write("water effects: %s: an effect another comparison watches, not compared", id);
+            logged = true;
+            game();
+            return false;
+        }
+    }
+    const std::vector<char> before(bytes, bytes + size);
+    g_mkHoldEvents.clear();
+    g_mkHoldMode = 1;
+    const uint32_t result = game();
+    std::vector<std::pair<uint32_t, char*>> theirs = std::move(g_mkHoldEvents);
+    theirs.insert(theirs.end(), extra.begin(), extra.end());
+    g_mkHoldEvents.clear();
+    const std::vector<char> after(bytes, bytes + size);
+    std::memcpy(bytes, before.data(), size);
+    g_mkHoldMode = 2;
+    const uint32_t mine = ours();
+    g_mkHoldMode = 0;
+    const std::vector<char> own(bytes, bytes + size);
+    std::memcpy(bytes, after.data(), size);
+    for (char* const object : given)
+        BGiveBack(object, true);
+    const bool same = result == mine && theirs == g_mkHoldEvents && own == after;
+    char text[64];
+    std::snprintf(text, sizeof text, "%08X, %zu holds and endings%s", result, theirs.size(), "");
+    const std::string game_text = text;
+    std::snprintf(text, sizeof text, "%08X, %zu holds and endings%s", mine, g_mkHoldEvents.size(),
+                  own == after ? "" : ", bytes differ");
+    compare::Record(id, same, same ? std::string() : game_text, same ? std::string() : std::string(text));
+    g_mkHoldEvents.clear();
+    return true;
+}
+
+uint32_t AssignRecordRun(char* to, uint32_t from)
+{
+    char* const source = reinterpret_cast<char*>(from);
+    if (g_grMode == StepMode::Ours)
+        return reinterpret_cast<uint32_t>(AssignEffectRecord(to, source));
+    if (g_grMode == StepMode::Original || g_mkHoldMode || g_grNoting || g_grReplay)
+        return g_SC4EffectRecord_Assign(to, nullptr, from);
+    uint32_t result = 0;
+    GrHeldCompared(
+        "effects.records.assign", {At<char*>(source, 0x38), At<char*>(to, 0x38)}, to, 0x44,
+        [&] { return result = g_SC4EffectRecord_Assign(to, nullptr, from); },
+        [&] { return reinterpret_cast<uint32_t>(AssignEffectRecord(to, source)); }, {});
+    ++g_grAssigns;
+    return result;
+}
+
+// The range copy of the game's while a growth is noted.
+uint32_t __cdecl CopyRangeNoted(uint32_t first, uint32_t last, uint32_t to, uint32_t tag)
+{
+    if (!GrNoting())
+        return g_SC4EffectRecords_CopyRange(first, last, to, tag);
+    return GrNoted({addr::SC4EffectRecords_CopyRange, first, last, to, 0},
+                   [&] { return g_SC4EffectRecords_CopyRange(first, last, to, tag); });
+}
+
+uint32_t __fastcall DestroyByMode(char* vector, void*)
+{
+    if (GrNoting())
+        return GrNoted({addr::SC4EffectRecords_Destroy, reinterpret_cast<uint32_t>(vector), 0, 0, 0},
+                       [&] { return g_SC4EffectRecords_Destroy(vector, nullptr); });
+    if (g_grMode == StepMode::Ours) {
+        DestroyEffectRecords(vector);
+        return 0;
+    }
+    if (g_grMode == StepMode::Original || g_mkHoldMode || g_grNoting || g_grReplay)
+        return g_SC4EffectRecords_Destroy(vector, nullptr);
+    std::vector<char*> watch;
+    for (char* record = At<char*>(vector, 0); record != At<char*>(vector, 4); record += 0x44)
+        watch.push_back(At<char*>(record, 0x38));
+    std::vector<std::pair<uint32_t, char*>> extra;
+    if (At<char*>(vector, 0))
+        extra.push_back({kGrFree, At<char*>(vector, 0)});
+    GrHeldCompared(
+        "effects.records.destroy", watch, vector, 0xC, [&] { return g_SC4EffectRecords_Destroy(vector, nullptr); },
+        [&] {
+            DestroyEffectRecords(vector);
+            return 0u;
+        },
+        extra);
+    ++g_grDestroys;
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectRecords_Destroy, DestroyByMode, 0)
+
+std::string GrNotesText(const std::vector<GrNote>& notes, const std::vector<GrNote>& other)
+{
+    std::size_t at = 0;
+    while (at < notes.size() && at < other.size() && notes[at] == other[at])
+        ++at;
+    char text[96];
+    if (at >= notes.size())
+        std::snprintf(text, sizeof text, "%zu calls", notes.size());
+    else
+        std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X, %08X, %08X)", at, notes.size(), notes[at].target,
+                      notes[at].a, notes[at].b, notes[at].c);
+    return text;
+}
+
+uint32_t GrowRun(char* vector, uint32_t at, uint32_t record, uint32_t tag, uint32_t count, uint32_t atEnd)
+{
+    const auto game = [&] { return g_SC4EffectRecords_GrowInsert(vector, nullptr, at, record, tag, count, atEnd); };
+    const auto ours = [&] {
+        GrowInsertEffectRecords(vector, reinterpret_cast<char*>(at), reinterpret_cast<char*>(record), count,
+                                static_cast<uint8_t>(atEnd) != 0);
+    };
+    if (g_grMode == StepMode::Ours) {
+        ours();
+        return 0;
+    }
+    if (g_grMode == StepMode::Original || g_grNoting || g_grReplay || g_mkHoldMode)
+        return game();
+    char before[0xC], after[0xC], mine[0xC];
+    std::memcpy(before, vector, sizeof before);
+    g_grGame.clear();
+    g_grThread = GetCurrentThreadId();
+    g_grDepth = 0;
+    g_grNoting = true;
+    const uint32_t result = game();
+    g_grNoting = false;
+    std::memcpy(after, vector, sizeof after);
+    std::memcpy(vector, before, sizeof before);
+    g_grOurs.clear();
+    g_grReplay = true;
+    ours();
+    g_grReplay = false;
+    std::memcpy(mine, vector, sizeof mine);
+    std::memcpy(vector, after, sizeof after);
+    ++g_grGrows;
+    if ((g_grGrows & (g_grGrows - 1)) == 0)
+        log::Write("water effects: effects.records: growth %llu (%zu calls); %llu assigns, %llu destroys compared "
+                   "so far",
+                   static_cast<unsigned long long>(g_grGrows), g_grGame.size(),
+                   static_cast<unsigned long long>(g_grAssigns), static_cast<unsigned long long>(g_grDestroys));
+    if (!(g_grGame == g_grOurs))
+        compare::Record("effects.records.grow", false, GrNotesText(g_grGame, g_grOurs),
+                        GrNotesText(g_grOurs, g_grGame));
+    else
+        compare::Record("effects.records.grow", std::memcmp(after, mine, sizeof after) == 0, Hex(after, sizeof after),
+                        Hex(mine, sizeof mine));
+    return result;
+}
+
+bool InstallRecords(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookRecordAssign() || !HookGrowInsert() ||
+        !Detour(addr::SC4EffectRecords_Destroy, &TSC4EffectRecords_Destroy, &g_SC4EffectRecords_Destroy))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(HookPoolAllocate() && HookCopyConstruct() &&
+          Detour(addr::SC4EffectRecords_CopyRange, reinterpret_cast<void (*)()>(&CopyRangeNoted),
+                 &g_SC4EffectRecords_CopyRange)))
+        return false;
+    g_grMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: a compound effect's records' assign and growth %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredRecords = registry::Register({
+    "renderer.effects.records",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectRecords_GrowInsert,
+    "A compound effect's records: the assign of one to another, and the vector's growth with its destroy (the range "
+    "copy for an insert short of the end still the game's); compare mode runs the game's with the holds and endings "
+    "(or, for the growth, its calls) noted and replays "
+    "ours (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallRecords,
 });
 
 bool InstallEffects(registry::Mode mode)
