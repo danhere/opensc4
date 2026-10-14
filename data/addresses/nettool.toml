@@ -1969,3 +1969,393 @@ kind = "function"
 convention = "cdecl"
 expect = "E8 E2 7F 00 00 8B 40 64"
 source = "The C runtime's isdigit (one int). The rule entry parser 0x00622870 calls it."
+
+[[entry]]
+name = "SC4RulLexer::IsDigit"
+address = 0x0063BF30
+kind = "function"
+convention = "cdecl"
+expect = "0F B6 44 24 04 50 E8 E2"
+source = "Name ours. One argument (a byte): 1 when SC4::isdigit of it is not 0, else 0. Called by the RUL lexer's NextToken 0x0063DDF0 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4RulLexer::IsIdentChar"
+address = 0x0063BF50
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 04 3C 5F 74 11"
+source = "Name ours. One argument (a byte): 1 for '_' or when SC4::isalnum of it is not 0, else 0. Called by NextToken 0x0063DDF0 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4RulLexer::IsAlpha"
+address = 0x0063BF70
+kind = "function"
+convention = "cdecl"
+expect = "0F B6 44 24 04 50 E8 EF"
+source = "Name ours. One argument (a byte): 1 when SC4::isalpha of it is not 0, else 0. Called by NextToken 0x0063DDF0 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4Rul0RecordVector::UninitializedFill"
+address = 0x0063C0B0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 85 C9 8B 44"
+source = "Name ours. Four arguments (destination, count, record*, tag): count copies of a RUL0 record (16 bytes: word, two bytes, two words) from the destination on; EAX the end. Called by InsertOverflow 0x0063C9B0 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4StringHashMap::Find"
+address = 0x0063C0F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 71 08 57 8B 79"
+source = "Name ours. Ret 4 (a game string*): the node of a hash map keyed by game strings (node: next, the string at +4, a value) whose string has the same bytes; the bucket is always 0 (the game computes 0 % buckets); EAX the node or null. Called by 0x0063C4D0 and 0x00640E10 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4Vector20::CopyConstruct"
+address = 0x0063C150
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B 03 56"
+source = "Name ours. Ret 4 (the source vector*): a vector of 20-byte elements copy-constructed (0x005F51B0 copies); EAX this. Called by the string map's and the bridge int map's pair code (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4Rul2Multimap::InsertAt"
+address = 0x0063C1C0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 14 8B D9"
+source = "Name ours. Ret 0x14 (result*, x, y, value*, w): the RUL2 override multimap's _M_insert: a 0x34-byte node with the 0x24-byte value, linked under y, rebalanced (0x0040D5E0), the count + 1; EAX result. Called by InsertEqual 0x0063C920 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4StringHashMap::Resize"
+address = 0x0063C290
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 44 24 18 55"
+source = "Name ours. Ret 4 (a count hint): the string map's buckets grown to the next prime (all nodes go to bucket 0). Called by 0x0063FB80 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4PairHashTable::Resize"
+address = 0x0063C380
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 44 24 18 53"
+source = "Name ours. Ret 4 (a count hint): the RUL1 pair table's buckets grown to the next prime, each node rehashed to (second + 2 * first) % buckets. Called by InsertNoResize 0x0063C6A0 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4Rul0LoaderLists::Destruct"
+address = 0x0063C470
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 14 8B"
+source = "Name ours. No arguments: three lists at +0x14, +0x10, +0xC cleared (0x0043ABA0) and their nodes freed. Called by LoadRul0 0x00641B60 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4StringHashMap::FindIterator"
+address = 0x0063C4D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 56 50 8B F1"
+source = "Name ours. Ret 8 (result*, a game string*): result = {Find (0x0063C0F0), this}; EAX result. Called by 0x0063EA50 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4Rul0RecordVector::Assign"
+address = 0x0063C4F0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. Ret 4 (the source vector*): RUL0 record vector operator= (0x00624E60, SC4Vector16::Copy 0x007257C0); EAX this. Called by 0x0063E060 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4Rul0CheckTypes::InsertNoResize"
+address = 0x0063C600
+kind = "function"
+convention = "thiscall"
+expect = "55 56 8B F1 8B 46 10 57"
+source = "Name ours. Ret 4 (a value*: key byte, six words): the RUL0 check type table grown (0x0051CE70) and a 32-byte node put first in its bucket; EAX the node + 4. Called by FindOrInsert 0x0063C890 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4PairHashTable::InsertNoResize"
+address = 0x0063C6A0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 8B 46 10"
+source = "Name ours. Ret 4 (a value*: two key words, two value words): the RUL1 pair table grown (0x0063C380) and a 20-byte node put first in its bucket; EAX the node + 4. Called by FindOrInsert 0x0063C960 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4RulLexer::Construct"
+address = 0x0063C720
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 C7 06 58"
+source = "Name ours. Ret 4 (a cIGZString*): the RUL0 lexer (vtables 0x00AA8C58 then 0x00AA8C5C; +4 begin, +8 cursor, +0xC end of the text, +0x10 pushed-back token -1, +0x14 an identifier string, +0x2C word -1, bytes +0x40 0, +0x41 1, +0x42 0); EAX this. Called by 0x00640320 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::TypeIndexOfName"
+address = 0x0063C7A0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 18 53 55 56 33 D2"
+source = "Name ours. One argument (a cIGZString*): the index (0 to 12) of the first of the 13 English network names (0x00AA845C) the string equals (its slot 0x24, case flag 0), else -1. Called by the RUL1 type line callback 0x0063D530 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4Rul0CheckTypes::FindOrInsert"
+address = 0x0063C890
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 8B 44 24 20 53"
+source = "Name ours. Ret 4 (a key byte*): the value (node + 8) of a RUL0 check type, inserted zeroed (0x0063C600) when absent. Called by 0x00640320 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4Rul2Multimap::InsertEqual"
+address = 0x0063C920
+kind = "function"
+convention = "thiscall"
+expect = "8B 11 8B 42 04 85 C0 56"
+source = "Name ours. Ret 8 (result*, value*): the RUL2 override multimap's insert_equal (unsigned key at +0x10) through 0x0063C1C0; EAX result. Called only by the guarded RUL2 line callback 0x0063D1E0 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4PairHashTable::FindOrInsert"
+address = 0x0063C960
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B 74 24 18"
+source = "Name ours. Ret 4 (a key pair*): the value (node + 0xC) of a RUL1 pair, inserted zeroed (0x0063C6A0) when Find 0x00633970 has none. Called by the RUL1 pair line callback 0x0063D080 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4Rul0RecordVector::InsertOverflow"
+address = 0x0063C9B0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. Ret 0x14 (where, record*, tag, count, at end): the RUL0 record vector regrown with count copies inserted (0x00624E60, 0x0063C0B0). Called by PushBack 0x0063D4D0 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4PairHashTable::CopyFrom"
+address = 0x0063CAA0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 8B E9 8B 45 08"
+source = "Name ours. Ret 4 (the source table*): this table's buckets emptied and refilled (0x0045D4F0, 0x004FBA20) with copies of the source's 20-byte nodes in bucket order, the count copied (old nodes not freed). Called by 0x0063E980, 0x0063FBF0, 0x00641C40, 0x00641D30 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4NetworkPlacementParams::Load"
+address = 0x0063CBE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 56 6A 00 89 44"
+source = "Name ours. No stack arguments: ECX a type row's placement parameters (+0x50), EAX an exemplar instance (group 0x084344E0, type 0x6534284A): the parameters read from its properties (angles scaled by 0x00AA8C60, defaults where missing); AL 1, or 0 when the exemplar is missing. Called by LoadParams 0x0063D460 only (src/core/nettool_rul_3.cpp, through a thunk that takes EAX)."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul1PairLineCallback"
+address = 0x0063D080
+kind = "function"
+convention = "cdecl"
+expect = "81 EC 80 00 00 00 53 56"
+source = "Name ours. Three arguments (key, value, a pair table): an ini line's value split at ',' into five numbers a, b, c, d, e: the pair (a, b) gets c and the byte e (| 0x80 when d is not 0). Passed by 0x0063E340 to the ini's slot 0x34 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul2LineCallback"
+address = 0x0063D1E0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 5C 53 55 6A 08 E8"
+source = "Name ours. Three arguments (key, value, the multimap 0x00B466D0): an ini line parsed into a RUL2 override and inserted (0x0063C920). GUARDED: NAM's Rul2Engine patches 0x0063D316 inside it; stays the game's; LoadRul2 0x0063D3E0 passes this address (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4Rul0RecordVector::PushBack"
+address = 0x0063D4D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 3B 46"
+source = "Name ours. Ret 4 (a RUL0 record*): appended in place, or through InsertOverflow 0x0063C9B0. Called by 0x00640320 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul1TypeLineCallback"
+address = 0x0063D530
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 83 EC 28 53"
+source = "Name ours. Three arguments (key, value, 13 words): the value split at ',' into two network names; when both are known (0x0063C7A0), each one's word gets the other's bit. Passed by ReadRul1TypeIds 0x0063D630 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4StringHashMap::ConstructPair"
+address = 0x0063D6A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 53 56"
+source = "Name ours. Ret 8 (a game string*, a value*): the string map's pair (0x2C bytes: a game string, a 20-byte element vector, a float vector) constructed from a key and a value; EAX this. Called by 0x00640E10 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4BridgeIntMap::EraseSubtree"
+address = 0x0063D700
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Ret 4 (a node): an int-keyed map's subtree freed (right by recursion; each node's two vectors). Called by itself, Assign 0x0063DD30 and the bridge record's destructor 0x00640230 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4PointsHashTable::InsertEqualNoResize"
+address = 0x0063D7E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 53 55 56 57"
+source = "Name ours. Ret 8 (result*, value*: a key and a point vector): a 20-byte node inserted after an equal key or first in its bucket; EAX result ({node, this}). Called by 0x0063F7A0 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4BridgeIntMap::CreateNode"
+address = 0x0063D8B0
+kind = "function"
+convention = "thiscall"
+expect = "53 6A 2C E8 9C F6 2C 00"
+source = "Name ours. Ret 4 (a value*: an int key, a 20-byte element vector, a float vector): a 0x2C-byte node with a copy of the value; EAX the node. Called by InsertAt 0x0063DAE0 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4BridgeIntMap::CloneNode"
+address = 0x0063D8F0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 6A 2C"
+source = "Name ours. Ret 4 (a node): a copy of the node's value and color, no children; EAX the copy. Called by CopySubtree 0x0063DBB0 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4StringHashMap::CopyPair"
+address = 0x0063D940
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 85"
+source = "Name ours. Ret 4 (a pair*): the string map's pair copy-constructed; EAX this. Called by 0x0063E7C0 and 0x0063FB80 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::Table3CInsertNoResize"
+address = 0x0063D9A0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 46"
+source = "Name ours. Ret 4 (a value*: a key, a uint32 vector, a float vector): a type row's table +0x3C grown (0x004F0940) and a 32-byte node put first in its bucket; EAX the node + 4. Called by 0x0063E400 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4StringHashMap::Clear"
+address = 0x0063DA30
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B D9 8B 4B 08 57"
+source = "Name ours. No arguments: every node of the string map freed (its two vectors, its string), the buckets nulled, the count 0. Called by 0x00641BF0, 0x00642150, 0x00643330 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4BridgeIntMap::InsertAt"
+address = 0x0063DAE0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 55 8B 6C"
+source = "Name ours. Ret 0x14 (result*, x, y, value*, w): the int-keyed map's _M_insert (signed keys; 0x0063D8B0 on the right, an inline copy on the left), rebalanced (0x0040D5E0), the count + 1; EAX result. Called by InsertUnique 0x0063DC70 and 0x0063E500 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4BridgeIntMap::CopySubtree"
+address = 0x0063DBB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B 74"
+source = "Name ours. Ret 8 (a node, a parent): STLport's _M_copy for the int-keyed map (0x0063D8F0, itself); EAX the copy's top. Called by itself, Assign 0x0063DD30 and 0x0063E710 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4BridgeIntMap::InsertUnique"
+address = 0x0063DC70
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 0C 55 8B E9"
+source = "Name ours. Ret 8 (result*, value*): the int-keyed map's insert_unique; result {node, byte inserted}; EAX result. Called by 0x0063E500 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4BridgeIntMap::Assign"
+address = 0x0063DD30
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. Ret 4 (the source map*): the int-keyed map's operator= (0x0063D700, 0x0063DBB0); EAX this. Called by 0x0063FCD0 (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4RulLexer::NextToken"
+address = 0x0063DDF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 8B F1 8B 46"
+source = "Name ours. No arguments: the RUL0 lexer's next token: a pushed-back one, 0 at the end, a line end or ';', 0x100 an integer (+0x20; hex after 0x through 0x0090FCEF, else 0x009F038B), 0x101 a float (+0x24, 0x00910991), 0x102 an identifier (+0x14), else the character sign-extended; spaces, tabs and '#' comments skipped. Called by the RUL0 parsers (src/core/nettool_rul_3.cpp)."
+
+[[entry]]
+name = "SC4::isalpha"
+address = 0x009EF56A
+kind = "function"
+convention = "cdecl"
+expect = "E8 95 80 00 00 8B 40 64"
+source = "The C runtime's isalpha (mask 0x103). Called by 0x0063BF70."
+
+[[entry]]
+name = "SC4Vector20::UninitializedCopy"
+address = 0x005F51B0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. Four arguments (first, last, destination, tag): 20-byte elements copied as five words into raw memory (a null destination skips the writes); EAX the end. Called by 0x0063C150."
+
+[[entry]]
+name = "SC4StringBody::AssignLength"
+address = 0x005FA540
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. Ret 8 (characters, length): AssignChars 0x0044D3A0 with (characters, characters + length). Called by the RUL lexer 0x0063DDF0."
+
+[[entry]]
+name = "SC4::strtoul"
+address = 0x009F038B
+kind = "function"
+convention = "cdecl"
+expect = "6A 01 FF 74 24 10 FF 74"
+source = "The C runtime's strtoul (0x009F01CC with flag 1): (text, end*, base). Called by the RUL lexer 0x0063DDF0 with (text, 0, 0)."
+
+[[entry]]
+name = "SC4StringHashMap::FindOrInsert"
+address = 0x00640E10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 48 53 55 56 57 8B"
+source = "Name ours. Ret 4 (a game string*): the value (node + 0x18) of the string map's key, inserted with an empty value (0x0063D6A0, 0x0063FB80) when absent. Called by 0x00643330 and 0x00643580; the r3 test drives it (src/core/nettool_rul_autotest.cpp)."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::FloatRootHalf"
+address = 0x00AA8C50
+kind = "data"
+source = "Name ours. A float, 0.70710677 (sqrt(1/2)): LoadParams 0x0063D460 multiplies two of the derived lengths by it."
+
+[[entry]]
+name = "STL::BasicStringText"
+address = 0x00A806F0
+kind = "data"
+source = "Name ours. The C string 'basic_string' the string helpers pass to STL::ThrowLengthError 0x009DD1D0."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul1SectionName"
+address = 0x00AA8C84
+kind = "data"
+source = "Name ours. The 16 characters 'AllowedOverrides' (no terminator used): the RUL 0x10000001 section ReadRul1TypeIds 0x0063D630 reads."
+
+[[entry]]
+name = "SC4RulLexer::BaseVtable"
+address = 0x00AA8C58
+kind = "vtable"
+expect = "10 4A 5D 00 10 8F 64 00"
+source = "Name ours. One slot (0x005D4A10, a pure-call stop): the RUL0 lexer's base vtable, written first by its constructor 0x0063C720."
+
+[[entry]]
+name = "SC4RulLexer::Vtable"
+address = 0x00AA8C5C
+kind = "vtable"
+expect = "10 8F 64 00 35 FA 8E 3C"
+source = "Name ours. One slot (0x00648F10, ret 4): the RUL0 lexer's vtable."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul1Map"
+address = 0x00B460DC
+kind = "data"
+source = "Name ours. The RUL1 map: a tree {head, count} whose nodes hold a type pair (+0x10, +0x14) and a pair table (+0x18; 20-byte nodes: next, two types, a word, a byte). Filled by LoadRul1 0x00641D30 (the callback 0x0063D080 per pair), read by the solver at 0x00634B78; the r3 test hashes it (src/core/nettool_rul_autotest.cpp)."
