@@ -367,10 +367,40 @@ With `simulators.netlot.object` and `simulators.netlot.own` the constructor and 
 ### Decisions taken (2026-10-13 and 2026-10-14)
 
 - **The 256-cell packing of the cell key stays.** The key `(x << 8) | z` is the game's format, in its tables and in every save (see "The cell key and what it limits"). Ours keeps it and the limit is left to the bigger-maps work, which needs a new key and a new record version anyway.
-- **The crew's stopwatch goes on simulation time.** Under `determinism.sim_timers`, on both sides of a parity run, as the other simulators' stopwatches do. This comes with the crew parts (C1 and C2).
-- **The crew's static generator is seeded deterministically** before the crew parts are replaced, so that the two sides draw the same numbers.
+- **The crew's clocks and its generators are deterministic under the harness's switches**, on both sides of a parity run, before the crew parts are replaced: done, see "The crew's clocks and seeds" below.
 - **Our crew Init reads and honours the sounds plugin's byte at 0x006071FC**, as the game's does.
 - **The tables at 0x00AA7758 and 0x00AA7728 are read from the game's memory** at every use, never copied, because another DLL patches them in place (see UpdatePieceStyle above).
+
+### The crew's clocks and seeds
+
+A crew (cSC4NetworkConstructionCrew, code 0x00605490 to 0x00608C4B) finishes a piece when its job's stopwatch (+0x20 of the 0x80-byte job, mode 4: milliseconds of QueryPerformanceCounter) shows the piece's time, or twice that while one of its two worker vehicles is still on its way; the workers move by the frame message's time. What it reads:
+
+| Source | Where | Under the switches before this change |
+| --- | --- | --- |
+| SC4Stopwatch::Construct 0x0088FEDF (mode 4) | Job_Construct, 0x00605CE8 | no clock read |
+| GZStopwatch::Start 0x0089058F | Job_NextPiece 0x00607B4A, Start 0x00608BF7 | the virtual clock: one step per clock read anywhere on the main thread, so it followed frame work |
+| GZStopwatch::ElapsedMilliseconds 0x00890198 | Tick 0x00607CCB (through `determinism.fixed_ticks`' hook) | the same |
+| SC4Stopwatch::Stop 0x008905F0 | Job_End 0x00606855 | the same |
+| the frame message 0x86AD10EE, its +0x14 (slot 0x38): microseconds, not milliseconds | DoMessage 0x00607F0E to Tick, Tick to Worker_Tick 0x00606500 | the frame service's own stopwatch (0x004487F0 reads +0x38, mode 3, at 0x0044884E) between two frames, held to 2,000 to 500,000: virtual clock reads again |
+| the static generator 0x00B43E88 (cRZRandomSuper) | the path choice 0x00605EF0, the pedestrians 0x0060748D to 0x00607782 | seeded once at startup by 0x00A73BD0 (time of day ^ 0x6C09C07B, through 0x00913B74 and cRZRandomSuper::Seed): `determinism.fixed_seed` replaces every startup seed by its fixed sequence and `game.seed` records and reseeds it; only the crew draws from it. Repeatable |
+| a cRZRandom on the stack per pedestrian, seeded with SC4::TimeNow | Job_SpawnPedestrians 0x006077B7 to 0x006077CB, drawn by 0x0080B680 (a heading) | the virtual clock freezes the wall clock, so the seed is the same constant in every run. Repeatable |
+
+`determinism.sim_timers` (src/core/sim_timers.cpp) now puts the crew on simulation time. Every stopwatch call from the crew's range runs on its counter (10 ms a check of `determinism.fixed_ticks`) call by call, without taking the stopwatch over as it does the MySim's: the job records move when the vector grows and are freed with the crew, and the stopwatch's destructor (0x00A6D837) is a bare `ret`, so a taken-over address would outlive the crew. The counter never goes back for these calls (between slices it counts the last slice twice, and a slice without checks takes that back). A hook on Tick (0x00607C30) gives it, in place of the frame message's microseconds, the simulation time of the last frame: 10 ms a check of the last slice, at most the frame service's 500 ms, 0 when the frame ran no simulation. The value is in microseconds, not milliseconds: 500,000 for a simulated frame (50 checks) (`sim_timers::CrewFrameMicroseconds`; `fixed_ticks::LastSliceChecks`). The mode-4 stopwatch only matters in that it reads QueryPerformanceCounter (mode 0 reads rdtsc, which the counter cannot reach). The first eight crew frames log both values. `fixed_seed` counts the pedestrian seed's site 0x006077CB as a time-of-day seed after `game.seed`'s reseed, as the prop developer's and the traffic simulator's are. The switches are in `scripts/run-parity.sh`'s base list, so both sides get this.
+
+For the replacement (C1, C2): calls of the stopwatch from core.dll are not in the crew's range, so our crew needs a call-by-call claim of its own in `sim_timers` (not `Claim`, which takes the stopwatch over for good); our Tick calls `CrewFrameMicroseconds` itself, and the hook on 0x00607C30 must not then share the entry with a detour of ours; the pedestrian generator is made under `fixed_seed::SiteOverride(0x006077CB)`.
+
+The crews' test is `OPENSC4_TEST_CREW=<day>` (src/core/crew_autotest.cpp, [parity.md](parity.md)): six straight networks (road, rail, street, avenue, light rail, one-way road) placed on that day with the manager's own tools, the crews left to finish, and the daily `crew` part read back from the manager, the crews, the network pieces and the lot manager, without a hook on the crew. `OPENSC4_TEST_CREW_LENGTH` sets the length of a network (24 cells by default).
+
+The placement follows the game's own network drag, the release in the network tool's view control (0x006453FB to 0x00645516): the tool is got with `GetNetworkTool` (`unique` 0), kept with AddRef and Init, and then Reset, the anchor points (slot 22, SetAnchorPoints), PlaceAllSegments as a preview (build flag 0), Reset and the anchor points again, PlaceAllSegments to build (build flag 1), ClearCellPreviews and ClearOccupantHighlights; then Shutdown and Release. DrawNetworkLine alone places nothing: PlaceAllSegments builds between the anchor points, and without anchors it builds nothing and the crew it made ends at once. Dialogs a placement opens go to the modal stand-in and are answered 0.
+
+The strip finder takes the first place, scanning from the north-west, where the lot manager's CanCreateLot gives every cell of the strip (with a margin of one cell around and an avenue's width below) at least the wanted verdict. Free land comes first, then land with lots (the tool bulldozes them, as a player's drag does); the full length is tried first, then two thirds of the last length each time, down to 8 cells. Water and networks are never taken. On the drive day the log has the city's cells counted by CanCreateLot verdict once (`autotest: crew: city ... cells by verdict`), and a line per network with its place, the land it is on, cost, failure state (also of the preview) and new pieces.
+
+First runs (2026-10-14, the original against itself, 40 days, `OPENSC4_TEST_CREW=2 OPENSC4_TEST_TUTORIAL_OFF=1`, `saves-networks`):
+
+- Rush Hour t0000: six networks of 24 cells each, 168 new pieces, 6 crews and 7 jobs. By day 40, 114 pieces were usable and 54 waiting, and 5 crews were still at work. The two control runs were identical on all 41 days.
+- Big City n0000 and n0090: no free strip of 8 cells or more was found, and the tool refused the strips on lots' land (failure 1, no pieces). The crews it made ended at once, so there is nothing to compare there.
+
+Contrast run: the same control with `determinism.sim_timers=original` on both sides, 20 days, twice. The crews progressed the same in all four runs (30 pieces usable by day 20; with the change on, 54 by day 20). So the virtual clock alone already makes a crew repeat within one control, since it reads 1 ms per clock read on the main thread. What the change buys is that the crew's pace no longer depends on how many clock reads the rest of the program makes, which replaced code changes: the case of a parity run of the original against ours. This is also the likely cause of the zone tool's terrain flag that runs along an edge row to a run-dependent length, seen in the network lot work's zone tool leg.
 
 ## The test
 

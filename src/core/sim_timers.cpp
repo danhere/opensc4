@@ -1,6 +1,7 @@
-// determinism.sim_timers: the stopwatches the MySim agents and the advisor
-// system read run on simulation time (docs/experiments/determinism.md,
-// "Simulation timers").
+// determinism.sim_timers: the stopwatches the MySim agents, the advisor
+// system and the network construction crews read run on simulation time
+// (docs/experiments/determinism.md, "Simulation timers"; docs/netlot.md,
+// "The crew's clocks and seeds").
 //
 // An active MySim (cSC4MySim, cSC4MyStreetSim) acts on real-time timers: its
 // message handler does its work only when a GZStopwatch shows more than a
@@ -18,6 +19,15 @@
 // slice checks) and nothing else. It is rebased when taken over if it was
 // running. The counter is read through the virtual clock (virtual_clock.h),
 // from thunks on the stopwatch methods that read the clock.
+//
+// The network construction crews (cSC4NetworkConstructionCrew) are timed
+// the same way, call by call: a piece is done when its job's stopwatch shows
+// the piece's time (twice that while a worker vehicle is still on its way),
+// and the workers move by the frame message's time. Both followed clock
+// reads, so the day a road became usable did too. Their stopwatches go on
+// the counter for every call from the crew's code, and the frame time the
+// crew's Tick gets is the simulation time of the last frame
+// (CrewFrameMicroseconds).
 #include "core/address_check.h"
 #include "core/fixed_ticks.h"
 #include "core/hook.h"
@@ -47,21 +57,57 @@ constexpr struct {
     {0x0041A990, 0x0041B240}, // cSC4AdvisorSystem: runs its advisors (MySims among them) every 500 ms
 };
 
+// Code whose stopwatch calls are on simulation time call by call, without
+// taking the stopwatch over: cSC4NetworkConstructionCrew (0x00605490 to
+// 0x00608C4B). Its stopwatches (+0x20 of each 0x80-byte job, mode 4, in the
+// vector at +0x48) are started (0x00607B4A, 0x00608BF7), read (0x00607CCB)
+// and stopped (0x00606855) by the crew's own code only, and their memory is
+// freed with the crew: the stopwatch's destructor (0x00A6D837) is a bare
+// ret, so a taken-over address would stay in g_owned and put whatever
+// stopwatch is made there later on simulation time, and a long game would
+// fill the table.
+constexpr struct {
+    uint32_t begin;
+    uint32_t end;
+} kCallOwners[] = {
+    {0x00605490, 0x00608C50}, // cSC4NetworkConstructionCrew
+};
+
 constexpr int kMaxOwned = 256;
 void* g_owned[kMaxOwned];
 int g_ownedCount = 0;
 DWORD g_mainThread = 0;
 bool g_read = false; // the flag virtual_clock checks (through SetSimTimerRead)
+bool g_byCall = false; // the running read is a call-by-call owner's
+int64_t g_byCallLast = 0;
 
 int64_t Counter()
 {
     const int64_t perTick = virtual_clock::QpcFrequency() / 100; // 10 ms
-    return virtual_clock::QpcFrequency() * 1000 + static_cast<int64_t>(fixed_ticks::Checks()) * perTick;
+    int64_t value = virtual_clock::QpcFrequency() * 1000 + static_cast<int64_t>(fixed_ticks::Checks()) * perTick;
+    // Between slices Checks() still counts the last slice's checks, and a
+    // slice that makes none (the simulator paused) takes them back; a crew
+    // reads between slices (its Tick), so for the crews the counter never
+    // goes back.
+    if (g_byCall) {
+        if (value < g_byCallLast)
+            value = g_byCallLast;
+        g_byCallLast = value;
+    }
+    return value;
 }
 
 bool Owner(uint32_t address)
 {
     for (const auto& range : kOwners)
+        if (address >= range.begin && address < range.end)
+            return true;
+    return false;
+}
+
+bool CallOwner(uint32_t address)
+{
+    for (const auto& range : kCallOwners)
         if (address >= range.begin && address < range.end)
             return true;
     return false;
@@ -102,8 +148,12 @@ void __cdecl Enter(void* stopwatch, uint32_t caller)
 {
     if (!g_Elapsed)
         g_Elapsed = fixed_ticks::ElapsedOriginal();
-    if (GetCurrentThreadId() != g_mainThread || !Take(stopwatch, Owner(caller), caller))
+    if (GetCurrentThreadId() != g_mainThread)
         return;
+    const bool byCall = CallOwner(caller);
+    if (!byCall && !Take(stopwatch, Owner(caller), caller))
+        return;
+    g_byCall = byCall;
     g_read = true;
     virtual_clock::SetSimTimerRead(true);
 }
@@ -112,6 +162,7 @@ void __cdecl Leave()
 {
     if (g_read) {
         g_read = false;
+        g_byCall = false;
         virtual_clock::SetSimTimerRead(false);
     }
 }
@@ -186,6 +237,18 @@ SIM_TIMER_THUNK0(Restart)
 SIM_TIMER_THUNK0(Start)
 SIM_TIMER_THUNK0(Stop)
 
+// cSC4NetworkConstructionCrew::Tick (0x00607C30, `ret 4`): its DoMessage
+// (0x00607F14) hands it the frame message's microseconds, which only its
+// workers' moves (0x00606500) use. Only computes a number and calls the
+// original: no SEH guard (crash.h).
+using CrewTickFn = void(__fastcall*)(void* crew, void* edx, uint32_t microseconds);
+void* g_crewTick = nullptr;
+
+void __fastcall CrewTick(void* crew, void* edx, uint32_t microseconds)
+{
+    reinterpret_cast<CrewTickFn>(g_crewTick)(crew, edx, CrewFrameMicroseconds(microseconds));
+}
+
 bool Install(registry::Mode)
 {
     g_mainThread = GetCurrentThreadId();
@@ -202,6 +265,7 @@ bool Install(registry::Mode)
         {addr::GZStopwatch_Start, reinterpret_cast<void*>(&ThunkRestart), &g_Restart},
         {addr::SC4Stopwatch_Start, reinterpret_cast<void*>(&ThunkStart), &g_Start},
         {addr::SC4Stopwatch_Stop, reinterpret_cast<void*>(&ThunkStop), &g_Stop},
+        {addr::cSC4NetworkConstructionCrew_Tick, reinterpret_cast<void*>(&CrewTick), &g_crewTick},
     };
     for (const auto& h : hooks) {
         const addr::Entry* found = addr_check::Find(h.address);
@@ -212,7 +276,8 @@ bool Install(registry::Mode)
     // install first); stopwatches it does not handle come here, and the
     // original is looked up on the first call (Enter).
     fixed_ticks::SetElapsedPass(reinterpret_cast<void*>(&ThunkElapsed));
-    log::Write("sim_timers: installed (MySim stopwatches on simulation time, 10 ms per tick)");
+    log::Write("sim_timers: installed (MySim, advisor and construction crew stopwatches on simulation time, 10 ms per "
+               "tick)");
     return true;
 }
 
@@ -222,12 +287,32 @@ const bool g_registered = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::GZStopwatch_Start, // restarts (data/addresses/simulator.toml)
-    "The MySim and advisor-system stopwatches run on simulation time (10 ms a tick), not on clock reads",
+    "The MySim, advisor-system and construction crew stopwatches run on simulation time (10 ms a tick), not on "
+    "clock reads",
     false,
     Install,
 });
 
 } // namespace
+
+uint32_t CrewFrameMicroseconds(uint32_t frameMicroseconds)
+{
+    if (!g_mainThread)
+        return frameMicroseconds;
+    // The frame service (0x004487F0) holds a frame's time to at most 500 ms
+    // (+0x54 of the service, 0x00448EA9); a frame of the default 60 checks
+    // is 600 ms of simulation time.
+    constexpr uint32_t kMicrosecondsPerCheck = 10000, kFrameMax = 500000;
+    const uint32_t checks = fixed_ticks::LastSliceChecks();
+    const uint32_t simulated = checks >= kFrameMax / kMicrosecondsPerCheck ? kFrameMax : checks * kMicrosecondsPerCheck;
+    static int logged = 0;
+    if (logged < 8) {
+        ++logged;
+        log::Write("sim_timers: crew frame time %u us from the frame service, %u us of simulation time",
+                   frameMicroseconds, simulated);
+    }
+    return simulated;
+}
 
 void Claim(void* stopwatch)
 {
