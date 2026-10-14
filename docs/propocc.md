@@ -4,7 +4,7 @@ One object per prop of the city: the things on lots and along networks (benches,
 
 ## The class
 
-Class ID 0x2977AA47, IID 0xE9793A65, occupant type 0xA823821E. 0x68 bytes from a pool (0x00B0A8E4; allocator 0x005ECE60). Constructor 0x005EE050, factory 0x005EEF50, deleting destructor 0x005EEF90. Code 0x005EC960 to 0x005EF4E0, mixed with other classes'. Six classes derive from it (the terrain decal, the burnt building, the visual effect and three more); they hold or call most of its functions and stay the game's.
+Class ID 0x2977AA47, IID 0xE9793A65, occupant type 0xA823821E. 0x68 bytes from a pool (0x00B0A8E4; allocator 0x005ECE60). Constructor 0x005EE050, factory 0x005EEF50, deleting destructor 0x005EEF90. Code 0x005EC960 to 0x005EF4E0, mixed with other classes'. Six classes derive from it: the terrain decal and the visual effect (ours, [propkinds.md](propkinds.md)), the automata controller, the burnt building, the sign and the text decal (the game's); they hold or call most of its functions.
 
 | Offset | Vtable | Interface | Slots |
 | --- | --- | --- | --- |
