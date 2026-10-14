@@ -1,0 +1,377 @@
+# Two classes derived from the prop occupant: the terrain decal (cSC4PropOccupantTerrainDecal, class ID 0x2977AA48) and the visual effect (cSC4PropOccupantVisualEffect, class ID 0x2977AA49); src/core/propkinds_decal.cpp, propkinds_effect.cpp, the class maps in src/core/propkinds.h. The decal's constructor 0x005EE360 and allocator 0x005ED6E0 are in lot.toml, the effect's 0x005F0210 and 0x005ED9A0 in propmgr.toml.
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::QueryInterface"
+address = 0x005ECB10
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D AA 94 22"
+source = "Name from the class. Slot 0 of the primary vtable 0x00AA4790, (iid, out), ret 8: 0x452294AA gives the object + 8, 0xE982078A and the class ID 0x2977AA48 the object, everything else goes to the prop's QueryInterface with the object + 4. Ours in simulators.propkinds.decal."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::SetOpacityFade"
+address = 0x005ECB90
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 10 8B 44 24 0C"
+source = "Slot 5, (time, action, from, to), ret 0x10: keeps the fade (+0x8C from, +0x90 to, +0x94 rate = (to - from) / time, +0x98 action), action 2 takes a reference on the object once (+0x99), and the frame service 0x86AD10EC is asked for its message with the object + 8 and 0xC0 once (+0x9A). Ours in simulators.propkinds.decal."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::Destroy"
+address = 0x005ED500
+kind = "function"
+convention = "thiscall"
+expect = "56 8D 71 04 C7 01 90 47"
+source = "Name ours. The destructor body, called by the deleting destructor 0x005EF1C0 only: the seven vtables, the overlay manager at +0x9C released, then the occupant base destroyed (jump to 0x005E8C40 with the object + 0xC). Ours in simulators.propkinds.decal_object."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::GetGZCLSID"
+address = 0x005ED5A0
+kind = "function"
+convention = "thiscall"
+expect = "B8 48 AA 77 29 C3 CC CC"
+source = "Slot 5 of the serializable vtable 0x00AA467C: returns 0x2977AA48. Also called by the class registration at 0x00460790. Ours in simulators.propkinds.decal."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::Write"
+address = 0x005ED710
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Slot 3 of 0x00AA467C, (stream), ret 4, this = object + 0x10: version 3, the prop's Write, the overlay ID, the texture key, size, centre, opacity, the fade's three floats, the action and two bytes. Ours in simulators.propkinds.decal."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::SetDecalTexture"
+address = 0x005ED7E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C D9 44 24 14 8B"
+source = "Slot 3, (key, size), ret 8: keeps the key (+0x70) and the size (+0x7C) and makes the prop's box size by 0.2 by size around the origin. Ours in simulators.propkinds.decal."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::SetOpacity"
+address = 0x005ED840
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 89 88"
+source = "Slot 4, (opacity), ret 4: keeps it (+0x88) and gives it to the overlay (the overlay manager's slot 17) when there is one. Ours in simulators.propkinds.decal."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::SetDecalSize"
+address = 0x005ED870
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 24 56"
+source = "Slot 6, (size), ret 4: keeps it (+0x7C) and puts it into the overlay's decal info (the overlay manager's slots 14 and 13) when there is one. Ours in simulators.propkinds.decal."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::SetAllFlags"
+address = 0x005ED8D0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 33 C0"
+source = "Name ours. Slot 30 of the occupant vtable 0x00AA4698, (flags), ret 4, this = object + 0xC: when base flag 2 changes the overlay is switched on or off, or made (the terrain view's overlay manager 0 or 2, AddDecal with the key, the centre and the size, then the opacity); then the base's SetAllFlags. Ours in simulators.propkinds.decal."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::Init"
+address = 0x005EE410
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 14"
+source = "Slot 3 of 0x00AA4698, this = object + 0xC: a decal not read from a save gets a 32 m box and fade rate 0; the base's Init; one read from a save with the byte at +0x9A set is registered with the frame service again. Ours in simulators.propkinds.decal."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::Shutdown"
+address = 0x005EE4B0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 14"
+source = "Slot 4 of 0x00AA4698, this = object + 0xC: the overlay removed and the overlay manager released, the date range freed, the base's Shutdown, the frame service told to stop, the object's reference on itself released. Ours in simulators.propkinds.decal."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::DoMessage"
+address = 0x005EE580
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Slot 3 of the message target vtable 0x00AA4720, (message), ret 4, this = object + 8: on the frame message 0x86AD10EE the fade moves by frame time; at its end the action at +0x98 (nothing, the overlay removed, the occupant taken out and shut down). False for other messages. Ours in simulators.propkinds.decal."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::SetPosition"
+address = 0x005EE6D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 8B 44 24 28 56"
+source = "Slot 9 of 0x00AA4698, (position), ret 4, this = object + 0xC: keeps the centre (+0x80), moves the box as the prop's SetPosition does and updates the overlay's decal info. Ours in simulators.propkinds.decal."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::Create"
+address = 0x005EF180
+kind = "function"
+convention = "cdecl"
+expect = "A1 F4 A8 B0 00 8B 40 08"
+source = "Name ours. The class factory registered for 0x2977AA48 (0x0046078B): an item of the pool 0x00B0A8F0, constructed (0x005EE360); returns the object + 4. Ours in simulators.propkinds.decal_object."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::DeletingDestructor"
+address = 0x005EF1C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 38 E3 FF FF"
+source = "(flags), ret 4: the destructor body 0x005ED500 and with flag 1 the object back to the pool 0x00B0A8F0 (16 KB pages). Reached through the holder part's slot 22 (thunk 0x005ED6A0). Ours in simulators.propkinds.decal_object."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::Read"
+address = 0x005EF4E0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B 74 24 10 8B"
+source = "Slot 4 of 0x00AA467C, (stream), ret 4, this = object + 0x10: false for a version other than 3; the prop's Read, then the fields in Write's order. Ours in simulators.propkinds.decal."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::Pool"
+address = 0x00B0A8F0
+kind = "data"
+source = "The pool of the terrain decals (0xA0 bytes each; the current page at +4, its free list at +8 and used count at +0xC)."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::vftable"
+address = 0x00AA4790
+kind = "vtable"
+expect = "10 CB 5E 00 F0 CA 5E 00"
+source = "The primary vtable, 7 slots: QueryInterface, AddRef, Release, SetDecalTexture, SetOpacity, SetOpacityFade, SetDecalSize. Copied by simulators.propkinds.decal_object."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::vftable_8"
+address = 0x00AA4720
+kind = "vtable"
+expect = "E0 D5 5E 00 F0 D5 5E 00"
+source = "The message target part at +8, 4 slots (3 DoMessage 0x005EE580)."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::vftable_C"
+address = 0x00AA4698
+kind = "vtable"
+expect = "10 D6 5E 00 20 D6 5E 00"
+source = "The occupant part at +0xC, 34 slots (the class's own: 3 Init, 4 Shutdown, 9 SetPosition, 30 SetAllFlags)."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::vftable_10"
+address = 0x00AA467C
+kind = "vtable"
+expect = "40 D6 5E 00 50 D6 5E 00"
+source = "The serializable part at +0x10, 6 slots (3 Write, 4 Read, 5 GetGZCLSID)."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::vftable_14"
+address = 0x00AA4618
+kind = "vtable"
+expect = "70 D6 5E 00 80 D6 5E 00"
+source = "The property holder part at +0x14, 25 slots (22 the deleting destructor's thunk 0x005ED6A0)."
+
+[[entry]]
+name = "cSC4PropOccupantTerrainDecal::vftable_28"
+address = 0x00AA4600
+kind = "vtable"
+expect = "B0 D6 5E 00 C0 D6 5E 00"
+source = "The exemplar holder part at +0x28, 5 slots."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::QueryInterface"
+address = 0x005ECC10
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 92 07 82"
+source = "Name from the class. Slot 0 of the primary vtable 0x00AA4ED8, (iid, out), ret 8: 0x09820792 and the class ID 0x2977AA49 give the object, everything else goes to the prop's QueryInterface with the object + 4. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::SetAllFlags"
+address = 0x005ED9D0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Name ours. Slot 30 of the occupant vtable 0x00AA4DE0, (flags), ret 4, this = object + 0xC: when base flag 2 changes and the effect is to run, the effect is started (0 the first time, +0x91) or stopped; then the base's SetAllFlags. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::StartEffect"
+address = 0x005EDA50
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 6C 85 C9"
+source = "Slot 7, (bool), ret 4: with an effect, starts it when the prop is shown (base flag 2) and sets the started byte +0x90, true; without one sets the byte, false. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::StopEffect"
+address = 0x005EDAA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 6C 85 C9"
+source = "Slot 8, (bool), ret 4: with an effect that is started, stops it when the prop is shown and clears the byte, true; else false. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::Shutdown"
+address = 0x005EE790
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 14"
+source = "Slot 4 of 0x00AA4DE0, this = object + 0xC: the effect stopped and released, the date range freed, the base's Shutdown. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::UpdateTransform"
+address = 0x005EE800
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 58 56 8B F1 8B 46"
+source = "Name ours. No arguments, this = the object: gives the effect (its slot 7) the prop's position and a rotation about the vertical by minus the orientation quarter turns. Called by MakeEffect, SetPosition and SetOrientation. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::MakeEffect"
+address = 0x005EE9C0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8A 86"
+source = "Name ours. No arguments, this = the object: stops and releases the effect there is and asks the effects manager 0x00B43D1C for a new one, by the name or ID property of the prop's state (0xC98204B8 + state, 0x2A6DEF88 + state) or by the name or ID kept; places it and starts it if it was started. Called by Init, SetState and the two SetEffectType. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::SetPosition"
+address = 0x005EF220
+kind = "function"
+convention = "thiscall"
+expect = "51 D9 41 40 8B 44 24 08"
+source = "Slot 9 of 0x00AA4DE0, (position), ret 4, this = object + 0xC: moves the box as the prop's SetPosition does, then UpdateTransform. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::SetOrientation"
+address = 0x005EF280
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 7D 12"
+source = "Slot 10 of the prop vtable 0x00AA4E78, (orientation), ret 4, this = object + 4: the orientation clamped to 0-3, then UpdateTransform. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::SetState"
+address = 0x005EF2C0
+kind = "function"
+convention = "thiscall"
+expect = "0F B6 51 63 8B 44 24 04"
+source = "Slot 11 of 0x00AA4E78, (state), ret 4, this = object + 4: a new state is stored and the effect made again (no message, unlike the prop's). Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::Init"
+address = 0x005EF5D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 8B F1 8B 06"
+source = "Slot 3 of 0x00AA4DE0, this = object + 0xC: the size from property 0x27812810 or 16 m, the name or ID properties counted, the base's Init, the effect made. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::Read"
+address = 0x005EF750
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Slot 4 of the serializable vtable 0x00AA4DC4, (stream), ret 4, this = object + 0x10: false for a version other than 3; the prop's Read, the started and fresh bytes, the name, the ID. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::SetEffectTypeById"
+address = 0x005EF7D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 84 00 00 00 56 8B"
+source = "Slot 5, (effect ID), ret 4: a new ID empties the name, clears the property counts and makes the effect again. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::SetEffectTypeByName"
+address = 0x005F0780
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 8B E9 8D"
+source = "Slot 6, (effect name), ret 4: a new name clears the ID and the property counts and makes the effect again. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::GetGZCLSID"
+address = 0x005F02B0
+kind = "function"
+convention = "thiscall"
+expect = "B8 49 AA 77 29 C3 CC CC"
+source = "Slot 5 of 0x00AA4DC4: returns 0x2977AA49. Also called by the class registration at 0x004607A2. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::Destroy"
+address = 0x005F0340
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 C7"
+source = "Name ours. The destructor body, called by the deleting destructor 0x005F05A0 only: the seven vtables, the name's buffer freed, the effect released, then the occupant base destroyed (jump to 0x005E8C40 with the object + 0xC). Ours in simulators.propkinds.effect_object."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::Write"
+address = 0x005F03B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 8B 74 24 1C"
+source = "Slot 3 of 0x00AA4DC4, (stream), ret 4, this = object + 0x10: version 3, the prop's Write, the started and fresh bytes, then the name and the ID, or an empty string and 0 when properties give them. Ours in simulators.propkinds.effect."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::Create"
+address = 0x005F0560
+kind = "function"
+convention = "cdecl"
+expect = "A1 00 A9 B0 00 8B 40 08"
+source = "Name ours. The class factory registered for 0x2977AA49 (0x0046079D): an item of the pool 0x00B0A8FC, constructed (0x005F0210); returns the object + 4. Ours in simulators.propkinds.effect_object."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::DeletingDestructor"
+address = 0x005F05A0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 98 FD FF FF"
+source = "(flags), ret 4: the destructor body 0x005F0340 and with flag 1 the object back to the pool 0x00B0A8FC (16 KB pages). Reached through the holder part's slot 22 (thunk 0x005F0310). Ours in simulators.propkinds.effect_object."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::Pool"
+address = 0x00B0A8FC
+kind = "data"
+source = "The pool of the visual effect props (0x94 bytes each; the current page at +4, its free list at +8 and used count at +0xC)."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::vftable"
+address = 0x00AA4ED8
+kind = "vtable"
+expect = "10 CC 5E 00 F0 CA 5E 00"
+source = "The primary vtable, 9 slots: QueryInterface, AddRef, Release, AsOccupant, AsPropOccupant, SetEffectType (ID), SetEffectType (name), StartEffect, StopEffect. Copied by simulators.propkinds.effect_object."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::vftable_8"
+address = 0x00AA4E68
+kind = "vtable"
+expect = "D0 02 5F 00 F0 D5 5E 00"
+source = "The message target part at +8, 4 slots (3 the prop's DoMessage)."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::vftable_C"
+address = 0x00AA4DE0
+kind = "vtable"
+expect = "E0 02 5F 00 20 D6 5E 00"
+source = "The occupant part at +0xC, 34 slots (the class's own: 3 Init, 4 Shutdown, 9 SetPosition, 30 SetAllFlags)."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::vftable_10"
+address = 0x00AA4DC4
+kind = "vtable"
+expect = "F0 02 5F 00 50 D6 5E 00"
+source = "The serializable part at +0x10, 6 slots (3 Write, 4 Read, 5 GetGZCLSID)."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::vftable_14"
+address = 0x00AA4D60
+kind = "vtable"
+expect = "00 03 5F 00 80 D6 5E 00"
+source = "The property holder part at +0x14, 25 slots (22 the deleting destructor's thunk 0x005F0310)."
+
+[[entry]]
+name = "cSC4PropOccupantVisualEffect::vftable_28"
+address = 0x00AA4D4C
+kind = "vtable"
+expect = "20 03 5F 00 C0 D6 5E 00"
+source = "The exemplar holder part at +0x28, 5 slots."

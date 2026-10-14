@@ -961,7 +961,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4EffectsManager* this, void* compound, bool first)"
 expect = "81 EC 20 01 00 00 53 55"
-source = "Name ours, not analysed: starts a compound effect (an entry of the table at +0xB94). Ret 8. Called by StartQueued (0x00592273) and from 0x00593BC0. The game's; noted by the comparison of renderer.effects.cleanup."
+source = "Name ours (0x005919D0 to 0x005921AC). Ret 8. this = the manager object; compound = an entry of the table at +0xB94. Its records (0x44 bytes, the vector at +0x114) whose part of the description (0x6C bytes; the table at +0xAC by the index at +0x20) is no longer within the level of detail (+0xC84) have their effect stopped and let go, the others are kept and the gaps closed; then each part with an effect that is new to the level (or any, with first) gets a record: its effect made (MakeRecordEffect), the level's values (FadeByLevel), its transform (slot 0xC) and its start (slot 0); parts of one group are alternatives picked by a draw from the generator at +0x1C0; last ApplyValues. Called by StartQueued (0x00592273) and from 0x00593BC0. Ours in renderer.effects.compound (src/core/effects_compound.inc)."
 
 [[entry]]
 name = "SC4EffectRecords::Erase"
@@ -1043,3 +1043,66 @@ convention = "cdecl"
 signature = "void (void* first, void* last, void* zero, int unused)"
 expect = "83 EC 08 53 8B 5C 24 14"
 source = "Name ours. The insertion sort of a range that follows sorted entries none of which is above any of its own (no check for the front). Called by SC4EffectsManager::Draw on the entries after the first sixteen (0x00593749). Ours in renderer.effects.sort (src/core/effects_sort.inc)."
+
+[[entry]]
+name = "SC4EffectRecord::Construct"
+address = 0x0058E3E0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B C1 8D 50 04 53 33 DB"
+source = "Name ours. A new 0x44-byte record of a compound effect (its vector at +0x114): the count of changes (+0) and the byte +1 cleared, the nine floats of the matrix (+4) set to one, the place (+0x28) to nothing, the scale (+0x34) to 1, the effect (+0x38) and +0x40 cleared; the bytes +2 and +3 and the part (+0x3C) left. Answers this. Called by StartCompound (0x00591CAE) and from 0x005C0750. Ours in renderer.effects.compound (src/core/effects_compound.inc)."
+
+[[entry]]
+name = "SC4EffectRecord::CopyConstruct"
+address = 0x0058E020
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "8B 15 5C 2C B2 00 56 8B"
+source = "Name ours. Ret 4. A record made as a copy of another: the count of changes cleared, the rest copied, the effect (+0x38) held once more (its slot 0x1C). Answers this. Called by StartCompound (0x00591CCE), the vector's grow and from 0x0058EF7A and 0x005C0770. Ours in renderer.effects.compound (src/core/effects_compound.inc)."
+
+[[entry]]
+name = "SC4EffectRecord::Assign"
+address = 0x0058DBA0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "55 56 8B F1 FE 06 57 8B"
+source = "Name ours. Ret 4. A record given another's values: the count of changes (+0) one more, the floats, the byte +1, the part and +0x40 copied, and the effect taken over (the new one's slot 0x1C, the old one's slot 0x20) unless it is the same. Called by SC4EffectRecords_Copy and StartCompound (0x00591AB6). The game's; noted by the comparison of renderer.effects.compound."
+
+[[entry]]
+name = "SC4EffectRecords::GrowInsert"
+address = 0x005905C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, const void* record, void* tag, unsigned count, bool atEnd)"
+expect = "51 53 8B D9 8B 03 8B 4B"
+source = "Name ours. Ret 0x14. this = a vector of 0x44-byte records with no room left: new storage for the size plus the larger of the size and count (0x0090CF54), the records before at copied over (CopyConstruct), count copies of record after them, the records from at on too unless atEnd, the old ones destroyed and their storage freed (0x00590040). Called by StartCompound (0x00591CE6) and from 0x005C0788. The game's; noted by the comparison of renderer.effects.compound."
+
+[[entry]]
+name = "SC4EffectsManager::MakeRecordEffect"
+address = 0x00591730
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectsManager* this, void* part, void* record, int* made)"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours, not analysed. Ret 0xC. this = the manager object. Makes the effect of one part (0x6C bytes) of a compound effect's description and leaves it in the record (+0x38); the last argument is a word the caller keeps from one part to the next. Called by StartCompound (0x00591D14). The game's; noted by the comparison of renderer.effects.compound."
+
+[[entry]]
+name = "SC4EffectsManager::FadeByLevel"
+address = 0x0058DC50
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectsManager* this, void* part, void* record)"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Name ours. Ret 8. this = the manager object. Tells the record's effect (+0x38, its slot 0x14 with 0x102 and two floats) two values for the level of detail (+0xC84): each goes from the part's first (+0x54, +0x5C) to its second (+0x58, +0x60) by how far the level is into the part's levels (the bytes +0x4C and +0x4D), an integer division; a part of one level gives the first. Called by StartCompound (0x00591AA0, 0x00591D1D). Ours in renderer.effects.compound (src/core/effects_compound.inc)."
+
+[[entry]]
+name = "SC4CompoundEffect::ApplyValues"
+address = 0x005BFCD0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 8B F1 8B 9E 14 01"
+source = "Name ours. this = an entry of the effects manager's table at +0xB94. For each of its records and each kind of value (the vector at +0x12C: two words, where the kind's values start in the table at +0x138 and how many) with some, the record's effect is told them (its slot 0x14 with the kind, the values and their count). Called by StartCompound (0x0059219D). Ours in renderer.effects.compound (src/core/effects_compound.inc)."

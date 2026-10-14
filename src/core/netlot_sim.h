@@ -15,12 +15,14 @@
 // the wealth of a cell, IterateAllNetworkLots, SetLotConfigurationForNextPiece,
 // ConfigurationFits, the two maps' operator[] with the configuration map's
 // node insert, the cell iterator's two helpers, and the small methods of the
-// lot and of the configuration); the second part (life and save: the
-// factory, the constructor, the destructors, Init, Shutdown, Write, Read and
-// the loading of the configurations) and the third (the lots' work:
-// DoMessage, UpdateCell, UpdateLot, CreateLot, RemoveLot, BuildLotObjects,
-// ObjectPosition, CreateProp, RedevelopLot, Pothole, UpdateConnectedPieces,
-// WriteLotConfiguration) are to come. UpdatePieceStyle 0x0060F510 stays the
+// lot and of the configuration); netlot_life.cpp (the second part, life and
+// save: the factory, the constructor, the destructors, Init, Shutdown,
+// Write, Read and the loading of the configurations, with the
+// configuration's constructor and deleting destructor); the third (the
+// lots' work: DoMessage, UpdateCell, UpdateLot, CreateLot, RemoveLot,
+// BuildLotObjects, ObjectPosition, CreateProp, RedevelopLot, Pothole,
+// UpdateConnectedPieces, WriteLotConfiguration) is to come. UpdatePieceStyle
+// 0x0060F510 stays the
 // game's for good: the plugin sc4-network-texture-test patches it in the
 // middle (a jump at 0x0060F580 that comes back at 0x0060F5E7).
 //
@@ -61,6 +63,12 @@
 // --- +0x8: cIGZSerializable, vtable 0x00AA7930, 6 slots -------------------
 //    thunks 0x0060E540, 0x0060E550, 0x0060E560 (sub ecx, 8; jmp); 3 Write
 //    0x0060D6B0; 4 Read 0x0060DAC0; 5 GetGZCLSID 0x0060C720
+//
+// Not virtual, in the second part: LoadConfigurations 0x006100D0 (no
+// arguments; Init calls it), its resource callback 0x0060FB90 (cdecl: a
+// resource key and the manager), AddConfiguration 0x0060E7A0 (ret 4) and
+// LoadLotConfiguration 0x0060F5F0 (ret 8: a property holder and a
+// configuration; the lot editor window's 0x0049C570 calls it too).
 //
 // Not virtual, in the first part: ConfigurationFits 0x0060CD30 (ret 0x1C;
 // `this` is not read; CreateLot and UpdateLot call it), the lot map's
@@ -149,11 +157,14 @@
 //    7 the deleting destructor 0x00610070
 // Fields: +0x4 a vector of lot configuration objects (0x34 bytes each, the
 // lot configuration's kind: src/core/lotcfg_sim.h), +0x10 the ID, +0x14 the
-// name (a cRZBaseString, vtable 0x00A80810), +0x24 a word, +0x28 the network
+// name (a cRZBaseString, vtable 0x00A80810: the characters' begin, end and
+// capacity at +0x18 to +0x20 and the string's own reference count at +0x24,
+// which nothing here counts), +0x28 the network
 // piece ID (the configuration map's key), +0x2C four mask bytes (by z modulo
 // the period: a bit per x modulo the period), +0x30 a byte: the period,
-// +0x34 a bit vector of 16 (the zone types; the words at +0x34, the first
-// bit's offset at +0x38), +0x48 a bit vector of 4 (the wealths), +0x5C and
+// +0x34 a bit vector of 16 (the zone types; 0x14 bytes: the words at +0x34,
+// the first bit's offset at +0x38, the end's word and offset at +0x3C and
+// +0x40, the capacity at +0x44), +0x48 a bit vector of 4 (the wealths), +0x5C and
 // +0x60 floats: the least and the greatest slope, +0x64 a byte mask over
 // the piece's slot 0x60 value, +0x65 a byte (0 any; 1 needs, 2 forbids the
 // piece's slot 0x64), +0x68 the reference count.
@@ -270,9 +281,15 @@ inline constexpr std::size_t kLeastSlope = 0x5C, kGreatestSlope = 0x60, kPieceMa
 inline constexpr std::size_t kRefCount = 0x68;
 // The rule byte at +0x65.
 inline constexpr uint8_t kNeedsPieceFlag = 1, kForbidsPieceFlag = 2;
+// What the constructor leaves: the period, every mask byte and the piece
+// mask, and the greatest slope (the least is 0).
+inline constexpr uint8_t kDefaultPeriod = 4, kDefaultMask = 0x0F;
+inline constexpr float kDefaultGreatestSlope = 64.0f;
+inline constexpr std::size_t kCellMaskCount = 4;
 // A lot configuration object of the vector at +0x4 (src/core/lotcfg_sim.h
 // has its fields).
 inline constexpr std::size_t kObjectSize = 0x34;
+inline constexpr std::size_t kObjectIds = 0x28; // the start of the storage of its list of IDs
 } // namespace configuration
 namespace configuration_slot {
 inline constexpr std::size_t kQueryInterface = 0x00, kAddRef = 0x04, kRelease = 0x08, kGetObjectArray = 0x0C;
@@ -314,6 +331,74 @@ inline constexpr std::size_t kCopy = 0x34; // slot 13: (another string)
 namespace traffic_slot {
 inline constexpr std::size_t kGetPiece = 0x20; // slot 8 (0x004B0B20, ret 0x10): (x, z, network mask, a flag)
 } // namespace traffic_slot
+
+// What the second part calls. The message server (0x00B43CCC): slots 5 and
+// 6, each (the target, the message ID). A stream: a uint16 and a uint32 (the
+// value when writing, its address when reading) and whether it is in error.
+// The resource manager (0x00B43CA8): a resource by its key (key, IID, out,
+// 0, 0), the list of the keys of a type (out, type) and the segment that
+// holds a key (key, out); the key list's walk (a cdecl callback and its
+// context); a resource's property holder. A pothole's occupant, as its
+// interface 0x09820792 has it: slot 8 with 1, before it is let go.
+namespace server_slot {
+inline constexpr std::size_t kAddNotification = 0x14, kRemoveNotification = 0x18;
+} // namespace server_slot
+namespace stream_slot {
+inline constexpr std::size_t kUint16 = 0x1C, kUint32 = 0x24, kGetError = 0x48;
+} // namespace stream_slot
+namespace resources_slot {
+inline constexpr std::size_t kGetResource = 0x0C, kGetKeyList = 0x48, kFindSegment = 0x80;
+inline constexpr std::size_t kListEnumerate = 0x1C;    // the key list's slot 7: (callback, context)
+inline constexpr std::size_t kAsPropertyHolder = 0x1C; // an exemplar resource's slot 7, no arguments
+} // namespace resources_slot
+namespace pothole_slot {
+inline constexpr std::size_t kStop = 0x20;
+} // namespace pothole_slot
+
+// The six messages Init subscribes the part at +4 to and Shutdown takes it
+// off, both in this order: a piece's usable flag changed, an occupant was
+// removed, a lot's objects are to be built, cells changed, a lot's state
+// changed, a pothole.
+inline constexpr uint32_t kMessages[] = {0x89D3E9F3, 0x99EF1143, 0xA9B6C2D6, 0x07699455, 0xE8BDA2E7, 0x69247DC8};
+
+// The exemplar of a network lot configuration: the interface a resource is
+// asked for, the value of its exemplar type property (0x10), and the
+// properties LoadLotConfiguration reads.
+inline constexpr uint32_t kIidExemplar = 0xA52160F5;
+inline constexpr uint32_t kExemplarTypeValue = 0x21;
+inline constexpr uint32_t kResaveGroup = 0x89AC5643; // the group an old exemplar is written back under
+namespace property {
+inline constexpr uint32_t kExemplarType = 0x00000010;
+inline constexpr uint32_t kName = 0x00000020;         // a string: +0x14
+inline constexpr uint32_t kId = 0x00000021;           // uint32: +0x10
+inline constexpr uint32_t kVersion = 0x88EDC789;      // uint8, 1 when missing; below 2 the exemplar is rewritten
+inline constexpr uint32_t kZoneTypes = 0x88EDC793;    // bytes: the zone types' bits at +0x34
+inline constexpr uint32_t kWealths = 0x88EDC795;      // bytes: the wealths' bits at +0x48
+inline constexpr uint32_t kCellMasks = 0x49D55951;    // exactly four bytes: +0x2C
+inline constexpr uint32_t kPieceId = 0xC9A5A1BE;      // uint32: +0x28; without it nothing is loaded
+inline constexpr uint32_t kPeriod = 0xCA81B8D4;       // uint8: +0x30
+inline constexpr uint32_t kLeastSlope = 0xAA120972;   // float: +0x5C
+inline constexpr uint32_t kGreatestSlope = 0xAA120973; // float: +0x60
+inline constexpr uint32_t kPieceMask = 0xEC3BD470;    // uint8: +0x64
+inline constexpr uint32_t kPieceFlagRule = 0xCC3E4755; // uint8: +0x65
+} // namespace property
+
+// A bit vector of the game (the configuration's two): the first word and the
+// first bit's offset in it, the end's word and offset, the capacity.
+namespace bitvector {
+inline constexpr std::size_t kWords = 0x0, kOffset = 0x4, kEndWords = 0x8, kEndOffset = 0xC, kCapacity = 0x10;
+} // namespace bitvector
+
+// A string of the game (cRZBaseString, 0x14 bytes): the configuration's
+// name at +0x14, and the text Init formats for a lot without a
+// configuration.
+struct GameString {
+    std::uintptr_t vtable;
+    char* begin;
+    char* end;
+    char* capacity;
+    uint32_t references;
+};
 
 // A vector as the game keeps it.
 struct Vector {
@@ -405,6 +490,31 @@ inline char* NextNode(char* table, char* node, uint32_t key)
 }
 inline char* NextNode16(char* table, char* node) { return NextNode(table, node, At<uint16_t>(node, hashnode::kKey)); }
 inline char* NextNode32(char* table, char* node) { return NextNode(table, node, At<uint32_t>(node, hashnode::kKey)); }
+
+// The first node of a table (null for an empty one), as the game has it
+// inline where it does not call its begin 0x004B0390 (the pothole map in
+// Write and Shutdown): the first bucket that holds a node; the bucket count
+// is read again after every empty bucket.
+inline char* FirstNode(char* table)
+{
+    if (BucketCount(table) == 0)
+        return nullptr;
+    char* const buckets = At<char*>(table, hashtable::kBuckets);
+    uint32_t index = 0;
+    while (!At<char*>(buckets, index * 4))
+        if (++index >= BucketCount(table))
+            return nullptr;
+    return At<char*>(buckets, index * 4);
+}
+
+// The number of bits of a bit vector.
+inline uint32_t BitCount(char* vector)
+{
+    const int32_t words = static_cast<int32_t>(At<uint32_t>(vector, bitvector::kEndWords) -
+                                               At<uint32_t>(vector, bitvector::kWords)) >> 2;
+    return (static_cast<uint32_t>(words) << 5) - At<uint32_t>(vector, bitvector::kOffset) +
+           At<uint32_t>(vector, bitvector::kEndOffset);
+}
 
 // The number of configurations in a node of the configuration map.
 inline uint32_t ConfigurationCount(char* mapNode)

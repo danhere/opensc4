@@ -1336,7 +1336,7 @@ expect = "53 56 8B F1 8B 4C 24 0C"
 source = "Name ours. Takes the occupant's box (its slot 10) into +0x3C/+0x48 and +0xA0/+0xAC, then 0x005EDC60."
 
 [[entry]]
-name = "SC4CraterProp::Allocate"
+name = "cSC4PropOccupantTerrainDecal::Allocate"
 address = 0x005ED6E0
 kind = "function"
 convention = "cdecl"
@@ -1345,7 +1345,7 @@ expect = "A1 F4 A8 B0 00 8B 40 08"
 source = "Name ours. The pool allocator of the 0xA0-byte object ExplodeLot leaves on the lot (constructor 0x005EE360)."
 
 [[entry]]
-name = "SC4CraterProp::Construct"
+name = "cSC4PropOccupantTerrainDecal::Construct"
 address = 0x005EE360
 kind = "function"
 convention = "thiscall"
