@@ -1302,3 +1302,351 @@ kind = "function"
 convention = "thiscall"
 expect = "83 EC 20 53 56 57 33 DB"
 source = "Name ours. No arguments: PropagateAll, then NextEntry 0x0065ED80 / Propagate / SettleVertex until no entry is left; Clear; AL (and +5) whether every vertex got a height. Called by 0x00637A80 and 0x00644B20 (src/core/nettool_satisfier.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::MirrorEdgeWord"
+address = 0x00608C50
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B D1 56 8B"
+source = "Name ours. One argument, EAX the answer: a RUL0 check type's edge word mirrored on the diagonal: each byte 1 to 3 becomes 4 - itself, then the bytes reordered (1, 0, 3, 2). Called only by Transpose 0x006091F0 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::Translate"
+address = 0x00608D20
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 28 8B 54 24 08 53"
+source = "Name ours. Ret 8 (dx, dz), this a RUL0 rule (0xFC bytes): its points (+0x28, +0x4C), cells (+0x58), records' floats (+0x4: +8, +0xC; FILD + FADD + FSTP float), +0x94/+0x98, the bounds +0x18 to +0x24 moved and +0xAC/+0xB0 moved back. Called by the RUL0 line callback 0x00640320 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::RotatePoints"
+address = 0x00608E00
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 0C 85 F6 74"
+source = "Name ours. Two arguments (a vector of 8-byte points, the quarter turns): each point turned by 1, 2 or 3 quarters ((x,z) -> (-z,x), (-x,-z), (z,-x)); 0 or more than 3 leaves them. Called by Rotate 0x006094B0 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::RotateCells"
+address = 0x00608E60
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 0C 85 F6 74"
+source = "Name ours. RotatePoints 0x00608E00 for a vector of 12-byte cells (x, z, key) (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4ByteVector::ConstructZeroed"
+address = 0x00608EC0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Name ours. Ret 4 (the size): vector<uint8>(n) with every byte 0 (SC4::stl_allocate), EAX this. The RUL0 grid code makes its new grids with it."
+
+[[entry]]
+name = "SC4Rul0Rule::TransposeGrid"
+address = 0x00608F20
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 0C 8B 50 04 8B"
+source = "Name ours. Four arguments (a byte grid vector, its width*, a pair of words*, a flag byte): the pair swapped; the grid transposed into a new one (0x00608EC0), with the flag the values 1 and 2 swapped; the width becomes the height; the old buffer freed. Called by Transpose 0x006091F0 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::RotateGrid"
+address = 0x00609040
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 1C 8B 44 24 24 8B"
+source = "Name ours. Five arguments (a byte grid vector, its width*, an anchor pair*, the quarter turns, a flag byte): bit 1 turns the grid by half (bytes reversed, the anchor mirrored), bit 0 by a quarter into a new grid (with the flag the values 1..6 paired 1-2, 3-4, 5-6; table 0x006091D0) and the anchor turned. Called by Rotate 0x006094B0 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::Transpose"
+address = 0x006091F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B F1"
+source = "Name ours. No arguments, this a RUL0 rule: mirrored on its diagonal (x and z swapped everywhere, the check types' edge words through 0x00608C50, the records' floats swapped and their turn byte stepped, the cons cells' byte remapped, both grids through 0x00608F20, the rotation byte +0xE8 = (0xFE - it) & 7). Called by the RUL0 line callback 0x00640320 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::Rotate"
+address = 0x006094B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours. Ret 4 (quarter turns, & 3): a RUL0 rule turned (points 0x00608E00, cells 0x00608E60, the check types' words rotated by 8 bits a turn, the records' floats turned with x87 FCHS, the cons cells' byte, both grids 0x00609040, the bounds, +0xE8 += 2 * turns). Called by the RUL0 line callback 0x00640320 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::ParseCellLayout"
+address = 0x00609FC0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Ret 4 (a list of strings, the CellLayout lines): '+' a checked point, '<' and '^' the anchor's row and column, a letter or digit that is a check type (+0x64) a cell (+0x58) and, when the type's byte +0x1D is set, a checked point; the bounds, the cell grid +0xB8 and the cons cells +0xD0 built from the points (jump tables 0x0060A50C/0x0060A520). Called by the RUL0 loader 0x00641A50 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::ParseConsLayout"
+address = 0x0060A560
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 8B 5C 24 18"
+source = "Name ours. Ret 4 (a list of strings, the ConsLayout lines): the grid +0x9C (width +0xA8 = the longest line) of the characters - | / backslash F R X # as 1 to 8, '^' and '<' the anchor +0xAC/+0xB0 (jump tables 0x0060A738/0x0060A764). Called by the RUL0 loader 0x00641A50 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::LoadTypeInfo"
+address = 0x00623310
+kind = "function"
+convention = "cdecl"
+expect = "53 55 56 57 B9 C8 52 B4"
+source = "Name ours. One argument (the network ini, a cRZIniFile): the 13 rows of the type table 0x00B452C8 cleared (0x006421D0) and filled in the order 0, 10, 11, 1, 8, 9, 3, 2, 12, 6, 4, 7, 5: the IDs +0x0 and +0x8 to +0x20, two rule files each, the bridges' ini section, the exemplars, the parameters, the loaded byte; then TileVerifiers (0x0063FAF0). Called by LoadRules 0x006253D0 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul2Map::EraseSubtree"
+address = 0x00624CE0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Ret 4 (a node), this the RUL2 override multimap 0x00B466D0: the subtree freed (right by recursion). Called by LoadRules 0x006253D0 and at CRT exit 0x00A7C1F0 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::CopyRecords"
+address = 0x00624E60
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 44 24 0C"
+source = "Name ours. Four arguments (first, last, destination, tag), EAX the destination's end: uninitialized copy of 16-byte records (word +0, bytes +4/+5, words +8/+0xC; a null destination skips the writes). Called by 0x00625190 and the RUL2 code (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::CopyRecordVector"
+address = 0x00625190
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B 03 56"
+source = "Name ours. Ret 4 (the source vector): copy constructor of a vector of 16-byte records (SC4::stl_allocate, 0x00624E60), EAX this. Called by the rule's copy constructor 0x0062A1D0 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::Destruct"
+address = 0x00626160
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D BE D0 00"
+source = "Name ours. No arguments: a RUL0 rule's buffers freed (the two hash tables cleared through 0x008EBA60 first, the string's vtable set back to 0x00A80810). Called by the store's clear 0x0062A3C0 and FindOrInsert 0x0062C2F0 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::CopyCheckTypes"
+address = 0x00626430
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 8B D9 8B 43 08"
+source = "Name ours. Ret 4 (the source table): a rule's check type table (+0x64, 32-byte nodes) copied into an empty one bucket by bucket (reserve 0x0045D4F0, fill 0x004FBA20), the count copied. Called by 0x0062A1D0 and 0x0063E060 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::CopyConsCells"
+address = 0x006265B0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 8B D9 8B 43 08"
+source = "Name ours. Ret 4 (the source table): CopyCheckTypes for the cons cell table (+0xD0, 16-byte nodes). Called by 0x0062A1D0 and 0x0063E060 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::LoadRulesOnce"
+address = 0x00626990
+kind = "function"
+convention = "cdecl"
+expect = "A0 A8 52 B4 00 84 C0 75"
+source = "Name ours. No arguments, AL 1: when the flag 0x00B452A8 is clear, it is set, the reset callback 0x006232F0 handed to the app (slot 0x114) and LoadRules 0x006253D0 run. The power line tool's Init 0x00650630 calls it (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::CopyConstruct"
+address = 0x0062A1D0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name ours. Ret 4 (the source rule): a RUL0 rule (0xFC bytes) copied field by field through the game's vector, string and table copies, EAX this. Called by the store's InsertNode 0x0062C160 and FindOrInsert 0x0062C2F0 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Store::Clear"
+address = 0x0062A3C0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B D9 8B 43 08 56"
+source = "Name ours. No arguments, this the RUL0 store 0x00B452B0: every node's rule destroyed (0x00626160) and freed, the buckets nulled, the count 0. Called by the RUL0 loader 0x00641B60 and at CRT exit 0x00A7C170 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::Construct"
+address = 0x0062A480
+kind = "function"
+convention = "thiscall"
+expect = "53 33 DB 56 8B F1 89 5E"
+source = "Name ours. No arguments: an empty RUL0 rule (vectors empty, two 100-bucket tables, an empty string, +0xEC to +0xF8 = -1); +0x0, +0x18 to +0x24, +0x40, +0x44, +0x7C and +0xC4 not written. EAX this. Called by FindOrInsert 0x0062C2F0 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Store::InsertNode"
+address = 0x0062C160
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 46"
+source = "Name ours. Ret 4 (a pair: the key and a rule): the table grown for one more (0x004F0940), a 0x104-byte node with the key and a copy of the rule put first in its bucket, the count + 1. EAX the node + 4. Called by FindOrInsert 0x0062C2F0 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Store::FindOrInsert"
+address = 0x0062C2F0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 00 02 00 00 53 55"
+source = "Name ours. Ret 4 (the key*), EAX the rule: the node with the key, or a new one with an empty rule (0x0062A480 copied through 0x0062A1D0 into a pair and inserted by 0x0062C160; both temporaries destroyed). Called by the RUL0 loader and the tool's rule lookups (0x0062C3A0, 0x0063B130, 0x0063B1A0, 0x0063B340, 0x006416B0, 0x00641A50) (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4PairHashTable::Find"
+address = 0x00633970
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 8B 59 08"
+source = "Name ours. Ret 4 (a pair of words*): the node of a hash table keyed by two words (bucket (second + 2 * first) % buckets; node: next, first, second), EAX the node or null. Called by 0x0063C960 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4Rul1Map::EraseSubtree"
+address = 0x00635C60
+kind = "function"
+convention = "thiscall"
+expect = "55 56 8B 74 24 0C 85 F6"
+source = "Name ours. Ret 4 (a node), this the RUL1 map 0x00B460DC: the subtree freed (right by recursion), each node's hash set at +0x18 cleared (0x008EBA60) and its buckets freed. Called by the RUL1 loader 0x00641D30 and at CRT exit 0x00A7C190 (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::Construct"
+address = 0x00641F70
+kind = "function"
+convention = "thiscall"
+expect = "53 33 DB 56 8B F1 88 5E"
+source = "Name ours. No arguments: a row of the type table 0x00B452C8 (0x114 bytes) made empty (vectors, the table at +0x3C with 100 buckets, the parameters' vectors) and +0x100 to +0x110 set to 10, 7.0711, 10, 7.0711, 20. EAX this. Only the CRT's static initialiser 0x00A73D10 calls it, 13 times (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::Destruct"
+address = 0x00643510
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 E8 B6 EC"
+source = "Name ours. No arguments: a type table row cleared (0x006421D0) and its parameters (0x00624F70), table +0x3C (0x0063D760), bridge records (0x00640230 each) and vectors freed. Only the CRT's static destructor 0x00A7C140 calls it (src/core/nettool_rul_1.cpp)."
+
+[[entry]]
+name = "SC4HashTable::Resize"
+address = 0x0051CE70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 44 24 18 53"
+source = "Name ours. Ret 4 (the element count): grows a hash table's buckets for that many elements (the instantiation of the 16-byte node tables). ParseCellLayout 0x00609FC0 grows the cons cell table with it."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::Clear"
+address = 0x006421D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 24 3B 46"
+source = "Name ours. No arguments: a type table row's rule files (+0x24, objects deleted through their slot 0) and other contents let go. LoadTypeInfo 0x00623310 and the row's destructor 0x00643510 call it."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::AddRuleFile"
+address = 0x0063D360
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 6A 10 8B F9 E8"
+source = "Name ours. Ret 0xC (a resource key*, 0, 0): a 0x10-byte rule file object (0x00622A90, 0x00623020) appended to the row's vector +0x24. LoadTypeInfo 0x00623310 calls it twice a row."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::LoadBridges"
+address = 0x006437A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 56 8B F1 8B"
+source = "Name ours. Ret 0x10 (the ini, a section name, an ID, a flag): the row's bridge records read from the ini section (e.g. RoadBridgeExemplars). LoadTypeInfo 0x00623310 calls it."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::LoadExemplars"
+address = 0x0063F780
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 C1 3C 51"
+source = "Name ours. Ret 4 (an ID, 0x8974F80F): exemplars of that ID found through the resource manager into the row's table +0x3C (0x0063F700). LoadTypeInfo 0x00623310 calls it for rows 0, 1, 3, 8, 9, 10, 11."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::LoadParams"
+address = 0x0063D460
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 57"
+source = "Name ours. Ret 4 (an exemplar ID): the row's placement parameters (+0x50) loaded (0x0063CBE0) and +0x100 to +0x110 derived (x87 FPTAN). LoadTypeInfo 0x00623310 calls it."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::SetLoaded"
+address = 0x0063BF90
+kind = "function"
+convention = "thiscall"
+expect = "C6 41 04 01 C3 CC CC CC"
+source = "Name ours. No arguments: the row's byte +0x4 set to 1."
+
+[[entry]]
+name = "cSC4NetworkTool::LoadTileVerifiers"
+address = 0x0063FAF0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 53 56 B9 DC 66"
+source = "Name ours. Two arguments (the network ini, the section name 'TileVerifiers'): the verifiers read into 0x00B466DC. LoadTypeInfo 0x00623310 calls it last."
+
+[[entry]]
+name = "cSC4NetworkTool::LoadRul1"
+address = 0x00641D30
+kind = "function"
+convention = "cdecl"
+expect = "A1 E0 60 B4 00 83 EC 48"
+source = "Name ours. One argument (the RUL 0x10000001 ini): the RUL1 map 0x00B460DC emptied (0x00635C60) and filled. LoadRules 0x006253D0 calls it."
+
+[[entry]]
+name = "cSC4NetworkTool::ReadRul1TypeIds"
+address = 0x0063D630
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 56 8D 44 24 1C"
+source = "Name ours. Two arguments (the RUL 0x10000001 ini, uint32 out[13]): one word per network type, which LoadRules 0x006253D0 copies to each type table row's +0xFC."
+
+[[entry]]
+name = "cSC4NetworkTool::LoadRul2"
+address = 0x0063D3E0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 14 8B 4C 24 1C 53"
+source = "Name ours. Two arguments (the RUL 0x10000002 ini, the section name 'RuleOverrides'): each line through the guarded callback 0x0063D1E0 into the multimap 0x00B466D0. LoadRules 0x006253D0 calls it."
+
+[[entry]]
+name = "cSC4NetworkTool::LoadRul0"
+address = 0x00641B60
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 1C 56 33 F6 6A 1C"
+source = "Name ours. Two arguments (the RUL 0x10000000 ini, the RUL0 store 0x00B452B0): the rules read (the store cleared through 0x0062A3C0 first). LoadRules 0x006253D0 calls it."
+
+[[entry]]
+name = "SC4NetworkTypeInfo::DestroyTable3C"
+address = 0x0063D760
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B D9 8B 43 08 56"
+source = "Name ours. No arguments, this a type table row's +0x3C table: its nodes freed. The row's destructor 0x00643510 calls it."
+
+[[entry]]
+name = "SC4NetworkBridgeRecord::Destruct"
+address = 0x00640230
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 87 70 01"
+source = "Name ours. No arguments: a bridge record (0x178 bytes) of a type table row let go. The row's destructor 0x00643510 calls it on each."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul0Store"
+address = 0x00B452B0
+kind = "data"
+source = "Name ours. The RUL0 store: a hash table (+0x4 buckets begin, end, capacity, +0x10 count) of 0x104-byte nodes: next, the rule ID, the rule (0xFC bytes, src/core/nettool_rul.h). Filled by the RUL0 loader 0x00641B60; NAM reads it by layout."
+
+[[entry]]
+name = "cSC4NetworkTool::Rul2Overrides"
+address = 0x00B466D0
+kind = "data"
+source = "Name ours. The RUL2 override multimap: the head node, the count at 0x00B466D4; nodes (STLport tree) with the value at +0x10 (the key, then four (ID, rotation byte) pairs). Emptied by LoadRules 0x006253D0, filled by 0x0063D3E0; NAM reads it by layout."
