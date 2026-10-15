@@ -241,6 +241,7 @@ add_library(opensc4_core SHARED
   nettool_solve_autotest.cpp
   nettool_heights_autotest.cpp
   nettool_occupants_autotest.cpp
+  nettool_place_autotest.cpp
   nettool_cache.cpp
   nettool_life.cpp
   nettool_satisfier_1.cpp
@@ -257,6 +258,8 @@ add_library(opensc4_core SHARED
   nettool_heights_2.cpp
   nettool_occupants_1.cpp
   nettool_occupants_2.cpp
+  nettool_place_1.cpp
+  nettool_place_2.cpp
   nettool_state.cpp
   netmgr_autotest.cpp
   netmgr_life.cpp

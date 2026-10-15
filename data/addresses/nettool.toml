@@ -182,7 +182,7 @@ address = 0x00624BF0
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 E4 F8 83 EC"
-source = "Name ours, not hooked (part t6). Ret 4, the argument not read: from the valid step count at +0x78 to the step count at +0x70, the cells of each step marked in the preview drawable at +0x1F0 (0x00620CF0, 0x00620820 with the color 0x80FF0000). SetValidStepCount jumps to it."
+source = "Name ours (part t6, src/core/nettool_place_1.cpp). Ret 4, the argument not read: from the valid step count at +0x78 to the step count at +0x70, the cells of each step marked in the preview drawable at +0x1F0 (0x00620CF0, 0x00620820 with the color 0x80FF0000). SetValidStepCount jumps to it."
 
 [[entry]]
 name = "cSC4NetworkTool::GetCostOfSolution"
@@ -3205,7 +3205,7 @@ address = 0x00620FC0
 kind = "function"
 convention = "thiscall"
 expect = "8B C1 8B 4C 24 04 C1 E1"
-source = "Name ours. Ret 8 (a side, a byte), this an edge word: that side's byte replaced; EAX this. Called by 0x006335B0 and 0x00633C10 (the game's; part t8 calls it at its address)."
+source = "Name ours. Ret 8 (a side, a byte), this an edge word: that side's byte replaced; EAX this. Called by 0x006335B0, 0x00633C10 and 0x006383A0 (part t8 calls it at its address; ours in part t6, src/core/nettool_place_2.cpp)."
 
 [[entry]]
 name = "cSC4NetworkTool::ClearSideHighBits"
@@ -3213,7 +3213,7 @@ address = 0x00621440
 kind = "function"
 convention = "thiscall"
 expect = "8A 11 8B 01 25 00 FF FF"
-source = "Name ours. No arguments, this an edge word: each side byte reduced to its low three bits. Called by 0x006359B0 (the game's; part t8 calls it at its address)."
+source = "Name ours. No arguments, this an edge word: each side byte reduced to its low three bits. Called by 0x006359B0, 0x00638160 and 0x006384E0 (part t8 calls it at its address; ours in part t6, src/core/nettool_place_2.cpp)."
 
 [[entry]]
 name = "SC4::EdgeWordsAgree"
@@ -3786,3 +3786,349 @@ name = "cSC4NetworkTool::PylonAngleStep"
 address = 0x00AA8708
 kind = "data"
 source = "Name ours. Float pi / 16: the pylon angle's step, read by 0x006278A0."
+
+[[entry]]
+name = "SC4Rul0Rule::FitsInCity"
+address = 0x00608CD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. Ret 0x10 (x, z, the city's cells in x and z), this a RUL0 rule: EAX 1 when the rule's layout (+0x18 to +0x24) moved to the point lies inside the city (both minima not negative, both maxima below the sizes, unsigned), else 0. Called by 0x0063B340 and 0x00661260 (src/core/nettool_place_1.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::MatchAt"
+address = 0x00609A00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C 8B 15 F4 3C B4"
+source = "Name ours (inf). Ret 0xC (x, z, the tool), this a RUL0 rule: EAX 0 when the rule's check cells match the cell infos around the point (part t12's). Called by 0x0063B340."
+
+[[entry]]
+name = "cSC4NetworkToolPreview::UpdateCellHeights"
+address = 0x00620930
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours. Ret 0xC (a cell point, four heights, a network lot byte), this the preview drawable: VertexHeights 0x0061FBF0 for every record of the cell in the cell tree (+0x10, EqualRange 0x00474150) and in the textured tree (+0x1C, between its lower and upper bound). Called by 0x00626000 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::MergeSideKinds"
+address = 0x00620F00
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 55 57 8B 38"
+source = "Name ours. Ret 4 (another edge word's address), this an edge word: nothing when the other is 0; else per side byte: kind 0 takes the other's kind, kind 1 becomes 2 when the other's is 3 or 2, kind 3 becomes 2 when the other's is 1 or 2. Called by 0x00638160 and 0x006384E0 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetSideFromDirection"
+address = 0x00620FF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 32 C0 88 44 24"
+source = "Name ours. Ret 8 (a side, a direction byte), this an edge word: the side's byte becomes its bit 2 plus {2, 3, 0, 1, 2, 3, 0, 1}[(direction + 2 * side) & 7]. Called by 0x00638160 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::ApplyNeighborConnections"
+address = 0x00624610
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 1D 8C 3D B4 00 55"
+source = "Name ours. No arguments: for each possible neighbour connection (+0x10C, 0x18 bytes) the neighbours simulator (0x00B43D8C) loses the other networks' of the tool's class at its cell (slot 0x1C) and gets this one (slot 0x18: kind, x, z, byte). Called by 0x0063B830 and 0x00652980 (src/core/nettool_place_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PlaceNetworkOccupantById"
+address = 0x00624FD0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC D0 00 00 00 53 55"
+source = "Slot 8. Ret 0x14 (x, z, a piece ID, a select byte, a network type): a cell info for the type built on the stack (heights from slot 74 of the terrain's vertices, margins +0x2C4), slot 72 with the solved cell {ID, 2, 0} while +0x50 is set, each new occupant made usable and opaque when selecting, then released (src/core/nettool_place_1.cpp)."
+
+[[entry]]
+name = "SC4Uint32Vector::CopyConstruct"
+address = 0x006251F0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B 13 56"
+source = "Name ours. Ret 4 (the source), this a new vector of uint32: memory for the source's count (SC4::stl_allocate) and the words copied; EAX this. Called by 0x00627160, 0x006271C0, 0x0062BFE0, 0x0062C0F0 and 0x0063B340 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PreviewChangedCellHeights"
+address = 0x00626000
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 53 56 8B F1 8D"
+source = "Name ours. No arguments: for each cell of the set +0xA4, its four heights from slot 73 (a network lot's vertices + 100000); a cell whose heights changed and that has no solved cell gets the preview drawable's UpdateCellHeights. Called by 0x0063B830 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::ApplyEdgeConnections"
+address = 0x00626EB0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 8B D9 8B 83 04 01"
+source = "Name ours. No arguments: each edge connection record (+0x100) ORed into its cell's edge word for the tool's type (a straight side moves the record's bits up one), CombineEdges; then the records emptied. Called by 0x0063B830 (src/core/nettool_place_1.cpp)."
+
+[[entry]]
+name = "SC4IntersectionVector::UninitializedCopy"
+address = 0x00627160
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. (first, last, destination; a fourth pushed and not read): 0x28-byte intersections copy-constructed (words, the uint32 vector +0x1C by 0x006251F0); EAX the destination's end. Called by 0x0062BFE0 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "SC4IntersectionVector::UninitializedFill"
+address = 0x006271C0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. (destination, count, the value; a fourth pushed and not read): count copies of an intersection constructed; EAX the end. Called by 0x0062BFE0 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "SC4IntersectionVector::CopyRange"
+address = 0x00627220
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. (first, last, destination; two more pushed and not read): intersections assigned in order (the vector +0x1C by SC4IntVector::Assign 0x0050DB90); EAX the destination's end. Called by 0x0062BE80 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PlaceNetworkOccupants"
+address = 0x00629210
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 53 8B D9 8B 83"
+source = "Slot 7. Ret 0x20 (x0, z0, x1, z1, a network mask, a callback tool, a place byte, a network type or -1): the points clamped to the city, the steps emptied, the world cache reset when placing; mask 0: the anchors, DrawNetworkLine and the segment placer 0x0063B830; else a straight run (or a single cell's neighbours) extended over the ends' existing networks, other networks' ends kept as pairs for the callback's slot 7; AL the result (src/core/nettool_place_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::ResolveChangedCells"
+address = 0x00629CF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 57 8B F9 8D 44"
+source = "Name ours. No arguments: for each cell of the set +0xA4, its heights from slot 73; a changed, occupied cell without a solved cell gets one from its occupant (piece, rotation) appended to +0x98. Called by the guarded 0x0062CD50 and 0x0063B830 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::ResolveChangedVertices"
+address = 0x00629EB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C 8B 44 24 40 56"
+source = "Name ours. Ret 4 (a uint32 vector of changed vertices): every occupied cell around each vertex without a solved cell gets one from its network occupant, its heights from the first satisfier's results (0x0065EB00). Called by the guarded 0x0062CD50 and 0x0063B830 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "SC4IntersectionVector::Erase"
+address = 0x0062BE80
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 53 55 56 8B"
+source = "Name ours. Ret 8 (first, last), this a vector of 0x28-byte intersections: the tail moved down (0x00627220), the left-over elements' vectors +0x1C freed; EAX first. Called by the guarded 0x0062CD50, 0x0063B340 and 0x0063B830 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "SC4IntersectionVector::InsertOverflow"
+address = 0x0062BFE0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. Ret 0x14 (where, the value, an unread tag, a count, at end): the STLport insert into new memory (max(size, count) + size elements), the old elements destroyed (0x0062BE40). Called by 0x0062C0F0 and 0x0063B340 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "SC4IntersectionVector::PushBack"
+address = 0x0062C0F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 3B 46"
+source = "Name ours. Ret 4 (the value), this a vector of 0x28-byte intersections: copy-constructed at the end, or through 0x0062BFE0 when full. Called by the guarded 0x0062CD50 and 0x0063B340 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PlaceIntersectionOccupants"
+address = 0x0062C4B0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8B B7 CC"
+source = "Name ours. Ret 4 (a list): PlaceRuleOccupants 0x0062C3A0 for each intersection (+0xCC) up to the first whose step is not below the valid step count. Called by the guarded 0x0062CD50 and 0x0063B830 (src/core/nettool_place_1.cpp)."
+
+[[entry]]
+name = "SC4MajorBridgeVector::CopyRange"
+address = 0x0062C510
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. (first, last, destination; two more pushed and not read): 0x28-byte major bridges assigned in order (the byte +0x18, the cell vector +0x1C by 0x0062C1E0); EAX the destination's end. Called by the guarded 0x0062CD50 and 0x0063B830 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::SetStepEdges"
+address = 0x00638160
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 8B F1 8B 46"
+source = "Name ours. Ret 4 (a network type): for each cell of the valid steps, the sides its drag passes through (0x00620FF0; past the regular steps from the neighbours in the placement) merged into its edge word for the type, and for type 10 (one-way road) its one-way byte. Called by 0x0063B830 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::MarkWideSides"
+address = 0x006383A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 57 8B F9 8B 4C"
+source = "Name ours. Ret 4 (a network type): for a type whose pen is two cells or more (row +0x1C), the inner sides of each regular step's cells set to kind 4 on the side +0x6C picks. Called by 0x0063B830 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::ApplyRuleCellRecords"
+address = 0x006384E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 55 8B E9 8B 85"
+source = "Name ours. No arguments: each rule cell record (+0xF0, 0x14 bytes) inside the city: its cell info (made for the type when missing) gets the type's flag, the record's edge word merged in, its one-way bits. Called by the guarded 0x0062CD50 and 0x0063B830 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::FindTunnelEnd"
+address = 0x00638770
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 8B 44 24 28 55"
+source = "Name ours. Ret 4 (a 16-byte tunnel record: start height, end height out, start step, end step out): the regular dry steps after the start whose ground falls back nearest the start height; AL 1 when one was found, the tunnel's slope check passes and it spans more than two steps. Called by 0x00639490 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::ClearOverrideRecords"
+address = 0x00639040
+kind = "function"
+convention = "thiscall"
+expect = "51 56 6A 00 8B F1 8B 4E"
+source = "Name ours. No arguments: the 12-byte records at +0x8 emptied (SC4Vector12::Copy). Called by 0x0063B830 (src/core/nettool_place_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::FindTunnels"
+address = 0x00639490
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 56 8B F1 8B 06"
+source = "Name ours. Ret 4 (the step count's address): with tunnels allowed (slot 62) and four steps or more, each regular step whose ground rises above the last by more than +0x23C starts a search (0x00638770); a found tunnel goes to +0xE4 and its steps get the kinds 2 (ends) and 3. Called by 0x0063B830 (src/core/nettool_place_2.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::MarkIntersectionCells"
+address = 0x0063B130
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 57 8B 7C 24 14"
+source = "Name ours. Ret 8 (an intersection record, a byte): the byte written to +0x52 of the cell info of every checked point of the record's RUL0 rule. Called by 0x0063B340 and 0x0063B7F0 (src/core/nettool_place_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::FindRuleIntersections"
+address = 0x0063B340
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 50 53 55 56 8B D9"
+source = "Name ours. Ret 8 (the valid step count, a network type): the intersections emptied, then for every cell of the steps every RUL0 rule that fits there and matches (0x00608CD0, 0x00609A00) opens or extends an intersection, appended to +0xCC with a record {x, z, type} at +0x8 when a step no longer matches; EAX the count. Called by 0x0063B830 (src/core/nettool_place_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::MarkIntersections"
+address = 0x0063B7F0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8B B7 CC"
+source = "Name ours. Ret 4 (a byte): 0x0063B130 for each intersection up to the first whose step is not below the valid step count. Called by the guarded 0x0062CD50 and 0x0063B830 (src/core/nettool_place_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PlaceSegment"
+address = 0x0063B830
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 55 8B 6C 24"
+source = "Name ours. Ret 0x14 (a place byte, the construction crew or null, a word for slot 18, a neighbour connection byte, a network type): the segment placer: the checks (slots 66, 68, 59, 69, tunnels, bridges), the cell infos, the intersections, the solver, the heights, then the occupants (slot 55, bridges, tunnels, intersections) and the crew's AddSegment, or the preview's highlights; AL 1, 0 when a failed pass may not retry. Called by 0x00629210 and 0x0063BDC0 (src/core/nettool_place_1.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PlaceAllSegments"
+address = 0x0063BDC0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 56 8B F1 8A"
+source = "Slot 19. Ret 0x10 (a build byte, a word for slot 18, a neighbour connection byte, a network type): +0x52 cleared for the call; when building a type 0 to 3, 6 or 8 to 12 a construction crew (0x006070C0, Init with the type row's +0x1C, +0xC8 to +0xD8); for each two consecutive anchors DrawNetworkLine, slot 16 and the segment placer; the crew started and released (src/core/nettool_place_1.cpp)."
+
+[[entry]]
+name = "SC4OccupantSet::Insert"
+address = 0x00467B80
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 83 EC 08 50"
+source = "Name ours. Ret 8 (a result out: the node and a byte, the value's address): insert into a set of referenced occupants (0x00467950). Called by 0x0063B830 for the tool's +0x228."
+
+[[entry]]
+name = "SC4Vector12::Clear"
+address = 0x00626130
+kind = "function"
+convention = "thiscall"
+expect = "51 56 6A 00 8B F1 8B 0E"
+source = "Name ours. No arguments: a vector of 12-byte records emptied (SC4Vector12::Copy of nothing). Called by 0x0063B830."
+
+[[entry]]
+name = "cSC4NetworkTool::PlaceMajorBridgeOccupants"
+address = 0x0062F610
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 57 8B F9 8B 87"
+source = "Name ours (inf). Ret 4 (a list): each major bridge's (+0xD8) cells handed to 0x0062EEB0 (part t10's). Called by 0x0063B830."
+
+[[entry]]
+name = "cSC4NetworkTool::FindMajorBridges"
+address = 0x00632830
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 4C 57 8B F9 8B 07"
+source = "Name ours (inf). Ret 8 (the step count's address, a network type): with bridges allowed (slot 61) the major bridges +0xD8 rebuilt (part t11's). Called by 0x0063B830."
+
+[[entry]]
+name = "cSC4NetworkTool::FitMinorBridges"
+address = 0x00632AD0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 8B F1 8B 06"
+source = "Name ours (inf). Ret 8 (the valid step count, a network type): the bridge pass for a type with a bridge record (part t11's). Called by 0x0063B830."
+
+[[entry]]
+name = "cSC4NetworkTool::OneWayRoadPass"
+address = 0x0063A640
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 88 00 00 00 53 55"
+source = "Name ours (inf). Ret 4 (a network type): the one-way road's pass over the dragged cells (part t5's). Called by 0x0063B830 for type 10 only."
+
+[[entry]]
+name = "cSC4NetworkTool::RuleCellTypeFlags"
+address = 0x00AA8B40
+kind = "data"
+source = "Name ours. Thirteen uint32 (1 << type): the flag 0x006384E0 ORs into a rule cell record's cell info."
+
+[[entry]]
+name = "cSC4NetworkTool::StepSideDx"
+address = 0x00AA8B74
+kind = "data"
+source = "Name ours. Four int32 (-1, 0, 1, 0): the x step of each side, read by 0x00638160."
+
+[[entry]]
+name = "cSC4NetworkTool::StepSideDz"
+address = 0x00AA8B84
+kind = "data"
+source = "Name ours. Four int32 (0, -1, 0, 1): the z step of each side, read by 0x00638160."
+
+[[entry]]
+name = "cSC4NetworkTool::OneWaySideBits"
+address = 0x00AA8BD8
+kind = "data"
+source = "Name ours. Sixteen bytes indexed by a direction (0 to 7) plus 8 for odd sides: the one-way bits 0x00638160 puts in a cell's one-way byte."
+
+[[entry]]
+name = "cSC4NetworkTool::TraceFinalText"
+address = 0x00AA8BE8
+kind = "data"
+source = "Name ours. The C string 'ET: Final' the segment placer hands to the no-op 0x00648F10 (as a game string) when placing."
+
+[[entry]]
+name = "cSC4NetworkTool::TracePostSolveText"
+address = 0x00AA8BF4
+kind = "data"
+source = "Name ours. The C string 'ET: Post-solve' (as 0x00AA8BE8)."
+
+[[entry]]
+name = "cSC4NetworkTool::TraceInitialText"
+address = 0x00AA8C04
+kind = "data"
+source = "Name ours. The C string 'ET: Initial' (as 0x00AA8BE8)."
