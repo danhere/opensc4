@@ -5083,3 +5083,85 @@ kind = "function"
 convention = "thiscall"
 expect = "53 8B 5C 24 10 56 57 8B"
 source = "Name ours. (place out, child, parent, pair, 0), ret 0x14: the STLport tree insert of a map of number and SC4String (node 0x28 bytes by 0x004B63A0, rebalanced by 0x0040D5E0, count +1); the node out. Callers in 0x004B6xxx (another class) and 0x004D4F90. Called by address."
+
+[[entry]]
+name = "cSC4UDriveControl::Vtable"
+address = 0x00A9D9B0
+kind = "data"
+source = "Name ours. Main vtable of the U-Drive-It driving control (0xC0 bytes, ID 0x2B709676, made by SC4::ParkAutomaton 0x00506850): Init 0x00565A10 (3), Shutdown 0x00563970 (4), OnKeyDown 0x00566C60 (14), OnKeyUp 0x00566CF0 (15), OnMouseDownL 0x005655D0 (16), OnMouseDownR 0x00564390 (17), OnMouseUpL 0x00564300 (18), OnMouseUpR 0x005643F0 (19), OnMouseMove 0x005631C0 (20), the deleting destructor 0x00565910 (26), 0x005650E0 (27)."
+
+[[entry]]
+name = "cSC4UDriveControl::TargetVtable"
+address = 0x00A9D9A0
+kind = "data"
+source = "Name ours. Vtable of the control's message target at +0x28: thunks 0x00565570/80/90, DoMessage 0x00566890 (3)."
+
+[[entry]]
+name = "cSC4UDriveControl::ThirdVtable"
+address = 0x00A9D98C
+kind = "data"
+source = "Name ours. Vtable of the control's third interface at +0x2C: 0x005655A0, 0x005655B0, 0x005655C0, 0x00562E20 (3)."
+
+[[entry]]
+name = "cSC4UDriveControl::Construct"
+address = 0x00565480
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 E8 97 5E 09"
+source = "Name ours. The constructor (the caller allocated 0xC0 bytes): the base, the three vtables, the stopwatch at +0x48 (0x0088FEDF with 4), the list head at +0x64 (12 bytes from 0x0090CF54, linked to itself), +0x3C 1, +0x40 0.042f, +0x6C and +0x70 1.0f, the rest zero but +0x78; ID 0x2B709676, cursor 0xC16C4E1B. Ours in ui.tools.udrive1."
+
+[[entry]]
+name = "cSC4UDriveControl::DeletingDestructor"
+address = 0x00565910
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. Slot 26, (flags), ret 4: the destructor's body, then operator delete with flag 1; returns the object. Ours in ui.tools.udrive1."
+
+[[entry]]
+name = "cSC4UDriveControl::Destruct"
+address = 0x00565930
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 8E B0 00 00"
+source = "Name ours. The destructor's body: releases +0xB0 down to +0x8C, destroys the list +0x64 (0x005650A0), releases +0x60, the stopwatch +0x48 (0x00A6D837), releases +0x34 and +0x30, then the base destructor. Ours in ui.tools.udrive1."
+
+[[entry]]
+name = "cSC4UDriveControl::CanDrive"
+address = 0x00562ED0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 4E 30 32"
+source = "Name ours. No arguments, plain ret: true when there is a driven object at +0x30 and its slot 0x7C answers false for 0x8000000 and for 1. Callers 0x00563D40, 0x00564060, 0x00564300, 0x005655D0. Ours in ui.tools.udrive1."
+
+[[entry]]
+name = "cSC4UDriveControl::OnMouseUpL"
+address = 0x00564300
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 9C 00 00"
+source = "Name ours. Slot 18, (x, z, modifiers), ret 0xC: the point at +0x24/+0x28 of the object at +0x9C set to -1, -1; then with a driven object whose flags 0x8000000 and 1 are clear, a city whose slot 0xC4 object's slot 0x80 answers false and CanDrive: the driven object's slot 0xF0 with (7, 0) and the service of 0x00602640 slot 0x18 with 4. True. Ours in ui.tools.udrive1."
+
+[[entry]]
+name = "cSC4UDriveControl::OnMouseDownR"
+address = 0x00564390
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 30 85 C9"
+source = "Name ours. Slot 17, (x, z, modifiers), ret 0xC: with a driven object whose flags 0x8000000 and 1 are clear and a city whose slot 0xC4 object's slot 0x80 answers false, the driven object's slot 0xF0 with (8, 1). True. Ours in ui.tools.udrive1."
+
+[[entry]]
+name = "cSC4UDriveControl::OnMouseUpR"
+address = 0x005643F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 30 85 C9"
+source = "Name ours. Slot 19, (x, z, modifiers), ret 0xC: as OnMouseDownR with (8, 0). True. Ours in ui.tools.udrive1."
+
+[[entry]]
+name = "SC4UDrive::GetService602640"
+address = 0x00602640
+kind = "function"
+convention = "cdecl"
+expect = "51 C7 04 24 00 00 00 00"
+source = "Placeholder. No arguments: asks the framework (0x008793EC) slot 5 for the object 0x8C1FAEB7/0xAC1FAE31; returns it. The U-Drive control's OnMouseUpL calls its slot 0x18 with 4. Called at its address."
