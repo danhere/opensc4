@@ -52,7 +52,7 @@ Every city tool is a view input control: a class on the base class below, with a
 | Terraform tool (the terrain brush tool) | 0x004D9430 | 0x00A92A10 | 0x130 | 0x004D8AC0 to 0x004D9E50 | 22 | ours (`ui.tools.brush`, below) |
 | Cheat tool (building footprint) | 0x004D9E80 | 0x00A92AC0 | 0x38 | 0x004D9E50 to 0x004DA593 | 6 | partly ours: four functions in `ui.tools.zone`; the footprint drawing (0x004D9EE0) and OnMouseMove (0x004DA1B0) stay the game's |
 | Zone | 0x004DAE80 | 0x00A92CA8 | 0x98 | 0x004DA5A0 to 0x004DC1A0 | 25 | ours (`ui.tools.zone`, below) |
-| U-Drive-It driving control (made by the park automaton 0x00506850, not by the view) | 0x00565480 | 0x00A9D9B0 | 0xC0 | 0x00562C90 to 0x00566D55 | 45 | still the game's |
+| U-Drive-It driving control (made by the park automaton 0x00506850, not by the view) | 0x00565480 | 0x00A9D9B0 | 0xC0 | 0x00562C90 to 0x00566D55 | 45 | 7 ours (`ui.tools.udrive1`, T7a), 38 the game's |
 | Fire (torch) disaster tool | 0x005805C0 | 0x00A9EB40 | 0x80 | 0x00580510 to 0x00580B46 | 13 | ours (`ui.tools.disaster_fire`, below) |
 | Common disaster tool, on the effect trigger tool | 0x00580220 | 0x00A9EAA0 | 0xB4 | 0x00580220 to 0x005804F4 | 7 | ours (`ui.tools.disaster`, below) |
 | Network intersection placement tool | 0x00661130 | 0x00AAAF20 | 0x90 | 0x00660C30 to 0x00661D5F | 11 | networks (not part of this work) |
@@ -2409,3 +2409,23 @@ Tokens (snapshot q7a): Making Money d0090 85E1181F, Big City d0000 44D4754D, Rus
 First pass, snapshot q7a, on Making Money d0090, Big City d0000 and Rush Hour d0090, with the test and never run: the original twice (A1, A2), all groups ours (B) and only `ui.tools.base` with the Q7 groups ours (M) were identical in every log line, in all cases (36 of 36 runs finished, none crashed). One pass sufficed; nothing moved out of the hash. A 7-day commit run on Big City d0000, side B, took 13 s (no exit hang). Build debug and release clean, ctest 20 of 20, retcheck 6 OK and 2 checked by hand (DoMessage is not in the old exe listing and GetBuildingOccupantTipInfo is cut by the function list; every exit of both is the plain `ret 4` and `ret 0x14` of our signatures), register scan 8 hooked and none suspicious, EAX scan clean.
 
 Parity (batch q7b1, 7 days, B list of 148 groups): plain 12 of 12, test day 2 11 of 12 plus 1 partly, test day 5 12 of 12, plopped 3 of 3. The partly one is Making Money d0090: the first B run differed in the `adv` part from day 1, before the test on day 2, and the other two B runs were the same as A; the pair rerun in batch q7b2 was the same. Batch q7b2: commit (`OPENSC4_TEST_Q7_COMMIT=1`) 12 of 12; with sc4-query-ui-hooks 2.7.1 in the job folders' Plugins (p4env-q7mod, test day 2) 12 of 12, every B run logging the three leave lines (0x004D4140, 0x004D4D70, 0x004D7160) and no A run.
+
+## The U-Drive-It control, first piece (T7a)
+
+`cSC4UDriveControl` (our name): 0xC0 bytes, ID 0x2B709676, cursor 0xC16C4E1B, main vtable 0x00A9D9B0, message target vtable 0x00A9D9A0 at +0x28, a third interface 0x00A9D98C at +0x2C, code 0x00562C90 to 0x00566D55. The park automaton 0x00506850 makes it when the player takes over a vehicle; the city view does not. The driven object is at +0x30. One group, `ui.tools.udrive1` (src/core/tool_udrive_1.cpp), PostAppInit, off by default: 7 hooks.
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| Constructor: the base, the three vtables, the stopwatch at +0x48 (with 4), a list head at +0x64 linked to itself, +0x3C 1, +0x40 0.042, +0x6C and +0x70 1.0, the rest zero but +0x78 | 0x00565480 | |
+| Destructor's body: lets go of the ten objects at +0xB0 down to +0x8C, the list +0x64, +0x60, the stopwatch, +0x34 and +0x30, then the base | 0x00565930 | |
+| Deleting destructor | 0x00565910 | 26 |
+| CanDrive: a driven object whose slot 0x7C answers false for 0x8000000 and for 1 | 0x00562ED0 | |
+| OnMouseDownR: when the driven object takes input (both flags clear, and the city's slot 0xC4 object's slot 0x80 false), its slot 0xF0 with (8, 1); true | 0x00564390 | 17 |
+| OnMouseUpL: the point at +0x24/+0x28 of the object at +0x9C set to -1, -1; when it takes input and CanDrive, the driven object's slot 0xF0 with (7, 0) and the service of 0x00602640 its slot 0x18 with 4; true | 0x00564300 | 18 |
+| OnMouseUpR: as OnMouseDownR with (8, 0) | 0x005643F0 | 19 |
+
+Left for T8: Init 0x00565A10 (3), Shutdown 0x00563970 (4), OnKeyDown 0x00566C60 (14), OnKeyUp 0x00566CF0 (15), OnMouseDownL 0x005655D0 (16), OnMouseMove 0x005631C0 (20), slot 27 0x005650E0, the message handler 0x00566890, the third interface's 0x00562E20 and the driving helpers. The nine drawing functions stay the game's (Renderer).
+
+`OPENSC4_TEST_T7=<day>` (src/core/tool_t7_autotest.cpp, token ` udrive1`, fingerprint order 29, day hook 68). It calls only the game's addresses and the control's vtable slots. Nothing changes the city: the control is made on its own (without Init), the driven object and the point holder are stand-ins that record the flags asked and the commands given, and the control is destroyed through slot 26, not Release (which would run the game's Shutdown). Five sections: the fields after the constructor (not the stopwatch and the list pointer), the buttons with nothing to drive, the point holder, the buttons and CanDrive under five scripts of flag answers (the release never reaches command 7: CanDrive's answers are always "set"), and the two releases of the destructor. Not reached: command 7 and the service of 0x00602640; a real driven vehicle.
+
+Trial (2026-10-16, A = the original, B = `ui.tools.base` and `ui.tools.udrive1` ours, test day 2, 5 days, with `determinism.dispatch_info`): Making Money d0090, Big City d0000 and Rush Hour d0090 each identical A = B in the whole fingerprint, token 2282BB82 on all three. No batch yet.
