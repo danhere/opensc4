@@ -72,6 +72,41 @@
 // writing) before the life crew and the drags, as the plugin does at load:
 // every crew of the run then goes without the sound service, the game's
 // Init by its own code and ours by reading the byte.
+// OPENSC4_TEST_CREW_BRIDGE=1 (off by default; the leg without it is
+// unchanged) adds, after the `work` part, drags across water: for road and
+// then rail (=2 adds avenue and highway: two-wide types whose band the
+// search already keeps clear, off at 1 so the first legs stay small), a
+// straight row or column (rows first, then columns; free land first, then
+// lots' land) with exactly W water cells between four land cells on each
+// side and nothing but water and land of that verdict in the band around it
+// (one cell before and after, one line on one side, two on the other, as
+// FindStrip), W taken from the type's water bridge records (+0x99): each
+// record's shortest span (+0x4) and the middle of its range up to +0x8,
+// shortest first, up to four lines tried. Rail is dragged backwards (the
+// bridge code's reversed paths). Each line is previewed (Reset, anchors,
+// PlaceAllSegments(0, 0, 1, type)); the first whose preview has a major
+// bridge (+0xD8) is then dragged for real: the preview again; with
+// OPENSC4_TEST_CREW_BRIDGE_CHOICES (default 1) a preview per possible bridge
+// (+0x1F4, its IDs as SetPreferredBridge takes them) with Reset, the
+// preference, the anchors, the preview, the solution's hash and Reset (as
+// the bridge UI's choice makes the view control preview again); the default
+// preview; Reset, the anchors and the build with the game's own choice
+// (Reset clears the preference); ClearCellPreviews and
+// ClearOccupantHighlights. A preview makes bridge occupants
+// (PlaceMajorBridgeOccupants inserts them into the occupant manager); the
+// segment placer keeps them in the tool's +0x228 tree, and Reset's slot 16
+// takes each out of the occupant manager (slot 0x54) and releases it: the
+// test counts the city's network pieces before the first preview and after
+// each Reset and stops the choice previews (logging it) when they differ.
+// Then a road over a dip (a land line whose ends' lower vertex altitudes
+// differ by no more than the road parameters' +0x40 and whose lowest
+// between is more than +0x3C below the lower end: FitMinorBridges' minor
+// bridge), logged when there is none. The hash of each solution (values
+// only: the major bridges' words and land byte, their cells' words +0x0 to
+// +0x28 with the turn byte alone, the flag byte +0x40 and, where it is set,
+// +0x2C to +0x3C, the cable parts, the possible bridges, the cost, the
+// failure reason) goes into ` brg <drags>,<bridges>,<choices>,<hash>` in
+// the daily part, and a log line per drag (`autotest: crew: bridge ...`).
 #include "core/autotest_hooks.h"
 #include "core/crew_sim.h"
 #include "core/game.h"
@@ -79,6 +114,7 @@
 #include "core/log.h"
 #include "core/netlot_sim.h"
 #include "core/netmgr_sim.h"
+#include "core/nettool_bridge.h"
 #include "core/netocc_sim.h"
 #include "core/occmgr_sim.h"
 
@@ -523,6 +559,456 @@ void WorkTest(cISC4City* city)
                best >> 16, best & 0xFFFF, g_work[0], g_work[1], g_work[2], g_work[3], g_work[4]);
 }
 
+// ====================================================================================
+// OPENSC4_TEST_CREW_BRIDGE (see the top of the file)
+// ====================================================================================
+
+namespace bridge = nettool_sim::bridges;
+
+// The tool's fields and slots the bridge drags read (src/core/nettool_sim.h).
+constexpr std::size_t kToolMajorBridges = 0xD8, kToolPossibleBridges = 0x1F4, kToolFailure = 0x20C;
+constexpr std::size_t kToolSetPreferredBridge = 0x80; // slot 32 (int)
+// The type table (13 rows of 0x114): the bridge records (+0x30, 0x178 bytes
+// each: +0x4 / +0x8 the shortest and longest span in steps, +0xC the cells
+// across, the bytes +0x98 land and +0x99 water) and the placement
+// parameters' +0x3C / +0x40 (the minor bridge's dip depth and the ends'
+// difference, FitMinorBridges 0x00632AD0).
+constexpr std::size_t kRowSize = 0x114, kRowBridges = 0x30, kRecordSize = 0x178;
+constexpr std::size_t kRecordShortest = 0x4, kRecordLongest = 0x8, kRecordLand = 0x98, kRecordWater = 0x99;
+constexpr std::size_t kRowDipDepth = 0x50 + 0x3C, kRowDipEnds = 0x50 + 0x40;
+constexpr int32_t kWater = 1, kNetwork = 3;
+constexpr int32_t kApproach = 4; // land cells dragged before and after the water
+
+uint32_t g_bridgeHash = 2166136261u;
+uint32_t g_bridgeDrags = 0, g_bridgeMajors = 0, g_bridgeChoices = 0;
+
+// The cell verdicts of the whole city (CanCreateLot per cell), 0 outside.
+struct Verdicts {
+    int32_t sizeX = 0, sizeZ = 0;
+    std::vector<int8_t> cells;
+    int32_t At(int32_t x, int32_t z) const
+    {
+        return x < 0 || z < 0 || x >= sizeX || z >= sizeZ ? 0 : cells[static_cast<std::size_t>(z) * sizeX + x];
+    }
+};
+
+Verdicts ReadVerdicts(void* lots, int32_t sizeX, int32_t sizeZ)
+{
+    Verdicts v;
+    v.sizeX = sizeX;
+    v.sizeZ = sizeZ;
+    v.cells.resize(static_cast<std::size_t>(sizeX) * sizeZ);
+    for (int32_t z = 0; z < sizeZ; ++z)
+        for (int32_t x = 0; x < sizeX; ++x)
+            v.cells[static_cast<std::size_t>(z) * sizeX + x] = static_cast<int8_t>(
+                Virtual<int32_t>(lots, kCanCreateLot, x, z, int32_t{1}, int32_t{1}, 1u, 0u, 0u));
+    return v;
+}
+
+// A straight drag: `length` cells from (x, z) along x (or z when `alongZ`).
+struct Line {
+    int32_t x = 0, z = 0, length = 0;
+    bool alongZ = false;
+    int32_t CellX(int32_t i, int32_t across = 0) const { return alongZ ? x + across : x + i; }
+    int32_t CellZ(int32_t i, int32_t across = 0) const { return alongZ ? z + i : z + across; }
+};
+
+bool IsLand(int32_t verdict, int32_t least) { return verdict >= least && verdict != kNetwork; }
+
+// The band FindStrip keeps clear, along the line: one cell before and after,
+// one line on one side and two on the other (an avenue is two wide); here
+// water is allowed in it besides land of `least` or better.
+bool BandClear(const Verdicts& v, const Line& line, int32_t least)
+{
+    for (int32_t i = -1; i <= line.length; ++i)
+        for (const int32_t across : {-1, 0, 1, 2}) {
+            const int32_t verdict = v.At(line.CellX(i, across), line.CellZ(i, across));
+            if (verdict != kWater && !IsLand(verdict, least))
+                return false;
+        }
+    return true;
+}
+
+// The first line (rows from the north-west, then columns) with exactly
+// `water` water cells between kApproach land cells on each side, the band
+// clear; free land first, then land with lots.
+bool FindWaterLine(const Verdicts& v, int32_t water, Line& out)
+{
+    for (const int32_t least : {kFree, kLot})
+        for (const bool alongZ : {false, true}) {
+            const int32_t lines = alongZ ? v.sizeX : v.sizeZ, along = alongZ ? v.sizeZ : v.sizeX;
+            for (int32_t l = 4; l + 3 < lines - 3; ++l)
+                for (int32_t s = 4 + kApproach; s + water + kApproach + 4 < along; ++s) {
+                    Line line;
+                    line.alongZ = alongZ;
+                    line.x = alongZ ? l : s - kApproach;
+                    line.z = alongZ ? s - kApproach : l;
+                    line.length = water + 2 * kApproach;
+                    bool fits = true;
+                    for (int32_t i = 0; fits && i < line.length; ++i) {
+                        const int32_t verdict = v.At(line.CellX(i), line.CellZ(i));
+                        const bool inWater = i >= kApproach && i < kApproach + water;
+                        fits = inWater ? verdict == kWater : IsLand(verdict, least);
+                    }
+                    if (fits && BandClear(v, line, least)) {
+                        out = line;
+                        return true;
+                    }
+                }
+        }
+    return false;
+}
+
+// The water lengths the type's water records accept: each record's
+// shortest and the middle of its range (capped at 30), each once, shortest
+// first.
+std::vector<int32_t> WaterLengths(uint32_t type, uint32_t& records)
+{
+    std::set<int32_t> lengths;
+    records = 0;
+    const char* const row = reinterpret_cast<const char*>(addr::cSC4NetworkConstructionCrew_NetworkToolTuning) +
+                            type * kRowSize;
+    const auto* const v = reinterpret_cast<const crew_sim::Vector*>(row + kRowBridges);
+    for (const char* record = v->begin; record && record + kRecordSize <= v->end; record += kRecordSize) {
+        if (!*reinterpret_cast<const uint8_t*>(record + kRecordWater))
+            continue;
+        ++records;
+        const int32_t shortest = *reinterpret_cast<const int32_t*>(record + kRecordShortest);
+        const int32_t longest = *reinterpret_cast<const int32_t*>(record + kRecordLongest);
+        for (const int32_t n : {shortest, (shortest + longest) / 2})
+            if (n >= 2 && n <= 30)
+                lengths.insert(n);
+    }
+    return {lengths.begin(), lengths.end()};
+}
+
+// What a preview or a build left in the tool, values only: the major
+// bridges (words +0x0 to +0x14, the byte +0x18; per cell the words +0x0 to
+// +0x28 but the byte +0x10 alone, the byte +0x40 and, only where it is not
+// 0, the words +0x2C to +0x3C (else they may be the original's stack
+// leftovers); the cable parts' eight words), the possible bridges, the cost
+// and the failure reason. Never a pointer, never padding.
+uint32_t HashSolution(cISC4NetworkTool* tool, int cost, uint32_t& majors)
+{
+    char* const self = reinterpret_cast<char*>(tool);
+    Hash h;
+    const auto* const bridges = reinterpret_cast<const crew_sim::Vector*>(self + kToolMajorBridges);
+    majors = 0;
+    for (char* b = bridges->begin; b && b + bridge::major::kSize <= bridges->end; b += bridge::major::kSize) {
+        ++majors;
+        for (std::size_t w = 0; w <= bridge::major::kReferenceAltitude; w += 4)
+            h.Mix(At<uint32_t>(b, w));
+        h.Mix(At<uint8_t>(b, bridge::major::kLandBridge));
+        char* const cellsEnd = At<char*>(b, bridge::major::kCellsEnd);
+        uint32_t cells = 0;
+        for (char* c = At<char*>(b, bridge::major::kCells); c && c != cellsEnd; c += bridge::cell::kSize) {
+            ++cells;
+            for (std::size_t w = 0; w <= bridge::cell::kPierDepth; w += 4)
+                h.Mix(w == bridge::cell::kTurn ? At<uint8_t>(c, w) : At<uint32_t>(c, w));
+            const uint8_t flags = At<uint8_t>(c, bridge::cell::kWallFlags);
+            h.Mix(flags);
+            if (flags)
+                for (std::size_t w = bridge::cell::kWallScales; w <= bridge::cell::kWallFloat; w += 4)
+                    h.Mix(At<uint32_t>(c, w));
+            char* const partsEnd = At<char*>(c, bridge::cell::kPartsEnd);
+            uint32_t parts = 0;
+            for (char* p = At<char*>(c, bridge::cell::kParts); p && p != partsEnd; p += bridge::part::kSize) {
+                ++parts;
+                for (std::size_t w = 0; w < bridge::part::kSize; w += 4)
+                    h.Mix(At<uint32_t>(p, w));
+            }
+            h.Mix(parts);
+        }
+        h.Mix(cells);
+    }
+    h.Mix(majors);
+    const auto* const possible = reinterpret_cast<const crew_sim::Vector*>(self + kToolPossibleBridges);
+    uint32_t count = 0;
+    for (const char* p = possible->begin; p && p != possible->end; p += 4, ++count)
+        h.Mix(*reinterpret_cast<const uint32_t*>(p));
+    h.Mix(count);
+    h.Mix(static_cast<uint32_t>(cost));
+    h.Mix(At<uint32_t>(self, kToolFailure));
+    return h.h;
+}
+
+uint32_t PieceCount(cISC4City* city)
+{
+    std::vector<char*> pieces;
+    return Collect(city, pieces) ? static_cast<uint32_t>(pieces.size()) : 0xFFFFFFFFu;
+}
+
+struct BridgeDrag {
+    cISC4City* city;
+    cISC4NetworkTool* tool;
+    cISC4NetworkOccupant::eNetworkType type;
+    const char* name;
+    SC4Point<uint32_t> points[2];
+    bool tryOnly;        // preview only (the search for a line that makes a bridge)
+    bool choices;        // the player's choice previews
+    int cost = 0;
+    uint32_t majors = 0, previewHash = 0, buildHash = 0, failure = 0, chosen = 0, leaked = 0;
+    std::vector<uint32_t> choiceHashes;
+};
+
+void Preview(BridgeDrag& drag, int32_t preferred)
+{
+    const Anchors anchors{drag.points, drag.points + 2, drag.points + 2};
+    drag.tool->Reset();
+    if (preferred >= 0)
+        Virtual<void>(drag.tool, kToolSetPreferredBridge, preferred);
+    Virtual<void>(drag.tool, kSetAnchorPoints, &anchors);
+    drag.tool->PlaceAllSegments(false, false, true, drag.type);
+    drag.cost = drag.tool->GetCostOfSolution();
+}
+
+// A player's drag across water, with the bridge choice: the preview with
+// the game's choice, then (with `choices`) a preview per possible bridge
+// with it preferred (as the bridge UI's choice makes the view control
+// preview again), then the build with the game's own choice (Reset clears
+// the preference, so the build is the default drag of Place()).
+void PlaceBridge(void* context)
+{
+    BridgeDrag& drag = *static_cast<BridgeDrag*>(context);
+    char* const self = reinterpret_cast<char*>(drag.tool);
+    const uint32_t piecesBefore = PieceCount(drag.city);
+    Preview(drag, -1);
+    drag.previewHash = HashSolution(drag.tool, drag.cost, drag.majors);
+    if (drag.tryOnly || drag.majors == 0) {
+        drag.tool->Reset(); // takes the preview's occupants out again (slot 16)
+        drag.tool->ClearCellPreviews();
+        drag.tool->ClearOccupantHighlights();
+        return;
+    }
+    if (drag.choices) {
+        const auto* const possible = reinterpret_cast<const crew_sim::Vector*>(self + kToolPossibleBridges);
+        std::vector<int32_t> ids;
+        for (const char* p = possible->begin; p && p != possible->end; p += 4)
+            ids.push_back(*reinterpret_cast<const int32_t*>(p));
+        // Check that a preview leaves nothing in the city once Reset ran.
+        drag.tool->Reset();
+        if (PieceCount(drag.city) != piecesBefore) {
+            drag.leaked = 1;
+            log::Write("autotest: crew: bridge %s: the preview left %d pieces after Reset; no choice previews",
+                       drag.name, static_cast<int>(PieceCount(drag.city) - piecesBefore));
+        } else {
+            for (const int32_t id : ids) {
+                uint32_t majors = 0;
+                Preview(drag, id);
+                const uint32_t h = HashSolution(drag.tool, drag.cost, majors);
+                drag.choiceHashes.push_back(h);
+                log::Write("autotest: crew: bridge %s: choice %d: %u bridges, cost %d, failure %08X, %08X", drag.name,
+                           id, majors, drag.cost, At<uint32_t>(self, kToolFailure), h);
+                drag.tool->Reset();
+                if (PieceCount(drag.city) != piecesBefore) {
+                    drag.leaked = 1;
+                    log::Write("autotest: crew: bridge %s: choice %d left pieces after Reset; choices stopped",
+                               drag.name, id);
+                    break;
+                }
+            }
+        }
+        // The default preview again (the hash of the choice previews is
+        // separate), as the player's last move before the release.
+        Preview(drag, -1);
+    }
+    const Anchors anchors{drag.points, drag.points + 2, drag.points + 2};
+    drag.tool->Reset();
+    Virtual<void>(drag.tool, kSetAnchorPoints, &anchors);
+    drag.tool->PlaceAllSegments(true, false, false, drag.type);
+    uint32_t majors = 0;
+    drag.buildHash = HashSolution(drag.tool, 0, majors);
+    drag.failure = At<uint32_t>(self, kToolFailure);
+    drag.tool->ClearCellPreviews();
+    drag.tool->ClearOccupantHighlights();
+}
+
+void RunBridgeDrag(BridgeDrag& drag)
+{
+    if (!RunModalPlayer(&AnswerDialog, &PlaceBridge, &drag))
+        PlaceBridge(&drag);
+}
+
+void MixBridge(const BridgeDrag& drag)
+{
+    Hash h;
+    h.h = g_bridgeHash;
+    h.Mix(drag.type);
+    for (const uint32_t v : {drag.points[0].x, drag.points[0].y, drag.points[1].x, drag.points[1].y, drag.majors,
+                             drag.previewHash, drag.buildHash, drag.failure, drag.leaked})
+        h.Mix(v);
+    for (const uint32_t v : drag.choiceHashes)
+        h.Mix(v);
+    g_bridgeHash = h.h;
+    ++g_bridgeDrags;
+    g_bridgeMajors += drag.majors;
+    g_bridgeChoices += static_cast<uint32_t>(drag.choiceHashes.size());
+}
+
+// The lower of the two vertex altitudes across the line at step i (the
+// terrain's vertex index slot 0x24 and altitude slot 0x30, ST0).
+double LineAltitude(void* terrain, const Line& line, int32_t i)
+{
+    const uint32_t a = Virtual<uint32_t>(terrain, 0x24, static_cast<uint32_t>(line.CellX(i)),
+                                         static_cast<uint32_t>(line.CellZ(i)));
+    const uint32_t b = Virtual<uint32_t>(terrain, 0x24, static_cast<uint32_t>(line.CellX(i, 1)),
+                                         static_cast<uint32_t>(line.CellZ(i, 1)));
+    const double ha = Virtual<double>(terrain, 0x30, a), hb = Virtual<double>(terrain, 0x30, b);
+    return ha < hb ? ha : hb;
+}
+
+// A land line (no water, band clear) whose two end vertices differ by no
+// more than `ends` and whose lowest vertex between them is more than `depth`
+// below the lower end: a dip a minor bridge spans (FitMinorBridges' test,
+// approximated: the code decides itself).
+bool FindDipLine(const Verdicts& v, void* terrain, double depth, double ends, Line& out)
+{
+    for (const bool alongZ : {false, true}) {
+        const int32_t lines = alongZ ? v.sizeX : v.sizeZ, along = alongZ ? v.sizeZ : v.sizeX;
+        for (int32_t length = 8; length <= 20; length += 4)
+            for (int32_t l = 4; l + 3 < lines - 3; l += 2)
+                for (int32_t s = 4; s + length + 4 < along; s += 2) {
+                    Line line;
+                    line.alongZ = alongZ;
+                    line.x = alongZ ? l : s;
+                    line.z = alongZ ? s : l;
+                    line.length = length;
+                    bool fits = true;
+                    for (int32_t i = -1; fits && i <= length; ++i)
+                        for (const int32_t across : {-1, 0, 1, 2})
+                            fits = fits && IsLand(v.At(line.CellX(i, across), line.CellZ(i, across)), kLot);
+                    if (!fits)
+                        continue;
+                    const double first = LineAltitude(terrain, line, 0), last = LineAltitude(terrain, line, length - 1);
+                    if (!(first - last <= ends && last - first <= ends))
+                        continue;
+                    const double top = first < last ? first : last;
+                    double lowest = top;
+                    for (int32_t i = 1; i + 1 < length; ++i) {
+                        const double h = LineAltitude(terrain, line, i);
+                        if (h < lowest)
+                            lowest = h;
+                    }
+                    if (top - lowest > depth) {
+                        out = line;
+                        return true;
+                    }
+                }
+    }
+    return false;
+}
+
+void DriveBridges(cISC4City* city, char* manager)
+{
+    const int mode = EnvInt("OPENSC4_TEST_CREW_BRIDGE", 0);
+    if (mode <= 0)
+        return;
+    void* const lots = Global<void*>(addr::SC4_LotManager);
+    void* const terrain = Global<void*>(addr::SC4_Terrain);
+    const int32_t sizeX = static_cast<int32_t>(city->CellCountX()), sizeZ = static_cast<int32_t>(city->CellCountZ());
+    if (!lots || !terrain)
+        return;
+    cISC4NetworkManager* const networks = city->GetNetworkManager();
+    const bool choices = EnvInt("OPENSC4_TEST_CREW_BRIDGE_CHOICES", 1) != 0;
+    struct Kind {
+        cISC4NetworkOccupant::eNetworkType type;
+        const char* name;
+        bool reversed;
+    };
+    std::vector<Kind> kinds = {{cISC4NetworkOccupant::Road, "road", false}, {cISC4NetworkOccupant::Rail, "rail", true}};
+    if (mode >= 2) {
+        kinds.push_back({cISC4NetworkOccupant::Avenue, "avenue", false});
+        kinds.push_back({cISC4NetworkOccupant::Highway, "highway", true});
+    }
+    for (const Kind& kind : kinds) {
+        uint32_t records = 0;
+        const std::vector<int32_t> lengths = WaterLengths(kind.type, records);
+        const Verdicts v = ReadVerdicts(lots, sizeX, sizeZ);
+        cISC4NetworkTool* const tool = networks->GetNetworkTool(kind.type, false);
+        if (!tool || lengths.empty()) {
+            log::Write("autotest: crew: bridge %s: %u water records, %u lengths; nothing drawn", kind.name, records,
+                       static_cast<uint32_t>(lengths.size()));
+            continue;
+        }
+        tool->AddRef();
+        tool->Init();
+        bool done = false;
+        uint32_t tried = 0;
+        for (const int32_t water : lengths) {
+            Line line;
+            if (done || tried >= 4 || !FindWaterLine(v, water, line))
+                continue;
+            ++tried;
+            BridgeDrag drag{city, tool, kind.type, kind.name, {}, true, choices, 0, 0, 0, 0, 0, 0, 0, {}};
+            const SC4Point<uint32_t> a{static_cast<uint32_t>(line.CellX(0)), static_cast<uint32_t>(line.CellZ(0))};
+            const SC4Point<uint32_t> b{static_cast<uint32_t>(line.CellX(line.length - 1)),
+                                       static_cast<uint32_t>(line.CellZ(line.length - 1))};
+            drag.points[0] = kind.reversed ? b : a;
+            drag.points[1] = kind.reversed ? a : b;
+            RunBridgeDrag(drag); // the preview alone
+            log::Write("autotest: crew: bridge %s: water %d at (%u,%u)-(%u,%u): preview %u bridges, cost %d, %08X",
+                       kind.name, water, drag.points[0].x, drag.points[0].y, drag.points[1].x, drag.points[1].y,
+                       drag.majors, drag.cost, drag.previewHash);
+            if (drag.majors == 0)
+                continue;
+            drag.tryOnly = false;
+            const uint32_t madeBefore = ReadState(city, manager).made;
+            RunBridgeDrag(drag);
+            MixBridge(drag);
+            done = true;
+            log::Write("autotest: crew: bridge %s: built: %u bridges, failure %08X, %u choices, %u new pieces, "
+                       "preview %08X, build %08X",
+                       kind.name, drag.majors, drag.failure, static_cast<uint32_t>(drag.choiceHashes.size()),
+                       ReadState(city, manager).made - madeBefore, drag.previewHash, drag.buildHash);
+        }
+        if (!done)
+            log::Write("autotest: crew: bridge %s: no line made a bridge (%u water records, %u lines tried)", kind.name,
+                       records, tried);
+        tool->Shutdown();
+        tool->Release();
+    }
+
+    // A minor (land) bridge: a road over a dip.
+    const char* const roadRow = reinterpret_cast<const char*>(addr::cSC4NetworkConstructionCrew_NetworkToolTuning) +
+                                cISC4NetworkOccupant::Road * kRowSize;
+    const double depth = *reinterpret_cast<const float*>(roadRow + kRowDipDepth);
+    const double ends = *reinterpret_cast<const float*>(roadRow + kRowDipEnds);
+    uint32_t landRecords = 0;
+    const auto* const roadBridges = reinterpret_cast<const crew_sim::Vector*>(roadRow + kRowBridges);
+    for (const char* record = roadBridges->begin; record && record + kRecordSize <= roadBridges->end;
+         record += kRecordSize)
+        landRecords += *reinterpret_cast<const uint8_t*>(record + kRecordLand) != 0;
+    if (landRecords == 0) {
+        log::Write("autotest: crew: bridge road dip: the road has no land bridge record; nothing drawn");
+        return;
+    }
+    const Verdicts v = ReadVerdicts(lots, sizeX, sizeZ);
+    Line line;
+    if (!FindDipLine(v, terrain, depth, ends, line)) {
+        log::Write("autotest: crew: bridge road dip: no land line with a dip deeper than %.3f (ends within %.3f)", depth,
+                   ends);
+        return;
+    }
+    cISC4NetworkTool* const tool = networks->GetNetworkTool(cISC4NetworkOccupant::Road, false);
+    if (!tool)
+        return;
+    tool->AddRef();
+    tool->Init();
+    BridgeDrag drag{city, tool, cISC4NetworkOccupant::Road, "road dip", {}, false, choices, 0, 0, 0, 0, 0, 0, 0, {}};
+    drag.points[0] = {static_cast<uint32_t>(line.CellX(0)), static_cast<uint32_t>(line.CellZ(0))};
+    drag.points[1] = {static_cast<uint32_t>(line.CellX(line.length - 1)),
+                      static_cast<uint32_t>(line.CellZ(line.length - 1))};
+    const uint32_t madeBefore = ReadState(city, manager).made;
+    RunBridgeDrag(drag);
+    MixBridge(drag);
+    log::Write("autotest: crew: bridge road dip (%u,%u)-(%u,%u): %u bridges, cost %d, failure %08X, %u new pieces, "
+               "preview %08X, build %08X",
+               drag.points[0].x, drag.points[0].y, drag.points[1].x, drag.points[1].y, drag.majors, drag.cost,
+               drag.failure, ReadState(city, manager).made - madeBefore, drag.previewHash, drag.buildHash);
+    tool->Shutdown();
+    tool->Release();
+}
+
 void Drive(const Day& day)
 {
     if (Env("OPENSC4_TEST_CREW").empty() || !day.counted)
@@ -543,6 +1029,7 @@ void Drive(const Day& day)
         LifeTest(manager);
         DriveTypes(day.city, manager);
         WorkTest(day.city);
+        DriveBridges(day.city, manager);
         const State s = ReadState(day.city, manager);
         log::Write("autotest: crew: drive done: crews %u, jobs %u, %u new pieces, %u dialogs", s.crews, s.jobs,
                    s.made, g_dialogs);
@@ -579,6 +1066,11 @@ void Fingerprint(cISC4City* city, std::string& line)
                   s.madeUsable, s.madeSum, s.madeXor, g_lifeHash, g_work[0], g_work[1], g_work[2], g_work[3],
                   g_work[4]);
     line += text;
+    if (EnvInt("OPENSC4_TEST_CREW_BRIDGE", 0) > 0) {
+        std::snprintf(text, sizeof text, " brg %u,%u,%u,%08X", g_bridgeDrags, g_bridgeMajors, g_bridgeChoices,
+                      g_bridgeHash);
+        line += text;
+    }
 }
 
 const FingerprintPart kFingerprint{"crew", 174, &Fingerprint};

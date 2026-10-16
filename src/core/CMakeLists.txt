@@ -260,6 +260,8 @@ add_library(opensc4_core SHARED
   nettool_occupants_2.cpp
   nettool_place_1.cpp
   nettool_place_2.cpp
+  nettool_bridge_a.cpp
+  nettool_bridge_b.cpp
   nettool_state.cpp
   netmgr_autotest.cpp
   netmgr_life.cpp
