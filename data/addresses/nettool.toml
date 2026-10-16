@@ -4672,3 +4672,61 @@ kind = "function"
 convention = "thiscall"
 expect = "8B 81 D0 01 00 00 C3 CC"
 source = "Name ours (inf). No arguments: the tunnel occupant's +0x1D0 (the other end's network occupant); OneWayRoadPass asks its cell (slot 0xEC)."
+
+[[entry]]
+name = "SC4Rul0Store::Find"
+address = 0x00625380
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D B4 52 B4 00 83 EC"
+source = "Name ours. One argument (a RUL0 rule ID): the rule in the RUL0 store 0x00B452B0 (the node at bucket id % count, chained by the key at +4, plus 8) or 0; EAX only is read by the callers (the guarded 0x0062CD50, the network view control's puzzle piece code 0x00660E60, 0x00660E80, 0x00661010) (src/core/nettool_puzzle.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PlacePuzzlePiece"
+address = 0x0062CD50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 5C 53 55 56 8B F1"
+source = "Name ours. NAM-GUARDED (FlexPieces jumps out at 0x0062CEDC and back at 0x0062CF42): the game's. Ret 0x10 (x, z, a RUL0 rule ID, a byte: 0 try, 1 place for real), this the tool: AL says it can be done. Called by the network view control and by slot 49 0x0062D450 (src/core/nettool_puzzle.cpp)."
+
+[[entry]]
+name = "SC4Rul0Rule::DefaultCheckType"
+address = 0x006099A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 58 8B 51 5C 3B C2"
+source = "Name ours. NAM-GUARDED (FlexPieces changes the immediate at 0x006099C4 from 2 to 0): the game's. The network type at the rule's origin check cell, default 2 (highway); called only by the guarded 0x0062CD50."
+
+[[entry]]
+name = "cSC4NetworkTool::QueryUserForPotentialIntersections"
+address = 0x0062D450
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 34 01 00 00 56 8B"
+source = "Name ours. Slot 49 of the tool family (no arguments): for each override record (+0x08) a new highway tool, the first RUL0 rule with a query text that fits the cell, the guarded 0x0062CD50 tried, the cost against the city's cash, the rule's effect started, the question dialog 0x0078DFF0 asked and, on yes, the placement made, the budget charged and the sound played (src/core/nettool_puzzle.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::DestroyOccupantsAndResolve"
+address = 0x0062A5C0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. Slot 50 of the tool family, ret 4 (a vector of network occupants): the occupants and the pieces that depend on them taken off the city, the cells they leave solved again and the pieces of the new solution made (src/core/nettool_resolve.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::RuleTypeFlags"
+address = 0x00AA74F8
+kind = "data"
+source = "Name ours. 13 words, one network flag per type (1 to 0x1000), the table 0x00609A00 tests a cell's flags against; the same values as the type flags 0x00AA835C."
+
+[[entry]]
+name = "cSC4NetworkTool::QuarterTurn"
+address = 0x00AA88B4
+kind = "data"
+source = "Name ours. The float -pi/2 that slot 49 multiplies a RUL0 record's turn byte by."
+
+[[entry]]
+name = "cSC4NetworkTool::MissingIntersectionText"
+address = 0x00AA888C
+kind = "data"
+source = "Name ours. The C string ## Intersection query string missing ## (39 characters) slot 49 asks the question with when the localized text 0x2A592FD1 / the rule's ID is missing."
