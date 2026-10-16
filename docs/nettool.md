@@ -1,6 +1,6 @@
 # The network tool (cSC4NetworkTool)
 
-The tool a player's drag of a network goes through: it turns the dragged cells into solved cells (a piece ID, a rotation and a flip per cell), fits the heights to the terrain, picks bridges and tunnels, asks the player about intersections, previews the result, works out the cost and places the pieces (handing them to a construction crew where the type has one). The network manager keeps one tool per network type and hands them to the network view's input controls, to its own lot and removal code and to the demolition. Nothing of the tool is saved. With it come the RUL engine that loads the networks' rule files at every city load, a vertex height constraint satisfier, a world cache of cell infos, a tool UI object and three tools of their own (pipe, subway, power line). The whole piece is 612 functions (196.5 KB); the tool proper is about 250. It is reimplemented in parts (below); this page has the first, the state and queries (46 functions, 43 of them ours), the second, the world cache and the cell infos (25 functions, 23 of them ours), the third, the tool's life and its preview drawable (27 functions, 23 of them ours), the vertex height constraint satisfier (s1: 46 functions, 45 of them ours), the RUL engine's load, statics and RUL0 store (r1: 29 functions, all ours), the type rows' rule files (r2: 35 functions, all ours), the RUL parsers' first part (r3: 45 functions, 44 of them ours), their second part (r4: 23 functions, all ours), and their third part (r5: 25 functions, all ours), which completes the RUL engine but its two guarded functions; the previews and highlights (t4: 23 functions, 20 of them ours), the tile solver (t8: 26 functions, 25 of them ours), the heights (t9: 20 functions, 19 of them ours), the occupants, tunnels and cost (t7: 23 functions, all ours), placing (t6: 34 functions, all ours), the bridges (t10: 27 functions, 16 of them ours; t11: 20 functions, all ours), and the drag (t5: 17 functions, 15 of them ours). With them 496 of the 612 functions are ours. Build 641 addresses throughout (the address entries of these parts come from the specs `p6/nettool1.spec`, `p6/nettool2.spec`, `t3/nettool3.spec`, `t3/nettool_s1.spec`, `t3/nettool_r1.spec`, `t3/nettool_r2.spec`, `t3/nettool_r3.spec`, `t3/nettool_r4.spec`, `t3/nettool_r5.spec`, `t3/nettool_t4.spec`, `t3/nettool_t8.spec`, `t3/nettool_t9.spec`, `t3/nettool_t7.spec`, `t3/nettool_t6.spec`, `t10/nettool_t10.spec`, `t10/nettool_t11.spec` and `t5/nettool_t5.spec` in the tools folder, with the survey's files).
+The tool a player's drag of a network goes through: it turns the dragged cells into solved cells (a piece ID, a rotation and a flip per cell), fits the heights to the terrain, picks bridges and tunnels, asks the player about intersections, previews the result, works out the cost and places the pieces (handing them to a construction crew where the type has one). The network manager keeps one tool per network type and hands them to the network view's input controls, to its own lot and removal code and to the demolition. Nothing of the tool is saved. With it come the RUL engine that loads the networks' rule files at every city load, a vertex height constraint satisfier, a world cache of cell infos, a tool UI object and three tools of their own (pipe, subway, power line). The whole piece is 612 functions (196.5 KB); the tool proper is about 250. It is reimplemented in parts (below); this page has the first, the state and queries (46 functions, 43 of them ours), the second, the world cache and the cell infos (25 functions, 23 of them ours), the third, the tool's life and its preview drawable (27 functions, 23 of them ours), the vertex height constraint satisfier (s1: 46 functions, 45 of them ours), the RUL engine's load, statics and RUL0 store (r1: 29 functions, all ours), the type rows' rule files (r2: 35 functions, all ours), the RUL parsers' first part (r3: 45 functions, 44 of them ours), their second part (r4: 23 functions, all ours), and their third part (r5: 25 functions, all ours), which completes the RUL engine but its two guarded functions; the previews and highlights (t4: 23 functions, 20 of them ours), the tile solver (t8: 26 functions, 25 of them ours), the heights (t9: 20 functions, 19 of them ours), the occupants, tunnels and cost (t7: 23 functions, all ours), placing (t6: 34 functions, all ours), the bridges (t10: 27 functions, 16 of them ours; t11: 20 functions, all ours), the drag (t5: 17 functions, 15 of them ours), and the puzzle and resolve part (t12: 6 functions, 4 of them ours). With them 500 of the 612 functions are ours. Build 641 addresses throughout (the address entries of these parts come from the specs `p6/nettool1.spec`, `p6/nettool2.spec`, `t3/nettool3.spec`, `t3/nettool_s1.spec`, `t3/nettool_r1.spec`, `t3/nettool_r2.spec`, `t3/nettool_r3.spec`, `t3/nettool_r4.spec`, `t3/nettool_r5.spec`, `t3/nettool_t4.spec`, `t3/nettool_t8.spec`, `t3/nettool_t9.spec`, `t3/nettool_t7.spec`, `t3/nettool_t6.spec`, `t10/nettool_t10.spec`, `t10/nettool_t11.spec`, `t5/nettool_t5.spec` and `t12/nettool_t12.spec` in the tools folder, with the survey's files).
 
 ## The class
 
@@ -148,7 +148,7 @@ The survey's split (`p6/survey.txt`, section 5), in the order planned: state and
 | t9 heights | 20 | 11,290 | 0x00636690 | the height pass and its constraints; 19 ours, [below](#the-heights-part-t9) |
 | t10 bridges | 27 | 15,643 | none | the major bridges' cells and occupants, the cable sort; 16 ours, 11 stay the game's (model geometry), [below](#the-bridges-parts-t10-and-t11) |
 | t11 bridge picking | 20 | 7,640 | none | where a bridge goes, which record, how high, its cells; all ours, [below](#the-bridges-parts-t10-and-t11) |
-| t12 puzzle and resolve | 6 | 11,445 | 0x0062CD50, 0x006099A0 | slots 49 and 50 |
+| t12 puzzle and resolve | 6 | 11,445 | 0x0062CD50, 0x006099A0 | slots 49 and 50, the RUL0 rule match and the store's lookup; 4 ours, the 2 guarded stay the game's, [below](#puzzle-and-resolve-part-t12) |
 | u1 underground | 34 | 8,442 | none | the underground base, the pipe and subway tools |
 | w1 power | 43 | 14,679 | none | the power line tool |
 | ui1 tool UI | 38 | 8,232 | 0x00645980 | the tool UI object (real-time clock and key reads) |
@@ -536,6 +536,65 @@ An independent read found one bug before the batch: the tie rule was inverted. T
 Trial (the crew leg, before the tie fix): 13 of the 15 functions ran. Not reached: SC4Vector12::Insert (it runs only when the end of the drag grows a step, which needs slot 64 ShouldAutoConnect to answer true, and only the pipe and subway tools do) and the filter's slot 5 IsPropertyHolderIncluded (only if an occupant search asks it).
 
 Parity (batch net-t5-b1, B list `nall32` = `nall31` with the two t5 groups): plain 12/12, net 3/3, setnet 3/3, all on the first pair; set 11/12 and 1 partly: on Big City d0090 one B run of four had an `adv` (advisor) value from day 1, before the test day and before any t5 function's first call in that run; the other three B runs equal A's (the rare `adv` B value of docs/mysim-agents.md, "Open point"). Crew legs (Rush Hour t0000, 20 days): crew same (A 2 outcomes, B 2, both shared), with OPENSC4_TEST_CREW_DRAWLINE=1 same (A 2, B 1, shared), with the bridge switch too same on the first pair; ` dl` was 12,12 (six drags, each straight and at 45 degrees, all drawn) and 23,23 with the bridge drags, the same hash in every A and B run. 13 of the 15 ran with the probe (12 without it: slot 65 runs only from the probe in these drags); not reached: SC4Vector12::Insert 0x00639070 and the filter's slot 5 0x00637EA0.
+
+## Puzzle and resolve (part t12)
+
+Two files, two groups, off by default. 6 functions, 4 ours; the two NAM-guarded ones stay the game's. 8 address entries went into `data/addresses/nettool.toml` (MatchAt 0x00609A00 was already named and is reused).
+
+- `simulators.nettool.puzzle` (3, `src/core/nettool_puzzle.cpp`): slot 49 QueryUserForPotentialIntersections 0x0062D450, SC4Rul0Rule::MatchAt 0x00609A00 and SC4Rul0Store::Find 0x00625380.
+  - Find (cdecl, a rule ID) looks the ID up in the RUL0 store 0x00B452B0 and returns the rule or 0.
+  - MatchAt (this a RUL0 rule; x, z, the tool; `ret 0xC`) answers 0 when the rule's pattern fits at the cell, 1 when it does not, 2 when a cell disagrees or has no cell info. It walks the rule's cells (+0x58) with their check types (+0x64), tests the occupant's origin, the network flags (table 0x00AA74F8), the edge words under the masks, multi-ok and the one-way bits. A rule with points (+0x28) also needs them dry, free of network occupants and accepted by the lots' collector 0x0061F7C0.
+  - Slot 49 (no arguments) is what the network view control's release (0x00645370, the call at 0x00645544) asks after a paid drag. For each override record the placing code left (+0x08, 12 bytes) it makes a new highway tool and takes the first rule of the store with a query text (+0x78) that MatchAt fits there. The guarded puzzle placement 0x0062CD50 must accept it, and its cost must not be above the city's cash. The rule's effect is started with a transform, and the localized text 0x2A592FD1 / the rule ID (else `## Intersection query string missing ##`) is asked in the question dialog 0x0078DFF0. On yes the placement is made for real, the budget charged and the sound 0xEA5EC59F played.
+  - Five vtables share slot 49's code (0x00AA880C, 0x00AA9A6C, 0x00AA9FF4, 0x00AAA684, 0x00AAAA14). The crew's calls of a slot 0xC4 (0x00605568, 0x00605D53, 0x00607327, 0x00628B13) are the network occupant's GetPathInfo, not this slot.
+- `simulators.nettool.resolve` (1, `src/core/nettool_resolve.cpp`): slot 50 DestroyOccupantsAndResolve 0x0062A5C0 (`ret 4`, a vector of network occupants), which the network manager's DestroyNetworkOccupants (0x00612269) calls for the bulldozer, the pipe burst and the lot developer.
+  - The occupants are queued, their neighbours on four sides lose their connections to them, and tunnel ends and intersection pieces follow.
+  - Each touched occupant gets the message 0xAA7A014D and is taken off the city: through the occupant manager's slot 0x54, or the network manager's RemoveOrReplaceOccupant.
+  - The cells they leave get their heights fixed through the satisfier and are solved again (SolveTiles(-1, 1), slot 55). A cell with two types drops the weaker one, and the crew's FinishPieces makes the new pieces.
+  - This repeats until nothing changes.
+
+### What stays the game's
+
+The puzzle placement 0x0062CD50 (NAM's FlexPieces jumps out at 0x0062CEDC and back at 0x0062CF42, using the game's frame and the rule pointer it took from Find) and DefaultCheckType 0x006099A0 (FlexPieces changes the immediate at 0x006099C4 from 2 to 0). Slot 49 calls 0x0062CD50 at its address with the game's four arguments; only 0x0062CD50 calls 0x006099A0. The guarded function calls Find (at 0x0062CE1E) and MatchAt (at 0x0062D2A5), and after either reads only EAX on both branches. NAM's DLL (its source, `nam-dll/src/FlexPieces.cpp`) calls none of the four, and edits the rule's cell lists and the tool's dragged cells in place; this part writes nothing of the rules, the store, the multimap or the type table, and keeps every set, queue and vector of slot 50 in the game's memory through the game's helpers.
+
+### Registers, floats and stack leftovers
+
+No thunks. Every direct caller of Find and MatchAt reads only EAX; slots 49 and 50 are called through vtables. GetFirstNetworkTypeFromFlags keeps EDX for slot 50's code at 0x0062B8E9; ours passes the flags explicitly.
+
+Floats:
+- Slot 49's effect transform is the cell's position in metres plus the record's floats, with the turn byte times -pi/2 (0x00AA88B4). The sums are done in doubles with one rounding to float, and the signs of the zeros are kept. FCOS and FSIN are a naked helper, each result stored straight to a float as the game does.
+- Slot 50 has one float: the terrain's slot 0x60 plus the double 0x00AA2010, rounded to float for the satisfier's Begin.
+
+Stack leftovers (zeros in ours, unread as far as the code shows): the transform's two padding bytes, the upper bytes of the word slot 50 passes for a one-way byte, and some scratch out buffers.
+
+No wrapper of ours detours these addresses or tests return addresses in their ranges. fixes.puzzle_piece (0x0065ED80, the satisfier) is not called here, and the question dialog is called at its address.
+
+### The test
+
+`OPENSC4_TEST_CREW_PUZZLE=<level>`, with `OPENSC4_TEST_CREW=2`, in `src/core/crew_autotest.cpp`, off by default (legs without it are unchanged).
+- After the six straight drags, a four-cell drag of road, street and avenue crosses the middle of that type's strip, released as the view control releases. After the placement and the cleared previews, the test hashes the tool's override records and MatchAt's answers for the rules with a query text and cells that fit there, then calls slot 49 with the question answered yes by a modal stand-in.
+- Level 2 also hands the crossing cell's new pieces to slot 50, as DestroyNetworkOccupants does.
+- Level 3 also does the view control's puzzle piece click (the guarded 0x0062CD50 with flag 0, which calls Find and MatchAt) for four rules with cells that fit, at two cells of the road strip.
+- The daily crew part adds ` pz <calls>,<candidates>,<hash>`.
+
+The probes skip RUL0 rules without a cell grid. Such a rule (0x2109 in the shipped files) keeps the original parser's stack leftovers in its bounds +0x18 to +0x24, where ours (part r1) stores zeros, so FitsInCity 0x00608CD0 (the game's) answers no in A and yes in B. The game itself asks FitsInCity only of rules it has chosen: 0x0063B340 tests the rule's byte +0xE9 and the type mask first, and the view control asks of the player's piece. A first trial without the skip showed that difference.
+
+Reach (the level 3 leg): all four ran. Slot 49 ran at every crossing, but the crossings left 0 or 2 override records and no rule with a query text fitted them, so the question was never asked. The direct clicks found Find and MatchAt (all eight rules answered 2, and 0x0062CD50 placed none). Slot 50 ran at level 2, and runs in the bulldoze legs.
+
+Parity (batches net-t12-b1 and net-t12-b2, 2026-10-16; B list `nall33` = `nall32` with the two t12 groups):
+
+| Leg | Saves | Result |
+|---|---|---|
+| plain | the 12 saves | 12 of 12 (Rush Hour d1095 on the second pair: A has two outcomes there) |
+| `net` | `saves-networks` | 3 of 3, first pair |
+| `set` (every network tool drive) | the 12 saves | 12 of 12, first pair |
+| `setnet` | `saves-networks` | 3 of 3, first pair |
+| `OPENSC4_TEST_BULLDOZE=3` | `saves-networks` | n0000 and n0090 the same. t0000 partly: the fingerprints are the same on all days in all four pairs, and one B run of four saves a stray removed piece at 632,1576, which one A run of four also saves (the original's known stray piece after this bulldoze, docs/netmgr.md) |
+| crew (20 days) | Rush Hour t0000 | partly: from day 9, the `propocc` part takes the second value of the original's known two (above); none of the four t12 functions ran in that leg |
+| crew with `OPENSC4_TEST_CREW_DRAWLINE=1` | Rush Hour t0000 | the same on all 21 days, first pair |
+| crew with `OPENSC4_TEST_CREW_PUZZLE=1` | Rush Hour t0000 | the same (A 2 outcomes, B 2, both shared) |
+| crew with `OPENSC4_TEST_CREW_PUZZLE=3` | Rush Hour t0000; `saves-networks` | the same on all 21 days, first pair; 3 of 3, first pair |
+
+All four ran: slot 50 in the bulldoze leg (six B runs) and the puzzle legs; slot 49 and MatchAt in the puzzle legs (MatchAt also in the bulldoze leg); Find in the level 3 legs. A control run of the PUZZLE=1 leg with the t12 groups off (`net-t12-c1`) gave the same day-15 `propocc` B value as the first trial.
 
 ## Placing (part t6)
 
