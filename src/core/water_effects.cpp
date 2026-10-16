@@ -10209,11 +10209,12 @@ bool HookDecalDescription()
 uint32_t FindRun(char* self, uint32_t name);
 uint32_t CompoundDescriptionRun(char* compound, uint32_t description);
 uint32_t SbCompoundDescriptionNoted(char* compound, uint32_t description);
+uint32_t SbFindByNameNoted(char* self, uint32_t name);
 
 uint32_t __fastcall MkFindNoted(char* self, void*, uint32_t name)
 {
     if (!MkNoting())
-        return FindRun(self, name);
+        return SbNoting() ? SbFindByNameNoted(self, name) : FindRun(self, name);
     return MkNoted(MkMakeCall(addr::SC4EffectsManager_FindDescriptionByName, name),
                    [&] { return FindRun(self, name); });
 }
@@ -11797,12 +11798,13 @@ const bool g_registeredRecords = registry::Register({
     InstallRecords,
 });
 
-// --- The look-up by IDs and two of the manager's starts ------------------------------------
+// --- The look-up by IDs and the manager's starts ------------------------------------------
 
 // The ID map's equal range, the look-up by IDs (effects_starts.inc, in
 // renderer.effects.lookup with the look-up by name: only read, so compare
-// mode runs the game's and then ours), and the start by IDs and the
-// restart of those in use (renderer.effects.starts). The starts make and
+// mode runs the game's and then ours), and the starts by IDs and by name,
+// the restart of those in use and the change of zoom that restarts them
+// (renderer.effects.starts). The starts make and
 // start compound effects, so their comparison is the noted kind: the
 // game's first, noting the look-ups, the maker, the description, the
 // starts and the new compound effect's hold (through a copy of its table
@@ -11818,6 +11820,8 @@ using FindByIdFn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t);
 FindByIdFn g_SC4EffectsManager_FindDescriptionById = nullptr;
 Call3Fn g_SC4EffectsManager_StartById = nullptr;
 Call0Fn g_SC4EffectsManager_RestartInUse = nullptr;
+Call2Fn g_SC4EffectsManager_StartByName = nullptr;
+Call1Fn g_SC4EffectsManager_OnZoomChanged = nullptr;
 
 struct SbNote {
     uint32_t target, a, b, result;
@@ -11832,8 +11836,10 @@ DWORD g_sbThread = 0;
 char* g_sbMade = nullptr;
 char g_sbMadeFields[0xC];
 std::vector<SbNote> g_sbGame, g_sbOurs;
+// The lowered names the start by name looks up, as each look-up sees them.
+std::vector<std::string> g_sbNamesGame, g_sbNamesOurs;
 std::vector<char*> g_sbSwapped;
-uint64_t g_sbStarts = 0, g_sbRestarts = 0, g_sbIdLookups = 0;
+uint64_t g_sbStarts = 0, g_sbRestarts = 0, g_sbIdLookups = 0, g_sbNames = 0, g_sbZooms = 0;
 
 bool SbNoting()
 {
@@ -11924,6 +11930,36 @@ void SbHold(char* compound)
         CallThis<void>(At<uint32_t>(At<char*>(compound, 0), 0x4), compound);
 }
 
+std::string SbText(char* body);
+
+int32_t SbFindByName(char* self, char* name)
+{
+    if (g_sbReplay) {
+        g_sbNamesOurs.push_back(SbText(name));
+        return static_cast<int32_t>(
+            SbReplayed({addr::SC4EffectsManager_FindDescriptionByName, reinterpret_cast<uint32_t>(name), 0, 0}));
+    }
+    return CallThis<int32_t>(addr::SC4EffectsManager_FindDescriptionByName, self, name);
+}
+
+// The name given to the new compound effect (0x00408C40, shared, the
+// game's). In the replay it goes to the game's compound effect, whose name
+// the comparison has emptied; not to the stand-in when the game made none.
+void SbAssignName(char* compound, char* name)
+{
+    if (g_sbReplay && compound == g_mkDummy)
+        return;
+    CallThis<char*>(addr::cSC4Advice_F408C40, compound + 0xC, name);
+}
+
+void SbRestart(char* self)
+{
+    if (g_sbReplay)
+        SbReplayed({addr::SC4EffectsManager_RestartInUse, 0, 0, 0});
+    else
+        CallThis<void>(addr::SC4EffectsManager_RestartInUse, self);
+}
+
 #include "core/effects_starts.inc"
 
 // The game's calls the starts' comparison notes.
@@ -11948,6 +11984,12 @@ uint32_t SbMakerNoted(uint32_t target, char* self)
         }
     }
     return reinterpret_cast<uint32_t>(made);
+}
+
+uint32_t SbFindByNameNoted(char* self, uint32_t name)
+{
+    g_sbNamesGame.push_back(SbText(reinterpret_cast<char*>(name)));
+    return SbNoted({addr::SC4EffectsManager_FindDescriptionByName, name, 0, 0}, [&] { return FindRun(self, name); });
 }
 
 uint32_t SbCompoundDescriptionNoted(char* compound, uint32_t description)
@@ -12057,11 +12099,12 @@ uint32_t SbNoteGame(Game&& game)
 
 void SbLog()
 {
-    const uint64_t all = g_sbStarts + g_sbRestarts;
+    const uint64_t all = g_sbStarts + g_sbRestarts + g_sbNames + g_sbZooms;
     if ((all & (all - 1)) == 0)
-        log::Write("water effects: effects.starts: %llu starts by IDs and %llu restarts compared so far, %llu look-ups "
-                   "by IDs",
+        log::Write("water effects: effects.starts: %llu starts by IDs, %llu restarts, %llu starts by name and %llu "
+                   "changes of zoom compared so far, %llu look-ups by IDs",
                    static_cast<unsigned long long>(g_sbStarts), static_cast<unsigned long long>(g_sbRestarts),
+                   static_cast<unsigned long long>(g_sbNames), static_cast<unsigned long long>(g_sbZooms),
                    static_cast<unsigned long long>(g_sbIdLookups));
 }
 
@@ -12120,8 +12163,40 @@ uint32_t __fastcall StartByIdByMode(char* self, void*, uint32_t group, uint32_t 
 }
 OPENSC4_THUNK(TSC4EffectsManager_StartById, StartByIdByMode, 12)
 
+uint32_t __fastcall RestartInUseByMode(char* self, void*);
+
+// The restart under the change of zoom's noting is noted there and still
+// compared on its own: the change of zoom's notes are set aside meanwhile.
+uint32_t SbRestartUnderNoting(char* self)
+{
+    const int depth = g_sbDepth;
+    const DWORD thread = g_sbThread;
+    char* const made = g_sbMade;
+    char fields[sizeof g_sbMadeFields];
+    std::memcpy(fields, g_sbMadeFields, sizeof fields);
+    std::vector<SbNote> game, ours;
+    std::vector<char*> swapped;
+    game.swap(g_sbGame);
+    ours.swap(g_sbOurs);
+    swapped.swap(g_sbSwapped);
+    g_sbNoting = false;
+    g_sbDepth = 0;
+    const uint32_t result = RestartInUseByMode(self, nullptr);
+    g_sbNoting = true;
+    g_sbDepth = depth;
+    g_sbThread = thread;
+    g_sbMade = made;
+    std::memcpy(g_sbMadeFields, fields, sizeof fields);
+    game.swap(g_sbGame);
+    ours.swap(g_sbOurs);
+    swapped.swap(g_sbSwapped);
+    return result;
+}
+
 uint32_t __fastcall RestartInUseByMode(char* self, void*)
 {
+    if (SbNoting())
+        return SbNotedStart(addr::SC4EffectsManager_RestartInUse, 0, 0, [&] { return SbRestartUnderNoting(self); });
     if (g_sbMode == StepMode::Ours) {
         RestartCompoundsInUse(self);
         return 0;
@@ -12153,20 +12228,166 @@ uint32_t __fastcall RestartInUseByMode(char* self, void*)
 }
 OPENSC4_THUNK(TSC4EffectsManager_RestartInUse, RestartInUseByMode, 0)
 
+// The characters of a string body (begin, end, capacity), and a string
+// body given characters (SC4StringBody::AssignChars, the game's).
+std::string SbText(char* body)
+{
+    return std::string(At<char*>(body, 0), At<char*>(body, 4));
+}
+
+void SbSetText(char* body, const std::string& text)
+{
+    CallThis<char*>(addr::SC4StringBody_AssignChars, body, text.data(), text.data() + text.size());
+}
+
+// The start by name is compared as the start by IDs is, and also by the
+// lowered name each look-up sees and the name the new compound effect is
+// given (+0xC). The manager's string the name is lowered in (+0x1A0) and
+// that name are emptied before ours is replayed, and the game's put back
+// after. The string itself is not compared after the run: a start by name
+// under the game's queued start at the end uses it too, and in the replay
+// that start is only noted.
+uint32_t StartByNameRun(char* self, uint32_t name, uint32_t outArg)
+{
+    char** const out = reinterpret_cast<char**>(outArg);
+    const char* const text = reinterpret_cast<const char*>(name);
+    if (g_sbMode == StepMode::Ours)
+        return StartCompoundByName(self, text, out) ? 1 : 0;
+    const auto game = [&] { return g_SC4EffectsManager_StartByName(self, nullptr, name, outArg); };
+    // A name in the manager's own string would be emptied with it.
+    char* const lowered = self + 0x1A0;
+    const bool inside = text >= At<char*>(lowered, 0) && text < At<char*>(lowered, 8);
+    if (g_sbMode == StepMode::Original || g_sbNoting || g_sbReplay || inside)
+        return game();
+    char* const outBefore = out ? *out : nullptr;
+    g_sbNamesGame.clear();
+    g_sbNamesOurs.clear();
+    const uint32_t result = SbNoteGame(game);
+    char* const made = g_sbMade;
+    char* const outAfter = out ? *out : nullptr;
+    char madeAfter[0xC];
+    std::string nameAfter;
+    if (made) {
+        std::memcpy(madeAfter, made + 0x18, sizeof madeAfter);
+        nameAfter = SbText(made + 0xC);
+    }
+    const std::string loweredAfter = SbText(lowered);
+    if (out)
+        *out = outBefore;
+    SbSetText(lowered, std::string());
+    if (made)
+        SbSetText(made + 0xC, std::string());
+    g_sbOurs.clear();
+    g_sbReplay = true;
+    const uint32_t mine = StartCompoundByName(self, text, out) ? 1 : 0;
+    g_sbReplay = false;
+    char* const outMine = out ? *out : nullptr;
+    char madeMine[0xC];
+    std::string nameMine;
+    if (made) {
+        std::memcpy(madeMine, made + 0x18, sizeof madeMine);
+        nameMine = SbText(made + 0xC);
+        std::memcpy(made + 0x18, madeAfter, sizeof madeAfter);
+        SbSetText(made + 0xC, nameAfter);
+    }
+    SbSetText(lowered, loweredAfter);
+    if (out)
+        *out = outAfter;
+    ++g_sbNames;
+    SbLog();
+    const char* const id = "effects.starts.by_name";
+    if (!(g_sbGame == g_sbOurs)) {
+        compare::Record(id, false, SbNotesText(g_sbGame, g_sbOurs), SbNotesText(g_sbOurs, g_sbGame));
+    } else if ((result & 0xFF) != mine || outAfter != outMine ||
+               (made && (std::memcmp(madeAfter, madeMine, sizeof madeAfter) != 0 || nameAfter != nameMine)) ||
+               g_sbNamesGame != g_sbNamesOurs) {
+        const auto looked = [](const std::vector<std::string>& names) {
+            return names.empty() ? std::string("-") : names.front();
+        };
+        char theirs[64], own[64];
+        std::snprintf(theirs, sizeof theirs, "%u, %08X, %s, ", result & 0xFF, reinterpret_cast<uint32_t>(outAfter),
+                      made ? Hex(madeAfter, 0xC).c_str() : "");
+        std::snprintf(own, sizeof own, "%u, %08X, %s, ", mine, reinterpret_cast<uint32_t>(outMine),
+                      made ? Hex(madeMine, 0xC).c_str() : "");
+        compare::Record(id, false, theirs + looked(g_sbNamesGame) + ", " + nameAfter,
+                        own + looked(g_sbNamesOurs) + ", " + nameMine);
+    } else {
+        compare::Record(id, true, std::string(), std::string());
+    }
+    return result;
+}
+
+uint32_t __fastcall StartByNameByMode(char* self, void*, uint32_t name, uint32_t out)
+{
+    return StartByNameRun(self, name, out);
+}
+OPENSC4_THUNK(TSC4EffectsManager_StartByName, StartByNameByMode, 8)
+
+// The change of zoom writes five words and calls the restart: the game's
+// runs with the restart noted (the restart itself runs by its own mode,
+// compared on its own), then ours is replayed on the words put back, and
+// the words and the calls are compared.
+uint32_t __fastcall ZoomChangedByMode(char* self, void*, uint32_t zoom)
+{
+    if (g_sbMode == StepMode::Ours) {
+        ZoomChanged(self, static_cast<int32_t>(zoom));
+        return 0;
+    }
+    const auto game = [&] { return g_SC4EffectsManager_OnZoomChanged(self, nullptr, zoom); };
+    if (g_sbMode == StepMode::Original || g_sbNoting || g_sbReplay)
+        return game();
+    char before[0x14], after[0x14], mine[0x14];
+    const auto save = [&](char* to) {
+        std::memcpy(to, self + 0xC80, 0xC);
+        std::memcpy(to + 0xC, self + 0xCD0, 8);
+    };
+    const auto load = [&](const char* from) {
+        std::memcpy(self + 0xC80, from, 0xC);
+        std::memcpy(self + 0xCD0, from + 0xC, 8);
+    };
+    save(before);
+    const uint32_t result = SbNoteGame(game);
+    save(after);
+    load(before);
+    g_sbOurs.clear();
+    g_sbReplay = true;
+    ZoomChanged(self, static_cast<int32_t>(zoom));
+    g_sbReplay = false;
+    save(mine);
+    load(after);
+    ++g_sbZooms;
+    SbLog();
+    const char* const id = "effects.starts.zoom";
+    if (!(g_sbGame == g_sbOurs))
+        compare::Record(id, false, SbNotesText(g_sbGame, g_sbOurs), SbNotesText(g_sbOurs, g_sbGame));
+    else if (std::memcmp(after, mine, sizeof after) != 0)
+        compare::Record(id, false, Hex(after, sizeof after), Hex(mine, sizeof mine));
+    else
+        compare::Record(id, true, std::string(), std::string());
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectsManager_OnZoomChanged, ZoomChangedByMode, 4)
+
 bool InstallStarts(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
         !(Detour(addr::SC4EffectsManager_StartById, &TSC4EffectsManager_StartById, &g_SC4EffectsManager_StartById) &&
           Detour(addr::SC4EffectsManager_RestartInUse, &TSC4EffectsManager_RestartInUse,
-                 &g_SC4EffectsManager_RestartInUse)))
+                 &g_SC4EffectsManager_RestartInUse) &&
+          Detour(addr::SC4EffectsManager_StartByName, &TSC4EffectsManager_StartByName,
+                 &g_SC4EffectsManager_StartByName) &&
+          Detour(addr::SC4EffectsManager_OnZoomChanged, &TSC4EffectsManager_OnZoomChanged,
+                 &g_SC4EffectsManager_OnZoomChanged)))
         return false;
     if (mode == registry::Mode::Compare &&
-        !(HookFindById() && HookMaker(addr::SC4EffectsManager_NewCompound) && HookCompoundDescription() &&
+        !(HookFindById() && HookFindDescriptionByName() && HookMaker(addr::SC4EffectsManager_NewCompound) &&
+          HookCompoundDescription() &&
           HookStartQueued() && HookStartCompound() &&
           Detour(addr::SC4IdMap_FindNode, &TSC4IdMap_FindNode, &g_SC4IdMap_FindNode)))
         return false;
     g_sbMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: the manager's start by IDs and restart of those in use %s",
+    log::Write("water effects: the manager's starts by IDs and by name, restart of those in use and change of "
+               "zoom %s",
                mode == registry::Mode::Compare ? "compared with the game's" : "ours");
     return true;
 }
@@ -12177,10 +12398,10 @@ const bool g_registeredStarts = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::SC4EffectsManager_StartById,
-    "Two of the effects manager's starts: a compound effect started by its IDs (made, given the description of those "
-    "IDs, the waiting ones started, handed to the caller held) and every compound effect in use started again; "
-    "compare mode runs the game's with its calls noted and replays ours (docs/renderer.md, \"Water effects, sky and "
-    "clouds\")",
+    "The effects manager's starts: a compound effect started by its IDs or by its name (made, given the description "
+    "of those IDs or that lowered name, the waiting ones started, handed to the caller held), every compound effect in "
+    "use started again, and the change of zoom that does so; compare mode runs the game's with its calls noted and "
+    "replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallStarts,
 });
