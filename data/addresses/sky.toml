@@ -1376,3 +1376,156 @@ convention = "thiscall"
 signature = "void (SC4EffectsManager* this, int zoom)"
 expect = "83 EC 08 8B 44 24 0C 8B"
 source = "Name ours. Ret 4. this = the manager object. Called from the manager's message handler (0x0059450A) on the view's change (0xA6B79602, 0xA6B79620) when the zoom changed. +0xC80 gets the zoom, +0xC88 the old +0xC84, +0xC84 the zoom less +0xC8C plus 1, at least 1. +0xCD0 gets the table of floats at +0xCB4 read at the zoom times 0.25 times the table's count less one, between two entries in a straight line (the whole part rounded with 12582912, as 0x00A9F0AC); +0xCD4 the float at [[0x00B43CC4]+0x24]+0x1D4 times the camera view's +0x150 (0x00B43DD8). Then RestartInUse. Ours in renderer.effects.starts (src/core/effects_starts.inc)."
+
+[[entry]]
+name = "SC4EffectCompound::CopyRecords"
+address = 0x0058A330
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "53 8B 5C 24 08 55 8B 2B"
+source = "Name ours. Ret 4. this = the list of 0x6C-byte records at +8 of a 0x38-byte compound description (see SC4EffectCompound::Read): storage for exactly the source's count (0x0090CF54; none when empty), each record copy constructed (SC4EffectCompound::CopyConstructRecord). Answers this. Called by SC4EffectCompound::CopyConstruct only. Ours in renderer.effects.store (src/core/effects_store.inc)."
+
+[[entry]]
+name = "SC4EffectCompound::CopyRecordsB"
+address = 0x0058A3B0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "53 8B 5C 24 08 8B 03 56"
+source = "Name ours. Ret 4. this = the list of 0x18-byte records at +0x14 of a compound description: storage for exactly the source's count (0x0090CF54), the range copied by SC4EffectCompound_CopyRecordsBRange. Answers this. Called by SC4EffectCompound::CopyConstruct only. Ours in renderer.effects.store (src/core/effects_store.inc)."
+
+[[entry]]
+name = "SC4EffectCompound::DestroyRecordsB"
+address = 0x0058A420
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. this = a list of 0x18-byte records: each record's allocation at +4 freed (0x0090CF63), then the storage; the list itself is left as it was. Called by SC4EffectCompounds::Insert, SC4EffectCompounds::ResizeEmpty and from 0x0058B1FA, 0x0059F5E7, 0x005A08AD and 0x005A0E15. Ours in renderer.effects.store (src/core/effects_store.inc)."
+
+[[entry]]
+name = "SC4EffectCompound::DestroyRecords"
+address = 0x0058A630
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. this = a list of 0x6C-byte records: each record's allocation at +0 freed (0x0090CF63), then the storage. Called by SC4EffectCompounds::Insert, SC4EffectCompounds::ResizeEmpty and from 0x0058B0AD, 0x0059EE9A, 0x0059F5F2 and 0x005A0E1E. Ours in renderer.effects.store (src/core/effects_store.inc)."
+
+[[entry]]
+name = "SC4EffectCompound::CopyConstruct"
+address = 0x0058A8C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Name ours. Ret 4. A 0x38-byte compound description made as a copy of another: +0 and +4, the list at +8 (SC4EffectCompound::CopyRecords), the list at +0x14 (SC4EffectCompound::CopyRecordsB), the three words at +0x20 and the string at +0x2C (cleared, then 0x00408420 with the address of its own argument as the unused tag). Answers this. Called by SC4EffectCompounds_CopyRange, SC4EffectCompounds::GrowInsert, SC4EffectCompounds::Insert and from 0x0058B31C. Ours in renderer.effects.store (src/core/effects_store.inc)."
+
+[[entry]]
+name = "SC4EffectCompounds_CopyRange"
+address = 0x0058B2D0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* to, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. The 0x38-byte compound descriptions of [first, last) made as copies at to onwards (SC4EffectCompound::CopyConstruct; nothing made where to is null, which still moves on); the tag is not read. Answers the place after the last. Called by SC4EffectCompounds::GrowInsert, SC4EffectCompounds::Insert and from 0x0058C412-0x0058C537. Ours in renderer.effects.store (src/core/effects_store.inc)."
+
+[[entry]]
+name = "SC4EffectCompounds_DestroyRange"
+address = 0x0058BE50
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, void* tag)"
+expect = "8B 44 24 08 55 8B 6C 24"
+source = "Name ours. The compound descriptions of [first, last) ended, the two lists' ends inlined: per object the string's storage (+0x2C), the 0x18-byte records' allocations (+4) and storage (+0x14), then the 0x6C-byte records' (+0, storage +8), all through 0x0090CF63; the tag is not read. Called by SC4EffectCompounds::GrowInsert, SC4EffectCompounds::Resize and from 0x0058C54A, 0x0058C8A1 and 0x00595648. Ours in renderer.effects.store (src/core/effects_store.inc)."
+
+[[entry]]
+name = "SC4EffectCompounds::GrowInsert"
+address = 0x0058C270
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, const void* object, void* tag, unsigned count, bool atEnd)"
+expect = "51 53 8B D9 8B 13 8B 4B"
+source = "Name ours. Ret 0x14. this = a vector of 0x38-byte compound descriptions with no room left: new storage for the size plus the larger of the size and count (0x0090CF54), the objects before at copied over (SC4EffectCompound::CopyConstruct), count copies of object after them, the objects from at on too unless atEnd (SC4EffectCompounds_CopyRange), the old ones ended (SC4EffectCompounds_DestroyRange) and their storage freed. Called by SC4EffectCompounds::Insert only. Ours in renderer.effects.store (src/core/effects_store.inc)."
+
+[[entry]]
+name = "SC4EffectCompounds::Insert"
+address = 0x0058C8E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, unsigned count, const void* object)"
+expect = "83 EC 38 56 57 8B 7C 24"
+source = "Name ours. Ret 0xC. count copies of object inserted at at: nothing for none; without room SC4EffectCompounds::GrowInsert; with room the object copied to the stack first, then when more than count objects follow at the last count copied past the end (SC4EffectCompounds_CopyRange), the rest moved up (SC4EffectCompounds_MoveBack) and the copy assigned from at (SC4EffectCompounds_Assign), else the copies short of count made past the end (SC4EffectCompounds_FillNew), the objects from at copied after them and the copy assigned to the old places; the copy is ended (its string freed, SC4EffectCompound::DestroyRecordsB, ::DestroyRecords). Called by SC4EffectCompounds::Resize only. Ours in renderer.effects.store (src/core/effects_store.inc)."
+
+[[entry]]
+name = "SC4EffectCompounds::Resize"
+address = 0x0058D070
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, unsigned count, const void* object)"
+expect = "53 56 8B F1 8B 1E 57 8B"
+source = "Name ours. Ret 8. The vector of compound descriptions resized to count with copies of object: a shorter size cuts it (SC4EffectCompounds_CopyDown with nothing to move, then SC4EffectCompounds_DestroyRange on the tail), a longer one inserts at the end (SC4EffectCompounds::Insert). Called by SC4EffectCompounds::ResizeEmpty only. Ours in renderer.effects.store (src/core/effects_store.inc)."
+
+[[entry]]
+name = "SC4EffectCompounds::ResizeEmpty"
+address = 0x0058D4D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, unsigned count)"
+expect = "83 EC 38 53 33 DB 56 6A"
+source = "Name ours. Ret 4. The vector of compound descriptions resized to count with empty objects: one built on the stack (+0 cleared, +4 1, empty lists, an empty string with 8 bytes of storage from 0x0090CF54, +0x20 cleared; +0x24 and +0x28 left as the stack held them, the reader 0x005A51E0 fills both after the resize), SC4EffectCompounds::Resize, then the object's end. Called by the effects file reader (0x005A5DD8) and from 0x0058D628. Ours in renderer.effects.store (src/core/effects_store.inc)."
+
+[[entry]]
+name = "SC4EffectCompound::CopyConstructRecord"
+address = 0x005888A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours, not analysed. Ret 4. A 0x6C-byte record of a compound description made as a copy of another (its string at +0 copied into storage of its own). Called by SC4EffectCompound::CopyRecords and from 0x005894AA, 0x0059EE2A-0x005A2A07, 0x005AB67C and 0x005AB9B2. The game's; noted by the comparison of renderer.effects.store."
+
+[[entry]]
+name = "SC4EffectCompound_CopyRecordsBRange"
+address = 0x005894C0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* to, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours, not analysed. The 0x18-byte records of [first, last) made as copies at to onwards; answers the place after the last. Called by SC4EffectCompound::CopyRecordsB and from 0x0058B1F0, 0x0058B2AC, 0x005ABB4F and 0x005ABBB5. The game's; noted by the comparison of renderer.effects.store."
+
+[[entry]]
+name = "SC4EffectCompounds_FillNew"
+address = 0x0058B300
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* to, unsigned count, const void* object)"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours, not analysed. count copies of a 0x38-byte compound description made at to onwards (SC4EffectCompound::CopyConstruct). Called by SC4EffectCompounds::Insert only, for an insert with room and no more than count objects after it, which Big City does not make. The game's; noted by the comparison of renderer.effects.store."
+
+[[entry]]
+name = "SC4EffectCompounds_MoveBack"
+address = 0x0058BA40
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* end, void* tag, int unused)"
+expect = "53 8B 5C 24 08 56 8B 74"
+source = "Name ours, not analysed. The compound descriptions of [first, last) assigned to the places ending at end, from the back. Called by SC4EffectCompounds::Insert and from 0x0058C42D; Big City does not reach it. The game's; noted by the comparison of renderer.effects.store."
+
+[[entry]]
+name = "SC4EffectCompounds_Assign"
+address = 0x0058B920
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, const void* object)"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "Name ours, not analysed. The compound descriptions of [first, last) each given the values of object. Called by SC4EffectCompounds::Insert only; Big City does not reach it. The game's; noted by the comparison of renderer.effects.store."
+
+[[entry]]
+name = "SC4EffectCompounds_CopyDown"
+address = 0x0058B9A0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* to, void* tag, int unused)"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours, not analysed. The compound descriptions of [first, last) assigned to to onwards (the erase's copy down); answers the place after the last. Called by SC4EffectCompounds::Resize and from 0x0058C444, 0x0058C4B8 and 0x00595634. The game's; noted by the comparison of renderer.effects.store."

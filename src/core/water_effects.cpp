@@ -10733,9 +10733,13 @@ uint32_t MxConstructNoted(uint32_t constructor, char* object, Real&& real)
 // else outside the constructor.
 bool GrNoting();
 uint32_t GrAllocateNoted(char* pool, uint32_t size);
+bool StNoting();
+uint32_t StAllocateNoted(char* pool, uint32_t size);
 
 uint32_t __fastcall MxAllocateNoted(char* pool, void*, uint32_t size)
 {
+    if (StNoting())
+        return StAllocateNoted(pool, size);
     if (GrNoting())
         return GrAllocateNoted(pool, size);
     if (!MxNoting())
@@ -10746,8 +10750,8 @@ uint32_t __fastcall MxAllocateNoted(char* pool, void*, uint32_t size)
 }
 OPENSC4_THUNK(TSC4_PoolAllocate, MxAllocateNoted, 4)
 
-// The pool allocator has one detour, which the makers' and the records'
-// comparisons share.
+// The pool allocator has one detour, which the makers', the records' and
+// the store's comparisons share.
 bool HookPoolAllocate()
 {
     return g_SC4_PoolAllocate || Detour(addr::SC4_PoolAllocate, &TSC4_PoolAllocate, &g_SC4_PoolAllocate);
@@ -12404,6 +12408,679 @@ const bool g_registeredStarts = registry::Register({
     "replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallStarts,
+});
+
+// --- The store of compound descriptions -------------------------------------------------
+//
+// The objects the effects file reader reads into the store, their copy and
+// end, the store's growth, insert and two resizes (effects_store.inc).
+// They allocate and free, so the comparison is the noted kind, nested: the
+// game's runs with each call it makes noted (the allocations in the pool
+// allocator, the frees, the game's helpers and these functions; a call to
+// one of these is itself compared where it is made), then ours is replayed
+// on the memory put back, each call answered with the game's result and
+// the bytes the call wrote to its object (a copy's object, a list or the
+// store's begin, end and end of storage). The calls and those bytes are
+// compared. A pointer into the stack is noted as such, and the object the
+// resize is given by its bytes (but +0x24 and +0x28, which the game leaves
+// as its stack held them). The three ends read memory that the game's run
+// frees, so for them ours is run first with its frees only noted.
+constexpr uint32_t kStStack = 0x57AC0000;
+StepMode g_stMode = StepMode::Original;
+bool g_stNoting = false, g_stReplay = false;
+int g_stDepth = 0;
+DWORD g_stThread = 0;
+
+struct StNote {
+    uint32_t target, a, b, c, d, result;
+    std::vector<char> out;
+    bool operator==(const StNote& other) const
+    {
+        return target == other.target && a == other.a && b == other.b && c == other.c && d == other.d;
+    }
+};
+std::vector<StNote> g_stGame, g_stOurs;
+std::map<std::string, uint64_t> g_stCounts;
+
+uint32_t StArg(const void* pointer)
+{
+    const uint32_t value = reinterpret_cast<uint32_t>(pointer);
+    const NT_TIB* const tib = reinterpret_cast<const NT_TIB*>(NtCurrentTeb());
+    return value >= reinterpret_cast<uint32_t>(tib->StackLimit) && value < reinterpret_cast<uint32_t>(tib->StackBase)
+               ? kStStack
+               : value;
+}
+
+// The object the resize is given, by its bytes.
+uint32_t StObjectHash(const char* object)
+{
+    uint32_t hash = 2166136261u;
+    for (uint32_t i = 0; i < 0x38; ++i) {
+        if (i < 0x24 || i >= 0x2C)
+            hash = (hash ^ static_cast<uint8_t>(object[i])) * 16777619u;
+    }
+    return hash;
+}
+
+bool StNoting()
+{
+    return g_stNoting && g_stDepth == 0 && GetCurrentThreadId() == g_stThread;
+}
+
+StNote StMake(uint32_t target, const void* a, const void* b = nullptr, const void* c = nullptr, uint32_t d = 0)
+{
+    return {target, StArg(a), StArg(b), StArg(c), d, 0, {}};
+}
+
+// A call the game's makes, run at one level down and noted with the bytes
+// it left at `out`.
+template <typename Real>
+uint32_t StNoted(StNote note, const char* out, std::size_t size, Real&& real)
+{
+    ++g_stDepth;
+    note.result = real();
+    --g_stDepth;
+    if (out)
+        note.out.assign(out, out + size);
+    const uint32_t result = note.result;
+    g_stGame.push_back(std::move(note));
+    return result;
+}
+
+// A call ours makes in the replay: the game's result and bytes when it is
+// the call the game made at that place.
+uint32_t StReplayed(StNote note, char* out)
+{
+    const std::size_t at = g_stOurs.size();
+    g_stOurs.push_back(note);
+    if (at >= g_stGame.size() || !(g_stGame[at] == note))
+        return 0;
+    const StNote& theirs = g_stGame[at];
+    if (out && !theirs.out.empty())
+        std::memcpy(out, theirs.out.data(), theirs.out.size());
+    return theirs.result;
+}
+
+std::string StNotesText(const std::vector<StNote>& notes, const std::vector<StNote>& other)
+{
+    std::size_t at = 0;
+    while (at < notes.size() && at < other.size() && notes[at] == other[at])
+        ++at;
+    char text[112];
+    if (at >= notes.size())
+        std::snprintf(text, sizeof text, "%zu calls", notes.size());
+    else
+        std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X, %08X, %08X, %08X)", at, notes.size(),
+                      notes[at].target, notes[at].a, notes[at].b, notes[at].c, notes[at].d);
+    return text;
+}
+
+// One comparison, inside another's noted run or not: the engine's state
+// is put aside and back.
+struct StSaved {
+    bool noting = g_stNoting, replay = g_stReplay;
+    int depth = g_stDepth;
+    DWORD thread = g_stThread;
+    std::vector<StNote> game = std::move(g_stGame), ours = std::move(g_stOurs);
+    ~StSaved()
+    {
+        g_stNoting = noting;
+        g_stReplay = replay;
+        g_stDepth = depth;
+        g_stThread = thread;
+        g_stGame = std::move(game);
+        g_stOurs = std::move(ours);
+    }
+};
+
+void StRecord(const char* id, bool same, const std::string& game, const std::string& ours)
+{
+    const uint64_t n = ++g_stCounts[id];
+    if ((n & (n - 1)) == 0)
+        log::Write("water effects: %s: %llu compared", id, static_cast<unsigned long long>(n));
+    compare::Record(id, same, same ? std::string() : game, same ? std::string() : ours);
+}
+
+// `region` is what the function writes besides its calls; `result` says
+// whether its EAX means anything.
+template <typename Game, typename Ours>
+uint32_t StCompared(const char* id, char* region, std::size_t size, bool result, Game&& game, Ours&& ours)
+{
+    StSaved saved;
+    g_stGame.clear();
+    g_stOurs.clear();
+    const std::vector<char> before(region, region + size);
+    g_stThread = GetCurrentThreadId();
+    g_stDepth = 0;
+    g_stReplay = false;
+    g_stNoting = true;
+    const uint32_t theirs = game();
+    g_stNoting = false;
+    const std::vector<char> after(region, region + size);
+    if (size)
+        std::memcpy(region, before.data(), size);
+    g_stReplay = true;
+    const uint32_t mine = ours();
+    g_stReplay = false;
+    const std::vector<char> own(region, region + size);
+    if (size)
+        std::memcpy(region, after.data(), size);
+    if (!(g_stGame == g_stOurs))
+        StRecord(id, false, StNotesText(g_stGame, g_stOurs), StNotesText(g_stOurs, g_stGame));
+    else
+        StRecord(id, own == after && (!result || theirs == mine),
+                 Hex(after.data(), size) + (result ? " " + Hex(&theirs, 4) : std::string()),
+                 Hex(own.data(), size) + (result ? " " + Hex(&mine, 4) : std::string()));
+    return theirs;
+}
+
+// The ends: ours first, its frees only noted, then the game's.
+template <typename Game, typename Ours>
+uint32_t StEndCompared(const char* id, Game&& game, Ours&& ours)
+{
+    StSaved saved;
+    g_stGame.clear();
+    g_stOurs.clear();
+    g_stThread = GetCurrentThreadId();
+    g_stDepth = 0;
+    g_stNoting = false;
+    g_stReplay = true;
+    ours();
+    g_stReplay = false;
+    g_stNoting = true;
+    const uint32_t theirs = game();
+    g_stNoting = false;
+    StRecord(id, g_stGame == g_stOurs, StNotesText(g_stGame, g_stOurs), StNotesText(g_stOurs, g_stGame));
+    return theirs;
+}
+
+// What ours calls: in the replay the note, else ours or the game's.
+char* CopyCompoundRecords(char* to, char* from);
+char* CopyCompoundRecordsB(char* to, char* from);
+void DestroyCompoundRecordsB(char* list);
+void DestroyCompoundRecords(char* list);
+char* CopyCompound(char* to, char* from);
+char* CopyCompoundRange(char* first, char* last, char* place);
+void DestroyCompoundRange(char* first, char* last);
+void GrowInsertCompounds(char* store, char* at, char* object, uint32_t count, bool atEnd);
+void InsertCompounds(char* store, char* at, uint32_t count, char* object);
+void ResizeCompounds(char* store, uint32_t count, char* object);
+
+char* StAllocate(uint32_t size)
+{
+    if (g_stReplay)
+        return reinterpret_cast<char*>(StReplayed({addr::SC4_PoolAllocate, size, 0, 0, 0, 0, {}}, nullptr));
+    return StlAllocate(size);
+}
+
+void StFree(char* storage)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4_Free, storage), nullptr);
+    else
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(storage);
+}
+
+// The empty string's end byte; in the replay the storage is the game's,
+// which its run has freed again.
+void StClearText(char* text)
+{
+    if (!g_stReplay)
+        *text = 0;
+}
+
+void StCopyRecord6C(char* to, char* from)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4EffectCompound_CopyConstructRecord, to, from), nullptr);
+    else
+        CallThis<void*>(addr::SC4EffectCompound_CopyConstructRecord, to, from);
+}
+
+char* StCopyRecords18(char* first, char* last, char* to)
+{
+    if (g_stReplay)
+        return reinterpret_cast<char*>(
+            StReplayed(StMake(addr::SC4EffectCompound_CopyRecordsBRange, first, last, to), nullptr));
+    char tag = 0;
+    using Range = char*(__cdecl*)(char*, char*, char*, char*);
+    return reinterpret_cast<Range>(addr::SC4EffectCompound_CopyRecordsBRange)(first, last, to, &tag);
+}
+
+void StCopyString(char* to, char* first, char* last)
+{
+    if (g_stReplay) {
+        StReplayed(StMake(addr::cSC4Advice_F408420, to, first, last), to);
+        return;
+    }
+    char tag = 0;
+    CallThis<void*>(addr::cSC4Advice_F408420, to, first, last, &tag);
+}
+
+char* StCopyCompoundRecords(char* to, char* from)
+{
+    if (g_stReplay)
+        return reinterpret_cast<char*>(StReplayed(StMake(addr::SC4EffectCompound_CopyRecords, to, from), to));
+    return CopyCompoundRecords(to, from);
+}
+
+char* StCopyCompoundRecordsB(char* to, char* from)
+{
+    if (g_stReplay)
+        return reinterpret_cast<char*>(StReplayed(StMake(addr::SC4EffectCompound_CopyRecordsB, to, from), to));
+    return CopyCompoundRecordsB(to, from);
+}
+
+void StDestroyCompoundRecordsB(char* list)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4EffectCompound_DestroyRecordsB, list), nullptr);
+    else
+        DestroyCompoundRecordsB(list);
+}
+
+void StDestroyCompoundRecords(char* list)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4EffectCompound_DestroyRecords, list), nullptr);
+    else
+        DestroyCompoundRecords(list);
+}
+
+char* StCopyCompound(char* to, char* from)
+{
+    if (g_stReplay)
+        return reinterpret_cast<char*>(StReplayed(StMake(addr::SC4EffectCompound_CopyConstruct, to, from), to));
+    return CopyCompound(to, from);
+}
+
+char* StCopyCompoundRange(char* first, char* last, char* to)
+{
+    if (g_stReplay)
+        return reinterpret_cast<char*>(
+            StReplayed(StMake(addr::SC4EffectCompounds_CopyRange, first, last, to), nullptr));
+    return CopyCompoundRange(first, last, to);
+}
+
+void StDestroyCompoundRange(char* first, char* last)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4EffectCompounds_DestroyRange, first, last), nullptr);
+    else
+        DestroyCompoundRange(first, last);
+}
+
+void StGrowInsertCompounds(char* store, char* at, char* object, uint32_t count, bool atEnd)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4EffectCompounds_GrowInsert, store, at, object, count | (atEnd ? 0x80000000u : 0)),
+                   store);
+    else
+        GrowInsertCompounds(store, at, object, count, atEnd);
+}
+
+void StInsertCompounds(char* store, char* at, uint32_t count, char* object)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4EffectCompounds_Insert, store, at, object, count), store);
+    else
+        InsertCompounds(store, at, count, object);
+}
+
+void StResizeCompounds(char* store, uint32_t count, char* object)
+{
+    if (g_stReplay)
+        StReplayed({addr::SC4EffectCompounds_Resize, StArg(store), count, StArg(object), StObjectHash(object), 0, {}},
+                   store);
+    else
+        ResizeCompounds(store, count, object);
+}
+
+using StRange3 = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t);
+using StRange5 = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+
+void StFillNewCompounds(char* to, uint32_t count, char* object)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4EffectCompounds_FillNew, to, reinterpret_cast<void*>(count), object), nullptr);
+    else
+        reinterpret_cast<StRange3>(addr::SC4EffectCompounds_FillNew)(
+            reinterpret_cast<uint32_t>(to), count, reinterpret_cast<uint32_t>(object));
+}
+
+void StMoveCompoundsBack(char* first, char* last, char* end)
+{
+    if (g_stReplay) {
+        StReplayed(StMake(addr::SC4EffectCompounds_MoveBack, first, last, end), nullptr);
+        return;
+    }
+    uint32_t tag = 0;
+    reinterpret_cast<StRange5>(addr::SC4EffectCompounds_MoveBack)(reinterpret_cast<uint32_t>(first),
+                                                                  reinterpret_cast<uint32_t>(last),
+                                                                  reinterpret_cast<uint32_t>(end),
+                                                                  reinterpret_cast<uint32_t>(&tag), 0);
+}
+
+void StAssignCompounds(char* first, char* last, char* object)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4EffectCompounds_Assign, first, last, object), nullptr);
+    else
+        reinterpret_cast<StRange3>(addr::SC4EffectCompounds_Assign)(
+            reinterpret_cast<uint32_t>(first), reinterpret_cast<uint32_t>(last), reinterpret_cast<uint32_t>(object));
+}
+
+char* StCopyCompoundsDown(char* first, char* last, char* to)
+{
+    if (g_stReplay)
+        return reinterpret_cast<char*>(
+            StReplayed(StMake(addr::SC4EffectCompounds_CopyDown, first, last, to), nullptr));
+    uint32_t tag = 0;
+    return reinterpret_cast<char*>(reinterpret_cast<StRange5>(addr::SC4EffectCompounds_CopyDown)(
+        reinterpret_cast<uint32_t>(first), reinterpret_cast<uint32_t>(last), reinterpret_cast<uint32_t>(to),
+        reinterpret_cast<uint32_t>(&tag), 0));
+}
+
+#include "core/effects_store.inc"
+
+uint32_t StAllocateNoted(char* pool, uint32_t size)
+{
+    return StNoted({addr::SC4_PoolAllocate, size, 0, 0, 0, 0, {}}, nullptr, 0,
+                   [&] { return g_SC4_PoolAllocate(pool, nullptr, size); });
+}
+
+// The game's side: each of the eleven by the group's mode (inside a noted
+// run noted, and compared where it is called), the game's helpers, the
+// allocation (in the pool allocator, MxAllocateNoted) and the free only
+// noted.
+template <typename Game, typename Ours, typename Compared>
+uint32_t StByMode(StNote note, const char* out, std::size_t size, Game&& game, Ours&& ours, Compared&& compared)
+{
+    if (g_stMode == StepMode::Ours)
+        return ours();
+    if (g_stMode == StepMode::Original)
+        return game();
+    if (StNoting())
+        return StNoted(std::move(note), out, size, compared);
+    if (g_stNoting || g_stReplay)
+        return game();
+    return compared();
+}
+
+template <typename Game>
+uint32_t StHelper(StNote note, const char* out, std::size_t size, Game&& game)
+{
+    if (StNoting())
+        return StNoted(std::move(note), out, size, game);
+    return game();
+}
+
+using StCdecl3 = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t);
+using StCdecl4 = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t);
+using StCdecl5 = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+using StFreeFn = void(__cdecl*)(uint32_t);
+Call1Fn g_SC4EffectCompound_CopyRecords = nullptr, g_SC4EffectCompound_CopyRecordsB = nullptr,
+        g_SC4EffectCompound_CopyConstruct = nullptr, g_SC4EffectCompounds_ResizeEmpty = nullptr,
+        g_SC4EffectCompound_CopyConstructRecord = nullptr;
+Call0Fn g_SC4EffectCompound_DestroyRecordsB = nullptr, g_SC4EffectCompound_DestroyRecords = nullptr;
+Call2Fn g_SC4EffectCompounds_Resize = nullptr;
+Call3Fn g_SC4EffectCompounds_Insert = nullptr, g_cSC4Advice_F408420 = nullptr;
+Call5Fn g_SC4EffectCompounds_GrowInsert = nullptr;
+StCdecl3 g_SC4EffectCompounds_DestroyRange = nullptr, g_SC4EffectCompounds_FillNew = nullptr,
+         g_SC4EffectCompounds_Assign = nullptr;
+StCdecl4 g_SC4EffectCompounds_CopyRange = nullptr, g_SC4EffectCompound_CopyRecordsBRange = nullptr;
+StCdecl5 g_SC4EffectCompounds_MoveBack = nullptr, g_SC4EffectCompounds_CopyDown = nullptr;
+StFreeFn g_SC4_Free = nullptr;
+
+char* Ptr(uint32_t value)
+{
+    return reinterpret_cast<char*>(value);
+}
+
+uint32_t Word(const void* pointer)
+{
+    return reinterpret_cast<uint32_t>(pointer);
+}
+
+uint32_t __fastcall StoreCopyRecordsByMode(char* to, void*, uint32_t from)
+{
+    const auto game = [&] { return g_SC4EffectCompound_CopyRecords(to, nullptr, from); };
+    const auto ours = [&] { return Word(CopyCompoundRecords(to, Ptr(from))); };
+    return StByMode(StMake(addr::SC4EffectCompound_CopyRecords, to, Ptr(from)), to, 0xC, game, ours,
+                    [&] { return StCompared("effects.store.copy_records", to, 0xC, true, game, ours); });
+}
+OPENSC4_THUNK(TSC4EffectCompound_CopyRecords, StoreCopyRecordsByMode, 4)
+
+uint32_t __fastcall StoreCopyRecordsBByMode(char* to, void*, uint32_t from)
+{
+    const auto game = [&] { return g_SC4EffectCompound_CopyRecordsB(to, nullptr, from); };
+    const auto ours = [&] { return Word(CopyCompoundRecordsB(to, Ptr(from))); };
+    return StByMode(StMake(addr::SC4EffectCompound_CopyRecordsB, to, Ptr(from)), to, 0xC, game, ours,
+                    [&] { return StCompared("effects.store.copy_records_b", to, 0xC, true, game, ours); });
+}
+OPENSC4_THUNK(TSC4EffectCompound_CopyRecordsB, StoreCopyRecordsBByMode, 4)
+
+uint32_t __fastcall StoreDestroyRecordsBByMode(char* list, void*)
+{
+    const auto game = [&] { return g_SC4EffectCompound_DestroyRecordsB(list, nullptr); };
+    const auto ours = [&] {
+        DestroyCompoundRecordsB(list);
+        return 0u;
+    };
+    return StByMode(StMake(addr::SC4EffectCompound_DestroyRecordsB, list), nullptr, 0, game, ours,
+                    [&] { return StEndCompared("effects.store.destroy_records_b", game, ours); });
+}
+OPENSC4_THUNK(TSC4EffectCompound_DestroyRecordsB, StoreDestroyRecordsBByMode, 0)
+
+uint32_t __fastcall StoreDestroyRecordsByMode(char* list, void*)
+{
+    const auto game = [&] { return g_SC4EffectCompound_DestroyRecords(list, nullptr); };
+    const auto ours = [&] {
+        DestroyCompoundRecords(list);
+        return 0u;
+    };
+    return StByMode(StMake(addr::SC4EffectCompound_DestroyRecords, list), nullptr, 0, game, ours,
+                    [&] { return StEndCompared("effects.store.destroy_records", game, ours); });
+}
+OPENSC4_THUNK(TSC4EffectCompound_DestroyRecords, StoreDestroyRecordsByMode, 0)
+
+uint32_t __fastcall StoreCopyCompoundByMode(char* to, void*, uint32_t from)
+{
+    const auto game = [&] { return g_SC4EffectCompound_CopyConstruct(to, nullptr, from); };
+    const auto ours = [&] { return Word(CopyCompound(to, Ptr(from))); };
+    return StByMode(StMake(addr::SC4EffectCompound_CopyConstruct, to, Ptr(from)), to, 0x38, game, ours,
+                    [&] { return StCompared("effects.store.copy", to, 0x38, true, game, ours); });
+}
+OPENSC4_THUNK(TSC4EffectCompound_CopyConstruct, StoreCopyCompoundByMode, 4)
+
+uint32_t __cdecl StoreCopyRangeByMode(uint32_t first, uint32_t last, uint32_t to, uint32_t tag)
+{
+    const auto game = [&] { return g_SC4EffectCompounds_CopyRange(first, last, to, tag); };
+    const auto ours = [&] { return Word(CopyCompoundRange(Ptr(first), Ptr(last), Ptr(to))); };
+    return StByMode(StMake(addr::SC4EffectCompounds_CopyRange, Ptr(first), Ptr(last), Ptr(to)), nullptr, 0, game,
+                    ours, [&] { return StCompared("effects.store.copy_range", nullptr, 0, true, game, ours); });
+}
+
+void __cdecl StoreDestroyRangeByMode(uint32_t first, uint32_t last, uint32_t tag)
+{
+    const auto game = [&] {
+        g_SC4EffectCompounds_DestroyRange(first, last, tag);
+        return 0u;
+    };
+    const auto ours = [&] {
+        DestroyCompoundRange(Ptr(first), Ptr(last));
+        return 0u;
+    };
+    StByMode(StMake(addr::SC4EffectCompounds_DestroyRange, Ptr(first), Ptr(last)), nullptr, 0, game, ours,
+             [&] { return StEndCompared("effects.store.destroy_range", game, ours); });
+}
+
+uint32_t __fastcall StoreGrowByMode(char* store, void*, uint32_t at, uint32_t object, uint32_t tag, uint32_t count,
+                               uint32_t atEnd)
+{
+    const bool end = static_cast<uint8_t>(atEnd) != 0;
+    const auto game = [&] { return g_SC4EffectCompounds_GrowInsert(store, nullptr, at, object, tag, count, atEnd); };
+    const auto ours = [&] {
+        GrowInsertCompounds(store, Ptr(at), Ptr(object), count, end);
+        return 0u;
+    };
+    return StByMode(
+        StMake(addr::SC4EffectCompounds_GrowInsert, store, Ptr(at), Ptr(object), count | (end ? 0x80000000u : 0)),
+        store, 0xC, game, ours, [&] { return StCompared("effects.store.grow", store, 0xC, false, game, ours); });
+}
+OPENSC4_THUNK(TSC4EffectCompounds_GrowInsert, StoreGrowByMode, 20)
+
+uint32_t __fastcall StoreInsertByMode(char* store, void*, uint32_t at, uint32_t count, uint32_t object)
+{
+    const auto game = [&] { return g_SC4EffectCompounds_Insert(store, nullptr, at, count, object); };
+    const auto ours = [&] {
+        InsertCompounds(store, Ptr(at), count, Ptr(object));
+        return 0u;
+    };
+    return StByMode(StMake(addr::SC4EffectCompounds_Insert, store, Ptr(at), Ptr(object), count), store, 0xC, game,
+                    ours, [&] { return StCompared("effects.store.insert", store, 0xC, false, game, ours); });
+}
+OPENSC4_THUNK(TSC4EffectCompounds_Insert, StoreInsertByMode, 12)
+
+uint32_t __fastcall StoreResizeByMode(char* store, void*, uint32_t count, uint32_t object)
+{
+    const auto game = [&] { return g_SC4EffectCompounds_Resize(store, nullptr, count, object); };
+    const auto ours = [&] {
+        ResizeCompounds(store, count, Ptr(object));
+        return 0u;
+    };
+    return StByMode({addr::SC4EffectCompounds_Resize, StArg(store), count, StArg(Ptr(object)),
+                     StObjectHash(Ptr(object)), 0, {}},
+                    store, 0xC, game, ours,
+                    [&] { return StCompared("effects.store.resize", store, 0xC, false, game, ours); });
+}
+OPENSC4_THUNK(TSC4EffectCompounds_Resize, StoreResizeByMode, 8)
+
+uint32_t __fastcall StoreResizeEmptyByMode(char* store, void*, uint32_t count)
+{
+    const auto game = [&] { return g_SC4EffectCompounds_ResizeEmpty(store, nullptr, count); };
+    const auto ours = [&] {
+        ResizeCompoundsEmpty(store, count);
+        return 0u;
+    };
+    return StByMode(StMake(addr::SC4EffectCompounds_ResizeEmpty, store, Ptr(count)), store, 0xC, game, ours,
+                    [&] { return StCompared("effects.store.resize_empty", store, 0xC, false, game, ours); });
+}
+OPENSC4_THUNK(TSC4EffectCompounds_ResizeEmpty, StoreResizeEmptyByMode, 4)
+
+// The game's helpers and the free, noted in a noted run.
+uint32_t __fastcall CopyRecord6CNoted(char* to, void*, uint32_t from)
+{
+    return StHelper(StMake(addr::SC4EffectCompound_CopyConstructRecord, to, Ptr(from)), nullptr, 0,
+                    [&] { return g_SC4EffectCompound_CopyConstructRecord(to, nullptr, from); });
+}
+OPENSC4_THUNK(TSC4EffectCompound_CopyConstructRecord, CopyRecord6CNoted, 4)
+
+uint32_t __cdecl CopyRecords18Noted(uint32_t first, uint32_t last, uint32_t to, uint32_t tag)
+{
+    return StHelper(StMake(addr::SC4EffectCompound_CopyRecordsBRange, Ptr(first), Ptr(last), Ptr(to)), nullptr, 0,
+                    [&] { return g_SC4EffectCompound_CopyRecordsBRange(first, last, to, tag); });
+}
+
+uint32_t __fastcall CopyStringNoted(char* to, void*, uint32_t first, uint32_t last, uint32_t tag)
+{
+    return StHelper(StMake(addr::cSC4Advice_F408420, to, Ptr(first), Ptr(last)), to, 0xC,
+                    [&] { return g_cSC4Advice_F408420(to, nullptr, first, last, tag); });
+}
+OPENSC4_THUNK(TcSC4Advice_F408420, CopyStringNoted, 12)
+
+uint32_t __cdecl FillNewNoted(uint32_t to, uint32_t count, uint32_t object)
+{
+    return StHelper(StMake(addr::SC4EffectCompounds_FillNew, Ptr(to), Ptr(count), Ptr(object)), nullptr, 0,
+                    [&] { return g_SC4EffectCompounds_FillNew(to, count, object); });
+}
+
+uint32_t __cdecl MoveBackNoted(uint32_t first, uint32_t last, uint32_t end, uint32_t tag, uint32_t unused)
+{
+    return StHelper(StMake(addr::SC4EffectCompounds_MoveBack, Ptr(first), Ptr(last), Ptr(end)), nullptr, 0,
+                    [&] { return g_SC4EffectCompounds_MoveBack(first, last, end, tag, unused); });
+}
+
+uint32_t __cdecl AssignNoted(uint32_t first, uint32_t last, uint32_t object)
+{
+    return StHelper(StMake(addr::SC4EffectCompounds_Assign, Ptr(first), Ptr(last), Ptr(object)), nullptr, 0,
+                    [&] { return g_SC4EffectCompounds_Assign(first, last, object); });
+}
+
+uint32_t __cdecl CopyDownNoted(uint32_t first, uint32_t last, uint32_t to, uint32_t tag, uint32_t unused)
+{
+    return StHelper(StMake(addr::SC4EffectCompounds_CopyDown, Ptr(first), Ptr(last), Ptr(to)), nullptr, 0,
+                    [&] { return g_SC4EffectCompounds_CopyDown(first, last, to, tag, unused); });
+}
+
+void __cdecl FreeNoted(uint32_t storage)
+{
+    StHelper(StMake(addr::SC4_Free, Ptr(storage)), nullptr, 0, [&] {
+        g_SC4_Free(storage);
+        return 0u;
+    });
+}
+
+template <typename Fn>
+bool DetourCdecl(std::uintptr_t address, Fn replacement, Fn* original)
+{
+    return Detour(address, reinterpret_cast<void (*)()>(replacement), original);
+}
+
+bool InstallStore(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !Detour(addr::SC4EffectCompound_CopyRecords, &TSC4EffectCompound_CopyRecords,
+                &g_SC4EffectCompound_CopyRecords) ||
+        !Detour(addr::SC4EffectCompound_CopyRecordsB, &TSC4EffectCompound_CopyRecordsB,
+                &g_SC4EffectCompound_CopyRecordsB) ||
+        !Detour(addr::SC4EffectCompound_DestroyRecordsB, &TSC4EffectCompound_DestroyRecordsB,
+                &g_SC4EffectCompound_DestroyRecordsB) ||
+        !Detour(addr::SC4EffectCompound_DestroyRecords, &TSC4EffectCompound_DestroyRecords,
+                &g_SC4EffectCompound_DestroyRecords) ||
+        !Detour(addr::SC4EffectCompound_CopyConstruct, &TSC4EffectCompound_CopyConstruct,
+                &g_SC4EffectCompound_CopyConstruct) ||
+        !DetourCdecl(addr::SC4EffectCompounds_CopyRange, &StoreCopyRangeByMode, &g_SC4EffectCompounds_CopyRange) ||
+        !Detour(addr::SC4EffectCompounds_DestroyRange, reinterpret_cast<void (*)()>(&StoreDestroyRangeByMode),
+                &g_SC4EffectCompounds_DestroyRange) ||
+        !Detour(addr::SC4EffectCompounds_GrowInsert, &TSC4EffectCompounds_GrowInsert,
+                &g_SC4EffectCompounds_GrowInsert) ||
+        !Detour(addr::SC4EffectCompounds_Insert, &TSC4EffectCompounds_Insert, &g_SC4EffectCompounds_Insert) ||
+        !Detour(addr::SC4EffectCompounds_Resize, &TSC4EffectCompounds_Resize, &g_SC4EffectCompounds_Resize) ||
+        !Detour(addr::SC4EffectCompounds_ResizeEmpty, &TSC4EffectCompounds_ResizeEmpty,
+                &g_SC4EffectCompounds_ResizeEmpty))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(HookPoolAllocate() &&
+          Detour(addr::SC4EffectCompound_CopyConstructRecord, &TSC4EffectCompound_CopyConstructRecord,
+                 &g_SC4EffectCompound_CopyConstructRecord) &&
+          DetourCdecl(addr::SC4EffectCompound_CopyRecordsBRange, &CopyRecords18Noted,
+                      &g_SC4EffectCompound_CopyRecordsBRange) &&
+          Detour(addr::cSC4Advice_F408420, &TcSC4Advice_F408420, &g_cSC4Advice_F408420) &&
+          DetourCdecl(addr::SC4EffectCompounds_FillNew, &FillNewNoted, &g_SC4EffectCompounds_FillNew) &&
+          DetourCdecl(addr::SC4EffectCompounds_MoveBack, &MoveBackNoted, &g_SC4EffectCompounds_MoveBack) &&
+          DetourCdecl(addr::SC4EffectCompounds_Assign, &AssignNoted, &g_SC4EffectCompounds_Assign) &&
+          DetourCdecl(addr::SC4EffectCompounds_CopyDown, &CopyDownNoted, &g_SC4EffectCompounds_CopyDown) &&
+          DetourCdecl(addr::SC4_Free, &FreeNoted, &g_SC4_Free)))
+        return false;
+    g_stMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the store of compound descriptions %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredStore = registry::Register({
+    "renderer.effects.store",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectCompounds_ResizeEmpty,
+    "The store of compound descriptions the effects file is read into: an object's copy and end, the two lists in "
+    "it, a range copied and ended, the store's growth, insert and resizes (the in-place moves of an insert with "
+    "room still the game's); compare mode runs the game's with its calls noted, each of these compared where it "
+    "is called, and replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallStore,
 });
 
 bool InstallEffects(registry::Mode mode)
