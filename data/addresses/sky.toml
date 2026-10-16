@@ -1340,3 +1340,39 @@ convention = "thiscall"
 signature = "void (SC4EffectsManager* this)"
 expect = "56 8B F1 8A 86 AD 01 00"
 source = "Name ours. this = the manager object. With the byte +0x1AD set, every compound effect in use (the indices at +0xBAC into the table at +0xB94) started again (StartCompound with first clear), then the waiting ones started (StartQueued). Called from 0x00593CED, 0x00593D42, 0x00593FF5 and 0x00594591. Ours in renderer.effects.starts (src/core/effects_starts.inc)."
+
+[[entry]]
+name = "SC4::TransformChars"
+address = 0x00586AC0
+kind = "function"
+convention = "cdecl"
+signature = "char* (const char* first, const char* last, char* out, int (*fn)(int))"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. std::transform over characters: each of [first, last) passed through fn (sign-extended), the result stored at out on; answers the end of what it wrote. Shared (the effects' readers, the start by name, and 0x007DE28A on); the game's. Called by StartByName with CRT::tolower to lower a name in place."
+
+[[entry]]
+name = "SC4StringHashSet::Find"
+address = 0x0051C9F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* key)"
+expect = "8B 54 24 04 53 8B 5A 04"
+source = "Name ours, not analysed past its start. Ret 4. this = a hash set of strings (buckets as a vector of nodes at +4); key = a string body (begin, end); the bucket is the characters folded as h * 5 + c, modulo the bucket count (as 0x0051C9B0). Answers the node with that string, or none. Shared (the effects' readers, 0x0051CF76 to 0x00520E68); the game's. StartByName asks the effects manager's set at +0x98."
+
+[[entry]]
+name = "SC4EffectsManager::StartByName"
+address = 0x005939B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4EffectsManager* this, const char* name, void** out)"
+expect = "83 EC 10 57 8B F9 8B 4C"
+source = "Name ours. Ret 8. this = the manager object; slot 0x1C of its interface 0x00A9F264 (no direct callers). False without a name, with an empty one or without out. The name is copied into the manager's string at +0x1A0 (SC4StringBody::AssignChars) and lowered there (SC4::TransformChars with CRT::tolower), then looked up (FindDescriptionByName); with no description, a string made from it (0x00408000) is looked for in the manager's set of names at +0x98 (SC4StringHashSet::Find) and freed, and with none there either the answer is false. A compound effect is made (NewCompound), given the lowered name at +0xC (0x00408C40) and the index at +0x20; one with a description is given it (SC4CompoundEffect::SetDescription) and the waiting ones started (StartQueued); out gets it, held once more (slot 4). An entry detour of the UI Modernization mod (docs/patch-census.md). Ours in renderer.effects.starts (src/core/effects_starts.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::OnZoomChanged"
+address = 0x00593BE0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectsManager* this, int zoom)"
+expect = "83 EC 08 8B 44 24 0C 8B"
+source = "Name ours. Ret 4. this = the manager object. Called from the manager's message handler (0x0059450A) on the view's change (0xA6B79602, 0xA6B79620) when the zoom changed. +0xC80 gets the zoom, +0xC88 the old +0xC84, +0xC84 the zoom less +0xC8C plus 1, at least 1. +0xCD0 gets the table of floats at +0xCB4 read at the zoom times 0.25 times the table's count less one, between two entries in a straight line (the whole part rounded with 12582912, as 0x00A9F0AC); +0xCD4 the float at [[0x00B43CC4]+0x24]+0x1D4 times the camera view's +0x150 (0x00B43DD8). Then RestartInUse. Ours in renderer.effects.starts (src/core/effects_starts.inc)."
