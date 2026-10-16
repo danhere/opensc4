@@ -4508,3 +4508,167 @@ name = "cSC4NetworkTool::LaidCellCornerByTurn"
 address = 0x00AA8970
 kind = "data"
 source = "Name ours. Four words (1, 0, 3, 2), the same as 0x00AA8960: the corner of a bridge cell that gets a step's first height, by the bridge's turn. Read by 0x00632060."
+
+[[entry]]
+name = "cSC4NetworkTool::TestForAutoConnectOccupant"
+address = 0x00638680
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 6A 10 8B D9 E8"
+source = "Name ours (the header's, slot 65). Ret 8 (x, z): an auto-connect filter (0x10 bytes on the filter base 0x005EA080, vtables 0x00AA8BBC / 0x00AA8BA4, the tool's +0x364 filter at +0xC) and the occupant manager's first occupant of the cell through it (slot 0x80); AL whether there is one. The general and the power line tool's (src/core/nettool_drag.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::IdentifyStartingConditions"
+address = 0x00638710
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F9 8B 07 FF"
+source = "Name ours (the header's, slot 66). Ret 4 (a step count out): when the tool stops at water (slot 63) and the first dragged cell is under water (terrain slot 0x88) and its cell info is not a network lot (+0x56), the count 0 and AL 0; else AL 1. Every tool of the family's (src/core/nettool_drag.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::CheckForGoodTerrain"
+address = 0x00638990
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 57 8B F9 8B 07"
+source = "Name ours (the header's, slot 69). Ret 4 (a step count out): when the tool stops at water, the first regular step with an under-water cell that is not a network lot gives the count, a rule cell record not under water (or a network lot under water) gives 0; AL 0 then, else 1 (src/core/nettool_drag.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::CheckForReservedTilesAt"
+address = 0x006392F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 8B F1"
+source = "Name ours (the header's, slot 67; the survey had the two swapped). Ret 0xC (x, z, a network type): the cell's occupants (occupant manager slot 0xA0); AL 1 when one is of type 0x6A11BD2B, or an immovable network occupant that is not a network lot or not of the type. Every tool of the family's (src/core/nettool_drag.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::CheckForReservedTiles"
+address = 0x00639170
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B F1"
+source = "Name ours (the header's, slot 68). Ret 0xC (a step count out, a network type, a skip byte): slot 67 on every dragged cell of the steps not of kind 3 (the count becomes the first step with a reserved cell) and on the rule cell records (the count 0). Called by the segment placer 0x0063B830 and the guarded 0x0062CD50 (src/core/nettool_drag.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::BuildDragPath"
+address = 0x00639790
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 8B 44 24 58 69"
+source = "Name ours. Ret 0x14 (start, end, the classifier's x-first word, the classifier's z word, a network type): the drag's steps (+0x54) and dragged cells (+0x60) from the line, wide pens widened and aligned to the networks at the ends, pen-1 types extended at both ends for auto-connect (slots 64 and 65). Called only by the NAM-guarded DrawNetworkLine 0x0063AF40 (src/core/nettool_drag.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::DragTracksX"
+address = 0x00B464F0
+kind = "data"
+source = "Name ours. Byte: BuildDragPath's third argument is not 0 (the steps' ranges follow x); read only by BuildDragPath."
+
+[[entry]]
+name = "SC4AutoConnectFilter::IsOccupantIncluded"
+address = 0x006385D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 0C 8B 01 56 8B 74"
+source = "Name ours. Slot 3 of the auto-connect filter (vtable 0x00AA8BBC), ret 4: the inner filter (+0xC) includes the occupant and 0x00638600 says it is a placed network occupant; EAX 1 or 0 (src/core/nettool_drag.cpp)."
+
+[[entry]]
+name = "SC4AutoConnectFilter::IsPlacedNetworkOccupant"
+address = 0x00638600
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 4C 24 08 33 C0 85"
+source = "Name ours. One argument (an occupant): asked for the network occupant interface 0xA821EF94, its slot 0x54 (IsPlaced); AL (src/core/nettool_drag.cpp)."
+
+[[entry]]
+name = "SC4AutoConnectFilter::IsPropertyHolderIncluded"
+address = 0x00637EA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 0C 8B 01 FF 60 14"
+source = "Name ours. Slot 5 of the auto-connect filter: a tail jump to the inner filter's (+0xC) slot 5 (src/core/nettool_drag.cpp, a naked thunk)."
+
+[[entry]]
+name = "SC4AutoConnectFilter::DeletingDestructor"
+address = 0x00638650
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 0C 85 C9"
+source = "Name ours. Slot 6 of the auto-connect filter, ret 4 (flags): the inner filter released, the base's destructor 0x005E95C0, operator delete when bit 0 is set; EAX this (src/core/nettool_drag.cpp)."
+
+[[entry]]
+name = "SC4AutoConnectFilter::vftable"
+address = 0x00AA8BBC
+kind = "vtable"
+expect = "D0 95 5E 00 00 DF 4B 00"
+source = "Name ours. The auto-connect filter's primary vtable (7 slots: QueryInterface, AddRef, Release of the base, 3 0x006385D0, 4 0x004FC900 true, 5 0x00637EA0, 6 0x00638650)."
+
+[[entry]]
+name = "SC4AutoConnectFilter::vftable2"
+address = 0x00AA8BA4
+kind = "vtable"
+expect = "E0 4E 42 00 00 05 5C 00"
+source = "Name ours. The auto-connect filter's second vtable (at +4)."
+
+[[entry]]
+name = "SC4HashIterator::Distance"
+address = 0x00638AE0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. Two arguments (the first and the last iterator's address: a node and its hash table): the number of increments from first to last; EAX. Called by 0x00638FA0 only (src/core/nettool_drag.cpp)."
+
+[[entry]]
+name = "SC4Uint32HashSet::InsertRange"
+address = 0x00638FA0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 55 56 8D 44 24"
+source = "Name ours. Ret 0x14 (the first iterator, the last iterator, each a node and its table, an unread tag): the set grown for the range's length (0x004F0940), every key of the range inserted (0x00624DD0). Called by OneWayRoadPass 0x0063A640 only (src/core/nettool_drag.cpp)."
+
+[[entry]]
+name = "SC4Vector12::Insert"
+address = 0x00639070
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 56 8B F1 8B"
+source = "Name ours. Ret 8 (where, the value's address): one 12-byte record inserted (in place, by copy backward 0x00614430, or through InsertOverflow 0x00626240 when full); EAX the inserted record. Called by BuildDragPath 0x00639790 (src/core/nettool_drag.cpp)."
+
+[[entry]]
+name = "SC4Vector12::UninitializedCopy"
+address = 0x00623FA0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 54 24 08"
+source = "Name ours. Four arguments (first, last, the destination, an unread tag): 12-byte records copied into uninitialized memory, skipped at a null destination; EAX the end (template code, the game's)."
+
+[[entry]]
+name = "SC4Vector12::UninitializedFill"
+address = 0x00623FE0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 85 C9 8B 44"
+source = "Name ours. Three arguments read (the destination, a count, the value's address): that many copies, skipped at a null destination; EAX the end (template code, the game's)."
+
+[[entry]]
+name = "SC4Vector12::Fill"
+address = 0x00637E60
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 4C 24 08"
+source = "Name ours. Three arguments (first, last, the value's address): every record of the range assigned (template code, the game's)."
+
+[[entry]]
+name = "SC4PointVector::Insert"
+address = 0x00665DB0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 55 56 8B F1"
+source = "Name ours. Ret 8 (where, the point's address): one 8-byte point inserted (in place by copy backward 0x0066B340, or 0x007C61A0 when full); EAX the inserted point (template code, the game's)."
+
+[[entry]]
+name = "SC4TunnelOccupant::OtherEnd"
+address = 0x00647570
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 D0 01 00 00 C3 CC"
+source = "Name ours (inf). No arguments: the tunnel occupant's +0x1D0 (the other end's network occupant); OneWayRoadPass asks its cell (slot 0xEC)."
