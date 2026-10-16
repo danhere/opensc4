@@ -107,6 +107,13 @@
 // +0x2C to +0x3C, the cable parts, the possible bridges, the cost, the
 // failure reason) goes into ` brg <drags>,<bridges>,<choices>,<hash>` in
 // the daily part, and a log line per drag (`autotest: crew: bridge ...`).
+// OPENSC4_TEST_CREW_DRAWLINE=1 (off by default; legs without it are
+// unchanged) makes every drag above (the six types and, with the bridge
+// switch, each bridge preview and build) first do the view control's mouse
+// move: Reset, ClearFailureReason, slot 18 DrawNetworkLine on copies of the
+// two points, then the segment placer's read-only checks (slots 65 to 69);
+// the six types' drags also probe a 45 degree line from their start (ties);
+// ` dl <lines>,<drawn>,<hash>` in the daily part (DrawLineProbe below).
 #include "core/autotest_hooks.h"
 #include "core/crew_sim.h"
 #include "core/game.h"
@@ -370,11 +377,115 @@ struct Drag {
     uint32_t previewFailure;
 };
 
+// OPENSC4_TEST_CREW_DRAWLINE=1: before each drag's PlaceAllSegments pair,
+// the player's mouse move of the network view control (0x00645640): Reset,
+// ClearFailureReason, then slot 18 DrawNetworkLine (the NAM-guarded
+// 0x0063AF40, which classifies the drag and calls BuildDragPath 0x00639790)
+// with copies of the two points, word 0 (the release's PlaceAllSegments
+// gets the same) and the type. Then, when it drew a line with steps and
+// cells, the read-only checks the segment placer asks (each with the step
+// count as the placer passes it): slot 66 IdentifyStartingConditions, slot
+// 68 CheckForReservedTiles (type, not skipped), slot 69 CheckForGoodTerrain,
+// slot 65 TestForAutoConnectOccupant on the first and the last cell, and
+// slot 67 on each cell (up to 64). They only read the city (occupant
+// searches and the tool's own cell cache, which the drag's Reset empties).
+// Hashed (values only): the answer and the points as DrawNetworkLine left
+// them (BuildDragPath may shift them), the classifier's words +0x6C (byte),
+// +0x70, +0x74, +0x7C, +0x80, every step's three words and every cell, each
+// check's AL and count.
+uint32_t g_lineHash = 2166136261u;
+uint32_t g_lines = 0, g_linesDrawn = 0;
+constexpr std::size_t kToolSteps = 0x54, kToolCells = 0x60, kToolStepByte = 0x6C, kToolStepCount = 0x70;
+constexpr std::size_t kToolRegularSteps = 0x74, kToolDirection1 = 0x7C, kToolDirection2 = 0x80;
+constexpr std::size_t kSlotClearFailure = 0x34, kSlotDrawNetworkLine = 0x48, kSlotTestAutoConnect = 0x104;
+constexpr std::size_t kSlotIdentifyStart = 0x108, kSlotReservedAt = 0x10C, kSlotReserved = 0x110;
+constexpr std::size_t kSlotGoodTerrain = 0x114;
+constexpr uint32_t kMaxCellChecks = 64;
+
+bool DrawLineOn()
+{
+    static const bool on = EnvInt("OPENSC4_TEST_CREW_DRAWLINE", 0) == 1;
+    return on;
+}
+
+void ProbeLine(cISC4NetworkTool* tool, uint32_t type, uint32_t x0, uint32_t z0, uint32_t x1, uint32_t z1)
+{
+    char* const self = reinterpret_cast<char*>(tool);
+    tool->Reset();
+    Virtual<void>(tool, kSlotClearFailure);
+    uint32_t start[2] = {x0, z0};
+    uint32_t end[2] = {x1, z1};
+    const uint8_t drawn = Virtual<uint8_t>(tool, kSlotDrawNetworkLine, start, end, 0u, type);
+    Hash h;
+    h.h = g_lineHash;
+    for (const uint32_t v : {type, uint32_t{drawn}, start[0], start[1], end[0], end[1]})
+        h.Mix(v);
+    h.Mix(At<uint8_t>(self, kToolStepByte));
+    for (const std::size_t at : {kToolStepCount, kToolRegularSteps, kToolDirection1, kToolDirection2})
+        h.Mix(At<uint32_t>(self, at));
+    const auto* const steps = reinterpret_cast<const crew_sim::Vector*>(self + kToolSteps);
+    const auto* const cells = reinterpret_cast<const crew_sim::Vector*>(self + kToolCells);
+    const uint32_t stepCount = steps->begin ? static_cast<uint32_t>((steps->end - steps->begin) / 12) : 0;
+    const uint32_t cellCount = cells->begin ? static_cast<uint32_t>((cells->end - cells->begin) / 8) : 0;
+    h.Mix(stepCount);
+    for (uint32_t i = 0; i < stepCount * 3; ++i)
+        h.Mix(reinterpret_cast<const uint32_t*>(steps->begin)[i]);
+    h.Mix(cellCount);
+    for (uint32_t i = 0; i < cellCount * 2; ++i)
+        h.Mix(reinterpret_cast<const uint32_t*>(cells->begin)[i]);
+    if (drawn && stepCount > 0 && cellCount > 0 && At<int32_t>(self, kToolStepCount) > 0) {
+        const uint32_t* const cell = reinterpret_cast<const uint32_t*>(cells->begin);
+        int32_t count = At<int32_t>(self, kToolStepCount);
+        h.Mix(Virtual<uint8_t>(tool, kSlotIdentifyStart, &count));
+        h.Mix(static_cast<uint32_t>(count));
+        count = At<int32_t>(self, kToolStepCount);
+        Virtual<void>(tool, kSlotReserved, &count, type, 0u);
+        h.Mix(static_cast<uint32_t>(count));
+        count = At<int32_t>(self, kToolStepCount);
+        h.Mix(Virtual<uint8_t>(tool, kSlotGoodTerrain, &count));
+        h.Mix(static_cast<uint32_t>(count));
+        h.Mix(Virtual<uint8_t>(tool, kSlotTestAutoConnect, cell[0], cell[1]));
+        h.Mix(Virtual<uint8_t>(tool, kSlotTestAutoConnect, cell[cellCount * 2 - 2], cell[cellCount * 2 - 1]));
+        for (uint32_t i = 0; i < cellCount && i < kMaxCellChecks; ++i)
+            h.Mix(Virtual<uint8_t>(tool, kSlotReservedAt, cell[2 * i], cell[2 * i + 1], type));
+    }
+    g_lineHash = h.h;
+    ++g_lines;
+    g_linesDrawn += drawn ? 1u : 0u;
+}
+
+// The drag's own line, then (diagonal = true, the six types' drags) a 45
+// degree line from its start, up to 8 cells along the drag's longer axis and
+// as many across it, toward the map's inside (the crew saves' maps are at
+// least 64 cells): every move of it is a tie, which BuildDragPath settles
+// by alternating the axes (0x006398B9).
+void DrawLineProbe(cISC4NetworkTool* tool, uint32_t type, const SC4Point<uint32_t>* points, bool diagonal)
+{
+    if (!DrawLineOn())
+        return;
+    ProbeLine(tool, type, points[0].x, points[0].y, points[1].x, points[1].y);
+    if (!diagonal)
+        return;
+    const int32_t dx = static_cast<int32_t>(points[1].x - points[0].x);
+    const int32_t dz = static_cast<int32_t>(points[1].y - points[0].y);
+    const int32_t ax = dx < 0 ? -dx : dx, az = dz < 0 ? -dz : dz;
+    const int32_t longer = ax > az ? ax : az;
+    const int32_t d = longer < 8 ? longer : 8;
+    if (d == 0)
+        return;
+    const auto toward = [d](uint32_t from, int32_t along) {
+        const int32_t step = along != 0 ? (along < 0 ? -d : d) : (from < 32 ? d : -d);
+        return static_cast<uint32_t>(static_cast<int32_t>(from) + step);
+    };
+    ProbeLine(tool, type, points[0].x, points[0].y, toward(points[0].x, dx), toward(points[0].y, dz));
+}
+
 // The release of a player's drag (0x006453FB to 0x00645516), without the
 // bridge settings and the neighbour connection question.
 void Place(void* context)
 {
     Drag& drag = *static_cast<Drag*>(context);
+    DrawLineProbe(drag.tool, static_cast<uint32_t>(drag.type), drag.points, true);
     const Anchors anchors{drag.points, drag.points + 2, drag.points + 2};
     drag.tool->Reset();
     Virtual<void>(drag.tool, kSetAnchorPoints, &anchors);
@@ -753,6 +864,7 @@ struct BridgeDrag {
 
 void Preview(BridgeDrag& drag, int32_t preferred)
 {
+    DrawLineProbe(drag.tool, static_cast<uint32_t>(drag.type), drag.points, false);
     const Anchors anchors{drag.points, drag.points + 2, drag.points + 2};
     drag.tool->Reset();
     if (preferred >= 0)
@@ -812,6 +924,7 @@ void PlaceBridge(void* context)
         // separate), as the player's last move before the release.
         Preview(drag, -1);
     }
+    DrawLineProbe(drag.tool, static_cast<uint32_t>(drag.type), drag.points, false);
     const Anchors anchors{drag.points, drag.points + 2, drag.points + 2};
     drag.tool->Reset();
     Virtual<void>(drag.tool, kSetAnchorPoints, &anchors);
@@ -1069,6 +1182,10 @@ void Fingerprint(cISC4City* city, std::string& line)
     if (EnvInt("OPENSC4_TEST_CREW_BRIDGE", 0) > 0) {
         std::snprintf(text, sizeof text, " brg %u,%u,%u,%08X", g_bridgeDrags, g_bridgeMajors, g_bridgeChoices,
                       g_bridgeHash);
+        line += text;
+    }
+    if (DrawLineOn()) {
+        std::snprintf(text, sizeof text, " dl %u,%u,%08X", g_lines, g_linesDrawn, g_lineHash);
         line += text;
     }
 }
