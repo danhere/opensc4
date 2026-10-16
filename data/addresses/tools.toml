@@ -4563,3 +4563,163 @@ kind = "function"
 convention = "thiscall"
 expect = "8A 41 0C 84 C0 74 04 C6"
 source = "Name ours, a guess. Clears the byte +0xC when set; a one-line function with six callers in several classes (folded); called by address."
+
+[[entry]]
+name = "SC4QueryTool::RunEdgeWindow"
+address = 0x004CC6E0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 5C 53 55 56 8B 74"
+source = "Name ours. (occupant), plain ret; callers 0x004D4427, 0x004D444F (in 0x004D4140): for an occupant on the city's edge (slot 8, city slots 95 and 93) the window of the neighbour connections next to it: type from the network piece's types (slot 22: 0xB 10, 0 2, 6 8, 0xC 12, 2 3, 7 6, 8 7, 9 11, 1 1, 4 5, the last wins; 4 for interface 0xA8C86142; else a stack leftover in the game), a cell query {x, z, n * 0x200, type} for each next cell on one edge (0x006CE7A0) with a connection (neighbours slot 11); one or two give the layout {0, 0x96A006B0, instance} (0xEA566A49/0x4A5E7ED3, 0xCA566F94/0xAA5E14CC, 0x4A566C14/0x8A5E7BD2, 0x4A566D6E/0x2A5E7490; unknown type: the network piece's pointer) run modal with the walk 0x004CC660 per query (0x00B21840 to 0x00B2184C kept meanwhile). True when it ended with 0. Ours in ui.tools.query5a (src/core/tool_query_5a.cpp)."
+
+[[entry]]
+name = "SC4QueryTool::RunCellWindow"
+address = 0x004CCCB0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 83 EC 24 53"
+source = "Name ours. (kind, cell x, cell z), plain ret; callers 0x004D450C, 0x004D491C with 0xB, 0xC, 0xE: the layout {0, 0x96A006B0, 0x6A561B3A / 0x4A562DA5 / 0xAA561F93 (with a sound, 0x00B43CB8 slot 11)} run modal with the walk 0x004CC660 and the query {x, z, 0x200, 0}; ended with 0: the walk without fill 0x004CC6A0 reads the controls back, true. Ours in ui.tools.query5a."
+
+[[entry]]
+name = "SC4QueryTool::TextPairCopy"
+address = 0x004CCF20
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours. (source pair, unused), ret 8: copies a (key, SC4String) pair (0x004089B0 on the source's +4). Left the game's: folded, callers 0x004D4FD0 and 0x00895DCF, 0x009586B0, 0x0097B612 outside the class."
+
+[[entry]]
+name = "SC4QueryTool::AppendBuildingText"
+address = 0x004CCF60
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 34 8B 4C 24 38 8B"
+source = "Name ours. (occupant, SC4String), plain ret; callers 0x004D4B15, 0x004D5EC5: appends the debug figures of an occupant: building record (interface 0x87DDA3A9, slot 11) capacity and wealth, power slots 32 and 33, pollution slot 53 plant capacities (0xA8EBCF0C, 0x48EBD0B1, 0xC8EBD131) with the used properties, max power 0x08FD1613, recycling slot 55, water consumed / produced (water slots 9, 10), age degradation. Ours in ui.tools.query5b (src/core/tool_query_5b.cpp)."
+
+[[entry]]
+name = "SC4QueryTool::AppendDemandText"
+address = 0x004CD820
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 3C 55 8B 2D 68 3D"
+source = "Name ours. (cell x, cell z, SC4String), plain ret; callers 0x004D4B55, 0x004D4BE4, 0x004D5F1E: by the zone manager's slot 12 the growth developers' demand maps at the cell (development service slot 32; residential and industrial slots 16, 14, 13; commercial slot 13), formatted and appended. Ours in ui.tools.query5b."
+
+[[entry]]
+name = "SC4QueryTool::FillOccupantCityMayorRating"
+address = 0x004CDC80
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 10 83 EC 10 85"
+source = "Name ours. Filler 20 (window, ID, fill, occupant): the occupant's top left cell (slot 11) to 0x004CC160; false without an occupant. Ours in ui.tools.query5a."
+
+[[entry]]
+name = "SC4QueryTool::FillMySimPortrait"
+address = 0x004CDCC0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 60 8A 4C 24 6C 53"
+source = "Name ours. Filler 91 (window, ID, fill, occupant): with fill the picture of the MySim living in the building (city slot 71, its slot 9) into picture control ID (by bitmap ID {0x46A006B0, ID} or file under the application folder, slot 61), then the parent's ID + 0x100 and ID controls' parts' slots 69 and 23; else ID, ID + 0x100, ID + 0x200 hidden. True. Ours in ui.tools.query5a."
+
+[[entry]]
+name = "SC4QueryTool::OutcomeName"
+address = 0x004CDF80
+kind = "function"
+convention = "custom"
+expect = "83 EC 14 83 F8 1B 0F 87"
+source = "Name ours. Register convention: index in EAX (0 to 27), an SC4String in ESI; plain ret: the development outcome's name ('unknown failure' to 'success') assigned (0x00408480, 0x00424380); callers 0x004CE3A0, 0x004CE828. Ours in ui.tools.query5b through a naked thunk."
+
+[[entry]]
+name = "SC4QueryTool::LogDevelopmentFailures"
+address = 0x004CE320
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 18 53 55 56 57 8D"
+source = "Name ours. (record), plain ret; caller 0x004CE440: the record's outcome counts (+0x34, 13 rows of 28) as a table on the log lines (0x004C3750). Ours in ui.tools.query5b."
+
+[[entry]]
+name = "SC4QueryTool::LogDevelopmentAttempt"
+address = 0x004CE440
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. (record), plain ret, frame aligned to 8; caller 0x004D12A0 with tract developer records (0x00705E90, 0x00705FA0): makes the static 0x00B218EC on first use; then the record's day, developer type, tract figures, outcome table (0x004CE320) and each build attempt (lot sizes, ten candidates, wanted capacity, lot configuration by development service slots 38 and 39, outcome) on the log lines. Ours in ui.tools.query5b."
+
+[[entry]]
+name = "SC4QueryTool::AppendCellText"
+address = 0x004CE8A0
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. (zone type, point, SC4String), plain ret, frame aligned to 8; callers 0x004D4C9B, 0x004D5F42: appends a cell's debug figures: zone name, land value (0x00B43D88 slots 7, 6, 5), height, flammability (0x00B43D7C slot 5), power, pollution, landfill use (0x00B43D28 slot 10), the network piece's traffic capacities and volumes (traffic slots 23 and 12), trip length and jobs of a lot. Ours in ui.tools.query5b."
+
+[[entry]]
+name = "SC4QueryTool::AppendLotShares"
+address = 0x004CF2B0
+kind = "function"
+convention = "cdecl"
+expect = "81 EC 3C 01 00 00 8B 94"
+source = "Name ours. (cell x, cell z, SC4String), plain ret; callers 0x004D1D27, 0x004D4B35, 0x004D5F0E: the lot's developer shares (lot slot 62, a uint32 to float map) with the developers' demand at the cell held to 0 to 1 when the lot has room (lot slot 52), appended. Ours in ui.tools.query5b."
+
+[[entry]]
+name = "SC4QueryTool::NetworkName"
+address = 0x004CF8A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 56 8B F1 8B 4E"
+source = "Name ours. (SC4String, log object), ret 8; caller DoMessage 0x004D7160: the name of the network piece at +0x2C by its first type (2, 8, 0xC, 0, 1, 0xA, 0xB, 9, 3, 4, 7, 6); for a pipe with the debug keys down the water simulator's slots 19 and 18 to the log object's slot 27 (cdecl, variadic). Ours in ui.tools.query5a."
+
+[[entry]]
+name = "SC4QueryTool::LotRouteCounts"
+address = 0x004CFB30
+kind = "function"
+convention = "stdcall"
+expect = "8B 4C 24 04 83 EC 58 56"
+source = "Name ours. (lot, SC4String), ret 8; called with the tool in ECX (not read) by 0x004D0190: the lot's trips (traffic source, lot slot 4) counted by route kind (record +0x30 bits, trips +0x20), as text, or the game string 0x2BAAB5C0. Ours in ui.tools.query5a."
+
+[[entry]]
+name = "SC4QueryTool::BoxRouteCounts"
+address = 0x004CFD20
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 78 33 C0 89 44 24"
+source = "Name ours. (box, SC4String, mode), ret 0xC; caller 0x004D0190: the trips of every lot (lot manager slot 15, iterator never freed) and neighbour connection (neighbours slot 16) that count for the box (source cells or 0x004C4AE0), by route kind (0x004C3860), as text. Ours in ui.tools.query5a."
+
+[[entry]]
+name = "SC4QueryTool::RouteSummary"
+address = 0x004D0190
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 55 8B E9 8B 4D"
+source = "Name ours. (title, SC4String, icon), ret 0xC; caller DoMessage 0x004D7160: for the building at +0x2C with purposes 0xAA1DD396, route mode, title, icon and counts (0x004CFB30 or 0x004CFD20) by the first purpose of 0x1000, 0x1001, 0x1002, 0x1004, 0x1005, 0x1003, 0x150A/0x150B. Ours in ui.tools.query5a."
+
+[[entry]]
+name = "SC4QueryTool::FillCellQueries"
+address = 0x00B21840
+kind = "data"
+source = "Name ours. Two pointers: the cell queries the windows by cell (0x004CC6E0, 0x004CCCB0) keep for DoMessage while their window runs (0x00B21844 the second); cleared after."
+
+[[entry]]
+name = "SC4QueryTool::FillCellWindow"
+address = 0x00B2184C
+kind = "data"
+source = "Name ours. The window the windows by cell keep for DoMessage while it runs (with 0x00B21848, the walk); cleared after."
+
+[[entry]]
+name = "SC4QueryTool::UnknownBuilding"
+address = 0x00B218EC
+kind = "data"
+source = "Name ours. A function-local static SC4String 'unknown building' of 0x004CE440 (made on first use; guard 0x00B21900 bit 1; exit handler 0x00A7B150)."
+
+[[entry]]
+name = "SC4QueryTool::UnknownBuildingGuard"
+address = 0x00B21900
+kind = "data"
+source = "Name ours. The guard dword of 0x004CE440's static string (bit 1)."
+
+[[entry]]
+name = "SC4QueryTool::UnknownBuildingExit"
+address = 0x00A7B150
+kind = "function"
+convention = "cdecl"
+expect = "A1 F0 18 B2 00 85 C0 C7"
+source = "Name ours. No arguments: the exit handler of 0x004CE440's static string (vtable set, buffer freed), given to atexit 0x009EF059. Called by address only."
