@@ -31,6 +31,15 @@ std::vector<Site>& Sites()
         {0x006D91B0, 0x006D95B1}, // Search: vertical path separation
         // Network Addon Mod DLL, query tool (docs/tools.md)
         {0x004D07C0, 0x004D09D1}, // network traffic text: monorail in the rail table (dual network transit)
+        // sc4-query-ui-hooks, query tool (docs/tools.md)
+        {0x004D4140, 0x004D4406}, // DescribePick: the query sound (only when its ini turns query sounds off)
+        {0x004D4140, 0x004D4494}, // DescribePick: the query dialog
+        {0x004D4D70, 0x004D4EAA}, // OnMouseDownL: shift click copies an occupant (JMP)
+        {0x004D7160, 0x004D7335}, // DoMessage: the terrain text
+        {0x004D7160, 0x004D7464}, // DoMessage: a building's tip
+        {0x004D7160, 0x004D747F}, // DoMessage: flora's tip
+        {0x004D7160, 0x004D74A8}, // DoMessage: a network piece's tip
+        {0x004D7160, 0x004D74BF}, // DoMessage: a prop's tip
     };
     return sites;
 }

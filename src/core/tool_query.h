@@ -38,17 +38,30 @@ constexpr std::size_t kTip = 0x44;       // the tool's info tip (0x1B4 bytes, ma
 constexpr std::size_t kPanel = 0x48;     // kind 1: the layout's child 0x0BB0F5E7, moved to the view (referenced)
 constexpr std::size_t kPanelOther = 0x4C; // kind 1: the layout's child 0x6BB92BCA, moved to the view (referenced)
 constexpr std::size_t kTimer = 0x50;     // a cRZTimer of 0x28 bytes (vtable 0x00AD1F14); Init gives it 0x004C4E70
-constexpr std::size_t kFlag78 = 0x78;    // byte, 1 from the constructor and from Init
+constexpr std::size_t kFlag78 = 0x78;    // byte, 1 from the constructor and from Init; the tip shows while set
 constexpr std::size_t kPlace = 0x7C;     // three floats: the ground point under the pointer (at first 0x00B21858's)
 constexpr std::size_t kFlag88 = 0x88;    // byte: OnMouseMove found something under the pointer
-constexpr std::size_t kPressed = 0x89;   // byte, 0; cleared by OnMouseUpL
+constexpr std::size_t kPressed = 0x89;   // byte, 0; set by OnMouseDownL (back to 0 when it describes the pick),
+                                         // cleared by OnMouseUpL
 constexpr std::size_t kKind = 0x8C;      // the constructor's first argument: 0 or 1
 constexpr std::size_t kSecond = 0x90;    // the constructor's second argument, 0x32 from the view: the timer's ms
-constexpr std::size_t kFlag94 = 0x94;    // byte, 0; Init stores the view's slot 39: ground point also for a pick
+constexpr std::size_t kFlag94 = 0x94;    // byte, 0; Init stores the view's slot 39: ground point also for a pick;
+                                         // DoMessage adds the point to the tip's text while set
 constexpr std::size_t kRouteMode = 0x98; // 3; 1 = all route cells but kind 6, 2 = only kind 6 (0x004C4AE0)
 constexpr std::size_t kObject9C = 0x9C;  // the route line (referenced; route_line below) 0x004C5E20 adds points to
 constexpr std::size_t kSize = 0xA0;
 } // namespace field
+
+// The messages the tool's target part is registered for (Init) and what
+// DoMessage (0x004D7160) does with each.
+namespace message {
+constexpr uint32_t kTipTimer = 0x0A456D95;    // the tool's timer (0x004C4E70): the tip while +0x78 is set
+constexpr uint32_t kMarkerTimer = 0x0A456D96; // the query dialog's timer (0x004C4EE0): the view's markers again
+constexpr uint32_t kTipOff = 0x26D31EC2;      // +0x78 cleared
+constexpr uint32_t kViewChanged = 0xA6B79602; // OnMouseMove at the mouse position
+constexpr uint32_t kDay = 0x66956814;         // every tenth day a running query window filled again
+constexpr uint32_t kTrafficDone = 0x69247DC7; // the route line made again
+} // namespace message
 
 // The object the tool gives a window of its own as target (vtable
 // 0x00A90980, 6 slots, 0xC bytes, made in line at 0x004C5982): slot 3 is the
