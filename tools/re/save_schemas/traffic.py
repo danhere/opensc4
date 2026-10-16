@@ -2,6 +2,7 @@
 (name, decoder)."""
 import struct
 
+from .citylot import holder
 from .common import header
 
 
@@ -90,9 +91,9 @@ def traffic_simulator(r):
     out['trips_6ec'] = (r.f32(), r.u32(), r.f32(), r.u32())
     out['u740'] = [r.u32() for _ in range(13)]
     out['u1b0'] = [r.u32() for _ in range(r.u32())]
-    n = r.u32()
-    if n:
-        raise struct.error('the map at +0xB8 has %d entries; their objects write themselves (not decoded)' % n)
+    # The map at +0xB8: the neighbour connections' holders (0x007153C0 makes
+    # them), each under its uint16 key, written by the holder's own Write.
+    out['connections_b8'] = [{'key': r.u16(), 'properties': holder(r)} for _ in range(r.u32())]
     out['by_type'] = [(r.u32(), r.u32()) for _ in range(9)]
     out['total_43c'] = r.u32()
 
