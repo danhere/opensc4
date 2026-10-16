@@ -140,6 +140,9 @@ for save in "$saves"/*/*.sc4; do
 done
 
 if [ "$jobs" = 1 ]; then
+    # One job uses OPENSC4_PARITY_ENV too (it used to fall back to the shared
+    # p4env folder, which another thread's batch may be using).
+    [ -z "${OPENSC4_PARITY_ENV:-}" ] || export OPENSC4_SAVE_ENV="$OPENSC4_PARITY_ENV/job0"
     for save in "${all_saves[@]}"; do
         parity_save "$save"
     done
