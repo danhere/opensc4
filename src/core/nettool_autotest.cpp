@@ -535,7 +535,10 @@ void MixLife(Hash& hash, char* self)
         hash.Mix(At<uint32_t>(self, at));
     MixWords(hash, At<Vector>(self, life::kBridgesBy99));
     MixWords(hash, At<Vector>(self, life::kBridgesBy98));
-    char* const filter = At<char*>(self, field::kFilter);
+    // Only Init sets the filter; the constructor leaves the word as it found
+    // it (a city whose tools were never initialised, such as a never-played
+    // tile, has a stray value there).
+    char* const filter = At<uint8_t>(self, field::kInitialized) ? At<char*>(self, field::kFilter) : nullptr;
     hash.Mix(filter ? At<uint32_t>(filter, 0xC) : 0xFFFFFFFFu);
     hash.Mix(At<void*>(self, life::kPreviewList) ? 1u : 0u);
     char* const drawable = At<char*>(self, field::kPreview);
