@@ -126,6 +126,58 @@ constexpr std::size_t kText = 0x04; // an SC4String (vtable 0x00A80810, body +0x
 constexpr std::size_t kSize = 0x18;
 } // namespace text_entry
 
+// What the query's windows by cell (0x004CC6E0, 0x004CCCB0) keep for
+// DoMessage (0x004D75B8) while their window runs: the walk with fill
+// (0x004CC660) at 0x00B21848, the window at 0x00B2184C and up to two cell
+// queries at 0x00B21840 and 0x00B21844; all cleared when the window ends.
+namespace window_cell {
+constexpr std::size_t kQueries = 2;
+} // namespace window_cell
+
+// A tract developer's record of one development attempt as the
+// development log (0x004CE440) reads it (the tract developer's map at
+// +0x17C, 0x00705FA0). +0x0 is an object whose slot 2 (string, 0) writes
+// the day it was made.
+namespace development_record {
+constexpr std::size_t kDeveloper = 0x08;    // the growth developer (its slot 6: the developer type)
+constexpr std::size_t kTractX = 0x0C;
+constexpr std::size_t kTractZ = 0x10;
+constexpr std::size_t kPopulation = 0x14;
+constexpr std::size_t kCapacity = 0x1C;
+constexpr std::size_t kMaxCapacity = 0x20;
+constexpr std::size_t kDesirability = 0x24;
+constexpr std::size_t kResources = 0x2C;   // construction resources
+constexpr std::size_t kAttempts = 0x30;    // a list (its sentinel) of build attempts (development_attempt)
+constexpr std::size_t kFailures = 0x34;    // 13 vectors (begin, end, end of buffer) of 28 counts, by outcome
+constexpr std::size_t kFailureRows = 13;
+} // namespace development_record
+
+// A build attempt: a list node of the record's +0x30 list.
+namespace development_attempt {
+constexpr std::size_t kNotFussy = 0x08;   // byte
+constexpr std::size_t kLotSizes = 0x0C;   // a red-black tree's header; each node's +0x10 object gives a size (slot 7)
+constexpr std::size_t kCandidates = 0x18; // a vector of candidate pointers (begin; end at +0x1C)
+constexpr std::size_t kCandidatesEnd = 0x1C;
+constexpr std::size_t kLotConfig = 0x28;  // the lot configuration chosen (0: none)
+constexpr std::size_t kWantMin = 0x30;
+constexpr std::size_t kWantMax = 0x34;
+constexpr std::size_t kOutcome = 0x38;    // 0 to 27 (0x004CDF80's names)
+} // namespace development_attempt
+
+// A candidate of a build attempt.
+namespace development_candidate {
+constexpr std::size_t kKind = 0x00;      // 1 refurbish, 2 build new, 3 aggregate, 4 subdivide
+constexpr std::size_t kX = 0x08;
+constexpr std::size_t kZ = 0x0C;
+constexpr std::size_t kSizeX = 0x14;     // byte
+constexpr std::size_t kSizeZ = 0x15;     // byte
+constexpr std::size_t kCapacity = 0x24;
+constexpr std::size_t kAbandoned = 0x28;
+constexpr std::size_t kScore = 0x34;     // float
+} // namespace development_candidate
+
+constexpr uint32_t kOutcomeCount = 28;
+
 // What Init loads for kind 1: the layout {0, 0x96A006B0, 0xABB0120F},
 // window 0x6BB92BCB (interface 0x22BA0121), and its two children that
 // become the tool's windows.
