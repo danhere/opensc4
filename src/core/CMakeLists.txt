@@ -248,6 +248,7 @@ add_library(opensc4_core SHARED
   nettool_satisfier_2.cpp
   nettool_puzzle.cpp
   nettool_resolve.cpp
+  nettool_under.cpp
   nettool_preview.cpp
   nettool_rul_1.cpp
   nettool_rul_2.cpp
