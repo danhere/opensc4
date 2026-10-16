@@ -4132,3 +4132,379 @@ name = "cSC4NetworkTool::TraceInitialText"
 address = 0x00AA8C04
 kind = "data"
 source = "Name ours. The C string 'ET: Initial' (as 0x00AA8BE8)."
+
+[[entry]]
+name = "SC4FloatRange::MinElement"
+address = 0x0062DB90
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 56 8B 74 24"
+source = "Name ours. (first, last): the first float no later one is below (only ordered compares); EAX it, first for an empty range. Called by 0x0062EEB0. Ours in simulators.nettool.bridgesort (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4FloatHeap::PushHeap"
+address = 0x0062DBD0
+kind = "function"
+convention = "cdecl"
+expect = "D9 44 24 10 53 8B 5C 24"
+source = "Name ours. (first, hole, top, a float value, an unread tag): the value moved up the heap while its parent (hole - 1) / 2 is below it and the hole is above top, then stored. Called by 0x0062EA20. Ours in simulators.nettool.bridgesort (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4DwordRange::CopyBackward"
+address = 0x0062DC30
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 57 8B 7C"
+source = "Name ours. (first, last, the destination's end): the words copied backwards; EAX the destination's new begin. Called by 0x0062EDF0 (it pushes five words). Ours in simulators.nettool.bridgesort (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4FloatSort::UnguardedPartition"
+address = 0x0062E9E0
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 08 8B 4C 24 04"
+source = "Name ours. (first, last, a float pivot, an unread tag): Hoare's partition without bounds; EAX the cut. Called by 0x006306D0. Ours in simulators.nettool.bridgesort (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4FloatHeap::AdjustHeap"
+address = 0x0062EA20
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 08 53 56 8B 74"
+source = "Name ours. (first, hole, len, a float value, tag): the hole moved down to the larger child, then PushHeap 0x0062DBD0 with the old hole as top. Called by 0x0062EC70, 0x0062EE50, 0x0062F6E0. Ours in simulators.nettool.bridgesort (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4FloatHeap::MakeHeap"
+address = 0x0062EC70
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 57 8B 7C"
+source = "Name ours. (first, last, tag): AdjustHeap for every parent from (len - 2) / 2 down. Called by 0x0062F6E0 (it pushes five words). Ours in simulators.nettool.bridgesort (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4FloatSort::LinearInsert"
+address = 0x0062EDF0
+kind = "function"
+convention = "cdecl"
+expect = "D9 44 24 0C 56 8B 74 24"
+source = "Name ours. (first, last, a float value, an unread tag): the value inserted into the sorted [first, last]: below the first, the range moved up through 0x0062DC30; else moved down from last. Called by 0x006307A0. Ours in simulators.nettool.bridgesort (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4FloatHeap::SortHeap"
+address = 0x0062EE50
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "Name ours. (first, last, tag): the heap sorted (the top swapped to the end, AdjustHeap on the rest). Called by 0x0062F6E0. Ours in simulators.nettool.bridgesort (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4FloatSort::PartialSort"
+address = 0x0062F6E0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 55 8B 6C"
+source = "Name ours. (first, middle, last, an unread word, tag): MakeHeap, the smaller later floats swapped in, SortHeap. Called by 0x006306D0. Ours in simulators.nettool.bridgesort (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4FloatSort::IntrosortLoop"
+address = 0x006306D0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 57 8B 7C"
+source = "Name ours. (first, last, an unread word, the depth, tag): STLport's introsort loop on floats (median of three, UnguardedPartition, itself on the right part; PartialSort when the depth runs out) down to 16 elements. Called by 0x006307A0 and itself. Ours in simulators.nettool.bridgesort (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PlaceBridgeCellOccupant"
+address = 0x0062EEB0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC F4 00 00 00 53 55"
+source = "Name ours. Ret 0x10 (a bridge cell, its cell info, the bridge record, a list or null): a bridge occupant (slot 54, kind 0x49CC1BCD) with its prebuilt model set up at the deck, its piece, flags and passage ceiling, its pier walls (0x00643B70), side walls (0x0062DF30) and cable parts (AddPart), the cell cleared when placing, into the occupant manager and the list. Called by 0x0062F610. Ours in simulators.nettool.bridges (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4BridgeCellVector::InsertOverflow"
+address = 0x006310F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B D9 8B 03"
+source = "Name ours. Ret 0x14 (the position, the value's address, an unread tag, a count, a byte: at the end), this a vector of 0x50-byte bridge cells: new memory for size + max(size, count), the cells and the count copies copy-constructed (0x006267D0), the old freed (0x0062BF20). Called by 0x006312C0 and 0x00632060. Ours in simulators.nettool.bridges (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4BridgeCellVector::PushBack"
+address = 0x006312C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 04 3B 4E"
+source = "Name ours. Ret 4 (the value's address), this a vector of 0x50-byte bridge cells: the cell copy-constructed at the end, or InsertOverflow 0x006310F0. Called by 0x00631300. Ours in simulators.nettool.bridges (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::BuildMajorBridgeCells"
+address = 0x00631300
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 74 01 00 00 8B 81"
+source = "Name ours. Ret 4 (a major bridge, 0x28 bytes): its cells (+0x1C, 0x50 bytes each): ramp pieces at both ends, pier pieces at the record's spacing, span pieces between, with turns, heights and wall flags; then the arch walls (0x0062E690) or the cables (0x00630F70). Called by 0x00632580 and 0x00632830. Ours in simulators.nettool.bridges (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::BridgeVertexPosition"
+address = 0x0062DB30
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 33 D2 8B"
+source = "Name ours. Ret 0xC (a vertex index, x out, z out): the vertex's x and z (index mod and div the tool's +0x248, unsigned, times +0x238). Called by 0x0062DF30. Drawing input, the game's (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::AddBridgeWallQuads"
+address = 0x0062DCB0
+kind = "function"
+convention = "cdecl"
+expect = "D9 44 24 0C 83 EC 0C D8"
+source = "Name ours. Four stack words plus EDI the occupant, ESI the vertices, EBX the UVs (a register convention): a wall quad's corners and UVs, four AddPart calls (slot 0x7C) with the index tables 0x00AA8900 to 0x00AA8924. Called by 0x0062DF30. Drawing, the game's (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::AddBridgeCellWalls"
+address = 0x0062DF30
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 8C 00 00 00 55 56"
+source = "Name ours. Ret 0x10 (an occupant, a bridge cell, its cell info, the bridge record): the side walls of an arch or suspension cell by its flags +0x40 (through 0x0062DCB0). Called by 0x0062EEB0. Drawing, the game's (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4BridgeCell::RaiseWallsAlongCurve"
+address = 0x0062E690
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 8B 54 24 18 8B"
+source = "Name ours. (the cells, the rows, the cells across, a float shape, a mode 0 start / 1 middle / 2 end): the cells' wall floats +0x2C to +0x38 raised to an exp() curve (x87 FLDL2E, FRNDINT, F2XM1, FSCALE). Called by 0x00631300 and 0x00632060. Drawing input, the game's (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4BridgeCell::AddCableSegmentParts"
+address = 0x006307A0
+kind = "function"
+convention = "cdecl"
+expect = "81 EC 94 00 00 00 53 8B"
+source = "Name ours. Seven arguments (the cells, the rows, the cells across, two points, a half height, a material): a cable segment cut at the cell lines (its floats sorted by 0x006306D0) and a 32-byte part appended to each cell's +0x44 vector. Called by 0x00630F70. Drawing, the game's (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4BridgeCell::AddCableParts"
+address = 0x00630F70
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 48 8B 44 24 5C D9"
+source = "Name ours. Ten arguments (the cells, the rows, the cells across, four points, the subdivisions, a half height, a material): the cable between two lines split into segments for 0x006307A0. Called by 0x00631300. Drawing, the game's (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4NetworkOccupantGeometry::AddSupportWallsA"
+address = 0x00643830
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 50 8B 44 24 58 8B"
+source = "Name ours. Three arguments (an occupant, two points): four AddPart quads (texture 0x00BB0200). Called by 0x00643FB0. Drawing, the game's (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4NetworkOccupantGeometry::AddSupportWallsB"
+address = 0x006439C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 50 8B 44 24 5C 8B"
+source = "Name ours. Ret 0x14 (an occupant, two points, a float, a float): four AddPart quads (texture 0x00BB0000). Called by 0x00643FB0. Drawing, the game's (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4NetworkOccupantGeometry::AddPierWalls"
+address = 0x00643B70
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 64 8A 44 24 74 84"
+source = "Name ours. Four arguments (an occupant, a top quad, a bottom quad of four (x, y, z) corners, a byte): the walls between them as AddPart quads (texture keys 0x08080000, 0x0912220E). Called by 0x0062EEB0 and 0x00643E10. Drawing, the game's (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "SC4NetworkOccupantGeometry::AddPierWallsFromCell"
+address = 0x00643E10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 6C 53 55 56 57 8B"
+source = "Name ours. Ret 0xC (an occupant, a cell info, a piece record): a pier from the occupant's corners down to the lowest terrain, through 0x00643B70. Called by 0x00643FB0. Drawing, the game's (src/core/nettool_bridge_a.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::BridgeRoundMagic"
+address = 0x00AA88F8
+kind = "data"
+source = "Name ours. The float 12582912.0 the bridge code adds to round a float to an integer by its bits (less 0x4B400000)."
+
+[[entry]]
+name = "cSC4NetworkTool::BridgeWaterMargin"
+address = 0x00A92688
+kind = "data"
+source = "Name ours. The double 0.01: how far below the water level 0x0062EEB0 splits a pier's walls (and other code's margin)."
+
+[[entry]]
+name = "cSC4NetworkTool::BridgeCornerByTurn"
+address = 0x00AA8960
+kind = "data"
+source = "Name ours. Four words {1, 0, 3, 2}: a bridge cell's corner by turn (0x00631300)."
+
+[[entry]]
+name = "SC4Vector32::CopyConstruct"
+address = 0x00624EA0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B 03 56"
+source = "Name ours. Ret 4 (the source vector), this a new vector of 32-byte elements: memory for the source's count (none for 0), the range copied by 0x0062E970 (the argument slot's address as tag); EAX this. Called by the bridge cell's copy constructor 0x006267D0 (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "SC4Vector32::UninitializedCopy"
+address = 0x0062E970
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 0C 56 8B 74 24"
+source = "Name ours. Four arguments (first, last, the destination, an unread tag): the 32-byte elements copied into uninitialized memory, skipped at a null destination; EAX the end. Called by 0x00624EA0, 0x00625270 and 0x006307A0 (template code, the game's)."
+
+[[entry]]
+name = "cSC4NetworkTool::LowestCellCorner"
+address = 0x0062E630
+kind = "function"
+convention = "thiscall"
+expect = "8B 01 83 EC 10 8D 14 24"
+source = "Name ours. ECX the terrain, two stack arguments (x, z) the caller pops (ret 0): the least of the cell's four corner heights (terrain slot 0x44) in ST0. Called by 0x0062FED0 (src/core/nettool_bridge_b.cpp, through a naked thunk)."
+
+[[entry]]
+name = "cSC4NetworkTool::RaiseMajorBridgeAltitude"
+address = 0x0062EA90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 54 24 0C 53"
+source = "Name ours. Ret 4 (a major bridge): its +0x10 set to the altitude override +0x204, then per step [first, last) raised to the last cell's height (terrain slot 0x48) plus the record's +0x5C over water (slot 0x88) or +0x78 when above. Called by FindMajorBridges 0x00632830 (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::StepCellsFitBridge"
+address = 0x0062EB80
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 8B D9 8B"
+source = "Name ours. Ret 8 (a step, a network type): AL 1 when each cell of the step has no cell info (0x00633220) or one with only the type's network flag (0x00AA88B8) and an edge word for the type inside the mask its place in the step and the drag's direction (+0x7C bit 1) give. Called by the bridge search (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::ExtendBridgeSpan"
+address = 0x0062ECD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 55 8B 6C 24"
+source = "Name ours. Ret 0x10 (a length, the first and last step's addresses, a network type): the span grown backwards (above step 1) and forwards (below +0x78) over regular fitting steps to the length; AL 1 when it had it, else 1 when it got it and ends below +0x74. Called by 0x0062F760 (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PickBridgeRecord"
+address = 0x0062F760
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 8B D1 8B 82 58"
+source = "Name ours. Ret 0x14 (the first and last step's addresses, a byte: 1 the water records +0x33C, 0 the land records +0x348, a depth float, a network type): the records (the preferred one only, +0x200) whose depth range +0xC8/+0xCC holds the depth and whose span lengths +0x4/+0x8 fit (0x0062ECD0) become the possible bridges +0x1F4; EAX the one whose shortest span is nearest, the span grown to it, or -1. Called by 0x00630570 and 0x00632580 (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "SC4BridgeCellVector::CopyConstruct"
+address = 0x0062FB00
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 55 8B 2B"
+source = "Name ours. Ret 4 (the source vector), this a new vector of 0x50-byte bridge cells: memory for the count, each cell copy constructed (0x006267D0) where the memory is not null; EAX this. Called by the major bridges' copies 0x00631200, 0x00631260, 0x006323E0 and 0x00632510 (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::CellsAreFree"
+address = 0x0062FDB0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 10 8B 4C 24 08"
+source = "Name ours. ESI the occupant manager (an LTCG convention), five cdecl arguments (a network occupant filter, x1, z1, x2, z2): AL 1 when the manager's slot 0xA0 finds no occupant through the filter in the rectangle one cell around the two cells, or the query fails. Called by the bridge search (src/core/nettool_bridge_b.cpp, through a naked thunk)."
+
+[[entry]]
+name = "cSC4NetworkTool::FitBridgeSpan"
+address = 0x0062FED0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 48 8B 44 24 4C 53"
+source = "Name ours. Ret 0x14 (the first and last step's addresses, the depth's address, the height's address, a network type): the deck height from the terrain's rises before and after the span (14 and 4 cell sizes, params +0x0), or the altitude override; the span grown while its next step stays below it; the water's depth under it. AL 1. Called by 0x00630570 (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::FindBridgeSpan"
+address = 0x00630570
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B 74 24 10 57"
+source = "Name ours. Ret 0x18 (a step, the first and last step's, the record index's and the height's addresses, a network type): the span over water around the step, then 0x0062FED0 and 0x0062F760 (water records, the depth); AL 1 with a record. Called by FindMajorBridges 0x00632830 (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "SC4MajorBridge::UninitializedCopy"
+address = 0x00631200
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. Four arguments (first, last, the destination, an unread tag): 0x28-byte major bridges copied (six words, the byte +0x18, the cells by 0x0062FB00), skipped at a null destination; EAX the end. Called by 0x006323E0 (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "SC4MajorBridge::UninitializedFill"
+address = 0x00631260
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. Four arguments (the destination, a count, the value, an unread tag): the count copies of a major bridge; EAX the end. Called by 0x006323E0 (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::LayBridgeCells"
+address = 0x00632060
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 94 00 00 00 53 55"
+source = "Name ours. Ret 8 (a major bridge, a layout: the record's int map node + 0x14): one 0x50-byte bridge cell per cell of its steps (piece, turn, deck height, corners from the layout's heights, pier floats and flags for pylon and end pieces), the pier groups shaped by 0x0062E690. Called by 0x00632580 and 0x00632830 (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "SC4MajorBridgeVector::InsertOverflow"
+address = 0x006323E0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. Ret 0x14 (where, the value, an unread tag, a count, an at-the-end byte), this the major bridges' vector: the STL insert into new memory (size + max(size, count)), the old elements destroyed (0x0062C590) and freed; EAX the new capacity's end. Called by 0x00632510 (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "SC4MajorBridgeVector::PushBack"
+address = 0x00632510
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 04 3B 46"
+source = "Name ours. Ret 4 (the value), this the major bridges' vector (+0xD8): in place, or 0x006323E0. Called by 0x00632580 and 0x00632830 (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::AddMinorBridge"
+address = 0x00632580
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 8B 54 24 54 8B"
+source = "Name ours. Ret 0x10 (the first step, the last step, a height float, a network type): a land record (0x0062F760, depth 0); with any occupant around the span (slot 0xA0, no filter) the possible bridges emptied and AL 0; else the steps marked irregular, a major bridge appended (byte +0x18 1) and its cells laid (0x00632060 or 0x00631300). AL 1. Called by FitMinorBridges 0x00632AD0 (src/core/nettool_bridge_b.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::StepTypeFlags"
+address = 0x00AA88B8
+kind = "data"
+source = "Name ours. 13 words, 1 shifted by the network type (as 0x00AA835C), read by 0x0062EB80."
+
+[[entry]]
+name = "cSC4NetworkTool::BridgeRiseFactor"
+address = 0x00A98F48
+kind = "data"
+source = "Name ours. Float 14.0: 0x0062FED0 multiplies the cell size (params +0x0) by it for its high rise limit."
+
+[[entry]]
+name = "cSC4NetworkTool::LowestFloat"
+address = 0x00AA88EC
+kind = "data"
+source = "Name ours. Float -FLT_MAX (0xFF7FFFFF), compared by 0x00632AD0."
+
+[[entry]]
+name = "cSC4NetworkTool::HighestFloat"
+address = 0x00AA88F0
+kind = "data"
+source = "Name ours. Float FLT_MAX (0x7F7FFFFF), compared by 0x00632AD0."
+
+[[entry]]
+name = "cSC4NetworkTool::LaidCellCornerByTurn"
+address = 0x00AA8970
+kind = "data"
+source = "Name ours. Four words (1, 0, 3, 2), the same as 0x00AA8960: the corner of a bridge cell that gets a step's first height, by the bridge's turn. Read by 0x00632060."
