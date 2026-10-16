@@ -113,8 +113,8 @@ namespace window_runner {
 constexpr std::size_t kCount = 0x04;    // the reference count
 constexpr std::size_t kProcedure = 0x08;
 constexpr std::size_t kTarget = 0x0C;
-constexpr std::size_t kWindow = 0x10;   // the window (referenced twice by the constructor)
-constexpr std::size_t kObject = 0x14;   // an object (referenced) set by slot 6, 0x004C4530
+constexpr std::size_t kWindow = 0x10;   // the procedure part it was made with (referenced twice); slot 3: the window
+constexpr std::size_t kObject = 0x14;   // an object (referenced) set by slot 6, 0x004C4530; 0x004D3C30's occupant
 constexpr std::size_t kSize = 0x18;
 } // namespace window_runner
 
@@ -130,9 +130,39 @@ constexpr std::size_t kSize = 0x18;
 // DoMessage (0x004D75B8) while their window runs: the walk with fill
 // (0x004CC660) at 0x00B21848, the window at 0x00B2184C and up to two cell
 // queries at 0x00B21840 and 0x00B21844; all cleared when the window ends.
+//
+// The query dialog of an occupant (0x004D3C30) keeps the same globals while
+// its window runs, but with the walk 0x004D3B40 at 0x00B21848 and the
+// occupant itself (referenced meanwhile) at 0x00B21840; 0x00B21844 is 0.
 namespace window_cell {
 constexpr std::size_t kQueries = 2;
 } // namespace window_cell
+
+// What the window runner's window procedure (0x004D3F40, the slot 3 of the
+// procedure part's vtable 0x00A90B58) is given as its message: a type, then
+// two dwords. Type 3 with 0x287259F6 ends the window (the third dword, 0 or
+// 1, is the answer); type 3 with 0x887113A3 says a slider (the control ID in
+// the third dword) moved.
+namespace window_message {
+constexpr std::size_t kType = 0x0;
+constexpr std::size_t kWhat = 0x4;
+constexpr std::size_t kData = 0x8;
+constexpr uint32_t kCommand = 3;
+constexpr uint32_t kEnd = 0x287259F6;
+constexpr uint32_t kSliderMoved = 0x887113A3;
+} // namespace window_message
+
+// A building profile as the building development service gives it for a
+// building type (its slot 39, GetBuildingProfile) and 0x004D3260 copies it
+// (SC4BuildingProfile::CopyConstruct 0x004D1230; 0x40 bytes, a vector at
+// +0xC the copy owns).
+namespace building_profile {
+constexpr std::size_t kPurpose = 0x00; // what the service's slot 30 takes with the wealth
+constexpr std::size_t kWealth = 0x04;
+constexpr std::size_t kVectorBegin = 0x0C;
+constexpr std::size_t kVectorEnd = 0x10;
+constexpr std::size_t kSize = 0x40;
+} // namespace building_profile
 
 // A tract developer's record of one development attempt as the
 // development log (0x004CE440) reads it (the tract developer's map at

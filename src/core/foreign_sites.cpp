@@ -29,6 +29,8 @@ std::vector<Site>& Sites()
         {0x006D7E50, 0x006D7EBE}, // SetUpGoals: commute-loop fix
         {0x006D7E50, 0x006D7EF0}, // SetUpGoals: commute-loop fix
         {0x006D91B0, 0x006D95B1}, // Search: vertical path separation
+        // Network Addon Mod DLL, query tool (docs/tools.md)
+        {0x004D07C0, 0x004D09D1}, // network traffic text: monorail in the rail table (dual network transit)
     };
     return sites;
 }

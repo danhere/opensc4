@@ -3462,7 +3462,7 @@ address = 0x004D3A90
 kind = "function"
 convention = "cdecl"
 expect = "8B 4C 24 08 F6 C5 10 75"
-source = "Name ours. (window, control ID, fill, about): the filler of the table 0x00A92488 for a control ID with the bit 0x1000 (index = the low 12 bits, below 0x7F), called with the four arguments; false for another ID, a null window or about, or a null entry. Still the game's; the Q1 autotest fills through it."
+source = "Name ours. (window, control ID, fill, about): the filler of the table 0x00A92488 for a control ID with the bit 0x1000 (index = the low 12 bits, below 0x7F), called with the four arguments; false for another ID, a null window or about, or a null entry. Ours in ui.tools.query6a (src/core/tool_query_6a.cpp); the Q1 to Q6 autotests fill through it."
 
 [[entry]]
 name = "SC4QueryTool::DeveloperOfLot"
@@ -3470,7 +3470,7 @@ address = 0x004D32D0
 kind = "function"
 convention = "cdecl"
 expect = "83 EC 1C 53 56 8B 74 24"
-source = "Name ours, a guess. (lot): the object (by its curves at +0x74 to +0x84 a growth developer) the map level functions 0x004C4750 to 0x004C4A30 take, found through the development service from the lot's building type; may be null. Still the game's; the Q1 autotest calls it."
+source = "Name ours, a guess. (lot): the object (by its curves at +0x74 to +0x84 a growth developer) the map level functions 0x004C4750 to 0x004C4A30 take, found through the development service from the lot's building type; may be null. Ours in ui.tools.query6a (src/core/tool_query_6a.cpp); the Q1 autotest calls it."
 
 [[entry]]
 name = "SC4QueryBarPainter::Vtable"
@@ -4723,3 +4723,267 @@ kind = "function"
 convention = "cdecl"
 expect = "A1 F0 18 B2 00 85 C0 C7"
 source = "Name ours. No arguments: the exit handler of 0x004CE440's static string (vtable set, buffer freed), given to atexit 0x009EF059. Called by address only."
+
+[[entry]]
+name = "SC4QueryTool::NetworkTrafficInfo"
+address = 0x004D07C0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC E8 00 00 00 56 8B"
+source = "Name ours (nam-dll: GetNetworkOccupantTrafficInfo). (title, text), ret 8; caller DoMessage 0x004D7160: for the network piece at +0x2C the title by its first type (network slot 22: 0, 1, 2, 3, 7, 6, 8, 9, 0xA, 0xB, 0xC) and per route kind of the type's table (roads, subway 7, rail 1) the traffic at its cell (occupant slot 11; traffic simulator slot 12 GetTrafficEdgeDensity with the panel's check box 0xEBB0F666) as lines 'name: count'; the game string 0x2BAAB5C0 when nothing. NAM (EnableDualNetworkTransitPatch) jumps at 0x004D09D1 to its own rail table: row in foreign_sites.cpp. Ours in ui.tools.query6a (src/core/tool_query_6a.cpp)."
+
+[[entry]]
+name = "SC4QueryTool::SetChildMoneyFloat"
+address = 0x004D0D30
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 40 53 56 33 DB 57"
+source = "Name ours. (window, control ID, double), plain ret; callers 0x004D10F0, 0x004D1190: the amount by the app's number formatter (app slot 38 with 0, its slot 19 with '%.2f') after the money sign (static string 0x00B21904) into the text control 0x212CDC1F; false without the window or the child. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillVacateReason"
+address = 0x004D0EE0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 81 EC B8 00"
+source = "Name ours. Filler 121 (window, ID, fill, occupant): with fill the text of an abandoned lot's vacate reason (lot slots 33 and 45; 1 to 4 and 6), the control shown when there is one and captioned; true; false without fill. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillPowerUnitCost"
+address = 0x004D10F0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 10 84"
+source = "Name ours. Filler 57 (and 50 through 0x004D3250); also called by the cell log 0x004D12A0: with fill a power plant's monthly cost (power slot 49) over its first figure of slot 33, as money with cents (0x004D0D30); true without fill. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillWaterUnitCost"
+address = 0x004D1190
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 0C 84"
+source = "Name ours. Filler 63: with fill a water producer's monthly upkeep (plumbing slot 26) over its production (slot 24), as money with cents (0x004D0D30); false when a slot says no; true without fill. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillPowerUnitCostJump"
+address = 0x004D3250
+kind = "function"
+convention = "cdecl"
+expect = "E9 9B DE FF FF CC CC CC"
+source = "Name ours. Filler 50: a five-byte jump to 0x004D10F0. Left the game's: a jump to a hooked function."
+
+[[entry]]
+name = "SC4QueryTool::LotWealth"
+address = 0x004D3260
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 40 56 8B 74 24 48"
+source = "Name ours. (lot), plain ret; callers 0x004D32D0, 0x004D3500, 0x004D4FD0, 0x004D5E30: with a building type (lot slot 46) the wealth (+4) of its building profile (development service slot 39, copied by 0x004D1230), else the occupant wealth (lot slot 41). Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::OccupantLevelText"
+address = 0x004D3470
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D 08 3D B4 00 8B 54"
+source = "Name ours. (occupant, level function, table of game strings, string), plain ret; callers the seven level fillers: for the occupant's lot and its developer (0x004D32D0) the level function's index into the table, loaded into the string (0x00603040). Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillWealthBar"
+address = 0x004D3500
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 20 84"
+source = "Name ours. Filler 83: with fill the picture control's window left edge set so the bar is a third of the lot's wealth wide (property 0x8ADC29D4 keeps the first left edge) and the control's value (0x004C3CA0) the occupant wealth over that wealth, at most 1; 1 without an occupant, lot or wealth; true without fill. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillLevelPollution"
+address = 0x004D3730
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 20 84"
+source = "Name ours. Filler 84: with fill and an occupant the text of 0x004C5C90's level (0x004D3470, table 0x00A90960); true. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillLevelGarbage"
+address = 0x004D37A0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 20 84"
+source = "Name ours. Filler 117: the same with 0x004C5D70. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillLevelThird"
+address = 0x004D3810
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 20 84"
+source = "Name ours. Filler 85: the same with 0x004C4890. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillLevelFifth"
+address = 0x004D3880
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 20 84"
+source = "Name ours. Filler 87: with fill and an occupant, for an abandoned lot with vacate reason 4 the game string 0x0A71FAD3, else 0x004C4A30's level with the table 0x00A9096C; true. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillLevelFourth"
+address = 0x004D3940
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 20 84"
+source = "Name ours. Filler 116: as filler 84 with 0x004C4930. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillLevelFirst"
+address = 0x004D39B0
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 20 84"
+source = "Name ours. Filler 89: as filler 84 with 0x004C4750. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillLevelSecond"
+address = 0x004D3A20
+kind = "function"
+convention = "cdecl"
+expect = "8A 44 24 0C 83 EC 20 84"
+source = "Name ours. Filler 90: as filler 84 with 0x004C47F0. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillChildren"
+address = 0x004D3AE0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 F6 C5 10 56"
+source = "Name ours. (child, ID, child window, occupant), plain ret: a window walk (window slot 32 callback, pushed at 0x004D3B27 and 0x004D3DEE): the filler with fill 1, else the same walk over the child's children; true. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::FillChildrenNotEdits"
+address = 0x004D3B40
+kind = "function"
+convention = "cdecl"
+expect = "51 56 8B 74 24 14 8B 06"
+source = "Name ours. (child, ID, child window, occupant), plain ret: as 0x004D3AE0 through 0x004D3A90 but text edits (0x231A1C57) and children of 0x8810 are left alone; kept at 0x00B21848 by 0x004D3C30 (0x004D3DC0) for DoMessage. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::ReadChildren"
+address = 0x004D3BD0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 F6 C5 10 56"
+source = "Name ours. (child, ID, child window, occupant), plain ret: as 0x004D3AE0 with fill 0 (the read back; pushed at 0x004D3C17 and 0x004D3E75). Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::DoQueryDialog"
+address = 0x004D3C30
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 4C 53 57 8B 7C 24"
+source = "Name ours (sc4-query-ui-hooks: DoQueryDialog, called by address). (occupant), plain ret, bool; callers 0x0040C9B0, 0x004D4140: the occupant's dialog (layout instance = property 0x2A499F85) with a window runner and the bar painter, filled (0x004D3AE0), run modal, read back (0x004D3BD0) when answered 0 (then true); the view's markers set to the occupant's meanwhile with a 330 ms cRZTimer (callback 0x004C4EE0). Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryWindowRunner::OnMessage"
+address = 0x004D3F40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 55 56 8B E9 8B"
+source = "Name ours. Slot 3 of the procedure part's vtable 0x00A90B58 (window, message), ret 8: for the runner's window, type 3: 0x287259F6 with 0 or 1 ends it (0x004C5690), true; 0x887113A3 for a slider: the cost line (0x004C6E00), the slider's function (property 0x6A8CC9D6, called with fill 0) and the IDs to fill again (property 0x0AB3F6DB); false. Ours in ui.tools.query6a."
+
+[[entry]]
+name = "SC4QueryTool::MoneySign"
+address = 0x00B21904
+kind = "data"
+source = "Name ours. A function-local static SC4String of 0x004D0D30 (the money sign, UTF-8 C2 A7; guard 0x00B21918 bit 1; exit handler 0x00A7B170)."
+
+[[entry]]
+name = "SC4QueryTool::MoneySignGuard"
+address = 0x00B21918
+kind = "data"
+source = "Name ours. The guard dword of 0x004D0D30's static string (bit 1)."
+
+[[entry]]
+name = "SC4QueryTool::MoneySignExit"
+address = 0x00A7B170
+kind = "function"
+convention = "cdecl"
+expect = "A1 08 19 B2 00 85 C0 C7"
+source = "Name ours. No arguments: the exit handler of 0x004D0D30's static string (vtable set, buffer freed), given to atexit 0x009EF059. Called by address only."
+
+[[entry]]
+name = "SC4QueryTool::LevelNames"
+address = 0x00A90960
+kind = "data"
+source = "Name ours. Three game strings (0x4A5FE266, 0x0A5FE260, 0xAA5FE249) the level fillers index by the level (0x004D3470); the fifth level's three follow at 0x00A9096C."
+
+[[entry]]
+name = "SC4QueryTool::LevelNamesFifth"
+address = 0x00A9096C
+kind = "data"
+source = "Name ours. Three game strings (0xAA71FAE3, 0x6A71FADC, 0x0A71FAD3) filler 87 indexes by the fifth level."
+
+[[entry]]
+name = "SC4ViewMarkers::F7D1AB0"
+address = 0x007D1AB0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 8B 2D 78 3D B4"
+source = "Name ours, not analysed. (occupant), ret 4: a method of the view's markers (city view slot 49); the marker kind of an occupant (bits from 0x00B43D98 slot 22 and 0x00B43D78 slot 7, ...), which 0x004D3C30 gives to 0x007D1D10. Called by address."
+
+[[entry]]
+name = "cRZTimer::SetCallback"
+address = 0x00932A4A
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 41 08 8B"
+source = "Name ours. (function, data), ret 8: stores the callback at +0x8 and its data at +0xC; true."
+
+[[entry]]
+name = "cRZTimer::Start"
+address = 0x00932CB8
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 33 DB 38 5E"
+source = "Name ours. (milliseconds, object), ret 8: when not running and with a callback, the interval (+0x14 when not 0) and the object (+0x24, referenced) taken and the timer registered with its timer server (+0x20, slot 3; real time)."
+
+[[entry]]
+name = "cRZTimer::Stop"
+address = 0x00932A12
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 1C 85 C0"
+source = "Name ours. No arguments, plain ret: unregisters the timer (+0x20 slot 4 with the handle +0x1C), lets go of the object at +0x24, clears the running flags +0x18 and +0x19; true."
+
+[[entry]]
+name = "SC4QueryTool::LogCell"
+address = 0x004D12A0
+kind = "function"
+convention = "cdecl"
+expect = "81 EC 54 02 00 00 53 55"
+source = "Name ours. (cell x, cell z), plain ret; callers 0x004D4825 and 0x004D4935 (in 0x004D4140, under its debug switch): the cell log. Opens Query.txt in the current directory (0x0092CEF6: emptied, binary), makes it the log sink 0x00B21850 and writes the cell and sim date, the lot (position, size, facing, state, condition, configuration, former occupants or construction state, jobs), the first building in the lot's box and the developer shares (0x004CF2B0), zone, altitude, land value, slope, power, water, landfill use, the network occupants with their neighbours (0x004C6A60), traffic volume, congestion and edge densities, and for zones 1 to 9 the desirability equations (0x004C9520) and the tract developer's last builds (0x004CE440); then flush, sink cleared. Ours in ui.tools.query6b (src/core/tool_query_6b.cpp)."
+
+[[entry]]
+name = "SC4FileLog::Construct"
+address = 0x0092CEF6
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 53 56 8B F1 83"
+source = "Name ours. (path, binary, byte, byte, append), ret 0x14: a file log of 0x18 bytes (vtable 0x00AD19F8; +0x8, +0x14, +0x15 the byte arguments, +0x10 an STLport ofstream of 0x118 bytes opened on the path with out, trunc or app, binary (0x0092CD8C)). Only caller 0x004D12BD (the query's cell log). Called by address."
+
+[[entry]]
+name = "SC4FileLog::Flush"
+address = 0x0092BCF7
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 10 E9 03 FD FF FF"
+source = "Name ours. No arguments: flushes the file log's stream (+0x10; 0x0092BA02). Slot 3 of vtable 0x00AD19F8; called directly at 0x004D30FC. Called by address."
+
+[[entry]]
+name = "SC4FileLog::Destroy"
+address = 0x0092B9C3
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 85 C0"
+source = "Name ours. No arguments: the file log's destructor: deletes its stream (closing the file), base vtable 0x00AD1998. Callers 0x004D316A and 0x0092BCDE. Called by address."
