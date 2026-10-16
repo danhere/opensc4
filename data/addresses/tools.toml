@@ -4987,3 +4987,99 @@ kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8B 46 10 85 C0"
 source = "Name ours. No arguments: the file log's destructor: deletes its stream (closing the file), base vtable 0x00AD1998. Callers 0x004D316A and 0x0092BCDE. Called by address."
+
+[[entry]]
+name = "SC4QueryTool::DescribePick"
+address = 0x004D4140
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours (sc4-query-ui-hooks: cSC4ViewInputControlQuery::DescribePick). (screen x, screen z, three cIGZStrings, debug byte), plain ret, frame aligned to 8; only caller OnMouseDownL 0x004D4F6F: picks at the point with the unmarked filter (0x004C4C90; else the view's ground point and the lot's building), plays the query sound (0x004C4F40, patched call 0x004D4406), runs the edge window, the query dialog (patched call 0x004D4494) or the cell window, prints a network piece's figures and the cell's debug texts (lot configuration, building, shares, demand, EQ/HQ, cell figures) into the three strings, the cell log 0x004D12A0 under the debug byte. sc4-query-ui-hooks sites: rows in foreign_sites.cpp. Ours in ui.tools.query7a (src/core/tool_query_7a.cpp)."
+
+[[entry]]
+name = "SC4QueryTool::OnMouseDownL"
+address = 0x004D4D70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 8B F1"
+source = "Name ours. Slot 16 of the main vtable (word 0x00A90AC8): (screen x, screen z, modifiers: 1 shift, 2 control), ret 0xC: timer stopped, pointer text cleared, tip hidden; shift: the automaton under the point to the vehicle manager (city slot 43, its slot 34) or the message 0x2ACD2CF3 to all, the group prop to the traffic network map (city slot 40, its slot 37); control: the residential simulator's slot 59 (a stub) at the ground cell over 4; +0x89 set; kind 1 the routes (0x004CAC50); else (no automaton) 0x004D4140 with the static strings 0x00B2185C/0x00B21870/0x00B21884 and the debug keys, slot 28 with 0; true. sc4-query-ui-hooks JMPs at 0x004D4EAA (back to 0x004D4F19 / 0x004D4F30): row in foreign_sites.cpp. Ours in ui.tools.query7a."
+
+[[entry]]
+name = "SC4QueryTool::DoMessage"
+address = 0x004D7160
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 14 01 00 00 55 56"
+source = "Name ours. Slot 3 of the target part's vtable 0x00A90A78 (word 0x00A90A84), this = tool + 0x28: (message), ret 4, false always. 0x0A456D95 the tip (by kind and occupant type: 0x004D0190, 0x004D07C0, 0x004D5E30, 0x004C3810, 0x004CF8A0, two titles; 0x004D6C70 for a pick without occupant; +0x94 adds the point; background and meter pictures to the info tip and 0x004C5BA0, else the view's pointer text slot 40); 0x0A456D96 the view's markers (0x007D20E0); 0x26D31EC2 clears +0x78; 0x66956814 every tenth day the running query window filled again (0x00B21840..0x00B2184C); 0x69247DC7 the route line remade (0x007DDC30, 0x004CA460); 0xA6B79602 OnMouseMove at the mouse (window manager slot 33). sc4-query-ui-hooks patches the calls at 0x004D7335, 0x004D7464, 0x004D747F, 0x004D74A8, 0x004D74BF: rows in foreign_sites.cpp. Ours in ui.tools.query7a."
+
+[[entry]]
+name = "SC4QueryTool::DebugText"
+address = 0x00B2185C
+kind = "data"
+source = "Name ours. A static SC4String ('Query' at start: 0x00A71F80, exit 0x00A7B0C0; the two others likewise at 0x00A71FC0 and 0x00A72000) OnMouseDownL gives 0x004D4140 as its first string ('Query cell (..)'); nothing reads it."
+
+[[entry]]
+name = "SC4QueryTool::DebugTextExtra"
+address = 0x00B21870
+kind = "data"
+source = "Name ours. The second static SC4String of OnMouseDownL's call of 0x004D4140 (shares and demand, EQ/HQ); nothing reads it."
+
+[[entry]]
+name = "SC4QueryTool::DebugTextExtra2"
+address = 0x00B21884
+kind = "data"
+source = "Name ours. The third static SC4String of OnMouseDownL's call of 0x004D4140 ('[Building ..] [Lot: ..]'); nothing reads it."
+
+[[entry]]
+name = "SC4QueryTool::UnmarkedFilterVtable2"
+address = 0x00A90B00
+kind = "data"
+source = "Name ours. The serializable part's vtable of the occupant filter 0x004D4140 makes at 0x004D42A2 (its filter vtable 0x00A90B18)."
+
+[[entry]]
+name = "SC4QueryTool::InsertText"
+address = 0x004D4F90
+kind = "function"
+convention = "thiscall"
+expect = "8B 11 8B 42 04 85 C0 56"
+source = "Name ours. (place out, pair), ret 8; this is a text map (header node, count); only caller 0x004D4FD0: the (number, string) pair put into the multimap after the entries of its number or lower (signed), through 0x004B6490 at the leaf found; the place out. Ours in ui.tools.query7b (src/core/tool_query_7b.cpp)."
+
+[[entry]]
+name = "SC4QueryTool::CollectLotTexts"
+address = 0x004D4FD0
+kind = "function"
+convention = "cdecl"
+expect = "81 EC 14 03 00 00 53 55"
+source = "Name ours. (lot, text map), plain ret; callers 0x004D5C90 and 0x004D6C70: what the lot's growth developer (0x004D32D0) makes of its cell as game strings put into the map under numbers: the lot's property 0x8999B20B (90), power needed and not there (100), the pollution and garbage levels at 2, the first three map levels at 0 or 2, by zone (jump table 0x004D5C6C) the fourth and fifth, the state (constructing or vacant, 0) and former occupants poorer than the lot is built for (1). Ours in ui.tools.query7b."
+
+[[entry]]
+name = "SC4QueryTool::AppendLotTexts"
+address = 0x004D5C90
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 0C 53 56 33 DB 6A"
+source = "Name ours. (occupant, text), plain ret; caller 0x004D5E30: for the occupant's lot (lot manager slot 14) the texts of 0x004D4FD0 in a map of its own, the three of the highest numbers appended to the text, each after a line end when the text is not empty; the map freed. Ours in ui.tools.query7b."
+
+[[entry]]
+name = "SC4QueryTool::GetBuildingOccupantTipInfo"
+address = 0x004D5E30
+kind = "function"
+convention = "thiscall"
+expect = "81 EC F4 00 00 00 53 55"
+source = "Name ours (sc4-query-ui-hooks calls it RealGetBuildingOccupantTipInfo, by address). (title, text, background picture out, meter picture out, meter share out), ret 0x14; caller DoMessage 0x004D7464 (a call the mod patches): the hover tip of the building at +0x2C. With the debug keys the exemplar name and debug texts; else the building's name as the title and by its first purpose (property 0xAA1DD396) background and meter pictures, a meter share and the R, C or I developer type's text; then 0x004D5C90. Ours in ui.tools.query7b."
+
+[[entry]]
+name = "SC4QueryTool::GetCellTipInfo"
+address = 0x004D6C70
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 20 02 00 00 56 8D"
+source = "Name ours. (title, text), ret 8; caller DoMessage 0x004D74DD: the tip of the cell under the ground point (+0x7C, +0x84): nothing over water (terrain slot 34), else the title 0x6A5BBCA6, the zone's text (jump table 0x004D7120; zones 0 and 15 set the title) and for a lot at the cell the three texts of 0x004D4FD0 of the highest numbers. Ours in ui.tools.query7b."
+
+[[entry]]
+name = "SC4TextMultimap::InsertNode"
+address = 0x004B6490
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 56 57 8B"
+source = "Name ours. (place out, child, parent, pair, 0), ret 0x14: the STLport tree insert of a map of number and SC4String (node 0x28 bytes by 0x004B63A0, rebalanced by 0x0040D5E0, count +1); the node out. Callers in 0x004B6xxx (another class) and 0x004D4F90. Called by address."

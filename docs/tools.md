@@ -1,6 +1,6 @@
 # The city view's tools
 
-The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool, the level terrain tool, the dispatch tool, the sign removal tool, the Life tool, the label tool, the sign tool, the terraform tool, the obliterate tool, the effect trigger tool, the common disaster tool and the fire (torch) disaster tool. The query tool is partly ours (Q1 to Q5, 187 of its 223 functions). Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
+The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool, the level terrain tool, the dispatch tool, the sign removal tool, the Life tool, the label tool, the sign tool, the terraform tool, the obliterate tool, the effect trigger tool, the common disaster tool and the fire (torch) disaster tool. The query tool is ours (Q1 to Q7, 218 functions) but for what its pieces left the game's: drawing, containers and folded helpers with callers outside the class, each listed in its piece. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
 
 | Tool | State |
 | --- | --- |
@@ -21,7 +21,7 @@ The view input controls that the city view makes current while the player holds 
 | Effect trigger tool | ours (`ui.tools.disaster_effect`, below) |
 | Common disaster tool | ours (`ui.tools.disaster`, below) |
 | Fire (torch) disaster tool | ours (`ui.tools.disaster_fire`, below) |
-| Query tool | still the game's overall; Q1 to Q6, 210 of its 223 functions, are ours (`ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, `ui.tools.query3a`, `ui.tools.query3b`, `ui.tools.query4a`, `ui.tools.query4b`, `ui.tools.query5a`, `ui.tools.query5b`, `ui.tools.query6a`, `ui.tools.query6b`, below) |
+| Query tool | ours but for what its pieces left the game's; Q1 to Q7, 218 functions, are ours (`ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, `ui.tools.query3a`, `ui.tools.query3b`, `ui.tools.query4a`, `ui.tools.query4b`, `ui.tools.query5a`, `ui.tools.query5b`, `ui.tools.query6a`, `ui.tools.query6b`, `ui.tools.query7a`, `ui.tools.query7b`, below) |
 | Base class | ours (`ui.tools.base`, below) |
 
 ## The tool classes
@@ -46,7 +46,7 @@ Every city tool is a view input control: a class on the base class below, with a
 | Label tool (text decals on the ground, command 0x0B980587) | 0x004BD230 | 0x00A90528 | 0x44 | 0x004BC980 to 0x004BDAFC | 16 | ours (`ui.tools.decal`, below) |
 | Level-a-rectangle terrain tool | 0x004BDC60 | 0x00A905C0 | 0x58 | 0x004BDB00 to 0x004BDEBC | 8 | ours (`ui.tools.small2`, below) |
 | Lot (plop) | 0x004C0430 | 0x00A90738 | 0x158 | 0x004BDF70 to 0x004C36C0 | 36 | ours (`ui.tools.plop1` to `plop3`, below) |
-| Query tool (`cSC4ViewInputControlQuery`; strings Query.txt, "Query cell (%d, %d)") | 0x004C4590 | 0x00A90A88 | 0xA0 | 0x004C3730 to 0x004D767F | 223 | partly ours: 210 functions (0x004C3730 to 0x004D4140, `ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, `ui.tools.query3a`, `ui.tools.query3b`, `ui.tools.query4a`, `ui.tools.query4b`, `ui.tools.query5a`, `ui.tools.query5b`, `ui.tools.query6a`, `ui.tools.query6b`, below); the other 13 are still the game's; not a network tool |
+| Query tool (`cSC4ViewInputControlQuery`; strings Query.txt, "Query cell (%d, %d)") | 0x004C4590 | 0x00A90A88 | 0xA0 | 0x004C3730 to 0x004D767F | 223 | ours but for what its pieces left: 218 functions (0x004C3730 to 0x004D767F, `ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, `ui.tools.query3a`, `ui.tools.query3b`, `ui.tools.query4a`, `ui.tools.query4b`, `ui.tools.query5a`, `ui.tools.query5b`, `ui.tools.query6a`, `ui.tools.query6b`, `ui.tools.query7a`, `ui.tools.query7b`, below); the 223 is the survey's count, and the pieces' 218 include functions it did not list (such as 0x004C44E0 and 0x004CB880), so the functions left are those each piece lists, not 223 minus 218; not a network tool |
 | Sign removal tool (removes signs; the survey had called it a pick tool) | 0x004D76F0 | 0x00A928A0 | 0x30 | 0x004D7680 to 0x004D7AE2 | 8 | ours (`ui.tools.signpick`, below) |
 | Sign tool (places signs, drags them and edits their text; the survey had called it a sign text tool) | 0x004D7F00 | 0x00A92968 | 0x80 | 0x004D7AF0 to 0x004D8ABA | 16 | ours (`ui.tools.signtext`, below) |
 | Terraform tool (the terrain brush tool) | 0x004D9430 | 0x00A92A10 | 0x130 | 0x004D8AC0 to 0x004D9E50 | 22 | ours (`ui.tools.brush`, below) |
@@ -60,7 +60,7 @@ Every city tool is a view input control: a class on the base class below, with a
 
 The network tools are the last two rows, at 0x00660C30 to 0x006625F0. The range 0x004C3730 to 0x004D767F belongs to the query tool.
 
-The classes that are not ours, apart from the two network tools, come to about 60 functions: the rest of the query tool (13 functions, Q7; the KB figures in this paragraph were not redone for Q2 to Q6, so they are too high; the 84 KB is the figure before them), the U-Drive control (45 functions, T7 and T8) and the two functions of the cheat tool that stay the game's. The 84 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions), about 9 KB for the terraform and obliterate tools (40 functions) and about 6 KB for the three disaster tools (33 functions) and about 7 KB for the first piece of the query tool (57 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
+The classes that are not ours, apart from the two network tools, come to about 60 functions: what the query tool's pieces left (the KB figures in this paragraph were not redone for Q2 to Q7, so they are too high; the 84 KB is the figure before them), the U-Drive control (45 functions, T7 and T8) and the two functions of the cheat tool that stay the game's. The 84 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions), about 9 KB for the terraform and obliterate tools (40 functions) and about 6 KB for the three disaster tools (33 functions) and about 7 KB for the first piece of the query tool (57 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
 
 ## The base class
 
@@ -2176,7 +2176,7 @@ Parity (batch q5b1, 7 days, B list of 143 groups): plain 12/12, test day 2 12/12
 
 ## The query tool, sixth piece
 
-Q6 is 23 functions in the range 0x004D07C0 to 0x004D4140 (the function list has 25 there; the left ones are below). Two groups, off by default, PostAppInit, detours at the game's entries: `ui.tools.query6a` (22 functions, src/core/tool_query_6a.cpp) and `ui.tools.query6b` (1 function, src/core/tool_query_6b.cpp: the cell log). Nothing in the range is drawing. The remaining 13 functions (Q7, 0x004D4140 to 0x004D767F) are still the game's and call these by address.
+Q6 is 23 functions in the range 0x004D07C0 to 0x004D4140 (the function list has 25 there; the left ones are below). Two groups, off by default, PostAppInit, detours at the game's entries: `ui.tools.query6a` (22 functions, src/core/tool_query_6a.cpp) and `ui.tools.query6b` (1 function, src/core/tool_query_6b.cpp: the cell log). Nothing in the range is drawing. The last piece, Q7 (0x004D4140 to 0x004D767F, 8 functions), follows below.
 
 | Address | Name | What it does |
 | --- | --- | --- |
@@ -2252,7 +2252,7 @@ Trials, on Big City d0000 with `OPENSC4_TEST_Q6=2` for 7 days:
 
 Parity with NAM (batch q6b2, 7 days, test day 2, NAM 1.4.1 in the job folders' Plugins): NAM loaded with the patch off 12 of 12; NAM with the patch on 10 of 12 plus 2 failed. In the patch-on leg every B run logged the leave line for 0x004D07C0. The two failures (Rush Hour d0000 and d0365) are B runs that died while the city loaded, before any test code: one crash in ntdll (null read) on another thread, one silent exit. They are not Q6's. In 20 single runs on Rush Hour d0000 with NAM (5 each), the original, all groups ours and the Q6 groups alone finished every time. The B list from before Q6 (no Q6 group) failed once the same way (ntdll+0x4E728, null read). Every run that finished had the same fingerprint. So some group merged before Q6 sometimes breaks the city load when NAM is loaded. No NAM patch site lies in a function that list hooks, apart from 0x004D07C0 (left to the game) and the plop tool's ScoreSide 0x004BE5D0 (dirt-road access patch, off in NAM's default ini). Open: which group, and why.
 
-sc4-query-ui-hooks wraps the calls at 0x004D4494 and 0x0040CA7A in a function that calls 0x004D3C30 by address (RealDoQueryDialog). That reaches our entry hook, so DoQueryDialog works with that mod in principle. No patch site is inside Q6, and no wrapper in `src/core/game_*.cpp` and no return-address test touches the range. The mod itself was not run.
+sc4-query-ui-hooks wraps the calls at 0x004D4494 and 0x0040CA7A in a function that calls 0x004D3C30 by address (RealDoQueryDialog). That reaches our entry hook, so DoQueryDialog works with that mod in principle. No patch site is inside Q6, and no wrapper in `src/core/game_*.cpp` and no return-address test touches the range. The mod itself was not run in the Q6 trials; the Q7 trial ran it (see "The query tool, seventh piece").
 
 If a run dies in the query window after these groups are on, drop 0x004D3C30 first; if it dies on a panel, drop 0x004D3A90.
 
@@ -2284,3 +2284,128 @@ Tokens: Making Money d0090 845CCC93, Big City d0000 A42352A7, Rush Hour d0090 B9
 First pass, on Making Money d0090, Big City d0000 and Rush Hour d0090, with the test and never run: the original twice (A1, A2), all groups ours (B) and only `ui.tools.base` with the Q6 groups ours (M) were identical everywhere, except one case: Rush Hour d0090 with the test on (no commit), M, whose `adv` part differed on 3 days. A second pass was identical. The fingerprint without the token is the same with the test and without it on all three saves.
 
 Parity (batch q6b1, 7 days, B list of 146 groups): plain 12 of 12, test day 2 12 of 12, test day 5 11 of 12 plus 1 failed, plopped 3 of 3, all same on the first pair. The failed one is Big City d0000: the original (A) run exited silently while the city loaded, the known rare load exit; the pair rerun in batch q6b2 was the same. Batch q6b2: test day 2 with `OPENSC4_TEST_Q6_COMMIT=1` 12 of 12.
+
+## The query tool, seventh piece
+
+Q7 is 8 functions in the range 0x004D4140 to 0x004D767F (all 8 in the function list). Two groups, off by default, PostAppInit, detours at the game's entries: `ui.tools.query7a` (3 functions, src/core/tool_query_7a.cpp: the pick description, the mouse press and the message handler, the three that sc4-query-ui-hooks patches) and `ui.tools.query7b` (5 functions, src/core/tool_query_7b.cpp: the building and cell tips and a lot's level texts). Nothing in the range is drawing. With Q7 every function of the query tool's range is ours except what Q1 to Q6 listed as left (drawing, containers, folded helpers and jumps, listed in each piece's "Left the game's"). The range ends at 0x004D767F; the sign removal tool (`ui.tools.signpick`) starts at 0x004D7680.
+
+| Address | Name | What it does |
+| --- | --- | --- |
+| 0x004D4140 | DescribePick (cdecl (x, z, three cIGZString*, debug byte), plain ret) | Describes what is under a screen point: picks with the unmarked occupant filter (0x004C4C90; else the view's ground point and the lot's building), plays the query sound (0x004C4F40), runs the edge window, the query dialog or the cell window (Q5, Q6), prints a network piece's figures and the cell's debug texts (lot configuration, building, shares, demand, EQ/HQ, cell figures) into the three strings, and under the debug byte writes the cell log (0x004D12A0, Q6). Only caller is OnMouseDownL |
+| 0x004D4D70 | OnMouseDownL (thiscall (x, z, modifiers), ret 0xC; main vtable slot 16) | Stops the timer, clears the pointer text, hides the tip. With shift: the automaton under the point goes to the vehicle manager (city slot 43, its slot 34) or the message 0x2ACD2CF3 goes to all, and a group prop goes to the traffic network map (city slot 40, its slot 37). With control: the residential simulator's slot 59 (a stub) at the ground cell. Sets +0x89. Kind 1 shows the routes (0x004CAC50); otherwise, with no automaton, it calls DescribePick with three static strings and the debug keys. Returns true |
+| 0x004D4F90 | InsertText (thiscall (place out, pair), ret 8) | Puts a (number, string) pair into the text multimap after the entries of its number or lower (signed), through SC4TextMultimap::InsertNode 0x004B6490. Only caller is CollectLotTexts |
+| 0x004D4FD0 | CollectLotTexts (cdecl (lot, map)) | What the lot's growth developer makes of its cell, as game strings under numbers: the lot's property 0x8999B20B (90), power needed and not there (100), the pollution and garbage levels (2), the first three map levels (0 or 2), by zone the fourth and fifth, the state (constructing or vacant, 0) and former occupants poorer than the lot is built for (1) |
+| 0x004D5C90 | AppendLotTexts (cdecl (occupant, text)) | For the occupant's lot (lot manager slot 14), the three texts with the highest numbers from CollectLotTexts appended to the text, each after a line end when the text is not empty |
+| 0x004D5E30 | GetBuildingOccupantTipInfo (thiscall (title, text, background out, meter out, share out), ret 0x14) | The hover tip of the building at +0x2C. With the debug keys: the exemplar name and debug texts. Otherwise the name as the title and, by the building's first purpose (property 0xAA1DD396), a background picture, a meter picture, a meter share and the R, C or I developer type's text; then AppendLotTexts |
+| 0x004D6C70 | GetCellTipInfo (thiscall (title, text), ret 8) | The tip of the cell under the ground point (+0x7C, +0x84): nothing over water (terrain slot 34), else the title 0x6A5BBCA6, the zone's text (jump table 0x004D7120; zones 0 and 15 set the title) and, for a lot at the cell, the three highest texts of CollectLotTexts |
+| 0x004D7160 | DoMessage (thiscall (message), ret 4; this = tool + 0x28, slot 3 of the target part's vtable 0x00A90A78) | The tool's message handler, always false. Handles the six messages below |
+
+The thiscall functions are hooked as `__fastcall` with a dummy EDX. DoMessage's object is the target part, the tool plus 0x28. The convention of GetBuildingOccupantTipInfo matters because sc4-query-ui-hooks calls it by address (below).
+
+The six messages (src/core/tool_query.h, namespace `message`):
+
+| Message | What DoMessage does |
+| --- | --- |
+| 0x0A456D95 | The tip, while +0x78 is set: by the tool's kind and the occupant's type it calls RouteSummary 0x004D0190, NetworkTrafficInfo 0x004D07C0, GetBuildingOccupantTipInfo, OccupantName 0x004C3810 or NetworkName 0x004CF8A0, or two fixed titles, and GetCellTipInfo for a pick without an occupant. With +0x94 set it adds the point. The background and meter pictures go to the info tip and to ShowTip 0x004C5BA0, otherwise the text goes to the view's pointer text (slot 40) |
+| 0x0A456D96 | The view's markers again (0x007D20E0) |
+| 0x26D31EC2 | Clears +0x78 |
+| 0x66956814 | Every tenth day, the running query window is filled again (the globals 0x00B21840 to 0x00B2184C) |
+| 0x69247DC7 | The route line made again (0x007DDC30, 0x004CA460) |
+| 0xA6B79602 | The view changed: OnMouseMove at the mouse position (window manager slot 33) |
+
+### What the functions do that a caller relies on
+
+- DescribePick has no caller but OnMouseDownL, and nothing of ours calls OnMouseDownL or DoMessage directly: they are reached through their vtable slots (words 0x00A90AC8 and 0x00A90A84).
+- OnMouseDownL passes DescribePick the debug byte from DebugKeysDown (0x004C4700): the application's slot 21 and Shift, Control and Alt all held. Unattended it is 0.
+- Every call from our code to a function with a mod patch inside goes through the game's entry: OnMouseDownL calls DescribePick by address, DoMessage calls NetworkTrafficInfo (0x004D07C0, NAM's site, Q6) by address.
+- DoMessage's day path reads the window and the walk from the globals only after the first query and does not test them again.
+
+### Left the game's
+
+- The jump tables 0x004D5C6C (3 dwords) with its index bytes 0x004D5C78 (9 bytes: zones 1 to 3, 4 to 6, 7 to 9) in CollectLotTexts, and 0x004D7120 (16 dwords, by zone) in GetCellTipInfo. The translations are switches.
+- TextPairCopy 0x004CCF20 (a folded pair copy with outside callers, left in Q5) is called by address.
+- Nothing else in the range. The functions Q1 to Q6 left are in their own lists.
+
+### Behaviour as the game has it, kept
+
+- DescribePick makes a school record (0x00414210) and frees it unused for every building. The lot from lot manager slot 6 is not used. The second string's EQ/HQ AppendRange uses the body pointer taken at the start. The third string gets the first string's old text when that was longer than 10 characters. In the "no building" branch the test begin != end on a fresh empty string never holds.
+- OnMouseDownL calls through null when there is no memory for the message. The cell z of the control path is written into the modifier argument's slot.
+- GetBuildingOccupantTipInfo assigns the title twice in the non-debug path.
+- Stack leftovers made 0 in ours: OnMouseDownL's ground point when view slot 36 fails; DescribePick's ground point (read only after a successful pick or slot 8); DoMessage's mouse position when slot 33 does not write.
+- Shares are computed as doubles, as the game's x87 does (the police share multiplies an unsigned integer by a float and truncates).
+
+### New layouts
+
+In src/core/tool_query.h: the namespace `message` (the six IDs above) and field comments (+0x78 the tip shows while set, +0x89 set by OnMouseDownL, +0x94 DoMessage adds the point to the tip). No field renamed. The text multimap (header node colour +0x0, parent +0x4, the string's end +0x1C, node size 0x28; the map on the stack is the header and a count) is described only in tool_query_7b.cpp, because nothing else uses it. New data names in data/addresses/tools.toml: SC4QueryTool::DebugText, DebugTextExtra and DebugTextExtra2 (0x00B2185C, 0x00B21870, 0x00B21884; static strings OnMouseDownL gives DescribePick, written and never read), UnmarkedFilterVtable2 0x00A90B00 (the serializable part of the occupant filter DescribePick makes at 0x004D42A2; its filter vtable is 0x00A90B18) and SC4TextMultimap::InsertNode 0x004B6490.
+
+### Fillers and the city
+
+DescribePick runs the query dialog and the windows, so the same rule as Q6 holds: its dialog's fill walk reaches filler 1 (the road access cache, Q1), and its read-back after an answer of 0 reaches the rename, funding and historical fillers. So the test runs it only under `OPENSC4_TEST_Q7_COMMIT=1`, and the commit legs are compared A against B only. Shift clicks (part 16) can leave the vehicle manager following an automaton (0x00B21B8C) and can send 0x2ACD2CF3 to all, so they are opt-in. The other functions change no city state; DoMessage writes only +0x78 of the tool (message 0x26D31EC2).
+
+### Clocks and random numbers
+
+No random numbers, no clock, no stopwatch. Real input only: DoMessage's 0xA6B79602 reads the mouse (window manager slot 33), OnMouseDownL's DebugKeysDown reads the keyboard, and DescribePick's modal windows wait for the player (and DoQueryDialog has its own 330 ms real-time timer, Q6). The tip shown by ShowTip goes to the mouse (Q2). Message 0x66956814 reads the sim date (clock slot 26, sim time). Which automaton a shift click finds is frame driven.
+
+### Mods
+
+sc4-query-ui-hooks (release v2.7.1) patches inside all three functions of `ui.tools.query7a`. It installs everything at its director's OnStart, before our PostAppInit. `foreign_sites.cpp` has all 8 rows, under the comment "sc4-query-ui-hooks, query tool":
+
+| Function | Site | Patch | When installed |
+| --- | --- | --- | --- |
+| DescribePick | 0x004D4406 | CALL of the query sound (0x004C4F40) | only with `EnableOccupantQuerySounds=false` |
+| DescribePick | 0x004D4494 | CALL of the query dialog (0x004D3C30) | always |
+| OnMouseDownL | 0x004D4EAA | JMP (shift click copies an occupant) | always |
+| DoMessage | 0x004D7335 | CALL of the terrain text (Sprintf 0x0090F574) | always |
+| DoMessage | 0x004D7464 | CALL of a building's tip (0x004D5E30) | always |
+| DoMessage | 0x004D747F | CALL of flora's tip (OccupantName 0x004C3810) | always |
+| DoMessage | 0x004D74A8 | CALL of a network piece's tip (NetworkName 0x004CF8A0) | always |
+| DoMessage | 0x004D74BF | CALL of a prop's tip (OccupantName) | always |
+
+The mod also patches a call at 0x0040CA7A, which is in 0x0040C9B0, not the query tool, so there is no row for it. The "always" and "only with" columns are the author's reading of the mod; the trial below ran with the default ini, so 0x004D4406 was not exercised.
+
+In the game the CALL sites are `E8` to a target inside the exe and 0x004D4EAA is `F6 44 24 2C 02` (a byte test, not E8 or E9), so with no mod no row matches. With the mod the sites are E8 or E9 to the plugin's DLL, `foreign_sites` names the DLL, and the hook layer leaves that function to the game and logs it. All eight hooks of Q7 go through `hook::Install` as an entry detour (as Q1 to Q6, including the tool's own vtable slots), which is where the check is made; no hook here is a vtable-kind install that would bypass it. Nothing in `src/core/game_*.cpp` wraps the range and no return-address test touches it.
+
+What the mod calls by address: 0x004D5E30 (as RealGetBuildingOccupantTipInfo, thiscall (this, title, text, background, meter, share), the same signature as ours), 0x004D3C30 (RealDoQueryDialog, Q6), 0x004CF8A0 and 0x004C3810. These reach whatever is at those entries, ours when the groups are on. One effect of the mod's JMP at 0x004D4EAA: it replaces OnMouseDownL's control test, so with the mod a control click of the kind 0 tool goes down its own path (only the shift case does something, then straight to the end at 0x004D4F30, with +0x89 left 1). OnMouseDownL is the game's then, so that path is the mod's.
+
+The mod is installed only in the test folders `%LOCALAPPDATA%\opensc4\p4env-q7mod` (the trial folder's Plugins); the game install stays free of mods. Version 2.7.1 was downloaded as its release.
+
+Trial, on Big City d0000 with `OPENSC4_TEST_Q7=2`, no commit, with the mod (2.7.1) in the test folder: A and B both finished, with the same fingerprint (0a5e7fbe) and the same query7 token (B2560C72), all sub-hashes equal. B logged the leave lines, one for each function:
+
+- `hook: leaving SC4QueryTool::DescribePick at 0x004D4140 ... SC4QueryUIHooks.dll at 0x004D4494 (CALL ...)`
+- `hook: leaving SC4QueryTool::OnMouseDownL at 0x004D4D70 ... at 0x004D4EAA (JMP ...)`
+- `hook: leaving SC4QueryTool::DoMessage at 0x004D7160 ... at 0x004D7335 (CALL ...)`
+
+The five functions of `ui.tools.query7b` and the Q6 functions stayed installed, and the mod reached them by address. The mod's log read "SC4QueryUIHooks v2.7.1 / Installed the query UI hooks. / Registered the null45_query_ui_extensions.get_property_value function." The tokens differ from a mod-free run (the plugin's tip texts change the messages and click parts), which is expected: compare mod runs only with mod runs. This is the first project run with this plugin, and it shows the leave logic and the by-address calls work. It does not show the plugin's own features (the shift-click copy, the custom tips) working, which need clicks by hand.
+
+If a run dies in a tip after these groups are on, drop the DoMessage hook first (it reaches the 7b functions); if it dies on a click, drop 0x004D4D70.
+
+## The query tool, seventh piece: test
+
+`OPENSC4_TEST_Q7=<day>` (src/core/tool_q7_autotest.cpp, token ` query7` in the fingerprint line, order 28, day hook 67, sub-hashes on the log lines `autotest: query7: ...`). It calls only the game's addresses and vtable slots, never our functions.
+
+`OPENSC4_TEST_Q7_PARTS=<bits>` (default 7; 15 with `OPENSC4_TEST_Q7_COMMIT=1`; 16 only when asked):
+
+- 1 DoMessage on the kind 0 and kind 1 tools the view makes (commands 0x6A935CF3 and 0x6A935CF4): the tip message for no occupant (+0x88 clear and set, at 6 places), up to 6 buildings, one network piece per type, 2 flora, 2 props, a power pole and a landfill, each with +0x94 off and on (the view's slots 40 and 41 are patched to recorders that do nothing else, and the info tip is reset before and read back after); then the tip with +0x78 clear, 0x0A456D96, 0x26D31EC2 (+0x78 hashed), a message of no meaning, 0x66956814 with a stand-in window and 2, 1 and 0 stand-in queries in the four globals (restored; it acts only when the day number ends in 0, and the day is logged), 0x69247DC7 (kind 1, after ShowRoutes made a line; line points counted) and 0xA6B79602 with the window manager's slot 33 patched to 4 fixed points.
+- 2 The `ui.tools.query7b` functions on the kind 0 tool: GetBuildingOccupantTipInfo and AppendLotTexts for the building of every lot (up to 300; the outs preset to sentinels 0xA5A5A5A5 and 0.25), GetCellTipInfo at the sample's cells, the pieces' cells, the middle, 0/0 and every 7th cell.
+- 4 OnMouseDownL on the kind 1 tool with nothing, 4 buildings and the network pieces at +0x2C, with modifiers 0 and 4, and control (2) with the view's slot 36 patched to 5 fixed ground points; OnMouseUpL after each.
+- 8 (commit) DescribePick over a 5 by 4 screen grid under the DoModalWin stand-in (answer 1), with the debug byte 0 and 1 (the current directory is moved to %TEMP%\opensc4-q7-<pid> for each call, Query.txt is hashed and deleted, the log sink restored); the kind 0 tool's OnMouseDownL at the same points (the three static strings hashed); DescribePick at the first 5 points answering 0 (the read-back changes the city).
+- 16 (opt-in) shift clicks over the grid. Automata are frame driven, so only the number of calls is hashed.
+
+The view's slots patched in parts 1 and 4 are saved and restored. The tools are put away by the view (slot 0x68, Shutdown) after each part.
+
+Tokens (snapshot q7a): Making Money d0090 85E1181F, Big City d0000 44D4754D, Rush Hour d0090 78ED0ADA (default parts); with `OPENSC4_TEST_Q7_COMMIT=1`: A656EA0C, 175C517D and DF6AFDD4. The fingerprint without the token is the same with the test and without it (n == z): Making Money ef8d770c, Big City 91cc62f4, Rush Hour bfe25554. The sample: 3, 4 and 5 network piece types on the three saves, 5 other occupants (2 flora, 2 props, a pole, a landfill) on all, and 300 buildings. The commit leg's DescribePick part ran 3 windows and 8 log files on Making Money d0090, 9 windows and 8 files on Big City d0000, and 0 windows and 9 files on Rush Hour d0090. No Query.txt appeared in the Apps folder.
+
+### Not reached
+
+- DoMessage's 0x66956814 refill acts only when the day number ends in 0. On day 2 the numbers on the three saves end in 6, 5 and 9 (2454866, 2457285, 2455409). A leg with another day would reach it.
+- Shift clicks (part 16, opt-in, not run): the vehicle manager, the traffic network map and message 0x2ACD2CF3.
+- DescribePick's network branch (interface 0x4A10AFC2) only where the grid hits such a piece (not counted); the "no building" case with begin != end (impossible); DescribePick without the city view.
+- The plugin's shift-click copy and its custom tips (they need clicks by hand).
+- GetBuildingOccupantTipInfo always overwrote the background sentinel (300 of 300), so the paths that leave it unset were not seen.
+- Any mod other than sc4-query-ui-hooks 2.7.1, and that one only with its default ini (`EnableOccupantQuerySounds=true`).
+
+### Trial results
+
+First pass, snapshot q7a, on Making Money d0090, Big City d0000 and Rush Hour d0090, with the test and never run: the original twice (A1, A2), all groups ours (B) and only `ui.tools.base` with the Q7 groups ours (M) were identical in every log line, in all cases (36 of 36 runs finished, none crashed). One pass sufficed; nothing moved out of the hash. A 7-day commit run on Big City d0000, side B, took 13 s (no exit hang). Build debug and release clean, ctest 20 of 20, retcheck 6 OK and 2 checked by hand (DoMessage is not in the old exe listing and GetBuildingOccupantTipInfo is cut by the function list; every exit of both is the plain `ret 4` and `ret 0x14` of our signatures), register scan 8 hooked and none suspicious, EAX scan clean.
+
+Parity (batch q7b1, 7 days, B list of 148 groups): plain 12 of 12, test day 2 11 of 12 plus 1 partly, test day 5 12 of 12, plopped 3 of 3. The partly one is Making Money d0090: the first B run differed in the `adv` part from day 1, before the test on day 2, and the other two B runs were the same as A; the pair rerun in batch q7b2 was the same. Batch q7b2: commit (`OPENSC4_TEST_Q7_COMMIT=1`) 12 of 12; with sc4-query-ui-hooks 2.7.1 in the job folders' Plugins (p4env-q7mod, test day 2) 12 of 12, every B run logging the three leave lines (0x004D4140, 0x004D4D70, 0x004D7160) and no A run.
