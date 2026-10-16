@@ -114,6 +114,19 @@
 // two points, then the segment placer's read-only checks (slots 65 to 69);
 // the six types' drags also probe a 45 degree line from their start (ties);
 // ` dl <lines>,<drawn>,<hash>` in the daily part (DrawLineProbe below).
+// OPENSC4_TEST_CREW_PUZZLE=<level> (off by default; legs without it are
+// unchanged): after the six types, a four-cell drag of road, street and
+// avenue across the middle of that type's strip, released as the view
+// control releases (0x00645544): slot 49 QueryUserForPotentialIntersections
+// after the placement, with the question answered yes by a modal stand-in;
+// before it the tool's override records and the answers of MatchAt
+// 0x00609A00 for the rules with text and cells that fit there are hashed.
+// Level 2 also hands the crossing cell's new pieces to slot 50
+// DestroyOccupantsAndResolve as the network manager's
+// DestroyNetworkOccupants does. Level 3 also does the view control's puzzle
+// piece click (the guarded 0x0062CD50 with flag 0) for four fitting rules
+// at each of two cells of the road strip. ` pz <calls>,<candidates>,<hash>`
+// in the daily part (PuzzleProbe, DirectPuzzle below).
 #include "core/autotest_hooks.h"
 #include "core/crew_sim.h"
 #include "core/game.h"
@@ -122,6 +135,7 @@
 #include "core/netlot_sim.h"
 #include "core/netmgr_sim.h"
 #include "core/nettool_bridge.h"
+#include "core/nettool_place.h"
 #include "core/netocc_sim.h"
 #include "core/occmgr_sim.h"
 
@@ -375,6 +389,7 @@ struct Drag {
     SC4Point<uint32_t> points[2];
     int cost;
     uint32_t previewFailure;
+    bool puzzle = false; // OPENSC4_TEST_CREW_PUZZLE: the release also asks slot 49
 };
 
 // OPENSC4_TEST_CREW_DRAWLINE=1: before each drag's PlaceAllSegments pair,
@@ -480,6 +495,154 @@ void DrawLineProbe(cISC4NetworkTool* tool, uint32_t type, const SC4Point<uint32_
     ProbeLine(tool, type, points[0].x, points[0].y, toward(points[0].x, dx), toward(points[0].y, dz));
 }
 
+// OPENSC4_TEST_CREW_PUZZLE (see the top of the file).
+int PuzzleLevel()
+{
+    static const int level = EnvInt("OPENSC4_TEST_CREW_PUZZLE", 0);
+    return level;
+}
+uint32_t g_pzCalls = 0, g_pzCandidates = 0, g_pzAsked = 0;
+uint32_t g_pzHash = 2166136261u;
+bool g_pzAsking = false;
+cISC4City* g_pzCity = nullptr;
+uint32_t g_pzCrossX = 0xFFFFFFFFu, g_pzCrossZ = 0xFFFFFFFFu;
+constexpr std::size_t kToolOverrides = 0x08;
+constexpr std::size_t kSlotQueryIntersections = 0xC4, kSlotDestroyOccupants = 0xC8;
+constexpr std::size_t kCityBudget = 0xD0, kBudgetCash = 0x18;
+constexpr uint32_t kYesButton = 0x8A8DFD4E;
+// The first node of the RUL0 store (its first non-empty bucket), as the
+// game's inlined walks find it.
+char* FirstStoreNode(char* store)
+{
+    namespace rul = nettool_sim::rul;
+    char** const begin = At<char**>(store, rul::table::kBuckets);
+    const uint32_t buckets = static_cast<uint32_t>(
+        static_cast<int32_t>(reinterpret_cast<char*>(At<char**>(store, rul::table::kBucketsEnd)) -
+                             reinterpret_cast<char*>(begin)) >>
+        2);
+    for (uint32_t b = 0; b < buckets; ++b)
+        if (begin[b])
+            return begin[b];
+    return nullptr;
+}
+
+// A rule without a cell grid (+0x58 empty) keeps the original's stack
+// leftovers in its bounds (+0x18 to +0x24; nettool_rul_1.cpp), ours zeros:
+// the game asks FitsInCity only of rules it has chosen (0x0063B340 tests
+// +0xE9 and the type mask first; the view control the player's piece), so
+// the probes skip rules without cells.
+bool HasCells(char* rule)
+{
+    namespace rul = nettool_sim::rul;
+    return At<char*>(rule, rul::rul0::kCells) != At<char*>(rule, rul::rul0::kCells + 4);
+}
+
+uint32_t PieceCount(cISC4City* city);
+
+int64_t CashOf(cISC4City* city)
+{
+    void* const budget = Virtual<void*>(city, kCityBudget);
+    return budget ? Virtual<int64_t>(budget, kBudgetCash) : 0;
+}
+
+// Slot 50 on the pieces the drive made at the crossing cell, as the network
+// manager's DestroyNetworkOccupants hands them to the tool (each referenced
+// once; the tool gives the references back).
+void ResolveCrossing(cISC4NetworkTool* tool, Hash& h)
+{
+    std::vector<char*> pieces;
+    if (!Collect(g_pzCity, pieces))
+        return;
+    std::vector<void*> chosen;
+    const uint32_t cell = (g_pzCrossX << 16) | (g_pzCrossZ & 0xFFFF);
+    for (char* const self : pieces)
+        if (CellKey(self) == cell)
+            chosen.push_back(self);
+    h.Mix(static_cast<uint32_t>(chosen.size()));
+    if (chosen.empty())
+        return;
+    for (void* const piece : chosen)
+        nettool_sim::AddRefOf(piece);
+    struct List {
+        void** begin;
+        void** end;
+        void** capacity;
+    } list{chosen.data(), chosen.data() + chosen.size(), chosen.data() + chosen.size()};
+    Virtual<void>(tool, kSlotDestroyOccupants, &list);
+    std::vector<char*> after;
+    uint32_t left = 0;
+    if (Collect(g_pzCity, after))
+        for (char* const self : after)
+            left += CellKey(self) == cell;
+    h.Mix(left);
+    h.Mix(static_cast<uint32_t>(after.size()));
+    h.Mix(At<uint32_t>(reinterpret_cast<char*>(tool), 0x20C));
+}
+
+// The release's call of slot 49 (0x00645544), with what the test reads
+// around it hashed.
+void PuzzleProbe(cISC4NetworkTool* tool)
+{
+    if (PuzzleLevel() <= 0 || !g_pzCity)
+        return;
+    namespace rul = nettool_sim::rul;
+    char* const self = reinterpret_cast<char*>(tool);
+    Hash h;
+    h.h = g_pzHash;
+    const auto* const overrides = reinterpret_cast<const crew_sim::Vector*>(self + kToolOverrides);
+    const uint32_t count = overrides->begin ? static_cast<uint32_t>((overrides->end - overrides->begin) / 12) : 0;
+    h.Mix(count);
+    char* const store = reinterpret_cast<char*>(addr::cSC4NetworkTool_Rul0Store);
+    uint32_t candidates = 0;
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t* const record = reinterpret_cast<const uint32_t*>(overrides->begin) + 3 * i;
+        h.Mix(record[0]);
+        h.Mix(record[1]);
+        h.Mix(record[2]);
+        for (char* node = FirstStoreNode(store); node; node = nettool_sim::place::HashNext(store, node)) {
+            char* const rule = node + rul::store::kRule;
+            if (At<uint32_t>(rule, 0x78) == 0 || !HasCells(rule))
+                continue;
+            const bool fits = (nettool_sim::CallThis<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>(
+                                   addr::SC4Rul0Rule_FitsInCity, rule, record[0], record[1],
+                                   At<uint32_t>(self, nettool_sim::field::kCellsX),
+                                   At<uint32_t>(self, nettool_sim::field::kCellsZ)) &
+                               0xFF) != 0;
+            h.Mix(At<uint32_t>(rule, rul::rul0::kId));
+            h.Mix(fits ? 1u : 0u);
+            if (!fits)
+                continue;
+            const uint32_t answer = nettool_sim::CallThis<uint32_t, uint32_t, uint32_t, char*>(
+                addr::SC4Rul0Rule_MatchAt, rule, record[0], record[1], self);
+            h.Mix(answer);
+            candidates += answer == 0;
+        }
+    }
+    const int64_t cash = CashOf(g_pzCity);
+    const uint32_t piecesBefore = PieceCount(g_pzCity);
+    const uint32_t askedBefore = g_pzAsked;
+    g_pzAsking = true;
+    Virtual<void>(tool, kSlotQueryIntersections);
+    g_pzAsking = false;
+    const int64_t cashAfter = CashOf(g_pzCity);
+    h.Mix(static_cast<uint32_t>(cash));
+    h.Mix(static_cast<uint32_t>(cash >> 32));
+    h.Mix(static_cast<uint32_t>(cashAfter));
+    h.Mix(static_cast<uint32_t>(cashAfter >> 32));
+    h.Mix(piecesBefore);
+    h.Mix(PieceCount(g_pzCity));
+    h.Mix(g_pzAsked - askedBefore);
+    h.Mix(At<uint32_t>(self, 0x20C));
+    if (PuzzleLevel() >= 2)
+        ResolveCrossing(tool, h);
+    ++g_pzCalls;
+    g_pzCandidates += candidates;
+    g_pzHash = h.h;
+    log::Write("autotest: crew: puzzle: %u override records, %u rules fit, asked %u, cash %lld -> %lld", count,
+               candidates, g_pzAsked - askedBefore, static_cast<long long>(cash),
+               static_cast<long long>(cashAfter));
+}
+
 // The release of a player's drag (0x006453FB to 0x00645516), without the
 // bridge settings and the neighbour connection question.
 void Place(void* context)
@@ -497,11 +660,25 @@ void Place(void* context)
     drag.tool->PlaceAllSegments(true, false, false, drag.type);
     drag.tool->ClearCellPreviews();
     drag.tool->ClearOccupantHighlights();
+    if (drag.puzzle)
+        PuzzleProbe(drag.tool);
 }
+
+// The strips of the six straight drags (OPENSC4_TEST_CREW_PUZZLE crosses them).
+struct Strip {
+    int32_t x, z, length;
+    bool drawn;
+};
+Strip g_strips[6] = {};
 
 uint32_t AnswerDialog(void*, int depth)
 {
     ++g_dialogs;
+    if (g_pzAsking) {
+        ++g_pzAsked;
+        log::Write("autotest: crew: puzzle: the question opened (depth %d); answered yes", depth);
+        return kYesButton;
+    }
     log::Write("autotest: crew: a dialog opened (depth %d); answered 0", depth);
     return 0;
 }
@@ -518,7 +695,9 @@ void DriveTypes(cISC4City* city, char* manager)
     }
     LogVerdicts(lots, sizeX, sizeZ);
     cISC4NetworkManager* const networks = city->GetNetworkManager();
+    uint32_t kindIndex = 0;
     for (const auto& kind : kTypes) {
+        const uint32_t index = kindIndex++;
         int32_t length = wanted, least = kFree, x = 0, z = 0;
         if (!FindPlace(lots, sizeX, sizeZ, length, least, x, z)) {
             log::Write("autotest: crew: %s: no strip of 8 cells or more without water or networks", kind.name);
@@ -540,6 +719,7 @@ void DriveTypes(cISC4City* city, char* manager)
                   0};
         if (!RunModalPlayer(&AnswerDialog, &Place, &drag))
             Place(&drag);
+        g_strips[index] = {x, z, length, true};
         const uint32_t failure = tool->GetFailureState();
         tool->Shutdown();
         tool->Release();
@@ -548,6 +728,115 @@ void DriveTypes(cISC4City* city, char* manager)
                    kind.name, x, z, x + length - 1, z, least == kFree ? "free" : "lots'", drag.cost, failure,
                    drag.previewFailure, ReadState(city, manager).made - madeBefore, CrewCount(manager));
     }
+}
+
+void DirectPuzzle(cISC4City* city);
+
+// OPENSC4_TEST_CREW_PUZZLE (see the top of the file): a drag across the
+// middle of the road's, the street's and the avenue's strips, from the row
+// above to two rows below it.
+void DrivePuzzle(cISC4City* city)
+{
+    if (PuzzleLevel() <= 0)
+        return;
+    g_pzCity = city;
+    cISC4NetworkManager* const networks = city->GetNetworkManager();
+    for (const uint32_t index : {0u, 2u, 3u}) {
+        const Strip& strip = g_strips[index];
+        if (!strip.drawn || strip.length < 8)
+            continue;
+        const auto& kind = kTypes[index];
+        cISC4NetworkTool* const tool = networks->GetNetworkTool(kind.type, false);
+        if (!tool)
+            continue;
+        const uint32_t crossX = static_cast<uint32_t>(strip.x + strip.length / 2);
+        g_pzCrossX = crossX;
+        g_pzCrossZ = static_cast<uint32_t>(strip.z);
+        tool->AddRef();
+        tool->Init();
+        Drag drag{tool,
+                  kind.type,
+                  {{crossX, static_cast<uint32_t>(strip.z - 1)}, {crossX, static_cast<uint32_t>(strip.z + 2)}},
+                  0,
+                  0};
+        drag.puzzle = true;
+        if (!RunModalPlayer(&AnswerDialog, &Place, &drag))
+            Place(&drag);
+        log::Write("autotest: crew: puzzle: %s crossing (%u,%d)-(%u,%d): cost %d, failure %u (preview %u)",
+                   kind.name, crossX, strip.z - 1, crossX, strip.z + 2, drag.cost, tool->GetFailureState(),
+                   drag.previewFailure);
+        tool->Shutdown();
+        tool->Release();
+    }
+    DirectPuzzle(city);
+}
+
+// OPENSC4_TEST_CREW_PUZZLE=3: the view control's puzzle piece click without
+// the final placement (flag 0), for the first four rules with cells that fit
+// the city (FitsInCity, as the view control asks first) at two cells of the
+// first strip: beside it and on it. The view control does not ask MatchAt;
+// the drive hashes its answer and places whatever it says.
+void DirectPuzzle(cISC4City* city)
+{
+    if (PuzzleLevel() < 3 || !g_strips[0].drawn)
+        return;
+    namespace rul = nettool_sim::rul;
+    cISC4NetworkTool* const tool = city->GetNetworkManager()->GetNetworkTool(cISC4NetworkOccupant::Highway, false);
+    if (!tool)
+        return;
+    char* const self = reinterpret_cast<char*>(tool);
+    tool->AddRef();
+    tool->Init();
+    tool->Reset();
+    char* const store = reinterpret_cast<char*>(addr::cSC4NetworkTool_Rul0Store);
+    Hash h;
+    h.h = g_pzHash;
+    uint32_t tried = 0;
+    const uint32_t sites[2][2] = {
+        {static_cast<uint32_t>(g_strips[0].x + 2), static_cast<uint32_t>(g_strips[0].z + 1)},
+        {static_cast<uint32_t>(g_strips[0].x + 8), static_cast<uint32_t>(g_strips[0].z)}};
+    for (const auto& site : sites) {
+        const uint32_t x = site[0], z = site[1];
+        uint32_t here = 0;
+        for (char* node = FirstStoreNode(store); node && here < 4; node = nettool_sim::place::HashNext(store, node)) {
+            char* const rule = node + rul::store::kRule;
+            if (!HasCells(rule))
+                continue;
+            const bool fits = (nettool_sim::CallThis<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>(
+                                   addr::SC4Rul0Rule_FitsInCity, rule, x, z,
+                                   At<uint32_t>(self, nettool_sim::field::kCellsX),
+                                   At<uint32_t>(self, nettool_sim::field::kCellsZ)) &
+                               0xFF) != 0;
+            if (!fits)
+                continue;
+            const uint32_t answer =
+                nettool_sim::CallThis<uint32_t, uint32_t, uint32_t, char*>(addr::SC4Rul0Rule_MatchAt, rule, x, z, self);
+            const uint32_t id = At<uint32_t>(rule, rul::rul0::kId);
+            h.Mix(answer);
+            tool->Reset();
+            const uint8_t made = nettool_sim::CallThis<uint8_t, uint32_t, uint32_t, uint32_t, uint32_t>(
+                addr::cSC4NetworkTool_PlacePuzzlePiece, self, x, z, id, 0u);
+            h.Mix(id);
+            h.Mix(made);
+            h.Mix(tool->GetFailureState());
+            h.Mix(static_cast<uint32_t>(tool->GetCostOfSolution()));
+            const auto* const cells = reinterpret_cast<const crew_sim::Vector*>(self + kToolCells);
+            const uint32_t cellCount = cells->begin ? static_cast<uint32_t>((cells->end - cells->begin) / 8) : 0;
+            h.Mix(cellCount);
+            for (uint32_t i = 0; i < cellCount * 2; ++i)
+                h.Mix(reinterpret_cast<const uint32_t*>(cells->begin)[i]);
+            ++here;
+            log::Write("autotest: crew: puzzle: rule %08X at (%u,%u): MatchAt %u, placed %u, failure %u, %u cells", id,
+                       x, z, answer, made, tool->GetFailureState(), cellCount);
+        }
+        tried += here;
+    }
+    tool->Reset();
+    g_pzHash = h.h;
+    g_pzCalls += tried;
+    log::Write("autotest: crew: puzzle: %u rules tried directly", tried);
+    tool->Shutdown();
+    tool->Release();
 }
 
 namespace crew = crew_sim;
@@ -1141,6 +1430,7 @@ void Drive(const Day& day)
         PatchSoundJump();
         LifeTest(manager);
         DriveTypes(day.city, manager);
+        DrivePuzzle(day.city);
         WorkTest(day.city);
         DriveBridges(day.city, manager);
         const State s = ReadState(day.city, manager);
@@ -1186,6 +1476,10 @@ void Fingerprint(cISC4City* city, std::string& line)
     }
     if (DrawLineOn()) {
         std::snprintf(text, sizeof text, " dl %u,%u,%08X", g_lines, g_linesDrawn, g_lineHash);
+        line += text;
+    }
+    if (PuzzleLevel() > 0) {
+        std::snprintf(text, sizeof text, " pz %u,%u,%08X", g_pzCalls, g_pzCandidates, g_pzHash);
         line += text;
     }
 }
