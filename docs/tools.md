@@ -52,7 +52,7 @@ Every city tool is a view input control: a class on the base class below, with a
 | Terraform tool (the terrain brush tool) | 0x004D9430 | 0x00A92A10 | 0x130 | 0x004D8AC0 to 0x004D9E50 | 22 | ours (`ui.tools.brush`, below) |
 | Cheat tool (building footprint) | 0x004D9E80 | 0x00A92AC0 | 0x38 | 0x004D9E50 to 0x004DA593 | 6 | partly ours: four functions in `ui.tools.zone`; the footprint drawing (0x004D9EE0) and OnMouseMove (0x004DA1B0) stay the game's |
 | Zone | 0x004DAE80 | 0x00A92CA8 | 0x98 | 0x004DA5A0 to 0x004DC1A0 | 25 | ours (`ui.tools.zone`, below) |
-| U-Drive-It driving control (made by the park automaton 0x00506850, not by the view) | 0x00565480 | 0x00A9D9B0 | 0xC0 | 0x00562C90 to 0x00566D55 | 45 | 32 ours (`ui.tools.udrive1`, T7a; `ui.tools.udrive2`, `ui.tools.udrive3`, T8), 13 the game's (the nine drawing functions, three this-adjusting thunks and the overlay manager's 0x005658D0) |
+| U-Drive-It driving control (made by the park automaton 0x00506850, not by the view) | 0x00565480 | 0x00A9D9B0 | 0xC0 | 0x00562C90 to 0x00566D55 | 45 | ours (`ui.tools.udrive1`, T7a; `ui.tools.udrive2`, `ui.tools.udrive3`, T8; `ui.tools.udrive4`, T9) |
 | Fire (torch) disaster tool | 0x005805C0 | 0x00A9EB40 | 0x80 | 0x00580510 to 0x00580B46 | 13 | ours (`ui.tools.disaster_fire`, below) |
 | Common disaster tool, on the effect trigger tool | 0x00580220 | 0x00A9EAA0 | 0xB4 | 0x00580220 to 0x005804F4 | 7 | ours (`ui.tools.disaster`, below) |
 | Network intersection placement tool | 0x00661130 | 0x00AAAF20 | 0x90 | 0x00660C30 to 0x00661D5F | 11 | networks (not part of this work) |
@@ -60,7 +60,7 @@ Every city tool is a view input control: a class on the base class below, with a
 
 The network tools are the last two rows, at 0x00660C30 to 0x006625F0. The range 0x004C3730 to 0x004D767F belongs to the query tool.
 
-The classes that are not ours, apart from the two network tools, come to about 60 functions: what the query tool's pieces left (the KB figures in this paragraph were not redone for Q2 to Q7, so they are too high; the 84 KB is the figure before them), the U-Drive control's 13 left functions (nine drawing, three thunks and the overlay manager's 0x005658D0; the other 32 are ours after T7a and T8) and the two functions of the cheat tool that stay the game's. The 84 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions), about 9 KB for the terraform and obliterate tools (40 functions) and about 6 KB for the three disaster tools (33 functions) and about 7 KB for the first piece of the query tool (57 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
+The classes that are not ours, apart from the two network tools, come to about 60 functions: what the query tool's pieces left (the KB figures in this paragraph were not redone for Q2 to Q7, so they are too high; the 84 KB is the figure before them) and the two functions of the cheat tool that stay the game's. The 84 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions), about 9 KB for the terraform and obliterate tools (40 functions) and about 6 KB for the three disaster tools (33 functions) and about 7 KB for the first piece of the query tool (57 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
 
 ## The base class
 
@@ -2424,7 +2424,7 @@ Parity (batch q7b1, 7 days, B list of 148 groups): plain 12 of 12, test day 2 11
 | OnMouseUpL: the point at +0x24/+0x28 of the object at +0x9C set to -1, -1; when it takes input and CanDrive, the driven object's slot 0xF0 with (7, 0) and the service of 0x00602640 its slot 0x18 with 4; true | 0x00564300 | 18 |
 | OnMouseUpR: as OnMouseDownR with (8, 0) | 0x005643F0 | 19 |
 
-Done in T8 (next section): Init 0x00565A10 (3), Shutdown 0x00563970 (4), OnKeyDown 0x00566C60 (14), OnKeyUp 0x00566CF0 (15), OnMouseDownL 0x005655D0 (16), OnMouseMove 0x005631C0 (20), slot 27 0x005650E0, the message handler 0x00566890, the third interface's 0x00562E20 and the driving helpers. The nine drawing functions stay the game's (Renderer).
+Done in T8 (next section): Init 0x00565A10 (3), Shutdown 0x00563970 (4), OnKeyDown 0x00566C60 (14), OnKeyUp 0x00566CF0 (15), OnMouseDownL 0x005655D0 (16), OnMouseMove 0x005631C0 (20), slot 27 0x005650E0, the message handler 0x00566890, the third interface's 0x00562E20 and the driving helpers. The nine drawing functions were still the game's (Renderer); T9 takes them.
 
 `OPENSC4_TEST_T7=<day>` (src/core/tool_t7_autotest.cpp, token ` udrive1`, fingerprint order 29, day hook 68). It calls only the game's addresses and the control's vtable slots. Nothing changes the city: the control is made on its own (without Init), the driven object and the point holder are stand-ins that record the flags asked and the commands given, and the control is destroyed through slot 26, not Release (which would run the game's Shutdown). Five sections: the fields after the constructor (not the stopwatch and the list pointer), the buttons with nothing to drive, the point holder, the buttons and CanDrive under five scripts of flag answers (the release never reaches command 7: CanDrive's answers are always "set"), and the two releases of the destructor. Not reached: command 7 and the service of 0x00602640; a real driven vehicle.
 
@@ -2478,7 +2478,9 @@ Left the game's, with the reason:
 - The this-adjusting thunks 0x00565570 to 0x005655C0 (the three at 0x005655A0 to 0x005655C0 are counted in the class's 45).
 - Helpers with callers outside the class, not counted in its 45: 0x00565430 (a byte-keyed map's find, also called from 0x00674140), 0x00562DA0, 0x00562DD0 (SC4RefPtr::Destruct), 0x005650A0 (SC4PairList::Destroy), and 0x00562CE0, 0x00562D60, 0x00562D90 (a line object's methods, the park automaton's).
 
-So of the 45: 32 ours, 9 drawing, the 3 thunks and 0x005658D0 the game's.
+T9 made these thirteen ours (the next section); T8 left them with the reasons above.
+
+So of the 45: 45 ours after T9.
 
 Field names, corrected from T7a's (all three files now use kOverlays for +0x34, kTerrain for +0x68 and kMarker for +0x9C):
 
@@ -2529,3 +2531,33 @@ Oddities kept: Shutdown clears the inited byte before the base Shutdown, so the 
 Trial (2026-10-17, A = the original, B = `ui.tools.base` and `ui.tools.udrive1` to `ui.tools.udrive3` ours, test day 2, 5 days, with `determinism.dispatch_info`): Making Money d0090, Big City d0000 and Rush Hour d0090 each identical A = B in the whole fingerprint; tokens BFE58D05, D303EA93, B0713745.
 
 Parity (2026-10-17, B = the Q7 batch list (147 groups) plus `ui.tools.udrive1` to `udrive3`, 7 days, one job; batches t8b1/t8b2): plain 12/12 (Making Money d0000 first failed with no B save because the batch was stopped under it and switched to one job; the pair rerun alone, t8b1r, same), `OPENSC4_TEST_T7=2 OPENSC4_TEST_T8=2` 12/12, the same at day 5 12/12, plopped 3/3, all identical.
+
+## The U-Drive-It control, third piece (T9)
+
+T9 makes the last 13 functions ours: the U-Drive marker's nine drawing functions, the control's three this-adjusting thunks and the overlay manager method. One group, PostAppInit, off by default: `ui.tools.udrive4` (src/core/tool_udrive_4.cpp, 13 hooks). With T7a and T8, all 45 of `cSC4UDriveControl`'s functions are ours.
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| SC4UDriveMarker::Construct: the base, two vtables, byte +0xC clear, +0x1C..+0x28 -1, +0x44/+0x48 clear | 0x005649D0 | |
+| SC4UDriveMarker::Init: once, the render state at +0x10, the 16-entry direction table from four points, six model interfaces and two resource objects | 0x005633C0 | |
+| SC4UDriveMarker::Shutdown: byte +0xC clear first, six counted model releases and the two adjusted reference holders | 0x00563730 | |
+| SC4UDriveMarker::BuildQuad: four textured vertices at the terrain height from the direction table (the table's vector x 12 is used for the offsets; the caller's width and piece ID stack slots are reused by the game) | 0x005637E0 | |
+| SC4UDriveMarker::ChooseModel: one of the six model objects from the path direction and the table's cross product | 0x00564A60 | |
+| SC4UDriveMarker::DrawCell: one occupant's pieces on a cell, the selected one again, then the cell's marker object | 0x00564BE0 | |
+| SC4UDriveMarker::Draw: the city's traffic network over the view rectangle, four sides' piece IDs per record and DrawCell for each | 0x005657A0 | 3 of 0x00A9D974 |
+| SC4UDriveMarker::DeletingDestructor: the two reference holders, the base vtable, free when bit 0 | 0x00564A30 | |
+| The same through the second vtable's adjustor (this = marker + 4) | 0x00564A20 | 3 of 0x00A9D95C |
+| cSC4UDriveControl::QueryInterfaceThird (this = control + 0x2C, back to the shared 0x004B8480) | 0x005655A0 | 0 of 0x00A9D98C |
+| cSC4UDriveControl::AddRefThird (the count at +8) | 0x005655B0 | 1 of 0x00A9D98C |
+| cSC4UDriveControl::ReleaseThird (the shared 0x004B9E20) | 0x005655C0 | 2 of 0x00A9D98C |
+| SC4OverlayManager::F5658D0: finds the marker of a byte key in the map at +0x48 and sets 0x400 in its +0x110; true when found | 0x005658D0 | |
+
+Init and Shutdown still call the marker's three functions at their addresses; the calls reach ours through the hooks. The control's Init and Shutdown (ui.tools.udrive2) does the same for the marker.
+
+Oddities kept: the marker's constructor leaves +0x18 and +0x2C..+0x40 as they were; Init overwrites the shared direction table at 0x00B229B8 (SC4UDrive::VectorFill's table); BuildQuad reuses its caller's width and piece ID argument slots as locals, so the offsets are the table's vector times 12; DrawCell sets its four render calls up before testing whether any piece has a model. The cell marker object at the end of DrawCell is drawn as the game draws it: 0x0080B830 at its address builds the rotation matrix from the first piece's direction table vector, and the object's second interface gets the 0x38-byte block (two bytes 2 and 5, the matrix, the place at the piece's height plus 0.2 and 3.0 for the flagged piece, and a scale of 1), then the main interface slot 0x48 and the second interface's slot 0x30 with the draw context.
+
+`OPENSC4_TEST_T9=<day>` (src/core/tool_t9_autotest.cpp, token ` udrive4`, fingerprint order 32, day hook 70). As T7a's and T8's tests it calls only the game's addresses and the class's vtable slots. The marker is made on its own; its renderer, the framework and the framework's service are stand-ins around Init only, the six model objects are counters that one release leaves alive, the terrain is a stand-in, and the city and traffic network are stand-ins. `OPENSC4_TEST_T9_PARTS` (decimal mask, default 63): 1 the constructor and destructor (both vtables and the adjustor); 2 Init and Shutdown (the direction table is hashed and put back); 4 BuildQuad over four positions, all sides and ways, both piece-flag cases; 8 ChooseModel over the table's branches, a short path and no models; 16 Draw with no city, no map, an empty rectangle, no records and a record whose four sides have no pieces; 32 the third interface's three thunks and the overlay manager's keyed flag on a one-node map. DrawCell itself is not reached: its render context is needed before its first test.
+
+Trial (2026-10-17, A = the original, B = `ui.tools.base` and `ui.tools.udrive1` to `ui.tools.udrive4` ours, test day 2, 5 days, with `determinism.dispatch_info`): Making Money d0090, Big City d0000 and Rush Hour d0090 each identical A = B in the whole fingerprint; the test token is C371903C on all three.
+
+Parity (2026-10-17, B = T8's batch list (164 entries) plus `ui.tools.udrive4`, 7 days, four jobs): plain 12/12, `OPENSC4_TEST_T7=2 OPENSC4_TEST_T8=2 OPENSC4_TEST_T9=2` 12/12, plopped 3/3, all identical.
