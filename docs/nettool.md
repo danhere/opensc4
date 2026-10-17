@@ -596,6 +596,38 @@ Parity (batches net-t12-b1 and net-t12-b2, 2026-10-16; B list `nall33` = `nall32
 
 All four ran: slot 50 in the bulldoze leg (six B runs) and the puzzle legs; slot 49 and MatchAt in the puzzle legs (MatchAt also in the bulldoze leg); Find in the level 3 legs. A control run of the PUZZLE=1 leg with the t12 groups off (`net-t12-c1`) gave the same day-15 `propocc` B value as the first trial.
 
+## The underground tools (part u1)
+
+Three files, one group, off by default: `simulators.nettool.underground` (`src/core/nettool_under.h`, `nettool_under.cpp` with 16 functions, `nettool_under_2.cpp` with 16 more; the group installs both detour lists, and `OPENSC4_NETTOOL_SKIP` works on both). 34 functions, 32 ours. Address entries in `data/addresses/nettool.toml`; the three cdecl lookups keep their names from `data/addresses/netmgr.toml`.
+
+- The underground tools' base (vtables 0x00AAA950/0x00AAA93C, constructor 0x00657FD0), the pipe tool (0x00AA99A8/0x00AA9994, constructor 0x00648EC0) and the subway tool (0x00AAA5C0/0x00AAA5AC, constructor 0x00653D60). Fields past the general tool's: +0x368 Init once, +0x36C the depth below the terrain (float), +0x370/+0x374/+0x378 what slot 82 hands each new occupant, +0x384 and +0x388 two lists (the occupants a preview made, and the existing ones it met); the pipe and subway tools add a byte at +0x390.
+- First half: the constructors and destructors, Init, Shutdown, slots 51, 54, 59, 65 (TestForAutoConnectOccupant), 68, 73 to 75 and 79.
+- Second half: slot 82 MakeOccupant of the pipe (0x00648D10) and the subway (0x00653A00), the network manager's lookups 0x00648F70 (pipe at a cell), 0x00649080 (pipe connection at a cell) and 0x00653B80 (subway station), slots 78, 80 (SetQuadTrianglesToDraw: it only sets and clears occupant flags, no drawing), 16 ClearOccupantHighlights, 71, 76, 70 StartPlacing, 58 AddCellPreview, 55 InsertOccupantsForSolvedCells and PlaceOccupant 0x006596C0.
+
+### What stays the game's
+
+- 0x00659240 PropagateFromCell: the 12-byte solved-cell record it appends gets one byte stored into a word whose upper three bytes are never written, and the record is copied whole, so it carries the game's stack leftovers.
+- 0x006588D0, the network manager's underground rebuild (2,402 bytes): it keeps the depth on the x87 stack across a loop.
+- Slot 81 of the pipe and subway tools (0x00648F40, 0x00653D90) is folded with the occupants' class-ID getters (class registration calls them): 6-byte constant getters, not detoured and not swapped; not counted in the 34.
+
+### Registers and floats
+
+Slots 54, 59, 68 and 74 are naked thunks that leave every register as the game's (slot 68 is a bare `ret 0xC`: its AL is the caller's leftover EAX). Every x87 value comes back as a double (the terrain's slot 0x30, the tool's slot 73), each operation is one double +, - or x with float stores where the game stores, and the compares keep the game's unordered branches. Slot 55 passes the placer's byte out to slot 0x158 inside the whole word of its first argument, as the game does. The vtable callers of every slot that is ours read only EAX after slots 65 and 59, which return exactly the game's values; no caller reads ECX or EDX. No wrapper of ours touches 0x00648D10 to 0x00659A00 or tests return addresses there.
+
+### The test
+
+`OPENSC4_TEST_CREW_UNDERGROUND=1`, with `OPENSC4_TEST_CREW=2`, in `src/core/crew_autotest.cpp`, off by default (legs without it are unchanged): last of the drive, for pipes and then subways, a straight drag on land found as for the six types and a second drag from the cell below its end, down, so it starts against the first one's pieces (the auto connection, slot 65), each through the release. The daily crew part adds ` ug <drags>,<hash>` (the depth and the two lists' lengths after Init and after each drag, each drag's cost and failures and its new pieces). On Rush Hour t0000 it builds 24 + 6 pipe pieces and 24 + 6 subway pieces.
+
+Parity (batch net-u1b-b1, 2026-10-16; B list `nall34` = `nall33` with the underground group):
+
+| Leg | Saves | Result |
+|---|---|---|
+| plain | the 12 saves | 12 of 12, first pair |
+| `net` | `saves-networks` | 3 of 3, first pair |
+| crew with `OPENSC4_TEST_CREW_UNDERGROUND=1` (20 days) | Rush Hour t0000 | the same (A 2 outcomes, B 2, both shared: from day 9 the `propocc` part takes the original's known two values) |
+
+Ran with ours (first-call log lines): 30 of the 32 (the three lookups already at city load); not slot 73 0x00657790 and the base's deleting destructor 0x00658250 (the base is never made alone). A trial with only the first half (net-u1b-tr1) was the same on all 21 days.
+
 ## Placing (part t6)
 
 `src/core/nettool_place.h`, `nettool_place_1.cpp` and `nettool_place_2.cpp`, five groups, off by default:
