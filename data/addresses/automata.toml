@@ -1,0 +1,424 @@
+# The automata controller manager (cSC4AutomataControllerManager, class ID 0xCA14CA03), its controller grid, the vector-of-lists helpers and the controller template base destructor: their own code (src/core/automata_ctlmgr.cpp, the layout in src/core/automata_ctlmgr.h).
+
+[[entry]]
+name = "cSC4AutomataControllerManager::AddControllerFromTemplateName"
+address = 0x00514CA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 56 8B F1 8B"
+source = "Slot 5 (occupant, name, position), ret 0xC: the template of that name from the script system (+0x44 slot 0x44), then slot 6 through the vtable; 0 without a template. Ours in simulators.automata.ctlmgr (src/core/automata_ctlmgr.cpp)."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::QueryInterface"
+address = 0x00514D10
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D FC C9 14"
+source = "Slot 0 (iid, out), ret 8: 0xCA14C9FC the object, 1 and 0xE4FDA3D4 the serializable part (+0xC), 0x452294AA the message target part (+0x8); each AddRef through slot 1. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GridCellRange"
+address = 0x00515400
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 57 8B F9 8B"
+source = "On the controller grid (manager +0x1C): (position, radius, out[4]), ret 0xC: the grid cells (x0, z0, x1, z1) of a square of the radius around the position, clamped to the city's SizeX (asked twice) and the grid. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::ClearAutomatonList"
+address = 0x00517010
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 07 8B 30"
+source = "On an entry of the automaton table (+0x6C, node +8: list head, count): releases each automaton (slot 8), frees the nodes, count 0. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::AddControllers"
+address = 0x00517060
+kind = "function"
+convention = "thiscall"
+expect = "51 55 8B 6C 24 0C 85 ED"
+source = "Slot 13 (occupant), ret 4: the controllers of the occupant's groups (property 0xAA1DD396, script system slot 0x2C, then 0x005163D0) and of the special filter groups that take it (script system slot 0x28, group slot 3, slot 6 per template). Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::AddControllersFromOccupantGroupByName"
+address = 0x00517150
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 44 85 C0"
+source = "Slot 10 (name, occupant, position), ret 0xC: script system slot 0x30, then 0x005163D0. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::AddControllersFromOccupantGroupByID"
+address = 0x00517190
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 44 85 C0"
+source = "Slot 9 (group ID, occupant, position), ret 0xC: script system slot 0x2C, then 0x005163D0. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::Write"
+address = 0x005174D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 8B 5C 24 1C"
+source = "Serializable part (+0xC) slot 3 (stream), ret 4: version 1, the clock reference, the controller time (+0x34 float, +0x38 word, +0x3C float, +0x40 word), the occupants with saveable controllers (slot 0x30 with 8 false) and their references, the automaton table (+0x6C). Ours in simulators.automata.ctlsave."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::RemoveController"
+address = 0x00517880
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 8B 5C 24 20"
+source = "Slot 7 (controller), ret 4: unlinks it from every occupant's list, sends 0xEA298D50, takes it off the grid (0x005171D0), its slots 4 and 2. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "SC4ListHeadVector::Fill"
+address = 0x00518550
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "(first, last, value): each list of a vector of lists assigned from value (SC4List::Assign2). Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "SC4ListHeadVector::Copy"
+address = 0x00518580
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 57 8B 7C 24"
+source = "(first, last, dest): lists assigned forward (SC4List::Assign2); returns the destination's end. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "SC4ListHeadVector::UninitializedFillN"
+address = 0x005185C0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 53 55"
+source = "(dest, n, value, tag): n new lists copied from value (SC4StdList::InsertRangeUint32); returns the end. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "SC4ListHeadVector::CopyBackward"
+address = 0x00518620
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "(first, last, destEnd): lists assigned backward; returns the destination's begin. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::MoveControllers"
+address = 0x005188C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 71 5C 57 8B 79 60"
+source = "Slot 15 (occupant), ret 4: each controller of the occupant moved on the grid (0x00517B70) and its slot 27. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::MoveController"
+address = 0x00518930
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 85 F6 74"
+source = "Slot 16 (controller), ret 4: moved on the grid (0x00517B70), its slot 27. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "SC4ListHeadVector::UninitializedCopy"
+address = 0x00518AC0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 55 56 8B"
+source = "(first, last, dest, tag): new lists copied from [first, last); returns the end. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerTemplate::DestroyRecords"
+address = 0x00518B20
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 08 55 8B 6C"
+source = "(first, last, tag): the template's 0x7C-byte records destroyed: +0x1C freed, the 0x14-byte strings of [+0x10, +0x14) destroyed (slot 28 with 0), +0x10 freed. Also called by the script system (0x00521435, 0x0052289C). Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "SC4ListHeadVector::InsertOverflow"
+address = 0x0051A160
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "(position, value, tag, n, at end), ret 0x14: the vector of lists regrown (size plus the larger of size and n) with n copies of value at the position. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::Destructor"
+address = 0x0051A280
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 57 8D 7E 6C"
+source = "The manager's destructor (Release calls it): its vtables, both hash tables cleared and freed, the grid's lists destroyed and freed. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GetGZCLSID"
+address = 0x0051A300
+kind = "function"
+convention = "thiscall"
+expect = "B8 03 CA 14 CA C3 CC CC"
+source = "Serializable part slot 5: 0xCA14CA03. Ours in simulators.automata.ctlsave."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::RemoveControllersFromOccupant"
+address = 0x0051A350
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 56 8B F1 8B"
+source = "(group or 0, occupant), ret 8: the occupant's controllers (of the group's templates when one is given) removed as RemoveController does; an emptied occupant leaves both tables, its references released. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::RemoveControllers"
+address = 0x0051A520
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 50 6A 00 E8"
+source = "Slot 14 (occupant), ret 4: 0x0051A350 with no group. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::RemoveControllerByName"
+address = 0x0051A530
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 57 8B F9 8B"
+source = "Slot 8 (occupant, name), ret 8: the occupant's controllers whose template name (slot 7) is the name removed; answers 0 always. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::ClearAutomata"
+address = 0x0051A6F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 56 57 8D 79"
+source = "Shutdown's helper: each entry of the automaton table (+0x6C) releases its occupant and automata, then the table is cleared. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "SC4ListHeadVector::FillInsert"
+address = 0x0051A7D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "(position, n, value), ret 0xC: vector of lists insert(position, n, value). Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::InsertAutomatonEntry"
+address = 0x0051A900
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 53 55 56 8B"
+source = "On the automaton table: (out, pair), ret 8: insert_unique without a resize of a 0x2C-byte node (key, list, count, two vectors, a byte; copied by 0x00518A40); out = node, table, inserted. Also called from 0x0051BA46. Ours in simulators.automata.ctlsave."
+
+[[entry]]
+name = "cSC4AutomataControllerTemplate::Destructor"
+address = 0x0051A9A0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 C7 06 BC 60"
+source = "The controller template base's destructor (vtable 0x00A960BC; tail-called by the attractor and generator template destructors 0x0051B2A0 and 0x0051B310). Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerTemplate::DeletingDestructor"
+address = 0x0051AA30
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 68 FF FF FF"
+source = "Slot 0 of 0x00A960BC (flags), ret 4. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::Construct"
+address = 0x0051AA50
+kind = "function"
+convention = "thiscall"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "The constructor (0x80 bytes; the factory 0x00514840 jumps here). Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::RemoveControllersFromOccupantGroupByName"
+address = 0x0051AB00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 44 85 C0"
+source = "Slot 12 (name, occupant), ret 8: script system slot 0x30, then 0x0051A350. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::RemoveControllersFromOccupantGroupByID"
+address = 0x0051AB40
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 44 85 C0"
+source = "Slot 11 (group ID, occupant), ret 8: script system slot 0x2C, then 0x0051A350. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::ClearControllers"
+address = 0x0051AC10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 55 56 57 6A 00"
+source = "Shutdown's helper: the grid's lists erased, each controller of the controller table (+0x58) shut down (slot 4) and released, the occupants released, the table cleared. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::AddControllerFromTemplate"
+address = 0x0051AD20
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 55 56 57 8B"
+source = "Slot 6 (occupant, template, position), ret 0xC: refuses a template already on the occupant's lot (lot manager slot 14) or within the template's radius on the grid; else the controller made by the COM (class at template +0x1C, interface 0x6A1857F8), added to the occupant's list, set up (slots 14 or 17, 15, 3) and put on the grid (0x00517A90). Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::Release"
+address = 0x0051B1C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 14 83 F8"
+source = "Slot 2: above 1 counts down; else Shutdown (slot 4), the destructor and SC4::operator_delete. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::Shutdown"
+address = 0x0051B3E0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B E9 8A 45 10 84 C0"
+source = "Slot 4: the cheat code, the service 0x86AD10EC and the twelve messages unregistered, the script system and clock released, both tables cleared (0x0051A6F0, 0x0051AC10). Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::Read"
+address = 0x0051B520
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 94 00 00 00 53 55"
+source = "Serializable part (+0xC) slot 4 (stream), ret 4: Write's counterpart; sets +0x11. Ours in simulators.automata.ctlsave."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GridInit"
+address = 0x0051C090
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8B 0D EC"
+source = "On the grid (+0x1C): cells x over 8 per side (both sides from x), the shift, side squared empty lists, the city's cells times 16 as the sizes. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::Init"
+address = 0x0051C140
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 8B D9 8A 43"
+source = "Slot 3: the grid, the clock (city slot 86) and script system (city slot 48) referenced, twelve messages, the service 0x86AD10EC and the cheat code Controllers registered. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::AddControllersFromGroup"
+address = 0x005163D0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B 43 30"
+source = "Name ours, not ours (part a2): (group, occupant, position), ret 0xC; the add functions call it."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GridRemove"
+address = 0x005171D0
+kind = "function"
+convention = "thiscall"
+expect = "53 55 8B 6C 24 0C 8B D9"
+source = "Name ours, not ours (part a2): on the grid (+0x1C), (controller), ret 4."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GridAdd"
+address = 0x00517A90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours, not ours (part a2): on the grid (+0x1C), (controller), ret 4."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GridMove"
+address = 0x00517B70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 57 8B"
+source = "Name ours, not ours (part a2): on the grid (+0x1C), (controller), ret 4."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::CopyAutomatonValue"
+address = 0x00518A40
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 6A 0C C7"
+source = "Name ours, not ours (shared with the attractor code): copy constructor of an automaton table value (list, count, two vectors, byte), ret 4."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::Vtable"
+address = 0x00A96058
+kind = "vtable"
+expect = "10 4D 51 00 30 53 69 00"
+source = "Primary vtable, 25 slots (slot 24 0x0051A310 GetControllerTime; what follows at 0x00A960BC is the template base vtable)."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::MessageVtable"
+address = 0x00A96048
+kind = "vtable"
+expect = "20 A3 51 00 D0 00 52 00"
+source = "The +4 part (cheat code target)."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::TargetVtable"
+address = 0x00A96038
+kind = "vtable"
+expect = "30 A3 51 00 F0 00 52 00"
+source = "The +8 part (message target)."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::SerializableVtable"
+address = 0x00A96020
+kind = "vtable"
+expect = "40 A3 51 00 10 01 52 00"
+source = "The +0xC part (serializable: Write, Read, GetGZCLSID)."
+
+[[entry]]
+name = "cSC4AutomataControllerTemplate::BaseVtable"
+address = 0x00A960BC
+kind = "vtable"
+expect = "30 AA 51 00 43 6F 75 6C"
+source = "The controller template base (one slot: the deleting destructor 0x0051AA30)."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::NoControllerFormat"
+address = 0x00A960C0
+kind = "data"
+source = "Format text: no controller of class ID."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::NoEntryFormat"
+address = 0x00A960F8
+kind = "data"
+source = "Format text: no attractor list entry for an occupant."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::CheatName"
+address = 0x00B09A10
+kind = "data"
+source = "Pointer to the cheat code text Controllers."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::CellScale"
+address = 0x00B09A20
+kind = "data"
+source = "Float 1/128: metres to grid cells."
+
+[[entry]]
+name = "SC4::ZeroWord"
+address = 0x00B227CC
+kind = "data"
+source = "A data word read as a zero vector component (0 in the exe)."
+
+[[entry]]
+name = "SC4ListHeadVector::Resize"
+address = 0x0051B350
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 56 8B F1 8B"
+source = "(n, value), ret 8: vector of lists resize. Ours in simulators.automata.ctlmgr."
+
+[[entry]]
+name = "SC4::FloatRoundMagicA95D58"
+address = 0x00A95D58
+kind = "data"
+source = "Float 12582912 (1.5 * 2^23): the round-to-integer constant."
