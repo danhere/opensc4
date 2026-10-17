@@ -5165,3 +5165,321 @@ kind = "function"
 convention = "cdecl"
 expect = "51 C7 04 24 00 00 00 00"
 source = "Placeholder. No arguments: asks the framework (0x008793EC) slot 5 for the object 0x8C1FAEB7/0xAC1FAE31; returns it. The U-Drive control's OnMouseUpL calls its slot 0x18 with 4. Called at its address."
+
+[[entry]]
+name = "cSC4UDriveControl::Init"
+address = 0x00565A10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 56 8B F1 8A"
+source = "Name ours. Slot 3, no arguments, true always. Once (base +4): the base Init, the target (+0x28) on the tick service 0x86AD10EC (slot 5, priority 0xFF), the terrain at +0x68 with its slot 6 at +0x6C and 1 over it at +0x70 (once), the automaton pick's filter at +0x84 (vtables 0x00A9D894/0x00A9D87C) and the network pick's filter (vtables 0x00A8FE14/0x00A8FDFC) at +0x88 (once each), four empty referenced strings at +0x74..+0x80 handed to SC4::GetService913BEE's slot 6, the four automata managers (city slots 43 to 46) at +0x8C..+0x98, the driven automaton released, the marker (0x4C bytes, SC4UDriveMarker) at +0x9C, inited and given to the renderer (0x00B43DD0 slot 0x80 with 5, 1000), the overlay manager (dispatch service slot 0x58) at +0x34, the target on the message server for 0xA6B79602 and the three panel commands, overlay type 4 set to 0 (0x0046D3A0), the network manager 0x00B43D54 at +0xAC, the simulator at +0xA0, the automata script system (city slot 48) at +0xB0; with a view: the panel window resource (0xA2E3D533, 0x6A231EAA, 0x0C0EAAD0; IID 0x42E3EA4B), the view's slot 0x7C kept at +0xB4, a COM object 0x42E967BE (IID 0xE2C1B3C4) at +0xB8 given to the resource (slot 3) and to the view (slot 0x80); the panel commands to the framework's service 0xEB903A32 (slot 7 with the table, 3). Ours in ui.tools.udrive2 (src/core/tool_udrive_2.cpp)."
+
+[[entry]]
+name = "cSC4UDriveControl::Shutdown"
+address = 0x00563970
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B F1 8A 46"
+source = "Name ours. Slot 4, no arguments, true always. When inited: the inited byte cleared FIRST (so the base Shutdown at the end lets nothing go: view, window manager and cursor stay referenced, original oddity), the panel commands off the framework's service (slot 10), the view's old window back (slot 0x80 with +0xB4) and +0xB8/+0xB4 released, overlay type 4 set to the situation manager's slot 0x78 (1 without one), the list +0x64 emptied (objects released, nodes freed), F562FD0, +0x60 with the view's pointer text 0xAB73510C (slot 0xA4), the simulator resumed (slot 12) when paused, the automata managers resumed (slot 10), CloseWindows, view slot 0xDC with 0, +0xA0 and +0xAC released, sound event 0 stopped, the message server registrations off, the marker off the renderer (slot 0x84), shut down and released, the strings off SC4::GetService913BEE (slot 7) and released, the view's pointer text 0xAB73510C again, the filters and the terrain released, off the tick service, the automata managers, driven automaton, overlay manager and script system released, SC4::ReleaseUDriveControl, the base Shutdown. Ours in ui.tools.udrive2."
+
+[[entry]]
+name = "cSC4UDriveControl::CloseWindows"
+address = 0x00563330
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 A4 00 00"
+source = "Name ours. No arguments (caller Shutdown): each of the panel windows +0xA4 and +0xA8 taken off the view's window (view slot 3, its slot 15) and released; then a jump to the view's slot 0xE4. Ours in ui.tools.udrive2."
+
+[[entry]]
+name = "cSC4UDriveControl::StopAndPause"
+address = 0x00564450
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 78 EB FF FF"
+source = "Name ours. No arguments (caller the park automaton 0x00506850 when it has no vehicle to give): F562FD0, +0x60 (the automaton under the pointer) released with the view's pointer text 0xAB73510C (slot 0xA4), the simulator paused (slot 9) unless it is (slot 15), the four automata managers paused (slot 9). Ours in ui.tools.udrive2."
+
+[[entry]]
+name = "cSC4UDriveControl::AddListed"
+address = 0x00565FA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 85 F6 57"
+source = "Name ours. (object), ret 4 (caller the park automaton 0x00506850 with its second argument): an object not in the list +0x64 yet is referenced and appended (12-byte node from the STL allocator: next, prev, object). Ours in ui.tools.udrive2."
+
+[[entry]]
+name = "cSC4UDriveControl::F562FD0"
+address = 0x00562FD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 30 85 C9"
+source = "Name ours (placeholder fixed by the brief). No arguments: lets go of the driven automaton (+0x30): our callback off it (slot 0xA0 with +0x28), its marker (+0x38) off the overlay manager (+0x34), the vehicle manager's slot 0x88 with 0, the view's slot 0x2C with (0, 5), the sound system's event 0 stopped and the automaton's sound bank (property 0xCBBBA52F of its property holder) unloaded; in behaviour 0x10 (slot 0xEC) it is removed (slot 0x34 with false) unless stopped (flag 0x8000000) or its occupant is in group 0x4003, then it pops its state (slot 0xD4); then +0x30 cleared and released. Callers 0x00563310, Shutdown, 0x00564450, 0x005650E0, 0x00565160. Ours in ui.tools.udrive2."
+
+[[entry]]
+name = "cSC4UDriveControl::OnAutomatonGone"
+address = 0x00563310
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 56 8B F1 3B"
+source = "Name ours. (automaton), ret 4 (caller DoMessage, message 0x09D92FC3 kind 3): when it is the driven automaton, F562FD0 and slot 27 (put away). Ours in ui.tools.udrive2."
+
+[[entry]]
+name = "cSC4UDriveControl::DoMessage"
+address = 0x00566890
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name ours. Slot 3 of the target part's vtable 0x00A9D9A0, this = control + 0x28: (message), ret 4, true always. 0xA6B79602 the panel's buttons 0x4992046A / 0xE9920494 enabled by the view's slots 0x30 / 0x34 (SC4Win::EnableChild); 0x86AD10EE (tick) UpdatePanel; 0x09D92FC3 (GetVoid1 automaton, GetData2 kind) 3 OnAutomatonGone, 0xB sound event 0 stopped, SC4OverlayManager::F5658D0 on +0x34 with (+0x38, 1), the stopwatch +0x48 made again (mode 4) and started, 0xD with GetData3 0x10 and the automaton's slot 0xE4 (0x10) null sound event 0 stopped; 0xAC1F0449 panel small (+0xA4 slot 0x118, +0xA8 slot 0x114), 0xCC1F0457 big, 0xAC1F045D switched by +0xA4 slot 0x11C. Ours in ui.tools.udrive2."
+
+[[entry]]
+name = "cSC4UDriveControl::UpdatePanel"
+address = 0x00566000
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 68 56 8B F1 8B 4E"
+source = "Name ours. No arguments (caller DoMessage on every tick): with a driven automaton neither stopped nor flagged 1: an 8-byte STL buffer allocated and freed (a dead local string), position and destination asked into vectors filled from SC4UDrive::VectorFill, the state 0x10 (slot 0xE4); with it the cursor (+0x114 unless +0x9C is -1 or it is 0, else 0xC16C4E1B; slot 8); with the panel +0xA4 and the state: dials (child IID 0x0BCBF1DF, slots 8/10/12) 0xEBCB9403 speed (0 to +0x40), 0x2BCB940B state +0x2C clamped to +0x30..+0x34, 0x2BCBCE68 height over the ground (terrain or region terrain at the cell) modulo 100 and its text 0xEC0EA996 ('%.0f'), 0x6BCBCE73 (-30 to 30 degrees, +0x238), 0x2BF98D69, 0xEBF98D37, 0x6C0AE7B1, 0x2C0C1C8C (state triples), the button 0x0C16C9B9 (IID 0x8810, slot 5 with 1, +0x44), the money text 0xAC0EA9DB, the count text 0x8C3923AE (state +0x144 - +0x178, slot 0x94) and the button 0x6C3A0A6F (slot 9 with state +0x1FF); the view's slot 0xE8; with the state the two engine volumes (sound slots 7, 8). Then with the stopwatch +0x48 running and 9000 gone by (real time) slot 27. Ours in ui.tools.udrive2."
+
+[[entry]]
+name = "cSC4UDriveControl::OnPanelCommand"
+address = 0x00562E20
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 83 38 03 0F"
+source = "Name ours. Slot 3 of the third interface's vtable 0x00A9D98C, this = control + 0x2C (not used): (window, message), ret 8: a click (message words 3, 0x287259F6) on 0x4992046A, 0x2C16C9CB, 0x4C1A5CC9, 0xE9920494 posts 0x6A935CB7, 0xAC1F0449, 0xCC1F0457, 0x6A935CBA (commands global 0x00B43CB0 slot 0x50 with two zeros) and answers true; false otherwise. Ours in ui.tools.udrive2."
+
+[[entry]]
+name = "cSC4UDriveControl::FilterTest"
+address = 0x00562C90
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. Slot 3 of the control's occupant filter (vtable 0x00A9D894, made by Init at +0x84): (occupant), ret 4: true for the types 0xC7CC75F1, 0x496E5783, 0x480E6151, 0x897F7EC2 (slot 7 asked once per comparison). No direct caller. Ours in ui.tools.udrive2."
+
+[[entry]]
+name = "cSC4UDriveControl::FilterVtable"
+address = 0x00A9D894
+kind = "data"
+source = "Name ours. Primary vtable (7 slots) of the control's 0xC-byte occupant filter (base 0x005EA080) Init keeps at +0x84: slot 3 FilterTest 0x00562C90, the rest shared."
+
+[[entry]]
+name = "cSC4UDriveControl::FilterVtable4"
+address = 0x00A9D87C
+kind = "data"
+source = "Name ours. The second vtable (+4) of the control's occupant filter: shared code only."
+
+[[entry]]
+name = "cSC4UDriveControl::PanelCommands"
+address = 0x00B0A110
+kind = "data"
+source = "Name ours. Three 12-byte entries (message ID, name, 0): 0xAC1F0449 MinimizeDrivingPanel, 0xCC1F0457 MaximizeDrivingPanel, 0xAC1F045D ToggleDrivingPanel; Init/Shutdown register them with the message server and the framework's command service 0xEB903A32 (slots 7/10 with the table and 3)."
+
+[[entry]]
+name = "SC4UDrive::VectorFill"
+address = 0x00B229AC
+kind = "data"
+source = "Name ours. A float the U-Drive control fills new vectors with before asking an automaton for them (0x005631C3, 0x00564BFB, 0x00564EDE, 0x00565639, 0x00566044); the static initializer 0x00A729A0 fills the 16 vectors at 0x00B229B8 with it. File value 0x00A2547B; read at run time."
+
+[[entry]]
+name = "SC4OverlayManager::F5658D0"
+address = 0x005658D0
+kind = "function"
+convention = "thiscall"
+expect = "51 8A 44 24 08 56 8D 71"
+source = "Placeholder, a method of the overlay manager compiled with the U-Drive code. (byte key, unused), ret 8: finds the marker of the key in the map at +0x48 (0x00565430) and sets 0x400 in its +0x110; true when found. Only caller the U-Drive control's DoMessage (0x00566960). Called at its address."
+
+[[entry]]
+name = "SC4OverlayManager::F46D3A0"
+address = 0x0046D3A0
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 08 83 EC 08 84"
+source = "Placeholder. (type, on byte), ret 8: the overlay manager's per-type set at +0x54 (0x006C0030 find, 0x0046C0E0) changed and 0x0046C600 with 0; the U-Drive control's Init gives (4, 0), Shutdown (4, situation manager slot 0x78). Called at its address."
+
+[[entry]]
+name = "SC4::GetService913BEE"
+address = 0x00913BEE
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 83 3D B8 28"
+source = "Placeholder. No arguments: the object cached in 0x00B628B8 (made on first use through 0x00602190); the U-Drive control's Init hands it four strings (slot 6), Shutdown takes them back (slot 7). Called at its address."
+
+[[entry]]
+name = "SC4::ReleaseUDriveControl"
+address = 0x00506910
+kind = "function"
+convention = "cdecl"
+expect = "8B 0D 44 3D B4 00 85 C9"
+source = "Name ours. No arguments: 0x00B43D44 slot 0x5C with the word 0x00B21BC8, then the park automaton's held U-Drive control (0x00B21D74) cleared and released. Caller the control's Shutdown. Called at its address."
+
+[[entry]]
+name = "SC4UDriveMarker::Construct"
+address = 0x005649D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "Name ours. The constructor of the U-Drive control's marker (0x4C bytes; vtables 0x00A9D974 and 0x00A9D95C at +4 over a base 0x0090DA1E; +0x1C..+0x28 -1). Drawing: left the game's, called at its address by Init."
+
+[[entry]]
+name = "SC4UDriveMarker::Init"
+address = 0x005633C0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC A4 00 00 00 55 8B"
+source = "Name ours. The marker's set-up (builds its models through 0x00B43DD0 and 0x007D2B50; once, byte +0xC). Drawing: left the game's, called at its address by Init."
+
+[[entry]]
+name = "SC4UDriveMarker::Shutdown"
+address = 0x00563730
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8A 46 0C 33"
+source = "Name ours. The marker's take-down (byte +0xC cleared, its models released). Drawing: left the game's, called at its address by Shutdown."
+
+[[entry]]
+name = "cSC4UDriveControl::OnKeyDown"
+address = 0x00566C60
+kind = "function"
+convention = "thiscall"
+expect = "F7 44 24 08 00 00 00 40"
+source = "Name ours. Slot 14, (key, modifiers), ret 8: true for a repeat (0x40000000); Escape puts the control away (slot 27), true; during a city situation countdown (city slot 0xC4, its slot 0x80) true; without the automata script system at +0xB0 false; its slot 0x38 gives the key's command, 13 none (false); else 0x00566A70 with (command, 1) and, when that does not take it, 0x00563D40; true. Ours in ui.tools.udrive3 (src/core/tool_udrive_3.cpp)."
+
+[[entry]]
+name = "cSC4UDriveControl::OnKeyUp"
+address = 0x00566CF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 0D EC 3C B4"
+source = "Name ours. Slot 15, (key, modifiers), ret 8: as OnKeyDown without the repeat and Escape tests, 0x00566A70 with (command, 0), then 0x00564060. Ours in ui.tools.udrive3."
+
+[[entry]]
+name = "cSC4UDriveControl::ApplyBinding"
+address = 0x00566A70
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 44 53 57 8B F9 8B"
+source = "Name ours. (command, down byte), ret 8: with a driven automaton whose flags 0x8000000 and 1 are clear, its state 0x10 (FindState, slot 0xE4) and description (slot 0x10C) and a key binding record (0x40 bytes, 0x0051D040) filled from the description's map (0x005204D0): the state's byte +0x205+command gets 0 (flag 2, a toggle when down), the key (flag 1) or flips on a press; when changed or toggled the record's named effects recreated, started or stopped (slots 0xBC, 0xB0, 0xB4; type = flag 4) with flag 0x10, the automata controller of the record's template (city slot 0xBC, its slots 19 and 5) told on or off (slot 0x48) with flag 0x20; true when the record has flag 8. Ours in ui.tools.udrive3."
+
+[[entry]]
+name = "cSC4UDriveControl::CommandDown"
+address = 0x00563D40
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 0C 53"
+source = "Name ours. (command), ret 4, jump table 0x0056402C: 8 and above 12 false, else true; with CanDrive HandlePlayerDriveCommand (slot 0xF0) with (command, 1) and for 0, 1, 2, 3, 5, 7 the service of 0x00602640 slot 0x14 with 1, 2, 3, 3, 6, 4; 2 and 3 press the driving window's buttons 0x8BCB93FC / 0x6BCB93F5 first; 4 and 10 flip +0x44 / +0x45 and give them; 9 flips the driving state's +0x229. Ours in ui.tools.udrive3."
+
+[[entry]]
+name = "cSC4UDriveControl::CommandUp"
+address = 0x00564060
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 0C 53"
+source = "Name ours. (command), ret 4, jump table 0x005642C8: as CommandDown for a release: (command, 0), the service's slot 0x18, the buttons released; 4 and 10 nothing (true). Ours in ui.tools.udrive3."
+
+[[entry]]
+name = "cSC4UDriveControl::OnMouseDownL"
+address = 0x005655D0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 8B 5C 24 1C"
+source = "Name ours. Slot 16, (x, z, modifiers), ret 0xC: a network piece under the pointer (0x005630C0) that the network manager +0xAC takes (slot 0xA8) gets the sound 0x8BE8D9AC at its position, is let go and its cell (slot 0xEC, after the release) goes into the point holder's +0x24/+0x28; with a driven automaton that takes input and no countdown, of group 0x4006 and CanDrive: HandlePlayerDriveCommand (7, 1) and the service of 0x00602640 slot 0x14 with 4; with none driven an automaton under the pointer (0x00563140) starts a drive (0x00565160 with 1). True. Ours in ui.tools.udrive3."
+
+[[entry]]
+name = "cSC4UDriveControl::PickNetworkOccupant"
+address = 0x005630C0
+kind = "function"
+convention = "thiscall"
+expect = "51 A1 D0 3D B4 00 53 56"
+source = "Name ours. (x, z, void** out), ret 0xC: the renderer 0x00B43DD0 slot 0x104 with the filter at +0x88; the model's slot 3 object asked for 0xA821EF94 into out (referenced); the model let go. True when found. Ours in ui.tools.udrive3."
+
+[[entry]]
+name = "cSC4UDriveControl::PickAutomaton"
+address = 0x00563140
+kind = "function"
+convention = "thiscall"
+expect = "51 A1 D0 3D B4 00 53 56"
+source = "Name ours. (x, z, void** out), ret 0xC: as PickNetworkOccupant with the filter at +0x84 and 0xA9B40F05 (cISC4Automaton). Ours in ui.tools.udrive3."
+
+[[entry]]
+name = "cSC4UDriveControl::OnMouseMove"
+address = 0x005631C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C A1 AC 29 B2 00"
+source = "Name ours. Slot 20, (x, z, modifiers), ret 0xC: the ground point (view slot 0x90) as a cell (city PositionToCell) into the point holder's +0x1C/+0x20, -1 without one; driving: the screen point into the driving state's +0x214/+0x218; else the automaton under the pointer held at +0x60 (or let go, and the view's ClearCursorText 0xAB73510C). True. Ours in ui.tools.udrive3."
+
+[[entry]]
+name = "cSC4UDriveControl::PutAway"
+address = 0x005650E0
+kind = "function"
+convention = "thiscall"
+expect = "56 6A 00 6A 01 8B F1 E8"
+source = "Name ours. Slot 27, no arguments: 0x005644E0 with (1, 0); a driven automaton that answers slot 0x48 removed (slot 0x34 with 0); 0x00562FD0; +0x60 let go with ClearCursorText; disasters back on (city slot 0x120, its slot 0x14 with 1); then a jump to the base's PutAway. Ours in ui.tools.udrive3."
+
+[[entry]]
+name = "cSC4UDriveControl::NotifyListeners"
+address = 0x005644E0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 43 64 39 00"
+source = "Name ours. (a, b), ret 8: when the list at +0x64 is not empty, a cGZMessage 0x0BB324BD (void 1 the control, data 2 a, data 3 b) to each listener's slot 3. Ours in ui.tools.udrive3."
+
+[[entry]]
+name = "cSC4UDriveControl::MakeWindows"
+address = 0x00564570
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 80 00 00 00 53 55"
+source = "Name ours. (exemplar instance), ret 4: once (+0xA4 empty): from the exemplar (0x6534284A, 0x690F693F, instance) the driving window (layout property 0x2BE8E61B, window 0x4BCB938A) into +0xA4 with its children's pictures and numbers (properties 0x2BE8E834, 0x2BE8E6CB, 0xABE8E6CC), its listener (0x5386D516) told about the third interface, centred at the view's foot; the second window (0x8C1A5C9F, window 0xEC1A5CBF) into +0xA8 likewise; the view's ShowMissionStatusPanel with property 0xEC1B2361. Ours in ui.tools.udrive3."
+
+[[entry]]
+name = "cSC4UDriveControl::F565160"
+address = 0x00565160
+kind = "function"
+convention = "thiscall"
+expect = "51 56 57 8B 7C 24 10 85"
+source = "Name ours (the drive's start). (cISC4Automaton*, byte not read), ret 8, callers SC4::ParkAutomaton 0x00506850 and OnMouseDownL: disasters off, the automaton's FindDrivingAutomaton, 0x00562FD0, MinimizeUI, the windows (0x00564570), the service of 0x00602640 set up, the automaton held at +0x30, PushState 0x10, the vehicle manager follows it, zoom limits from its description, the zoom buttons, a marker 6 into +0x38, the callback, the stopwatch +0x48 stopped and reset, the simulator resumed (0x00562F00 with 0). Ours in ui.tools.udrive3."
+
+[[entry]]
+name = "cSC4UDriveControl::F562F00"
+address = 0x00562F00
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 84 C0 56 8B"
+source = "Name ours (pause). (byte pause), ret 4: the simulator service at +0xA0 paused (slots 15, 9) or resumed (slots 15, 12) and the four automata managers at +0x8C..+0x98 paused (slot 9) or resumed (slot 10). Ours in ui.tools.udrive3."
+
+[[entry]]
+name = "SC4KeyBinding::Construct"
+address = 0x0051D040
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 33 DB 89 5E"
+source = "Name ours. No arguments: a key binding record of 0x40 bytes: three strings of 0x14 bytes (vtable 0x00A80810, 8-byte buffers from 0x0090CF54) at +0, +0x14, +0x28; +0x3C (flags) left. The U-Drive control's 0x00566A70 makes one on the stack. Called by address."
+
+[[entry]]
+name = "SC4KeyBinding::Destruct"
+address = 0x0051D0D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 46 28 10 08"
+source = "Name ours. No arguments: frees the three strings' buffers of a key binding record. Called by address."
+
+[[entry]]
+name = "SC4KeyBindingMap::Find"
+address = 0x005204D0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 59 74 56 8B 71 78"
+source = "Name ours. (byte key, record* out), ret 8: a hash of key bytes (buckets +0x74..+0x78 of the object, nodes {next, key, record of 0x40}) searched; the record copied into out (0x0051FD30); false when missing. The U-Drive control asks the driven automaton's description (slot 0x10C). Called by address."
+
+[[entry]]
+name = "SC4AutomatonTemplate::FindInherited64"
+address = 0x0046B4A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 64 85 C0 75 0E 8B"
+source = "Name ours, a guess at the class. No arguments: this +0x64, or the same asked of the parent at +0xC while there is one; null at the root. The U-Drive control's 0x00565160 reads three dwords there (zoom limit, zoom, a float). Called by address."
+
+[[entry]]
+name = "SC4UDrive::VectorFillY"
+address = 0x00B229A8
+kind = "data"
+source = "Name ours. A dword of .bss no code writes (zero; next to SC4UDrive::VectorFill 0x00B229AC); the U-Drive control's 0x00565160 gives it to the service of 0x00602640 slots 7, 8, 9. Read at run time."
