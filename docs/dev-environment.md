@@ -32,6 +32,34 @@ CachyOS is closer to Windows than macOS is for this project: same CPU architectu
 - **Steam rebuilds `PATH`** for the game (it starts with `C:\Program Files (x86)\Steam` and drops what the caller added), so `PATH` cannot supply a plugin's dependencies. `OPENSC4_TEST_PRELOAD` loads DLLs by full path when `core.dll`'s director is created, before the game loads later plugins (it loads `Plugins` DLLs in name order).
 - Build the plugin from a clone with submodules: `git submodule update --init` fetches gzcom-dll into `third_party/`.
 
+## Running the harness from a session
+
+Everything below is what an unattended session (an agent's shell, or a script) needs. The scripts are Git Bash on Windows; from PowerShell call them through Git Bash: `& "C:\Program Files\Git\bin\bash.exe" -lc '<command>'`. The workspace shows the same results as a person's terminal — fingerprints, records and verdicts — but compares **state**, not pixels or sound.
+
+- **Build in a fresh worktree.** A `git worktree` checks out no submodules: run `git submodule update --init` first. The SDK default (`.xwin/sysroot` inside the repo) is not where this machine's xwin splat lives, so set `OPENSC4_WINSYSROOT` for configure, build and tests:
+  ```powershell
+  $env:OPENSC4_WINSYSROOT = "$env:LOCALAPPDATA\opensc4\xwin\sysroot"
+  cmake --preset debug
+  cmake --build --preset debug
+  ctest --preset debug
+  ```
+- **Quoting.** An argument that contains a space is mangled between PowerShell and `bash -lc` (a script then sees a missing argument). Pass the 8.3 short path for anything with a space (`C:/Users/DANSAK~1/AppData/Local/Temp/opencode/...`) and leave repo-relative arguments (`build/debug`) alone.
+- **Recipes.**
+  ```powershell
+  # One unattended city, 30 s, print core.dll's log
+  & "C:\Program Files\Git\bin\bash.exe" -lc 'scripts/run-autotest.sh "build/debug" OPENSC4_TEST_SECONDS=30 OPENSC4_TEST_TIMEOUT=300'
+
+  # One corpus save, A vs B (here a control, A = B), 1 game day
+  & "C:\Program Files\Git\bin\bash.exe" -lc 'scripts/run-parity.sh "build/debug" "C:/Users/DANSAK~1/AppData/Local/Temp/opencode/out" 1 "C:/Users/DANSAK~1/AppData/Local/Temp/opencode/saves" OPENSC4_PARITY_PAUSE=0'
+  ```
+  `OPENSC4_TEST_SECONDS`/`OPENSC4_TEST_TIMEOUT` bound an autotest; `OPENSC4_PARITY_PAUSE=0` skips the anti-Steam-relaunch wait. Rough cost: a build is minutes, an autotest ~40 s, one parity pair ~1–2 min, the full 12-save 7-day batch 10–30 min.
+- **Pitfalls that cost time.**
+  - `run-autotest.sh` opens the region the fixture `SimCity 4.cfg` remembers (not `OPENSC4_TEST_REGION`, which only seeds the folder), and the game **rewrites that `.cfg` on exit**. If the remembered region has no city whose save path contains `OPENSC4_TEST_CITY`, the run logs `no city matches OPENSC4_TEST_CITY` and quits. Reset it with `python3 tools/cfg_region.py "<fixture>/SimCity 4.cfg" <out.cfg> Timbuktu` (`<fixture>` is `%LOCALAPPDATA%\opensc4\testenv\userdir`).
+  - Two regions in the fixture can share one internal name — the stock `Timbuktu` and the forum copy `Forum Timbuktu` both answer to "Timbuktu" — and the game then opens whichever it likes, usually not the tutorial. Keep the extra region out of `Regions/` while running (rename it, restore after), or use a region whose name is unique.
+  - `OPENSC4_TEST_CITY` matches as a **substring** of the city save path, so `Making Money Tutorial` matches `City - Making Money Tutorial.sc4`.
+  - The corpus: `<saves dir>` for `run-parity.sh` is a folder holding one folder per city of `*.sc4`; `%LOCALAPPDATA%\opensc4\parity\saves` has the three tutorials at 0/90/365/1095 days, beside `saves-plopped`, `saves-ports`, `saves-networks` and the forum batches.
+  - Close any running `SimCity 4.exe` before a run (`run-autotest.sh` refuses otherwise; `OPENSC4_PARALLEL=1` allows it).
+
 ## Address database and hooks
 
 - Every game address OpenSC4 relies on lives in [`data/addresses/`](../data/addresses/README.md), one file per simulator plus `core.toml`: name, address, kind, calling convention, signature, the first bytes, and how it was identified. The build generates `opensc4/addresses.h` from it (`tools/gen_addresses.py`, Python 3.11+); C++ code uses `opensc4::addr::<name>` constants instead of literal addresses.
@@ -106,6 +134,26 @@ scale_city = no         ; yes: enlarge the city too (the screen then shows less 
   - Attached Function ID databases are remembered in Ghidra's user settings and are then applied by every later auto-analysis.
 - Individual scripts in `tools/ghidra` document their own arguments; `LookupNames.java <address...>` prints what the project knows about addresses.
 
+### Reading the game's code headless
+
+The scripts in `tools/ghidra` are copied to `%LOCALAPPDATA%\opensc4\ghidra-scripts` by `scripts/ghidra-setup.sh`. Run one against the project `%LOCALAPPDATA%\opensc4\ghidra` (project `SC4_1.1.641`, program `SimCity 4.exe`) with `-noanalysis -readOnly`:
+
+```powershell
+$H = "C:\Users\DANSAK~1\scoop\apps\ghidra\current\support\ANALYZ~1.BAT"   # analyzeHeadless.bat
+$P = "C:\Users\DANSAK~1\AppData\Local\opensc4\ghidra"                    # project dir
+$S = "C:\Users\DANSAK~1\AppData\Local\opensc4\GHIDRA~1"                  # script dir
+& $H $P SC4_1.1.641 -process "SimCity 4.exe" -noanalysis -readOnly -scriptPath $S -postScript FuncDisasm.java 0x517D40
+```
+
+Scripts worth knowing (all take addresses unless noted): `LookupNames.java` (name, entry point, signature), `FuncDisasm.java` (every instruction of the function containing an address), `Disasm.java <addr> <count>`, `Decompile.java`, `DumpVtable.java <vtable> <slots>`, `FuncRefs.java` (references to it), `EntryCalls.java <start> <end>`, `FindScalar.java <hex...>` and `FindMnemonic.java` (search the whole program), `DispIn.java`, `VftablesOf.java`, `SlotOf.java`, `StringRefs.java`, `TypesLike.java`, `RetSizes.java`, `ImportCallers.java`, `CallsAtSlot.java`, `StartCheck.java`, `RWOnlyFuncs.java`, `EspMap.java`, `DumpWords.java`. Two habits for a new part: find the class's vtable with `LookupNames`, dump it with `DumpVtable`, then disassemble or decompile each slot's target.
+
+Two traps:
+
+- `analyzeHeadless.bat` breaks on paths with spaces or parentheses, so pass 8.3 short paths (`cmd /c 'for %I in ("<dir>") do @echo %~sI'`). Ghidra allows **one process per project**: never run two headless scripts at once, or the second fails with `LockException: Unable to lock project`.
+- Each `println` comes back prefixed (`INFO  <script>.java> ...`), but a **multi-line** `println` (the decompiler's C) is prefixed only on its first line, so filtering by prefix loses it. For anything long use `DecompileTo.java <outfile> <addr...>` or `DisasmTo.java <outfile> <addr...>`, which write the whole output to a file.
+
+To record a new address, its `expect` is the first bytes at the VA; read them from the exe with a tiny PE reader (map RVA to the section's raw offset) and confirm the whole database with `python3 tools/gen_addresses.py --check data/addresses "<SimCity 4.exe>"`.
+
 ## Toolchain (same on Windows and CachyOS)
 
 | Tool | Purpose |
@@ -137,7 +185,7 @@ cmake --build --preset debug
 ctest --preset debug
 ```
 
-`scripts/fetch-sdk.sh` and the toolchain file both read `OPENSC4_WINSYSROOT`; it defaults to `.xwin/sysroot` in the repo.
+`scripts/fetch-sdk.sh` and the toolchain file both read `OPENSC4_WINSYSROOT`; it defaults to `.xwin/sysroot` in the repo. On this machine the splat is at `%LOCALAPPDATA%\opensc4\xwin\sysroot`, so set that (see [Running the harness from a session](#running-the-harness-from-a-session)).
 
 ### CachyOS
 
