@@ -127,6 +127,14 @@
 // piece click (the guarded 0x0062CD50 with flag 0) for four fitting rules
 // at each of two cells of the road strip. ` pz <calls>,<candidates>,<hash>`
 // in the daily part (PuzzleProbe, DirectPuzzle below).
+// OPENSC4_TEST_CREW_UNDERGROUND=1 (off by default; legs without it are
+// unchanged): last of the drive, pipes and then subways (the underground
+// tools, src/core/nettool_under.cpp), each a straight drag on land found as
+// for the six types and a second drag from the cell below its end, down,
+// so it starts against the first one's pieces (the auto connection). The
+// tool's depth (+0x36C) and its two lists' lengths (+0x384, +0x388) after
+// Init and after each drag, each drag's cost and failures and its new pieces
+// are hashed: ` ug <drags>,<hash>` in the daily part (DriveUnderground).
 #include "core/autotest_hooks.h"
 #include "core/crew_sim.h"
 #include "core/game.h"
@@ -1411,6 +1419,88 @@ void DriveBridges(cISC4City* city, char* manager)
     tool->Release();
 }
 
+// ====================================================================================
+// OPENSC4_TEST_CREW_UNDERGROUND (see the top of the file)
+// ====================================================================================
+
+// The underground tools' base (src/core/nettool_under.cpp): +0x36C the
+// depth, +0x384 and +0x388 two lists (a pointer to a head node).
+constexpr std::size_t kUnderDepth = 0x36C, kUnderListA = 0x384, kUnderListB = 0x388;
+
+uint32_t g_underDrags = 0, g_underHash = 2166136261u;
+
+void MixUnder(cISC4NetworkTool* tool, Hash& h)
+{
+    char* const self = reinterpret_cast<char*>(tool);
+    h.Mix(At<uint32_t>(self, kUnderDepth));
+    h.Mix(ListLength(self + kUnderListA));
+    h.Mix(ListLength(self + kUnderListB));
+}
+
+// For pipes and then subways: a straight drag on land the lot manager finds
+// as for the six types (the surface strips are networks by now, so it is
+// other land), then a drag that starts on the cell below the first drag's
+// end and runs down from it, so it ends against the first one's pieces (the
+// auto connection, slot 65). Each through the release (Place). Hashed: the
+// tool's depth and its two lists' lengths after Init and after each drag,
+// each drag's cost, failure and preview failure, and the new pieces.
+void DriveUnderground(cISC4City* city, char* manager)
+{
+    if (EnvInt("OPENSC4_TEST_CREW_UNDERGROUND", 0) != 1)
+        return;
+    void* const lots = Global<void*>(addr::SC4_LotManager);
+    const int32_t sizeX = static_cast<int32_t>(city->CellCountX()), sizeZ = static_cast<int32_t>(city->CellCountZ());
+    if (!lots)
+        return;
+    constexpr struct {
+        cISC4NetworkOccupant::eNetworkType type;
+        const char* name;
+    } kUnder[] = {{cISC4NetworkOccupant::WaterPipe, "pipe"}, {cISC4NetworkOccupant::Subway, "subway"}};
+    cISC4NetworkManager* const networks = city->GetNetworkManager();
+    Hash h;
+    h.h = g_underHash;
+    for (const auto& kind : kUnder) {
+        int32_t length = EnvInt("OPENSC4_TEST_CREW_LENGTH", 24), least = kFree, x = 0, z = 0;
+        if (length < 8 || !FindPlace(lots, sizeX, sizeZ, length, least, x, z)) {
+            log::Write("autotest: crew: underground %s: no strip", kind.name);
+            continue;
+        }
+        cISC4NetworkTool* const tool = networks->GetNetworkTool(kind.type, false);
+        if (!tool) {
+            log::Write("autotest: crew: underground %s: no tool", kind.name);
+            continue;
+        }
+        tool->AddRef();
+        tool->Init();
+        MixUnder(tool, h);
+        const uint32_t endX = static_cast<uint32_t>(x + length - 1);
+        const SC4Point<uint32_t> lines[2][2] = {
+            {{static_cast<uint32_t>(x), static_cast<uint32_t>(z)}, {endX, static_cast<uint32_t>(z)}},
+            {{endX, static_cast<uint32_t>(z + 1)}, {endX, static_cast<uint32_t>(z + 6)}}};
+        for (const auto& line : lines) {
+            const uint32_t madeBefore = ReadState(city, manager).made;
+            Drag drag{tool, kind.type, {line[0], line[1]}, 0, 0};
+            if (!RunModalPlayer(&AnswerDialog, &Place, &drag))
+                Place(&drag);
+            const uint32_t failure = tool->GetFailureState();
+            const uint32_t made = ReadState(city, manager).made - madeBefore;
+            h.Mix(static_cast<uint32_t>(drag.cost));
+            h.Mix(failure);
+            h.Mix(drag.previewFailure);
+            h.Mix(made);
+            MixUnder(tool, h);
+            ++g_underDrags;
+            log::Write("autotest: crew: underground %s (%u,%u)-(%u,%u) on %s land: cost %d, failure %u (preview %u), "
+                       "%u new pieces",
+                       kind.name, line[0].x, line[0].y, line[1].x, line[1].y, least == kFree ? "free" : "lots'",
+                       drag.cost, failure, drag.previewFailure, made);
+        }
+        tool->Shutdown();
+        tool->Release();
+    }
+    g_underHash = h.h;
+}
+
 void Drive(const Day& day)
 {
     if (Env("OPENSC4_TEST_CREW").empty() || !day.counted)
@@ -1433,6 +1523,7 @@ void Drive(const Day& day)
         DrivePuzzle(day.city);
         WorkTest(day.city);
         DriveBridges(day.city, manager);
+        DriveUnderground(day.city, manager);
         const State s = ReadState(day.city, manager);
         log::Write("autotest: crew: drive done: crews %u, jobs %u, %u new pieces, %u dialogs", s.crews, s.jobs,
                    s.made, g_dialogs);
@@ -1480,6 +1571,10 @@ void Fingerprint(cISC4City* city, std::string& line)
     }
     if (PuzzleLevel() > 0) {
         std::snprintf(text, sizeof text, " pz %u,%u,%08X", g_pzCalls, g_pzCandidates, g_pzHash);
+        line += text;
+    }
+    if (EnvInt("OPENSC4_TEST_CREW_UNDERGROUND", 0) == 1) {
+        std::snprintf(text, sizeof text, " ug %u,%08X", g_underDrags, g_underHash);
         line += text;
     }
 }

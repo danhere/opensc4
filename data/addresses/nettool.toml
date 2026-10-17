@@ -4850,3 +4850,97 @@ kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8A 86 68 03 00"
 source = "Name ours. Slot 4 of the underground tools, no arguments: once Init ran (+0x368) the byte cleared, the lists +0x384/+0x388 emptied (each node object released, the nodes freed), then a jump to the general Shutdown 0x00626D30; else AL 1 (src/core/nettool_under.cpp)."
+
+[[entry]]
+name = "cSC4PipeTool::MakeOccupant"
+address = 0x00648D10
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 8B E9 8B"
+source = "Name ours. Slot 82 of the pipe tool, ret 0x10 (a cell info, the occupant out, a 12-float box out, a kind unread): the box from the cell and the terrain's cell size, a new pipe occupant (0x006487D0 with 0x280, 0x006488F0 with 1) put into the cell info's +0xC, its slots 0x28, 0xC, 0x184 (+0x370, +0x374, +0x378), 0x17C (terrain heights), 0x94, 0x100 (+0x32C, 0); the out pointer gets it (src/core/nettool_under_2.cpp)."
+
+[[entry]]
+name = "cSC4SubwayTool::MakeOccupant"
+address = 0x00653A00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 8B E9 8B"
+source = "Name ours. Slot 82 of the subway tool: as cSC4PipeTool::MakeOccupant with a subway occupant (0x00652FE0 with 0x2D8, 0x006530B0) (src/core/nettool_under_2.cpp)."
+
+[[entry]]
+name = "cSC4UndergroundTool::InsertNetworkSpecificConstraintsForCell"
+address = 0x00657860
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 44 24 0C 56"
+source = "Name ours. Slot 78 of the underground tools, ret 4 (a cell key): unless the entry is missing, immovable or its piece ID is one of 0, 0x200, 0x300, 0x800, 0xA00, 0x1400, 0x4B00, 0x14E00, equality constraints (0x0065FDB0 on +0x124) between the vertex pairs (0,1), (1,2), (2,3), biased by 100000 for a network lot (src/core/nettool_under_2.cpp)."
+
+[[entry]]
+name = "cSC4UndergroundTool::SetQuadTrianglesToDraw"
+address = 0x00657A30
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Name ours. Slot 80 of the underground tools, ret 8 (an occupant, a word unread): with the pipe base interface 0x4A10AFC2, the flags 0x01000000/0x02000000/0x04000000 cleared (slot 0x2C) and set again (slot 0x28) from the base's three side bytes (slot 0x170): the first when set, the others when clear (src/core/nettool_under_2.cpp)."
+
+[[entry]]
+name = "cSC4UndergroundTool::ClearOccupantHighlights"
+address = 0x00657BE0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 86"
+source = "Name ours. Slot 16 of the underground tools, no arguments: the lists +0x384 (highlight off, occupant manager slot 0x54, slot 0x10, release) and +0x388 (highlight off, release) emptied, then a jump to the general tool's 0x00625580 (src/core/nettool_under_2.cpp)."
+
+[[entry]]
+name = "cSC4UndergroundTool::CreateCellInfosForCurrentPlacementTiles"
+address = 0x00657DA0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC CC 00 00 00 56 8B"
+source = "Name ours. Slot 71 of the underground tools, ret 4 (unread): every dragged cell's entry (0x00633220) or a new cell info put into the cache, with the flag 0x00AAA8FC by +0x35C and the height ranges from the terrain's altitude less +0x36C (src/core/nettool_under_2.cpp)."
+
+[[entry]]
+name = "cSC4UndergroundTool::InsertRangeConstraintsForCell"
+address = 0x00658040
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 56 8B 74 24"
+source = "Name ours. Slot 76 of the underground tools, ret 4 (a cell key): a network lot goes to the general 0x006360C0; an immovable cell's vertices fixed; else each vertex added, fixed when in the set +0xB8, else restricted and given a preferred range from the depth-adjusted terrain height, and a preferred height when occupied (src/core/nettool_under_2.cpp)."
+
+[[entry]]
+name = "cSC4UndergroundTool::StartPlacing"
+address = 0x00658710
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 3C 55 33 C0 56 89"
+source = "Name ours. Slot 70 of the underground tools, no arguments: the cache's cells collected (0x00647E60); for each in the set +0xA4 the pipe base there gets the tool's vertex heights (slot 0x150, slot 0x158 with 1) when one differs by more than 0.001 (src/core/nettool_under_2.cpp)."
+
+[[entry]]
+name = "cSC4UndergroundTool::PlaceOccupant"
+address = 0x006596C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 10 83 EC 40 53"
+source = "Name ours. Ret 0x10 (a cell info, a solved-cell record, the occupant out, a byte out): the existing pipe base at the cell (flag 0x80000000 by +0x50), else a new one by slot 82 with the record's piece and the terrain heights; the byte 1 for an existing one. Called by slots 58 and 55 (src/core/nettool_under_2.cpp)."
+
+[[entry]]
+name = "cSC4UndergroundTool::AddCellPreview"
+address = 0x006597E0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC D4 00 00 00 53 55"
+source = "Name ours. Slot 58 of the underground tools, ret 8 (a cell info, a solved-cell record): for a cell in the placement, an existing pipe base onto the list +0x388, else a placed one (0x006596C0 on a depth-adjusted copy) onto +0x384 with its highlight; the occupant's highlight on (src/core/nettool_under_2.cpp)."
+
+[[entry]]
+name = "cSC4UndergroundTool::InsertOccupantsForSolvedCells"
+address = 0x006599D0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 0C 53 8B 5C"
+source = "Name ours. Slot 55 of the underground tools, ret 0xC (the solved cells, a word, a byte): the general 0x006258C0, then when replacing or the byte is set each solved cell's occupant placed (0x006596C0) and given its heights, sloped byte, type word and flags (src/core/nettool_under_2.cpp)."
+
+[[entry]]
+name = "cSC4UndergroundTool::CellTypeFlags"
+address = 0x00AAA8FC
+kind = "data"
+source = "Name ours. 13 words, 1 << type, which the underground tools' slot 71 (0x00657DA0) ORs into a cell info's flags."

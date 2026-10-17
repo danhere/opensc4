@@ -13,11 +13,14 @@
 // itself, freed with SC4PairList::Destroy 0x005650A0); the pipe and subway
 // tools add a byte at +0x390.
 //
-// Left as the game's (time box of this part; the rest is listed in the
-// report and in docs/nettool.md): the pipe/subway slot 82 0x00648D10/
-// 0x00653A00 (x87, the occupant maker), 0x00648F70, 0x00649080, 0x00653B80,
-// slots 78, 80, 16, 71, 76, 70, 58, 55, 0x006588D0, 0x00659240,
-// 0x006596C0. Slot 81 of the pipe and subway tools (0x00648F40,
+// The second half (src/core/nettool_under_2.cpp, the same group) has slot
+// 82 of the pipe and subway tools, the three cdecl lookups the network
+// manager forwards to, slots 78, 80, 16, 71, 76, 70, 58, 55 and the
+// occupant placer 0x006596C0. Left as the game's: 0x00659240
+// (PropagateFromCell: its 12-byte solved-cell record's second word is a
+// byte store over three bytes of stack leftover) and 0x006588D0 (the
+// netmgr's underground rebuild, 2,402 bytes, keeps the depth on the x87
+// stack across its loops). Slot 81 of the pipe and subway tools (0x00648F40,
 // 0x00653D90) is folded with the occupants' class-ID getters (the class
 // registration at 0x004606A6/0x004606B8 calls them): 6-byte constant
 // getters, not detoured and not swapped.
@@ -58,6 +61,7 @@
 // the free 0x0090CF63 cdecl one.
 #include "core/nettool_heights.h"
 #include "core/nettool_sim.h"
+#include "core/nettool_under.h"
 
 #include "core/game.h"
 #include "core/log.h"
@@ -70,16 +74,6 @@
 
 namespace opensc4::nettool_sim {
 namespace {
-
-namespace under {
-inline constexpr std::uintptr_t kVtable = 0x00AAA950, kVtable4 = 0x00AAA93C;
-inline constexpr std::uintptr_t kPipeVtable = 0x00AA99A8, kPipeVtable4 = 0x00AA9994;
-inline constexpr std::uintptr_t kSubwayVtable = 0x00AAA5C0, kSubwayVtable4 = 0x00AAA5AC;
-inline constexpr std::size_t kInited = 0x368, kDepth = 0x36C, kListA = 0x384, kListB = 0x388, kByte390 = 0x390;
-inline constexpr std::size_t kCellsBegin = 0x98, kCellsEnd = 0x9C, kCellSize = 0xC, kCellKey = 0x8;
-inline constexpr uint32_t kPipeType = 4, kSubwayType = 7;
-inline constexpr uint32_t kInfoType = 0x6534284A, kInfoGroup = 0x084344E0, kResourceIid = 0xA52160F5;
-} // namespace under
 
 // The first-call log lines of the naked thunks (cdecl, called with every
 // register the thunk keeps pushed around them).
@@ -435,14 +429,20 @@ const Detour kUnderground[] = {
 
 #undef OPENSC4_DETOUR
 
-bool InstallUnderground(registry::Mode) { return InstallDetours(kUnderground, "underground"); }
+bool InstallUnderground(registry::Mode)
+{
+    const bool first = InstallDetours(kUnderground, "underground");
+    const bool second = InstallUnderground2();
+    return first && second;
+}
 
 const bool g_registered[] = {
     registry::Register({"simulators.nettool.underground", "simulators/nettool", registry::Kind::Detour,
                         registry::Phase::PostAppInit, addr::cSC4UndergroundTool_Construct,
                         "Our underground network tools' small functions (part u1): the base, pipe and subway "
                         "constructors, the destructor and two deleting destructors, Init, slots 73, 74, 59, 68, 54, "
-                        "75, 79, 65 and 4 (16 detours; src/core/nettool_under.cpp)",
+                        "75, 79, 65 and 4 (16 detours; src/core/nettool_under.cpp), and slots 82, 78, 80, 16, 71, "
+                        "76, 70, 58, 55 with their helpers (16 detours; src/core/nettool_under_2.cpp)",
                         false, InstallUnderground}),
 };
 
