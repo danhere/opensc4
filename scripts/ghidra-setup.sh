@@ -24,7 +24,7 @@
 #   SC4_GAME              path to SimCity 4.exe (default: Steam install)
 #   OPENSC4_GHIDRA_DIR    project folder (default %LOCALAPPDATA%\opensc4\ghidra)
 #   OPENSC4_ANALYSIS_DIR  output folder  (default %LOCALAPPDATA%\opensc4\analysis)
-#   SC4_GHIDRA_SYMBOLS    sc4-ghidra-symbols clone (default ~/Projects/ref in WSL)
+#   SC4_GHIDRA_SYMBOLS    sc4-ghidra-symbols clone (default ~/Projects/ref/sc4-ghidra-symbols)
 #
 # The project and every output describe the game's code: never commit them.
 set -euo pipefail
@@ -34,12 +34,12 @@ game="${SC4_GAME:-C:/Program Files (x86)/Steam/steamapps/common/SimCity 4 Deluxe
 local_root="$(cygpath "$LOCALAPPDATA")/opensc4"
 project_dir="${OPENSC4_GHIDRA_DIR:-$local_root/ghidra}"
 out="${OPENSC4_ANALYSIS_DIR:-$local_root/analysis}"
-symbols="${SC4_GHIDRA_SYMBOLS:-//wsl.localhost/Ubuntu/home/dan/Projects/ref/sc4-ghidra-symbols}"
+symbols="${SC4_GHIDRA_SYMBOLS:-$(cygpath "$USERPROFILE")/Projects/ref/sc4-ghidra-symbols}"
 project=SC4_1.1.641
 program="SimCity 4.exe"
 
-# Short (8.3) paths: Git Bash passes .bat arguments to cmd.exe unquoted, and
-# Ghidra cannot read scripts from \\wsl.localhost paths given from Git Bash.
+# Short (8.3) paths and local copies: Git Bash passes .bat arguments to
+# cmd.exe unquoted, so paths with spaces break.
 headless="$(cygpath -d "$(cygpath "$USERPROFILE")/scoop/apps/ghidra/current/support/analyzeHeadless.bat")"
 scripts="$local_root/ghidra-scripts"
 
@@ -91,7 +91,7 @@ run_script -readOnly VtableBypassCensus.java "$(win "$out/class-registrations.cs
     "$(win "$out/simulator-bypass.csv")" | tail -1
 
 step "4. sc4-ghidra-symbols"
-# Local copy, for the same \\wsl.localhost reason as the scripts.
+# Local copy, for the same short-path reason as the scripts.
 local_symbols="$local_root/sc4-ghidra-symbols"
 mkdir -p "$local_symbols/function-id"
 cp "$symbols"/function-id/*.fidb "$local_symbols/function-id/"
