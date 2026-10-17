@@ -1,14 +1,15 @@
 // Our automata controllers, part a3a (build 641): the object (the
 // constructors, the destructor bodies, the deleting destructors and the two
-// factories; QueryInterface and Release) and the queries (the accessors, the
-// flag tests and the small overrides the two derived classes make). The class
+// factories; QueryInterface and Release), the queries (the accessors, the
+// flag tests and the small overrides the two derived classes make), CurveValue,
+// and the +4 serializable part's identity and Write. The class
 // map is in src/core/automata_controller.h and the survey in docs/automata.md,
 // "Part a3". Calls between functions of the part go to the game's addresses,
 // so each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
 // hex, eight digits) bisects them.
 //
 // Group, off by default:
-//   simulators.automata.controller: the 29 detours listed in
+//   simulators.automata.controller: the 35 detours listed in
 //   kController below.
 //
 // What it does. cSC4AutomataController is the base of the attractor and the
@@ -29,6 +30,13 @@
 // when there is none, the template's name at +4 otherwise), the template's
 // curve (+0x20, or +0xA8 for the generator), the flags, the position (the
 // occupant's, unless flag 0x20), and the finished and saturated tests.
+// The +4 serializable vtable (6 slots, not the survey's 4) has its own
+// QueryInterface 0x00517F30 (ecx - 4 then the controller's), AddRef and
+// Release adjustors, Write 0x00517FD0 (version 5, the occupant, its +4 part or
+// an empty string, the position, three fields and the automata) with the
+// attractor's and generator's overrides (versions 1 and 4), Read (still the
+// game's) and GetGZCLSID 0x00517F00 (0x4A18672B; the derived classes reuse
+// their slot 5).
 //
 // Oddities kept: QueryInterface's null branches write a null and then call
 // through the object; the generator's IsSaturated tests its limit (+0x8C)
@@ -116,6 +124,29 @@ float FloatZero() { return Global<float>(addr::SC4_FloatZero); }
 
 void* Template(char* self) { return reinterpret_cast<void*>(At<std::uintptr_t>(self, field::kTemplate)); }
 
+// The temporary empty cRZBaseString the base Write hands to the stream when
+// there is no occupant: the game builds one on its stack, writes it and frees
+// its buffer without running the string's destructor.
+struct TempString {
+    std::uintptr_t vtable;
+    char* begin;
+    char* end;
+    char* capacity;
+    std::uint32_t references;
+};
+static_assert(sizeof(TempString) == 0x14);
+
+void WriteEmptyString(void* stream)
+{
+    char* const buffer = static_cast<char*>(Allocate(8));
+    buffer[0] = 0;
+    TempString string = {addr::SC4String_Vtable, buffer, buffer, buffer + 8, 0};
+    Virtual<void>(stream, streamslot::kString, &string);
+    Free(buffer);
+}
+
+bool StreamOk(void* stream) { return Virtual<std::uint8_t>(stream, streamslot::kError) == 0; }
+
 // ====================================================================================
 // The object
 
@@ -124,6 +155,7 @@ char* __fastcall Construct(char* self, void*)
 {
     static bool logged;
     FirstCall("base Construct", logged);
+    At<std::uintptr_t>(self, field::kSerializable) = addr::SC4SimGrid_VtableBase;
     At<std::uintptr_t>(self, field::kVtable) = addr::cSC4AutomataController_Vtable;
     At<std::uintptr_t>(self, field::kSerializable) = addr::cSC4AutomataController_SerializableVtable;
     At<std::uint8_t>(self, field::kInitialized) = 0;
@@ -255,6 +287,83 @@ std::uint32_t __fastcall Release(char* self, void*)
     return 0;
 }
 
+// 0x00517F30, the +4 serializable vtable's slot 0: ecx - 4, then the
+// controller's QueryInterface. The game jumps; ours calls at the address so
+// the two detours still stand alone.
+std::uint8_t __fastcall SerializableQueryInterface(char* self, void*, std::uint32_t iid, void** out)
+{
+    static bool logged;
+    FirstCall("serializable QueryInterface", logged);
+    return CallThis<std::uint8_t>(addr::cSC4AutomataController_QueryInterface, self - field::kSerializable, iid, out);
+}
+
+// 0x00517F00, the +4 serializable vtable's slot 5 (base): the class ID the
+// save records. The derived classes' serializable vtables use their slot 5.
+std::uint32_t __fastcall SerializableGetGZCLSID(void*, void*)
+{
+    static bool logged;
+    FirstCall("serializable GetGZCLSID", logged);
+    return kControllerSaveClassId;
+}
+
+// 0x00517FD0, the +4 serializable vtable's slot 3 (base), this = object + 4:
+// version 5, the occupant, its serializable part (or an empty string), the
+// position, +0x50, +0x54, +0x3C, +0x40, the automaton count, then a reference
+// per automaton in the list. True when the stream has no error.
+bool __fastcall SerializableWrite(char* self, void*, void* stream)
+{
+    static bool logged;
+    FirstCall("serializable Write", logged);
+    char* const object = self - field::kSerializable;
+    Virtual<void>(stream, streamslot::kVersion, 5u);
+    void* const occupant = reinterpret_cast<void*>(At<std::uintptr_t>(object, field::kOccupant));
+    CallCdecl<void>(addr::SC4Stream_WriteReference, stream, occupant);
+    if (occupant)
+        CallCdecl<void>(addr::SC4Stream_WriteReference, stream, static_cast<char*>(occupant) + field::kSerializable);
+    else
+        WriteEmptyString(stream);
+    CallCdecl<void>(addr::SC4Stream_WriteVector3, stream, object + field::kX);
+    Virtual<void>(stream, streamslot::kFloat, At<std::uint32_t>(object, field::k50));
+    Virtual<void>(stream, streamslot::kFloat, At<std::uint32_t>(object, field::k54));
+    Virtual<void>(stream, streamslot::kUInt32, At<std::uint32_t>(object, field::k3C));
+    Virtual<void>(stream, streamslot::kUInt32, At<std::uint32_t>(object, field::kFlags));
+    Virtual<void>(stream, streamslot::kUInt32, At<std::uint32_t>(object, field::kAutomataCount));
+    char* const head = reinterpret_cast<char*>(At<std::uintptr_t>(object, field::kAutomata));
+    for (char* node = *reinterpret_cast<char**>(head); node != head; node = *reinterpret_cast<char**>(node))
+        CallCdecl<void>(addr::SC4Stream_WriteReference, stream, *reinterpret_cast<void**>(node + 8));
+    return StreamOk(stream);
+}
+
+// 0x00518230, the attractor's +4 serializable vtable slot 3, this = object + 4:
+// the base Write, version 1, its curve at +0x5C, then the stream's error test.
+bool __fastcall AttractorSerializableWrite(char* self, void*, void* stream)
+{
+    static bool logged;
+    FirstCall("attractor serializable Write", logged);
+    CallThis<std::uint8_t>(addr::cSC4AutomataController_SerializableWrite, self, stream);
+    Virtual<void>(stream, streamslot::kVersion, 1u);
+    CallCdecl<void>(addr::SC4Save_F5DB190, stream, self + (field::kCurve - field::kSerializable));
+    return StreamOk(stream);
+}
+
+// 0x005183D0, the generator's +4 serializable vtable slot 3, this = object + 4:
+// version 4, the base Write, then its own fields, then the stream's error test.
+bool __fastcall GeneratorSerializableWrite(char* self, void*, void* stream)
+{
+    static bool logged;
+    FirstCall("generator serializable Write", logged);
+    char* const object = self - field::kSerializable;
+    Virtual<void>(stream, streamslot::kVersion, 4u);
+    CallThis<std::uint8_t>(addr::cSC4AutomataController_SerializableWrite, self, stream);
+    Virtual<void>(stream, streamslot::kFloat, At<std::uint32_t>(object, field::kGen78));
+    Virtual<void>(stream, streamslot::kUInt16, static_cast<std::uint32_t>(At<std::uint16_t>(object, field::kGen7C)));
+    Virtual<void>(stream, streamslot::kFloat, At<std::uint32_t>(object, field::kGen80));
+    Virtual<void>(stream, streamslot::kUInt16, static_cast<std::uint32_t>(At<std::uint16_t>(object, field::kGen84)));
+    Virtual<void>(stream, streamslot::kUInt32, At<std::uint32_t>(object, field::kGen90));
+    Virtual<void>(stream, streamslot::kUInt32, At<std::uint32_t>(object, field::kGen94));
+    return StreamOk(stream);
+}
+
 // 0x00518220, the attractor's slot 5.
 std::uint32_t __fastcall AttractorGetGZCLSID(void*, void*)
 {
@@ -298,7 +407,7 @@ void __fastcall AttractorDestroy(char* self, void*)
     FirstCall("attractor Destroy", logged);
     if (void* const curve = reinterpret_cast<void*>(At<std::uintptr_t>(self, field::kCurve)))
         Free(curve);
-    Destroy(self, nullptr);
+    CallThis<void>(addr::cSC4AutomataController_Destroy, self);
 }
 
 // 0x005192C0, the attractor's deleting destructor (slot 0x9C): Shutdown
@@ -308,7 +417,7 @@ void __fastcall AttractorDeletingDestructor(char* self, void*)
     static bool logged;
     FirstCall("attractor DeletingDestructor", logged);
     Virtual<void>(self, slot::kShutdown);
-    AttractorDestroy(self, nullptr);
+    CallThis<void>(addr::cSC4AutomataAttractor_Destroy, self);
     CallCdecl<void>(addr::SC4_operator_delete, self);
 }
 
@@ -318,12 +427,24 @@ void __fastcall DeletingDestructor(char* self, void*)
     static bool logged;
     FirstCall("DeletingDestructor", logged);
     Virtual<void>(self, slot::kShutdown);
-    Destroy(self, nullptr);
+    CallThis<void>(addr::cSC4AutomataController_Destroy, self);
     CallCdecl<void>(addr::SC4_operator_delete, self);
 }
 
 // ====================================================================================
 // The queries
+
+// 0x00514C70, not a slot: +0x28 times 1000 while above the game's zero, else
+// -1.0. The answer stays in ST0 unrounded, so ours answers a double.
+double __fastcall CurveValue(char* self, void*)
+{
+    static bool logged;
+    FirstCall("CurveValue", logged);
+    const float value = At<float>(self, 0x28);
+    if (FloatZero() < value)
+        return static_cast<double>(value) * static_cast<double>(Global<float>(addr::SC4_Float1000));
+    return static_cast<double>(Global<float>(addr::cSC4AutomataController_MinusOneFloat));
+}
 
 // 0x00517F70, slot 6.
 void* __fastcall GetOccupant(char* self, void*)
@@ -543,6 +664,11 @@ const Detour kController[] = {
     OPENSC4_DETOUR(addr::cSC4AutomataAttractor_Create, AttractorCreate),
     OPENSC4_DETOUR(addr::cSC4AutomataGenerator_Create, GeneratorCreate),
     OPENSC4_DETOUR(addr::cSC4AutomataController_QueryInterface, QueryInterface),
+    OPENSC4_DETOUR(addr::cSC4AutomataController_SerializableQueryInterface, SerializableQueryInterface),
+    OPENSC4_DETOUR(addr::cSC4AutomataController_SerializableGetGZCLSID, SerializableGetGZCLSID),
+    OPENSC4_DETOUR(addr::cSC4AutomataController_SerializableWrite, SerializableWrite),
+    OPENSC4_DETOUR(addr::cSC4AutomataAttractor_SerializableWrite, AttractorSerializableWrite),
+    OPENSC4_DETOUR(addr::cSC4AutomataGenerator_SerializableWrite, GeneratorSerializableWrite),
     OPENSC4_DETOUR(addr::cSC4AutomataController_Release, Release),
     OPENSC4_DETOUR(addr::cSC4AutomataAttractor_GetGZCLSID, AttractorGetGZCLSID),
     OPENSC4_DETOUR(addr::cSC4AutomataGenerator_GetGZCLSID, GeneratorGetGZCLSID),
@@ -550,6 +676,7 @@ const Detour kController[] = {
     OPENSC4_DETOUR(addr::cSC4AutomataAttractor_Destroy, AttractorDestroy),
     OPENSC4_DETOUR(addr::cSC4AutomataAttractor_DeletingDestructor, AttractorDeletingDestructor),
     OPENSC4_DETOUR(addr::cSC4AutomataController_DeletingDestructor, DeletingDestructor),
+    OPENSC4_DETOUR(addr::cSC4AutomataController_CurveValue, CurveValue),
     OPENSC4_DETOUR(addr::cSC4AutomataController_GetOccupant, GetOccupant),
     OPENSC4_DETOUR(addr::cSC4AutomataController_GetTemplate, GetTemplate),
     OPENSC4_DETOUR(addr::cSC4AutomataController_GetTemplateCurve, GetTemplateCurve),
@@ -579,10 +706,11 @@ const bool g_registered[] = {
     registry::Register({"simulators.automata.controller", "simulators/automata", registry::Kind::Detour,
                         registry::Phase::PostAppInit, addr::cSC4AutomataController_Construct,
                         "Our automata controllers: the object (the constructors, the destructor bodies, the deleting "
-                        "destructors and the two factories; QueryInterface and Release) and the queries (the "
-                        "accessors, the flag tests, IsActive, IsFinished, IsSaturated and GetPosition) of "
-                        "cSC4AutomataController, cSC4AutomataAttractor and cSC4AutomataGenerator (29 detours; "
-                        "src/core/automata_controller.cpp)",
+                        "destructors and the two factories; QueryInterface and Release), the queries (the "
+                        "accessors, the flag tests, IsActive, IsFinished, IsSaturated and GetPosition), CurveValue, "
+                        "and the +4 serializable part's identity and Write (QueryInterface, GetGZCLSID and the three "
+                        "Write overrides) of cSC4AutomataController, cSC4AutomataAttractor and "
+                        "cSC4AutomataGenerator (35 detours; src/core/automata_controller.cpp)",
                         false, InstallController}),
 };
 
