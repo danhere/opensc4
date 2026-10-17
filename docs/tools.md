@@ -52,7 +52,7 @@ Every city tool is a view input control: a class on the base class below, with a
 | Terraform tool (the terrain brush tool) | 0x004D9430 | 0x00A92A10 | 0x130 | 0x004D8AC0 to 0x004D9E50 | 22 | ours (`ui.tools.brush`, below) |
 | Cheat tool (building footprint) | 0x004D9E80 | 0x00A92AC0 | 0x38 | 0x004D9E50 to 0x004DA593 | 6 | partly ours: four functions in `ui.tools.zone`; the footprint drawing (0x004D9EE0) and OnMouseMove (0x004DA1B0) stay the game's |
 | Zone | 0x004DAE80 | 0x00A92CA8 | 0x98 | 0x004DA5A0 to 0x004DC1A0 | 25 | ours (`ui.tools.zone`, below) |
-| U-Drive-It driving control (made by the park automaton 0x00506850, not by the view) | 0x00565480 | 0x00A9D9B0 | 0xC0 | 0x00562C90 to 0x00566D55 | 45 | 7 ours (`ui.tools.udrive1`, T7a), 38 the game's |
+| U-Drive-It driving control (made by the park automaton 0x00506850, not by the view) | 0x00565480 | 0x00A9D9B0 | 0xC0 | 0x00562C90 to 0x00566D55 | 45 | 32 ours (`ui.tools.udrive1`, T7a; `ui.tools.udrive2`, `ui.tools.udrive3`, T8), 13 the game's (the nine drawing functions, three this-adjusting thunks and the overlay manager's 0x005658D0) |
 | Fire (torch) disaster tool | 0x005805C0 | 0x00A9EB40 | 0x80 | 0x00580510 to 0x00580B46 | 13 | ours (`ui.tools.disaster_fire`, below) |
 | Common disaster tool, on the effect trigger tool | 0x00580220 | 0x00A9EAA0 | 0xB4 | 0x00580220 to 0x005804F4 | 7 | ours (`ui.tools.disaster`, below) |
 | Network intersection placement tool | 0x00661130 | 0x00AAAF20 | 0x90 | 0x00660C30 to 0x00661D5F | 11 | networks (not part of this work) |
@@ -60,7 +60,7 @@ Every city tool is a view input control: a class on the base class below, with a
 
 The network tools are the last two rows, at 0x00660C30 to 0x006625F0. The range 0x004C3730 to 0x004D767F belongs to the query tool.
 
-The classes that are not ours, apart from the two network tools, come to about 60 functions: what the query tool's pieces left (the KB figures in this paragraph were not redone for Q2 to Q7, so they are too high; the 84 KB is the figure before them), the U-Drive control (45 functions, T7 and T8) and the two functions of the cheat tool that stay the game's. The 84 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions), about 9 KB for the terraform and obliterate tools (40 functions) and about 6 KB for the three disaster tools (33 functions) and about 7 KB for the first piece of the query tool (57 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
+The classes that are not ours, apart from the two network tools, come to about 60 functions: what the query tool's pieces left (the KB figures in this paragraph were not redone for Q2 to Q7, so they are too high; the 84 KB is the figure before them), the U-Drive control's 13 left functions (nine drawing, three thunks and the overlay manager's 0x005658D0; the other 32 are ours after T7a and T8) and the two functions of the cheat tool that stay the game's. The 84 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions), about 9 KB for the terraform and obliterate tools (40 functions) and about 6 KB for the three disaster tools (33 functions) and about 7 KB for the first piece of the query tool (57 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the U-Drive control's nine drawing functions, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
 
 ## The base class
 
@@ -2424,8 +2424,108 @@ Parity (batch q7b1, 7 days, B list of 148 groups): plain 12 of 12, test day 2 11
 | OnMouseUpL: the point at +0x24/+0x28 of the object at +0x9C set to -1, -1; when it takes input and CanDrive, the driven object's slot 0xF0 with (7, 0) and the service of 0x00602640 its slot 0x18 with 4; true | 0x00564300 | 18 |
 | OnMouseUpR: as OnMouseDownR with (8, 0) | 0x005643F0 | 19 |
 
-Left for T8: Init 0x00565A10 (3), Shutdown 0x00563970 (4), OnKeyDown 0x00566C60 (14), OnKeyUp 0x00566CF0 (15), OnMouseDownL 0x005655D0 (16), OnMouseMove 0x005631C0 (20), slot 27 0x005650E0, the message handler 0x00566890, the third interface's 0x00562E20 and the driving helpers. The nine drawing functions stay the game's (Renderer).
+Done in T8 (next section): Init 0x00565A10 (3), Shutdown 0x00563970 (4), OnKeyDown 0x00566C60 (14), OnKeyUp 0x00566CF0 (15), OnMouseDownL 0x005655D0 (16), OnMouseMove 0x005631C0 (20), slot 27 0x005650E0, the message handler 0x00566890, the third interface's 0x00562E20 and the driving helpers. The nine drawing functions stay the game's (Renderer).
 
 `OPENSC4_TEST_T7=<day>` (src/core/tool_t7_autotest.cpp, token ` udrive1`, fingerprint order 29, day hook 68). It calls only the game's addresses and the control's vtable slots. Nothing changes the city: the control is made on its own (without Init), the driven object and the point holder are stand-ins that record the flags asked and the commands given, and the control is destroyed through slot 26, not Release (which would run the game's Shutdown). Five sections: the fields after the constructor (not the stopwatch and the list pointer), the buttons with nothing to drive, the point holder, the buttons and CanDrive under five scripts of flag answers (the release never reaches command 7: CanDrive's answers are always "set"), and the two releases of the destructor. Not reached: command 7 and the service of 0x00602640; a real driven vehicle.
 
 Trial (2026-10-16, A = the original, B = `ui.tools.base` and `ui.tools.udrive1` ours, test day 2, 5 days, with `determinism.dispatch_info`): Making Money d0090, Big City d0000 and Rush Hour d0090 each identical A = B in the whole fingerprint, token 2282BB82 on all three. No batch yet.
+
+## The U-Drive-It control, second piece (T8)
+
+T8 does the rest of `cSC4UDriveControl` but the drawing: its life (Init, Shutdown), the message handler with the driving panel's update on every tick, the keys, the left press, the mouse move, putting the control away and the start of a drive. Two groups, PostAppInit, off by default: `ui.tools.udrive2` (src/core/tool_udrive_2.cpp, 11 hooks) and `ui.tools.udrive3` (src/core/tool_udrive_3.cpp, 14 hooks). With T7a, 32 of the class's 45 functions are ours.
+
+`ui.tools.udrive2`:
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| Init: once, the base Init, the target (+0x28) on the tick service (priority 0xFF), the terrain and its size, the two pick filters, four empty strings handed to the object of 0x00913BEE, the city's four automata managers, the marker (made and set up by the game's drawing code), the overlay manager, the message server registrations, the network manager, the simulator, the automata script system; with a view, the driving panel's window resource and the three panel commands registered with the framework's command service; true | 0x00565A10 | 3 |
+| Shutdown: the inited byte cleared first, then everything Init took undone in its own order, the simulator and the automata managers resumed, the panel windows closed, the park automaton's hold on the control dropped (0x00506910), the base Shutdown; true | 0x00563970 | 4 |
+| DoMessage (this = control + 0x28; message IDs below); true | 0x00566890 | 3 of 0x00A9D9A0 |
+| UpdatePanel: on every tick, with a driven automaton neither stopped nor flagged 1: the cursor, the panel's dials (speed, state, height over the ground modulo 100 with its text, angle, three state triples), the button 0x0C16C9B9, the money and count texts, the two engine volumes; then the stopwatch test (below) | 0x00566000 | |
+| OnPanelCommand (this = control + 0x2C): a click on 0x4992046A, 0x2C16C9CB, 0x4C1A5CC9 or 0xE9920494 posts 0x6A935CB7, 0xAC1F0449, 0xCC1F0457 or 0x6A935CBA and answers true; false otherwise | 0x00562E20 | 3 of 0x00A9D98C |
+| Lets go of the driven automaton (+0x30): callback, marker, vehicle manager follow, view, sound event 0 and the automaton's sound bank; removed or its state popped; +0x30 cleared | 0x00562FD0 | |
+| OnAutomatonGone: when it is the driven automaton, 0x00562FD0 and slot 27 | 0x00563310 | |
+| CloseWindows: the panel windows +0xA4 and +0xA8 taken off the view's window and released, then the view's slot 0xE4 | 0x00563330 | |
+| StopAndPause (caller the park automaton, when it has no vehicle to give): 0x00562FD0, +0x60 let go, the simulator and the four automata managers paused | 0x00564450 | |
+| AddListed (caller the park automaton): an object not yet in the list +0x64 is referenced and appended | 0x00565FA0 | |
+| FilterTest: the automaton pick's occupant filter (made by Init at +0x84) takes four occupant types | 0x00562C90 | 3 of 0x00A9D894 |
+
+`ui.tools.udrive3`:
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| OnKeyDown: a repeat is taken; Escape puts the control away; during a city situation countdown taken; without the script system at +0xB0 false; else its slot 0x38 turns the key into a command (13 none), ApplyBinding with (command, 1), then CommandDown when the binding does not take it | 0x00566C60 | 14 |
+| OnKeyUp: as OnKeyDown without the repeat and Escape tests, with (command, 0) and CommandUp | 0x00566CF0 | 15 |
+| ApplyBinding: the driven automaton's key binding record for the command (from its description's map): the state 0x10's byte at +0x205 plus the command set, toggled or flipped; named effects recreated, started or stopped, and an automata controller told on or off, by the record's flags; true when the record has flag 8 | 0x00566A70 | |
+| CommandDown: commands 0 to 12 (jump table 0x0056402C, left in the exe); with CanDrive HandlePlayerDriveCommand (driven object's slot 0xF0) with (command, 1) and for some commands the service of 0x00602640 slot 0x14; 2 and 3 press the driving window's two buttons; 4 and 10 flip +0x44 and +0x45; 9 flips the driving state's +0x229 | 0x00563D40 | |
+| CommandUp: the release (jump table 0x005642C8, left in the exe): (command, 0), the service's slot 0x18, the buttons released | 0x00564060 | |
+| OnMouseDownL: a network piece the network manager takes gets a sound and its cell in the marker's +0x24/+0x28; while driving, command 7; with nothing driven, an automaton under the pointer starts a drive (0x00565160 with 1); true | 0x005655D0 | 16 |
+| PickNetworkOccupant: the renderer's pick (0x00B43DD0 slot 0x104) with the filter at +0x88, asked for 0xA821EF94 | 0x005630C0 | |
+| PickAutomaton: the same with the filter at +0x84, asked for 0xA9B40F05 (cISC4Automaton) | 0x00563140 | |
+| OnMouseMove: the pointer's cell into the marker's +0x1C/+0x20 (-1, -1 without a ground point); driving, the screen point into the driving state's +0x214/+0x218; else the automaton under the pointer held at +0x60; true | 0x005631C0 | 20 |
+| PutAway: the listeners told (1, 0), a disabled driven automaton removed, 0x00562FD0, +0x60 let go, disasters back on, then the base's PutAway | 0x005650E0 | 27 |
+| NotifyListeners: a message 0x0BB324BD (the control, a, b) to each listener in the list +0x64 | 0x005644E0 | |
+| MakeWindows: once, the driving window (+0xA4) and the second window (+0xA8) from the vehicle's exemplar, centred at the foot of the view; the view's mission status panel | 0x00564570 | |
+| The start of a drive (callers the park automaton and OnMouseDownL): disasters off, 0x00562FD0, the UI minimised, the windows, the automaton held at +0x30 and pushed into state 0x10, the vehicle manager follows it, zoom limits from its description, a marker into +0x38, the stopwatch stopped and reset, the simulator resumed | 0x00565160 | |
+| Pause (byte): the simulator at +0xA0 and the four automata managers paused or resumed | 0x00562F00 | |
+
+DoMessage handles: 0xA6B79602 (the view's: enables the panel's buttons 0x4992046A and 0xE9920494), 0x86AD10EE (the tick: UpdatePanel), 0x09D92FC3 (an automaton's message, kind in GetData2: 3 OnAutomatonGone; 0xB sound event 0 stopped, the driven automaton's marker flagged through the overlay manager, the stopwatch made again and started; 0xD stops sound event 0 when the automaton has no state 0x10), 0xAC1F0449 (panel small), 0xCC1F0457 (panel big) and 0xAC1F045D (panel switched). The last three are the panel commands MinimizeDrivingPanel, MaximizeDrivingPanel and ToggleDrivingPanel (table 0x00B0A110).
+
+Left the game's, with the reason:
+
+- The nine drawing functions (Renderer's): the marker's constructor 0x005649D0, set-up 0x005633C0 and take-down 0x00563730, 0x005637E0, 0x00564A60, 0x00564BE0, and the drawable's 0x00564A20, 0x00564A30, 0x005657A0. Init and Shutdown call the marker's three at their addresses.
+- 0x005658D0: a method of the overlay manager the control holds at +0x34 (it sets 0x400 in the marker of a byte key), compiled with the U-Drive code; not this class's. DoMessage calls it at its address.
+- The this-adjusting thunks 0x00565570 to 0x005655C0 (the three at 0x005655A0 to 0x005655C0 are counted in the class's 45).
+- Helpers with callers outside the class, not counted in its 45: 0x00565430 (a byte-keyed map's find, also called from 0x00674140), 0x00562DA0, 0x00562DD0 (SC4RefPtr::Destruct), 0x005650A0 (SC4PairList::Destroy), and 0x00562CE0, 0x00562D60, 0x00562D90 (a line object's methods, the park automaton's).
+
+So of the 45: 32 ours, 9 drawing, the 3 thunks and 0x005658D0 the game's.
+
+Field names, corrected from T7a's (tool_udrive_1.cpp keeps its old names; the two new files name them as below):
+
+| Offset | T7a's name | What it is |
+| --- | --- | --- |
+| +0x34 | kRef34 | The overlay manager (the dispatch service's slot 0x58) |
+| +0x38 | kWord38 | The driven automaton's marker ID on the overlay manager |
+| +0x40 | kFloat40 | 0.042, or the third value of the automaton's description: the speed dial's top and the engine volume's scale |
+| +0x44, +0x45 | | Command 4's and command 10's toggles (+0x44 is also the button 0x0C16C9B9's state) |
+| +0x48 | | The stopwatch, 0x18 bytes, mode 4, real time (below) |
+| +0x60 | | The automaton under the pointer (referenced) |
+| +0x64 | | The listeners: a list head, 12-byte nodes (next, prev, object), objects referenced |
+| +0x68 | kCount68 | The terrain (referenced) once Init ran, not a count |
+| +0x6C | kFloat6C | The terrain's slot 6 |
+| +0x70 | kFloat70 | 1 over +0x6C |
+| +0x74 to +0x80 | | Four empty strings Init makes and hands to the object of 0x00913BEE |
+| +0x84, +0x88 | | The automaton pick's filter (vtable 0x00A9D894) and the network pick's filter (0x00A8FE14) |
+| +0x8C to +0x98 | | The city's four automata managers (city slots 43 to 46: vehicles, pedestrians, aircraft, watercraft) |
+| +0x9C | kPointHolder | The marker (0x4C bytes, constructor 0x005649D0): +0x1C/+0x20 the pointer's cell, +0x24/+0x28 the clicked network piece's cell |
+| +0xA0 | | The simulator (global 0x00B43D5C) |
+| +0xA4, +0xA8 | | The driving window and the second panel window |
+| +0xAC | | The network manager (global 0x00B43D54) |
+| +0xB0 | | The automata script system (city slot 48) |
+| +0xB4, +0xB8 | | What the view's slot 0x7C gave, and the COM object 0x42E967BE given to the view's slot 0x80 |
+
+The driving state (the automaton's state 0x10) holds a byte per command at +0x205, the last mouse point at +0x214/+0x218 and command 9's toggle at +0x229.
+
+The stopwatch at +0x48 runs on real time and is not under `determinism.sim_timers`. DoMessage starts it again for kind 0xB of 0x09D92FC3, the start of a drive stops and resets it, and UpdatePanel puts the control away (slot 27) once it has run 9000 (the stopwatch's units). The panel's update reads the driven automaton's speed and state, which are frame driven, and sets the sound system's two engine volumes. The picks depend on the camera and the frame. No random number is drawn.
+
+`OPENSC4_TEST_T8=<day>` (src/core/tool_t8_autotest.cpp, token ` udrive2`, fingerprint order 31, day hook 69). As T7a's test, it calls only the game's addresses and the control's vtable slots, so the same run compares with the groups on and off. The control is made on its own (without Init) and gets a copy of its vtable whose slot 8 (SetCursorId) and slot 27 (put away) only record. The driven automaton, its occupant, the view, the panel windows and their children, the simulator, the automata managers, the script system, the overlay manager and the marker are stand-ins that record the slots called and the arguments that are not pointers; any slot a stand-in does not expect is counted, and the total line's `unexpected slots` must be 0. The control is destroyed through slot 26. `OPENSC4_TEST_T8_PARTS` (decimal mask, default 63):
+
+| Bit | What it runs |
+| --- | --- |
+| 1 | The filter test on stand-in occupants, OnPanelCommand on clicks it does not take, AddListed, NotifyListeners, MakeWindows with an instance no exemplar has (0x12345678) |
+| 2 | Letting go with nothing driven, OnAutomatonGone, CloseWindows, StopAndPause, Pause |
+| 4 | DoMessage with every message it handles; the stopwatch restarted by kind 0xB is stopped again at once and not hashed; kinds 0xB and 0xD stop the sound system's event 0 (sound only) |
+| 8 | UpdatePanel in ten cases (flags, no state, no panel, ground from the terrain, from the region terrain and outside, clamps, cursor, height over 100, the volumes' branches); the city's terrain, cells, region terrain and funds are read only |
+| 16 | The keys (slots 14 and 15) with a driven automaton that cannot be driven: the panel's buttons, the two toggles, Escape |
+| 32 | The mouse move (slot 20) while driving: the view's pick (stand-in) and the city's cell into the marker |
+| 64 | Asked only: the keys with a driven automaton that can be driven (real sound events) |
+| 128 | Asked only: the left button at (-1000, -1000) with the real filters and the renderer's pick; letting go of a driven stand-in (real sound events stopped, a bank unloaded) and OnAutomatonGone for it |
+| 256 | Asked only, and only with `OPENSC4_TEST_T8_COMMIT=1`: the four panel commands posted (0x6A935CB7 and 0x6A935CBA move the camera); Init, StopAndPause and Shutdown on a second control with the city's real services (the simulator and the automata managers paused and resumed, the driving panel shown and taken away, 0x00506910) |
+
+Not reached: the start of a drive (0x00565160) and the real PutAway (slot 27 is a recorder in the test), MakeWindows with a real exemplar, a key binding record that takes a command, the stopwatch's 9000 put-away (real time), Init and Shutdown outside the commit leg, a real driven vehicle.
+
+Oddities kept: Shutdown clears the inited byte before the base Shutdown, so the base lets nothing go (the view, the window manager and the cursor stay referenced). UpdatePanel allocates and frees an 8-byte buffer it never uses. OnMouseDownL lets the network piece go and then asks it for its cell. NotifyListeners does not test the new message for null. The start of a drive does not test the vehicle manager for null, does not read its second argument, and reads property 0x2BE8FBF3 into the caller's argument slot. MakeWindows shows the mission panel whenever property 0xEC1B2361 is set, even when the window failed to load (its no-op release of the child holders before reuse is dropped in ours: they are always null there). PutAway clears the cursor text only when +0x60 was set; OnMouseMove always when nothing is under the pointer.
+
+Trial (2026-10-17, A = the original, B = `ui.tools.base` and `ui.tools.udrive1` to `ui.tools.udrive3` ours, test day 2, 5 days, with `determinism.dispatch_info`): Making Money d0090, Big City d0000 and Rush Hour d0090 each identical A = B in the whole fingerprint; tokens BFE58D05, D303EA93, B0713745.
+
+Parity (2026-10-17, B = the Q7 batch list (147 groups) plus `ui.tools.udrive1` to `udrive3`, 7 days, one job; batches t8b1/t8b2): plain 12/12 (Making Money d0000 first failed with no B save because the batch was stopped under it and switched to one job; the pair rerun alone, t8b1r, same), `OPENSC4_TEST_T7=2 OPENSC4_TEST_T8=2` 12/12, the same at day 5 12/12, plopped 3/3, all identical.
