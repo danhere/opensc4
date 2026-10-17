@@ -55,6 +55,7 @@ constexpr float kZero = 0.0f;
 constexpr float kQuarter = 0.25f;
 constexpr float kMinusQuarter = -0.25f;
 constexpr float kThree = 3.0f;
+constexpr float kPointTwo = 0.2f;
 constexpr float kPointZeroOne = 0.01f;
 constexpr float kTwelve = 12.0f;
 constexpr float kSix = 6.0f;
@@ -369,6 +370,18 @@ void __fastcall BuildQuad(char* self, void*, float* out, const float* position, 
 }
 
 // The game's 0x00564BE0: the pieces of one occupant on one cell.
+// The two bytes and thirteen floats the marker object's second interface
+// takes at slot 0x28: the rotation matrix, the place and a scale.
+struct MarkerBlock {
+    uint8_t changes;
+    uint8_t flags;
+    uint16_t padding;
+    float matrix[9];
+    float position[3];
+    float scale;
+};
+static_assert(sizeof(MarkerBlock) == 0x38);
+
 void __fastcall DrawCell(char* self, void*, void* context, int32_t x, int32_t z, void* occupant, uint32_t count,
                          GameVector* ids, uint16_t selected)
 {
@@ -382,6 +395,12 @@ void __fastcall DrawCell(char* self, void*, void* context, int32_t x, int32_t z,
     if (!firstPath)
         return;
     Virtual<void>(model, 0x58, firstPath, position);
+
+    const float* const table = reinterpret_cast<const float*>(addr::SC4UDriveMarker_DirectionTable);
+    const uint32_t firstId = pieces[0];
+    const std::size_t directionIndex = static_cast<std::size_t>((firstId & 0xFF) + ((firstId >> 8) & 0xFF) * 4);
+    const float direction[3] = {table[directionIndex * 3], table[directionIndex * 3 + 1],
+                                table[directionIndex * 3 + 2]};
 
     uint8_t matched = 0;
     if (x == At<int32_t>(self, field::kClicked) && z == At<int32_t>(self, field::kClicked + 4))
@@ -431,11 +450,29 @@ void __fastcall DrawCell(char* self, void*, void* context, int32_t x, int32_t z,
         }
     }
 
-    // The cell's marker object. The game draws it through the object's second
-    // interface; the counters are kept as the game keeps them, the drawing
-    // itself is left out (no unattended test reaches it).
+    // The cell's marker object: the game's direction matrix, place and
+    // scale block, drawn through the object's second interface.
     if (void* const markerModel = At<void*>(self, matched ? field::kModelB : field::kModelA)) {
         AddRefAdjusted(markerModel);
+        float matrix[16] = {};
+        Cdecl<void>(addr::SC4Matrix_FromDirection, const_cast<float*>(direction), matrix);
+        MarkerBlock block{};
+        block.changes = 2;
+        block.flags = 5;
+        for (std::size_t i = 0; i < 9; ++i)
+            block.matrix[i] = matrix[i];
+        long double height = static_cast<long double>(position[1]) + At<float>(self, field::kHeight) + kPointTwo;
+        const uint32_t pieceId = selected < count ? pieces[selected] : firstId;
+        if ((pieceId & 0x0F000000u) == 0x07000000u)
+            height += kThree;
+        block.position[0] = position[0];
+        block.position[1] = static_cast<float>(height);
+        block.position[2] = position[2];
+        block.scale = 1.0f;
+        void* const second = AdjustedThis(markerModel);
+        Virtual<void>(second, 0x28, &block);
+        Virtual<void>(markerModel, 0x48, uint32_t{1}, static_cast<uint32_t>(selected));
+        Virtual<void>(second, 0x30, context, uint32_t{0});
         ReleaseAdjusted(markerModel);
     }
 }
