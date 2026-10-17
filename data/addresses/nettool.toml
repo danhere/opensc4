@@ -4944,3 +4944,380 @@ name = "cSC4UndergroundTool::CellTypeFlags"
 address = 0x00AAA8FC
 kind = "data"
 source = "Name ours. 13 words, 1 << type, which the underground tools' slot 71 (0x00657DA0) ORs into a cell info's flags."
+
+[[entry]]
+name = "cSC4PowerLineTool::PolePosition"
+address = 0x0064EFE0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 56 8B F1"
+source = "Name ours. Ret 0xC (x, z, three floats out): the cell's middle ((x + 0.5) * the terrain's cell size, as floats) and a height: the terrain's slot 0x78 at the middle plus 0.5 when its slot 0x88 (x, z) is set, else the highest of the cell's corner heights (slot 0x44) from -FLT_MAX plus 0.5 (src/core/nettool_power_2.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::Shutdown"
+address = 0x0064F0D0
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 68 03 00 00 84 C0"
+source = "Name ours. Slot 4 of the power line tool, no arguments: when Init ran (+0x368) the byte cleared and the general tool's Shutdown 0x00626D30 (jumped to); else AL 1 (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::GetCostOfSolution"
+address = 0x0064F0F0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 57 8B BE 88"
+source = "Name ours. Slot 20 of the power line tool, no arguments: 0 unless the pole count +0x388 is above 1; else __ftol2(the count +0x384 (unsigned) * the float +0x3B0) + +0x3AC * the pole count (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::OnPowerPoleEntry"
+address = 0x0064F140
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 40 04 56"
+source = "Name ours. The ini reader's callback of the section PowerPoles (key string, value string, context unread): the word 0x00B467B0[number of the key] = the number of the value (SC4::TextToUint32 0x0090FE93) (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::HasPoleRecordWithKey"
+address = 0x0064F170
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 6C 03 00 00 55 56"
+source = "Name ours. Ret 4 (a key: two words, two bytes): AL 1 when a pole record (+0x36C, 0x30 bytes) has those at +0x24, +0x28, +0x2C, +0x2D (src/core/nettool_power_2.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::HasPoleInLine"
+address = 0x0064F1D0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4C 24 0C"
+source = "Name ours. Ret 4 (an occupant): AL 0 without one; else its cell (slot 0x20) and AL 1 when a pole record has that x or that z (src/core/nettool_power_2.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::FindDiagonalCell"
+address = 0x0064F230
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 54 56 8B 74 24 08"
+source = "Name ours. Ret 8 (a step, an anchor index): the step's first cell when +0x74 is set and above the step; else the first of the step's dragged cells as far from the anchor point along x as along z, or -1 (src/core/nettool_power_2.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::PreviewCells"
+address = 0x0064F2B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 8B 44 24 10 53"
+source = "Name ours. Slot 82 of the power line tool, ret 4 (the first step): AddCell 0x00620820 for the valid steps' cells without a pole record (0x800000FF) and every cell of the steps past the valid count (0x80FF0000) (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::ClearOccupantHighlights"
+address = 0x0064F3F0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. Slot 16 of the power line tool, no arguments: the lists +0x38C (highlight off, occupant manager slot 0x54, release when there is a manager), +0x390 (highlight off, slot 0x38 0, release) and +0x394 (poles unwired 0x00649910 and released) emptied, then a jump to the general tool's 0x00625580 (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::GetFailureReasonText"
+address = 0x0064F570
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 74 09"
+source = "Name ours. Slot 52 of the power line tool, ret 8 (a reason, a game string): not 0, a jump to 0x0062BF60; 0: the LTEXT 0x2A592FD1/0x8AADD2B5 when the zone manager's slot 0x30 at the last anchor point is above 0 (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4Vector16::CopyConstruct"
+address = 0x0064F610
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B 03 56"
+source = "Name ours. Ret 4 (the source): copy constructor of a vector of 16-byte elements (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4Vector16Vector::UninitializedCopy"
+address = 0x0064F670
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 55 8B 6C 24"
+source = "Name ours. (first, last, destination): vectors of 16-byte elements copy-constructed (inline) where the destination is not null; EAX the destination's end (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4PowerPoleRecord::CopyConstruct"
+address = 0x0064F710
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. Ret 4 (the source): a 0x30-byte pole record copied: words +0x0 to +0x10, bytes +0x14/+0x15, the vector +0x18 (0x007CED60), words +0x24 to +0x2C (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4Vector16::Assign"
+address = 0x0064F770
+kind = "function"
+convention = "thiscall"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. Ret 4 (the source): operator= of a vector of 16-byte elements (SC4Vector16::Copy 0x007257C0, 0x0064F5D0) (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::LoadPoleExemplars"
+address = 0x0064F880
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 54 6A 00 8D 44 24"
+source = "Name ours. No arguments: the ini record 0/0x8A5971C5/0x8A5993B9 opened and its section PowerPoles run with the callback 0x0064F140; Init calls it once per run (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4PowerPoleRecord::UninitializedCopy"
+address = 0x0064F920
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. (first, last, destination, an unread allocator): pole records copy-constructed where the destination is not null; EAX the destination's end (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4PowerPoleRecord::UninitializedFillN"
+address = 0x0064F9A0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. (destination, count, value, an unread allocator): count copies of a pole record; EAX the destination's end (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4Vector16Vector::Copy"
+address = 0x0064FA10
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. (first, last, destination, two unread): vectors of 16-byte elements assigned (0x0064F770); EAX the destination's end (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4PowerPoleRecord::Copy"
+address = 0x0064FA60
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. (first, last, destination, two unread): pole records assigned (the vector +0x18 through 0x00611B00); EAX the destination's end (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4IntVectorVector::CopyRange"
+address = 0x0064FAF0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. (first, last, destination, two unread): vectors of 32-bit values assigned (SC4IntVector::Assign 0x0050DB90); EAX the destination's end (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::LinkPoles"
+address = 0x0064FB40
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B 5C 24 18"
+source = "Name ours. Ret 0xC (two pole records, a word): each gets the pair (the other's index, the word) in its vector +0x18, and the bit of the direction between their cells (0x0061F4C0) in its byte +0x15 (src/core/nettool_power_2.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::FindWireAt"
+address = 0x0064FBF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 0D E4 07 B2"
+source = "Name ours. Ret 0xC (x, z, out): the cell's occupants (0x00B43D0C slot 0xA0) asked for the power line interface 0xC98F3B24; the out gets the last found; AL found (src/core/nettool_power_2.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::ClassifyCell"
+address = 0x0064FD00
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 57 8B"
+source = "Name ours. Ret 8 (x, z): 1 for a zone the line may not cross (the zone manager's slot 0x30), 2 for flora or a lot, 3 for a network occupant that is not a pipe base, else 0 (src/core/nettool_power_2.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::CheckSteps"
+address = 0x0064FED0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 55 56 8B F1"
+source = "Name ours. Slot 81 of the power line tool, ret 4 (the step count, in and out): walks the steps' cells with 0x0064FD00, sets the failure reasons 0xF0000011 to 0xF0000013 and cuts the count at the first blocked step. Left the game's: the previous cell's kind is a local not written before the first cell (docs/nettool.md)."
+
+[[entry]]
+name = "cSC4PowerLineTool::FindPoleAt"
+address = 0x0064FFE0
+kind = "function"
+convention = "cdecl"
+expect = "83 EC 24 8B 4C 24 2C 8B"
+source = "Name ours. (x, z, out): the cell's occupants (0x00B43D0C) asked for the power pole interface 0xA8C86142 whose position's cell (slot 0x20, the manager's slot 0x4C) is the cell; the out gets the last; AL found (src/core/nettool_power_2.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::MakePole"
+address = 0x00650140
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 56 8B 74"
+source = "Name ours. Ret 4 (a pole record): the record's pole is the one at its cell (0x0064FFE0) or a new cSC4PowerPoleOccupant; its model from the exemplar of the wire sides (0x00B467B0), its sides +0xB8, position (0x0064EFE0) and slot 0x38 (src/core/nettool_power_2.cpp)."
+
+[[entry]]
+name = "SC4IntVectorVector::EraseRange"
+address = 0x00650250
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Name ours. Ret 8 (first, last): erase of a vector of 32-bit vectors (0x0064FAF0, the removed buffers freed); EAX first (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4PowerPoleRecordVector::Destroy"
+address = 0x006502B0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. No arguments: each pole record's vector buffer +0x18 freed, then the records' buffer (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4PowerPoleRecordVector::Erase"
+address = 0x006502F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 53 55 56 8B"
+source = "Name ours. Ret 8 (first, last): erase of pole records (0x0064FA60, the removed records' vector buffers freed); EAX first (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4Vector16Vector::Erase"
+address = 0x00650360
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Name ours. Ret 8 (first, last): erase of a vector of 16-byte element vectors (0x0064FA10, the removed buffers freed); EAX first (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4PowerPoleRecordVector::InsertOverflow"
+address = 0x00650480
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 06"
+source = "Name ours. Ret 0x14 (where, value, unread tag, count, at-end byte): the growing insert of pole records (size + max(size, count)) (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::DeletingDestructor"
+address = 0x00650560
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. Slot 51 of the power line tool, ret 4 (flags): the destructor 0x00650580, bit 0 operator delete (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::Destruct"
+address = 0x00650580
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 8E 98 03 00"
+source = "Name ours. No arguments: +0x398, the lists +0x394/+0x390/+0x38C, +0x378, the pole records, then the general tool's destructor (jumped to) (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::ClearPoleRecords"
+address = 0x006505D0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 99 70 03 00 00 55"
+source = "Name ours. No arguments: each pole record's objects +0x24/+0x28 released and cleared, then all records erased (0x006502F0) (src/core/nettool_power_2.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::Init"
+address = 0x00650630
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B F1 8A 86"
+source = "Name ours. Slot 3 of the power line tool, no arguments: once per run LoadRulesOnce and the pole exemplars; the general Init; the tuning +0x3A4..+0x3B0 from the exemplar 0x6534284A/0xE7E2C2DB/0xC911E35B; the records and +0x378 emptied; AL 1 (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::AddPoleRecord"
+address = 0x00650760
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 30 53 55 8B E9 8B"
+source = "Name ours. Ret 0x10 (a dragged cell, a byte, a word, three words): appends a pole record and links it to the previous one (0x0064FB40). Left the game's: the record's byte +0x14 is a stack leftover (docs/nettool.md)."
+
+[[entry]]
+name = "cSC4PowerLineTool::PlanPoles"
+address = 0x00650840
+kind = "function"
+convention = "thiscall"
+expect = "81 EC BC 00 00 00 A1 F0"
+source = "Name ours. No arguments, 3,345 bytes: plans the pole records along the drag. Left the game's (x87-heavy, past the part's time box) (docs/nettool.md)."
+
+[[entry]]
+name = "cSC4PowerLineTool::PlacePoles"
+address = 0x00651560
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 6C 53 55 56 57 33"
+source = "Name ours. Ret 4 (a byte), 2,903 bytes: makes or finds the poles of the records and wires them. Left the game's (x87, past the part's time box) (docs/nettool.md)."
+
+[[entry]]
+name = "cSC4PowerLineTool::ExtendAcrossZone"
+address = 0x006520C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 18 83 EC 38 53"
+source = "Name ours. Ret 0x28 (a rectangle, start, end, step, a point vector, two objects): slot 10's walk along a wire's points. Left the game's: tests a byte of the stack record that the pole maker can leave unwritten (docs/nettool.md)."
+
+[[entry]]
+name = "cSC4PowerLineTool::UpdateOnZoneChange"
+address = 0x006522F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 68 8B 44 24 7C 53"
+source = "Name ours. Slot 10 of the power line tool, ret 0x14 (x1, z1, x2, z2, a flag): for the poles and wires in the rectangle, the walks 0x006520C0 along their wires and reconnections (src/core/nettool_power_2.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::DoNetworkSpecificPlacement"
+address = 0x00652980
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 86 84 03 00"
+source = "Name ours. Slot 53 of the power line tool, ret 8 (a word, a place byte): the records cleared, the planner 0x00650840 and placer 0x00651560 for more than one step, the edge connection when placing, slot 82 (0) unless +0x50; AL 1 (src/core/nettool_power_2.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::Unwire"
+address = 0x00649910
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 56 57 8B 7C"
+source = "Name ours, not analysed beyond its start: ret 8 (another pole, a byte); looks the pole up in this pole's 0x2C-byte records (+0xAC). The power line tool's slot 16 calls it (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4::DirectionBetweenCells"
+address = 0x0061F4C0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 4C 24 10"
+source = "Name ours. (x1, z1, x2, z2): AL a direction number from the first cell to the second (only AL is set on some paths); the power line tool's 0x0064FB40 shifts a bit by it (src/core/nettool_power_2.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::PoleExemplarsLoaded"
+address = 0x00B467A8
+kind = "data"
+source = "Name ours. The byte the power line tool's Init sets before the once-per-run LoadRulesOnce and pole exemplar load (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::PoleExemplars"
+address = 0x00B467B0
+kind = "data"
+source = "Name ours. The pole exemplar IDs by wire-sides byte, filled from the network ini's PowerPoles section (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerLineTool::PowerPolesSectionName"
+address = 0x00AA9F14
+kind = "data"
+source = "Name ours. The text PowerPoles (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4NetworkTool::PowerLineVftable4"
+address = 0x00AA9F20
+kind = "vtable"
+expect = "A0 C9 62 00 D0 00 52 00"
+source = "Name ours. The power line tool's cIGZMessageTarget2 vtable at +4 (constructor 0x006503C0) (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "SC4Vector16::UninitializedCopy13"
+address = 0x0064F5D0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 44 24 0C"
+source = "Name ours. (first, last, destination, an unread allocator): 16-byte elements (three words and a byte) copied where the destination is not null; EAX the destination's end (src/core/nettool_power.cpp)."
