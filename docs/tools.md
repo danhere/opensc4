@@ -2480,7 +2480,7 @@ Left the game's, with the reason:
 
 So of the 45: 32 ours, 9 drawing, the 3 thunks and 0x005658D0 the game's.
 
-Field names, corrected from T7a's (tool_udrive_1.cpp keeps its old names; the two new files name them as below):
+Field names, corrected from T7a's (all three files now use kOverlays for +0x34, kTerrain for +0x68 and kMarker for +0x9C):
 
 | Offset | T7a's name | What it is |
 | --- | --- | --- |

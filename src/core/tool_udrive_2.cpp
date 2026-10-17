@@ -58,18 +58,18 @@ constexpr std::size_t kCursorId = 0x10;
 constexpr std::size_t kView = 0x1C;   // the city view (referenced)
 } // namespace base
 
-// The control's fields (T7a's names in tool_udrive_1.cpp, new ones added).
+// The control's fields.
 namespace field {
 constexpr std::size_t kTarget = 0x28;      // the message target part (vtable 0x00A9D9A0)
 constexpr std::size_t kDriven = 0x30;      // the driven automaton (referenced)
-constexpr std::size_t kOverlays = 0x34;    // T7a's kRef34: the overlay manager (dispatch service slot 0x58)
+constexpr std::size_t kOverlays = 0x34;    // the overlay manager (dispatch service slot 0x58)
 constexpr std::size_t kMarkerId = 0x38;    // T7a's kWord38: the driven automaton's marker on the overlay manager
 constexpr std::size_t kSpeedScale = 0x40;  // T7a's kFloat40 (0.042f): the speed dial's top, the volume's scale
 constexpr std::size_t kByte44 = 0x44;      // the button 0x0C16C9B9's state
 constexpr std::size_t kStopwatch = 0x48;   // 0x18 bytes, mode 4, real time
 constexpr std::size_t kRef60 = 0x60;       // the automaton under the pointer (referenced)
 constexpr std::size_t kList = 0x64;        // list head (12-byte nodes: next, prev, object), objects referenced
-constexpr std::size_t kTerrain = 0x68;     // T7a's kCount68: the terrain (referenced) once Init ran
+constexpr std::size_t kTerrain = 0x68;     // the terrain (referenced) once Init ran
 constexpr std::size_t kTerrainSize = 0x6C; // T7a's kFloat6C: terrain slot 6
 constexpr std::size_t kTerrainScale = 0x70; // T7a's kFloat70: 1 over it
 constexpr std::size_t kString74 = 0x74;    // four empty strings (0x14 bytes, referenced) Init makes
@@ -82,7 +82,7 @@ constexpr std::size_t kVehicles = 0x8C;    // city slots 43 to 46, the automata 
 constexpr std::size_t kPedestrians = 0x90;
 constexpr std::size_t kAircraft = 0x94;
 constexpr std::size_t kWatercraft = 0x98;
-constexpr std::size_t kMarker = 0x9C;      // T7a's kPointHolder: the marker (0x4C bytes, 0x005649D0)
+constexpr std::size_t kMarker = 0x9C;      // the marker (0x4C bytes, 0x005649D0)
 constexpr std::size_t kSimulator = 0xA0;   // global 0x00B43D5C (referenced)
 constexpr std::size_t kPanel = 0xA4;       // the panel windows (referenced)
 constexpr std::size_t kPanelSmall = 0xA8;
