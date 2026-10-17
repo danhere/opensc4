@@ -33,7 +33,13 @@ tokens, input/output, as of 2026-10-17.
 |---|---|---|---|
 | `build` (default) | `deepseek/deepseek-v4.1-flash` | $0.06 / $0.14 | Routine pieces from a clear brief, builds, parity runs, follow-up fixes. |
 | `deep` | `deepseek/deepseek-v4-pro` | $0.66 / $1.98 | Harder pieces: a new subsystem, tricky reverse-engineered layouts, or a piece `build` came back blocked on twice. |
+| `auto` (trial) | `openrouter/pareto-code` | varies | See the trial note below. |
 | `debug` | `anthropic/claude-sonnet-5.5` | $2 / $10 | Hard debugging only: parity mismatches or crashes `deep` couldn't crack. Brief it with the failing test and what was already tried. |
+
+**Trial (from 2026-10-17):** brief the next piece with `--agent auto` (OpenRouter's Pareto Code router,
+which picks a strong coding model per request, priced at whatever it picks). Afterwards, compare its
+cost on Dan's OpenRouter activity page against a typical `build` piece, and record the result here.
+Keep it or drop it based on that comparison. One trial piece only; then go back to `build` until it's decided.
 
 Start with `build`; step up one level only after a blocked or wrong result, and say so in the brief.
 Subagents (`explore`, `general`) and housekeeping (titles, summaries, compaction) use the cheap models.
