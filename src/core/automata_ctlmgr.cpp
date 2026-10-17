@@ -21,7 +21,8 @@
 // once when its entry is made) to the list of its controllers (each the
 // reference the COM made). A controller is also on the controller grid
 // (+0x1C; the grid functions 0x00517A90 add, 0x005171D0 remove, 0x00517B70
-// move are part a2's): one list per 128-metre cell. AddControllerFromTemplate
+// move are part a2's, src/core/automata_ctlquery.cpp): one list per 128-metre
+// cell. AddControllerFromTemplate
 // refuses a template that a controller of an occupant on the same lot
 // (lot manager slot 14) already has (unless the template's flag 0x40 is
 // set or there is no occupant), and, for a radius of 1 or more, a template
@@ -65,10 +66,11 @@
 //     Release): eight bytes each, they reach our detours at the entries.
 //   - AddRef 0x00695330 and GetControllerTime 0x0051A310 (folded with other
 //     classes).
-//   - part a2: the queries and message handlers (0x005163D0
-//     AddControllersFromGroup, the grid's 0x00517A90 / 0x005171D0 /
-//     0x00517B70, the GetController overloads, the message handler
-//     0x00519360, the cheat target 0x005187F0, ...).
+//   - part a2's functions (src/core/automata_ctlquery.cpp): the queries and
+//     message handlers (0x005163D0 AddControllersFromGroup, the grid's
+//     0x00517A90 / 0x005171D0 / 0x00517B70, the GetController overloads,
+//     the message handler 0x00519360, the cheat target 0x005187F0, ...);
+//     this file calls them at the game's addresses.
 //   - shared with the attractor code: 0x00518A40 (the automaton value's
 //     copy), 0x0051B9D0.
 //   - generic STL/hash helpers: SC4HashTable::Begin 0x004B0390,

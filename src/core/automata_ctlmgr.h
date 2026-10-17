@@ -25,7 +25,11 @@
 //         +0x40); saved
 //   +0x44 the automata script system (city slot 48), referenced
 //   +0x48 .. +0x50 three words, +0x54 a byte (0), +0x55 a byte (1): only the
-//         constructor writes them in this part
+//         constructor writes them in this part. Part a2: +0x48 the camera
+//         point the controllers were last told about (DoMessage
+//         0xA6B79612), +0x54 holds that off (0xCAD61E00 sets it, 0xEAD61E16
+//         clears it), +0x55 the queries' and the update's switch (the cheat
+//         Controllers off / on)
 //   +0x58 the controller table: a hash table (HashTable) of ControllerNode,
 //         an occupant (referenced) to the list of its controllers
 //   +0x6C the automaton table: a hash table of AutomatonNode, an occupant
@@ -45,6 +49,7 @@ inline constexpr std::size_t kClock = 0x18, kGrid = 0x1C, kTime = 0x34;
 inline constexpr std::size_t kTimeA = 0x34, kTimeB = 0x38, kTimeC = 0x3C, kTimeD = 0x40;
 inline constexpr std::size_t kScripts = 0x44;
 inline constexpr std::size_t kWord48 = 0x48, kWord4C = 0x4C, kWord50 = 0x50, kByte54 = 0x54, kByte55 = 0x55;
+inline constexpr std::size_t kCameraPoint = 0x48, kHoldCamera = 0x54, kEnabled = 0x55;
 inline constexpr std::size_t kControllers = 0x58, kAutomata = 0x6C;
 inline constexpr std::size_t kSize = 0x80;
 } // namespace field
@@ -147,7 +152,42 @@ inline constexpr std::size_t kAddRef = 0x04, kRelease = 0x08, kInit = 0x0C, kShu
 inline constexpr std::size_t kName = 0x1C, kTemplate = 0x20, kTestFlag = 0x30;
 inline constexpr std::size_t kSetOccupant = 0x38, kSetTemplate = 0x3C, kSetPosition = 0x44, kMoved = 0x6C;
 inline constexpr std::uintptr_t kAttractorVtable = 0x00A95E48, kGeneratorVtable = 0x00A95F00;
+// Part a2's (src/core/automata_ctlquery.cpp): slot 5 the type (attractor
+// 0x6A1628BA, generator 0x4A1628C5), 9 a float in ST0 (the template's +0x20
+// or +0xA8), 10 active, 11 the position (out), 21 the bounds (low out, high
+// out), 22 another position (out; flag 0x10), 23 takes a point (point,
+// value out or 0), 24 the time passed (time, passed), 25 / 26 two message
+// handlers, 31 an automaton event (data), 33 saturated, 34 the cell range
+// the grid keeps (4 bytes), 35 / 36 finished, 37 wants the tick, 38 the
+// tick (b, a, passed). The controller's +0xC is its occupant, +0x10 its
+// template, +0x5C a curve.
+inline constexpr std::size_t kType = 0x14, kStrengthBase = 0x24, kActive = 0x28, kPosition = 0x2C;
+inline constexpr std::size_t kBounds = 0x54, kOtherPosition = 0x58, kTakesPoint = 0x5C, kTimePassed = 0x60;
+inline constexpr std::size_t kOnMessageA = 0x64, kOnMessageB = 0x68, kOnEvent = 0x7C, kSaturated = 0x84;
+inline constexpr std::size_t kCellRange = 0x88, kFinishedA = 0x8C, kFinishedB = 0x90, kWantsTick = 0x94;
+inline constexpr std::size_t kTick = 0x98;
+inline constexpr std::size_t kOccupant = 0x0C, kTemplateField = 0x10, kCurve = 0x5C;
+inline constexpr uint32_t kTypeAttractor = 0x6A1628BA, kTypeGenerator = 0x4A1628C5;
 } // namespace controller
+
+// Part a2's view of a template: +0x24 a curve over the hour, +0x34 the
+// weekday mask, +0x6C / +0x70 a vector of IDs (automata it does not
+// attract), +0x78 / +0x7C a vector of occupant group IDs.
+namespace tmpl2 {
+inline constexpr std::size_t kHourCurve = 0x24, kWeekdays = 0x34;
+inline constexpr std::size_t kExcludedBegin = 0x6C, kExcludedEnd = 0x70, kGroupsBegin = 0x78, kGroupsEnd = 0x7C;
+} // namespace tmpl2
+
+// One half of the controller time (+0x34 the current, +0x3C the previous):
+// the hour (a float) and the day of the week (a 16-bit word; 0..6 after
+// tControllerTime::Normalize). The game copies it as two dwords: the word's
+// upper half is whatever the copy held.
+struct ControllerTime {
+    float hour;
+    int16_t day;
+    uint16_t padding;
+};
+static_assert(sizeof(ControllerTime) == 8);
 
 inline constexpr uint32_t kClassId = 0xCA14CA03;
 inline constexpr uint32_t kIid = 0xCA14C9FC;
