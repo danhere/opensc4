@@ -731,8 +731,8 @@ address = 0x00517F70
 kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
-expect = "8B 41 0C C3"
-source = "Slot 6: the occupant at +0x0C."
+expect = "8B 41 0C C3 CC CC"
+source = "Slot 6: the occupant at +0x0C. The function is 4 bytes; the last two expected bytes are its CC padding, so the 5-byte entry hook stays inside it."
 
 [[entry]]
 name = "cSC4AutomataController::GetTemplate"
@@ -874,9 +874,54 @@ name = "cSC4AutomataController::CurveValue"
 address = 0x00514C70
 kind = "function"
 convention = "thiscall"
-signature = "float (void* this)"
+signature = "double (void* this)"
 expect = "D9 41 28 D8 1D 54 10 A8 00 DF E0 F6 C4 41 75 0A"
-source = "Not a slot: the attractor's and generator's controllers call it. +0x28 times 0x00A8FAF0 while above the game's zero, else -1.0 (0x00A95D3C)."
+source = "Not a slot: +0x28 times 1000.0 (0x00A8FAF0) while above the game's zero (0x00A81054), else -1.0 (0x00A95D3C). The answer is left in ST0 unrounded."
+
+[[entry]]
+name = "cSC4AutomataController::SerializableQueryInterface"
+address = 0x00517F30
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t iid, void** out)"
+expect = "83 E9 04 E9 28 D0 FF FF"
+source = "The +4 serializable vtable's slot 0 (base): ecx - 4, then the controller's QueryInterface 0x00514F60; ret 8."
+
+[[entry]]
+name = "cSC4AutomataController::SerializableGetGZCLSID"
+address = 0x00517F00
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 2B 67 18 4A C3"
+source = "The +4 serializable vtable's slot 5 (base): the class ID 0x4A18672B. The attractor's and generator's serializable vtables use their slot 5 0x00518220 and 0x00518390."
+
+[[entry]]
+name = "cSC4AutomataController::SerializableWrite"
+address = 0x00517FD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "83 EC 14 53 56 8B 74 24 20 8B 06 57 8B F9 6A 05"
+source = "The +4 serializable vtable's slot 3 (base), this = object + 4, ret 4: version 5, the occupant (0x005D99A0), its serializable part (+4) or an empty string, the position (0x005DA580), +0x50 and +0x54 (stream slot 0x30), +0x3C, +0x40 and the automaton count +0x48 (slot 0x24), then a reference per automaton list node; true when the stream has no error (slot 0x48)."
+
+[[entry]]
+name = "cSC4AutomataAttractor::SerializableWrite"
+address = 0x00518230
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "56 8B 74 24 08 57 56 8B F9 E8 92 FD FF FF 8B 06 6A 01 8B CE"
+source = "The attractor's +4 serializable vtable slot 3, this = object + 4, ret 4: the base Write, version 1, its curve at +0x5C (0x005DB190), then the stream's error test."
+
+[[entry]]
+name = "cSC4AutomataGenerator::SerializableWrite"
+address = 0x005183D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57 8B F9 6A 04 8B CE FF 50 1C"
+source = "The generator's +4 serializable vtable slot 3, this = object + 4, ret 4: version 4, the base Write, then +0x78, +0x7C, +0x80, +0x90 and +0x94 (slots 0x30, 0x18, 0x30, 0x18, 0x24, 0x24), then the stream's error test."
 
 [[entry]]
 name = "cSC4AutomataController::Destroy"
@@ -953,7 +998,7 @@ name = "cSC4AutomataController_SerializableVtable"
 address = 0x00A95D74
 kind = "vtable"
 expect = "30 7F 51 00"
-source = "The base controller's serializable vtable at +4, 4 slots: 0x00517F30, 0x005183B0, 0x005183C0, 0x00517FD0."
+source = "The base controller's serializable vtable at +4, 6 slots: 0x00517F30 QueryInterface, 0x005183B0 AddRef, 0x005183C0 Release, 0x00517FD0 Write, 0x005180E0 Read, 0x00517F00 GetGZCLSID."
 
 [[entry]]
 name = "cSC4AutomataAttractor_Vtable"
@@ -967,7 +1012,7 @@ name = "cSC4AutomataAttractor_SerializableVtable"
 address = 0x00A95E30
 kind = "vtable"
 expect = "A0 83 51 00"
-source = "The attractor's serializable vtable at +4, 4 slots: 0x005183A0, 0x005183B0, 0x005183C0, 0x00518230."
+source = "The attractor's serializable vtable at +4, 6 slots: 0x005183A0 QueryInterface, 0x005183B0 AddRef, 0x005183C0 Release, 0x00518230 Write, 0x00518270 Read, 0x00518220 GetGZCLSID."
 
 [[entry]]
 name = "cSC4AutomataGenerator_Vtable"
@@ -981,7 +1026,7 @@ name = "cSC4AutomataGenerator_SerializableVtable"
 address = 0x00A95EE8
 kind = "vtable"
 expect = "A0 83 51 00"
-source = "The generator's serializable vtable at +4, 4 slots: 0x005183A0, 0x005183B0, 0x005183C0, 0x005183D0."
+source = "The generator's serializable vtable at +4, 6 slots: 0x005183A0 QueryInterface, 0x005183B0 AddRef, 0x005183C0 Release, 0x005183D0 Write, 0x00518450 Read, 0x00518390 GetGZCLSID."
 
 [[entry]]
 name = "cSC4AutomataController::MinusOneFloat"
