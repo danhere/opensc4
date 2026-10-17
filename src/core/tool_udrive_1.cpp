@@ -39,7 +39,7 @@ namespace field {
 constexpr std::size_t kTarget = 0x28;    // the message target part (vtable 0x00A9D9A0)
 constexpr std::size_t kThird = 0x2C;     // the third interface (vtable 0x00A9D98C)
 constexpr std::size_t kDriven = 0x30;    // the driven object (referenced)
-constexpr std::size_t kRef34 = 0x34;     // referenced
+constexpr std::size_t kOverlays = 0x34;  // the overlay manager (the dispatch service's slot 0x58, referenced)
 constexpr std::size_t kWord38 = 0x38;
 constexpr std::size_t kByte3C = 0x3C;    // 1
 constexpr std::size_t kFloat40 = 0x40;   // 0.042f
@@ -47,14 +47,14 @@ constexpr std::size_t kByte44 = 0x44;
 constexpr std::size_t kByte45 = 0x45;
 constexpr std::size_t kStopwatch = 0x48; // 0x18 bytes
 constexpr std::size_t kRef60 = 0x60;     // referenced
-constexpr std::size_t kList = 0x64;      // a list head (12-byte node) and its count at +0x68
-constexpr std::size_t kCount68 = 0x68;
+constexpr std::size_t kList = 0x64;      // the listeners: a list head (12-byte nodes)
+constexpr std::size_t kTerrain = 0x68;   // the terrain (referenced) once Init ran
 constexpr std::size_t kFloat6C = 0x6C;   // 1.0f
 constexpr std::size_t kFloat70 = 0x70;   // 1.0f
 constexpr std::size_t kWord74 = 0x74;
 constexpr std::size_t kFirstRef = 0x8C;  // ten referenced objects, +0x8C to +0xB0
 constexpr std::size_t kLastRef = 0xB0;
-constexpr std::size_t kPointHolder = 0x9C; // one of them: its +0x24/+0x28 is a point
+constexpr std::size_t kMarker = 0x9C;    // one of them: the marker (0x4C bytes, 0x005649D0)
 constexpr std::size_t kWordB4 = 0xB4;
 constexpr std::size_t kWordB8 = 0xB8;
 } // namespace field
@@ -112,10 +112,10 @@ uint8_t __fastcall CanDrive(char* self, void*)
 // The game's 0x00564300 (slot 18, OnMouseUpL, ret 0xC).
 uint8_t __fastcall OnMouseUpL(char* self, void*, int32_t, int32_t, uint32_t)
 {
-    if (char* const holder = At<char*>(self, field::kPointHolder)) {
-        if (At<int32_t>(holder, 0x24) != -1 || At<int32_t>(holder, 0x28) != -1) {
-            At<int32_t>(holder, 0x24) = -1;
-            At<int32_t>(holder, 0x28) = -1;
+    if (char* const marker = At<char*>(self, field::kMarker)) {
+        if (At<int32_t>(marker, 0x24) != -1 || At<int32_t>(marker, 0x28) != -1) {
+            At<int32_t>(marker, 0x24) = -1;
+            At<int32_t>(marker, 0x28) = -1;
         }
     }
     if (TakesInput(self) && CanDrive(self, nullptr)) {
@@ -151,7 +151,7 @@ char* __fastcall Construct(char* self, void*)
     At<std::uintptr_t>(self, field::kTarget) = addr::cSC4UDriveControl_TargetVtable;
     At<std::uintptr_t>(self, field::kThird) = addr::cSC4UDriveControl_ThirdVtable;
     At<void*>(self, field::kDriven) = nullptr;
-    At<void*>(self, field::kRef34) = nullptr;
+    At<void*>(self, field::kOverlays) = nullptr;
     At<uint32_t>(self, field::kWord38) = 0;
     At<uint8_t>(self, field::kByte3C) = 1;
     At<uint32_t>(self, field::kFloat40) = kFloat0042;
@@ -164,7 +164,7 @@ char* __fastcall Construct(char* self, void*)
     head[0] = head;
     head[1] = head;
     At<void*>(self, field::kList) = head;
-    At<uint32_t>(self, field::kCount68) = 0;
+    At<void*>(self, field::kTerrain) = nullptr;
     At<uint32_t>(self, field::kWord74) = 0;
     for (std::size_t offset = 0x7C; offset <= 0x88; offset += 4)
         At<uint32_t>(self, offset) = 0;
@@ -190,7 +190,7 @@ void __fastcall Destruct(char* self, void*)
     if (void* const object = At<void*>(self, field::kRef60))
         Release(object);
     This<void>(addr::SC4Stopwatch_Destruct, self + field::kStopwatch);
-    if (void* const object = At<void*>(self, field::kRef34))
+    if (void* const object = At<void*>(self, field::kOverlays))
         Release(object);
     if (void* const object = At<void*>(self, field::kDriven))
         Release(object);
