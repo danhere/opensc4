@@ -17,6 +17,37 @@ Early development. Working today, inside SC4 Deluxe build 1.1.641:
 
 Not yet playable as a standalone game. Roughly 20-25% of the way to a full rewrite; measured stats and per-area estimates are in [ROADMAP.md, "Progress"](ROADMAP.md#progress), refreshed weekly.
 
+## Getting started on Windows
+
+Run everything from Git Bash ([Git for Windows](https://git-scm.com/download/win)).
+
+1. Clone to a Windows drive, with submodules:
+   ```bash
+   git clone --recurse-submodules https://github.com/danhere/opensc4.git
+   cd opensc4
+   ```
+2. Install the toolchain with [Scoop](https://scoop.sh), from the repo root (keep the `./`), then open a new terminal:
+   ```bash
+   scoop install llvm cmake ninja python ./tools/scoop/xwin.json
+   ```
+3. Fetch the Windows SDK and CRT (once; accepts Microsoft's license):
+   ```bash
+   scripts/fetch-sdk.sh
+   ```
+4. Build and test:
+   ```bash
+   cmake --preset debug
+   cmake --build --preset debug
+   ctest --preset debug
+   ```
+5. Run it in the game (SimCity 4 Deluxe 1.1.641 installed; `SC4_GAME` points at another `SimCity 4.exe`). The first autotest run seeds an isolated user folder, so your own saves and plugins are never touched:
+   ```bash
+   scripts/run-autotest.sh build/debug
+   scripts/play.sh build/debug
+   ```
+
+More detail, including Linux and Ghidra setup: [docs/dev-environment.md](docs/dev-environment.md).
+
 ## Improvements over the original
 
 Things OpenSC4 adds to the game. Classic behaviour stays: an addition that changes how the game plays is an option in `opensc4.ini`, off until you turn it on; one that does nothing until you ask for it is simply there.

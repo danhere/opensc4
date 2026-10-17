@@ -102,7 +102,7 @@ scale_city = no         ; yes: enlarge the city too (the screen then shows less 
 - **`scripts/ghidra-setup.sh`** builds the project and runs the whole pipeline (about 4 minutes from scratch; `--fresh` starts over): import with auto-analysis, the class censuses (before anything is renamed, so the numbers in [class-creation.md](class-creation.md) are reproducible), the exe's ID-to-name table, gzcom-dll's interface slot table, sc4-ghidra-symbols (Function ID databases and data type archives), names for 197 classes' factories, constructors, vtables and interface methods (about 1,600 functions), the names OpenSC4's own work has established (every function in the address database plus [data/names-641.txt](../data/names-641.txt), with a plate comment saying what each name rests on; [`ApplyNameList.java`](../tools/ghidra/ApplyNameList.java), which only renames functions still named `FUN_...`), and functions for code that auto-analysis left outside every function (about 10,400: virtual methods, callbacks and exception funclets reached only through pointers; [`DefineOrphanFunctions.java`](../tools/ghidra/DefineOrphanFunctions.java)). **When a finding identifies a function, add it to `data/names-641.txt`** (or to the address database, if code hooks it), so the name reaches Ghidra on the next run. Needs `python3` (`scoop install python`) and a clone of [sc4-ghidra-symbols](https://github.com/0xC0000054/sc4-ghidra-symbols) (`SC4_GHIDRA_SYMBOLS`).
 - Pitfalls the script works around:
   - `analyzeHeadless.bat` fails on paths containing parentheses, such as `Program Files (x86)`, so it imports a copy of the exe.
-  - From Git Bash, `.bat` arguments reach `cmd.exe` unquoted (breaking on spaces), and `\\wsl.localhost\...` paths don't work, so it uses 8.3 short paths and local copies of the scripts and symbol files.
+  - From Git Bash, `.bat` arguments reach `cmd.exe` unquoted (breaking on spaces), so it uses 8.3 short paths and local copies of the scripts and symbol files.
   - Attached Function ID databases are remembered in Ghidra's user settings and are then applied by every later auto-analysis.
 - Individual scripts in `tools/ghidra` document their own arguments; `LookupNames.java <address...>` prints what the project knows about addresses.
 
@@ -138,14 +138,6 @@ ctest --preset debug
 ```
 
 `scripts/fetch-sdk.sh` and the toolchain file both read `OPENSC4_WINSYSROOT`; it defaults to `.xwin/sysroot` in the repo.
-
-**Sources in WSL, building on Windows.** CMake's link step runs through `cmd.exe`, which can't use a `\\wsl.localhost\...` working directory. Keep the SDK and build directory on a Windows drive:
-
-```bash
-export OPENSC4_WINSYSROOT="$LOCALAPPDATA/opensc4/xwin/sysroot"
-cmake --preset debug -B "$LOCALAPPDATA/opensc4/build/debug"
-cmake --build "$LOCALAPPDATA/opensc4/build/debug"
-```
 
 ### CachyOS
 
