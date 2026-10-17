@@ -9,9 +9,11 @@
 // Part a3a (this file): the object (the constructors 0x00517D40, 0x005181F0
 // and 0x005182B0, the destructor bodies 0x00517F80 and 0x005192E0, the
 // deleting destructors 0x005192C0 and 0x00519340, the two factories,
-// QueryInterface 0x00514F60 and Release 0x00517F10) and the queries (the
-// accessors, the flag tests and the small overrides the two classes make).
-// The save (the +4 serializable interface's Write, Read and GetGZCLSID) is a
+// QueryInterface 0x00514F60 and Release 0x00517F10), the queries (the
+// accessors, the flag tests and the small overrides the two classes make),
+// and the +4 serializable part's identity and Write (0x00517F30, 0x00517F00,
+// 0x00517FD0, 0x00518230, 0x005183D0). The serializable functions take
+// object + 4 as this, so their fields are the object's less 4. Read is a
 // later part.
 //
 // The base constructor fixes the layout, shared by both derived classes:
@@ -73,10 +75,17 @@ inline constexpr std::size_t kAddRef = 0x04, kRelease = 0x08, kShutdown = 0x10;
 inline constexpr std::size_t kGetPosition = 0x20, kTestFlag = 0x30, kDeletingDestructor = 0x9C;
 } // namespace slot
 
+// The stream slots the serializable Write functions use, in bytes.
+namespace streamslot {
+inline constexpr std::size_t kUInt16 = 0x18, kVersion = 0x1C, kUInt32 = 0x24;
+inline constexpr std::size_t kFloat = 0x30, kString = 0x3C, kError = 0x48;
+} // namespace streamslot
+
 inline constexpr std::uint32_t kFlag1 = 1, kFlag2 = 2, kFlag4 = 4, kFlag20 = 0x20, kFlag400 = 0x400;
 inline constexpr std::uint32_t kConstructorFlags = 2;
 inline constexpr std::uint32_t kAttractorClassId = 0x6A1628BA;
 inline constexpr std::uint32_t kGeneratorClassId = 0x4A1628C5;
+inline constexpr std::uint32_t kControllerSaveClassId = 0x4A18672B;
 inline constexpr std::uint32_t kIidAutomataController = 0x6A1857F8;
 inline constexpr std::uint32_t kIidSerializable = 0xE4FDA3D4;
 inline constexpr std::uint32_t kIidUnknown = 1;
