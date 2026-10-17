@@ -731,8 +731,8 @@ address = 0x00517F70
 kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
-expect = "8B 41 0C C3"
-source = "Slot 6: the occupant at +0x0C."
+expect = "8B 41 0C C3 CC CC"
+source = "Slot 6: the occupant at +0x0C. The function is 4 bytes; the last two expected bytes are its CC padding, so the 5-byte entry hook stays inside it."
 
 [[entry]]
 name = "cSC4AutomataController::GetTemplate"
@@ -868,15 +868,6 @@ convention = "thiscall"
 signature = "void (void* this, uint32_t value)"
 expect = "8B 44 24 04 89 81 8C 00 00 00 C2 04 00"
 source = "Slot 40 (generator): +0x8C = value."
-
-[[entry]]
-name = "cSC4AutomataController::CurveValue"
-address = 0x00514C70
-kind = "function"
-convention = "thiscall"
-signature = "float (void* this)"
-expect = "D9 41 28 D8 1D 54 10 A8 00 DF E0 F6 C4 41 75 0A"
-source = "Not a slot: the attractor's and generator's controllers call it. +0x28 times 0x00A8FAF0 while above the game's zero, else -1.0 (0x00A95D3C)."
 
 [[entry]]
 name = "cSC4AutomataController::Destroy"

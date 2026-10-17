@@ -194,8 +194,22 @@ What stays the game's: the shared AddRef `0x008AE800`; the folded helpers `0x004
 
 ### Proposed sub-parts
 
-- **a3a: the object and its queries.** The base and derived constructors and destructors, the two factories and the adjustor thunks' targets; QueryInterface, Release, the GetGZCLSID pair, the accessors and flag tests, `IsActive`, `IsFinished`, `IsSaturated`, `GetPosition`, the curve value, and the +4 serializable identity. Small, self-contained, and the foundation for the rest.
+- **a3a: the object and its queries.** The base and derived constructors and destructors, the two factories; QueryInterface, Release, the GetGZCLSID pair, the accessors and flag tests, `IsActive`, `IsFinished`, `IsSaturated` and `GetPosition`. Small, self-contained, and the foundation for the rest.
 - **a3b: the behaviour.** Init and Shutdown, SetTemplate/SetActive and their bookkeeping, the automaton events, the tick, and the generator's spawn (`0x005198A0`, 2,222 bytes, the largest function of the part).
 
 Tests and parity follow the family's method ([traffic-map.md](traffic-map.md)): the controllers run on frame time and the original does not repeat them run to run, so those parts compare inside one run rather than across the usual 7-day window.
+
+## Part a3a: the object and its queries
+
+29 functions are ours, in one group, off by default: `simulators.automata.controller` (src/core/automata_controller.cpp, the layout in src/core/automata_controller.h). The object: the base constructor 0x00517D40 with the layout above and the two derived constructors, the destructor bodies 0x00517F80 and 0x005192E0, the deleting destructors 0x005192C0 and 0x00519340, the two factories 0x00514860 and 0x00514880, QueryInterface 0x00514F60 and Release 0x00517F10. The queries: the GetGZCLSID pair, GetOccupant, GetTemplate, the two GetTemplateCurve, TestFlag, SetFlag, SetOccupant, the two SetTemplate, IsActive, GetPosition, the two IsSaturated, IsFinished and the generator's 0x00518330 and 0x00518340.
+
+Kept as the game's: the shared AddRef 0x008AE800; the folded helpers 0x0040CE60, 0x00477810, 0x00648F00 and the stub 0x005D4A10; the adjustor thunks 0x005183A0, 0x005183B0 and 0x005183C0 and the plain jump 0x005151F0 (they reach our detours at their entries); SC4PairList::Destroy, SC4Curve::Init, SC4Random::Construct, cRZRandom::Between and the allocators, all called at their addresses; and the save, which is a later part.
+
+Oddities kept: QueryInterface's null branches write a null and then call through the object (the address is held in a volatile local, as in the a1 manager, so the compiler keeps the call); the destructors free the name's buffer and the attractor's curve but do not run the string's or the curve's own destructor; the deleting destructors run Shutdown (slot 4) before the body; the generator's SetTemplate takes its limit and a fresh random only for a template whose class ID is its own; the generator's IsSaturated tests +0x8C against +0x88 unsigned after the two float tests fail.
+
+GetOccupant 0x00517F70 is 4 bytes (`MOV EAX,[ECX+0xC]; RET`), too short for the 5-byte entry hook; its entry lists the two bytes of `CC` padding after it, so the patch stays inside the function. Its own `expect` in [data/addresses/automata.toml](../data/addresses/automata.toml) says so.
+
+The `simulators.automata.controller` group has no fingerprint test of its own yet. It is reached and compared through the existing `OPENSC4_TEST_AUTOMATA` test, which drives the manager's queries (parts a1, a2) through these objects: the trial (Rush Hour t0000, 7 days) calls the constructors, both factories, QueryInterface, Release, the GetGZCLSID pair, both SetTemplate, Destroy and both deleting destructors; the pure read-only queries (GetOccupant, GetTemplate, the curves, TestFlag, IsActive, GetPosition, IsSaturated, IsFinished, the generator's 0x00518330 and 0x00518340) are reached by the manager's and the script system's paths in a longer run.
+
+Parity (2026-10-17, one job): Making Money Tutorial d0000, 1 day, and 4 days with `OPENSC4_TEST_AUTOMATA=2`, both `simulators.automata.controller=ours` against the original and both the same (2 of 2 and 5 of 5 common days identical). A wider batch is still to run.
 
