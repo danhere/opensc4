@@ -7,11 +7,12 @@
 // template code of its vectors (the pole records' copy, fill, assignment,
 // erase, growing insert and destructor; the 16-byte element vectors and the
 // vectors of them; the vectors of 32-bit vectors). One group,
-// simulators.nettool.power, with the second part (src/core/
-// nettool_power_2.cpp: the pole records' lookups, the occupant lookups,
-// slots 53 and 10); this file registers it. Calls between the part's
-// functions go to the game's addresses, so each detour stands alone and
-// OPENSC4_NETTOOL_SKIP bisects them. The layout is in nettool_power.h.
+// simulators.nettool.power, with the second and third parts
+// (src/core/nettool_power_2.cpp: the pole records' lookups, the occupant
+// lookups, slots 53 and 10; src/core/nettool_power_3.cpp, part w2: the
+// pole planner and placer); this file registers it. Calls between the
+// part's functions go to the game's addresses, so each detour stands alone
+// and OPENSC4_NETTOOL_SKIP bisects them. The layout is in nettool_power.h.
 //
 // NAM. None of these functions is guarded, patched or called by NAM's DLL
 // (its patch sites are all outside 0x0064EFE0-0x00652A6B). The once-load
@@ -818,16 +819,18 @@ bool InstallPower(registry::Mode)
 {
     const bool first = InstallDetours(kPower, "power");
     const bool second = InstallPower2();
-    return first && second;
+    const bool third = InstallPower3();
+    return first && second && third;
 }
 
 const bool g_registered[] = {
     registry::Register({"simulators.nettool.power", "simulators/nettool", registry::Kind::Detour,
                         registry::Phase::PostAppInit, addr::cSC4NetworkManager_PowerLineToolConstruct,
-                        "Our power line tool (part w1): its life, the pole exemplars' ini load, slots 3, 4, 16, 20, "
-                        "51, 52 and 82 and its vectors' template code (src/core/nettool_power.cpp), the pole "
-                        "records' lookups, the occupant lookups, the pole maker and slots 53 and 10 "
-                        "(src/core/nettool_power_2.cpp)",
+                        "Our power line tool (parts w1 and w2): its life, the pole exemplars' ini load, slots 3, "
+                        "4, 16, 20, 51, 52 and 82 and its vectors' template code (src/core/nettool_power.cpp), "
+                        "the pole records' lookups, the occupant lookups, the pole maker and slots 53 and 10 "
+                        "(src/core/nettool_power_2.cpp), the pole planner and placer "
+                        "(src/core/nettool_power_3.cpp)",
                         false, InstallPower}),
 };
 
