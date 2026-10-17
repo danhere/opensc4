@@ -549,6 +549,9 @@ add_library(opensc4_core SHARED
   tool_q7_autotest.cpp
   tool_udrive_1.cpp
   tool_t7_autotest.cpp
+  tool_udrive_2.cpp
+  tool_udrive_3.cpp
+  tool_t8_autotest.cpp
   ui_cityview_1.cpp
   ui_cityview_2.cpp
   ui_cityview_3.cpp
