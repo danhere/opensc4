@@ -5284,7 +5284,7 @@ address = 0x005658D0
 kind = "function"
 convention = "thiscall"
 expect = "51 8A 44 24 08 56 8D 71"
-source = "Placeholder, a method of the overlay manager compiled with the U-Drive code. (byte key, unused), ret 8: finds the marker of the key in the map at +0x48 (0x00565430) and sets 0x400 in its +0x110; true when found. Only caller the U-Drive control's DoMessage (0x00566960). Called at its address."
+source = "Placeholder, a method of the overlay manager compiled with the U-Drive code. (byte key, unused), ret 8: finds the marker of the key in the map at +0x48 (0x00565430) and sets 0x400 in its +0x110; true when found. Only caller the U-Drive control's DoMessage (0x00566960). Ours in ui.tools.udrive4."
 
 [[entry]]
 name = "SC4OverlayManager::F46D3A0"
@@ -5316,7 +5316,7 @@ address = 0x005649D0
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 57 8D 7E 04 8B"
-source = "Name ours. The constructor of the U-Drive control's marker (0x4C bytes; vtables 0x00A9D974 and 0x00A9D95C at +4 over a base 0x0090DA1E; +0x1C..+0x28 -1). Drawing: left the game's, called at its address by Init."
+source = "Name ours. The constructor of the U-Drive control's marker (0x4C bytes; vtables 0x00A9D974 and 0x00A9D95C at +4 over a base 0x0090DA1E; +0x1C..+0x28 -1). Ours in ui.tools.udrive4."
 
 [[entry]]
 name = "SC4UDriveMarker::Init"
@@ -5324,7 +5324,7 @@ address = 0x005633C0
 kind = "function"
 convention = "thiscall"
 expect = "81 EC A4 00 00 00 55 8B"
-source = "Name ours. The marker's set-up (builds its models through 0x00B43DD0 and 0x007D2B50; once, byte +0xC). Drawing: left the game's, called at its address by Init."
+source = "Name ours. The marker's set-up (builds its models through 0x00B43DD0 and 0x007D2B50; once, byte +0xC). Ours in ui.tools.udrive4, called at its address by Init."
 
 [[entry]]
 name = "SC4UDriveMarker::Shutdown"
@@ -5332,7 +5332,7 @@ address = 0x00563730
 kind = "function"
 convention = "thiscall"
 expect = "53 56 8B F1 8A 46 0C 33"
-source = "Name ours. The marker's take-down (byte +0xC cleared, its models released). Drawing: left the game's, called at its address by Shutdown."
+source = "Name ours. The marker's take-down (byte +0xC cleared, its models released). Ours in ui.tools.udrive4, called at its address by Shutdown."
 
 [[entry]]
 name = "cSC4UDriveControl::OnKeyDown"
@@ -5483,3 +5483,131 @@ name = "SC4UDrive::VectorFillY"
 address = 0x00B229A8
 kind = "data"
 source = "Name ours. A dword of .bss no code writes (zero; next to SC4UDrive::VectorFill 0x00B229AC); the U-Drive control's 0x00565160 gives it to the service of 0x00602640 slots 7, 8, 9. Read at run time."
+
+[[entry]]
+name = "SC4UDriveMarker::Draw"
+address = 0x005657A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 20 56 8B F1 8B 0D"
+source = "Name ours. (draw context), ret 4: the marker's draw (slot 3 of vtable 0x00A9D974). The city's traffic network (city slot 0xA0) gives its view rectangle (slot 0x44) and each cell's records (slot 0x34); each record's occupant has its four sides' piece IDs copied through slot 0xA4, and every piece is drawn by 0x00564BE0. Ours in ui.tools.udrive4."
+
+[[entry]]
+name = "SC4UDriveMarker::DrawCell"
+address = 0x00564BE0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC B0 00 00 00 53 55"
+source = "Name ours. (draw context, x, z, occupant, count, vector of piece IDs, selected index), ret 0x1C: draws the network pieces of one occupant on a cell, the selected one again highlighted, then the cell's marker object. Ours in ui.tools.udrive4."
+
+[[entry]]
+name = "SC4UDriveMarker::ChooseModel"
+address = 0x00564A60
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 10 83 EC 24 56"
+source = "Name ours. (side and width, piece ID, model, path vector, highlighted), ret 0x14: picks one of the marker's six model objects (+0x2C to +0x40) from the path's direction against the direction table. Ours in ui.tools.udrive4."
+
+[[entry]]
+name = "SC4UDriveMarker::BuildQuad"
+address = 0x005637E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 0F B6 44 24 30"
+source = "Name ours. (float[20] out, position, width, piece ID, model, path, piece ID), ret 0x1C: the four textured vertices of a piece marker at the terrain's height, in the direction the table gives for the piece's side and way. Ours in ui.tools.udrive4."
+
+[[entry]]
+name = "SC4UDriveMarker::DeletingDestructor"
+address = 0x00564A30
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 48 E8"
+source = "Name ours. (flags), ret 4: lets go of the two reference holders at +0x48 and +0x44, sets the base vtable (0x0046B4C0), frees the marker when bit 0 is set, returns this. Ours in ui.tools.udrive4."
+
+[[entry]]
+name = "SC4UDriveMarker::DeletingDestructorAdjustor"
+address = 0x00564A20
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 08"
+source = "Name ours. (flags), ret 4: slot 3 of the marker's second vtable (0x00A9D95C): this is the marker + 4; back to the marker and 0x00564A30. Ours in ui.tools.udrive4."
+
+[[entry]]
+name = "cSC4UDriveControl::QueryInterfaceThird"
+address = 0x005655A0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 2C E9 D8 2E F5 FF"
+source = "Name ours. (id, out), ret 8: slot 0 of the control's third interface (vtable 0x00A9D98C): this is the control + 0x2C; back to the control and the shared 0x004B8480. Ours in ui.tools.udrive4."
+
+[[entry]]
+name = "cSC4UDriveControl::AddRefThird"
+address = 0x005655B0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 2C E9 C8 7C F5 FF"
+source = "Name ours. No arguments, plain ret: slot 1 of the control's third interface: this is the control + 0x2C; back to the control and the shared AddRef 0x004BDF00. Ours in ui.tools.udrive4."
+
+[[entry]]
+name = "cSC4UDriveControl::ReleaseThird"
+address = 0x005655C0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 2C E9 C8 7C F5 FF"
+source = "Name ours. No arguments, plain ret: slot 2 of the control's third interface: this is the control + 0x2C; back to the control and the shared Release 0x004B9E20. Ours in ui.tools.udrive4."
+
+[[entry]]
+name = "SC4UDriveMarker::FindKey"
+address = 0x00565430
+kind = "function"
+convention = "thiscall"
+expect = "8B 09 8B 41 04 85 C0 56"
+source = "Name ours. (out, key byte*), ret 8: finds a byte-keyed map node at this (the map at the overlay manager +0x48); out gets the map's end or the node (key at +0x10, left/right at +8/+0xC). The overlay manager's 0x005658D0 and no one else call it. Ours in ui.tools.udrive4."
+
+[[entry]]
+name = "SC4::GetKeyedResource"
+address = 0x007FEDE0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 8B 01 3D EC"
+source = "Placeholder name. (key*, out*), ret 8: the key's first word is the resource type; types 0x5AD0E817 and 0x29A5D1EC go to the resource manager's lookups at 0x007FD7D0 and 0x007FED50, anything else answers false. The U-Drive marker's Init loads its two model objects with it. Called by address."
+
+[[entry]]
+name = "SC4Matrix::FromDirection"
+address = 0x0080B830
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 04 8B 02 8B 4C"
+source = "Name ours (placeholder). (float[3] direction, float[16] out): copies the direction into the matrix's z axis and builds the other axes from it (the effects' camera-facing blocks use it too). Called by address."
+
+[[entry]]
+name = "SC4ViewInputControl::AddRef"
+address = 0x004BDF00
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 08 40 89 41 08 C3"
+source = "Name ours. No arguments, plain ret: one more on the count at +8, returned. The shared AddRef of the view's input controls; the U-Drive control's third interface reaches it through 0x005655B0. Called by address."
+
+[[entry]]
+name = "SC4UDriveMarker::Vtable"
+address = 0x00A9D974
+kind = "data"
+source = "Name ours. Main vtable of the U-Drive marker (0x4C bytes): slot 3 the draw 0x005657A0, slot 4 0x00735290."
+
+[[entry]]
+name = "SC4UDriveMarker::SecondVtable"
+address = 0x00A9D95C
+kind = "data"
+source = "Name ours. Second vtable of the U-Drive marker at +4: slot 3 the deleting destructor's adjustor 0x00564A20."
+
+[[entry]]
+name = "SC4UDriveMarker::DirectionTable"
+address = 0x00B229B8
+kind = "data"
+source = "Name ours. 16 three-float directions (4 x 4) that the marker's Init fills from its four points and DrawCell indexes by way + side x 4. Shared with SC4UDrive::VectorFill at 0x00B229AC."
+
+[[entry]]
+name = "SC4UDriveMarker::BaseVtable"
+address = 0x00ACE638
+kind = "data"
+source = "Name ours. The base vtable cRZBaseUnknown::Construct (0x0090DA1E) stores and the marker's destructor puts back on the marker + 4."
