@@ -58,12 +58,12 @@ namespace base {
 constexpr std::size_t kView = 0x1C; // the city view
 } // namespace base
 
-// The control's fields (T7a's names where tool_udrive_1.cpp has them).
+// The control's fields.
 namespace field {
 constexpr std::size_t kTarget = 0x28;           // the message target part (vtable 0x00A9D9A0)
 constexpr std::size_t kThird = 0x2C;            // the third interface (vtable 0x00A9D98C)
 constexpr std::size_t kDriven = 0x30;           // the driven automaton (referenced)
-constexpr std::size_t kRef34 = 0x34;            // the overlay manager (the dispatch service's slot 0x58)
+constexpr std::size_t kOverlays = 0x34;         // the overlay manager (the dispatch service's slot 0x58)
 constexpr std::size_t kWord38 = 0x38;           // the overlay on the driven automaton
 constexpr std::size_t kFloat40 = 0x40;          // 0.042f or the description's third value
 constexpr std::size_t kByte44 = 0x44;           // command 4's toggle (1 at a start)
@@ -77,7 +77,7 @@ constexpr std::size_t kVehicleManager = 0x8C;   // the city's four automata mana
 constexpr std::size_t kPedestrianManager = 0x90;
 constexpr std::size_t kAircraftManager = 0x94;
 constexpr std::size_t kWatercraftManager = 0x98;
-constexpr std::size_t kPointHolder = 0x9C;      // +0x1C/+0x20 the pointer's cell, +0x24/+0x28 the picked piece's cell
+constexpr std::size_t kMarker = 0x9C;           // +0x1C/+0x20 the pointer's cell, +0x24/+0x28 the picked piece's cell
 constexpr std::size_t kSimulator = 0xA0;        // the simulator service (0x00B43D5C)
 constexpr std::size_t kWindow = 0xA4;           // the driving window (referenced)
 constexpr std::size_t kWindow2 = 0xA8;          // the second window (referenced)
@@ -534,7 +534,7 @@ void __fastcall StartDriving(char* self, void*, void* automaton, uint8_t)
     }
     At<uint8_t>(self, field::kByte44) = 1;
     At<uint8_t>(self, field::kByte45) = 0;
-    if (void* const overlays = At<void*>(self, field::kRef34))
+    if (void* const overlays = At<void*>(self, field::kOverlays))
         At<uint32_t>(self, field::kWord38) = This<uint32_t>(addr::SC4OverlayManager_Add, overlays,
                                                             Virtual<void*>(Driven(self), 0x14), uint32_t{6},
                                                             uint32_t{0}, uint32_t{0});
@@ -803,7 +803,7 @@ uint8_t __fastcall OnMouseDownL(char* self, void*, int32_t x, int32_t z, uint32_
             int32_t cellX;
             int32_t cellZ;
             Virtual<void>(piece, 0xEC, &cellX, &cellZ); // GetOccupiedCell
-            char* const points = At<char*>(self, field::kPointHolder);
+            char* const points = At<char*>(self, field::kMarker);
             if (cellX != At<int32_t>(points, holder::kPickX) || cellZ != At<int32_t>(points, holder::kPickZ)) {
                 At<int32_t>(points, holder::kPickZ) = cellZ;
                 At<int32_t>(points, holder::kPickX) = cellX;
@@ -850,13 +850,13 @@ uint8_t __fastcall OnMouseMove(char* self, void*, int32_t x, int32_t z, uint32_t
         int32_t cellX;
         int32_t cellZ;
         Virtual<void>(City(), 0x17C, point[0], point[2], &cellX, &cellZ); // PositionToCell
-        char* const held = At<char*>(self, field::kPointHolder);
+        char* const held = At<char*>(self, field::kMarker);
         if (cellX != At<int32_t>(held, holder::kHoverX) || cellZ != At<int32_t>(held, holder::kHoverZ)) {
             At<int32_t>(held, holder::kHoverX) = cellX;
             At<int32_t>(held, holder::kHoverZ) = cellZ;
         }
     } else {
-        char* const held = At<char*>(self, field::kPointHolder);
+        char* const held = At<char*>(self, field::kMarker);
         if (At<int32_t>(held, holder::kHoverX) != -1 || At<int32_t>(held, holder::kHoverZ) != -1) {
             At<int32_t>(held, holder::kHoverX) = -1;
             At<int32_t>(held, holder::kHoverZ) = -1;
