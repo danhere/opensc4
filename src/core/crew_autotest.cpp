@@ -135,6 +135,14 @@
 // tool's depth (+0x36C) and its two lists' lengths (+0x384, +0x388) after
 // Init and after each drag, each drag's cost and failures and its new pieces
 // are hashed: ` ug <drags>,<hash>` in the daily part (DriveUnderground).
+// OPENSC4_TEST_CREW_POWER=1 (off by default; legs without it are
+// unchanged): last of the drive, power lines (the power line tool,
+// src/core/nettool_power.cpp): a straight drag on land found as for the six
+// types, a second drag from the cell below its end, down (a corner pole at
+// the joint), and, when the road's strip was drawn, a third across the
+// middle of the road from the row above to two rows below it. Each through
+// the release (Place). Each drag's cost, failures and new pieces are hashed:
+// ` pw <drags>,<hash>` in the daily part (DrivePower).
 #include "core/autotest_hooks.h"
 #include "core/crew_sim.h"
 #include "core/game.h"
@@ -1501,6 +1509,70 @@ void DriveUnderground(cISC4City* city, char* manager)
     g_underHash = h.h;
 }
 
+// ====================================================================================
+// OPENSC4_TEST_CREW_POWER (see the top of the file)
+// ====================================================================================
+
+uint32_t g_powerDrags = 0, g_powerHash = 2166136261u;
+
+void DrivePower(cISC4City* city, char* manager)
+{
+    if (EnvInt("OPENSC4_TEST_CREW_POWER", 0) != 1)
+        return;
+    void* const lots = Global<void*>(addr::SC4_LotManager);
+    const int32_t sizeX = static_cast<int32_t>(city->CellCountX()), sizeZ = static_cast<int32_t>(city->CellCountZ());
+    if (!lots)
+        return;
+    int32_t length = EnvInt("OPENSC4_TEST_CREW_LENGTH", 24), least = kFree, x = 0, z = 0;
+    if (length < 8 || !FindPlace(lots, sizeX, sizeZ, length, least, x, z)) {
+        log::Write("autotest: crew: power: no strip");
+        return;
+    }
+    cISC4NetworkManager* const networks = city->GetNetworkManager();
+    cISC4NetworkTool* const tool = networks->GetNetworkTool(cISC4NetworkOccupant::PowerPole, false);
+    if (!tool) {
+        log::Write("autotest: crew: power: no tool");
+        return;
+    }
+    tool->AddRef();
+    tool->Init();
+    const uint32_t endX = static_cast<uint32_t>(x + length - 1);
+    SC4Point<uint32_t> lines[3][2] = {
+        {{static_cast<uint32_t>(x), static_cast<uint32_t>(z)}, {endX, static_cast<uint32_t>(z)}},
+        {{endX, static_cast<uint32_t>(z + 1)}, {endX, static_cast<uint32_t>(z + 6)}},
+        {}};
+    uint32_t count = 2;
+    const Strip& road = g_strips[0];
+    if (road.drawn && road.length >= 8 && road.z >= 1 && road.z + 2 < sizeZ) {
+        const uint32_t crossX = static_cast<uint32_t>(road.x + road.length / 2);
+        lines[2][0] = {crossX, static_cast<uint32_t>(road.z - 1)};
+        lines[2][1] = {crossX, static_cast<uint32_t>(road.z + 2)};
+        count = 3;
+    }
+    Hash h;
+    h.h = g_powerHash;
+    for (uint32_t i = 0; i < count; ++i) {
+        const auto& line = lines[i];
+        const uint32_t madeBefore = ReadState(city, manager).made;
+        Drag drag{tool, cISC4NetworkOccupant::PowerPole, {line[0], line[1]}, 0, 0};
+        if (!RunModalPlayer(&AnswerDialog, &Place, &drag))
+            Place(&drag);
+        const uint32_t failure = tool->GetFailureState();
+        const uint32_t made = ReadState(city, manager).made - madeBefore;
+        h.Mix(static_cast<uint32_t>(drag.cost));
+        h.Mix(failure);
+        h.Mix(drag.previewFailure);
+        h.Mix(made);
+        ++g_powerDrags;
+        log::Write("autotest: crew: power (%u,%u)-(%u,%u)%s: cost %d, failure %u (preview %u), %u new pieces",
+                   line[0].x, line[0].y, line[1].x, line[1].y, i == 2 ? " across the road" : "", drag.cost, failure,
+                   drag.previewFailure, made);
+    }
+    tool->Shutdown();
+    tool->Release();
+    g_powerHash = h.h;
+}
+
 void Drive(const Day& day)
 {
     if (Env("OPENSC4_TEST_CREW").empty() || !day.counted)
@@ -1524,6 +1596,7 @@ void Drive(const Day& day)
         WorkTest(day.city);
         DriveBridges(day.city, manager);
         DriveUnderground(day.city, manager);
+        DrivePower(day.city, manager);
         const State s = ReadState(day.city, manager);
         log::Write("autotest: crew: drive done: crews %u, jobs %u, %u new pieces, %u dialogs", s.crews, s.jobs,
                    s.made, g_dialogs);
@@ -1575,6 +1648,10 @@ void Fingerprint(cISC4City* city, std::string& line)
     }
     if (EnvInt("OPENSC4_TEST_CREW_UNDERGROUND", 0) == 1) {
         std::snprintf(text, sizeof text, " ug %u,%08X", g_underDrags, g_underHash);
+        line += text;
+    }
+    if (EnvInt("OPENSC4_TEST_CREW_POWER", 0) == 1) {
+        std::snprintf(text, sizeof text, " pw %u,%08X", g_powerDrags, g_powerHash);
         line += text;
     }
 }
