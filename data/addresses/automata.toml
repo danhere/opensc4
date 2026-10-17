@@ -632,3 +632,360 @@ name = "SC4::TextOn"
 address = 0x00A82B98
 kind = "data"
 source = "Text on."
+
+# Part a3: the attractor, generator and their base (docs/automata.md, "Part a3").
+
+[[entry]]
+name = "cSC4AutomataController::Construct"
+address = 0x00517D40
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4AutomataController* this)"
+expect = "51 53 33 DB 56 8B F1 C7 46 04 84 07 A8 00 C7 06"
+source = "The base controller's constructor, called by the attractor 0x005181F0 and generator 0x005182B0 at their entries. Sets the two vtables and every field of the layout in docs/automata.md, \"Part a3\"."
+
+[[entry]]
+name = "cSC4AutomataAttractor::Construct"
+address = 0x005181F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4AutomataAttractor* this)"
+expect = "56 8B F1 E8 48 FB FF FF 8D 4E 5C C7 06 48 5E A9"
+source = "The attractor's constructor: the base constructor, vtables 0x00A95E48 / 0x00A95E30, and SC4Curve::Init 0x007D0410 with this = object + 0x5C. Called by the factory 0x00514860."
+
+[[entry]]
+name = "cSC4AutomataGenerator::Construct"
+address = 0x005182B0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4AutomataGenerator* this)"
+expect = "56 8B F1 E8 88 FA FF FF 6A FF 8D 4E 60 C7 06 00"
+source = "The generator's constructor: the base constructor, vtables 0x00A95F00 / 0x00A95EE8, SC4Random::Construct 0x00913A5C (this = object + 0x60, seed -1), and +0x78..+0x98 zeroed. Called by the factory 0x00514880."
+
+[[entry]]
+name = "cSC4AutomataAttractor::Create"
+address = 0x00514860
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "6A 6C E8 79 0D 0D 00 83 C4 04 85 C0 74 07 8B C8"
+source = "The attractor's GZCOM factory: 0x6C bytes from SC4::operator_new, then the constructor 0x005181F0; 0 when the allocation fails. Registered by 0x00514A00."
+
+[[entry]]
+name = "cSC4AutomataGenerator::Create"
+address = 0x00514880
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 A0 00 00 00 E8 56 0D 0D 00 83 C4 04 85 C0 74"
+source = "The generator's GZCOM factory: 0xA0 bytes from SC4::operator_new, then the constructor 0x005182B0; 0 when the allocation fails. Registered by 0x00514A00."
+
+[[entry]]
+name = "cSC4AutomataController::QueryInterface"
+address = 0x00514F60
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 83 F8 01 74 3C 3D F8 57 18 6A 74 35"
+source = "Slot 0 (iid, out), ret 8: iid 1 (cIGZUnknown) and 0x6A1857F8 (cISC4AutomataController) answer the object, iid 0xE4FDA3D4 answers object + 4 (the serializable part); each AddRef through slot 1. Else 0. The null-object branch writes null then calls through it."
+
+[[entry]]
+name = "cSC4AutomataController::QueryInterfaceThunk"
+address = 0x005151F0
+kind = "function"
+convention = "custom"
+signature = "void (void)"
+expect = "E9 6B FD FF FF"
+source = "The attractor's and generator's slot 0: a relative jump to QueryInterface 0x00514F60 (no this adjustment). Kept as the game's."
+
+[[entry]]
+name = "cSC4AutomataController::Release"
+address = 0x00517F10
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 20 83 F8 01 76 05 48 89 41 20 C3 8B 01 FF"
+source = "Slot 2: the reference count at +0x20; above 1 it is decremented and answered, at 1 the deleting destructor (slot 0x9C) runs and 0 is answered."
+
+[[entry]]
+name = "cSC4AutomataAttractor::GetGZCLSID"
+address = 0x00518220
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (void)"
+expect = "B8 BA 28 16 6A C3"
+source = "Slot 5: the class ID 0x6A1628BA."
+
+[[entry]]
+name = "cSC4AutomataGenerator::GetGZCLSID"
+address = 0x00518390
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (void)"
+expect = "B8 C5 28 16 4A C3"
+source = "Slot 5: the class ID 0x4A1628C5."
+
+[[entry]]
+name = "cSC4AutomataController::GetOccupant"
+address = 0x00517F70
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B 41 0C C3"
+source = "Slot 6: the occupant at +0x0C."
+
+[[entry]]
+name = "cSC4AutomataController::GetTemplate"
+address = 0x00517DF0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B 41 10 85 C0 74 04 83 C0 04 C3 8D 41 28 C3"
+source = "Slot 7: the template at +0x10 + 4, else this + 0x28 (the curve's date range)."
+
+[[entry]]
+name = "cSC4AutomataController::GetTemplateCurve"
+address = 0x00517E00
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this)"
+expect = "8B 41 10 85 C0 74 04 D9 40 20 C3 D9 05 54 10 A8"
+source = "Slot 9 (base and attractor): the template's +0x20 as a float in ST0, else the game's zero 0x00A81054."
+
+[[entry]]
+name = "cSC4AutomataGenerator::GetTemplateCurve"
+address = 0x00518310
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this)"
+expect = "8B 41 10 85 C0 74 07 D9 80 A8 00 00 00 C3 D9 05"
+source = "Slot 9 (generator): the template's +0xA8 as a float in ST0, else the game's zero 0x00A81054."
+
+[[entry]]
+name = "cSC4AutomataController::TestFlag"
+address = 0x00517E60
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t mask)"
+expect = "8B 41 40 23 44 24 04 F7 D8 1B C0 F7 D8 C2 04 00"
+source = "Slot 12 (mask), ret 4: (flags at +0x40 & mask) != 0, as 0 or 1 in EAX. The name is ours."
+
+[[entry]]
+name = "cSC4AutomataController::SetFlag"
+address = 0x00517E70
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t mask, uint8_t value)"
+expect = "80 7C 24 08 01 75 0D 8B 41 40 0B 44 24 04 89 41"
+source = "Slot 13 (mask, value), ret 8: flags |= mask when value is 1, else flags &= ~mask. The name is ours."
+
+[[entry]]
+name = "cSC4AutomataController::SetOccupant"
+address = 0x00517F40
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant)"
+expect = "53 56 8B 74 24 0C 8B D9 57 8B 7B 0C 3B F7 74 19"
+source = "Slot 14 (occupant), ret 4: the usual reference swap on +0x0C (AddRef the new, Release the old)."
+
+[[entry]]
+name = "cSC4AutomataController::SetTemplate"
+address = 0x00517430
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* template)"
+expect = "8B 44 24 04 85 C0 89 41 10 74 20 8B 41 2C 3B 41"
+source = "Slot 15 (template), ret 4 (base and attractor): +0x10 = template; when non-null the name vector is emptied (+0x2C/+0x30), +0x54 = template + 0x4C, +0x40 = template + 0x58. No reference is taken."
+
+[[entry]]
+name = "cSC4AutomataGenerator::SetTemplate"
+address = 0x00517460
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* template)"
+expect = "8B 44 24 04 85 C0 56 8B F1 89 46 10 74 20 8B 46"
+source = "Slot 15 (generator): as the base's, then for a template whose class ID (template + 0x18) is 0x4A1628C5 it copies template + 0xAC to +0x8C and reseeds its random with cRZRandom::Between 0x009136CA (template + 0x90, template + 0x94), storing the result at +0x98."
+
+[[entry]]
+name = "cSC4AutomataController::IsActive"
+address = 0x00517E20
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "56 8B F1 8B 06 6A 01 FF 50 30 84 C0 74 2E 8B 16"
+source = "Slot 10: flags 1, 2 and 4 set and flag 0x400 clear (each through slot 0x30), answered in AL."
+
+[[entry]]
+name = "cSC4AutomataController::GetPosition"
+address = 0x00515A40
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float* out)"
+expect = "56 8B F1 8B 46 0C 85 C0 74 14 8B 06 6A 20 FF 50"
+source = "Slot 11 (out), ret 4: with an occupant and flag 0x20 clear the occupant's own position (its slot 0x20) is asked; otherwise +0x14, +0x18, +0x1C are copied out."
+
+[[entry]]
+name = "cSC4AutomataController::IsSaturated"
+address = 0x00517EA0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "D9 41 54 D8 1D 54 10 A8 00 DF E0 F6 C4 41 75 13"
+source = "Slot 35 (base and attractor): +0x54 above zero and not above +0x50."
+
+[[entry]]
+name = "cSC4AutomataGenerator::IsSaturated"
+address = 0x00518350
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "D9 41 54 D8 1D 54 10 A8 00 DF E0 F6 C4 41 75 13"
+source = "Slot 35 (generator): as the base's, else with +0x8C non-zero, +0x8C <= +0x88."
+
+[[entry]]
+name = "cSC4AutomataController::IsFinished"
+address = 0x00517ED0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 10 85 C0 75 03 33 C0 C3 8B 40 54 85 C0 74"
+source = "Slot 33: with no template or the template's +0x54 zero, false; else the count at +0x48 against the template's +0x54 (unsigned)."
+
+[[entry]]
+name = "cSC4AutomataGenerator::CallTestFlag1"
+address = 0x00518330
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "8B 01 6A 01 FF 50 30 C3"
+source = "Slot 37: slot 0x30 (the flag test) with 1, its answer passed on."
+
+[[entry]]
+name = "cSC4AutomataGenerator::SetLimit"
+address = 0x00518340
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 81 8C 00 00 00 C2 04 00"
+source = "Slot 40 (generator): +0x8C = value."
+
+[[entry]]
+name = "cSC4AutomataController::CurveValue"
+address = 0x00514C70
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this)"
+expect = "D9 41 28 D8 1D 54 10 A8 00 DF E0 F6 C4 41 75 0A"
+source = "Not a slot: the attractor's and generator's controllers call it. +0x28 times 0x00A8FAF0 while above the game's zero, else -1.0 (0x00A95D3C)."
+
+[[entry]]
+name = "cSC4AutomataController::Destroy"
+address = 0x00517F80
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 C7 06 90 5D A9 00 C7 46 04 74 5D A9 00"
+source = "The base destructor body, called by the deleting destructor 0x00519340: the vtables, release +0x4C, SC4PairList::Destroy on +0x44, +0x28 = 0x00A80810, free the +0x2C vector, release +0x0C."
+
+[[entry]]
+name = "cSC4AutomataAttractor::Destroy"
+address = 0x005192E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 46 5C 85 C0 74 09 50 E8 73 3C 3F 00"
+source = "The attractor's destructor body, called by the deleting destructor 0x005192C0: frees its SC4Curve at +0x5C, then the base's body."
+
+[[entry]]
+name = "cSC4AutomataAttractor::DeletingDestructor"
+address = 0x005192C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 8B 06 FF 50 10 8B CE E8 11 00 00 00 56"
+source = "Slot 39 (attractor): Shutdown (slot 4), the destructor body 0x005192E0, SC4::operator_delete."
+
+[[entry]]
+name = "cSC4AutomataController::DeletingDestructor"
+address = 0x00519340
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 8B 06 FF 50 10 8B CE E8 31 EC FF FF 56"
+source = "Slot 39 (base and generator): Shutdown (slot 4), the base destructor body 0x00517F80, SC4::operator_delete."
+
+[[entry]]
+name = "cSC4AutomataController::QueryInterfaceAdjustor"
+address = 0x005183A0
+kind = "function"
+convention = "custom"
+signature = "void (void)"
+expect = "83 E9 04 E9 48 CE FF FF"
+source = "The +4 serializable vtable's slot 0 (attractor and generator), and the +0 slot 40: an adjustor thunk, ecx - 4 then jump to 0x005151F0. Kept as the game's; it reaches our QueryInterface detour at 0x00514F60."
+
+[[entry]]
+name = "cSC4AutomataController::AddRefAdjustor"
+address = 0x005183B0
+kind = "function"
+convention = "custom"
+signature = "void (void)"
+expect = "83 E9 04 E9 48 64 39 00"
+source = "The +4 serializable vtable's slot 1 and the +0 slot 41: an adjustor thunk, ecx - 4 then jump to 0x008AE800. Kept as the game's."
+
+[[entry]]
+name = "SC4::AddRefAt20"
+address = 0x008AE800
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 20 40 89 41 20 C3"
+source = "The reference count at +0x20 incremented (the count is answered). Shared with cSC4AudioEventHandler and others; here the controllers' AddRef. Move to core.toml when a second file needs it."
+
+[[entry]]
+name = "cSC4AutomataController_Vtable"
+address = 0x00A95D90
+kind = "vtable"
+expect = "60 4F 51 00"
+source = "The base controller's own vtable at +0, 42 slots (docs/automata.md, \"Part a3\")."
+
+[[entry]]
+name = "cSC4AutomataController_SerializableVtable"
+address = 0x00A95D74
+kind = "vtable"
+expect = "30 7F 51 00"
+source = "The base controller's serializable vtable at +4, 4 slots: 0x00517F30, 0x005183B0, 0x005183C0, 0x00517FD0."
+
+[[entry]]
+name = "cSC4AutomataAttractor_Vtable"
+address = 0x00A95E48
+kind = "vtable"
+expect = "F0 51 51 00"
+source = "The attractor's vtable at +0, 42 slots."
+
+[[entry]]
+name = "cSC4AutomataAttractor_SerializableVtable"
+address = 0x00A95E30
+kind = "vtable"
+expect = "A0 83 51 00"
+source = "The attractor's serializable vtable at +4, 4 slots: 0x005183A0, 0x005183B0, 0x005183C0, 0x00518230."
+
+[[entry]]
+name = "cSC4AutomataGenerator_Vtable"
+address = 0x00A95F00
+kind = "vtable"
+expect = "F0 51 51 00"
+source = "The generator's vtable at +0, 42 slots."
+
+[[entry]]
+name = "cSC4AutomataGenerator_SerializableVtable"
+address = 0x00A95EE8
+kind = "vtable"
+expect = "A0 83 51 00"
+source = "The generator's serializable vtable at +4, 4 slots: 0x005183A0, 0x005183B0, 0x005183C0, 0x005183D0."
+
+[[entry]]
+name = "cSC4AutomataController::MinusOneFloat"
+address = 0x00A95D3C
+kind = "data"
+expect = "00 00 80 BF"
+source = "The float -1.0 CurveValue 0x00514C70 answers for a non-positive +0x28."

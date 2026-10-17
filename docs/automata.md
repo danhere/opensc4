@@ -108,3 +108,94 @@ Reached in the trial (Rush Hour t0000, 7 days, identical): 18 of the 24; over ba
 
 Batch b1 (snapshot net-a2-b1, env p4env-net-a2, B list = a1's plus both a2 groups; 7 days): plain 12 of 12, saves-networks 3 of 3, with `OPENSC4_TEST_AUTOMATA=2` 12 of 12 and 3 of 3, all identical on the first pair.
 
+## Part a3: the attractor, generator and their base
+
+The next part of the survey's list: 81 functions, 12,629 bytes, two proposed sub-parts. Nothing is ours yet; this section is the survey the work rests on. Build 641 addresses throughout.
+
+The two controllers the manager (a1, a2) holds are `cSC4AutomataAttractor` (class ID `0x6A1628BA`, factory `0x00514860`, constructor `0x005181F0`, `0x6C` bytes) and `cSC4AutomataGenerator` (class ID `0x4A1628C5`, factory `0x00514880`, constructor `0x005182B0`, `0xA0` bytes). Both derive from the base controller `cSC4AutomataController` (no class ID of its own; the gzcom-dll header's `cISC4AutomataController`, interface `0x6A1857F8`).
+
+| Part | Attractor | Generator | Base |
+| --- | --- | --- | --- |
+| +0x00 vtable | `0x00A95E48`, 42 slots | `0x00A95F00`, 42 slots | `0x00A95D90`, 42 slots |
+| +0x04 serializable vtable | `0x00A95E30`, 4 slots | `0x00A95EE8`, 4 slots | `0x00A95D74`, 4 slots |
+
+The base controller's constructor `0x00517D40` fixes the layout, shared by both derived classes:
+
+| Offset | Field |
+| --- | --- |
+| +0x00 | the controller vtable |
+| +0x04 | the serializable interface (its own vtable) |
+| +0x08 | initialized byte |
+| +0x0C | occupant (referenced) |
+| +0x10 | controller template (referenced) |
+| +0x14 / +0x18 / +0x1C | position x, z, y (floats; the game's zero `0x00B227CC`) |
+| +0x20 | reference count |
+| +0x24 .. +0x27 | four bytes, zero |
+| +0x28 | a base with the vtable `0x00A80810` (the saved curve's date range) |
+| +0x2C / +0x30 / +0x34 | a byte vector (the name); 8 bytes from `SC4::stl_allocate` (`0x0090CF54`) |
+| +0x40 | flags (2 from the constructor) |
+| +0x44 / +0x48 | the list of automata: head and count |
+| +0x4C | the automata script system (city slot 48, referenced) |
+| +0x50 / +0x54 / +0x58 | floats: the saturation limit, an accumulator used by the tick, a third |
+| +0x5C | attractor only: its `SC4Curve`, initialized by `0x007D0410` with `this = object + 0x5C` |
+| +0x60 | generator only: its `cRZRandom`, seeded by `SC4Random::Construct` (`0x00913A5C`) with `this = object + 0x60` and seed `-1` |
+| +0x78, +0x7C, +0x80, +0x84, +0x88, +0x8C, +0x90, +0x94, +0x98 | generator fields, zeroed by its constructor |
+
+The base vtable's slots (base / attractor / generator; a blank cell means the base's slot is inherited):
+
+| Slot | Base | Attractor | Generator | What it is |
+| --- | --- | --- | --- | --- |
+| 0 | `0x00514F60` | `0x005151F0` (thunk) | `0x005151F0` (thunk) | QueryInterface (interface `0x6A1857F8`, else the serializable part at +4) |
+| 1 | `0x008AE800` | | | AddRef (shared, `+0x20`) |
+| 2 | `0x00517F10` | | | Release (`+0x20`, deleting destructor at slot 0x9C) |
+| 3 | `0x00516850` | `0x00516FB0` | `0x00516FE0` | Init |
+| 4 | `0x005169F0` | | | Shutdown |
+| 5 | `0x005D4A10` (stub) | `0x00518220` | `0x00518390` | GetGZCLSID |
+| 6 | `0x00517F70` | | | GetOccupant (`+0x0C`) |
+| 7 | `0x00517DF0` | | | GetTemplate (`+0x10` + 4, else this + 0x28) |
+| 8 | `0x0040CE60` (folded) | | | GetClassID or a shared getter |
+| 9 | `0x00517E00` | | `0x00518310` | the template's curve value (+0x20, or +0xA8) |
+| 10 | `0x00517E20` | | | active? (flags 1, 2, 4 and not 0x400) |
+| 11 | `0x00515A40` | | | position (the occupant's, unless flag 0x20) |
+| 12 | `0x00517E60` | | | TestFlag (`+0x40`) |
+| 13 | `0x00517E70` | | | SetFlag (`+0x40`) |
+| 14 | `0x00517F40` | | | SetOccupant (`+0x0C`) |
+| 15 | `0x00517430` | | `0x00517460` | SetTemplate (`+0x10`) |
+| 16 | `0x005D4A10` (stub) | `0x00518A00` | `0x00518A20` | the template's own set-up |
+| 17 | `0x00602F90` | | | shared message helper |
+| 18 | `0x00516AA0` | | `0x00517240` | SetActive and its bookkeeping |
+| 19 | `0x00517EF0` | | | SetLimit (`+0x54`) |
+| 20 | `0x00516EC0` | | | spot selection |
+| 21 | `0x00515BD0` | | | cell bounds |
+| 22 | `0x00516C40` | | | position from the occupant's box |
+| 23 | `0x00515A80` | | | a cell test |
+| 24 | `0x006F7DC0` | | `0x00515200` | the time passed (generator adds hours) |
+| 25 | `0x00516B40` | | | the template's occupant lists |
+| 26 | `0x00514E30` | | | reset the tick's accumulators |
+| 27 | `0x00515870` | | | a frame/step handler |
+| 28 | `0x0051BB60` | | | an automaton event (kind 4) |
+| 29 | `0x0051BCA0` | `0x0051BFB0` | | an automaton event, second form |
+| 30 | `0x0051BCE0` | `0x0051C030` | | an automaton event, third form |
+| 31 | `0x0051BD50` | | | an automaton leaves |
+| 32 | `0x0051BAB0` | | | pick a spot for an automaton |
+| 33 | `0x00517ED0` | | | finished? (count `+0x48` against the template's `+0x54`) |
+| 34 | `0x00477810` | | | shared |
+| 35 | `0x00517EA0` | | `0x00518350` | saturated? (generator also tests `+0x8C` against `+0x88`) |
+| 36 | `0x00648F00` | | | shared |
+| 37 | `0x00518330` | | | calls slot 0x30 with flag 1 |
+| 38 | `0x00514D90` | | `0x00515E60` | the tick |
+| 39 | `0x00519340` | `0x005192C0` | | deleting destructor |
+| 40 | `0x005183A0` (adjustor) | | `0x00518340` | QueryInterface adjustor / SetLimit (`+0x8C`) |
+| 41 | `0x005183B0` (adjustor) | | `0x005198A0` | AddRef adjustor / the generator's spawn |
+
+The +4 serializable vtable has four slots: QueryInterface (base `0x00517F30`; the adjustor `0x005183A0` for both derived), AddRef adjustor `0x005183B0`, Release adjustor `0x005183C0`, and GetGZCLSID (base `0x00517FD0`, attractor `0x00518230`, generator `0x005183D0`).
+
+What stays the game's: the shared AddRef `0x008AE800`; the folded helpers `0x0040CE60`, `0x00477810`, `0x00648F00`; the stub `0x005D4A10`; the shared message helper `0x00602F90`; the adjustor thunks `0x005183A0`, `0x005183B0`, `0x005183C0`; the helpers the two classes call at their addresses (`SC4::stl_allocate` `0x0090CF54`, `SC4::Free` `0x0090CF63`, `SC4PairList::Destroy` `0x005650A0`, `SC4Curve::Init` `0x007D0410`, `SC4Random::Construct` `0x00913A5C`, `cRZRandom::Between` `0x009136CA`, `SC4::operator_new` `0x005E55E0`, `SC4::operator_delete` `0x005E5620`); the templates (`0x0051AB80`, `0x0051B1F0` .. `0x0051B310`), which are the script system's; and the drawing in the spawn path.
+
+### Proposed sub-parts
+
+- **a3a: the object and its queries.** The base and derived constructors and destructors, the two factories and the adjustor thunks' targets; QueryInterface, Release, the GetGZCLSID pair, the accessors and flag tests, `IsActive`, `IsFinished`, `IsSaturated`, `GetPosition`, the curve value, and the +4 serializable identity. Small, self-contained, and the foundation for the rest.
+- **a3b: the behaviour.** Init and Shutdown, SetTemplate/SetActive and their bookkeeping, the automaton events, the tick, and the generator's spawn (`0x005198A0`, 2,222 bytes, the largest function of the part).
+
+Tests and parity follow the family's method ([traffic-map.md](traffic-map.md)): the controllers run on frame time and the original does not repeat them run to run, so those parts compare inside one run rather than across the usual 7-day window.
+
