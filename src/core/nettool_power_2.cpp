@@ -21,10 +21,9 @@
 //     to the pole maker 0x00650140 on its stack leaves the byte +0x14
 //     unwritten when the cell already has a pole and no pole exemplar is
 //     found, and then tests it.
-//   - 0x00650840 (3,345 bytes, 36 x87 sites, the pole planner) and
-//     0x00651560 (2,903 bytes, 16 x87 sites, the pole placer): larger than
-//     this part's time box allows to check line by line; they call this
-//     part's functions at their addresses.
+// The pole planner 0x00650840 and the pole placer 0x00651560 that slot 53
+// calls are ours since part w2 (src/core/nettool_power_3.cpp); slot 53
+// calls them at their addresses.
 //
 // NAM. None of these functions is guarded, patched or called by NAM's DLL;
 // the tool's records, lists and the occupants stay in the game's memory in

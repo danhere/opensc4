@@ -5239,7 +5239,7 @@ address = 0x00650840
 kind = "function"
 convention = "thiscall"
 expect = "81 EC BC 00 00 00 A1 F0"
-source = "Name ours. No arguments, 3,345 bytes: plans the pole records along the drag. Left the game's (x87-heavy, past the part's time box) (docs/nettool.md)."
+source = "Name ours. No arguments, 3,345 bytes: plans the pole records along the drag (forced poles at anchor points, the marked step's start and after a spacing on diagonal cells; a line of sight test through the renderer 0x00B43DD0 slot 0xF4; zones and occupants that refuse the line), the runs of cells between them (+0x378), the counts +0x384 and +0x388 and the valid steps +0x78. Ours (src/core/nettool_power_3.cpp, part w2)."
 
 [[entry]]
 name = "cSC4PowerLineTool::PlacePoles"
@@ -5247,7 +5247,7 @@ address = 0x00651560
 kind = "function"
 convention = "thiscall"
 expect = "83 EC 6C 53 55 56 57 33"
-source = "Name ours. Ret 4 (a byte), 2,903 bytes: makes or finds the poles of the records and wires them. Left the game's (x87, past the part's time box) (docs/nettool.md)."
+source = "Name ours. Ret 4 (a byte: 1 from slot 53 and 0x006520C0, 0 when it calls itself), 2,903 bytes: links the records of neighbouring dragged cells, makes or finds the poles of the records (0x00650140), connects the key poles, makes the wires of the runs and wires the poles to each other; with +0x50 and the byte set redoes the drag between the key poles (the tool's slot 0x48) and runs the planner and itself again. Ours (src/core/nettool_power_3.cpp, part w2)."
 
 [[entry]]
 name = "cSC4PowerLineTool::ExtendAcrossZone"
@@ -5321,3 +5321,23 @@ kind = "function"
 convention = "cdecl"
 expect = "8B 4C 24 04 8B 44 24 0C"
 source = "Name ours. (first, last, destination, an unread allocator): 16-byte elements (three words and a byte) copied where the destination is not null; EAX the destination's end (src/core/nettool_power.cpp)."
+
+[[entry]]
+name = "cSC4PowerPoleOccupant::WireTo"
+address = 0x0064E3E0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC EC 00 00 00 53 55"
+source = "Name ours, not analysed beyond its start: ret 8 (another pole, a run vector of 16-byte elements or null): returns at once without the other pole, when this pole's list +0xAC (0x2C-byte entries) has one at the other's cell, or when the two are in one cell; else the direction between their cells (0x0061F4C0) and a new wire entry (0x2C bytes) in this pole's list +0xAC. Called by the power line tool's PlacePoles 0x00651560 (src/core/nettool_power_3.cpp)."
+
+[[entry]]
+name = "SC4::FloatB467F0"
+address = 0x00B467F0
+kind = "data"
+source = "Name ours. A float in .bss that nothing in the exe writes (0.0): the power line tool's PlanPoles 0x00650840 starts its last-pole top and its line test vectors from it (src/core/nettool_power_3.cpp)."
+
+[[entry]]
+name = "SC4::FloatOneB0C264"
+address = 0x00B0C264
+kind = "data"
+source = "Name ours. float 1.0: the power line tool's PlanPoles 0x00650840 divides it by the line's length for the direction's scale (src/core/nettool_power_3.cpp)."
