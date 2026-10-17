@@ -310,7 +310,7 @@ address = 0x005163D0
 kind = "function"
 convention = "thiscall"
 expect = "53 8B 5C 24 08 8B 43 30"
-source = "Name ours, not ours (part a2): (group, occupant, position), ret 0xC; the add functions call it."
+source = "(group, occupant, position), ret 0xC, AL 1: slot 6 for each template of the group (+0x30 list). The add functions and DoMessage 0xEBFF18A3 call it. Ours in simulators.automata.ctlquery (src/core/automata_ctlquery.cpp)."
 
 [[entry]]
 name = "cSC4AutomataControllerManager::GridRemove"
@@ -318,7 +318,7 @@ address = 0x005171D0
 kind = "function"
 convention = "thiscall"
 expect = "53 55 8B 6C 24 0C 8B D9"
-source = "Name ours, not ours (part a2): on the grid (+0x1C), (controller), ret 4."
+source = "On the grid (+0x1C): (controller), ret 4: the controller taken out of every cell list, its cell range (slot 34) zeroed. Ours in simulators.automata.ctlquery."
 
 [[entry]]
 name = "cSC4AutomataControllerManager::GridAdd"
@@ -326,7 +326,7 @@ address = 0x00517A90
 kind = "function"
 convention = "thiscall"
 expect = "83 EC 08 53 8B 5C 24 10"
-source = "Name ours, not ours (part a2): on the grid (+0x1C), (controller), ret 4."
+source = "On the grid (+0x1C): (controller), ret 4: the controller's cell range (0x00515290 into its slot 34 bytes); appended to each cell list of the range that lacks it. Ours in simulators.automata.ctlquery."
 
 [[entry]]
 name = "cSC4AutomataControllerManager::GridMove"
@@ -334,7 +334,7 @@ address = 0x00517B70
 kind = "function"
 convention = "thiscall"
 expect = "83 EC 14 53 55 56 57 8B"
-source = "Name ours, not ours (part a2): on the grid (+0x1C), (controller), ret 4."
+source = "On the grid (+0x1C): (controller), ret 4: the new cell range; when it differs from the kept one (slot 34), appended to the new cells outside the old range and taken out of the old cells outside the new one; the range kept. Ours in simulators.automata.ctlquery."
 
 [[entry]]
 name = "cSC4AutomataControllerManager::CopyAutomatonValue"
@@ -422,3 +422,213 @@ name = "SC4::FloatRoundMagicA95D58"
 address = 0x00A95D58
 kind = "data"
 source = "Float 12582912 (1.5 * 2^23): the round-to-integer constant."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GetControllerByName"
+address = 0x00514CE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 08 56 8B F1 8B"
+source = "Slot 19 (occupant, template name), ret 8: the template of that name from the script system (+0x44 slot 0x44), then slot 18 through the vtable; 0 without a template. Ours in simulators.automata.ctlquery (src/core/automata_ctlquery.cpp)."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GetControllerByTemplate"
+address = 0x005173A0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 71 60 57 2B 71"
+source = "Slot 18 (occupant, template), ret 8: the first controller of the occupant's list whose template (slot 8) is the template; 0 without an entry or a template. Ours in simulators.automata.ctlquery."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GetControllerNear"
+address = 0x00516410
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 8B 44 24 20 8B"
+source = "Slot 17 (x, y, z, template name, radius; five dwords), ret 0x14: the first controller in the grid cell of (x, z) (0x00515660) with that name (slot 7) whose position (slot 11) is at most the radius away (sqrt of dz2 + dy2 + dx2). Ours in simulators.automata.ctlquery."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GetRelevantControllersByWorldPos"
+address = 0x005179C0
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 55 83 EC 0C 84 C0"
+source = "Slot 20 (x, z, controller type, list), ret 0x10: when +0x55 is set, the controllers in the grid cell of (x, z) that are active (slot 10), of the type (slot 5) and take the point (x, 0, z) (slot 23 with 0) are referenced (slot 1) and appended to the list; answers whether the list is not empty. Ours in simulators.automata.ctlquery."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::ReleaseControllerList"
+address = 0x00516800
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Slot 21 (list), ret 4: each controller released (slot 2), the nodes freed, the head left linked to itself. Ours in simulators.automata.ctlquery."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GetCompositeAttractionEffect"
+address = 0x00516530
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 34 53 56 8B F1 8A"
+source = "Slot 22 (occupant, vector out, value out, strength out), ret 0x10: when +0x55 is set: the attractors (type 0x6A1628BA) in the grid cell of the occupant's position that are active, not saturated (slot 33), take the position (slot 23) and are relevant to it (0x00515DA0) add their strength (0x00515180) along the unit direction from the occupant to them (x and z) to the vector; the strongest one is answered with its value and strength. Ours in simulators.automata.ctlquery."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GetCompositeAttractionCommotion"
+address = 0x00516720
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 55 8B E9 8A 45"
+source = "Slot 23 (network occupant), ret 4, float in ST0: when +0x55 is set, the sum of the absolute strengths (0x00515180) of the active attractors in the grid cell of the occupant's position (its slot 48 object's slot 8, y set to 0) that take the position (slot 23). Ours in simulators.automata.ctlquery."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GridControllerRange"
+address = 0x00515290
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 57 8D 54 24"
+source = "On the grid (+0x1C): (controller, out[4]), ret 8: the controller's bounds (slot 21: low, high) to grid cells (x0, z0, x1, z1) with the 1/128 scale and the 1.5 x 2^23 rounding; x1 and z1 clamped to the grid, the low ones not. Ours in simulators.automata.ctlquery."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::GridCellAt"
+address = 0x00515660
+kind = "function"
+convention = "thiscall"
+expect = "51 D9 44 24 08 56 D8 1D"
+source = "On the grid (+0x1C): (float x, float z), ret 8: the address of the cell list at (x, z): below 0 counts as 0, cells clamped to the grid; index (z cell << shift) + x cell. Ours in simulators.automata.ctlquery."
+
+[[entry]]
+name = "cSC4AutomataController::AttractionStrength"
+address = 0x00515180
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "On a controller: (controller time, value), ret 8, ST0 (not rounded to a float): 0 when the template's weekday mask (+0x34) lacks the time's day; else template curve +0x24 at the time's hour times (the controller's curve +0x5C at the value times (1 - value / slot 9)). Callers only GetCompositeAttractionEffect / Commotion. Ours in simulators.automata.ctlquery."
+
+[[entry]]
+name = "cSC4AutomataController::IsRelevantTo"
+address = 0x00515DA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 0C 53 55 8B 6C 24"
+source = "On a controller: (occupant), ret 4, AL: false for the controller's own occupant (+0xC); true when the occupant is in one of the template's groups (+0x78 vector; occupant slot 22), unless it is an automaton (0xA9B40F05) whose slot 56 object's +4 is in the template's +0x6C vector. Caller only GetCompositeAttractionEffect. Ours in simulators.automata.ctlquery."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::OnCheat"
+address = 0x005187F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 EC 3C 56"
+source = "The +4 part's slot 3 (cheat notification: type 0x230E27AC, ID, text), ret 4: the cheat Controllers (0xABA2B5BB) with the word off clears +0x55 (the queries' switch), on sets it. Ours in simulators.automata.ctlmsg."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::DoMessage"
+address = 0x00519360
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "The +8 part's slot 3 (message), ret 4, AL 1: a compare chain (no jump table) over the twelve registered messages, 0x86AD10EE (frame: Update 0x00518B80) and 0x09D92FC3. Ours in simulators.automata.ctlmsg."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::ResolveTemplates"
+address = 0x00518660
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 28 8A 41 11 53 33"
+source = "No arguments: after a load (+0x11), each controller gets its template from the script system by its name (slot 15), is started (slot 3) and put on the grid; one without a template is removed (shut down, released). DoMessage 0x26D31EC1 calls it. Ours in simulators.automata.ctlmsg."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::MoveFlaggedControllers"
+address = 0x00518950
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 8D 44 24"
+source = "No arguments: each controller with flag 1 (slot 12) moved on the grid (0x00517B70) and its slot 27. Update calls it. Ours in simulators.automata.ctlmsg."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::Update"
+address = 0x00518B80
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 55 8B E9 8B 4D"
+source = "(a, b), ret 8, the frame message 0x86AD10EE's slots 14 and 19: the controller time from the 24-hour clock (hour + minute / 60, a day on when it went back), the time passed, normalized; with +0x55 and the vehicle or pedestrian manager on (their slot 6): flagged controllers moved, each controller ticked (slot 37, slot 38 (b, a, passed)), finished ones (slots 35 and 36) removed; the time kept as the previous one. Ours in simulators.automata.ctlmsg."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::NotifyControllersMoved"
+address = 0x005177F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 57 8D 44 24"
+source = "No arguments: slot 27 of every controller. DoMessage calls it for 0xA6B79602, 0xEAD61E16 and a camera move (0xA6B79612). Ours in simulators.automata.ctlmsg."
+
+[[entry]]
+name = "tControllerTime::Normalize"
+address = 0x00514FC0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 01 8B D0 81 E2 00"
+source = "On (float hour, int16 day): a NaN hour becomes 0; the hour into [0, 24) by whole days; the day into 0..6. Returns this. Caller Update. Ours in simulators.automata.ctlmsg."
+
+[[entry]]
+name = "tControllerTime::SubtractHours"
+address = 0x00515100
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 D8 15 54 10"
+source = "On (float hour, int16 day): (float hours), ret 4: the hours brought into [0, 24) moving the day (below 0: a day on per 24 added; 24 or more: a day back), then subtracted from the hour (not normalized). Returns this. Ours in simulators.automata.ctlmsg."
+
+[[entry]]
+name = "tControllerTime::AddHours"
+address = 0x00515080
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 D8 15 54 10"
+source = "On (float hour, int16 day): (float hours), ret 4: as SubtractHours with the day moved the other way, then added. Shared with the generator controller (0x00515200, 0x00515E60): the game's."
+
+[[entry]]
+name = "tControllerTime::Difference"
+address = 0x00515D50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 01 66 8B 49"
+source = "On (float hour, int16 day): (out, other), ret 8: a copy less the other's hour (SubtractHours), its day less the other's day, into out; returns out. Caller DoMessage 0x44778230. Ours in simulators.automata.ctlmsg."
+
+[[entry]]
+name = "SC4::FloatTwentyFour"
+address = 0x00A93624
+kind = "data"
+source = "Float 24 (hours in a day)."
+
+[[entry]]
+name = "SC4::FloatOneSixtieth"
+address = 0x00A94124
+kind = "data"
+source = "Float 1/60 (minutes to hours)."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::AttractionScale"
+address = 0x00B09A14
+kind = "data"
+source = "Float 1: the composite attraction's direction length."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::CameraMoveLimits"
+address = 0x00A95FFC
+kind = "data"
+source = "Floats per camera zoom: the squared distance the camera must move for DoMessage 0xA6B79612 to tell the controllers."
+
+[[entry]]
+name = "cSC4AutomataControllerManager::NoTemplateFormat"
+address = 0x00A95FA8
+kind = "data"
+source = "Format text: no automata controller template of that name (ResolveTemplates)."
+
+[[entry]]
+name = "SC4::TextOff"
+address = 0x00A82B94
+kind = "data"
+source = "Text off."
+
+[[entry]]
+name = "SC4::TextOn"
+address = 0x00A82B98
+kind = "data"
+source = "Text on."

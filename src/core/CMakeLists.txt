@@ -254,6 +254,7 @@ add_library(opensc4_core SHARED
   nettool_power_2.cpp
   nettool_power_3.cpp
   automata_ctlmgr.cpp
+  automata_ctlquery.cpp
   automata_autotest.cpp
   nettool_preview.cpp
   nettool_rul_1.cpp

@@ -23,6 +23,22 @@
 //   this stream: SC4Stream::WriteReference asks the stream for the save
 //   file's segment interface first). The automaton table's records go to
 //   the log. Read-only: nothing of the manager or the controllers changes.
+//   On the same day it also calls part a2's queries at their game addresses
+//   (ours when simulators.automata.ctlquery is on): for up to 16 (occupant,
+//   controller) pairs of the controller table, occupants neither automata
+//   nor props (their positions follow frames), sorted by occupant and
+//   controller hash (address-free): GetController by template (slot 18) and
+//   by the controller's name (slot 19), slot 18 with no template, and
+//   GetController near the occupant's position by name (slot 17, radius
+//   64); the answers by kind and template go into the fingerprint as
+//   ` q<pairs>,<checksum>` from that day on. At the same positions
+//   GetRelevantControllersByWorldPos for attractors and generators (each
+//   list released through ReleaseControllerList, its head freed after), the
+//   composite attraction effect and, for network occupants, the commotion:
+//   they read the controllers' flags, the controller time and the attractor
+//   state, which follow frames: the log only (`autotest: automata: query
+//   ...`). Nothing adds, removes or moves a controller or sends a message
+//   (the relevant lists' references are given back).
 // A remove and add round trip of one occupant's controllers is not done:
 // removing sends 0xEA298D50 to the automata, destroys the controllers and
 // can drop the occupant's automaton entry (its automata released), and the
@@ -274,14 +290,146 @@ void WriteDrive(char* manager)
                fits && at == b.size() ? "" : ", not the expected layout");
 }
 
+// What the query drive left for the fingerprint.
+std::string g_queryText;
+
+uint32_t Bits(float value)
+{
+    uint32_t bits = 0;
+    std::memcpy(&bits, &value, 4);
+    return bits;
+}
+
+// A list head as the game makes one (12 bytes, linked to itself).
+ListNode* NewHead()
+{
+    auto* const head =
+        reinterpret_cast<ListNode*(__cdecl*)(uint32_t)>(addr::SC4_stl_allocate)(static_cast<uint32_t>(sizeof(ListNode)));
+    head->next = head;
+    head->prev = head;
+    return head;
+}
+
+// The controllers of an answered list by kind and template, order-free.
+uint32_t ListSum(ListNode* head, uint32_t& count)
+{
+    uint32_t sum = 0;
+    for (ListNode* e = head->next; e != head; e = e->next) {
+        ++count;
+        sum += ControllerHash(e->value);
+    }
+    return sum;
+}
+
+void QueryDrive(char* manager)
+{
+    using ByTemplateFn = void*(__thiscall*)(void*, void*, void*);
+    using ByNameFn = void*(__thiscall*)(void*, void*, void*);
+    using NearFn = void*(__thiscall*)(void*, uint32_t, uint32_t, uint32_t, void*, uint32_t);
+    using RelevantFn = uint8_t(__thiscall*)(void*, uint32_t, uint32_t, uint32_t, ListNode**);
+    using ReleaseFn = void(__thiscall*)(void*, ListNode**);
+    using EffectFn = void*(__thiscall*)(void*, void*, float*, uint32_t*, uint32_t*);
+    using CommotionFn = float(__thiscall*)(void*, void*);
+    struct Pick {
+        uint32_t key;
+        void* occupant;
+        void* controller;
+    };
+    std::vector<Pick> picks;
+    ForEach<ControllerNode>(Table(manager, field::kControllers), [&](ControllerNode* node) {
+        void* const occupant = node->occupant;
+        if (!occupant)
+            return;
+        const uint32_t type = Virtual<uint32_t>(occupant, kGetType);
+        if (type == kTypeAutomaton || type == kTypeAutomaton2 || type == kTypeProp)
+            return;
+        const uint32_t occupantHash = OccupantHash(occupant);
+        for (ListNode* e = node->head->next; e != node->head; e = e->next) {
+            if (!e->value || !Virtual<void*>(e->value, controller::kTemplate))
+                continue;
+            Hash key;
+            key.Mix(occupantHash);
+            key.Mix(ControllerHash(e->value));
+            picks.push_back({key.h, occupant, e->value});
+        }
+    });
+    std::sort(picks.begin(), picks.end(), [](const Pick& a, const Pick& b) { return a.key < b.key; });
+    if (picks.size() > 16)
+        picks.resize(16);
+    const auto byTemplate = reinterpret_cast<ByTemplateFn>(addr::cSC4AutomataControllerManager_GetControllerByTemplate);
+    const auto byName = reinterpret_cast<ByNameFn>(addr::cSC4AutomataControllerManager_GetControllerByName);
+    const auto nearFn = reinterpret_cast<NearFn>(addr::cSC4AutomataControllerManager_GetControllerNear);
+    const auto relevant =
+        reinterpret_cast<RelevantFn>(addr::cSC4AutomataControllerManager_GetRelevantControllersByWorldPos);
+    const auto release = reinterpret_cast<ReleaseFn>(addr::cSC4AutomataControllerManager_ReleaseControllerList);
+    const auto effect = reinterpret_cast<EffectFn>(addr::cSC4AutomataControllerManager_GetCompositeAttractionEffect);
+    const auto commotion =
+        reinterpret_cast<CommotionFn>(addr::cSC4AutomataControllerManager_GetCompositeAttractionCommotion);
+    const auto freeFn = reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free);
+    Hash answers, frames;
+    uint32_t found = 0, relevantCount = 0, effects = 0, commotions = 0;
+    for (const Pick& pick : picks) {
+        void* const t = Virtual<void*>(pick.controller, controller::kTemplate);
+        void* const name = Virtual<void*>(pick.controller, controller::kName);
+        void* const first = byTemplate(manager, pick.occupant, t);
+        void* const named = name ? byName(manager, pick.occupant, name) : nullptr;
+        void* const none = byTemplate(manager, pick.occupant, nullptr);
+        answers.Mix(pick.key);
+        answers.Mix(ControllerHash(first));
+        answers.Mix(ControllerHash(named));
+        answers.Mix(none ? 1u : 0u);
+        found += first ? 1u : 0u;
+        float position[3] = {};
+        Virtual<uint8_t>(pick.occupant, kGetPosition, static_cast<float*>(position));
+        void* const close = name ? nearFn(manager, Bits(position[0]), Bits(position[1]), Bits(position[2]), name,
+                                          Bits(64.0f))
+                                 : nullptr;
+        answers.Mix(ControllerHash(close));
+        // Frame-driven from here: the log only.
+        for (const uint32_t type : {controller::kTypeAttractor, controller::kTypeGenerator}) {
+            ListNode* list = NewHead();
+            const uint8_t any = relevant(manager, Bits(position[0]), Bits(position[2]), type, &list);
+            uint32_t count = 0;
+            frames.Mix(any);
+            frames.Mix(ListSum(list, count));
+            frames.Mix(count);
+            relevantCount += count;
+            release(manager, &list);
+            freeFn(list);
+        }
+        float vector[3] = {};
+        uint32_t value = 0, strength = 0;
+        void* const strongest = effect(manager, pick.occupant, static_cast<float*>(vector), &value, &strength);
+        effects += strongest ? 1u : 0u;
+        frames.Mix(ControllerHash(strongest));
+        frames.MixBytes(vector, sizeof vector);
+        frames.Mix(value);
+        frames.Mix(strength);
+        void* network = nullptr;
+        if (Virtual<uint8_t>(pick.occupant, 0x0, 0xA821EF94u, &network) && network) {
+            frames.Mix(Bits(commotion(manager, network)));
+            ++commotions;
+            Virtual<uint32_t>(network, 0x8);
+        }
+    }
+    char text[64];
+    std::snprintf(text, sizeof text, " q%u,%08X", static_cast<unsigned>(picks.size()), answers.h);
+    g_queryText = text;
+    log::Write("autotest: automata: query %u pairs, %u found, answers %08X; relevant %u, effects %u, commotions %u "
+               "(%08X)",
+               static_cast<unsigned>(picks.size()), found, answers.h, relevantCount, effects, commotions, frames.h);
+}
+
 void Drive(const Day& day)
 {
     if (EnvInt("OPENSC4_TEST_AUTOMATA", 0) < 2 || !day.counted || g_written)
         return;
     if (day.day != day.first + EnvInt("OPENSC4_TEST_AUTOMATA_DAY", 3))
         return;
-    if (char* const manager = Manager(day.city))
+    if (char* const manager = Manager(day.city)) {
         WriteDrive(manager);
+        QueryDrive(manager);
+    }
 }
 
 void Fingerprint(cISC4City* city, std::string& line)
@@ -336,7 +484,7 @@ void Fingerprint(cISC4City* city, std::string& line)
                   static_cast<unsigned>(grid->cellsX), filled, entries, gridSum);
     line += text;
     if (g_written)
-        line += g_writeText;
+        line += g_writeText + g_queryText;
     // The automaton table: frame-driven, the log only.
     uint32_t parked = 0, automata = 0, parkedSum = 0;
     ForEach<AutomatonNode>(Table(manager, field::kAutomata), [&](AutomatonNode* node) {
