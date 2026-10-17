@@ -2,9 +2,10 @@
 // shared by src/core/nettool_power.cpp (its life, the slots that keep to its
 // own lists and the template code of its vectors) and
 // src/core/nettool_power_2.cpp (the pole records, the occupant lookups,
-// slots 53 and 10). Both halves are one group, simulators.nettool.power:
-// nettool_power.cpp registers it and its install also installs the second
-// half's list (InstallPower2).
+// slots 53 and 10) and src/core/nettool_power_3.cpp (part w2: the pole
+// planner and placer). All three are one group, simulators.nettool.power:
+// nettool_power.cpp registers it and its install also installs the other
+// two lists (InstallPower2, InstallPower3).
 //
 // The tool (0x3B8 bytes, constructor 0x006503C0) is the general tool (0x368
 // bytes) and:
@@ -71,8 +72,9 @@ inline constexpr std::size_t kSides = 0x15, kLinks = 0x18, kLinksEnd = 0x1C, kLi
 inline constexpr std::size_t kObject24 = 0x24, kObject28 = 0x28, kWord2C = 0x2C;
 } // namespace pole
 
-// The second half's detours (nettool_power_2.cpp); called by the group's
-// install in nettool_power.cpp.
+// The second and third parts' detours (nettool_power_2.cpp,
+// nettool_power_3.cpp); called by the group's install in nettool_power.cpp.
 bool InstallPower2();
+bool InstallPower3();
 
 } // namespace opensc4::nettool_sim
