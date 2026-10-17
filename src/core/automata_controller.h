@@ -75,12 +75,6 @@ inline constexpr std::size_t kAddRef = 0x04, kRelease = 0x08, kShutdown = 0x10;
 inline constexpr std::size_t kGetPosition = 0x20, kTestFlag = 0x30, kDeletingDestructor = 0x9C;
 } // namespace slot
 
-// The stream slots the serializable Write functions use, in bytes.
-namespace streamslot {
-inline constexpr std::size_t kUInt16 = 0x18, kVersion = 0x1C, kUInt32 = 0x24;
-inline constexpr std::size_t kFloat = 0x30, kString = 0x3C, kError = 0x48;
-} // namespace streamslot
-
 inline constexpr std::uint32_t kFlag1 = 1, kFlag2 = 2, kFlag4 = 4, kFlag20 = 0x20, kFlag400 = 0x400;
 inline constexpr std::uint32_t kConstructorFlags = 2;
 inline constexpr std::uint32_t kAttractorClassId = 0x6A1628BA;
