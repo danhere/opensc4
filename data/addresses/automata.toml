@@ -1034,3 +1034,177 @@ address = 0x00A95D3C
 kind = "data"
 expect = "00 00 80 BF"
 source = "The float -1.0 CurveValue 0x00514C70 answers for a non-positive +0x28."
+
+# Part a3b: the behaviour (docs/automata.md, "Part a3" -> a3b).
+
+[[entry]]
+name = "cSC4AutomataController::Init"
+address = 0x00516850
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (cSC4AutomataController* this)"
+expect = "83 EC 20 53 56 8B F1 8A 46 08 33 DB 3A C3 0F 85"
+source = "Slot 3 (base; the attractor's 0x00516FB0 and the generator's 0x00516FE0 reach it). The script system into +0x4C, the initialized and the four bytes at +0x24, and with flag 0x20 the occupant's lot centre from the lot manager (city slot 0x84, then slot 0x38 (occupant) and the lot's 0x38), off the map the occupant's own height; then SetActive(1), slot 25 and 0x00515770(1). Answers 1. Ours in simulators.automata.ctlbehaviour (src/core/automata_controller.cpp)."
+
+[[entry]]
+name = "cSC4AutomataAttractor::Init"
+address = 0x00516FB0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (cSC4AutomataAttractor* this)"
+expect = "56 8B F1 8A 46 08 84 C0 75 19 8B 46 10 05 88 00"
+source = "Slot 3: when not initialized, SC4Curve::Assign 0x005F4460 of the template's +0x88 into the controller's own curve at +0x5C, then the base Init; else 1. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataGenerator::Init"
+address = 0x00516FE0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (cSC4AutomataGenerator* this)"
+expect = "8A 41 08 84 C0 75 0B E8 64 F8 FF FF 84 C0 0F 95"
+source = "Slot 3: when not initialized, the base Init's answer as a bool; else 1. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataController::Shutdown"
+address = 0x005169F0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (cSC4AutomataController* this)"
+expect = "53 56 8B F1 8B 06 33 DB 53 FF 50 48 38 5E 08 0F"
+source = "Slot 4 (base and attractor): SetActive(0) first, then when initialized: flag 0x100 off each automaton (slot 0x34 with 0), each released (slot 8), the list's nodes freed, the list reset and +0x48 0, the occupant (+0xC) and the script system (+0x4C) released and cleared, the template (+0x10) cleared. Answers 1. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataGenerator::Shutdown"
+address = 0x00517000
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (cSC4AutomataGenerator* this)"
+expect = "8A 41 08 84 C0 74 05 E8 E4 F9 FF FF B0 01 C3 CC"
+source = "Slot 4 (generator): the base Shutdown 0x005169F0 when initialized, else nothing; answers 1. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataController::SetActive"
+address = 0x00516AA0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4AutomataController* this, uint32_t active)"
+expect = "56 8B F1 8A 46 08 84 C0 0F 84 82 00 00 00 8B 06"
+source = "Slot 18 (active), ret 4: when initialized and flag 1 differs from the byte argument: SetFlag(1), the manager's MoveController (slot 16) when active, 0x00515770(active), slot 27, +0x58 = 0, SetFlag(0x400, 0) and (active, a template and its +0x50 above 0) SetFlag(0x400, 1). Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataGenerator::SetActive"
+address = 0x00517240
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4AutomataGenerator* this, uint32_t active)"
+expect = "53 8B D9 8A 43 08 84 C0 74 70 8A 44 24 08 84 C0"
+source = "Slot 18 (generator), ret 4: going inactive while initialized, with a template of the generator's class ID: flag 0x100 on, each automaton of +0x44 has flag 0x100 off (slot 0x34) and is released (slot 8), the list cleared (0x0050A2A0), and its node count into +0x48; then the base SetActive 0x00516AA0. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataController::SpotSelection"
+address = 0x00516EC0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4AutomataController* this, float* low, float* high)"
+expect = "83 EC 10 56 8B F1 8B 06 6A 20 FF 50 30 84 C0 0F"
+source = "Slot 20 (low out, high out), ret 8: with flag 0x20, 0x40 or no occupant, slot 11 GetPosition into both; else the occupant's bounding box (slot 10) and, from the lot manager (city slot 0x84, slot 0x38 (occupant)) the lot's cells (the lot's slot 0x38, 4 ints) as low = (x0, ., z0) * 16 and high = ((x1+1), ., (z1+1)) * 16; no lot leaves the bounding box. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataController::CellBounds"
+address = 0x00515BD0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4AutomataController* this, float* low, float* high)"
+expect = "53 56 8B 74 24 10 57 8B 7C 24 10 8B D9 8B 03 56"
+source = "Slot 21 (low out, high out), ret 8: slot 20 into both, grown by the template's curve (slot 9), x and z clamped to 0 and the city's SizeX/SizeZ (city slots 0x164, 0x168), the corner heights from the terrain (city slot 0x150, its 0x34 at each corner). Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataController::CellTest"
+address = 0x00515A80
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (cSC4AutomataController* this, const float* point, float* distance)"
+expect = "83 EC 3C 53 56 8B F1 8B 06 57 8D 4C 24 3C 51 8D"
+source = "Slot 23 (point, distance out), ret 8: 0 unless the point (its x and z) is within the cell bounds grown by the curve (slot 9); with flag 0x1000, 0 when more than 5 metres above the terrain. With an out pointer, the distance from the controller's own position (slot 11, or slot 22 with flag 0x10) to the point, or from where the line to it leaves the box (0x00514E70, 0x005D76A0), into the out. Answers 1. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataController::OccupantLists"
+address = 0x00516B40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4AutomataController* this)"
+expect = "83 EC 10 55 8B E9 8B 45 10 85 C0 0F 84 E2 00 00"
+source = "Slot 25: for a template, the city view service (0x00B43DC8, interface 0xFA47B3F9) is asked (slot 0xB8) whether each occupant of the template's +0x44 list is shown (all must be) and of its +0x48 list (none may be); when either list is not empty the controller is set active with that answer (slot 18). The service is released (slot 8). Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataController::FrameStep"
+address = 0x00515870
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (cSC4AutomataController* this)"
+expect = "83 EC 34 55 8B 2D D8 3D B4 00 85 ED 56 8B F1 0F"
+source = "Slot 27: 1 without the camera view (0x00B43DD8) or the terrain (0x00B43CF4). Flag 0x200 sets flag 4; else the cell bounds (slot 21), the controller's position (slot 11) for the corner heights off the map (city slot 0x188, the terrain's 0x34), and the position, the boxes' corners and two guessed corners through 0x007F7E50 into the view set flag 4. Answers 1. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataController::AutomatonEventA"
+address = 0x0051BB60
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4AutomataController* this, void* automaton, uint32_t kind, uint32_t)"
+expect = "8B 44 24 08 83 EC 18 83 F8 04 56 57 8B F9 0F 85"
+source = "Slot 28 (automaton, kind, unused), ret 0xC: kind 4 only. The manager's automaton value of the controller's occupant (0x0051B9D0, then 0x00516070); without its +0x20 flag the automaton's removal flags are unset (slot 0x34 with 0) and the answer is 1. Otherwise the automaton's object (slot 48) placed at the record's position (its +0x14/+0x18/+0x1C times its own size, at least 1) or the record's own (its +0x08/+0x0C/+0x10), its height from the traffic network (city slot 0xA0, slot 18), and the place given to the automaton (slot 10); answers 0. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataAttractor::AutomatonEventB"
+address = 0x0051BFB0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4AutomataAttractor* this, void* automaton, uint32_t kind)"
+expect = "56 8B F1 8B 46 10 85 C0 57 8B 7C 24 0C 74 36 8B"
+source = "Slot 29 (attractor; automaton, kind), ret 8: when the template's +0x54 is not zero and the automaton is not in the controller's +0x44 list, it is appended (0x00427640), counted and referenced; kind 4 also adds it to the manager's record (0x0051B9D0, then 0x005184E0). Answers 0. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataController::AutomatonEventC"
+address = 0x0051BCE0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4AutomataController* this, void* automaton, uint32_t kind)"
+expect = "83 7C 24 08 04 75 62 56 8B 71 0C 8B 0D EC 3C B4"
+source = "Slot 30 (automaton, kind), ret 8: kind 4 only; the manager's automaton value of the controller's occupant (+0x6C's hash table) if there is one, and 0x005172D0 takes the automaton out of its list. Answers 0. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataController::AutomatonLeaves"
+address = 0x0051BD50
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4AutomataController* this, void* automaton)"
+expect = "53 56 57 8B F9 8B 0D EC 3C B4 00 8B 01 8B 77 0C"
+source = "Slot 31 (automaton), ret 4: out of the manager's automaton value (0x005172D0) and out of the controller's own +0x44 list (released, the node freed, +0x48 one less). Answers 1. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataController::PickSpot"
+address = 0x0051BAB0
+kind = "function"
+convention = "thiscall"
+signature = "void* (cSC4AutomataController* this, uint32_t value, const float* point)"
+expect = "53 57 8B F9 8B 47 10 8B 58 38 8B 50 3C 33 C9 3B"
+source = "Slot 32 (value, point), ret 8: the first of the template's spot records (+0x38 to +0x3C, 0x7C bytes each) whose +4 is at least the value; a record of kind 4 only when the point (its x and z) is within that distance of the manager's record place (+0x08/+0x10); 0 without the template or none. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataController::Tick"
+address = 0x00514D90
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4AutomataController* this, uint32_t time, uint32_t second, void* passed)"
+expect = "D9 44 24 04 56 D8 0D A4 67 A8 00 8B F1 8B 06 6A"
+source = "Slot 38 (time, second, passed), ret 0xC: the time as milliseconds times 0.001. With flag 1: while flag 0x400 is set, +0x58 plus it (flag 0x400 off at the template's +0x50); with the flag clear and +0x54 above 0, +0x50 plus it, and SetActive(0) when +0x50 passes +0x54. Ours in simulators.automata.ctlbehaviour."
+
+[[entry]]
+name = "cSC4AutomataGenerator::Tick"
+address = 0x00515E60
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4AutomataGenerator* this, uint32_t time, uint32_t second, void* passed)"
+expect = "8B 44 24 08 83 EC 08 53 8B 5C 24 18 56 53 8B F1"
+source = "Slot 38 (generator; time, second, passed), ret 0xC: the base Tick 0x00514D90, then (not saturated, flag 0x400 clear, flag 4 set, 0x0054DD00(7)) the passed time into its +0x78 clock pair, and once the pair is reached (+0x78 against +0x80, 0x00515250): below the limit (0x00515220), the controller time's weekday in the template's +0x34, the hour curve (0x005F4250) not zero and a fresh draw (0x0091372E) within +0xA4 spawn (slot 41); then the spawn interval (1/60, 1, 24 or 168 hours by +0x9C, over +0x98) added to +0x80 and +0x78 zeroed. Ours in simulators.automata.ctlbehaviour."
+
