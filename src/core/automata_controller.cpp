@@ -593,8 +593,8 @@ void __fastcall GeneratorSetLimit(char* self, void*, std::uint32_t value)
 // of the template's two lists is shown: the first list must all be shown and
 // the second none, and the controller is set active with that answer when
 // either list is not empty. The frame/step handler, on frames, marks flag 4
-// for a controller whose position, box or one of two guessed corners is in
-// the camera view (0x007F7E50), otherwise clears it.
+// for a controller whose position or any of the four x-z corners of its cell
+// box is in the camera view (0x007F7E50), otherwise clears it.
 // The automaton events (kind 4): 28 finds the manager's record for the
 // controller's occupant, has it set up (0x00516070, the first time), and when
 // the record says so places the automaton's event object (its slot 48) at the
@@ -617,9 +617,10 @@ void __fastcall GeneratorSetLimit(char* self, void*, std::uint32_t value)
 // automata are below the limit, flag 4 is set, its weekday mask accepts the
 // controller time's day and a fresh draw from its own generator is within the
 // template's spawn chance (and the hour curve is not zero), it calls the
-// spawn (slot 41); then it adds the template's spawn interval (1/60, 1, 24 or
-// 168 hours, by +0x9C, over +0x98) to its +0x80 pair and zeroes the +0x78
-// one.
+// spawn (slot 41); on the reached path only it then adds the template's spawn
+// interval (1/60, 1, 24 or 168 hours, by +0x9C, over +0x98) to its +0x80 pair
+// and zeroes the +0x78 one. The four early returns and the not-reached path
+// leave the clock pair accumulating.
 //
 // Oddities kept: Init's flag-0x20 branch calls LocationIsInBounds on the
 // lot's centre and stores the terrain's height into +0x18 (the position is
@@ -633,12 +634,13 @@ void __fastcall GeneratorSetLimit(char* self, void*, std::uint32_t value)
 // (x, z) of both, and the segment test's crossing point from 0x00514E70.
 // The occupant lists release the *service* pointer they read, not the
 // interface QueryInterface answered (they are the same object). The
-// frame/step handler's flag word is never written by the game before the five
-// view tests (a leftover of the stack); ours starts it at 0 and writes 1 when
-// a test says the controller is in view. The automaton events only look at
-// kind 4, and 28 answers 1 for a record that is not ready and 0 otherwise.
-// The generator's tick never returns early past its reset: the reset is the
-// normal end of every path that does not return.
+// frame/step handler clears only the low byte of its flag dword and then
+// passes the whole dword to SetFlag; the top three bytes are stack leftovers,
+// but SetFlag 0x00517E70 compares only the byte, so ours passing 0 or 1 is
+// exact. The automaton events only look at kind 4, and 28 answers 1 for a
+// record that is not ready and 0 otherwise. The generator's tick resets the
+// clock pair only on the reached path: the not-reached path returns before
+// the reset, and the four early returns skip it too.
 //
 // Calls, each count from the asm's pushes and the callee's own ret: the
 // controller's slots 3, 4, 9, 10, 11, 18, 19, 20, 21, 22, 23, 24, 25, 26,
@@ -1040,7 +1042,9 @@ void __fastcall OccupantLists(char* self, void*)
 }
 
 // 0x00515870, slot 27: flag 4 says whether the controller is in the camera
-// view, from its position, its box and two guessed corners.
+// view, from its position and the four x-z corners of its cell box, each corner
+// carrying the box's own low or high height (not the terrain height at that
+// corner's x and z).
 std::uint8_t __fastcall FrameStep(char* self, void*)
 {
     static bool logged;
@@ -1051,7 +1055,10 @@ std::uint8_t __fastcall FrameStep(char* self, void*)
     void* const terrain = Global<void*>(addr::SC4_Terrain);
     if (!terrain)
         return 1;
-    std::uint8_t flag = 0; // a stack leftover in the game; ours starts at 0
+    // The game clears only the flag dword's low byte and passes the whole
+    // dword to SetFlag; its top three bytes are stack leftovers, but SetFlag
+    // 0x00517E70 tests only the low byte, so 0 or 1 is exact.
+    std::uint8_t flag = 0;
     if (Virtual<std::uint8_t>(self, slot::kTestFlag, 0x200u)) {
         flag = 1;
     } else {
@@ -1068,27 +1075,27 @@ std::uint8_t __fastcall FrameStep(char* self, void*)
         else
             high[1] = position[1];
         float point[3] = {};
-        Virtual<void>(self, slot::kPosition, point);
+        Virtual<void>(self, slot::kPosition, point); // the controller's position
         if (CallThis<std::uint8_t>(kViewPoint, view, point)) {
             flag = 1;
         } else {
-            const float x = point[0], z = point[2];
-            point[0] = z;
-            point[2] = x;
+            point[0] = low[0];
+            point[1] = low[1];
+            point[2] = low[2]; // the low corner
             if (CallThis<std::uint8_t>(kViewPoint, view, point)) {
                 flag = 1;
             } else {
-                point[0] = high[0];
+                point[0] = high[0]; // high x, the low corner's height and z
                 if (CallThis<std::uint8_t>(kViewPoint, view, point)) {
                     flag = 1;
                 } else {
                     point[0] = high[0];
                     point[1] = high[1];
-                    point[2] = high[2];
+                    point[2] = high[2]; // the high corner
                     if (CallThis<std::uint8_t>(kViewPoint, view, point)) {
                         flag = 1;
                     } else {
-                        point[1] = low[0];
+                        point[0] = low[0]; // low x, the high corner's height and z
                         if (CallThis<std::uint8_t>(kViewPoint, view, point))
                             flag = 1;
                     }
@@ -1290,41 +1297,42 @@ void __fastcall GeneratorTick(char* self, void*, std::uint32_t timeBits, std::ui
     CallThis<void*>(addr::tControllerTime_AddHours, self + 0x78, AsBits(at->hour));
     At<std::uint16_t>(self, 0x7C) = static_cast<std::uint16_t>(At<std::uint16_t>(self, 0x7C) +
                                                               static_cast<std::uint16_t>(at->day));
-    if (CallCdecl<std::uint8_t>(kTimeReached, self + 0x78, self + 0x80)) {
-        char* const t = static_cast<char*>(At<void*>(self, field::kTemplate));
-        const std::uint32_t limit = CallThis<std::uint32_t>(kGeneratorLimit, self, t);
-        if (At<std::uint32_t>(self, field::kAutomataCount) < limit) {
-            char* const manager = Virtual<char*>(City(), 0xBC);
-            char* const now = CallThis<char*>(kManagerTime, manager);
-            const std::uint32_t hour = At<std::uint32_t>(now, 0x0);
-            const std::uint16_t day = At<std::uint16_t>(now, 0x4);
-            if (At<std::uint32_t>(t, tmpl::kWeekdays) & (1u << (day & 0x1Fu))) {
-                const float curve = static_cast<float>(CallThis<double>(addr::SC4Curve_Evaluate, t + tmpl::kHourCurve,
-                                                                        hour));
-                const float draw = CallThis<float>(addr::cRZRandom_NextFloat, self + field::kRandom);
-                if (std::fabs(curve) > 0.0f && draw <= At<float>(t, tmpl::kSpawnChance)) {
-                    std::uint32_t daySlot = day;
-                    Virtual<void>(self, slot::kSpawn, &daySlot, AsBits(curve));
-                }
+    if (!CallCdecl<std::uint8_t>(kTimeReached, self + 0x78, self + 0x80))
+        return; // not reached: the clock pair keeps accumulating
+    char* const t = static_cast<char*>(At<void*>(self, field::kTemplate));
+    const std::uint32_t limit = CallThis<std::uint32_t>(kGeneratorLimit, self, t);
+    if (At<std::uint32_t>(self, field::kAutomataCount) < limit) {
+        char* const manager = Virtual<char*>(City(), 0xBC);
+        char* const now = CallThis<char*>(kManagerTime, manager);
+        const std::uint32_t hour = At<std::uint32_t>(now, 0x0);
+        const std::uint16_t day = At<std::uint16_t>(now, 0x4);
+        if (At<std::uint32_t>(t, tmpl::kWeekdays) & (1u << (day & 0x1Fu))) {
+            const float curve = static_cast<float>(CallThis<double>(addr::SC4Curve_Evaluate, t + tmpl::kHourCurve,
+                                                                    hour));
+            const float draw = CallThis<float>(addr::cRZRandom_NextFloat, self + field::kRandom);
+            if (std::fabs(curve) > 0.0f && draw <= At<float>(t, tmpl::kSpawnChance)) {
+                std::uint32_t daySlot = day;
+                Virtual<void>(self, slot::kSpawn, &daySlot, AsBits(curve));
             }
         }
     }
+    // Reached: the spawn interval becomes the new target and the accumulator
+    // is cleared.
     float hours = 0.0f;
-    char* const intervalTemplate = static_cast<char*>(At<void*>(self, field::kTemplate));
-    switch (At<std::uint32_t>(intervalTemplate, tmpl::kSpawnKind)) {
+    switch (At<std::uint32_t>(t, tmpl::kSpawnKind)) {
     case 0:
         hours = static_cast<float>(static_cast<double>(Global<float>(addr::SC4_FloatOneSixtieth)) /
-                                   static_cast<double>(At<float>(intervalTemplate, tmpl::kSpawnHours)));
+                                   static_cast<double>(At<float>(t, tmpl::kSpawnHours)));
         break;
     case 1:
-        hours = static_cast<float>(1.0 / static_cast<double>(At<float>(intervalTemplate, tmpl::kSpawnHours)));
+        hours = static_cast<float>(1.0 / static_cast<double>(At<float>(t, tmpl::kSpawnHours)));
         break;
     case 2:
-        hours = static_cast<float>(24.0 / static_cast<double>(At<float>(intervalTemplate, tmpl::kSpawnHours)));
+        hours = static_cast<float>(24.0 / static_cast<double>(At<float>(t, tmpl::kSpawnHours)));
         break;
     case 3:
         hours = static_cast<float>(static_cast<double>(Global<float>(kSpawnHoursLong)) /
-                                   static_cast<double>(At<float>(intervalTemplate, tmpl::kSpawnHours)));
+                                   static_cast<double>(At<float>(t, tmpl::kSpawnHours)));
         break;
     default: break;
     }
