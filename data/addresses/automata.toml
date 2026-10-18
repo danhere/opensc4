@@ -1143,7 +1143,7 @@ kind = "function"
 convention = "thiscall"
 signature = "uint8_t (cSC4AutomataController* this)"
 expect = "83 EC 34 55 8B 2D D8 3D B4 00 85 ED 56 8B F1 0F"
-source = "Slot 27: 1 without the camera view (0x00B43DD8) or the terrain (0x00B43CF4). Flag 0x200 sets flag 4; else the cell bounds (slot 21), the controller's position (slot 11) for the corner heights off the map (city slot 0x188, the terrain's 0x34), and the position, the boxes' corners and two guessed corners through 0x007F7E50 into the view set flag 4. Answers 1. Ours in simulators.automata.ctlbehaviour."
+source = "Slot 27: 1 without the camera view (0x00B43DD8) or the terrain (0x00B43CF4). Flag 0x200 sets flag 4; else the cell bounds (slot 21), the controller's position (slot 11) for the corner heights off the map (city slot 0x188, the terrain's 0x34), then the position followed by the low corner, the high x with the low corner's height and z, the high corner and the low x with the high corner's height and z, each through 0x007F7E50 into the view set flag 4. The flag dword's top three bytes are stack leftovers; SetFlag 0x00517E70 tests only its low byte. Answers 1. Ours in simulators.automata.ctlbehaviour."
 
 [[entry]]
 name = "cSC4AutomataController::AutomatonEventA"
@@ -1206,5 +1206,5 @@ kind = "function"
 convention = "thiscall"
 signature = "void (cSC4AutomataGenerator* this, uint32_t time, uint32_t second, void* passed)"
 expect = "8B 44 24 08 83 EC 08 53 8B 5C 24 18 56 53 8B F1"
-source = "Slot 38 (generator; time, second, passed), ret 0xC: the base Tick 0x00514D90, then (not saturated, flag 0x400 clear, flag 4 set, 0x0054DD00(7)) the passed time into its +0x78 clock pair, and once the pair is reached (+0x78 against +0x80, 0x00515250): below the limit (0x00515220), the controller time's weekday in the template's +0x34, the hour curve (0x005F4250) not zero and a fresh draw (0x0091372E) within +0xA4 spawn (slot 41); then the spawn interval (1/60, 1, 24 or 168 hours by +0x9C, over +0x98) added to +0x80 and +0x78 zeroed. Ours in simulators.automata.ctlbehaviour."
+source = "Slot 38 (generator; time, second, passed), ret 0xC: the base Tick 0x00514D90, then (not saturated, flag 0x400 clear, flag 4 set, 0x0054DD00(7)) the passed time into its +0x78 clock pair; once the pair is reached (+0x78 against +0x80, 0x00515250): below the limit (0x00515220), the controller time's weekday in the template's +0x34, the hour curve (0x005F4250) not zero and a fresh draw (0x0091372E) within +0xA4 spawn (slot 41); and on the reached path only the spawn interval (1/60, 1, 24 or 168 hours by +0x9C, over +0x98) is added to +0x80 and +0x78 zeroed. The not-reached path returns before the reset, leaving the pair accumulating. Ours in simulators.automata.ctlbehaviour."
 
