@@ -225,3 +225,77 @@ Kept as the game's, because no parity run reaches them (checked with `diagnostic
 Review fixes (checked against the asm): the frame/step handler's five view points are the position, the low corner, high x with the low corner's height and z, the high corner, and low x with the high corner's height and z. Its flag's top three bytes are stack leftovers, but SetFlag 0x00517E70 tests only the low byte, so 0 or 1 is exact. The generator's tick returns before the interval reset when its clock pair is not reached, so the accumulator keeps counting. The first pass reset it on every tick, and parity did not catch that, since no run spawns. SC4StlList::Clear and PushBack take the list field's address, not its head.
 
 Parity (2026-10-18, `OPENSC4_TEST_AUTOMATA=2`, both controller groups ours against the original, all the same): Making Money Tutorial d0000 1 day (2 of 2) and 4 days (5 of 5), the 12-save 7-day batch, and Rush Hour t0000 7 days (8 of 8). `ctlbehaviour` alone on Making Money d0000 1 day was also the same (2 of 2). The tick repeats run to run, so no in-run comparison was needed. In the batch, Making Money d0000 and d1095 each needed a second pair for the original's own first-run advisor outcome (docs/parity.md).
+
+## Part a3c: the save and the rest of the behaviour
+
+12 functions are ours, in two more groups, off by default (src/core/automata_controller.cpp, `kSerial` and `kSpawn`), so a3a's and a3b's groups stay as they were:
+
+- `simulators.automata.ctlserial` (6): the +4 serializable part's Write (base 0x00517FD0, attractor 0x00518230, generator 0x005183D0) and Read (base 0x005180E0, attractor 0x00518270, generator 0x00518450).
+- `simulators.automata.ctlspawn` (6): the generator's spawn 0x005198A0 (slot 41), the position from the occupant's lot 0x00516C40 (slot 22), resetting the tick's accumulators 0x00514E30 (26), the base automaton event 29 0x0051BCA0 (the generator's), the attractor's event 30 0x0051C030 and SetLimit 0x00517EF0 (19).
+
+Kept as the game's: the time-passed stub 0x006F7DC0 (slot 24 of the base and the attractor), `RET 8`, three bytes, shared with other classes' vtables; it has an address entry saying so. The spawn's helpers stay the game's and are called at their addresses: the cell list 0x00518DC0, the class pick 0x00516010, the automaton manager lookup 0x0050CCA0, the point turn 0x005D77A0, the segment test 0x00514E70, the random draws (0x00913761, 0x009136B1, 0x0091372E) and the record constructor 0x00414210. So do the curve's save functions 0x005DB190 and 0x005DB5D0. With a3a (32) and a3b (19), 63 of the controllers' functions are ours. The rest of the survey's 81 are the shared, folded and adjustor functions and the script system's templates listed under "Part a3".
+
+What the save does. Write saves a version (5), the occupant as a reference, the template's name (or an empty string it makes on its stack), the position, +0x50, +0x54, +0x3C, the flags and the automaton count, then a reference per automaton of the list. The attractor adds version 1 and its curve. The generator writes version 4 first, then the base, then its two clock pairs and +0x90, +0x94. Read mirrors it, with these quirks kept:
+
+- It reads the name into the controller's own name (+0x28), not a template. The manager finds the template by that name after a load (part a2's ResolveTemplates). So a controller that has been read writes an empty name until its template is set again.
+- It appends a node per automaton reference to the list it already has, and reads the count straight into +0x48.
+- The versions go into the stack slot of the stream argument. The generator answers 0 unless that slot's low word is 4. Ours starts the slot from the stream pointer the same way, so a failed read compares the same word.
+
+The spawn makes automata at the generator:
+
+- How many: by the template's +0x8C. Kind 0 is the curve value times +0x88, at least 1. Kind 1 is a building's value from the simulator at city slot 0x110, or a value of its lot. Kind 2 is a count from that simulator. The count is rounded with the game's 1.5 x 2^23 trick and capped at 25.
+- Where:
+  - With flag 0x80 or 0x800, a random cell of 0x00518DC0's list. The point is pulled to between the template's +0x20 and +0xA8 from the box edge, and kept only if the traffic network takes it.
+  - Otherwise, a random angle and radius around the controller.
+- Then the class, the manager and the automaton (manager slot 0x3C). The automaton is appended, referenced and counted, told the controller manager, and given a spot (PickSpot) or none.
+
+Three details from the seeds and the audit:
+
+- The position from the box seeds a cRZRandom on its stack that it never draws from. Ours seeds one too, under `fixed_seed::SiteOverride(0x00516C51)`, so the clock seed counts at the game's site.
+- **A fix to part a3a.** The generator's constructor now seeds its cRZRandom under `SiteOverride(0x005182CF)`. From our detour, the clock seed was counted under a different call site than the original's, so our generators had other random sequences. Nothing compared drew from them until the spawn.
+- The spawn's record at local 0xF0 is 0x40 bytes, which is what the game's frame allows; the simulator fills fields up to +0x3B. The audit caught ours at 0x38.
+
+Floats as in part a3b: 53-bit doubles, a float wherever the game stores one, a double wherever it keeps ST0 (the random values, the distance, the sums before their store). Reimplemented like the earlier parts: one writer, then an independent audit of all 12 against the disassembly. The audit found the record size above, and the zeros now come from 0x00B227CC as the game reads them (the same value as before). Both were fixed before any batch.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA=3` does everything `=2` does, plus the following on the test day, all at the game's addresses (so the same test runs on both sides).
+
+For up to 8 attractors and 8 generators of the controller table:
+
+- The serializable part's QueryInterface and GetGZCLSID. QueryInterface's AddRef is taken back.
+- Write into the test's own stream.
+- A round trip: a new controller of the same class, made by its factory, reads those bytes and writes them again. That must give the same bytes with an empty name, and the new controller's own name must be the template's.
+- On the new controller: SetLimit, SetTemplate, ResetAccumulators, and for a generator a Read with version 0, which must answer 0. Then it is released.
+- The position from the box of the original controller.
+
+The fixed part of the bytes goes into the token as ` s<controllers>,<checksum>,<state>`: the versions, the name, the position, +0x3C, the curve and +0x90. The state checksum covers +0x50, +0x54, the flags, the clock pairs, +0x94 and the count.
+
+Then the spawn of up to 4 initialized generators, chosen so that different count kinds and cell flags come first, is called directly (curve 1.0). The tick only spawns with flag 4, the camera-view flag, which the harness never sets. The test records:
+
+- What the spawn made, as ` p<generators>,<made>,<checksum>`: each new automaton's type and position (through its occupant interface; the generator's list holds automaton interfaces).
+- With the first new automaton: the generator's events 29 (kinds 4 and 0) and 30, and an attractor's events 29 and 30 with kind 0. The attractor is the first whose template keeps automata, if there is one.
+
+The spawned automata stay in the city, so from that day on a run with `=3` is not the one without it (alike on both sides).
+
+Reached (our first-call log lines, in the batch below): all 12. Read runs on every load and in the test, Write in the test. Branches reached and not:
+
+- The spawn reaches the count kinds 0 and 1, the cell branch (flag 0x80, network kind 0xC49), and the box position from inside the spawn (flag 0x10).
+- Read's list loop runs: Rush Hour's generators save 3 automata.
+- Not reached: count kind 2 and flag 0x800 (network kind 2); no corpus generator has them.
+- Not reached: the remove branch of the attractor's event 30. No corpus attractor template keeps automata (+0x54 is 0), so event 29 adds nothing for 30 to take out.
+
+### Parity
+
+2026-10-19, B = the four controller groups (`controller`, `ctlbehaviour`, `ctlserial`, `ctlspawn`) against the original, env p4env-a3c, snapshot a3c-r1. All the same, on the first pair:
+
+| Run | Days | Test | Result |
+| --- | ---: | --- | --- |
+| Making Money Tutorial d0000 | 4 | `OPENSC4_TEST_AUTOMATA=3` | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | `=3` | 8 of 8 days |
+| Big City Tutorial d0000 | 7 | `=3` | 8 of 8 days |
+| The 12-save batch | 7 | `=2` | 12 of 12 saves |
+| The 12-save batch | 7 | `=3` | 12 of 12 saves |
+
+Before the batch, an original-against-ours run of Making Money d0000 with `=3` and the test on day 1 matched line for line in the log, including the spawned automata's places. The `s` state checksum (tick-driven fields) repeated, so it stays in the token.
+

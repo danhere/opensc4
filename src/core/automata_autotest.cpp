@@ -39,6 +39,37 @@
 //   state, which follow frames: the log only (`autotest: automata: query
 //   ...`). Nothing adds, removes or moves a controller or sends a message
 //   (the relevant lists' references are given back).
+// OPENSC4_TEST_AUTOMATA=3 (part a3c): also, on the same day, for up to 8
+//   attractors and 8 generators of the controller table (occupants neither
+//   automata nor props, sorted as the query pairs), at the game's addresses
+//   (ours when the controller groups are on): the +4 serializable part's
+//   QueryInterface 0x00517F30 (three interfaces; the AddRef it makes is
+//   taken back from +0x20) and GetGZCLSID 0x00517F00; Write (the part's slot
+//   3) into a stream of the test's own; a round trip: a new controller of
+//   the same class from its factory reads those bytes (slot 4) and writes
+//   them again, which must give the same bytes with an empty name (Read puts
+//   the name into the controller's own name, Write saves the template's),
+//   and its own name must be the template's; on that new controller SetLimit
+//   (slot 19), SetTemplate (15) and ResetAccumulators (26), and for a
+//   generator a Read of a stream with version 0 (answers 0); then it is
+//   released. And the position from the occupant's lot (slot 22) of the
+//   picked controller. The bytes' fixed part (versions, name, position,
+//   +0x3C, the attractor's curve, the generator's +0x90) goes into the
+//   fingerprint as ` s<controllers>,<checksum>,<state>`, the state checksum
+//   (+0x50, +0x54, the flags, the generator's clock pairs and +0x94, the
+//   automaton count: tick- and frame-driven) after it; the field values go
+//   to the log (`autotest: automata: save ...`). Then the spawn (slot 41,
+//   curve 1.0) of up to 4 of those generators, called directly (the tick
+//   only calls it with flag 4, the camera view, which the harness never
+//   sets): the automata it makes (count, +0x88, +0x90, +0x94, +0x98, each
+//   new automaton's type and position) as ` p<generators>,<made>,<checksum>`;
+//   with the first new automaton the generator's events 29 (kinds 4 and 0)
+//   and 30 (kind 4, which takes back what 29 added), and the first
+//   attractor's (one whose template keeps automata, if any) events 29 and
+//   30 with kind 0 (in and out of its own list,
+//   then 30 again when it is not there), the answers and list counts mixed.
+//   The spawn adds automata to the city: from that day on the run is not
+//   the one without the test (on both sides alike).
 // A remove and add round trip of one occupant's controllers is not done:
 // removing sends 0xEA298D50 to the automata, destroys the controllers and
 // can drop the occupant's automaton entry (its automata released), and the
@@ -207,6 +238,74 @@ private:
     bool Put(const T& value)
     {
         return SetVoid(&value, sizeof value);
+    }
+};
+
+// An input stream over the bytes a ByteOStream kept: a read past the end
+// stores nothing and leaves the stream in error. It answers no interface, so
+// SC4Stream::ReadReference reads nothing from it and fails (the references
+// ByteOStream wrote nothing for). A string is its length and its bytes, as
+// ByteOStream::SetGZStr writes it.
+class ByteIStream final : public cIGZIStream {
+public:
+    explicit ByteIStream(std::vector<uint8_t> data) : bytes(std::move(data)) {}
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Skip(uint32_t count) override
+    {
+        if (bytes.size() - at < count)
+            return Fail();
+        at += count;
+        return true;
+    }
+    bool GetSint8(int8_t& v) override { return Get(v); }
+    bool GetUint8(uint8_t& v) override { return Get(v); }
+    bool GetSint16(int16_t& v) override { return Get(v); }
+    bool GetUint16(uint16_t& v) override { return Get(v); }
+    bool GetSint32(int32_t& v) override { return Get(v); }
+    bool GetUint32(uint32_t& v) override { return Get(v); }
+    bool GetSint64(int64_t& v) override { return Get(v); }
+    bool GetUint64(uint64_t& v) override { return Get(v); }
+    bool GetFloat32(float& v) override { return GetVoid(&v, sizeof v); }
+    bool GetFloat64(double& v) override { return GetVoid(&v, sizeof v); }
+    bool GetRZCharStr(char*, uint32_t) override { return Fail(); }
+    bool GetGZStr(cIGZString& text) override
+    {
+        uint32_t length = 0;
+        if (!Get(length) || bytes.size() - at < length)
+            return Fail();
+        text.FromChar(reinterpret_cast<const char*>(bytes.data() + at), length);
+        at += length;
+        return true;
+    }
+    bool GetGZSerializable(cIGZSerializable&) override { return Fail(); }
+    bool GetVoid(void* out, uint32_t size) override
+    {
+        if (bytes.size() - at < size)
+            return Fail();
+        std::memcpy(out, bytes.data() + at, size);
+        at += size;
+        return true;
+    }
+    int32_t GetError() override { return error; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+
+    std::vector<uint8_t> bytes;
+    std::size_t at = 0;
+    int32_t error = 0;
+
+private:
+    bool Fail()
+    {
+        error = 1;
+        return false;
+    }
+    template <typename T>
+    bool Get(T& value)
+    {
+        return GetVoid(&value, sizeof value);
     }
 };
 
@@ -420,6 +519,315 @@ void QueryDrive(char* manager)
                static_cast<unsigned>(picks.size()), found, answers.h, relevantCount, effects, commotions, frames.h);
 }
 
+// Part a3c's drive (OPENSC4_TEST_AUTOMATA=3), see the top of the file.
+std::string g_controllerText;
+
+// The +4 serializable part's slots, and the controller's slots and fields.
+namespace serial {
+constexpr std::size_t kWrite = 0x0C, kRead = 0x10;
+} // namespace serial
+namespace ctl {
+constexpr std::size_t kRelease = 0x08, kSetTemplate = 0x3C, kSetLimit = 0x4C, kPositionFromBox = 0x58;
+constexpr std::size_t kResetAccumulators = 0x68, kEventB = 0x74, kEventC = 0x78, kSpawn = 0xA4;
+constexpr std::size_t kInitialized = 0x08, kTemplate = 0x10, kReferences = 0x20, kNameBegin = 0x2C, kNameEnd = 0x30;
+constexpr std::size_t kFlags = 0x40, kAutomata = 0x44, kCount = 0x48, k54 = 0x54, k58 = 0x58;
+constexpr std::size_t kGen88 = 0x88, kGen90 = 0x90, kGen94 = 0x94, kGen98 = 0x98;
+} // namespace ctl
+
+uint32_t U16(const std::vector<uint8_t>& bytes, std::size_t at)
+{
+    uint16_t v = 0;
+    if (at + 2 <= bytes.size())
+        std::memcpy(&v, bytes.data() + at, 2);
+    return v;
+}
+
+float F32(const std::vector<uint8_t>& bytes, std::size_t at)
+{
+    float v = 0;
+    if (at + 4 <= bytes.size())
+        std::memcpy(&v, bytes.data() + at, 4);
+    return v;
+}
+
+uint32_t ListCount(char* controller)
+{
+    ListNode* const head = At<ListNode*>(controller, ctl::kAutomata);
+    uint32_t n = 0;
+    for (ListNode* e = head->next; e != head; e = e->next)
+        ++n;
+    return n;
+}
+
+// One controller's save, its round trip and the queries on the new one,
+// mixed into `fixed` and `state`. False when the bytes are not laid out as
+// expected.
+bool SaveOne(char* c, bool generator, Hash& fixed, Hash& state, unsigned index)
+{
+    using QueryFn = uint8_t(__thiscall*)(void*, uint32_t, void**);
+    using ClsidFn = uint32_t(__thiscall*)(void*);
+    using CreateFn = char*(__cdecl*)();
+    char* const part = c + 4;
+    const auto query = reinterpret_cast<QueryFn>(addr::cSC4AutomataController_SerializableQueryInterface);
+    for (const uint32_t iid : {0xE4FDA3D4u, 0x6A1857F8u, 0x12345678u}) {
+        void* out = nullptr;
+        const uint8_t answer = query(part, iid, &out);
+        fixed.Mix(answer);
+        fixed.Mix(out == part ? 1u : out == c ? 2u : out ? 3u : 0u);
+        if (answer)
+            --At<uint32_t>(c, ctl::kReferences); // the AddRef QueryInterface made
+    }
+    fixed.Mix(reinterpret_cast<ClsidFn>(addr::cSC4AutomataController_SerializableGetGZCLSID)(part));
+
+    ByteOStream out;
+    const uint8_t written = Virtual<uint8_t>(part, serial::kWrite, static_cast<cIGZOStream*>(&out));
+    const std::vector<uint8_t>& b = out.bytes;
+    // [generator: version 4] version 5, the name (length, bytes), the
+    // position (12 bytes), +0x50, +0x54, +0x3C, the flags, the count; then
+    // the attractor's version 1 and curve, or the generator's 20 bytes.
+    const std::size_t nameAt = generator ? 4 : 2;
+    const uint32_t nameLength = U32(b, nameAt);
+    const std::size_t at = nameAt + 4 + nameLength;
+    const std::size_t baseEnd = at + 12 + 4 * 5;
+    fixed.Mix(written);
+    fixed.Mix(static_cast<uint32_t>(b.size()));
+    if (nameLength >= 256 || b.size() < baseEnd + (generator ? 20 : 2)) {
+        fixed.MixBytes(b.data(), b.size());
+        log::Write("autotest: automata: save %u: %u bytes, not the expected layout", index,
+                   static_cast<unsigned>(b.size()));
+        return false;
+    }
+    fixed.MixBytes(b.data(), nameAt + 4 + nameLength); // the versions and the name
+    fixed.MixBytes(b.data() + at, 12);                 // the position
+    fixed.Mix(U32(b, at + 20));                        // +0x3C
+    state.Mix(U32(b, at + 12));                        // +0x50
+    state.Mix(U32(b, at + 16));                        // +0x54
+    state.Mix(U32(b, at + 24));                        // the flags
+    state.Mix(U32(b, at + 28));                        // the count
+    if (generator) {
+        state.MixBytes(b.data() + baseEnd, 12); // the clock pairs
+        fixed.Mix(U32(b, baseEnd + 12));        // +0x90
+        state.Mix(U32(b, baseEnd + 16));        // +0x94
+    } else {
+        fixed.MixBytes(b.data() + baseEnd, b.size() - baseEnd); // version 1 and the curve
+    }
+
+    // The round trip through a new controller of the same class.
+    const auto create = reinterpret_cast<CreateFn>(generator ? addr::cSC4AutomataGenerator_Create
+                                                             : addr::cSC4AutomataAttractor_Create);
+    char* const copy = create();
+    uint32_t readAnswer = 0, consumed = 0, readError = 0, same = 0, nameSame = 0, limit = 0;
+    uint32_t flagsAfter = 0, value54 = 0, value58 = 0, refused = 0;
+    if (copy) {
+        ByteIStream in(b);
+        readAnswer = Virtual<uint8_t>(copy + 4, serial::kRead, static_cast<cIGZIStream*>(&in));
+        consumed = static_cast<uint32_t>(in.at);
+        readError = static_cast<uint32_t>(in.error);
+        ByteOStream again;
+        Virtual<uint8_t>(copy + 4, serial::kWrite, static_cast<cIGZOStream*>(&again));
+        std::vector<uint8_t> expected(b.begin(), b.begin() + static_cast<std::ptrdiff_t>(nameAt));
+        expected.insert(expected.end(), 4, 0);
+        expected.insert(expected.end(), b.begin() + static_cast<std::ptrdiff_t>(at), b.end());
+        same = again.bytes == expected ? 1u : 0u;
+        const char* const nameBegin = At<const char*>(copy, ctl::kNameBegin);
+        const char* const nameEnd = At<const char*>(copy, ctl::kNameEnd);
+        nameSame = nameEnd - nameBegin == static_cast<std::ptrdiff_t>(nameLength) &&
+                           std::memcmp(nameBegin, b.data() + nameAt + 4, nameLength) == 0
+                       ? 1u
+                       : 0u;
+        Virtual<void>(copy, ctl::kSetLimit, Bits(7.5f));
+        limit = At<uint32_t>(copy, ctl::k54);
+        Virtual<void>(copy, ctl::kSetTemplate, At<void*>(c, ctl::kTemplate));
+        Virtual<void>(copy, ctl::kResetAccumulators);
+        flagsAfter = At<uint32_t>(copy, ctl::kFlags);
+        value54 = At<uint32_t>(copy, ctl::k54);
+        value58 = At<uint32_t>(copy, ctl::k58);
+        Virtual<void>(copy, ctl::kSetTemplate, static_cast<void*>(nullptr));
+        if (generator) {
+            ByteIStream bad(std::vector<uint8_t>{0, 0});
+            refused = Virtual<uint32_t>(copy + 4, serial::kRead, static_cast<cIGZIStream*>(&bad)) & 0xFF;
+            refused |= static_cast<uint32_t>(bad.at) << 8;
+        }
+        Virtual<uint32_t>(copy, ctl::kRelease); // the deleting destructor
+    }
+    for (const uint32_t v : {readAnswer, consumed == b.size() ? 1u : 0u, readError, same, nameSame, limit, flagsAfter,
+                             value54, value58, refused})
+        fixed.Mix(v);
+
+    float place[3] = {};
+    Virtual<void>(c, ctl::kPositionFromBox, static_cast<float*>(place));
+    fixed.MixBytes(place, sizeof place);
+
+    log::Write("autotest: automata: save %u %s '%.*s' answer %u, %u bytes, at %.9g %.9g %.9g, 50 %.9g, 54 %.9g, "
+               "3C %u, flags %08X, count %u",
+               index, generator ? "generator" : "attractor", static_cast<int>(nameLength),
+               reinterpret_cast<const char*>(b.data() + nameAt + 4), written, static_cast<unsigned>(b.size()),
+               static_cast<double>(F32(b, at)), static_cast<double>(F32(b, at + 4)),
+               static_cast<double>(F32(b, at + 8)), static_cast<double>(F32(b, at + 12)),
+               static_cast<double>(F32(b, at + 16)), U32(b, at + 20), U32(b, at + 24), U32(b, at + 28));
+    if (generator)
+        log::Write("autotest: automata: save %u clock %.9g %d %.9g %d, 90 %08X, 94 %u", index,
+                   static_cast<double>(F32(b, baseEnd)), static_cast<int>(static_cast<int16_t>(U16(b, baseEnd + 4))),
+                   static_cast<double>(F32(b, baseEnd + 6)),
+                   static_cast<int>(static_cast<int16_t>(U16(b, baseEnd + 10))), U32(b, baseEnd + 12),
+                   U32(b, baseEnd + 16));
+    log::Write("autotest: automata: save %u round trip read %u, %u of %u bytes, error %u, same %u, name %u; limit "
+               "%08X, reset flags %08X 54 %08X 58 %u, refused %04X; place %.9g %.9g %.9g",
+               index, readAnswer, consumed, static_cast<unsigned>(b.size()), readError, same, nameSame, limit,
+               flagsAfter, value54, value58, refused, static_cast<double>(place[0]), static_cast<double>(place[1]),
+               static_cast<double>(place[2]));
+    return true;
+}
+
+void ControllerDrive(char* manager)
+{
+    struct Pick {
+        uint32_t key;
+        char* controller;
+    };
+    std::vector<Pick> attractors, generators;
+    ForEach<ControllerNode>(Table(manager, field::kControllers), [&](ControllerNode* node) {
+        void* const occupant = node->occupant;
+        if (!occupant)
+            return;
+        const uint32_t type = Virtual<uint32_t>(occupant, kGetType);
+        if (type == kTypeAutomaton || type == kTypeAutomaton2 || type == kTypeProp)
+            return;
+        const uint32_t occupantHash = OccupantHash(occupant);
+        for (ListNode* e = node->head->next; e != node->head; e = e->next) {
+            char* const c = static_cast<char*>(e->value);
+            if (!c || !At<void*>(c, ctl::kTemplate))
+                continue;
+            const std::uintptr_t vtable = *reinterpret_cast<std::uintptr_t*>(c);
+            if (vtable != controller::kAttractorVtable && vtable != controller::kGeneratorVtable)
+                continue;
+            Hash key;
+            key.Mix(occupantHash);
+            key.Mix(ControllerHash(c));
+            (vtable == controller::kGeneratorVtable ? generators : attractors).push_back({key.h, c});
+        }
+    });
+    for (auto* list : {&attractors, &generators})
+        std::sort(list->begin(), list->end(), [](const Pick& a, const Pick& b) { return a.key < b.key; });
+    Hash fixed, state;
+    unsigned index = 0, odd = 0;
+    for (auto* list : {&attractors, &generators})
+        for (std::size_t i = 0; i < list->size() && i < 8; ++i) {
+            fixed.Mix((*list)[i].key);
+            if (!SaveOne((*list)[i].controller, list == &generators, fixed, state, index++))
+                ++odd;
+        }
+
+    // The spawn of up to 4 initialized generators of the whole table, the
+    // first of each (count kind, flags 0x80 and 0x800) first, so the spawn's
+    // other branches run where a city has them; then the events with its
+    // first new automaton.
+    std::vector<Pick> spawners;
+    std::vector<uint32_t> kinds;
+    for (const int pass : {0, 1})
+        for (const Pick& pick : generators) {
+            if (spawners.size() == 4)
+                break;
+            char* const g = pick.controller;
+            if (!At<uint8_t>(g, ctl::kInitialized))
+                continue;
+            const uint32_t kind = (At<uint32_t>(At<char*>(g, ctl::kTemplate), 0x8C) << 16) |
+                                  (At<uint32_t>(g, ctl::kFlags) & 0x880u);
+            const bool known = std::find(kinds.begin(), kinds.end(), kind) != kinds.end();
+            const bool taken = std::find_if(spawners.begin(), spawners.end(), [&](const Pick& p) {
+                                   return p.controller == g;
+                               }) != spawners.end();
+            if (taken || (pass == 0 && known))
+                continue;
+            kinds.push_back(kind);
+            spawners.push_back(pick);
+        }
+    Hash spawn;
+    unsigned spawned = 0, made = 0;
+    void* first = nullptr;
+    char* firstGenerator = nullptr;
+    for (const Pick& pick : spawners) {
+        char* const g = pick.controller;
+        ++spawned;
+        std::vector<void*> before;
+        ListNode* const head = At<ListNode*>(g, ctl::kAutomata);
+        for (ListNode* e = head->next; e != head; e = e->next)
+            before.push_back(e->value);
+        const uint32_t countBefore = At<uint32_t>(g, ctl::kCount);
+        uint32_t day = 0;
+        Virtual<void>(g, ctl::kSpawn, static_cast<void*>(&day), Bits(1.0f));
+        uint32_t fresh = 0;
+        for (ListNode* e = head->next; e != head; e = e->next) {
+            if (std::find(before.begin(), before.end(), e->value) != before.end())
+                continue;
+            ++fresh;
+            void* const automaton = e->value;
+            if (!first) {
+                first = automaton;
+                firstGenerator = g;
+            }
+            // The list holds automaton interfaces; the type and the position
+            // are the occupant's.
+            uint32_t type = 0;
+            float position[3] = {};
+            void* occupant = nullptr;
+            if (Virtual<uint8_t>(automaton, 0x0, automata_ctlmgr::kIidOccupant, &occupant) && occupant) {
+                type = Virtual<uint32_t>(occupant, kGetType);
+                Virtual<uint8_t>(occupant, kGetPosition, static_cast<float*>(position));
+                Virtual<uint32_t>(occupant, ctl::kRelease);
+            }
+            spawn.Mix(type);
+            spawn.MixBytes(position, sizeof position);
+            log::Write("autotest: automata: spawn %u made type %08X at %.9g %.9g %.9g", spawned, type,
+                       static_cast<double>(position[0]), static_cast<double>(position[1]),
+                       static_cast<double>(position[2]));
+        }
+        made += fresh;
+        spawn.Mix(pick.key);
+        spawn.Mix(At<uint32_t>(g, ctl::kCount) - countBefore);
+        spawn.Mix(fresh);
+        for (const std::size_t offset : {ctl::kGen88, ctl::kGen90, ctl::kGen94, ctl::kGen98})
+            spawn.Mix(At<uint32_t>(g, offset));
+        char* const t = At<char*>(g, ctl::kTemplate);
+        log::Write("autotest: automata: spawn %u: %u made (count %u to %u), 88 %u, 90 %08X, 94 %u, 98 %u; flags "
+                   "%08X, kind %u",
+                   spawned, fresh, countBefore, At<uint32_t>(g, ctl::kCount), At<uint32_t>(g, ctl::kGen88),
+                   At<uint32_t>(g, ctl::kGen90), At<uint32_t>(g, ctl::kGen94), At<uint32_t>(g, ctl::kGen98),
+                   At<uint32_t>(g, ctl::kFlags), At<uint32_t>(t, 0x8C));
+    }
+    if (first) {
+        spawn.Mix(Virtual<uint8_t>(firstGenerator, ctl::kEventB, first, 4u));
+        spawn.Mix(Virtual<uint8_t>(firstGenerator, ctl::kEventB, first, 0u));
+        spawn.Mix(Virtual<uint8_t>(firstGenerator, ctl::kEventC, first, 4u));
+        if (!attractors.empty()) {
+            // An attractor whose template keeps its automata (+0x54), so 29
+            // adds and 30 takes out; else the first.
+            char* a = attractors.front().controller;
+            for (const Pick& pick : attractors)
+                if (At<uint32_t>(At<char*>(pick.controller, ctl::kTemplate), 0x54)) {
+                    a = pick.controller;
+                    break;
+                }
+            const uint32_t c0 = ListCount(a), n0 = At<uint32_t>(a, ctl::kCount);
+            spawn.Mix(Virtual<uint8_t>(a, ctl::kEventB, first, 0u));
+            const uint32_t c1 = ListCount(a), n1 = At<uint32_t>(a, ctl::kCount);
+            spawn.Mix(Virtual<uint8_t>(a, ctl::kEventC, first, 0u));
+            const uint32_t c2 = ListCount(a), n2 = At<uint32_t>(a, ctl::kCount);
+            spawn.Mix(Virtual<uint8_t>(a, ctl::kEventC, first, 0u));
+            const uint32_t c3 = ListCount(a), n3 = At<uint32_t>(a, ctl::kCount);
+            for (const uint32_t v : {c1 - c0, n1 - n0, c2 - c0, n2 - n0, c3 - c0, n3 - n0})
+                spawn.Mix(v);
+            log::Write("autotest: automata: events: attractor list %u %u %u %u, count %u %u %u %u", c0, c1, c2, c3, n0,
+                       n1, n2, n3);
+        }
+    }
+    char text[128];
+    std::snprintf(text, sizeof text, " s%u,%08X,%08X%s p%u,%u,%08X", index, fixed.h, state.h, odd ? "?" : "",
+                  spawned, made, spawn.h);
+    g_controllerText = text;
+    log::Write("autotest: automata: controllers%s", text);
+}
+
 void Drive(const Day& day)
 {
     if (EnvInt("OPENSC4_TEST_AUTOMATA", 0) < 2 || !day.counted || g_written)
@@ -429,6 +837,8 @@ void Drive(const Day& day)
     if (char* const manager = Manager(day.city)) {
         WriteDrive(manager);
         QueryDrive(manager);
+        if (EnvInt("OPENSC4_TEST_AUTOMATA", 0) >= 3)
+            ControllerDrive(manager);
     }
 }
 
@@ -484,7 +894,7 @@ void Fingerprint(cISC4City* city, std::string& line)
                   static_cast<unsigned>(grid->cellsX), filled, entries, gridSum);
     line += text;
     if (g_written)
-        line += g_writeText + g_queryText;
+        line += g_writeText + g_queryText + g_controllerText;
     // The automaton table: frame-driven, the log only.
     uint32_t parked = 0, automata = 0, parkedSum = 0;
     ForEach<AutomatonNode>(Table(manager, field::kAutomata), [&](AutomatonNode* node) {
