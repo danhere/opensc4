@@ -105,13 +105,14 @@ void Release(void* object)
     Virtual<uint32_t>(object, 0x8);
 }
 
-// __ftol (0x009EEF04): truncation toward zero; what is out of range or not
-// a number gives 0x80000000 in the low dword, as the x87 does.
+// The game's _ftol2 (0x009EEF04): truncation toward zero to 64 bits, the low
+// 32 kept; what does not fit in 64 bits (a NaN among them) is the x87
+// "integer indefinite", whose low word is 0.
 int32_t Ftol(double value)
 {
     if (!(value > -9223372036854775808.0 && value < 9223372036854775808.0))
-        return INT32_MIN;
-    return static_cast<int32_t>(static_cast<int64_t>(value));
+        return 0;
+    return static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(static_cast<int64_t>(value))));
 }
 
 // --- The game's strings --------------------------------------------------------------------
