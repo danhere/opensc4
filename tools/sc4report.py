@@ -14,6 +14,11 @@
         twelve groups (what the RCI bars show) and their caps; with --all,
         one row per demand object instead.
 
+    sc4report.py ordinances <city.sc4 | folder> [--all] [-o file.csv]
+        One CSV row per city from its ordinance records: how many ordinances
+        are available and enacted, which are enacted, and last month's
+        ordinance expense and income; with --all, one row per ordinance.
+
 More commands can read the other records tools/re/save_schemas decodes.
 """
 import argparse
@@ -28,6 +33,7 @@ import savediff  # noqa: E402  (package reader: load())
 from save_schemas import Reader  # noqa: E402
 from save_schemas.budget import budget_simulator, one_department, one_line_item  # noqa: E402
 from save_schemas.demand import demands  # noqa: E402
+from save_schemas.ordinance import ORDINANCE_CLASSES, ordinance, ordinance_simulator  # noqa: E402
 from save_schemas.regioncity import COMMODITIES, regional_city  # noqa: E402
 
 CITY_RECORD = (0xCA027EDB, 0xCA027EE1, 0)
@@ -281,6 +287,68 @@ def demand_report(paths, every):
     return out
 
 
+ORDINANCE_SIMULATOR = 0xA990C08E
+
+ORDINANCE_COLUMNS = ['file', 'status', 'ordinances', 'available', 'enacted', 'expense', 'income', 'pending',
+                     'enacted_names']
+
+ORDINANCE_ALL_COLUMNS = ['file', 'id', 'name', 'available', 'on', 'enacted', 'enabled', 'year', 'enactment',
+                         'repeal', 'constant', 'factor', 'adjusted', 'income_ordinance']
+
+
+def enacted(item):
+    """IsOn: available and on (docs/ordinance.md)."""
+    return bool(item['available_91'] and item['on_92'])
+
+
+def ordinance_rows(simulator, items, every):
+    """The summary row of a city's ordinances, or with every, a row per
+    ordinance in ID order."""
+    if every:
+        return [{'id': '%08X' % item['id_38'], 'name': text(item['name_3c']), 'available': item['available_91'],
+                 'on': item['on_92'], 'enacted': int(enacted(item)), 'enabled': item['enabled_93'],
+                 'year': item['year_64'], 'enactment': item['enactment_70'], 'repeal': item['repeal_78'],
+                 'constant': item['constant_80'], 'factor': round(item['factor_88'], 6),
+                 'adjusted': item['adjusted_98'], 'income_ordinance': item.get('income_ordinance_90', '')}
+                for item in items]
+    row = {'status': 'ok', 'ordinances': len(items), 'available': sum(1 for item in items if item['available_91']),
+           'enacted': sum(1 for item in items if enacted(item)),
+           'enacted_names': ';'.join(text(item['name_3c']) for item in items if enacted(item))}
+    if simulator:
+        row.update(expense=simulator['expense_18'], income=simulator['income_20'], pending=simulator['pending_28'])
+    return [row]
+
+
+def ordinance_report(paths, every):
+    """A row per city file (or a row per ordinance). A file that cannot be
+    read or decoded gets a row with the reason in `status`, which the --all
+    report keeps in its `id` column."""
+    out = []
+    for path in paths:
+        name = os.path.basename(path)
+        try:
+            data = savediff.load(path)
+        except (OSError, struct.error, KeyError, IndexError) as error:
+            data, status = {}, 'unreadable: %s' % error
+        else:
+            status = 'no ordinance records'
+        simulator, items = None, []
+        try:
+            found = records(data, ORDINANCE_SIMULATOR)
+            if found:
+                simulator = ordinance_simulator(Reader(found[0]))
+            for clsid in ORDINANCE_CLASSES:
+                items.extend(ordinance(Reader(record)) for record in records(data, clsid))
+        except struct.error as error:
+            simulator, items, status = None, [], 'undecoded: %s' % error
+        items.sort(key=lambda item: item['id_38'])
+        if simulator or items:
+            out.extend(dict(row, file=name) for row in ordinance_rows(simulator, items, every))
+        else:
+            out.append({'file': name, 'id' if every else 'status': status})
+    return out
+
+
 def city_paths(parser, path):
     """The city files of the path: the file itself, or every *.sc4 of a folder."""
     if os.path.isdir(path):
@@ -315,6 +383,10 @@ def main(argv=None):
     demand.add_argument('path', help='a city file, or a folder of them (every *.sc4)')
     demand.add_argument('--all', action='store_true', help='one row per demand object')
     demand.add_argument('-o', '--output', help='CSV file to write (default: standard output)')
+    ordinances = commands.add_parser('ordinances', help='ordinances of cities as CSV')
+    ordinances.add_argument('path', help='a city file, or a folder of them (every *.sc4)')
+    ordinances.add_argument('--all', action='store_true', help='one row per ordinance')
+    ordinances.add_argument('-o', '--output', help='CSV file to write (default: standard output)')
     args = parser.parse_args(argv)
 
     if args.command == 'budget':
@@ -324,6 +396,10 @@ def main(argv=None):
     if args.command == 'demand':
         write_csv(args, DEMAND_ALL_COLUMNS if args.all else DEMAND_COLUMNS,
                   demand_report(city_paths(parser, args.path), args.all))
+        return 0
+    if args.command == 'ordinances':
+        write_csv(args, ORDINANCE_ALL_COLUMNS if args.all else ORDINANCE_COLUMNS,
+                  ordinance_report(city_paths(parser, args.path), args.all))
         return 0
     if not os.path.isdir(args.folder):
         parser.error('not a folder: %s' % args.folder)
