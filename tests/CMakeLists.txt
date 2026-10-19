@@ -1,3 +1,7 @@
+# The save tools' Python tests run on any host.
+add_test(NAME python_tools
+  COMMAND Python3::Interpreter -m unittest discover -s ${CMAKE_CURRENT_SOURCE_DIR}/python)
+
 # Smoke tests run the built binaries, so they need a Windows host
 # (or Wine via CMAKE_CROSSCOMPILING_EMULATOR on Linux).
 if(NOT CMAKE_HOST_WIN32 AND NOT CMAKE_CROSSCOMPILING_EMULATOR)
