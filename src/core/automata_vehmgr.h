@@ -33,6 +33,17 @@
 // And the derived constructors': +0xA40 (0x16 / 0x17), +0xA48 the automaton
 // class (cSC4Vehicle 0x896E714A / cSC4Pedestrian 0x896E75AF), +0xA90 (1 /
 // 0); the vehicle manager's +0xAE0 zero.
+//
+// Part v2 reads more of the common base: +0x3C the most automata (slot 23,
+// SetMaxCount), +0x44 its list of automata (0xC-byte nodes, the automaton
+// at +8), +0x48 their count, +0xA3C a byte from the tuning, +0xA80 the
+// script system and +0xA84 the automata controller manager (part v1's
+// kScaleSource, the same field) (city slots 0xC0
+// and 0xBC, set by the common base's Init). The base's Init keeps city slot
+// 0x114's object at +0xA88. The vehicle manager's +0xAE0 is an object with
+// a map overlay (0x00562D60 stops it). The serializable part (+8) reaches
+// +0xA8C (saved) and the kind list: +0xA98 is the current kind's node, the
+// list's head when there is none (Read finds the saved kind there).
 #pragma once
 
 #include <cstddef>
@@ -53,11 +64,19 @@ inline constexpr std::size_t kA9C = 0xA9C, kAA0 = 0xAA0, kAA4 = 0xAA4;
 inline constexpr std::size_t kRecordsBegin = 0xAA8, kRecordsEnd = 0xAAC, kRecordsCapacity = 0xAB0;
 inline constexpr std::size_t kRecordList = 0xAB8, kStopwatch = 0xAC0, kAD8 = 0xAD8, kADC = 0xADC;
 inline constexpr std::size_t kVehicleAE0 = 0xAE0;
+// Part v2.
+inline constexpr std::size_t kMaxCount = 0x3C, kAutomata = 0x44, kCount = 0x48;
+inline constexpr std::size_t kTuningByte = 0xA3C, kScripts = 0xA80, kControllers = 0xA84, kA88 = 0xA88;
 } // namespace field
 
 // A node of the record list (+0xAB8).
 namespace record {
 inline constexpr std::size_t kRect1 = 0x14, kRect2 = 0x24, kObject = 0x34;
+// Part v2: +8 and +0xC ints, +0x10 a word, the two rectangles, the object,
+// +0x38 a byte (when set, the shutdown passes the object to the automata
+// controller manager's slot 0x38 first), +0x3C a word. 0x40 bytes; the
+// save keeps +8..+0x3F.
+inline constexpr std::size_t kA = 0x08, kB = 0x0C, kC = 0x10, kHeld = 0x38, kD = 0x3C, kSize = 0x40;
 } // namespace record
 
 // Slots in bytes.
@@ -70,6 +89,15 @@ inline constexpr std::size_t kKindClass = 0x124, kKindGroup = 0x128, kKindRate =
 inline constexpr std::size_t kTestNeighbourCell = 0x148;                                 // 82
 inline constexpr std::size_t kGetKindCurve = 0x154, kGetKindValue = 0x158;               // 85, 86
 inline constexpr std::size_t kGetScale = 0x15C, kScaledMatrix = 0x160;                   // 87, 88
+// Part v2.
+inline constexpr std::size_t kInit = 0x0C, kShutdown = 0x10;                       // 3, 4
+inline constexpr std::size_t kAddAutomaton = 0x1C, kRemoveAutomaton = 0x20;        // 7, 8
+inline constexpr std::size_t kSetMaxCount = 0x5C, kHandleTuning = 0x60;            // 23, 24
+inline constexpr std::size_t kSetCameraFollow = 0x88, kSlot49 = 0xC4;              // 34, 49
+inline constexpr std::size_t kTuningSetUp = 0xE8, kForgetAutomaton = 0x114;        // 58, 69
+// The serializable part's (+8) Write and Read, the message target's (+0xC)
+// DoMessage and the +4 part's slot 3.
+inline constexpr std::size_t kWrite = 0x0C, kRead = 0x10, kDoMessage = 0x0C, kDoMessage4 = 0x0C;
 } // namespace slot
 
 inline constexpr std::uint32_t kVehicleClassId = 0xA98F9D3B;
