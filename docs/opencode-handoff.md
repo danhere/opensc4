@@ -19,8 +19,31 @@ opencode run --title "<piece>" --auto -f <brief.md> "Do the task in the attached
 ```
 
 - `--auto` approves edits/commands that aren't explicitly denied; leave it off for read-only asks.
+- Pick the agent with `--agent <name>` (default is `build`); see "Which agent" below.
 - Follow-ups go to the same session: `opencode run -s <session-id> "..."` (or `-c` for the last one).
 - Long runs go in the background; Claude reads only the tail of the output.
+
+## Which agent
+
+Agents live in Dan's user config, `~/.config/opencode/opencode.json` (not in the repo; the OpenRouter
+key stays in OpenCode's own `auth.json`). All models go through OpenRouter. Prices are per million
+tokens, input/output, as of 2026-10-17.
+
+| Agent | Model | Price | Use it for |
+|---|---|---|---|
+| `build` (default) | `deepseek/deepseek-v4.1-flash` | $0.06 / $0.14 | Routine pieces from a clear brief, builds, parity runs, follow-up fixes. |
+| `deep` | `deepseek/deepseek-v4-pro` | $0.66 / $1.98 | Harder pieces: a new subsystem, tricky reverse-engineered layouts, or a piece `build` came back blocked on twice. |
+| `auto` (trial) | `openrouter/pareto-code` | varies | See the trial note below. |
+| `debug` | `anthropic/claude-sonnet-5.5` | $2 / $10 | Hard debugging only: parity mismatches or crashes `deep` couldn't crack. Brief it with the failing test and what was already tried. |
+
+**Trial (from 2026-10-17):** brief the next piece with `--agent auto` (OpenRouter's Pareto Code router,
+which picks a strong coding model per request, priced at whatever it picks). Afterwards, compare its
+cost on Dan's OpenRouter activity page against a typical `build` piece, and record the result here.
+Keep it or drop it based on that comparison. One trial piece only; then go back to `build` until it's decided.
+
+Start with `build`; step up one level only after a blocked or wrong result, and say so in the brief.
+Subagents (`explore`, `general`) and housekeeping (titles, summaries, compaction) use the cheap models.
+A one-off model override is `-m openrouter/<model>`.
 
 ## The brief (one file, short)
 
@@ -46,4 +69,5 @@ Claude then reviews `git diff main...<branch>` and the parity output itself befo
 result, fixes or re-briefs if needed, and writes the restart notes and PR.
 
 Verified 2026-10-17: `opencode run` from this folder answered a read-only test correctly
-(v2.0.32, background service, default model).
+(v2.0.32, background service, default model). The background service reloads
+`opencode.json` on its own when it changes; no restart is needed.
