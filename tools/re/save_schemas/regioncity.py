@@ -47,9 +47,13 @@ def regional_city(r):
     """cSC4RegionalCity (record 0xCA027EDB / 0xCA027EE1 / 0 of a city file):
     Write at 0x004A7D10 (version 13), Read at 0x004AC5B0 (up to 13). The
     record is the object's own fields with no framework header (SaveToFile
-    0x005DC2E0 opens a stream on it). Names give the object offsets
-    (docs/region.md, "The regional city")."""
-    out = {'version': r.u16()}
+    0x005DC2E0 opens a stream on it), but real saves start with a uint16 1
+    before the version, from the segment stream (inferred, 491 forum saves).
+    Names give the object offsets (docs/region.md, "The regional city")."""
+    out = {'stream_version': r.u16()}
+    if out['stream_version'] != 1:
+        raise struct.error('stream version %d not known' % out['stream_version'])
+    out['version'] = r.u16()
     v = out['version']
     if v > 13:
         raise struct.error('version %d not known' % v)
