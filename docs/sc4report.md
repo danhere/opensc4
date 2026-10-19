@@ -95,6 +95,25 @@ One CSV row per city file (a folder gives every `*.sc4` in it), from the power s
 
 Checked on the 491 GitHub forum saves (test-saves README): all decode, every file has both records. 157 cities have plants or pumps; 15 of them are short of power or water. Unconfirmed: that the columns match the in-game power and water graphs (needs the game).
 
+## ordinances: which ordinances are on
+
+    python3 tools/sc4report.py ordinances "<city.sc4 or folder>" [--all] [-o ordinances.csv]
+
+One CSV row per city file (a folder gives every `*.sc4` in it), from the ordinance simulator's record (class 0xA990C08E) and each ordinance's own record (written under its class ID; [ordinance.md](ordinance.md)). The figures are as of the city's last save.
+
+| Column | From |
+|---|---|
+| file, status | the file name; `ok`, or why there is no row: `unreadable`, `no ordinance records`, `undecoded` (a record version the decoder does not know) |
+| ordinances | the number of ordinance records |
+| available, enacted | how many are available (+0x91), and how many are enacted: available and on (+0x92), as `IsOn` reads it |
+| expense, income | the simulator's last month's ordinance expense and income (+0x18, +0x20) |
+| pending | the enactment and repeal income since the month began (+0x28) |
+| enacted_names | the enacted ordinances' names, `;` between them, in ID order |
+
+With `--all`, one row per ordinance instead, in ID order: `id`, `name`, `available`, `on`, `enacted`, `enabled`, `year` (first available), `enactment`, `repeal` and `constant` (incomes), `factor`, `adjusted` (this month's income) and `income_ordinance`. For a file with no row, the reason is in `id`. The game loads the exemplar again after Read, so the names and incomes are the exemplar's as saved, not necessarily a mod's.
+
+Checked on the 491 GitHub forum saves (test-saves README): all decode, 20 ordinance records each (the base class 0x8BD4FC74 has none of its own), versions 1 to 4 (316 files below version 2, so no `income_ordinance`). 45 cities have ordinances enacted, up to 18 (Predo, expense 13,260 a month). Names are in the game's language: 88 saves hold Russian names, so compare by `id` across saves. Unconfirmed: that `expense` matches the budget window's ordinance line (needs the game).
+
 The idea of the census is Null 45's Region Census DLL; no code of it is used.
 
-Tests: `tests/python/test_sc4report.py` builds a version 13 regional city record by hand, `tests/python/test_sc4report_budget.py` a budget with two departments and three line items, `tests/python/test_sc4report_demand.py` three demand objects, `tests/python/test_sc4report_utilities.py` a power and a water record (ctest `python_tools`, or `python3 -m unittest discover -s tests/python`).
+Tests: `tests/python/test_sc4report.py` builds a version 13 regional city record by hand, `tests/python/test_sc4report_budget.py` a budget with two departments and three line items, `tests/python/test_sc4report_demand.py` three demand objects, `tests/python/test_sc4report_utilities.py` a power and a water record, `tests/python/test_sc4report_ordinances.py` an ordinance simulator and three ordinances (ctest `python_tools`, or `python3 -m unittest discover -s tests/python`).
