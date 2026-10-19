@@ -18,9 +18,15 @@
         One CSV row per city from its ordinance records: how many ordinances
         are available and enacted, which are enacted, and last month's
         ordinance expense and income; with --all, one row per ordinance.
+
     sc4report.py utilities <city.sc4 | folder> [-o file.csv]
         One CSV row per city from its power and water simulator records:
         last month's supply against what was used and demanded.
+
+    sc4report.py all <region folder> [-o folder]
+        Every report above over the city files of a region folder, one CSV
+        per report (region, budget, demand, ordinances, utilities) in the
+        output folder (default: reports). Each file is read once.
 
 More commands can read the other records tools/re/save_schemas decodes.
 """
@@ -42,6 +48,21 @@ from save_schemas.regioncity import COMMODITIES, regional_city  # noqa: E402
 from save_schemas.water import water_simulator  # noqa: E402
 
 CITY_RECORD = (0xCA027EDB, 0xCA027EE1, 0)
+
+_loaded = (None, None)
+
+
+def load(path):
+    """savediff.load, keeping the last file read: the all command runs every
+    report over one file before it reads the next."""
+    global _loaded
+    stat = os.stat(path)
+    key = (path, stat.st_mtime_ns, stat.st_size)
+    if _loaded[0] != key:
+        _loaded = (None, None)
+        _loaded = (key, savediff.load(path))
+    return _loaded[1]
+
 
 # The population types of the regional city's maps: the developer types
 # (src/core/tool_query_5b.cpp) with 1 in the low digit.
@@ -98,11 +119,21 @@ def city_row(fields):
 def census(folder):
     """One row per city file of the folder, in name order. A file that cannot
     be read or decoded gets a row with the reason in `status`."""
+    return census_rows(region_paths(folder))
+
+
+def region_paths(folder):
+    """The city files of a region folder, in name order."""
+    return sorted(glob.glob(os.path.join(folder, 'City - *.sc4')))
+
+
+def census_rows(paths):
+    """The census row of each city file."""
     rows = []
-    for path in sorted(glob.glob(os.path.join(folder, 'City - *.sc4'))):
+    for path in paths:
         row = {'file': os.path.basename(path)}
         try:
-            data = savediff.load(path).get(CITY_RECORD)
+            data = load(path).get(CITY_RECORD)
         except (OSError, struct.error, KeyError, IndexError) as error:
             data, row['status'] = None, 'unreadable: %s' % error
         if data is not None:
@@ -155,7 +186,7 @@ def departments(budget, data):
     group_of = {}
     for group in budget['groups_60']:
         for department in group['departments']:
-            group_of[department] = group['name']
+            group_of[department] = text(group['name'])
     rows = []
     for entry in budget['departments_54']:
         department = budgets.get(entry['department'][0])
@@ -166,7 +197,7 @@ def departments(budget, data):
         expenses = [item for item in items if item['type_64'] == 0]
         rows.append({
             'group': group_of.get(department['id_10'], ''),
-            'department': department['name_14'],
+            'department': text(department['name_14']),
             'id': '%08X' % department['id_10'],
             'name_instance': '%08X' % department['name_instance_28'],
             'funding': round(department['funding_34'], 4),
@@ -208,7 +239,7 @@ def budget_report(paths, by_department):
     for path in paths:
         name = os.path.basename(path)
         try:
-            data = savediff.load(path)
+            data = load(path)
         except (OSError, struct.error, KeyError, IndexError) as error:
             data, status = {}, 'unreadable: %s' % error
         else:
@@ -274,7 +305,7 @@ def demand_report(paths, every):
     for path in paths:
         name = os.path.basename(path)
         try:
-            data = savediff.load(path)
+            data = load(path)
         except (OSError, struct.error, KeyError, IndexError) as error:
             data, status = {}, 'unreadable: %s' % error
         else:
@@ -332,7 +363,7 @@ def ordinance_report(paths, every):
     for path in paths:
         name = os.path.basename(path)
         try:
-            data = savediff.load(path)
+            data = load(path)
         except (OSError, struct.error, KeyError, IndexError) as error:
             data, status = {}, 'unreadable: %s' % error
         else:
@@ -394,7 +425,7 @@ def utilities_report(paths):
     for path in paths:
         row = {'file': os.path.basename(path)}
         try:
-            data = savediff.load(path)
+            data = load(path)
         except (OSError, struct.error, KeyError, IndexError) as error:
             out.append(dict(row, status='unreadable: %s' % error))
             continue
@@ -439,6 +470,24 @@ def write_csv(args, columns, rows):
             out.close()
 
 
+# The reports of the all command: file name, columns, and the rows of a list
+# of city files.
+ALL_REPORTS = [('region.csv', COLUMNS, census_rows),
+               ('budget.csv', BUDGET_COLUMNS, lambda paths: budget_report(paths, False)),
+               ('demand.csv', DEMAND_COLUMNS, lambda paths: demand_report(paths, False)),
+               ('ordinances.csv', ORDINANCE_COLUMNS, lambda paths: ordinance_report(paths, False)),
+               ('utilities.csv', UTILITIES_COLUMNS, utilities_report)]
+
+
+def all_reports(paths):
+    """The rows of every report, file by file so that each file is read once."""
+    rows = {name: [] for name, _, _ in ALL_REPORTS}
+    for path in paths:
+        for name, _, report in ALL_REPORTS:
+            rows[name].extend(report([path]))
+    return rows
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -460,6 +509,9 @@ def main(argv=None):
     utilities = commands.add_parser('utilities', help='power and water supply and demand of cities as CSV')
     utilities.add_argument('path', help='a city file, or a folder of them (every *.sc4)')
     utilities.add_argument('-o', '--output', help='CSV file to write (default: standard output)')
+    every = commands.add_parser('all', help='every report of a region folder, one CSV each')
+    every.add_argument('folder')
+    every.add_argument('-o', '--output', default='reports', help='folder to write the CSV files to (default: reports)')
     args = parser.parse_args(argv)
 
     if args.command == 'budget':
@@ -479,6 +531,13 @@ def main(argv=None):
         return 0
     if not os.path.isdir(args.folder):
         parser.error('not a folder: %s' % args.folder)
+    if args.command == 'all':
+        rows = all_reports(region_paths(args.folder))
+        os.makedirs(args.output, exist_ok=True)
+        for name, columns, _ in ALL_REPORTS:
+            write_csv(argparse.Namespace(output=os.path.join(args.output, name)), columns, rows[name])
+        print('%d city files, %d reports in %s' % (len(rows['region.csv']), len(ALL_REPORTS), args.output))
+        return 0
     write_csv(args, COLUMNS, census(args.folder))
     return 0
 
