@@ -1348,7 +1348,7 @@ kind = "function"
 convention = "cdecl"
 signature = "char* (const char* first, const char* last, char* out, int (*fn)(int))"
 expect = "53 8B 5C 24 0C 56 8B 74"
-source = "Name ours. std::transform over characters: each of [first, last) passed through fn (sign-extended), the result stored at out on; answers the end of what it wrote. Shared (the effects' readers, the start by name, and 0x007DE28A on); the game's. Called by StartByName with CRT::tolower to lower a name in place."
+source = "Name ours. std::transform over characters: each of [first, last) passed through fn (sign-extended), the result stored at out on; answers the end of what it wrote. Shared (the effects' readers, the start by name, and 0x007DE28A on). Called by StartByName with CRT::tolower to lower a name in place. Ours in renderer.effects.hashes (src/core/effects_hashes.inc)."
 
 [[entry]]
 name = "SC4StringHashSet::Find"
@@ -2213,3 +2213,138 @@ convention = "thiscall"
 signature = "bool (void* this, uint32_t id, void** out)"
 expect = "8B 44 24 04 3D AA 94 22"
 source = "Name ours. Ret 8. Slot 0 of the manager's vtable 0x00A9F264 (and, through thunks, of its others): for 1 and 0xC97CF5CD the manager, 0xC97CF5CE its interface at +0x94, 0x452294AA the one at +8, each held (slot 1); 0x0A5EAA1A asked of the object at +0xD98 (its slot 0) when there is one. Answers AL whether an interface was given. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
+
+[[entry]]
+name = "SC4PairHash::InsertUnique"
+address = 0x0058F230
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* out, const uint32_t* value)"
+expect = "51 8B 44 24 0C 53 8B 58"
+source = "Name ours. Ret 8. A key pair and its value (12 bytes at value) put into a hash of 0x10-byte nodes (next, two keys, a value) unless the pair is there: the bucket (key ^ key) modulo the bucket count, a new node (0x0090CF54) at its head, the count raised. out gets the node, the table and whether it was put in (a byte); answers out. Called only by 0x005900A0 (0x0059021D), after the growth 0x0058F3C0. Ours in renderer.effects.hashes (src/core/effects_hashes.inc)."
+
+[[entry]]
+name = "SC4PairHash::Grow"
+address = 0x0058F3C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count)"
+expect = "83 EC 14 8B 44 24 18 53"
+source = "Name ours. Ret 4. The buckets of a hash of key pairs grown when count is more than it has: the first prime not below count (0x0079FA90 over the 28 at 0x00A829B0; 0xFFFFFFFB past them), if more, new storage of nulls (0x0051C950), each old chain's nodes moved in order to the head of their bucket ((key ^ key) modulo the new count), the new list put in and the old storage freed. Called only by 0x005900A0 (0x0059020C). Ours in renderer.effects.hashes (src/core/effects_hashes.inc)."
+
+[[entry]]
+name = "SC4StringHash::Grow"
+address = 0x00587010
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count)"
+expect = "83 EC 18 8B 44 24 1C 53"
+source = "Name ours. Ret 4. The same growth for a hash whose node has a string at +4 (begin, end): a name's hash is h * 5 plus each character, sign-extended. Shared (the effects' name hashes 0x00589F9C, 0x0058B865, 0x0058CF72, 0x0058D65E, 0x005A5F16, and 0x00520B27 on, 0x005FCE28). Ours in renderer.effects.hashes (src/core/effects_hashes.inc)."
+
+[[entry]]
+name = "SC4Counted40::Construct"
+address = 0x005836A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 8B F1 E8 AE A2 38"
+source = "Name ours. The 0x40-byte counted object the effect description's list at +0x5C holds: its counted base made (0x0090D957), its table 0x00A9EEA4, +8 cleared, an empty string at +0xC (8 bytes of storage from 0x0090CF54, the first cleared), +0x18 1.0, the rest cleared. Answers this. Called by 0x0058AB88, 0x0059DBD2, 0x0059F13F and 0x005A5D50. Ours in renderer.effects.hashes (src/core/effects_hashes.inc)."
+
+[[entry]]
+name = "SC4Counted40::DeletingDestructor"
+address = 0x00583700
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. Ret 4. Slot 0 of the table 0x00A9EEA4: destroyed (0x00583720), then deleted (0x005E5620) with flag 1. Answers this. Ours in renderer.effects.hashes (src/core/effects_hashes.inc)."
+
+[[entry]]
+name = "SC4Counted40::Destroy"
+address = 0x00583720
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 46 34 85 C0"
+source = "Name ours. The 0x40-byte counted object's destructor: the storage at +0x34 and +0xC freed (0x0090CF63), the counted base's table 0x00ACE624 put back (jumps to 0x0090D964). Ours in renderer.effects.hashes (src/core/effects_hashes.inc)."
+
+[[entry]]
+name = "SC4HeldEffects_CopyRange"
+address = 0x0058DFE0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* place, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. The effects manager's lists of held effects (+0xBC4, +0xBE8, +0xC0C, +0xC30, +0xC54): [first, last) copied into raw storage at place on, each pointer written and held (slot 0x1C); nothing written where the place is null. Answers the place after the last. Called by the growth 0x0058FF70. Ours in renderer.effects.hashes (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4HeldEffects_Fill"
+address = 0x0058DFA0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* place, uint32_t count, void* const* value, void* tag)"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. count copies of the pointer at value made in raw storage at place on, each held (slot 0x1C). Answers the place after the last. Called by the growth 0x0058FF70 for more than one. Ours in renderer.effects.hashes (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4HeldEffects_Assign"
+address = 0x0058F020
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* to)"
+expect = "8B 44 24 08 55 8B 6C 24"
+source = "Name ours. [first, last) assigned to to on (the erase's copy down): a place that is its own source or holds the same pointer is left; else the new one held (slot 0x1C), written, and the old let go (slot 0x20). Answers the place after the last. Called from 0x005953EE to 0x005955B4. Ours in renderer.effects.hashes (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4HeldEffects::Destroy"
+address = 0x0058F940
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. A list of held effects ended: each pointer let go (slot 0x20), the storage freed; the list is left. Called by the manager's destructor (0x0058FC0C on) and the growth. Ours in renderer.effects.hashes (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4HeldEffects::GrowInsert"
+address = 0x0058FF70
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, void* const* value, void* tag, uint32_t count, bool atEnd)"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. Ret 0x14. A list of held effects with no room grown: new storage for the size plus the larger of the size and count, the pointers before at copied (0x0058DFE0), count copies of the one at value (one inline, more by 0x0058DFA0), the pointers from at on unless atEnd, the old list ended (0x0058F940). Called from 0x00590D25 on. Ours in renderer.effects.hashes (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4EffectAt4::AddRefThunk"
+address = 0x005A8F80
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 C1 04 E9 78 4F F1 FF"
+source = "Name ours. Slot 7 (0x1C) of the table 0x00AA0EA0 (the effects 0x005B2B50 makes): the AddRef of the counted base at +4 (jumps to 0x004BDF00). The game's; noted by the comparison of renderer.effects.hashes."
+
+[[entry]]
+name = "SC4EffectAt4::ReleaseThunk"
+address = 0x005A8F90
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 C1 04 E9 18 0E 01 00"
+source = "Name ours. Slot 8 (0x20) of the table 0x00AA0EA0: the Release of the counted base at +4 (jumps to 0x005B9DB0). The game's; noted by the comparison of renderer.effects.hashes."
+
+[[entry]]
+name = "SC4Counted4::AddRef"
+address = 0x005F47F0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 04 40 89 41 04 C3"
+source = "Name ours. The AddRef shared by many classes whose count is at +4: ++[this+4], answers it. Slot 7 (0x1C) of the decal's table 0x00A9EE78. The game's; noted by the comparison of renderer.effects.hashes (as a held effect's hold)."
+
+[[entry]]
+name = "SC4EffectDecal::Release"
+address = 0x005833A0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 46 04 48 89"
+source = "Name ours, not analysed in full. Slot 8 (0x20) of the decal's table 0x00A9EE78: --[this+4]; at zero the table put back, the object at +0x120 let go (slot 8), the texture at +0x11C let go (0x008090E0), the description at +0xC ended (0x00583130), the decal deleted (0x005E5620) and 0 answered. The game's; noted by the comparison of renderer.effects.hashes (as a held effect's let-go)."

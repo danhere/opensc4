@@ -179,7 +179,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (Hashtable* this)"
 expect = "53 55 8B D9 8B 43 08 56"
-source = "Name ours. clear() of a hash map of uint32 to pointer vector (0x14-byte nodes): frees each node's vector and the node; the traffic map's cell-object table (+0xA70) (docs/traffic-map.md)."
+source = "Name ours. clear() of a hash map of uint32 to pointer vector (0x14-byte nodes): frees each node's vector (+8) and the node, empties the buckets, clears the count; the traffic map's cell-object table (+0xA70) (docs/traffic-map.md). Ours in renderer.effects.hashes (src/core/effects_hashes.inc)."
 
 [[entry]]
 name = "SC4LaneTable::EraseAt"

@@ -13,8 +13,12 @@
 // descriptions (SC4Effect::Hold 0x005AF940 and
 // SC4EffectDescription::Release 0x005B1C80, the count at +0x204) and
 // counted objects (slots 8 and 4, the counted base's own AddRef 0x00968B60
-// and Release 0x0090D96B). A list is begin, end, end of storage; a null
-// pointer is neither held nor let go.
+// and Release 0x0090D96B). A fourth, the effects manager's own lists of
+// held effects (copy 0x0058DFE0, fill 0x0058DFA0, assignment 0x0058F020,
+// end 0x0058F940, growth 0x0058FF70; renderer.effects.hashes), holds and
+// lets go by slots 0x1C and 0x20, which hand the call to the counted base
+// at +4 (0x005A8F80 and 0x005A8F90 in the class seen). A list is begin,
+// end, end of storage; a null pointer is neither held nor let go.
 
 // [first, last) copied into raw storage at `place` on (0x00586B70,
 // 0x00586BF0, 0x00586C70): each pointer written and held; nothing written
