@@ -2480,8 +2480,15 @@ uint32_t __fastcall SetField1E8ByMode(char* self, void*, uint32_t value)
 }
 OPENSC4_THUNK(TSC4Effect_SetField1E8, SetField1E8ByMode, 4)
 
+// A call noted by the store's engine (the lists of held pointers hold and
+// let go of descriptions through these two).
+bool StNoting();
+uint32_t StCallNoted(uint32_t target, char* self, Call0Fn real);
+
 uint32_t __fastcall HoldByMode(char* self, void*)
 {
+    if (StNoting())
+        return StCallNoted(addr::SC4Effect_Hold, self, g_SC4Effect_Hold);
     if (BNoting())
         return BCallee(addr::SC4Effect_Hold, reinterpret_cast<uint32_t>(self), 0, 0,
                        [&] { return g_SC4Effect_Hold(self, nullptr); });
@@ -2858,6 +2865,8 @@ uint32_t __fastcall ReleaseByMode(char* self, void*)
 
 uint32_t __fastcall DSC4EffectDescription_Release(char* self, void*)
 {
+    if (StNoting())
+        return StCallNoted(addr::SC4EffectDescription_Release, self, g_SC4EffectDescription_Release);
     if (BNoting())
         return BCallee(addr::SC4EffectDescription_Release, reinterpret_cast<uint32_t>(self), 0, 0,
                        [&] { return g_SC4EffectDescription_Release(self, nullptr); });
@@ -12792,19 +12801,27 @@ uint32_t StAllocateNoted(char* pool, uint32_t size)
 // The game's side: each of the eleven by the group's mode (inside a noted
 // run noted, and compared where it is called), the game's helpers, the
 // allocation (in the pool allocator, MxAllocateNoted) and the free only
-// noted.
+// noted. The lists of held pointers share the engine with a mode of their
+// own.
 template <typename Game, typename Ours, typename Compared>
-uint32_t StByMode(StNote note, const char* out, std::size_t size, Game&& game, Ours&& ours, Compared&& compared)
+uint32_t StByModeOf(StepMode mode, StNote note, const char* out, std::size_t size, Game&& game, Ours&& ours,
+                    Compared&& compared)
 {
-    if (g_stMode == StepMode::Ours)
+    if (mode == StepMode::Ours)
         return ours();
-    if (g_stMode == StepMode::Original)
+    if (mode == StepMode::Original)
         return game();
     if (StNoting())
         return StNoted(std::move(note), out, size, compared);
     if (g_stNoting || g_stReplay)
         return game();
     return compared();
+}
+
+template <typename Game, typename Ours, typename Compared>
+uint32_t StByMode(StNote note, const char* out, std::size_t size, Game&& game, Ours&& ours, Compared&& compared)
+{
+    return StByModeOf(g_stMode, std::move(note), out, size, game, ours, compared);
 }
 
 template <typename Game>
@@ -13027,6 +13044,13 @@ bool DetourCdecl(std::uintptr_t address, Fn replacement, Fn* original)
     return Detour(address, reinterpret_cast<void (*)()>(replacement), original);
 }
 
+// The free has one detour, which the store's and the lists' comparisons
+// share.
+bool HookFree()
+{
+    return g_SC4_Free || DetourCdecl(addr::SC4_Free, &FreeNoted, &g_SC4_Free);
+}
+
 bool InstallStore(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
@@ -13061,7 +13085,7 @@ bool InstallStore(registry::Mode mode)
           DetourCdecl(addr::SC4EffectCompounds_MoveBack, &MoveBackNoted, &g_SC4EffectCompounds_MoveBack) &&
           DetourCdecl(addr::SC4EffectCompounds_Assign, &AssignNoted, &g_SC4EffectCompounds_Assign) &&
           DetourCdecl(addr::SC4EffectCompounds_CopyDown, &CopyDownNoted, &g_SC4EffectCompounds_CopyDown) &&
-          DetourCdecl(addr::SC4_Free, &FreeNoted, &g_SC4_Free)))
+          HookFree()))
         return false;
     g_stMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: the store of compound descriptions %s",
@@ -13081,6 +13105,293 @@ const bool g_registeredStore = registry::Register({
     "is called, and replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallStore,
+});
+
+// --- The lists of held pointers ------------------------------------------------------------
+//
+// The vectors of pointers in an effect description, of three kinds by how
+// an element is held and let go: a list's copy, fill, assignment, end and
+// growth (effects_pointers.inc). The comparison is the store's, sharing
+// its engine: the game's runs with each call it makes noted, these
+// compared where they are called, ours replayed; the ends run ours first.
+// A hold and a let-go are noted at the function the game reaches them by:
+// the descriptions' two in their own detours, the other kinds' in detours
+// on the shared functions their tables' slots hold (0x005BE3E0 and
+// 0x005BE3F0 for the counted base at +4, 0x00968B60 and 0x0090D96B for
+// the counted ones), which ours notes without reading the object, as the
+// game's run may have let go of it last.
+enum class Held { CountedAt4, Description, Counted };
+
+struct PtKind {
+    uint32_t copy, fill, assign, destroy, grow, hold, letGo, holdSlot, letGoSlot;
+    const char *copyId, *fillId, *assignId, *destroyId, *growId;
+};
+
+constexpr PtKind kPtKinds[] = {
+    {addr::SC4CountedAt4Ptrs_CopyRange, addr::SC4CountedAt4Ptrs_Fill, 0, addr::SC4CountedAt4Ptrs_Destroy,
+     addr::SC4CountedAt4Ptrs_GrowInsert, addr::SC4AdviceBase_AddRefThunk, addr::SC4CountedAt4_ReleaseThunk, 0x10,
+     0x14, "effects.pointers.copy.counted_at4", "effects.pointers.fill.counted_at4", nullptr,
+     "effects.pointers.destroy.counted_at4", "effects.pointers.grow.counted_at4"},
+    {addr::SC4EffectDescriptionPtrs_CopyRange, addr::SC4EffectDescriptionPtrs_Fill,
+     addr::SC4EffectDescriptionPtrs_Assign, addr::SC4EffectDescriptionPtrs_Destroy,
+     addr::SC4EffectDescriptionPtrs_GrowInsert, addr::SC4Effect_Hold, addr::SC4EffectDescription_Release, 0, 0,
+     "effects.pointers.copy.descriptions", "effects.pointers.fill.descriptions",
+     "effects.pointers.assign.descriptions", "effects.pointers.destroy.descriptions",
+     "effects.pointers.grow.descriptions"},
+    {addr::SC4CountedPtrs_CopyRange, addr::SC4CountedPtrs_Fill, addr::SC4CountedPtrs_Assign,
+     addr::SC4CountedPtrs_Destroy, addr::SC4CountedPtrs_GrowInsert, addr::cRZBaseRefCount_AddRef,
+     addr::cRZBaseRefCount_Release, 8, 4, "effects.pointers.copy.counted", "effects.pointers.fill.counted",
+     "effects.pointers.assign.counted", "effects.pointers.destroy.counted", "effects.pointers.grow.counted"},
+};
+
+const PtKind& PtKindOf(Held kind)
+{
+    return kPtKinds[static_cast<int>(kind)];
+}
+
+StepMode g_ptMode = StepMode::Original;
+
+// What ours calls: in the replay the note, else the call or ours.
+char* CopyPointers(Held kind, char* first, char* last, char* place);
+char* FillPointers(Held kind, char* place, uint32_t count, char* const* value);
+void DestroyPointers(Held kind, char* list);
+
+void PtCall(char* object, uint32_t function, uint32_t slot)
+{
+    if (g_stReplay)
+        StReplayed(StMake(function, object), nullptr);
+    else if (slot)
+        CallThis<uint32_t>(At<uint32_t>(At<char*>(object, 0), slot), object);
+    else
+        CallThis<uint32_t>(function, object);
+}
+
+void PtHold(Held kind, char* object)
+{
+    PtCall(object, PtKindOf(kind).hold, PtKindOf(kind).holdSlot);
+}
+
+void PtLetGo(Held kind, char* object)
+{
+    PtCall(object, PtKindOf(kind).letGo, PtKindOf(kind).letGoSlot);
+}
+
+char* PtCopyPointers(Held kind, char* first, char* last, char* place)
+{
+    if (g_stReplay)
+        return Ptr(StReplayed(StMake(PtKindOf(kind).copy, first, last, place), nullptr));
+    return CopyPointers(kind, first, last, place);
+}
+
+char* PtFillPointers(Held kind, char* place, uint32_t count, char* const* value)
+{
+    if (g_stReplay)
+        return Ptr(StReplayed(StMake(PtKindOf(kind).fill, place, Ptr(count), value), nullptr));
+    return FillPointers(kind, place, count, value);
+}
+
+void PtDestroyPointers(Held kind, char* list)
+{
+    if (g_stReplay)
+        StReplayed(StMake(PtKindOf(kind).destroy, list), nullptr);
+    else
+        DestroyPointers(kind, list);
+}
+
+#include "core/effects_pointers.inc"
+
+// The game's side: each of the fourteen by the group's mode (inside a noted
+// run noted, and compared where it is called). What a copy, fill or
+// assignment writes is the range it was given.
+StCdecl4 g_ptCopy[3] = {}, g_ptFill[3] = {};
+StCdecl3 g_ptAssign[3] = {};
+Call0Fn g_ptDestroy[3] = {};
+Call5Fn g_ptGrow[3] = {};
+
+std::size_t PtRange(uint32_t place, uint32_t first, uint32_t last)
+{
+    return place && last > first ? last - first : 0;
+}
+
+template <Held kind>
+uint32_t __cdecl PtCopyByMode(uint32_t first, uint32_t last, uint32_t place, uint32_t tag)
+{
+    const PtKind& k = PtKindOf(kind);
+    const auto game = [&] { return g_ptCopy[static_cast<int>(kind)](first, last, place, tag); };
+    const auto ours = [&] { return Word(CopyPointers(kind, Ptr(first), Ptr(last), Ptr(place))); };
+    return StByModeOf(g_ptMode, StMake(k.copy, Ptr(first), Ptr(last), Ptr(place)), nullptr, 0, game, ours, [&] {
+        return StCompared(k.copyId, Ptr(place), PtRange(place, first, last), true, game, ours);
+    });
+}
+
+template <Held kind>
+uint32_t __cdecl PtFillByMode(uint32_t place, uint32_t count, uint32_t value, uint32_t tag)
+{
+    const PtKind& k = PtKindOf(kind);
+    const auto game = [&] { return g_ptFill[static_cast<int>(kind)](place, count, value, tag); };
+    const auto ours = [&] {
+        return Word(FillPointers(kind, Ptr(place), count, reinterpret_cast<char* const*>(value)));
+    };
+    const std::size_t size = place && count < 0x100000 ? count * 4 : 0;
+    return StByModeOf(g_ptMode, StMake(k.fill, Ptr(place), Ptr(count), Ptr(value)), nullptr, 0, game, ours,
+                      [&] { return StCompared(k.fillId, Ptr(place), size, true, game, ours); });
+}
+
+template <Held kind>
+uint32_t __cdecl PtAssignByMode(uint32_t first, uint32_t last, uint32_t to)
+{
+    const PtKind& k = PtKindOf(kind);
+    const auto game = [&] { return g_ptAssign[static_cast<int>(kind)](first, last, to); };
+    const auto ours = [&] { return Word(AssignPointers(kind, Ptr(first), Ptr(last), Ptr(to))); };
+    return StByModeOf(g_ptMode, StMake(k.assign, Ptr(first), Ptr(last), Ptr(to)), nullptr, 0, game, ours,
+                      [&] { return StCompared(k.assignId, Ptr(to), PtRange(to, first, last), true, game, ours); });
+}
+
+uint32_t PtDestroyByMode(Held kind, char* list)
+{
+    const PtKind& k = PtKindOf(kind);
+    const auto game = [&] { return g_ptDestroy[static_cast<int>(kind)](list, nullptr); };
+    const auto ours = [&] {
+        DestroyPointers(kind, list);
+        return 0u;
+    };
+    return StByModeOf(g_ptMode, StMake(k.destroy, list), nullptr, 0, game, ours,
+                      [&] { return StEndCompared(k.destroyId, game, ours); });
+}
+
+uint32_t PtGrowByMode(Held kind, char* list, uint32_t at, uint32_t value, uint32_t tag, uint32_t count,
+                      uint32_t atEnd)
+{
+    const PtKind& k = PtKindOf(kind);
+    const bool end = static_cast<uint8_t>(atEnd) != 0;
+    const auto game = [&] { return g_ptGrow[static_cast<int>(kind)](list, nullptr, at, value, tag, count, atEnd); };
+    const auto ours = [&] {
+        GrowInsertPointers(kind, list, Ptr(at), reinterpret_cast<char* const*>(value), count, end);
+        return 0u;
+    };
+    return StByModeOf(g_ptMode, StMake(k.grow, list, Ptr(at), Ptr(value), count | (end ? 0x80000000u : 0)), list,
+                      0xC, game, ours, [&] { return StCompared(k.growId, list, 0xC, false, game, ours); });
+}
+
+uint32_t __fastcall PtDestroyCountedAt4(char* list, void*)
+{
+    return PtDestroyByMode(Held::CountedAt4, list);
+}
+OPENSC4_THUNK(TPtDestroyCountedAt4, PtDestroyCountedAt4, 0)
+
+uint32_t __fastcall PtDestroyDescriptions(char* list, void*)
+{
+    return PtDestroyByMode(Held::Description, list);
+}
+OPENSC4_THUNK(TPtDestroyDescriptions, PtDestroyDescriptions, 0)
+
+uint32_t __fastcall PtDestroyCounted(char* list, void*)
+{
+    return PtDestroyByMode(Held::Counted, list);
+}
+OPENSC4_THUNK(TPtDestroyCounted, PtDestroyCounted, 0)
+
+uint32_t __fastcall PtGrowCountedAt4(char* list, void*, uint32_t at, uint32_t value, uint32_t tag, uint32_t count,
+                                     uint32_t atEnd)
+{
+    return PtGrowByMode(Held::CountedAt4, list, at, value, tag, count, atEnd);
+}
+OPENSC4_THUNK(TPtGrowCountedAt4, PtGrowCountedAt4, 20)
+
+uint32_t __fastcall PtGrowDescriptions(char* list, void*, uint32_t at, uint32_t value, uint32_t tag, uint32_t count,
+                                       uint32_t atEnd)
+{
+    return PtGrowByMode(Held::Description, list, at, value, tag, count, atEnd);
+}
+OPENSC4_THUNK(TPtGrowDescriptions, PtGrowDescriptions, 20)
+
+uint32_t __fastcall PtGrowCounted(char* list, void*, uint32_t at, uint32_t value, uint32_t tag, uint32_t count,
+                                  uint32_t atEnd)
+{
+    return PtGrowByMode(Held::Counted, list, at, value, tag, count, atEnd);
+}
+OPENSC4_THUNK(TPtGrowCounted, PtGrowCounted, 20)
+
+// The holds and let-goes, noted in a noted run.
+uint32_t StCallNoted(uint32_t target, char* self, Call0Fn real)
+{
+    return StHelper(StMake(target, self), nullptr, 0, [&] { return real(self, nullptr); });
+}
+
+Call0Fn g_SC4AdviceBase_AddRefThunk = nullptr, g_SC4CountedAt4_ReleaseThunk = nullptr,
+        g_cRZBaseRefCount_AddRef = nullptr, g_cRZBaseRefCount_Release = nullptr;
+
+uint32_t __fastcall CountedAt4HoldNoted(char* self, void*)
+{
+    return StCallNoted(addr::SC4AdviceBase_AddRefThunk, self, g_SC4AdviceBase_AddRefThunk);
+}
+OPENSC4_THUNK(TCountedAt4HoldNoted, CountedAt4HoldNoted, 0)
+
+uint32_t __fastcall CountedAt4LetGoNoted(char* self, void*)
+{
+    return StCallNoted(addr::SC4CountedAt4_ReleaseThunk, self, g_SC4CountedAt4_ReleaseThunk);
+}
+OPENSC4_THUNK(TCountedAt4LetGoNoted, CountedAt4LetGoNoted, 0)
+
+uint32_t __fastcall CountedHoldNoted(char* self, void*)
+{
+    return StCallNoted(addr::cRZBaseRefCount_AddRef, self, g_cRZBaseRefCount_AddRef);
+}
+OPENSC4_THUNK(TCountedHoldNoted, CountedHoldNoted, 0)
+
+uint32_t __fastcall CountedLetGoNoted(char* self, void*)
+{
+    return StCallNoted(addr::cRZBaseRefCount_Release, self, g_cRZBaseRefCount_Release);
+}
+OPENSC4_THUNK(TCountedLetGoNoted, CountedLetGoNoted, 0)
+
+bool InstallPointers(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !DetourCdecl(addr::SC4CountedAt4Ptrs_CopyRange, &PtCopyByMode<Held::CountedAt4>, &g_ptCopy[0]) ||
+        !DetourCdecl(addr::SC4CountedAt4Ptrs_Fill, &PtFillByMode<Held::CountedAt4>, &g_ptFill[0]) ||
+        !Detour(addr::SC4CountedAt4Ptrs_Destroy, &TPtDestroyCountedAt4, &g_ptDestroy[0]) ||
+        !Detour(addr::SC4CountedAt4Ptrs_GrowInsert, &TPtGrowCountedAt4, &g_ptGrow[0]) ||
+        !DetourCdecl(addr::SC4EffectDescriptionPtrs_CopyRange, &PtCopyByMode<Held::Description>, &g_ptCopy[1]) ||
+        !DetourCdecl(addr::SC4EffectDescriptionPtrs_Fill, &PtFillByMode<Held::Description>, &g_ptFill[1]) ||
+        !DetourCdecl(addr::SC4EffectDescriptionPtrs_Assign, &PtAssignByMode<Held::Description>, &g_ptAssign[1]) ||
+        !Detour(addr::SC4EffectDescriptionPtrs_Destroy, &TPtDestroyDescriptions, &g_ptDestroy[1]) ||
+        !Detour(addr::SC4EffectDescriptionPtrs_GrowInsert, &TPtGrowDescriptions, &g_ptGrow[1]) ||
+        !DetourCdecl(addr::SC4CountedPtrs_CopyRange, &PtCopyByMode<Held::Counted>, &g_ptCopy[2]) ||
+        !DetourCdecl(addr::SC4CountedPtrs_Fill, &PtFillByMode<Held::Counted>, &g_ptFill[2]) ||
+        !DetourCdecl(addr::SC4CountedPtrs_Assign, &PtAssignByMode<Held::Counted>, &g_ptAssign[2]) ||
+        !Detour(addr::SC4CountedPtrs_Destroy, &TPtDestroyCounted, &g_ptDestroy[2]) ||
+        !Detour(addr::SC4CountedPtrs_GrowInsert, &TPtGrowCounted, &g_ptGrow[2]))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(HookPoolAllocate() && HookFree() &&
+          (g_SC4Effect_Hold || Detour(addr::SC4Effect_Hold, &TSC4Effect_Hold, &g_SC4Effect_Hold)) &&
+          (g_SC4EffectDescription_Release || Detour(addr::SC4EffectDescription_Release,
+                                                    &TSC4EffectDescription_Release,
+                                                    &g_SC4EffectDescription_Release)) &&
+          Detour(addr::SC4AdviceBase_AddRefThunk, &TCountedAt4HoldNoted, &g_SC4AdviceBase_AddRefThunk) &&
+          Detour(addr::SC4CountedAt4_ReleaseThunk, &TCountedAt4LetGoNoted, &g_SC4CountedAt4_ReleaseThunk) &&
+          Detour(addr::cRZBaseRefCount_AddRef, &TCountedHoldNoted, &g_cRZBaseRefCount_AddRef) &&
+          Detour(addr::cRZBaseRefCount_Release, &TCountedLetGoNoted, &g_cRZBaseRefCount_Release)))
+        return false;
+    g_ptMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the lists of held pointers %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredPointers = registry::Register({
+    "renderer.effects.pointers",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDescriptionPtrs_GrowInsert,
+    "The effect descriptions' lists of held pointers, three kinds (objects counted at +4, descriptions, counted "
+    "objects): a list's copy into raw storage, fill, assignment, end and growth; compare mode runs the game's with "
+    "its calls noted (the holds and let-goes at the functions the game reaches them by), each of these compared "
+    "where it is called, and replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallPointers,
 });
 
 bool InstallEffects(registry::Mode mode)
