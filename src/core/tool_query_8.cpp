@@ -23,7 +23,7 @@
 // each chain in double and rounds to float only where the game stores a
 // float. What the terrain's slots and the height give back on the x87 stack
 // is kept as a double, as the game keeps it. Integers from floats are the
-// game's _ftol (truncation; the integer indefinite for what does not fit).
+// game's _ftol2 (truncation to 64 bits, the low 32 kept).
 //
 // Every function was written from the disassembly. No random number is
 // drawn and no clock is read.
@@ -115,13 +115,14 @@ void Release(void* object)
     Virtual<uint32_t>(object, 0x8);
 }
 
-// x87 fistp as _ftol does: truncation, the "integer indefinite" for what does
-// not fit.
+// The game's _ftol2 (0x009EEF04): truncation toward zero to 64 bits, the low
+// 32 kept; what does not fit in 64 bits (a NaN among them) is the x87
+// "integer indefinite", whose low word is 0.
 int32_t Truncate(double value)
 {
-    if (!(value > -2147483649.0 && value < 2147483648.0))
-        return INT32_MIN;
-    return static_cast<int32_t>(value);
+    if (!(value > -9223372036854775808.0 && value < 9223372036854775808.0))
+        return 0;
+    return static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(static_cast<int64_t>(value))));
 }
 
 uint32_t Bits(float value)
