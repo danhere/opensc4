@@ -5,7 +5,7 @@ The view input controls that the city view makes current while the player holds 
 | Tool | State |
 | --- | --- |
 | Bulldoze | ours (`ui.tools.bulldoze`, below) |
-| Zone | ours (`ui.tools.zone`, below) |
+| Zone | ours (`ui.tools.zone`, `ui.tools.zone2`, below) |
 | Lot (plop) | ours (`ui.tools.plop1` to `ui.tools.plop3`, below) |
 | Drag-to-scroll control | ours (`ui.tools.small1`, below) |
 | Mission icon control | ours (`ui.tools.small1`, below) |
@@ -50,8 +50,8 @@ Every city tool is a view input control: a class on the base class below, with a
 | Sign removal tool (removes signs; the survey had called it a pick tool) | 0x004D76F0 | 0x00A928A0 | 0x30 | 0x004D7680 to 0x004D7AE2 | 8 | ours (`ui.tools.signpick`, below) |
 | Sign tool (places signs, drags them and edits their text; the survey had called it a sign text tool) | 0x004D7F00 | 0x00A92968 | 0x80 | 0x004D7AF0 to 0x004D8ABA | 16 | ours (`ui.tools.signtext`, below) |
 | Terraform tool (the terrain brush tool) | 0x004D9430 | 0x00A92A10 | 0x130 | 0x004D8AC0 to 0x004D9E50 | 22 | ours (`ui.tools.brush`, below) |
-| Cheat tool (building footprint) | 0x004D9E80 | 0x00A92AC0 | 0x38 | 0x004D9E50 to 0x004DA593 | 6 | partly ours: four functions in `ui.tools.zone`; the footprint drawing (0x004D9EE0) and OnMouseMove (0x004DA1B0) stay the game's |
-| Zone | 0x004DAE80 | 0x00A92CA8 | 0x98 | 0x004DA5A0 to 0x004DC1A0 | 25 | ours (`ui.tools.zone`, below) |
+| Cheat tool (building footprint) | 0x004D9E80 | 0x00A92AC0 | 0x38 | 0x004D9E50 to 0x004DA593 | 6 | ours: four functions in `ui.tools.zone`, FindFootprint (0x004D9EE0) and OnMouseMove (0x004DA1B0) in `ui.tools.zone2` (T10) |
+| Zone | 0x004DAE80 | 0x00A92CA8 | 0x98 | 0x004DA5A0 to 0x004DC1A0 | 25 | ours (`ui.tools.zone`; OnMouseMove in `ui.tools.zone2`, T10); Ghidra defines 22 functions in the range, all ours with T10; the survey counted 25 |
 | U-Drive-It driving control (made by the park automaton 0x00506850, not by the view) | 0x00565480 | 0x00A9D9B0 | 0xC0 | 0x00562C90 to 0x00566D55 | 45 | ours (`ui.tools.udrive1`, T7a; `ui.tools.udrive2`, `ui.tools.udrive3`, T8; `ui.tools.udrive4`, T9) |
 | Fire (torch) disaster tool | 0x005805C0 | 0x00A9EB40 | 0x80 | 0x00580510 to 0x00580B46 | 13 | ours (`ui.tools.disaster_fire`, below) |
 | Common disaster tool, on the effect trigger tool | 0x00580220 | 0x00A9EAA0 | 0xB4 | 0x00580220 to 0x005804F4 | 7 | ours (`ui.tools.disaster`, below) |
@@ -60,7 +60,7 @@ Every city tool is a view input control: a class on the base class below, with a
 
 The network tools are the last two rows, at 0x00660C30 to 0x006625F0. The range 0x004C3730 to 0x004D767F belongs to the query tool.
 
-The classes that are not ours, apart from the two network tools, come to about 60 functions: what the query tool's pieces left (the KB figures in this paragraph were not redone for Q2 to Q7, so they are too high; the 84 KB is the figure before them) and the two functions of the cheat tool that stay the game's. The 84 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions), about 9 KB for the terraform and obliterate tools (40 functions) and about 6 KB for the three disaster tools (33 functions) and about 7 KB for the first piece of the query tool (57 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
+The classes that are not ours, apart from the two network tools, come to about 60 functions: what the query tool's pieces left (the KB figures in this paragraph were not redone for Q2 to Q7, so they are too high; the 84 KB is the figure before them). The cheat tool's last two functions are ours since T10. The 84 KB is the earlier 126 KB less about 5 KB for the four small classes, about 7 KB for the dispatch, sign removal and Life tools (39 functions), about 8 KB for the label and sign tools (32 functions), about 9 KB for the terraform and obliterate tools (40 functions) and about 6 KB for the three disaster tools (33 functions) and about 7 KB for the first piece of the query tool (57 functions), taken from their function sizes and code ranges. Sizes are from the function list and are a lower bound: some functions are a tail or a jump table longer than the list shows, and the query range holds about five small pieces of code the list does not define as functions. The drawing in these classes (the query tool's route and highlight overlay, the network tools' OnMouseMove) is a first sorting, not a reading of every function.
 
 ## The base class
 
@@ -132,7 +132,7 @@ A holder is one pointer; the plop and zone tools keep one for the pointer model 
 
 - The vtable slots the base shares with unrelated classes, folded into one stub each: AddRef 0x004BDF00, GetID 0x00517F70, SetID 0x00989960, GetCursor 0x0040CE70, and the handlers that only answer (0x00648EF0, 0x00648F00, 0x005DEB40, 0x0062C980, 0x005BE2E0, 0x00735290, 0x00407990).
 - The adjustor thunks of the message target at +0x28 (0x00565570, 0x00565580, 0x00565590, 0x004BA870, 0x004BD2A0, 0x00661DB0) and three jump thunks of one instruction (0x004BD280, 0x004BD290, 0x00580500). What they jump to is ours.
-- The model holder's 0x005FB360, which builds the model's transform. It is drawing, called from the OnMouseMove functions left as drawing (0x004C2660, 0x004DBE40, 0x00661260, 0x00662290).
+- The model holder's 0x005FB360, which builds the model's transform, was left here; it is ours since T10 (`ui.tools.zone2`, "The zone and cheat tools' pointer drawing (T10)"). Its other callers, the lot tool's preview update (0x004C2660) and the network tools' OnMouseMove (0x00661260, 0x00662290), stay the game's and reach it through its hook.
 - Two overlay helper functions, 0x004BC3B0 and 0x004BC4A0 (they append cells). The fenced map drawing calls them.
 
 ### Test
@@ -334,7 +334,7 @@ All 39 first pairs are the same, so no retries ran and no run failed. A first pa
 
 ## The zone tool
 
-`cSC4ViewInputControlZone` (our name): 0x98 bytes, control ID 0xA766C101, vtable 0x00A92CA8, message target vtable 0x00A92C94 at +0x28, code 0x004DA5A0 to 0x004DC1A0 (src/core/tool_zone.cpp, header tool_zone.h). The constructor is 0x004DAE80 (`SC4ViewTool::Construct4DAE80`); the city view makes it in 0x007E6DA0 with a zone type from 0 to 15, 0 being de-zoning. One group, `ui.tools.zone`, PostAppInit, off by default: 25 hooks, the tool's functions except OnMouseMove (0x004DBE40, slot 20: it builds the outline model's transform inline and stays the game's), plus four functions of the cheat tool before it (vtable 0x00A92AC0: Init 0x004D9E50, constructor 0x004D9E80, Shutdown 0x004D9EA0, destructor body 0x004DA180).
+`cSC4ViewInputControlZone` (our name): 0x98 bytes, control ID 0xA766C101, vtable 0x00A92CA8, message target vtable 0x00A92C94 at +0x28, code 0x004DA5A0 to 0x004DC1A0 (src/core/tool_zone.cpp, header tool_zone.h). The constructor is 0x004DAE80 (`SC4ViewTool::Construct4DAE80`); the city view makes it in 0x007E6DA0 with a zone type from 0 to 15, 0 being de-zoning. One group, `ui.tools.zone`, PostAppInit, off by default: 25 hooks, the tool's functions except OnMouseMove (0x004DBE40, slot 20: it builds the outline model's transform inline; ours since T10 in `ui.tools.zone2`, see "The zone and cheat tools' pointer drawing (T10)"), plus four functions of the cheat tool before it (vtable 0x00A92AC0: Init 0x004D9E50, constructor 0x004D9E80, Shutdown 0x004D9EA0, destructor body 0x004DA180).
 
 What it does: a press picks a cell and starts a drag; every change asks the zone manager's PlaceZone (slot 11) with place = 0 what the rectangle would do (price on the cost indicator, lots in the way highlighted, cells shown through the terrain overlay, a text for the buildings lost or the error); the release asks with place = 1. When the pointer rests for 750 on the cell the drag began on, the frame message grows a region of up to 8 cells around it and previews that.
 
@@ -346,7 +346,7 @@ Fields (from the start): +0x10 cursor ID (table 0x00A92C40), +0x1C the view, +0x
 
 ### Left the game's
 
-OnMouseMove; the cell region's constructor and destructor, the overlay's methods, the string helpers, the operator new and delete.
+The cell region's constructor and destructor, the overlay's methods, the string helpers, the operator new and delete. OnMouseMove was left here and is ours since T10.
 
 ### How it is tested
 
@@ -2561,3 +2561,24 @@ Oddities kept: the marker's constructor leaves +0x18 and +0x2C..+0x40 as they we
 Trial (2026-10-17, A = the original, B = `ui.tools.base` and `ui.tools.udrive1` to `ui.tools.udrive4` ours, test day 2, 5 days, with `determinism.dispatch_info`): Making Money d0090, Big City d0000 and Rush Hour d0090 each identical A = B in the whole fingerprint; the test token is C371903C on all three.
 
 Parity (2026-10-17, B = T8's batch list (164 entries) plus `ui.tools.udrive4`, 7 days, four jobs): plain 12/12, `OPENSC4_TEST_T7=2 OPENSC4_TEST_T8=2 OPENSC4_TEST_T9=2` 12/12, plopped 3/3, all identical.
+
+## The zone and cheat tools' pointer drawing (T10)
+
+T10 makes the last four functions of the zoning tool's and the cheat tool's code ours, with the base class's model holder Place that they share with the lot and network tools. One group, PostAppInit, off by default: `ui.tools.zone2` (src/core/tool_zone_2.cpp, 4 hooks). With `ui.tools.zone`, every function of both classes is ours (Ghidra defines 22 in the zoning tool's range and 6 in the cheat tool's).
+
+| Function | Address | Vtable slot |
+| --- | --- | --- |
+| cSC4ViewInputControlZone::OnMouseMove: the modifier flags to Service43DB0, the pick; the pointer model placed and shown unless the overlay (slot 20) or a drag says no; the outline model to the picked cell's centre with the cell size as its scale, shown unless dragging; while dragging, CancelDrag without the button bit 0x10, else the drag's end cell and UpdateHover and UpdatePreview when it changed | 0x004DBE40 | 20 of 0x00A92CA8 |
+| SC4CheatTool::FindFootprint: the network piece of a cell (the first of the types 0, 2, 3, 6, 10, 12 it has, its type mask alone), its four sides' connection bytes; a straight piece gives the kind (1 for road, one-way road and highway types 0, 3, 10; 2 for rail, street and avenue types 2, 6, 12, the point moved half a cell by a side's flip bit), the orientation and the lot configuration from the table 0x00A92A88 | 0x004D9EE0 | |
+| SC4CheatTool::OnMouseMove: the pick, the cell and its centre, FindFootprint, the terrain height; a new kind replaces the footprint model (building_footprint_notok for kind 0, building_footprint_ok for 1 and 2), which is shown and moved; a new lot configuration takes the old prop out of the prop manager and makes one at the configuration's corner (the properties 0x029244DB and 0x29F013E6 set), which then goes to the point and the orientation. Always true | 0x004DA1B0 | 20 of 0x00A92AC0 |
+| SC4ViewModel::Place (a model holder): the identity rotation, the point snapped to its cell (floor(x / s) * s + s / 16 for x and z, the point's y), the scale s * 16 with its flag when not 1 | 0x005FB360 | |
+
+Place has four callers: the lot tool's preview update (0x004C2660, the game's drawing, which `ui.tools.plop3` calls at its address), the zoning tool's OnMouseMove, and the two network tools' OnMouseMove (0x00661260, 0x00662290, the game's). All four call it by address with the holder in ECX, keep nothing in EAX, ECX or EDX across it and read nothing it leaves on the stack, and no mod patch site lies in it (`foreign_sites.cpp`), so the hook at its entry serves all of them. The three functions call each other at their addresses, as the game does.
+
+Floats: the game runs the x87 at 53 bit and keeps its chains of operations in registers ([pollution.md](pollution.md), "Floating point"; the trial logs the control word 027F in the simulator's tick), so ours computes each chain in double and rounds to float only where the game stores a float; the cell sizes the game's terrain gives come back on the x87 stack and are kept as doubles, as the game keeps them, and the floors are the game's floor (0x009EFF60) at its address. With the cell size 16 every step is exact either way; the test adds the cell sizes 0.1 and 1.7 with points where a chain rounded to float at each step gives other bits (the first version of this piece did that, assuming 24 bit, and those points tell it apart). The cheat tool's prop corner is an exact integer (the configuration's size times 8, shifted as an unsigned word, so below 2^31 and the game's "add 2^32 when negative" never applies) subtracted from a float in double and stored to a float.
+
+Oddities kept: the cheat tool's OnMouseMove ignores the modifiers, picks through the global view (0x00B43DC4) rather than its own field, and asks the city for the picked cell's centre into the pick's floats, which nothing reads afterwards. FindFootprint ignores `this` and reuses its argument slots as locals. When the lot configuration's size query writes nothing, the game's stack slots still hold the configuration ID and the kind and the corner is taken from those; ours starts its two outputs with the same values. The two bytes after a transform's flags are what the game's stack held; ours are zero (the models read the count and flags bytes).
+
+`OPENSC4_TEST_T10=<day>` (src/core/tool_t10_autotest.cpp, token ` zone2`, fingerprint order 33, day hook 71). As T9's test it calls only the game's addresses and the classes' vtable slots; the terrain, the models, the view's pick, the overlay, the display service, the city, the network pieces, the model service, the prop manager and its prop, the lot configurations and the prop types are stand-ins that record what they are told (only which stand-in was meant goes into the hash). `OPENSC4_TEST_T10_PARTS` (decimal mask, default 31): 1 Place on an empty holder and over cell sizes 16, 1, 3, 0.5, 0.1 and 1.7 with eight points (a NaN and a denormal among them); 2 the zoning tool's OnMouseMove on a stand-in tool over 13 cases (a failed pick, the overlay busy or not, the outline missing, hidden or shown, a drag without the button and with it on the same cell, two with the cell size 1.7); 4 the same on a zoning tool the view made (type 1), the view's pick answered by a stand-in for each call through a copy of its vtable: a drag onto the same cell, three cells on and back (the game's UpdateHover and UpdatePreview), then without the button (CancelDrag), and the tool put away; 8 FindFootprint over the six types and three others, three type masks and 13 side patterns, and a piece of two types; 16 the cheat tool's OnMouseMove on a stand-in tool over 15 cases (no pick, no piece, each kind, a model refused, a configuration missing, its size left unwritten, a prop type refused, the prop manager refusing, the prop moved and taken away).
+
+Trial (2026-10-19, A = the original, B = `ui.tools.base`, `ui.tools.zone` and `ui.tools.zone2` ours, test day 2, 5 days, with `determinism.dispatch_info`): Making Money d0090, Big City d0000 and Rush Hour d0090 each identical A = B in the whole fingerprint; the test token is 77315124 on all six runs, unexpected slots 0. A first pass, with the chains rounded to float at each step, was identical too (the points it had then did not tell the two apart) and its original run of Making Money d0090 crashed on a background thread during the load, before the test day (0xC0000005 at 0x00000001), which the second pass did not repeat.
