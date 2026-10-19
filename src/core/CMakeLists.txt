@@ -211,6 +211,7 @@ add_library(opensc4_core SHARED
   propkinds_burnt.cpp
   propkinds_decal.cpp
   propkinds_effect.cpp
+  propkinds_textdecal.cpp
   floraocc_autotest.cpp
   floraocc_sim.cpp
   foundocc_autotest.cpp
