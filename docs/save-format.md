@@ -2,7 +2,7 @@
 
 A saved city (`.sc4`) is a DBPF package ([resources.md](resources.md), "Package format"). Each record holds one serialised object; the record's type is the object's class ID, so the exe's own class-name table names it (for example `0xC9BD5D4A` is `cSC4Lot`, `0x8990C065` `cSC4PollutionSimulator`). A save written by the game holds about 150 records.
 
-Tools: `opensc4-dbpf list|diff` for packages, [tools/re/savediff.py](../tools/re/savediff.py) for comparing two saves around moved addresses, and [tools/re/sc4save.py](../tools/re/sc4save.py), which decodes records whose layout is known (`sc4save.py <city.sc4> [type]`; one decoder module per simulator in [tools/re/save_schemas/](../tools/re/save_schemas/__init__.py)) and checks a schema against any number of saves (`sc4save.py --check <files or folders>`: every record must be consumed to the byte).
+Tools: `opensc4-dbpf list|diff` for packages, [tools/re/savediff.py](../tools/re/savediff.py) for comparing two saves around moved addresses, and [tools/re/sc4save.py](../tools/re/sc4save.py), which decodes records whose layout is known (`sc4save.py <city.sc4> [type]`; one decoder module per simulator in [tools/re/save_schemas/](../tools/re/save_schemas/__init__.py)) and checks a schema against any number of saves (`sc4save.py --check <files or folders>`: every record must be consumed to the byte). [tools/sc4report.py](../tools/sc4report.py) builds reports on the same decoders, such as a census of a region folder ([sc4report.md](sc4report.md)).
 
 ## Record header and references
 
