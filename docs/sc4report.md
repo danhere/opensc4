@@ -22,7 +22,7 @@ One CSV row per `City - *.sc4` file in the folder, from each file's regional cit
 | power, water, garbage produced and demanded | the commodity map (+0x180) |
 | connections | the number of neighbour connections |
 
-In real saves the record starts with a uint16 1 before the record's version; we take it to be the segment stream's own version (inferred: all 491 forum saves checked have it). Checked on the 491 GitHub forum saves (test-saves README), all of which decode: `commercial_jobs` is the sum of the five `pop_C*` types, `industrial_jobs` is `pop_Id + pop_Im + pop_Ih` plus a fifth of `pop_Ir` (farm jobs count one fifth), and `residents` is within a few percent of the three `pop_R*` types (it is figured apart). So the type IDs are right. The map also holds types 0x1001, 0x10x0, 0x2xxx and 0x3xx0 (in `pop_other`), meaning not known. Names are UTF-8. The tax column order is still assumed.
+In real saves the record starts with a uint16 1 before the record's version; we take it to be the segment stream's own version (inferred: all 491 forum saves checked have it). Checked on the 491 GitHub forum saves (test-saves README), all of which decode: `commercial_jobs` is the sum of the five `pop_C*` types, `industrial_jobs` is `pop_Id + pop_Im + pop_Ih` plus a fifth of `pop_Ir` (farm jobs count one fifth), and `residents` is within a few percent of the three `pop_R*` types (it is figured apart). So the type IDs are right. The map also holds types 0x1001, 0x10x0, 0x2xxx and 0x3xx0 (in `pop_other`), meaning not known. Names are UTF-8. The tax columns are in the game's tax group order: 0 to 2 R$ to R$$$, 3 to 5 Cs$ to Cs$$$, 6 and 7 Co$$ and Co$$$, 8 to 11 agriculture, dirty, manufacturing and high-tech industry. Confirmed from the game: the table at 0x00AB0840 that CollectTaxes reads gives the group by building purpose (residence, services, offices, tourism as services, agriculture, processing, manufacturing, high tech) and wealth in that order, and the demand simulator pairs tax group n's rate figure (0xAABAAA9F + n) with the same RCI group's demand (src/core/demand_region.cpp).
 
 Record versions 9 to 13 decode (13 is what the game writes, 9 and 10 are on unfounded stock tiles; before 12 there are no points of interest, before 13 no difficulty, which reads as 2). Version 9 has no workforce share (it reads as 0.5) and decodes exactly on all 252 forum files that have it; none older was seen.
 
@@ -55,7 +55,7 @@ With `--departments`, one row per department budget instead, in the budget's ord
 | income | the sum of its lines' income (+0x48) |
 | lines, local_objects | its line items and its locally funded objects |
 
-Unconfirmed on real saves: that the departments' current expense is what the budget window shows a month.
+Checked in the game (below, "Checked against the game"): funds, tax income, each group's rate, and every department's `expense`, `income` and `funding` are what the budget simulator holds after the load. The budget window's total expense is `department_expense` plus the ordinances' `expense` plus, in some cities, the neighbour deals and trade (369 a month more in Binko), which the report does not read.
 
 ## demand: RCI demand
 
@@ -72,7 +72,7 @@ One CSV row per city file (a folder gives every `*.sc4` in it), from the city's 
 
 With `--all`, one row per demand object instead, in ID order: `id`, `supply`, `demand`, `min`, `max`, `active`, `economy`, `tax` (the modifiers) and `cap`. For a file with no row, the reason is in `id`.
 
-Checked on the 491 GitHub forum saves (test-saves README): all decode, demand records version 1 (unfounded stock tiles) and 2, no leading stream version like the regional city's. Every active demand is within -6000 and 6000 and every cap within 0 and 1. Unconfirmed: that the columns match the in-game RCI bars (needs the game).
+Checked on the 491 GitHub forum saves (test-saves README): all decode, demand records version 1 (unfounded stock tiles) and 2, no leading stream version like the regional city's. Every active demand is within -6000 and 6000 and every cap within 0 and 1. The columns are the active demand as saved: in the game the caps always match, and the active demands matched in one city of three (Kalo, all twelve), but in the other two the game reworks the demands' supply and demand while it loads, before the first day (Binko's R$ supply goes from 94,427 saved to 4,824,773), so right after loading the bars show other values for 5 (Panem) and 8 (Binko) of the twelve groups. The saved values are consistent: each is what the game's update (slot 35) gives from the saved supply, demand, modifiers and cap. Where the load's change comes from is not known yet (no pending new supply or demand is saved). The bars follow the demand changed message (0x426840A0), which SimulationBegin sends at load with the active demand.
 
 ## utilities: power and water
 
@@ -93,7 +93,7 @@ One CSV row per city file (a folder gives every `*.sc4` in it), from the power s
 | water_surplus | water_capacity − water_demand (negative: short of water) |
 | water_pipes, water_distressed_pipes, water_burst_pipes | pipe counts (+0x174, +0x178, +0x17C) |
 
-Checked on the 491 GitHub forum saves (test-saves README): all decode, every file has both records. 157 cities have plants or pumps; 15 of them are short of power or water. Unconfirmed: that the columns match the in-game power and water graphs (needs the game).
+Checked on the 491 GitHub forum saves (test-saves README): all decode, every file has both records. 157 cities have plants or pumps; 15 of them are short of power or water. Checked in the game on three cities: every column the power and water simulators answer (produced, demand, used, imported, exported, plants; capacity, used, demand, sources) matches.
 
 ## ordinances: which ordinances are on
 
@@ -112,7 +112,11 @@ One CSV row per city file (a folder gives every `*.sc4` in it), from the ordinan
 
 With `--all`, one row per ordinance instead, in ID order: `id`, `name`, `available`, `on`, `enacted`, `enabled`, `year` (first available), `enactment`, `repeal` and `constant` (incomes), `factor`, `adjusted` (this month's income) and `income_ordinance`. For a file with no row, the reason is in `id`. The game loads the exemplar again after Read, so the names and incomes are the exemplar's as saved, not necessarily a mod's.
 
-Checked on the 491 GitHub forum saves (test-saves README): all decode, 20 ordinance records each (the base class 0x8BD4FC74 has none of its own), versions 1 to 4 (316 files below version 2, so no `income_ordinance`). 45 cities have ordinances enacted, up to 18 (Predo, expense 13,260 a month). Names are in the game's language: 88 saves hold Russian names, so compare by `id` across saves. Unconfirmed: that `expense` matches the budget window's ordinance line (needs the game).
+Checked on the 491 GitHub forum saves (test-saves README): all decode, 20 ordinance records each (the base class 0x8BD4FC74 has none of its own), versions 1 to 4 (316 files below version 2, so no `income_ordinance`). 45 cities have ordinances enacted, up to 18 (Predo, expense 13,260 a month). Names are in the game's language: 88 saves hold Russian names, so compare by `id` across saves. Checked in the game on three cities: `expense` and `income` are the ordinance simulator's monthly figures, and each enacted ordinance's `adjusted` is its cost this month.
+
+## Checked against the game
+
+`OPENSC4_TEST_PANELS=1` (src/core/panels_autotest.cpp) logs, right after a city loads in the autotest (`OPENSC4_TEST_DAYS=0`), what the budget, ordinance, RCI, power and water windows read from the game's simulators: `panels: ...` lines in `opensc4.log`. Run on 2026-10-19 with no replacements and no mods on Panem (gh-panem, `Panem (new)`), Binko (gh-makaf Timbuktu) and Kalo (gh-makaf New York): every budget, tax, department, ordinance, power and water figure the reports give matched; the RCI demand as above.
 
 The idea of the census is Null 45's Region Census DLL; no code of it is used.
 
