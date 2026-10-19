@@ -1,4 +1,4 @@
-# Four classes derived from the prop occupant: the terrain decal (cSC4PropOccupantTerrainDecal, class ID 0x2977AA48), the visual effect (cSC4PropOccupantVisualEffect, class ID 0x2977AA49), the automata controller prop (cSC4PropOccupantAutomataController, class ID 0x2A4017A0) and the burnt building (cSC4PropOccupantBurntBuilding, class ID 0xC9EFB016); src/core/propkinds_decal.cpp, propkinds_effect.cpp, propkinds_automata.cpp, propkinds_burnt.cpp, the class maps in src/core/propkinds.h. The decal's constructor 0x005EE360 and allocator 0x005ED6E0 are in lot.toml, the effect's 0x005F0210 and 0x005ED9A0 in propmgr.toml, the burnt building's constructor 0x005EF810, allocator 0x005EDAE0 and SetOccupant 0x005EEB70 in lot.toml.
+# Five classes derived from the prop occupant: the terrain decal (cSC4PropOccupantTerrainDecal, class ID 0x2977AA48), the visual effect (cSC4PropOccupantVisualEffect, class ID 0x2977AA49), the automata controller prop (cSC4PropOccupantAutomataController, class ID 0x2A4017A0), the burnt building (cSC4PropOccupantBurntBuilding, class ID 0xC9EFB016) and the text decal (cSC4PropOccupantTextDecal, class ID 0x8B79C707); src/core/propkinds_decal.cpp, propkinds_effect.cpp, propkinds_automata.cpp, propkinds_burnt.cpp, propkinds_textdecal.cpp, the class maps in src/core/propkinds.h. The decal's constructor 0x005EE360 and allocator 0x005ED6E0 are in lot.toml, the effect's 0x005F0210 and 0x005ED9A0 in propmgr.toml, the burnt building's constructor 0x005EF810, allocator 0x005EDAE0 and SetOccupant 0x005EEB70 in lot.toml, the text decal's constructor 0x005F8300 and allocator 0x005F7D80 in propmgr.toml.
 
 [[entry]]
 name = "cSC4PropOccupantTerrainDecal::QueryInterface"
@@ -692,3 +692,249 @@ address = 0x00AA49B0
 kind = "vtable"
 expect = "D0 F9 5E 00 E0 F9 5E 00"
 source = "The virtual base (the model interface) at +0xD4, 19 slots, thunks through the displacement at +0xD0 (0x005EF9D0 to 0x005EFB10): the drawing, the game's."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::QueryInterface"
+address = 0x005F7650
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 86 7D 3B"
+source = "Name from the class. Slot 0 of the primary vtable 0x00AA5680, (iid, out), ret 8: 0x2B3B7D86 gives the object with the base's AddRef on the object + 0xC (through 0x006491C0 with the object + 4); everything else goes to the prop's QueryInterface with the object + 4. The class ID is not answered. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::Shutdown"
+address = 0x005F76C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 14"
+source = "Occupant slot 4 (this = object + 0xC), ret: when initialized the messages 0xA6B79602, 0x06CDB65B and 0x26D31EC1 given up, the text taken off each overlay manager (+0xB4, +0xB8; IDs +0x84, +0x88) and the managers released, the texture (+0xB0) released, the prop's Shutdown 0x005EE160. True. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::RemoveOverlays"
+address = 0x005F77C0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 84 00 00"
+source = "Name ours. Not virtual, ret: each overlay ID that is not -1 given to its manager's slot 15 (not tested for null) and set to -1. Called by SetAllFlags. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::MakeOverlays"
+address = 0x005F7810
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 1C 56 8B F1 8B 86"
+source = "Name ours. Not virtual, ret: the overlays removed; with a texture and base flag 2, the width (+0x90) = the texture's width over height times the size times 16, the prop's box around the place from the ground's height, and the text given to both overlay managers (slot 3: texture, place, width, the turn from 0x00B0A978 by the camera's rotation and the direction), with the colour (slot 18) and the opacity (slot 17); the occupant manager's slot 24. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::MoveOverlays"
+address = 0x005F7A50
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8A 86 8C 00 00"
+source = "Name ours. Not virtual, ret: while moving (+0x8C), each overlay with an ID moved to the place (slot 12). Called by SetPosition. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::SetPosition"
+address = 0x005F7AA0
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 08 56 8B F1"
+source = "Occupant slot 9 (this = object + 0xC), (position), ret 4: x and z kept at +0x94, the prop's SetPosition 0x005EDE00, the city's slot 95 (answer unused), then MoveOverlays while moving, else MakeOverlays. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::SetSize"
+address = 0x005F7B10
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 D8 1D 54 10"
+source = "Name ours. Slot 6, (float), ret 4: a size above 0 and below 8 kept at +0x80 and MakeOverlays. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::SetColour"
+address = 0x005F7B50
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 56 8B F1 D8"
+source = "Name ours. Slot 8, (r, g, b), ret 0xC: unless every part is within 0.0001 of the one kept, the colour kept at +0x9C and, while moving, given to each overlay (slot 18), else MakeOverlays. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::SetOpacity"
+address = 0x005F7C00
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 56 8B F1 D9"
+source = "Name ours. Slot 10, (float), ret 4: another opacity kept at +0xA8 and, while moving, given to each overlay (slot 17), else MakeOverlays. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::PickOverlayManagers"
+address = 0x005F7C80
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 86 84 00"
+source = "Name ours. Not virtual, ret: the overlays removed, the terrain view's (0x00602160) slot 18 with 3 or 1 (moving or not) kept at +0xB8 and with 2 or 0 at +0xB4, each with a reference; then a jump to MakeOverlays. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::SetDirection"
+address = 0x005F7D60
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3B 81 AC 00"
+source = "Name ours. Slot 9, (int), ret 4: another direction kept at +0xAC and MakeOverlays. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::Write"
+address = 0x005F7DB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Serializable slot 3 (this = object + 0x10), ret 4: version 3, the prop's Write, the text (stream slot 15), the place (0x005DA520), size, width, the place again, the colour (0x005DA580), opacity, the direction's byte. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::Read"
+address = 0x005F7E50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Serializable slot 4, ret 4: the version, the prop's Read, the text, a dword dropped before version 3, the place, the size (version 1 an integer), width, the place again, the colour, opacity, the direction's byte. No version refused. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::Init"
+address = 0x005F7F40
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 06 FF 50"
+source = "Occupant slot 3 (this = object + 0xC), ret: unless initialized, the prop type 0xCB79919B (prop slot 8), the base's Init 0x005EC940; not read from a save: PickOverlayManagers, then SetFlag 2 when the visibility filter (0x00B43DC4 slot 18) takes it and signs and labels are shown; the messages 0xA6B79602, 0x06CDB65B and 0x26D31EC1 asked for. True. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::DoMessage"
+address = 0x005F8030
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B 03 56"
+source = "Message target slot 3 (this = object + 8), ret 4: 0xA6B79602 MakeOverlays; 0x26D31EC1 PickOverlayManagers and SetFlag 2 as in Init; 0x06CDB65B the label shown or hidden by the message's filter and whether signs and labels are shown; then the prop's DoMessage 0x005ECFB0, whose answer it gives. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::SetMoving"
+address = 0x005F8170
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 38 81 8C 00"
+source = "Name ours. Slot 7, (bool), ret 4: another value kept at +0x8C and PickOverlayManagers. The label tool sets it while a label is dragged. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::MakeText"
+address = 0x005F8190
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 8B B0 00 00"
+source = "Name ours. Not virtual, ret: the texture at +0xB0 released, a new one from the service 0x00B43CE4's slot 5 (0xCC1FD62C, the text, &texture); with one, a jump to MakeOverlays. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::SetAllFlags"
+address = 0x005F81F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 56 8B F1"
+source = "Occupant slot 30 (this = object + 0xC), (flags), ret 4: flag 2 not set while signs and labels are hidden; the base's SetAllFlags; on a change of flag 2, shown: MakeOverlays (both managers there) or PickOverlayManagers, and MakeText for text without a texture; hidden: RemoveOverlays. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::SetText"
+address = 0x005F82E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 56 8B F1 8B"
+source = "Name ours. Slot 4, (string), ret 4: the text at +0x6C assigned (its slot 13) and MakeText. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::GetText"
+address = 0x005F8410
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name ours. Slot 5, (string), ret 4 (by a tail jump): the argument's slot 13 with the text at +0x6C. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::GetGZCLSID"
+address = 0x005F8430
+kind = "function"
+convention = "thiscall"
+expect = "B8 07 C7 79 8B C3 CC CC"
+source = "Serializable slot 5: 0x8B79C707. Also called by the class registration at 0x00460856. Ours in simulators.propkinds.textdecal."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::Create"
+address = 0x005F84D0
+kind = "function"
+convention = "cdecl"
+expect = "A1 BC A9 B0 00 8B 40 08"
+source = "Name ours. The factory the class registration keeps (0x00460851): an item of the pool, then a jump to the constructor, so it hands out the object itself (the other classes' factories add 4). Ours in simulators.propkinds.textdecal_object."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::DeletingDestructor"
+address = 0x005F8510
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 58 00 00 00"
+source = "Name ours. Reached through the holder part's slot 22 (thunk 0x005F8490), (flags), ret 4: the body 0x005F8570, and with flag 1 the object back to the pool 0x00B0A9B8 (page reopened at 0x40000041). Ours in simulators.propkinds.textdecal_object."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::Destroy"
+address = 0x005F8570
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 8E B8 00 00"
+source = "Name ours. The destructor body, called by the deleting destructor only: the two overlay managers and the texture released, the text's buffer freed, then the occupant base destroyed (jump to 0x005E8C40 with the object + 0xC). It does not store the vtables. Ours in simulators.propkinds.textdecal_object."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::Pool"
+address = 0x00B0A9B8
+kind = "data"
+source = "The pool of the text decals (0xBC bytes each, 0x57 to a page: 0x005F7680; the current page at +4, its free list at +8 and used count at +0xC)."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::Turns"
+address = 0x00B0A978
+kind = "data"
+source = "Name ours. 16 floats: the turn MakeOverlays gives the overlay managers, at [direction + 4 * the camera's rotation]."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::vftable"
+address = 0x00AA5680
+kind = "vtable"
+expect = "50 76 5F 00 F0 CA 5E 00"
+source = "The primary vtable (the label interface 0x2B3B7D86), 11 slots: QueryInterface, AddRef, Release, AsOccupant 0x005F8400 (shared), SetText, GetText, SetSize, SetMoving, SetColour, SetDirection, SetOpacity. Copied by simulators.propkinds.textdecal_object."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::vftable_8"
+address = 0x00AA5610
+kind = "vtable"
+expect = "50 84 5F 00 F0 D5 5E 00"
+source = "The message target part at +8, 4 slots (3 DoMessage)."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::vftable_C"
+address = 0x00AA5588
+kind = "vtable"
+expect = "60 84 5F 00 20 D6 5E 00"
+source = "The occupant part at +0xC, 34 slots (the class's own: 3 Init, 4 Shutdown, 9 SetPosition, 30 SetAllFlags)."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::vftable_10"
+address = 0x00AA556C
+kind = "vtable"
+expect = "70 84 5F 00 50 D6 5E 00"
+source = "The serializable part at +0x10, 6 slots (3 Write, 4 Read, 5 GetGZCLSID)."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::vftable_14"
+address = 0x00AA5508
+kind = "vtable"
+expect = "80 84 5F 00 80 D6 5E 00"
+source = "The property holder part at +0x14, 25 slots (22 the deleting destructor's thunk 0x005F8490, 23 and 24 thunks to Write and Read)."
+
+[[entry]]
+name = "cSC4PropOccupantTextDecal::vftable_28"
+address = 0x00AA54F0
+kind = "vtable"
+expect = "A0 84 5F 00 C0 D6 5E 00"
+source = "The exemplar holder part at +0x28, 5 slots."

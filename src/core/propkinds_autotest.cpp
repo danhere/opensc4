@@ -1,7 +1,8 @@
 // The derived prop classes' part of the autotest (src/core/autotest_hooks.h;
 // propkinds_decal.cpp, propkinds_effect.cpp, propkinds_automata.cpp,
 // propkinds_burnt.cpp, the class maps in propkinds.h): the terrain decal, the
-// visual effect prop, the automata controller prop and the burnt building.
+// visual effect prop, the automata controller prop, the burnt building and
+// the text decal (the label; propkinds_textdecal.cpp).
 // Everything goes through the game's objects: their vtables, the prop
 // manager and the classes' allocators and constructors by address. Nothing
 // here calls our own functions, so a run with simulators.propkinds.* on and
@@ -9,15 +10,15 @@
 //
 //   OPENSC4_TEST_PROPKINDS=<day>   token "propkinds"; sub-results on the log
 //     lines "autotest: propkinds: ...". The city is left unchanged:
-//     1. the city's props of the four classes, found through the occupant
+//     1. the city's props of the five classes, found through the occupant
 //        manager's grid (occupant type 0xA823821E and the class ID from
 //        GetGZCLSID, confirmed with QueryInterface): the counts and the sum
 //        and exclusive or of a hash per object over its plain state;
 //     2. props the test makes and never inserts: one of each class from the
 //        allocator and the constructor (as the terrain code makes a decal
-//        and the lot developer a burnt building), and up to two of each from
-//        the prop manager's CreateProp when its tables have types of the
-//        class. QueryInterface, GetGZCLSID and the setters that only write
+//        and the lot developer a burnt building, the label tool a label),
+//        and up to two of each from the prop manager's CreateProp when its
+//        tables have types of the class. QueryInterface, GetGZCLSID and the setters that only write
 //        fields while there is no overlay, effect or controller, read back
 //        (a controller prop is given a template no script has; a burnt
 //        building is initialized, given its own box and shut down); then
@@ -34,11 +35,16 @@
 //     through states, given a template no script has and its own back, and
 //     removed; then a burnt building is made as the lot developer makes one
 //     (but from its own box at the spot), added, shown, hidden, shown,
-//     hidden and removed. The counts of 1 are taken again and must be the
-//     same.
+//     hidden and removed; then a label is added as the label tool adds one,
+//     given a text with U+00E9, shown (with signs and labels switched on
+//     for it when they were off), given a size, colour, opacity and
+//     direction, dragged, sent the view's messages, hidden, shown, refused
+//     with signs and labels off, and removed. The counts of 1 are taken
+//     again and must be the same.
 //   OPENSC4_TEST_PROPKINDS_EDIT=2  the same, and then a decal, an effect
-//     prop, a controller prop and a burnt building are added and LEFT in
-//     the city, for a save that holds them.
+//     prop, a controller prop, a burnt building and two labels ("Label"
+//     and "Label" with U+00E9) are added and LEFT in the city, for a save
+//     that holds them.
 //
 // Left out on purpose: Write and Read (a save does them), the deleting
 // destructors (Release reaches them), fade actions 1 and 2. Left out of the
@@ -63,6 +69,7 @@
 #include <cstdio>
 #include <cstring>
 #include <initializer_list>
+#include <iterator>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -75,6 +82,7 @@ namespace decal = propkinds::decal;
 namespace effect = propkinds::effect;
 namespace automata = propkinds::automata;
 namespace burnt = propkinds::burnt;
+namespace label = propkinds::textdecal;
 using propkinds::Cdecl;
 using propkinds::This;
 
@@ -87,9 +95,10 @@ constexpr uint32_t kBuildingType = 0x278128A0;
 // A controller template no script has.
 constexpr const char* kNoTemplate = "opensc4_propkinds_no_such_template";
 
-// The four classes, in the order of the counts and the logs.
-enum class Kind { Decal, Effect, Controller, Burnt };
-constexpr Kind kKinds[] = {Kind::Decal, Kind::Effect, Kind::Controller, Kind::Burnt};
+// The five classes, in the order of the counts and the logs.
+enum class Kind { Decal, Effect, Controller, Burnt, Text };
+constexpr Kind kKinds[] = {Kind::Decal, Kind::Effect, Kind::Controller, Kind::Burnt, Kind::Text};
+constexpr int kKindCount = 5;
 
 const char* NameOf(Kind kind)
 {
@@ -102,6 +111,8 @@ const char* NameOf(Kind kind)
         return "controller";
     case Kind::Burnt:
         return "burnt";
+    case Kind::Text:
+        return "label";
     }
     return "?";
 }
@@ -117,6 +128,8 @@ uint32_t ClassOf(Kind kind)
         return automata::kClassId;
     case Kind::Burnt:
         return burnt::kClassId;
+    case Kind::Text:
+        return label::kClassId;
     }
     return 0;
 }
@@ -248,9 +261,76 @@ uint32_t BurntPlain(char* self)
     return f.h;
 }
 
+// A game string of the test's own (the text decal's GetText and SetText
+// take one).
+struct OwnString {
+    char bytes[0x14];
+    OwnString() { This<void*>(addr::SC4String_SC4String, &bytes[0]); }
+    explicit OwnString(const char* text) { This<void*>(addr::SC4String_FromText, &bytes[0], text); }
+    ~OwnString()
+    {
+        if (void* const buffer = At<void*>(&bytes[0], 0x4))
+            Cdecl<void>(addr::SC4_Free, buffer);
+    }
+    OwnString(const OwnString&) = delete;
+    OwnString& operator=(const OwnString&) = delete;
+    void* Pointer() { return &bytes[0]; }
+};
+
+// The text of a game string inside an object (its begin and end at +4, +8).
+std::string Body(char* object, std::size_t offset)
+{
+    const char* const begin = At<const char*>(object, offset + 4);
+    const char* const end = At<const char*>(object, offset + 8);
+    return begin && end >= begin && end - begin < 4096 ? std::string(begin, end) : std::string();
+}
+
+// A label's text through its GetText (slot 5).
+std::string TextOf(char* self)
+{
+    OwnString out;
+    Virtual<void*>(self, label::slot::kGetText, out.Pointer());
+    return Body(static_cast<char*>(out.Pointer()), 0);
+}
+
+std::string Hex(const std::string& text)
+{
+    std::string out;
+    char two[4];
+    for (const char c : text) {
+        std::snprintf(two, sizeof two, "%02X", static_cast<unsigned>(static_cast<uint8_t>(c)));
+        out += two;
+    }
+    return out;
+}
+
+void AddText(Fnv& f, const std::string& text)
+{
+    f.Add(static_cast<uint32_t>(text.size()));
+    f.Bytes(text.data(), text.size());
+}
+
+// A label's plain state: the text, the size, the moving byte, the place,
+// the colour, the opacity and the direction. The width and the box follow
+// the texture and the ground, the IDs, managers and texture the view.
+uint32_t LabelPlain(char* self)
+{
+    Fnv f;
+    AddText(f, Body(self, label::kText));
+    f.Add(At<uint32_t>(self, label::kSize));
+    f.Add(At<uint8_t>(self, label::kMoving));
+    f.Bytes(self + label::kPosition, 8);
+    f.Bytes(self + label::kColour, 12);
+    f.Add(At<uint32_t>(self, label::kOpacity));
+    f.Add(At<int32_t>(self, label::kDirection));
+    return f.h;
+}
+
 uint32_t PlainOf(Kind kind, char* self)
 {
     switch (kind) {
+    case Kind::Text:
+        return LabelPlain(self);
     case Kind::Decal:
         return DecalPlain(self);
     case Kind::Effect:
@@ -283,16 +363,20 @@ void AddQueries(Fnv& f, char* self, std::initializer_list<uint32_t> iids)
 // --- 1. The city's decals and effect props ---------------------------------------------
 
 struct CityCount {
-    uint32_t count[4] = {}, sum[4] = {}, xorred[4] = {};
+    uint32_t count[kKindCount] = {}, sum[kKindCount] = {}, xorred[kKindCount] = {};
     // Not hashed (frames and the view): decals with an overlay, decals with
     // a fade running, effect props with an effect object, controller props
-    // with a controller, shown, started.
-    uint32_t withOverlay = 0, fading = 0, withEffect = 0, withController = 0, shown = 0, started = 0, wrongQuery = 0;
+    // with a controller, labels with a texture and with overlays, shown,
+    // started.
+    uint32_t withOverlay = 0, fading = 0, withEffect = 0, withController = 0, withTexture = 0, labelOverlays = 0;
+    uint32_t shown = 0, started = 0, wrongQuery = 0;
+    // The labels' texts, sorted (for the log).
+    std::vector<std::string> texts;
     // The first building occupant of the grid (its box for a burnt building).
     char* building = nullptr;
     bool operator==(const CityCount& o) const
     {
-        for (int i = 0; i < 4; ++i)
+        for (int i = 0; i < kKindCount; ++i)
             if (count[i] != o.count[i] || sum[i] != o.sum[i] || xorred[i] != o.xorred[i])
                 return false;
         return true;
@@ -305,7 +389,7 @@ CityCount WalkCity(void* city)
     char* const occupants = Virtual<char*>(city, 0x88);
     if (!occupants || !At<uint8_t>(occupants, occmgr_sim::field::kInitialized))
         return out;
-    std::unordered_set<char*> found[4];
+    std::unordered_set<char*> found[kKindCount];
     Virtual<void>(occupants + occmgr_sim::field::kLock, 0x4);
     const occmgr_sim::Vector* const grid = occmgr_sim::Grid(occupants);
     const int32_t columns = static_cast<int32_t>((grid->end - grid->begin) / 12);
@@ -333,9 +417,10 @@ CityCount WalkCity(void* city)
     Virtual<void>(occupants + occmgr_sim::field::kLock, 0x8);
     // QueryInterface through the occupant part's thunk: the class ID (the
     // burnt building answers only the prop's interfaces: the prop's
+    // interface, which is the object; the label not its class ID but its
     // interface, which is the object).
     const auto confirm = [&out](Kind kind, char* self) {
-        const uint32_t iid = kind == Kind::Burnt ? kIidProp : ClassOf(kind);
+        const uint32_t iid = kind == Kind::Burnt ? kIidProp : kind == Kind::Text ? label::kIid : ClassOf(kind);
         void* answer = nullptr;
         if (Virtual<uint8_t>(self + OccupantPartOf(kind), 0x0, iid, &answer) && answer) {
             if (answer != self)
@@ -368,9 +453,16 @@ CityCount WalkCity(void* city)
                 break;
             case Kind::Burnt:
                 break;
+            case Kind::Text:
+                out.withTexture += At<void*>(self, label::kTexture) != nullptr;
+                out.labelOverlays += (At<uint32_t>(self, label::kOverlayId) != 0xFFFFFFFF) +
+                                     (At<uint32_t>(self, label::kOverlayId2) != 0xFFFFFFFF);
+                out.texts.push_back(Hex(Body(self, label::kText)));
+                break;
             }
         }
     }
+    std::sort(out.texts.begin(), out.texts.end());
     return out;
 }
 
@@ -399,6 +491,10 @@ char* MakeDirect(Kind kind)
     case Kind::Burnt:
         if ((memory = Cdecl<void*>(addr::cSC4PropOccupantBurntBuilding_Allocate, std::size_t{burnt::kObjectSize})))
             self = static_cast<char*>(This<void*, uint32_t>(addr::cSC4PropOccupantBurntBuilding_Construct, memory, 1u));
+        break;
+    case Kind::Text:
+        if ((memory = Cdecl<void*>(addr::cSC4PropOccupantTextDecal_Allocate, std::size_t{label::kObjectSize})))
+            self = static_cast<char*>(This<void*>(addr::cSC4PropOccupantTextDecal_Construct, memory));
         break;
     }
     if (self)
@@ -563,6 +659,93 @@ uint32_t DriveBurntFields(char* self, void* source)
     return f.h;
 }
 
+// The texts the tests give labels: ASCII, and one with U+00E9 (UTF-8).
+constexpr const char* kLabelText = "Label";
+constexpr const char* kLabelAccent = "Label \xC3\xA9";
+
+void SetLabelText(char* self, const char* text)
+{
+    OwnString source(text);
+    Virtual<void>(self, label::slot::kSetText, source.Pointer());
+}
+
+// What a label leaves for its overlays: the width, the box, whether each
+// overlay manager and each ID is there, whether it has a texture.
+void AddOverlayState(Fnv& f, char* self)
+{
+    f.Add(At<uint32_t>(self, label::kWidth));
+    f.Bytes(self + layout::kMin, 24);
+    f.Add(At<void*>(self, label::kOverlays) != nullptr);
+    f.Add(At<void*>(self, label::kOverlays2) != nullptr);
+    f.Add(At<uint32_t>(self, label::kOverlayId) != 0xFFFFFFFF);
+    f.Add(At<uint32_t>(self, label::kOverlayId2) != 0xFFFFFFFF);
+    f.Add(At<void*>(self, label::kTexture) != nullptr);
+}
+
+// A label as the label tool and the TextDecal command make one, never
+// inserted and never shown (base flag 2 clear): the setters only write
+// fields, MakeOverlays stops before the overlay managers. The moving byte
+// picks the managers (references to the terrain view's), and a text makes
+// a texture; the destructor lets both go.
+uint32_t DriveLabelFields(char* self)
+{
+    Fnv f;
+    AddQueries(f, self, {label::kIid, label::kClassId, kIidMessageTarget, kIidProp, kIidOccupant, 1u, 0x12345678u});
+    f.Add(static_cast<uint32_t>(Virtual<char*>(self, 0x0C) - self));
+    f.Add(LabelPlain(self));
+    AddOverlayState(f, self);
+    // Sizes: 0, 8 and below 0 are refused, 0.8 kept.
+    for (const float size : {0.0f, 8.0f, -1.0f, 0.8f}) {
+        Virtual<void>(self, label::slot::kSetSize, size);
+        f.Add(At<uint32_t>(self, label::kSize));
+    }
+    // A colour within 0.0001 of the one kept is no change.
+    Virtual<void>(self, label::slot::kSetColour, 255.00002f, 255.0f, 254.99998f);
+    f.Bytes(self + label::kColour, 12);
+    Virtual<void>(self, label::slot::kSetColour, 128.0f, 64.0f, 32.0f);
+    f.Bytes(self + label::kColour, 12);
+    Virtual<void>(self, label::slot::kSetOpacity, 1.0f);
+    Virtual<void>(self, label::slot::kSetOpacity, 0.5f);
+    f.Add(At<uint32_t>(self, label::kOpacity));
+    Virtual<void>(self, label::slot::kSetDirection, int32_t{1});
+    Virtual<void>(self, label::slot::kSetDirection, int32_t{0});
+    f.Add(At<int32_t>(self, label::kDirection));
+    const float position[3] = {1000.0f, 271.5f, 2000.25f};
+    Virtual<void>(self + layout::kOccupant, 0x24, static_cast<const float*>(position));
+    f.Add(LabelPlain(self));
+    f.Bytes(self + layout::kMin, 24);
+    // Moving: the managers 2 and 3 picked; the setters go to the overlays
+    // there are (none).
+    Virtual<void>(self, label::slot::kSetMoving, 1u);
+    AddOverlayState(f, self);
+    const float moved[3] = {1004.0f, 271.5f, 2003.0f};
+    Virtual<void>(self + layout::kOccupant, 0x24, static_cast<const float*>(moved));
+    Virtual<void>(self, label::slot::kSetColour, 10.0f, 20.0f, 30.0f);
+    Virtual<void>(self, label::slot::kSetOpacity, 0.25f);
+    f.Add(LabelPlain(self));
+    Virtual<void>(self, label::slot::kSetMoving, 0u);
+    AddOverlayState(f, self);
+    // The text, ASCII and not, and back through GetText.
+    SetLabelText(self, kLabelText);
+    const bool texture = At<void*>(self, label::kTexture) != nullptr;
+    const std::string ascii = TextOf(self);
+    AddText(f, ascii);
+    SetLabelText(self, kLabelAccent);
+    const std::string accent = TextOf(self);
+    AddText(f, accent);
+    f.Add(texture);
+    AddOverlayState(f, self);
+    // A change of a flag other than 2 goes to the base alone.
+    const uint32_t flags = At<uint8_t>(self, layout::kFlags);
+    Virtual<uint32_t>(self + layout::kOccupant, 0x78, flags ^ 0x40u);
+    f.Add(static_cast<uint8_t>(At<uint8_t>(self, layout::kFlags) ^ flags));
+    Virtual<uint32_t>(self + layout::kOccupant, 0x78, flags);
+    f.Add(LabelPlain(self));
+    log::Write("autotest: propkinds: label fields: texts %s %s, texture %d, width %08X", Hex(ascii).c_str(), Hex(accent).c_str(),
+               texture ? 1 : 0, At<uint32_t>(self, label::kWidth));
+    return f.h;
+}
+
 // A vector of uint32 as the game's.
 struct Vec {
     uint32_t* begin = nullptr;
@@ -572,7 +755,7 @@ struct Vec {
 
 // The prop manager's types whose profile names the class, sorted.
 struct Types {
-    std::vector<uint32_t> of[4];
+    std::vector<uint32_t> of[kKindCount];
     const std::vector<uint32_t>& operator[](Kind kind) const { return of[static_cast<int>(kind)]; }
 };
 
@@ -619,6 +802,8 @@ uint32_t DriveFields(Kind kind, char* self, void* building)
         return DriveControllerFields(self);
     case Kind::Burnt:
         return DriveBurntFields(self, building);
+    case Kind::Text:
+        return DriveLabelFields(self);
     }
     return 0;
 }
@@ -1055,13 +1240,155 @@ void EditBurnt(Fnv& f, void* m, const Types& types, const float* position, const
     f.Add(mine.h);
 }
 
+bool SignsShown()
+{
+    return Virtual<uint8_t>(Global<void*>(addr::SC4_Service43DB8), 0x28) != 0;
+}
+
+void ShowSigns(bool shown)
+{
+    Virtual<void>(Global<void*>(addr::SC4_Service43DB8), 0x20, uint32_t{shown ? 1u : 0u});
+}
+
+// A label as the label tool puts one down: placed, added to the city (Init:
+// the prop type, the overlay managers, shown when the city shows signs and
+// labels), its text set. With signs and labels shown (switched on for the
+// test when they were off, and back at the end) and the label shown as the
+// view shows it: the setters with overlays, a drag (the moving byte, a
+// move, colour and opacity while moving), the view's messages (the camera
+// moved, the city's init, a new visibility filter: the one the city has),
+// hidden and shown (the filter message's data 2 points at the filter). Then
+// with signs and labels off, showing it is refused.
+// Then it is removed.
+void EditLabel(Fnv& f, void* m, const Types& types, const float* position, const int32_t* cells)
+{
+    const char* how = "";
+    char* const self = MakeForEdit(m, types[Kind::Text], Kind::Text, &how);
+    if (!self) {
+        f.Add(uint8_t{0xEE});
+        log::Write("autotest: propkinds: edit label: none made");
+        return;
+    }
+    char* const occupant = self + layout::kOccupant;
+    const bool signsBefore = SignsShown();
+    Fnv mine;
+    // Small: the box (the text's width, its texture's width over height
+    // times the size times 16) stays inside the spot's empty 64 m occupant
+    // cell, where the flammability simulator does not see it come and go.
+    Virtual<void>(self, label::slot::kSetSize, 0.1f);
+    Virtual<void>(occupant, 0x24, position);
+    const uint8_t added = Virtual<uint8_t>(m, manager::kAddCityProp, static_cast<void*>(occupant));
+    mine.Add(added);
+    mine.Add(LabelPlain(self));
+    mine.Add(Virtual<uint8_t>(occupant, 0x14));
+    mine.Add(static_cast<uint8_t>(At<uint8_t>(self, layout::kFlags) & 1));
+    mine.Add(At<uint16_t>(self, layout::kProp + 0x5C));
+    const bool shownByInit = (At<uint8_t>(self, layout::kFlags) & 2) != 0;
+    mine.Add(shownByInit);
+    AddOverlayState(mine, self);
+    const uint32_t afterAdd = mine.h;
+    if (!signsBefore)
+        ShowSigns(true);
+    if (!(At<uint8_t>(self, layout::kFlags) & 2))
+        Virtual<uint32_t>(occupant, 0x78, uint32_t{At<uint8_t>(self, layout::kFlags)} | 2u);
+    const bool shown = (At<uint8_t>(self, layout::kFlags) & 2) != 0;
+    mine.Add(shown);
+    SetLabelText(self, kLabelAccent);
+    const std::string text = TextOf(self);
+    AddText(mine, text);
+    mine.Add(LabelPlain(self));
+    AddOverlayState(mine, self);
+    const uint32_t width = At<uint32_t>(self, label::kWidth);
+    const bool overlays =
+        At<uint32_t>(self, label::kOverlayId) != 0xFFFFFFFF && At<uint32_t>(self, label::kOverlayId2) != 0xFFFFFFFF;
+    // The setters with overlays there: each lays the text down again.
+    Virtual<void>(self, label::slot::kSetSize, 0.15f);
+    AddOverlayState(mine, self);
+    Virtual<void>(self, label::slot::kSetColour, 200.0f, 100.0f, 50.0f);
+    Virtual<void>(self, label::slot::kSetOpacity, 0.7f);
+    Virtual<void>(self, label::slot::kSetDirection, int32_t{0});
+    AddOverlayState(mine, self);
+    Virtual<void>(self, label::slot::kSetDirection, int32_t{1});
+    mine.Add(LabelPlain(self));
+    AddOverlayState(mine, self);
+    const uint32_t afterSetters = mine.h;
+    // A drag: managers 2 and 3, the overlays moved and told.
+    Virtual<void>(self, label::slot::kSetMoving, 1u);
+    AddOverlayState(mine, self);
+    const float moved[3] = {position[0] + 2.0f, position[1], position[2] + 1.0f};
+    Virtual<void>(occupant, 0x24, static_cast<const float*>(moved));
+    Virtual<void>(self, label::slot::kSetColour, 255.0f, 255.0f, 0.0f);
+    Virtual<void>(self, label::slot::kSetOpacity, 0.5f);
+    mine.Add(LabelPlain(self));
+    AddOverlayState(mine, self);
+    Virtual<void>(self, label::slot::kSetMoving, 0u);
+    Virtual<void>(occupant, 0x24, position);
+    mine.Add(LabelPlain(self));
+    AddOverlayState(mine, self);
+    const uint32_t afterDrag = mine.h;
+    // The view's messages.
+    Deliver(self + layout::kProp, 0xA6B79602, nullptr, 0, 0);
+    AddOverlayState(mine, self);
+    Deliver(self + layout::kProp, 0x26D31EC1, nullptr, 0, 0);
+    AddOverlayState(mine, self);
+    mine.Add(static_cast<uint8_t>(At<uint8_t>(self, layout::kFlags) & 2));
+    void* filter = nullptr;
+    Virtual<void>(Global<void*>(addr::SC4_Service43DC4), 0x48, &filter);
+    if (filter) {
+        Deliver(self + layout::kProp, 0x06CDB65B, nullptr, static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&filter)), 0);
+        mine.Add(static_cast<uint8_t>(At<uint8_t>(self, layout::kFlags) & 2));
+        Virtual<uint32_t>(filter, 0x8);
+    }
+    // Hidden and shown again.
+    Virtual<uint32_t>(occupant, 0x78, uint32_t{At<uint8_t>(self, layout::kFlags)} & ~2u);
+    AddOverlayState(mine, self);
+    Virtual<uint32_t>(occupant, 0x78, uint32_t{At<uint8_t>(self, layout::kFlags)} | 2u);
+    AddOverlayState(mine, self);
+    const uint32_t afterMessages = mine.h;
+    // Signs and labels off: hidden, and showing it is refused.
+    ShowSigns(false);
+    if (At<uint8_t>(self, layout::kFlags) & 2)
+        Virtual<uint32_t>(occupant, 0x78, uint32_t{At<uint8_t>(self, layout::kFlags)} & ~2u);
+    Virtual<uint32_t>(occupant, 0x78, uint32_t{At<uint8_t>(self, layout::kFlags)} | 2u);
+    const bool refused = !(At<uint8_t>(self, layout::kFlags) & 2);
+    mine.Add(refused);
+    AddOverlayState(mine, self);
+    ShowSigns(signsBefore);
+    const uint8_t removed = Virtual<uint8_t>(m, manager::kRemoveCityPropsInArea, cells);
+    mine.Add(removed);
+    AddRemoved(mine, self, Kind::Text);
+    AddOverlayState(mine, self);
+    mine.Add(LabelPlain(self));
+    log::Write("autotest: propkinds: edit label (%s): added %u %08X (shown by Init %d, signs shown before %d), shown %d, text %s, "
+               "width %08X, overlays %d, setters %08X, drag %08X, messages %08X, refused %d; removed %u, initialized %u, in "
+               "manager %u, managers %d %d, texture %d",
+               how, added, afterAdd, shownByInit ? 1 : 0, signsBefore ? 1 : 0, shown ? 1 : 0, Hex(text).c_str(), width,
+               overlays ? 1 : 0, afterSetters, afterDrag, afterMessages, refused ? 1 : 0, removed, Virtual<uint8_t>(occupant, 0x14),
+               At<uint8_t>(self, layout::kFlags) & 1, At<void*>(self, label::kOverlays) != nullptr ? 1 : 0,
+               At<void*>(self, label::kOverlays2) != nullptr ? 1 : 0, At<void*>(self, label::kTexture) != nullptr ? 1 : 0);
+    if (Virtual<uint8_t>(occupant, 0x14)) {
+        // Not removed: its Shutdown gives up the messages and the overlays
+        // before the reference goes.
+        log::Write("autotest: propkinds: edit label: STILL INITIALIZED after the removal; shut down by the test");
+        Virtual<uint8_t>(occupant, 0x10);
+    }
+    Virtual<uint32_t>(self, 0x8);
+    f.Add(mine.h);
+}
+
 // OPENSC4_TEST_PROPKINDS_EDIT=2: after the round trip a decal (no fade), an
 // effect prop, a controller prop and a burnt building are added at the spot
 // and left there, so that the run's save holds them and a run started from
 // that save reads them back.
 void LeaveInCity(Fnv& f, void* m, const Types& types, const float* position, const std::string& known)
 {
-    for (const Kind kind : kKinds) {
+    // Two labels: one with U+00E9 at the spot, one in ASCII 4 m off.
+    Kind kinds[kKindCount + 1];
+    std::copy(std::begin(kKinds), std::end(kKinds), kinds);
+    kinds[kKindCount] = Kind::Text;
+    for (int i = 0; i <= kKindCount; ++i) {
+        const Kind kind = kinds[i];
+        const bool second = i == kKindCount;
         const char* how = "";
         char* const self = MakeForEdit(m, types[kind], kind, &how);
         if (!self) {
@@ -1070,6 +1397,7 @@ void LeaveInCity(Fnv& f, void* m, const Types& types, const float* position, con
         }
         char* const occupant = self + OccupantPartOf(kind);
         Fnv mine;
+        const float off[3] = {position[0] + 4.0f, position[1], position[2] + 4.0f};
         if (kind == Kind::Decal) {
             mine.Add(Virtual<uint8_t>(occupant, 0x0C));
             Virtual<void>(self, decal::slot::kSetDecalTexture, static_cast<const uint32_t*>(kTexture), 12.0f);
@@ -1078,13 +1406,21 @@ void LeaveInCity(Fnv& f, void* m, const Types& types, const float* position, con
         if (kind == Kind::Burnt) {
             PlaceBurnt(self, position);
         } else {
-            Virtual<void>(occupant, 0x24, position);
+            Virtual<void>(occupant, 0x24, second ? off : position);
             Virtual<uint32_t>(self + layout::kProp, 0x28, int32_t{0});
         }
         const uint8_t added = Virtual<uint8_t>(m, manager::kAddCityProp, static_cast<void*>(occupant));
         mine.Add(added);
         if (kind == Kind::Controller && NameOfController(self).empty() && !known.empty())
             Virtual<void>(self, automata::slot::kSetTemplateName, known.c_str());
+        if (kind == Kind::Text) {
+            // As the label tool does it: added, then the text; then a colour
+            // and a size of its own.
+            SetLabelText(self, second ? kLabelText : kLabelAccent);
+            Virtual<void>(self, label::slot::kSetColour, 255.0f, 230.0f, 128.0f);
+            Virtual<void>(self, label::slot::kSetSize, second ? 0.64f : 0.8f);
+            log::Write("autotest: propkinds: left in the city: label text %s", Hex(TextOf(self)).c_str());
+        }
         const uint32_t plain = PlainOf(kind, self);
         mine.Add(plain);
         log::Write("autotest: propkinds: left in the city: %s (%s): added %u, plain %08X, initialized %u, in manager %u",
@@ -1099,16 +1435,18 @@ void LeaveInCity(Fnv& f, void* m, const Types& types, const float* position, con
 void LogCity(const char* when, const CityCount& c)
 {
     log::Write("autotest: propkinds: city %s: decals %u (%08X %08X; overlay %u, fading %u) effects %u (%08X %08X; "
-               "effect %u, started %u) controllers %u (%08X %08X; controller %u) burnt %u (%08X %08X) shown %u, wrong "
-               "QueryInterface %u",
+               "effect %u, started %u) controllers %u (%08X %08X; controller %u) burnt %u (%08X %08X) labels %u (%08X %08X; "
+               "texture %u, overlays %u) shown %u, wrong QueryInterface %u",
                when, c.count[0], c.sum[0], c.xorred[0], c.withOverlay, c.fading, c.count[1], c.sum[1], c.xorred[1], c.withEffect,
-               c.started, c.count[2], c.sum[2], c.xorred[2], c.withController, c.count[3], c.sum[3], c.xorred[3], c.shown,
-               c.wrongQuery);
+               c.started, c.count[2], c.sum[2], c.xorred[2], c.withController, c.count[3], c.sum[3], c.xorred[3], c.count[4],
+               c.sum[4], c.xorred[4], c.withTexture, c.labelOverlays, c.shown, c.wrongQuery);
+    for (std::size_t i = 0; i < c.texts.size() && i < 8; ++i)
+        log::Write("autotest: propkinds: city %s: label %u text %s", when, static_cast<unsigned>(i), c.texts[i].c_str());
 }
 
 void AddCounts(Fnv& f, const CityCount& c)
 {
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < kKindCount; ++i) {
         f.Add(c.count[i]);
         f.Add(c.sum[i]);
         f.Add(c.xorred[i]);
@@ -1134,9 +1472,10 @@ void Drive(const Day& day)
     Types types;
     if (m)
         types = TypesOf(m);
-    log::Write("autotest: propkinds: types: %u decal, %u effect, %u controller, %u burnt",
+    log::Write("autotest: propkinds: types: %u decal, %u effect, %u controller, %u burnt, %u label",
                static_cast<unsigned>(types[Kind::Decal].size()), static_cast<unsigned>(types[Kind::Effect].size()),
-               static_cast<unsigned>(types[Kind::Controller].size()), static_cast<unsigned>(types[Kind::Burnt].size()));
+               static_cast<unsigned>(types[Kind::Controller].size()), static_cast<unsigned>(types[Kind::Burnt].size()),
+               static_cast<unsigned>(types[Kind::Text].size()));
     Fnv made;
     DriveMade(made, m, types, before.building);
     all.Add(made.h);
@@ -1162,6 +1501,7 @@ void Drive(const Day& day)
             log::Write("autotest: propkinds: a template the scripts have: \"%s\"", known.c_str());
             EditController(edit, m, types, position, cells, known);
             EditBurnt(edit, m, types, position, cells);
+            EditLabel(edit, m, types, position, cells);
             if (editLevel >= 2) {
                 const CityCount between = WalkCity(city);
                 LogCity("after the round trip", between);

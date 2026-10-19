@@ -1,13 +1,15 @@
-// Four classes derived from the prop occupant (build 641): the terrain decal
+// Five classes derived from the prop occupant (build 641): the terrain decal
 // (cSC4PropOccupantTerrainDecal: a picture laid flat on the ground, with an
 // opacity that can fade), the visual effect (cSC4PropOccupantVisualEffect:
 // an effect of the effects manager at the prop's place), the automata
 // controller prop (cSC4PropOccupantAutomataController: a prop that has the
-// automata controller manager run a controller of a named template) and the
+// automata controller manager run a controller of a named template), the
 // burnt building (cSC4PropOccupantBurntBuilding: the ruin a fire leaves,
-// drawn by the class itself). The class maps, every vtable part and the
-// objects' fields; the code is in propkinds_decal.cpp, propkinds_effect.cpp,
-// propkinds_automata.cpp and propkinds_burnt.cpp.
+// drawn by the class itself) and the text decal (cSC4PropOccupantTextDecal:
+// the label, a line of text on the ground). The class maps, every vtable
+// part and the objects' fields; the code is in propkinds_decal.cpp,
+// propkinds_effect.cpp, propkinds_automata.cpp, propkinds_burnt.cpp and
+// propkinds_textdecal.cpp.
 //
 // Both objects start with an interface of their own at +0 and hold the
 // whole prop (cSC4PropOccupant, 0x68 bytes, src/core/propocc_sim.h) at +4,
@@ -131,6 +133,42 @@
 //      thunks, the drawing: the game's)
 //   Not virtual: SetOccupant 0x005EEB70 (ExplodeLot: the building's box)
 //   and the quad builder 0x005EDC60 (drawing, the game's).
+//
+// cSC4PropOccupantTextDecal (the label; see namespace textdecal)
+//   class ID 0x8B79C707 (GetGZCLSID 0x005F8430), interface 0x2B3B7D86; Init
+//   gives the prop type 0xCB79919B
+//   0xBC bytes from the pool at 0x00B0A9B8 (allocator 0x005F7D80 and,
+//   inline, the factory 0x005F84D0; the pool's own page functions
+//   0x005F7680 and 0x005F82A0, in its vtables 0x00AA54A8 and 0x00AA54E4,
+//   stay the game's)
+//   constructor 0x005F8300 (the factory; the prop manager's TextDecal
+//   command at 0x004A364D; the label tool at 0x004BD97F), destructor body
+//   0x005F8570, deleting destructor 0x005F8510 (thunk 0x005F8490)
+//   +0x00 vtable 0x00AA5680, 11 slots:
+//      0 2 QueryInterface 0x005F7650
+//      1, 2 AddRef 0x005ECAF0, Release 0x005ECB00
+//      3 0 AsOccupant 0x005F8400 (shared, the game's)
+//      4 1 SetText 0x005F82E0 (a string)
+//      5 1 GetText 0x005F8410 (a string to copy into)
+//      6 1 SetSize 0x005F7B10
+//      7 1 SetMoving 0x005F8170
+//      8 3 SetColour 0x005F7B50
+//      9 1 SetDirection 0x005F7D60
+//      10 1 SetOpacity 0x005F7C00
+//   +0x04 the prop interface, vtable 0x00AA5620, 24 slots: all the prop's
+//      (8 SetPropType 0x005EF4C0)
+//   +0x08 the message target, vtable 0x00AA5610: 3 DoMessage 0x005F8030
+//   +0x0C the occupant, vtable 0x00AA5588, 34 slots; the class's own: 3 Init
+//      0x005F7F40, 4 Shutdown 0x005F76C0, 9 SetPosition 0x005F7AA0, 30
+//      SetAllFlags 0x005F81F0
+//   +0x10 cIGZSerializable, vtable 0x00AA556C: 3 Write 0x005F7DB0, 4 Read
+//      0x005F7E50, 5 GetGZCLSID 0x005F8430
+//   +0x14 the property holder, vtable 0x00AA5508, 25 slots: 22 the deleting
+//      destructor's thunk 0x005F8490, 23 and 24 thunks to Write and Read
+//   +0x28 the exemplar holder, vtable 0x00AA54F0, 5 slots
+//   Not virtual: RemoveOverlays 0x005F77C0, MakeOverlays 0x005F7810,
+//   MoveOverlays 0x005F7A50, PickOverlayManagers 0x005F7C80 and MakeText
+//   0x005F8190.
 //
 // What follows frames and the view, not game days:
 //   - base flag 2 of both (the occupant's flags at the object + 0x3B):
@@ -304,6 +342,43 @@ constexpr uint32_t kTextureCount = 5;
 // The texture every binding is asked for (Init).
 constexpr uint32_t kTexture[3] = {0x7AB50E44, 0x1ABE787D, 0xA9F0E710};
 } // namespace burnt
+
+// The text decal (the label) holds the prop at +4 like the first three.
+namespace textdecal {
+constexpr uint32_t kClassId = 0x8B79C707;
+constexpr uint32_t kIid = 0x2B3B7D86;
+constexpr uint32_t kPropType = 0xCB79919B; // what Init gives the prop's SetPropType
+constexpr std::size_t kObjectSize = 0xBC;
+
+// Fields (evidence: the constructor 0x005F8300, Write 0x005F7DB0 and
+// MakeOverlays 0x005F7810).
+// +0x6C the text: a game string, 0x14 bytes (vtable, begin, end, capacity, a
+// zero); saved.
+constexpr std::size_t kText = 0x6C;
+constexpr std::size_t kTextBegin = 0x70;
+constexpr std::size_t kTextEnd = 0x74;
+constexpr std::size_t kTextCapacity = 0x78;
+constexpr std::size_t kTextZero = 0x7C;
+constexpr std::size_t kSize = 0x80;       // float, 1: the letters' size (SetSize, 0 to 8 exclusive); saved
+constexpr std::size_t kOverlayId = 0x84;  // uint32: the text's ID in the first overlay manager, -1 none
+constexpr std::size_t kOverlayId2 = 0x88; // uint32: the same in the second
+constexpr std::size_t kMoving = 0x8C;     // uint8: the label is being moved (overlay managers 2 and 3, not 0 and 1)
+constexpr std::size_t kWidth = 0x90;      // float, 100: the text's width in metres (MakeOverlays); saved
+constexpr std::size_t kPosition = 0x94;   // float[2]: x and z (SetPosition); saved (twice)
+constexpr std::size_t kColour = 0x9C;     // float[3], 255 each (SetColour); saved
+constexpr std::size_t kOpacity = 0xA8;    // float, 1 (SetOpacity); saved
+constexpr std::size_t kDirection = 0xAC;  // int32, 1: which way the text runs (SetDirection); saved as a byte
+constexpr std::size_t kTexture = 0xB0;    // the text's texture (the service 0x00B43CE4 makes it), referenced, or null
+constexpr std::size_t kOverlays = 0xB4;   // the first overlay manager (the terrain view's 0, or 2 while moving), referenced
+constexpr std::size_t kOverlays2 = 0xB8;  // the second (1, or 3 while moving), referenced
+
+// Byte offsets of the class's own slots in its primary vtable (the label
+// tool's and the prop manager's TextDecal command's calls).
+namespace slot {
+constexpr std::size_t kSetText = 0x10, kGetText = 0x14, kSetSize = 0x18, kSetMoving = 0x1C, kSetColour = 0x20;
+constexpr std::size_t kSetDirection = 0x24, kSetOpacity = 0x28;
+} // namespace slot
+} // namespace textdecal
 
 template <typename R, typename... Args>
 inline R This(std::uintptr_t function, void* self, Args... args)
