@@ -1,4 +1,4 @@
-# Two classes derived from the prop occupant: the terrain decal (cSC4PropOccupantTerrainDecal, class ID 0x2977AA48) and the visual effect (cSC4PropOccupantVisualEffect, class ID 0x2977AA49); src/core/propkinds_decal.cpp, propkinds_effect.cpp, the class maps in src/core/propkinds.h. The decal's constructor 0x005EE360 and allocator 0x005ED6E0 are in lot.toml, the effect's 0x005F0210 and 0x005ED9A0 in propmgr.toml.
+# Four classes derived from the prop occupant: the terrain decal (cSC4PropOccupantTerrainDecal, class ID 0x2977AA48), the visual effect (cSC4PropOccupantVisualEffect, class ID 0x2977AA49), the automata controller prop (cSC4PropOccupantAutomataController, class ID 0x2A4017A0) and the burnt building (cSC4PropOccupantBurntBuilding, class ID 0xC9EFB016); src/core/propkinds_decal.cpp, propkinds_effect.cpp, propkinds_automata.cpp, propkinds_burnt.cpp, the class maps in src/core/propkinds.h. The decal's constructor 0x005EE360 and allocator 0x005ED6E0 are in lot.toml, the effect's 0x005F0210 and 0x005ED9A0 in propmgr.toml, the burnt building's constructor 0x005EF810, allocator 0x005EDAE0 and SetOccupant 0x005EEB70 in lot.toml.
 
 [[entry]]
 name = "cSC4PropOccupantTerrainDecal::QueryInterface"
@@ -375,3 +375,320 @@ address = 0x00AA4D4C
 kind = "vtable"
 expect = "20 03 5F 00 C0 D6 5E 00"
 source = "The exemplar holder part at +0x28, 5 slots."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::QueryInterface"
+address = 0x005ECC70
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 88 17 40"
+source = "Name from the class. Slot 0 of the primary vtable 0x00AA4D28, (iid, out), ret 8: 0x8A401788 gives the object with the base's AddRef on the object + 0xC, the class ID 0x2A4017A0 the object with a reference through the vtable, everything else goes to the prop's QueryInterface with the object + 4. Ours in simulators.propkinds.automata."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::SetEnabled"
+address = 0x005EDE60
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4E 6C 85 C9"
+source = "Name ours. Slot 6, (bool), ret 4: the controller at +0x6C made active or inactive (its slot 18), the byte at +0x84 kept; AL the argument. Ours in simulators.propkinds.automata."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::Write"
+address = 0x005EDDB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Serializable slot 3 (this = object + 0x10), ret 4: version 3, the prop's Write, the enabled byte (0x005D9FD0) and the name (stream slot 0x3C). Ours in simulators.propkinds.automata."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::Shutdown"
+address = 0x005EEDD0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 14"
+source = "Occupant slot 4 (this = object + 0xC), ret: when initialized the controller taken off the automata controller manager (the city's slot 0xBC, its slot 7) and released, the date range freed, the base's Shutdown. Ours in simulators.propkinds.automata."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::Read"
+address = 0x005EFBF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Serializable slot 4, ret 4: version 3 only, the prop's Read, the enabled byte (0x005D9FA0) and the name (stream slot 0x3C). Ours in simulators.propkinds.automata."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::GetGZCLSID"
+address = 0x005EFE40
+kind = "function"
+convention = "thiscall"
+expect = "B8 A0 17 40 2A C3 CC CC"
+source = "Serializable slot 5: 0x2A4017A0. Ours in simulators.propkinds.automata."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::Destroy"
+address = 0x005EFEF0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 04 C7"
+source = "Name ours. The destructor body, called by the deleting destructor 0x005F04D0 only: the seven vtables, the name's buffer freed, the controller released, then the occupant base destroyed (jump to 0x005E8C40 with the object + 0xC). Ours in simulators.propkinds.automata_object."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::Init"
+address = 0x005EFF60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 2C 56 8B F1 8B 06"
+source = "Occupant slot 3 (this = object + 0xC), ret: the size from property 0x27812810 (16 m a side without it), the template's name from property 0xC98204B8 or 0x20 to slot 5 (and the enabled byte set), the base's Init, the controller made active when enabled and shown. Ours in simulators.propkinds.automata."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::MakeController"
+address = 0x005F00B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 53 56 8B F1 8B"
+source = "Name ours. Not virtual, ret: the controller at +0x6C made inactive, taken off the manager and released; for a name, a new one from the manager's slot 5 (occupant, the name or name_state (0x00AA4D44) for a state other than 0, 0) and SetEnabled with the byte read first. Ours in simulators.propkinds.automata."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::DeletingDestructor"
+address = 0x005F04D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 18 FA FF FF"
+source = "Name ours. Reached through the holder part's slot 22 (thunk 0x005EFEB0), (flags), ret 4: the body 0x005EFEF0, and with flag 1 the object back to the pool 0x00B0A914 (page reopened at 0x4000005A). Ours in simulators.propkinds.automata_object."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::SetState"
+address = 0x005F0530
+kind = "function"
+convention = "thiscall"
+expect = "0F B6 51 63 8B 44 24 04"
+source = "Name ours. Slot 11 of the prop part 0x00AA4CC8 (this = object + 4), ret 4: for another state the byte stored and the controller made again (0x005F00B0); no message. Ours in simulators.propkinds.automata."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::SetTemplateName"
+address = 0x005F06F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 55 8B E9 8D"
+source = "Name ours. Slot 5, (const char*), ret 4: a name other than the one kept is assigned to the string at +0x70 and the controller made again. Ours in simulators.propkinds.automata."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::Construct"
+address = 0x005EFDB0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 8D 7E 04"
+source = "Name from the class. The constructor, ret: the prop's constructor on the object + 4, the seven vtables, no controller (+0x6C), an empty name (+0x70, 8 bytes from 0x0090CF54), not enabled (+0x84). The factory and 0x00529636 call it. Ours in simulators.propkinds.automata_object."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::Allocate"
+address = 0x005EDD80
+kind = "function"
+convention = "cdecl"
+expect = "A1 18 A9 B0 00 8B 40 08"
+source = "Name ours. The pool allocator (0x00B0A914; the size, 0x88, is not used). 0x00529628 calls it. Ours in simulators.propkinds.automata_object."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::Create"
+address = 0x005F0490
+kind = "function"
+convention = "cdecl"
+expect = "A1 18 A9 B0 00 8B 40 08"
+source = "Name ours. The factory the class registration keeps (0x004607AF): an item of the pool, constructed; the object + 4. Ours in simulators.propkinds.automata_object."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::Pool"
+address = 0x00B0A914
+kind = "data"
+source = "The pool of the automata controller props (0x88 bytes each; the current page at +4, its free list at +8 and used count at +0xC)."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::vftable"
+address = 0x00AA4D28
+kind = "vtable"
+expect = "70 CC 5E 00 F0 CA 5E 00"
+source = "The primary vtable, 7 slots: QueryInterface, AddRef, Release, AsOccupant 0x005F8400, AsPropOccupant 0x005FD7E0 (shared stubs), SetTemplateName, SetEnabled. Copied by simulators.propkinds.automata_object."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::vftable_8"
+address = 0x00AA4CB8
+kind = "vtable"
+expect = "70 FE 5E 00 F0 D5 5E 00"
+source = "The message target part at +8, 4 slots (3 the prop's DoMessage)."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::vftable_C"
+address = 0x00AA4C30
+kind = "vtable"
+expect = "80 FE 5E 00 20 D6 5E 00"
+source = "The occupant part at +0xC, 34 slots (the class's own: 3 Init, 4 Shutdown; 9 the prop's SetPosition, 30 the base's SetAllFlags)."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::vftable_10"
+address = 0x00AA4C14
+kind = "vtable"
+expect = "90 FE 5E 00 50 D6 5E 00"
+source = "The serializable part at +0x10, 6 slots (3 Write, 4 Read, 5 GetGZCLSID)."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::vftable_14"
+address = 0x00AA4BB0
+kind = "vtable"
+expect = "A0 FE 5E 00 80 D6 5E 00"
+source = "The property holder part at +0x14, 25 slots (22 the deleting destructor's thunk 0x005EFEB0, 23 and 24 thunks to Write and Read)."
+
+[[entry]]
+name = "cSC4PropOccupantAutomataController::vftable_28"
+address = 0x00AA4B98
+kind = "vtable"
+expect = "C0 FE 5E 00 C0 D6 5E 00"
+source = "The exemplar holder part at +0x28, 5 slots."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::QueryInterface"
+address = 0x005ECC60
+kind = "function"
+convention = "thiscall"
+expect = "E9 FB FC FF FF CC CC CC"
+source = "Name from the class. Slot 0 of the prop part 0x00AA4B30 (the prop is at +0): a jump to the prop's QueryInterface with the same this. Ours in simulators.propkinds.burnt."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::Write"
+address = 0x005EDB10
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Serializable slot 3 (this = object + 0xC), ret 4: version 3, the prop's Write, the burnt box at +0xA0 (0x005DA600). Ours in simulators.propkinds.burnt."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::SetAllFlags"
+address = 0x005EDB50
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 33 C0"
+source = "Occupant slot 30 (this = object + 8), ret 4: on a change of flag 2 the model (the virtual base at +0xD4) added to or taken off the renderer 0x00B43DD0 (its slots 27, 28, 29), then the base's SetAllFlags. Ours in simulators.propkinds.burnt."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::BuildQuad"
+address = 0x005EDC60
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 86 B8 00 00"
+source = "Name ours. Not virtual, ret: the quad at +0xB8 (0x50 bytes, made once) from the prop's box, and the scaled low corner at +0xC4. Drawing: the game's."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::GetGZCLSID"
+address = 0x005EF950
+kind = "function"
+convention = "thiscall"
+expect = "B8 16 B0 EF C9 C3 CC CC"
+source = "Serializable slot 5: 0xC9EFB016. Ours in simulators.propkinds.burnt."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::Destroy"
+address = 0x005EFB20
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 6C 56 C7 01 30 4B"
+source = "Name ours. The destructor body, called by the deleting destructor 0x005EFCC0 only: the eight vtables and the virtual base's, the texture vector's buffer freed, the model part destroyed (0x00801810), then the occupant base (jump to 0x005E8C40 with the object + 8). Ours in simulators.propkinds.burnt_object."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::Read"
+address = 0x005EFBA0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Serializable slot 4, ret 4: version 3 only, the prop's Read, the burnt box (0x005DA5B0). Ours in simulators.propkinds.burnt."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::Create"
+address = 0x005EFC80
+kind = "function"
+convention = "cdecl"
+expect = "A1 0C A9 B0 00 8B 40 08"
+source = "Name ours. The factory the class registration keeps (0x004607C1): an item of the pool, constructed with 1; the object (the prop is at +0). Ours in simulators.propkinds.burnt_object."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::DeletingDestructor"
+address = 0x005EFCC0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 58 FE FF FF"
+source = "Name ours. Reached through the holder part's slot 22 (thunk 0x005EF9A0) and the model part's slot 0 (thunk 0x005EF9C0), (flags), ret 4: the body 0x005EFB20, and with flag 1 the object back to the pool 0x00B0A908 (page reopened at 0x40000038). Ours in simulators.propkinds.burnt_object."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::Shutdown"
+address = 0x005EFD20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 14"
+source = "Occupant slot 4 (this = object + 8), ret: when initialized the base's Shutdown, the five texture bindings let go (0x008090E0) and the vector emptied, the quad freed. Ours in simulators.propkinds.burnt."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::Init"
+address = 0x005F0600
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 53 8B D9 8B 03"
+source = "Occupant slot 3 (this = object + 8), ret: the base's Init, five texture bindings from the texture binding factory, the render state at +0xBC (0x007D2B50), the quad for a burnt building read from a save. Ours in simulators.propkinds.burnt."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::Pool"
+address = 0x00B0A908
+kind = "data"
+source = "The pool of the burnt buildings (0xD8 bytes each; the current page at +4, its free list at +8 and used count at +0xC)."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::vbtable"
+address = 0x00AA4B90
+kind = "data"
+source = "The virtual base table at +0x6C: {-4, 0x68} (the virtual base, the model interface, at +0xD4)."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::vftable_4"
+address = 0x00AA4B20
+kind = "vtable"
+expect = "60 F9 5E 00 70 DD 64 00"
+source = "The message target part at +4, 4 slots (3 the prop's DoMessage)."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::vftable_8"
+address = 0x00AA4A98
+kind = "vtable"
+expect = "70 F9 5E 00 90 DD 64 00"
+source = "The occupant part at +8, 34 slots (the class's own: 3 Init, 4 Shutdown, 30 SetAllFlags; 9 the prop's SetPosition)."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::vftable_C"
+address = 0x00AA4A7C
+kind = "vtable"
+expect = "80 F9 5E 00 B0 DD 64 00"
+source = "The serializable part at +0xC, 6 slots (3 Write, 4 Read, 5 GetGZCLSID)."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::vftable_10"
+address = 0x00AA4A18
+kind = "vtable"
+expect = "90 F9 5E 00 D0 DD 64 00"
+source = "The property holder part at +0x10, 25 slots (22 the deleting destructor's thunk 0x005EF9A0, 23 and 24 thunks to Write and Read)."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::vftable_24"
+address = 0x00AA4A00
+kind = "vtable"
+expect = "B0 F9 5E 00 00 DE 64 00"
+source = "The exemplar holder part at +0x24, 5 slots."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::vftable_68"
+address = 0x00AA49FC
+kind = "vtable"
+expect = "C0 F9 5E 00 B0 F9 5E 00"
+source = "The model part at +0x68, 1 slot (the deleting destructor's thunk 0x005EF9C0)."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::vftable_D4"
+address = 0x00AA49B0
+kind = "vtable"
+expect = "D0 F9 5E 00 E0 F9 5E 00"
+source = "The virtual base (the model interface) at +0xD4, 19 slots, thunks through the displacement at +0xD0 (0x005EF9D0 to 0x005EFB10): the drawing, the game's."
