@@ -58,7 +58,7 @@ Everything below is what an unattended session (an agent's shell, or a script) n
   - Two regions in the fixture can share one internal name — the stock `Timbuktu` and the forum copy `Forum Timbuktu` both answer to "Timbuktu" — and the game then opens whichever it likes, usually not the tutorial. Keep the extra region out of `Regions/` while running (rename it, restore after), or use a region whose name is unique.
   - `OPENSC4_TEST_CITY` matches as a **substring** of the city save path, so `Making Money Tutorial` matches `City - Making Money Tutorial.sc4`.
   - The corpus: `<saves dir>` for `run-parity.sh` is a folder holding one folder per city of `*.sc4`; `%LOCALAPPDATA%\opensc4\parity\saves` has the three tutorials at 0/90/365/1095 days, beside `saves-plopped`, `saves-ports`, `saves-networks` and the forum batches.
-  - Close any running `SimCity 4.exe` before a run (`run-autotest.sh` refuses otherwise; `OPENSC4_PARALLEL=1` allows it).
+  - Other copies of the game may run at the same time: `run-autotest.sh` turns on `harness.multi_instance` for every run and refuses only while a game still runs in the same test folder (`OPENSC4_TESTENV`); `run-save-test.sh` waits for that one. Give each concurrent job its own folder.
 
 ## Address database and hooks
 
