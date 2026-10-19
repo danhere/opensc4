@@ -74,6 +74,27 @@ With `--all`, one row per demand object instead, in ID order: `id`, `supply`, `d
 
 Checked on the 491 GitHub forum saves (test-saves README): all decode, demand records version 1 (unfounded stock tiles) and 2, no leading stream version like the regional city's. Every active demand is within -6000 and 6000 and every cap within 0 and 1. Unconfirmed: that the columns match the in-game RCI bars (needs the game).
 
+## utilities: power and water
+
+    python3 tools/sc4report.py utilities "<city.sc4 or folder>" [-o utilities.csv]
+
+One CSV row per city file (a folder gives every `*.sc4` in it), from the power simulator record (class 0x0990C005, [power.md](power.md)) and the water simulator record (class 0x0990C075, [water.md](water.md)). The power and water figures are last month's, as of the city's last save.
+
+| Column | From |
+|---|---|
+| file, status | the file name; `ok`, `ok (no power record)` or `ok (no water record)`, or why there is no row: `unreadable`, `no power or water record`, `power undecoded` / `water undecoded` (a record version the decoder does not know) |
+| power_plants | the plant count (+0x2DC) |
+| power_produced, power_used, power_imported, power_exported, power_demand | last month's production, consumption, import, export and demand (+0x50 to +0x60) |
+| power_surplus | power_produced − power_demand (negative: short of power) |
+| power_needed, power_consumers, power_unpowered | the consumers now: their total need (+0x74), their count (+0x68) and those without power (+0x70) |
+| water_producers | the pumps and towers (the producer list, +0xBC) |
+| water_capacity, water_used, water_imported, water_exported | last month's capacity, consumption, import and export (+0x110 to +0x128) |
+| water_demand | the buildings' total water demand (+0x130, property 0xC8ED2D84 summed) |
+| water_surplus | water_capacity − water_demand (negative: short of water) |
+| water_pipes, water_distressed_pipes, water_burst_pipes | pipe counts (+0x174, +0x178, +0x17C) |
+
+Checked on the 491 GitHub forum saves (test-saves README): all decode, every file has both records. 157 cities have plants or pumps; 15 of them are short of power or water. Unconfirmed: that the columns match the in-game power and water graphs (needs the game).
+
 ## ordinances: which ordinances are on
 
     python3 tools/sc4report.py ordinances "<city.sc4 or folder>" [--all] [-o ordinances.csv]
@@ -95,4 +116,4 @@ Checked on the 491 GitHub forum saves (test-saves README): all decode, 20 ordina
 
 The idea of the census is Null 45's Region Census DLL; no code of it is used.
 
-Tests: `tests/python/test_sc4report.py` builds a version 13 regional city record by hand, `tests/python/test_sc4report_budget.py` a budget with two departments and three line items, `tests/python/test_sc4report_demand.py` three demand objects, `tests/python/test_sc4report_ordinances.py` an ordinance simulator and three ordinances (ctest `python_tools`, or `python3 -m unittest discover -s tests/python`).
+Tests: `tests/python/test_sc4report.py` builds a version 13 regional city record by hand, `tests/python/test_sc4report_budget.py` a budget with two departments and three line items, `tests/python/test_sc4report_demand.py` three demand objects, `tests/python/test_sc4report_utilities.py` a power and a water record, `tests/python/test_sc4report_ordinances.py` an ordinance simulator and three ordinances (ctest `python_tools`, or `python3 -m unittest discover -s tests/python`).
