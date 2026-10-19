@@ -1309,31 +1309,31 @@ kind = "data"
 source = "Name ours. Bit 0: the lot update's deadline step has been set up."
 
 [[entry]]
-name = "SC4ExplosionEffect::Allocate"
+name = "cSC4PropOccupantBurntBuilding::Allocate"
 address = 0x005EDAE0
 kind = "function"
 convention = "cdecl"
 signature = "void* (size_t size)"
 expect = "A1 0C A9 B0 00 8B 40 08"
-source = "Name ours. The pool allocator of the 0xD8-byte object ExplodeLot makes for a building (constructor 0x005EF810)."
+source = "Name ours (was SC4ExplosionEffect::Allocate). The pool allocator (0x00B0A908) of the burnt building, the 0xD8-byte prop ExplodeLot makes for a building (constructor 0x005EF810). Ours in simulators.propkinds.burnt_object."
 
 [[entry]]
-name = "SC4ExplosionEffect::Construct"
+name = "cSC4PropOccupantBurntBuilding::Construct"
 address = 0x005EF810
 kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, int mostDerived)"
 expect = "8B 44 24 04 53 56 57 33"
-source = "Name ours. Constructor (vtables 0x00AA4B30, +4 0x00AA4B20, +8 0x00AA4A98 the occupant part); ExplodeLot passes 1."
+source = "Name ours (was SC4ExplosionEffect::Construct). The burnt building's constructor (prop at +0; vtables 0x00AA4B30, +4 0x00AA4B20, +8 0x00AA4A98 the occupant part; a virtual base at +0xD4), ret 4: the argument says the object is the most derived; ExplodeLot and the factory pass 1. Ours in simulators.propkinds.burnt_object."
 
 [[entry]]
-name = "SC4ExplosionEffect::SetOccupant"
+name = "cSC4PropOccupantBurntBuilding::SetOccupant"
 address = 0x005EEB70
 kind = "function"
 convention = "thiscall"
 signature = "void (void* this, cISC4Occupant* occupant)"
 expect = "53 56 8B F1 8B 4C 24 0C"
-source = "Name ours. Takes the occupant's box (its slot 10) into +0x3C/+0x48 and +0xA0/+0xAC, then 0x005EDC60."
+source = "Name ours (was SC4ExplosionEffect::SetOccupant). Takes the occupant's box (its slot 10) into +0x3C/+0x48 and +0xA0/+0xAC, then the quad builder 0x005EDC60. Ours in simulators.propkinds.burnt."
 
 [[entry]]
 name = "cSC4PropOccupantTerrainDecal::Allocate"
