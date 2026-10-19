@@ -672,7 +672,9 @@ uint8_t __fastcall PictureOther(Fake*, void*, int32_t x, int32_t y)
     return 0;
 }
 
-uint32_t __fastcall PicturePixel(Fake*, void*, int32_t x, int32_t y, uint8_t* a, uint8_t* b, uint8_t* c)
+// The three outputs are dwords: the blit hands it two of its locals and its
+// own source area argument slot, which then goes to the target's slot 30.
+uint32_t __fastcall PicturePixel(Fake*, void*, int32_t x, int32_t y, uint32_t* a, uint32_t* b, uint32_t* c)
 {
     Note(uint8_t{0x4C});
     Note(x);
