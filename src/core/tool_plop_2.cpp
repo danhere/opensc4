@@ -7,13 +7,9 @@
 //     allowed, what it costs and why not) and PlaceLot (0x004C1740: the
 //     commit).
 //
-// Left the game's, called by address: BuildPreview (0x004C0680). It has a
-// first half that works out the lot configuration's model and the cursor's
-// flags and a second half that makes the footprint picture (a white framed
-// pixel buffer, uploaded as a texture through the framework's graphics
-// service): the cursor's preview, so drawing, in one function. The helpers
-// of the neighbouring parts (0x004BE750 and the like) are called by address
-// too.
+// Called by address: BuildPreview (0x004C0680; ours in ui.tools.plop4,
+// tool_plop_4.cpp, which hooks its entry). The helpers of the neighbouring
+// parts (0x004BE750 and the like) are called by address too.
 //
 // Fields of the object (from its start; see tool_plop_3.cpp for the rest):
 //   +0x04 byte: the base class's Init has run   +0x0C, +0x10 tool IDs
