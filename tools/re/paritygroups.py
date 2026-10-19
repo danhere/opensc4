@@ -26,7 +26,8 @@ def outcome(log, save):
     for key, data in savediff.load(save).items():
         if key[0] in sc4save.SCHEMAS:
             fields, _ = sc4save.decode(data, sc4save.SCHEMAS[key[0]][1])
-            del fields['crc'], fields['id']
+            fields.pop('crc', None)
+            fields.pop('id', None)
             records['%08X/%08X/%08X' % key] = sc4save.comparable(fields)
     return json.dumps({'fp': fpdiff.parse(log), 'records': records}, sort_keys=True)
 
