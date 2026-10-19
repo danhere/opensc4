@@ -1682,3 +1682,372 @@ convention = "cdecl"
 signature = "void* (void* first, void* last, void* to, void* tag, int unused)"
 expect = "8B 4C 24 08 56 8B 74 24"
 source = "Name ours, not analysed. The compound descriptions of [first, last) assigned to to onwards (the erase's copy down); answers the place after the last. Called by SC4EffectCompounds::Resize and from 0x0058C444, 0x0058C4B8 and 0x00595634. The game's; noted by the comparison of renderer.effects.store."
+
+[[entry]]
+name = "SC4Float3Vector::CopyConstruct"
+address = 0x0050BCB0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "53 8B 5C 24 08 8B 03 56"
+source = "Name ours. Ret 4. A list of 12-byte items copy-constructed: storage for exactly the source's count (0x0090CF54), the items copied. Answers this. Shared container code; the lists of 12-byte items in the decal descriptions (+0x34) and the 0x1C-byte records (+0). The game's; noted by the comparison of renderer.effects.vectors."
+
+[[entry]]
+name = "SC4DecalDescription::Destroy"
+address = 0x00583130
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 46 40 85 C0"
+source = "Name ours. A decal description's lists' storage freed: +0x40, +0x34, +0x28, +0x1C, +0x10. Called by SC4DecalDescriptions::Insert for its copy of the value, and from 0x005833D3, 0x0058BFB6, 0x0059DE63 and 0x0059F694. The game's; noted by the comparison of renderer.effects.vectors."
+
+[[entry]]
+name = "SC4DecalDescription::CopyConstruct"
+address = 0x00587890
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. Ret 4. A decal description (0x64 bytes) copy-constructed: +0, +4, the bytes +8 and +9, +0xC, the lists of floats at +0x10, +0x1C, +0x28 and +0x40 (SC4FloatVector::CopyConstruct) and of 12-byte items at +0x34 (SC4Float3Vector::CopyConstruct), six values from +0x4C. Answers this. Called by SC4DecalDescriptions_CopyRange, ::GrowInsert, ::Insert and the in-place helpers. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectRecord28::CopyConstruct"
+address = 0x00587920
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Name ours. Ret 4. A 0x28-byte record copy-constructed: +0, +4, the lists of floats at +8 and +0x14, +0x20, +0x24. Answers this. Called by SC4EffectRecords28::Insert for its copy of the value (the path with room, which no test city reaches). The game's; noted by the comparison of renderer.effects.vectors."
+
+[[entry]]
+name = "SC4EffectRecords28_FillNew"
+address = 0x00587960
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* place, unsigned count, const void* value, void* tag)"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. count copies of the 0x28-byte record at value made in raw storage at place on, inlined; nothing made where the place is null. Answers the place after the last. Called by SC4EffectRecords28::GrowInsert and ::Insert. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectRecords1C_FillNew"
+address = 0x005879C0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* place, unsigned count, const void* value, void* tag)"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. As SC4EffectRecords28_FillNew for 0x1C-byte records (a list of 12-byte items at +0, of floats at +0xC, +0x18). Called by SC4EffectRecords1C::GrowInsert and ::Insert. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectRecords28_DestroyRange"
+address = 0x00587EE0
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, void* tag)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. The 0x28-byte records of [first, last) ended: each one's lists' storage (+0x14, +8) freed. Called by SC4EffectRecords28::GrowInsert, the reader 0x005A51E0 (0x005A5466) and from 0x0058A748, 0x005898CD and 0x0058C7B3. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4DecalDescriptions_CopyRange"
+address = 0x00588330
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* place, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. The decal descriptions of [first, last) copied into raw storage at place on (SC4DecalDescription::CopyConstruct); nothing made where the place is null, which still moves on. Answers the place after the last. Called by SC4DecalDescriptions::GrowInsert and ::Insert. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4DecalDescriptions_AssignFill"
+address = 0x00588360
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, const void* value)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours, not analysed. The decal descriptions of [first, last) each given the value (SC4DecalDescription::Assign). Called by SC4DecalDescriptions::Insert with room, which no test city reaches. The game's; noted by the comparison of renderer.effects.vectors."
+
+[[entry]]
+name = "SC4DecalDescriptions_FillNew"
+address = 0x00588390
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* place, unsigned count, const void* value, void* tag)"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours, not analysed. count copies of the decal description at value made in raw storage at place on. Called by SC4DecalDescriptions::Insert with room, which no test city reaches. The game's; noted by the comparison of renderer.effects.vectors."
+
+[[entry]]
+name = "SC4EffectRecords28_CopyRange"
+address = 0x005883C0
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* place, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. The 0x28-byte records of [first, last) copied into raw storage at place on, inlined; nothing made where the place is null, which still moves on. Answers the place after the last. Called by SC4EffectRecords28::GrowInsert, ::Insert and the in-place helpers. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectRecords28_AssignFill"
+address = 0x00588420
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, const void* value)"
+expect = "8B 44 24 08 56 8B 74 24"
+source = "Name ours, not analysed. The 0x28-byte records of [first, last) each given the value. Called by SC4EffectRecords28::Insert with room, which no test city reaches. The game's; noted by the comparison of renderer.effects.vectors."
+
+[[entry]]
+name = "SC4EffectRecords1C_CopyRange"
+address = 0x00588480
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* place, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. As SC4EffectRecords28_CopyRange for 0x1C-byte records. Called by SC4EffectRecords1C::GrowInsert, ::Insert and the in-place helpers. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectRecords1C_AssignFill"
+address = 0x005884D0
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, const void* value)"
+expect = "55 8B 6C 24 0C 56 8B 74"
+source = "Name ours, not analysed. The 0x1C-byte records of [first, last) each given the value. Called by SC4EffectRecords1C::Insert with room, which no test city reaches. The game's; noted by the comparison of renderer.effects.vectors."
+
+[[entry]]
+name = "SC4DecalDescriptions_CopyDown"
+address = 0x00588510
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to, void* tag, int unused)"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours, not analysed. The decal descriptions of [first, last) assigned to to onwards (SC4DecalDescription::Assign); answers the place after the last. Called by SC4DecalDescriptions::Resize to shorten (which no test city reaches) and from 0x005896D4. The game's; noted by the comparison of renderer.effects.vectors."
+
+[[entry]]
+name = "SC4EffectRecords28_CopyDown"
+address = 0x00588560
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to, void* tag, int unused)"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. The 0x28-byte records of [first, last) assigned to to onwards (the lists of floats by SC4FloatVector::Assign); answers the place after the last, to for an empty range. Called by the reader 0x005A51E0 (0x005A5455) and from 0x0058A737, 0x005897C3, 0x0058983B and 0x0059577E. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4DecalDescriptions_CopyBack"
+address = 0x00588630
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* end, void* tag, int unused)"
+expect = "8B 54 24 04 56 8B 74 24"
+source = "Name ours, not analysed. The decal descriptions of [first, last) assigned backwards to the places ending at end. Called by SC4DecalDescriptions::Insert with room, which no test city reaches. The game's; noted by the comparison of renderer.effects.vectors."
+
+[[entry]]
+name = "SC4EffectRecords28_CopyBack"
+address = 0x00588680
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* end, void* tag, int unused)"
+expect = "8B 54 24 04 56 8B 74 24"
+source = "Name ours, not analysed. The 0x28-byte records of [first, last) assigned backwards to the places ending at end. Called by SC4EffectRecords28::Insert with room, which no test city reaches. The game's; noted by the comparison of renderer.effects.vectors."
+
+[[entry]]
+name = "SC4EffectRecords1C_CopyBack"
+address = 0x00588700
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* end, void* tag, int unused)"
+expect = "53 8B 5C 24 08 56 8B 74"
+source = "Name ours, not analysed. The 0x1C-byte records of [first, last) assigned backwards to the places ending at end. Called by SC4EffectRecords1C::Insert with room, which no test city reaches. The game's; noted by the comparison of renderer.effects.vectors."
+
+[[entry]]
+name = "SC4DecalDescriptions_DestroyRange"
+address = 0x00588760
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, void* tag)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. The decal descriptions of [first, last) ended: each one's lists' storage freed (+0x40, +0x34, +0x28, +0x1C, +0x10). Called by SC4DecalDescriptions::GrowInsert, ::Resize and from 0x005896D4, 0x0058C7F8 and 0x0059574E. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectRecords1C_DestroyRange"
+address = 0x005887D0
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, void* tag)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. The 0x1C-byte records of [first, last) ended: each one's lists' storage (+0xC, +0) freed. Called by SC4EffectRecords1C::GrowInsert and from 0x00589ABA, 0x0058AE79 and 0x0058C767. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectTexts14_CopyRange"
+address = 0x00588B10
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* place, void* tag)"
+expect = "53 8B 5C 24 08 55 8B 6C"
+source = "Name ours. The 0x14-byte text records (a string at +0, +0xC, +0x10) of [first, last) copied into raw storage at place on, the string by cSC4Advice::F408420; nothing made where the place is null, which still moves on. Answers the place after the last. Called by SC4EffectTexts14::GrowInsert and the in-place insert 0x0058BC70. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectTexts14_FillNew"
+address = 0x00588B70
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* place, unsigned count, const void* value, void* tag)"
+expect = "8B 44 24 08 55 33 ED 3B"
+source = "Name ours. count copies of the 0x14-byte text record at value made in raw storage at place on. Called by SC4EffectTexts14::GrowInsert and the reader 0x005A4E70 (0x005A4F5B). Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectTexts10_CopyRange"
+address = 0x00588BC0
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* place, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. The 0x10-byte text records (+0, a string at +4) of [first, last) copied into raw storage at place on, the string by cSC4Advice::F408420; nothing made where the place is null, which still moves on. Answers the place after the last. Called by SC4EffectTexts10::GrowInsert and the in-place insert 0x0058BAE0. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectTexts10_FillNew"
+address = 0x00588C10
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* place, unsigned count, const void* value, void* tag)"
+expect = "8B 44 24 08 53 33 DB 3B"
+source = "Name ours. count copies of the 0x10-byte text record at value made in raw storage at place on. Called by SC4EffectTexts10::GrowInsert and the reader 0x005A4E70 (0x005A5092). Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectRecords28::GrowInsert"
+address = 0x00588C60
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, const void* value, void* tag, unsigned count, bool atEnd)"
+expect = "51 53 55 56 8B F1 8B 06"
+source = "Name ours. Ret 0x14. A list of 0x28-byte records with no room left grown: storage for the size plus the larger of the size and count, the records before at copied over (_CopyRange), count copies of value (one inlined, more by _FillNew), the rest unless atEnd, the old records ended (_DestroyRange) and their storage freed. Called by SC4EffectRecords28::Insert. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectRecords28::Insert"
+address = 0x00589100
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, unsigned count, const void* value)"
+expect = "83 EC 28 56 57 8B 7C 24"
+source = "Name ours. Ret 0xC. count copies of value inserted at at: with room through a copy of the value (SC4EffectRecord28::CopyConstruct) and _CopyRange, _CopyBack, _AssignFill, _FillNew; else by ::GrowInsert. Called by the reader 0x005A51E0 (0x005A547E) and from 0x0058A764. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4DecalDescriptions::GrowInsert"
+address = 0x00589260
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, const void* value, void* tag, unsigned count, bool atEnd)"
+expect = "51 53 8B D9 8B 03 8B 4B"
+source = "Name ours. Ret 0x14. As SC4EffectRecords28::GrowInsert for decal descriptions, the ones before at and the copies of value made one by one (SC4DecalDescription::CopyConstruct). Called by SC4DecalDescriptions::Insert. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectRecords1C::GrowInsert"
+address = 0x00589380
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, const void* value, void* tag, unsigned count, bool atEnd)"
+expect = "51 53 55 56 8B F1 8B 16"
+source = "Name ours. Ret 0x14. As SC4EffectRecords28::GrowInsert for 0x1C-byte records. Called by SC4EffectRecords1C::Insert. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4DecalDescriptions::Insert"
+address = 0x0058A020
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, unsigned count, const void* value)"
+expect = "83 EC 64 56 57 8B 7C 24"
+source = "Name ours. Ret 0xC. As SC4EffectRecords28::Insert for decal descriptions (the copy of the value by SC4DecalDescription::CopyConstruct, ended by SC4DecalDescription::Destroy; the fill with room by _FillNew). Called by SC4DecalDescriptions::Resize. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectRecords1C::Insert"
+address = 0x0058A170
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, unsigned count, const void* value)"
+expect = "83 EC 1C 56 57 8B 7C 24"
+source = "Name ours. Ret 0xC. As SC4EffectRecords28::Insert for 0x1C-byte records (the copy of the value inlined). Called by the reader 0x005A51E0 (0x005A55FA) and from 0x0058AE95. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectTexts14_CopyDown"
+address = 0x0058A4C0
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to, void* tag, int unused)"
+expect = "8B 4C 24 08 53 8B 5C 24"
+source = "Name ours. The 0x14-byte text records of [first, last) assigned to to onwards (the string by SC4String::AssignRange unless the record is its own source); answers the place after the last, to for an empty range. Called by SC4EffectTexts14::Erase and from 0x0058BC70. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectTexts10_CopyDown"
+address = 0x0058A540
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to, void* tag, int unused)"
+expect = "8B 44 24 08 53 8B 5C 24"
+source = "Name ours. As SC4EffectTexts14_CopyDown for 0x10-byte text records. Called by SC4EffectTexts10::Erase and from 0x0058BAE0. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectTexts14::GrowInsert"
+address = 0x0058A770
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, const void* value, void* tag, unsigned count, bool atEnd)"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. Ret 0x14. As SC4EffectRecords28::GrowInsert for 0x14-byte text records, the old list ended by SC4BitRowVector::Destroy. Called by the reader 0x005A4E70 (0x005A4FC6) and from 0x0058ADB0. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectTexts10::Destroy"
+address = 0x0058A880
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. A list of 0x10-byte text records ended: each string's storage (+4) freed, then the list's. Called by SC4EffectTexts10::GrowInsert and from 0x0058BC53 and 0x0058C703. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4DecalDescriptions::Resize"
+address = 0x0058ADC0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, unsigned count, const void* value)"
+expect = "53 56 8B F1 8B 1E 57 8B"
+source = "Name ours. Ret 8. The list of decal descriptions resized to count: shorter, the ones from count on ended (_DestroyRange, after _CopyDown of the empty range past the end); else the missing ones inserted at the end as copies of value (::Insert). Called by the reader 0x005A51E0 (0x005A532C) and from 0x0058BFAD. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectTexts14::Erase"
+address = 0x0058AEA0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* first, void* last)"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Name ours. Ret 8. The 0x14-byte text records of [first, last) erased: the ones after copied down (_CopyDown), the strings past the new end freed, the end moved back. Answers first. Called by SC4EffectsManager::ClearTexts. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectTexts10::GrowInsert"
+address = 0x0058AF00
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, const void* value, void* tag, unsigned count, bool atEnd)"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. Ret 0x14. As SC4EffectRecords28::GrowInsert for 0x10-byte text records, the old list ended by SC4EffectTexts10::Destroy. Called by the reader 0x005A4E70 (0x005A50FB) and from 0x0058B909. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectTexts10::Erase"
+address = 0x0058AFF0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* first, void* last)"
+expect = "8B 54 24 04 53 55 56 57"
+source = "Name ours. Ret 8. As SC4EffectTexts14::Erase for 0x10-byte text records. Called by SC4EffectsManager::ClearTexts and the reader 0x005A4E70 (0x005A519B). Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectNameTables_DestroyRange"
+address = 0x0058B330
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last)"
+expect = "55 8B 6C 24 0C 57 8B 7C"
+source = "Name ours. The 0x20-byte name tables of [first, last) ended: the objects in each one's list at +0x14 let go (slot 0x14, SC4CountedAt4::ReleaseThunk), the list's storage freed, the hash table at +0 cleared (SC4HashTable::Clear) and its buckets' storage (+4) freed. Called from 0x0058C739 and 0x00595613. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::ClearTexts"
+address = 0x0058BEF0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 86 00 01 00"
+source = "Name ours. The manager's two lists of texts emptied, the 0x10-byte ones at +0xFC (SC4EffectTexts10::Erase) and the 0x14-byte ones at +0xF0 (SC4EffectTexts14::Erase); the byte +0xD0 cleared. Jumped to from the end of 0x0058F690. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."

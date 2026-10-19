@@ -10759,8 +10759,8 @@ uint32_t __fastcall MxAllocateNoted(char* pool, void*, uint32_t size)
 }
 OPENSC4_THUNK(TSC4_PoolAllocate, MxAllocateNoted, 4)
 
-// The pool allocator has one detour, which the makers', the records' and
-// the store's comparisons share.
+// The pool allocator has one detour, which the makers', the records', the
+// store's, the lists of held pointers' and the vectors' comparisons share.
 bool HookPoolAllocate()
 {
     return g_SC4_PoolAllocate || Detour(addr::SC4_PoolAllocate, &TSC4_PoolAllocate, &g_SC4_PoolAllocate);
@@ -13006,6 +13006,13 @@ uint32_t __fastcall CopyStringNoted(char* to, void*, uint32_t first, uint32_t la
 }
 OPENSC4_THUNK(TcSC4Advice_F408420, CopyStringNoted, 12)
 
+// The string copy has one detour, which the store's and the vectors'
+// comparisons share.
+bool HookCopyString()
+{
+    return g_cSC4Advice_F408420 || Detour(addr::cSC4Advice_F408420, &TcSC4Advice_F408420, &g_cSC4Advice_F408420);
+}
+
 uint32_t __cdecl FillNewNoted(uint32_t to, uint32_t count, uint32_t object)
 {
     return StHelper(StMake(addr::SC4EffectCompounds_FillNew, Ptr(to), Ptr(count), Ptr(object)), nullptr, 0,
@@ -13044,8 +13051,8 @@ bool DetourCdecl(std::uintptr_t address, Fn replacement, Fn* original)
     return Detour(address, reinterpret_cast<void (*)()>(replacement), original);
 }
 
-// The free has one detour, which the store's and the lists' comparisons
-// share.
+// The free has one detour, which the store's, the lists of held pointers'
+// and the vectors' comparisons share.
 bool HookFree()
 {
     return g_SC4_Free || DetourCdecl(addr::SC4_Free, &FreeNoted, &g_SC4_Free);
@@ -13080,7 +13087,7 @@ bool InstallStore(registry::Mode mode)
                  &g_SC4EffectCompound_CopyConstructRecord) &&
           DetourCdecl(addr::SC4EffectCompound_CopyRecordsBRange, &CopyRecords18Noted,
                       &g_SC4EffectCompound_CopyRecordsBRange) &&
-          Detour(addr::cSC4Advice_F408420, &TcSC4Advice_F408420, &g_cSC4Advice_F408420) &&
+          HookCopyString() &&
           DetourCdecl(addr::SC4EffectCompounds_FillNew, &FillNewNoted, &g_SC4EffectCompounds_FillNew) &&
           DetourCdecl(addr::SC4EffectCompounds_MoveBack, &MoveBackNoted, &g_SC4EffectCompounds_MoveBack) &&
           DetourCdecl(addr::SC4EffectCompounds_Assign, &AssignNoted, &g_SC4EffectCompounds_Assign) &&
@@ -13333,6 +13340,14 @@ uint32_t __fastcall CountedAt4LetGoNoted(char* self, void*)
 }
 OPENSC4_THUNK(TCountedAt4LetGoNoted, CountedAt4LetGoNoted, 0)
 
+// The let-go of the counted base at +4 has one detour, which the lists of
+// held pointers' and the vectors' comparisons share.
+bool HookCountedAt4LetGo()
+{
+    return g_SC4CountedAt4_ReleaseThunk ||
+           Detour(addr::SC4CountedAt4_ReleaseThunk, &TCountedAt4LetGoNoted, &g_SC4CountedAt4_ReleaseThunk);
+}
+
 uint32_t __fastcall CountedHoldNoted(char* self, void*)
 {
     return StCallNoted(addr::cRZBaseRefCount_AddRef, self, g_cRZBaseRefCount_AddRef);
@@ -13370,7 +13385,7 @@ bool InstallPointers(registry::Mode mode)
                                                     &TSC4EffectDescription_Release,
                                                     &g_SC4EffectDescription_Release)) &&
           Detour(addr::SC4AdviceBase_AddRefThunk, &TCountedAt4HoldNoted, &g_SC4AdviceBase_AddRefThunk) &&
-          Detour(addr::SC4CountedAt4_ReleaseThunk, &TCountedAt4LetGoNoted, &g_SC4CountedAt4_ReleaseThunk) &&
+          HookCountedAt4LetGo() &&
           Detour(addr::cRZBaseRefCount_AddRef, &TCountedHoldNoted, &g_cRZBaseRefCount_AddRef) &&
           Detour(addr::cRZBaseRefCount_Release, &TCountedLetGoNoted, &g_cRZBaseRefCount_Release)))
         return false;
@@ -13392,6 +13407,614 @@ const bool g_registeredPointers = registry::Register({
     "where it is called, and replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallPointers,
+});
+
+// --- The lists of records and texts --------------------------------------------------------
+//
+// The vectors the effects file reader fills: decal descriptions, records of
+// 0x28 and 0x1C bytes, texts of 0x14 and 0x10 bytes; their copies, fills,
+// copies down, ends, growth, inserts, the decal descriptions' resize, the
+// texts' erase, the manager's emptying of its two texts' lists and the end
+// of a range of name tables (effects_vectors.inc). The comparison is the
+// store's, sharing its engine: the game's runs with each call it makes
+// noted (the lists' copies and assignments of floats, 12-byte items and
+// strings among them), these compared where they are called, ours
+// replayed; the ends run ours first.
+enum class Ls { Decals, Records28, Records1C, Texts14, Texts10 };
+
+struct LsKindInfo {
+    uint32_t size, copy, fill, copyDown, destroy, grow, insert, erase, copyBack, assignFill, fillNew;
+    const char *copyId, *fillId, *copyDownId, *destroyId, *growId, *insertId, *eraseId;
+};
+
+constexpr LsKindInfo kLsKinds[] = {
+    {0x64, addr::SC4DecalDescriptions_CopyRange, 0, 0, addr::SC4DecalDescriptions_DestroyRange,
+     addr::SC4DecalDescriptions_GrowInsert, addr::SC4DecalDescriptions_Insert, 0, addr::SC4DecalDescriptions_CopyBack,
+     addr::SC4DecalDescriptions_AssignFill, addr::SC4DecalDescriptions_FillNew, "effects.vectors.copy.decals", nullptr,
+     nullptr, "effects.vectors.destroy.decals", "effects.vectors.grow.decals", "effects.vectors.insert.decals", nullptr},
+    {0x28, addr::SC4EffectRecords28_CopyRange, addr::SC4EffectRecords28_FillNew, addr::SC4EffectRecords28_CopyDown,
+     addr::SC4EffectRecords28_DestroyRange, addr::SC4EffectRecords28_GrowInsert, addr::SC4EffectRecords28_Insert, 0,
+     addr::SC4EffectRecords28_CopyBack, addr::SC4EffectRecords28_AssignFill, 0, "effects.vectors.copy.records28",
+     "effects.vectors.fill.records28", "effects.vectors.copy_down.records28", "effects.vectors.destroy.records28",
+     "effects.vectors.grow.records28", "effects.vectors.insert.records28", nullptr},
+    {0x1C, addr::SC4EffectRecords1C_CopyRange, addr::SC4EffectRecords1C_FillNew, 0,
+     addr::SC4EffectRecords1C_DestroyRange, addr::SC4EffectRecords1C_GrowInsert, addr::SC4EffectRecords1C_Insert, 0,
+     addr::SC4EffectRecords1C_CopyBack, addr::SC4EffectRecords1C_AssignFill, 0, "effects.vectors.copy.records1c",
+     "effects.vectors.fill.records1c", nullptr, "effects.vectors.destroy.records1c", "effects.vectors.grow.records1c",
+     "effects.vectors.insert.records1c", nullptr},
+    {0x14, addr::SC4EffectTexts14_CopyRange, addr::SC4EffectTexts14_FillNew, addr::SC4EffectTexts14_CopyDown,
+     addr::SC4BitRowVector_Destroy, addr::SC4EffectTexts14_GrowInsert, 0, addr::SC4EffectTexts14_Erase, 0, 0, 0,
+     "effects.vectors.copy.texts14", "effects.vectors.fill.texts14", "effects.vectors.copy_down.texts14", nullptr,
+     "effects.vectors.grow.texts14", nullptr, "effects.vectors.erase.texts14"},
+    {0x10, addr::SC4EffectTexts10_CopyRange, addr::SC4EffectTexts10_FillNew, addr::SC4EffectTexts10_CopyDown,
+     addr::SC4EffectTexts10_Destroy, addr::SC4EffectTexts10_GrowInsert, 0, addr::SC4EffectTexts10_Erase, 0, 0, 0,
+     "effects.vectors.copy.texts10", "effects.vectors.fill.texts10", "effects.vectors.copy_down.texts10",
+     "effects.vectors.destroy.texts10", "effects.vectors.grow.texts10", nullptr, "effects.vectors.erase.texts10"},
+};
+
+const LsKindInfo& LsKindOf(Ls kind)
+{
+    return kLsKinds[static_cast<int>(kind)];
+}
+
+StepMode g_lsMode = StepMode::Original;
+
+// What ours calls: in the replay the note, else the game's or ours.
+char* CopyDecalDescription(char* to, char* from);
+char* CopyElements(Ls kind, char* first, char* last, char* place);
+char* FillElements(Ls kind, char* place, uint32_t count, char* value);
+char* CopyElementsDown(Ls kind, char* first, char* last, char* to);
+void DestroyElements(Ls kind, char* first, char* last);
+void DestroyTexts10(char* list);
+void GrowInsertElements(Ls kind, char* list, char* at, char* value, uint32_t count, bool atEnd);
+void InsertElements(Ls kind, char* list, char* at, uint32_t count, char* value);
+char* EraseTexts(Ls kind, char* list, char* first, char* last);
+
+// One of the game's calls ours makes with `this` and a source; `out` gets
+// the bytes the game's call wrote there in the replay.
+void LsThis(uint32_t target, char* self, char* from, char* out)
+{
+    if (g_stReplay)
+        StReplayed(StMake(target, self, from), out);
+    else if (from)
+        CallThis<void*>(target, self, from);
+    else
+        CallThis<void*>(target, self);
+}
+
+void LsCopyFloats(char* to, char* from)
+{
+    LsThis(addr::SC4FloatVector_CopyConstruct, to, from, to);
+}
+
+void LsCopyFloat3s(char* to, char* from)
+{
+    LsThis(addr::SC4Float3Vector_CopyConstruct, to, from, to);
+}
+
+void LsAssignFloats(char* to, char* from)
+{
+    LsThis(addr::SC4FloatVector_Assign, to, from, to);
+}
+
+void LsCopyRecord28(char* to, char* from)
+{
+    LsThis(addr::SC4EffectRecord28_CopyConstruct, to, from, to);
+}
+
+void LsDestroyDecal(char* description)
+{
+    LsThis(addr::SC4DecalDescription_Destroy, description, nullptr, nullptr);
+}
+
+void LsDestroyTexts14(char* list)
+{
+    LsThis(addr::SC4BitRowVector_Destroy, list, nullptr, nullptr);
+}
+
+void LsClearTable(char* table)
+{
+    LsThis(addr::SC4HashTable_Clear, table, nullptr, nullptr);
+}
+
+void LsAssignText(char* to, char* first, char* last)
+{
+    if (g_stReplay) {
+        StReplayed(StMake(addr::SC4String_AssignRange, to, first, last), to);
+        return;
+    }
+    char tag = 0;
+    CallThis<void*>(addr::SC4String_AssignRange, to, first, last, &tag);
+}
+
+// The game's range helpers of three, four and five arguments (the last two
+// a tag and a zero).
+void LsGame3(uint32_t target, char* first, char* last, char* value)
+{
+    if (g_stReplay) {
+        StReplayed(StMake(target, first, last, value), nullptr);
+        return;
+    }
+    reinterpret_cast<StCdecl3>(target)(Word(first), Word(last), Word(value));
+}
+
+void LsGame4(uint32_t target, char* place, uint32_t count, char* value)
+{
+    if (g_stReplay) {
+        StReplayed(StMake(target, place, Ptr(count), value), nullptr);
+        return;
+    }
+    uint32_t tag = 0;
+    reinterpret_cast<StCdecl4>(target)(Word(place), count, Word(value), Word(&tag));
+}
+
+uint32_t LsGame5(uint32_t target, char* first, char* last, char* to)
+{
+    if (g_stReplay)
+        return StReplayed(StMake(target, first, last, to), nullptr);
+    uint32_t tag = 0;
+    return reinterpret_cast<StCdecl5>(target)(Word(first), Word(last), Word(to), Word(&tag), 0);
+}
+
+char* LsCopyDecal(char* to, char* from)
+{
+    if (g_stReplay)
+        return Ptr(StReplayed(StMake(addr::SC4DecalDescription_CopyConstruct, to, from), to));
+    return CopyDecalDescription(to, from);
+}
+
+char* LsCopyElements(Ls kind, char* first, char* last, char* place)
+{
+    if (g_stReplay)
+        return Ptr(StReplayed(StMake(LsKindOf(kind).copy, first, last, place), nullptr));
+    return CopyElements(kind, first, last, place);
+}
+
+char* LsFillElements(Ls kind, char* place, uint32_t count, char* value)
+{
+    if (g_stReplay)
+        return Ptr(StReplayed(StMake(LsKindOf(kind).fill, place, Ptr(count), value), nullptr));
+    return FillElements(kind, place, count, value);
+}
+
+char* LsCopyElementsDown(Ls kind, char* first, char* last, char* to)
+{
+    if (g_stReplay)
+        return Ptr(StReplayed(StMake(LsKindOf(kind).copyDown, first, last, to), nullptr));
+    return CopyElementsDown(kind, first, last, to);
+}
+
+void LsDestroyElements(Ls kind, char* first, char* last)
+{
+    if (g_stReplay)
+        StReplayed(StMake(LsKindOf(kind).destroy, first, last), nullptr);
+    else
+        DestroyElements(kind, first, last);
+}
+
+void LsDestroyTexts10(char* list)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4EffectTexts10_Destroy, list), nullptr);
+    else
+        DestroyTexts10(list);
+}
+
+void LsGrowInsertElements(Ls kind, char* list, char* at, char* value, uint32_t count, bool atEnd)
+{
+    if (g_stReplay)
+        StReplayed(StMake(LsKindOf(kind).grow, list, at, value, count | (atEnd ? 0x80000000u : 0)), list);
+    else
+        GrowInsertElements(kind, list, at, value, count, atEnd);
+}
+
+void LsInsertElements(Ls kind, char* list, char* at, uint32_t count, char* value)
+{
+    if (g_stReplay)
+        StReplayed(StMake(LsKindOf(kind).insert, list, at, value, count), list);
+    else
+        InsertElements(kind, list, at, count, value);
+}
+
+char* LsEraseTexts(Ls kind, char* list, char* first, char* last)
+{
+    if (g_stReplay)
+        return Ptr(StReplayed(StMake(LsKindOf(kind).erase, list, first, last), list));
+    return EraseTexts(kind, list, first, last);
+}
+
+#include "core/effects_vectors.inc"
+
+// The game's side: each of the thirty by the group's mode (inside a noted
+// run noted, and compared where it is called). What a copy, fill or copy
+// down writes is the range it was given; a growth, insert, resize or erase
+// the list.
+StCdecl4 g_lsCopy[5] = {}, g_lsFill[5] = {};
+StCdecl5 g_lsCopyDown[5] = {};
+StCdecl3 g_lsDestroy[5] = {};
+Call5Fn g_lsGrow[5] = {};
+Call3Fn g_lsInsert[5] = {};
+Call2Fn g_lsErase[5] = {};
+Call1Fn g_SC4DecalDescription_CopyConstruct = nullptr;
+Call2Fn g_SC4DecalDescriptions_Resize = nullptr;
+Call0Fn g_SC4EffectTexts10_Destroy = nullptr, g_SC4EffectsManager_ClearTexts = nullptr;
+using LsCdecl2 = uint32_t(__cdecl*)(uint32_t, uint32_t);
+LsCdecl2 g_SC4EffectNameTables_DestroyRange = nullptr;
+
+std::size_t LsRange(uint32_t place, uint32_t bytes)
+{
+    return place && bytes < 0x100000 ? bytes : 0;
+}
+
+uint32_t __fastcall LsCopyDecalByMode(char* to, void*, uint32_t from)
+{
+    const auto game = [&] { return g_SC4DecalDescription_CopyConstruct(to, nullptr, from); };
+    const auto ours = [&] { return Word(CopyDecalDescription(to, Ptr(from))); };
+    return StByModeOf(g_lsMode, StMake(addr::SC4DecalDescription_CopyConstruct, to, Ptr(from)), to, 0x64, game, ours,
+                      [&] { return StCompared("effects.vectors.copy_construct.decals", to, 0x64, true, game, ours); });
+}
+OPENSC4_THUNK(TLsCopyDecal, LsCopyDecalByMode, 4)
+
+template <Ls kind>
+uint32_t __cdecl LsCopyByMode(uint32_t first, uint32_t last, uint32_t place, uint32_t tag)
+{
+    const LsKindInfo& k = LsKindOf(kind);
+    const auto game = [&] { return g_lsCopy[static_cast<int>(kind)](first, last, place, tag); };
+    const auto ours = [&] { return Word(CopyElements(kind, Ptr(first), Ptr(last), Ptr(place))); };
+    return StByModeOf(g_lsMode, StMake(k.copy, Ptr(first), Ptr(last), Ptr(place)), nullptr, 0, game, ours, [&] {
+        return StCompared(k.copyId, Ptr(place), LsRange(place, last > first ? last - first : 0), true, game, ours);
+    });
+}
+
+template <Ls kind>
+uint32_t __cdecl LsFillByMode(uint32_t place, uint32_t count, uint32_t value, uint32_t tag)
+{
+    const LsKindInfo& k = LsKindOf(kind);
+    const auto game = [&] { return g_lsFill[static_cast<int>(kind)](place, count, value, tag); };
+    const auto ours = [&] { return Word(FillElements(kind, Ptr(place), count, Ptr(value))); };
+    const std::size_t size = count < 0x10000 ? LsRange(place, count * k.size) : 0;
+    return StByModeOf(g_lsMode, StMake(k.fill, Ptr(place), Ptr(count), Ptr(value)), nullptr, 0, game, ours,
+                      [&] { return StCompared(k.fillId, Ptr(place), size, true, game, ours); });
+}
+
+template <Ls kind>
+uint32_t __cdecl LsCopyDownByMode(uint32_t first, uint32_t last, uint32_t to, uint32_t tag, uint32_t unused)
+{
+    const LsKindInfo& k = LsKindOf(kind);
+    const auto game = [&] { return g_lsCopyDown[static_cast<int>(kind)](first, last, to, tag, unused); };
+    const auto ours = [&] { return Word(CopyElementsDown(kind, Ptr(first), Ptr(last), Ptr(to))); };
+    return StByModeOf(g_lsMode, StMake(k.copyDown, Ptr(first), Ptr(last), Ptr(to)), nullptr, 0, game, ours, [&] {
+        return StCompared(k.copyDownId, Ptr(to), LsRange(to, last > first ? last - first : 0), true, game, ours);
+    });
+}
+
+template <Ls kind>
+uint32_t __cdecl LsDestroyByMode(uint32_t first, uint32_t last, uint32_t tag)
+{
+    const LsKindInfo& k = LsKindOf(kind);
+    const auto game = [&] { return g_lsDestroy[static_cast<int>(kind)](first, last, tag); };
+    const auto ours = [&] {
+        DestroyElements(kind, Ptr(first), Ptr(last));
+        return 0u;
+    };
+    return StByModeOf(g_lsMode, StMake(k.destroy, Ptr(first), Ptr(last)), nullptr, 0, game, ours,
+                      [&] { return StEndCompared(k.destroyId, game, ours); });
+}
+
+uint32_t LsGrowByMode(Ls kind, char* list, uint32_t at, uint32_t value, uint32_t tag, uint32_t count, uint32_t atEnd)
+{
+    const LsKindInfo& k = LsKindOf(kind);
+    const bool end = static_cast<uint8_t>(atEnd) != 0;
+    const auto game = [&] { return g_lsGrow[static_cast<int>(kind)](list, nullptr, at, value, tag, count, atEnd); };
+    const auto ours = [&] {
+        GrowInsertElements(kind, list, Ptr(at), Ptr(value), count, end);
+        return 0u;
+    };
+    return StByModeOf(g_lsMode, StMake(k.grow, list, Ptr(at), Ptr(value), count | (end ? 0x80000000u : 0)), list,
+                      0xC, game, ours, [&] { return StCompared(k.growId, list, 0xC, false, game, ours); });
+}
+
+uint32_t LsInsertByMode(Ls kind, char* list, uint32_t at, uint32_t count, uint32_t value)
+{
+    const LsKindInfo& k = LsKindOf(kind);
+    const auto game = [&] { return g_lsInsert[static_cast<int>(kind)](list, nullptr, at, count, value); };
+    const auto ours = [&] {
+        InsertElements(kind, list, Ptr(at), count, Ptr(value));
+        return 0u;
+    };
+    return StByModeOf(g_lsMode, StMake(k.insert, list, Ptr(at), Ptr(value), count), list, 0xC, game, ours,
+                      [&] { return StCompared(k.insertId, list, 0xC, false, game, ours); });
+}
+
+uint32_t LsEraseByMode(Ls kind, char* list, uint32_t first, uint32_t last)
+{
+    const LsKindInfo& k = LsKindOf(kind);
+    const auto game = [&] { return g_lsErase[static_cast<int>(kind)](list, nullptr, first, last); };
+    const auto ours = [&] { return Word(EraseTexts(kind, list, Ptr(first), Ptr(last))); };
+    return StByModeOf(g_lsMode, StMake(k.erase, list, Ptr(first), Ptr(last)), list, 0xC, game, ours,
+                      [&] { return StCompared(k.eraseId, list, 0xC, true, game, ours); });
+}
+
+uint32_t __fastcall LsGrowDecals(char* list, void*, uint32_t at, uint32_t value, uint32_t tag, uint32_t count,
+                                 uint32_t atEnd)
+{
+    return LsGrowByMode(Ls::Decals, list, at, value, tag, count, atEnd);
+}
+OPENSC4_THUNK(TLsGrowDecals, LsGrowDecals, 20)
+
+uint32_t __fastcall LsGrowRecords28(char* list, void*, uint32_t at, uint32_t value, uint32_t tag, uint32_t count,
+                                    uint32_t atEnd)
+{
+    return LsGrowByMode(Ls::Records28, list, at, value, tag, count, atEnd);
+}
+OPENSC4_THUNK(TLsGrowRecords28, LsGrowRecords28, 20)
+
+uint32_t __fastcall LsGrowRecords1C(char* list, void*, uint32_t at, uint32_t value, uint32_t tag, uint32_t count,
+                                    uint32_t atEnd)
+{
+    return LsGrowByMode(Ls::Records1C, list, at, value, tag, count, atEnd);
+}
+OPENSC4_THUNK(TLsGrowRecords1C, LsGrowRecords1C, 20)
+
+uint32_t __fastcall LsGrowTexts14(char* list, void*, uint32_t at, uint32_t value, uint32_t tag, uint32_t count,
+                                  uint32_t atEnd)
+{
+    return LsGrowByMode(Ls::Texts14, list, at, value, tag, count, atEnd);
+}
+OPENSC4_THUNK(TLsGrowTexts14, LsGrowTexts14, 20)
+
+uint32_t __fastcall LsGrowTexts10(char* list, void*, uint32_t at, uint32_t value, uint32_t tag, uint32_t count,
+                                  uint32_t atEnd)
+{
+    return LsGrowByMode(Ls::Texts10, list, at, value, tag, count, atEnd);
+}
+OPENSC4_THUNK(TLsGrowTexts10, LsGrowTexts10, 20)
+
+uint32_t __fastcall LsInsertDecals(char* list, void*, uint32_t at, uint32_t count, uint32_t value)
+{
+    return LsInsertByMode(Ls::Decals, list, at, count, value);
+}
+OPENSC4_THUNK(TLsInsertDecals, LsInsertDecals, 12)
+
+uint32_t __fastcall LsInsertRecords28(char* list, void*, uint32_t at, uint32_t count, uint32_t value)
+{
+    return LsInsertByMode(Ls::Records28, list, at, count, value);
+}
+OPENSC4_THUNK(TLsInsertRecords28, LsInsertRecords28, 12)
+
+uint32_t __fastcall LsInsertRecords1C(char* list, void*, uint32_t at, uint32_t count, uint32_t value)
+{
+    return LsInsertByMode(Ls::Records1C, list, at, count, value);
+}
+OPENSC4_THUNK(TLsInsertRecords1C, LsInsertRecords1C, 12)
+
+uint32_t __fastcall LsEraseTexts14(char* list, void*, uint32_t first, uint32_t last)
+{
+    return LsEraseByMode(Ls::Texts14, list, first, last);
+}
+OPENSC4_THUNK(TLsEraseTexts14, LsEraseTexts14, 8)
+
+uint32_t __fastcall LsEraseTexts10(char* list, void*, uint32_t first, uint32_t last)
+{
+    return LsEraseByMode(Ls::Texts10, list, first, last);
+}
+OPENSC4_THUNK(TLsEraseTexts10, LsEraseTexts10, 8)
+
+uint32_t __fastcall LsResizeDecalsByMode(char* list, void*, uint32_t count, uint32_t value)
+{
+    const auto game = [&] { return g_SC4DecalDescriptions_Resize(list, nullptr, count, value); };
+    const auto ours = [&] {
+        ResizeDecalDescriptions(list, count, Ptr(value));
+        return 0u;
+    };
+    return StByModeOf(g_lsMode, StMake(addr::SC4DecalDescriptions_Resize, list, Ptr(count), Ptr(value)), list, 0xC,
+                      game, ours,
+                      [&] { return StCompared("effects.vectors.resize.decals", list, 0xC, false, game, ours); });
+}
+OPENSC4_THUNK(TLsResizeDecals, LsResizeDecalsByMode, 8)
+
+uint32_t __fastcall LsDestroyTexts10ByMode(char* list, void*)
+{
+    const auto game = [&] { return g_SC4EffectTexts10_Destroy(list, nullptr); };
+    const auto ours = [&] {
+        DestroyTexts10(list);
+        return 0u;
+    };
+    return StByModeOf(g_lsMode, StMake(addr::SC4EffectTexts10_Destroy, list), nullptr, 0, game, ours,
+                      [&] { return StEndCompared("effects.vectors.destroy.texts10", game, ours); });
+}
+OPENSC4_THUNK(TLsDestroyTexts10, LsDestroyTexts10ByMode, 0)
+
+uint32_t __fastcall LsClearManagerTextsByMode(char* manager, void*)
+{
+    const auto game = [&] { return g_SC4EffectsManager_ClearTexts(manager, nullptr); };
+    const auto ours = [&] {
+        ClearManagerTexts(manager);
+        return 0u;
+    };
+    return StByModeOf(g_lsMode, StMake(addr::SC4EffectsManager_ClearTexts, manager), manager + 0xD0, 0x34, game, ours,
+                      [&] { return StCompared("effects.vectors.clear_texts", manager + 0xD0, 0x34, false, game, ours); });
+}
+OPENSC4_THUNK(TLsClearManagerTexts, LsClearManagerTextsByMode, 0)
+
+uint32_t __cdecl LsDestroyNameTablesByMode(uint32_t first, uint32_t last)
+{
+    const auto game = [&] { return g_SC4EffectNameTables_DestroyRange(first, last); };
+    const auto ours = [&] {
+        DestroyNameTables(Ptr(first), Ptr(last));
+        return 0u;
+    };
+    return StByModeOf(g_lsMode, StMake(addr::SC4EffectNameTables_DestroyRange, Ptr(first), Ptr(last)), nullptr, 0,
+                      game, ours, [&] { return StEndCompared("effects.vectors.destroy.name_tables", game, ours); });
+}
+
+// The game's helpers, noted in a noted run: the copies and assignments of
+// a list of floats, of 12-byte items and of a string (the bytes they leave
+// at `this` with them), the 0x28-byte record's copy, the ends of a decal
+// description, of a 0x14-byte texts' list and of a hash table, and the
+// range helpers of the inserts with room.
+Call1Fn g_SC4FloatVector_CopyConstruct = nullptr, g_SC4Float3Vector_CopyConstruct = nullptr,
+        g_SC4FloatVector_Assign = nullptr, g_SC4EffectRecord28_CopyConstruct = nullptr;
+Call0Fn g_SC4DecalDescription_Destroy = nullptr, g_SC4BitRowVector_Destroy = nullptr, g_SC4HashTable_Clear = nullptr;
+Call3Fn g_SC4String_AssignRange = nullptr;
+
+template <Call1Fn* real, uint32_t target, std::size_t size>
+uint32_t __fastcall LsCopyNoted(char* self, void*, uint32_t from)
+{
+    return StHelper(StMake(target, self, Ptr(from)), self, size, [&] { return (*real)(self, nullptr, from); });
+}
+uint32_t __fastcall CopyFloatsNoted(char* self, void* edx, uint32_t from)
+{
+    return LsCopyNoted<&g_SC4FloatVector_CopyConstruct, addr::SC4FloatVector_CopyConstruct, 0xC>(self, edx, from);
+}
+OPENSC4_THUNK(TCopyFloatsNoted, CopyFloatsNoted, 4)
+
+uint32_t __fastcall CopyFloat3sNoted(char* self, void* edx, uint32_t from)
+{
+    return LsCopyNoted<&g_SC4Float3Vector_CopyConstruct, addr::SC4Float3Vector_CopyConstruct, 0xC>(self, edx, from);
+}
+OPENSC4_THUNK(TCopyFloat3sNoted, CopyFloat3sNoted, 4)
+
+uint32_t __fastcall AssignFloatsNoted(char* self, void* edx, uint32_t from)
+{
+    return LsCopyNoted<&g_SC4FloatVector_Assign, addr::SC4FloatVector_Assign, 0xC>(self, edx, from);
+}
+OPENSC4_THUNK(TAssignFloatsNoted, AssignFloatsNoted, 4)
+
+uint32_t __fastcall CopyRecord28Noted(char* self, void* edx, uint32_t from)
+{
+    return LsCopyNoted<&g_SC4EffectRecord28_CopyConstruct, addr::SC4EffectRecord28_CopyConstruct, 0x28>(self, edx,
+                                                                                                         from);
+}
+OPENSC4_THUNK(TCopyRecord28Noted, CopyRecord28Noted, 4)
+
+uint32_t __fastcall DestroyDecalNoted(char* self, void*)
+{
+    return StCallNoted(addr::SC4DecalDescription_Destroy, self, g_SC4DecalDescription_Destroy);
+}
+OPENSC4_THUNK(TDestroyDecalNoted, DestroyDecalNoted, 0)
+
+uint32_t __fastcall DestroyTexts14Noted(char* self, void*)
+{
+    return StCallNoted(addr::SC4BitRowVector_Destroy, self, g_SC4BitRowVector_Destroy);
+}
+OPENSC4_THUNK(TDestroyTexts14Noted, DestroyTexts14Noted, 0)
+
+uint32_t __fastcall ClearTableNoted(char* self, void*)
+{
+    return StCallNoted(addr::SC4HashTable_Clear, self, g_SC4HashTable_Clear);
+}
+OPENSC4_THUNK(TClearTableNoted, ClearTableNoted, 0)
+
+uint32_t __fastcall AssignTextNoted(char* self, void*, uint32_t first, uint32_t last, uint32_t tag)
+{
+    return StHelper(StMake(addr::SC4String_AssignRange, self, Ptr(first), Ptr(last)), self, 0xC,
+                    [&] { return g_SC4String_AssignRange(self, nullptr, first, last, tag); });
+}
+OPENSC4_THUNK(TAssignTextNoted, AssignTextNoted, 12)
+
+// The range helpers, by their place in this table.
+constexpr uint32_t kLsRange3[] = {addr::SC4DecalDescriptions_AssignFill, addr::SC4EffectRecords28_AssignFill,
+                                  addr::SC4EffectRecords1C_AssignFill};
+constexpr uint32_t kLsRange5[] = {addr::SC4DecalDescriptions_CopyDown, addr::SC4DecalDescriptions_CopyBack,
+                                  addr::SC4EffectRecords28_CopyBack, addr::SC4EffectRecords1C_CopyBack};
+StCdecl3 g_lsRange3[3] = {};
+StCdecl4 g_lsFillNewDecals = nullptr;
+StCdecl5 g_lsRange5[4] = {};
+
+template <int i>
+uint32_t __cdecl LsRange3Noted(uint32_t first, uint32_t last, uint32_t value)
+{
+    return StHelper(StMake(kLsRange3[i], Ptr(first), Ptr(last), Ptr(value)), nullptr, 0,
+                    [&] { return g_lsRange3[i](first, last, value); });
+}
+
+uint32_t __cdecl LsFillNewDecalsNoted(uint32_t place, uint32_t count, uint32_t value, uint32_t tag)
+{
+    return StHelper(StMake(addr::SC4DecalDescriptions_FillNew, Ptr(place), Ptr(count), Ptr(value)), nullptr, 0,
+                    [&] { return g_lsFillNewDecals(place, count, value, tag); });
+}
+
+template <int i>
+uint32_t __cdecl LsRange5Noted(uint32_t first, uint32_t last, uint32_t to, uint32_t tag, uint32_t unused)
+{
+    return StHelper(StMake(kLsRange5[i], Ptr(first), Ptr(last), Ptr(to)), nullptr, 0,
+                    [&] { return g_lsRange5[i](first, last, to, tag, unused); });
+}
+
+bool InstallVectors(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !Detour(addr::SC4DecalDescription_CopyConstruct, &TLsCopyDecal, &g_SC4DecalDescription_CopyConstruct) ||
+        !DetourCdecl(addr::SC4DecalDescriptions_CopyRange, &LsCopyByMode<Ls::Decals>, &g_lsCopy[0]) ||
+        !DetourCdecl(addr::SC4EffectRecords28_CopyRange, &LsCopyByMode<Ls::Records28>, &g_lsCopy[1]) ||
+        !DetourCdecl(addr::SC4EffectRecords1C_CopyRange, &LsCopyByMode<Ls::Records1C>, &g_lsCopy[2]) ||
+        !DetourCdecl(addr::SC4EffectTexts14_CopyRange, &LsCopyByMode<Ls::Texts14>, &g_lsCopy[3]) ||
+        !DetourCdecl(addr::SC4EffectTexts10_CopyRange, &LsCopyByMode<Ls::Texts10>, &g_lsCopy[4]) ||
+        !DetourCdecl(addr::SC4EffectRecords28_FillNew, &LsFillByMode<Ls::Records28>, &g_lsFill[1]) ||
+        !DetourCdecl(addr::SC4EffectRecords1C_FillNew, &LsFillByMode<Ls::Records1C>, &g_lsFill[2]) ||
+        !DetourCdecl(addr::SC4EffectTexts14_FillNew, &LsFillByMode<Ls::Texts14>, &g_lsFill[3]) ||
+        !DetourCdecl(addr::SC4EffectTexts10_FillNew, &LsFillByMode<Ls::Texts10>, &g_lsFill[4]) ||
+        !DetourCdecl(addr::SC4EffectRecords28_CopyDown, &LsCopyDownByMode<Ls::Records28>, &g_lsCopyDown[1]) ||
+        !DetourCdecl(addr::SC4EffectTexts14_CopyDown, &LsCopyDownByMode<Ls::Texts14>, &g_lsCopyDown[3]) ||
+        !DetourCdecl(addr::SC4EffectTexts10_CopyDown, &LsCopyDownByMode<Ls::Texts10>, &g_lsCopyDown[4]) ||
+        !DetourCdecl(addr::SC4DecalDescriptions_DestroyRange, &LsDestroyByMode<Ls::Decals>, &g_lsDestroy[0]) ||
+        !DetourCdecl(addr::SC4EffectRecords28_DestroyRange, &LsDestroyByMode<Ls::Records28>, &g_lsDestroy[1]) ||
+        !DetourCdecl(addr::SC4EffectRecords1C_DestroyRange, &LsDestroyByMode<Ls::Records1C>, &g_lsDestroy[2]) ||
+        !Detour(addr::SC4EffectTexts10_Destroy, &TLsDestroyTexts10, &g_SC4EffectTexts10_Destroy) ||
+        !Detour(addr::SC4DecalDescriptions_GrowInsert, &TLsGrowDecals, &g_lsGrow[0]) ||
+        !Detour(addr::SC4EffectRecords28_GrowInsert, &TLsGrowRecords28, &g_lsGrow[1]) ||
+        !Detour(addr::SC4EffectRecords1C_GrowInsert, &TLsGrowRecords1C, &g_lsGrow[2]) ||
+        !Detour(addr::SC4EffectTexts14_GrowInsert, &TLsGrowTexts14, &g_lsGrow[3]) ||
+        !Detour(addr::SC4EffectTexts10_GrowInsert, &TLsGrowTexts10, &g_lsGrow[4]) ||
+        !Detour(addr::SC4DecalDescriptions_Insert, &TLsInsertDecals, &g_lsInsert[0]) ||
+        !Detour(addr::SC4EffectRecords28_Insert, &TLsInsertRecords28, &g_lsInsert[1]) ||
+        !Detour(addr::SC4EffectRecords1C_Insert, &TLsInsertRecords1C, &g_lsInsert[2]) ||
+        !Detour(addr::SC4DecalDescriptions_Resize, &TLsResizeDecals, &g_SC4DecalDescriptions_Resize) ||
+        !Detour(addr::SC4EffectTexts14_Erase, &TLsEraseTexts14, &g_lsErase[3]) ||
+        !Detour(addr::SC4EffectTexts10_Erase, &TLsEraseTexts10, &g_lsErase[4]) ||
+        !Detour(addr::SC4EffectsManager_ClearTexts, &TLsClearManagerTexts, &g_SC4EffectsManager_ClearTexts) ||
+        !DetourCdecl(addr::SC4EffectNameTables_DestroyRange, &LsDestroyNameTablesByMode,
+                     &g_SC4EffectNameTables_DestroyRange))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(HookPoolAllocate() && HookFree() && HookCopyString() && HookCountedAt4LetGo() &&
+          Detour(addr::SC4FloatVector_CopyConstruct, &TCopyFloatsNoted, &g_SC4FloatVector_CopyConstruct) &&
+          Detour(addr::SC4Float3Vector_CopyConstruct, &TCopyFloat3sNoted, &g_SC4Float3Vector_CopyConstruct) &&
+          Detour(addr::SC4FloatVector_Assign, &TAssignFloatsNoted, &g_SC4FloatVector_Assign) &&
+          Detour(addr::SC4String_AssignRange, &TAssignTextNoted, &g_SC4String_AssignRange) &&
+          Detour(addr::SC4EffectRecord28_CopyConstruct, &TCopyRecord28Noted, &g_SC4EffectRecord28_CopyConstruct) &&
+          Detour(addr::SC4DecalDescription_Destroy, &TDestroyDecalNoted, &g_SC4DecalDescription_Destroy) &&
+          Detour(addr::SC4BitRowVector_Destroy, &TDestroyTexts14Noted, &g_SC4BitRowVector_Destroy) &&
+          Detour(addr::SC4HashTable_Clear, &TClearTableNoted, &g_SC4HashTable_Clear) &&
+          DetourCdecl(kLsRange3[0], &LsRange3Noted<0>, &g_lsRange3[0]) &&
+          DetourCdecl(kLsRange3[1], &LsRange3Noted<1>, &g_lsRange3[1]) &&
+          DetourCdecl(kLsRange3[2], &LsRange3Noted<2>, &g_lsRange3[2]) &&
+          DetourCdecl(addr::SC4DecalDescriptions_FillNew, &LsFillNewDecalsNoted, &g_lsFillNewDecals) &&
+          DetourCdecl(kLsRange5[0], &LsRange5Noted<0>, &g_lsRange5[0]) &&
+          DetourCdecl(kLsRange5[1], &LsRange5Noted<1>, &g_lsRange5[1]) &&
+          DetourCdecl(kLsRange5[2], &LsRange5Noted<2>, &g_lsRange5[2]) &&
+          DetourCdecl(kLsRange5[3], &LsRange5Noted<3>, &g_lsRange5[3])))
+        return false;
+    g_lsMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the lists of records and texts %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredVectors = registry::Register({
+    "renderer.effects.vectors",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4DecalDescriptions_Resize,
+    "The effect descriptions' lists of decal descriptions, records and texts: an element's copy, a range copied, "
+    "filled, copied down and ended, a list's growth, insert (the in-place moves still the game's), the decal "
+    "descriptions' resize, the texts' erase, the manager's emptying of its texts and the end of a range of name "
+    "tables; compare mode runs the game's with its calls noted, each of these compared where it is called, and "
+    "replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallVectors,
 });
 
 bool InstallEffects(registry::Mode mode)
