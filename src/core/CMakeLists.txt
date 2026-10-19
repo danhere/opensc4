@@ -555,6 +555,8 @@ add_library(opensc4_core SHARED
   tool_query_7a.cpp
   tool_query_7b.cpp
   tool_q7_autotest.cpp
+  tool_query_8.cpp
+  tool_q8_autotest.cpp
   tool_udrive_1.cpp
   tool_t7_autotest.cpp
   tool_udrive_2.cpp
