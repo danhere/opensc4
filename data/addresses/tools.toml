@@ -562,7 +562,7 @@ name = "cSC4ViewInputControlPlaceLot::MessageVtable"
 address = 0x00A90728
 kind = "vtable"
 expect = "00 FB 4B 00 10 FB 4B 00"
-source = "Name ours. Vtable of the plop tool's message target at +0x28 (4 slots: the adjustor thunks 0x004BFB00, 0x004BFB10 and 0x004BFB20, which subtract 0x28 and jump, and DoMessage 0x004C2F20)."
+source = "Name ours. Vtable of the plop tool's message target at +0x28 (4 slots: the adjustor thunks 0x004BFB00, 0x004BFB10 and 0x004BFB20, which subtract 0x28 and jump, and DoMessage 0x004C2F20). The thunks are ours in ui.tools.plop5 (src/core/tool_plop_5.cpp)."
 
 [[entry]]
 name = "cSC4ViewInputControlPlaceLot::CursorByKind"
@@ -1361,7 +1361,7 @@ source = "Name ours. Main vtable of the dispatch tool (a view input control of 0
 name = "SC4DispatchTool::TargetVtable"
 address = 0x00A90258
 kind = "data"
-source = "Name ours. Vtable of the dispatch tool's message target at +0x28 (4 slots: the thunks 0x004BA870, 0x004BFB10, 0x004BFB20 and DoMessage 0x004BA940)."
+source = "Name ours. Vtable of the dispatch tool's message target at +0x28 (4 slots: the thunks 0x004BA870, 0x004BFB10, 0x004BFB20 and DoMessage 0x004BA940). 0x004BFB10 and 0x004BFB20 are ours in ui.tools.plop5."
 
 [[entry]]
 name = "SC4DispatchTool::FilterVtable"
@@ -2876,7 +2876,7 @@ source = "Name ours. Main vtable of the query tool (cSC4ViewInputControlQuery: a
 name = "SC4QueryTool::TargetVtable"
 address = 0x00A90A78
 kind = "data"
-source = "Name ours. Vtable of the query tool's message target part at +0x28: three shared thunks and DoMessage 0x004D7160 at slot 3."
+source = "Name ours. Vtable of the query tool's message target part at +0x28: three shared thunks (0x004BFB00, 0x004BFB10, 0x004BFB20, ours in ui.tools.plop5) and DoMessage 0x004D7160 at slot 3."
 
 [[entry]]
 name = "SC4QueryPanelTarget::Vtable"
@@ -5769,3 +5769,35 @@ kind = "function"
 convention = "thiscall"
 expect = "8B C1 C6 00 00 C6 40 01"
 source = "Name ours. No arguments, plain ret: a 0x14-byte tint block (the one MovePreview hands the preview's parts): bytes 0 and 1 cleared, the colour from the three floats at 0x00B09480, the alpha 1.0; bytes 2 and 3 left. BuildPreview 0x004C0680 makes one for the hidden preview."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::QueryInterface"
+address = 0x004BDF10
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "Name ours. (id, out), ret 8, slot 0 of the plop and query tools' main vtables (0x00A90738, 0x00A90A88): for the IDs 1 and 0x452294AA stores the message target (this + 0x28), for 0xC6BB8345 this; calls AddRef (slot 1) and answers true; false otherwise, out untouched. Left the game's (a shared helper); ui.tools.plop5 calls it at its address."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::MessageQueryInterface"
+address = 0x004BFB00
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 28 E9 08 E4 FF FF"
+source = "Name ours. (id, out), ret 8: slot 0 of the message target at +0x28 of the plop tool (vtable 0x00A90728) and the query tool (0x00A90A78): subtracts 0x28 and jumps to 0x004BDF10. Ours in ui.tools.plop5 (src/core/tool_plop_5.cpp)."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::MessageAddRef"
+address = 0x004BFB10
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 28 E9 E8 E3 FF FF"
+source = "Name ours. No arguments: slot 1 of the message target at +0x28 of the plop, query, dispatch and MySim dispatch tools (vtables 0x00A90728, 0x00A90A78, 0x00A90258, 0x00A85988): subtracts 0x28 and jumps to the base's AddRef 0x004BDF00. Ours in ui.tools.plop5 (src/core/tool_plop_5.cpp)."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::MessageRelease"
+address = 0x004BFB20
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 28 E9 F8 A2 FF FF"
+source = "Name ours. No arguments: slot 2 of the message target at +0x28 of the plop, query, dispatch and MySim dispatch tools (vtables 0x00A90728, 0x00A90A78, 0x00A90258, 0x00A85988): subtracts 0x28 and jumps to the base's Release 0x004B9E20. Ours in ui.tools.plop5 (src/core/tool_plop_5.cpp)."
