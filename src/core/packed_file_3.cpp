@@ -176,7 +176,7 @@ char* FindInIndex(char* self, const Key* key)
     copy.type = key->type;
     copy.group = key->group;
     copy.instance = key->instance;
-    return This<char*>(addr::cGZDBSegmentPackedFile_F96EEA9, At<void*>(self, object::kIndex), &copy);
+    return This<char*>(addr::cGZDBSegmentPackedFile_IndexFind, At<void*>(self, object::kIndex), &copy);
 }
 
 // The directory's node for `key` (0x0096F290), NULL when the record is not
@@ -184,7 +184,7 @@ char* FindInIndex(char* self, const Key* key)
 char* FindInDirectory(char* self, Key* key)
 {
     HashIterator found;
-    This<void*>(addr::cGZDBSegmentPackedFile_F96F290, self + object::kDirectory, &found, key);
+    This<void*>(addr::cGZDBSegmentPackedFile_HashFind, self + object::kDirectory, &found, key);
     return found.node;
 }
 
@@ -209,7 +209,7 @@ uint8_t __fastcall ValidateIndex(char* self, void*)
             return 0;
         if (At<uint32_t>(at.node, index_node::kSize) + offset > length)
             return 0;
-        This<void*>(addr::cGZDBSegmentPackedFile_F96F5B7, &at);
+        This<void*>(addr::cGZDBSegmentPackedFile_HashIteratorNext, &at);
     }
     return 1;
 }
@@ -233,7 +233,7 @@ uint8_t __fastcall ReadHoles(char* self, void*)
         // The array constructor loop; the element constructor does nothing.
         reinterpret_cast<void(__stdcall*)(void*, uint32_t, int32_t, void*)>(addr::SC4UI_F41D490)(
             table, uint32_t{8}, static_cast<int32_t>(count),
-            reinterpret_cast<void*>(addr::cGZDBSegmentPackedFile_F96D8B9));
+            reinterpret_cast<void*>(addr::cGZDBSegmentPackedFile_ConstructNothing));
     }
     if (Virtual<uint8_t>(stream, file::kRead, table, At<uint32_t>(self, object::kHoleCount) << 3)) {
         // (The original first counts up to the hole count in an empty loop.)
@@ -242,12 +242,12 @@ uint8_t __fastcall ReadHoles(char* self, void*)
             uint32_t i = 0;
             do {
                 uint32_t inserted[2]; // {iterator, a byte}
-                This<void*>(addr::cGZDBSegmentPackedFile_F96F594, self + object::kHoles, &inserted[0], hole);
+                This<void*>(addr::cGZDBSegmentPackedFile_HoleInsert, self + object::kHoles, &inserted[0], hole);
                 hole += 8;
                 ++i;
             } while (i < At<uint32_t>(self, object::kHoleCount));
         }
-        if (This<uint8_t>(addr::cGZDBSegmentPackedFile_F96E49D, self)) {
+        if (This<uint8_t>(addr::cGZDBSegmentPackedFile_ValidateHoles, self)) {
             At<uint8_t>(self, object::kHolesDirty) = 0;
             result = 1;
         }
@@ -267,8 +267,9 @@ uint8_t __fastcall ReadCompressed(char* self, void*, Key* key, void** buffer, ui
     char* const entry = FindInIndex(self, key);
     if (entry == nullptr)
         return 0;
-    return This<uint8_t>(addr::cGZDBSegmentPackedFile_F96E6F4, self, At<uint32_t>(entry, index_node::kOffset),
-                         At<uint32_t>(entry, index_node::kSize), buffer, size);
+    return This<uint8_t>(addr::cGZDBSegmentPackedFile_ReadCompressedAt, self,
+                         At<uint32_t>(entry, index_node::kOffset), At<uint32_t>(entry, index_node::kSize), buffer,
+                         size);
 }
 
 // The game's 0x0096FFE3, main slot 34: under the lock, what main slot +0x48
@@ -297,8 +298,8 @@ uint32_t __fastcall DirectorySize(char* self, void*, Key* key)
 // `self` is the table; the result {node, inserted} goes to `result`.
 void* __fastcall InsertIntoIndex(char* self, void*, void* result, void* value)
 {
-    This<void>(addr::cGZDBSegmentPackedFile_F96F614, self, At<uint32_t>(self, 0x10) + 1);
-    This<void*>(addr::cGZDBSegmentPackedFile_F96F209, self, result, value);
+    This<void>(addr::cGZDBSegmentPackedFile_HashResize, self, At<uint32_t>(self, 0x10) + 1);
+    This<void*>(addr::cGZDBSegmentPackedFile_IndexInsertNoResize, self, result, value);
     return result;
 }
 
@@ -316,11 +317,11 @@ uint32_t __fastcall Destruct(char* self, void*)
     This<void>(addr::SC4Uint32Hash_Destroy, self + object::kCompressTypes);
     This<void>(addr::SC4Uint32Hash_Destroy, self + object::kGroupCounts);
     This<void>(addr::SC4Uint32Hash_Destroy, self + object::kTypeCounts);
-    This<void>(addr::cGZDBSegmentPackedFile_F96F116, self + object::kHoles);
-    This<void>(addr::cGZDBSegmentPackedFile_F96F0FF, self + object::kRecords);
+    This<void>(addr::cGZDBSegmentPackedFile_DestroyHoleTree, self + object::kHoles);
+    This<void>(addr::cGZDBSegmentPackedFile_DestroyOpenTree, self + object::kRecords);
     This<void>(addr::cRZFile_Destruct, self + object::kFile);
     This<void>(addr::SC4String_Destroy, self + object::kPath);
-    return This<uint32_t>(addr::cGZDBSegmentPackedFile_F97569C, iface);
+    return This<uint32_t>(addr::cGZPersistDBSegment_Destruct, iface);
 }
 
 // The game's 0x009710D6: the deleting destructor (interface slot 30 comes
@@ -387,12 +388,13 @@ char* OpenForRead(char* self, Key* key)
         const uint32_t kind = At<uint32_t>(opened, record::kKind);
         if (kind == 2) {
             if (void* slot = AllocateRecord(addr::cGZDBSegmentPackedFile_MemoryRecordPool)) {
-                made = This<char*>(addr::cGZDBSegmentPackedFile_F96D9D1, slot, At<void*>(opened, record::kData),
-                                   At<uint32_t>(opened, record::kSize), key, static_cast<void*>(self), int32_t{1});
+                made = This<char*>(addr::cGZDBPackedMemoryRecord_ConstructShared, slot,
+                                   At<void*>(opened, record::kData), At<uint32_t>(opened, record::kSize), key,
+                                   static_cast<void*>(self), int32_t{1});
             }
         } else if (kind == 1) {
             if (void* slot = AllocateRecord(addr::cGZDBSegmentPackedFile_FileRecordPool)) {
-                made = This<char*>(addr::cGZDBSegmentPackedFile_F96D8D0, slot, At<uint32_t>(opened, record::kData),
+                made = This<char*>(addr::cGZDBPackedFileRecord_Construct, slot, At<uint32_t>(opened, record::kData),
                                    At<uint32_t>(opened, record::kSize), key, static_cast<void*>(self), int32_t{1});
             }
         } else {
@@ -406,17 +408,18 @@ char* OpenForRead(char* self, Key* key)
             // Compressed: read and decompressed whole, whatever its size.
             void* data = nullptr;
             uint32_t size = 0;
-            if (!This<uint8_t>(addr::cGZDBSegmentPackedFile_F96E6F4, self, At<uint32_t>(entry, index_node::kOffset),
-                               At<uint32_t>(entry, index_node::kSize), &data, &size))
+            if (!This<uint8_t>(addr::cGZDBSegmentPackedFile_ReadCompressedAt, self,
+                               At<uint32_t>(entry, index_node::kOffset), At<uint32_t>(entry, index_node::kSize), &data,
+                               &size))
                 return nullptr;
             if (void* slot = AllocateRecord(addr::cGZDBSegmentPackedFile_MemoryRecordPool)) {
-                made = This<char*>(addr::cGZDBSegmentPackedFile_F96DA30, slot, data, size, key,
+                made = This<char*>(addr::cGZDBPackedMemoryRecord_Construct, slot, data, size, key,
                                    static_cast<void*>(self), int32_t{1});
             }
         } else if (At<uint32_t>(entry, index_node::kSize) > At<uint32_t>(self, object::kMemoryLimit)) {
             // Large: a record that reads from the file as it is read.
             if (void* slot = AllocateRecord(addr::cGZDBSegmentPackedFile_FileRecordPool)) {
-                made = This<char*>(addr::cGZDBSegmentPackedFile_F96D8D0, slot,
+                made = This<char*>(addr::cGZDBPackedFileRecord_Construct, slot,
                                    At<uint32_t>(entry, index_node::kOffset), At<uint32_t>(entry, index_node::kSize),
                                    key, static_cast<void*>(self), int32_t{1});
             }
@@ -429,7 +432,7 @@ char* OpenForRead(char* self, Key* key)
                 return nullptr;
             }
             if (void* slot = AllocateRecord(addr::cGZDBSegmentPackedFile_MemoryRecordPool)) {
-                made = This<char*>(addr::cGZDBSegmentPackedFile_F96DA30, slot, data,
+                made = This<char*>(addr::cGZDBPackedMemoryRecord_Construct, slot, data,
                                    At<uint32_t>(entry, index_node::kSize), key, static_cast<void*>(self),
                                    int32_t{1});
             }
@@ -452,7 +455,7 @@ char* OpenForRead(char* self, Key* key)
     value.opened = result - record::kInterface;
     Virtual<uint32_t>(value.opened, record::kAddRef);
     void* where[2];
-    This<void*>(addr::cGZDBSegmentPackedFile_F96F5CD, map, &where[0], &value);
+    This<void*>(addr::cGZDBSegmentPackedFile_OpenInsert, map, &where[0], &value);
     return result;
 }
 
@@ -629,17 +632,17 @@ bool InstallPackedFile3(registry::Mode)
         return false;
     static void* originals[11] = {};
     static const std::pair<std::uintptr_t, void*> hooks[] = {
-        {addr::cGZDBSegmentPackedFile_F96FC95, reinterpret_cast<void*>(&ValidateIndex)},
-        {addr::cGZDBSegmentPackedFile_F96FCE8, reinterpret_cast<void*>(&ReadHoles)},
-        {addr::cGZDBSegmentPackedFile_F96FF7E, reinterpret_cast<void*>(&ReadCompressed)},
-        {addr::cGZDBSegmentPackedFile_F96FFE3, reinterpret_cast<void*>(&GetCompressedRecordSize)},
-        {addr::cGZDBSegmentPackedFile_F970030, reinterpret_cast<void*>(&DirectorySize)},
-        {addr::cGZDBSegmentPackedFile_F97005C, reinterpret_cast<void*>(&InsertIntoIndex)},
+        {addr::cGZDBSegmentPackedFile_ValidateIndex, reinterpret_cast<void*>(&ValidateIndex)},
+        {addr::cGZDBSegmentPackedFile_ReadHoles, reinterpret_cast<void*>(&ReadHoles)},
+        {addr::cGZDBSegmentPackedFile_ReadCompressed, reinterpret_cast<void*>(&ReadCompressed)},
+        {addr::cGZDBSegmentPackedFile_GetCompressedRecordSize, reinterpret_cast<void*>(&GetCompressedRecordSize)},
+        {addr::cGZDBSegmentPackedFile_DirectorySize, reinterpret_cast<void*>(&DirectorySize)},
+        {addr::cGZDBSegmentPackedFile_InsertIntoIndex, reinterpret_cast<void*>(&InsertIntoIndex)},
         {addr::cGZDBSegmentPackedFile_Destruct, reinterpret_cast<void*>(&Destruct)},
-        {addr::cGZDBSegmentPackedFile_F97042E, reinterpret_cast<void*>(&GetRecordSize)},
-        {addr::cGZDBSegmentPackedFile_F9704BD, reinterpret_cast<void*>(&ReadRecord)},
-        {addr::cGZDBSegmentPackedFile_F97078F, reinterpret_cast<void*>(&ReadRecordRaw)},
-        {addr::cGZDBSegmentPackedFile_F9710D6, reinterpret_cast<void*>(&DeleteSegment)},
+        {addr::cGZDBSegmentPackedFile_GetRecordSize, reinterpret_cast<void*>(&GetRecordSize)},
+        {addr::cGZDBSegmentPackedFile_ReadRecord, reinterpret_cast<void*>(&ReadRecord)},
+        {addr::cGZDBSegmentPackedFile_ReadRecordRaw, reinterpret_cast<void*>(&ReadRecordRaw)},
+        {addr::cGZDBSegmentPackedFile_DeleteSegment, reinterpret_cast<void*>(&DeleteSegment)},
     };
     constexpr std::size_t count = sizeof(hooks) / sizeof(hooks[0]);
     static_assert(count <= sizeof(originals) / sizeof(originals[0]));
