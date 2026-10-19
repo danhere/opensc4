@@ -27,7 +27,7 @@ def pack(fmt, *values):
 
 
 def gzstr(text):
-    data = text.encode('latin-1')
+    data = text.encode('utf-8')  # as the game writes names
     return pack('I', len(data)) + data
 
 
@@ -47,7 +47,7 @@ def budget():
     for payment in (250, 125):
         out += pack('ii', 1, 2010) + pack('6q', 25000, 30000, 25000, 0, payment, 25000)
     out += pack('q', 0) + pack('4q', 0, 0, 0, 0)
-    out += pack('I', 1) + pack('II', 7, 7) + gzstr('Safety') + pack('qq', 900, 0) + pack('III', 2, FIRE, POLICE)
+    out += pack('I', 1) + pack('II', 7, 7) + gzstr('Sécurité') + pack('qq', 900, 0) + pack('III', 2, FIRE, POLICE)
     return with_header(0x01000000, out)
 
 
@@ -83,7 +83,7 @@ def city(path):
     city_file(path, [
         (0xE990BE01, budget()),
         (0xE990BFFC, department(POLICE_AT, POLICE, 'Police', 0.8, [LINES_AT[2]]) +
-         department(FIRE_AT, FIRE, 'Fire', 1.0, LINES_AT[:2])),
+         department(FIRE_AT, FIRE, 'Пожарная', 1.0, LINES_AT[:2])),
         (0xAA313C9F, line_item(LINES_AT[0], 500, 500, 0, 0, FIRE_AT) + line_item(LINES_AT[1], 0, 0, 40, 1, FIRE_AT) +
          line_item(LINES_AT[2], 400, 320, 0, 0, POLICE_AT)),
     ])
@@ -120,10 +120,10 @@ class BudgetReport(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             city(os.path.join(folder, 'City - Springfield.sc4'))
             rows = run(folder, '--departments')
-        self.assertEqual([row['department'] for row in rows], ['Fire', 'Police'])
+        self.assertEqual([row['department'] for row in rows], ['Пожарная', 'Police'])
         fire, police = rows
         self.assertEqual(list(fire), sc4report.DEPARTMENT_COLUMNS)
-        self.assertEqual((fire['group'], fire['id'], fire['name_instance']), ('Safety', '00001000', '00000ABC'))
+        self.assertEqual((fire['group'], fire['id'], fire['name_instance']), ('Sécurité', '00001000', '00000ABC'))
         self.assertEqual((fire['full_expense'], fire['expense'], fire['income'], fire['lines']), ('500', '500', '40', '2'))
         self.assertEqual((police['funding'], police['full_expense'], police['expense']), ('0.8', '400', '320'))
         self.assertEqual(police['local_objects'], '1')
