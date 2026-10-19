@@ -321,7 +321,7 @@ char* __fastcall ViewConstruct(char* self, void*, void* recordObject)
 // deleting destructor.
 char* __fastcall ViewDelete(char* self, void*, uint32_t flags)
 {
-    This<void>(addr::cGZDBSegmentPackedFile_F96E93A, self);
+    This<void>(addr::cGZDBRawFileView_Destruct, self);
     if (flags & 1)
         Cdecl<void>(addr::SC4_operator_delete, self);
     return self;
@@ -374,7 +374,7 @@ IndexNode* __fastcall NewIndexNode(HashTable*, void*, const IndexEntry* entry)
 {
     IndexNode* const node = Cdecl<IndexNode*>(addr::SC4_stl_allocate, uint32_t{0x18});
     node->next = nullptr;
-    This<void*>(addr::cGZDBSegmentPackedFile_F96E78B, &node->entry, entry);
+    This<void*>(addr::cGZDBSegmentPackedFile_IndexEntryCopy, &node->entry, entry);
     return node;
 }
 
@@ -385,7 +385,7 @@ IndexNode* __fastcall IndexFind(HashTable* self, void*, const Key* key)
     const uint32_t buckets = BucketCount(self);
     IndexNode* node = self->begin[key->instance % buckets];
     while (node) {
-        if (This<uint8_t>(addr::cGZDBSegmentPackedFile_F96D895, &node->entry.key, key))
+        if (This<uint8_t>(addr::cGZDBSegmentPackedFile_KeyEquals, &node->entry.key, key))
             break;
         node = node->next;
     }
@@ -400,7 +400,7 @@ HashInsertResult* __fastcall IndexInsertNoResize(HashTable* self, void*, HashIns
     const uint32_t bucket = entry->key.instance % BucketCount(self);
     IndexNode* const first = self->begin[bucket];
     for (IndexNode* node = first; node; node = node->next) {
-        if (This<uint8_t>(addr::cGZDBSegmentPackedFile_F96D895, &node->entry.key, entry)) {
+        if (This<uint8_t>(addr::cGZDBSegmentPackedFile_KeyEquals, &node->entry.key, entry)) {
             result->node = node;
             result->table = self;
             result->inserted = 0;
@@ -595,7 +595,7 @@ uint8_t __fastcall AbortRecord(char* self, void*, char* recordFace)
         char* const object = static_cast<char*>(entry->record);
         if ((object ? object + 4 : nullptr) != recordFace)
             continue;
-        This<void>(addr::cGZDBSegmentPackedFile_F96E363, self - 4, object ? object + 4 : nullptr);
+        This<void>(addr::cGZDBSegmentPackedFile_RecordClosed, self - 4, object ? object + 4 : nullptr);
         Virtual<uint32_t>(object, record::kRelease);
         This<void>(addr::cGZDBSegmentPackedFile_RecordMapErase, map, node);
         return 1;
@@ -682,7 +682,7 @@ uint32_t CountKeyField(char* self, std::size_t tracked, std::size_t indexField, 
         while (walk.node) {
             This<void*>(addr::cSC4AdvisorTransportation_ZotInsert, &seen, &inserted,
                         reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(walk.node) + indexField));
-            This<void*>(addr::cGZDBSegmentPackedFile_F96F5B7, &walk);
+            This<void*>(addr::cGZDBSegmentPackedFile_HashIteratorNext, &walk);
         }
         TreeNode* const header = At<TreeNode*>(self, object::kOpenRecords);
         for (TreeNode* node = header->left; node != header; node = Next(node)) {
@@ -730,7 +730,7 @@ uint32_t __fastcall GetResourceKeyList(char* self, void*, void* list, void* filt
                 Virtual<uint8_t>(list, keys::kListInsert, &key);
             ++count;
         }
-        This<void*>(addr::cGZDBSegmentPackedFile_F96F5B7, &walk);
+        This<void*>(addr::cGZDBSegmentPackedFile_HashIteratorNext, &walk);
     }
     return count;
 }
@@ -742,7 +742,7 @@ uint8_t __fastcall IsCompressed(char* self, void*, const Key* key)
     LockGuard guard;
     Lock(guard, self + object::kLock);
     HashIterator found;
-    This<void*>(addr::cGZDBSegmentPackedFile_F96F290, self + object::kDirectory, &found, key);
+    This<void*>(addr::cGZDBSegmentPackedFile_HashFind, self + object::kDirectory, &found, key);
     Unlock(guard);
     return found.node != nullptr;
 }
@@ -753,35 +753,35 @@ bool InstallPackedFile2(registry::Mode)
         return false;
     static void* originals[29] = {};
     static const std::pair<std::uintptr_t, void*> hooks[] = {
-        {addr::cGZDBSegmentPackedFile_F96EAC8, reinterpret_cast<void*>(&EraseOpenTreeHook)},
-        {addr::cGZDBSegmentPackedFile_F96EAF5, reinterpret_cast<void*>(&EraseHoleTreeHook)},
-        {addr::cGZDBSegmentPackedFile_F96EC7C, reinterpret_cast<void*>(&ViewConstruct)},
-        {addr::cGZDBSegmentPackedFile_F96ECAD, reinterpret_cast<void*>(&ViewDelete)},
-        {addr::cGZDBSegmentPackedFile_F96ECC9, reinterpret_cast<void*>(&GetRawFileView)},
-        {addr::cGZDBSegmentPackedFile_F96ED23, reinterpret_cast<void*>(&GetRecordCount)},
-        {addr::cGZDBSegmentPackedFile_F96ED6A, reinterpret_cast<void*>(&ClearOpenTree)},
-        {addr::cGZDBSegmentPackedFile_F96ED93, reinterpret_cast<void*>(&ClearHoleTree)},
-        {addr::cGZDBSegmentPackedFile_F96EDD3, reinterpret_cast<void*>(&NewIndexNode)},
-        {addr::cGZDBSegmentPackedFile_F96EE20, reinterpret_cast<void*>(&HoleInsertAt)},
-        {addr::cGZDBSegmentPackedFile_F96EEA9, reinterpret_cast<void*>(&IndexFind)},
-        {addr::cGZDBSegmentPackedFile_F96EEE1, reinterpret_cast<void*>(&NewOpenNode)},
-        {addr::cGZDBSegmentPackedFile_F96F0C3, reinterpret_cast<void*>(&GetHoleTotals)},
-        {addr::cGZDBSegmentPackedFile_F96F0FF, reinterpret_cast<void*>(&DestroyOpenTree)},
-        {addr::cGZDBSegmentPackedFile_F96F116, reinterpret_cast<void*>(&DestroyHoleTree)},
-        {addr::cGZDBSegmentPackedFile_F96F12D, reinterpret_cast<void*>(&HoleInsertUnique)},
-        {addr::cGZDBSegmentPackedFile_F96F209, reinterpret_cast<void*>(&IndexInsertNoResize)},
-        {addr::cGZDBSegmentPackedFile_F96F2AB, reinterpret_cast<void*>(&OpenInsertAt)},
-        {addr::cGZDBSegmentPackedFile_F96F3ED, reinterpret_cast<void*>(&AbortRecord)},
-        {addr::cGZDBSegmentPackedFile_F96F494, reinterpret_cast<void*>(&IsRecordOpen)},
-        {addr::cGZDBSegmentPackedFile_F96F594, reinterpret_cast<void*>(&HoleInsert)},
-        {addr::cGZDBSegmentPackedFile_F96F5CD, reinterpret_cast<void*>(&OpenInsert)},
-        {addr::cGZDBSegmentPackedFile_F96F779, reinterpret_cast<void*>(&TestForRecord)},
-        {addr::cGZDBSegmentPackedFile_F96F7CD, reinterpret_cast<void*>(&GetIndexSize)},
-        {addr::cGZDBSegmentPackedFile_F96F823, reinterpret_cast<void*>(&GetIndexOffset)},
-        {addr::cGZDBSegmentPackedFile_F96F879, reinterpret_cast<void*>(&GetTypeCount)},
-        {addr::cGZDBSegmentPackedFile_F96F912, reinterpret_cast<void*>(&GetGroupCount)},
-        {addr::cGZDBSegmentPackedFile_F96F9AB, reinterpret_cast<void*>(&GetResourceKeyList)},
-        {addr::cGZDBSegmentPackedFile_F96FA30, reinterpret_cast<void*>(&IsCompressed)},
+        {addr::cGZDBSegmentPackedFile_EraseOpenTree, reinterpret_cast<void*>(&EraseOpenTreeHook)},
+        {addr::cGZDBSegmentPackedFile_EraseHoleTree, reinterpret_cast<void*>(&EraseHoleTreeHook)},
+        {addr::cGZDBRawFileView_Construct, reinterpret_cast<void*>(&ViewConstruct)},
+        {addr::cGZDBRawFileView_Delete, reinterpret_cast<void*>(&ViewDelete)},
+        {addr::cGZDBSegmentPackedFile_GetRawFileView, reinterpret_cast<void*>(&GetRawFileView)},
+        {addr::cGZDBSegmentPackedFile_GetRecordCount, reinterpret_cast<void*>(&GetRecordCount)},
+        {addr::cGZDBSegmentPackedFile_ClearOpenTree, reinterpret_cast<void*>(&ClearOpenTree)},
+        {addr::cGZDBSegmentPackedFile_ClearHoleTree, reinterpret_cast<void*>(&ClearHoleTree)},
+        {addr::cGZDBSegmentPackedFile_NewIndexNode, reinterpret_cast<void*>(&NewIndexNode)},
+        {addr::cGZDBSegmentPackedFile_HoleInsertAt, reinterpret_cast<void*>(&HoleInsertAt)},
+        {addr::cGZDBSegmentPackedFile_IndexFind, reinterpret_cast<void*>(&IndexFind)},
+        {addr::cGZDBSegmentPackedFile_NewOpenNode, reinterpret_cast<void*>(&NewOpenNode)},
+        {addr::cGZDBSegmentPackedFile_GetHoleTotals, reinterpret_cast<void*>(&GetHoleTotals)},
+        {addr::cGZDBSegmentPackedFile_DestroyOpenTree, reinterpret_cast<void*>(&DestroyOpenTree)},
+        {addr::cGZDBSegmentPackedFile_DestroyHoleTree, reinterpret_cast<void*>(&DestroyHoleTree)},
+        {addr::cGZDBSegmentPackedFile_HoleInsertUnique, reinterpret_cast<void*>(&HoleInsertUnique)},
+        {addr::cGZDBSegmentPackedFile_IndexInsertNoResize, reinterpret_cast<void*>(&IndexInsertNoResize)},
+        {addr::cGZDBSegmentPackedFile_OpenInsertAt, reinterpret_cast<void*>(&OpenInsertAt)},
+        {addr::cGZDBSegmentPackedFile_AbortRecord, reinterpret_cast<void*>(&AbortRecord)},
+        {addr::cGZDBSegmentPackedFile_IsRecordOpen, reinterpret_cast<void*>(&IsRecordOpen)},
+        {addr::cGZDBSegmentPackedFile_HoleInsert, reinterpret_cast<void*>(&HoleInsert)},
+        {addr::cGZDBSegmentPackedFile_OpenInsert, reinterpret_cast<void*>(&OpenInsert)},
+        {addr::cGZDBSegmentPackedFile_TestForRecord, reinterpret_cast<void*>(&TestForRecord)},
+        {addr::cGZDBSegmentPackedFile_GetIndexSize, reinterpret_cast<void*>(&GetIndexSize)},
+        {addr::cGZDBSegmentPackedFile_GetIndexOffset, reinterpret_cast<void*>(&GetIndexOffset)},
+        {addr::cGZDBSegmentPackedFile_GetTypeCount, reinterpret_cast<void*>(&GetTypeCount)},
+        {addr::cGZDBSegmentPackedFile_GetGroupCount, reinterpret_cast<void*>(&GetGroupCount)},
+        {addr::cGZDBSegmentPackedFile_GetResourceKeyList, reinterpret_cast<void*>(&GetResourceKeyList)},
+        {addr::cGZDBSegmentPackedFile_IsCompressed, reinterpret_cast<void*>(&IsCompressed)},
     };
     constexpr std::size_t count = sizeof(hooks) / sizeof(hooks[0]);
     static_assert(count <= sizeof(originals) / sizeof(originals[0]));
@@ -798,7 +798,7 @@ const bool g_packedFile2Registered = registry::Register({
     "resources",
     registry::Kind::Detour,
     registry::Phase::PreAppInit,
-    addr::cGZDBSegmentPackedFile_F96EEA9,
+    addr::cGZDBSegmentPackedFile_IndexFind,
     "Our packed file, part 2: index, holes and open-record containers, record queries, AbortRecord, raw file view",
     false,
     InstallPackedFile2,
