@@ -11,10 +11,11 @@
 // deleting destructors 0x005192C0 and 0x00519340, the two factories,
 // QueryInterface 0x00514F60 and Release 0x00517F10), the queries (the
 // accessors, the flag tests and the small overrides the two classes make),
-// and the +4 serializable part's identity and Write (0x00517F30, 0x00517F00,
-// 0x00517FD0, 0x00518230, 0x005183D0). The serializable functions take
-// object + 4 as this, so their fields are the object's less 4. Read is a
-// later part.
+// and the +4 serializable part's identity (0x00517F30, 0x00517F00). Part
+// a3b: the behaviour; part a3c: the save (Write 0x00517FD0, 0x00518230,
+// 0x005183D0, Read 0x005180E0, 0x00518270, 0x00518450) and the rest of the
+// behaviour. The serializable functions take object + 4 as this, so their
+// fields are the object's less 4.
 //
 // The base constructor fixes the layout, shared by both derived classes:
 //   +0x00 the controller vtable, 0x00A95D90 (42 slots)
