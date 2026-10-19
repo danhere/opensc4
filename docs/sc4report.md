@@ -114,10 +114,18 @@ With `--all`, one row per ordinance instead, in ID order: `id`, `name`, `availab
 
 Checked on the 491 GitHub forum saves (test-saves README): all decode, 20 ordinance records each (the base class 0x8BD4FC74 has none of its own), versions 1 to 4 (316 files below version 2, so no `income_ordinance`). 45 cities have ordinances enacted, up to 18 (Predo, expense 13,260 a month). Names are in the game's language: 88 saves hold Russian names, so compare by `id` across saves. Checked in the game on three cities: `expense` and `income` are the ordinance simulator's monthly figures, and each enacted ordinance's `adjusted` is its cost this month.
 
+## all: every report of a region
+
+    python3 tools/sc4report.py all "<region folder>" [-o reports]
+
+Runs `region`, `budget`, `demand`, `ordinances` and `utilities` over the `City - *.sc4` files of the folder and writes one CSV per report to the output folder (default `reports`, created if missing): `region.csv`, `budget.csv`, `demand.csv`, `ordinances.csv`, `utilities.csv`. Each CSV is what that command alone gives (summary rows, not `--departments` or `--all`), except that only city files are read. Each file is read once, not once per report.
+
+Run on the 491 GitHub forum saves (8 region folders): every file gives an `ok` row in every report (region rows are `ok` or `unfounded`), and each CSV is byte for byte what the single command gives. Timbuktu (91 cities, about 300 MB) takes about 90 seconds.
+
 ## Checked against the game
 
 `OPENSC4_TEST_PANELS=1` (src/core/panels_autotest.cpp) logs, right after a city loads in the autotest (`OPENSC4_TEST_DAYS=0`), what the budget, ordinance, RCI, power and water windows read from the game's simulators: `panels: ...` lines in `opensc4.log`. Run on 2026-10-19 with no replacements and no mods on Panem (gh-panem, `Panem (new)`), Binko (gh-makaf Timbuktu) and Kalo (gh-makaf New York): every budget, tax, department, ordinance, power and water figure the reports give matched; the RCI demand as above.
 
 The idea of the census is Null 45's Region Census DLL; no code of it is used.
 
-Tests: `tests/python/test_sc4report.py` builds a version 13 regional city record by hand, `tests/python/test_sc4report_budget.py` a budget with two departments and three line items, `tests/python/test_sc4report_demand.py` three demand objects, `tests/python/test_sc4report_utilities.py` a power and a water record, `tests/python/test_sc4report_ordinances.py` an ordinance simulator and three ordinances (ctest `python_tools`, or `python3 -m unittest discover -s tests/python`).
+Tests: `tests/python/test_sc4report.py` builds a version 13 regional city record by hand, `tests/python/test_sc4report_budget.py` a budget with two departments and three line items, `tests/python/test_sc4report_demand.py` three demand objects, `tests/python/test_sc4report_utilities.py` a power and a water record, `tests/python/test_sc4report_ordinances.py` an ordinance simulator and three ordinances, `tests/python/test_sc4report_all.py` a region of these for `all` (ctest `python_tools`, or `python3 -m unittest discover -s tests/python`).
