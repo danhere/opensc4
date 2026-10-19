@@ -24,7 +24,7 @@ def pack(fmt, *values):
 
 
 def gzstr(text):
-    data = text.encode('latin-1')
+    data = text.encode('utf-8')  # as the game writes names
     return pack('I', len(data)) + data
 
 
@@ -47,12 +47,12 @@ def deal():
 
 def record(established=1):
     """Version 13, as Write (0x004A7D10) gives it."""
-    out = pack('H', 13)
+    out = pack('HH', 1, 13)  # the segment stream's version, then the record's
     out += pack('7i', 4, 8, 2, 2, 12345, 3000, 2500)  # x, y, size x, size y, residents, jobs
     out += pack('f', 0.45) + pack('bB', -3, 1)  # workforce, mayor rating, difficulty
     out += pack('B', 0) + pack('I', 0xABCDEF0) + pack('4i', 0, 0, 0, 0) + pack('I', 2451545)
     out += pack('B', established)
-    for text in ('Springfield', '', 'Dan', '', 'Utility Bob', 'A fine town', ''):
+    for text in ('Springfield°', '', 'Dan', '', 'Utility Bob', 'A fine town', ''):
         out += gzstr(text)
     out += pack('3f', 1.0, 2.0, 250.0) + pack('i', -1)
     out += pack('I', 3) + pack('Ii', 0x1011, 9000) + pack('Ii', 0x3111, 800) + pack('Ii', 0x7777, 5)
@@ -114,7 +114,7 @@ class RegionCensus(unittest.TestCase):
         self.assertEqual(rows[1]['status'], 'unfounded')
         row = rows[2]
         expected = {
-            'status': 'ok', 'city': 'Springfield', 'mayor': 'Dan', 'x': '4', 'y': '8', 'size_km': '2',
+            'status': 'ok', 'city': 'Springfield°', 'mayor': 'Dan', 'x': '4', 'y': '8', 'size_km': '2',
             'established': '1', 'residents': '12345', 'commercial_jobs': '3000', 'industrial_jobs': '2500',
             'pop_R$': '9000', 'pop_Cs$': '800', 'pop_R$$': '0', 'pop_Ih': '0', 'pop_other': '7777=5',
             'mayor_rating': '-3', 'difficulty': '1', 'budget': '250000.0', 'income': '-1500.5',
