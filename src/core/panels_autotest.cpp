@@ -2,7 +2,10 @@
 // budget, ordinance, RCI, power and water windows read from the game's
 // simulators, to check tools/sc4report.py against them (docs/sc4report.md).
 // OPENSC4_TEST_PANELS_BUDGET=1 also opens the budget window (budget slot 24)
-// for a screenshot run. Build 641 slots and offsets, as the fingerprints.
+// for a screenshot run. OPENSC4_TEST_PANELS_ALL=1 also logs every demand
+// object's supply, demand and active demand, to compare with
+// `sc4report.py demand --all` on the same save. Build 641 slots and offsets,
+// as the fingerprints.
 #include "core/autotest_hooks.h"
 #include "core/demand_sim.h"
 #include "core/game.h"
@@ -112,6 +115,15 @@ void Demand(cISC4City* city)
                    static_cast<double>(At<float>(demand, demand::kDemand)),
                    static_cast<double>(At<float>(demand, demand::kEconomy)),
                    static_cast<double>(At<float>(demand, demand::kTax)));
+    }
+    if (Env("OPENSC4_TEST_PANELS_ALL") != "1")
+        return;
+    for (TreeNode* node = First(demands); node != demands; node = Next(node)) {
+        void* const demand = Value<void*>(node);
+        log::Write("panels: all %05X supply %.3f demand %.3f active %.3f", node->key,
+                   static_cast<double>(At<float>(demand, demand::kSupply)),
+                   static_cast<double>(At<float>(demand, demand::kDemand)),
+                   static_cast<double>(Virtual<float>(demand, 0x30)));
     }
 }
 
