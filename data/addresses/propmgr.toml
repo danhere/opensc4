@@ -588,7 +588,7 @@ address = 0x005F7D80
 kind = "function"
 convention = "cdecl"
 expect = "A1 BC A9 B0 00 8B 40 08"
-source = "Name ours. (size_t size): the pool allocator of the text decal prop (0xBC bytes). Left the game's."
+source = "Name ours. (size_t size): the pool allocator of the text decal prop (0x00B0A9B8; 0xBC bytes, the size is not used). The prop manager's TextDecal command (0x004A363F) and the label tool (0x004BD971) call it. Ours in simulators.propkinds.textdecal_object."
 
 [[entry]]
 name = "cSC4PropOccupantTextDecal::Construct"
@@ -596,7 +596,7 @@ address = 0x005F8300
 kind = "function"
 convention = "thiscall"
 expect = "53 56 8B F1 57 8D 7E 04"
-source = "Name ours. The text decal prop's constructor (calls cSC4PropOccupant's 0x005EE050 on this + 4; vtables 0x00AA5680 at +0, 0x00AA5620 at +4, occupant part 0x00AA5588 at +0xC): returns this. Left the game's."
+source = "Name ours. The text decal prop's constructor (calls cSC4PropOccupant's 0x005EE050 on this + 4; vtables 0x00AA5680 at +0, 0x00AA5620 at +4, occupant part 0x00AA5588 at +0xC): returns this. Ours in simulators.propkinds.textdecal_object (src/core/propkinds_textdecal.cpp)."
 
 [[entry]]
 name = "cSC4PropManager::NameTable"

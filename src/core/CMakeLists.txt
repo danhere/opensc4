@@ -211,6 +211,7 @@ add_library(opensc4_core SHARED
   propkinds_burnt.cpp
   propkinds_decal.cpp
   propkinds_effect.cpp
+  propkinds_textdecal.cpp
   floraocc_autotest.cpp
   floraocc_sim.cpp
   foundocc_autotest.cpp
@@ -556,6 +557,8 @@ add_library(opensc4_core SHARED
   tool_query_7a.cpp
   tool_query_7b.cpp
   tool_q7_autotest.cpp
+  tool_query_8.cpp
+  tool_q8_autotest.cpp
   tool_udrive_1.cpp
   tool_t7_autotest.cpp
   tool_udrive_2.cpp
@@ -567,6 +570,8 @@ add_library(opensc4_core SHARED
   tool_t10_autotest.cpp
   tool_plop_4.cpp
   tool_t11_autotest.cpp
+  tool_plop_5.cpp
+  tool_t12_autotest.cpp
   ui_cityview_1.cpp
   ui_cityview_2.cpp
   ui_cityview_3.cpp
