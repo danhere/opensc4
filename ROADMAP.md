@@ -286,6 +286,7 @@ Quality of life from popular DLL mods (surveyed 2026-10-11; MIT-licensed code is
 - [x] City Date Sync: a city loaded with an earlier date than the last one saved in its region moves forward to it; on by default ([docs/date-sync.md](docs/date-sync.md)). Not yet seen moving a date forward in the game
 - [~] Phantom budget rows (rows left by deleted buildings) and No Kickout Lower Wealth (richer Sims stop pushing poorer ones out)
 - [~] Switches for the demolition animation, lot plop smoke and network construction sounds
+- [~] Region census (the idea of Null 45's Region Census): `tools/sc4report.py region` writes one CSV row per city of a region folder from the city files, without the game ([docs/sc4report.md](docs/sc4report.md)). Not yet run on real saves; an in-game panel waits on P8
 
 Maybe, and stretch goals:
 - [ ] Districts and policies: per-district ordinances, taxes and zoning rules (P6 budget, a save addition). Real cities do this at the neighborhood scale (special zoning, historic and business improvement districts), so it need not wait for bigger maps
