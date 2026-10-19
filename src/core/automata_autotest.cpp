@@ -87,6 +87,33 @@
 //   and 41 and 0x0054D150 (which automata there are follows frames), and
 //   those two tests with null go to the log only (`autotest: automata:
 //   vehicle manager: ...`). Read-only.
+// OPENSC4_TEST_AUTOMATA_VEHMGR=2 (part v2): also, on the same day, for each
+//   manager at the game's addresses (ours when the simulators.automata.vehmgr
+//   groups are on): Write (the serializable part's slot 3) into a stream of
+//   the test's own; into the fingerprint as ` x<fixed>,<flags>` (the vehicle
+//   manager) and ` <fixed>,<flags>` (the pedestrian manager) from that day
+//   on, where fixed is the versions, the most automata, the two bools,
+//   +0xA8C, the kind and the record list (the automata count and the common
+//   base's table, frame-driven, go to the log only). Then a round trip: a new
+//   manager of the class from its factory (0x005145A0, 0x005145D0), held by
+//   one reference, reads those bytes (slot 4; the automata count zeroed in
+//   the copy, the references read back as nothing) and writes them again,
+//   which must give the copy with its own +0xA8C (Read drops the saved one);
+//   reads of version 0, of version 2 (no record list) and of a record list
+//   of version 9; AddAutomaton with none while full (its count set to the
+//   most for the call, so nothing is made) and RemoveAutomaton with none
+//   (flags 0 and 1); a message of a type no one handles and, for the vehicle
+//   manager, 0xC9DA96E8 (its list is empty) to its message target, and the
+//   vehicle manager's +4 slot 3 with a zeroed message; then the release
+//   (Shutdown, not initialized, and the deleting destructor). Then the
+//   pedestrian manager's gathering 0x00544F30 on the city's manager around
+//   its first pedestrian with distance 0 (none is sent; the sound message
+//   0xA9E3B6E3 goes out), the pedestrian's send 0x005448D0 on that
+//   pedestrian to its own position (its mode changes: frame-driven state,
+//   alike on both sides), and the vehicle manager's overlay stop 0x00562D60
+//   on a zeroed object (nothing). The answers' AL and whether the bytes came
+//   back the same are the flags. Nothing else of the city's managers
+//   changes.
 // A remove and add round trip of one occupant's controllers is not done:
 // removing sends 0xEA298D50 to the automata, destroys the controllers and
 // can drop the occupant's automaton entry (its automata released), and the
@@ -966,14 +993,200 @@ void ManagerDrive(cISC4City* city)
     g_managerText = text;
 }
 
+// ====================================================================================
+// Part v2's drive (OPENSC4_TEST_AUTOMATA_VEHMGR=2), see the top of the file.
+
+void Put32(std::vector<uint8_t>& bytes, std::size_t at, uint32_t v)
+{
+    if (at + 4 <= bytes.size())
+        std::memcpy(bytes.data() + at, &v, 4);
+}
+
+void Put16(std::vector<uint8_t>& bytes, std::size_t at, uint16_t v)
+{
+    if (at + 2 <= bytes.size())
+        std::memcpy(bytes.data() + at, &v, 2);
+}
+
+// A cGZMessage of the type, made as the game makes one (0x00544F30), sent to
+// a message target part's slot 3; AL of the answer.
+uint32_t SendMessageTo(void* target, uint32_t type)
+{
+    using NewFn = void*(__cdecl*)(std::size_t);
+    using ConstructFn = void*(__thiscall*)(void*);
+    void* const raw = reinterpret_cast<NewFn>(addr::RZ_operator_new)(0x2C);
+    if (!raw)
+        return 0xFF;
+    void* const msg = reinterpret_cast<ConstructFn>(addr::cGZMessage_cGZMessage)(raw);
+    Virtual<uint32_t>(msg, 0x04);
+    Virtual<uint32_t>(msg, 0x14, type);
+    const uint32_t answer = Virtual<uint32_t>(target, automata_vehmgr::slot::kDoMessage, msg) & 0xFF;
+    Virtual<uint32_t>(msg, 0x08);
+    return answer;
+}
+
+void ManagerSaveDrive(cISC4City* city)
+{
+    namespace vm = automata_vehmgr;
+    std::string text;
+    for (int m = 0; m < 2; ++m) {
+        char* const manager = Virtual<char*>(city, m ? vm::kCitySlotPedestrians : vm::kCitySlotVehicles);
+        if (!manager) {
+            text += m ? " -" : " x-";
+            continue;
+        }
+        char* const part = manager + vm::field::kSerializable;
+        ByteOStream out;
+        const uint32_t written = Virtual<uint32_t>(part, vm::slot::kWrite, static_cast<cIGZOStream*>(&out)) & 0xFF;
+        const std::vector<uint8_t>& b = out.bytes;
+        // u16 3, the common base's (u16 6, s32 the most, two bools, u32 the
+        // count, references (none in this stream), u32 +0xA74 and as many
+        // pairs of words), u32 +0xA8C, u32 the kind, the record list (u16 1,
+        // u32 the count, 49 bytes a record).
+        const std::size_t pairsAt = 18;
+        const uint32_t pairs = U32(b, 14);
+        const std::size_t ownAt = pairsAt + 8 * static_cast<std::size_t>(pairs);
+        const std::size_t listAt = ownAt + 8;
+        const uint32_t records = U32(b, listAt + 2);
+        const bool layout = b.size() >= listAt + 6 && b.size() == listAt + 6 + 49 * static_cast<std::size_t>(records);
+        Hash fixed, table;
+        fixed.Mix(written);
+        fixed.Mix(layout ? 1u : 0u);
+        fixed.MixBytes(b.data(), std::min<std::size_t>(b.size(), 10)); // versions, the most, the bools
+        if (layout)
+            fixed.MixBytes(b.data() + ownAt, b.size() - ownAt);
+        if (b.size() >= ownAt)
+            table.MixBytes(b.data() + pairsAt, ownAt - pairsAt);
+        // The round trip into a new manager of the class, from its factory
+        // (the object + 8), held by one reference. The automata count is
+        // zeroed in its copy (the references read back as nothing).
+        using Factory = void*(__cdecl*)();
+        char* const freshPart = static_cast<char*>(
+            reinterpret_cast<Factory>(m ? addr::cSC4PedestrianManager_Create : addr::cSC4VehicleManager_Create)());
+        uint32_t flags = 0;
+        bool same = false;
+        if (freshPart && layout) {
+            char* const fresh = freshPart - vm::field::kSerializable;
+            Virtual<uint32_t>(fresh, 0x04);
+            std::vector<uint8_t> in = b;
+            Put32(in, 10, 0);
+            ByteIStream reader(in);
+            const uint32_t read = Virtual<uint32_t>(freshPart, vm::slot::kRead, static_cast<cIGZIStream*>(&reader)) & 0xFF;
+            ByteOStream again;
+            const uint32_t rewritten =
+                Virtual<uint32_t>(freshPart, vm::slot::kWrite, static_cast<cIGZOStream*>(&again)) & 0xFF;
+            // Read drops the saved +0xA8C: the new manager writes its own.
+            std::vector<uint8_t> expect = in;
+            Put32(expect, ownAt, At<uint32_t>(fresh, vm::field::kDefaultClass));
+            same = again.bytes == expect;
+            std::size_t firstDiff = 0;
+            while (firstDiff < again.bytes.size() && firstDiff < expect.size() &&
+                   again.bytes[firstDiff] == expect[firstDiff])
+                ++firstDiff;
+            log::Write("autotest: automata: %s manager round trip: %u bytes back of %u, first difference at %u "
+                       "(the own part from %u)",
+                       m ? "pedestrian" : "vehicle", static_cast<unsigned>(again.bytes.size()),
+                       static_cast<unsigned>(expect.size()), static_cast<unsigned>(firstDiff),
+                       static_cast<unsigned>(ownAt));
+            // Reads refused or cut short: version 0; version 2 (no record
+            // list); the record list's version 9.
+            ByteIStream zero(std::vector<uint8_t>{0, 0});
+            const uint32_t v0 = Virtual<uint32_t>(freshPart, vm::slot::kRead, static_cast<cIGZIStream*>(&zero)) & 0xFF;
+            std::vector<uint8_t> two(in.begin(), in.begin() + static_cast<std::ptrdiff_t>(listAt));
+            Put16(two, 0, 2);
+            ByteIStream twoReader(two);
+            const uint32_t v2 = Virtual<uint32_t>(freshPart, vm::slot::kRead, static_cast<cIGZIStream*>(&twoReader)) & 0xFF;
+            std::vector<uint8_t> nine = in;
+            Put16(nine, listAt, 9);
+            ByteIStream nineReader(nine);
+            const uint32_t v9 = Virtual<uint32_t>(freshPart, vm::slot::kRead, static_cast<cIGZIStream*>(&nineReader)) & 0xFF;
+            // AddAutomaton with none when full (the count set to the most for
+            // the call, so nothing is made), RemoveAutomaton with none.
+            const uint32_t count = At<uint32_t>(fresh, vm::field::kCount);
+            At<uint32_t>(fresh, vm::field::kCount) = At<uint32_t>(fresh, vm::field::kMaxCount);
+            const uint32_t add =
+                Virtual<uint32_t>(fresh, vm::slot::kAddAutomaton, static_cast<void*>(nullptr)) & 0xFF;
+            At<uint32_t>(fresh, vm::field::kCount) = count;
+            const uint32_t remove0 =
+                Virtual<uint32_t>(fresh, vm::slot::kRemoveAutomaton, static_cast<void*>(nullptr), 0u) & 0xFF;
+            const uint32_t remove1 =
+                Virtual<uint32_t>(fresh, vm::slot::kRemoveAutomaton, static_cast<void*>(nullptr), 1u) & 0xFF;
+            // Messages to its target (+0xC): a type no one handles and, for
+            // the vehicle manager, 0xC9DA96E8 (its automata list is empty);
+            // the vehicle manager's +4 slot 3 with a zeroed message.
+            const uint32_t msgA = SendMessageTo(fresh + vm::field::kMessage, 0x12345678u);
+            const uint32_t msgB = m ? 1u : SendMessageTo(fresh + vm::field::kMessage, 0xC9DA96E8u);
+            uint32_t zeroMessage[3] = {};
+            const uint32_t four =
+                m ? 0u
+                  : Virtual<uint32_t>(fresh + vm::field::kVtable4, vm::slot::kDoMessage4, static_cast<void*>(zeroMessage)) &
+                        0xFF;
+            flags = read | rewritten << 1 | (same ? 1u : 0u) << 2 | v0 << 3 | v2 << 4 | v9 << 5 | add << 6 |
+                    remove0 << 7 | remove1 << 8 | msgA << 9 | msgB << 10 | four << 11;
+            // Release: Shutdown (slot 4, not initialized) and the deleting
+            // destructor.
+            Virtual<uint32_t>(fresh, 0x08);
+        } else if (freshPart) {
+            char* const fresh = freshPart - vm::field::kSerializable;
+            Virtual<uint32_t>(fresh, 0x04);
+            Virtual<uint32_t>(fresh, 0x08);
+        }
+        // The pedestrian manager's gathering (0x00544F30) on the city's
+        // manager, around its first pedestrian with distance 0 (so none is
+        // sent; the sound message 0xA9E3B6E3 still goes out), and the
+        // pedestrian's send (0x005448D0) called on that pedestrian with its
+        // own position (it changes the pedestrian's mode: frame-driven state,
+        // alike on both sides). The vehicle manager's overlay stop
+        // (0x00562D60) on a zeroed object (+0xC clear: nothing). The log
+        // only, but the answers' AL go into the flags.
+        uint32_t live = 0;
+        if (m) {
+            char* const head = At<char*>(manager, kManagerAutomata);
+            char* const first = At<char*>(head, 0) != head ? At<char*>(At<char*>(head, 0), 8) : nullptr;
+            void* occupant = nullptr;
+            if (first)
+                Virtual<uint8_t>(first, 0x00, 0x26BB767Eu, &occupant);
+            if (occupant) {
+                using GatherFn = uint32_t(__thiscall*)(void*, void*, uint32_t, uint32_t);
+                const uint32_t gathered =
+                    reinterpret_cast<GatherFn>(addr::cSC4PedestrianManager_Gather)(manager, occupant, 1u, 0u) & 0xFF;
+                float position[3] = {};
+                Virtual<uint32_t>(first, 0x1C, static_cast<float*>(position));
+                using SendFn = uint32_t(__thiscall*)(void*, const float*, uint32_t);
+                const uint32_t sent =
+                    reinterpret_cast<SendFn>(addr::cSC4PedestrianManager_SendTo)(first, position, 1u) & 0xFF;
+                live = 1u | gathered << 1 | sent << 2;
+                Virtual<uint32_t>(occupant, 0x08);
+            }
+        } else {
+            alignas(4) char overlay[0x60] = {};
+            using StopFn = void(__thiscall*)(void*);
+            reinterpret_cast<StopFn>(addr::cSC4VehicleManager_OverlayStop)(overlay);
+            live = 1;
+        }
+        flags |= live << 12;
+        char partText[96];
+        std::snprintf(partText, sizeof partText, " %s%08X,%X", m ? "" : "x", fixed.h, flags);
+        text += partText;
+        log::Write("autotest: automata: %s manager save: %u bytes written %u layout %d count %u table %u %08X kind %u "
+                   "records %u fixed %08X flags %X",
+                   m ? "pedestrian" : "vehicle", static_cast<unsigned>(b.size()), written, layout ? 1 : 0, U32(b, 10),
+                   pairs, table.h, U32(b, ownAt + 4), records, fixed.h, flags);
+    }
+    g_managerText += text;
+}
+
 void Drive(const Day& day)
 {
     if (EnvInt("OPENSC4_TEST_AUTOMATA", 0) < 2 || !day.counted || g_written)
         return;
     if (day.day != day.first + EnvInt("OPENSC4_TEST_AUTOMATA_DAY", 3))
         return;
-    if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 1 && day.city && game::IsBuild641() && g_managerText.empty())
+    if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 1 && day.city && game::IsBuild641() && g_managerText.empty()) {
         ManagerDrive(day.city);
+        if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 2)
+            ManagerSaveDrive(day.city);
+    }
     if (char* const manager = Manager(day.city)) {
         WriteDrive(manager);
         QueryDrive(manager);
