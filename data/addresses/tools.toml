@@ -5611,3 +5611,59 @@ name = "SC4UDriveMarker::BaseVtable"
 address = 0x00ACE638
 kind = "data"
 source = "Name ours. The base vtable cRZBaseUnknown::Construct (0x0090DA1E) stores and the marker's destructor puts back on the marker + 4."
+
+[[entry]]
+name = "cSC4ViewInputControlZone::OnMouseMove"
+address = 0x004DBE40
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Slot 20 of the zoning tool (vtable 0x00A92CA8), ret 0xC: (x, z, modifiers). The modifier flags to Service43DB0 (slot 7), the view's PickTerrain (slot 36); no point hides the pointer model and answers false. Else the pointer model at +0x90 is placed (SC4ViewModel::Place) and shown unless the overlay (slot 20) or a drag says no, the outline model at +0x94 gets the picked cell's centre and the cell size as its scale and is shown unless dragging (hidden while dragging). While dragging: without the button bit 0x10 CancelDrag (slot 27); else the cell under the point becomes +0x4C when it differs (SC4::CellPairsDiffer), then UpdateHover and UpdatePreview. True while dragging, false otherwise. Ours in ui.tools.zone2."
+
+[[entry]]
+name = "SC4CheatTool::FindFootprint"
+address = 0x004D9EE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 10 53 8B 5C 24"
+source = "Name ours. (cell x, z, int32* kind, uint32* lot configuration, int32* orientation, float point[3]), ret 0x18; this unused. The three outputs cleared, the cell's centre into point[0] and point[2] (city slot 97), the network occupant of the cell (Service43D54 slot 8 with 0x144D, 1); the first of the network types 0, 2, 3, 6, 10, 12 it has (slot 22), only when its type mask (slot 12) & 0x1F4F is that type's bit alone; its four sides' connection bytes (slot 38): none may be 1 or 3, exactly two must be 2. A straight piece (sides 0 and 2, or 1 and 3) gives orientation 2 or 1, the lot configuration from SC4CheatTool::FootprintIds and kind 1 (types 0, 3, 10) or 2 (types 2, 6, 12; point[2] or point[0] moved 8 by bit 2 of side 1 or 0). Called only by OnMouseMove 0x004DA1B0. Ours in ui.tools.zone2."
+
+[[entry]]
+name = "SC4CheatTool::OnMouseMove"
+address = 0x004DA1B0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 80 00 00 00 A1 2C"
+source = "Name ours. Slot 20 of the cheat tool (vtable 0x00A92AC0), ret 0xC: (x, z, modifiers unused). The view's PickTerrain (Service43DC4 slot 36), the cell of the point and its centre (city slots 95 and 97), FindFootprint and the terrain height (slot 13). A new kind at +0x30 replaces the model at +0x2C (kind 0 building_footprint_notok, 1 and 2 building_footprint_ok, from Service43D1C slot 7); the model is shown and moved (slots 15 and 8). A new lot configuration at +0x34 removes the prop at +0x28 from the prop manager (slot 29) and makes one for the configuration (Service43D18 slot 8, Service43D68 slot 14, prop manager slot 16) at its footprint's corner, with the properties 0x029244DB and 0x29F013E6 true; the prop then goes to the point (slot 9 of its slot 3) and the orientation (slot 10). Always true. Ours in ui.tools.zone2."
+
+[[entry]]
+name = "SC4ViewModel::Place"
+address = 0x005FB360
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. (const float point[3]), ret 4, on a model holder: nothing without a model; else the model's transform (slot 8) gets the identity rotation, the point snapped to its cell (floor(x / s) * s + s / 16, the same for z, s the terrain's slot 6), the point's y and the scale s * 16. Called by the lot tool's preview update (0x004C2660) and the OnMouseMove functions of the zoning tool (0x004DBE40) and the network tools (0x00661260, 0x00662290). Ours in ui.tools.zone2."
+
+[[entry]]
+name = "SC4CheatTool::UnsetPoint"
+address = 0x00B2192C
+kind = "data"
+source = "Name ours. A float (zero in the running game) the cheat tool's OnMouseMove copies into the three floats it hands the view's PickTerrain and into the point FindFootprint fills; next to SC4ViewTool::UnsetPoint 0x00B21930. Read at run time."
+
+[[entry]]
+name = "SC4CheatTool::FootprintIds"
+address = 0x00A92A88
+kind = "data"
+source = "Name ours. 13 dwords by network type: the lot configuration FindFootprint answers for a straight piece (type 0 0xEBF9A440, 2 0x8BF9B356, 3 0x2BF9B3A8, 6 0xABF9A45C, 10 0x4BF9B3E1, 12 0x2BF9B222, the rest 0). Read at run time."
+
+[[entry]]
+name = "SC4CheatTool::FootprintNotOk"
+address = 0x00A90920
+kind = "data"
+source = "Name ours. The string building_footprint_notok: the model the cheat tool shows for kind 0."
+
+[[entry]]
+name = "SC4CheatTool::FootprintOk"
+address = 0x00A9093C
+kind = "data"
+source = "Name ours. The string building_footprint_ok: the model the cheat tool shows for kinds 1 and 2."
