@@ -12,8 +12,8 @@ Roughly 25-30% of the way to a full rewrite: the simulation, terrain, region vie
 Measured 2026-10-19:
 
 - Roadmap (P0-P9): 86 of 118 items done, 14 in progress.
-- Address database: 9745 game functions recorded, 5634 of them reimplemented (16.3% of the game's 34,556; a lower bound, vtable swaps are not all recorded).
-- Replacement toggles: 561 simulators, 112 renderer, 99 ui, 36 region, 35 framework, 16 saves, 11 game, 10 audio, 8 resources.
+- Address database: 9802 game functions recorded, 5693 of them reimplemented (16.5% of the game's 34,556; a lower bound, vtable swaps are not all recorded).
+- Replacement toggles: 567 simulators, 113 renderer, 100 ui, 36 region, 35 framework, 16 saves, 11 game, 10 audio, 8 resources.
 
 | Phase | Done | In progress | Not started |
 |---|---|---|---|
@@ -39,9 +39,9 @@ Estimates by area (a judgment from the checklists below, not a measurement):
 | Files and saves (P3, P4) | ~40% | Our DBPF reader, the packed file's read side, plugin DLL loading and the save file container's writing half are ours; the game still builds the plugin override order and does the rest of save loading |
 | Script bindings (P6 Lua) | ~95% | All of the game's script code with exact parity: variables, natives, advisors, advices, script context; the Lua 5.0 library itself is still the game's |
 | Region view (P8) | ~95% | All five parts ours (332 functions); four drawing functions stay with the renderer |
-| Networks (P7) | ~65% | The network manager and network lots are ours; network occupants mostly; the RUL engine and most of the network tool (about 15 of its 21 parts) are ours, with NAM-patched functions staying the game's; automata controllers under way; traffic simulator not started ([docs/nettool.md](docs/nettool.md)) |
+| Networks (P7) | ~65% | The network manager and network lots are ours; network occupants mostly; the RUL engine and most of the network tool (about 15 of its 21 parts) are ours, with NAM-patched functions staying the game's; the automata controller manager and its attractor and generator controllers are ours; the automata themselves (vehicles, pedestrians, their managers) and the traffic simulator not started ([docs/nettool.md](docs/nettool.md)) |
 | Terrain (P8) | ~100% | `cSTETerrain` is ours, 259 functions in seventeen groups ([docs/terrain.md](docs/terrain.md)) |
-| Lots and growth (P5, P8) | the classes are ours | The lot, occupant, zone, development and growth classes, the demolition service, the prop manager and the occupant filters are ours (see their items); the bulldoze, zone and lot (plop) tools are ours; the terrain decal and the visual effect prop classes are ours; left: the other four derived prop classes and their drawing |
+| Lots and growth (P5, P8) | the classes are ours | The lot, occupant, zone, development and growth classes, the demolition service, the prop manager and the occupant filters are ours (see their items); the bulldoze, zone and lot (plop) tools are ours; the terrain decal and the visual effect prop classes are ours; the automata controller prop and the burnt building's logic are ours; left: the text decal, the sign's logic and the derived props' drawing |
 | Audio (P8) | the game's audio classes | The game's audio classes (0x004E1320 to 0x004FA6A0), 575 functions in nine groups, are ours ([docs/audio.md](docs/audio.md)); EA's sound library (AEMS) and the framework's sound service stay the game's. The harness compares state, not what is heard, so playback is untested |
 | Framework and exe independence (P9) | ~5% | Surveyed; the message server, its queue, the framework's service lists and tick, the directors' class lookup, the string class with its formatter and helpers, the standard message and the critical section wrapper are ours (176 functions, plus the COM object from the plugin DLL loader) |
 
