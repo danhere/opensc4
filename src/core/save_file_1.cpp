@@ -459,7 +459,7 @@ void __fastcall Reserve(ByteVector* buffer, void*, uint32_t size)
 // What both constructors do before they fill the buffer.
 void ConstructEmpty(char* self, const uint32_t* key, char* owner, uint32_t nativeOrder)
 {
-    This<void*>(addr::cGZDBSegmentPackedFile_F96D859, self, uint32_t{3}, key,
+    This<void*>(addr::cGZDBPackedRecord_Construct, self, uint32_t{3}, key,
                 owner ? owner + 4 : static_cast<char*>(nullptr), nativeOrder);
     SetVtables(self);
     ByteVector& buffer = Buffer(self);
