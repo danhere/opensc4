@@ -43,14 +43,14 @@ Everything below is what an unattended session (an agent's shell, or a script) n
   cmake --build --preset debug
   ctest --preset debug
   ```
-- **Quoting.** An argument that contains a space is mangled between PowerShell and `bash -lc` (a script then sees a missing argument). Pass the 8.3 short path for anything with a space (`C:/Users/DANSAK~1/AppData/Local/Temp/opencode/...`) and leave repo-relative arguments (`build/debug`) alone.
+- **Quoting.** An argument that contains a space is mangled between PowerShell and `bash -lc` (a script then sees a missing argument). Pass the 8.3 short path for anything with a space (`C:/Users/<you>~1/AppData/Local/Temp/opencode/...`; `(New-Object -ComObject Scripting.FileSystemObject).GetFolder($env:TEMP).ShortPath` prints yours) and leave repo-relative arguments (`build/debug`) alone.
 - **Recipes.**
   ```powershell
   # One unattended city, 30 s, print core.dll's log
   & "C:\Program Files\Git\bin\bash.exe" -lc 'scripts/run-autotest.sh "build/debug" OPENSC4_TEST_SECONDS=30 OPENSC4_TEST_TIMEOUT=300'
 
   # One corpus save, A vs B (here a control, A = B), 1 game day
-  & "C:\Program Files\Git\bin\bash.exe" -lc 'scripts/run-parity.sh "build/debug" "C:/Users/DANSAK~1/AppData/Local/Temp/opencode/out" 1 "C:/Users/DANSAK~1/AppData/Local/Temp/opencode/saves" OPENSC4_PARITY_PAUSE=0'
+  & "C:\Program Files\Git\bin\bash.exe" -lc 'scripts/run-parity.sh "build/debug" "<short-temp>/opencode/out" 1 "<short-temp>/opencode/saves" OPENSC4_PARITY_PAUSE=0'
   ```
   `OPENSC4_TEST_SECONDS`/`OPENSC4_TEST_TIMEOUT` bound an autotest; `OPENSC4_PARITY_PAUSE=0` skips the anti-Steam-relaunch wait. Rough cost: a build is minutes, an autotest ~40 s, one parity pair ~1–2 min, the full 12-save 7-day batch 10–30 min.
 - **Pitfalls that cost time.**
@@ -139,9 +139,10 @@ scale_city = no         ; yes: enlarge the city too (the screen then shows less 
 The scripts in `tools/ghidra` are copied to `%LOCALAPPDATA%\opensc4\ghidra-scripts` by `scripts/ghidra-setup.sh`. Run one against the project `%LOCALAPPDATA%\opensc4\ghidra` (project `SC4_1.1.641`, program `SimCity 4.exe`) with `-noanalysis -readOnly`:
 
 ```powershell
-$H = "C:\Users\DANSAK~1\scoop\apps\ghidra\current\support\ANALYZ~1.BAT"   # analyzeHeadless.bat
-$P = "C:\Users\DANSAK~1\AppData\Local\opensc4\ghidra"                    # project dir
-$S = "C:\Users\DANSAK~1\AppData\Local\opensc4\GHIDRA~1"                  # script dir
+$fso = New-Object -ComObject Scripting.FileSystemObject                  # 8.3 short paths: no spaces
+$H = $fso.GetFile("$env:USERPROFILE\scoop\apps\ghidra\current\support\analyzeHeadless.bat").ShortPath
+$P = $fso.GetFolder("$env:LOCALAPPDATA\opensc4\ghidra").ShortPath          # project dir
+$S = $fso.GetFolder("$env:LOCALAPPDATA\opensc4\ghidra-scripts").ShortPath  # script dir
 & $H $P SC4_1.1.641 -process "SimCity 4.exe" -noanalysis -readOnly -scriptPath $S -postScript FuncDisasm.java 0x517D40
 ```
 
