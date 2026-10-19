@@ -74,7 +74,7 @@ void AssignPart(char* body, char* source, uint32_t position, uint32_t count)
 
 void Swap(char* body, char* other)
 {
-    reinterpret_cast<void(__thiscall*)(char*, char*)>(addr::cGZDBSegmentPackedFile_F96EDF7)(body, other);
+    reinterpret_cast<void(__thiscall*)(char*, char*)>(addr::cGZDBSegmentPackedFile_VectorSwap)(body, other);
 }
 
 // A string built in `out` from part of another (the game's 0x00408BE0).
