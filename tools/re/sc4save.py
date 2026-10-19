@@ -45,7 +45,7 @@ def comparable(value):
 def differences(a, b, path=''):
     if isinstance(a, dict) and isinstance(b, dict):
         for k in list(a) + [k for k in b if k not in a]:
-            yield from differences(a.get(k), b.get(k), path + '.' + k if path else k)
+            yield from differences(a.get(k), b.get(k), '%s.%s' % (path, k) if path else str(k))
     elif isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
         bad = [i for i in range(len(a)) if a[i] != b[i]]
         if bad:
@@ -57,7 +57,8 @@ def differences(a, b, path=''):
 
 
 def compare(path_a, path_b):
-    """One line per known record type; the header's CRC and ID are skipped."""
+    """One line per known record type; the header's CRC and ID are skipped
+    (records with no framework header, like the regional city's, have neither)."""
     found = 0
     decoded = []
     for path in (path_a, path_b):
@@ -65,7 +66,7 @@ def compare(path_a, path_b):
         for key, data in savediff.load(path).items():
             if key[0] in SCHEMAS:
                 fields, _ = decode(data, SCHEMAS[key[0]][1])
-                del fields['crc'], fields['id']
+                fields.pop('crc', None), fields.pop('id', None)
                 records[key] = comparable(fields)
         decoded.append(records)
     a, b = decoded
