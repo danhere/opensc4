@@ -1,9 +1,13 @@
-// Two classes derived from the prop occupant (build 641): the terrain decal
+// Four classes derived from the prop occupant (build 641): the terrain decal
 // (cSC4PropOccupantTerrainDecal: a picture laid flat on the ground, with an
-// opacity that can fade) and the visual effect (cSC4PropOccupantVisualEffect:
-// an effect of the effects manager at the prop's place). The class maps,
-// every vtable part and the objects' fields; the code is in
-// propkinds_decal.cpp and propkinds_effect.cpp.
+// opacity that can fade), the visual effect (cSC4PropOccupantVisualEffect:
+// an effect of the effects manager at the prop's place), the automata
+// controller prop (cSC4PropOccupantAutomataController: a prop that has the
+// automata controller manager run a controller of a named template) and the
+// burnt building (cSC4PropOccupantBurntBuilding: the ruin a fire leaves,
+// drawn by the class itself). The class maps, every vtable part and the
+// objects' fields; the code is in propkinds_decal.cpp, propkinds_effect.cpp,
+// propkinds_automata.cpp and propkinds_burnt.cpp.
 //
 // Both objects start with an interface of their own at +0 and hold the
 // whole prop (cSC4PropOccupant, 0x68 bytes, src/core/propocc_sim.h) at +4,
@@ -78,6 +82,56 @@
 //   +0x28 the exemplar holder, vtable 0x00AA4D4C
 //   Not virtual: UpdateTransform 0x005EE800 and MakeEffect 0x005EE9C0.
 //
+// cSC4PropOccupantAutomataController
+//   class ID 0x2A4017A0 (GetGZCLSID 0x005EFE40), interface 0x8A401788
+//   0x88 bytes from the pool at 0x00B0A914 (allocator 0x005EDD80 and,
+//   inline, the factory 0x005F0490)
+//   constructor 0x005EFDB0 (the factory; 0x00529636), destructor body
+//   0x005EFEF0, deleting destructor 0x005F04D0 (thunk 0x005EFEB0)
+//   +0x00 vtable 0x00AA4D28, 7 slots:
+//      0 2 QueryInterface 0x005ECC70
+//      1, 2 AddRef 0x005ECAF0, Release 0x005ECB00
+//      3 0 AsOccupant 0x005F8400, 4 0 AsPropOccupant 0x005FD7E0 (shared
+//          stubs, the game's)
+//      5 1 SetTemplateName 0x005F06F0 (a C string)
+//      6 1 SetEnabled 0x005EDE60
+//   +0x04 the prop interface, vtable 0x00AA4CC8, 24 slots; the class's own:
+//      11 SetState 0x005F0530
+//   +0x08 the message target, vtable 0x00AA4CB8: 3 the prop's DoMessage
+//   +0x0C the occupant, vtable 0x00AA4C30, 34 slots; the class's own: 3 Init
+//      0x005EFF60, 4 Shutdown 0x005EEDD0
+//   +0x10 cIGZSerializable, vtable 0x00AA4C14: 3 Write 0x005EDDB0, 4 Read
+//      0x005EFBF0, 5 GetGZCLSID 0x005EFE40
+//   +0x14 the property holder, vtable 0x00AA4BB0: 22 the deleting
+//      destructor's thunk 0x005EFEB0, 23 and 24 thunks to Write and Read
+//   +0x28 the exemplar holder, vtable 0x00AA4B98
+//   Not virtual: MakeController 0x005F00B0 (the controller made again).
+//
+// cSC4PropOccupantBurntBuilding (the prop at +0; see namespace burnt)
+//   class ID 0xC9EFB016 (GetGZCLSID 0x005EF950); no interface of its own
+//   0xD8 bytes from the pool at 0x00B0A908 (allocator 0x005EDAE0 and,
+//   inline, the factory 0x005EFC80)
+//   constructor 0x005EF810 (ret 4: 1 for the most derived object; the
+//   factory; the lot developer's ExplodeLot at 0x006CC320), destructor body
+//   0x005EFB20, deleting destructor 0x005EFCC0 (thunks 0x005EF9A0 and
+//   0x005EF9C0)
+//   +0x00 the prop interface, vtable 0x00AA4B30, 24 slots; the class's own:
+//      0 QueryInterface 0x005ECC60 (a jump to the prop's)
+//   +0x04 the message target, vtable 0x00AA4B20: 3 the prop's DoMessage
+//   +0x08 the occupant, vtable 0x00AA4A98, 34 slots; the class's own: 3 Init
+//      0x005F0600, 4 Shutdown 0x005EFD20, 30 SetAllFlags 0x005EDB50
+//   +0x0C cIGZSerializable, vtable 0x00AA4A7C: 3 Write 0x005EDB10, 4 Read
+//      0x005EFBA0, 5 GetGZCLSID 0x005EF950
+//   +0x10 the property holder, vtable 0x00AA4A18: 22 the deleting
+//      destructor's thunk 0x005EF9A0, 23 and 24 thunks to Write and Read
+//   +0x24 the exemplar holder, vtable 0x00AA4A00
+//   +0x68 the model part, vtable 0x00AA49FC: 0 the deleting destructor's
+//      thunk 0x005EF9C0; vbptr at +0x6C (0x00AA4B90)
+//   +0xD4 the virtual base, the model interface, vtable 0x00AA49B0 (19
+//      thunks, the drawing: the game's)
+//   Not virtual: SetOccupant 0x005EEB70 (ExplodeLot: the building's box)
+//   and the quad builder 0x005EDC60 (drawing, the game's).
+//
 // What follows frames and the view, not game days:
 //   - base flag 2 of both (the occupant's flags at the object + 0x3B):
 //     SetAllFlags (occupant slot 30) acts on a change of it. Who drives it
@@ -89,6 +143,8 @@
 //     frame's time in milliseconds; the opacity being faded (+0x8C), the
 //     shown opacity (+0x88), the end of the fade (the overlay removed, or
 //     the occupant taken out of the city) follow it.
+//   - the burnt building's model in the renderer: SetAllFlags adds it with
+//     base flag 2 and takes it off without.
 // The rest is plain state: the decal's texture, size, centre, the fade's
 // settings; the effect's name, ID, the two property counts, the started
 // byte; and the effect object itself exists whenever the prop is
@@ -185,6 +241,69 @@ namespace slot {
 constexpr std::size_t kSetEffectTypeById = 0x14, kSetEffectTypeByName = 0x18, kStartEffect = 0x1C, kStopEffect = 0x20;
 } // namespace slot
 } // namespace effect
+
+namespace automata {
+constexpr uint32_t kClassId = 0x2A4017A0;
+constexpr uint32_t kIid = 0x8A401788;
+constexpr std::size_t kObjectSize = 0x88;
+
+// Fields (evidence: the constructor 0x005EFDB0, Write 0x005EDDB0, Init
+// 0x005EFF60 and MakeController 0x005F00B0).
+constexpr std::size_t kController = 0x6C; // the automata controller (vtable 0x00A95D90), referenced, or null
+// +0x70 the controller template's name: a game string, 0x14 bytes (vtable,
+// begin, end, capacity, a zero); saved.
+constexpr std::size_t kName = 0x70;
+constexpr std::size_t kNameBegin = 0x74;
+constexpr std::size_t kNameEnd = 0x78;
+constexpr std::size_t kNameCapacity = 0x7C;
+constexpr std::size_t kNameZero = 0x80;
+constexpr std::size_t kEnabled = 0x84; // uint8: the controller is to be active; saved
+
+constexpr uint32_t kPropertySize = 0x27812810;     // three floats: the box's size
+constexpr uint32_t kPropertyTemplate = 0xC98204B8; // a string: the template's name
+constexpr uint32_t kPropertyExemplarName = 0x20;   // the exemplar's name, when the one above is missing
+
+// Byte offsets of the class's own slots in its primary vtable.
+namespace slot {
+constexpr std::size_t kSetTemplateName = 0x14, kSetEnabled = 0x18;
+} // namespace slot
+} // namespace automata
+
+// The burnt building holds the prop at +0, not at +4: its parts lie four
+// bytes before the other classes' (+0 the prop interface, +4 the message
+// target, +8 the occupant, +0xC the serializable, +0x10 the property
+// holder, +0x24 the exemplar holder; the prop's fields at their own
+// offsets). After the prop comes a model part with a virtual base.
+namespace burnt {
+constexpr uint32_t kClassId = 0xC9EFB016;
+constexpr std::size_t kObjectSize = 0xD8;
+
+constexpr std::size_t kMessageTarget = 0x4;
+constexpr std::size_t kOccupant = 0x8;
+constexpr std::size_t kSerializable = 0xC;
+constexpr std::size_t kHolder = 0x10;
+constexpr std::size_t kExemplarPart = 0x24;
+constexpr std::size_t kBaseState = 0x36; // base: uint8, bit 0 initialized, bit 1 read from a save
+constexpr std::size_t kFlags = 0x37;     // base: uint8 flags; 2 shown
+constexpr std::size_t kMin = 0x3C;       // the prop's box: float[3]
+constexpr std::size_t kMax = 0x48;       // float[3]
+
+// Fields (evidence: the constructor 0x005EF810, Write 0x005EDB10, Init
+// 0x005F0600, Shutdown 0x005EFD20 and the quad builder 0x005EDC60).
+constexpr std::size_t kModelPart = 0x68;   // the model part (SC4Model::ConstructModelPart 0x00801CF0), vtable 0x00AA49FC
+constexpr std::size_t kVbptr = 0x6C;       // its virtual base table, 0x00AA4B90 {-4, 0x68}
+constexpr std::size_t kVtordisp = 0xD0;    // int32: 0 (the virtual base's displacement)
+constexpr std::size_t kVirtualBase = 0xD4; // the model interface, vtable 0x00AA49B0 (19 slots; 0x00AA1F38 before)
+constexpr std::size_t kTextures = 0x94;    // a vector of five texture bindings (begin, end, capacity)
+constexpr std::size_t kBox = 0xA0;         // float[6]: the burnt occupant's box (min, max); saved
+constexpr std::size_t kQuad = 0xB8;        // the quad (0x50 bytes) the quad builder makes, or null
+constexpr std::size_t kRenderState = 0xBC; // the render state (SC4RenderState::Init 0x007D2B50), 8 bytes
+constexpr std::size_t kScaled = 0xC4;      // float[3]: the box's low corner, scaled (the quad builder)
+
+constexpr uint32_t kTextureCount = 5;
+// The texture every binding is asked for (Init).
+constexpr uint32_t kTexture[3] = {0x7AB50E44, 0x1ABE787D, 0xA9F0E710};
+} // namespace burnt
 
 template <typename R, typename... Args>
 inline R This(std::uintptr_t function, void* self, Args... args)
