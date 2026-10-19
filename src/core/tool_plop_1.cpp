@@ -12,7 +12,7 @@
 //         mouse part, deleting destructor 0x004C0070 at slot 26)
 //   +0x28 message target, vtable 0x00A90728 (4 slots: three adjustor thunks
 //         0x004BFB00, 0x004BFB10, 0x004BFB20 that subtract 0x28 and jump,
-//         and DoMessage 0x004C2F20)
+//         ours in ui.tools.plop5 (tool_plop_5.cpp), and DoMessage 0x004C2F20)
 //
 // The fields, with what the code in this part says about them (names are
 // ours, a guess where the comment says so):
@@ -96,10 +96,10 @@
 // Left the game's: QueryInterface 0x004BDF10 (the query tool's vtable
 // 0x00A90A88 shares it), the filter slot 0x004BDF90 (shared), RotateRectangle
 // 0x004BDFD0 and SC4RefVector::FillInsert 0x004BFF30 (generic code with
-// callers elsewhere), the three adjustor thunks 0x004BFB00 to 0x004BFB20
-// (the query tool's message vtable shares them), and the two window
-// builders 0x004BEEF0 and 0x004BF2F0 (never ran; modal windows made from
-// code; see the report).
+// callers elsewhere), and the two window builders 0x004BEEF0 and
+// 0x004BF2F0 (never ran; modal windows made from code; see the report).
+// The three adjustor thunks 0x004BFB00 to 0x004BFB20, which four message
+// vtables share, are ours in ui.tools.plop5.
 //
 // Replacement, off by default: ui.tools.plop1.
 #include "core/address_check.h"
