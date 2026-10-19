@@ -110,7 +110,8 @@ def regional_city(r):
     if v >= 12:
         for _ in range(r.u32()):
             kind = r.u32()
-            points[kind] = [(r.f32(), r.f32(), r.f32()) for _ in range(r.u32())]
+            # Lists, not tuples: sc4save.py --compare takes tuples as references.
+            points[kind] = [[r.f32(), r.f32(), r.f32()] for _ in range(r.u32())]
     out['points_194'] = points
     return out
 

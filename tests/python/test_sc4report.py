@@ -93,7 +93,7 @@ class RegionCensus(unittest.TestCase):
         self.assertEqual(r.pos, len(data))
         self.assertEqual(fields['commodities_180'][1]['imported'], 100.0)
         self.assertEqual(fields['deals_18c'][0]['properties'], [[0x12345678, 3, 7]])
-        self.assertEqual(fields['points_194'], {0: [(10.0, 20.0, 30.0)]})
+        self.assertEqual(fields['points_194'], {0: [[10.0, 20.0, 30.0]]})
         self.assertEqual(fields['changes_94'], [{'type': 0x0A, 'x': 64, 'z': 0, 'made': 1}])
 
     def test_every_column(self):
@@ -125,6 +125,23 @@ class RegionCensus(unittest.TestCase):
         for column, value in expected.items():
             self.assertEqual(row[column], value, column)
         self.assertEqual(list(row), sc4report.COLUMNS)
+
+    def test_save_compare(self):
+        """sc4save.py --compare on city files whose regional city record has no
+        framework header (no CRC or ID to skip)."""
+        import sc4save
+        with tempfile.TemporaryDirectory() as folder:
+            a, b = os.path.join(folder, 'a.sc4'), os.path.join(folder, 'b.sc4')
+            city_file(a, record())
+            city_file(b, record(established=0))
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(sc4save.compare(a, a), 0)
+                self.assertEqual(sc4save.compare(a, b), 1)
+        lines = out.getvalue().splitlines()
+        self.assertEqual(lines[0], 'cSC4RegionalCity CA027EDB/CA027EE1/00000000: identical')
+        self.assertEqual(lines[1], 'cSC4RegionalCity CA027EDB/CA027EE1/00000000: 1 fields differ')
+        self.assertTrue(lines[2].startswith('  established_168: 1 vs 0'), lines[2])
 
 
 if __name__ == '__main__':
