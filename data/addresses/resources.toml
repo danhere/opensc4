@@ -87,9 +87,11 @@ source = "Name ours. Reads the class objects of a save (docs/crashes.md, Prop po
 
 # cGZDBSegmentPackedFile (class 0x086D4A89), the framework packed file: 0x0096D80C to 0x00972B73 and its
 # base at 0x00975616 to 0x009759C5 (docs/resources.md, "The packed file"). The read side is named from our
-# translation (src/core/packed_file_1.cpp to _4.cpp), with its this-adjusting thunks and the shared helpers it
-# calls. The 84 cGZDBSegmentPackedFile::F<address> entries left are the write side (translated by the saves work,
-# src/core/save_file_*.cpp), thunks into the record base class, and small classes nothing of ours calls.
+# translation (src/core/packed_file_1.cpp to _4.cpp), the write side from the saves translation
+# (src/core/save_file_1.cpp to _3.cpp), with the this-adjusting thunks and the shared helpers they call. The 23
+# cGZDBSegmentPackedFile::F<address> entries left are not read yet: 13 thunks into record base code nothing names,
+# and small classes nothing of ours calls (0x0096E957, 0x0097060C, 0x00970C22, 0x00972B51, 0x00975616 to
+# 0x00975666, 0x0097598D, 0x009759A0).
 
 [[entry]]
 name = "cGZDBPackedRecord::SetKey"
@@ -271,28 +273,31 @@ signature = "void (cGZDBPackedMemoryRecord* this)"
 source = "Name ours. Slot 62 (+0xF8) of the in-memory record, called when the segment closes it: no longer open, lets go of the segment and of the shared bytes (translated in src/core/packed_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96DBA0"
+name = "cGZDBWriteRecord::GetPosition"
 address = 0x0096DBA0
 kind = "function"
 convention = "thiscall"
 expect = "66 83 79 0A 00 74 12 83"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 28 bytes."
+signature = "uint32_t (cGZDBWriteRecord* this)"
+source = "Name ours. Slot 54, GetPosition (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96DBBC"
+name = "cGZDBWriteRecord::SeekAbsolute"
 address = 0x0096DBBC
 kind = "function"
 convention = "thiscall"
 expect = "66 83 79 0A 00 74 28 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 52 bytes."
+signature = "uint8_t (cGZDBWriteRecord* this, uint32_t position)"
+source = "Name ours. Slot 55, SeekAbsolute. In memory the position is stored unchecked (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96DBF0"
+name = "cGZDBWriteRecord::SeekRelative"
 address = 0x0096DBF0
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 51 56 8B F1"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 61 bytes."
+signature = "uint8_t (cGZDBWriteRecord* this, int32_t offset)"
+source = "Name ours. Slot 56, SeekRelative. The sum is made in 64 bits and refused when negative; its low half goes to SeekAbsolute (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
 name = "cGZDBRawFileView::QueryInterface"
@@ -538,20 +543,22 @@ signature = "uint8_t (cGZDBSegmentPackedFile* this, uint32_t readSize, uint32_t 
 source = "Name ours. Slot 13 of the main vtable. Sets the file's two buffer sizes and, when the file took them, remembers them (translated in src/core/packed_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96E15F"
+name = "cGZDBSegmentPackedFile::SetHoleUseFlags"
 address = 0x0096E15F
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 51 56 8B F1"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 44 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, uint32_t flags)"
+source = "Name ours. P slot 14: SetHoleUseFlags(flags). Bit 0: compact at Flush when the ratio says so; bit 1: reuse holes when allocating (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96E18B"
+name = "cGZDBSegmentPackedFile::SetHoleCompactionMinimumRatio"
 address = 0x0096E18B
 kind = "function"
 convention = "thiscall"
 expect = "8B 44 24 04 89 81 48 01"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 13 bytes."
+signature = "void (cGZDBSegmentPackedFile* this, uint32_t ratioBits)"
+source = "Name ours. P slot 15: SetHoleCompactionMinimumRatio(float). The float is moved as four bytes, never loaded (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::SeekFile"
@@ -581,12 +588,13 @@ signature = "uint8_t (cGZDBSegmentPackedFile* this, void* data, uint32_t offset,
 source = "Name ours. Slot 45 of the main vtable. The same with the file's counted read: `*count` bytes asked, `*count` bytes got (translated in src/core/packed_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96E2A7"
+name = "cGZDBSegmentPackedFile::WriteAt"
 address = 0x0096E2A7
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 51 53 56 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 102 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, const void* buffer, uint32_t position, uint32_t size)"
+source = "Name ours. Writes `size` bytes at `position` of the package: only when open for write, and only when the seek got there (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::IsOpenLocked"
@@ -598,12 +606,13 @@ signature = "uint8_t (cGZDBSegmentPackedFile* this)"
 source = "Name ours. Slot 28 of the main vtable. Whether the segment is open, asked under the lock (translated in src/core/packed_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96E337"
+name = "cGZDBSegmentPackedFile::EnableCompressionForAllRecords"
 address = 0x0096E337
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 51 56 8B F1"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 44 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, uint8_t on)"
+source = "Name ours. Slot 29, EnableCompressionForAllRecords (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::RecordClosed"
@@ -615,12 +624,13 @@ signature = "void (cGZDBSegmentPackedFile* this, void* recordInterface)"
 source = "Name ours. Tells a record the segment closed it, `this` the segment (unused), the argument the record's cIGZPersistDBRecord. Calls through a null object for no record, as the original (translated in src/core/packed_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96E37B"
+name = "cGZDBSegmentPackedFile::WriteHeader"
 address = 0x0096E37B
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 68 53 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 140 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this)"
+source = "Name ours. Writes the header at the file's starting offset. The copy in memory is not changed: the signature, the two versions, the user minor and the modified date are set in a copy on the stack (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::ValidateHeader"
@@ -641,12 +651,13 @@ signature = "uint8_t (cGZDBSegmentPackedFile* this)"
 source = "Name ours. Whether the header's hole table can be read: its offset is 0, or past the header and inside the file, and its count is its size in 8-byte entries (translated in src/core/packed_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96E4DC"
+name = "cGZDBSegmentPackedFile::Compress"
 address = 0x0096E4DC
 kind = "function"
-convention = "thiscall"
+convention = "stdcall"
 expect = "B8 89 F2 A6 00 E8 EA 33"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 315 bytes."
+signature = "uint8_t (const void* source, uint32_t size, void** out, uint32_t* outSize)"
+source = "Name ours. Compresses `size` bytes into *out, which it allocates when it comes in null (the caller frees it), and gives the compressed length in *outSize. Sources of 40,000,000 bytes and more are copied as they are (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::Decompress"
@@ -804,12 +815,12 @@ expect = "83 E9 04 E9 44 F1 FF FF"
 source = "This-adjusting thunk (sub ecx, 0x4; jmp cGZDBPackedFileRecord::GetVoid 0x0096D967), too short for a detour."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96E823"
+name = "cGZDBPackedRecord::ReturnFalse8Thunk4"
 address = 0x0096E823
 kind = "function"
 convention = "thiscall"
 expect = "83 E9 04 E9 53 9F FC FF"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+source = "This-adjusting thunk (sub ecx, 0x4; jmp GZWin::ReturnFalse8 0x0093877E), too short for a detour."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::F96E82B"
@@ -952,12 +963,13 @@ signature = "void* (cGZDBPackedMemoryRecord* this, uint32_t flags)"
 source = "Name ours. The deleting destructor of an in-memory read record: the block goes back on its pool's free list (translated in src/core/packed_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96E91B"
+name = "cGZDBWriteRecord::GetSize"
 address = 0x0096E91B
 kind = "function"
 convention = "thiscall"
 expect = "66 83 79 0A 00 74 15 83"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 31 bytes."
+signature = "uint32_t (cGZDBWriteRecord* this)"
+source = "Name ours. Slot 52, GetSize (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
 name = "cGZDBRawFileView::Destruct"
@@ -977,12 +989,12 @@ expect = "33 C0 39 41 08 0F 95 C0"
 source = "Placeholder name (docs/resources.md): a function of the packed file code, 9 bytes."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96E960"
+name = "cGZDBSegmentPackedFile::ReturnNothing8"
 address = 0x0096E960
 kind = "function"
 convention = "thiscall"
 expect = "C2 08 00 83 E9 04 E9 C2"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 3 bytes."
+source = "By its bytes (ret 8): does nothing with two stack arguments. Too short for a detour."
 
 [[entry]]
 name = "cGZDBRawFileView::QueryInterfaceThunk4"
@@ -1002,20 +1014,22 @@ signature = "uint32_t (cGZDBRawFileView* this)"
 source = "Name ours. Release of the view, `this` the view (translated in src/core/packed_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96E99A"
+name = "cGZDBSegmentPackedFile::InitNewHeader"
 address = 0x0096E99A
 kind = "function"
 convention = "thiscall"
 expect = "53 56 57 8B F1 6A 60 33"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 173 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this)"
+source = "Name ours. A new header in memory (both dates from the C runtime's time, called twice), written out, and the file cut to the header's length. The answer is WriteHeader's when that failed, else the file's SetLength answer (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96EA47"
+name = "cGZDBSegmentPackedFile::CompressIfWorthIt"
 address = 0x0096EA47
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 53 8B 5D 0C"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 129 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, const void* source, uint32_t size, void** out, uint32_t* outSize)"
+source = "Name ours. Compresses a record of 50 to 16,000,000 bytes and keeps the result only when it is under 0.8 of the size; otherwise frees it and leaves both outputs zero (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::EraseOpenTree"
@@ -1044,20 +1058,22 @@ expect = "83 E9 04 E9 41 FE FF FF"
 source = "This-adjusting thunk (sub ecx, 0x4; jmp cGZDBRawFileView::Release 0x0096E96B), too short for a detour."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96EB2A"
+name = "cGZDBWriteRecord::GetFieldVoid"
 address = 0x0096EB2A
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 66 83 7E 0A 00"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 78 bytes."
+signature = "uint8_t (cGZDBWriteRecord* this, void* out, uint32_t size)"
+source = "Name ours. Slot 27, GetFieldVoid: reads back what was written (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96EB78"
+name = "cGZDBWriteRecord::WriteOut"
 address = 0x0096EB78
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 0C 53 56"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 260 bytes."
+signature = "uint8_t (cGZDBWriteRecord* this, uint32_t position, uint32_t size)"
+source = "Name ours. Slot 63, the write-out of the record's bytes into the segment's file at `position`: from the temporary file in pieces of 0x4000 (its own position is put back after), else from the buffer in one call, never more than the buffer holds (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
 name = "cGZDBRawFileView::Construct"
@@ -1166,20 +1182,22 @@ signature = "OpenNode* (Tree* this, const OpenEntry* entry)"
 source = "Name ours. A new open-record node (0x20 bytes) with a copy of the entry (key and record; no reference taken here). `this` is the tree (not used) (translated in src/core/packed_file_2.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96EF02"
+name = "cGZDBSegmentPackedFile::ShouldCompact"
 address = 0x0096EF02
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 51 53 56 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 129 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this)"
+source = "Name ours. Whether the holes are worth a compaction: their sizes summed, divided by the rest of the file's length, above the ratio (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96EF83"
+name = "cGZDBSegmentPackedFile::WriteHoleTable"
 address = 0x0096EF83
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 53 56 8B F1"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 320 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this)"
+source = "Name ours. The hole table. A change in the number of holes frees the old table and allocates a new one; either call can change the number again, so the count is read once more before the table is laid out, and the header takes that last count (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::GetHoleTotals"
@@ -1252,76 +1270,77 @@ signature = "TreeInsertResult* (Tree* this, TreeInsertResult* result, TreeNode* 
 source = "Name ours. Links a new open-record node under `parent`, as 0x0096EE20 does for holes, ordered by key (translated in src/core/packed_file_2.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96F33D"
+name = "cGZDBWriteRecord::Destruct"
 address = 0x0096F33D
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8B 4E 54 85 C9"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 112 bytes."
+signature = "void (cGZDBWriteRecord* this)"
+source = "Name ours. The destructor (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96F3AD"
+name = "cGZDBWriteRecord::GetPositionThunk4"
 address = 0x0096F3AD
 kind = "function"
 convention = "thiscall"
 expect = "83 E9 04 E9 EB E7 FF FF"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+source = "This-adjusting thunk (sub ecx, 0x4; jmp cGZDBWriteRecord::GetPosition 0x0096DBA0), too short for a detour."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96F3B5"
+name = "cGZDBWriteRecord::SeekAbsoluteThunk4"
 address = 0x0096F3B5
 kind = "function"
 convention = "thiscall"
 expect = "83 E9 04 E9 FF E7 FF FF"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+source = "This-adjusting thunk (sub ecx, 0x4; jmp cGZDBWriteRecord::SeekAbsolute 0x0096DBBC), too short for a detour."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96F3BD"
+name = "cGZDBWriteRecord::SeekRelativeThunk4"
 address = 0x0096F3BD
 kind = "function"
 convention = "thiscall"
 expect = "83 E9 04 E9 2B E8 FF FF"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+source = "This-adjusting thunk (sub ecx, 0x4; jmp cGZDBWriteRecord::SeekRelative 0x0096DBF0), too short for a detour."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96F3C5"
+name = "cGZDBWriteRecord::DeleteThunk4"
 address = 0x0096F3C5
 kind = "function"
 convention = "thiscall"
 expect = "83 E9 04 E9 1C 03 00 00"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+source = "This-adjusting thunk (sub ecx, 0x4; jmp cGZDBWriteRecord::Delete 0x0096F6E9), too short for a detour."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96F3CD"
+name = "cGZDBWriteRecord::DeleteThunk1C"
 address = 0x0096F3CD
 kind = "function"
 convention = "thiscall"
 expect = "83 E9 1C E9 14 03 00 00"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+source = "This-adjusting thunk (sub ecx, 0x1C; jmp cGZDBWriteRecord::Delete 0x0096F6E9), too short for a detour."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96F3D5"
+name = "cGZDBWriteRecord::DeleteThunk2C"
 address = 0x0096F3D5
 kind = "function"
 convention = "thiscall"
 expect = "83 E9 2C E9 0C 03 00 00"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+source = "This-adjusting thunk (sub ecx, 0x2C; jmp cGZDBWriteRecord::Delete 0x0096F6E9), too short for a detour."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96F3DD"
+name = "cGZDBWriteRecord::GetSizeThunk4"
 address = 0x0096F3DD
 kind = "function"
 convention = "thiscall"
 expect = "83 E9 04 E9 36 F5 FF FF"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+source = "This-adjusting thunk (sub ecx, 0x4; jmp cGZDBWriteRecord::GetSize 0x0096E91B), too short for a detour."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96F3E5"
+name = "cGZDBWriteRecord::GetFieldVoidThunk4"
 address = 0x0096F3E5
 kind = "function"
 convention = "thiscall"
 expect = "83 E9 04 E9 3D F7 FF FF"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+source = "This-adjusting thunk (sub ecx, 0x4; jmp cGZDBWriteRecord::GetFieldVoid 0x0096EB2A), too short for a detour."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::AbortRecord"
@@ -1342,12 +1361,13 @@ signature = "uint8_t (cGZDBSegmentPackedFile* this, const cGZPersistResourceKey*
 source = "Name ours. Slot 16 (0x40) of the main vtable, `this` the object: whether a record of this key is open (translated in src/core/packed_file_2.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96F4CE"
+name = "cGZDBSegmentPackedFile::AllocateSpace"
 address = 0x0096F4CE
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 51 53 56 57"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 173 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, uint32_t* position, uint32_t size)"
+source = "Name ours. Finds `size` bytes of the file for a record or a table: the smallest hole that is large enough (the holes are in size order), whose rest goes back as a new hole, or else the file grows by that much and the place is its old end (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::OpenTreeConstruct"
@@ -1392,28 +1412,31 @@ expect = "55 8B EC 83 EC 10 53 57"
 source = "Grows a key hash table to hold a count of entries; the index insert calls it first (src/core/packed_file_3.cpp). Also called from the classes at 0x0097C2xx to 0x0097E8xx."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96F6BE"
+name = "cGZDBWriteRecord::BufferCopyToNewBlock"
 address = 0x0096F6BE
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 56 FF 75 08 83"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 43 bytes."
+signature = "uint8_t* (ByteVector* this, uint32_t size, uint8_t* first, uint8_t* last)"
+source = "Name ours. A new block of `size` bytes holding a copy of [first, last). `this` is the vector (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96F6E9"
+name = "cGZDBWriteRecord::Delete"
 address = 0x0096F6E9
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 E8 4C FC FF FF"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 38 bytes."
+signature = "void* (cGZDBWriteRecord* this, uint32_t flags)"
+source = "Name ours. The deleting destructor: the record goes back to its pool's free list (0x00B17A20) (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96F70F"
+name = "cGZDBWriteRecord::Discard"
 address = 0x0096F70F
 kind = "function"
 convention = "thiscall"
 expect = "53 56 8B F1 8B 4E 18 33"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 106 bytes."
+signature = "void (cGZDBWriteRecord* this)"
+source = "Name ours. Slot 62, Discard (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::TestForRecord"
@@ -1479,20 +1502,22 @@ signature = "uint8_t (cGZDBSegmentPackedFile* this, const cGZPersistResourceKey*
 source = "Name ours. Slot 32 (0x80) of the main vtable, `this` the object: whether the key is in the directory of compressed records (translated in src/core/packed_file_2.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96FA6B"
+name = "cGZDBSegmentPackedFile::CloseAllOpenRecords"
 address = 0x0096FA6B
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 10 53 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 164 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this)"
+source = "Name ours. Closes every record still open. The records are first collected in a list, each counted once more (the record part at +4), because closing takes them out of the map; then the segment's CloseRecord(record**) runs on each, which also gives the count back (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96FB0F"
+name = "cGZDBSegmentPackedFile::WriteIndex"
 address = 0x0096FB0F
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 0C 56 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 390 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this)"
+source = "Name ours. The index table (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::ValidateIndex"
@@ -1513,28 +1538,31 @@ signature = "uint8_t (cGZDBSegmentPackedFile* this)"
 source = "Name ours. Reads the holes table the header names into the holes map and has it checked (0x0096E49D). True when there are no holes or all of that worked (translated in src/core/packed_file_3.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96FDE2"
+name = "cGZDBSegmentPackedFile::FreeSpace"
 address = 0x0096FDE2
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 10 56 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 62 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, uint32_t position, uint32_t size)"
+source = "Name ours. Makes a hole of `size` bytes at `position`; holes are never joined. Always true (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96FE20"
+name = "cGZDBSegmentPackedFile::WriteCompressedDirectory"
 address = 0x0096FE20
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 1C 53 56"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 225 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this)"
+source = "Name ours. The directory of compressed records, written as a record of its own through the segment's unlocked delete and write (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F96FF01"
+name = "cGZDBSegmentPackedFile::ShouldCompress"
 address = 0x0096FF01
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 0C 53 33"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 125 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, cGZPersistResourceKey* key, uint32_t size)"
+source = "Name ours. Whether a record of this key and size is to be compressed (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::ReadCompressed"
@@ -1573,12 +1601,13 @@ signature = "void* (cGZDBSegmentPackedFile* this, void* result, void* value)"
 source = "Name ours. Makes room for one more entry in a key hash table (0x0096F614), then inserts `value` unless its key is there (0x0096F209). `self` is the table; the result {node, inserted} goes to `result` (translated in src/core/packed_file_3.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F970080"
+name = "cGZDBWriteRecord::BufferReserve"
 address = 0x00970080
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 56 8B F1 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 101 bytes."
+signature = "void (ByteVector* this, uint32_t size)"
+source = "Name ours. The buffer's reserve. `this` is the vector (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::QueryInterfaceThunk4"
@@ -1629,12 +1658,13 @@ expect = "83 E9 04 E9 43 0F 00 00"
 source = "This-adjusting thunk (sub ecx, 0x4; jmp cGZDBSegmentPackedFile::DeleteSegment 0x009710D6), too short for a detour."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F970193"
+name = "cGZDBSegmentPackedFile::Flush"
 address = 0x00970193
 kind = "function"
 convention = "thiscall"
 expect = "57 8B F9 8B 4F 18 F6 C1"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 106 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this)"
+source = "Name ours. S slot 9: Flush. `this` is the segment part (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::GetRecordSize"
@@ -1672,20 +1702,22 @@ signature = "uint32_t (cGZDBSegmentPackedFile* this, cGZPersistResourceKey* key,
 source = "Name ours. Main slot 19: the same read under the lock and without decompression: the record's bytes as they are in the file. `self` is the object (translated in src/core/packed_file_3.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F9708BE"
+name = "cGZDBSegmentPackedFile::CopyOneRecord"
 address = 0x009708BE
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 18 53 56"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 657 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, void* other, cGZPersistResourceKey* key, uint32_t fromOtherArg, uint32_t keepOriginalArg)"
+source = "Name ours. Copies one record between this packed file and another segment (`other` is a cIGZPersistDBSegment), in the direction `fromOther` gives, and deletes the original unless told to keep it. When the other side is a packed file too and the record is compressed in its source, the stored bytes are copied as they are (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F970B4F"
+name = "cGZDBSegmentPackedFile::CopyDatabaseRecords"
 address = 0x00970B4F
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 34 53 56"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 211 bytes."
+signature = "uint32_t (cGZDBSegmentPackedFile* this, void* other, void* filter, uint32_t fromOther, uint32_t keepOriginal)"
+source = "Name ours. P slot 26: CopyDatabaseRecords(segment, filter, fromOther, keepOriginal). Both segments are locked for the length of the call; the source's keys come through the filter into a new key list, and each is copied with CopyOneRecord (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::F970C22"
@@ -1696,28 +1728,31 @@ expect = "F6 05 34 36 B6 00 01 75"
 source = "Placeholder name (docs/resources.md): a function of the packed file code, 43 bytes."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F970C4D"
+name = "cGZDBWriteRecord::Construct"
 address = 0x00970C4D
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 18 8B 45"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 538 bytes."
+signature = "void* (cGZDBWriteRecord* this, uint32_t offset, uint32_t size, const uint32_t* key, void* owner, uint32_t nativeOrder)"
+source = "Name ours. The constructor over `size` bytes at `offset` of the packed file `owner` (both 0 for a new record). The last argument is the byte at +0x3C (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F970E67"
+name = "cGZDBWriteRecord::ConstructFromMemory"
 address = 0x00970E67
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 8B 45 14 56 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 126 bytes."
+signature = "void* (cGZDBWriteRecord* this, const void* data, uint32_t size, const uint32_t* key, void* owner, uint32_t nativeOrder)"
+source = "Name ours. The constructor over a copy of `size` bytes of memory (the old contents of a compressed record, decompressed) (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F970EE5"
+name = "cGZDBWriteRecord::SetSize"
 address = 0x00970EE5
 kind = "function"
 convention = "thiscall"
 expect = "66 83 79 0A 00 74 1E 83"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 42 bytes."
+signature = "uint8_t (cGZDBWriteRecord* this, uint32_t size)"
+source = "Name ours. Slot 53, SetSize (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::DeleteSegment"
@@ -1729,20 +1764,22 @@ signature = "void* (cGZDBSegmentPackedFile* this, uint32_t flags)"
 source = "Name ours. The deleting destructor (interface slot 30 comes here through the thunk 0x0097018B). `self` is the object (translated in src/core/packed_file_3.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F971178"
+name = "cGZDBSegmentPackedFile::OpenRecordForWrite"
 address = 0x00971178
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 24 56 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 351 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, cGZPersistResourceKey* key, void** opened)"
+source = "Name ours. Opens a record for writing: refused when the key is open already; a record the file has is loaded into a write record (expanded first when it is compressed); one it lacks is created (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F9712D7"
+name = "cGZDBSegmentPackedFile::CreateNewRecordUnlocked"
 address = 0x009712D7
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 14 57 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 197 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, cGZPersistResourceKey* key, void** opened)"
+source = "Name ours. A new, empty record for a key that is neither in the index nor open. Nothing reaches the file (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::UpdateKeyCounts"
@@ -1763,36 +1800,40 @@ signature = "uint32_t (cGZDBSegmentPackedFile* this, uint32_t on)"
 source = "Name ours. Slot 24 of the main vtable: turns the per-type and per-group counts on or off under the lock; turning them on counts the whole index. The original has no check for a missing index (translated in src/core/packed_file_4.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F9714FF"
+name = "cGZDBSegmentPackedFile::EnableCompressionByType"
 address = 0x009714FF
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 14 56 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 68 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, uint32_t type, uint8_t on)"
+source = "Name ours. Always false (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F971543"
+name = "cGZDBSegmentPackedFile::EnableCompressionByGroup"
 address = 0x00971543
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 14 56 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 68 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, uint32_t group, uint8_t on)"
+source = "Name ours. Always false (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F971587"
+name = "cGZDBSegmentPackedFile::SetRecordCompressed"
 address = 0x00971587
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 24 53 56"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 144 bytes."
+signature = "uint32_t (cGZDBSegmentPackedFile* this, cGZPersistResourceKey* key, uint8_t on, uint32_t size)"
+source = "Name ours. Adds the key to the compressed-record map with its uncompressed size, or takes it out, and marks the map changed; a key already there only gets the new size, with no mark. No result of its own (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F971617"
+name = "cGZDBSegmentPackedFile::FlushWriteRecord"
 address = 0x00971617
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 48 53 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 674 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, void* written, cGZPersistResourceKey* key)"
+source = "Name ours. The write-out of one record when it is closed (called by CloseRecordUnlocked 0x00971A1A with the record's main pointer and a copy of its key). An entry the index has for the key is dropped first (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::ReadDirectory"
@@ -1804,20 +1845,20 @@ signature = "uint8_t (cGZDBSegmentPackedFile* this)"
 source = "Name ours. Empties the directory and fills it from the directory record, 16 bytes per compressed record. No such record is a success (translated in src/core/packed_file_4.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F971981"
+name = "cGZDBSegmentPackedFile::WriteRecordSetFieldVoidThunk4"
 address = 0x00971981
 kind = "function"
 convention = "thiscall"
 expect = "83 E9 04 E9 86 F5 FF FF"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+source = "This-adjusting thunk (sub ecx, 0x4; jmp cGZDBSegmentPackedFile::WriteRecordSetFieldVoid 0x00970F0F), too short for a detour."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F971989"
+name = "cGZDBWriteRecord::SetSizeThunk4"
 address = 0x00971989
 kind = "function"
 convention = "thiscall"
 expect = "83 E9 04 E9 54 F5 FF FF"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 8 bytes."
+source = "This-adjusting thunk (sub ecx, 0x4; jmp cGZDBWriteRecord::SetSize 0x00970EE5), too short for a detour."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::CloseRecord"
@@ -1829,44 +1870,49 @@ signature = "uint8_t (cGZDBSegmentPackedFile* this, void* record)"
 source = "Name ours. Slot 36 of the interface (CloseRecord, unlocked). `self` is the interface, `record` a record's interface (record + 4) (translated in src/core/packed_file_4.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F971B1D"
+name = "cGZDBSegmentPackedFile::WriteRecordUnlocked"
 address = 0x00971B1D
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 34 53 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 426 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, cGZPersistResourceKey* key, const void* buffer, uint32_t size)"
+source = "Name ours. Writes a whole record from memory, compressed when that is on for it and worth it. Refused while the key is open (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F971CC7"
+name = "cGZDBSegmentPackedFile::ImportRecordFromFile"
 address = 0x00971CC7
 kind = "function"
 convention = "thiscall"
 expect = "55 8D 6C 24 90 81 EC CC"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 795 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this, cGZPersistResourceKey* key, void* path)"
+source = "Name ours. P slot 41: writes a whole file into the segment as the record `key`. An entry the key already has is dropped first (counts, compressed mark, index entry, its space freed) (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F971FE2"
+name = "cGZDBSegmentPackedFile::WriteRecordRaw"
 address = 0x00971FE2
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 3C 53 56"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 331 bytes."
+signature = "uint32_t (cGZDBSegmentPackedFile* this, cGZPersistResourceKey* key, const void* buffer, uint32_t size)"
+source = "Name ours. Writes a whole record as given, never compressing it. An entry it replaces loses its compressed mark like any other; a new one's mark is left as it is (translated in src/core/save_file_2.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F972233"
+name = "cGZDBSegmentPackedFile::CompactDatabase"
 address = 0x00972233
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 48 53 56"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 783 bytes."
+signature = "uint8_t (cGZDBSegmentPackedFile* this)"
+source = "Name ours. P slot 27: CompactDatabase. With no holes in memory it only gives up a hole table the header still names (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F972542"
+name = "cGZDBSegmentPackedFile::CopyDatabaseRecordsToPath"
 address = 0x00972542
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 0C 53 8B"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 185 bytes."
+signature = "uint32_t (cGZDBSegmentPackedFile* this, void* path, void* filter, uint32_t fromOther, uint32_t keepOriginal)"
+source = "Name ours. P slot 25: CopyDatabaseRecords(path, filter, fromOther, keepOriginal): the same between this segment and a packed file at `path`, opened for the length of the call. The other file is opened for write unless records are only read from it (fromOther and keepOriginal both set) (translated in src/core/save_file_3.cpp)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::ScanEmbedded"
@@ -1945,12 +1991,13 @@ expect = "8B 51 08 8B 44 24 04 89"
 source = "Placeholder name (docs/resources.md): a function of the packed file code, 24 bytes."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F97567E"
+name = "cGZPersistDBRecord::VariantTypeCode"
 address = 0x0097567E
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "8B 44 24 04 25 FF 7F 00"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 30 bytes."
+signature = "uint32_t (uint32_t type)"
+source = "Name ours. The code a variant's type is stored as (table 0x00AD8C50 by the type's low 15 bits; the array bit 0x8000 is kept) (translated in src/core/save_file_1.cpp)."
 
 [[entry]]
 name = "cGZPersistDBSegment::Destruct"
@@ -1970,12 +2017,12 @@ signature = "uint8_t (cGZPersistDBSegment* this, uint32_t id, void** out)"
 source = "Name ours. Slot 0: QueryInterface. RET 8 (translated in src/core/packed_file_4.cpp)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F9756CF"
+name = "cGZPersistDBSegment::AddRef"
 address = 0x009756CF
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 51 56 8B F1"
-source = "Placeholder name (docs/resources.md): a function of the packed file code, 39 bytes."
+source = "The base class's AddRef under the lock, folded with unrelated classes, so not detoured (src/core/packed_file_4.cpp)."
 
 [[entry]]
 name = "cGZPersistDBSegment::Release"
@@ -2824,28 +2871,28 @@ kind = "data"
 source = "Name ours. The text 'TempDBSegmentPackedFile_', the prefix of the two temporary file names a compaction makes (0x0097233F)."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F93F7EB"
+name = "cGZDBSegmentPackedFile::ListConstruct"
 address = 0x0093F7EB
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 83 26 00 6A 0C"
-source = "Placeholder. (allocator*, unused), ret 4, this = a list (one pointer): allocates the 12-byte head node (0x0090CF54) linked to itself; returns this. Generic list code."
+source = "Name ours. (allocator*, unused), ret 4, this = a list (one pointer): allocates the 12-byte head node (0x0090CF54) linked to itself; returns this. Generic list code."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F897C8D"
+name = "cGZDBSegmentPackedFile::ListInsertBefore"
 address = 0x00897C8D
 kind = "function"
 convention = "thiscall"
 expect = "FF 74 24 0C E8 A4 36 0B"
-source = "Placeholder. (iterator* out, node* before, const value* value), ret 0xC, this = a list of 4-byte values: allocates a node with *value (0x0094B33A), links it in before the given node, writes the node to out and returns out. Generic list code."
+source = "Name ours. (iterator* out, node* before, const value* value), ret 0xC, this = a list of 4-byte values: allocates a node with *value (0x0094B33A), links it in before the given node, writes the node to out and returns out. Generic list code."
 
 [[entry]]
-name = "cGZDBSegmentPackedFile::F667A60"
+name = "cGZDBSegmentPackedFile::KeyDequeIteratorNext"
 address = 0x00667A60
 kind = "function"
 convention = "thiscall"
 expect = "8B 01 8B 51 08 83 C0 0C"
-source = "Placeholder. No arguments, this = a deque iterator {current, first, last, block} over 12-byte elements in blocks of 0x78 bytes: steps to the next element. The key list's keys are walked with it."
+source = "Name ours. No arguments, this = a deque iterator {current, first, last, block} over 12-byte elements in blocks of 0x78 bytes: steps to the next element. The key list's keys are walked with it."
 
 [[entry]]
 name = "cGZPersistResourceKeyList::Construct"
