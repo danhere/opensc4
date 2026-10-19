@@ -1,6 +1,6 @@
 # The city view's tools
 
-The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool, the level terrain tool, the dispatch tool, the sign removal tool, the Life tool, the label tool, the sign tool, the terraform tool, the obliterate tool, the effect trigger tool, the common disaster tool and the fire (torch) disaster tool. The query tool is ours (Q1 to Q7, 218 functions) but for what its pieces left the game's: drawing, containers and folded helpers with callers outside the class, each listed in its piece. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
+The view input controls that the city view makes current while the player holds a tool: the bulldoze tool, the zone tool, the lot (plop) tool, the drag-to-scroll control, the mission icon control, the flora tool, the level terrain tool, the dispatch tool, the sign removal tool, the Life tool, the label tool, the sign tool, the terraform tool, the obliterate tool, the effect trigger tool, the common disaster tool and the fire (torch) disaster tool. The query tool is ours (Q1 to Q8, 222 functions) but for what its pieces left the game's: containers, folded helpers with callers outside the class and jump tables, each listed in its piece. Each is a small object on the view input control base class (constructor 0x005FB320, destructor 0x005FAFC0, vtable 0x00AA6658; the base class is ours too, see "The base class"). The view makes the tool, calls Init, and from then on hands it the keys and the mouse. Build 641 addresses throughout (data/addresses/tools.toml).
 
 | Tool | State |
 | --- | --- |
@@ -21,7 +21,7 @@ The view input controls that the city view makes current while the player holds 
 | Effect trigger tool | ours (`ui.tools.disaster_effect`, below) |
 | Common disaster tool | ours (`ui.tools.disaster`, below) |
 | Fire (torch) disaster tool | ours (`ui.tools.disaster_fire`, below) |
-| Query tool | ours but for what its pieces left the game's; Q1 to Q7, 218 functions, are ours (`ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, `ui.tools.query3a`, `ui.tools.query3b`, `ui.tools.query4a`, `ui.tools.query4b`, `ui.tools.query5a`, `ui.tools.query5b`, `ui.tools.query6a`, `ui.tools.query6b`, `ui.tools.query7a`, `ui.tools.query7b`, below) |
+| Query tool | ours but for what its pieces left the game's; Q1 to Q8, 222 functions, are ours (`ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, `ui.tools.query3a`, `ui.tools.query3b`, `ui.tools.query4a`, `ui.tools.query4b`, `ui.tools.query5a`, `ui.tools.query5b`, `ui.tools.query6a`, `ui.tools.query6b`, `ui.tools.query7a`, `ui.tools.query7b`, `ui.tools.query8`, below) |
 | Base class | ours (`ui.tools.base`, below) |
 
 ## The tool classes
@@ -45,8 +45,8 @@ Every city tool is a view input control: a class on the base class below, with a
 | Life tool (Conway's Game of Life, made by the cheat GOL) | 0x004BC310 | 0x00A90458 | 0x88 | 0x004BBE50 to 0x004BC975 | 16 | ours (`ui.tools.cellpaint`, below) |
 | Label tool (text decals on the ground, command 0x0B980587) | 0x004BD230 | 0x00A90528 | 0x44 | 0x004BC980 to 0x004BDAFC | 16 | ours (`ui.tools.decal`, below) |
 | Level-a-rectangle terrain tool | 0x004BDC60 | 0x00A905C0 | 0x58 | 0x004BDB00 to 0x004BDEBC | 8 | ours (`ui.tools.small2`, below) |
-| Lot (plop) | 0x004C0430 | 0x00A90738 | 0x158 | 0x004BDF70 to 0x004C36C0 | 36 | ours (`ui.tools.plop1` to `plop4`, below; the preview drawing in `plop4`, T11); Ghidra defines 46 functions in the range, and those not ours are the shared helpers under "Left the game's" |
-| Query tool (`cSC4ViewInputControlQuery`; strings Query.txt, "Query cell (%d, %d)") | 0x004C4590 | 0x00A90A88 | 0xA0 | 0x004C3730 to 0x004D767F | 223 | ours but for what its pieces left: 218 functions (0x004C3730 to 0x004D767F, `ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, `ui.tools.query3a`, `ui.tools.query3b`, `ui.tools.query4a`, `ui.tools.query4b`, `ui.tools.query5a`, `ui.tools.query5b`, `ui.tools.query6a`, `ui.tools.query6b`, `ui.tools.query7a`, `ui.tools.query7b`, below); the 223 is the survey's count, and the pieces' 218 include functions it did not list (such as 0x004C44E0 and 0x004CB880), so the functions left are those each piece lists, not 223 minus 218; not a network tool |
+| Lot (plop) | 0x004C0430 | 0x00A90738 | 0x158 | 0x004BDF70 to 0x004C36C0 | 36 | ours (`ui.tools.plop1` to `plop5`, below; the preview drawing in `plop4`, T11; the message thunks in `plop5`, T12); Ghidra defines 46 functions in the range, and those not ours are the shared helpers under "Left the game's" |
+| Query tool (`cSC4ViewInputControlQuery`; strings Query.txt, "Query cell (%d, %d)") | 0x004C4590 | 0x00A90A88 | 0xA0 | 0x004C3730 to 0x004D767F | 223 | ours but for what its pieces left: 222 functions (0x004C3730 to 0x004D767F, `ui.tools.query1a`, `ui.tools.query1b`, `ui.tools.query2`, `ui.tools.query3a`, `ui.tools.query3b`, `ui.tools.query4a`, `ui.tools.query4b`, `ui.tools.query5a`, `ui.tools.query5b`, `ui.tools.query6a`, `ui.tools.query6b`, `ui.tools.query7a`, `ui.tools.query7b`, `ui.tools.query8`, below); the 223 is the survey's count, and the pieces' 222 include functions it did not list (such as 0x004C44E0 and 0x004CB880), so the functions left are those each piece lists, not 223 minus 222; not a network tool |
 | Sign removal tool (removes signs; the survey had called it a pick tool) | 0x004D76F0 | 0x00A928A0 | 0x30 | 0x004D7680 to 0x004D7AE2 | 8 | ours (`ui.tools.signpick`, below) |
 | Sign tool (places signs, drags them and edits their text; the survey had called it a sign text tool) | 0x004D7F00 | 0x00A92968 | 0x80 | 0x004D7AF0 to 0x004D8ABA | 16 | ours (`ui.tools.signtext`, below) |
 | Terraform tool (the terrain brush tool) | 0x004D9430 | 0x00A92A10 | 0x130 | 0x004D8AC0 to 0x004D9E50 | 22 | ours (`ui.tools.brush`, below) |
@@ -376,7 +376,7 @@ Keep roads, de-zone commit over the middle half, tutorial off: on Big City d0000
 
 ## The lot (plop) tool
 
-`cSC4ViewInputControlPlaceLot` (our name): 0x158 bytes, main vtable 0x00A90738, message target vtable 0x00A90728 at +0x28, code 0x004BDF70 to about 0x004C36C0 (src/core/tool_plop_1.cpp, tool_plop_2.cpp, tool_plop_3.cpp, tool_plop_4.cpp, header tool_plop.h). The constructor is 0x004C0430, with four arguments: mode (0 places a lot configuration, else a building), configuration ID, building ID, accept-all. The tool places the lot or building the player picked from a menu.
+`cSC4ViewInputControlPlaceLot` (our name): 0x158 bytes, main vtable 0x00A90738, message target vtable 0x00A90728 at +0x28, code 0x004BDF70 to about 0x004C36C0 (src/core/tool_plop_1.cpp, tool_plop_2.cpp, tool_plop_3.cpp, tool_plop_4.cpp, tool_plop_5.cpp, header tool_plop.h). The constructor is 0x004C0430, with four arguments: mode (0 places a lot configuration, else a building), configuration ID, building ID, accept-all. The tool places the lot or building the player picked from a menu.
 
 What it does:
 
@@ -394,7 +394,7 @@ Nothing in it reads a clock or draws a random number. The picking goes through t
 
 ### Pieces
 
-Four groups, off by default, 39 functions in all (the fourth, `ui.tools.plop4`, came with T11).
+Five groups, off by default, 42 functions in all (the fourth, `ui.tools.plop4`, came with T11; the fifth, `ui.tools.plop5`, with T12).
 
 | Group | File | Functions | Phase | What |
 | --- | --- | --- | --- | --- |
@@ -402,8 +402,9 @@ Four groups, off by default, 39 functions in all (the fourth, `ui.tools.plop4`, 
 | `ui.tools.plop2` | tool_plop_2.cpp | 4 | PreAppInit | Init, SetConfiguration (0x004C1360), TestPlacement, PlaceLot |
 | `ui.tools.plop3` | tool_plop_3.cpp | 5 | PostAppInit | DoMessage (0x004C2F20), OnKeyDown (0x004C3060), OnMouseDownL (0x004C3120), OnMouseMove (0x004C3300), OnMouseExit (0x004C36C0) |
 | `ui.tools.plop4` | tool_plop_4.cpp | 3 | PostAppInit | UpdatePreview (0x004C2660), UpdateFootprint (0x004C2090), BuildPreview (0x004C0680) |
+| `ui.tools.plop5` | tool_plop_5.cpp | 3 | PostAppInit | The message target's adjustor thunks 0x004BFB00, 0x004BFB10, 0x004BFB20 (shared with the query and dispatch tools; see "The plop tool's message thunks (T12)") |
 
-The hook tables hold 27, 3, 5 and 3 entries. PlaceLot is installed separately in part 2, so that `game.quiet.plop` can wrap it (see "With quiet plop"). Part 2 installs at PreAppInit, one phase before the other two and before the wrapper.
+The hook tables hold 27, 3, 5, 3 and 3 entries. PlaceLot is installed separately in part 2, so that `game.quiet.plop` can wrap it (see "With quiet plop"). Part 2 installs at PreAppInit, one phase before the other two and before the wrapper.
 
 ### Fields
 
@@ -469,7 +470,7 @@ The smoke flag is not display only. Placing with it off changes the `occbase` an
 
 - UpdatePreview (0x004C2660), its footprint builder (0x004C2090) and BuildPreview (0x004C0680) were left here first; they are ours now, in `ui.tools.plop4` (see "The lot tool's preview drawing (T11)").
 - The shared helpers 0x004BDF10 (QueryInterface, also the query tool's), 0x004BDF90 (the filter slot), 0x004BDFD0 (RotateRectangle), 0x004BFF30 (the reference vector's fill insert), 0x004C1390, 0x004C3730, 0x004C3750 and 0x004C37A0. (Of these, 0x004C3750 is ours now, in `ui.tools.query1a`; the other two stay the game's, see "The query tool, first piece".)
-- The adjustor thunks 0x004BFB00, 0x004BFB10 and 0x004BFB20: two instructions each (subtract 0x28 from `this`, jump), and four vtables hold them (the plop tool's and the query tool's message vtables; 0x004BFB10 and 0x004BFB20 also the dispatch tool's and the one at 0x00A85990), so they stay the game's as shared helpers.
+- The adjustor thunks 0x004BFB00, 0x004BFB10 and 0x004BFB20 were left here first (four vtables hold them); they are ours now, in `ui.tools.plop5` (see "The plop tool's message thunks (T12)").
 - The base class is ours, in its own group (see "The base class"); this tool calls its functions by address.
 
 ### Two slips found at the merge
@@ -1005,7 +1006,7 @@ Parity (batch t3b1, 7 days, with the base class's and the small tools' tests): p
 
 ## The label tool
 
-The tool that writes text on the ground. The survey had called it a text decal tool and marked it "guess"; it is the label tool: 0x44 bytes, main vtable 0x00A90528, window procedure part with vtable 0x00A90518 at +0x28, code 0x004BC980 to 0x004BDAFC, 16 functions, group `ui.tools.decal` (src/core/tool_decal.cpp). The constructor is 0x004BD230 (our name `SC4LabelTool::Construct`). The view makes it for its command 0x0B980587, sent by the button 0xCB95412C, with `new` of 0x44 bytes, the constructor with no arguments and the view's slot 0x64 with the operation 2 (src/core/ui_cityview_6.cpp). A label is a text decal prop occupant (`cSC4PropOccupantTextDecal`, 0xBC bytes, kind 0xCB79919B, interface 0x2B3B7D86). It is the "sign on a network" that the sign removal tool also takes.
+The tool that writes text on the ground. The survey had called it a text decal tool and marked it "guess"; it is the label tool: 0x44 bytes, main vtable 0x00A90528, window procedure part with vtable 0x00A90518 at +0x28, code 0x004BC980 to 0x004BDAFC, 16 functions, group `ui.tools.decal` (src/core/tool_decal.cpp). The constructor is 0x004BD230 (our name `SC4LabelTool::Construct`). The view makes it for its command 0x0B980587, sent by the button 0xCB95412C, with `new` of 0x44 bytes, the constructor with no arguments and the view's slot 0x64 with the operation 2 (src/core/ui_cityview_6.cpp). A label is a text decal prop occupant (`cSC4PropOccupantTextDecal`, class ID 0x8B79C707, 0xBC bytes, interface 0x2B3B7D86; kind 0xCB79919B: the prop type its Init gives it; [propkinds.md](propkinds.md)). It is the "sign on a network" that the sign removal tool also takes.
 
 What it does:
 
@@ -1644,7 +1645,7 @@ Parity (batch t6b1, 7 days): plain 12 of 12, test 12 of 12, test with commit and
 
 ## The query tool, first piece
 
-The query tool (`cSC4ViewInputControlQuery`) is the tool behind the Query button: the player clicks a building, a road or a Sim and a window tells them about it. It is the biggest tool class, 223 functions at 0x004C3730 to 0x004D767F, so it is rewritten in pieces Q1 to Q7. This is Q1: 57 functions at 0x004C3730 to 0x004C56F0. Two groups, off by default, PostAppInit, detours at the game's entries (the 166 functions still the game's call these by address):
+The query tool (`cSC4ViewInputControlQuery`) is the tool behind the Query button: the player clicks a building, a road or a Sim and a window tells them about it. It is the biggest tool class, 223 functions at 0x004C3730 to 0x004D767F, so it is rewritten in pieces Q1 to Q8. This is Q1: 57 functions at 0x004C3730 to 0x004C56F0. Two groups, off by default, PostAppInit, detours at the game's entries (the 166 functions still the game's call these by address):
 
 | Group | Functions | File | What |
 | --- | --- | --- | --- |
@@ -1742,8 +1743,7 @@ The query windows are filled from one table at 0x00A92488: 0x7F function pointer
 
 - 0x004C3730: a folded float compare, also called from 0x006B9F53 in another class.
 - 0x004C37A0: a wrapper of `_CIpow`; its only caller is 0x008993BB.
-- 0x004C38D0: the object is in ESI, and only the overlay builders (drawing) call it.
-- 0x004C5040: the bar blit (drawing, `GZBuffer::TileBlit`).
+- 0x004C38D0 (the terrain in ESI) and 0x004C5040 (the bar) were left here as drawing; both are ours since Q8 (`ui.tools.query8`, "The query tool, eighth piece (drawing)").
 - The destructor (0x004C5730 and 0x004C5750) is past the range: Q2.
 - The survey's idea that the range holds containers was wrong: there are none.
 - No wrapper in `src/core/game_*.cpp` touches this range.
@@ -1862,13 +1862,13 @@ SetChildSlider (0x004C6E30, 7 callers) takes (window, child ID, low, high, value
 
 - 0x004C56F0 (a folded tree erase, `SC4Uint32FloatMap::EraseSubtree`) and 0x004C6920 (`SC4BuildingCellHash::Find`): generic containers, with callers outside the tool. They already have address entries in other files.
 - 0x004C69A0 (`SC4LotTravelMap::CopySubtree`): a tree copy that audio code calls too (0x004C9470 and 0x004E3F80 are two of its callers).
-- 0x004C5E20 (BuildRouteLine, seven arguments, ret 0x1C, one caller 0x004CA460): builds the route line's display geometry (calls 0x007DDB30 and 0x007DDC50). Drawing.
-- 0x004C6830: the bar painter's message slot (slot 3 of the vtable 0x00A90B38). It is undefined code in Ghidra. On message type 0x16 it draws the window's value (property 0xEA563AB0) as a bar with 0x004C5040. Drawing. The painter is a 4-byte object the tool makes at 0x004CCAD7, 0x004CCDAF and 0x004D3D96 and gives to every child of a query window.
+- 0x004C5E20 (BuildRouteLine, seven arguments, ret 0x1C, one caller 0x004CA460): builds the route line's display geometry (calls 0x007DDB30 and 0x007DDC50). Left here as drawing; ours since Q8.
+- 0x004C6830: the bar painter's message slot (slot 3 of the vtable 0x00A90B38). It is undefined code in Ghidra. On message type 0x16 it draws the window's value (property 0xEA563AB0) as a bar with 0x004C5040. Left here as drawing; ours since Q8. The painter is a 4-byte object the tool makes at 0x004CCAD7, 0x004CCDAF and 0x004D3D96 and gives to every child of a query window.
 - 0x004C6A60 (LogDestination): the arguments are in registers (cell x in EBX, cell z in EDI, one stack argument). It only writes a debug log line.
 
 Correction to the first piece: the one caller of DrawBar 0x004C5040 is the bar painter 0x004C6830, not the filler 0x004C67F0 (the address file said so; fixed in data/addresses/tools.toml).
 
-Calls still waiting for later pieces (Q4 onward): DoMessage 0x004D7160 calls ShowTip, 0x004D4FD0 calls the two levels, 0x004D3F40 calls SetChildMoneyNext, and the overlay builder 0x004CA460 calls 0x004C5E20. (Q4 made 0x004CA460 ours: it is route selection, not drawing; 0x004C5E20 stays the game's.)
+Calls still waiting for later pieces (Q4 onward): DoMessage 0x004D7160 calls ShowTip, 0x004D4FD0 calls the two levels, 0x004D3F40 calls SetChildMoneyNext, and the overlay builder 0x004CA460 calls 0x004C5E20. (Q4 made 0x004CA460 ours: it is route selection, not drawing; Q8 made 0x004C5E20 ours.)
 
 ### Behaviour as the game has it
 
@@ -2015,7 +2015,7 @@ The thiscall functions are hooked as `__fastcall` with a dummy EDX; the fillers 
 
 ### The overlay builder
 
-0x004CA460 was expected to be drawing. It is not: it is route selection logic, so it is ours. It picks the lots (the lot manager's slot 15 iterator) and the neighbour connections (the neighbours simulator's slot 16) whose trips cover the box in the tool's +0x30 or whose route touches it (0x004C4AE0), reads the window's check boxes at +0x48 for the route flag and the mask of route kinds, makes the line object when there is none and sets its width by zoom (six floats; the zoom indexes them unchecked, as in the game). The drawing stays the game's and is called by address: the line object (0x007DDD50 construct, 0x007DCD90 set up, 0x007DDC30 empty, 0x0053C940 unset; the last is folded and has six callers in several classes), the route line 0x004C5E20 for each route, and the render service's slots 32 (take the line, layer 5, order 1000) and 33 (give it back). 0x004C38D0 takes the terrain in ESI, so it is called through a naked thunk. The four line functions are in the address file under SC4RouteLine (the Renderer's code).
+0x004CA460 was expected to be drawing. It is not: it is route selection logic, so it is ours. It picks the lots (the lot manager's slot 15 iterator) and the neighbour connections (the neighbours simulator's slot 16) whose trips cover the box in the tool's +0x30 or whose route touches it (0x004C4AE0), reads the window's check boxes at +0x48 for the route flag and the mask of route kinds, makes the line object when there is none and sets its width by zoom (six floats; the zoom indexes them unchecked, as in the game). The drawing stays the game's and is called by address: the line object (0x007DDD50 construct, 0x007DCD90 set up, 0x007DDC30 empty, 0x0053C940 unset; the last is folded and has six callers in several classes), the route line 0x004C5E20 for each route, and the render service's slots 32 (take the line, layer 5, order 1000) and 33 (give it back). 0x004C38D0 takes the terrain in ESI, so it is called through a naked thunk (by address; ours since Q8, as is the route line). The four line functions are in the address file under SC4RouteLine (the Renderer's code).
 
 ### The main vtable slots
 
@@ -2287,7 +2287,7 @@ Parity (batch q6b1, 7 days, B list of 146 groups): plain 12 of 12, test day 2 12
 
 ## The query tool, seventh piece
 
-Q7 is 8 functions in the range 0x004D4140 to 0x004D767F (all 8 in the function list). Two groups, off by default, PostAppInit, detours at the game's entries: `ui.tools.query7a` (3 functions, src/core/tool_query_7a.cpp: the pick description, the mouse press and the message handler, the three that sc4-query-ui-hooks patches) and `ui.tools.query7b` (5 functions, src/core/tool_query_7b.cpp: the building and cell tips and a lot's level texts). Nothing in the range is drawing. With Q7 every function of the query tool's range is ours except what Q1 to Q6 listed as left (drawing, containers, folded helpers and jumps, listed in each piece's "Left the game's"). The range ends at 0x004D767F; the sign removal tool (`ui.tools.signpick`) starts at 0x004D7680.
+Q7 is 8 functions in the range 0x004D4140 to 0x004D767F (all 8 in the function list). Two groups, off by default, PostAppInit, detours at the game's entries: `ui.tools.query7a` (3 functions, src/core/tool_query_7a.cpp: the pick description, the mouse press and the message handler, the three that sc4-query-ui-hooks patches) and `ui.tools.query7b` (5 functions, src/core/tool_query_7b.cpp: the building and cell tips and a lot's level texts). Nothing in the range is drawing. With Q7 every function of the query tool's range is ours except what Q1 to Q6 listed as left (drawing, containers, folded helpers and jumps, listed in each piece's "Left the game's"); Q8 made the drawing ours. The range ends at 0x004D767F; the sign removal tool (`ui.tools.signpick`) starts at 0x004D7680.
 
 | Address | Name | What it does |
 | --- | --- | --- |
@@ -2409,6 +2409,115 @@ Tokens (snapshot q7a): Making Money d0090 85E1181F, Big City d0000 44D4754D, Rus
 First pass, snapshot q7a, on Making Money d0090, Big City d0000 and Rush Hour d0090, with the test and never run: the original twice (A1, A2), all groups ours (B) and only `ui.tools.base` with the Q7 groups ours (M) were identical in every log line, in all cases (36 of 36 runs finished, none crashed). One pass sufficed; nothing moved out of the hash. A 7-day commit run on Big City d0000, side B, took 13 s (no exit hang). Build debug and release clean, ctest 20 of 20, retcheck 6 OK and 2 checked by hand (DoMessage is not in the old exe listing and GetBuildingOccupantTipInfo is cut by the function list; every exit of both is the plain `ret 4` and `ret 0x14` of our signatures), register scan 8 hooked and none suspicious, EAX scan clean.
 
 Parity (batch q7b1, 7 days, B list of 148 groups): plain 12 of 12, test day 2 11 of 12 plus 1 partly, test day 5 12 of 12, plopped 3 of 3. The partly one is Making Money d0090: the first B run differed in the `adv` part from day 1, before the test on day 2, and the other two B runs were the same as A; the pair rerun in batch q7b2 was the same. Batch q7b2: commit (`OPENSC4_TEST_Q7_COMMIT=1`) 12 of 12; with sc4-query-ui-hooks 2.7.1 in the job folders' Plugins (p4env-q7mod, test day 2) 12 of 12, every B run logging the three leave lines (0x004D4140, 0x004D4D70, 0x004D7160) and no A run.
+
+## The query tool, eighth piece (drawing)
+
+Q8 makes the drawing the earlier pieces left ours: 4 functions in one group, `ui.tools.query8` (src/core/tool_query_8.cpp). The group is PostAppInit, off by default, and detours at the game's entries. With Q1 to Q8, every function of the query tool's range is ours except the containers, the folded helpers with callers outside the class and the jump tables that the pieces list. Those are the folded helpers and containers 0x004C3730, 0x004C37A0, 0x004C56F0, 0x004C6920, 0x004C69A0, 0x004C9430, 0x004CCF20, 0x004CDF00 and 0x004D1230; LogDestination 0x004C6A60 (arguments in registers); 0x004C9470 (ours in citylot); the five-byte jumps 0x004C9E50, 0x004C9FE0 and 0x004D3250; and the jump tables of 0x004D12A0, CollectLotTexts and GetCellTipInfo.
+
+| Address | Name | What it does |
+| --- | --- | --- |
+| 0x004C38D0 | ClampedHeight (the terrain in ESI, (float x, float z) on the stack, the caller cleans, the height on the x87 stack) | x held to [0, the cell size times the cells in x (terrain slots 6 and 7), stored as a float], z to [0, the same for z (slot 8), kept as a double]; a NaN passes and -0 stays; then the terrain's height there (slot 13). The address file's name, AddClampedPoint, is older than the reading |
+| 0x004C5040 | DrawBar (cdecl (window, float share)) | The window's buffer (its slot 3's slot 94) locked (slot 6, 0x8010); with the picture the window gives for 0x20732180 (slot 5), its lower half blitted over the buffer's area (slot 11) and its upper half over the share of the area's width (`GZBuffer::TileBlit` 0x008D8BC0 both times); unlocked (slot 7) when it was locked; the picture let go |
+| 0x004C6830 | the bar painter's OnMessage (slot 3 of 0x00A90B38, (window, message), ret 8; the painter is not read) | On message type 0x16: the window's property 0xEA563AB0 (slot 113) and what it gives for 0xC12CEA13 (slot 0); with both, the property's float (its slot 81) drawn as a bar there and true; each let go (the second first), and false when one is missing |
+| 0x004C5E20 | BuildRouteLine ((source, trip record, float x, float y, float z, way back, kind mask), ret 0x1C) | One trip's route as runs of points on the line object at +0x9C (below) |
+
+The line object's functions stay the game's and are called by address:
+
+- 0x007DDC50 (`SC4RouteLine::BeginRun`): takes a colour, a float and a mode; starts a new run, kept in order of the float, and makes it current.
+- 0x007DDB30 (`SC4RouteLine::AddPoint`): appends the point to the current run, unless it is within a small distance of the run's last point.
+- The line's constructor, set-up and clear, which Q4 already called.
+
+The route iterator (0x006D64B0, 0x006D6510), the blit and the C runtime's `_CIpow` (0x009EFC60) are also called by address. The four functions call each other by address, as the game does, and the route builder (0x004CA460, `ui.tools.query4a`) calls the height and the route line by address too, so each hook serves every caller. At all seven call sites the caller keeps nothing in EAX, ECX or EDX across the call. No mod patch site lies in the four functions (`foreign_sites.cpp`).
+
+### The route line
+
+Which route BuildRouteLine walks:
+
+- The way back (+0xC), when it is asked for (the low byte of the argument) and the record has one (bit 0 of +0x1E clear).
+- Otherwise the way there (+0). When the way back was asked for, the way there is walked backwards along network paths.
+
+One end of the line is the place given: x and z at the clamped height (y is not read). The other end is the centre of the trip's cell (city slot 97). The walk starts from the trip's cell or from the source's first corner cell (its slot 5).
+
+The kinds are a table of nine 20-byte records at 0x00B09628, by the route cell's type: colour, fade, lift, the network occupant mask and the path type. Like the game, ours reads it unchecked for any type. A kind's runs get:
+
+- its colour, with an alpha of (1 - (1 - fade) ^ (trips + 1)) * 255 in the top byte;
+- the lift as the float;
+- the mode 1 when walked backwards, else 2.
+
+For each cell:
+
+- **Reached by a jump, or the first cell:** the traffic simulator's ferry route from the cell before (slot 29). With one, the kind is 0xA, and when the mask's top bit is set there is a run of every other cell of the ferry route at the water's height (the terrain's slot 29) plus 0.2 (colour 0xA800FF, alpha from 0.75).
+- **A network occupant at the cell** (the network map 0x00B43D54, slot 14, a chain through +0x54) that matches the kind's occupant mask (its slot 9) and has path information (slot 49) and a path for the kind's path type between the cell's sides (slot 5, from the last point): the path's two ends at the lift (slot 22 for a side of 0xFF). A new run starts on a new kind or on every eighth cell (x or z by the side, & 7). After the first kind, the place given is the run's first point. On a turn there is a middle point: half the path's own point (slot 22) and a quarter of the two ends.
+- **Otherwise:** the cell's centre at the clamped height plus the lift, when the cell is in the city. On a new kind, the old run ends at this point and a new one begins.
+
+A kind not in the mask leaves its cells out. The other end is added at the last point's height when its cell is in the city, a kind was drawn and the last kind was shown.
+
+### Floats
+
+As in T10, the game runs the x87 at 53 bit and keeps its chains in registers, so ours computes each chain in double and rounds to float only where the game stores a float.
+
+- What the terrain gives on the x87 stack (the cell size, the heights, the water) is kept as a double, and so is ClampedHeight's answer.
+- The turn point is the one long chain: three halves and quarters stored as floats, two sums kept, one stored.
+- Integers from floats are the game's `_ftol2`: truncation to 64 bits with the low 32 kept, and 0 for what does not fit (a NaN). The `Truncate` that T10 wrote gives INT_MIN for anything outside 32 bits; Q8's test caught the difference in the bar (below).
+
+### Oddities kept
+
+- On the way back, the height of the place given is asked at the last point before it is set (the dword at 0x00B21858, as bits), and the answer is replaced before it is used. On the way there, y is overwritten by the clamped height.
+- The path's side bytes go to slot 5 as dwords. The game's carry stack bytes above them and the callee reads only the low bytes; ours are zero-extended.
+- Points not yet set start as the dword at 0x00B21858, as the game's do.
+
+### Left the game's
+
+Nothing in Q8. The line object (0x007DD*, 0x007DC*, 0x0053C940) and the render service are the Renderer's.
+
+## The query tool, eighth piece: test
+
+`OPENSC4_TEST_Q8=<day>` (src/core/tool_q8_autotest.cpp, token ` query8`, fingerprint order 35, day hook 73, sub-hashes on the log lines `autotest: query8: ...`). As T10's test does, it calls only the game's addresses and vtable slots, never our functions. Nothing here changes the city.
+
+- **Stand-ins:** the terrain, the city, the network map, its occupants and their path information, the traffic simulator, the traffic source, the windows, the buffer and the picture. Each records what it is told.
+- **Pointers:** a pointer into the stack is hashed as the 16 bytes it points to; any other pointer only as which stand-in it is.
+- **The line:** the game's own object, made with its constructor. After each call the test hashes every run's three words and every point's bits, walking the run list and each run's deque.
+
+`OPENSC4_TEST_Q8_PARTS` (decimal mask, default 31):
+
+- 1: ClampedHeight through a naked caller with the terrain in ESI. Cell sizes 16, 1.7, 0.1 and a third (as doubles on the x87 stack); four sizes in cells, none and a negative one among them; twelve points on, below, past and at the limits, including a NaN, -0, the smallest denormals and infinities. The height is read back as a double.
+- 2: DrawBar on stand-ins: locked or not, with and without a picture, picture heights 2, 7 and 2^32 - 1, several areas, and shares 0, a third, a half, 1, 2.5, -0.25, a denormal, 1e10 and a NaN. The picture is one pixel wide and the area one row high, so the game's blit takes its one-pixel path, and the area it fills reaches the buffer's slot 30.
+- 4: the bar painter: messages other than 0x16, the property or the target missing (with and without what they left behind), and four shares drawn.
+- 8: BuildRouteLine on stand-ins with 20 hand-made routes:
+  - runs and jumps, kinds 0 to 8, cells outside the city on both edges;
+  - network paths straight and turning, side and direction 0xFF, paths refused every n-th time;
+  - ferries with and without cells;
+  - a row of 23 cells with an occupant on each, which starts a new run every eighth cell.
+
+  Each is walked the way there, the way back and the way there backwards, with eight kind masks, counts 0 to 2^32 - 1, and places outside the city or a NaN.
+- 16: real trips: the tool of kind 1 as the view makes it, ShowRoutes (0x004CAC50) for up to six buildings and three network pieces, then again with the window's "all routes" box checked (the way back too).
+
+### Not reached
+
+- The real bar: a query window's paint (message 0x16 on a real window and buffer) is not drawn in an unattended run. The blit's tiling path is not reached either, only its one-pixel path.
+- Real ferries: no save has a ferry route.
+- Any use with mods installed.
+
+### Trial results
+
+A = the original, B = `ui.tools.base` and every query group (Q1a to Q8) ours, test day 2, 5 days, with `determinism.dispatch_info`, on Making Money d0090, Big City d0000 and Rush Hour d0090:
+
+- **First pass:** the bar and painter sub-hashes changed from run to run. In the blit's one-pixel path, the picture's slot 21 gets three dword out-pointers, one of them the blit's own argument slot. The stand-in wrote only a byte to each, so that slot kept a stack address with a new low byte, and the test followed it into the caller's frame. The stand-in now writes dwords.
+- **Second pass:** steady, but A and B differed in the bar and painter parts. Ours used T10's `Truncate` (INT_MIN outside 32 bits), where the game's `_ftol2` keeps the low 32 bits of a 64-bit truncation and gives 0 for a NaN. The shares 1e10 and NaN told them apart.
+- **Third pass:** A = B in every test line and the whole fingerprint on all three saves. The tokens were 462D5164 (Big City d0000), 0BD4F825 (Making Money d0090) and 9269A328 (Rush Hour d0090). Unexpected slots were 0, and the stand-in routes gave 100 runs and 213 points.
+
+Real routes, as runs/points for each building, then each network piece. With the box checked they are the same, except where noted.
+
+- Big City d0000: 8/72 6/66 8/111 5/46 5/62 6/66, then 24/237 58/653 77/684.
+- Making Money d0090: 10/89 6/55 9/81 9/75 8/66 9/75, then 0/0 318/2679 150/1297.
+- Rush Hour d0090: 0/0 for all six buildings, then 223/1941 10/102 29/263; with the box checked the first piece gives 14/136.
+
+On current main the parity script judged all three pairs "DIFFERENT" with no reason given. The cause was `tools/re/paritygroups.py`, which stopped with a KeyError on 'crc' because the regional city record's decoder (from the region report) has no framework header. The fix is the one sc4save's --compare already had. Judged again, all three saves are the same, and all four pairs of each save give one outcome.
+
+- Build debug and release clean, ctest 21 of 21.
+- An independent reading of the four functions against the disassembly found no difference in behaviour.
+
+Parity (2026-10-19, batch `q8b1`, B = T10's batch list (164 entries, `determinism.dispatch_info` among them) plus `ui.tools.query8`, 7 days, one job): plain 12/12; `OPENSC4_TEST_T7=2 OPENSC4_TEST_T8=2 OPENSC4_TEST_T9=2 OPENSC4_TEST_T10=2 OPENSC4_TEST_Q8=2` 12/12; plopped 3/3 with the same switches. All were identical on the first pair. The ` query8` token was the same on both sides of every pair with the tests (15 values over 15 saves), with unexpected slots 0, and every B log has `ui.tools.query8` ours.
 
 ## The U-Drive-It control, first piece (T7a)
 
@@ -2595,7 +2704,7 @@ T11 makes the lot (plop) tool's last three functions ours: the preview update, i
 | cSC4ViewInputControlPlaceLot::UpdateFootprint (point; ret 4). The configuration's records of kind 5 (blue, selection_blue, vector +0xE8) and 6 (red, selection_red, +0xF4): each record's two points (+0x18 and +0x10, half a cell on) to cells by the city's slot 95, the far one less one, turned in the lot (SC4::RotateRectangle) and moved to SnapFootprint's rectangle; the n-th model of its colour (the vector grown and the model asked by name as needed) gets the four corners (slot 12, 0xC) and is shown. The models left over are hidden; with no configuration nothing is done, off the terrain all are hidden | 0x004C2090 | UpdatePreview |
 | cSC4ViewInputControlPlaceLot::BuildPreview (no arguments). Without a preview: the configuration's info gives the turn byte +0x108 and the offsets +0x10C to +0x114 (less half the lot); the development simulator's slot 19 fills a hash set with the building types of the info's IDs, the first type's key (slot 14) makes the preview through the prop manager (slot 16); the preview's occupant gets the flags 0x10, the two properties, a hidden MovePreview, then the police (slots 22 and 20, share 0.5), fire (slots 7 and 21, share 0.5), health and education (properties 0x091B42A2 and 0x691B42B3; slot 45, share 0.7) services set +0x124 bits 1 to 8, the radius +0x120 (32 when the service has none) and the cursor effect names +0xC4 and +0xB0 (PlopMode_*_Plop and _Inactive); the view's markers get the bits (0x007D1D10, 0x007D20E0); the cursor +0x140 is 10 or 0xF2 by the occupant's kind 0x1401 or 0x1302; the placements left +0x154 are 1000, 1 with the property 0xEA2E078B or a true 0xEA3209F8, 16 less 0x00B43DA8's slot 32 of the count 0x0BD86FD3. Always: a record for each prop of the configuration drawn with the preview (kind 1, flag bit 1 clear, exactly one type, known and made by the prop manager, property 0x4A89FCF3 true). Without a picture: the lot's size in pixels (cell size x cells), scaled to 256 when larger, on a square buffer of the next power of two from 16, a white frame inside a translucent one, made the texture binding +0x100 through the framework's texture factory | 0x004C0680 | Init, SetConfiguration, PlaceLot (`ui.tools.plop2`, at the address) |
 
-The adjustor thunks of the message target (0x004BFB00, 0x004BFB10, 0x004BFB20) stay the game's: two instructions each, and four vtables hold them (the query tool's and the dispatch tool's message vtables and the one at 0x00A85990 too), so they are shared helpers.
+The adjustor thunks of the message target (0x004BFB00, 0x004BFB10, 0x004BFB20) were left the game's here; they are ours since T12, in `ui.tools.plop5` (see "The plop tool's message thunks (T12)").
 
 All callers call the three functions by address, keep nothing in EAX, ECX or EDX across them and read nothing they leave on the stack, and no mod patch site lies in them (`foreign_sites.cpp`), so the hooks at their entries serve every caller. Quiet plop (`game.quiet.plop`) is untouched: its wrapper sits on PlaceLot, whose call site markers are part 3's.
 
@@ -2608,3 +2717,21 @@ Oddities kept: the size the arrow reads shares the stack slot of the shown argum
 Trial (2026-10-19, A = the original, B = `ui.tools.base` and `ui.tools.plop1` to `ui.tools.plop4` ours, test day 2, 5 days, with `determinism.dispatch_info`): Making Money d0090, Big City d0000 and Rush Hour d0090 each identical A = B in the whole fingerprint and in every saved record; unexpected slots 0 in all six runs, the stand-in parts' hashes the same on every run (footprint 767DAF7B, preview ADB10893, build 4E268E38) and the real tool's the same on both sides of each save (configurations 0x30000B61, 0x30000B51 and 0x60000AB0). Before that, a first pass and two traced runs on Big City d0000 found three cases the game itself cannot run (a refused texture factory, on which both sides ended in the build part, and rotations outside 0 to 3 with footprint records, whose corners are the stack's) and one translation bug (BuildPreview's stack string sized 0x10, which the game's string code overran; ours ended in the build part); the third traced run matched case by case. `tools/re/sc4save.py --compare` from main at this time fails on the regional city record of these saves ("string runs past the record", from the decoder added in e424647), so the runs compared the saves with the tools as of 8a67330.
 
 Parity (2026-10-19, batch `t11b1`, B = T10's batch list (T9's and `ui.tools.zone2`) plus `ui.tools.plop4`, 7 days, one job): plain 12/12, `OPENSC4_TEST_T7=2 OPENSC4_TEST_T8=2 OPENSC4_TEST_T9=2 OPENSC4_TEST_T10=2 OPENSC4_TEST_T11=2` 12/12, plopped 3/3 with the same switches, all identical on the first pair. The ` plop4` token is the same on both sides of every pair (it differs between cities, through the real tool's part) and unexpected slots are 0 in all 30 runs with the tests; every B log has `ui.tools.plop4` ours. As in the trial, the saves were compared with the tools as of 8a67330.
+
+## The plop tool's message thunks (T12)
+
+T12 makes the lot (plop) tool's last three functions ours: the adjustor thunks of its message target at +0x28 (vtable 0x00A90728). One group, PostAppInit, off by default: `ui.tools.plop5` (src/core/tool_plop_5.cpp, 3 hooks). With `ui.tools.plop1` to `plop4` every function of the class is ours but the shared helpers listed under "Left the game's" in the lot tool's section.
+
+| Function | Address | Jumps to | Vtables |
+| --- | --- | --- | --- |
+| MessageQueryInterface (id, out; ret 8) | 0x004BFB00 | 0x004BDF10, the plop and query tools' QueryInterface (the game's, a shared helper; it answers the message target for the IDs 1 and 0x452294AA and the object for 0xC6BB8345) | the plop tool's 0x00A90728 and the query tool's 0x00A90A78 (slot 0) |
+| MessageAddRef (no arguments) | 0x004BFB10 | 0x004BDF00, the base's AddRef | those two and the dispatch tool's 0x00A90258 and the MySim dispatch tool's 0x00A85988 (slot 1) |
+| MessageRelease (no arguments) | 0x004BFB20 | 0x004B9E20, the base's Release | the same four (slot 2) |
+
+Each thunk in the game is `sub ecx, 0x28` and a jump; ours calls the target at its address with `this` less 0x28, so the base's AddRef and Release are ours when `ui.tools.base` is on and the game's otherwise. The two dispatch tools' slot 0 is the base's own thunk 0x004BA870 (to QueryInterface 0x004B9DE0, `ui.tools.base`). The fourth vtable was listed before as "the one at 0x00A85990": that is the address of its slot 2; the vtable starts at 0x00A85988 (the MySim dispatch tool's message target, docs/ui.md). Nothing in the exe calls or jumps to the thunks directly; they are reached only through the four vtables, so the hooks at their entries serve all four tools. No mod patch site lies in them (`foreign_sites.cpp`). Returns checked by hand: the QueryInterface target ends in `ret 8`, the two others in a plain `ret`, as our signatures.
+
+`OPENSC4_TEST_T12=<day>` (src/core/tool_t12_autotest.cpp, token ` plop5`, fingerprint order 36, day hook 74). It calls only the thunks' addresses, the slots of the four vtables and the four tools' constructors and deleting destructors, never our functions. `OPENSC4_TEST_T12_PARTS` (decimal mask, default 7): 1 the three thunks at their addresses on a stand-in object (a recording vtable: AddRef at slot 1, Destroy at slot 29, every other slot counted as unexpected) with the reference count at 0, 1, 2 and 5 and QueryInterface with the IDs 1, 0x452294AA, 0xC6BB8345, 0 and another; 2 the same through slots 0 to 2 of each of the four vtables, read from the game's data (which thunk each slot holds goes into the hash); 4 a real tool of each kind made by its constructor (the plop tool with (0, 0, 0, 0), the query tool with (0, 0), the dispatch tool with type 0, the MySim dispatch tool with no MySim), through the message target the constructor set: QueryInterface with the five IDs, two AddRefs, Releases down to one reference, then the deleting destructor (slot 26) with 1. Each part's hash and each vtable's and tool's are logged.
+
+Trial (2026-10-19, A = the original, B = `ui.tools.base` and `ui.tools.plop1` to `ui.tools.plop5` ours, test day 2, 5 days, with `determinism.dispatch_info`): Making Money d0090, Big City d0000 and Rush Hour d0090 each identical A = B in the whole fingerprint and in every saved record (77, 78 and 80 records), on the first pass; unexpected slots 0 in all six runs and the ` plop5` token the same in all six (D71EFB0E: every part's hash, including the four real tools', is the same in every city). Build debug and release clean, ctest 21 of 21; returns checked by hand (see above).
+
+Parity (2026-10-19, batch `t12b1`, B = T11's batch list (T10's and `ui.tools.plop4`) plus `ui.tools.plop5`, with `determinism.dispatch_info`, 7 days, one job): plain 12/12, `OPENSC4_TEST_T7=2 OPENSC4_TEST_T8=2 OPENSC4_TEST_T9=2 OPENSC4_TEST_T10=2 OPENSC4_TEST_T11=2 OPENSC4_TEST_T12=2` 12/12, plopped 3/3 with the same switches, all identical on the first pair. The ` plop5` token is D71EFB0E in all 30 runs with the tests and unexpected slots are 0 in every test of every run; every B log has `ui.tools.plop5` ours and no A log does. The saves were compared with the tools of this branch (main's `sc4save.py --compare` works again since 1aca799).

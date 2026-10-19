@@ -26,8 +26,7 @@ def outcome(log, save):
     for key, data in savediff.load(save).items():
         if key[0] in sc4save.SCHEMAS:
             fields, _ = sc4save.decode(data, sc4save.SCHEMAS[key[0]][1])
-            fields.pop('crc', None)
-            fields.pop('id', None)
+            fields.pop('crc', None), fields.pop('id', None)  # the regional city record has neither
             records['%08X/%08X/%08X' % key] = sc4save.comparable(fields)
     return json.dumps({'fp': fpdiff.parse(log), 'records': records}, sort_keys=True)
 
