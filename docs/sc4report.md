@@ -22,7 +22,9 @@ One CSV row per `City - *.sc4` file in the folder, from each file's regional cit
 | power, water, garbage produced and demanded | the commodity map (+0x180) |
 | connections | the number of neighbour connections |
 
-Record versions 10 to 13 decode (13 is what the game writes; before 12 there are no points of interest, before 13 no difficulty, which reads as 2). Older versions are reported as undecoded.
+In real saves the record starts with a uint16 1 before the record's version; we take it to be the segment stream's own version (inferred: all 491 forum saves checked have it). Checked on the 491 GitHub forum saves (test-saves README), all of which decode: `commercial_jobs` is the sum of the five `pop_C*` types, `industrial_jobs` is `pop_Id + pop_Im + pop_Ih` plus a fifth of `pop_Ir` (farm jobs count one fifth), and `residents` is within a few percent of the three `pop_R*` types (it is figured apart). So the type IDs are right. The map also holds types 0x1001, 0x10x0, 0x2xxx and 0x3xx0 (in `pop_other`), meaning not known. Names are UTF-8. The tax column order is still assumed.
+
+Record versions 9 to 13 decode (13 is what the game writes, 9 and 10 are on unfounded stock tiles; before 12 there are no points of interest, before 13 no difficulty, which reads as 2). Version 9 has no workforce share (it reads as 0.5) and decodes exactly on all 252 forum files that have it; none older was seen.
 
 ## budget: funds, bonds, taxes and departments
 
