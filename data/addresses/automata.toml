@@ -1297,3 +1297,452 @@ convention = "thiscall"
 signature = "void (void* this, uint32_t a, uint32_t b)"
 expect = "C2 08 00 CC CC"
 source = "Slot 24 of the base and the attractor: RET 8, three bytes, shared with other classes' vtables. Kept as the game's (part a3c)."
+
+# The vehicle and pedestrian managers (cSC4VehicleManager 0xA98F9D3B, cSC4PedestrianManager 0xC98F9D17) and their shared base (vtable 0x00A9BD88), part v1: the object and its queries (src/core/automata_vehmgr.cpp, the layout in src/core/automata_vehmgr.h; docs/automata.md, "Part v1").
+
+[[entry]]
+name = "cSC4VehicleManager::Create"
+address = 0x005145A0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 E8 0A 00 00 E8 36 10 0D 00 83 C4 04 85 C0 74"
+source = "The vehicle manager's GZCOM factory: 0xAE8 bytes from SC4::operator_new, the constructor 0x0055FB50, and the object + 8 (its serializable part) answered; 0 when either fails. Registered by 0x00514A00 for class 0xA98F9D3B. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4PedestrianManager::Create"
+address = 0x005145D0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 E0 0A 00 00 E8 06 10 0D 00 83 C4 04 85 C0 74"
+source = "The pedestrian manager's GZCOM factory: 0xAE0 bytes, the constructor 0x00545500, the object + 8 answered; 0 when either fails. Class 0xC98F9D17. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::Construct"
+address = 0x00554360
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 57 8B F1 E8 77 E2 FB"
+source = "Name ours: the base the vehicle and pedestrian managers share (vtable 0x00A9BD88). The managers' common base 0x005125E0, its four vtables, then the kind list at +0xA94 (an SC4PairList head of 0x10 bytes), +0xA9C/+0xAA0 = -1, +0xAA4..+0xAB0 zero, the record list at +0xAB8 (a 0x40-byte head), the stopwatch at +0xAC0 (mode 4), +0xAD8/+0xADC zero. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehicleManager::Construct"
+address = 0x0055FB50
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "83 EC 08 53 56 57 8B F1"
+source = "The base 0x00554360, the four vtables, +0xAE0 zero, +0xA40 = 0x16, +0xA44 = 0x4002 (occupant group), +0xA48 = 0x896E714A (cSC4Vehicle), +0xA8C = +0xA90 = 1, the kinds 1, 2, 3, 5, 4, 7, 6, 8, 9, 10 appended to the +0xA94 list as (kind, 0), +0xA98 = the first node, +0xAA4 = 0.2f. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4PedestrianManager::Construct"
+address = 0x00545500
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "83 EC 08 53 56 57 8B F1"
+source = "The base 0x00554360, the four vtables, +0xA40 = 0x17, +0xA44 = 0x4001, +0xA48 = 0x896E75AF (cSC4Pedestrian), +0xA8C = 2, +0xA90 = 0, the kinds 1, 7, 8 appended to the +0xA94 list, +0xA98 = the first node, +0xAA4 = 1.0f. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::Destroy"
+address = 0x00553860
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 57 8D BE B8 0A"
+source = "Name ours. The destructor body: the base vtables back, the stopwatch +0xAC0 destructed, the record list +0xAB8 cleared (0x00551FC0) and its head freed, the +0xAA8 vector's buffer freed, the kind list +0xA94 destroyed (SC4PairList::Destroy), then a tail jump to the common base's destructor 0x00512780. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::DeletingDestructor"
+address = 0x00545670
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 E8 E1 00 00"
+source = "Slot 38 of both managers (ret 4): the body 0x00553860, then SC4::operator_delete when flags bit 0 is set; answers this. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::ClearRecordList"
+address = 0x00551FC0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* field)"
+expect = "53 8B D9 8B 03 56 8B 30"
+source = "Name ours. this = the record list field (+0xAB8): each node's object at +0x34 released (slot 8) and the node freed, then the head linked to itself; answers the head (0x00552A20 tail-jumps here). Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehicleManager::QueryInterface"
+address = 0x0055B630
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 3D 3B 9D 8F"
+source = "Slot 0 (ret 8): 0xA98F9D3B answers the object, AddRef through slot 1; anything else goes on to the common base's 0x00505480. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4PedestrianManager::QueryInterface"
+address = 0x005444C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 3D 17 9D 8F"
+source = "Slot 0 (ret 8): 0xC98F9D17 answers the object, AddRef through slot 1; else 0x00505480. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehicleManager::GetGZCLSID"
+address = 0x0055FE20
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (void)"
+expect = "B8 3B 9D 8F A9 C3"
+source = "Serializable slot 5 (+8 vtable): 0xA98F9D3B. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4PedestrianManager::GetGZCLSID"
+address = 0x00545630
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (void)"
+expect = "B8 17 9D 8F C9 C3"
+source = "Serializable slot 5 (+8 vtable): 0xC98F9D17. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::GetKindCurve"
+address = 0x0054D560
+kind = "function"
+convention = "thiscall"
+signature = "SC4Curve* (void* this, uint32_t kind)"
+expect = "8B 44 24 04 83 C0 FE 83"
+source = "Name ours. Slot 85's base (ret 4, this not read): the static curve of a kind, 2 0x00B21C08, 3 0x00B21C44, 5 0x00B21C1C, 4, 6, 9, 10 0x00B21C30, else 0x00B21BF4. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::GetKindValue"
+address = 0x0054D5C0
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this, uint32_t kind)"
+expect = "8B 44 24 04 83 C0 FE 83"
+source = "Name ours. Slot 86's base (ret 4): the float at +0x10 of the same curve record, in ST0. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehicleManager::GetKindCurve"
+address = 0x0055B440
+kind = "function"
+convention = "thiscall"
+signature = "SC4Curve* (void* this, uint32_t kind)"
+expect = "8B 54 24 04 8B C2 48 74"
+source = "Slot 85 (ret 4): kinds 1 and 7 0x00B21BF4, else the base 0x0054D560. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehicleManager::GetKindValue"
+address = 0x0055B460
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this, uint32_t kind)"
+expect = "8B 54 24 04 8B C2 48 74"
+source = "Slot 86 (ret 4): kinds 1 and 7 the float at 0x00B21C04, else the base 0x0054D5C0. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4PedestrianManager::GetKindCurve"
+address = 0x00544440
+kind = "function"
+convention = "thiscall"
+signature = "SC4Curve* (void* this, uint32_t kind)"
+expect = "8B 54 24 04 8B C2 48 74"
+source = "Slot 85 (ret 4): kinds 1 and 7 0x00B21C60, else the base 0x0054D560. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4PedestrianManager::GetKindValue"
+address = 0x00544460
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this, uint32_t kind)"
+expect = "8B 54 24 04 8B C2 48 74"
+source = "Slot 86 (ret 4): kinds 1 and 7 the float at 0x00B21C70, else the base 0x0054D5C0. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::GetScale"
+address = 0x0054D630
+kind = "function"
+convention = "thiscall"
+signature = "double (void* this, uint32_t a, uint32_t b)"
+expect = "8A 81 3D 0A 00 00 84 C0"
+source = "Name ours. Slot 87 (ret 8, b not read): 1.0 without +0xA3D, else 1 - (+0xA84 slot 0x5C (a)) * 0.01 clamped to 0..0.5 (a NaN passes), unrounded in ST0. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4PedestrianManager::GetScale"
+address = 0x00544480
+kind = "function"
+convention = "thiscall"
+signature = "double (void* this, uint32_t a, uint32_t b)"
+expect = "8A 81 3D 0A 00 00 84 C0"
+source = "Slot 87 (ret 8): 1.0 without +0xA3D, else (+0xA84 slot 0x5C (a)) * 0.02 + 1, unrounded in ST0. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::KindClass"
+address = 0x0054D3C0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t kind)"
+expect = "8B 81 8C 0A 00 00 8B 4C"
+source = "Name ours. Slot 73 (ret 4): kinds 4 and 5 answer 3, 6 4, 9 6, 10 7, else +0xA8C. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::KindGroup"
+address = 0x0054D420
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t kind)"
+expect = "8B 81 44 0A 00 00 8B 4C"
+source = "Name ours. Slot 74 (ret 4): the occupant group of a kind, 2 0x4200, 3 0x4204, 4 0x4215, 5 0x4216, 6 0x4217, 8 0x4102, 9 0x422C, 10 0x422E, else +0xA44. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::AutomatonClass"
+address = 0x0054D6C0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, cISC4Automaton* automaton)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Slot 68 (ret 4): +0xA8C unless the automaton's slot 0x234 answers true; then by its groups (the +4 interface's slot 0x58): 0x422F or 0x422E 7, 0x422D or 0x422C 6, 0x4208 or 0x4217 4, else 3. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::IsAutomatonOccupant"
+address = 0x0054D150
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* automaton)"
+expect = "56 8B 74 24 08 85 F6 74"
+source = "Name ours. Ret 4, this not read: 1 when the automaton's slot 0x14 object answers the type 0xC7CC75F1 or 0x496E5783 (asked twice), else 0 (also for null). Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::IsServiceGroup"
+address = 0x0054D1A0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t group)"
+expect = "8B 44 24 04 3D 05 40 00"
+source = "Name ours. Ret 4, this not read: 1 for the groups 0x4005, 0x4201, 0x4203, 0x4215, 0x4216, 0x4208, 0x4217, 0x422D, 0x422C, 0x422F, 0x422E, 0x4230, 0x4233. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::IsGroup422C"
+address = 0x0054D210
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t group)"
+expect = "8B 44 24 04 3D 2D 42 00"
+source = "Name ours. Ret 4: 1 for 0x422D or 0x422C. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::IsGroup422E"
+address = 0x0054D230
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t group)"
+expect = "8B 44 24 04 3D 2F 42 00"
+source = "Name ours. Ret 4: 1 for 0x422F or 0x422E. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::KindRate"
+address = 0x0054DF40
+kind = "function"
+convention = "thiscall"
+signature = "double (void* this, uint32_t kind)"
+expect = "83 EC 08 56 8B F1 8B 0D"
+source = "Name ours. Slot 75 (ret 4): the kind's curve (slot 85) at the city's slot 0x110 object's slot 0x40 (an int, as a float), times the 24-hour clock's (city slot 0x158) slot 0x50 float times 0x00A9BD08; unrounded in ST0. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::InExtendedBounds"
+address = 0x0054DFB0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* object)"
+expect = "83 EC 1C 8B C1 8B 4C 24"
+source = "Name ours. Slot 41 (ret 4): false for null; else the object's slot 0x1C position (x, y, z) inside the float rectangle +0x14..+0x20 grown by 48 (0x00A9BD0C) on each side, bounds included. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::TestNeighbourCell"
+address = 0x0054D260
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t a, int32_t x, int32_t z, uint8_t direction)"
+expect = "56 8B F1 8B 8E 7C 0A 00"
+source = "Name ours. Slot 82 (ret 0x10, a not read): the cell next to (x, z) in the direction (0 x-1, 1 z-1, 2 x+1, 3 z+1); true outside +0xA7C's slot 0x44 rectangle, with no object there (slot 0x2C) or an object whose slot 0x20 answers true for 0x200000. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::ScaledMatrix"
+address = 0x0054D4A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t a, void* data, float scale, float* out)"
+expect = "8B 54 24 04 8B 01 56 57"
+source = "Name ours. Slot 88 (ret 0x10): the 16 words at data + 0x34 times slot 87 (a, 7) (stored as a float) times the scale into out; with a negative (or NaN) scale the 4x4 is transposed and the scale negated. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::RecordListHits"
+address = 0x00551630
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* field, int32_t x, int32_t z)"
+expect = "53 8B 19 8B 13 33 C0 3B"
+source = "Name ours. this = the record list field (+0xAB8), ret 8: over its nodes, bit 1 when (x, z) is inside the node's int rectangle +0x14..+0x20 and bit 2 inside +0x24..+0x30, bounds included. Ours in simulators.automata.vehmgr (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "cSC4AutomataManager::Construct"
+address = 0x005125E0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "Name ours: the managers' common base (vtable 0x00A95880; the vehicle and pedestrian base 0x00554360 calls it). Called by address from src/core/automata_vehmgr.cpp."
+
+[[entry]]
+name = "cSC4AutomataManager::Destroy"
+address = 0x00512780
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "51 56 8B F1 57 8D BE 64"
+source = "Name ours: the common base's destructor body. Called by address from src/core/automata_vehmgr.cpp."
+
+[[entry]]
+name = "cSC4AutomataManager::QueryInterface"
+address = 0x00505480
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 3D AA 94 22"
+source = "Name ours: the common base's slot 0, where the vehicle and pedestrian managers' QueryInterface goes for other interfaces. Called by address from src/core/automata_vehmgr.cpp."
+
+[[entry]]
+name = "cSC4VehicleManager_Vtable"
+address = 0x00A9D1E0
+kind = "vtable"
+expect = "30 B6 55 00"
+source = "The vehicle manager's main vtable (90 slots)."
+
+[[entry]]
+name = "cSC4VehicleManager_Vtable4"
+address = 0x00A9D1CC
+kind = "vtable"
+expect = "30 FE 55 00"
+source = "The vehicle manager's +4 vtable (4 slots: the adjustors and 0x0055B3F0)."
+
+[[entry]]
+name = "cSC4VehicleManager_SerializableVtable"
+address = 0x00A9D1B4
+kind = "vtable"
+expect = "40 FE 55 00"
+source = "The vehicle manager's +8 serializable vtable (6 slots: the adjustors, Write 0x00553570, Read 0x00554410, GetGZCLSID 0x0055FE20)."
+
+[[entry]]
+name = "cSC4VehicleManager_MessageVtable"
+address = 0x00A9D1A4
+kind = "vtable"
+expect = "50 FE 55 00"
+source = "The vehicle manager's +0xC message target vtable (4 slots: the adjustors and 0x00562620)."
+
+[[entry]]
+name = "cSC4PedestrianManager_Vtable"
+address = 0x00A9A470
+kind = "vtable"
+expect = "C0 44 54 00"
+source = "The pedestrian manager's main vtable (90 slots)."
+
+[[entry]]
+name = "cSC4PedestrianManager_Vtable4"
+address = 0x00A9A460
+kind = "vtable"
+expect = "40 56 54 00"
+source = "The pedestrian manager's +4 vtable (4 slots, the last the common base's 0x0050DD30)."
+
+[[entry]]
+name = "cSC4PedestrianManager_SerializableVtable"
+address = 0x00A9A448
+kind = "vtable"
+expect = "50 56 54 00"
+source = "The pedestrian manager's +8 serializable vtable (GetGZCLSID 0x00545630)."
+
+[[entry]]
+name = "cSC4PedestrianManager_MessageVtable"
+address = 0x00A9A438
+kind = "vtable"
+expect = "60 56 54 00"
+source = "The pedestrian manager's +0xC message target vtable (0x00545450)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase_Vtable"
+address = 0x00A9BD88
+kind = "vtable"
+expect = "80 54 50 00"
+source = "The vehicle and pedestrian managers' base: its main vtable (90 slots)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase_Vtable4"
+address = 0x00A9BD78
+kind = "vtable"
+expect = "50 27 51 00"
+source = "The vehicle and pedestrian managers' base: its +4 vtable."
+
+[[entry]]
+name = "cSC4VehPedManagerBase_SerializableVtable"
+address = 0x00A9BD60
+kind = "vtable"
+expect = "60 27 51 00"
+source = "The vehicle and pedestrian managers' base: its +8 serializable vtable."
+
+[[entry]]
+name = "cSC4VehPedManagerBase_MessageVtable"
+address = 0x00A9BD50
+kind = "vtable"
+expect = "70 27 51 00"
+source = "The vehicle and pedestrian managers' base: its +0xC message target vtable."
+
+[[entry]]
+name = "SC4VehPedManager::CurveKind2"
+address = 0x00B21C08
+kind = "data"
+source = "Name ours. A static SC4Curve record (0x14 bytes, a float at +0x10) the vehicle and pedestrian managers answer by kind (slots 85 and 86); filled at startup (0 in the exe)."
+
+[[entry]]
+name = "SC4VehPedManager::CurveKind3"
+address = 0x00B21C44
+kind = "data"
+source = "Name ours. A static SC4Curve record (0x14 bytes, a float at +0x10) the vehicle and pedestrian managers answer by kind (slots 85 and 86); filled at startup (0 in the exe)."
+
+[[entry]]
+name = "SC4VehPedManager::CurveKind5"
+address = 0x00B21C1C
+kind = "data"
+source = "Name ours. A static SC4Curve record (0x14 bytes, a float at +0x10) the vehicle and pedestrian managers answer by kind (slots 85 and 86); filled at startup (0 in the exe)."
+
+[[entry]]
+name = "SC4VehPedManager::CurveKind4"
+address = 0x00B21C30
+kind = "data"
+source = "Name ours. A static SC4Curve record (0x14 bytes, a float at +0x10) the vehicle and pedestrian managers answer by kind (slots 85 and 86); filled at startup (0 in the exe)."
+
+[[entry]]
+name = "SC4VehPedManager::CurveDefault"
+address = 0x00B21BF4
+kind = "data"
+source = "Name ours. A static SC4Curve record (0x14 bytes, a float at +0x10) the vehicle and pedestrian managers answer by kind (slots 85 and 86); filled at startup (0 in the exe)."
+
+[[entry]]
+name = "SC4PedestrianManager::CurveKind1"
+address = 0x00B21C60
+kind = "data"
+source = "Name ours. A static SC4Curve record (0x14 bytes, a float at +0x10) the vehicle and pedestrian managers answer by kind (slots 85 and 86); filled at startup (0 in the exe)."
+
+[[entry]]
+name = "SC4VehPedManager::BoundsMargin"
+address = 0x00A9BD0C
+kind = "data"
+source = "float 48.0: the margin of slot 41's rectangle (src/core/automata_vehmgr.cpp)."
+
+[[entry]]
+name = "SC4VehPedManager::RateScale"
+address = 0x00A9BD08
+kind = "data"
+source = "float 1/3600 (2.778e-4): slot 75's scale (src/core/automata_vehmgr.cpp)."
