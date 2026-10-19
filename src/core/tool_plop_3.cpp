@@ -9,10 +9,9 @@
 //     cell, tests the placement, makes the cursor text and the cost) and the
 //     mouse exit (0x004C36C0).
 //
-// Left the game's, called by address: the preview update 0x004C2660 and the
-// footprint update 0x004C2090. Both build and move the cursor's overlay
-// objects (the arrow, the footprint rectangles and their tint) through the
-// effects service 0x00B43D1C with inline vertex arithmetic: drawing.
+// Called by address: the preview update 0x004C2660 (ours in ui.tools.plop4,
+// tool_plop_4.cpp, which hooks its entry; it calls the footprint update
+// 0x004C2090 the same way).
 //
 // Fields of the object (from its start; up to +0x24 the base class):
 //   +0x1C the city view            +0x20 an object released after a move
@@ -126,7 +125,7 @@ int32_t ToInt(double value)
     return static_cast<int32_t>(static_cast<int64_t>(value));
 }
 
-// The preview update (0x004C2660, ret 0xC; left the game's, drawing).
+// The preview update (0x004C2660, ret 0xC; ui.tools.plop4 hooks it).
 void UpdatePreview(void* self, uint32_t allowed, uint32_t shown, void* point)
 {
     This<void>(addr::cSC4ViewInputControlPlaceLot_UpdatePreview, self, allowed, shown, point);

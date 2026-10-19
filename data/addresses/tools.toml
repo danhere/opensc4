@@ -834,7 +834,7 @@ address = 0x004C0680
 kind = "function"
 convention = "thiscall"
 expect = "81 EC 8C 00 00 00 53 55"
-source = "Name ours. No arguments, no result: the lot configuration's model and cursor flags at +0x108..+0x124 and the footprint picture (a framed white pixel buffer made through 0x00B43C9C slot 3 and uploaded as a texture at +0x100, sized to a power of two up to 0x100). Drawing: left the game's, called by address. Callers Init, SetConfiguration, PlaceLot."
+source = "Name ours. No arguments, no result: the lot configuration's model and cursor flags at +0x108..+0x124 and the footprint picture (a framed white pixel buffer made through 0x00B43C9C slot 3 and uploaded as a texture at +0x100, sized to a power of two up to 0x100). Also the preview prop (prop manager slot 16), the services' radii and cursor effect names (+0xB0, +0xC4, flags +0x124), the cursor +0x140, the placements left +0x154 and the prop records (+0x144). Callers Init, SetConfiguration, PlaceLot. Ours in ui.tools.plop4 (src/core/tool_plop_4.cpp)."
 
 [[entry]]
 name = "SC4::TutorialAllowsPlacement"
@@ -906,7 +906,7 @@ address = 0x004C2660
 kind = "function"
 convention = "thiscall"
 expect = "8A 44 24 08 83 EC 6C 84"
-source = "Name ours. (allowed byte, shown byte, float* point), ret 0xC. Moves, makes and hides the cursor overlay objects (arrow, footprint rectangles and tint) through the effects service 0x00B43D1C with inline vertex arithmetic, and when the allowed byte differs from +0x94 sets the cursor (slot 8) to 0x88E70B76 or 0x417EE2CB. Drawing: left the game, called at its address by ui.tools.plop3."
+source = "Name ours. (allowed byte, shown byte, float* point), ret 0xC. Moves, makes and hides the cursor overlay objects (arrow, footprint rectangles and tint) through the effects service 0x00B43D1C with inline vertex arithmetic, and when the allowed byte differs from +0x94 sets the cursor (slot 8) to 0x88E70B76 (refused) or 0x417EE36B (allowed). Callers OnMouseDownL, OnMouseExit, DoMessage, OnKeyDown and OnMouseMove (ui.tools.plop3 calls it at its address). Ours in ui.tools.plop4 (src/core/tool_plop_4.cpp)."
 
 [[entry]]
 name = "cSC4ViewInputControlPlaceLot::UpdateFootprint"
@@ -914,7 +914,7 @@ address = 0x004C2090
 kind = "function"
 convention = "thiscall"
 expect = "81 EC A4 00 00 00 55 8B"
-source = "Name ours. (float* point), ret 4. Builds the footprint's overlay rectangles into the vectors at +0xE8 and +0xF4 from the placement test 0x004BE750. Drawing: left the game's; only caller is UpdatePreview."
+source = "Name ours. (float* point), ret 4. Builds the footprint's overlay rectangles into the vectors at +0xE8 (selection_blue, records of kind 5) and +0xF4 (selection_red, kind 6) from SnapFootprint 0x004BE750, the city's slot 95 and SC4::RotateRectangle; the models left over are hidden. Only caller UpdatePreview. Ours in ui.tools.plop4 (src/core/tool_plop_4.cpp)."
 
 [[entry]]
 name = "cSC4ViewInputControlPlaceLot::PositionEpsilon"
@@ -5667,3 +5667,83 @@ name = "SC4CheatTool::FootprintOk"
 address = 0x00A9093C
 kind = "data"
 source = "Name ours. The string building_footprint_ok: the model the cheat tool shows for kinds 1 and 2."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::SelectionBlue"
+address = 0x00A908E8
+kind = "data"
+source = "Name ours. The string selection_blue: the model of a footprint's blue rectangle (records of kind 5), made by UpdateFootprint 0x004C2090."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::SelectionRed"
+address = 0x00A908D8
+kind = "data"
+source = "Name ours. The string selection_red: the model of a footprint's red rectangle (records of kind 6), made by UpdateFootprint 0x004C2090."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::DirectionArrow"
+address = 0x00A90904
+kind = "data"
+source = "Name ours. The string Lot_Direction_Arrow: the arrow model UpdatePreview 0x004C2660 keeps at +0xE0."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::PolicePlop"
+address = 0x00A90860
+kind = "data"
+source = "Name ours. The string PlopMode_Police_Plop: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::PoliceInactive"
+address = 0x00A90844
+kind = "data"
+source = "Name ours. The string PlopMode_Police_Inactive: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::FirePlop"
+address = 0x00A90830
+kind = "data"
+source = "Name ours. The string PlopMode_Fire_Plop: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::FireInactive"
+address = 0x00A90818
+kind = "data"
+source = "Name ours. The string PlopMode_Fire_Inactive: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::HealthPlop"
+address = 0x00A90800
+kind = "data"
+source = "Name ours. The string PlopMode_Health_Plop: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::HealthInactive"
+address = 0x00A907E4
+kind = "data"
+source = "Name ours. The string PlopMode_Health_Inactive: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::EducationPlop"
+address = 0x00A907CC
+kind = "data"
+source = "Name ours. The string PlopMode_Education_Plop: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::EducationInactive"
+address = 0x00A907B0
+kind = "data"
+source = "Name ours. The string PlopMode_Education_Inactive: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "SC4::ColorWhite"
+address = 0x00B095E8
+kind = "data"
+source = "Name ours. Three floats 1, 1, 1: the colour UpdatePreview 0x004C2660 gives the preview's tint block."
+
+[[entry]]
+name = "SC4Tint::Construct"
+address = 0x0048EEF0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 C6 00 00 C6 40 01"
+source = "Name ours. No arguments, plain ret: a 0x14-byte tint block (the one MovePreview hands the preview's parts): bytes 0 and 1 cleared, the colour from the three floats at 0x00B09480, the alpha 1.0; bytes 2 and 3 left. BuildPreview 0x004C0680 makes one for the hidden preview."
