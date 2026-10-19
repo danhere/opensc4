@@ -57,6 +57,23 @@ With `--departments`, one row per department budget instead, in the budget's ord
 
 Unconfirmed on real saves: that the departments' current expense is what the budget window shows a month.
 
+## demand: RCI demand
+
+    python3 tools/sc4report.py demand "<city.sc4 or folder>" [--all] [-o demand.csv]
+
+One CSV row per city file (a folder gives every `*.sc4` in it), from the city's demand objects (class 0x8990C12D, all in one entry; [demand.md](demand.md)). The figures are as of the city's last save.
+
+| Column | From |
+|---|---|
+| file, status | the file name; `ok`, or why there is no row: `unreadable`, `no demand record`, `undecoded` (a record version the decoder does not know) |
+| demands | the number of demand objects (174 in every forum save) |
+| R$ to Ih | the active demand (+0x34) of each RCI group's own city demand (ID 0x21010 for R$, 0x23110 Cs$, 0x23320 Co$$, 0x24100 Ir, and so on): what its bar shows, from -6000 to 6000 with the stock exemplars |
+| R$_cap to Ih_cap | the same demands' caps (+0x44) as fractions: how much of the demand other demands hold back (1.0 is all) |
+
+With `--all`, one row per demand object instead, in ID order: `id`, `supply`, `demand`, `min`, `max`, `active`, `economy`, `tax` (the modifiers) and `cap`. For a file with no row, the reason is in `id`.
+
+Checked on the 491 GitHub forum saves (test-saves README): all decode, demand records version 1 (unfounded stock tiles) and 2, no leading stream version like the regional city's. Every active demand is within -6000 and 6000 and every cap within 0 and 1. Unconfirmed: that the columns match the in-game RCI bars (needs the game).
+
 The idea of the census is Null 45's Region Census DLL; no code of it is used.
 
-Tests: `tests/python/test_sc4report.py` builds a version 13 regional city record by hand, `tests/python/test_sc4report_budget.py` a budget with two departments and three line items (ctest `python_tools`, or `python3 -m unittest discover -s tests/python`).
+Tests: `tests/python/test_sc4report.py` builds a version 13 regional city record by hand, `tests/python/test_sc4report_budget.py` a budget with two departments and three line items, `tests/python/test_sc4report_demand.py` three demand objects (ctest `python_tools`, or `python3 -m unittest discover -s tests/python`).
