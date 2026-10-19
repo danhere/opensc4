@@ -903,7 +903,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* stream)"
 expect = "83 EC 14 53 56 8B 74 24 20 8B 06 57 8B F9 6A 05"
-source = "The +4 serializable vtable's slot 3 (base), this = object + 4, ret 4: version 5, the occupant (0x005D99A0), its serializable part (+4) or an empty string, the position (0x005DA580), +0x50 and +0x54 (stream slot 0x30), +0x3C, +0x40 and the automaton count +0x48 (slot 0x24), then a reference per automaton list node; true when the stream has no error (slot 0x48)."
+source = "The +4 serializable vtable's slot 3 (base), this = object + 4, ret 4: version 5, the occupant (0x005D99A0), the template's name (template + 4) or an empty string made on the stack, the position (0x005DA580), +0x50 and +0x54 (stream slot 0x30), +0x3C, +0x40 and the automaton count +0x48 (slot 0x24), then a reference per automaton list node; true when the stream has no error (slot 0x48). Ours in simulators.automata.ctlserial."
 
 [[entry]]
 name = "cSC4AutomataAttractor::SerializableWrite"
@@ -912,7 +912,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* stream)"
 expect = "56 8B 74 24 08 57 56 8B F9 E8 92 FD FF FF 8B 06 6A 01 8B CE"
-source = "The attractor's +4 serializable vtable slot 3, this = object + 4, ret 4: the base Write, version 1, its curve at +0x5C (0x005DB190), then the stream's error test."
+source = "The attractor's +4 serializable vtable slot 3, this = object + 4, ret 4: the base Write, version 1, its curve at +0x5C (0x005DB190), then the stream's error test. Ours in simulators.automata.ctlserial."
 
 [[entry]]
 name = "cSC4AutomataGenerator::SerializableWrite"
@@ -921,7 +921,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* stream)"
 expect = "56 8B 74 24 08 8B 06 57 8B F9 6A 04 8B CE FF 50 1C"
-source = "The generator's +4 serializable vtable slot 3, this = object + 4, ret 4: version 4, the base Write, then +0x78, +0x7C, +0x80, +0x90 and +0x94 (slots 0x30, 0x18, 0x30, 0x18, 0x24, 0x24), then the stream's error test."
+source = "The generator's +4 serializable vtable slot 3, this = object + 4, ret 4: version 4, the base Write, then +0x78, +0x7C, +0x80, +0x84, +0x90 and +0x94 (slots 0x30, 0x18, 0x30, 0x18, 0x24, 0x24), then the stream's error test. Ours in simulators.automata.ctlserial."
 
 [[entry]]
 name = "cSC4AutomataController::Destroy"
@@ -1208,3 +1208,92 @@ signature = "void (cSC4AutomataGenerator* this, uint32_t time, uint32_t second, 
 expect = "8B 44 24 08 83 EC 08 53 8B 5C 24 18 56 53 8B F1"
 source = "Slot 38 (generator; time, second, passed), ret 0xC: the base Tick 0x00514D90, then (not saturated, flag 0x400 clear, flag 4 set, 0x0054DD00(7)) the passed time into its +0x78 clock pair; once the pair is reached (+0x78 against +0x80, 0x00515250): below the limit (0x00515220), the controller time's weekday in the template's +0x34, the hour curve (0x005F4250) not zero and a fresh draw (0x0091372E) within +0xA4 spawn (slot 41); and on the reached path only the spawn interval (1/60, 1, 24 or 168 hours by +0x9C, over +0x98) is added to +0x80 and +0x78 zeroed. The not-reached path returns before the reset, leaving the pair accumulating. Ours in simulators.automata.ctlbehaviour."
 
+[[entry]]
+name = "cSC4AutomataController::SerializableRead"
+address = 0x005180E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "83 EC 08 53 55 56 8B 74 24 18 8B 06 57 8B F9 8D"
+source = "The +4 serializable vtable's slot 4 (base), this = object + 4, ret 4: a version (uint16, into the stream argument's stack slot, unchecked); the occupant released and read again (0x005D9730, interface 0x26BB767E); the name into the controller's own +0x28 (stream slot 0x3C); the position (0x005DA550); +0x50 and +0x54 (slot 0x30); +0x3C, +0x40 and the count +0x48 (slot 0x24); then one appended list node per automaton reference (interface 0xA9B40F05), the list not emptied first; true when the stream has no error (slot 0x48). Ours in simulators.automata.ctlserial."
+
+[[entry]]
+name = "cSC4AutomataAttractor::SerializableRead"
+address = 0x00518270
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "56 8B 74 24 08 57 56 8B F9 E8 62 FE FF FF 8B 06"
+source = "The attractor's +4 serializable vtable slot 4, ret 4: the base Read, a version (unchecked), its curve at +0x5C (0x005DB5D0), then the stream's error test. Ours in simulators.automata.ctlserial."
+
+[[entry]]
+name = "cSC4AutomataGenerator::SerializableRead"
+address = 0x00518450
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57 8B F9 8D 4C 24 0C 51 8B"
+source = "The generator's +4 serializable vtable slot 4, ret 4: a version into the stream argument's stack slot; AL 0 unless its low word is 4; then the base Read, +0x78, +0x7C, +0x80, +0x84, +0x90 and +0x94 (slots 0x30, 0x18, 0x30, 0x18, 0x24, 0x24), then the stream's error test. Ours in simulators.automata.ctlserial."
+
+[[entry]]
+name = "cSC4AutomataGenerator::Spawn"
+address = 0x005198A0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4AutomataGenerator* this, void* unused, float curve)"
+expect = "55 8B EC 83 E4 F8 81 EC 24 01 00 00 D9 45 0C 53"
+source = "Slot 41 (unused, curve), ret 8, 2,222 bytes: the number of automata by the template's +0x8C (0: curve times +0x88, at least 1; 1: a building's value from the simulator at city slot 0x110 or its lot's, times +0x88; 2: the simulator's slot 0x40 times +0x88), rounded with 1.5 x 2^23 (0x00A95D58), at most 25; for each, while +0x48 is within the limit (+0x98, else the template's +0x54), a place (a random cell of 0x00518DC0 with flag 0x80 or 0x800, checked by the traffic network; else a random angle and radius around the position, 0x005D77A0), an automaton class (0x00516010), its manager (0x0050CCA0) and the automaton (its slot 0x3C), appended, referenced and counted (+0x48, +0x94, +0x88 against +0x8C), with a spot (slot 32). Ours in simulators.automata.ctlspawn."
+
+[[entry]]
+name = "cSC4AutomataController::PositionFromBox"
+address = 0x00516C40
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4AutomataController* this, float* out)"
+expect = "83 EC 5C 57 8B F9 6A FF 8D 4C 24 4C E8 0B CE 3F"
+source = "Slot 22 (out), ret 4: seeds a cRZRandom on its stack (never drawn); without an occupant the controller's +0x14..+0x1C; without a lot the occupant's position (slot 0x20); else the middle of the lot's front edge one metre (0x00A81228) out, by the lot's facing (slot 0x5C, jump table 0x00516EA4). Ours in simulators.automata.ctlspawn."
+
+[[entry]]
+name = "cSC4AutomataController::ResetAccumulators"
+address = 0x00514E30
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4AutomataController* this)"
+expect = "56 8B F1 8B 46 10 85 C0 74 26 8B 40 58 8B 16 6A"
+source = "Slot 26: with a template, SetFlag(the template's +0x58, 1), SetFlag(2, 1), +0x54 = the template's +0x4C, +0x58 = 0. Ours in simulators.automata.ctlspawn."
+
+[[entry]]
+name = "cSC4AutomataController::AutomatonEventB"
+address = 0x0051BCA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (cSC4AutomataController* this, void* automaton, uint32_t kind)"
+expect = "83 7C 24 08 04 75 2B 8B 41 0C 8B 0D EC 3C B4 00"
+source = "Slot 29 (base, the generator's; automaton, kind), ret 8: kind 4 adds the automaton to the manager's record of the occupant (0x0051B9D0 with 1, then 0x005184E0). AL 0. Ours in simulators.automata.ctlspawn."
+
+[[entry]]
+name = "cSC4AutomataAttractor::AutomatonEventC"
+address = 0x0051C030
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (cSC4AutomataAttractor* this, void* automaton, uint32_t kind)"
+expect = "56 8B F1 8B 46 44 39 00 57 8B 7C 24 0C 74 38 8B"
+source = "Slot 30 (attractor; automaton, kind), ret 8: the automaton out of the +0x44 list (node freed, +0x48 less one, released), then the base event 30 0x0051BCE0. Ours in simulators.automata.ctlspawn."
+
+[[entry]]
+name = "cSC4AutomataController::SetLimit"
+address = 0x00517EF0
+kind = "function"
+convention = "thiscall"
+signature = "void (cSC4AutomataController* this, uint32_t value)"
+expect = "8B 44 24 04 89 41 54 C2 04 00"
+source = "Slot 19 (value), ret 4: +0x54 = value. Ours in simulators.automata.ctlspawn."
+
+[[entry]]
+name = "cSC4AutomataController::TimePassedStub"
+address = 0x006F7DC0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t a, uint32_t b)"
+expect = "C2 08 00 CC CC"
+source = "Slot 24 of the base and the attractor: RET 8, three bytes, shared with other classes' vtables. Kept as the game's (part a3c)."

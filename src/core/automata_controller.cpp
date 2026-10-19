@@ -15,6 +15,8 @@
 //   kController below (part a3a).
 //   simulators.automata.ctlbehaviour: the 19 detours listed in
 //   kBehaviour below (part a3b).
+//   simulators.automata.ctlserial and simulators.automata.ctlspawn: the 6
+//   and 6 detours of kSerial and kSpawn (part a3c).
 //
 // What it does. cSC4AutomataController is the base of the attractor and the
 // generator (both held by the controller manager, parts a1 and a2). The base
@@ -37,8 +39,8 @@
 // The +4 serializable vtable (6 slots, not the survey's 4) has its own
 // QueryInterface 0x00517F30 (ecx - 4 then the controller's), AddRef and
 // Release adjustors, Write 0x00517FD0 with the attractor's 0x00518230 and
-// the generator's 0x005183D0 overrides and Read (the save; still the game's,
-// a later part) and GetGZCLSID 0x00517F00 (0x4A18672B; the derived classes reuse
+// the generator's 0x005183D0 overrides and Read (the save, part a3c below)
+// and GetGZCLSID 0x00517F00 (0x4A18672B; the derived classes reuse
 // their slot 5).
 //
 // Oddities kept: QueryInterface's null branches write a null and then call
@@ -61,6 +63,7 @@
 
 #include "core/address_check.h"
 #include "core/automata_ctlmgr.h"
+#include "core/fixed_seed.h"
 #include "core/game.h"
 #include "core/hook.h"
 #include "core/log.h"
@@ -201,7 +204,13 @@ char* __fastcall GeneratorConstruct(char* self, void*)
     CallThis<char*>(addr::cSC4AutomataController_Construct, self);
     At<std::uintptr_t>(self, field::kVtable) = addr::cSC4AutomataGenerator_Vtable;
     At<std::uintptr_t>(self, field::kSerializable) = addr::cSC4AutomataGenerator_SerializableVtable;
-    CallThis<void>(addr::SC4Random_Construct, self + field::kRandom, static_cast<std::uint32_t>(0xFFFFFFFF));
+    {
+        // The clock seed is counted under the original's call site (the
+        // return address after its cRZRandom call), not ours: part a3c's
+        // spawn draws from this generator.
+        const fixed_seed::SiteOverride site(0x005182CF);
+        CallThis<void>(addr::SC4Random_Construct, self + field::kRandom, static_cast<std::uint32_t>(0xFFFFFFFF));
+    }
     At<std::uint32_t>(self, field::kGen78) = 0;
     At<std::uint16_t>(self, field::kGen7C) = 0;
     At<std::uint32_t>(self, field::kGen80) = 0;
@@ -563,7 +572,7 @@ void __fastcall GeneratorSetLimit(char* self, void*, std::uint32_t value)
 // the tick's accumulators 0x00514E30 (26), the base automaton event 29
 // 0x0051BCA0 and the attractor's 30 0x0051C030, SetLimit 0x00517EF0 (19),
 // the generator's spawn 0x005198A0 (41) and the time passed stub 0x006F7DC0
-// (24). Their address entries are in data/addresses/automata.toml.
+// (24). Part a3c below takes all of them but the stub.
 //
 // What it does. Init gives the controller the city's script system, and with
 // flag 0x20 (a controller placed by a lot) the centre of its occupant's lot
@@ -1344,6 +1353,670 @@ void __fastcall GeneratorTick(char* self, void*, std::uint32_t timeBits, std::ui
 }
 
 // ====================================================================================
+// Part a3c: the save and the rest of the behaviour
+//
+// Two more groups, off by default, so a3a's and a3b's stay as they were:
+//   simulators.automata.ctlserial (kSerial, 6): the +4 serializable part's
+//   Write (base 0x00517FD0, attractor 0x00518230, generator 0x005183D0) and
+//   Read (base 0x005180E0, attractor 0x00518270, generator 0x00518450).
+//   simulators.automata.ctlspawn (kSpawn, 6): the generator's spawn
+//   0x005198A0 (slot 41), the position from the occupant's lot 0x00516C40
+//   (slot 22), resetting the tick's accumulators 0x00514E30 (26), the base
+//   automaton event 29 0x0051BCA0 (the generator's), the attractor's event 30
+//   0x0051C030 and SetLimit 0x00517EF0 (19).
+// Still the game's: the time-passed stub 0x006F7DC0 (slot 24 of the base and
+// the attractor), `RET 8`, three bytes, shared with other classes' vtables.
+//
+// What it does. The serializable functions take object + 4 as this. Write
+// saves a version (5), the occupant as a reference, the template's name (or
+// an empty string the function makes on its stack), the position, +0x50 and
+// +0x54, +0x3C, the flags and the automaton count, then a reference per
+// automaton of the list, and answers 1 when the stream reports no error. The
+// attractor adds version 1 and its curve (0x005DB190); the generator writes
+// version 4 first, then the base, then its two clock pairs (+0x78/+0x7C,
+// +0x80/+0x84) and +0x90, +0x94. Read mirrors it: it releases the occupant
+// it has before reading the reference, reads the name into the controller's
+// own name (+0x28; the manager finds the template by that name after a load,
+// part a2's ResolveTemplates), and appends one list node per automaton
+// reference to the list it has, without emptying it, the count read straight
+// into +0x48. The generator's Read answers 0 after its version unless that
+// is 4; nothing else checks a version.
+// The spawn makes automata at the generator: how many from the template's
+// +0x8C kind (0: the curve value times +0x88; 1: for a building, its
+// capacity or jobs from the simulator at city slot 0x110, or a value of its
+// lot; 2: a count from that simulator), rounded with the game's 1.5 x 2^23
+// trick, at least 1 for kind 0 and at most 25. For each, until the list
+// passes its limit (+0x98, else the template's +0x54), a place: with flag
+// 0x80 or 0x800 a random cell from 0x00518DC0's list (network kinds 0xC49
+// and 2), a random point in it pulled to between the template's +0x20 and
+// +0xA8 of the box edge when the line from the controller leaves the box,
+// kept only when the traffic network takes it (slot 0xAC) and set on its
+// height (slot 0x48); otherwise a random angle and radius around the
+// controller's position (0x005D77A0 turns the point), from the box edge when
+// the line leaves it, on the terrain. Then an automaton class (0x00516010
+// when it has none or has made its count), its manager (0x0050CCA0), and the
+// automaton (the manager's slot 0x3C) is appended, referenced, counted
+// (+0x48, +0x94), told the controller manager (its slot 0x9C) and given a
+// spot (slot 32, PickSpot) or none; +0x88 counts to +0x8C.
+// The position from the box is the middle of the lot's front edge, by the
+// lot's facing (slot 0x5C), one metre out, else the occupant's own position
+// (no lot) or the controller's (no occupant). Resetting the accumulators sets
+// the template's flags and flag 2 and takes +0x54 from the template's +0x4C,
+// zeroing +0x58. Event 29 (base, kind 4) adds the automaton to the manager's
+// record of the occupant (0x0051B9D0, 0x005184E0); the attractor's event 30
+// takes the automaton out of its own list (releasing it) and then runs the
+// base event 30.
+//
+// Oddities kept: Write saves the template's name, Read reads it into the
+// controller's own name, so a controller read back writes an empty name
+// until its template is set again; Read appends to the list it has; the
+// versions are read into the stack slot of the stream argument (the
+// generator compares that slot's low word with 4, so a failed read compares
+// the low word of the stream's address; ours starts the slot the same way).
+// The generator's Read leaves EAX's top three bytes from the stream call when
+// it answers 0 (its callers test AL; ours answers 0). The position from the
+// box seeds a cRZRandom on its stack and never draws from it: the clock seed
+// still counts at the game's site (0x00516C51), so ours seeds one too. The
+// spawn reads the template's +0x8C without testing the template; its
+// rounding subtracts 0x4B400000 from the float's bits, so a negative value
+// gives a huge count, capped at 25; with no cells the place's radius (for
+// PickSpot) stays the random radius, with cells it is the distance from the
+// controller. Base event 29 answers AL 0 and leaves EAX's top bytes; ours
+// answers 0.
+//
+// Calls, each count from the asm's pushes and the callee's own ret: the
+// stream's slots 0x18, 0x1C, 0x24, 0x30, 0x3C, 0x48 (cIGZOStream/cIGZIStream
+// SetSint16/GetSint16, SetUint16/GetUint16, SetUint32/GetUint32,
+// SetFloat32/GetFloat32, SetGZStr/GetGZStr, GetError); SC4Stream's
+// WriteReference (stream, object), ReadReference (stream, iid, out, 0),
+// WriteVector3 / ReadVector3 (stream, vector), the curve's 0x005DB190 /
+// 0x005DB5D0 (stream, curve), all cdecl; the controller's slots 11, 12, 13,
+// 22, 32 and the city's 0x84, 0xA0, 0xBC, 0x110, 0x188; the occupant's 0x1C,
+// 0x20, 0x2C, 0x58; the lot's 0x38 and 0x5C; the simulator's 0x40, 0x68,
+// 0x6C (occupant, info); the lot service 0x00B43D08's 0x18 (x, z, 0) and its
+// lot's 0xF4 (out); the traffic network's 0x48 (x, z) and 0xAC (point,
+// kind); the terrain's 0x34 (x, z); the automaton manager's 0x3C (class,
+// point, 0x2000002, rotation, 0, byte, 0); the automaton's 0x04, 0x9C
+// (target), 0xD0 (0, controller, -1.0, 0, 0, 0, 0), 0xDC (spot, controller).
+// The game's helpers at their addresses: 0x00414210 (the info's constructor),
+// 0x00518DC0 (cells out, kind), 0x00913761 Between (lo, hi doubles),
+// 0x009136B1 (n), 0x0091372E NextFloat, 0x005D77A0 (centre, point, angle,
+// out) cdecl, 0x00514E70 (a, b, crossing out), 0x005D76A0 (a, b) cdecl,
+// 0x00516010, 0x0050CCA0 (class) cdecl, 0x00427640 PushBack (value),
+// 0x0051B9D0 (occupant, 1), 0x005184E0 (automaton), the base event 30
+// 0x0051BCE0 (automaton, kind), SC4Random::Construct (seed).
+//
+// Floats as in part a3b: 53-bit doubles, a float where the game stores one,
+// a double where it keeps ST0 (the random values, the distance, the sums
+// before their store). Both FCOM tests are written as the comparison they
+// mean, NaN included.
+
+constexpr std::uintptr_t kInfoConstruct = 0x00414210;   // (this)
+constexpr std::uintptr_t kSpawnCells = 0x00518DC0;      // (cells out, kind), ret 8
+constexpr std::uintptr_t kRandomBetween = 0x00913761;   // (lo, hi doubles) -> double
+constexpr std::uintptr_t kRandomBelow = 0x009136B1;     // (n) -> [0, n)
+constexpr std::uintptr_t kTurnPoint = 0x005D77A0;       // (centre, point, angle, out) cdecl
+constexpr std::uintptr_t kPickClass = 0x00516010;       // ()
+constexpr std::uintptr_t kAutomatonManager = 0x0050CCA0; // (class) cdecl
+constexpr std::uintptr_t kLotService = 0x00B43D08;      // the lot manager service
+constexpr std::uintptr_t kRoundMagic = 0x00A95D58;      // float 1.5 x 2^23
+constexpr std::uintptr_t kSpawnMost = 0x00A95D50;       // uint32 25
+constexpr std::uintptr_t kTwoToThe32 = 0x00A80AA8;      // float 2^32
+constexpr std::uintptr_t kZeroDouble = 0x00A80990;      // double 0
+constexpr std::uintptr_t kTwoPi = 0x00A96018;           // double 2 pi
+constexpr std::uintptr_t kCellSize = 0x00A96010;        // double 16
+constexpr std::uintptr_t kFarPoint = 0x00A949E4;        // float 10000
+constexpr std::uintptr_t kOne = 0x00B09A14;             // float 1
+constexpr std::uintptr_t kDirectionY = 0x00A81054;      // float 0
+constexpr std::uintptr_t kFrontOffset = 0x00A81228;     // float 1
+constexpr std::uintptr_t kHalf = 0x00A84D2C;            // float 0.5
+constexpr std::uint32_t kIidOccupant = 0x26BB767E, kIidAutomaton = 0xA9B40F05;
+
+// The stream's slots.
+namespace stream {
+inline constexpr std::size_t kInt16 = 0x18, kUint16 = 0x1C, kUint32 = 0x24, kFloat32 = 0x30, kString = 0x3C;
+inline constexpr std::size_t kError = 0x48;
+} // namespace stream
+
+std::uint32_t NoError(void* s) { return Virtual<std::uint8_t>(s, stream::kError) == 0 ? 1u : 0u; }
+
+// A version read into the stack slot of the stream argument, as the game
+// does: a failed read leaves the slot's low word as the stream's address.
+std::uint16_t ReadVersion(void* s)
+{
+    std::uint32_t slot = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(s));
+    Virtual<std::uint8_t>(s, stream::kUint16, &slot);
+    return static_cast<std::uint16_t>(slot);
+}
+
+// ------------------------------------------------------------------------------------
+// The save
+
+// 0x00517FD0, the +4 serializable slot 3 (base; the two Writes call it),
+// ret 4.
+std::uint32_t __fastcall SerializableWrite(char* part, void*, void* s)
+{
+    static bool logged;
+    FirstCall("serializable Write", logged);
+    char* const self = part - field::kSerializable;
+    Virtual<std::uint8_t>(s, stream::kUint16, 5u);
+    CallCdecl<std::uint8_t>(addr::SC4Stream_WriteReference, s, At<void*>(self, field::kOccupant));
+    if (char* const t = static_cast<char*>(Template(self))) {
+        Virtual<std::uint8_t>(s, stream::kString, t + 4);
+    } else {
+        // An empty cRZBaseString on the stack: its vtable, the byte vector
+        // (8 bytes) and its reference count.
+        struct {
+            std::uintptr_t vtable;
+            char* begin;
+            char* end;
+            char* capacity;
+            std::uint32_t references;
+        } empty{};
+        char* const buffer = static_cast<char*>(Allocate(8));
+        empty.begin = buffer;
+        empty.end = buffer;
+        empty.capacity = buffer + 8;
+        buffer[0] = 0;
+        empty.vtable = addr::SC4String_Vtable;
+        empty.references = 0;
+        Virtual<std::uint8_t>(s, stream::kString, &empty);
+        empty.vtable = addr::SC4String_Vtable;
+        if (empty.begin)
+            Free(empty.begin);
+    }
+    CallCdecl<void*>(addr::SC4Stream_WriteVector3, s, self + field::kX);
+    Virtual<std::uint8_t>(s, stream::kFloat32, At<std::uint32_t>(self, field::k50));
+    Virtual<std::uint8_t>(s, stream::kFloat32, At<std::uint32_t>(self, field::k54));
+    Virtual<std::uint8_t>(s, stream::kUint32, At<std::uint32_t>(self, field::k3C));
+    Virtual<std::uint8_t>(s, stream::kUint32, At<std::uint32_t>(self, field::kFlags));
+    Virtual<std::uint8_t>(s, stream::kUint32, At<std::uint32_t>(self, field::kAutomataCount));
+    for (ListNode* e = At<ListNode*>(self, field::kAutomata)->next; e != At<ListNode*>(self, field::kAutomata);
+         e = e->next)
+        CallCdecl<std::uint8_t>(addr::SC4Stream_WriteReference, s, e->value);
+    return NoError(s);
+}
+
+// 0x00518230, the attractor's: the base Write, version 1, its curve.
+std::uint32_t __fastcall AttractorSerializableWrite(char* part, void*, void* s)
+{
+    static bool logged;
+    FirstCall("attractor serializable Write", logged);
+    CallThis<std::uint32_t>(addr::cSC4AutomataController_SerializableWrite, part, s);
+    Virtual<std::uint8_t>(s, stream::kUint16, 1u);
+    CallCdecl<void*>(addr::SC4Save_F5DB190, s, part - field::kSerializable + field::kCurve);
+    return NoError(s);
+}
+
+// 0x005183D0, the generator's: version 4, the base Write, its clock pairs and
+// +0x90, +0x94.
+std::uint32_t __fastcall GeneratorSerializableWrite(char* part, void*, void* s)
+{
+    static bool logged;
+    FirstCall("generator serializable Write", logged);
+    char* const self = part - field::kSerializable;
+    Virtual<std::uint8_t>(s, stream::kUint16, 4u);
+    CallThis<std::uint32_t>(addr::cSC4AutomataController_SerializableWrite, part, s);
+    Virtual<std::uint8_t>(s, stream::kFloat32, At<std::uint32_t>(self, field::kGen78));
+    Virtual<std::uint8_t>(s, stream::kInt16, static_cast<std::uint32_t>(At<std::uint16_t>(self, field::kGen7C)));
+    Virtual<std::uint8_t>(s, stream::kFloat32, At<std::uint32_t>(self, field::kGen80));
+    Virtual<std::uint8_t>(s, stream::kInt16, static_cast<std::uint32_t>(At<std::uint16_t>(self, field::kGen84)));
+    Virtual<std::uint8_t>(s, stream::kUint32, At<std::uint32_t>(self, field::kGen90));
+    Virtual<std::uint8_t>(s, stream::kUint32, At<std::uint32_t>(self, field::kGen94));
+    return NoError(s);
+}
+
+// 0x005180E0, the +4 serializable slot 4 (base), ret 4.
+std::uint32_t __fastcall SerializableRead(char* part, void*, void* s)
+{
+    static bool logged;
+    FirstCall("serializable Read", logged);
+    char* const self = part - field::kSerializable;
+    ReadVersion(s);
+    if (void* const occupant = At<void*>(self, field::kOccupant)) {
+        At<void*>(self, field::kOccupant) = nullptr;
+        Virtual<std::uint32_t>(occupant, slot::kRelease);
+    }
+    CallCdecl<std::uint8_t>(addr::SC4Stream_ReadReference, s, kIidOccupant, self + field::kOccupant, 0u);
+    Virtual<std::uint8_t>(s, stream::kString, self + field::kName);
+    CallCdecl<void*>(addr::SC4Stream_ReadVector3, s, self + field::kX);
+    Virtual<std::uint8_t>(s, stream::kFloat32, self + field::k50);
+    Virtual<std::uint8_t>(s, stream::kFloat32, self + field::k54);
+    Virtual<std::uint8_t>(s, stream::kUint32, self + field::k3C);
+    Virtual<std::uint8_t>(s, stream::kUint32, self + field::kFlags);
+    Virtual<std::uint8_t>(s, stream::kUint32, self + field::kAutomataCount);
+    for (std::uint32_t i = 0; i < At<std::uint32_t>(self, field::kAutomataCount); ++i) {
+        void* automaton = nullptr;
+        CallCdecl<std::uint8_t>(addr::SC4Stream_ReadReference, s, kIidAutomaton, &automaton, 0u);
+        ListNode* const head = At<ListNode*>(self, field::kAutomata);
+        ListNode* const node = static_cast<ListNode*>(Allocate(sizeof(ListNode)));
+        node->value = automaton;
+        ListNode* const last = head->prev;
+        node->next = head;
+        node->prev = last;
+        last->next = node;
+        head->prev = node;
+    }
+    return NoError(s);
+}
+
+// 0x00518270, the attractor's: the base Read, a version, its curve.
+std::uint32_t __fastcall AttractorSerializableRead(char* part, void*, void* s)
+{
+    static bool logged;
+    FirstCall("attractor serializable Read", logged);
+    CallThis<std::uint32_t>(addr::cSC4AutomataController_SerializableRead, part, s);
+    ReadVersion(s);
+    CallCdecl<void*>(addr::SC4Save_F5DB5D0, s, part - field::kSerializable + field::kCurve);
+    return NoError(s);
+}
+
+// 0x00518450, the generator's: version 4 or 0, the base Read, its clock pairs
+// and +0x90, +0x94.
+std::uint32_t __fastcall GeneratorSerializableRead(char* part, void*, void* s)
+{
+    static bool logged;
+    FirstCall("generator serializable Read", logged);
+    char* const self = part - field::kSerializable;
+    if (ReadVersion(s) != 4)
+        return 0;
+    CallThis<std::uint32_t>(addr::cSC4AutomataController_SerializableRead, part, s);
+    Virtual<std::uint8_t>(s, stream::kFloat32, self + field::kGen78);
+    Virtual<std::uint8_t>(s, stream::kInt16, self + field::kGen7C);
+    Virtual<std::uint8_t>(s, stream::kFloat32, self + field::kGen80);
+    Virtual<std::uint8_t>(s, stream::kInt16, self + field::kGen84);
+    Virtual<std::uint8_t>(s, stream::kUint32, self + field::kGen90);
+    Virtual<std::uint8_t>(s, stream::kUint32, self + field::kGen94);
+    return NoError(s);
+}
+
+// ------------------------------------------------------------------------------------
+// The rest of the behaviour
+
+// 0x00517EF0, slot 19 (value), ret 4.
+void __fastcall SetLimit(char* self, void*, std::uint32_t value)
+{
+    static bool logged;
+    FirstCall("SetLimit", logged);
+    At<std::uint32_t>(self, field::k54) = value;
+}
+
+// 0x00514E30, slot 26: the template's flags and flag 2 set, +0x54 from the
+// template's +0x4C, +0x58 zeroed.
+void __fastcall ResetAccumulators(char* self, void*)
+{
+    static bool logged;
+    FirstCall("ResetAccumulators", logged);
+    if (!Template(self))
+        return;
+    Virtual<void>(self, slot::kSetFlag, At<std::uint32_t>(Template(self), tmpl::kFlags), 1u);
+    Virtual<void>(self, slot::kSetFlag, kFlag2, 1u);
+    At<std::uint32_t>(self, field::k54) = At<std::uint32_t>(Template(self), tmpl::kSaturationLimit);
+    At<std::uint32_t>(self, field::k58) = 0;
+}
+
+// 0x0051BCA0, slot 29 (base, the generator's; automaton, kind), ret 8: kind 4
+// adds the automaton to the manager's record of the occupant. AL 0.
+std::uint32_t __fastcall AutomatonEventB(char* self, void*, void* automaton, std::uint32_t kind)
+{
+    static bool logged;
+    FirstCall("AutomatonEventB", logged);
+    if (kind == 4) {
+        char* const manager = Virtual<char*>(City(), 0xBC);
+        AutomatonValue* const value =
+            CallThis<AutomatonValue*>(kAutomatonRecord, manager, At<void*>(self, field::kOccupant), 1u);
+        if (value)
+            CallThis<void>(kAutomatonAdd, value, automaton);
+    }
+    return 0;
+}
+
+// 0x0051C030, the attractor's slot 30 (automaton, kind), ret 8: out of its
+// own list (released), then the base event 30.
+std::uint32_t __fastcall AttractorEventC(char* self, void*, void* automaton, std::uint32_t kind)
+{
+    static bool logged;
+    FirstCall("attractor AutomatonEventC", logged);
+    ListNode* const head = At<ListNode*>(self, field::kAutomata);
+    if (head->next != head) {
+        ListNode* e = head->next;
+        while (e != head && e->value != automaton)
+            e = e->next;
+        if (e != head) {
+            ListNode* const next = e->next;
+            ListNode* const prev = e->prev;
+            prev->next = next;
+            next->prev = prev;
+            Free(e);
+            --At<std::uint32_t>(self, field::kAutomataCount);
+            Virtual<std::uint32_t>(automaton, slot::kRelease);
+        }
+    }
+    return CallThis<std::uint32_t>(addr::cSC4AutomataController_AutomatonEventC, self, automaton, kind);
+}
+
+// 0x00516C40, slot 22 (out), ret 4: the middle of the occupant's lot's front
+// edge, one metre out, by the lot's facing.
+void __fastcall PositionFromBox(char* self, void*, float* out)
+{
+    static bool logged;
+    FirstCall("PositionFromBox", logged);
+    // A generator the game seeds and never draws from; the seed still counts
+    // at the game's site.
+    alignas(4) char unused[12];
+    {
+        const fixed_seed::SiteOverride site(0x00516C51);
+        CallThis<void>(addr::SC4Random_Construct, unused, static_cast<std::uint32_t>(0xFFFFFFFF));
+    }
+    if (!At<void*>(self, field::kOccupant)) {
+        out[0] = At<float>(self, field::kX);
+        out[1] = At<float>(self, field::kHeight);
+        out[2] = At<float>(self, field::kZ);
+        return;
+    }
+    void* const lots = Virtual<void*>(City(), 0x84); // GetLotManager
+    void* lot = nullptr;
+    if (lots && At<void*>(self, field::kOccupant))
+        lot = Virtual<void*>(lots, 0x38, At<void*>(self, field::kOccupant));
+    if (!lot) {
+        Virtual<void>(At<void*>(self, field::kOccupant), 0x20, out); // GetPosition
+        return;
+    }
+    std::int32_t bounds[4] = {};
+    Virtual<void>(lot, 0x38, bounds);
+    const auto metres = [](std::int32_t cell) {
+        return static_cast<float>(static_cast<std::int32_t>(static_cast<std::uint32_t>(cell) << 4));
+    };
+    const float x0 = metres(bounds[0]), z0 = metres(bounds[1]);
+    const float x1 = metres(bounds[2] + 1), z1 = metres(bounds[3] + 1);
+    const double offset = static_cast<double>(Global<float>(kFrontOffset));
+    const float zero = AsFloat(Global<std::uint32_t>(addr::SC4_ZeroWord)); // 0x00B227CC, as the game
+    // The x87 stack's two values (st1 loaded first) and the two y/z pairs.
+    double st1 = zero, st0 = zero;
+    float ay = zero, az = zero, by = zero, bz = zero;
+    switch (Virtual<std::uint32_t>(lot, 0x5C)) {
+    case 0:
+        st1 = x0;
+        st0 = x1;
+        ay = by = 0.0f;
+        az = bz = static_cast<float>(static_cast<double>(z0) - offset);
+        break;
+    case 1: {
+        const double x = static_cast<double>(x1) + offset;
+        st1 = x;
+        st0 = static_cast<float>(x);
+        ay = by = 0.0f;
+        az = z0;
+        bz = z1;
+        break;
+    }
+    case 2:
+        st1 = x1;
+        st0 = x0;
+        ay = by = 0.0f;
+        az = bz = static_cast<float>(static_cast<double>(z1) + offset);
+        break;
+    case 3: {
+        const double x = static_cast<double>(x0) - offset;
+        st1 = x;
+        st0 = static_cast<float>(x);
+        ay = by = 0.0f;
+        az = z1;
+        bz = z0;
+        break;
+    }
+    default: break;
+    }
+    const double half = static_cast<double>(Global<float>(kHalf));
+    const float dy = static_cast<float>(static_cast<double>(by) - static_cast<double>(ay));
+    const float dz = static_cast<float>(static_cast<double>(bz) - static_cast<double>(az));
+    const float hy = static_cast<float>(static_cast<double>(dy) * half);
+    const float hz = static_cast<float>(static_cast<double>(dz) * half);
+    out[0] = static_cast<float>((st0 - st1) * half + st1);
+    out[1] = static_cast<float>(static_cast<double>(hy) + static_cast<double>(ay));
+    out[2] = static_cast<float>(static_cast<double>(hz) + static_cast<double>(az));
+}
+
+// The spawn's count rounding: the float sum's bits less 0x4B400000.
+std::uint32_t RoundCount(double value)
+{
+    return AsBits(static_cast<float>(value + static_cast<double>(Global<float>(kRoundMagic)))) + 0xB4C00000u;
+}
+
+// 0x005198A0, the generator's slot 41 (unused, curve), ret 8.
+void __fastcall Spawn(char* self, void*, void*, std::uint32_t curveBits)
+{
+    static bool logged;
+    FirstCall("generator Spawn", logged);
+    void* const city = City();
+    char* const t = static_cast<char*>(Template(self)); // not tested, as in the game
+    const double curve = static_cast<double>(AsFloat(curveBits));
+    const double perUnit = static_cast<double>(At<float>(t, 0x88));
+    std::uint32_t count = 0;
+    switch (At<std::uint32_t>(t, 0x8C)) {
+    case 0: {
+        const std::uint32_t rounded = RoundCount(curve * perUnit);
+        count = rounded < 1 ? 1 : rounded;
+        break;
+    }
+    case 1: {
+        void* const occupant = At<void*>(self, field::kOccupant);
+        if (!occupant || Virtual<std::uint32_t>(occupant, 0x1C) != 0x278128A0)
+            return;
+        void* const simulator = Virtual<void*>(City(), 0x110);
+        // A record the simulator fills (0x40 bytes in the game's frame); its
+        // first 0x14 bytes are a cRZBaseString, its +0x24 the value.
+        alignas(8) char info[0x40];
+        CallThis<void*>(kInfoConstruct, info);
+        const auto unsignedValue = [&info] {
+            const std::int32_t value = At<std::int32_t>(info, 0x24);
+            double d = static_cast<double>(value);
+            if (value < 0)
+                d += static_cast<double>(Global<float>(kTwoToThe32));
+            return d;
+        };
+        if (Virtual<std::uint8_t>(At<void*>(self, field::kOccupant), 0x58, 0x1503u) ||
+            Virtual<std::uint8_t>(At<void*>(self, field::kOccupant), 0x58, 0x1504u)) {
+            Virtual<void>(simulator, 0x68, At<void*>(self, field::kOccupant), static_cast<void*>(info));
+            count = RoundCount(unsignedValue() * perUnit);
+        } else if (Virtual<std::uint8_t>(At<void*>(self, field::kOccupant), 0x58, 0x1507u)) {
+            Virtual<void>(simulator, 0x6C, At<void*>(self, field::kOccupant), static_cast<void*>(info));
+            count = RoundCount(unsignedValue() * perUnit);
+        } else {
+            std::uint32_t cell[4] = {};
+            Virtual<void>(At<void*>(self, field::kOccupant), 0x2C, static_cast<void*>(cell));
+            void* const lot = Virtual<void*>(Global<void*>(kLotService), 0x18, cell[0], cell[1], 0u);
+            if (lot) {
+                std::uint32_t scratch[4] = {};
+                const float* const value = Virtual<const float*>(lot, 0xF4, static_cast<void*>(scratch));
+                count = RoundCount(perUnit * static_cast<double>(*value));
+            }
+        }
+        At<std::uintptr_t>(info, 0) = addr::SC4String_Vtable;
+        if (void* const begin = At<void*>(info, 4))
+            Free(begin);
+        break;
+    }
+    case 2: {
+        void* const simulator = Virtual<void*>(city, 0x110);
+        const std::int32_t value = Virtual<std::int32_t>(simulator, 0x40);
+        count = RoundCount(static_cast<double>(value) * perUnit);
+        break;
+    }
+    default: return;
+    }
+    if (count == 0)
+        return;
+    if (count > 0x19)
+        count = Global<std::uint32_t>(kSpawnMost);
+    float position[3], point[3];
+    const float zero = AsFloat(Global<std::uint32_t>(addr::SC4_ZeroWord)); // 0x00B227CC, as the game
+    position[0] = position[1] = position[2] = zero;
+    point[0] = point[1] = point[2] = zero;
+    char* const manager = Virtual<char*>(city, 0xBC); // GetAutomataControllerManager
+    if (!manager)
+        return;
+    if (Virtual<std::uint8_t>(self, slot::kTestFlag, 0x10u))
+        Virtual<void>(self, slot::kPositionFromBox, position);
+    else
+        Virtual<void>(self, slot::kPosition, position);
+    float centre[2] = {position[0], position[2]};
+    struct {
+        char* begin;
+        char* end;
+        char* capacity;
+    } cells{};
+    std::uint32_t networkKind = 0;
+    if (Virtual<std::uint8_t>(self, slot::kTestFlag, 0x80u)) {
+        networkKind = 0xC49;
+        CallThis<void>(kSpawnCells, self, static_cast<void*>(&cells), 0xC49u);
+        if (cells.begin == cells.end) {
+            if (cells.begin)
+                Free(cells.begin);
+            return;
+        }
+    } else if (Virtual<std::uint8_t>(self, slot::kTestFlag, 0x800u)) {
+        networkKind = 2;
+        CallThis<void>(kSpawnCells, self, static_cast<void*>(&cells), 2u);
+        if (cells.begin == cells.end) {
+            if (cells.begin)
+                Free(cells.begin);
+            return;
+        }
+    }
+    std::uint32_t limit = 0xFFFFFFFF;
+    const std::uint32_t own = At<std::uint32_t>(self, field::kGen98);
+    if (own > 1)
+        limit = own;
+    else if (const std::uint32_t finished = At<std::uint32_t>(t, 0x54))
+        limit = finished;
+    char* const random = self + field::kRandom;
+    const double one = static_cast<double>(Global<float>(kOne));
+    float radius = 0.0f; // the game's slot is unset until the first place
+    for (std::uint32_t i = 0; i < count; ++i) {
+        if (At<std::uint32_t>(self, field::kAutomataCount) > limit)
+            break;
+        if (cells.begin == cells.end) {
+            const float angle = static_cast<float>(
+                CallThis<double>(kRandomBetween, random, Global<double>(kZeroDouble), Global<double>(kTwoPi)));
+            radius = static_cast<float>(CallThis<double>(kRandomBetween, random, static_cast<double>(At<float>(t, 0x20)),
+                                                         static_cast<double>(At<float>(t, 0xA8))));
+            float turned[2] = {
+                static_cast<float>(static_cast<double>(centre[0]) + static_cast<double>(Global<float>(kFarPoint))),
+                centre[1]};
+            CallCdecl<void>(kTurnPoint, centre, turned, AsBits(angle), turned);
+            const double dx = static_cast<double>(turned[0]) - static_cast<double>(centre[0]);
+            const double dz = static_cast<double>(turned[1]) - static_cast<double>(centre[1]);
+            const double inverse = one / std::sqrt(dz * dz + dx * dx);
+            const float direction[3] = {static_cast<float>(inverse * dx),
+                                        static_cast<float>(static_cast<double>(Global<float>(kDirectionY)) * inverse),
+                                        static_cast<float>(dz * inverse)};
+            float crossing[2] = {};
+            const bool crossed = CallThis<std::uint8_t>(kSegmentBox, self, centre, turned, crossing) != 0;
+            const double rx = static_cast<double>(direction[0]) * static_cast<double>(radius);
+            const float ry = static_cast<float>(static_cast<double>(direction[1]) * static_cast<double>(radius));
+            const float rz = static_cast<float>(static_cast<double>(direction[2]) * static_cast<double>(radius));
+            double x, y;
+            if (crossed) {
+                x = rx + static_cast<double>(crossing[0]);
+                y = static_cast<double>(ry) + static_cast<double>(position[1]);
+                point[2] = static_cast<float>(static_cast<double>(rz) + static_cast<double>(crossing[1]));
+            } else {
+                x = rx + static_cast<double>(position[0]);
+                y = static_cast<double>(ry) + static_cast<double>(position[1]);
+                point[2] = static_cast<float>(static_cast<double>(rz) + static_cast<double>(position[2]));
+            }
+            point[0] = static_cast<float>(x);
+            point[1] = static_cast<float>(y);
+            if (Virtual<std::uint8_t>(city, 0x188, point[0], point[2])) // LocationIsInBounds
+                point[1] = Virtual<float>(Global<void*>(addr::SC4_Terrain), 0x34, point[0], point[2]);
+            else
+                point[1] = position[1];
+        } else {
+            const std::uint32_t n =
+                static_cast<std::uint32_t>(static_cast<std::int32_t>(cells.end - cells.begin) >> 3);
+            const std::uint32_t pick = CallThis<std::uint32_t>(kRandomBelow, random, n);
+            const std::int32_t* const cell = reinterpret_cast<const std::int32_t*>(cells.begin + pick * 8);
+            const std::int32_t cellX = cell[0], cellZ = cell[1];
+            const double size = Global<double>(kCellSize);
+            const double first = CallThis<double>(addr::cRZRandom_NextFloat, random);
+            const float x = static_cast<float>(
+                first * size + static_cast<double>(static_cast<std::int32_t>(static_cast<std::uint32_t>(cellX) << 4)));
+            point[0] = x;
+            const double second = CallThis<double>(addr::cRZRandom_NextFloat, random);
+            const double z =
+                second * size + static_cast<double>(static_cast<std::int32_t>(static_cast<std::uint32_t>(cellZ) << 4));
+            point[2] = static_cast<float>(z);
+            float inside[2] = {x, static_cast<float>(z)};
+            float crossing[2] = {0.0f, 0.0f};
+            if (CallThis<std::uint8_t>(kSegmentBox, self, centre, inside, crossing)) {
+                const double distance = CallCdecl<double>(addr::SC4_Distance2D, inside, crossing);
+                const float nearest = At<float>(t, 0x20);
+                const float farthest = At<float>(t, 0xA8);
+                const float* bound = nullptr;
+                if (distance < static_cast<double>(nearest))
+                    bound = &At<float>(t, 0x20);
+                else if (distance > static_cast<double>(farthest))
+                    bound = &At<float>(t, 0xA8);
+                if (bound) {
+                    const double ddx = static_cast<double>(inside[0]) - static_cast<double>(crossing[0]);
+                    const double ddz = static_cast<double>(inside[1]) - static_cast<double>(crossing[1]);
+                    const double inverse = one / std::sqrt(ddz * ddz + ddx * ddx);
+                    const float ux = static_cast<float>(ddx * inverse);
+                    const double uz = ddz * inverse;
+                    const double reach = static_cast<double>(*bound);
+                    const float sx = static_cast<float>(static_cast<double>(ux) * reach);
+                    const double sz = uz * reach;
+                    inside[0] = sx;
+                    inside[1] = static_cast<float>(sz);
+                    point[0] = static_cast<float>(static_cast<double>(sx) + static_cast<double>(crossing[0]));
+                    point[2] = static_cast<float>(sz + static_cast<double>(crossing[1]));
+                }
+            }
+            void* const network = Virtual<void*>(City(), 0xA0); // GetTrafficNetwork
+            if (!Virtual<std::uint8_t>(network, 0xAC, point, networkKind))
+                continue;
+            point[1] = Virtual<float>(Virtual<void*>(City(), 0xA0), 0x48, point[0], point[2]);
+            const double ex = static_cast<double>(position[0]) - static_cast<double>(point[0]);
+            const double ey = static_cast<double>(position[1]) - static_cast<double>(point[1]);
+            const double ez = static_cast<double>(position[2]) - static_cast<double>(point[2]);
+            radius = static_cast<float>(std::sqrt((ez * ez + ey * ey) + ex * ex));
+        }
+        if (At<std::uint32_t>(self, field::kGen90) == 0 ||
+            !(At<std::uint32_t>(self, field::kGen94) < At<std::uint32_t>(self, field::kGen98)))
+            CallThis<void>(kPickClass, self);
+        void* const automata = CallCdecl<void*>(kAutomatonManager, At<std::uint32_t>(self, field::kGen90));
+        if (!automata)
+            break;
+        std::uint32_t rotation[3] = {0, 0, 0};
+        void* const automaton = Virtual<void*>(automata, 0x3C, At<std::uint32_t>(self, field::kGen90),
+                                               static_cast<float*>(point), 0x2000002u, static_cast<void*>(rotation),
+                                               0u, static_cast<std::uint32_t>(At<std::uint8_t>(t, 0xB0)), 0u);
+        if (!automaton)
+            continue;
+        void* held = automaton;
+        CallThis<void>(addr::SC4StlList_PushBack, self + field::kAutomata, &held);
+        Virtual<std::uint32_t>(automaton, slot::kAddRef);
+        const std::uint32_t automataCount = At<std::uint32_t>(self, field::kAutomataCount) + 1;
+        ++At<std::uint32_t>(self, field::kGen94);
+        At<std::uint32_t>(self, field::kAutomataCount) = automataCount;
+        Virtual<void>(automaton, 0x9C, manager + automata_ctlmgr::field::kTargetPart);
+        void* const spot = Virtual<void*>(self, slot::kPickSpot, AsBits(radius), static_cast<float*>(point));
+        if (spot)
+            Virtual<void>(automaton, 0xDC, spot, self);
+        else
+            Virtual<void>(automaton, 0xD0, 0u, self, 0xBF800000u, 0u, 0u, 0u, 0u);
+        if (const std::uint32_t cap = At<std::uint32_t>(self, field::kGen8C)) {
+            const std::uint32_t made = ++At<std::uint32_t>(self, field::kGen88);
+            if (made >= cap)
+                break;
+        }
+    }
+    if (cells.begin)
+        Free(cells.begin);
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -1443,6 +2116,24 @@ const Detour kBehaviour[] = {
     OPENSC4_DETOUR(addr::cSC4AutomataGenerator_Tick, GeneratorTick),
 };
 
+const Detour kSerial[] = {
+    OPENSC4_DETOUR(addr::cSC4AutomataController_SerializableWrite, SerializableWrite),
+    OPENSC4_DETOUR(addr::cSC4AutomataAttractor_SerializableWrite, AttractorSerializableWrite),
+    OPENSC4_DETOUR(addr::cSC4AutomataGenerator_SerializableWrite, GeneratorSerializableWrite),
+    OPENSC4_DETOUR(addr::cSC4AutomataController_SerializableRead, SerializableRead),
+    OPENSC4_DETOUR(addr::cSC4AutomataAttractor_SerializableRead, AttractorSerializableRead),
+    OPENSC4_DETOUR(addr::cSC4AutomataGenerator_SerializableRead, GeneratorSerializableRead),
+};
+
+const Detour kSpawn[] = {
+    OPENSC4_DETOUR(addr::cSC4AutomataGenerator_Spawn, Spawn),
+    OPENSC4_DETOUR(addr::cSC4AutomataController_PositionFromBox, PositionFromBox),
+    OPENSC4_DETOUR(addr::cSC4AutomataController_ResetAccumulators, ResetAccumulators),
+    OPENSC4_DETOUR(addr::cSC4AutomataController_AutomatonEventB, AutomatonEventB),
+    OPENSC4_DETOUR(addr::cSC4AutomataAttractor_AutomatonEventC, AttractorEventC),
+    OPENSC4_DETOUR(addr::cSC4AutomataController_SetLimit, SetLimit),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallController(registry::Mode)
@@ -1453,6 +2144,16 @@ bool InstallController(registry::Mode)
 bool InstallBehaviour(registry::Mode)
 {
     return InstallList(kBehaviour, sizeof kBehaviour / sizeof kBehaviour[0], "behaviour");
+}
+
+bool InstallSerial(registry::Mode)
+{
+    return InstallList(kSerial, sizeof kSerial / sizeof kSerial[0], "serial");
+}
+
+bool InstallSpawn(registry::Mode)
+{
+    return InstallList(kSpawn, sizeof kSpawn / sizeof kSpawn[0], "spawn");
 }
 
 const bool g_registered[] = {
@@ -1473,6 +2174,19 @@ const bool g_registered[] = {
                         "cSC4AutomataAttractor and cSC4AutomataGenerator (19 detours; part a3b, "
                         "src/core/automata_controller.cpp)",
                         false, InstallBehaviour}),
+    registry::Register({"simulators.automata.ctlserial", "simulators/automata", registry::Kind::Detour,
+                        registry::Phase::PostAppInit, addr::cSC4AutomataController_SerializableWrite,
+                        "Our automata controllers' save: the +4 serializable part's Write and Read (base, attractor "
+                        "and generator) of cSC4AutomataController, cSC4AutomataAttractor and cSC4AutomataGenerator "
+                        "(6 detours; part a3c, src/core/automata_controller.cpp)",
+                        false, InstallSerial}),
+    registry::Register({"simulators.automata.ctlspawn", "simulators/automata", registry::Kind::Detour,
+                        registry::Phase::PostAppInit, addr::cSC4AutomataGenerator_Spawn,
+                        "Our automata controllers' remaining behaviour: the generator's spawn, the position from "
+                        "the occupant's lot, resetting the tick's accumulators, the base automaton event 29, the "
+                        "attractor's event 30 and SetLimit of cSC4AutomataController, cSC4AutomataAttractor and "
+                        "cSC4AutomataGenerator (6 detours; part a3c, src/core/automata_controller.cpp)",
+                        false, InstallSpawn}),
 };
 
 } // namespace
