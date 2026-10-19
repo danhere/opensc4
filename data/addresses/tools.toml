@@ -834,7 +834,7 @@ address = 0x004C0680
 kind = "function"
 convention = "thiscall"
 expect = "81 EC 8C 00 00 00 53 55"
-source = "Name ours. No arguments, no result: the lot configuration's model and cursor flags at +0x108..+0x124 and the footprint picture (a framed white pixel buffer made through 0x00B43C9C slot 3 and uploaded as a texture at +0x100, sized to a power of two up to 0x100). Drawing: left the game's, called by address. Callers Init, SetConfiguration, PlaceLot."
+source = "Name ours. No arguments, no result: the lot configuration's model and cursor flags at +0x108..+0x124 and the footprint picture (a framed white pixel buffer made through 0x00B43C9C slot 3 and uploaded as a texture at +0x100, sized to a power of two up to 0x100). Also the preview prop (prop manager slot 16), the services' radii and cursor effect names (+0xB0, +0xC4, flags +0x124), the cursor +0x140, the placements left +0x154 and the prop records (+0x144). Callers Init, SetConfiguration, PlaceLot. Ours in ui.tools.plop4 (src/core/tool_plop_4.cpp)."
 
 [[entry]]
 name = "SC4::TutorialAllowsPlacement"
@@ -906,7 +906,7 @@ address = 0x004C2660
 kind = "function"
 convention = "thiscall"
 expect = "8A 44 24 08 83 EC 6C 84"
-source = "Name ours. (allowed byte, shown byte, float* point), ret 0xC. Moves, makes and hides the cursor overlay objects (arrow, footprint rectangles and tint) through the effects service 0x00B43D1C with inline vertex arithmetic, and when the allowed byte differs from +0x94 sets the cursor (slot 8) to 0x88E70B76 or 0x417EE2CB. Drawing: left the game, called at its address by ui.tools.plop3."
+source = "Name ours. (allowed byte, shown byte, float* point), ret 0xC. Moves, makes and hides the cursor overlay objects (arrow, footprint rectangles and tint) through the effects service 0x00B43D1C with inline vertex arithmetic, and when the allowed byte differs from +0x94 sets the cursor (slot 8) to 0x88E70B76 (refused) or 0x417EE36B (allowed). Callers OnMouseDownL, OnMouseExit, DoMessage, OnKeyDown and OnMouseMove (ui.tools.plop3 calls it at its address). Ours in ui.tools.plop4 (src/core/tool_plop_4.cpp)."
 
 [[entry]]
 name = "cSC4ViewInputControlPlaceLot::UpdateFootprint"
@@ -914,7 +914,7 @@ address = 0x004C2090
 kind = "function"
 convention = "thiscall"
 expect = "81 EC A4 00 00 00 55 8B"
-source = "Name ours. (float* point), ret 4. Builds the footprint's overlay rectangles into the vectors at +0xE8 and +0xF4 from the placement test 0x004BE750. Drawing: left the game's; only caller is UpdatePreview."
+source = "Name ours. (float* point), ret 4. Builds the footprint's overlay rectangles into the vectors at +0xE8 (selection_blue, records of kind 5) and +0xF4 (selection_red, kind 6) from SnapFootprint 0x004BE750, the city's slot 95 and SC4::RotateRectangle; the models left over are hidden. Only caller UpdatePreview. Ours in ui.tools.plop4 (src/core/tool_plop_4.cpp)."
 
 [[entry]]
 name = "cSC4ViewInputControlPlaceLot::PositionEpsilon"
@@ -3030,7 +3030,7 @@ address = 0x004C38D0
 kind = "function"
 convention = "custom"
 expect = "83 EC 08 8B 06 8B CE FF"
-source = "Name ours. Register convention: an object in ESI, two floats on the stack, the caller cleans: the two floats held to 0 and the object's slots 7 and 8 times its slot 6, then the object's slot 13 with them. Left the game's: ESI argument, and its two callers are the overlay builders 0x004C5E20 and 0x004CA460 (drawing)."
+source = "Name ours (it is the terrain's clamped height, not a point added). Register convention: the terrain in ESI, (float x, float z) on the stack, the caller cleans, the height left on the x87 stack: x held to [0, slot 6 times slot 7, stored as a float], z to [0, slot 6 times slot 8, kept as a double] (a NaN passes), then the terrain's slot 13 there. Callers 0x004C5E20 and 0x004CA460, both ours and calling it by address. Ours in ui.tools.query8 (src/core/tool_query_8.cpp), a naked entry."
 
 [[entry]]
 name = "SC4QueryTool::IsBuildingOrNetwork"
@@ -3366,7 +3366,7 @@ address = 0x004C5040
 kind = "function"
 convention = "cdecl"
 expect = "83 EC 24 56 8B 74 24 2C"
-source = "Name ours. (window, float share): locks the window's buffer (0x8010) and blits a picture twice with 0x008D8BC0, a part of it by the share. Left the game's: drawing; its one caller is 0x004C6830, slot 3 of the bar painter 0x00A90B38 (a paint hook on the windows of a query)."
+source = "Name ours. (window, float share), cdecl: the window's buffer (slot 3's slot 94) locked (slot 6, 0x8010); with the picture the window gives for 0x20732180 (slot 5), its lower half blitted over the buffer's area (slot 11), then its upper half over the share of the area's width (0x008D8BC0 both times); unlocked (slot 7), the picture let go. One caller, 0x004C6830. Ours in ui.tools.query8 (src/core/tool_query_8.cpp)."
 
 [[entry]]
 name = "SC4QueryTool::FillFloatD78"
@@ -3532,7 +3532,7 @@ address = 0x004C5E20
 kind = "function"
 convention = "thiscall"
 expect = "81 EC 28 01 00 00 A1 54"
-source = "Name ours. Seven arguments, ret 0x1C, one caller 0x004CA460: walks a trip's route (0x006D64B0, 0x006D6510) and adds points to the route line object at +0x9C (0x007DDC50, 0x007DDB30) through 0x004C38D0. Left the game's: drawing (builds display geometry)."
+source = "Name ours. (source, trip record, float x, float y (not read), float z, way back, kind mask), ret 0x1C, one caller 0x004CA460: one trip's route as runs of points on the line object at +0x9C (0x007DDC50, 0x007DDB30): cell centres at the clamped height (0x004C38D0) plus the kind's lift (0x00B09628), network paths' ends and turns (the occupant's slot 49, its slots 5 and 22), ferries (the traffic simulator's slot 29) at the water's height. Ours in ui.tools.query8 (src/core/tool_query_8.cpp)."
 
 [[entry]]
 name = "SC4QueryTool::FillOccupantLotShareSecond"
@@ -3548,7 +3548,7 @@ address = 0x004C6830
 kind = "function"
 convention = "thiscall"
 expect = "51 8B 44 24 0C 83 38 16"
-source = "Name ours. Slot 3 of 0x00A90B38, (window, message), ret 8; undefined code in Ghidra: on message type 0x16 draws the window's value (property 0xEA563AB0, slot 81) as a bar with 0x004C5040. Left the game's: drawing."
+source = "Name ours. Slot 3 of 0x00A90B38, (window, message), ret 8; undefined code in Ghidra: on message type 0x16 the window's property 0xEA563AB0 (slot 113) and what it gives for 0xC12CEA13 (slot 0); with both, the property's float (its slot 81) drawn as a bar there with 0x004C5040 and true; else false. Ours in ui.tools.query8 (src/core/tool_query_8.cpp)."
 
 [[entry]]
 name = "SC4QueryWindowRunner::DeletingDestructor"
@@ -4563,6 +4563,28 @@ kind = "function"
 convention = "thiscall"
 expect = "8A 41 0C 84 C0 74 04 C6"
 source = "Name ours, a guess. Clears the byte +0xC when set; a one-line function with six callers in several classes (folded); called by address."
+
+[[entry]]
+name = "SC4RouteLine::AddPoint"
+address = 0x007DDB30
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 18 8B 51 14 83 EC"
+source = "Name ours. (const float point[3]), ret 4: the point appended to the current run (+0x18, a node of the run list at +0x14; its points a deque of 12-byte points at node +0x14, blocks of 0x78 bytes), unless there is no run or the point is within 0x00A95620 (squared, in x and z) of the run's last one. The Renderer's; called by address from 0x004C5E20 (ui.tools.query8)."
+
+[[entry]]
+name = "SC4RouteLine::BeginRun"
+address = 0x007DDC50
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 40 53 55 56 89 4C"
+source = "Name ours, a guess. (uint32 colour, float, uint32 mode), ret 0xC: a new run (a 0x44-byte list node: the three arguments at +8, +0xC, +0x10, the points after them) inserted before the first run whose float is not below this one's, and made current (+0x18). The Renderer's; called by address from 0x004C5E20 (ui.tools.query8)."
+
+[[entry]]
+name = "SC4QueryTool::RouteKindTable"
+address = 0x00B09628
+kind = "data"
+source = "Name ours. The route line's kinds: nine records of 20 bytes by a route cell's type (colour, a fade (the alpha's base is 1 less it), the lift above the ground, the network occupant mask, the path type), types 0 to 8; 0x004C5E20 reads the record of any type (& 0x3F) unchecked."
 
 [[entry]]
 name = "SC4QueryTool::RunEdgeWindow"
@@ -5667,3 +5689,83 @@ name = "SC4CheatTool::FootprintOk"
 address = 0x00A9093C
 kind = "data"
 source = "Name ours. The string building_footprint_ok: the model the cheat tool shows for kinds 1 and 2."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::SelectionBlue"
+address = 0x00A908E8
+kind = "data"
+source = "Name ours. The string selection_blue: the model of a footprint's blue rectangle (records of kind 5), made by UpdateFootprint 0x004C2090."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::SelectionRed"
+address = 0x00A908D8
+kind = "data"
+source = "Name ours. The string selection_red: the model of a footprint's red rectangle (records of kind 6), made by UpdateFootprint 0x004C2090."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::DirectionArrow"
+address = 0x00A90904
+kind = "data"
+source = "Name ours. The string Lot_Direction_Arrow: the arrow model UpdatePreview 0x004C2660 keeps at +0xE0."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::PolicePlop"
+address = 0x00A90860
+kind = "data"
+source = "Name ours. The string PlopMode_Police_Plop: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::PoliceInactive"
+address = 0x00A90844
+kind = "data"
+source = "Name ours. The string PlopMode_Police_Inactive: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::FirePlop"
+address = 0x00A90830
+kind = "data"
+source = "Name ours. The string PlopMode_Fire_Plop: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::FireInactive"
+address = 0x00A90818
+kind = "data"
+source = "Name ours. The string PlopMode_Fire_Inactive: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::HealthPlop"
+address = 0x00A90800
+kind = "data"
+source = "Name ours. The string PlopMode_Health_Plop: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::HealthInactive"
+address = 0x00A907E4
+kind = "data"
+source = "Name ours. The string PlopMode_Health_Inactive: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::EducationPlop"
+address = 0x00A907CC
+kind = "data"
+source = "Name ours. The string PlopMode_Education_Plop: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "cSC4ViewInputControlPlaceLot::EducationInactive"
+address = 0x00A907B0
+kind = "data"
+source = "Name ours. The string PlopMode_Education_Inactive: a cursor effect name BuildPreview 0x004C0680 copies into +0xC4 (Plop) or +0xB0 (Inactive) when the preview's building gives that service."
+
+[[entry]]
+name = "SC4::ColorWhite"
+address = 0x00B095E8
+kind = "data"
+source = "Name ours. Three floats 1, 1, 1: the colour UpdatePreview 0x004C2660 gives the preview's tint block."
+
+[[entry]]
+name = "SC4Tint::Construct"
+address = 0x0048EEF0
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 C6 00 00 C6 40 01"
+source = "Name ours. No arguments, plain ret: a 0x14-byte tint block (the one MovePreview hands the preview's parts): bytes 0 and 1 cleared, the colour from the three floats at 0x00B09480, the alpha 1.0; bytes 2 and 3 left. BuildPreview 0x004C0680 makes one for the hidden preview."
