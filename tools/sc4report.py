@@ -14,6 +14,10 @@
         twelve groups (what the RCI bars show) and their caps; with --all,
         one row per demand object instead.
 
+    sc4report.py utilities <city.sc4 | folder> [-o file.csv]
+        One CSV row per city from its power and water simulator records:
+        last month's supply against what was used and demanded.
+
 More commands can read the other records tools/re/save_schemas decodes.
 """
 import argparse
@@ -28,7 +32,9 @@ import savediff  # noqa: E402  (package reader: load())
 from save_schemas import Reader  # noqa: E402
 from save_schemas.budget import budget_simulator, one_department, one_line_item  # noqa: E402
 from save_schemas.demand import demands  # noqa: E402
+from save_schemas.power import power_simulator  # noqa: E402
 from save_schemas.regioncity import COMMODITIES, regional_city  # noqa: E402
+from save_schemas.water import water_simulator  # noqa: E402
 
 CITY_RECORD = (0xCA027EDB, 0xCA027EE1, 0)
 
@@ -281,6 +287,71 @@ def demand_report(paths, every):
     return out
 
 
+POWER = 0x0990C005
+WATER = 0x0990C075
+
+UTILITIES_COLUMNS = ['file', 'status', 'power_plants', 'power_produced', 'power_used', 'power_imported',
+                     'power_exported', 'power_demand', 'power_surplus', 'power_needed', 'power_consumers',
+                     'power_unpowered', 'water_producers', 'water_capacity', 'water_used', 'water_imported',
+                     'water_exported', 'water_demand', 'water_surplus', 'water_pipes', 'water_distressed_pipes',
+                     'water_burst_pipes']
+
+
+def power_columns(power):
+    """Last month's power figures (+0x50 to +0x60, docs/power.md) and the
+    consumers now: their count (+0x68), the unpowered (+0x70) and their total
+    need (+0x74)."""
+    produced, used, imported, exported, demand = power['monthly_50_60']
+    consumers, _, unpowered, needed = power['consumers_68_74']
+    return {'power_plants': power['plants_2dc'], 'power_produced': produced, 'power_used': used,
+            'power_imported': imported, 'power_exported': exported, 'power_demand': demand,
+            'power_surplus': produced - demand, 'power_needed': needed, 'power_consumers': consumers,
+            'power_unpowered': unpowered}
+
+
+def water_columns(water):
+    """Last month's water figures (+0x110 to +0x128, docs/water.md), the
+    buildings' total demand (+0x130) and the pipes."""
+    capacity, used, imported, exported = water['totals_110']
+    return {'water_producers': len(water['producers_bc']), 'water_capacity': capacity, 'water_used': used,
+            'water_imported': imported, 'water_exported': exported, 'water_demand': water['demand_130'],
+            'water_surplus': capacity - water['demand_130'], 'water_pipes': water['pipes_174'],
+            'water_distressed_pipes': water['distressed_178'], 'water_burst_pipes': water['burst_17c']}
+
+
+def utilities_report(paths):
+    """A row per city file from its power and water records. A file that
+    cannot be read, or whose records cannot be decoded, gets the reason in
+    `status`; a missing record leaves its columns empty."""
+    out = []
+    for path in paths:
+        row = {'file': os.path.basename(path)}
+        try:
+            data = savediff.load(path)
+        except (OSError, struct.error, KeyError, IndexError) as error:
+            out.append(dict(row, status='unreadable: %s' % error))
+            continue
+        missing, errors = [], []
+        for name, type_id, decoder, columns in (('power', POWER, power_simulator, power_columns),
+                                                ('water', WATER, water_simulator, water_columns)):
+            found = records(data, type_id)
+            if not found:
+                missing.append(name)
+                continue
+            try:
+                row.update(columns(decoder(Reader(found[0]))))
+            except struct.error as error:
+                errors.append('%s undecoded: %s' % (name, error))
+        if errors:
+            row['status'] = '; '.join(errors)
+        elif len(missing) == 2:
+            row['status'] = 'no power or water record'
+        else:
+            row['status'] = 'ok' if not missing else 'ok (no %s record)' % missing[0]
+        out.append(row)
+    return out
+
+
 def city_paths(parser, path):
     """The city files of the path: the file itself, or every *.sc4 of a folder."""
     if os.path.isdir(path):
@@ -315,6 +386,9 @@ def main(argv=None):
     demand.add_argument('path', help='a city file, or a folder of them (every *.sc4)')
     demand.add_argument('--all', action='store_true', help='one row per demand object')
     demand.add_argument('-o', '--output', help='CSV file to write (default: standard output)')
+    utilities = commands.add_parser('utilities', help='power and water supply and demand of cities as CSV')
+    utilities.add_argument('path', help='a city file, or a folder of them (every *.sc4)')
+    utilities.add_argument('-o', '--output', help='CSV file to write (default: standard output)')
     args = parser.parse_args(argv)
 
     if args.command == 'budget':
@@ -324,6 +398,9 @@ def main(argv=None):
     if args.command == 'demand':
         write_csv(args, DEMAND_ALL_COLUMNS if args.all else DEMAND_COLUMNS,
                   demand_report(city_paths(parser, args.path), args.all))
+        return 0
+    if args.command == 'utilities':
+        write_csv(args, UTILITIES_COLUMNS, utilities_report(city_paths(parser, args.path)))
         return 0
     if not os.path.isdir(args.folder):
         parser.error('not a folder: %s' % args.folder)
