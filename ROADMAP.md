@@ -180,7 +180,7 @@ Decided (Dan, 2026-10-11): we go ahead without waiting for the NAM team; NAM sta
   - [x] The prop manager ([docs/propmgr.md](docs/propmgr.md))
   - [x] The occupant filters ([docs/occfilters.md](docs/occfilters.md)) (the string specification filter stays the game's)
   - [x] The bulldoze tool ([docs/tools.md](docs/tools.md))
-  - [x] The zone tool ([docs/tools.md](docs/tools.md))
+  - [x] The zone tool ([docs/tools.md](docs/tools.md)); its pointer drawing (OnMouseMove), the cheat (building footprint) tool's last two functions and the base class's model holder Place are ours too (T10, `ui.tools.zone2`, 4 functions), so both classes are wholly ours
   - [x] The lot (plop) tool ([docs/tools.md](docs/tools.md))
   - [x] The tool base class every city tool sits on (`ui.tools.base`, 28 functions, [docs/tools.md](docs/tools.md)). The tool classes not yet ours are listed there; after the pieces below, what is left outside the network tools (which are left to the network work) is the U-Drive control (45 functions), now ours in T7a, T8 and T9
   - [x] Four small tools (`ui.tools.small1`, `ui.tools.small2`, 32 functions, [docs/tools.md](docs/tools.md)): the right-button drag-to-scroll control, the mission icon click control, the flora (plant trees) tool and the level terrain tool
