@@ -105,8 +105,13 @@ void Demand(cISC4City* city)
         if (node == demands)
             continue;
         void* const demand = Value<void*>(node);
-        log::Write("panels: demand %05X active %.1f cap %.4f", id, static_cast<double>(Virtual<float>(demand, 0x30)),
-                   static_cast<double>(At<float>(demand, demand::kCap)));
+        log::Write("panels: demand %05X active %.1f cap %.4f supply %.1f demand %.1f economy %.4f tax %.4f", id,
+                   static_cast<double>(Virtual<float>(demand, 0x30)),
+                   static_cast<double>(At<float>(demand, demand::kCap)),
+                   static_cast<double>(At<float>(demand, demand::kSupply)),
+                   static_cast<double>(At<float>(demand, demand::kDemand)),
+                   static_cast<double>(At<float>(demand, demand::kEconomy)),
+                   static_cast<double>(At<float>(demand, demand::kTax)));
     }
 }
 
