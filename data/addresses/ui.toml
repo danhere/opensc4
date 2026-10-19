@@ -1200,7 +1200,7 @@ source = "Name ours. Vtable of the MySim dispatch tool (30 slots: cISC4ViewInput
 name = "SC4UI::MySimDispatchToolMessageVtable"
 address = 0x00A85988
 kind = "data"
-source = "Name ours. Vtable of the dispatch tool's message target at +0x28 (4 slots; DoMessage 0x004396E0)."
+source = "Name ours. Vtable of the dispatch tool's message target at +0x28 (4 slots: the thunks 0x004BA870, 0x004BFB10, 0x004BFB20 and DoMessage 0x004396E0; 0x004BFB10 and 0x004BFB20 are ours in ui.tools.plop5)."
 
 [[entry]]
 name = "SC4UI::MySimDispatchFilterVtable"
