@@ -47,6 +47,17 @@ pause() { timeout "$1" bash -c 'while :; do sleep 1; done' || true; }
 
 log="$env/Plugins/opensc4.log"
 for try in 1 2 3; do
+    # Other games may run (run-autotest.sh starts this one beside them), but
+    # not one in this user folder: wait for it to end, up to OPENSC4_SAVE_WAIT
+    # seconds (default 600), before its region is refreshed. Its log names
+    # its pid.
+    waited=0
+    while [ "$waited" -lt "${OPENSC4_SAVE_WAIT:-600}" ]; do
+        pid="$(sed -n 's/.*core\.dll .* attached: pid \([0-9]*\),.*/\1/p' "$log" 2>/dev/null | head -1 || true)"
+        [ -n "$pid" ] && tasklist //FI "PID eq $pid" //FI "IMAGENAME eq SimCity 4.exe" //NH | grep -q "SimCity 4.exe" || break
+        pause 5
+        waited=$((waited + 5))
+    done
     # Fresh region every run: the previous run's save changed it.
     mkdir -p "$env/Plugins" "$env/Regions/$region"
     cp -r "$fixture/Regions/$region/." "$env/Regions/$region/"
@@ -58,17 +69,8 @@ for try in 1 2 3; do
     [ -z "${OPENSC4_TEST_START:-}" ] || cp "$OPENSC4_TEST_START" "$env/Regions/$region/City - $city.sc4"
     rm -f "$env/Plugins/opensc4.ini"
     [ -z "${OPENSC4_TEST_INI:-}" ] || cp "$OPENSC4_TEST_INI" "$env/Plugins/opensc4.ini"
-    # One game at a time (unless OPENSC4_PARALLEL): wait for another copy
-    # (another batch's) to end, up to OPENSC4_SAVE_WAIT seconds (default 600).
-    # The last run's log goes first: run-autotest.sh refuses to start while
-    # a game runs and leaves the log alone, and an old log read as this run's
-    # once copied the unchanged start file out as the run's save.
-    waited=0
-    while [ -z "${OPENSC4_PARALLEL:-}" ] && [ "$waited" -lt "${OPENSC4_SAVE_WAIT:-600}" ] &&
-        tasklist //FI "IMAGENAME eq SimCity 4.exe" //NH | grep -q "SimCity 4.exe"; do
-        pause 5
-        waited=$((waited + 5))
-    done
+    # The last run's log goes: an old log read as this run's once copied the
+    # unchanged start file out as the run's save.
     rm -f "$log" 2>/dev/null || true
     OPENSC4_TESTENV="$env" "$repo/scripts/run-autotest.sh" "$build" "OPENSC4_TEST_DAYS=$days" OPENSC4_TEST_SAVE=1 \
         >"$env/run.out" 2>&1 || true
