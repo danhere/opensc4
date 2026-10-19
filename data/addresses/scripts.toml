@@ -1302,7 +1302,7 @@ address = 0x00584210
 kind = "function"
 convention = "thiscall"
 expect = "53 8B D9 8B 03 56 8B 30"
-source = "Empties a list of (value, counted object) nodes: releases each node's object at +0xC, frees the nodes, links the sentinel to itself"
+source = "Empties a list of (value, counted object) nodes: from the sentinel (*this) on, releases each node's object at +0xC (slot 8), frees the nodes, links the sentinel to itself both ways. Ours in renderer.effects.hashes (src/core/effects_hashes.inc)."
 
 [[entry]]
 name = "SC4Uint32TripleMap::InsertHint"

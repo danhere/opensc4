@@ -13024,8 +13024,17 @@ uint32_t __cdecl AssignNoted(uint32_t first, uint32_t last, uint32_t object)
                     [&] { return g_SC4EffectCompounds_Assign(first, last, object); });
 }
 
+// The frees a comparison keeps until it is done (the memory its game's
+// run freed is put back and read again), each by the function it goes to.
+std::vector<std::pair<uint32_t, uint32_t>>* g_stKept = nullptr;
+
 void __cdecl FreeNoted(uint32_t storage)
 {
+    if (g_stKept && StNoting()) {
+        g_stGame.push_back(StMake(addr::SC4_Free, Ptr(storage)));
+        g_stKept->push_back({addr::SC4_Free, storage});
+        return;
+    }
     StHelper(StMake(addr::SC4_Free, Ptr(storage)), nullptr, 0, [&] {
         g_SC4_Free(storage);
         return 0u;
@@ -13106,8 +13115,10 @@ const bool g_registeredStore = registry::Register({
 // on the shared functions their tables' slots hold (0x005BE3E0 and
 // 0x005BE3F0 for the counted base at +4, 0x00968B60 and 0x0090D96B for
 // the counted ones), which ours notes without reading the object, as the
-// game's run may have let go of it last.
-enum class Held { CountedAt4, Description, Counted };
+// game's run may have let go of it last. A fourth kind, the effects
+// manager's lists of held effects, is renderer.effects.hashes' (further
+// down), by that group's mode.
+enum class Held { CountedAt4, Description, Counted, Effect };
 
 struct PtKind {
     uint32_t copy, fill, assign, destroy, grow, hold, letGo, holdSlot, letGoSlot;
@@ -13129,6 +13140,12 @@ constexpr PtKind kPtKinds[] = {
      addr::SC4CountedPtrs_Destroy, addr::SC4CountedPtrs_GrowInsert, addr::cRZBaseRefCount_AddRef,
      addr::cRZBaseRefCount_Release, 8, 4, "effects.pointers.copy.counted", "effects.pointers.fill.counted",
      "effects.pointers.assign.counted", "effects.pointers.destroy.counted", "effects.pointers.grow.counted"},
+    // The effects manager's lists of held effects (renderer.effects.hashes):
+    // slots 0x1C and 0x20, which hand the call to the counted base at +4.
+    {addr::SC4HeldEffects_CopyRange, addr::SC4HeldEffects_Fill, addr::SC4HeldEffects_Assign,
+     addr::SC4HeldEffects_Destroy, addr::SC4HeldEffects_GrowInsert, addr::SC4EffectAt4_AddRefThunk,
+     addr::SC4EffectAt4_ReleaseThunk, 0x1C, 0x20, "effects.hashes.copy.effects", "effects.hashes.fill.effects",
+     "effects.hashes.assign.effects", "effects.hashes.destroy.effects", "effects.hashes.grow.effects"},
 };
 
 const PtKind& PtKindOf(Held kind)
@@ -13136,7 +13153,13 @@ const PtKind& PtKindOf(Held kind)
     return kPtKinds[static_cast<int>(kind)];
 }
 
-StepMode g_ptMode = StepMode::Original;
+StepMode g_ptMode = StepMode::Original, g_hsMode = StepMode::Original;
+
+// The mode of a kind's group: the held effects' is the hashes'.
+StepMode PtModeOf(Held kind)
+{
+    return kind == Held::Effect ? g_hsMode : g_ptMode;
+}
 
 // What ours calls: in the replay the note, else the call or ours.
 char* CopyPointers(Held kind, char* first, char* last, char* place);
@@ -13190,10 +13213,10 @@ void PtDestroyPointers(Held kind, char* list)
 // The game's side: each of the fourteen by the group's mode (inside a noted
 // run noted, and compared where it is called). What a copy, fill or
 // assignment writes is the range it was given.
-StCdecl4 g_ptCopy[3] = {}, g_ptFill[3] = {};
-StCdecl3 g_ptAssign[3] = {};
-Call0Fn g_ptDestroy[3] = {};
-Call5Fn g_ptGrow[3] = {};
+StCdecl4 g_ptCopy[4] = {}, g_ptFill[4] = {};
+StCdecl3 g_ptAssign[4] = {};
+Call0Fn g_ptDestroy[4] = {};
+Call5Fn g_ptGrow[4] = {};
 
 std::size_t PtRange(uint32_t place, uint32_t first, uint32_t last)
 {
@@ -13206,7 +13229,7 @@ uint32_t __cdecl PtCopyByMode(uint32_t first, uint32_t last, uint32_t place, uin
     const PtKind& k = PtKindOf(kind);
     const auto game = [&] { return g_ptCopy[static_cast<int>(kind)](first, last, place, tag); };
     const auto ours = [&] { return Word(CopyPointers(kind, Ptr(first), Ptr(last), Ptr(place))); };
-    return StByModeOf(g_ptMode, StMake(k.copy, Ptr(first), Ptr(last), Ptr(place)), nullptr, 0, game, ours, [&] {
+    return StByModeOf(PtModeOf(kind), StMake(k.copy, Ptr(first), Ptr(last), Ptr(place)), nullptr, 0, game, ours, [&] {
         return StCompared(k.copyId, Ptr(place), PtRange(place, first, last), true, game, ours);
     });
 }
@@ -13220,7 +13243,7 @@ uint32_t __cdecl PtFillByMode(uint32_t place, uint32_t count, uint32_t value, ui
         return Word(FillPointers(kind, Ptr(place), count, reinterpret_cast<char* const*>(value)));
     };
     const std::size_t size = place && count < 0x100000 ? count * 4 : 0;
-    return StByModeOf(g_ptMode, StMake(k.fill, Ptr(place), Ptr(count), Ptr(value)), nullptr, 0, game, ours,
+    return StByModeOf(PtModeOf(kind), StMake(k.fill, Ptr(place), Ptr(count), Ptr(value)), nullptr, 0, game, ours,
                       [&] { return StCompared(k.fillId, Ptr(place), size, true, game, ours); });
 }
 
@@ -13230,7 +13253,7 @@ uint32_t __cdecl PtAssignByMode(uint32_t first, uint32_t last, uint32_t to)
     const PtKind& k = PtKindOf(kind);
     const auto game = [&] { return g_ptAssign[static_cast<int>(kind)](first, last, to); };
     const auto ours = [&] { return Word(AssignPointers(kind, Ptr(first), Ptr(last), Ptr(to))); };
-    return StByModeOf(g_ptMode, StMake(k.assign, Ptr(first), Ptr(last), Ptr(to)), nullptr, 0, game, ours,
+    return StByModeOf(PtModeOf(kind), StMake(k.assign, Ptr(first), Ptr(last), Ptr(to)), nullptr, 0, game, ours,
                       [&] { return StCompared(k.assignId, Ptr(to), PtRange(to, first, last), true, game, ours); });
 }
 
@@ -13242,7 +13265,7 @@ uint32_t PtDestroyByMode(Held kind, char* list)
         DestroyPointers(kind, list);
         return 0u;
     };
-    return StByModeOf(g_ptMode, StMake(k.destroy, list), nullptr, 0, game, ours,
+    return StByModeOf(PtModeOf(kind), StMake(k.destroy, list), nullptr, 0, game, ours,
                       [&] { return StEndCompared(k.destroyId, game, ours); });
 }
 
@@ -13256,7 +13279,7 @@ uint32_t PtGrowByMode(Held kind, char* list, uint32_t at, uint32_t value, uint32
         GrowInsertPointers(kind, list, Ptr(at), reinterpret_cast<char* const*>(value), count, end);
         return 0u;
     };
-    return StByModeOf(g_ptMode, StMake(k.grow, list, Ptr(at), Ptr(value), count | (end ? 0x80000000u : 0)), list,
+    return StByModeOf(PtModeOf(kind), StMake(k.grow, list, Ptr(at), Ptr(value), count | (end ? 0x80000000u : 0)), list,
                       0xC, game, ours, [&] { return StCompared(k.growId, list, 0xC, false, game, ours); });
 }
 
@@ -13298,6 +13321,19 @@ uint32_t __fastcall PtGrowCounted(char* list, void*, uint32_t at, uint32_t value
     return PtGrowByMode(Held::Counted, list, at, value, tag, count, atEnd);
 }
 OPENSC4_THUNK(TPtGrowCounted, PtGrowCounted, 20)
+
+uint32_t __fastcall PtDestroyEffects(char* list, void*)
+{
+    return PtDestroyByMode(Held::Effect, list);
+}
+OPENSC4_THUNK(TPtDestroyEffects, PtDestroyEffects, 0)
+
+uint32_t __fastcall PtGrowEffects(char* list, void*, uint32_t at, uint32_t value, uint32_t tag, uint32_t count,
+                                  uint32_t atEnd)
+{
+    return PtGrowByMode(Held::Effect, list, at, value, tag, count, atEnd);
+}
+OPENSC4_THUNK(TPtGrowEffects, PtGrowEffects, 20)
 
 // The holds and let-goes, noted in a noted run.
 uint32_t StCallNoted(uint32_t target, char* self, Call0Fn real)
@@ -14700,6 +14736,418 @@ const bool g_registeredTables = registry::Register({
     "\"Water effects, sky and clouds\")",
     true,
     InstallTables,
+});
+
+// --- The effects manager's hash tables -----------------------------------------------------
+//
+// The manager's hash tables and small objects: a dword hash's look-up and
+// end, a hash of key pairs' insert and growth, a hash of names' growth, the
+// clear of a hash of lists and of a list of events, the 0x40-byte counted
+// object's constructor and destructors, the character transform
+// (effects_hashes.inc); and the manager's lists of held effects (the
+// fourth kind of the lists of held pointers, by this group's mode). The
+// comparison is the store's, sharing its engine: the game's runs with each
+// call it makes noted, these compared where they are called, ours
+// replayed; the ends and clears run ours first. A growth's game's run
+// frees the old buckets it relinks, and an end's what it read: their frees
+// (and deletes) are kept until the comparison is done, so the memory can
+// be put back and read again. Several of these are the whole game's, not
+// only the manager's: they are compared only on the thread the group was
+// installed on (another's runs the game's).
+DWORD g_hsThread = 0;
+
+// What ours calls: in the replay the note, else the call or ours.
+void DestroyCounted40(char* object);
+StFreeFn g_SC4_operator_delete = nullptr;
+
+void HsLetGoEvent(char* object)
+{
+    const uint32_t letGo = At<uint32_t>(At<char*>(object, 0), 8);
+    if (g_stReplay)
+        StReplayed(StMake(letGo, object), nullptr);
+    else
+        CallThis<uint32_t>(letGo, object);
+}
+
+void HsDestroyCounted40(char* object)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4Counted40_Destroy, object), nullptr);
+    else
+        DestroyCounted40(object);
+}
+
+void HsDelete(char* object)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4_operator_delete, object), nullptr);
+    else
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(object);
+}
+
+#include "core/effects_hashes.inc"
+
+// A comparison whose game's run frees what is put back for ours: the
+// frees kept until it is done (inside another's, for that one).
+template <typename Compare>
+uint32_t HsKeepingFrees(Compare&& compare)
+{
+    std::vector<std::pair<uint32_t, uint32_t>> kept;
+    auto* const outer = g_stKept;
+    if (!outer)
+        g_stKept = &kept;
+    const uint32_t result = compare();
+    g_stKept = outer;
+    for (const auto& [target, storage] : kept) {
+        if (target == addr::SC4_Free)
+            g_SC4_Free(storage);
+        else
+            g_SC4_operator_delete(storage);
+    }
+    return result;
+}
+
+// An end or clear: ours first (its frees, deletes and let-goes only
+// noted), its bytes in `spans` kept, the memory put back; then the game's
+// noted, its frees kept. The calls, the bytes and (with `result`) EAX are
+// compared.
+template <typename Game, typename Ours>
+uint32_t HsEndCompared(const char* id, const TbSpans& spans, bool result, Game&& game, Ours&& ours)
+{
+    return HsKeepingFrees([&] {
+        StSaved saved;
+        g_stGame.clear();
+        g_stOurs.clear();
+        std::vector<std::vector<char>> before, own, theirs;
+        for (const TbSpan& span : spans)
+            before.emplace_back(span.at, span.at + span.size);
+        g_stThread = GetCurrentThreadId();
+        g_stDepth = 0;
+        g_stNoting = false;
+        g_stReplay = true;
+        const uint32_t mine = ours();
+        g_stReplay = false;
+        for (std::size_t i = 0; i < spans.size(); ++i) {
+            own.emplace_back(spans[i].at, spans[i].at + spans[i].size);
+            std::memcpy(spans[i].at, before[i].data(), spans[i].size);
+        }
+        g_stNoting = true;
+        const uint32_t answer = game();
+        g_stNoting = false;
+        for (const TbSpan& span : spans)
+            theirs.emplace_back(span.at, span.at + span.size);
+        if (!(g_stGame == g_stOurs)) {
+            StRecord(id, false, StNotesText(g_stGame, g_stOurs), StNotesText(g_stOurs, g_stGame));
+            return answer;
+        }
+        for (std::size_t i = 0; i < spans.size(); ++i) {
+            if (own[i] == theirs[i])
+                continue;
+            std::size_t at = 0;
+            while (own[i][at] == theirs[i][at])
+                ++at;
+            at &= ~std::size_t{0xF};
+            const std::size_t n = std::min<std::size_t>(0x20, spans[i].size - at);
+            char text[48];
+            std::snprintf(text, sizeof text, "span %zu of %zu +0x%zX: ", i, spans.size(), at);
+            StRecord(id, false, text + Hex(theirs[i].data() + at, n), text + Hex(own[i].data() + at, n));
+            return answer;
+        }
+        StRecord(id, !result || answer == mine, Hex(&answer, 4), Hex(&mine, 4));
+        return answer;
+    });
+}
+
+// The group's mode; compared only on the group's thread.
+template <typename Game, typename Ours, typename Compared>
+uint32_t HsByMode(StNote note, const char* out, std::size_t size, Game&& game, Ours&& ours, Compared&& compared)
+{
+    if (g_hsMode == StepMode::Compare && GetCurrentThreadId() != g_hsThread)
+        return game();
+    return StByModeOf(g_hsMode, std::move(note), out, size, game, ours, compared);
+}
+
+// A hash's table and bucket storage.
+TbSpans HsTable(char* table)
+{
+    TbSpans spans{{table, 0x14, false}};
+    if (char* const buckets = At<char*>(table, 4))
+        spans.push_back({buckets, HsBuckets(table) * std::size_t{4}, false});
+    return spans;
+}
+
+// The game's side: each of the eleven by the group's mode (inside a noted
+// run noted, and compared where it is called). The lists of held effects
+// are the lists of held pointers' code with this group's mode.
+Call1Fn g_SC4Uint32HashSet_Find = nullptr, g_SC4PairHash_Grow = nullptr, g_SC4StringHash_Grow = nullptr,
+        g_SC4Counted40_DeletingDestructor = nullptr;
+Call0Fn g_SC4Uint32Hash_Destroy = nullptr, g_SC4PtrVectorHashMap_Clear = nullptr, g_SC4EventList_Clear = nullptr,
+        g_SC4Counted40_Construct = nullptr, g_SC4Counted40_Destroy = nullptr;
+Call2Fn g_SC4PairHash_InsertUnique = nullptr;
+StCdecl4 g_SC4_TransformChars = nullptr;
+
+uint32_t __fastcall HsFindByMode(char* table, void*, uint32_t key)
+{
+    const auto game = [&] { return g_SC4Uint32HashSet_Find(table, nullptr, key); };
+    const auto ours = [&] { return Word(FindUint32(table, reinterpret_cast<const uint32_t*>(key))); };
+    return HsByMode(StMake(addr::SC4Uint32HashSet_Find, table, Ptr(key)), nullptr, 0, game, ours,
+                    [&] { return TbCompared("effects.hashes.find", nullptr, 0, true, game, ours); });
+}
+OPENSC4_THUNK(THsFind, HsFindByMode, 4)
+
+uint32_t __fastcall HsInsertPairByMode(char* table, void*, uint32_t out, uint32_t value)
+{
+    const auto game = [&] { return g_SC4PairHash_InsertUnique(table, nullptr, out, value); };
+    const auto ours = [&] {
+        return Word(InsertPairUnique(table, Ptr(out), reinterpret_cast<const uint32_t*>(value)));
+    };
+    const auto kept = [&] { return HsTable(table); };
+    return HsByMode(StMake(addr::SC4PairHash_InsertUnique, table, Ptr(out), Ptr(value)), Ptr(out), 0xC, game, ours,
+                    [&] {
+                        return TbCompared("effects.hashes.insert_pair", Ptr(out), 0xC, true, game, ours, kept,
+                                          TbMade);
+                    });
+}
+OPENSC4_THUNK(THsInsertPair, HsInsertPairByMode, 8)
+
+// A growth: the old buckets and each node's link, which the game's run
+// changes and ours reads again (only when it grows); the new buckets it
+// made.
+template <typename Hash>
+uint32_t HsGrowCompared(const char* id, char* table, uint32_t count, Call1Fn real, Hash&& hash)
+{
+    const auto game = [&] { return real(table, nullptr, count); };
+    const auto ours = [&] {
+        GrowHash(table, count, hash);
+        return 0u;
+    };
+    const auto kept = [&] {
+        TbSpans spans;
+        const uint32_t old = HsBuckets(table);
+        if (count <= old || HsPrimeAtLeast(count) <= old)
+            return spans;
+        char** const buckets = At<char**>(table, 4);
+        spans.push_back({Ptr(Word(buckets)), old * std::size_t{4}, false});
+        for (uint32_t i = 0; i < old; ++i) {
+            for (char* node = buckets[i]; node; node = At<char*>(node, 0))
+                spans.push_back({node, 4, false});
+        }
+        return spans;
+    };
+    return HsKeepingFrees([&] { return TbCompared(id, table, 0x14, false, game, ours, kept, TbMade); });
+}
+
+uint32_t __fastcall HsGrowPairsByMode(char* table, void*, uint32_t count)
+{
+    const auto game = [&] { return g_SC4PairHash_Grow(table, nullptr, count); };
+    const auto ours = [&] {
+        GrowPairHash(table, count);
+        return 0u;
+    };
+    return HsByMode(StMake(addr::SC4PairHash_Grow, table, Ptr(count)), table, 0x14, game, ours, [&] {
+        return HsGrowCompared("effects.hashes.grow_pairs", table, count, g_SC4PairHash_Grow, HashPair);
+    });
+}
+OPENSC4_THUNK(THsGrowPairs, HsGrowPairsByMode, 4)
+
+uint32_t __fastcall HsGrowNamesByMode(char* table, void*, uint32_t count)
+{
+    const auto game = [&] { return g_SC4StringHash_Grow(table, nullptr, count); };
+    const auto ours = [&] {
+        GrowNameHash(table, count);
+        return 0u;
+    };
+    return HsByMode(StMake(addr::SC4StringHash_Grow, table, Ptr(count)), table, 0x14, game, ours, [&] {
+        return HsGrowCompared("effects.hashes.grow_names", table, count, g_SC4StringHash_Grow, HashName);
+    });
+}
+OPENSC4_THUNK(THsGrowNames, HsGrowNamesByMode, 4)
+
+uint32_t __fastcall HsDestroyHashByMode(char* table, void*)
+{
+    const auto game = [&] { return g_SC4Uint32Hash_Destroy(table, nullptr); };
+    const auto ours = [&] {
+        DestroyUint32Hash(table);
+        return 0u;
+    };
+    return HsByMode(StMake(addr::SC4Uint32Hash_Destroy, table), nullptr, 0, game, ours, [&] {
+        return HsEndCompared("effects.hashes.destroy_hash", HsTable(table), false, game, ours);
+    });
+}
+OPENSC4_THUNK(THsDestroyHash, HsDestroyHashByMode, 0)
+
+uint32_t __fastcall HsClearListsByMode(char* table, void*)
+{
+    const auto game = [&] { return g_SC4PtrVectorHashMap_Clear(table, nullptr); };
+    const auto ours = [&] {
+        ClearListHash(table);
+        return 0u;
+    };
+    return HsByMode(StMake(addr::SC4PtrVectorHashMap_Clear, table), nullptr, 0, game, ours, [&] {
+        return HsEndCompared("effects.hashes.clear_lists", HsTable(table), false, game, ours);
+    });
+}
+OPENSC4_THUNK(THsClearLists, HsClearListsByMode, 0)
+
+uint32_t __fastcall HsClearEventsByMode(char* list, void*)
+{
+    const auto game = [&] { return g_SC4EventList_Clear(list, nullptr); };
+    const auto ours = [&] {
+        ClearEvents(list);
+        return 0u;
+    };
+    return HsByMode(StMake(addr::SC4EventList_Clear, list), nullptr, 0, game, ours, [&] {
+        return HsEndCompared("effects.hashes.clear_events", TbSpans{{list, 4, false}, {At<char*>(list, 0), 8, false}},
+                             false, game, ours);
+    });
+}
+OPENSC4_THUNK(THsClearEvents, HsClearEventsByMode, 0)
+
+uint32_t __fastcall HsConstructCountedByMode(char* object, void*)
+{
+    const auto game = [&] { return g_SC4Counted40_Construct(object, nullptr); };
+    const auto ours = [&] { return Word(ConstructCounted40(object)); };
+    // The string's first byte, in storage the game's run made.
+    const auto after = [&] {
+        TbSpans spans;
+        for (const TbSpan& made : TbMade())
+            spans.push_back({made.at, 1, true});
+        return spans;
+    };
+    return HsByMode(StMake(addr::SC4Counted40_Construct, object), object, 0x40, game, ours, [&] {
+        return TbCompared("effects.hashes.construct_counted", object, 0x40, true, game, ours, TbNone, after);
+    });
+}
+OPENSC4_THUNK(THsConstructCounted, HsConstructCountedByMode, 0)
+
+uint32_t __fastcall HsDestroyCountedByMode(char* object, void*)
+{
+    const auto game = [&] { return g_SC4Counted40_Destroy(object, nullptr); };
+    const auto ours = [&] {
+        DestroyCounted40(object);
+        return 0u;
+    };
+    return HsByMode(StMake(addr::SC4Counted40_Destroy, object), nullptr, 0, game, ours, [&] {
+        return HsEndCompared("effects.hashes.destroy_counted", TbSpans{{object, 0x40, false}}, false, game, ours);
+    });
+}
+OPENSC4_THUNK(THsDestroyCounted, HsDestroyCountedByMode, 0)
+
+uint32_t __fastcall HsDeleteCountedByMode(char* object, void*, uint32_t flags)
+{
+    const auto game = [&] { return g_SC4Counted40_DeletingDestructor(object, nullptr, flags); };
+    const auto ours = [&] { return Word(DeleteCounted40(object, flags)); };
+    return HsByMode(StMake(addr::SC4Counted40_DeletingDestructor, object, Ptr(flags)), nullptr, 0, game, ours,
+                    [&] { return HsEndCompared("effects.hashes.delete_counted", TbNone(), true, game, ours); });
+}
+OPENSC4_THUNK(THsDeleteCounted, HsDeleteCountedByMode, 4)
+
+uint32_t __cdecl HsTransformByMode(uint32_t first, uint32_t last, uint32_t out, uint32_t fn)
+{
+    const auto game = [&] { return g_SC4_TransformChars(first, last, out, fn); };
+    const auto ours = [&] { return Word(TransformChars(Ptr(first), Ptr(last), Ptr(out), fn)); };
+    const std::size_t size = out && last > first && last - first < 0x100000 ? last - first : 0;
+    return HsByMode(StMake(addr::SC4_TransformChars, Ptr(first), Ptr(last), Ptr(out), fn), nullptr, 0, game, ours,
+                    [&] { return TbCompared("effects.hashes.transform", Ptr(out), size, true, game, ours); });
+}
+
+// The game's helpers, noted in a noted run: operator delete (kept by a
+// comparison that keeps its frees) and the held effects' hold and let-go,
+// by the functions the two classes seen in the lists have in slots 0x1C
+// and 0x20 (the effects of table 0x00AA0EA0: the thunks to their counted
+// base at +4; the decals of 0x00A9EE78: the shared AddRef 0x005F47F0 and
+// the decal's Release 0x005833A0), each noted as the hold or let-go ours
+// notes.
+Call0Fn g_SC4EffectAt4_AddRefThunk = nullptr, g_SC4EffectAt4_ReleaseThunk = nullptr, g_SC4Counted4_AddRef = nullptr,
+        g_SC4EffectDecal_Release = nullptr;
+
+void __cdecl DeleteNoted(uint32_t object)
+{
+    if (g_stKept && StNoting()) {
+        g_stGame.push_back(StMake(addr::SC4_operator_delete, Ptr(object)));
+        g_stKept->push_back({addr::SC4_operator_delete, object});
+        return;
+    }
+    StHelper(StMake(addr::SC4_operator_delete, Ptr(object)), nullptr, 0, [&] {
+        g_SC4_operator_delete(object);
+        return 0u;
+    });
+}
+
+uint32_t __fastcall EffectHoldNoted(char* self, void*)
+{
+    return StCallNoted(addr::SC4EffectAt4_AddRefThunk, self, g_SC4EffectAt4_AddRefThunk);
+}
+OPENSC4_THUNK(TEffectHoldNoted, EffectHoldNoted, 0)
+
+uint32_t __fastcall EffectLetGoNoted(char* self, void*)
+{
+    return StCallNoted(addr::SC4EffectAt4_ReleaseThunk, self, g_SC4EffectAt4_ReleaseThunk);
+}
+OPENSC4_THUNK(TEffectLetGoNoted, EffectLetGoNoted, 0)
+
+uint32_t __fastcall DecalHoldNoted(char* self, void*)
+{
+    return StCallNoted(addr::SC4EffectAt4_AddRefThunk, self, g_SC4Counted4_AddRef);
+}
+OPENSC4_THUNK(TDecalHoldNoted, DecalHoldNoted, 0)
+
+uint32_t __fastcall DecalLetGoNoted(char* self, void*)
+{
+    return StCallNoted(addr::SC4EffectAt4_ReleaseThunk, self, g_SC4EffectDecal_Release);
+}
+OPENSC4_THUNK(TDecalLetGoNoted, DecalLetGoNoted, 0)
+
+bool InstallHashes(registry::Mode mode)
+{
+    constexpr int effect = static_cast<int>(Held::Effect);
+    if (!game::IsBuild641() ||
+        !Detour(addr::SC4Uint32HashSet_Find, &THsFind, &g_SC4Uint32HashSet_Find) ||
+        !Detour(addr::SC4PairHash_InsertUnique, &THsInsertPair, &g_SC4PairHash_InsertUnique) ||
+        !Detour(addr::SC4PairHash_Grow, &THsGrowPairs, &g_SC4PairHash_Grow) ||
+        !Detour(addr::SC4StringHash_Grow, &THsGrowNames, &g_SC4StringHash_Grow) ||
+        !Detour(addr::SC4Uint32Hash_Destroy, &THsDestroyHash, &g_SC4Uint32Hash_Destroy) ||
+        !Detour(addr::SC4PtrVectorHashMap_Clear, &THsClearLists, &g_SC4PtrVectorHashMap_Clear) ||
+        !Detour(addr::SC4EventList_Clear, &THsClearEvents, &g_SC4EventList_Clear) ||
+        !Detour(addr::SC4Counted40_Construct, &THsConstructCounted, &g_SC4Counted40_Construct) ||
+        !Detour(addr::SC4Counted40_Destroy, &THsDestroyCounted, &g_SC4Counted40_Destroy) ||
+        !Detour(addr::SC4Counted40_DeletingDestructor, &THsDeleteCounted, &g_SC4Counted40_DeletingDestructor) ||
+        !DetourCdecl(addr::SC4_TransformChars, &HsTransformByMode, &g_SC4_TransformChars) ||
+        !DetourCdecl(addr::SC4HeldEffects_CopyRange, &PtCopyByMode<Held::Effect>, &g_ptCopy[effect]) ||
+        !DetourCdecl(addr::SC4HeldEffects_Fill, &PtFillByMode<Held::Effect>, &g_ptFill[effect]) ||
+        !DetourCdecl(addr::SC4HeldEffects_Assign, &PtAssignByMode<Held::Effect>, &g_ptAssign[effect]) ||
+        !Detour(addr::SC4HeldEffects_Destroy, &TPtDestroyEffects, &g_ptDestroy[effect]) ||
+        !Detour(addr::SC4HeldEffects_GrowInsert, &TPtGrowEffects, &g_ptGrow[effect]))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(HookPoolAllocate() && HookFree() &&
+          DetourCdecl(addr::SC4_operator_delete, &DeleteNoted, &g_SC4_operator_delete) &&
+          Detour(addr::SC4EffectAt4_AddRefThunk, &TEffectHoldNoted, &g_SC4EffectAt4_AddRefThunk) &&
+          Detour(addr::SC4EffectAt4_ReleaseThunk, &TEffectLetGoNoted, &g_SC4EffectAt4_ReleaseThunk) &&
+          Detour(addr::SC4Counted4_AddRef, &TDecalHoldNoted, &g_SC4Counted4_AddRef) &&
+          Detour(addr::SC4EffectDecal_Release, &TDecalLetGoNoted, &g_SC4EffectDecal_Release)))
+        return false;
+    g_hsThread = GetCurrentThreadId();
+    g_hsMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the effects manager's hash tables %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredHashes = registry::Register({
+    "renderer.effects.hashes",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4PairHash_InsertUnique,
+    "The effects manager's hash tables and small objects: a dword hash's look-up and end, a hash of key pairs' "
+    "insert and growth, a hash of names' growth, the clears of a hash of lists and of a list of events, the "
+    "0x40-byte counted object's constructor and destructors, the character transform, and the manager's lists of "
+    "held effects (copy, fill, assignment, end, growth); compare mode runs the game's with its calls noted, each of "
+    "these compared where it is called (on the group's thread), and replays ours (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallHashes,
 });
 
 bool InstallEffects(registry::Mode mode)
