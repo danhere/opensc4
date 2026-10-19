@@ -1477,6 +1477,159 @@ expect = "83 EC 38 53 33 DB 56 6A"
 source = "Name ours. Ret 4. The vector of compound descriptions resized to count with empty objects: one built on the stack (+0 cleared, +4 1, empty lists, an empty string with 8 bytes of storage from 0x0090CF54, +0x20 cleared; +0x24 and +0x28 left as the stack held them, the reader 0x005A51E0 fills both after the resize), SC4EffectCompounds::Resize, then the object's end. Called by the effects file reader (0x005A5DD8) and from 0x0058D628. Ours in renderer.effects.store (src/core/effects_store.inc)."
 
 [[entry]]
+name = "SC4CountedAt4Ptrs_CopyRange"
+address = 0x00586B70
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* const* first, void* const* last, void** place, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. A list of pointers to objects whose counted base is at +4 (an effect description's lists the reader resizes with 0x005A46E0): [first, last) copied into raw storage at place on, each pointer written and held (slot 0x10, 0x005BE3E0); nothing written where the place is null, which still moves on; the tag is not read. Answers the place after the last. Called by SC4CountedAt4Ptrs::GrowInsert, the reader's in-place insert 0x005A46E0 (0x005A473D, 0x005A47C3), the in-place insert 0x00587D40 and from 0x005907F7 and 0x00590884. Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4CountedAt4Ptrs_Fill"
+address = 0x00586BB0
+kind = "function"
+convention = "cdecl"
+signature = "void** (void** place, unsigned count, void* const* value, void* tag)"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. count copies of the pointer at value made in raw storage at place on, each held (slot 0x10); the pointer is read again for each, nothing written where the place is null. Answers the place after the last. Called by SC4CountedAt4Ptrs::GrowInsert only. Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4EffectDescriptionPtrs_CopyRange"
+address = 0x00586BF0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* const* first, void* const* last, void** place, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. A list of effect descriptions: [first, last) copied into raw storage at place on, each held (SC4Effect::Hold, the count at +0x204); nothing written where the place is null, which still moves on. Answers the place after the last. Called by SC4EffectDescriptionPtrs::GrowInsert, the reader's in-place insert 0x005A4820 (0x005A4884, 0x005A48E6), the in-place insert 0x00587A00 and from 0x0058AA98. Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4EffectDescriptionPtrs_Fill"
+address = 0x00586C30
+kind = "function"
+convention = "cdecl"
+signature = "void** (void** place, unsigned count, void* const* value, void* tag)"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. count copies of the description at value made in raw storage at place on, each held (SC4Effect::Hold). Answers the place after the last. Called by SC4EffectDescriptionPtrs::GrowInsert and the reader's in-place insert (0x005A48C4). Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4CountedPtrs_CopyRange"
+address = 0x00586C70
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* const* first, void* const* last, void** place, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. A list of pointers to counted objects (cRZBaseRefCount at +0: Release in slot 4, AddRef in slot 8; the effect description's list at +0x5C, of the 0x40-byte objects 0x005836A0 makes): [first, last) copied into raw storage at place on, each held (slot 8); nothing written where the place is null, which still moves on. Answers the place after the last. Called by SC4CountedPtrs::GrowInsert, the reader's in-place insert 0x005A4940 (0x005A499D, 0x005A4A23) and the in-place insert 0x00587BA0. Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4CountedPtrs_Fill"
+address = 0x00586CB0
+kind = "function"
+convention = "cdecl"
+signature = "void** (void** place, unsigned count, void* const* value, void* tag)"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. count copies of the pointer at value made in raw storage at place on, each held (slot 8). Answers the place after the last. Called by SC4CountedPtrs::GrowInsert only. Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4EffectDescriptionPtrs_Assign"
+address = 0x00586D50
+kind = "function"
+convention = "cdecl"
+signature = "void** (void* const* first, void* const* last, void** to, void* tag, int unused)"
+expect = "8B 44 24 08 55 8B 6C 24"
+source = "Name ours. [first, last) assigned to to on (the erase's copy down): a place that is its own source or already holds the same description is left alone, else the new one is held (SC4Effect::Hold), written, and the old one let go (SC4EffectDescription::Release). Answers the place after the last (to for an empty range). Called by the in-place insert 0x00587A00 and from 0x0058FF3B and 0x00595677. Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4CountedPtrs_Assign"
+address = 0x00586DC0
+kind = "function"
+convention = "cdecl"
+signature = "void** (void* const* first, void* const* last, void** to, void* tag, int unused)"
+expect = "8B 44 24 08 55 8B 6C 24"
+source = "Name ours. [first, last) assigned to to on, as SC4EffectDescriptionPtrs_Assign but held through slot 8 and let go through slot 4. Answers the place after the last. Called by the reader's resize (0x005A5CE3, with nothing to move), the in-place insert 0x00587BA0 and from 0x005956CA. Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4CountedPtrs::Destroy"
+address = 0x005877D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. this = a list of counted objects: each pointer let go (slot 4), then the storage freed (0x0090CF63). The list is left as it was. Called by SC4CountedPtrs::GrowInsert, the in-place insert 0x00587BA0 and from 0x0058C82D (the description's end 0x0058C6E0). Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4CountedAt4Ptrs::Destroy"
+address = 0x00587810
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. this = a list of objects counted at +4: each pointer let go (slot 0x14, 0x005BE3F0), then the storage freed. Called by SC4CountedAt4Ptrs::GrowInsert, the in-place insert 0x00587D40 and from 0x0058C23F and 0x00590801. Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4EffectDescriptionPtrs::Destroy"
+address = 0x00587850
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 8B D9 8B 33 57 8B"
+source = "Name ours. this = a list of effect descriptions: each let go (SC4EffectDescription::Release), then the storage freed. Called by SC4EffectDescriptionPtrs::GrowInsert, the in-place insert 0x00587A00 and from 0x0058AABA. Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4CountedAt4Ptrs::GrowInsert"
+address = 0x005880C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void** at, void* const* value, void* tag, unsigned count, bool atEnd)"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. Ret 0x14. this = a list of objects counted at +4 with no room left: new storage for the size plus the larger of the size and count (0x0090CF54), the pointers before at copied over (SC4CountedAt4Ptrs_CopyRange), count copies of the one at value after them (one written and held in place, more by SC4CountedAt4Ptrs_Fill), the pointers from at on too unless atEnd, the old list ended (SC4CountedAt4Ptrs::Destroy). Called by the reader's in-place insert 0x005A46E0 (0x005A480F) and from 0x00588889 and 0x0058AC89. Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4EffectDescriptionPtrs::GrowInsert"
+address = 0x00588190
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void** at, void* const* value, void* tag, unsigned count, bool atEnd)"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. Ret 0x14. As SC4CountedAt4Ptrs::GrowInsert for a list of effect descriptions (held by SC4Effect::Hold; SC4EffectDescriptionPtrs_CopyRange, _Fill, ::Destroy). Called by the reader's in-place insert 0x005A4820 (0x005A4931) only. Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4CountedPtrs::GrowInsert"
+address = 0x00588260
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void** at, void* const* value, void* tag, unsigned count, bool atEnd)"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. Ret 0x14. As SC4CountedAt4Ptrs::GrowInsert for a list of counted objects (held through slot 8; SC4CountedPtrs_CopyRange, _Fill, ::Destroy). Called by the reader's in-place insert 0x005A4940 (0x005A4A6F) and from 0x0058ABD7. Ours in renderer.effects.pointers (src/core/effects_pointers.inc)."
+
+[[entry]]
+name = "SC4CountedAt4::ReleaseThunk"
+address = 0x005BE3F0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 C1 04 E9 73 F5 34 00"
+source = "Name ours. add ecx,4 and a jump to the counted base's Release (cRZBaseRefCount::Release): the Release of an object whose counted base is at +4, the pair of SC4AdviceBase::AddRefThunk (0x005BE3E0); slot 0x14 of the tables of the objects in the effect descriptions' lists (0x00A9EDA4, 0x00A9ED74, 0x00A9EE0C, 0x00AA0FE0, 0x00AA10B0, 0x00AA10EC). The game's; noted by the comparison of renderer.effects.pointers."
+
+[[entry]]
+name = "cRZBaseRefCount::AddRef"
+address = 0x00968B60
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "FF 41 04 8B 41 04 C3 8B"
+source = "Name ours. The counted base's AddRef: ++[this+4], answers it. Shared by many classes' tables (slot 8 of the 0x40-byte objects 0x005836A0 makes, table 0x00A9EEA4) and jumped to by AddRef thunks such as 0x005BE3E0. The game's; noted by the comparison of renderer.effects.pointers."
+
+[[entry]]
+name = "cRZBaseRefCount::Release"
+address = 0x0090D96B
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 04 83 F8 01 76 05"
+source = "Name ours. The counted base's Release: a count above 1 lowered and answered; at 1 or less the object's slot 0 (its deleting destructor) called with 1 and 0 answered. Shared (slot 4 of table 0x00A9EEA4, the jump of 0x005BE3F0). The game's; noted by the comparison of renderer.effects.pointers."
+
+[[entry]]
 name = "SC4EffectCompound::CopyConstructRecord"
 address = 0x005888A0
 kind = "function"
