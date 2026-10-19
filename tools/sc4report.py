@@ -39,14 +39,19 @@ COLUMNS = (['file', 'status', 'city', 'mayor', 'x', 'y', 'size_km', 'established
            ['connections'])
 
 
+def text(value):
+    """A save string as the game wrote it: UTF-8 (Reader.gzstr gives latin-1)."""
+    return value.encode('latin-1').decode('utf-8', 'replace')
+
+
 def city_row(fields):
     """The CSV row of one decoded regional city record."""
     population = fields['population_3c']
     known = {key for key, _ in POPULATION_TYPES}
     row = {
         'status': 'ok' if fields['established_168'] else 'unfounded',
-        'city': fields['city_name_d0'],
-        'mayor': fields['mayor_name_f8'],
+        'city': text(fields['city_name_d0']),
+        'mayor': text(fields['mayor_name_f8']),
         'x': fields['x_14'],
         'y': fields['y_18'],
         'size_km': fields['size_x_1c'],
