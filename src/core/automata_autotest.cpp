@@ -70,12 +70,30 @@
 //   then 30 again when it is not there), the answers and list counts mixed.
 //   The spawn adds automata to the city: from that day on the run is not
 //   the one without the test (on both sides alike).
+// OPENSC4_TEST_AUTOMATA_VEHMGR=1 (part v1, with OPENSC4_TEST_AUTOMATA=2 or
+//   more): on the same day the vehicle and pedestrian managers (city slots
+//   43 and 44) are queried at the game's addresses (ours when
+//   simulators.automata.vehmgr is on), each manager into the fingerprint as
+//   ` v<identity>,<kinds>,<scale>,<cells>,<records>,<hits>,<groups>` (the
+//   vehicle manager) and ` <...>` (the pedestrian manager) from that day
+//   on: QueryInterface for four interfaces on the object and through the
+//   serializable part (each AddRef given back) and GetGZCLSID; for kinds 0
+//   to 12 slots 73, 74, 85 (the curve's address), 86, 87 and 88 (a 16-word
+//   block of the test's own, scales 1.25 and -0.75); slot 82 for the four
+//   directions and the record list's hit test (0x00551630) at 12 x 12 cells
+//   spread over the city (sizes from the city); the group tests 0x0054D1A0,
+//   0x0054D210 and 0x0054D230 over groups 0x4000..0x4240. Slot 75 (it reads
+//   the 24-hour clock), the automata of the manager's list with slots 68
+//   and 41 and 0x0054D150 (which automata there are follows frames), and
+//   those two tests with null go to the log only (`autotest: automata:
+//   vehicle manager: ...`). Read-only.
 // A remove and add round trip of one occupant's controllers is not done:
 // removing sends 0xEA298D50 to the automata, destroys the controllers and
 // can drop the occupant's automaton entry (its automata released), and the
 // add makes new controllers through the COM; the city would not be the
 // same afterwards.
 #include "core/automata_ctlmgr.h"
+#include "core/automata_vehmgr.h"
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/game_access.h"
@@ -124,6 +142,9 @@ struct Hash {
 
 // The occupant's slots (cISC4Occupant): type, position (out), cells (out).
 constexpr std::size_t kGetType = 0x1C, kGetPosition = 0x20, kGetCells = 0x64;
+// The automata managers' list of their automata (the common base's +0x44:
+// head of 0xC-byte nodes, the automaton at +8).
+constexpr std::size_t kManagerAutomata = 0x44;
 constexpr uint32_t kTypeAutomaton = 0xC7CC75F1, kTypeAutomaton2 = 0x496E5783, kTypeProp = 0xA823821E;
 
 char* Manager(cISC4City* city)
@@ -828,12 +849,131 @@ void ControllerDrive(char* manager)
     log::Write("autotest: automata: controllers%s", text);
 }
 
+// ====================================================================================
+// Part v1's drive (OPENSC4_TEST_AUTOMATA_VEHMGR=1), see the top of the file.
+
+std::string g_managerText;
+
+uint32_t Bits64(double value)
+{
+    uint64_t bits = 0;
+    std::memcpy(&bits, &value, sizeof bits);
+    return static_cast<uint32_t>(bits) ^ (static_cast<uint32_t>(bits >> 32) * 31u);
+}
+
+void ManagerDrive(cISC4City* city)
+{
+    namespace vm = automata_vehmgr;
+    std::string text;
+    const uint32_t cellsX = city->CellCountX(), cellsZ = city->CellCountZ();
+    for (int m = 0; m < 2; ++m) {
+        char* const manager = Virtual<char*>(city, m ? vm::kCitySlotPedestrians : vm::kCitySlotVehicles);
+        if (!manager) {
+            text += m ? " -" : " v-";
+            continue;
+        }
+        Hash identity, kinds, scale, cells, records, groups, rate, automata;
+        // QueryInterface on the object and through the serializable part's
+        // adjustor; each AddRef given back through the answer's slot 2.
+        const uint32_t own = m ? vm::kPedestrianClassId : vm::kVehicleClassId;
+        const uint32_t other = m ? vm::kVehicleClassId : vm::kPedestrianClassId;
+        const uint32_t iids[] = {own, other, 1u, 0x12345678u};
+        for (char* part : {manager, manager + vm::field::kSerializable})
+            for (const uint32_t iid : iids) {
+                void* out = nullptr;
+                const uint8_t answer = Virtual<uint8_t>(part, 0x00, iid, &out);
+                identity.Mix(answer);
+                identity.Mix(out ? static_cast<uint32_t>(static_cast<char*>(out) - manager) : 0xFFFFFFFFu);
+                if (answer && out)
+                    Virtual<uint32_t>(out, 0x08);
+            }
+        identity.Mix(Virtual<uint32_t>(manager + vm::field::kSerializable, 0x14)); // GetGZCLSID
+        // The kind tables (73, 74, 85, 86), the scale (87), the matrix (88)
+        // with a 16-word block of the test's own, and the rate (75).
+        char data[0x54] = {};
+        for (int i = 0; i < 16; ++i)
+            At<uint16_t>(data, 0x34 + 2 * i) = static_cast<uint16_t>(i * 37 + 5);
+        for (uint32_t kind = 0; kind <= 12; ++kind) {
+            kinds.Mix(Virtual<uint32_t>(manager, vm::slot::kKindClass, kind));
+            kinds.Mix(Virtual<uint32_t>(manager, vm::slot::kKindGroup, kind));
+            kinds.Mix(static_cast<uint32_t>(
+                reinterpret_cast<std::uintptr_t>(Virtual<void*>(manager, vm::slot::kGetKindCurve, kind))));
+            kinds.Mix(Bits(Virtual<float>(manager, vm::slot::kGetKindValue, kind)));
+            scale.Mix(Bits64(Virtual<double>(manager, vm::slot::kGetScale, kind, 7u)));
+            for (const float s : {1.25f, -0.75f}) {
+                float out[16] = {};
+                Virtual<void>(manager, vm::slot::kScaledMatrix, kind, static_cast<const char*>(data), s,
+                              static_cast<float*>(out));
+                scale.MixBytes(out, sizeof out);
+            }
+            rate.Mix(Bits64(Virtual<double>(manager, vm::slot::kKindRate, kind)));
+        }
+        // The neighbour cell test (82) and the record list's hits at 12 x 12
+        // cells spread over the city, its edges included.
+        const bool cellsThere = At<void*>(manager, vm::field::kCells) != nullptr;
+        uint32_t recordCount = 0;
+        char* const recordHead = At<char*>(manager, vm::field::kRecordList);
+        for (char* n = At<char*>(recordHead, 0); n != recordHead; n = At<char*>(n, 0))
+            ++recordCount;
+        using Hits = uint32_t(__thiscall*)(void*, int32_t, int32_t);
+        for (uint32_t i = 0; i < 12 && cellsX && cellsZ; ++i)
+            for (uint32_t j = 0; j < 12; ++j) {
+                const int32_t x = static_cast<int32_t>(i * (cellsX - 1) / 11);
+                const int32_t z = static_cast<int32_t>(j * (cellsZ - 1) / 11);
+                if (cellsThere)
+                    for (uint32_t direction = 0; direction < 4; ++direction)
+                        cells.Mix(Virtual<uint8_t>(manager, vm::slot::kTestNeighbourCell, 0u, x, z, direction));
+                records.Mix(reinterpret_cast<Hits>(addr::cSC4VehPedManagerBase_RecordListHits)(
+                    manager + vm::field::kRecordList, x, z));
+            }
+        // The group tests, at the game's addresses.
+        using GroupTest = uint32_t(__thiscall*)(void*, uint32_t);
+        for (uint32_t group = 0x4000; group <= 0x4240; ++group) {
+            const uint32_t a = reinterpret_cast<GroupTest>(addr::cSC4VehPedManagerBase_IsServiceGroup)(manager, group);
+            const uint32_t b = reinterpret_cast<GroupTest>(addr::cSC4VehPedManagerBase_IsGroup422C)(manager, group);
+            const uint32_t c = reinterpret_cast<GroupTest>(addr::cSC4VehPedManagerBase_IsGroup422E)(manager, group);
+            if (a | b | c)
+                groups.Mix(group * 8 + a + 2 * b + 4 * c);
+        }
+        // The automata of the manager's list (+0x44; which there are follows
+        // frames): their class (68), the occupant test and the bounds test
+        // (41); the log only. Then both tests with null.
+        using OccupantTest = uint32_t(__thiscall*)(void*, void*);
+        const auto occupantTest = reinterpret_cast<OccupantTest>(addr::cSC4VehPedManagerBase_IsAutomatonOccupant);
+        uint32_t count = 0;
+        char* const head = At<char*>(manager, kManagerAutomata);
+        for (char* n = At<char*>(head, 0); n != head && count < 64; n = At<char*>(n, 0)) {
+            void* const automaton = At<void*>(n, 8);
+            if (!automaton)
+                continue;
+            ++count;
+            automata.Mix(Virtual<uint32_t>(manager, vm::slot::kAutomatonClass, automaton));
+            automata.Mix(occupantTest(manager, automaton));
+            automata.Mix(Virtual<uint8_t>(manager, vm::slot::kInExtendedBounds, automaton));
+        }
+        const uint32_t nulls =
+            occupantTest(manager, nullptr) +
+            2u * Virtual<uint8_t>(manager, vm::slot::kInExtendedBounds, static_cast<void*>(nullptr));
+        char part[160];
+        std::snprintf(part, sizeof part, " %s%08X,%08X,%08X,%08X,%u,%08X,%08X", m ? "" : "v", identity.h, kinds.h,
+                      scale.h, cells.h, recordCount, records.h, groups.h);
+        text += part;
+        log::Write("autotest: automata: %s manager: identity %08X kinds %08X scale %08X cells %08X (%s) records %u "
+                   "%08X groups %08X rate %08X nulls %u automata %u %08X",
+                   m ? "pedestrian" : "vehicle", identity.h, kinds.h, scale.h, cells.h, cellsThere ? "grid" : "none",
+                   recordCount, records.h, groups.h, rate.h, nulls, count, automata.h);
+    }
+    g_managerText = text;
+}
+
 void Drive(const Day& day)
 {
     if (EnvInt("OPENSC4_TEST_AUTOMATA", 0) < 2 || !day.counted || g_written)
         return;
     if (day.day != day.first + EnvInt("OPENSC4_TEST_AUTOMATA_DAY", 3))
         return;
+    if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 1 && day.city && game::IsBuild641() && g_managerText.empty())
+        ManagerDrive(day.city);
     if (char* const manager = Manager(day.city)) {
         WriteDrive(manager);
         QueryDrive(manager);
@@ -895,6 +1035,7 @@ void Fingerprint(cISC4City* city, std::string& line)
     line += text;
     if (g_written)
         line += g_writeText + g_queryText + g_controllerText;
+    line += g_managerText;
     // The automaton table: frame-driven, the log only.
     uint32_t parked = 0, automata = 0, parkedSum = 0;
     ForEach<AutomatonNode>(Table(manager, field::kAutomata), [&](AutomatonNode* node) {

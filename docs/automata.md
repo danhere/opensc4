@@ -19,7 +19,7 @@ All 30 classes are registered by one function, 0x00514A00, with factories 0x0051
 | Controllers | cSC4AutomataControllerManager (0xCA14CA03), cSC4AutomataAttractor (0x6A1628BA), cSC4AutomataGenerator (0x4A1628C5) |
 | Scripts and situations | cSC4AutomataScriptSystem (0x4A1B664E), cSC4CitySituationManager (0x0BB14381) |
 
-The road vehicles and the pedestrians share an automaton base (vtable 0x00A9C068); road vehicles, trains and emergency vehicles a vehicle base (0x00A9D488); fire truck, patrol car and ambulance an emergency base (0x00A981E0); aircraft and boats a base of their own (0x00A95AC0); the vehicle and pedestrian managers a manager base (0x00A9BD88); the aircraft and watercraft managers another (0x00A95880); attractor and generator a controller base (0x00A95D90). The automata are occupants (types 0xC7CC75F1 and 0x496E5783), which is why the occupant manager's fingerprint leaves them out ([occmgr.md](occmgr.md)).
+The road vehicles and the pedestrians share an automaton base (vtable 0x00A9C068); road vehicles, trains and emergency vehicles a vehicle base (0x00A9D488); fire truck, patrol car and ambulance an emergency base (0x00A981E0); aircraft and boats a base of their own (0x00A95AC0); the vehicle and pedestrian managers a manager base (0x00A9BD88), which derives from the base all four managers share (0x00A95880, constructor 0x005125E0; part v1 below); attractor and generator a controller base (0x00A95D90). The automata are occupants (types 0xC7CC75F1 and 0x496E5783), which is why the occupant manager's fingerprint leaves them out ([occmgr.md](occmgr.md)).
 
 ## The code and how it splits
 
@@ -32,7 +32,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Attractor, generator and their base | 81 | 12,629 | 2 |
 | Script system | 116 | 31,620 | 3 |
 | City situation manager | 167 | 44,037 | 4 |
-| Vehicle and pedestrian managers and their base | 96 | 20,337 | 3 |
+| Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2, v3 |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | 6 |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | 8 |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | 2 |
@@ -299,3 +299,116 @@ Reached (our first-call log lines, in the batch below): all 12. Read runs on eve
 
 Before the batch, an original-against-ours run of Making Money d0000 with `=3` and the test on day 1 matched line for line in the log, including the spawned automata's places. The `s` state checksum (tick-driven fields) repeated, so it stays in the token.
 
+
+## Part v1: the vehicle and pedestrian managers, the object and its queries
+
+### Survey
+
+cSC4VehicleManager (class ID 0xA98F9D3B, factory 0x005145A0, constructor 0x0055FB50, 0xAE8 bytes, city slot 43) and cSC4PedestrianManager (0xC98F9D17, factory 0x005145D0, constructor 0x00545500, 0xAE0 bytes, city slot 44) keep the city's road vehicles and pedestrians. Both derive from a base of their own (constructor 0x00554360, vtable 0x00A9BD88; `cSC4VehPedManagerBase`, the name is ours). That base derives from the base all four automata managers share (constructor 0x005125E0, vtable 0x00A95880; the aircraft manager's 0x004FBB40 and the watercraft manager's 0x00574860 call it too). The common base holds most of cISC4AutomataManager: the gzcom-dll header's slots 0 to 37 line up (Init 3, Shutdown 4, AddAutomaton 7, RemoveAutomaton 8, CreateAutomaton 15, the two Dispatch 17 and 18, SetMaxCount 23, HandleTuningParametersChanged 24, SetCameraFollow 34). Its code belongs with the aircraft and watercraft group of the survey's table.
+
+Four parts, each with its own vtable:
+
+| Part | Vehicle | Pedestrian | Base | What it is |
+| --- | --- | --- | --- | --- |
+| +0x00 | 0x00A9D1E0 | 0x00A9A470 | 0x00A9BD88 | the manager, 90 slots |
+| +0x04 | 0x00A9D1CC | 0x00A9A460 | 0x00A9BD78 | 4 slots; the vehicle manager's slot 3, 0x0055B3F0, wraps the common base's 0x0050DD30 |
+| +0x08 | 0x00A9D1B4 | 0x00A9A448 | 0x00A9BD60 | serializable: Write 0x00553570, Read 0x00554410, GetGZCLSID (the factories answer this part) |
+| +0x0C | 0x00A9D1A4 | 0x00A9A438 | 0x00A9BD50 | message target: 0x00562620, 0x00545450, the common base's 0x00506970 |
+
+The layout is in [automata_vehmgr.h](../src/core/automata_vehmgr.h). The base's own fields:
+
+- +0xA94, the kind list: pairs (kind, 0). The vehicle manager's kinds are 1, 2, 3, 5, 4, 7, 6, 8, 9, 10; the pedestrian manager's are 1, 7, 8. +0xA98 is its first node.
+- +0xAA8, a vector of 0x1C-byte records.
+- +0xAB8, the record list: 0x40-byte nodes, each with two int rectangles and a referenced object.
+- +0xAC0, a stopwatch.
+
+The derived constructors set the occupant group +0xA44 (0x4002, 0x4001), the automaton class +0xA48 (cSC4Vehicle, cSC4Pedestrian) and the default class +0xA8C (1, 2).
+
+The group is found by the vtables of the two classes and the base, less the common base's slots, plus the helpers only they call: 94 functions, 19,898 bytes. The survey's 96 and 20,337 had two neighbours placed with it. Six of the 94 are `sub ecx,N; jmp` adjustor thunks and two are plain jumps (0x0054D250, 0x0054D780); those stay the game's. The other 86 go in three parts:
+
+- **v1 (32, done): the object and its queries.** Below.
+- **v2 (25): life cycle, tuning, messages and the save.**
+  - Init (base 0x0054DBA0, vehicle 0x0055B7E0, pedestrian 0x00544820).
+  - Shutdown (0x00552D00, 0x0055B880, 0x00544860), with 0x00552A20 and 0x00562D60.
+  - HandleTuningParametersChanged (0x0055B410, 0x00544410) and the tuning set-up of slot 58 (0x0055C9D0, 0x005450A0).
+  - The +4 slot 0x0055B3F0.
+  - The message targets: 0x00562620 (with 0x00561500, 1,039 bytes) and 0x00545450 (with 0x00544F30 and 0x005448D0).
+  - Write 0x00553570 with 0x00552A80, and Read 0x00554410 with 0x00553E90.
+  - AddAutomaton (0x00562C10, 0x00546990) and RemoveAutomaton 0x0054D690.
+- **v3 (29): creation, dispatch and frames.**
+  - GetRandomCreationPoint 0x00553080 and the Dispatch pair 0x00551730 and 0x0054DBF0.
+  - Slots 52, 53 (0x0055B480, 0x00544300), 55, 56, 63 (0x00553300, 0x0055B600), 69 to 72, 76 to 81, 83, 84 and 89.
+  - Their helpers 0x0054DD50, 0x0054E690, 0x0054DB50, 0x00552BD0, 0x00555350 and 0x00555400.
+  - The largest are 0x005554E0 (1,241 bytes), 0x0054EF00 (1,206), 0x00552000 (1,022) and 0x0054F3C0 (1,005). The part is about 13,000 bytes, so it may need two pieces.
+  - These run on frames, so the family's frame caveat applies (top of this page).
+
+Mods: no NAM site is in the group, and neither is any of SC4UIScale's addresses. SC4UIScale's probe 0x00505370 is the common base's CreateAutomaton (slot 15 of both managers), which stays the game's.
+
+### What is ours
+
+32 functions in one group, off by default: `simulators.automata.vehmgr` ([automata_vehmgr.cpp](../src/core/automata_vehmgr.cpp)).
+
+- **The object (12):**
+  - The factories 0x005145A0 and 0x005145D0.
+  - The constructors 0x00554360, 0x0055FB50 and 0x00545500.
+  - The destructor body 0x00553860, the deleting destructor 0x00545670 (slot 38, shared by both classes) and the record list's clear 0x00551FC0.
+  - QueryInterface 0x0055B630 and 0x005444C0; GetGZCLSID 0x0055FE20 and 0x00545630.
+- **The kind tables (8):**
+  - Slot 85, the kind's static SC4Curve: base 0x0054D560, vehicle 0x0055B440, pedestrian 0x00544440.
+  - Slot 86, that curve's float at +0x10: 0x0054D5C0, 0x0055B460, 0x00544460.
+  - Slot 73, a class by kind (0x0054D3C0), and slot 74, an occupant group by kind (0x0054D420).
+- **The other queries (12):**
+  - Slot 87, a scale. The base's 0x0054D630 answers 1 - x * 0.01, clamped to 0..0.5; the pedestrian manager's 0x00544480 answers x * 0.02 + 1. Both answer 1.0 unless +0xA3D is set.
+  - Slot 88 (0x0054D4A0): a 4x4 of words times the scale, transposed for a negative scale.
+  - Slot 68 (0x0054D6C0): an automaton's class by its groups.
+  - Slot 75 (0x0054DF40): the kind's curve at a city count, times the 24-hour clock's hour / 3600.
+  - Slot 41 (0x0054DFB0): whether an object's position is inside the manager's rectangle grown by 48.
+  - Slot 82 (0x0054D260): the neighbour cell test.
+  - The record list's hit test 0x00551630, the automaton test 0x0054D150 and the three group tests 0x0054D1A0, 0x0054D210 and 0x0054D230.
+
+Kept as the game's: the six adjustor thunks and the two plain jumps above; the common base's functions (constructor, destructor 0x00512780, QueryInterface 0x00505480, AddRef, Release), called at their addresses; and the 54 functions of v2 and v3.
+
+Oddities kept:
+
+- QueryInterface writes the object and calls AddRef through it without a test.
+- The constructors test the pair inside each new list node for null before writing it.
+- The destructor frees the record vector's buffer and the record list's head without destroying either.
+- 0x0054D150 asks the automaton for its occupant and type twice.
+- Slot 82 ignores its first argument.
+- Slot 88 transposes for a negative or NaN scale.
+
+One difference: slot 75 reads a float that the 24-hour clock writes into a local. Ours starts that local at 0.
+
+Floats are handled as in the earlier parts: 53-bit doubles. Values the game leaves in ST0 are answered unrounded (slots 87 and 75). A float is stored wherever the game stores one (slot 88's factor, slot 41's rectangle, slot 75's count).
+
+Reimplemented like the earlier parts: one writer, then an independent audit of all 32 against the disassembly. The audit found no defect in the code. One address description had slot 82's last test the wrong way round; that is fixed. The audit could not see every caller of the bool answers. In the game, QueryInterface and slot 41 leave junk in the upper bytes of EAX, where ours leaves zeros. Every caller the audit found reads AL only.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_VEHMGR=1`, with `OPENSC4_TEST_AUTOMATA=2` or more, queries both managers on the test day at the game's addresses, so the same test runs on both sides (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). It is read-only.
+
+Into the fingerprint, per manager:
+
+- QueryInterface for four interfaces, on the object and through the serializable part's adjustor (each AddRef is given back), and GetGZCLSID.
+- Slots 73, 74, 85, 86, 87 and 88 for kinds 0 to 12.
+- Slot 82 in four directions and the record list's hits, at 12 x 12 cells spread over the city (the sizes come from the city).
+- The group tests over 0x4000..0x4240.
+
+To the log only:
+
+- Slot 75, which reads the clock.
+- Slots 68 and 41 and 0x0054D150 over the automata of the manager's list, because which automata there are follows frames.
+
+Reached (our first-call log lines, trial Making Money d0000, 4 days): all 32. The constructors, factories and QueryInterface run at the load, the destructors at the exit, and the rest by the test. In the trial the log-only values were also the same on both sides.
+
+### Parity
+
+2026-10-19, B = `simulators.automata.vehmgr` against the original (the switch list includes `determinism.dispatch_info=ours`), env p4env-v1, snapshot v1-r1, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHMGR=1`. All the same, on the first pair:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run of the three legs carried the ` v` token and reached all 32 functions (our first-call log lines).
