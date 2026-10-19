@@ -374,6 +374,7 @@ add_library(opensc4_core SHARED
   ordinance_object.cpp
   ordinance_objects.cpp
   ordinance_sim.cpp
+  panels_autotest.cpp
   pollution_autotest.cpp
   pollution_buildings.cpp
   pollution_effects.cpp
