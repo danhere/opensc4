@@ -1636,7 +1636,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, const void* from)"
 expect = "56 8B F1 57 8B 7C 24 0C"
-source = "Name ours, not analysed. Ret 4. A 0x6C-byte record of a compound description made as a copy of another (its string at +0 copied into storage of its own). Called by SC4EffectCompound::CopyRecords and from 0x005894AA, 0x0059EE2A-0x005A2A07, 0x005AB67C and 0x005AB9B2. The game's; noted by the comparison of renderer.effects.store."
+source = "Name ours. Ret 4. A 0x6C-byte record of a compound description made as a copy of another: its string at +0 copied into storage of its own (cSC4Advice_F408420), +0xC, +0x10, the byte +0x14 cleared, +0x15, +0x18 to +0x4B, +0x4C to +0x51, +0x54 to +0x6B (the floats from +0x18 to +0x47 first set to the value at 0x00B22C58). Answers this. Called by SC4EffectCompound::CopyRecords, SC4EffectCompound_CopyRecordsRange and from 0x0059EE2A-0x005A2A07, 0x005AB67C and 0x005AB9B2. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
 
 [[entry]]
 name = "SC4EffectCompound_CopyRecordsBRange"
@@ -1645,7 +1645,7 @@ kind = "function"
 convention = "cdecl"
 signature = "void* (void* first, void* last, void* to, void* tag)"
 expect = "53 8B 5C 24 0C 56 8B 74"
-source = "Name ours, not analysed. The 0x18-byte records of [first, last) made as copies at to onwards; answers the place after the last. Called by SC4EffectCompound::CopyRecordsB and from 0x0058B1F0, 0x0058B2AC, 0x005ABB4F and 0x005ABBB5. The game's; noted by the comparison of renderer.effects.store."
+source = "Name ours. The 0x18-byte records of [first, last) made as copies at to onwards, inlined (+0, the string at +4 by cSC4Advice_F408420, +0x10, +0x14); nothing made where the place is null. Answers the place after the last. Called by SC4EffectCompound::CopyRecordsB and from 0x0058B1F0, 0x0058B2AC, 0x005ABB4F and 0x005ABBB5. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
 
 [[entry]]
 name = "SC4EffectCompounds_FillNew"
@@ -1681,7 +1681,7 @@ kind = "function"
 convention = "cdecl"
 signature = "void* (void* first, void* last, void* to, void* tag, int unused)"
 expect = "8B 4C 24 08 56 8B 74 24"
-source = "Name ours, not analysed. The compound descriptions of [first, last) assigned to to onwards (the erase's copy down); answers the place after the last. Called by SC4EffectCompounds::Resize and from 0x0058C444, 0x0058C4B8 and 0x00595634. The game's; noted by the comparison of renderer.effects.store."
+source = "Name ours. The compound descriptions (0x38 bytes) of [first, last) assigned to to onwards (the erase's copy down): +0, +4, the lists at +8 and +0x14 by SC4EffectCompoundRecords::Assign and SC4EffectCompoundRecordsB::Assign, +0x20 to +0x28, the string at +0x2C by SC4String::AssignRange unless it is its own. Answers the place after the last. Called by SC4EffectCompounds::Resize and from 0x0058C444, 0x0058C4B8 and 0x00595634. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
 
 [[entry]]
 name = "SC4Float3Vector::CopyConstruct"
@@ -2051,3 +2051,165 @@ convention = "thiscall"
 signature = "void (void* this)"
 expect = "56 8B F1 8B 86 00 01 00"
 source = "Name ours. The manager's two lists of texts emptied, the 0x10-byte ones at +0xFC (SC4EffectTexts10::Erase) and the 0x14-byte ones at +0xF0 (SC4EffectTexts14::Erase); the byte +0xD0 cleared. Jumped to from the end of 0x0058F690. Ours in renderer.effects.vectors (src/core/effects_vectors.inc)."
+
+[[entry]]
+name = "SC4EffectCompound_ConstructRecordB"
+address = 0x00588D90
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (void* place, const void* value)"
+expect = "57 8B 7C 24 08 33 C0 3B"
+source = "Name ours. One 0x18-byte record of a compound description made at place as a copy of value (+0, the string at +4 by cSC4Advice_F408420, +0x10, +0x14); nothing where the place is null. Leaves the record's +0x10 in EAX (zero for a null place). Called by the reader from 0x005A0774 to 0x005A0897. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
+
+[[entry]]
+name = "SC4EffectCompound_CopyRecordsRange"
+address = 0x00589490
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* to)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. The 0x6C-byte records of [first, last) made as copies at to onwards by SC4EffectCompound::CopyConstructRecord; nothing made where the place is null. Answers the place after the last. Called from 0x0058B157, 0x0059EE8E, 0x005AB9FD and 0x005ABA6A. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
+
+[[entry]]
+name = "SC4EffectNameHash::Copy"
+address = 0x00589BD0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* from)"
+expect = "83 EC 14 53 55 8B E9 8B"
+source = "Name ours. Ret 4. A hash of names (+4 buckets, +0x10 count; a node is next, a string at +4, a value at +0x10) made a copy of another: the buckets emptied (the nodes not freed), reserved (PtrVector::Reserve) and filled with nulls (SC4PtrVector::FillInsert) to the other's count, each chain copied in order (the first node's string by cSC4Advice_F408420, the others' inlined), the count copied. Called by SC4EffectNameTables_FillNew and from 0x0059502E. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
+
+[[entry]]
+name = "SC4EffectNameHash::InsertEqual"
+address = 0x00589E80
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* out, const void* key)"
+expect = "83 EC 0C 53 55 56 57 8B"
+source = "Name ours. Ret 8. A name (a string and a value at +0xC) inserted into a hash of names: a node after the first of an equal name in its bucket (SC4EffectNameHash::Bucket), else at the bucket's head; the count up by one; the node and the table to out, which is answered. Called from 0x0058B876, 0x0058CF83, 0x0058D66F and 0x005A5F27. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
+
+[[entry]]
+name = "SC4EffectNameHash::Bucket"
+address = 0x0051C9B0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (const void* this, const void* key)"
+expect = "8B 54 24 04 56 8B 72 04"
+source = "Name ours. Ret 4. The bucket of a string (begin, end) in a hash of names: h = h * 5 + each signed byte, modulo the bucket count. Only reads. Called by SC4EffectNameHash::InsertEqual and SC4StringHashSet::Find."
+
+[[entry]]
+name = "SC4EffectNameTables_FillNew"
+address = 0x0058C0F0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* place, unsigned count, const void* value, void* tag)"
+expect = "8B 4C 24 08 8B 44 24 04"
+source = "Name ours. count copies of the 0x20-byte name table at value made at place on: its hash by SC4EffectNameHash::Copy, its list of objects (+0x14) into storage of its own, each object held (slot 0x10, SC4AdviceBase::AddRefThunk); nothing made where the place is null. Answers the place after the last. Called by SC4EffectNameTables::Construct. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
+
+[[entry]]
+name = "SC4EffectNameTables::Construct"
+address = 0x0058C1C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, unsigned count)"
+expect = "83 EC 20 53 8B 5C 24 28"
+source = "Name ours. Ret 4. The list of name tables made with count empty ones: storage for them, an empty table made on the stack (its hash by SC4Uint32HashSet::Construct with 0x64 buckets) and copied into each (SC4EffectNameTables_FillNew), then ended (SC4CountedAt4Ptrs_Destroy, SC4HashTable::Clear, its buckets freed). Answers this. Called by SC4EffectTables::Construct with 13. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
+
+[[entry]]
+name = "SC4EffectZoomDistances::Construct"
+address = 0x00587F30
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "83 EC 08 53 56 8B F1 57"
+source = "Name ours. The effects tables' zoom distances (+0xD4) made: an empty list of floats, +0xC and +0x10 zero, 4 and 7 at +0x14 and +0x18, then 2500, 1250, 625, 312 and 156 appended (in place with room, else SC4FloatVector::InsertN5). Answers this. Called by SC4EffectTables::Construct and from 0x00591525 and 0x0059A5AC. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
+
+[[entry]]
+name = "SC4EffectTables::Construct"
+address = 0x0058C580
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 8B F1 8D 4E 04 C7"
+source = "Name ours. The effects tables (0x118 bytes, vtable 0x00A9F040; the effects file reader's +4 and the manager's) made: six hashes (+4, +0x24, +0x44, +0x64, +0x84, +0xA4) by SC4Uint32HashSet::Construct with 0x64 buckets, the list after each emptied, 13 name tables at +0xC4, the zoom distances at +0xD4, the texts' lists (+0xF0, +0xFC) and the byte +0x108 cleared, the string at +0x10C empty in storage of 8 bytes. Answers this. Called from 0x005912DC (the manager) and 0x005A4CD0 (the reader). Ours in renderer.effects.tables (src/core/effects_tables.inc)."
+
+[[entry]]
+name = "SC4EffectTables::Destroy"
+address = 0x0058C6E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "51 56 8B F1 C7 06 40 F0"
+source = "Name ours. The effects tables ended, last part first: the string's storage freed, the texts' lists ended (SC4EffectTexts10_Destroy, SC4BitRowVector::Destroy), the zoom distances' storage freed, the name tables, the 0x1C- and 0x28-byte records and the decal descriptions ended by their range ends with their storage, each hash cleared (SC4HashTable::Clear) and its buckets freed, the counted objects' list ended (SC4CountedPtrs::Destroy), each held description let go (SC4EffectDescription::Release), the compound descriptions ended (SC4EffectCompounds_DestroyRange). Called from 0x0058CA33, 0x0058FD2A and 0x005A4E6A. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
+
+[[entry]]
+name = "SC4EffectTables::Take"
+address = 0x0058D0E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* other)"
+expect = "8B 44 24 04 8B 50 18 56"
+source = "Name ours. Ret 4. The tables take what other holds: when other's compound descriptions are empty the two swap each hash but its first dword with the list after it, the name tables and the texts' lists, and when the zoom distances were read (+0xD0) other gets a copy of them (SC4FloatVector::Assign, +0xE0 to +0xEC); else it jumps to SC4EffectTables::MergeKept (the byte +0x108 set) or ::Merge. Called from 0x005A3BC3. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
+
+[[entry]]
+name = "SC4EffectTables::Merge"
+address = 0x0058CA50
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* other)"
+expect = "83 EC 60 53 8B 5C 24 68"
+source = "Name ours, not analysed. Ret 4. Jumped to from SC4EffectTables::Take when other's compound descriptions are not empty and the byte +0x108 is clear. The game's."
+
+[[entry]]
+name = "SC4EffectTables::MergeKept"
+address = 0x00587230
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* other)"
+expect = "83 EC 10 53 55 56 8B D9"
+source = "Name ours, not analysed. Ret 4. Jumped to from SC4EffectTables::Take when other's compound descriptions are not empty and the byte +0x108 is set. The game's."
+
+[[entry]]
+name = "SC4EffectCompoundRecords::Assign"
+address = 0x0058B050
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours, not analysed. Ret 4. A compound description's list of 0x6C-byte records (+8) assigned another. Called by SC4EffectCompounds_CopyDown and from 0x0058B4B9, 0x0058B94E and 0x0058BA88. The game's; noted by the comparison of renderer.effects.tables."
+
+[[entry]]
+name = "SC4EffectCompoundRecordsB::Assign"
+address = 0x0058B180
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours, not analysed. Ret 4. A compound description's list of 0x18-byte records (+0x14) assigned another. Called by SC4EffectCompounds_CopyDown and from 0x0058B4C5, 0x0058B95A and 0x0058BA94. The game's; noted by the comparison of renderer.effects.tables."
+
+[[entry]]
+name = "SC4EffectsManager::AddRef"
+address = 0x0058D840
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 81 B0 01 00 00 40 89"
+source = "Name ours. Slot 1 of the manager's vtable 0x00A9F264 (and, through thunks taking 4, 8, 0xC, 0x10 and 0x94 off this, of its others): the count at +0x1B0 up by one. Answers the new count. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::SetRenderStates"
+address = 0x0058D870
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 6A FF 6A FF 68 00 00"
+source = "Name ours. The manager's two render states at +0xD5C and +0xD64 set by SC4RenderState::Init (1, 0, 0, 0, 1, 0, 0, -1, 4 or 8, 1 or 5, -1, -1.0f, -1, -1). Called from 0x00594C57. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::QueryInterface"
+address = 0x0058D9E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t id, void** out)"
+expect = "8B 44 24 04 3D AA 94 22"
+source = "Name ours. Ret 8. Slot 0 of the manager's vtable 0x00A9F264 (and, through thunks, of its others): for 1 and 0xC97CF5CD the manager, 0xC97CF5CE its interface at +0x94, 0x452294AA the one at +8, each held (slot 1); 0x0A5EAA1A asked of the object at +0xD98 (its slot 0) when there is one. Answers AL whether an interface was given. Ours in renderer.effects.tables (src/core/effects_tables.inc)."
