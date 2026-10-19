@@ -155,7 +155,7 @@ def departments(budget, data):
     group_of = {}
     for group in budget['groups_60']:
         for department in group['departments']:
-            group_of[department] = group['name']
+            group_of[department] = text(group['name'])
     rows = []
     for entry in budget['departments_54']:
         department = budgets.get(entry['department'][0])
@@ -166,7 +166,7 @@ def departments(budget, data):
         expenses = [item for item in items if item['type_64'] == 0]
         rows.append({
             'group': group_of.get(department['id_10'], ''),
-            'department': department['name_14'],
+            'department': text(department['name_14']),
             'id': '%08X' % department['id_10'],
             'name_instance': '%08X' % department['name_instance_28'],
             'funding': round(department['funding_34'], 4),
