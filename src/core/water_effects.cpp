@@ -12799,16 +12799,17 @@ uint32_t StAllocateNoted(char* pool, uint32_t size)
 }
 
 // The game's side: each of the eleven by the group's mode (inside a noted
-// run noted, and compared where it is called), the game's helpers, the
-// allocation (in the pool allocator, MxAllocateNoted) and the free only
-// noted. The lists of held pointers share the engine with a mode of their
-// own.
+// run noted, and compared where it is called; ours too is noted there,
+// when another group compares), the game's helpers, the allocation (in the
+// pool allocator, MxAllocateNoted) and the free only noted. The lists of
+// held pointers, the vectors and the tables share the engine with modes of
+// their own.
 template <typename Game, typename Ours, typename Compared>
 uint32_t StByModeOf(StepMode mode, StNote note, const char* out, std::size_t size, Game&& game, Ours&& ours,
                     Compared&& compared)
 {
     if (mode == StepMode::Ours)
-        return ours();
+        return StNoting() ? StNoted(std::move(note), out, size, ours) : ours();
     if (mode == StepMode::Original)
         return game();
     if (StNoting())
@@ -12985,19 +12986,11 @@ uint32_t __fastcall StoreResizeEmptyByMode(char* store, void*, uint32_t count)
 }
 OPENSC4_THUNK(TSC4EffectCompounds_ResizeEmpty, StoreResizeEmptyByMode, 4)
 
-// The game's helpers and the free, noted in a noted run.
-uint32_t __fastcall CopyRecord6CNoted(char* to, void*, uint32_t from)
-{
-    return StHelper(StMake(addr::SC4EffectCompound_CopyConstructRecord, to, Ptr(from)), nullptr, 0,
-                    [&] { return g_SC4EffectCompound_CopyConstructRecord(to, nullptr, from); });
-}
-OPENSC4_THUNK(TSC4EffectCompound_CopyConstructRecord, CopyRecord6CNoted, 4)
+// The record copies and the copy down are the tables' (further down),
+// noted by their detours here too.
+bool HookCompoundRecordCopies();
 
-uint32_t __cdecl CopyRecords18Noted(uint32_t first, uint32_t last, uint32_t to, uint32_t tag)
-{
-    return StHelper(StMake(addr::SC4EffectCompound_CopyRecordsBRange, Ptr(first), Ptr(last), Ptr(to)), nullptr, 0,
-                    [&] { return g_SC4EffectCompound_CopyRecordsBRange(first, last, to, tag); });
-}
+// The game's helpers and the free, noted in a noted run.
 
 uint32_t __fastcall CopyStringNoted(char* to, void*, uint32_t first, uint32_t last, uint32_t tag)
 {
@@ -13029,12 +13022,6 @@ uint32_t __cdecl AssignNoted(uint32_t first, uint32_t last, uint32_t object)
 {
     return StHelper(StMake(addr::SC4EffectCompounds_Assign, Ptr(first), Ptr(last), Ptr(object)), nullptr, 0,
                     [&] { return g_SC4EffectCompounds_Assign(first, last, object); });
-}
-
-uint32_t __cdecl CopyDownNoted(uint32_t first, uint32_t last, uint32_t to, uint32_t tag, uint32_t unused)
-{
-    return StHelper(StMake(addr::SC4EffectCompounds_CopyDown, Ptr(first), Ptr(last), Ptr(to)), nullptr, 0,
-                    [&] { return g_SC4EffectCompounds_CopyDown(first, last, to, tag, unused); });
 }
 
 void __cdecl FreeNoted(uint32_t storage)
@@ -13082,17 +13069,10 @@ bool InstallStore(registry::Mode mode)
                 &g_SC4EffectCompounds_ResizeEmpty))
         return false;
     if (mode == registry::Mode::Compare &&
-        !(HookPoolAllocate() &&
-          Detour(addr::SC4EffectCompound_CopyConstructRecord, &TSC4EffectCompound_CopyConstructRecord,
-                 &g_SC4EffectCompound_CopyConstructRecord) &&
-          DetourCdecl(addr::SC4EffectCompound_CopyRecordsBRange, &CopyRecords18Noted,
-                      &g_SC4EffectCompound_CopyRecordsBRange) &&
-          HookCopyString() &&
+        !(HookPoolAllocate() && HookCompoundRecordCopies() && HookCopyString() &&
           DetourCdecl(addr::SC4EffectCompounds_FillNew, &FillNewNoted, &g_SC4EffectCompounds_FillNew) &&
           DetourCdecl(addr::SC4EffectCompounds_MoveBack, &MoveBackNoted, &g_SC4EffectCompounds_MoveBack) &&
-          DetourCdecl(addr::SC4EffectCompounds_Assign, &AssignNoted, &g_SC4EffectCompounds_Assign) &&
-          DetourCdecl(addr::SC4EffectCompounds_CopyDown, &CopyDownNoted, &g_SC4EffectCompounds_CopyDown) &&
-          HookFree()))
+          DetourCdecl(addr::SC4EffectCompounds_Assign, &AssignNoted, &g_SC4EffectCompounds_Assign) && HookFree()))
         return false;
     g_stMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: the store of compound descriptions %s",
@@ -13348,6 +13328,14 @@ bool HookCountedAt4LetGo()
            Detour(addr::SC4CountedAt4_ReleaseThunk, &TCountedAt4LetGoNoted, &g_SC4CountedAt4_ReleaseThunk);
 }
 
+// So has its hold, which the lists of held pointers' and the tables'
+// comparisons share.
+bool HookCountedAt4Hold()
+{
+    return g_SC4AdviceBase_AddRefThunk ||
+           Detour(addr::SC4AdviceBase_AddRefThunk, &TCountedAt4HoldNoted, &g_SC4AdviceBase_AddRefThunk);
+}
+
 uint32_t __fastcall CountedHoldNoted(char* self, void*)
 {
     return StCallNoted(addr::cRZBaseRefCount_AddRef, self, g_cRZBaseRefCount_AddRef);
@@ -13384,8 +13372,7 @@ bool InstallPointers(registry::Mode mode)
           (g_SC4EffectDescription_Release || Detour(addr::SC4EffectDescription_Release,
                                                     &TSC4EffectDescription_Release,
                                                     &g_SC4EffectDescription_Release)) &&
-          Detour(addr::SC4AdviceBase_AddRefThunk, &TCountedAt4HoldNoted, &g_SC4AdviceBase_AddRefThunk) &&
-          HookCountedAt4LetGo() &&
+          HookCountedAt4Hold() && HookCountedAt4LetGo() &&
           Detour(addr::cRZBaseRefCount_AddRef, &TCountedHoldNoted, &g_cRZBaseRefCount_AddRef) &&
           Detour(addr::cRZBaseRefCount_Release, &TCountedLetGoNoted, &g_cRZBaseRefCount_Release)))
         return false;
@@ -13913,6 +13900,29 @@ uint32_t __fastcall AssignTextNoted(char* self, void*, uint32_t first, uint32_t 
 }
 OPENSC4_THUNK(TAssignTextNoted, AssignTextNoted, 12)
 
+// These four have one detour each, which the vectors' and the tables'
+// comparisons share.
+bool HookAssignFloats()
+{
+    return g_SC4FloatVector_Assign || Detour(addr::SC4FloatVector_Assign, &TAssignFloatsNoted, &g_SC4FloatVector_Assign);
+}
+
+bool HookAssignText()
+{
+    return g_SC4String_AssignRange || Detour(addr::SC4String_AssignRange, &TAssignTextNoted, &g_SC4String_AssignRange);
+}
+
+bool HookDestroyTexts14()
+{
+    return g_SC4BitRowVector_Destroy ||
+           Detour(addr::SC4BitRowVector_Destroy, &TDestroyTexts14Noted, &g_SC4BitRowVector_Destroy);
+}
+
+bool HookClearTable()
+{
+    return g_SC4HashTable_Clear || Detour(addr::SC4HashTable_Clear, &TClearTableNoted, &g_SC4HashTable_Clear);
+}
+
 // The range helpers, by their place in this table.
 constexpr uint32_t kLsRange3[] = {addr::SC4DecalDescriptions_AssignFill, addr::SC4EffectRecords28_AssignFill,
                                   addr::SC4EffectRecords1C_AssignFill};
@@ -13981,12 +13991,10 @@ bool InstallVectors(registry::Mode mode)
         !(HookPoolAllocate() && HookFree() && HookCopyString() && HookCountedAt4LetGo() &&
           Detour(addr::SC4FloatVector_CopyConstruct, &TCopyFloatsNoted, &g_SC4FloatVector_CopyConstruct) &&
           Detour(addr::SC4Float3Vector_CopyConstruct, &TCopyFloat3sNoted, &g_SC4Float3Vector_CopyConstruct) &&
-          Detour(addr::SC4FloatVector_Assign, &TAssignFloatsNoted, &g_SC4FloatVector_Assign) &&
-          Detour(addr::SC4String_AssignRange, &TAssignTextNoted, &g_SC4String_AssignRange) &&
+          HookAssignFloats() && HookAssignText() &&
           Detour(addr::SC4EffectRecord28_CopyConstruct, &TCopyRecord28Noted, &g_SC4EffectRecord28_CopyConstruct) &&
           Detour(addr::SC4DecalDescription_Destroy, &TDestroyDecalNoted, &g_SC4DecalDescription_Destroy) &&
-          Detour(addr::SC4BitRowVector_Destroy, &TDestroyTexts14Noted, &g_SC4BitRowVector_Destroy) &&
-          Detour(addr::SC4HashTable_Clear, &TClearTableNoted, &g_SC4HashTable_Clear) &&
+          HookDestroyTexts14() && HookClearTable() &&
           DetourCdecl(kLsRange3[0], &LsRange3Noted<0>, &g_lsRange3[0]) &&
           DetourCdecl(kLsRange3[1], &LsRange3Noted<1>, &g_lsRange3[1]) &&
           DetourCdecl(kLsRange3[2], &LsRange3Noted<2>, &g_lsRange3[2]) &&
@@ -14015,6 +14023,683 @@ const bool g_registeredVectors = registry::Register({
     "replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallVectors,
+});
+
+// --- The effects tables and the manager's interface ---------------------------------------
+//
+// The tables the effects file reader fills and the manager holds: their
+// constructor, end and take, the list of name tables and its fill, a name
+// hash's copy and insert, the zoom distances, a compound description's
+// record copies and copy down; and the manager's AddRef, QueryInterface and
+// render states (effects_tables.inc). The comparison is the store's,
+// sharing its engine: the game's runs with each call it makes noted, these
+// compared where they are called, ours replayed; the end runs ours first.
+// Besides the bytes a function writes in place, a comparison may name
+// memory it reads and writes elsewhere (put back before ours runs) and the
+// storage the game's run allocated and ours fills (cleared before ours
+// runs); both are compared.
+StepMode g_tbMode = StepMode::Original;
+
+struct TbSpan {
+    char* at;
+    std::size_t size;
+    bool fill; // storage ours fills, cleared before it runs
+};
+using TbSpans = std::vector<TbSpan>;
+
+TbSpans TbNone()
+{
+    return {};
+}
+
+// The storage the compared game's run allocated and did not free again.
+TbSpans TbMade()
+{
+    TbSpans made;
+    for (std::size_t i = 0; i < g_stGame.size(); ++i) {
+        const StNote& note = g_stGame[i];
+        if (note.target != addr::SC4_PoolAllocate || !note.result)
+            continue;
+        const bool freed = std::any_of(g_stGame.begin() + i, g_stGame.end(), [&](const StNote& later) {
+            return later.target == addr::SC4_Free && later.a == note.result;
+        });
+        if (!freed)
+            made.push_back({Ptr(note.result), note.a, true});
+    }
+    return made;
+}
+
+// StCompared with more memory: `kept` (before the game's run) names memory
+// put back to how it was before ours runs, `after` (after the game's run)
+// memory compared as ours leaves it, cleared first where it says so.
+template <typename Game, typename Ours, typename Kept, typename After>
+uint32_t TbCompared(const char* id, char* region, std::size_t size, bool result, Game&& game, Ours&& ours,
+                    Kept&& kept, After&& after)
+{
+    StSaved saved;
+    g_stGame.clear();
+    g_stOurs.clear();
+    TbSpans spans = kept();
+    if (size)
+        spans.insert(spans.begin(), {region, size, false});
+    const std::size_t keptCount = spans.size();
+    std::vector<std::vector<char>> before;
+    for (const TbSpan& span : spans)
+        before.emplace_back(span.at, span.at + span.size);
+    g_stThread = GetCurrentThreadId();
+    g_stDepth = 0;
+    g_stReplay = false;
+    g_stNoting = true;
+    const uint32_t theirs = game();
+    g_stNoting = false;
+    for (const TbSpan& span : after())
+        spans.push_back(span);
+    std::vector<std::vector<char>> theirBytes, ownBytes;
+    for (const TbSpan& span : spans)
+        theirBytes.emplace_back(span.at, span.at + span.size);
+    for (std::size_t i = 0; i < spans.size(); ++i) {
+        if (i < keptCount)
+            std::memcpy(spans[i].at, before[i].data(), spans[i].size);
+        else if (spans[i].fill)
+            std::memset(spans[i].at, 0xCD, spans[i].size);
+    }
+    g_stReplay = true;
+    const uint32_t mine = ours();
+    g_stReplay = false;
+    for (const TbSpan& span : spans)
+        ownBytes.emplace_back(span.at, span.at + span.size);
+    for (std::size_t i = spans.size(); i--;)
+        std::memcpy(spans[i].at, theirBytes[i].data(), spans[i].size);
+    if (!(g_stGame == g_stOurs)) {
+        StRecord(id, false, StNotesText(g_stGame, g_stOurs), StNotesText(g_stOurs, g_stGame));
+        return theirs;
+    }
+    for (std::size_t i = 0; i < spans.size(); ++i) {
+        if (ownBytes[i] == theirBytes[i])
+            continue;
+        std::size_t at = 0;
+        while (ownBytes[i][at] == theirBytes[i][at])
+            ++at;
+        at &= ~std::size_t{0xF};
+        const std::size_t n = std::min<std::size_t>(0x20, spans[i].size - at);
+        char text[48];
+        std::snprintf(text, sizeof text, "span %zu of %zu +0x%zX: ", i, spans.size(), at);
+        StRecord(id, false, text + Hex(theirBytes[i].data() + at, n), text + Hex(ownBytes[i].data() + at, n));
+        return theirs;
+    }
+    StRecord(id, !result || theirs == mine, Hex(&theirs, 4), Hex(&mine, 4));
+    return theirs;
+}
+
+template <typename Game, typename Ours>
+uint32_t TbCompared(const char* id, char* region, std::size_t size, bool result, Game&& game, Ours&& ours)
+{
+    return TbCompared(id, region, size, result, game, ours, TbNone, TbNone);
+}
+
+// The group's mode, or, while it is off, its detours shared with the
+// store only noting the game's.
+template <typename Game, typename Ours, typename Compared>
+uint32_t TbByMode(StNote note, const char* out, std::size_t size, Game&& game, Ours&& ours, Compared&& compared)
+{
+    if (g_tbMode == StepMode::Original)
+        return StHelper(std::move(note), out, size, game);
+    return StByModeOf(g_tbMode, std::move(note), out, size, game, ours, compared);
+}
+
+// What ours calls: in the replay the note, else ours or the game's (a
+// function of another group by its address, so by that group's mode).
+char* CopyCompoundRecord(char* to, char* from);
+void CopyNameHash(char* table, char* from);
+char* FillNameTables(char* place, uint32_t count, char* value);
+char* ConstructNameTables(char* list, uint32_t count);
+char* ConstructZoomDistances(char* object);
+
+char* TbCopyCompoundRecord(char* to, char* from)
+{
+    if (g_stReplay)
+        return Ptr(StReplayed(StMake(addr::SC4EffectCompound_CopyConstructRecord, to, from), to));
+    return CopyCompoundRecord(to, from);
+}
+
+void TbCopyNameHash(char* table, char* from)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4EffectNameHash_Copy, table, from), table);
+    else
+        CopyNameHash(table, from);
+}
+
+char* TbFillNameTables(char* place, uint32_t count, char* value)
+{
+    if (g_stReplay)
+        return Ptr(StReplayed(StMake(addr::SC4EffectNameTables_FillNew, place, Ptr(count), value), nullptr));
+    return FillNameTables(place, count, value);
+}
+
+void TbConstructNameTables(char* list, uint32_t count)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4EffectNameTables_Construct, list, Ptr(count)), list);
+    else
+        ConstructNameTables(list, count);
+}
+
+void TbConstructZoomDistances(char* object)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4EffectZoomDistances_Construct, object), object);
+    else
+        ConstructZoomDistances(object);
+}
+
+// The game's helpers: the hash's construction, a pointer vector's reserve
+// and fill, a float appended, the record lists' assignments, a call of no
+// arguments, a range end and a merge.
+void TbConstructHash(char* table, uint32_t buckets)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4Uint32HashSet_Construct, table, Ptr(buckets)), table);
+    else
+        CallThis<void*>(addr::SC4Uint32HashSet_Construct, table, buckets);
+}
+
+void TbReserve(char* vector, uint32_t count)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::PtrVector_Reserve, vector, Ptr(count)), vector);
+    else
+        CallThis<void*>(addr::PtrVector_Reserve, vector, count);
+}
+
+void TbFillInsert(char* vector, char* at, uint32_t count, const uint32_t* value)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4PtrVector_FillInsert, vector, at, Ptr(count), *value), vector);
+    else
+        CallThis<void*>(addr::SC4PtrVector_FillInsert, vector, at, count, value);
+}
+
+void TbAppendFloat(char* vector, char* at, const float* value)
+{
+    if (g_stReplay) {
+        uint32_t bits = 0;
+        std::memcpy(&bits, value, 4);
+        StReplayed(StMake(addr::SC4FloatVector_InsertN5, vector, at, nullptr, bits), vector);
+        return;
+    }
+    char tag = 0;
+    CallThis<void*>(addr::SC4FloatVector_InsertN5, vector, at, value, &tag, 1u, 1u);
+}
+
+void TbAssignCompoundRecords(char* to, char* from)
+{
+    LsThis(addr::SC4EffectCompoundRecords_Assign, to, from, to);
+}
+
+void TbAssignCompoundRecordsB(char* to, char* from)
+{
+    LsThis(addr::SC4EffectCompoundRecordsB_Assign, to, from, to);
+}
+
+void TbCall0(uint32_t target, char* self)
+{
+    LsThis(target, self, nullptr, nullptr);
+}
+
+void TbEndRange(uint32_t target, char* first, char* last)
+{
+    if (g_stReplay) {
+        StReplayed(StMake(target, first, last), nullptr);
+        return;
+    }
+    char tag = 0;
+    reinterpret_cast<StCdecl3>(target)(Word(first), Word(last), Word(&tag));
+}
+
+uint32_t TbCall1(uint32_t target, char* self, char* other)
+{
+    if (g_stReplay)
+        return StReplayed(StMake(target, self, other), nullptr);
+    return CallThis<uint32_t>(target, self, other);
+}
+
+// The manager held through its own slot 4, and another object asked for
+// an interface through its slot 0.
+void TbAddRef(char* manager)
+{
+    const uint32_t addRef = At<uint32_t>(At<char*>(manager, 0), 4);
+    if (g_stReplay)
+        StReplayed(StMake(addRef, manager), nullptr);
+    else
+        CallThis<uint32_t>(addRef, manager);
+}
+
+uint32_t TbQueryOther(char* other, uint32_t id, char** out)
+{
+    const uint32_t query = At<uint32_t>(At<char*>(other, 0), 0);
+    if (g_stReplay)
+        return StReplayed(StMake(query, other, Ptr(id), out), reinterpret_cast<char*>(out));
+    return CallThis<uint32_t>(query, other, id, out) & 0xFF;
+}
+
+#include "core/effects_tables.inc"
+
+// The game's side: each of the sixteen by the group's mode (inside a noted
+// run noted, and compared where it is called).
+Call1Fn g_SC4EffectNameHash_Copy = nullptr, g_SC4EffectNameTables_Construct = nullptr,
+        g_SC4EffectTables_Take = nullptr;
+Call0Fn g_SC4EffectZoomDistances_Construct = nullptr, g_SC4EffectTables_Construct = nullptr,
+        g_SC4EffectTables_Destroy = nullptr, g_SC4EffectsManager_AddRef = nullptr,
+        g_SC4EffectsManager_SetRenderStates = nullptr;
+Call2Fn g_SC4EffectNameHash_InsertEqual = nullptr, g_SC4EffectsManager_QueryInterface = nullptr;
+using TbCdecl2 = uint32_t(__cdecl*)(uint32_t, uint32_t);
+TbCdecl2 g_SC4EffectCompound_ConstructRecordB = nullptr;
+StCdecl3 g_SC4EffectCompound_CopyRecordsRange = nullptr;
+StCdecl4 g_SC4EffectNameTables_FillNew = nullptr;
+
+std::size_t TbRange(uint32_t place, uint32_t first, uint32_t last)
+{
+    return LsRange(place, last > first ? last - first : 0);
+}
+
+uint32_t __fastcall TbCopyRecordByMode(char* to, void*, uint32_t from)
+{
+    const auto game = [&] { return g_SC4EffectCompound_CopyConstructRecord(to, nullptr, from); };
+    const auto ours = [&] { return Word(CopyCompoundRecord(to, Ptr(from))); };
+    return TbByMode(StMake(addr::SC4EffectCompound_CopyConstructRecord, to, Ptr(from)), to, 0x6C, game, ours,
+                    [&] { return TbCompared("effects.tables.copy_record", to, 0x6C, true, game, ours); });
+}
+OPENSC4_THUNK(TTbCopyRecord, TbCopyRecordByMode, 4)
+
+uint32_t __cdecl TbConstructRecordBByMode(uint32_t place, uint32_t value)
+{
+    const auto game = [&] { return g_SC4EffectCompound_ConstructRecordB(place, value); };
+    const auto ours = [&] { return ConstructCompoundRecordB(Ptr(place), Ptr(value)); };
+    return TbByMode(StMake(addr::SC4EffectCompound_ConstructRecordB, Ptr(place), Ptr(value)), Ptr(place),
+                    place ? 0x18 : 0, game, ours, [&] {
+                        return TbCompared("effects.tables.construct_record_b", Ptr(place), place ? 0x18 : 0, true,
+                                          game, ours);
+                    });
+}
+
+uint32_t __cdecl TbCopyRecordsByMode(uint32_t first, uint32_t last, uint32_t place)
+{
+    const auto game = [&] { return g_SC4EffectCompound_CopyRecordsRange(first, last, place); };
+    const auto ours = [&] { return Word(CopyCompoundRecords(Ptr(first), Ptr(last), Ptr(place))); };
+    return TbByMode(StMake(addr::SC4EffectCompound_CopyRecordsRange, Ptr(first), Ptr(last), Ptr(place)), nullptr, 0,
+                    game, ours, [&] {
+                        return TbCompared("effects.tables.copy_records", Ptr(place), TbRange(place, first, last),
+                                          true, game, ours);
+                    });
+}
+
+uint32_t __cdecl TbCopyRecordsBByMode(uint32_t first, uint32_t last, uint32_t place, uint32_t tag)
+{
+    const auto game = [&] { return g_SC4EffectCompound_CopyRecordsBRange(first, last, place, tag); };
+    const auto ours = [&] { return Word(CopyCompoundRecordsB(Ptr(first), Ptr(last), Ptr(place))); };
+    return TbByMode(StMake(addr::SC4EffectCompound_CopyRecordsBRange, Ptr(first), Ptr(last), Ptr(place)), nullptr,
+                    0, game, ours, [&] {
+                        return TbCompared("effects.tables.copy_records_b", Ptr(place), TbRange(place, first, last),
+                                          true, game, ours);
+                    });
+}
+
+uint32_t __fastcall TbCopyNameHashByMode(char* table, void*, uint32_t from)
+{
+    const auto game = [&] { return g_SC4EffectNameHash_Copy(table, nullptr, from); };
+    const auto ours = [&] {
+        CopyNameHash(table, Ptr(from));
+        return 0u;
+    };
+    // The buckets as the game's run leaves them (filled by its reserve and
+    // fill, which ours replays), and the nodes and strings it made.
+    const auto after = [&] {
+        TbSpans spans = TbMade();
+        if (char* const buckets = At<char*>(table, 4))
+            spans.push_back({buckets, static_cast<std::size_t>(At<char*>(table, 8) - buckets), false});
+        return spans;
+    };
+    return TbByMode(StMake(addr::SC4EffectNameHash_Copy, table, Ptr(from)), table, 0x14, game, ours, [&] {
+        return TbCompared("effects.tables.copy_name_hash", table, 0x14, false, game, ours, TbNone, after);
+    });
+}
+OPENSC4_THUNK(TTbCopyNameHash, TbCopyNameHashByMode, 4)
+
+uint32_t __fastcall TbInsertNameByMode(char* table, void*, uint32_t out, uint32_t key)
+{
+    const auto game = [&] { return g_SC4EffectNameHash_InsertEqual(table, nullptr, out, key); };
+    const auto ours = [&] { return Word(InsertNameEqual(table, Ptr(out), Ptr(key))); };
+    // The table's count, its buckets and the links of the chain the name
+    // goes into; the node made.
+    const auto kept = [&] {
+        TbSpans spans{{table, 0x14, false}};
+        char* const buckets = At<char*>(table, 4);
+        spans.push_back({buckets, static_cast<std::size_t>(At<char*>(table, 8) - buckets), false});
+        const uint32_t bucket = CallThis<uint32_t>(addr::SC4EffectNameHash_Bucket, table, Ptr(key));
+        for (char* at = At<char**>(table, 4)[bucket]; at; at = At<char*>(at, 0))
+            spans.push_back({at, 4, false});
+        return spans;
+    };
+    return TbByMode(StMake(addr::SC4EffectNameHash_InsertEqual, table, Ptr(out), Ptr(key)), Ptr(out), 8, game, ours,
+                    [&] {
+                        return TbCompared("effects.tables.insert_name", Ptr(out), 8, true, game, ours, kept,
+                                          TbMade);
+                    });
+}
+OPENSC4_THUNK(TTbInsertName, TbInsertNameByMode, 8)
+
+uint32_t __cdecl TbCopyDownByMode(uint32_t first, uint32_t last, uint32_t to, uint32_t tag, uint32_t unused)
+{
+    const auto game = [&] { return g_SC4EffectCompounds_CopyDown(first, last, to, tag, unused); };
+    const auto ours = [&] { return Word(CopyCompoundsDown(Ptr(first), Ptr(last), Ptr(to))); };
+    return TbByMode(StMake(addr::SC4EffectCompounds_CopyDown, Ptr(first), Ptr(last), Ptr(to)), nullptr, 0, game,
+                    ours, [&] {
+                        return TbCompared("effects.tables.copy_down", Ptr(to), TbRange(to, first, last), true, game,
+                                          ours);
+                    });
+}
+
+uint32_t __cdecl TbFillNameTablesByMode(uint32_t place, uint32_t count, uint32_t value, uint32_t tag)
+{
+    const auto game = [&] { return g_SC4EffectNameTables_FillNew(place, count, value, tag); };
+    const auto ours = [&] { return Word(FillNameTables(Ptr(place), count, Ptr(value))); };
+    const std::size_t size = count < 0x10000 ? LsRange(place, count * 0x20) : 0;
+    return TbByMode(StMake(addr::SC4EffectNameTables_FillNew, Ptr(place), Ptr(count), Ptr(value)), nullptr, 0, game,
+                    ours, [&] {
+                        return TbCompared("effects.tables.fill_name_tables", Ptr(place), size, true, game, ours,
+                                          TbNone, TbMade);
+                    });
+}
+
+uint32_t __fastcall TbConstructNameTablesByMode(char* list, void*, uint32_t count)
+{
+    const auto game = [&] { return g_SC4EffectNameTables_Construct(list, nullptr, count); };
+    const auto ours = [&] { return Word(ConstructNameTables(list, count)); };
+    return TbByMode(StMake(addr::SC4EffectNameTables_Construct, list, Ptr(count)), list, 0xC, game, ours,
+                    [&] { return TbCompared("effects.tables.construct_name_tables", list, 0xC, true, game, ours); });
+}
+OPENSC4_THUNK(TTbConstructNameTables, TbConstructNameTablesByMode, 4)
+
+uint32_t __fastcall TbConstructZoomByMode(char* object, void*)
+{
+    const auto game = [&] { return g_SC4EffectZoomDistances_Construct(object, nullptr); };
+    const auto ours = [&] { return Word(ConstructZoomDistances(object)); };
+    return TbByMode(StMake(addr::SC4EffectZoomDistances_Construct, object), object, 0x1C, game, ours,
+                    [&] { return TbCompared("effects.tables.construct_zoom", object, 0x1C, true, game, ours); });
+}
+OPENSC4_THUNK(TTbConstructZoom, TbConstructZoomByMode, 0)
+
+uint32_t __fastcall TbConstructByMode(char* tables, void*)
+{
+    const auto game = [&] { return g_SC4EffectTables_Construct(tables, nullptr); };
+    const auto ours = [&] { return Word(ConstructTables(tables)); };
+    // The string's end byte, in storage the game's run made.
+    const auto after = [&] { return TbSpans{{At<char*>(tables, 0x10C), 1, true}}; };
+    return TbByMode(StMake(addr::SC4EffectTables_Construct, tables), tables, 0x118, game, ours, [&] {
+        return TbCompared("effects.tables.construct", tables, 0x118, true, game, ours, TbNone, after);
+    });
+}
+OPENSC4_THUNK(TTbConstruct, TbConstructByMode, 0)
+
+uint32_t __fastcall TbDestroyByMode(char* tables, void*)
+{
+    const auto game = [&] { return g_SC4EffectTables_Destroy(tables, nullptr); };
+    const auto ours = [&] {
+        DestroyTables(tables);
+        return 0u;
+    };
+    return TbByMode(StMake(addr::SC4EffectTables_Destroy, tables), nullptr, 0, game, ours,
+                    [&] { return StEndCompared("effects.tables.destroy", game, ours); });
+}
+OPENSC4_THUNK(TTbDestroy, TbDestroyByMode, 0)
+
+uint32_t __fastcall TbTakeByMode(char* tables, void*, uint32_t other)
+{
+    const auto game = [&] { return g_SC4EffectTables_Take(tables, nullptr, other); };
+    const auto ours = [&] { return TakeTables(tables, Ptr(other)); };
+    const auto kept = [&] { return TbSpans{{Ptr(other), 0x118, false}}; };
+    return TbByMode(StMake(addr::SC4EffectTables_Take, tables, Ptr(other)), tables, 0x118, game, ours, [&] {
+        // The merge changes what the two hold beyond their own bytes.
+        if (At<char*>(Ptr(other), 0x18) != At<char*>(Ptr(other), 0x1C)) {
+            log::Write("water effects: effects.tables.take: a merge, not compared");
+            return game();
+        }
+        return TbCompared("effects.tables.take", tables, 0x118, false, game, ours, kept, TbNone);
+    });
+}
+OPENSC4_THUNK(TTbTake, TbTakeByMode, 4)
+
+uint32_t __fastcall TbAddRefByMode(char* manager, void*)
+{
+    const auto game = [&] { return g_SC4EffectsManager_AddRef(manager, nullptr); };
+    const auto ours = [&] { return AddRefManager(manager); };
+    return TbByMode(StMake(addr::SC4EffectsManager_AddRef, manager), manager + 0x1B0, 4, game, ours, [&] {
+        return TbCompared("effects.tables.add_ref", manager + 0x1B0, 4, true, game, ours);
+    });
+}
+OPENSC4_THUNK(TTbAddRef, TbAddRefByMode, 0)
+
+uint32_t __fastcall TbSetRenderStatesByMode(char* manager, void*)
+{
+    const auto game = [&] { return g_SC4EffectsManager_SetRenderStates(manager, nullptr); };
+    const auto ours = [&] {
+        SetManagerRenderStates(manager);
+        return 0u;
+    };
+    // The render state's setter writes only the state; ours runs it in the
+    // replay too.
+    return TbByMode(StMake(addr::SC4EffectsManager_SetRenderStates, manager), manager + 0xD5C, 0x10, game, ours, [&] {
+        return TbCompared("effects.tables.render_states", manager + 0xD5C, 0x10, false, game, ours);
+    });
+}
+OPENSC4_THUNK(TTbSetRenderStates, TbSetRenderStatesByMode, 0)
+
+uint32_t __fastcall TbQueryByMode(char* manager, void*, uint32_t id, uint32_t out)
+{
+    // The answer is AL.
+    const auto game = [&] { return g_SC4EffectsManager_QueryInterface(manager, nullptr, id, out) & 0xFF; };
+    const auto ours = [&] { return QueryManager(manager, id, reinterpret_cast<char**>(out)); };
+    return TbByMode(StMake(addr::SC4EffectsManager_QueryInterface, manager, Ptr(id), Ptr(out)), Ptr(out), 4, game,
+                    ours, [&] {
+                        // For 0x0A5EAA1A the game jumps to the QueryInterface
+                        // of the object at +0xD98: its run is noted as that
+                        // call, with what it gives.
+                        char* const other = At<char*>(manager, 0xD98);
+                        if (id != 0x0A5EAA1A || !other)
+                            return TbCompared("effects.tables.query", Ptr(out), 4, true, game, ours);
+                        const auto asked = [&] {
+                            return StHelper(StMake(At<uint32_t>(At<char*>(other, 0), 0), other, Ptr(id), Ptr(out)),
+                                            Ptr(out), 4, game);
+                        };
+                        return TbCompared("effects.tables.query_other", Ptr(out), 4, true, asked, ours);
+                    });
+}
+OPENSC4_THUNK(TTbQuery, TbQueryByMode, 8)
+
+// The game's helpers, noted in a noted run: the hash's construction (the
+// bytes it leaves at `this` with it), a pointer vector's reserve and fill,
+// a float appended, the record lists' assignments; and, while their own
+// group is off, the other groups' functions the tables end with.
+Call1Fn g_SC4Uint32HashSet_Construct = nullptr, g_PtrVector_Reserve = nullptr,
+        g_SC4EffectCompoundRecords_Assign = nullptr, g_SC4EffectCompoundRecordsB_Assign = nullptr;
+Call3Fn g_SC4PtrVector_FillInsert = nullptr;
+Call5Fn g_SC4FloatVector_InsertN5 = nullptr;
+
+uint32_t __fastcall ConstructHashNoted(char* self, void*, uint32_t buckets)
+{
+    return StHelper(StMake(addr::SC4Uint32HashSet_Construct, self, Ptr(buckets)), self, 0x14,
+                    [&] { return g_SC4Uint32HashSet_Construct(self, nullptr, buckets); });
+}
+OPENSC4_THUNK(TConstructHashNoted, ConstructHashNoted, 4)
+
+uint32_t __fastcall ReserveNoted(char* self, void*, uint32_t count)
+{
+    return StHelper(StMake(addr::PtrVector_Reserve, self, Ptr(count)), self, 0xC,
+                    [&] { return g_PtrVector_Reserve(self, nullptr, count); });
+}
+OPENSC4_THUNK(TReserveNoted, ReserveNoted, 4)
+
+uint32_t __fastcall FillInsertNoted(char* self, void*, uint32_t at, uint32_t count, uint32_t value)
+{
+    return StHelper(StMake(addr::SC4PtrVector_FillInsert, self, Ptr(at), Ptr(count), At<uint32_t>(Ptr(value), 0)),
+                    self, 0xC, [&] { return g_SC4PtrVector_FillInsert(self, nullptr, at, count, value); });
+}
+OPENSC4_THUNK(TFillInsertNoted, FillInsertNoted, 12)
+
+uint32_t __fastcall AppendFloatNoted(char* self, void*, uint32_t at, uint32_t value, uint32_t tag, uint32_t count,
+                                     uint32_t atEnd)
+{
+    return StHelper(StMake(addr::SC4FloatVector_InsertN5, self, Ptr(at), nullptr, At<uint32_t>(Ptr(value), 0)), self,
+                    0xC, [&] { return g_SC4FloatVector_InsertN5(self, nullptr, at, value, tag, count, atEnd); });
+}
+OPENSC4_THUNK(TAppendFloatNoted, AppendFloatNoted, 20)
+
+uint32_t __fastcall AssignRecordsNoted(char* self, void* edx, uint32_t from)
+{
+    return LsCopyNoted<&g_SC4EffectCompoundRecords_Assign, addr::SC4EffectCompoundRecords_Assign, 0xC>(self, edx,
+                                                                                                      from);
+}
+OPENSC4_THUNK(TAssignRecordsNoted, AssignRecordsNoted, 4)
+
+uint32_t __fastcall AssignRecordsBNoted(char* self, void* edx, uint32_t from)
+{
+    return LsCopyNoted<&g_SC4EffectCompoundRecordsB_Assign, addr::SC4EffectCompoundRecordsB_Assign, 0xC>(self, edx,
+                                                                                                        from);
+}
+OPENSC4_THUNK(TAssignRecordsBNoted, AssignRecordsBNoted, 4)
+
+// The ends of other groups, by the group, the function and how it is
+// called (`self` alone or a range).
+struct TbForeign {
+    const char* group;
+    uint32_t target;
+    bool range;
+};
+constexpr TbForeign kTbForeign[] = {
+    {"renderer.effects.vectors", addr::SC4EffectTexts10_Destroy, false},
+    {"renderer.effects.pointers", addr::SC4CountedPtrs_Destroy, false},
+    {"renderer.effects.pointers", addr::SC4CountedAt4Ptrs_Destroy, false},
+    {"renderer.effects.vectors", addr::SC4EffectNameTables_DestroyRange, true},
+    {"renderer.effects.vectors", addr::SC4EffectRecords1C_DestroyRange, true},
+    {"renderer.effects.vectors", addr::SC4EffectRecords28_DestroyRange, true},
+    {"renderer.effects.vectors", addr::SC4DecalDescriptions_DestroyRange, true},
+    {"renderer.effects.store", addr::SC4EffectCompounds_DestroyRange, true},
+};
+Call0Fn g_tbForeign0[3] = {};
+StCdecl3 g_tbForeign3[5] = {};
+
+template <int i>
+uint32_t __fastcall TbForeign0Noted(char* self, void*)
+{
+    return StCallNoted(kTbForeign[i].target, self, g_tbForeign0[i]);
+}
+uint32_t __fastcall TbForeignTexts10(char* self, void* edx)
+{
+    return TbForeign0Noted<0>(self, edx);
+}
+OPENSC4_THUNK(TTbForeignTexts10, TbForeignTexts10, 0)
+uint32_t __fastcall TbForeignCounted(char* self, void* edx)
+{
+    return TbForeign0Noted<1>(self, edx);
+}
+OPENSC4_THUNK(TTbForeignCounted, TbForeignCounted, 0)
+uint32_t __fastcall TbForeignCountedAt4(char* self, void* edx)
+{
+    return TbForeign0Noted<2>(self, edx);
+}
+OPENSC4_THUNK(TTbForeignCountedAt4, TbForeignCountedAt4, 0)
+
+template <int i>
+uint32_t __cdecl TbForeign3Noted(uint32_t first, uint32_t last, uint32_t tag)
+{
+    return StHelper(StMake(kTbForeign[i + 3].target, Ptr(first), Ptr(last)), nullptr, 0,
+                    [&] { return g_tbForeign3[i](first, last, tag); });
+}
+
+bool HookTablesForeign()
+{
+    void (*const thunks0[])() = {&TTbForeignTexts10, &TTbForeignCounted, &TTbForeignCountedAt4};
+    const StCdecl3 thunks3[] = {&TbForeign3Noted<0>, &TbForeign3Noted<1>, &TbForeign3Noted<2>, &TbForeign3Noted<3>,
+                                &TbForeign3Noted<4>};
+    for (int i = 0; i < 8; ++i) {
+        const TbForeign& f = kTbForeign[i];
+        if (registry::ModeOf(f.group) != registry::Mode::Original)
+            continue;
+        if (!(f.range ? DetourCdecl(f.target, thunks3[i - 3], &g_tbForeign3[i - 3])
+                      : Detour(f.target, thunks0[i], &g_tbForeign0[i])))
+            return false;
+    }
+    return true;
+}
+
+// The record copies and the copy down have one detour each, which the
+// store's comparison shares (the game's only noted while the tables are
+// off).
+bool HookCompoundRecordCopies()
+{
+    return (g_SC4EffectCompound_CopyConstructRecord ||
+            Detour(addr::SC4EffectCompound_CopyConstructRecord, &TTbCopyRecord,
+                   &g_SC4EffectCompound_CopyConstructRecord)) &&
+           (g_SC4EffectCompound_CopyRecordsBRange ||
+            DetourCdecl(addr::SC4EffectCompound_CopyRecordsBRange, &TbCopyRecordsBByMode,
+                        &g_SC4EffectCompound_CopyRecordsBRange)) &&
+           (g_SC4EffectCompounds_CopyDown ||
+            DetourCdecl(addr::SC4EffectCompounds_CopyDown, &TbCopyDownByMode, &g_SC4EffectCompounds_CopyDown));
+}
+
+bool InstallTables(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookCompoundRecordCopies() ||
+        !DetourCdecl(addr::SC4EffectCompound_ConstructRecordB, &TbConstructRecordBByMode,
+                     &g_SC4EffectCompound_ConstructRecordB) ||
+        !DetourCdecl(addr::SC4EffectCompound_CopyRecordsRange, &TbCopyRecordsByMode,
+                     &g_SC4EffectCompound_CopyRecordsRange) ||
+        !Detour(addr::SC4EffectNameHash_Copy, &TTbCopyNameHash, &g_SC4EffectNameHash_Copy) ||
+        !Detour(addr::SC4EffectNameHash_InsertEqual, &TTbInsertName, &g_SC4EffectNameHash_InsertEqual) ||
+        !DetourCdecl(addr::SC4EffectNameTables_FillNew, &TbFillNameTablesByMode, &g_SC4EffectNameTables_FillNew) ||
+        !Detour(addr::SC4EffectNameTables_Construct, &TTbConstructNameTables, &g_SC4EffectNameTables_Construct) ||
+        !Detour(addr::SC4EffectZoomDistances_Construct, &TTbConstructZoom, &g_SC4EffectZoomDistances_Construct) ||
+        !Detour(addr::SC4EffectTables_Construct, &TTbConstruct, &g_SC4EffectTables_Construct) ||
+        !Detour(addr::SC4EffectTables_Destroy, &TTbDestroy, &g_SC4EffectTables_Destroy) ||
+        !Detour(addr::SC4EffectTables_Take, &TTbTake, &g_SC4EffectTables_Take) ||
+        !Detour(addr::SC4EffectsManager_AddRef, &TTbAddRef, &g_SC4EffectsManager_AddRef) ||
+        !Detour(addr::SC4EffectsManager_SetRenderStates, &TTbSetRenderStates, &g_SC4EffectsManager_SetRenderStates) ||
+        !Detour(addr::SC4EffectsManager_QueryInterface, &TTbQuery, &g_SC4EffectsManager_QueryInterface))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(HookPoolAllocate() && HookFree() && HookCopyString() && HookAssignText() && HookAssignFloats() &&
+          HookClearTable() && HookDestroyTexts14() && HookCountedAt4Hold() && HookTablesForeign() &&
+          (g_SC4EffectDescription_Release || Detour(addr::SC4EffectDescription_Release,
+                                                    &TSC4EffectDescription_Release,
+                                                    &g_SC4EffectDescription_Release)) &&
+          Detour(addr::SC4Uint32HashSet_Construct, &TConstructHashNoted, &g_SC4Uint32HashSet_Construct) &&
+          Detour(addr::PtrVector_Reserve, &TReserveNoted, &g_PtrVector_Reserve) &&
+          Detour(addr::SC4PtrVector_FillInsert, &TFillInsertNoted, &g_SC4PtrVector_FillInsert) &&
+          Detour(addr::SC4FloatVector_InsertN5, &TAppendFloatNoted, &g_SC4FloatVector_InsertN5) &&
+          Detour(addr::SC4EffectCompoundRecords_Assign, &TAssignRecordsNoted, &g_SC4EffectCompoundRecords_Assign) &&
+          Detour(addr::SC4EffectCompoundRecordsB_Assign, &TAssignRecordsBNoted,
+                 &g_SC4EffectCompoundRecordsB_Assign)))
+        return false;
+    g_tbMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the effects tables and the manager's interface %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredTables = registry::Register({
+    "renderer.effects.tables",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectTables_Construct,
+    "The effects tables the effects file is read into: their constructor, end and take, the list of name tables "
+    "and its fill, a name hash's copy and insert, the zoom distances, a compound description's record copies and "
+    "copy down; and the effects manager's AddRef, QueryInterface and render states; compare mode runs the game's "
+    "with its calls noted, each of these compared where it is called, and replays ours (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallTables,
 });
 
 bool InstallEffects(registry::Mode mode)

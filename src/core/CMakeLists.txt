@@ -374,6 +374,7 @@ add_library(opensc4_core SHARED
   ordinance_object.cpp
   ordinance_objects.cpp
   ordinance_sim.cpp
+  panels_autotest.cpp
   pollution_autotest.cpp
   pollution_buildings.cpp
   pollution_effects.cpp
@@ -565,6 +566,8 @@ add_library(opensc4_core SHARED
   tool_t9_autotest.cpp
   tool_zone_2.cpp
   tool_t10_autotest.cpp
+  tool_plop_4.cpp
+  tool_t11_autotest.cpp
   ui_cityview_1.cpp
   ui_cityview_2.cpp
   ui_cityview_3.cpp
