@@ -24,6 +24,7 @@ using SetForegroundWindowFn = BOOL(WINAPI*)(HWND);
 using SetActiveWindowFn = HWND(WINAPI*)(HWND);
 using BringWindowToTopFn = BOOL(WINAPI*)(HWND);
 using SetWindowPosFn = BOOL(WINAPI*)(HWND, HWND, int, int, int, int, UINT);
+using SetFocusFn = HWND(WINAPI*)(HWND);
 
 struct Imports {
     CreateWindowExAFn createWindowExA = nullptr;
@@ -32,6 +33,7 @@ struct Imports {
     SetActiveWindowFn setActiveWindow = nullptr;
     BringWindowToTopFn bringWindowToTop = nullptr;
     SetWindowPosFn setWindowPos = nullptr;
+    SetFocusFn setFocus = nullptr;
 };
 
 // One set per wrapped module: each import may already point somewhere else
@@ -109,6 +111,19 @@ BOOL SetPos(SetWindowPosFn original, HWND window, HWND after, int x, int y, int 
     return original(window, after, x, y, width, height, flags);
 }
 
+// Focusing a window whose top-level window is not active activates that
+// top-level window (the exe does this right after showing its window). Only
+// focus within an already active window goes through, e.g. once the user has
+// clicked it.
+HWND Focus(SetFocusFn original, HWND window)
+{
+    if (window && GetAncestor(window, GA_ROOT) != GetActiveWindow()) {
+        log::Write("background: SetFocus on an inactive window ignored");
+        return GetFocus();
+    }
+    return original(window);
+}
+
 BOOL WINAPI SetForegroundWindowHook(HWND)
 {
     log::Write("background: SetForegroundWindow ignored");
@@ -144,6 +159,10 @@ struct Hooks {
     {
         return SetPos(imports.setWindowPos, window, after, x, y, width, height, flags);
     }
+    static HWND WINAPI SetFocus(HWND window)
+    {
+        return Focus(imports.setFocus, window);
+    }
 };
 
 template <Imports& imports>
@@ -157,6 +176,7 @@ int Wrap(void* module)
     patch("CreateWindowExA", &Hooks<imports>::CreateWindowExA, &imports.createWindowExA);
     patch("ShowWindow", &Hooks<imports>::ShowWindow, &imports.showWindow);
     patch("SetWindowPos", &Hooks<imports>::SetWindowPos, &imports.setWindowPos);
+    patch("SetFocus", &Hooks<imports>::SetFocus, &imports.setFocus);
     patch("SetForegroundWindow", &SetForegroundWindowHook, &imports.setForegroundWindow);
     patch("SetActiveWindow", &SetActiveWindowHook, &imports.setActiveWindow);
     patch("BringWindowToTop", &BringWindowToTopHook, &imports.bringWindowToTop);
