@@ -8,6 +8,7 @@
 # core.dll's log ends up in <test user folder>/Plugins/opensc4.log.
 # OPENSC4_GAME_ARGS adds game options; OPENSC4_GAME_WINDOW replaces the default -w
 # (e.g. "-f" for full screen).
+# OPENSC4_MUTE=1 starts the game with its sound off (the game's own -audio:off).
 set -euo pipefail
 
 build="${1:?usage: run-game.sh <build dir> [VAR=value...]}"
@@ -17,10 +18,12 @@ for assignment in "$@"; do
 done
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
+mute_arg=""
+[ "${OPENSC4_MUTE:-0}" = 1 ] && mute_arg="-audio:off"
 game="${SC4_GAME:-C:/Program Files (x86)/Steam/steamapps/common/SimCity 4 Deluxe/Apps/SimCity 4.exe}"
 testenv="${OPENSC4_TESTENV:-$(cygpath "$LOCALAPPDATA")/opensc4/testenv/userdir}"
 [ -d "$testenv/Plugins" ] || { echo "run-game: $testenv not seeded; run scripts/run-autotest.sh once" >&2; exit 1; }
 
 SC4_PLUGINS="$testenv/Plugins" "$repo/scripts/deploy-plugin.sh" "$build" >/dev/null
 "$build/bin/opensc4.exe" --core "$testenv/Plugins/OpenSC4.dll" --game "$game" \
-    -- ${OPENSC4_GAME_WINDOW:--w} -intro:off "-UserDir:$(cygpath -d "$testenv")\\" ${OPENSC4_GAME_ARGS:-}
+    -- ${OPENSC4_GAME_WINDOW:--w} -intro:off ${mute_arg} "-UserDir:$(cygpath -d "$testenv")\\" ${OPENSC4_GAME_ARGS:-}
