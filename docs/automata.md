@@ -763,9 +763,9 @@ The class is found by its vtables, the constructor, the destructor and the group
     - LoadScripts 0x00523B10 and the readers it calls first: 0x0051DAA0, 0x0051EEE0, 0x0051F5C0 (1,158 bytes), 0x0051FA60.
     - The attractor and generator templates: 0x00523500 (1,546) and 0x00522F30 (1,488), with their parts 0x0051C5D0, 0x0051CB40, 0x0051CBF0, 0x0051CD20, 0x0051F010, 0x0051EE10, 0x0051F2A0.
     - The behaviours 0x00522860 (1,733).
-  - **s3b (11, 8,861 bytes): the groups and the vehicle kinds.**
-    - The groups: 0x005216A0, 0x00520DF0 (1,316), 0x00521C70 (1,527), 0x00521800 (795), 0x0051FB90, 0x00520520.
-    - The vehicle kinds' tuning: 0x0051DC20 (1,465), 0x0051E1E0, 0x0051E4A0, 0x0051E6B0 (1,520), 0x0051ECA0.
+  - **s3b (11, 8,861 bytes, done): the group and drive parameter readers.** See "Part s3b" below.
+    - The groups: 0x005216A0, 0x00520DF0 (1,316), 0x00521C70 (1,527), 0x00521800 (795), 0x0051FB90, 0x00520520, the models 0x0051ECA0.
+    - The drive parameters: 0x0051DC20 (1,465), 0x0051E1E0, 0x0051E4A0, 0x0051E6B0 (1,520).
 
 Mods: no NAM site and no SC4UIScale address is in the class. The only patch site is 0x0051C50B in 0x0051C4C0 (s3, kept).
 
@@ -960,7 +960,7 @@ The 15 functions of s3a's list, in two more groups, off by default ([automata_sc
 
 What the loading does:
 
-- **LoadScripts** (from Init) gets the loader's Lua state from 0x0051C4C0 (the game's: it holds the Lua print patch) and runs the script group 0x4A5E8F3F (the automata `_config.lua`). Then the readers run in this order: attractors, generators, groups and vehicle kinds (0x00521C70, 0x005216A0, part s3b, the game's), the templates' groups, the groups. The answer is false at the first that fails. The drive commands and the track buildings come last. The Lua state is shut down and released. A stopwatch around it is read and dropped. A failed script group formats its message, drops it and answers true.
+- **LoadScripts** (from Init) gets the loader's Lua state from 0x0051C4C0 (the game's: it holds the Lua print patch) and runs the script group 0x4A5E8F3F (the automata `_config.lua`). Then the readers run in this order: attractors, generators, the automata and occupant groups (0x00521C70, 0x005216A0, part s3b), the templates' groups, the groups. The answer is false at the first that fails. The drive commands and the track buildings come last. The Lua state is shut down and released. A stopwatch around it is read and dropped. A failed script group formats its message, drops it and answers true.
 - **A template** is one entry of the global table `attractor` or `generator`. Its name gets a template (slot 17, else slot 16). The table's fields are read at the index of a table walk made over the entry for that alone:
   - Both readers: `radius`, `time_of_day` (a curve), `calendar` (a bit mask), `behavior` (the behaviour records, sorted), `effect_trigger` and `deactivate_trigger` (ID lists), `lifetime`, `delay`, nine flags, `sfx`, `ignore_states`, `exclusive_radius` and `max_count`.
   - The attractor adds `strength`, a curve spread over the radius.
@@ -972,7 +972,6 @@ What the loading does:
 Kept as the game's, called at their addresses:
 
 - 0x0051C4C0, for the patch site.
-- s3b's two readers.
 - The Lua state's own functions and the field readers (`SC4Script::GetField`, `SC4ScriptField::*`, `SC4ScriptValue::*`, the table walk).
 - The point and pointer vector inserts, SC4Curve::SetPoints, the behaviour record functions (part s2), the stopwatch, the resource manager and the COM objects.
 
@@ -1013,3 +1012,56 @@ B = all ten `simulators.automata.scripts` groups (s1, s2, s3a) against the origi
 In r2, Big City d0000's first B run had other `adv` and `advisors` values from the first day on, and the rest of the line was the same. The second B run had A's values. This is the first-run advisor outcome of [parity.md](parity.md) ("The advisor system's generator"). Two reruns of that save, muted, were the same, 8 of 8 days each.
 
 All 92 functions of s1, s2 and s3a were reached in every one of the 14 B runs of both batches. Every run's ` L` token had the same city and fresh hash, 25C2EAB1.
+
+## Part s3b: the group and drive parameter readers
+
+### What is ours
+
+The 11 functions of s3b's list, in two more groups, off by default ([automata_scripts_4.cpp](../src/core/automata_scripts_4.cpp)):
+
+- **`simulators.automata.scripts.groupreaders` (7):** the occupant groups 0x005216A0, the automata groups 0x00521C70, the group reader 0x00520DF0, the models 0x0051ECA0, the key effects 0x00521800, the three-string record's copy 0x0051FB90 and the record map's insert 0x00520520.
+- **`simulators.automata.scripts.driveparams` (4):** the player's driving 0x0051DC20, the airplane 0x0051E1E0, the helicopter 0x0051E4A0 and the watercraft 0x0051E6B0.
+
+Two names from part s3a were wrong and are corrected: 0x00521C70 reads the global table `automata_group` (ReadAutomataGroups, not ReadGroups) and 0x005216A0 reads `occupant_group` (ReadOccupantGroups, not ReadVehicleKinds).
+
+What the readers do:
+
+- **A group** (0x00520DF0, for both tables) is the group of its name, or a new one (slot 0x34) with `group_id` (a number truncated through __ftol2, else a hex string). Then it reads `percentage` (1.0 when absent), `controllers` (templates by name into the list +0x30), `models` (three hex IDs per entry into +0x48), `anims` (name to a number or a hex string, +0x34), `_parent` (a Lua reference, +0x4E) and `class_id` (+0x14, 0 when absent). The group's table gets `__group_handle` (the group as userdata) and the group a reference to its table (+0x4C). Lists and maps whose field is absent are emptied.
+- **An automata group** also goes into the automata group map (+0x60, with a reference when it went in) and reads:
+  - `trailers` (names, +0x54) and `kph` (one or two numbers, +0x58 and +0x5C);
+  - the drive parameters (0xA0 bytes at +0x60): the first of `airplane` (18 floats), `helicopter` (13) and `WatercraftDriveParams` (40);
+  - `playerdrive` (0x94 bytes at +0x64: two ints, 33 floats and `OffRoadTurnAngleRange`);
+  - `csi_image` and `source_building` as hex (+0x68, +0x6C);
+  - `key_effects`: per table entry a record of `fx`, `bone`, `controller` and the flags `hold` 1, `one_shot` 2, `hard_transition` 4, `override` 8 (and 0x10 for a non-empty fx, 0x20 for a controller). It goes under the byte `cmd` into the record map (+0x70) when its fx is not empty, unless the key is there.
+
+Oddities kept: the models reader reads three strings of an entry whatever its length; the drive readers check the walk's index before every field (it is never -1, so they never stop early); `OffRoadTurnAngleRange` is read even after such a stop.
+
+Reimplemented like s3a: a frame annotator (net-tools\s3b\frame.py, fixed to count only a callee's own arguments), the field tables generated from the disassembly, then an independent audit of all 11 against the disassembly. It found no behavioural difference, only four cosmetic ones (an unreachable null test in the record copy, the order of two independent stores, the context read from the walk rather than the system, an ignored return value).
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_SCRIPTS=3`'s group hash now covers what s3b writes as well: the controller templates, the models, the trailers, the anims and key effects (summed), the speeds, the drive parameter and driving blocks (raw: the allocations are zeroed under `determinism.zero_alloc`), the image and the source building.
+
+Reached in the trial (Making Money d0000, 5 days): 10 of the 11 (with all 92 of s1, s2 and s3a: 102 first-call lines). The models reader is not reached: no script group has `models`. The ` L` token was L775668C0,775668C0,1 on both sides.
+
+### Parity
+
+2026-10-20, env p4env-s3b, `OPENSC4_MUTE=1` on both sides, both tests on (`OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_SCRIPTS=3` and the Lua chunk). B = all twelve `simulators.automata.scripts` groups (s1, s2, s3a, s3b) against the original. The switch list includes `determinism.dispatch_info=ours`. Two jobs ran, with `harness.multi_instance=ours` on both sides. Snapshot s3b-p1, the final build.
+
+| Making Money d0000, 4 days | Rush Hour t0000, 7 days | The 12-save batch, 7 days |
+| --- | --- | --- |
+| 5 of 5 | 8 of 8 | 11 of 12; Big City d0090 partly the same |
+
+Big City d0090's first B run had other `adv` and `advisors` values from the second day on, and the rest of the line was the same. Its two reruns had A's values, 8 of 8 days each: the first-run advisor outcome of [parity.md](parity.md) ("The advisor system's generator").
+
+All 102 reached functions were reached in every one of the 16 B runs, and every run's ` L` token was L775668C0,775668C0,1.
+
+### The script system is finished
+
+Of the class's 125 functions, 103 are ours (s1 34, s2 43, s3a 15, s3b 11) and 22 stay the game's:
+
+- The nine adjustor thunks: 0x005200C0 to 0x00520110, 0x00521670, 0x00521680, 0x00521690.
+- Twelve shared helpers with callers outside the class: 0x004FC900, 0x0051C880, 0x0051C950, 0x0051C9B0, 0x0051C9F0, 0x0051CA60, 0x0051CE70, 0x0051FC30, 0x0051FDC0, 0x0051FE90, 0x0051FF00 and 0x00520970.
+- 0x0051C4C0, the loader's Lua state, for the Lua print patch site 0x0051C50B.
+
+The Lua VM and the script field readers (`SC4Script*`) are outside the class and stay the game's, called at their addresses.
