@@ -32,7 +32,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Attractor, generator and their base | 81 | 12,629 | 2 |
 | Script system | 116 | 31,620 | 3 |
 | City situation manager | 167 | 44,037 | 4 |
-| Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 |
+| Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | 6 |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | 8 |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | 2 |
@@ -335,7 +335,7 @@ The group is found by the vtables of the two classes and the base, less the comm
   - The message targets: 0x00562620 (with 0x00561500, 1,039 bytes) and 0x00545450 (with 0x00544F30 and 0x005448D0).
   - Write 0x00553570 with 0x00552A80, and Read 0x00554410 with 0x00553E90.
   - AddAutomaton (0x00562C10, 0x00546990) and RemoveAutomaton 0x0054D690.
-- **v3 (29): creation, dispatch and frames.**
+- **v3 (29, done): creation, dispatch and frames.** Below.
   - GetRandomCreationPoint 0x00553080 and the Dispatch pair 0x00551730 and 0x0054DBF0.
   - Slots 52, 53 (0x0055B480, 0x00544300), 55, 56, 63 (0x00553300, 0x0055B600), 69 to 72, 76 to 81, 83, 84 and 89.
   - Their helpers 0x0054DD50, 0x0054E690, 0x0054DB50, 0x00552BD0, 0x00555350 and 0x00555400.
@@ -366,7 +366,7 @@ Mods: no NAM site is in the group, and neither is any of SC4UIScale's addresses.
   - Slot 82 (0x0054D260): the neighbour cell test.
   - The record list's hit test 0x00551630, the automaton test 0x0054D150 and the three group tests 0x0054D1A0, 0x0054D210 and 0x0054D230.
 
-Kept as the game's: the six adjustor thunks and the two plain jumps above; the common base's functions (constructor, destructor 0x00512780, QueryInterface 0x00505480, AddRef, Release), called at their addresses; and the 54 functions of v2 and v3 (v2 is now ours, below).
+Kept as the game's: the six adjustor thunks and the two plain jumps above; the common base's functions (constructor, destructor 0x00512780, QueryInterface 0x00505480, AddRef, Release), called at their addresses; and the 54 functions of v2 and v3 (both now ours, below).
 
 Oddities kept:
 
@@ -447,7 +447,7 @@ What they do:
 
 Part v1's +0xA98 is the current kind's node rather than the first kind's (v1's constructors set it to the first). The field keeps its v1 name.
 
-Kept as the game's: the common base's functions (Init, Shutdown, DoMessage and its +4 slot 3, Write, Read, AddAutomaton, RemoveAutomaton), the tuning load 0x00512CF0, the record copy 0x0054ED10 and the vehicle and pedestrian builders 0x005628F0 and 0x00545F20, all called at their addresses; and the 29 functions of v3. No NAM or SC4UIScale site is among the 25, and none needed keeping for stack leftovers or x87 values held across a call.
+Kept as the game's: the common base's functions (Init, Shutdown, DoMessage and its +4 slot 3, Write, Read, AddAutomaton, RemoveAutomaton), the tuning load 0x00512CF0, the record copy 0x0054ED10 and the vehicle and pedestrian builders 0x005628F0 and 0x00545F20, all called at their addresses; and the 29 functions of v3 (now ours, below). No NAM or SC4UIScale site is among the 25, and none needed keeping for stack leftovers or x87 values held across a call.
 
 Oddities kept:
 
