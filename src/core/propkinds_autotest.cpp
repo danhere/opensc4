@@ -23,8 +23,10 @@
 //        tables have types of the class. QueryInterface, GetGZCLSID and the setters that only write
 //        fields while there is no overlay, effect or controller, read back
 //        (a controller prop is given a template no script has; a burnt
-//        building is initialized, given its own box and shut down); then
-//        released.
+//        building is initialized, given its own box and shut down); the
+//        sign's and the burnt building's geometry (quads, vertices) and
+//        their model interface's slots through its thunks (occupant, boxes,
+//        transform, rays for the sign's hit test, texture); then released.
 //   OPENSC4_TEST_PROPKINDS_EDIT=1  with it, a round trip that changes the
 //     city and puts it back: at a spot with no lot whose 64 m occupant cell
 //     is empty a decal is initialized, added, shown (base flag 2 through
@@ -269,6 +271,40 @@ uint32_t BurntPlain(char* self)
     f.Bytes(self + burnt::kRenderState, 8);
     f.Bytes(self + burnt::kScaled, 12);
     f.Bytes(self + burnt::kMin, 24);
+    return f.h;
+}
+
+// The model interface (the virtual base, through the vbptr): its slots are
+// thunks to the class's drawing functions and the model part's.
+char* ModelOf(char* self, std::size_t vbptr)
+{
+    return self + vbptr + At<int32_t>(At<char*>(self, vbptr), 0x4);
+}
+
+// A burnt building's quad: the positions of its four vertices (the texture
+// coordinates are left as the allocation had them).
+void AddQuad(Fnv& f, char* self)
+{
+    char* const quad = At<char*>(self, burnt::kQuad);
+    f.Add(quad != nullptr);
+    if (quad)
+        for (std::size_t vertex = 0; vertex < burnt::kQuadSize; vertex += burnt::kVertexSize)
+            f.Bytes(quad + vertex, 12);
+}
+
+// A burnt building's model interface: the occupant it names, its box and
+// whether it has a texture (slots 3, 8 and 17).
+uint32_t BurntModel(char* self)
+{
+    Fnv f;
+    char* const model = ModelOf(self, burnt::kVbptr);
+    f.Add(static_cast<uint32_t>(Virtual<char*>(model, 0x0C) - self));
+    uint32_t box[6] = {};
+    Virtual<void>(model, 0x20, static_cast<uint32_t*>(box));
+    f.Bytes(box, sizeof box);
+    uint32_t texture = 0xFFFFFFFF;
+    Virtual<void>(model, 0x44, &texture);
+    f.Add(texture != 0);
     return f.h;
 }
 
@@ -722,6 +758,8 @@ uint32_t DriveBurntFields(char* self, void* source)
     f.Add(At<int32_t>(self, burnt::kVtordisp));
     This<void, void*>(addr::cSC4PropOccupantBurntBuilding_SetOccupant, self, source ? source : static_cast<void*>(occupant));
     f.Add(BurntPlain(self));
+    AddQuad(f, self);
+    f.Add(BurntModel(self));
     Virtual<uint32_t>(occupant, 0x74, 0x40u);
     f.Add(At<uint8_t>(self, burnt::kFlags));
     f.Add(Virtual<uint8_t>(occupant, 0x14));
@@ -870,6 +908,69 @@ void Frame(char* self, uint32_t time)
     Deliver(self + layout::kProp, kMessageFrame, nullptr, time, 0);
 }
 
+// What a sign's geometry builder made: the eleven quads, the board, the
+// caret (only after an edit: nothing sets it before) and the text's
+// vertices.
+void AddSignGeometry(Fnv& f, char* self, bool caret)
+{
+    f.Bytes(self + sign::kQuads, sign::kQuadCount * sign::kQuadSize);
+    f.Bytes(self + sign::kBoard, 0x40);
+    if (caret)
+        f.Bytes(self + sign::kCaretQuad, 0x40);
+    char* const begin = At<char*>(self, sign::kGlyphVertices);
+    char* const end = At<char*>(self, sign::kGlyphVertices + 4);
+    f.Add(static_cast<uint32_t>(end - begin));
+    if (begin && end > begin && end - begin <= 0x10000)
+        f.Bytes(begin, static_cast<std::size_t>(end - begin));
+}
+
+// A ray as the sign's hit test takes it: the origin, the direction, then
+// the distance so far at +0x28.
+struct Ray {
+    float origin[3];
+    float direction[3];
+    uint32_t unused[4];
+    float distance;
+};
+
+// A sign's model interface (slots 3, 7 to 11 and 17): the occupant it
+// names, the two boxes, the transform read and given back (the count
+// raised), three rays straight down (through the board's middle with room,
+// the same with too little, one beside the sign) and the texture.
+uint32_t SignModel(char* self)
+{
+    Fnv f;
+    char* const model = ModelOf(self, sign::kVbptr);
+    f.Add(static_cast<uint32_t>(Virtual<char*>(model, 0x0C) - self));
+    uint32_t box[6] = {};
+    Virtual<void>(model, 0x1C, static_cast<uint32_t*>(box));
+    f.Bytes(box, sizeof box);
+    Virtual<void>(model, 0x20, static_cast<uint32_t*>(box));
+    f.Bytes(box, sizeof box);
+    uint8_t transform[0x38] = {};
+    Virtual<void>(model, 0x24, static_cast<uint8_t*>(transform));
+    f.Bytes(transform, sizeof transform);
+    const uint8_t count = At<uint8_t>(self, sign::kTransformCount);
+    Virtual<void>(model, 0x28, static_cast<uint8_t*>(transform));
+    f.Add(static_cast<uint8_t>(At<uint8_t>(self, sign::kTransformCount) - count));
+    f.Bytes(self + sign::kRotation, 0x34);
+    const float* const board = &At<float>(self, sign::kBoardBox);
+    const float middle[2] = {(board[0] + board[3]) * 0.5f, (board[2] + board[5]) * 0.5f};
+    uint32_t hits[3];
+    const float starts[3][2] = {{middle[0], 1.0e9f}, {middle[0], 1.0f}, {middle[0] + 1000.0f, 1.0e9f}};
+    for (int i = 0; i < 3; ++i) {
+        Ray ray{{starts[i][0], board[4] + 100.0f, middle[1]}, {0.0f, -1.0f, 0.0f}, {}, starts[i][1]};
+        hits[i] = Virtual<uint8_t>(model, 0x2C, &ray);
+        f.Add(hits[i]);
+        f.Add(ray.distance);
+    }
+    uint32_t texture = 0xFFFFFFFF;
+    Virtual<void>(model, 0x44, &texture);
+    f.Add(texture);
+    log::Write("autotest: propkinds: sign model: hits %u %u %u, texture %08X", hits[0], hits[1], hits[2], texture);
+    return f.h;
+}
+
 // A sign as the sign tool makes one, never inserted and never shown (base
 // flag 2 clear): the renderer is not told. The text makes textures and the
 // geometry is built (the game's builder); the highlight writes the corner
@@ -905,6 +1006,7 @@ uint32_t DriveSignFields(char* self)
     const std::string accent = SignTextOf(self);
     AddText(f, accent);
     AddSignState(f, self);
+    AddSignGeometry(f, self, false);
     f.Bytes(self + layout::kMin, 24);
     // Highlighted, again (nothing), and not.
     Virtual<void>(self, sign::slot::kSetHighlight, 1u);
@@ -932,6 +1034,7 @@ uint32_t DriveSignFields(char* self)
     caret[step][0] = At<uint8_t>(self, sign::kCaret);
     caret[step][1] = At<uint32_t>(self, sign::kCaretTime);
     f.Bytes(caret, sizeof caret);
+    AddSignGeometry(f, self, true);
     // Highlight taken off while editing: the edit ends.
     Virtual<void>(self, sign::slot::kSetHighlight, 0u);
     f.Add(At<uint8_t>(self, sign::kEditing));
@@ -951,6 +1054,11 @@ uint32_t DriveSignFields(char* self)
     Virtual<uint32_t>(self + layout::kOccupant, 0x78, flags);
     f.Add(Virtual<uint8_t>(self + layout::kOccupant, 0x10));
     f.Add(SignPlain(self));
+    // A shorter text (the vertices cut), then the model interface.
+    SetSignText(self, kSignText);
+    AddSignState(f, self);
+    AddSignGeometry(f, self, false);
+    f.Add(SignModel(self));
     log::Write("autotest: propkinds: sign fields: texts %s %s, glyphs %u then %u, caret %u/%u %u/%u %u/%u %u/%u %u/%u",
                Hex(ascii).c_str(), Hex(accent).c_str(), glyphs, SignGlyphs(self), caret[0][0], caret[0][1], caret[1][0],
                caret[1][1], caret[2][0], caret[2][1], caret[3][0], caret[3][1], caret[4][0], caret[4][1]);
@@ -1444,6 +1552,8 @@ void EditBurnt(Fnv& f, void* m, const Types& types, const float* position, const
     mine.Add(BurntPlain(self));
     mine.Add(Virtual<uint8_t>(occupant, 0x14));
     mine.Add(static_cast<uint8_t>(At<uint8_t>(self, burnt::kFlags) & 1));
+    AddQuad(mine, self);
+    mine.Add(BurntModel(self));
     const uint32_t afterAdd = mine.h;
     // Shown, hidden, shown and hidden, as the view does it: the model goes to
     // the renderer and is taken off again. It is hidden before the removal,
@@ -1668,6 +1778,8 @@ void EditSign(Fnv& f, void* m, const Types& types, const float* position, const 
     AddText(mine, text);
     mine.Add(SignPlain(self));
     AddSignState(mine, self);
+    AddSignGeometry(mine, self, false);
+    mine.Add(SignModel(self));
     log::Write("autotest: propkinds: edit sign: at %.2f %.2f %.2f, box %.2f %.2f %.2f to %.2f %.2f %.2f", position[0], position[1],
                position[2], At<float>(self, layout::kMin), At<float>(self, layout::kMin + 4), At<float>(self, layout::kMin + 8),
                At<float>(self, layout::kMax), At<float>(self, layout::kMax + 4), At<float>(self, layout::kMax + 8));

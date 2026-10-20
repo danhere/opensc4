@@ -824,6 +824,20 @@ private:
                 centre[0x4C / 4] = city->SizeZ() / 2;
             }
         }
+        // OPENSC4_TEST_SHOT_AT=<x>,<z>: the view centred on that point of
+        // the city, in metres, the same way, at the height of the ground
+        // there (the terrain's slot 0x38 at the cell; y at +0x48).
+        const std::string at = Env("OPENSC4_TEST_SHOT_AT");
+        if (!at.empty() && at.find(',') != std::string::npos) {
+            if (auto* centre = reinterpret_cast<float*>(renderer->GetCameraControl())) {
+                const float x = static_cast<float>(std::atof(at.c_str()));
+                const float z = static_cast<float>(std::atof(at.c_str() + at.find(',') + 1));
+                centre[0x44 / 4] = x;
+                centre[0x4C / 4] = z;
+                if (void* const terrain = Global<void*>(addr::SC4_Terrain))
+                    centre[0x48 / 4] = Virtual<float>(terrain, 0x38, static_cast<int32_t>(x / 16), static_cast<int32_t>(z / 16));
+            }
+        }
         // OPENSC4_TEST_DATA_MAP=<n>[,<n>...]: the Data Views window with a
         // map in each shot. Before the first shot the advisors' script
         // command opens the window ({0x6A5BDFCD, n} on the queue the object
