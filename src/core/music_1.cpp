@@ -33,10 +33,10 @@
 // the group goes in when core.dll is injected (phase Attach), as the
 // framework's service base does; the constructor then runs as ours.
 //
-// Still the game's: Init 0x008D4687 and slot 16 0x008D49F8 (the stations,
-// the folder walk: a later piece), DoMessage 0x008D319B and the rest of the
-// player interface (slots 5, 7, 11, 13, 14, 19, 21, 22, 23), the stream
-// object's class, the playlists and the container code; slots 24 (0x008D2B70,
+// In part 2 (music_2.cpp): Init 0x008D4687, slot 16 0x008D49F8 (the
+// stations), DoMessage 0x008D319B and the rest of the player interface
+// (slots 5, 7, 11, 13, 14, 19, 21, 22, 23). Still the game's: the station
+// class, the playlists and the container code; slots 24 (0x008D2B70,
 // the byte +0x44) and 34 (0x008D3668, the byte +0x88), which are 4 bytes
 // with the next function right after them, too short for the entry hook.
 // Slots 6, 15 and 30 of the interface and the base's slots are framework
@@ -314,7 +314,7 @@ uint32_t __fastcall Release1C(char* self, void*)
     return Release(self - 0x1C, nullptr);
 }
 
-// Init stays the game's.
+// Init is part 2's (called by address: ours when that group is on).
 uint32_t __fastcall Init1C(char* self, void*)
 {
     static bool logged = false;
