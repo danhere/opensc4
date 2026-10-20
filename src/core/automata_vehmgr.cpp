@@ -65,6 +65,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/sim_timers.h"
 
 #include <opensc4/addresses.h>
 
@@ -1630,6 +1631,10 @@ std::uint32_t __fastcall RemoveAutomaton(char* self, void*, void* automaton, std
 // truncation is. Every vtable call's argument count was checked against
 // the callee's ret where the callee is known (the managers' and the road
 // automata's vtables) and against the stack offsets after it elsewhere.
+// determinism.sim_timers keys the record list's stopwatch (+0xAC0) on its
+// reader's address (0x00552BD0's range); our update claims it before it
+// reads (sim_timers::Claim). Found by the parity batch, as was slot 72's
+// second factor (the sign's absolute value, not the scale's).
 
 constexpr std::uintptr_t kCellScale = 0x00A9BCF4;      // float 1/16
 constexpr std::uintptr_t kHalf = 0x00A84D2C;           // float 0.5
@@ -2059,9 +2064,9 @@ void* __fastcall CreateFor(char* self, void*, void* occupant, std::uint32_t byte
 }
 
 // 0x0054DDB0, slot 72 (occupant, b, kind, sign, out), ret 0x14: the kind's
-// 4x4 at the occupant's corner from +0xA88's slot 0x30, times the scale
-// (slot 87) and its absolute value; kinds 7 and 8 are slot 88's matrix,
-// others zero.
+// 4x4 at the occupant's corner from +0xA88's slot 0x30 (the sign's flag),
+// times the scale (slot 87) and the sign's absolute value; kinds 7 and 8 are
+// slot 88's matrix, others zero.
 void __fastcall KindMatrix(char* self, void*, void* occupant, std::uint32_t b, std::uint32_t kind, std::uint32_t sign,
                            float* out)
 {
@@ -2091,7 +2096,9 @@ void __fastcall KindMatrix(char* self, void*, void* occupant, std::uint32_t b, s
     // The flag keeps the first argument's upper bytes (its stack slot).
     const std::uint32_t negative =
         (reinterpret_cast<std::uintptr_t>(occupant) & 0xFFFFFF00u) | (BitsFloat(sign) < 0.0f ? 1u : 0u);
-    const float size = std::fabs(scale);
+    // The second factor is the fourth argument's absolute value (its stack
+    // slot after the flag), not the scale's.
+    const float size = std::fabs(BitsFloat(sign));
     const std::uint16_t* const words =
         Virtual<const std::uint16_t*>(At<void*>(self, field::kA88), 0x30, rect[0], rect[1], index, negative);
     for (int i = 0; i < 16; ++i)
@@ -2560,6 +2567,9 @@ void __fastcall UpdateRecordList(char* field, void*)
 {
     static bool logged;
     FirstCall("UpdateRecordList", logged);
+    // determinism.sim_timers takes this stopwatch over by its reader's
+    // address (this function's range); ours reads it from core.dll.
+    sim_timers::Claim(field + 8);
     const std::uint32_t now = CallThis<std::uint32_t>(addr::GZStopwatch_ElapsedMilliseconds, field + 8);
     if (now < At<std::uint32_t>(field, 0x20))
         return;
