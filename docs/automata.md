@@ -32,7 +32,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Attractor, generator and their base | 81 | 12,629 | 2 |
 | Script system | 116 | 31,620 | s1 (34, done), s2, s3 (part s below counts 125) |
 | City situation manager | 167 | 44,037 | 4 |
-| Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 |
+| Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | 6 |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | 8 |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | 2 |
@@ -335,7 +335,7 @@ The group is found by the vtables of the two classes and the base, less the comm
   - The message targets: 0x00562620 (with 0x00561500, 1,039 bytes) and 0x00545450 (with 0x00544F30 and 0x005448D0).
   - Write 0x00553570 with 0x00552A80, and Read 0x00554410 with 0x00553E90.
   - AddAutomaton (0x00562C10, 0x00546990) and RemoveAutomaton 0x0054D690.
-- **v3 (29): creation, dispatch and frames.**
+- **v3 (29, done): creation, dispatch and frames.** Below.
   - GetRandomCreationPoint 0x00553080 and the Dispatch pair 0x00551730 and 0x0054DBF0.
   - Slots 52, 53 (0x0055B480, 0x00544300), 55, 56, 63 (0x00553300, 0x0055B600), 69 to 72, 76 to 81, 83, 84 and 89.
   - Their helpers 0x0054DD50, 0x0054E690, 0x0054DB50, 0x00552BD0, 0x00555350 and 0x00555400.
@@ -366,7 +366,7 @@ Mods: no NAM site is in the group, and neither is any of SC4UIScale's addresses.
   - Slot 82 (0x0054D260): the neighbour cell test.
   - The record list's hit test 0x00551630, the automaton test 0x0054D150 and the three group tests 0x0054D1A0, 0x0054D210 and 0x0054D230.
 
-Kept as the game's: the six adjustor thunks and the two plain jumps above; the common base's functions (constructor, destructor 0x00512780, QueryInterface 0x00505480, AddRef, Release), called at their addresses; and the 54 functions of v2 and v3 (v2 is now ours, below).
+Kept as the game's: the six adjustor thunks and the two plain jumps above; the common base's functions (constructor, destructor 0x00512780, QueryInterface 0x00505480, AddRef, Release), called at their addresses; and the 54 functions of v2 and v3 (both now ours, below).
 
 Oddities kept:
 
@@ -447,7 +447,7 @@ What they do:
 
 Part v1's +0xA98 is the current kind's node rather than the first kind's (v1's constructors set it to the first). The field keeps its v1 name.
 
-Kept as the game's: the common base's functions (Init, Shutdown, DoMessage and its +4 slot 3, Write, Read, AddAutomaton, RemoveAutomaton), the tuning load 0x00512CF0, the record copy 0x0054ED10 and the vehicle and pedestrian builders 0x005628F0 and 0x00545F20, all called at their addresses; and the 29 functions of v3. No NAM or SC4UIScale site is among the 25, and none needed keeping for stack leftovers or x87 values held across a call.
+Kept as the game's: the common base's functions (Init, Shutdown, DoMessage and its +4 slot 3, Write, Read, AddAutomaton, RemoveAutomaton), the tuning load 0x00512CF0, the record copy 0x0054ED10 and the vehicle and pedestrian builders 0x005628F0 and 0x00545F20, all called at their addresses; and the 29 functions of v3 (now ours, below). No NAM or SC4UIScale site is among the 25, and none needed keeping for stack leftovers or x87 values held across a call.
 
 Oddities kept:
 
@@ -503,6 +503,125 @@ Reached (our first-call log lines, trial Making Money d0000, 4 days): all 25.
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every B run carried the ` x` token. All 25 functions were reached in 12 of the 14 B runs. In Big City d0000 and d1095 the pedestrian manager has no pedestrian on the test day, so the gathering and the send (and part v1's slot 68) are not called there.
+
+
+## Part v3: creation, dispatch and frames
+
+### What is ours
+
+29 functions in two more groups, off by default, so the groups of parts v1 and v2 stay as they were ([automata_vehmgr.cpp](../src/core/automata_vehmgr.cpp), "Part v3"):
+
+- **`simulators.automata.vehmgr.create` (11):**
+  - GetRandomCreationPoint (slot 16) 0x00553080.
+  - The two Dispatch: slot 17 0x00551730 (a path for an automaton) and slot 18 0x0054DBF0 (a new automaton, then slot 17).
+  - The record add (slot 70) 0x005538D0.
+  - The occupant's automaton (slot 71) 0x0054F8A0, with the network position 0x0054DD50.
+  - The kind matrix (slot 72) 0x0054DDB0.
+  - The automaton's kind set 0x0054E690.
+  - The three spawns: slots 79, 80 and 89 (0x0054EF00, 0x0054F3C0, 0x0054FA10).
+- **`simulators.automata.vehmgr.frame` (18):**
+  - The frame update (slot 63): base 0x00553300, vehicle 0x0055B600, with the record list's update 0x00552BD0.
+  - The occupant's removal (slot 52) 0x0054ED90 and arrival (slot 53): vehicle 0x0055B480, pedestrian 0x00544300.
+  - The records' removal (slot 55) 0x005516C0 with the record copy 0x0054DB50.
+  - The occupants' refresh (slot 56) 0x0054F7B0 and the automaton's forgetting (slot 69) 0x0054FBC0.
+  - The kind sweep (slot 76) 0x00552000, the cell balance (slot 77) 0x005554E0 with the tuning map's insert 0x00555350 and lookup 0x00555400, the cell spawn (slot 78) 0x00551A50, the cell cull (slot 81) 0x005539A0, the lot sweep (slot 83) 0x00553370 and the records' update (slot 84) 0x00552DE0.
+
+What they do:
+
+- **Every frame** (slot 63, with the frame's time): the record list (+0xAB8) is aged at most every 500 ms of the stopwatch +0xAC0. A record past its time is given back (to the controller manager's slot 0x38 when held), released and freed; the others follow their object's cell. Then, while the manager may have automata (+0x3C above 0, +0x4D and 0x00B21B9C clear), the kind sweep (with +0x4C set) and the records' update (with records). Then the common base's slot 63; the vehicle manager adds slot 64.
+- **The kind sweep** adds the time to each kind's clock, picks the next kind of the tuning mask 0x00B21D5C and, when the day or night (0x00B43DC4's slot 0x58) suits the kind and its slot 42 value is not near 0, walks the cells object's rectangle from where it stopped (+0xA9C, +0xAA0) for 5 ms of its own stopwatch:
+  - kinds 1, 2, 3 and 7: the cell balance (77) on each cell's network occupant;
+  - kinds 4, 5, 6, 9 and 10: the cell spawn (78) with the kind's rate (slot 75);
+  - kind 8: the lot sweep (83).
+- **The cell balance** keeps each class's density. The kinds' 4x4 matrices (slot 72) are summed and set against the target of 0x00B43DA8's slot 0x5C through a tuning record per occupant key (slot 91; the map 0x00B21D60, filled with the tuning). Above it, the cell cull (81) by a draw; below it, a spawn (80) at a place drawn by weight.
+- **The cell spawn** ages the cell's 4x4 kind table (the cells object's slots 0x54 and 0x60) and spawns (79) on its open sides.
+- **The spawns** (79, 80, 89):
+  - build the automaton's key from the class, a drawn lane and the sides;
+  - check the cell's tables and keep away from busy cells, and from the camera's automaton (slot 80);
+  - create the automaton (slot 15, the game's) at the point slot 25 gives;
+  - give it its kind (0x0054E690) and its occupant (automaton slot 0x20C), or remove it again.
+- **The records** come from slot 53 (an occupant's building finished: the IDs of its property 0xE9AEE3DA / 0xE9AEE3DC, and for vehicles a drawn record 0x4206) through slot 70. The records' update (84) spends each record whose timer ran out. The network points near its object (the cells object's slot 0x68) get automata by slot 71 or by Dispatch (18), until the record's count is spent or five tries failed; between tries it waits 1000.
+- **GetRandomCreationPoint** draws a network point near a position (the cells object's slot 0x64 within a radius clamped to the city's size). With flags 0x22000 it is the common base's 0x00506DC0.
+
+Kept as the game's, called at their addresses or through the vtable:
+
+- The common base's CreateAutomaton (slot 15, 0x00505370, SC4UIScale's probe site).
+- The common base's slot 46 (0x00510690), slots 19, 20 and 25, its GetRandomCreationPoint and its slots 52, 55, 56 and 63.
+- The base's jump 0x0054D250 and the record rectangles 0x0054EC60.
+- The cells object, the path object and the automata.
+
+No NAM or SC4UIScale site is among the 29. None holds an x87 value across a call, apart from the C runtime's ftol (C++'s truncation).
+
+Oddities kept:
+
+- Slot 52 reads the occupant's rectangle only when there is an occupant (otherwise stack leftovers, below).
+- The pedestrian manager's slot 53 never calls the base's.
+- GetRandomCreationPoint passes 0 as the common base's seventh argument and leaks the network points when the cells object answers false; slot 84 does the same.
+- Slot 17 leaks the path object when the automaton is not an occupant's. It answers the automaton even when slot 19 fails.
+- Slot 89 leaves the automaton it made in the list when the automaton is not an occupant's.
+- The record list's update tests the object it has just cleared.
+- Slot 76 sends the first kind's clock to slot 77, whatever the kind.
+- Slot 72's sign flag keeps the upper bytes of its first argument.
+- Slots 79 and 80 ignore their second argument; slot 80 its sixth too.
+
+Stack leftovers the game would read, none logged in the runs (each has a first-call line of its own):
+
+- Slot 52's rectangle without an occupant. Ours is 0.
+- The four floats of a new tuning map record (0x00555400 with a key the tuning did not load). Ours are 0.
+- The cell balance's records past the last when the drawn weight is not spent. Ours stops.
+- The upper bytes of the byte counters slot 78 passes as dwords. Ours are 0.
+
+Floats as in parts v1 and v2. The cell of a position is the game's floor: the coordinate times 1/16, less 0.5, plus 1.5 x 2^23 rounded to a float, its bits less 0x4B400000, one more when that is the scaled value. FST keeps the unrounded value on the x87 stack; ours keeps the double the same way (slot 76's kind value, slot 77's row sums, slot 80's distance, slot 84's timer test).
+
+Return values. EAX's top bytes follow the game's where they come from a call or a pointer: slots 52, 53 (vehicle), 55, 63, 69 (which RemoveAutomaton reads), 71, the Dispatch pair, and 16 with flags 0x22000. The others answer AL alone. Slots 56, 72, 76 to 78, 80, 81, 0x00552BD0 and 0x0054E690 answer nothing their callers read.
+
+Reimplemented like the earlier parts: one writer, then an independent audit of all 29 against the disassembly, with every vtable call's argument count checked against the callee's `ret` (the managers' and the road automata's vtables; elsewhere against the stack offsets after the call). The audit found one defect: the vehicle manager's slot 53 asked the occupant for its slot 0xC once too often. That is fixed. It also had the cell balance's records capped at 11, where the game's frame holds 12; now 12 (at most nine kinds come there). The first batch then found a second one the audit had missed: slot 72's second factor is the absolute value of its fourth argument (the stack slot the game reads after the flag), not of the scale. With the test's sweep that changed which automata were made, and six of the twelve saves differed in the saved city (an automaton occupant in a cell), A and B each alike over two pairs. A bisect by `OPENSC4_AUTOMATA_SKIP` found it; it is fixed.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_VEHMGR=3` does everything `=2` does, plus the following on the test day, at the game's addresses (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)).
+
+Into the fingerprint as ` y<fixed>,<flags>` (vehicle) and ` <fixed>,<flags>` (pedestrian):
+
+- On a new manager of the class: three records by slot 70 (none without an object) with two building occupants of the controller table, slot 55 taking them out again in two steps (0x0054DB50 moves the rest down), hashed after each step with the occupants as indices.
+- Slots 69 and 52 on its empty list, slot 52 with a network occupant (the cells' occupants, the interface 0xA821EF94 the spawns and slots 52 and 72 take).
+- Slot 72's zero kinds and its slot 88 kinds.
+- Slot 53 on another new manager with a building's cISC4BuildingOccupant (0x87DDA3A9), what the game's completion message 0x2977AE2F carries: its records.
+- The record copy on records of the test's own.
+- For the vehicle manager, the tuning map's insert and lookup on a map of the test's own, and the lookup of every key of the game's map (read-only).
+
+To the log only, on the city's managers (which automata there are, the cells' contents and the manager's generator follow frames):
+
+- GetRandomCreationPoint at four places spread over the city, with the generator (+0x50) seeded for the calls and put back after.
+- 0x0054DD50 and slot 72 at two network occupants.
+- AddAutomaton with none while there is room, and the automaton it made removed again (slot 8 with 1). This is the branch part v2 never reached; it runs on both sides alike.
+- The frame work the harness's saves leave off:
+  - In these saves +0x4C (the manager's own generation) is clear, so slot 63 never sweeps, slot 46 makes no automaton for the spawns, and there are no records.
+  - With +0x4C set for the duration and the generator seeded, the test runs the kind sweep through each kind of the list.
+  - The harness's stopwatch counts its reads, so a call walks a few cells; the test calls again until the kind's walk is through, at most 40000 calls.
+  - Then records as slot 53 makes them are spent by slot 84; what is left is released and cleared, and +0x4C is put back.
+
+These add automata to the city and take some away. From that day on the run is not the one without the test (on both sides alike).
+
+Reached (our first-call log lines, trial Making Money d0000, 4 days): 26 of 29.
+
+- By the game alone: the frame update (both), the record list's update, slot 56, slot 69.
+- By the test: the rest. With the test the managers made automata (vehicles 107 to 116), and Dispatch 17, slot 18, slot 71 and the kind set ran.
+- Not reached: slot 79 (no cell spawn place had both a table value and an open side), slot 89 (no record of 0x00B43D70 at an automata cell) and, in Making Money, the pedestrian manager's slot 53 with a property (no building there has 0xE9AEE3DC; it is called with another building and answers without records).
+
+In the parity runs below, 28 of the 29 were reached in at least one B run (each run's first-call lines): all but slot 79. The pedestrian manager's slot 53 with records, slot 89 and the Dispatch pair ran in some saves and not others. No stack-leftover line was logged in any run.
+
+### Parity
+
+2026-10-20, B = `simulators.automata.vehmgr` and the six groups of parts v2 and v3 against the original (the switch list includes `determinism.dispatch_info=ours`; two jobs, `harness.multi_instance=ours` on both sides), env p4env-v3, snapshot v3-r4, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHMGR=3`. All the same:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run carried the ` y` token.
 
 
 ## Part s: the script system
