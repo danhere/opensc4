@@ -18,10 +18,7 @@
 # OPENSC4_TEST_CITY="Making Money Tutorial", OPENSC4_TEST_SECONDS=60.
 # OPENSC4_GAME_ARGS adds game command-line options, e.g. "-d:DirectX".
 # OPENSC4_GAME_WINDOW replaces the default -w, e.g. "-f -r1024x768x32" for full screen.
-# Other copies of the game may be running (other threads' tests, parallel
-# parity jobs): every run gets harness.multi_instance=ours (unless
-# OPENSC4_REPLACE names it), and only a game still running in this same test
-# folder stops the run. OPENSC4_PARALLEL is no longer needed.
+# OPENSC4_PARALLEL=1 allows other copies of the game to be running.
 # OPENSC4_LAUNCHER_ARGS adds launcher options, e.g. "--large-address".
 set -euo pipefail
 
@@ -49,20 +46,11 @@ if [ ! -d "$testenv/Regions/$region" ]; then
     cp "$user_sc4/SimCity 4.cfg" "$testenv/"
 fi
 
-# Several copies at once: the game's single-instance mutex gets a
-# per-process name (src/core/multi_instance.cpp). Copies started without it
-# keep the plain name, which this one then never opens.
-case ",${OPENSC4_REPLACE:-}," in
-*,harness.multi_instance=*) ;;
-*) export OPENSC4_REPLACE="${OPENSC4_REPLACE:+$OPENSC4_REPLACE,}harness.multi_instance=ours" ;;
-esac
-
-# Two games must not share a user folder. The folder's last log names the
-# pid of the game that wrote it; refuse while that game still runs.
-log="$testenv/Plugins/opensc4.log"
-pid="$(sed -n 's/.*core\.dll .* attached: pid \([0-9]*\),.*/\1/p' "$log" 2>/dev/null | head -1 || true)"
-if [ -n "$pid" ] && tasklist //FI "PID eq $pid" //FI "IMAGENAME eq SimCity 4.exe" //NH | grep -q "SimCity 4.exe"; then
-    echo "SimCity 4 (pid $pid) is already running in $testenv; wait for it or use another OPENSC4_TESTENV" >&2
+# OPENSC4_PARALLEL=1: other copies may be running (run-parity.sh with
+# OPENSC4_PARITY_JOBS); each needs its own OPENSC4_TESTENV and
+# harness.multi_instance.
+if [ -z "${OPENSC4_PARALLEL:-}" ] && tasklist //FI "IMAGENAME eq SimCity 4.exe" //NH | grep -q "SimCity 4.exe"; then
+    echo "SimCity 4 is already running; close it first" >&2
     exit 1
 fi
 
@@ -78,14 +66,21 @@ userdir="$(cygpath -d "$testenv")\\"
 # Watchdog. Its sleep must be stopped together with it: a leftover sleep keeps
 # this script's stdout open (hanging any pipe it feeds) and would later kill
 # whatever SimCity 4 is running when it fires. It kills this run's game only,
-# by the pid core.dll logs on attach, never by name (other copies may run).
+# by the pid core.dll logs on attach; by name only when no other copy may run.
+log="$testenv/Plugins/opensc4.log"
 (
     trap 'kill "$timer" 2>/dev/null; exit 0' TERM
     sleep "$timeout_s" &
     timer=$!
     wait "$timer"
-    pid="$(sed -n 's/.*core\.dll .* attached: pid \([0-9]*\),.*/\1/p' "$log" 2>/dev/null | head -1 || true)"
-    [ -n "$pid" ] && taskkill //PID "$pid" //F && echo "run-autotest: timed out after ${timeout_s}s; killed the game" >>"$log"
+    pid="$(sed -n 's/.*core\.dll .* attached: pid \([0-9]*\),.*/\1/p' "$log" 2>/dev/null | head -1)"
+    if [ -n "$pid" ]; then
+        taskkill //PID "$pid" //F
+    elif [ -z "${OPENSC4_PARALLEL:-}" ]; then
+        taskkill //IM "SimCity 4.exe" //F
+    else
+        false
+    fi && echo "run-autotest: timed out after ${timeout_s}s; killed the game" >>"$log"
 ) </dev/null >/dev/null 2>&1 &
 watchdog=$!
 status=0
