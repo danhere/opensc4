@@ -574,7 +574,7 @@ address = 0x005EDC60
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8B 86 B8 00 00"
-source = "Name ours. Not virtual, ret: the quad at +0xB8 (0x50 bytes, made once) from the prop's box, and the scaled low corner at +0xC4. Drawing: the game's."
+source = "Name ours. Not virtual, ret: the quad at +0xB8 (0x50 bytes, made once) from the prop's box, and the scaled low corner at +0xC4 (the global 0x00B0A8D8 times 1/16). Replaced by simulators.propkinds.burnt_draw (src/core/propkinds_burnt_draw.cpp)."
 
 [[entry]]
 name = "cSC4PropOccupantBurntBuilding::GetGZCLSID"
@@ -691,7 +691,7 @@ name = "cSC4PropOccupantBurntBuilding::vftable_D4"
 address = 0x00AA49B0
 kind = "vtable"
 expect = "D0 F9 5E 00 E0 F9 5E 00"
-source = "The virtual base (the model interface) at +0xD4, 19 slots, thunks through the displacement at +0xD0 (0x005EF9D0 to 0x005EFB10): the drawing, the game's."
+source = "The virtual base (the model interface) at +0xD4, 19 slots, thunks through the displacement at +0xD0 (0x005EF9D0 to 0x005EFB10), the game's: 3 GetOccupant 0x005EFA10, 8 GetBox 0x005EDC20, 12 Draw 0x005EEC00 and 17 GetTexture 0x005EEBD0 are the class's (simulators.propkinds.burnt_draw); the rest go to the prop's, the model part's and shared stubs."
 
 [[entry]]
 name = "cSC4PropOccupantTextDecal::QueryInterface"
@@ -1057,7 +1057,7 @@ address = 0x005F5FB0
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 E4 F8 81 EC"
-source = "Name ours. Not virtual, ret: lays the board and the text out from the glyphs and the transform (the boxes, the vertices from +0x14C, the rotation), tells the occupant manager (slot 24) and a shown sign's renderer (slots 30, 31 with 3). Drawing: the game's (4,964 bytes)."
+source = "Name ours. Not virtual, ret: lays the board and the text out from the glyphs and the transform (the boxes, the vertices from +0x14C, the rotation), tells the occupant manager (slot 24) and a shown sign's renderer (slots 30, 31 with 3). 4,964 bytes. Replaced by simulators.propkinds.sign_draw (src/core/propkinds_sign_draw.cpp)."
 
 [[entry]]
 name = "cSC4PropOccupantSign::SetEditing"
@@ -1163,7 +1163,7 @@ name = "cSC4PropOccupantSign::vftable_58C"
 address = 0x00AA5298
 kind = "vtable"
 expect = "D0 59 5F 00 E0 59 5F 00"
-source = "The virtual base (the model interface) at +0x58C, 19 slots, thunks through the displacement at +0x588 (0x005F59D0 to 0x005F5CD0): the drawing, the game's."
+source = "The virtual base (the model interface) at +0x58C, 19 slots, thunks through the displacement at +0x588 (0x005F59D0 to 0x005F5CD0), the game's: 3 GetOccupant 0x005F5A10, 7 GetLocalBox 0x005F5AF0, 8 GetWorldBox 0x005F5B40, 9 GetTransform 0x005F5B90, 10 SetTransform 0x005F5C30, 11 HitTest 0x005F4DF0, 12 Draw 0x005F5200 and 17 GetTexture 0x005F5AA0 are the class's (simulators.propkinds.sign_draw); the rest go to the logic's, the model part's and shared stubs."
 
 [[entry]]
 name = "SC4Model::GetModelFlags"
@@ -1172,3 +1172,189 @@ kind = "function"
 convention = "thiscall"
 expect = "8B 41 E4 C3 CC CC CC CC"
 source = "Name ours. Of a model part (this = the part + 0x30), ret: its flags at this - 0x1C (the part's +0x14). The sign's SetHighlight calls it with the object + 0x9C. Left the game's."
+
+[[entry]]
+name = "cSC4PropOccupantSign::MakeBox"
+address = 0x005F4D10
+kind = "function"
+convention = "cdecl"
+expect = "D9 44 24 10 83 EC 0C D8"
+source = "Name ours. Cdecl (out, a.x, a.y, a.z, b.x, b.y, b.z), ret: the box of two corners (the larger of each pair high, the smaller low; b when equal or unordered); EAX the box. Called by the geometry builder only. simulators.propkinds.sign_draw."
+
+[[entry]]
+name = "cSC4PropOccupantSign::InsertVertices"
+address = 0x005F53C0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 14 56 8B F1 8B 4C"
+source = "Name ours. Ret 0xC (at, n, value): n copies of a 20-byte vertex inserted in the vector at +0x4BC (in place through 0x005F51B0, 0x005F4A20, 0x005F49E0, 0x0063BFA0, or by 0x00626330 without room). Called by the geometry builder only. simulators.propkinds.sign_draw."
+
+[[entry]]
+name = "cSC4PropOccupantSign::GetOccupant"
+address = 0x005F5A10
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 74 FA FF FF 85 C0"
+source = "Name ours. The model interface's slot 3 (this = the object + 0x58C), ret: the occupant part, null for a null object. simulators.propkinds.sign_draw."
+
+[[entry]]
+name = "cSC4PropOccupantSign::GetLocalBox"
+address = 0x005F5AF0
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 6C FB FF FF 8B 44"
+source = "Name ours. The model interface's slot 7, ret 4: the box at +0xEC (the sign in its own frame) into the argument. simulators.propkinds.sign_draw."
+
+[[entry]]
+name = "cSC4PropOccupantSign::GetWorldBox"
+address = 0x005F5B40
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 84 FB FF FF 8B 44"
+source = "Name ours. The model interface's slot 8, ret 4: the box at +0x104 (the sign in the world) into the argument. simulators.propkinds.sign_draw."
+
+[[entry]]
+name = "cSC4PropOccupantSign::GetTransform"
+address = 0x005F5B90
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 FE 00 8B 91"
+source = "Name ours. The model interface's slot 9, ret 4: the transform (rotation, position, scale from +0xB8, flags +0xB5) into the argument, whose own change count is raised. simulators.propkinds.sign_draw."
+
+[[entry]]
+name = "cSC4PropOccupantSign::SetTransform"
+address = 0x005F5C30
+kind = "function"
+convention = "thiscall"
+expect = "FE 81 28 FB FF FF 8B 44"
+source = "Name ours. The model interface's slot 10, ret 4: the transform from the argument, the change count at +0xB4 raised. simulators.propkinds.sign_draw."
+
+[[entry]]
+name = "cSC4PropOccupantSign::HitTest"
+address = 0x005F4DF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 53 8B 5C 24 2C"
+source = "Name ours. The model interface's slot 11, ret 4 (a ray: origin, direction at +0xC, distance at +0x28): the board's and the post's boxes; the first met no farther keeps its distance, AL 1. simulators.propkinds.sign_draw."
+
+[[entry]]
+name = "cSC4PropOccupantSign::Draw"
+address = 0x005F5200
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 87 80 FA FF"
+source = "Name ours. The model interface's slot 12, ret 8 (a render context, a value not read): the board, the text's glyphs, the caret and the ten frame quads through the render context; EAX 1. simulators.propkinds.sign_draw."
+
+[[entry]]
+name = "cSC4PropOccupantSign::GetTexture"
+address = 0x005F5AA0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 C7 00 00 00"
+source = "Name ours. The model interface's slot 17, ret 4: null into the argument. simulators.propkinds.sign_draw."
+
+[[entry]]
+name = "cSC4PropOccupantSign::ZoomFactors"
+address = 0x00AA523C
+kind = "data"
+source = "Name ours. Five floats by the camera view's zoom (+0xC): 0.5, 0.75, 1, 1.5, 2; the geometry builder scales the sign by them."
+
+[[entry]]
+name = "cSC4PropOccupantSign::TextColour"
+address = 0x00B0A960
+kind = "data"
+source = "Name ours. Three floats (0.31, 0.34, 0.42): the colour the sign's draw gives the text (SC4RenderContext::SetColour)."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::GetOccupant"
+address = 0x005EFA10
+kind = "function"
+convention = "thiscall"
+expect = "8D 81 2C FF FF FF 85 C0"
+source = "Name ours. The model interface's slot 3 (this = the object + 0xD4), ret: the occupant part, null for a null object. simulators.propkinds.burnt_draw."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::GetBox"
+address = 0x005EDC20
+kind = "function"
+convention = "thiscall"
+expect = "8B 91 68 FF FF FF 8B 44"
+source = "Name ours. The model interface's slot 8, ret 4: the prop's box into the argument. simulators.propkinds.burnt_draw."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::Draw"
+address = 0x005EEC00
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 08 83 EC 4C 84"
+source = "Name ours. The model interface's slot 12, ret 8 (a render context, a pass byte: nothing when set): the quad with the binding the context's +0x14 picks and a texture matrix from the scaled corner; EAX 1. simulators.propkinds.burnt_draw."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::GetTexture"
+address = 0x005EEBD0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 C0 3B 41 C4 74 15"
+source = "Name ours. The model interface's slot 17, ret 4: the first texture binding's first word read through into the argument, or null. simulators.propkinds.burnt_draw."
+
+[[entry]]
+name = "cSC4PropOccupantBurntBuilding::Scale"
+address = 0x00B0A8D8
+kind = "data"
+source = "Name ours. A float (1): the burnt building's quad builder scales the box's low corner by it times 1/16 for the draw's texture matrix."
+
+[[entry]]
+name = "SC4CameraView::ScaleLength"
+address = 0x007F6690
+kind = "function"
+convention = "thiscall"
+expect = "D9 44 24 04 D8 89 50 01"
+source = "Name ours. Of the camera view (SC4::CameraView), ret 4: the argument times the float at +0x150, left in ST0 (metres per pixel at the zoom). The sign's geometry builder calls it."
+
+[[entry]]
+name = "SC4CameraView::ToViewLocal"
+address = 0x007F77D0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 D9 00 D8 61"
+source = "Name ours. Of the camera view, ret 4: a point (three floats) in place, less +0x3C and turned by the sines and cosines at +0x448 to +0x454. The burnt building's draw calls it."
+
+[[entry]]
+name = "SC4RenderContext::PopRenderState"
+address = 0x007D5200
+kind = "function"
+convention = "thiscall"
+expect = "8B 81 EC 01 00 00 3B 81"
+source = "Name ours. Ret: the render state before the last one (the stack at +0x1EC, +0x1F0), or the context's own at +0x88, through SetRenderState. The burnt building's draw calls it."
+
+[[entry]]
+name = "SC4::RayHitsBox"
+address = 0x005D6580
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 D9 01 83 EC"
+source = "Name ours. Cdecl (origin, direction, low, high, point out): whether the ray meets the box; AL. The sign's hit test calls it."
+
+[[entry]]
+name = "SC4Vector20::CopyBackward"
+address = 0x005F4A20
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 8B 44 24 04"
+source = "Name ours. Cdecl (first, last, destination end, tag, 0): 20-byte elements copied down from the end; EAX the new first. The sign's vertex insert calls it."
+
+[[entry]]
+name = "SC4Vector20::Fill"
+address = 0x005F49E0
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 8B 4C 24 08"
+source = "Name ours. Cdecl (first, last, value): 20-byte elements set to the value. The sign's vertex insert calls it."
+
+[[entry]]
+name = "SC4Vector20::UninitializedFill"
+address = 0x0063BFA0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 85 C9 8B 44"
+source = "Name ours. Cdecl (destination, count, value, tag): 20-byte copies of the value written to raw memory (a null destination skips the writes). The sign's vertex insert calls it."

@@ -209,10 +209,12 @@ add_library(opensc4_core SHARED
   propkinds_autotest.cpp
   propkinds_automata.cpp
   propkinds_burnt.cpp
+  propkinds_burnt_draw.cpp
   propkinds_decal.cpp
   propkinds_effect.cpp
   propkinds_textdecal.cpp
   propkinds_sign.cpp
+  propkinds_sign_draw.cpp
   floraocc_autotest.cpp
   floraocc_sim.cpp
   foundocc_autotest.cpp
@@ -266,6 +268,7 @@ add_library(opensc4_core SHARED
   automata_scripts.cpp
   automata_scripts_2.cpp
   automata_scripts_3.cpp
+  automata_scripts_4.cpp
   automata_autotest.cpp
   nettool_preview.cpp
   nettool_rul_1.cpp
@@ -598,6 +601,7 @@ add_library(opensc4_core SHARED
   audio_8.cpp
   audio_9.cpp
   music_1.cpp
+  music_2.cpp
   audio_autotest.cpp
   ui_advice_text_2.cpp
   ui_mysim_tools_1.cpp
