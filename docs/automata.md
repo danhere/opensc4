@@ -33,7 +33,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Script system | 116 | 31,620 | s1 (34, done), s2, s3 (part s below counts 125) |
 | City situation manager | 167 | 44,037 | 4 |
 | Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
-| Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 to aw5 (part aw below counts 172) |
+| Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | 8 |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | 2 |
 | Trains | 79 | 18,124 | 2 |
@@ -648,7 +648,7 @@ The group is found by the three classes' vtables, less nothing shared outside th
   - The shared stubs 0x004FC900 (slots 51 and 52) and 0x005053E0 (slot 18, `xor eax,eax; ret 0x1C`).
   - SC4UIScale's two probe sites in the group: the common base's CreateAutomaton 0x00505370 (slot 15) and the aircraft manager's message helper 0x004FBFE0. Its popup style patch (0x0052CCEE, 0x0052CD01) is in the city situation manager's 0x0052CC50, not here. No NAM site is in the group.
 - **aw1 (36, done): the object and its queries.** Below. With the two factories, which the survey counted with the registration.
-- **aw2 (25, about 9,000 bytes): the common base's life cycle, tuning, save and messages.**
+- **aw2 (25, done): the common base's life cycle, tuning, save and messages.** Below ("Part aw2").
   - Init 0x005066B0, Shutdown 0x005110A0, Activate (slot 5) 0x0050A6B0, SetMaxCount (23) 0x0050AA60, ReleaseAutomatonSet (33) 0x0050CDE0.
   - DoMessage 0x00506970 and the +4 slot 3 0x0050DD30 with 0x00542EE0 and 0x00542F50.
   - Write 0x0050CB80, Read 0x005108E0 with 0x0050FEB0.
@@ -722,6 +722,94 @@ In the 12-save leg, three saves needed a second leg:
 - In Rush Hour d0090 and Making Money d0000, the B game ended during the load: no crash dump, no crash line, and other games were running on the machine.
 
 A second leg of those three saves was the same on the first pair. Every completed B run carried the ` A` token and reached all 36 functions (our first-call log lines).
+
+## Part aw2: the common base's life cycle, tuning, messages and save
+
+### What is ours
+
+25 functions in four more groups, off by default, so part aw1's group stays as it was ([automata_awmgr_life.cpp](../src/core/automata_awmgr_life.cpp)):
+
+- **`simulators.automata.awmgr.life` (13):**
+  - Init 0x005066B0 and Shutdown 0x005110A0.
+  - Activate (slot 5) 0x0050A6B0, SetMaxCount (23) 0x0050AA60 and ReleaseAutomatonSet (33) 0x0050CDE0.
+  - TrackAutomataGroupInstances (31) 0x00513C40, with the group instance table's erase 0x00510F10, its node release 0x00510450 and its insert 0x00512030.
+  - Slot 39 0x00513910 (the cheats' registration and the tuning load, the first time).
+  - Slot 66 0x00514520 (the exemplar data), with the record range copy 0x00512C80 and the record copy 0x005120E0.
+- **`simulators.automata.awmgr.tuning` (5):** the tuning load 0x00512CF0 with the kind curves' filler 0x00512860 and insert 0x00510C80, and the tuning map's filler 0x00512940 and insert 0x00510D20.
+- **`simulators.automata.awmgr.messages` (4):** DoMessage 0x00506970, the cheat target (the +4 part's slot 3) 0x0050DD30, and the route line object it makes: constructor 0x00542F50 and Prepare 0x00542EE0.
+- **`simulators.automata.awmgr.serial` (3):** Write 0x0050CB80, Read 0x005108E0 and its body 0x0050FEB0.
+
+Part v2's vehicle and pedestrian code calls Init, Shutdown, DoMessage, the +4 slot 3, Write, Read and the tuning load at their game addresses, so with these groups on they reach ours.
+
+What they do:
+
+- **Init**, once (+0x34):
+  - slot 39;
+  - the message server for fourteen types (0xA6B79602, 0xA6B79612, 0x06CDB65A, 0x26D31EC1, 0x26D31EC2, 0x99EF1142, 0x99EF1143, 0x2977AE2F, 0x4A7FB807, 0xEA298D50, 0xC9F775BB, 0xCAD61E00, 0xEAD61E16, 0xEBFF18A3);
+  - the frame service 0x86AD10EC and the cheat codes (the +4 part);
+  - the cells object, the script system and the controller manager kept (city slots 0xA0, 0xC0, 0xBC);
+  - slots 65 and 66.
+- **Shutdown** undoes it with slots 45 and 40. It releases the exemplar records' objects (+0x30) but keeps the records.
+- **Slot 39** registers five cheats the first time (counter 0x00B21B88; 0xE97FCBC8 and 0xE97FCBC9 show and hide a route line, 0x0B70C96D, 0x6BB354C7 and 0xCC478B79), then runs the tuning load.
+- **The tuning load** reads the automata tuning exemplar (0x6534284A, 0xA998D30B, 1) into the statics 0x00B21BC8 to 0x00B21D5C, the kind curves (table 0x00B21D44) and the tuning map (0x00B21D60, the four floats and the curve of each key that part v3's cell balance reads).
+- **SetMaxCount** clamps to 0 to 5000. While the count is above it, it removes automata neither flagged 0x200000 nor at 0xFF (slot 62). +0x40 is the C runtime's truncation of the count times 0x00A955A0.
+- **TrackAutomataGroupInstances** keeps, per group, a hash set of the list's automata in the group (referenced); untracking releases them through slot 33.
+- **DoMessage** sends the sixteen message types to slots 45, 48, 50, 51, 53 to 59 and 63, and sets the scale switch +0xA3D and the camera hold +0xA4C. A camera move past the zoom's distance (0x00A95518) keeps the camera's point (+0xA30) and runs slot 48.
+- **The save.** Write saves version 6, the most, the bools +0x4C and +0xA3D, the count, a reference per automaton, and the source building table's (key, count) pairs. Read takes versions up to 6; from version 5 it reads the table; +0xA78 tells a version below 6.
+
+Kept as the game's:
+
+- the SC4UIScale probe sites (0x00505370, 0x004FBFE0) and the exemplar callback 0x00513A60;
+- the hash set and hash map helpers, the curve, string, property, stream and tokenizer helpers, SC4RenderState::Init and the allocators, all called at their addresses.
+
+No NAM or SC4UIScale site is among the 25.
+
+Oddities kept:
+
+- Read frees the list's old nodes without releasing their automata, and appends what it reads without counting it; the count comes from the stream.
+- Read reads the version, the references and the table's count into the stack slot of its stream argument. Ours keeps that slot's value the same way, so a failed count read leaves the last reference (or the stream's address) there.
+- A failed read of a table record keeps the record slots' earlier values. The key's starts as the reference counter. The value's is a stack leftover in the game; ours starts at 0.
+- Write walks the table bucket by bucket, finding the next bucket from the node's key.
+- TrackAutomataGroupInstances answers 1 for a group the exemplar map does not hold and for a group already tracked.
+- ReleaseAutomatonSet leaves the set's buckets.
+- Slot 66 copies the exemplar vector onto its own end before it destroys it, so the record copy never runs from the game.
+- The cheat target allocates its route line without a null test.
+- DoMessage answers 1 for every message.
+- The tuning load releases the exemplar's resource halfway and reads the rest after. Its first two masks become all ones at a zero byte; the kind mask never does.
+
+Floats are handled as in the earlier parts: 53-bit doubles. The tuning load's three computed floats (0x00B21CF8, 0x00B21C8C, 0x00B21D40) take a word unsigned, as the game's FILD with 2^32 added does, with one product or quotient rounded to a float. DoMessage compares the unrounded squared distance the asm's way: not above, or unordered, keeps the old point. Return values: AL, as the callers read it.
+
+Reimplemented like the earlier parts: one writer, then an independent audit of all 25 against the disassembly. The audit found one defect: Read's table count and records started from other stack values than the game's when a stream read fails. Ours now keeps the slots the way the game does. The test drive never fails a read, so no run would have shown it.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_AWMGR=2` does everything `=1` does, plus the following, into the fingerprint as ` B<aircraft>,<watercraft>,<vehicle>,<pedestrian>,<fresh>,<cheats>,<flags>` (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)):
+
+- Per city manager:
+  - the common base's Write (the automata count, which follows frames, to the log);
+  - TrackAutomataGroupInstances for the first two untracked groups of the exemplar map, tracked and untracked again (the sets' sizes to the log), and for a group the map does not hold.
+- On a new aircraft manager:
+  - the round trip of the first manager's bytes, which must come back the same;
+  - reads of versions 7, 4 and 5;
+  - SetMaxCount, Activate and ReleaseAutomatonSet;
+  - thirteen messages of the test's own;
+  - then the release.
+- On test-owned data: the group instance table's insert and erase (two keys in one bucket, so the erase reaches 0x00510450) and the exemplar record copy.
+- The cheat target: another message, another cheat, 0xCC478B79 three ways (its flag 0x00B09968 put back after), and the route line's show and hide.
+
+Reached (our first-call log lines, trial Making Money d0000, 4 days): all 25. Init, the tuning load and its helpers, slot 39, slot 66 with its range copy, Activate, SetMaxCount, TrackAutomataGroupInstances, DoMessage and Read run by the game at the load or during the run; Shutdown at the exit; the rest by the test (the record copy and the node release only by it).
+
+### Parity
+
+2026-10-20, B = `simulators.automata.awmgr` and the four part aw2 groups against the original (the switch list includes `determinism.dispatch_info=ours`; `OPENSC4_MUTE=1` on both sides; two jobs, `harness.multi_instance=ours`), env p4env-aw2, snapshot aw2-r1, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_AWMGR=2`. All the same:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Big City d0090 and Rush Hour d0090 needed more pairs: the original itself had two outcomes there, and B had the same two. Every B run carried the ` B` token and reached all 25 functions.
 
 
 ## Part s: the script system
