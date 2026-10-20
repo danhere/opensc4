@@ -202,6 +202,15 @@
 //   end. The template names go to the log. The Lua functions are reached
 //   with OPENSC4_TEST_LUA_SCRIPT=tests/scripts/automata.lua (an absolute
 //   path), which calls sc4game.automata.* (the ` | lua` part's script hash).
+// OPENSC4_TEST_AUTOMATA_SCRIPTS=3 (part s3a): also ` L<city>,<fresh>,<load>`:
+//   the city's script system's loaded state (every template: its fields,
+//   curves, ID lists and vectors, behaviour records; every group's loaded
+//   fields; the drive commands; the track buildings; summed by name) and
+//   the same of a fresh script system from the factory into which
+//   LoadScripts (0x00523B10, at the game's address) loads the scripts, and
+//   that load's answer; the fresh system's templates and groups are then
+//   released and the object released. The two hashes are equal when the
+//   load at the test day reads what the city's load read.
 // A remove and add round trip of one occupant's controllers is not done:
 // removing sends 0xEA298D50 to the automata, destroys the controllers and
 // can drop the occupant's automaton entry (its automata released), and the
@@ -2143,6 +2152,190 @@ void ScriptsDrive2(cISC4City* city)
                templates.h, helpers.h, static_cast<unsigned>(byId.size()), found, records.h);
 }
 
+// Part s3a's drive (OPENSC4_TEST_AUTOMATA_SCRIPTS=3), see the top of the file.
+
+void MixIdList(Hash& h, char* head)
+{
+    uint32_t count = 0;
+    for (char* n = At<char*>(head, 0); n != head && count < 4096; n = At<char*>(n, 0), ++count)
+        h.Mix(At<uint32_t>(n, 8));
+    h.Mix(count);
+}
+
+void MixIdVector(Hash& h, char* vector)
+{
+    const uint32_t* const begin = At<const uint32_t*>(vector, 0);
+    const uint32_t* const end = At<const uint32_t*>(vector, 4);
+    uint32_t count = 0;
+    for (const uint32_t* p = begin; p && p < end && count < 4096; ++p, ++count)
+        h.Mix(*p);
+    h.Mix(count);
+}
+
+// A curve's points (SC4Curve: the point vector's begin and end at +0, +4).
+void MixCurve(Hash& h, char* curve)
+{
+    const uint32_t* const begin = At<const uint32_t*>(curve, 0);
+    const uint32_t* const end = At<const uint32_t*>(curve, 4);
+    uint32_t count = 0;
+    for (const uint32_t* p = begin; p && p < end && count < 4096; ++p, ++count)
+        h.Mix(*p);
+    h.Mix(count);
+}
+
+// A behaviour record's fields (not its pointers).
+uint32_t BehaviourHash(char* r)
+{
+    Hash h;
+    for (const std::size_t at : {0x0u, 0x4u, 0x8u, 0xCu, 0x28u, 0x30u, 0x34u, 0x38u, 0x3Cu, 0x40u})
+        h.Mix(At<uint32_t>(r, at));
+    h.Mix(At<uint8_t>(r, 0x2C));
+    for (std::size_t at = 0x44; at <= 0x49; ++at)
+        h.Mix(At<uint8_t>(r, at));
+    for (std::size_t at = 0x4C; at <= 0x78; at += 4)
+        h.Mix(At<uint32_t>(r, at));
+    // The anims (SC4Strings of 0x14 bytes) and the sound IDs.
+    char* const sb = At<char*>(r, 0x10);
+    char* const se = At<char*>(r, 0x14);
+    uint32_t strings = 0;
+    for (char* s = sb; s && s < se && strings < 256; s += 0x14, ++strings)
+        h.Mix(NameHash(At<const char*>(s, 4), At<const char*>(s, 8)));
+    h.Mix(strings);
+    MixIdVector(h, r + 0x1C);
+    return h.h;
+}
+
+// Everything the loading writes into a template.
+uint32_t LoadedTemplateHash(char* t)
+{
+    Hash h;
+    h.Mix(TemplateHash(t));
+    for (const std::size_t at : {0x4Cu, 0x50u, 0x54u, 0x58u, 0x5Cu})
+        h.Mix(At<uint32_t>(t, at));
+    MixCurve(h, t + 0x24);
+    MixIdList(h, At<char*>(t, 0x44));
+    MixIdList(h, At<char*>(t, 0x48));
+    MixIdVector(h, t + 0x60);
+    MixIdVector(h, t + 0x6C);
+    const uint32_t classId = At<uint32_t>(t, 0x18);
+    if (classId == 0x6A1628BAu || classId == 0x4A1628C5u) {
+        MixIdVector(h, t + 0x78);
+        uint32_t names = 0;
+        char* const head = At<char*>(t, 0x84);
+        for (char* n = At<char*>(head, 0); n != head && names < 4096; n = At<char*>(n, 0))
+            ++names;
+        h.Mix(names);
+    }
+    if (classId == 0x6A1628BAu)
+        MixCurve(h, t + 0x88);
+    if (classId == 0x4A1628C5u) {
+        for (std::size_t at = 0x88; at <= 0xAC; at += 4)
+            h.Mix(At<uint32_t>(t, at));
+        h.Mix(At<uint8_t>(t, 0xB0));
+    }
+    char* const rb = At<char*>(t, 0x38);
+    char* const re = At<char*>(t, 0x3C);
+    uint32_t records = 0;
+    for (char* r = rb; r && r < re && records < 1024; r += kRecord, ++records)
+        h.Mix(BehaviourHash(r));
+    h.Mix(records);
+    return h.h;
+}
+
+// What the loading writes into a group (not the parts filled at run time).
+uint32_t LoadedGroupHash(char* g)
+{
+    namespace sg = automata_scripts::group;
+    Hash h;
+    char* const parent = At<char*>(g, sg::kParent);
+    h.Mix(At<uint32_t>(g, sg::kId));
+    h.Mix(At<uint32_t>(g, sg::kClass));
+    h.Mix(At<uint32_t>(g, sg::kPercentage));
+    h.Mix(parent ? At<uint32_t>(parent, sg::kId) : 0xFFFFFFFFu);
+    h.Mix(At<uint16_t>(g, sg::kWord4C) | static_cast<uint32_t>(At<uint16_t>(g, sg::kWord4E)) << 16);
+    MixIdList(h, At<char*>(g, sg::kList50));
+    h.Mix(At<uint32_t>(g + sg::kNames, 0x10));
+    h.Mix(At<uint32_t>(g + sg::kRecords, 0x10));
+    return h.h;
+}
+
+// A script system's loaded state: the templates and groups by name (summed),
+// the drive commands (summed), the track building list (in order).
+uint32_t LoadedSystemHash(char* system, uint32_t& templates, uint32_t& groups, uint32_t& drives)
+{
+    namespace ss = automata_scripts;
+    Hash h;
+    uint32_t sum = 0;
+    templates = 0;
+    ForEachScriptNode(system + ss::field::kTemplates, [&](char* node) {
+        Hash e;
+        e.Mix(NameHash(At<const char*>(node, 4), At<const char*>(node, 8)));
+        e.Mix(LoadedTemplateHash(At<char*>(node, 0x10)));
+        sum += e.h;
+        ++templates;
+    });
+    h.Mix(templates);
+    h.Mix(sum);
+    sum = 0;
+    groups = 0;
+    ForEachScriptNode(system + ss::field::kGroupsByName, [&](char* node) {
+        Hash e;
+        e.Mix(NameHash(At<const char*>(node, 4), At<const char*>(node, 8)));
+        e.Mix(LoadedGroupHash(At<char*>(node, 0x10)));
+        sum += e.h;
+        ++groups;
+    });
+    h.Mix(groups);
+    h.Mix(sum);
+    sum = 0;
+    drives = 0;
+    ForEachScriptNode(system + ss::field::kDriveCommands, [&](char* node) {
+        Hash e;
+        e.Mix(At<uint32_t>(node, 4));
+        e.Mix(At<uint32_t>(node, 8));
+        sum += e.h;
+        ++drives;
+    });
+    h.Mix(drives);
+    h.Mix(sum);
+    MixIdList(h, At<char*>(system, ss::field::kTrackGroups));
+    return h.h;
+}
+
+void ScriptsDrive3(cISC4City* city)
+{
+    char* const scripts = Virtual<char*>(city, 0xC0);
+    if (!scripts) {
+        g_scriptText += " L-";
+        return;
+    }
+    uint32_t cityTemplates = 0, cityGroups = 0, cityDrives = 0;
+    const uint32_t cityHash = LoadedSystemHash(scripts, cityTemplates, cityGroups, cityDrives);
+    // A fresh script system from the factory with the scripts loaded into it
+    // (LoadScripts at the game's address), then its templates and groups
+    // released and the object released.
+    using Factory = char*(__cdecl*)();
+    using Life = void(__thiscall*)(void*);
+    using Load = uint8_t(__thiscall*)(void*);
+    char* const made = reinterpret_cast<Factory>(addr::cSC4AutomataScriptSystem_Create)();
+    uint32_t freshHash = 0, loaded = 0xFF, freshTemplates = 0, freshGroups = 0, freshDrives = 0;
+    if (made) {
+        Virtual<uint32_t>(made, 0x04);
+        loaded = reinterpret_cast<Load>(addr::cSC4AutomataScriptSystem_LoadScripts)(made);
+        freshHash = LoadedSystemHash(made, freshTemplates, freshGroups, freshDrives);
+        reinterpret_cast<Life>(addr::cSC4AutomataScriptSystem_ReleaseTemplates)(made);
+        reinterpret_cast<Life>(addr::cSC4AutomataScriptSystem_ReleaseGroups)(made);
+        Virtual<uint32_t>(made, 0x08);
+    }
+    char text[96];
+    std::snprintf(text, sizeof text, " L%08X,%08X,%X", cityHash, freshHash, loaded);
+    g_scriptText += text;
+    log::Write("autotest: automata: scripts 3: city %08X (%u templates, %u groups, %u drives) fresh %08X (%u, %u, %u) "
+               "load %u",
+               cityHash, cityTemplates, cityGroups, cityDrives, freshHash, freshTemplates, freshGroups, freshDrives,
+               loaded);
+}
+
 void Drive(const Day& day)
 {
     if (EnvInt("OPENSC4_TEST_AUTOMATA", 0) < 2 || !day.counted || g_written)
@@ -2160,6 +2353,8 @@ void Drive(const Day& day)
         ScriptsDrive(day.city);
         if (EnvInt("OPENSC4_TEST_AUTOMATA_SCRIPTS", 0) >= 2)
             ScriptsDrive2(day.city);
+        if (EnvInt("OPENSC4_TEST_AUTOMATA_SCRIPTS", 0) >= 3)
+            ScriptsDrive3(day.city);
     }
     if (char* const manager = Manager(day.city)) {
         WriteDrive(manager);
