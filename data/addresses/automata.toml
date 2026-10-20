@@ -1595,7 +1595,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "53 33 DB 56 8B F1 C7 46"
-source = "Name ours: the managers' common base (vtable 0x00A95880; the vehicle and pedestrian base 0x00554360 calls it). Called by address from src/core/automata_vehmgr.cpp."
+source = "Name ours: the managers' common base's constructor (vtable 0x00A95880; the aircraft and watercraft managers' constructors and the vehicle and pedestrian base 0x00554360 call it): the vtables of its bases 0x00A8298C, 0x00A80784, 0x00A81174 at +4, +8, +0xC, then its own four; its fields zeroed, +0x4C 1, the automata list head (0xC bytes) at +0x44, the generator at +0x50 (SC4Random::ConstructSeeded, seed -1), the exemplar map header (0x20 bytes) at +0xA24, the hash tables +0xA50 and +0xA64 (100 buckets). Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1). Also called by address from src/core/automata_vehmgr.cpp."
 
 [[entry]]
 name = "cSC4AutomataManager::Destroy"
@@ -1604,7 +1604,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "51 56 8B F1 57 8D BE 64"
-source = "Name ours: the common base's destructor body. Called by address from src/core/automata_vehmgr.cpp."
+source = "Name ours: the common base's destructor body: its vtables back, the hash tables +0xA64 (SC4Uint32HashSet::Clear) and +0xA50 (0x00829D20) cleared and their buckets freed, the exemplar map erased (0x0050F1E0) and its header freed, the exemplar records (0x00510650) and their storage freed, SC4PairList::Destroy on the automata list. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1). Also called by address from src/core/automata_vehmgr.cpp."
 
 [[entry]]
 name = "cSC4AutomataManager::QueryInterface"
@@ -1613,7 +1613,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, uint32_t iid, void** out)"
 expect = "8B 44 24 04 3D AA 94 22"
-source = "Name ours: the common base's slot 0, where the vehicle and pedestrian managers' QueryInterface goes for other interfaces. Called by address from src/core/automata_vehmgr.cpp."
+source = "Name ours: the common base's slot 0 (iid, out), ret 8, where the four managers' QueryInterface goes for other interfaces: 0x098F9BF4 (cISC4AutomataManager) the object without a null test, 1 the +4 part, 0xE4FDA3D4 the serializable part (+8), 0x452294AA the message target (+0xC), those three writing a null and still calling AddRef through a null object; AddRef through slot 1, AL 1 over its answer. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1). Also called by address from src/core/automata_vehmgr.cpp."
 
 [[entry]]
 name = "cSC4VehicleManager_Vtable"
@@ -3399,3 +3399,437 @@ name = "cSC4AutomataScriptSystem::LuaFloatDefault"
 address = 0x00B227D0
 kind = "data"
 source = "The float the Lua functions start their positions from."
+
+# Part aw1 of the aircraft and watercraft managers and the common automata manager base: the object and its queries (src/core/automata_awmgr.cpp; docs/automata.md, "Part aw").
+
+[[entry]]
+name = "cSC4AircraftManager::Create"
+address = 0x00514600
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "68 9C 0A 00 00 E8 D6 0F"
+source = "The aircraft manager's factory: 0xA9C bytes from SC4::operator_new, the constructor 0x004FBB40, the object + 8 (the serializable part), or 0. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4WatercraftManager::Create"
+address = 0x00514630
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "68 D4 0A 00 00 E8 A6 0F"
+source = "The watercraft manager's factory: 0xAD4 bytes, the constructor 0x00574860, the object + 8, or 0. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AircraftManager::Construct"
+address = 0x004FBB40
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 8B F1 E8 97 6A 01"
+source = "The aircraft manager's constructor: the common base's 0x005125E0, the vtables 0x00A94850, 0x00A94840, 0x00A94828, 0x00A94818; a map at +0xA88 (a 0x18-byte header from SC4::stl_allocate, its size +0xA8C), a list head of 0x18 bytes at +0xA94, +0xA98 zero; +0xA40 0x18, the occupant group +0xA44 0x4003, the automaton class +0xA48 cSC4Aircraft (0xC96E75DC). Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4WatercraftManager::Construct"
+address = 0x00574860
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 8B F1 E8 77 DD F9"
+source = "The watercraft manager's constructor: the common base's 0x005125E0, the vtables 0x00A9DF38, 0x00A9DF28, 0x00A9DF10, 0x00A9DF00; +0xA88 a byte, zero; three hash tables of 100 buckets (0x00829BC0) at +0xA8C, +0xAA0 and +0xAB4; the reference vector +0xAC8..+0xAD0 zero; +0xA40 0x19, the occupant group +0xA44 0x4412, the automaton class +0xA48 cSC4Watercraft (0x096E75F5). Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::DeletingDestructor"
+address = 0x00512CD0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 A8 FA FF FF"
+source = "Name ours: the common base's slot 38, ret 4: the destructor body 0x00512780, SC4::operator_delete with flag 1; the object. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AircraftManager::EraseTree"
+address = 0x004FB270
+kind = "function"
+convention = "thiscall"
+signature = "void (void* field, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. this = the map field (+0xA88), ret 4: the node's right subtree erased (by itself), the node freed (SC4::Free), its left taken, until null. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AircraftManager::ClearTree"
+address = 0x004FB780
+kind = "function"
+convention = "thiscall"
+signature = "void (void* field)"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Name ours. this = the map field (+0xA88: header, size): with a size, the tree erased from the root (0x004FB270) and the header's root, leftmost and rightmost and the size reset; then the header freed. Called by the deleting destructor. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AircraftManager::DeletingDestructor"
+address = 0x004FBCF0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 8D 8E 94 0A 00"
+source = "Name ours: the aircraft manager's slot 38, ret 4: SC4PairList::Destroy on the list +0xA94, the map's clear 0x004FB780, the common base's destructor body 0x00512780 (the vtables are not set back first), SC4::operator_delete with flag 1. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4WatercraftManager::ClearPairs"
+address = 0x0056D670
+kind = "function"
+convention = "thiscall"
+signature = "void (void* table)"
+expect = "53 55 8B D9 8B 43 08 56"
+source = "Name ours. this = a hash table of 0xC-byte nodes (+0xAA0, +0xAB4): per bucket each node's references at +8 and +4 released and the node freed, the bucket emptied; the count (+0x10) zero. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4WatercraftManager::ClearRoutes"
+address = 0x005743D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* table)"
+expect = "83 EC 08 55 8B E9 8B 4D"
+source = "Name ours. this = the hash table of 0x20-byte nodes (+0xA8C): per bucket each node's reference at +0x1C released, its 0x3C-byte record range +0x10..+0x14 destroyed (0x0056F740) and its storage freed, the references at +0xC, +8 and +4 released and the node freed; the bucket emptied; the count zero. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4WatercraftManager::Destroy"
+address = 0x00574970
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 57 8D 8E C8 0A"
+source = "Name ours: the watercraft manager's destructor body: SC4RefVector::Destroy on +0xAC8, 0x0056D670 on +0xAB4 and +0xAA0 and 0x005743D0 on +0xA8C, each table's buckets freed, then a jump to the common base's 0x00512780 (the vtables are not set back first). Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4WatercraftManager::DeletingDestructor"
+address = 0x00574950
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours: the watercraft manager's slot 38, ret 4: the body 0x00574970, SC4::operator_delete with flag 1. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AircraftManager::QueryInterface"
+address = 0x004FA740
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 3D 4A 9D 8F"
+source = "Slot 0, ret 8: 0xC98F9D4A the object (AddRef through slot 1, AL 1 over its answer); else a jump to the common base's 0x00505480. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4WatercraftManager::QueryInterface"
+address = 0x00566E30
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 3D 28 9D 8F"
+source = "Slot 0, ret 8: 0xA98F9D28 the object; else a jump to the common base's 0x00505480. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::AddRef"
+address = 0x00505510
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 38 40 89 41 38 C3"
+source = "Name ours: slot 1 of all four managers (the adjustors 0x004FBC70, 0x004FBCA0, 0x004FBCD0 reach it): the count at +0x38 incremented and answered. Eight bytes. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::Release"
+address = 0x00507B50
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 46 38 83 F8"
+source = "Name ours: slot 2 of all four managers: a count above 1 counted down and answered; else Shutdown (slot 4) and the deleting destructor (slot 38 with 1) without counting down, answer 0. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::GetGZCLSID"
+address = 0x00512740
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 B5 9C 8F 49 C3"
+source = "Name ours: the common base's serializable part's slot 5: 0x498F9CB5. Six bytes. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AircraftManager::GetGZCLSID"
+address = 0x004FBC50
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 4A 9D 8F C9 C3"
+source = "The aircraft manager's serializable part's slot 5: 0xC98F9D4A. Six bytes. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4WatercraftManager::GetGZCLSID"
+address = 0x00574910
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 28 9D 8F A9 C3"
+source = "The watercraft manager's serializable part's slot 5: 0xA98F9D28. Six bytes. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::IsActive"
+address = 0x004FBBE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "8A 41 4C C3 CC CC"
+source = "Name ours (gzcom-dll's IsActive): slot 6 of all four managers, the byte +0x4C. The function is 4 bytes; the last two expected bytes are its CC padding, so the 5-byte entry hook stays inside it. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::Pause"
+address = 0x004FBBF0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "C6 41 4D 01 C3"
+source = "Name ours (gzcom-dll's Pause): slot 9, +0x4D set. Five bytes. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::Resume"
+address = 0x004FBC00
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "C6 41 4D 00 C3"
+source = "Name ours (gzcom-dll's Resume): slot 10, +0x4D cleared. Five bytes. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::IsPaused"
+address = 0x004FBC10
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "8A 41 4D C3 CC CC"
+source = "Name ours (gzcom-dll's IsPaused): slot 11, the byte +0x4D. The function is 4 bytes; the last two expected bytes are its CC padding. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::IsDrivingMode"
+address = 0x00506940
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "8B 0D C4 3D B4 00 8B 01"
+source = "Name ours (gzcom-dll's IsDrivingMode): slot 13: the object the service 0x00B43DC4 answers at slot 0x60, whose slot 0x14 ID is 0x2B709676; EAX keeps the ID's (or 0's) upper bytes. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::GetMinZoom"
+address = 0x004FBC20
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "0F B6 81 3C 0A 00 00 C3"
+source = "Name ours (gzcom-dll's GetMinZoom): slot 14, the byte +0xA3C zero-extended. Eight bytes. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::Dispatch5"
+address = 0x005053F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* automaton, const void* from, void* to, uint32_t a, uint8_t b)"
+expect = "33 C0 C2 14 00"
+source = "Name ours: the common base's slot 17 (gzcom-dll's five-argument Dispatch; the watercraft manager keeps it), a stub: 0, ret 0x14. Five bytes. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::GetExemplarData"
+address = 0x004FBC30
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8D 81 18 0A 00 00 C3"
+source = "Name ours (gzcom-dll's GetExemplarData): slot 28, the vector at +0xA18 (0x6C-byte tExemplarData). Seven bytes. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::GetExemplarDataMap"
+address = 0x004FBC40
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8D 81 24 0A 00 00 C3"
+source = "Name ours (gzcom-dll's GetExemplarDataMap): slot 29, the map at +0xA24. Seven bytes. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::CanCreateGroup"
+address = 0x0050C300
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t id)"
+expect = "51 56 8D B1 24 0A 00 00"
+source = "Name ours (gzcom-dll's CanCreateGroup): slot 30, ret 4: whether SC4Uint32Map::Find finds the ID in the map +0xA24 (not its header); EAX 0 or 1. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::IsCameraFollowUpdating"
+address = 0x00505400
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "A0 94 1B B2 00 C3"
+source = "Name ours (gzcom-dll's IsCameraFollowUpdating): slot 35, the byte at 0x00B21B94. Six bytes. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::GetSourceBuildingCount"
+address = 0x0050BE30
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t id)"
+expect = "8B 44 24 04 83 EC 08 56"
+source = "Name ours (gzcom-dll's GetSourceBuildingCount): slot 36, ret 4: for 0x1402 and 0x1406 slot 0x2C of the object at 0x00B43D28 (0 without one); else the count (+8 of the node) the hash table +0xA64 keeps for the ID (SC4Uint32HashTable::Find), 0 when not there. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::GetSourceBuildingCountForGroup"
+address = 0x00505410
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t id)"
+expect = "56 8B F1 8B 86 80 0A 00"
+source = "Name ours (gzcom-dll's GetSourceBuildingCountForAutomataGroup): slot 37, ret 4: the script system's (+0xA80) group by ID (its slot 6); its class (+0x6C), else its parents' (0x00505330), else 0, to slot 36; 0 without a script system or a group. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::FindExemplar"
+address = 0x00507B00
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const uint32_t* key)"
+expect = "8B 91 18 0A 00 00 56 8B"
+source = "Name ours: slot 44, ret 4: the first record of the exemplar vector (+0xA18..+0xA1C, 0x6C bytes each) whose resource key (+0x10, +0x14, +0x18) is the key's three words; null when none. Ours in simulators.automata.awmgr (src/core/automata_awmgr.cpp, part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::EraseExemplarTree"
+address = 0x0050F1E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* field, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. this = the exemplar map field (+0xA24), ret 4: as 0x004FB270, with each node's vector at +0x14 freed first. Also called by Shutdown and 0x00510C40. Called by address from src/core/automata_awmgr.cpp (part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::DestroyExemplars"
+address = 0x00510650
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, void* tag)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours: the 0x6C-byte exemplar records [first, last): each one's +0x1C set to the vtable 0x00A80810 and its +0x20 buffer freed. The third argument is never read. Called by address from src/core/automata_awmgr.cpp (part aw1)."
+
+[[entry]]
+name = "SC4HashSetTable::Clear"
+address = 0x00829D20
+kind = "function"
+convention = "thiscall"
+signature = "void (void* table)"
+expect = "51 55 8B E9 8B 4D 08 57"
+source = "Name ours. A hash table whose nodes hold a hash set at +8: per node the set cleared (SC4Uint32HashSet::Clear) and its buckets freed, the node freed; the count zero. Move to core.toml when a second file needs it. Called by address from src/core/automata_awmgr.cpp (part aw1)."
+
+[[entry]]
+name = "cSC4WatercraftManager::DestroyRecords"
+address = 0x0056F740
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, void* tag)"
+expect = "53 8B 5C 24 0C 57 8B 7C"
+source = "Name ours: the 0x3C-byte records [first, last): each one's buffers at +0x2C and +0x20 freed and its references at +8, +4 and +0 released. The third argument is never read. Called by address from src/core/automata_awmgr.cpp (part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager::GroupClass"
+address = 0x00505330
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* group)"
+expect = "8B 41 6C 85 C0 75 0E 8B"
+source = "Name ours. this = an automata group of the script system: its class (+0x6C), else its parent's (+0xC) up the chain, else 0. Called by address from src/core/automata_awmgr.cpp (part aw1)."
+
+[[entry]]
+name = "cSC4AutomataManager_Vtable"
+address = 0x00A95880
+kind = "vtable"
+expect = "80 54 50 00"
+source = "The automata managers' common base: its main vtable (68 slots; the gzcom-dll cISC4AutomataManager from Init at slot 3)."
+
+[[entry]]
+name = "cSC4AutomataManager_Vtable4"
+address = 0x00A95870
+kind = "vtable"
+expect = "50 27 51 00"
+source = "The common base's +4 vtable (the adjustors and 0x0050DD30)."
+
+[[entry]]
+name = "cSC4AutomataManager_SerializableVtable"
+address = 0x00A95858
+kind = "vtable"
+expect = "60 27 51 00"
+source = "The common base's +8 serializable vtable (Write 0x0050CB80, Read 0x005108E0, GetGZCLSID 0x00512740)."
+
+[[entry]]
+name = "cSC4AutomataManager_MessageVtable"
+address = 0x00A95848
+kind = "vtable"
+expect = "70 27 51 00"
+source = "The common base's +0xC message target vtable (0x00506970)."
+
+[[entry]]
+name = "cSC4AircraftManager_Vtable"
+address = 0x00A94850
+kind = "vtable"
+expect = "40 A7 4F 00"
+source = "The aircraft manager's main vtable (68 slots)."
+
+[[entry]]
+name = "cSC4AircraftManager_Vtable4"
+address = 0x00A94840
+kind = "vtable"
+expect = "60 BC 4F 00"
+source = "The aircraft manager's +4 vtable (the adjustors and 0x005DEB40)."
+
+[[entry]]
+name = "cSC4AircraftManager_SerializableVtable"
+address = 0x00A94828
+kind = "vtable"
+expect = "90 BC 4F 00"
+source = "The aircraft manager's +8 serializable vtable (Write 0x004FB5B0, Read 0x004FBE70, GetGZCLSID 0x004FBC50)."
+
+[[entry]]
+name = "cSC4AircraftManager_MessageVtable"
+address = 0x00A94818
+kind = "vtable"
+expect = "C0 BC 4F 00"
+source = "The aircraft manager's +0xC message target vtable (0x004FC710)."
+
+[[entry]]
+name = "cSC4WatercraftManager_Vtable"
+address = 0x00A9DF38
+kind = "vtable"
+expect = "30 6E 56 00"
+source = "The watercraft manager's main vtable (68 slots)."
+
+[[entry]]
+name = "cSC4WatercraftManager_Vtable4"
+address = 0x00A9DF28
+kind = "vtable"
+expect = "20 49 57 00"
+source = "The watercraft manager's +4 vtable (the adjustors and the common base's 0x0050DD30)."
+
+[[entry]]
+name = "cSC4WatercraftManager_SerializableVtable"
+address = 0x00A9DF10
+kind = "vtable"
+expect = "30 49 57 00"
+source = "The watercraft manager's +8 serializable vtable (Write 0x0056FA70, Read 0x005749E0, GetGZCLSID 0x00574910)."
+
+[[entry]]
+name = "cSC4WatercraftManager_MessageVtable"
+address = 0x00A9DF00
+kind = "vtable"
+expect = "40 49 57 00"
+source = "The watercraft manager's +0xC message target vtable (0x00575500)."
+
+[[entry]]
+name = "SC4AutomataManager::CameraFollowUpdating"
+address = 0x00B21B94
+kind = "data"
+source = "Name ours. A byte the automata managers' slot 35 (IsCameraFollowUpdating) answers."
