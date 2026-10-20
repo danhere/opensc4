@@ -8,13 +8,13 @@
 // textures and ten texture bindings of its own. The prop underneath
 // (cSC4PropOccupant) is called at its addresses.
 //
-// The drawing stays the game's: the geometry builder 0x005F5FB0 (called
-// here at its address; it lays the text and the board out from the
-// textures and the transform, and tells the renderer), its helpers
-// 0x005F4D10, 0x005F4DF0, 0x005F5200 and 0x005F53C0, the model part's
-// constructor and destructor (0x00801CF0, 0x00801810) and every function of
-// the model interface (the virtual base at +0x58C: 0x005F59D0 to 0x005F5CD0
-// and what they jump to).
+// The drawing is in propkinds_sign_draw.cpp, a group of its own: the
+// geometry builder 0x005F5FB0 (called here at its address, so ours or the
+// game's as that group says; it lays the text and the board out from the
+// textures and the transform, and tells the renderer) and the functions
+// behind the model interface (the virtual base at +0x58C). The model
+// part's constructor and destructor (0x00801CF0, 0x00801810) stay the
+// game's.
 //
 // Every virtual call below has its argument count from the callee's own
 // `ret N`, or, where the callee is behind a service the code does not name,
@@ -119,7 +119,7 @@ bool SignsShown()
     return Virtual<uint8_t>(Global<void*>(addr::SC4_Service43DB8), 0x28) != 0;
 }
 
-// The game's geometry builder (drawing; the game's).
+// The geometry builder, at its address (propkinds_sign_draw.cpp).
 void BuildGeometry(char* self)
 {
     This<void>(addr::cSC4PropOccupantSign_BuildGeometry, self);
@@ -566,7 +566,7 @@ const bool g_registered = registry::Register({
     addr::cSC4PropOccupantSign_QueryInterface,
     "Our cSC4PropOccupantSign's logic (the sign on the terrain): QueryInterface, the text, highlight and editing, the "
     "caret's clock, the text's glyphs, the messages, Init, Shutdown, SetPosition, SetAllFlags, Write, Read and GetGZCLSID "
-    "(15 detours; the drawing stays the game's; src/core/propkinds.h)",
+    "(15 detours; the drawing is simulators.propkinds.sign_draw; src/core/propkinds.h)",
     false,
     InstallSign,
 });
@@ -700,7 +700,7 @@ void* __fastcall Construct(char* self, void*, uint32_t mostDerived)
         }
     }
     for (std::size_t i = 0; i < 12; i += 4)
-        At<uint32_t>(self, sign::kBuffer + i) = 0;
+        At<uint32_t>(self, sign::kGlyphVertices + i) = 0;
     for (std::size_t i = 0; i < 44; i += 4) // the one binding and the ten
         At<uint32_t>(self, sign::kBinding + i) = 0;
     for (std::size_t i = 0; i < 20; i += 4) // the glyphs and the render state
@@ -725,7 +725,7 @@ void __fastcall Destroy(char* self, void*)
     for (std::size_t i = 44; i > 0; i -= 4)
         if (void* const binding = At<void*>(self, sign::kBinding + i - 4))
             This<void>(addr::SC4TextureBinding_Release, binding);
-    if (void* const buffer = At<void*>(self, sign::kBuffer))
+    if (void* const buffer = At<void*>(self, sign::kGlyphVertices))
         Cdecl<void>(addr::SC4_Free, buffer);
     At<std::uintptr_t>(self, sign::kText) = addr::SC4String_Vtable;
     if (char* const text = At<char*>(self, sign::kTextBegin))

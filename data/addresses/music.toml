@@ -142,7 +142,7 @@ address = 0x008D4687
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 5C 53 56"
-source = "Name ours (docs/audio.md, \"Music player\"); service slot 8, Init: the game's (a later piece); called by address from the thunk 0x008D51DB."
+source = "Name ours (docs/audio.md, \"Music player\"); service slot 8, Init: ours in audio.music.part2 (music_2.cpp); part 1 calls it by address from the thunk 0x008D51DB."
 
 [[entry]]
 name = "GZMusicPlayer::Shutdown"
@@ -393,3 +393,258 @@ address = 0x00A931C4
 kind = "vtable"
 expect = "10 4A 5D 00 10 4A 5D 00"
 source = "Name ours (docs/audio.md, \"Music player\"); written to +0x20 by the constructor before the final one."
+
+[[entry]]
+name = "GZMusicPlayer::LoadStations"
+address = 0x008D49F8
+kind = "function"
+convention = "thiscall"
+expect = "55 8D 6C 24 88 81 EC A0"
+source = "Name ours (docs/audio.md, \"Music player\"); service slot 16: the stations made again from the folders under <folder>Stations\\ that hold a *.id file; returns whether there is one."
+
+[[entry]]
+name = "GZMusicPlayer::IsMusicFolder"
+address = 0x008D3D5D
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 20 8B 45"
+source = "Name ours (docs/audio.md, \"Music player\"); service slot 17, ret 4: whether a folder has files matching the music patterns (0x00B16064)."
+
+[[entry]]
+name = "GZMusicPlayer::LanguageFolder"
+address = 0x008D3D33
+kind = "function"
+convention = "thiscall"
+expect = "8B 49 64 8B 01 56 FF 74"
+source = "Name ours (docs/audio.md, \"Music player\"); service slot 18, ret 8 (index, string): a language folder's name from service 0x441E5070 (+0x64, its slot 15) with a backslash."
+
+[[entry]]
+name = "GZMusicPlayer::DoMessage"
+address = 0x008D319B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 53 8B 5D 08"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 3 of the message target at +0x20, ret 4: the six messages the player posts to itself."
+
+[[entry]]
+name = "GZMusicPlayer::PlayFile"
+address = 0x008D3132
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 83 65 FC 00"
+source = "Name ours (docs/audio.md, \"Music player\"); thiscall on the object, ret 4: a file played on the stream object at +0x6C."
+
+[[entry]]
+name = "GZMusicPlayer::Update"
+address = 0x008D30D1
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 80 7E 28 00 57"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (this = the object + 0x1C), slot 5: what OnTick calls; ends in a jump to the current station's slot 5."
+
+[[entry]]
+name = "GZMusicPlayer::PostUpdate"
+address = 0x008D2C7D
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 39 41 68 74 11 8B"
+source = "Name ours (docs/audio.md, \"Music player\"); thiscall on the object: posts 0xEAB1A483."
+
+[[entry]]
+name = "GZMusicPlayer::PlayFileIfThere"
+address = 0x008D3DC6
+kind = "function"
+convention = "thiscall"
+expect = "53 56 FF 74 24 0C 8B F1"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (this = the object + 0x1C), slot 7: ret 4; a file played (0x008D3BF8) if it exists."
+
+[[entry]]
+name = "GZMusicPlayer::PostPlayFile"
+address = 0x008D3BF8
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F1 33 FF 39 7E"
+source = "Name ours (docs/audio.md, \"Music player\"); thiscall on the object, ret 4: sends 0xEAB186DF with a copy of the name."
+
+[[entry]]
+name = "GZMusicPlayer::FindStation"
+address = 0x008D484A
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 28 53 56"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (this = the object + 0x1C), slot 11: ret 4; the station with a 4-character ID, or null."
+
+[[entry]]
+name = "GZMusicPlayer::SelectStation"
+address = 0x008D490B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 28 53 56"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (this = the object + 0x1C), slot 13: ret 8; a station by its ID made current, optionally with a seek posted."
+
+[[entry]]
+name = "GZMusicPlayer::PostSelect"
+address = 0x008D2BFF
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 39 41 68 74 17 8B"
+source = "Name ours (docs/audio.md, \"Music player\"); thiscall on the object, ret 8: posts 0x4AB186E9 with two numbers."
+
+[[entry]]
+name = "GZMusicPlayer::SetStation"
+address = 0x008D3066
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 2C 57 8B"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (this = the object + 0x1C), slot 14: ret 4; the current station by index."
+
+[[entry]]
+name = "GZMusicPlayer::AddStation"
+address = 0x008D38E5
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B F1 8B 5E 18"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (this = the object + 0x1C), slot 19: ret 4; a station added once."
+
+[[entry]]
+name = "GZMusicPlayer::RemoveStation"
+address = 0x008D33FF
+kind = "function"
+convention = "thiscall"
+expect = "53 56 57 8B 79 18 8D 44"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (this = the object + 0x1C), slot 21: ret 8; a station taken out, released when asked."
+
+[[entry]]
+name = "GZMusicPlayer::FindPointer"
+address = 0x008D335B
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 8D 45 FF 50"
+source = "Name ours (docs/audio.md, \"Music player\"); std::find over the station pointers (first, last, key)."
+
+[[entry]]
+name = "GZMusicPlayer::FindPointerLoop"
+address = 0x008D2C96
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 8B 4D 0C 8B 45"
+source = "Name ours (docs/audio.md, \"Music player\"); the loop of 0x008D335B, four at a time (first, last, key, tag)."
+
+[[entry]]
+name = "GZMusicPlayer::ClearStations"
+address = 0x008D3733
+kind = "function"
+convention = "thiscall"
+expect = "80 7C 24 04 00 57 8B F9"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (this = the object + 0x1C), slot 22: ret 4; every station taken out, released when asked."
+
+[[entry]]
+name = "GZMusicPlayer::SetOn"
+address = 0x008D2F21
+kind = "function"
+convention = "thiscall"
+expect = "53 33 DB 38 5C 24 08 56"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (this = the object + 0x1C), slot 23: ret 4; the player on or off."
+
+[[entry]]
+name = "SC4PtrVector::EraseAt"
+address = 0x008D3333
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours; a vector of pointers: erase at one place (ret 4). Called from the music player and from ten places elsewhere (0x009A2E26, 0x009D081F, ...); the game's."
+
+[[entry]]
+name = "SC4PtrVector::EraseRange"
+address = 0x009A1ADD
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 08 8B F1 8B"
+source = "Name ours; a vector of pointers: erase a range (first, last; ret 8). The game's."
+
+[[entry]]
+name = "SC4PtrVector::PushBack8FF785"
+address = 0x008FF785
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 8B 41 04 3B 41"
+source = "Name ours; a vector of pointers: push_back (a pointer to the value; ret 4). The game's."
+
+[[entry]]
+name = "cRZDirectory::GetFolders"
+address = 0x0091B9D5
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 83 E0 03 83"
+source = "Name ours; the folder listing's entries with flags (arg & 3) | 4 into a string list (list, flags; ret 8): the subfolders, as the music player's station loader 0x008D49F8 uses it."
+
+[[entry]]
+name = "SC4RefPtr::FromFramework2073215D"
+address = 0x004DE430
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 C7 06 00 00 00"
+source = "Name ours; a reference holder filled with the framework's service 0x2073215D, interface 0xE0203660 (released by 0x004DE460)."
+
+[[entry]]
+name = "GZMusicPlayer::CommercialsText"
+address = 0x00B16044
+kind = "data"
+expect = "D4 C1 AC 00"
+source = "Name ours (docs/audio.md, \"Music player\"); a pointer to the folder name Commercials (0x00ACC1D4)."
+
+[[entry]]
+name = "GZMusicPlayer::StationsText"
+address = 0x00B16048
+kind = "data"
+expect = "C8 C1 AC 00"
+source = "Name ours (docs/audio.md, \"Music player\"); a pointer to the folder name Stations (0x00ACC1C8)."
+
+[[entry]]
+name = "GZMusicPlayer::MusicText"
+address = 0x00B1604C
+kind = "data"
+expect = "C0 C1 AC 00"
+source = "Name ours (docs/audio.md, \"Music player\"); a pointer to the folder name Music (0x00ACC1C0)."
+
+[[entry]]
+name = "GZMusicPlayer::DjText"
+address = 0x00B16050
+kind = "data"
+expect = "BC C1 AC 00"
+source = "Name ours (docs/audio.md, \"Music player\"); a pointer to the folder name DJ (0x00ACC1BC)."
+
+[[entry]]
+name = "GZMusicPlayer::JingleText"
+address = 0x00B16054
+kind = "data"
+expect = "B4 C1 AC 00"
+source = "Name ours (docs/audio.md, \"Music player\"); a pointer to the folder name Jingle (0x00ACC1B4)."
+
+[[entry]]
+name = "GZMusicPlayer::IdPatternText"
+address = 0x00B16058
+kind = "data"
+expect = "AC C1 AC 00"
+source = "Name ours (docs/audio.md, \"Music player\"); a pointer to *.id (0x00ACC1AC)."
+
+[[entry]]
+name = "GZMusicPlayer::MusicPatterns"
+address = 0x00B16064
+kind = "data"
+expect = "80 C1 AC 00"
+source = "Name ours (docs/audio.md, \"Music player\"); a pointer to *.mp3,*.wav,*.xa,*.m3u,*.pls (0x00ACC180)."
+
+[[entry]]
+name = "GZMusicPlayer::BlankIdText"
+address = 0x00ACC410
+kind = "data"
+expect = "3F 3F 3F 3F"
+source = "Name ours (docs/audio.md, \"Music player\"); the four characters ????: a station ID before a station writes its own."
+
+[[entry]]
+name = "GZMusicPlayer::RadioFolderText"
+address = 0x00ACC418
+kind = "data"
+expect = "52 65 73 5C 4D 75 73 69"
+source = "Name ours (docs/audio.md, \"Music player\"); the text Res, Music, Radio (with backslashes) added to the data folder by Init."
