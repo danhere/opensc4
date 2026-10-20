@@ -2721,9 +2721,9 @@ name = "cSC4AutomataScriptSystem::LoadScripts"
 address = 0x00523B10
 kind = "function"
 convention = "thiscall"
-signature = "void (void* this)"
+signature = "bool (void* this)"
 expect = "83 EC 34 53 56 8B F1 33"
-source = "Name ours. Init's loading of the automata scripts (a later part of docs/automata.md, 'Part s'; it calls 0x0051C4C0, which holds the Lua print patch site 0x0051C50B). Called by address from src/core/automata_scripts.cpp (part s1)."
+source = "Name ours. Init's loading of the automata scripts: the loader's Lua state (0x0051C4C0), the script group 0x4A5E8F3F, then the readers 0x00523500, 0x00522F30, 0x00521C70, 0x005216A0, 0x0051DAA0, 0x0051F5C0 (AL false at the first that fails), 0x0051FA60 and 0x0051EEE0; the state shut down and released; a stopwatch around it, read and dropped. A failed script group formats 0x00A96F78, drops it and answers true. Ours in simulators.automata.scripts.loader (src/core/automata_scripts_3.cpp)."
 
 [[entry]]
 name = "cSC4AutomataScriptSystem::LuaCreateAutomaton"
@@ -3399,6 +3399,624 @@ name = "cSC4AutomataScriptSystem::LuaFloatDefault"
 address = 0x00B227D0
 kind = "data"
 source = "The float the Lua functions start their positions from."
+
+# Part s3a of the automata script system: the loading of the scripts (src/core/automata_scripts_3.cpp; docs/automata.md, "Part s").
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ResolveTemplateGroups"
+address = 0x0051DAA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 10 55 8D 44 24 0C"
+source = "Name ours. LoadScripts' reader: for each attractor and generator template of the template map (+0x8C) the automata group names (+0x84, SC4Strings) as the group IDs of +0x78 (slot 7 by name; unknown names dropped), the name list emptied. AL 1. Ours in simulators.automata.scripts.loader (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadTrackBuildings"
+address = 0x0051EEE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "A1 70 9A B0 00 83 EC 38"
+source = "Name ours. The global table 'track_buildings' (0x00B09A70): numbers (slot 0x54) or strings read as hex appended to the track building list (+0xA0) when not 0. AL 1. Ours in simulators.automata.scripts.loader (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ResolveGroups"
+address = 0x0051F5C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 30 53 55 56 8B F1"
+source = "Name ours. For the groups of the name map: the parent reference (+0x4E) resolved (its table's '__group_handle' userdata into +0xC) and dropped; the own reference (+0x4C) its '__group_handle' cleared and dropped; the member names (+0x54) as the IDs of +0x50 (groups of the name map with an ID), the names emptied. AL 1. Ours in simulators.automata.scripts.loader (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadDriveCommands"
+address = 0x0051FA60
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. The drive command map (+0xA4) emptied and read from the exemplar 0xA2E3D533/0x6A231EAA/0x0C0EAAD0 (resource manager slot 0x10, interface 0x42E3EA4B; a COM reader 0x42E967BE/0xE2C1B3C4, its slot 0x34 for properties 0..12, up to 8 values each): each value maps to its property's index. AL 1. Ours in simulators.automata.scripts.loader (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadAttractors"
+address = 0x00523500
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. The global table 'attractor' (0x00B09A3C): per entry the template of the name (slot 17, else slot 16 with 0x6A1628BA; another class: message 0x00A96F30 formatted and dropped), the name, 'radius' (+0x20), the strength curve +0x88 ('strength' values spread over the radius, else (0, 100), (radius, 0)); while no entry has failed the automata names, 0x0051F010, 0x0051CB40, 0x00522860, 0x0051F2A0, lifetime, delay, 0x0051C5D0, 0x0051CBF0, ignore_states (inline), exclusive_radius; max_count (+0x54, 0 when absent). AL whether none failed. Ours in simulators.automata.scripts.readers (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadGenerators"
+address = 0x00522F30
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "81 EC 8C 00 00 00 A1 40"
+source = "Name ours. The global table 'generator' (0x00B09A40): as 0x00523500 for 0x4A1628C5 (message 0x00A96EE8, no strength curve, 0x0051CD20 called), then 'radius' (+0x20 and +0xA8, one number or two), the count kind (+0x88 value, +0x8C 2 population_pct, 1 occupancy_pct, 0 count), max_count, rate (+0x98), rate_scale (+0x9C), event (+0xA0), random_chance (+0xA4, 1.0 when absent), lifetime_count (+0xAC), group_count (+0x90, 1 1), priority (+0xB0 byte, at most 255, 25 when absent). Ours in simulators.automata.scripts.readers (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadFlags"
+address = 0x0051C5D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index, void* t)"
+expect = "83 EC 08 53 55 8B 6C 24"
+source = "Name ours. (index, template), ret 8: +0x58 = 2 and nine boolean fields as flags (use_lot_facing 0x10, use_lot_center 0x20, ignore_lot 0x40, transient 8, ground_only 0x1000, destroy_automata 0x100, follow_roads 0x80, follow_rail 0x800, persist_offscreen 0x200). AL 1. Ours in simulators.automata.scripts.readers (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadCalendar"
+address = 0x0051CB40
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index, void* t)"
+expect = "83 EC 0C 57 8B F9 8B 4C"
+source = "Name ours. (index, template), ret 8: 'calendar', bit numbers, as the mask +0x34 (-1 without the field). AL 1. Ours in simulators.automata.scripts.readers (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadSounds"
+address = 0x0051CBF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index, void* t)"
+expect = "83 EC 0C 53 8B D9 8B 4C"
+source = "Name ours. (index, template), ret 8: 'sfx', hex strings, as the IDs of +0x60 (emptied first). AL 1. Ours in simulators.automata.scripts.readers (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadIgnoredStates"
+address = 0x0051CD20
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index, void* t)"
+expect = "53 56 8B 74 24 10 8B 46"
+source = "Name ours. (index, template), ret 8: 'ignore_states' into +0x6C (emptied first). AL 1. Ours in simulators.automata.scripts.readers (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadTimeOfDay"
+address = 0x0051F010
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index, void* t)"
+expect = "83 EC 38 53 56 57 8B D9"
+source = "Name ours. (index, template), ret 8: 'time_of_day', a table x -> y, as the curve +0x24 (each point before the first larger x, 0x0051EE10); without it (0, 1), (24, 1). AL 1. Ours in simulators.automata.scripts.readers (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::InsertPoint"
+address = 0x0051EE10
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector, void* position, const void* point)"
+expect = "83 EC 08 53 56 8B F1 8B"
+source = "Name ours. Ret 8: inserts one 8-byte (x, y) point into a point vector (in place through 0x0066B340, else SC4PointVector::InsertN); answers the inserted place. Ours in simulators.automata.scripts.readers (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadTriggers"
+address = 0x0051F2A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index, void* t)"
+expect = "83 EC 2C 53 55 56 57 8B"
+source = "Name ours. (index, template), ret 8: 'effect_trigger' and 'deactivate_trigger', hex strings, as the ID lists +0x44 and +0x48 (emptied first). AL 1. Ours in simulators.automata.scripts.readers (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadBehaviours"
+address = 0x00522860
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index, void* t)"
+expect = "81 EC 00 01 00 00 53 55"
+source = "Name ours. (index, template), ret 8: the template's behaviour vector (+0x38) emptied; 'behavior', a list of tables, each a 0x7C-byte record (0x0050BD40): state +0, anims +0x10, sfx +0x1C, radius +4 (FLT_MAX), priority +0xC, percentage +8 (1.0), timeout +0x28, seven bools (+0x2C, +0x44..+0x49), kph_multiply +0x30, kph +0x38, acceleration +0x40, path_offset +0x4C, random_walk (delay +0x50, turn +0x58/+0x5C (two values, or one number into +0x58), strength +0x60, idle_delay +0x68, idle_time +0x70, deceleration +0x78, kph, acceleration); appended (0x005205D0 or 0x00521350) and destroyed inline; then sorted (0x00522800). AL 1. Ours in simulators.automata.scripts.readers (src/core/automata_scripts_3.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::MakeLoaderContext"
+address = 0x0051C4C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "8B 41 18 85 C0 56 8D 71"
+source = "Name ours. Kept as the game's: it holds the Lua print patch site 0x0051C50B. Makes the loader's Lua state at +0x18 (COM 0xEA10C4A2) unless there is one, and sets its paths and functions. AL 1. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadGroups"
+address = 0x00521C70
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "A1 38 9A B0 00 81 EC 4C"
+source = "Name ours. LoadScripts' group reader (part s3b). Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadVehicleKinds"
+address = 0x005216A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 58 A1 34 9A B0 00"
+source = "Name ours. LoadScripts' reader of the vehicle kinds (part s3b). Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "SC4ScriptTableWalk::ConstructGlobal"
+address = 0x005FCA70
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* context, const char* name)"
+expect = "83 EC 14 53 55 56 57 8B"
+source = "Name ours. Ret 8: a table walk over the global table of the name. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "SC4ScriptValue::FloatVector"
+address = 0x005FC100
+kind = "function"
+convention = "cdecl"
+signature = "void (void* context, void* vector, int32_t index)"
+expect = "53 8B 5C 24 10 56 8B 74"
+source = "Name ours. The table at the index as a vector of floats. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "SC4ScriptField::FloatPair"
+address = 0x005FC330
+kind = "function"
+convention = "cdecl"
+signature = "void (void* context, const char* name, float* out, int32_t index)"
+expect = "8B 4C 24 08 83 EC 0C 56"
+source = "Name ours. A field of two numbers (or one) as two floats. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "SC4ScriptField::Uint32Pair"
+address = 0x005FC420
+kind = "function"
+convention = "cdecl"
+signature = "void (void* context, const char* name, uint32_t* out, int32_t index)"
+expect = "8B 4C 24 08 83 EC 0C 56"
+source = "Name ours. A field of two numbers (or one) as two uint32. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "SC4ScriptValue::StringList"
+address = 0x005FCB70
+kind = "function"
+convention = "cdecl"
+signature = "void (void* context, void* list, int32_t index)"
+expect = "8B 4C 24 08 83 EC 0C 53"
+source = "Name ours. The table at the index as a list (0x1C-byte nodes) of SC4Strings; the list emptied first (0x0043ABA0). Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "SC4Vector2Vector::CopyBackward"
+address = 0x0066B340
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* to, void* tag)"
+expect = "8B 54 24 08 8B 44 24 0C"
+source = "Name ours. copy_backward of 8-byte pairs. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_calendar"
+address = 0x00A96348
+kind = "data"
+expect = "63 61 6C 65 6E 64 61 72"
+source = "The script key 'calendar' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_sfx"
+address = 0x00A96354
+kind = "data"
+expect = "73 66 78 00"
+source = "The script key 'sfx' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ignore_states"
+address = 0x00A96358
+kind = "data"
+expect = "69 67 6E 6F 72 65 5F 73"
+source = "The script key 'ignore_states' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_time_of_day"
+address = 0x00A96B40
+kind = "data"
+expect = "74 69 6D 65 5F 6F 66 5F"
+source = "The script key 'time_of_day' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_use_lot_facing"
+address = 0x00A96318
+kind = "data"
+expect = "75 73 65 5F 6C 6F 74 5F"
+source = "The script key 'use_lot_facing' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_use_lot_center"
+address = 0x00A96308
+kind = "data"
+expect = "75 73 65 5F 6C 6F 74 5F"
+source = "The script key 'use_lot_center' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ignore_lot"
+address = 0x00A962FC
+kind = "data"
+expect = "69 67 6E 6F 72 65 5F 6C"
+source = "The script key 'ignore_lot' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_transient"
+address = 0x00A962F0
+kind = "data"
+expect = "74 72 61 6E 73 69 65 6E"
+source = "The script key 'transient' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ground_only"
+address = 0x00A962E4
+kind = "data"
+expect = "67 72 6F 75 6E 64 5F 6F"
+source = "The script key 'ground_only' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_destroy_automata"
+address = 0x00A962D0
+kind = "data"
+expect = "64 65 73 74 72 6F 79 5F"
+source = "The script key 'destroy_automata' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_follow_roads"
+address = 0x00A962C0
+kind = "data"
+expect = "66 6F 6C 6C 6F 77 5F 72"
+source = "The script key 'follow_roads' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_follow_rail"
+address = 0x00A962B4
+kind = "data"
+expect = "66 6F 6C 6C 6F 77 5F 72"
+source = "The script key 'follow_rail' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_persist_offscreen"
+address = 0x00A962A0
+kind = "data"
+expect = "70 65 72 73 69 73 74 5F"
+source = "The script key 'persist_offscreen' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_effect_trigger"
+address = 0x00A96B60
+kind = "data"
+expect = "65 66 66 65 63 74 5F 74"
+source = "The script key 'effect_trigger' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_deactivate_trigger"
+address = 0x00A96B4C
+kind = "data"
+expect = "64 65 61 63 74 69 76 61"
+source = "The script key 'deactivate_trigger' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_radius"
+address = 0x00A96E70
+kind = "data"
+expect = "72 61 64 69 75 73 00"
+source = "The script key 'radius' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_strength"
+address = 0x00A96DC0
+kind = "data"
+expect = "73 74 72 65 6E 67 74 68"
+source = "The script key 'strength' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_lifetime"
+address = 0x00A96294
+kind = "data"
+expect = "6C 69 66 65 74 69 6D 65"
+source = "The script key 'lifetime' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_delay"
+address = 0x00A9628C
+kind = "data"
+expect = "64 65 6C 61 79 00"
+source = "The script key 'delay' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_exclusive_radius"
+address = 0x00A96328
+kind = "data"
+expect = "65 78 63 6C 75 73 69 76"
+source = "The script key 'exclusive_radius' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_max_count"
+address = 0x00A96EB4
+kind = "data"
+expect = "6D 61 78 5F 63 6F 75 6E"
+source = "The script key 'max_count' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_population_pct"
+address = 0x00A96ED8
+kind = "data"
+expect = "70 6F 70 75 6C 61 74 69"
+source = "The script key 'population_pct' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_occupancy_pct"
+address = 0x00A96EC8
+kind = "data"
+expect = "6F 63 63 75 70 61 6E 63"
+source = "The script key 'occupancy_pct' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_count"
+address = 0x00A96EC0
+kind = "data"
+expect = "63 6F 75 6E 74 00"
+source = "The script key 'count' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_rate"
+address = 0x00A96EAC
+kind = "data"
+expect = "72 61 74 65 00"
+source = "The script key 'rate' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_rate_scale"
+address = 0x00A96EA0
+kind = "data"
+expect = "72 61 74 65 5F 73 63 61"
+source = "The script key 'rate_scale' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_event"
+address = 0x00A809D8
+kind = "data"
+expect = "65 76 65 6E 74 00"
+source = "The script key 'event' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_random_chance"
+address = 0x00A80D60
+kind = "data"
+expect = "72 61 6E 64 6F 6D 5F 63"
+source = "The script key 'random_chance' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_lifetime_count"
+address = 0x00A96E90
+kind = "data"
+expect = "6C 69 66 65 74 69 6D 65"
+source = "The script key 'lifetime_count' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_group_count"
+address = 0x00A96E84
+kind = "data"
+expect = "67 72 6F 75 70 5F 63 6F"
+source = "The script key 'group_count' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_priority"
+address = 0x00A80A48
+kind = "data"
+expect = "70 72 69 6F 72 69 74 79"
+source = "The script key 'priority' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_behavior"
+address = 0x00A96E78
+kind = "data"
+expect = "62 65 68 61 76 69 6F 72"
+source = "The script key 'behavior' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_state"
+address = 0x00A8506C
+kind = "data"
+expect = "73 74 61 74 65 00"
+source = "The script key 'state' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_anims"
+address = 0x00A96CA4
+kind = "data"
+expect = "61 6E 69 6D 73 00"
+source = "The script key 'anims' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_percentage"
+address = 0x00A96CC0
+kind = "data"
+expect = "70 65 72 63 65 6E 74 61"
+source = "The script key 'percentage' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_timeout"
+address = 0x00A80A2C
+kind = "data"
+expect = "74 69 6D 65 6F 75 74 00"
+source = "The script key 'timeout' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_final"
+address = 0x00A96E68
+kind = "data"
+expect = "66 69 6E 61 6C 00"
+source = "The script key 'final' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ignore_paths"
+address = 0x00A96E58
+kind = "data"
+expect = "69 67 6E 6F 72 65 5F 70"
+source = "The script key 'ignore_paths' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ignore_roads"
+address = 0x00A96E48
+kind = "data"
+expect = "69 67 6E 6F 72 65 5F 72"
+source = "The script key 'ignore_roads' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ignore_terrain"
+address = 0x00A96E38
+kind = "data"
+expect = "69 67 6E 6F 72 65 5F 74"
+source = "The script key 'ignore_terrain' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ignore_attractors"
+address = 0x00A96E24
+kind = "data"
+expect = "69 67 6E 6F 72 65 5F 61"
+source = "The script key 'ignore_attractors' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_avoid_lots"
+address = 0x00A96E18
+kind = "data"
+expect = "61 76 6F 69 64 5F 6C 6F"
+source = "The script key 'avoid_lots' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_avoid_roads"
+address = 0x00A96E0C
+kind = "data"
+expect = "61 76 6F 69 64 5F 72 6F"
+source = "The script key 'avoid_roads' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_kph_multiply"
+address = 0x00A96DFC
+kind = "data"
+expect = "6B 70 68 5F 6D 75 6C 74"
+source = "The script key 'kph_multiply' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_kph"
+address = 0x00A96D88
+kind = "data"
+expect = "6B 70 68 00"
+source = "The script key 'kph' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_acceleration"
+address = 0x00A96DEC
+kind = "data"
+expect = "61 63 63 65 6C 65 72 61"
+source = "The script key 'acceleration' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_path_offset"
+address = 0x00A96DE0
+kind = "data"
+expect = "70 61 74 68 5F 6F 66 66"
+source = "The script key 'path_offset' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_random_walk"
+address = 0x00A96DD4
+kind = "data"
+expect = "72 61 6E 64 6F 6D 5F 77"
+source = "The script key 'random_walk' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_turn"
+address = 0x00A96DCC
+kind = "data"
+expect = "74 75 72 6E 00"
+source = "The script key 'turn' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_idle_delay"
+address = 0x00A96DB4
+kind = "data"
+expect = "69 64 6C 65 5F 64 65 6C"
+source = "The script key 'idle_delay' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_idle_time"
+address = 0x00A96DA8
+kind = "data"
+expect = "69 64 6C 65 5F 74 69 6D"
+source = "The script key 'idle_time' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_deceleration"
+address = 0x00A96D98
+kind = "data"
+expect = "64 65 63 65 6C 65 72 61"
+source = "The script key 'deceleration' the readers ask for. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::AttractorExistsFormat"
+address = 0x00A96F30
+kind = "data"
+expect = "43 6F 75 6C 64 6E 27 74"
+source = "The attractor reader's message for a template of another class."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GeneratorExistsFormat"
+address = 0x00A96EE8
+kind = "data"
+expect = "43 6F 75 6C 64 6E 27 74"
+source = "The generator reader's message for a template of another class."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ConfigErrorFormat"
+address = 0x00A96F78
+kind = "data"
+expect = "45 72 72 6F 72 20 63 6F"
+source = "LoadScripts' message when the script group fails."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::AttractorTableName"
+address = 0x00B09A3C
+kind = "data"
+source = "A pointer to 'attractor', the attractor templates' global table."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GeneratorTableName"
+address = 0x00B09A40
+kind = "data"
+source = "A pointer to 'generator'."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GroupHandleName"
+address = 0x00B09A44
+kind = "data"
+source = "A pointer to '__group_handle', the groups' tables' userdata field."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::TrackBuildingsName"
+address = 0x00B09A70
+kind = "data"
+source = "A pointer to 'track_buildings'."
 
 # Part aw1 of the aircraft and watercraft managers and the common automata manager base: the object and its queries (src/core/automata_awmgr.cpp; docs/automata.md, "Part aw").
 

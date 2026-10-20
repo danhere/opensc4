@@ -759,7 +759,7 @@ The class is found by its vtables, the constructor, the destructor and the group
   - Helpers the managers and the U-Drive call: 0x0051CD90, 0x0051D040, 0x0051D0D0, 0x0051D120, 0x005204D0, 0x0051FD30.
   - The behaviour records that the loading builds (the record, its vector and the std::sort over them): 0x00521350, 0x00521470, 0x00521550, 0x005215A0, 0x00521620, 0x00521B20, 0x00521B70, 0x00521BB0, 0x00522270, 0x00522350, 0x005223C0, 0x00522450, 0x00522540, 0x00522590, 0x005226C0, 0x00522720, 0x00522800, 0x005205D0, 0x00520940, 0x0051C8B0 and 0x0050BD40.
 - **s3 (27, 19,089 bytes): the loading of the scripts**, in two pieces. 0x0051C4C0 stays the game's: it holds the Lua print patch site 0x0051C50B. The Lua VM's own functions are called at their addresses, not reimplemented.
-  - **s3a (15, 9,964 bytes): the loader and the template readers.**
+  - **s3a (15, 9,964 bytes, done): the loader and the template readers.** See "Part s3a" below.
     - LoadScripts 0x00523B10 and the readers it calls first: 0x0051DAA0, 0x0051EEE0, 0x0051F5C0 (1,158 bytes), 0x0051FA60.
     - The attractor and generator templates: 0x00523500 (1,546) and 0x00522F30 (1,488), with their parts 0x0051C5D0, 0x0051CB40, 0x0051CBF0, 0x0051CD20, 0x0051F010, 0x0051EE10, 0x0051F2A0.
     - The behaviours 0x00522860 (1,733).
@@ -945,3 +945,71 @@ Reimplementation notes from the audit: no defect. Sort (0x00522800) now forwards
 All 77 functions of s1 and s2 were reached in every B run of r2 (14) and r3 (our first-call log lines).
 
 The Lua chunk ran in every run, and every B run carried the ` S` and ` T` tokens. A batch r1 had the chunk's path broken, so its functions were not called; it was otherwise the same (5 of 5, 8 of 8, 12 of 12).
+
+
+## Part s3a: the loading of the scripts
+
+### What is ours
+
+The 15 functions of s3a's list, in two more groups, off by default ([automata_scripts_3.cpp](../src/core/automata_scripts_3.cpp)):
+
+- **`simulators.automata.scripts.loader` (5):** LoadScripts 0x00523B10, and four readers it runs: the templates' groups 0x0051DAA0, the groups' parents and members 0x0051F5C0, the drive commands 0x0051FA60 and the track buildings 0x0051EEE0.
+- **`simulators.automata.scripts.readers` (10):**
+  - The attractor templates 0x00523500 and the generator templates 0x00522F30.
+  - Their parts: the flags 0x0051C5D0, the calendar 0x0051CB40, the sounds 0x0051CBF0, the ignored states 0x0051CD20, the time of day curve 0x0051F010 (with its point insert 0x0051EE10), the triggers 0x0051F2A0 and the behaviours 0x00522860.
+
+What the loading does:
+
+- **LoadScripts** (from Init) gets the loader's Lua state from 0x0051C4C0 (the game's: it holds the Lua print patch) and runs the script group 0x4A5E8F3F (the automata `_config.lua`). Then the readers run in this order: attractors, generators, groups and vehicle kinds (0x00521C70, 0x005216A0, part s3b, the game's), the templates' groups, the groups. The answer is false at the first that fails. The drive commands and the track buildings come last. The Lua state is shut down and released. A stopwatch around it is read and dropped. A failed script group formats its message, drops it and answers true.
+- **A template** is one entry of the global table `attractor` or `generator`. Its name gets a template (slot 17, else slot 16). The table's fields are read at the index of a table walk made over the entry for that alone:
+  - Both readers: `radius`, `time_of_day` (a curve), `calendar` (a bit mask), `behavior` (the behaviour records, sorted), `effect_trigger` and `deactivate_trigger` (ID lists), `lifetime`, `delay`, nine flags, `sfx`, `ignore_states`, `exclusive_radius` and `max_count`.
+  - The attractor adds `strength`, a curve spread over the radius.
+  - The generator adds the count kind (`population_pct`, `occupancy_pct` or `count`), `rate`, `rate_scale`, `event`, `random_chance`, `lifetime_count`, `group_count` and `priority` (a byte, at most 255, 25 when absent).
+- **The groups' pass** resolves each group's two Lua references: the parent's table gives the parent through its `__group_handle` userdata, the group's own table has that field cleared, and both references are dropped. The member names become IDs. **The templates' pass** turns the automata group names into IDs.
+- **The drive commands** come from an exemplar (0xA2E3D533, 0x6A231EAA, 0x0C0EAAD0) read by a COM reader: 13 properties of up to 8 values, each value mapping to its property's index.
+- **The track buildings** are the global table `track_buildings`: numbers, or strings read as hex.
+
+Kept as the game's, called at their addresses:
+
+- 0x0051C4C0, for the patch site.
+- s3b's two readers.
+- The Lua state's own functions and the field readers (`SC4Script::GetField`, `SC4ScriptField::*`, `SC4ScriptValue::*`, the table walk).
+- The point and pointer vector inserts, SC4Curve::SetPoints, the behaviour record functions (part s2), the stopwatch, the resource manager and the COM objects.
+
+Oddities kept:
+
+- A vector is emptied by erasing [end, end), which leaves the end at the begin.
+- A template of the other reader's class gets the refusal message, formatted and dropped, and is then read anyway.
+- After one entry fails, the later entries are still made and named and get their max_count (and the attractor its radius and strength curve, the generator its radius and the fields after the count kind), but the parts in between are skipped.
+- The attractor's strength table of one value (or none) gives two points that read its first value even when there is none.
+- `random_chance` is 1.0 when absent and a behaviour's `percentage` 1.0. A behaviour's `radius` is FLT_MAX when absent.
+
+Floats: the strength curve's step is the radius over the count less one, divided in double and stored to a float. The running x is a double, as in the x87 register (53-bit), and is stored to a float per point. Lua numbers the game stores as floats are rounded at the store. The time of day curve inserts each point before the first larger x, where an unordered compare is not larger.
+
+Reimplemented like the earlier parts: one writer (a frame annotator, net-tools\s3\frame.py, tracked the stack offsets of the largest functions), every call's argument count checked against the callee's `ret`, then an independent audit of all 15 against the disassembly. It found one defect, fixed before the final batch: a single-number `turn` of a behaviour's `random_walk` goes to the record's +0x58 (ours had written +0x54; the annotator had miscounted one call's arguments there). No corpus script has one, so the first batch could not show it.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_SCRIPTS=3` does everything `=2` does and adds ` L<city>,<fresh>,<load>`:
+
+- A hash of the city's script system as loaded: every template (fields, curves, ID lists and vectors, behaviour records), every group's loaded fields, the drive commands and the track buildings, summed by name.
+- The same hash of a fresh script system from the factory, into which LoadScripts loads the scripts on the test day, and that load's answer.
+
+The fresh system's templates and groups are then released, and the object too. The two hashes are equal when the fresh load reads what the city's load read. In the trial they were equal on both sides: 219 templates, 222 groups, 25 drive commands.
+
+Reached in the trial (Making Money d0000, 3 days): all 15, with all 77 of s1 and s2 in the same run, so 92 first-call lines.
+
+### Parity
+
+2026-10-19, env p4env-s3, both tests on: `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_SCRIPTS=3` and the Lua chunk.
+
+B = all ten `simulators.automata.scripts` groups (s1, s2, s3a) against the original. The switch list includes `determinism.dispatch_info=ours`. Two jobs ran, with `harness.multi_instance=ours` on both sides.
+
+| Batch | Making Money d0000, 4 days | Rush Hour t0000, 7 days | The 12-save batch, 7 days |
+| --- | --- | --- | --- |
+| r1 (snapshot s3-r1, before the audit's fix) | 5 of 5 | 8 of 8 | 12 of 12 |
+| r2 (s3-r2, the final build, with main merged; `OPENSC4_MUTE=1` on both sides) | 5 of 5 | 8 of 8 | 11 of 12; Big City d0000 partly the same |
+
+In r2, Big City d0000's first B run had other `adv` and `advisors` values from the first day on, and the rest of the line was the same. The second B run had A's values. This is the first-run advisor outcome of [parity.md](parity.md) ("The advisor system's generator"). Two reruns of that save, muted, were the same, 8 of 8 days each.
+
+All 92 functions of s1, s2 and s3a were reached in every one of the 14 B runs of both batches. Every run's ` L` token had the same city and fresh hash, 25C2EAB1.
