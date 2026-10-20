@@ -13860,10 +13860,19 @@ uint32_t __fastcall LsClearManagerTextsByMode(char* manager, void*)
         ClearManagerTexts(manager);
         return 0u;
     };
+    // One detour, shared with renderer.effects.tail: noted whatever the mode.
+    if (g_lsMode == StepMode::Original)
+        return StHelper(StMake(addr::SC4EffectsManager_ClearTexts, manager), manager + 0xD0, 0x34, game);
     return StByModeOf(g_lsMode, StMake(addr::SC4EffectsManager_ClearTexts, manager), manager + 0xD0, 0x34, game, ours,
                       [&] { return StCompared("effects.vectors.clear_texts", manager + 0xD0, 0x34, false, game, ours); });
 }
 OPENSC4_THUNK(TLsClearManagerTexts, LsClearManagerTextsByMode, 0)
+
+bool HookClearManagerTexts()
+{
+    return g_SC4EffectsManager_ClearTexts ||
+           Detour(addr::SC4EffectsManager_ClearTexts, &TLsClearManagerTexts, &g_SC4EffectsManager_ClearTexts);
+}
 
 uint32_t __cdecl LsDestroyNameTablesByMode(uint32_t first, uint32_t last)
 {
@@ -14022,7 +14031,7 @@ bool InstallVectors(registry::Mode mode)
         !Detour(addr::SC4DecalDescriptions_Resize, &TLsResizeDecals, &g_SC4DecalDescriptions_Resize) ||
         !Detour(addr::SC4EffectTexts14_Erase, &TLsEraseTexts14, &g_lsErase[3]) ||
         !Detour(addr::SC4EffectTexts10_Erase, &TLsEraseTexts10, &g_lsErase[4]) ||
-        !Detour(addr::SC4EffectsManager_ClearTexts, &TLsClearManagerTexts, &g_SC4EffectsManager_ClearTexts) ||
+        !HookClearManagerTexts() ||
         !DetourCdecl(addr::SC4EffectNameTables_DestroyRange, &LsDestroyNameTablesByMode,
                      &g_SC4EffectNameTables_DestroyRange))
         return false;
@@ -15050,6 +15059,9 @@ uint32_t __cdecl HsTransformByMode(uint32_t first, uint32_t last, uint32_t out, 
     const auto game = [&] { return g_SC4_TransformChars(first, last, out, fn); };
     const auto ours = [&] { return Word(TransformChars(Ptr(first), Ptr(last), Ptr(out), fn)); };
     const std::size_t size = out && last > first && last - first < 0x100000 ? last - first : 0;
+    // One detour, shared with renderer.effects.tail: noted whatever the mode.
+    if (g_hsMode == StepMode::Original)
+        return StHelper(StMake(addr::SC4_TransformChars, Ptr(first), Ptr(last), Ptr(out), fn), nullptr, 0, game);
     return HsByMode(StMake(addr::SC4_TransformChars, Ptr(first), Ptr(last), Ptr(out), fn), nullptr, 0, game, ours,
                     [&] { return TbCompared("effects.hashes.transform", Ptr(out), size, true, game, ours); });
 }
@@ -15106,6 +15118,11 @@ bool HookDelete()
     return g_SC4_operator_delete || DetourCdecl(addr::SC4_operator_delete, &DeleteNoted, &g_SC4_operator_delete);
 }
 
+bool HookTransformChars()
+{
+    return g_SC4_TransformChars || DetourCdecl(addr::SC4_TransformChars, &HsTransformByMode, &g_SC4_TransformChars);
+}
+
 bool InstallHashes(registry::Mode mode)
 {
     constexpr int effect = static_cast<int>(Held::Effect);
@@ -15120,7 +15137,7 @@ bool InstallHashes(registry::Mode mode)
         !Detour(addr::SC4Counted40_Construct, &THsConstructCounted, &g_SC4Counted40_Construct) ||
         !Detour(addr::SC4Counted40_Destroy, &THsDestroyCounted, &g_SC4Counted40_Destroy) ||
         !Detour(addr::SC4Counted40_DeletingDestructor, &THsDeleteCounted, &g_SC4Counted40_DeletingDestructor) ||
-        !DetourCdecl(addr::SC4_TransformChars, &HsTransformByMode, &g_SC4_TransformChars) ||
+        !HookTransformChars() ||
         !DetourCdecl(addr::SC4HeldEffects_CopyRange, &PtCopyByMode<Held::Effect>, &g_ptCopy[effect]) ||
         !DetourCdecl(addr::SC4HeldEffects_Fill, &PtFillByMode<Held::Effect>, &g_ptFill[effect]) ||
         !DetourCdecl(addr::SC4HeldEffects_Assign, &PtAssignByMode<Held::Effect>, &g_ptAssign[effect]) ||
@@ -15913,6 +15930,62 @@ const bool g_registeredDecalParts = registry::Register({
     InstallDecalParts,
 });
 
+// The store's comparison over more than one span of memory.
+// A comparison whose game's run may change what ours would then read: with
+// `same` false after the game's run ours is not replayed, only counted.
+std::map<std::string, uint64_t> g_stSkipped;
+
+template <typename Game, typename Ours>
+uint32_t StSpansCompared(const char* id, const std::vector<std::pair<char*, std::size_t>>& spans, bool result,
+                         Game&& game, Ours&& ours, const std::function<bool()>& same = {})
+{
+    StSaved saved;
+    g_stGame.clear();
+    g_stOurs.clear();
+    std::vector<std::vector<char>> before, after, own;
+    for (const auto& [at, size] : spans)
+        before.emplace_back(at, at + size);
+    g_stThread = GetCurrentThreadId();
+    g_stDepth = 0;
+    g_stReplay = false;
+    g_stNoting = true;
+    const uint32_t theirs = game();
+    g_stNoting = false;
+    for (std::size_t i = 0; i < spans.size(); ++i)
+        after.emplace_back(spans[i].first, spans[i].first + spans[i].second);
+    if (same && !same()) {
+        const uint64_t n = ++g_stSkipped[id];
+        if ((n & (n - 1)) == 0)
+            log::Write("water effects: %s: %llu not compared (the game's run changed what ours reads)", id,
+                       static_cast<unsigned long long>(n));
+        return theirs;
+    }
+    for (std::size_t i = 0; i < spans.size(); ++i)
+        std::memcpy(spans[i].first, before[i].data(), spans[i].second);
+    g_stReplay = true;
+    const uint32_t mine = ours();
+    g_stReplay = false;
+    for (std::size_t i = 0; i < spans.size(); ++i) {
+        own.emplace_back(spans[i].first, spans[i].first + spans[i].second);
+        std::memcpy(spans[i].first, after[i].data(), spans[i].second);
+    }
+    if (!(g_stGame == g_stOurs)) {
+        StRecord(id, false, StNotesText(g_stGame, g_stOurs), StNotesText(g_stOurs, g_stGame));
+        return theirs;
+    }
+    for (std::size_t i = 0; i < spans.size(); ++i) {
+        if (own[i] != after[i]) {
+            char text[24];
+            std::snprintf(text, sizeof text, "span %zu: ", i);
+            StRecord(id, false, text + Hex(after[i].data(), spans[i].second),
+                     text + Hex(own[i].data(), spans[i].second));
+            return theirs;
+        }
+    }
+    StRecord(id, !result || theirs == mine, Hex(&theirs, 4), Hex(&mine, 4));
+    return theirs;
+}
+
 // --- Calls through other objects' tables, and the manager's tail ------------------------------
 //
 // Most of what is left of the manager calls through the tables of other
@@ -16236,6 +16309,7 @@ const VrKind kVrOccupantType{{VrPlain(0xC, 1, VR_SLOT(1, 0xC))}};
 const VrKind kVrOccupant{{{0x18, 0, {{-1, 0}, {-1, 0}}, nullptr, &kVrOccupantType, -1, 0, VR_SLOT(0, 0x18)},
                           {0x28, 2, {{0, 0xC}, {1, 0xC}}, nullptr, nullptr, -1, 0, VR_SLOT(2, 0x28)},
                           {0x2C, 1, {{0, 0x10}, {-1, 0}}, nullptr, nullptr, -1, 0, VR_SLOT(1, 0x2C)}}};
+const VrKind kVrMessageServer{{VrPlain(0x18, 2, VR_SLOT(2, 0x18))}};
 const VrKind kVrLiftedMap{{{0x28, 4, {{-1, 0}, {-1, 0}}, nullptr, nullptr, 1, 0x10, VR_SLOT(4, 0x28)}}};
 
 // What ours calls besides the proxied tables: in the replay the note.
@@ -16266,6 +16340,46 @@ uint32_t TlGetPropertyBool(char* object, uint32_t id, uint8_t* out)
 
 uint32_t OccupantLifts(char* occupant);
 void LiftUnderOccupant(char* manager, char* occupant);
+
+// The name check's and the stop's helpers: the game's, called through
+// these so that the replay answers them from the notes.
+Call2Fn g_SC4StringBody_AssignChars = nullptr;
+Call1Fn g_SC4StringHashSet_Find = nullptr;
+Call0Fn g_SC4Uint32HashSet_Clear = nullptr;
+
+void TlAssignChars(char* text, const char* first, const char* last)
+{
+    VrNotedInto(StMake(addr::SC4StringBody_AssignChars, text, Ptr(Word(first)), Ptr(Word(last))), {{text, 0xC}}, [&] {
+        return CallThis<uint32_t>(addr::SC4StringBody_AssignChars, text, first, last);
+    });
+}
+
+void TlLower(char* first, char* last)
+{
+    const uint32_t lower = 0x009F0543; // CRT::tolower
+    VrNotedInto(StMake(addr::SC4_TransformChars, first, last, first, lower), {}, [&] {
+        return reinterpret_cast<uint32_t(__cdecl*)(char*, char*, char*, uint32_t)>(addr::SC4_TransformChars)(
+            first, last, first, lower);
+    });
+}
+
+uint32_t TlFindName(char* hash, char* text)
+{
+    return VrNotedInto(StMake(addr::SC4StringHashSet_Find, hash, text), {},
+                       [&] { return CallThis<uint32_t>(addr::SC4StringHashSet_Find, hash, text); });
+}
+
+void TlClearHash(char* hash)
+{
+    VrNotedInto(StMake(addr::SC4Uint32HashSet_Clear, hash), {{hash, 0x14}},
+                [&] { return CallThis<uint32_t>(addr::SC4Uint32HashSet_Clear, hash); });
+}
+
+uint32_t TlClearTexts(char* tables)
+{
+    return VrNotedInto(StMake(addr::SC4EffectsManager_ClearTexts, tables), {{tables + 0xD0, 0x34}},
+                       [&] { return CallThis<uint32_t>(addr::SC4EffectsManager_ClearTexts, tables); });
+}
 
 uint32_t TlOccupantLifts(char* occupant)
 {
@@ -16474,6 +16588,53 @@ uint32_t __cdecl TlLiftMessageByMode(char* occupant, char* manager)
                     [] {});
 }
 
+// The helpers' noted detours (compare mode), the bytes they leave noted.
+uint32_t __fastcall TlAssignCharsNoted(char* text, void*, uint32_t first, uint32_t last)
+{
+    return VrNotedInto(StMake(addr::SC4StringBody_AssignChars, text, Ptr(first), Ptr(last)), {{text, 0xC}},
+                       [&] { return g_SC4StringBody_AssignChars(text, nullptr, first, last); });
+}
+OPENSC4_THUNK(TTlAssignCharsNoted, TlAssignCharsNoted, 8)
+
+uint32_t __fastcall TlFindNameNoted(char* hash, void*, uint32_t text)
+{
+    return VrNotedInto(StMake(addr::SC4StringHashSet_Find, hash, Ptr(text)), {},
+                       [&] { return g_SC4StringHashSet_Find(hash, nullptr, text); });
+}
+OPENSC4_THUNK(TTlFindNameNoted, TlFindNameNoted, 4)
+
+uint32_t __fastcall TlClearHashNoted(char* hash, void*)
+{
+    return VrNotedInto(StMake(addr::SC4Uint32HashSet_Clear, hash), {{hash, 0x14}},
+                       [&] { return g_SC4Uint32HashSet_Clear(hash, nullptr); });
+}
+OPENSC4_THUNK(TTlClearHashNoted, TlClearHashNoted, 0)
+
+Call1Fn g_SC4EffectsManager_HasDescriptionNamed = nullptr;
+Call0Fn g_SC4EffectTables_StopListening = nullptr;
+
+uint32_t __fastcall TlNamedByMode(char* manager, void*, uint32_t name)
+{
+    const auto game = [&] { return g_SC4EffectsManager_HasDescriptionNamed(manager, nullptr, name) & 0xFF; };
+    const auto ours = [&] { return HasDescriptionNamed(manager, reinterpret_cast<const char*>(name)); };
+    return TlByMode("effects.tail.named", addr::SC4EffectsManager_HasDescriptionNamed, manager + 0x1A0, 0xC, true,
+                    game, ours, [] {});
+}
+OPENSC4_THUNK(TTlNamed, TlNamedByMode, 4)
+
+uint32_t __fastcall TlStopByMode(char* tables, void*)
+{
+    const auto game = [&] { return g_SC4EffectTables_StopListening(tables, nullptr); };
+    const auto ours = [&] { return StopListening(tables); };
+    return StByModeOf(g_tlMode, StMake(addr::SC4EffectTables_StopListening, tables), nullptr, 0, game, ours, [&] {
+        VrScope scope;
+        VrProxyObject(M<char*>(0x00B43CCC), kVrMessageServer);
+        return StSpansCompared("effects.tail.stop", {{tables + 0xC6C, 0x28}, {tables + 0xD0, 0x34}}, false, game,
+                               ours);
+    });
+}
+OPENSC4_THUNK(TTlStop, TlStopByMode, 0)
+
 bool InstallTail(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
@@ -16485,11 +16646,17 @@ bool InstallTail(registry::Mode mode)
         !Detour(addr::SC4EffectsManager_ReleaseThunk8, &TTlRelease8, &g_SC4EffectsManager_ReleaseThunk8) ||
         !Detour(addr::SC4EffectsManager_OccupantLifts, &TTlOccupant, &g_SC4EffectsManager_OccupantLifts) ||
         !Detour(addr::SC4EffectsManager_LiftUnderOccupant, &TTlLift, &g_SC4EffectsManager_LiftUnderOccupant) ||
-        !DetourCdecl(addr::SC4EffectsManager_LiftMessage, &TlLiftMessageByMode, &g_SC4EffectsManager_LiftMessage))
+        !DetourCdecl(addr::SC4EffectsManager_LiftMessage, &TlLiftMessageByMode, &g_SC4EffectsManager_LiftMessage) ||
+        !Detour(addr::SC4EffectsManager_HasDescriptionNamed, &TTlNamed, &g_SC4EffectsManager_HasDescriptionNamed) ||
+        !Detour(addr::SC4EffectTables_StopListening, &TTlStop, &g_SC4EffectTables_StopListening))
         return false;
     if (mode == registry::Mode::Compare &&
         !(DetourCdecl(addr::SC4_QueryHeld, &TlQueryHeldNoted, &g_SC4_QueryHeld) &&
-          DetourCdecl(addr::SC4_GetPropertyBool, &TlGetPropertyBoolNoted, &g_SC4_GetPropertyBool)))
+          DetourCdecl(addr::SC4_GetPropertyBool, &TlGetPropertyBoolNoted, &g_SC4_GetPropertyBool) &&
+          Detour(addr::SC4StringBody_AssignChars, &TTlAssignCharsNoted, &g_SC4StringBody_AssignChars) &&
+          Detour(addr::SC4StringHashSet_Find, &TTlFindNameNoted, &g_SC4StringHashSet_Find) &&
+          Detour(addr::SC4Uint32HashSet_Clear, &TTlClearHashNoted, &g_SC4Uint32HashSet_Clear) &&
+          HookTransformChars() && HookClearManagerTexts()))
         return false;
     g_tlMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: the manager's calls through other tables %s",
@@ -16637,62 +16804,6 @@ uint32_t __fastcall TmFlashNoted(char* manager, void*, uint32_t shake)
                        [&] { return g_SC4EffectsManager_Flash(manager, nullptr, shake); });
 }
 OPENSC4_THUNK(TTmFlashNoted, TmFlashNoted, 4)
-
-// The store's comparison over more than one span of memory.
-// A comparison whose game's run may change what ours would then read: with
-// `same` false after the game's run ours is not replayed, only counted.
-std::map<std::string, uint64_t> g_stSkipped;
-
-template <typename Game, typename Ours>
-uint32_t StSpansCompared(const char* id, const std::vector<std::pair<char*, std::size_t>>& spans, bool result,
-                         Game&& game, Ours&& ours, const std::function<bool()>& same = {})
-{
-    StSaved saved;
-    g_stGame.clear();
-    g_stOurs.clear();
-    std::vector<std::vector<char>> before, after, own;
-    for (const auto& [at, size] : spans)
-        before.emplace_back(at, at + size);
-    g_stThread = GetCurrentThreadId();
-    g_stDepth = 0;
-    g_stReplay = false;
-    g_stNoting = true;
-    const uint32_t theirs = game();
-    g_stNoting = false;
-    for (std::size_t i = 0; i < spans.size(); ++i)
-        after.emplace_back(spans[i].first, spans[i].first + spans[i].second);
-    if (same && !same()) {
-        const uint64_t n = ++g_stSkipped[id];
-        if ((n & (n - 1)) == 0)
-            log::Write("water effects: %s: %llu not compared (the game's run changed what ours reads)", id,
-                       static_cast<unsigned long long>(n));
-        return theirs;
-    }
-    for (std::size_t i = 0; i < spans.size(); ++i)
-        std::memcpy(spans[i].first, before[i].data(), spans[i].second);
-    g_stReplay = true;
-    const uint32_t mine = ours();
-    g_stReplay = false;
-    for (std::size_t i = 0; i < spans.size(); ++i) {
-        own.emplace_back(spans[i].first, spans[i].first + spans[i].second);
-        std::memcpy(spans[i].first, after[i].data(), spans[i].second);
-    }
-    if (!(g_stGame == g_stOurs)) {
-        StRecord(id, false, StNotesText(g_stGame, g_stOurs), StNotesText(g_stOurs, g_stGame));
-        return theirs;
-    }
-    for (std::size_t i = 0; i < spans.size(); ++i) {
-        if (own[i] != after[i]) {
-            char text[24];
-            std::snprintf(text, sizeof text, "span %zu: ", i);
-            StRecord(id, false, text + Hex(after[i].data(), spans[i].second),
-                     text + Hex(own[i].data(), spans[i].second));
-            return theirs;
-        }
-    }
-    StRecord(id, !result || theirs == mine, Hex(&theirs, 4), Hex(&mine, 4));
-    return theirs;
-}
 
 uint32_t __fastcall TmStepByMode(char* manager, void*, uint32_t ms)
 {

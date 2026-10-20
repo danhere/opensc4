@@ -195,3 +195,35 @@ uint32_t LiftUnderOccupantMessage(char* occupant, char* manager)
     TlLiftUnderOccupant(manager, occupant);
     return 1;
 }
+
+// Slot 5 of the manager's table (0x005916C0, ret 4): whether a name is one
+// of its compound descriptions': none for no name or an empty one; else
+// the name copied into the manager's string at +0x1A0 (0x0044D3A0), lowered
+// in place (0x00586AC0 with CRT::tolower), and looked up in the hash of
+// names at +0x98 (0x0051C9F0). Answers AL.
+uint32_t HasDescriptionNamed(char* manager, const char* name)
+{
+    if (!name || !*name)
+        return 0;
+    char* const text = manager + 0x1A0;
+    TlAssignChars(text, name, name + std::strlen(name));
+    TlLower(At<char*>(text, 0), At<char*>(text, 4));
+    return TlFindName(manager + 0x98, text) != 0;
+}
+
+// Slot 3 of the tables' interface (0x0058F690; this is the manager + 0x94):
+// with the message server at 0x00B43CCC, each message the manager listens
+// for (16 bytes each from +0xFC) taken off for its target (the manager +
+// 8, slot 0x18); the two dword hashes at +0xC6C and +0xC80 cleared
+// (0x008EBA60); then the texts' lists cleared (jumps to 0x0058BEF0).
+uint32_t StopListening(char* tables)
+{
+    if (char* const server = M<char*>(0x00B43CCC)) {
+        for (uint32_t i = 0; i < static_cast<uint32_t>(At<char*>(tables, 0x100) - At<char*>(tables, 0xFC)) >> 4; ++i)
+            VrCallSlot<uint32_t>(server, 0x18, tables - 0x94 ? tables - 0x8C : nullptr,
+                                 At<uint32_t>(At<char*>(tables, 0xFC) + i * 0x10, 0));
+    }
+    TlClearHash(tables + 0xC6C);
+    TlClearHash(tables + 0xC80);
+    return TlClearTexts(tables);
+}
