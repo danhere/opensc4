@@ -16,6 +16,8 @@
 //   simulators.automata.vehmgr.life, .messages, .serial and .add: part v2's
 //   25 (life cycle, tuning, messages, the save, adding and removing), in
 //   kLife, kMessages, kSerial and kAdd; described at "Part v2" below.
+//   simulators.automata.vehmgr.create and .frame: part v3's 29 (creation,
+//   dispatch and frames), in kCreate and kFrame; described at "Part v3".
 //
 // What it does. The two managers keep the city's road vehicles and
 // pedestrians (the automata of classes 0x896E714A and 0x896E75AF). Each
@@ -54,8 +56,7 @@
 // adjustor thunks 0x0055FE30, 0x0055FE40, 0x0055FE50, 0x00545640,
 // 0x00545650 and 0x00545660 (`sub ecx,N; jmp`, which reach our
 // QueryInterface); the plain jumps 0x0054D250 and 0x0054D780; SC4Stopwatch,
-// SC4PairList::Destroy, SC4Curve::Evaluate and the allocators. Part v3 (the
-// automata's creation, dispatch and frames) is the game's.
+// SC4PairList::Destroy, SC4Curve::Evaluate and the allocators.
 #include "core/automata_vehmgr.h"
 
 #include "core/address_check.h"
@@ -64,6 +65,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/sim_timers.h"
 
 #include <opensc4/addresses.h>
 
@@ -1527,6 +1529,1669 @@ std::uint32_t __fastcall RemoveAutomaton(char* self, void*, void* automaton, std
 }
 
 // ====================================================================================
+// Part v3: creation, dispatch and frames
+//
+// Two more groups, off by default, so the groups of parts v1 and v2 stay as
+// they were:
+//   simulators.automata.vehmgr.create (kCreate, 11): GetRandomCreationPoint
+//   (slot 16; 0x00553080), the two Dispatch (slots 17 and 18; 0x00551730,
+//   0x0054DBF0), the record add (slot 70; 0x005538D0), the occupant's
+//   automaton (slot 71; 0x0054F8A0) with the occupant position 0x0054DD50,
+//   the kind matrix (slot 72; 0x0054DDB0), the automaton's kind set
+//   0x0054E690, and the three spawns (slots 79, 80 and 89; 0x0054EF00,
+//   0x0054F3C0, 0x0054FA10).
+//   simulators.automata.vehmgr.frame (kFrame, 18): the occupant's removal
+//   (slot 52; 0x0054ED90) and arrival (slot 53; vehicle 0x0055B480,
+//   pedestrian 0x00544300), the records' removal (slot 55; 0x005516C0) with
+//   the record copy 0x0054DB50, the occupants' refresh (slot 56; 0x0054F7B0),
+//   the frame update (slot 63; base 0x00553300, vehicle 0x0055B600) with the
+//   record list's update 0x00552BD0, the automaton's forgetting (slot 69;
+//   0x0054FBC0), the kind sweep (slot 76; 0x00552000), the cell balance (slot
+//   77; 0x005554E0) with the tuning map's 0x00555350 and 0x00555400, the cell
+//   spawn (slot 78; 0x00551A50), the cell cull (slot 81; 0x005539A0), the lot
+//   sweep (slot 83; 0x00553370) and the records' update (slot 84; 0x00552DE0).
+//
+// What it does. Every frame (slot 63 with the frame's time) the record list
+// (+0xAB8) is aged at most every 500 ms (0x00552BD0: a record past its time
+// is given back and freed, the others follow their object's cell), then,
+// while the manager may have automata (+0x3C above 0, +0x4D and 0x00B21B9C
+// clear), the kind sweep (slot 76, when +0x4C is set) and the records'
+// update (slot 84, when the +0xAA8 vector has records), then the common
+// base's slot 63 0x0050A7B0; the vehicle manager adds slot 64. The kind
+// sweep adds the time to each kind's clock, picks the next kind of the mask
+// 0x00B21D5C, and for kinds the day or night (0x00B43DC4's slot 0x58) allows
+// walks the cells of the cells object's rectangle from where it stopped
+// (+0xA9C, +0xAA0) for at most 5 ms of its own stopwatch: kinds 1, 2, 3 and
+// 7 run the cell balance (slot 77) on each cell's occupants, kinds 4, 5, 6,
+// 9 and 10 the cell spawn (slot 78) with the kind's rate (slot 75), kind 8
+// the lot sweep (slot 83). The cell balance keeps each class's density: the
+// kinds' matrices (slot 72) summed, a tuning record per occupant key (the
+// map 0x00B21D60, slot 91's key) and its curve, then the cell cull (slot 81)
+// or one spawn (slot 80) at a cell drawn by weight. The cell spawn ages the
+// cell's 4x4 kind table (the cells object's slots 0x54 and 0x60) and spawns
+// (slot 79) on its open sides. The spawns (79, 80, 89) build the automaton's
+// key from the class, a drawn lane and the sides, check the cell's tables,
+// keep away from busy cells and from the camera's automaton (80), create it
+// (slot 15, the game's) at the network's point (slot 25 0x0050BE90), give it
+// its kind (0x0054E690) and its occupant (automaton slot 0x20C) or remove it
+// again. The records' update (slot 84) spends each record of the +0xAA8
+// vector (made by slot 70): every second, the network points near its
+// object (the cells object's slot 0x68) get automata by Dispatch (slot 18)
+// or slot 71, until the record's count is spent or five tries failed.
+// GetRandomCreationPoint (slot 16) draws a point of the network near a
+// position (the cells object's slot 0x64 within a radius clamped to the
+// city's size); with flags 0x22000 it is the common base's 0x00506DC0. The
+// Dispatch pair finds a path (+0xA88's slot 0x18 path object) for an
+// automaton (17) or creates one at the start (18).
+//
+// Oddities kept: slot 52 reads the occupant's rectangle only when it has
+// one (ours starts it at zero; see stack leftovers) and calls the common
+// base's stub; the pedestrian manager's slot 53 never calls the base's;
+// GetRandomCreationPoint passes 0 for the common base's seventh argument
+// and leaks the network points when the cells object answers false;
+// slot 17 leaks the path object when the automaton is not an occupant's and
+// answers the automaton even when slot 19 fails; slot 89 leaves the
+// automaton made when it is not an occupant's; the record list's update
+// tests the object it has just cleared; slot 84 does not release the points
+// when the cells object answers false; slot 76 sends the first kind's clock
+// to slot 77, whatever the kind; slot 72's sign flag keeps the upper bytes
+// of its first argument.
+//
+// Stack leftovers the game would read: slot 52's rectangle without an
+// occupant (ours 0); the four floats of a new record of the tuning map
+// (0x00555400, a key the tuning did not load; ours 0); the cell balance's
+// records past the last when the drawn weight is not spent (ours stops
+// there); the upper bytes of the byte loop counters slot 78 passes as
+// dwords (ours 0). Each has a first-call line of its own; none was logged
+// in the runs.
+//
+// Floats as in parts v1 and v2: 53-bit doubles, floats stored where the
+// game stores them; FST keeps the unrounded value on the x87 stack and ours
+// keeps the double the same way (slot 76's kind value, slot 77's row sums,
+// slot 80's distance). The cell of a position is the game's floor: x
+// times 1/16, less 0.5, plus 1.5 x 2^23 rounded to a float, its bits less
+// 0x4B400000, plus one when that is the scaled value. The ftol conversions
+// of GetRandomCreationPoint truncate.
+//
+// Return values: EAX's top bytes follow the game's where they come from a
+// call or a pointer (slots 52, 53 vehicle, 55, 63, 69, 71, the Dispatch
+// pair, 16 with flags 0x22000); the others answer AL alone (0 or 1 above
+// it), and slots 56, 72, 76, 77, 78, 80, 81, 84's helper, 0x00552BD0 and
+// 0x0054E690 answer nothing (their callers read nothing).
+//
+// Kept as the game's, called at their addresses or through the vtable: the
+// common base's CreateAutomaton (slot 15, 0x00505370: SC4UIScale's probe
+// site), slot 46 (0x00510690, which makes none when +0x4C is clear and the
+// caller's byte is 0), slots 19, 20 and 25 (0x00507120, 0x00506F50,
+// 0x0050BE90), 0x00506DC0 and its slots 52, 55, 56 and 63 (0x004FC900,
+// 0x0050C7E0, 0x0050F2C0, 0x0050A7B0); the base's jump 0x0054D250 and the
+// record's rectangles 0x0054EC60; the cells object, the path object and
+// the automata themselves. No NAM site is among the 29; none holds an x87
+// value across a call other than the C runtime's ftol, which C++'s
+// truncation is. Every vtable call's argument count was checked against
+// the callee's ret where the callee is known (the managers' and the road
+// automata's vtables) and against the stack offsets after it elsewhere.
+// determinism.sim_timers keys the record list's stopwatch (+0xAC0) on its
+// reader's address (0x00552BD0's range); our update claims it before it
+// reads (sim_timers::Claim). Found by the parity batch, as was slot 72's
+// second factor (the sign's absolute value, not the scale's).
+
+constexpr std::uintptr_t kCellScale = 0x00A9BCF4;      // float 1/16
+constexpr std::uintptr_t kHalf = 0x00A84D2C;           // float 0.5
+constexpr std::uintptr_t kRound23 = 0x00A9BCF8;        // float 1.5 x 2^23
+constexpr std::uintptr_t kThousandth = 0x00A867A4;     // float 0.001
+constexpr std::uintptr_t kOne = 0x00A81228;            // float 1.0
+constexpr std::uintptr_t kHundredth = 0x00A823A4;      // float 0.01
+constexpr std::uintptr_t kHundredthDouble = 0x00A9C328; // double 0.01
+constexpr std::uintptr_t kZeroDouble = 0x00A80990;     // double 0.0
+constexpr std::uintptr_t kTwoPow32 = 0x00A80AA8;       // float 2^32
+constexpr std::uintptr_t kBudget = 0x00A9BCE4;         // float 5.0 (ms)
+constexpr std::uintptr_t kCullSpeed = 0x00A9BEF8;      // float 0.95
+constexpr std::uintptr_t kSpawnLimit = 0x00A956F0;     // double
+constexpr std::uintptr_t kNeighbours = 0x00A9BD10;     // 8 (dx, dz) pairs
+constexpr std::uintptr_t kClassTable = 0x00A9C330;     // int[3]
+constexpr std::uintptr_t kTuningMap = 0x00B21D60;      // the cell balance's records by key
+constexpr std::uintptr_t kKindMask = 0x00B21D5C;       // uint32, tuning
+constexpr std::uintptr_t kRecordSpawn = 0x00B21CC4;    // float, tuning
+constexpr std::uintptr_t kServiceCount = 0x00B21D14;   // uint32, tuning
+constexpr std::uintptr_t kServiceBounds = 0x00B21D06;  // 4 bytes, tuning
+constexpr std::uintptr_t kSpawnFactor = 0x00B21D00;    // float, tuning
+constexpr std::uintptr_t kKind2Factor = 0x00B21D40;    // float, tuning
+constexpr std::uintptr_t kQuietTarget = 0x00B21D38;    // float, tuning
+constexpr std::uintptr_t kSpeed = 0x00B21C84;          // float, tuning
+constexpr std::uintptr_t kLaneLow = 0x00B21BD4, kLaneHigh = 0x00B21BD8; // uint32, tuning
+constexpr std::uintptr_t kPaused = 0x00B21B9C;         // byte
+constexpr std::uintptr_t kNoPosition = 0x00B2293C;     // float, filled at startup
+constexpr std::uintptr_t kAutomataService = 0x00B43D70; // the lot sweep's records
+constexpr std::uintptr_t kDayNight = 0x00B43DC4;       // slot 0x58: 1 day, 2 night
+constexpr std::uintptr_t kDensities = 0x00B43DA8;      // slot 0x5C: a class's target
+
+// Part v3's slots (bytes).
+namespace v3 {
+inline constexpr std::size_t kOccupantPosition = 0x64;  // 25, the common base's (0x0050BE90)
+inline constexpr std::size_t kCreateAutomaton = 0x3C;   // 15, the common base's (0x00505370)
+inline constexpr std::size_t kDispatchNew = 0x48;       // 18
+inline constexpr std::size_t kPathEnds = 0x50;          // 20, the common base's (0x00506F50)
+inline constexpr std::size_t kPlace = 0x4C;             // 19, the common base's (0x00507120)
+inline constexpr std::size_t kSlot13 = 0x34, kSlot27 = 0x6C, kSlot30 = 0x78, kSlot42 = 0xA8, kSlot46 = 0xB8;
+inline constexpr std::size_t kSlot64 = 0x100, kAddRecord = 0x118, kCreateFor = 0x11C, kKindMatrix = 0x120;
+inline constexpr std::size_t kKindSweep = 0x130, kCellBalance = 0x134, kCellSpawn = 0x138, kSpawnAt = 0x13C;
+inline constexpr std::size_t kSpawnNear = 0x140, kCellCull = 0x144, kLotSweep = 0x14C, kUpdateRecords = 0x150;
+inline constexpr std::size_t kSpawnFor = 0x164, kKey = 0x16C;
+} // namespace v3
+
+std::uint32_t FloatBits(float value)
+{
+    std::uint32_t bits;
+    std::memcpy(&bits, &value, 4);
+    return bits;
+}
+
+float BitsFloat(std::uint32_t bits)
+{
+    float value;
+    std::memcpy(&value, &bits, 4);
+    return value;
+}
+
+// The game's floor of a scaled value: (value - 0.5 + 1.5 x 2^23) rounded to
+// a float, its bits less 0x4B400000; one more when that is the value (a NaN
+// keeps the first).
+std::int32_t Floor(double value)
+{
+    const float rounded =
+        static_cast<float>((value - static_cast<double>(Global<float>(kHalf))) + static_cast<double>(Global<float>(kRound23)));
+    const std::uint32_t low = FloatBits(rounded) + 0xB4C00000u;
+    const std::int32_t next = static_cast<std::int32_t>(low + 1);
+    return static_cast<double>(next) == value ? next : static_cast<std::int32_t>(low);
+}
+
+// A position's cell: its coordinate times 1/16, the game's floor.
+std::int32_t CellOf(float coordinate)
+{
+    return Floor(static_cast<double>(coordinate) * static_cast<double>(Global<float>(kCellScale)));
+}
+
+// MSVC's _ftol2: truncation, the low dword of the 64-bit answer.
+std::int32_t Truncate(double value)
+{
+    return static_cast<std::int32_t>(static_cast<std::int64_t>(value));
+}
+
+// An int rectangle (x0, z0, x1, z1) from an occupant's slot 0xC0 part (its
+// slot 0x2C).
+void OccupantRect(void* occupant, std::int32_t* rect)
+{
+    void* const part = Virtual<void*>(occupant, 0xC0);
+    Virtual<std::uint32_t>(part, 0x2C, rect);
+}
+
+void Release(void* object) { Virtual<std::uint32_t>(object, slot::kRelease); }
+void AddRef(void* object) { Virtual<std::uint32_t>(object, slot::kAddRef); }
+
+// The pattern of a referenced field set from a call: the new one referenced,
+// stored, the old one released, when they differ.
+void SetReferenced(char* object, std::size_t offset, void* now)
+{
+    void* const old = At<void*>(object, offset);
+    if (now == old)
+        return;
+    if (now)
+        AddRef(now);
+    At<void*>(object, offset) = now;
+    if (old)
+        Release(old);
+}
+
+bool OccupantTest(char* self, void* automaton)
+{
+    return CallThis<std::uint8_t>(addr::cSC4VehPedManagerBase_IsAutomatonOccupant, self, automaton) != 0;
+}
+
+double Unit(char* self) { return CallThis<double>(addr::SC4Random_Unit, self + 0x50); }
+std::uint32_t Below(char* self, std::uint32_t n) { return CallThis<std::uint32_t>(addr::SC4Random_Below, self + 0x50, n); }
+
+// A vector of pointers on the stack, as the game's (begin, end, capacity).
+struct PointerVector {
+    void** begin = nullptr;
+    void** end = nullptr;
+    void** capacity = nullptr;
+};
+
+// ------------------------------------------------------------------------------------
+// Creation and dispatch
+
+// 0x00553080, slot 16 GetRandomCreationPoint (group, position, the least
+// and the most distance, out, flags, g), ret 0x1C.
+std::uint32_t __fastcall GetRandomCreationPoint(char* self, void*, std::uint32_t group, const float* position,
+                                                std::uint32_t least, std::uint32_t most, float* out,
+                                                std::uint32_t flags, std::uint32_t g)
+{
+    static bool logged;
+    FirstCall("GetRandomCreationPoint", logged);
+    (void)g;
+    if (flags & 0x22000) {
+        static bool common;
+        FirstCall("GetRandomCreationPoint the common base's", common);
+        return CallThis<std::uint32_t>(addr::cSC4AutomataManager_GetRandomCreationPoint, self, group, position, least,
+                                       most, out, flags, 0u);
+    }
+    const std::uint32_t allowed = Virtual<std::uint32_t>(self, v3::kSlot30, group);
+    if (!(allowed & 0xFF))
+        return allowed & 0xFFFFFF00u;
+    std::uint8_t made = 0;
+    std::uint32_t cellFlags;
+    if (group == 0x4208 || group == 0x4217)
+        cellFlags = 0x80;
+    else if (CallThis<std::uint8_t>(addr::cSC4VehPedManagerBase_IsGroup422C, self, group))
+        cellFlags = 0x100;
+    else if (CallThis<std::uint8_t>(addr::cSC4VehPedManagerBase_IsGroup422E, self, group))
+        cellFlags = 0x200;
+    else
+        cellFlags = CallThis<std::uint8_t>(addr::cSC4VehPedManagerBase_IsServiceGroup, self, group) ? 2u : 0xC49u;
+    // The cell of the position, then the lot's rectangle there or the cell.
+    std::int32_t cellX = 0, cellZ = 0;
+    Virtual<std::uint32_t>(City(), 0x17C, FloatBits(position[0]), FloatBits(position[2]), &cellX, &cellZ);
+    std::int32_t rect[4];
+    void* lot = nullptr;
+    if (void* const lots = Global<void*>(addr::SC4_LotManager))
+        lot = Virtual<void*>(lots, 0x18, cellX, cellZ, 0u);
+    if (lot)
+        Virtual<std::uint32_t>(lot, 0x38, rect);
+    else {
+        rect[0] = rect[2] = cellX;
+        rect[1] = rect[3] = cellZ;
+    }
+    // The most distance clamped to the least and to the city's size (cells
+    // times the cell's size).
+    void* const city = City();
+    const float cells = static_cast<float>(Virtual<std::int32_t>(city, 0x174));
+    const float size = static_cast<float>(Virtual<double>(city, 0x16C) * static_cast<double>(cells));
+    const float lo = BitsFloat(least), hi = BitsFloat(most);
+    float radius;
+    if (hi < lo)
+        radius = lo;
+    else if (hi > size)
+        radius = size;
+    else
+        radius = hi;
+    const double scale = static_cast<double>(Global<float>(kCellScale));
+    const std::int32_t inner = Truncate(static_cast<double>(lo) * scale);
+    const std::int32_t outer = Truncate(static_cast<double>(radius) * scale);
+    PointerVector points;
+    void* const cellsObject = At<void*>(self, field::kCells);
+    if (Virtual<std::uint8_t>(cellsObject, 0x64, &points, rect, outer, inner, cellFlags)) {
+        const std::uint32_t index = Below(self, static_cast<std::uint32_t>(points.end - points.begin));
+        void* const point = points.begin[index];
+        if (point) {
+            std::int32_t a = 0, b = 0; // the game writes them into its arguments' slots
+            Virtual<std::uint32_t>(point, 0xEC, &b, &a);
+            Virtual<std::uint32_t>(City(), 0x184, b, a, &out[0], &out[2]);
+            out[1] = static_cast<float>(Virtual<double>(point, 0xE0, FloatBits(out[0]), FloatBits(out[2])));
+            made = 1;
+        }
+        for (void** p = points.begin; p != points.end; ++p)
+            Release(*p);
+        points.end = points.begin;
+    }
+    if (points.begin)
+        Free(points.begin);
+    return made;
+}
+
+// 0x00551730, slot 17: Dispatch an automaton from a place to a place
+// (automaton, from, to, b, least), ret 0x14. The answer is the automaton
+// when its path is set, 0 otherwise.
+void* __fastcall DispatchAutomaton(char* self, void*, char* automaton, std::uint32_t from, std::uint32_t to,
+                                   std::uint32_t b, std::uint32_t least)
+{
+    static bool logged;
+    FirstCall("Dispatch (slot 17)", logged);
+    if (!automaton)
+        return nullptr;
+    std::int32_t start[4];
+    if (!Virtual<std::uint8_t>(self, v3::kPathEnds, from, start)) {
+        // From the automaton's own cell, inside the city.
+        float position[3];
+        Virtual<std::uint32_t>(automaton, 0x1C, position);
+        void* const city = City();
+        if (!city)
+            return nullptr;
+        const std::int32_t x = CellOf(position[0]);
+        const std::int32_t z = CellOf(position[2]);
+        start[0] = start[2] = x;
+        start[1] = start[3] = z;
+        if (x < 0 || x >= Virtual<std::int32_t>(city, 0x174) || z < 0 || z >= Virtual<std::int32_t>(city, 0x178))
+            return nullptr;
+    }
+    std::int32_t end[4];
+    if (!Virtual<std::uint8_t>(self, v3::kPathEnds, to, end))
+        return nullptr;
+    void* path = nullptr;
+    Virtual<std::uint32_t>(At<void*>(self, field::kA88), 0x18, &path);
+    if (!path)
+        return nullptr;
+    if (!OccupantTest(self, automaton)) {
+        static bool leak;
+        FirstCall("Dispatch (slot 17) with an automaton not an occupant's", leak);
+        return nullptr; // the path object is not released, as in the game
+    }
+    Virtual<std::uint32_t>(automaton, 0x78, b, 1u);
+    const std::uint32_t mode = 1u << (At<std::uint32_t>(self, field::kA90) & 31);
+    struct Rect {
+        std::int32_t v[4];
+    };
+    Rect startRect{{start[0], start[1], start[2], start[3]}};
+    Rect endRect{{end[0], end[1], end[2], end[3]}};
+    Virtual<std::uint32_t>(path, 0x4C, startRect);
+    Virtual<std::uint32_t>(path, 0x34, mode, 1u);
+    Virtual<std::uint32_t>(path, 0x48, 0u);
+    Virtual<std::uint32_t>(path, 0x14, 1u);
+    Virtual<std::uint32_t>(path, 0x14, 2u);
+    Virtual<std::uint32_t>(path, 0x14, 0x10u);
+    Virtual<std::uint32_t>(path, 0x24, 3u);
+    void* const cellsOfPath = automaton + 0x22C;
+    Virtual<std::uint32_t>(path, 0x20, cellsOfPath);
+    Virtual<std::uint32_t>(path, 0x50, endRect);
+    Virtual<std::uint32_t>(automaton, 0x78, 4u, 0u);
+    void* answer = nullptr;
+    if (Virtual<std::uint32_t>(path, 0x5C) == 1 &&
+        CallThis<std::uint32_t>(addr::SC4CellDeque_Size, cellsOfPath) >= (least & 0xFF) &&
+        Virtual<std::uint8_t>(automaton, 0x238, 0u)) {
+        Virtual<std::uint32_t>(automaton, 0x78, 0x40u, 1u);
+        Virtual<std::uint32_t>(automaton, 0x78, 0x2000u, 0u);
+        Virtual<std::uint32_t>(automaton, 0x78, 0x100u, 0u);
+        Virtual<std::uint32_t>(automaton, 0x78, 0x200u, 0u);
+        Virtual<std::uint32_t>(automaton, 0x78, 0x20u, 0u);
+        Virtual<std::uint32_t>(automaton, 0x280);
+        const std::uint32_t none = Global<std::uint32_t>(kNoPosition);
+        std::uint32_t place[3] = {none, none, none};
+        answer = automaton;
+        if (Virtual<std::uint8_t>(self, v3::kPlace, to, place)) {
+            const std::uint32_t* const pair = reinterpret_cast<const std::uint32_t*>(from);
+            const std::uint32_t occupant = pair[0] ? 0u : pair[1];
+            Virtual<std::uint32_t>(automaton, 0x140, place, occupant);
+        }
+    }
+    Release(path);
+    return answer;
+}
+
+// 0x0054DBF0, slot 18: Dispatch a new automaton (class, from, to, b, c,
+// position, d), ret 0x1C. The answer is the automaton's path answer (slot
+// 17's) or 0.
+void* __fastcall DispatchNew(char* self, void*, std::uint32_t classId, std::uint32_t from, std::uint32_t to,
+                             std::uint32_t b, std::uint32_t c, const float* position, std::uint32_t d)
+{
+    static bool logged;
+    FirstCall("Dispatch (slot 18)", logged);
+    std::uint32_t place[3] = {FloatBits(position[0]), FloatBits(position[1]), FloatBits(position[2])};
+    char* point = nullptr;
+    if (place[2] == 0) {
+        std::int32_t rect[4] = {};
+        if (Virtual<std::uint8_t>(self, v3::kPathEnds, from, rect)) {
+            point = Virtual<char*>(self, v3::kOccupantPosition, classId, 0u, rect[0], rect[1]);
+            if (point) {
+                place[0] = At<std::uint32_t>(point, 0x10);
+                place[1] = At<std::uint32_t>(point, 0x14);
+                place[2] = At<std::uint32_t>(point, 0x18);
+            }
+        }
+    }
+    char* const automaton = Virtual<char*>(self, v3::kSlot46, classId, b, place, point, d);
+    if (!automaton)
+        return nullptr;
+    Virtual<std::uint32_t>(self, slot::kAddAutomaton, automaton);
+    char* const answer = Virtual<char*>(self, 0x44, automaton, from, to, b, c);
+    Release(automaton);
+    if (!answer) {
+        Virtual<std::uint32_t>(self, slot::kRemoveAutomaton, automaton, 1u);
+        return nullptr;
+    }
+    if (!At<std::uint8_t>(self, 0x4C) && !Virtual<std::uint8_t>(automaton, 0x7C, 0x80u))
+        Virtual<std::uint32_t>(answer, 0x24, 0u);
+    return answer;
+}
+
+// 0x005538D0, slot 70: a record on the +0xAA8 vector (a, object, count,
+// byte, byte, flags), ret 0x18; AL 0 without the object.
+std::uint32_t __fastcall AddRecord(char* self, void*, std::uint32_t a, void* object, std::uint32_t count,
+                                   std::uint32_t byte1, std::uint32_t byte2, std::uint32_t flags)
+{
+    static bool logged;
+    FirstCall("AddRecord", logged);
+    if (!object)
+        return 0;
+    std::uint32_t zero[7] = {};
+    char*& end = At<char*>(self, field::kRecordsEnd);
+    if (end != At<char*>(self, field::kRecordsCapacity)) {
+        if (end)
+            std::memcpy(end, zero, sizeof zero);
+        end += 0x1C;
+    } else {
+        std::uint32_t tag = 0;
+        CallThis<void>(addr::SC4Record28Vector_InsertN, self + field::kRecordsBegin, end,
+                       static_cast<const void*>(zero), static_cast<void*>(&tag), 1u, 1u);
+    }
+    char* const record = At<char*>(self, field::kRecordsEnd) - 0x1C;
+    At<std::uint32_t>(record, 0) = a;
+    At<void*>(record, 4) = object;
+    AddRef(object);
+    At<std::uint32_t>(record, 8) = count;
+    At<std::uint32_t>(record, 0x10) = flags | 0x2000000u;
+    At<std::uint32_t>(record, 0x18) = 0;
+    At<std::uint32_t>(record, 0x14) = 0;
+    At<std::uint8_t>(record, 0xC) = static_cast<std::uint8_t>(byte1);
+    At<std::uint8_t>(record, 0xD) = static_cast<std::uint8_t>(byte2);
+    return 1;
+}
+
+// 0x0054DD50 (group, occupant, b, out), ret 0x10: the network point the
+// common base's slot 25 gives at the occupant's corner, its position to out.
+void* __fastcall OccupantPosition(char* self, void*, std::uint32_t group, void* occupant, std::uint32_t b, float* out)
+{
+    static bool logged;
+    FirstCall("OccupantPosition", logged);
+    std::int32_t rect[4];
+    OccupantRect(occupant, rect);
+    char* const point = Virtual<char*>(self, v3::kOccupantPosition, group, b, rect[0], rect[1]);
+    if (point) {
+        At<std::uint32_t>(out, 0) = At<std::uint32_t>(point, 0x10);
+        At<std::uint32_t>(out, 4) = At<std::uint32_t>(point, 0x14);
+        At<std::uint32_t>(out, 8) = At<std::uint32_t>(point, 0x18);
+    }
+    return point;
+}
+
+// 0x0054E690, this = an automaton (kind), ret 4: its occupant (+0x1EC) let
+// go and given again around the kind's store at +0x1E4 (slot 0x210).
+void __fastcall SetAutomatonKind(char* automaton, void*, std::uint32_t kind)
+{
+    static bool logged;
+    FirstCall("SetAutomatonKind", logged);
+    void* const occupant = At<void*>(automaton, 0x1EC);
+    if (occupant)
+        AddRef(occupant);
+    const std::uint32_t key = At<std::uint32_t>(automaton, 0x1F4);
+    Virtual<std::uint32_t>(automaton, 0x210, 0u, key, 0u, 1u);
+    At<std::uint32_t>(automaton, 0x1E4) = kind;
+    Virtual<std::uint32_t>(automaton, 0x210, occupant, key, 0u, 1u);
+    if (occupant)
+        Release(occupant);
+}
+
+// 0x0054F8A0, slot 71: an automaton for an occupant (occupant, byte, group,
+// b, near, kind), ret 0x18; the automaton or 0.
+void* __fastcall CreateFor(char* self, void*, void* occupant, std::uint32_t byte, std::uint32_t group,
+                           std::uint32_t b, std::uint32_t nearby, std::uint32_t kind)
+{
+    static bool logged;
+    FirstCall("CreateFor", logged);
+    if (!occupant)
+        return nullptr;
+    void* const lanes = Virtual<void*>(occupant, 0xC4);
+    if (!lanes)
+        return nullptr;
+    std::uint32_t key = 0;
+    Virtual<std::uint32_t>(lanes, 0x24, kind ? kind : At<std::uint32_t>(self, field::kDefaultClass), 0xFFu, 0xFFu,
+                           self + 0x50, &key, 0u);
+    std::uint32_t at[3] = {};
+    if (char* const entry = Virtual<char*>(lanes, 0xC, key, 0u)) {
+        const std::uint32_t* const p = At<std::uint32_t*>(entry, 0);
+        at[0] = p[0];
+        at[1] = p[1];
+        at[2] = p[2];
+    }
+    float to[3] = {};
+    CallThis<void*>(addr::cSC4VehPedManagerBase_OccupantPosition, self, group, occupant,
+                    (nearby & 0xFF) ? 7u : 0u, static_cast<float*>(to));
+    if (FloatBits(to[2]) == 0)
+        return nullptr;
+    if (group != 0x4002 && group != 0x4001)
+        to[0] = to[1] = to[2] = 0.0f;
+    char* const automaton = Virtual<char*>(self, v3::kCreateAutomaton, group, at, b, to, 0u, 0u, 0u);
+    if (!automaton)
+        return nullptr;
+    if (OccupantTest(self, automaton)) {
+        CallThis<void>(addr::cSC4VehPedManagerBase_SetAutomatonKind, automaton, 7u);
+        if (Virtual<std::uint8_t>(automaton, 0x20C, occupant, key, 0u)) {
+            At<std::uint8_t>(automaton, 0x1E8) = static_cast<std::uint8_t>(byte);
+            return automaton;
+        }
+    }
+    Virtual<std::uint32_t>(self, slot::kRemoveAutomaton, automaton, 1u);
+    return nullptr;
+}
+
+// 0x0054DDB0, slot 72 (occupant, b, kind, sign, out), ret 0x14: the kind's
+// 4x4 at the occupant's corner from +0xA88's slot 0x30 (the sign's flag),
+// times the scale (slot 87) and the sign's absolute value; kinds 7 and 8 are
+// slot 88's matrix, others zero.
+void __fastcall KindMatrix(char* self, void*, void* occupant, std::uint32_t b, std::uint32_t kind, std::uint32_t sign,
+                           float* out)
+{
+    static bool logged;
+    FirstCall("KindMatrix", logged);
+    std::uint32_t index;
+    switch (kind) {
+    case 1: index = At<std::uint32_t>(self, field::kA90); break;
+    case 2: index = 2; break;
+    case 3: index = 4; break;
+    case 4: index = 3; break;
+    case 5: index = 5; break;
+    case 6: index = 6; break;
+    case 7:
+    case 8:
+        Virtual<std::uint32_t>(self, slot::kScaledMatrix, occupant, b, sign, out);
+        return;
+    case 9: index = 7; break;
+    case 10: index = 8; break;
+    default:
+        std::memset(out, 0, 16 * sizeof(float));
+        return;
+    }
+    const float scale = static_cast<float>(Virtual<double>(self, slot::kGetScale, occupant, kind));
+    std::int32_t rect[4];
+    OccupantRect(occupant, rect);
+    // The flag keeps the first argument's upper bytes (its stack slot).
+    const std::uint32_t negative =
+        (reinterpret_cast<std::uintptr_t>(occupant) & 0xFFFFFF00u) | (BitsFloat(sign) < 0.0f ? 1u : 0u);
+    // The second factor is the fourth argument's absolute value (its stack
+    // slot after the flag), not the scale's.
+    const float size = std::fabs(BitsFloat(sign));
+    const std::uint16_t* const words =
+        Virtual<const std::uint16_t*>(At<void*>(self, field::kA88), 0x30, rect[0], rect[1], index, negative);
+    for (int i = 0; i < 16; ++i)
+        out[i] = static_cast<float>(static_cast<double>(words[i]) * static_cast<double>(scale) *
+                                    static_cast<double>(size));
+}
+
+// The cells object's chain at a cell: true when an automaton there answers
+// its slot 0x234 (the cells of the occupant's rectangle grown by two).
+bool BusyAround(char* self, void* occupant)
+{
+    std::int32_t rect[4];
+    OccupantRect(occupant, rect);
+    for (std::int32_t x = rect[0] - 2; x <= rect[2] + 2; ++x)
+        for (std::int32_t z = rect[1] - 2; z <= rect[3] + 2; ++z)
+            for (char* cell = Virtual<char*>(At<void*>(self, field::kCells), 0x38, x, z); cell;
+                 cell = At<char*>(cell, 0x54)) {
+                char* const head = At<char*>(cell, 0x1C);
+                for (char* node = At<char*>(head, 0); node != At<char*>(cell, 0x1C); node = At<char*>(node, 0))
+                    if (Virtual<std::uint8_t>(At<void*>(node, 8), 0x234))
+                        return true;
+            }
+    return false;
+}
+
+// The spawns' side and lane (0x0054EF00 and 0x0054F3C0): the side d the
+// occupant's slot 0xD4 takes for the class (d, the side opposite b, or the
+// first of the others), or 0xFF with the lane table's slot 0xC; then a lane
+// drawn from slot 0x30's count. False when there is none.
+bool SpawnKey(char* self, void* occupant, void* lanes, std::uint32_t classId, std::uint32_t& d, std::uint32_t b,
+              std::uint32_t& key)
+{
+    if (!Virtual<std::uint8_t>(occupant, 0xD4, classId, d, b)) {
+        const std::uint32_t opposite = (b & 0xFFFFFF00u) | (((b & 0xFF) + 2) & 3);
+        if (Virtual<std::uint8_t>(occupant, 0xD4, classId, opposite, b))
+            d = (d & 0xFFFFFF00u) | (opposite & 0xFF);
+        else {
+            std::uint32_t side = 0;
+            for (; side < 4; ++side) {
+                if (side == (b & 0xFF))
+                    continue;
+                if (Virtual<std::uint8_t>(occupant, 0xD4, classId, (d & 0xFFFFFF00u) | side, b))
+                    break;
+            }
+            d = (d & 0xFFFFFF00u) | side;
+            if (side == 4) {
+                const std::uint32_t any = classId << 24 | 0xFF00u | (b & 0xFF);
+                if (!Virtual<void*>(lanes, 0xC, any, 0u))
+                    return false;
+                d = (d & 0xFFFFFF00u) | 0xFF;
+            }
+        }
+    }
+    const std::uint32_t count = Virtual<std::uint32_t>(lanes, 0x30, classId, d, b) & 0xFF;
+    std::uint32_t lane;
+    if (count > 1)
+        lane = Below(self, count) & 0xFF;
+    else if (count == 0)
+        return false;
+    else
+        lane = 0;
+    key = (((classId << 8 | lane) << 8 | (d & 0xFF)) << 8) | (b & 0xFF);
+    return true;
+}
+
+// 0x0054EF00, slot 79: a spawn at an occupant's side (occupant, unused,
+// kind, add, d, side, double limit, rate), ret 0x24. AL 1 when the spawn went as
+// far as the creation (also when slot 15 made none), 0 otherwise.
+std::uint32_t __fastcall SpawnAt(char* self, void*, void* occupant, std::uint32_t, std::uint32_t kind,
+                                 std::uint32_t add, std::uint32_t d, std::uint32_t side, double limit,
+                                 std::uint32_t rate)
+{
+    static bool logged;
+    FirstCall("SpawnAt", logged);
+    void* const lanes = Virtual<void*>(occupant, 0xC4);
+    if (!lanes)
+        return 0;
+    const std::uint32_t classId = Virtual<std::uint32_t>(self, slot::kKindClass, kind);
+    const std::uint32_t group = Virtual<std::uint32_t>(self, slot::kKindGroup, kind);
+    std::uint32_t key = 0;
+    if (!SpawnKey(self, occupant, lanes, classId, d, side, key))
+        return 0;
+    void* const cellsObject = At<void*>(self, field::kCells);
+    float* const level = Virtual<float*>(cellsObject, 0x4C, occupant, kind, classId, d, side);
+    *level = static_cast<float>(static_cast<double>(BitsFloat(add)) + static_cast<double>(*level));
+    if (*Virtual<const std::uint16_t*>(cellsObject, 0x5C, occupant, kind, key) != 0)
+        return 0;
+    // On when the level reaches the limit's share.
+    const double share = Global<double>(kSpawnLimit) / limit;
+    if (!(share < static_cast<double>(*level) || share == static_cast<double>(*level)))
+        return 0;
+    if ((kind == 6 || kind == 4 || kind == 5 || kind == 9 || kind == 10) && BusyAround(self, occupant))
+        return 0;
+    float at[3] = {};
+    if (void* const lanes2 = Virtual<void*>(occupant, 0xC4))
+        if (void* const entry = Virtual<void*>(lanes2, 0xC, key, 0u))
+            std::memcpy(at, At<void*>(entry, 0), sizeof at);
+    float to[3] = {};
+    std::int32_t rect[4];
+    OccupantRect(occupant, rect);
+    if (char* const point = Virtual<char*>(self, v3::kOccupantPosition, group, kind, rect[0], rect[1]))
+        std::memcpy(to, point + 0x10, sizeof to);
+    if (FloatBits(to[2]) == 0)
+        return 0;
+    char* const automaton = Virtual<char*>(self, v3::kCreateAutomaton, group, at, 2u, to, 0u, 0u, 0u);
+    if (!automaton)
+        return 1;
+    CallThis<void>(addr::cSC4VehPedManagerBase_SetAutomatonKind, automaton, kind);
+    if (!Virtual<std::uint8_t>(automaton, 0x20C, occupant, key, 0u)) {
+        Virtual<std::uint32_t>(self, slot::kRemoveAutomaton, automaton, 1u);
+        return 0;
+    }
+    Virtual<std::uint32_t>(automaton, 0x84, 0u, 0u);
+    Virtual<std::uint32_t>(automaton, 0x84, 0x3F800000u, Global<std::uint32_t>(kSpeed));
+    if (kind == 7 || kind == 8)
+        At<std::uint8_t>(automaton, 0x1E8) = static_cast<std::uint8_t>(CallThis<std::uint32_t>(
+            addr::cRZRandomSuper_Between, self + 0x50, Global<std::uint32_t>(kLaneLow), Global<std::uint32_t>(kLaneHigh)));
+    if (CallThis<std::uint8_t>(addr::cSC4VehPedManagerBase_IsServiceGroup, self, group)) {
+        // The service automaton's count: the rate over the tuning's count
+        // (unsigned), the game's floor, within the group's bounds.
+        const std::uint32_t n = Global<std::uint32_t>(kServiceCount);
+        const double over = static_cast<double>(BitsFloat(rate)) / static_cast<double>(n);
+        const std::uint32_t value = static_cast<std::uint32_t>(Floor(over));
+        const std::uint8_t* const bounds = reinterpret_cast<const std::uint8_t*>(kServiceBounds);
+        const bool own = group == 0x4216 || group == 0x4230 || group == 0x4233;
+        const std::uint32_t low = own ? bounds[0] : bounds[2];
+        const std::uint32_t high = own ? bounds[1] : bounds[3];
+        std::uint32_t count = value;
+        if (value < low)
+            count = low;
+        else if (value > high)
+            count = high;
+        Virtual<std::uint32_t>(automaton, 0x30C, count);
+    }
+    return 1;
+}
+
+// 0x0054F3C0, slot 80: a spawn near an occupant's side (occupant, unused,
+// kind, d, side, unused), ret 0x18; nothing when the camera's automaton is
+// closer than twice its slot 0x44.
+void __fastcall SpawnNear(char* self, void*, void* occupant, std::uint32_t, std::uint32_t kind, std::uint32_t d,
+                          std::uint32_t side, std::uint32_t)
+{
+    static bool logged;
+    FirstCall("SpawnNear", logged);
+    void* const lanes = Virtual<void*>(occupant, 0xC4);
+    if (!lanes)
+        return;
+    const std::uint32_t classId = Virtual<std::uint32_t>(self, slot::kKindClass, kind);
+    const std::uint32_t group = Virtual<std::uint32_t>(self, slot::kKindGroup, kind);
+    std::uint32_t key = 0;
+    if (!SpawnKey(self, occupant, lanes, classId, d, side, key))
+        return;
+    if ((kind == 6 || kind == 4 || kind == 5 || kind == 9 || kind == 10) && BusyAround(self, occupant))
+        return;
+    float at[3] = {};
+    if (void* const entry = Virtual<void*>(lanes, 0xC, key, 0u))
+        std::memcpy(at, At<void*>(entry, 0), sizeof at);
+    if (void* const followed = Global<void*>(kFollowed)) {
+        const std::uint32_t none = Global<std::uint32_t>(kNoPosition);
+        std::uint32_t there[3] = {none, none, none};
+        Virtual<std::uint32_t>(followed, 0x1C, there);
+        const float dx = static_cast<float>(static_cast<double>(BitsFloat(there[0])) - static_cast<double>(at[0]));
+        const float dy = static_cast<float>(static_cast<double>(BitsFloat(there[1])) - static_cast<double>(at[1]));
+        const double dz = static_cast<double>(BitsFloat(there[2])) - static_cast<double>(at[2]);
+        const float dzStored = static_cast<float>(dz);
+        double sum = dz * static_cast<double>(dzStored);
+        sum += static_cast<double>(dy) * static_cast<double>(dy);
+        sum += static_cast<double>(dx) * static_cast<double>(dx);
+        const float distance = static_cast<float>(std::sqrt(sum));
+        const double size = Virtual<double>(Global<void*>(kFollowed), 0x44);
+        if (size + size > static_cast<double>(distance))
+            return;
+    }
+    float to[3] = {};
+    std::int32_t rect[4];
+    OccupantRect(occupant, rect);
+    if (char* const point = Virtual<char*>(self, v3::kOccupantPosition, group, kind, rect[0], rect[1]))
+        std::memcpy(to, point + 0x10, sizeof to);
+    if (FloatBits(to[2]) == 0)
+        return;
+    char* const automaton = Virtual<char*>(self, v3::kCreateAutomaton, group, at, 2u, to, 0u, 0u, 0u);
+    if (!automaton)
+        return;
+    CallThis<void>(addr::cSC4VehPedManagerBase_SetAutomatonKind, automaton, kind);
+    if (!Virtual<std::uint8_t>(automaton, 0x20C, occupant, key, 0u)) {
+        Virtual<std::uint32_t>(self, slot::kRemoveAutomaton, automaton, 1u);
+        return;
+    }
+    Virtual<std::uint32_t>(automaton, 0x84, 0u, 0u);
+    Virtual<std::uint32_t>(automaton, 0x84, 0x3F800000u, Global<std::uint32_t>(kSpeed));
+    if (kind == 7 || kind == 8)
+        At<std::uint8_t>(automaton, 0x1E8) = static_cast<std::uint8_t>(CallThis<std::uint32_t>(
+            addr::cRZRandomSuper_Between, self + 0x50, Global<std::uint32_t>(kLaneLow), Global<std::uint32_t>(kLaneHigh)));
+}
+
+// 0x0054FA10, slot 89: a lot's automaton (occupant, cell, rate, count,
+// kind), ret 0x14. The cell's automata of kind 8 past the share are culled
+// (their slot 0x34); below it one of group 0x4102 is made at the lane's
+// position. AL 1 when made.
+std::uint32_t __fastcall SpawnFor(char* self, void*, void* occupant, char* cell, std::uint32_t rate,
+                                  std::uint32_t count, std::uint32_t kind)
+{
+    static bool logged;
+    FirstCall("SpawnFor", logged);
+    std::int32_t rect[4];
+    OccupantRect(occupant, rect);
+    double n = static_cast<double>(static_cast<std::int32_t>(count));
+    if (static_cast<std::int32_t>(count) < 0)
+        n += static_cast<double>(Global<float>(kTwoPow32));
+    const float share = static_cast<float>(n * static_cast<double>(At<float>(self, field::kAA4)) *
+                                           static_cast<double>(Global<float>(kSpawnFactor)) *
+                                           static_cast<double>(BitsFloat(rate)));
+    float seen = 0.0f;
+    char* const head = At<char*>(cell, 0x1C);
+    for (char* node = At<char*>(head, 0); node != At<char*>(cell, 0x1C); node = At<char*>(node, 0)) {
+        char* const automaton = At<char*>(node, 8);
+        if (At<std::uint32_t>(automaton, 0x1E4) != 8)
+            continue;
+        seen = static_cast<float>(static_cast<double>(seen) + static_cast<double>(Global<float>(kOne)));
+        if (static_cast<double>(share) + static_cast<double>(Global<float>(kOne)) < static_cast<double>(seen))
+            Virtual<std::uint32_t>(automaton, 0x34, 0u);
+    }
+    if (!(seen < share))
+        return 0;
+    void* const lanes = Virtual<void*>(occupant, 0xC4);
+    if (!lanes)
+        return 0;
+    // The lane's key goes into the stack slot that held the count seen.
+    std::uint32_t key = FloatBits(seen);
+    void* const lane = Virtual<void*>(lanes, 0x24, At<std::uint32_t>(self, field::kDefaultClass), 0xFFu, 0xFFu,
+                                      self + 0x50, &key, 0u);
+    if (!lane)
+        return 0;
+    const std::uint32_t none = Global<std::uint32_t>(kNoPosition);
+    std::uint32_t at[3] = {none, none, none};
+    Virtual<std::uint32_t>(lanes, 0x5C, key, at);
+    char* fit = Virtual<char*>(self, v3::kSlot27, At<std::uint32_t>(self, field::kGroup), kind, 8u);
+    if (!fit)
+        fit = Virtual<char*>(self, v3::kSlot27, At<std::uint32_t>(self, field::kGroup), 1u, 8u);
+    if (!fit)
+        return 0;
+    char* const automaton = Virtual<char*>(self, v3::kCreateAutomaton, 0x4102u, at, 2u, fit + 0x10, 0u, 0u, 0u);
+    if (!automaton)
+        return 0;
+    if (!OccupantTest(self, automaton)) {
+        static bool kept;
+        FirstCall("SpawnFor with an automaton not an occupant's", kept);
+        return 0; // left in the list, as in the game
+    }
+    CallThis<void>(addr::cSC4VehPedManagerBase_SetAutomatonKind, automaton, 8u);
+    Virtual<std::uint32_t>(automaton, 0x210, occupant, key, lane, 1u);
+    return 1;
+}
+
+// ------------------------------------------------------------------------------------
+// Frames
+
+// 0x0054ED90, slot 52 (occupant), ret 4: the common base's (0x004FC900, a
+// stub answering true), then the automata of the occupant let go (slots
+// 0x210 and 0x21C) and those of flag 0x2000 (not 0x20000) whose cell is in
+// its rectangle removed (slot 0x21C). AL the common base's; the rest of EAX
+// the list head's (empty list) or the manager's.
+std::uint32_t __fastcall OccupantRemoved(char* self, void*, void* occupant)
+{
+    static bool logged;
+    FirstCall("OccupantRemoved", logged);
+    const std::uint32_t answer = CallThis<std::uint32_t>(addr::cSC4AutomataManager_Slot52, self, occupant) & 0xFF;
+    std::int32_t rect[4] = {};
+    if (occupant)
+        OccupantRect(occupant, rect);
+    else {
+        static bool none;
+        FirstCall("OccupantRemoved without an occupant (its rectangle is a stack leftover in the game)", none);
+    }
+    char* const head = At<char*>(self, field::kAutomata);
+    char* node = At<char*>(head, 0);
+    if (node == head)
+        return (static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(head)) & 0xFFFFFF00u) | answer;
+    do {
+        char* const automaton = At<char*>(node, 8);
+        node = At<char*>(node, 0);
+        if (At<void*>(automaton, 0x1EC) == occupant) {
+            Virtual<std::uint32_t>(automaton, 0x210, 0u, 0u, 0u, 0u);
+            Virtual<std::uint32_t>(automaton, 0x21C);
+        } else if (Virtual<std::uint8_t>(automaton, 0x7C, 0x2000u) && !Virtual<std::uint8_t>(automaton, 0x7C, 0x20000u)) {
+            const std::uint32_t none = Global<std::uint32_t>(kNoPosition);
+            std::uint32_t position[3] = {none, none, none};
+            Virtual<std::uint32_t>(automaton, 0x1C, position);
+            const std::int32_t x = CellOf(BitsFloat(position[0]));
+            const std::int32_t z = CellOf(BitsFloat(position[2]));
+            if (x >= rect[0] && z >= rect[1] && x <= rect[2] && z <= rect[3])
+                Virtual<std::uint32_t>(automaton, 0x21C);
+        }
+    } while (node != At<char*>(self, field::kAutomata));
+    return (static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(self)) & 0xFFFFFF00u) | answer;
+}
+
+// The occupant's two property arrays (slot 53): the IDs (property a's slot
+// 0x19C, its count slot 0x10) and the bytes (property b's slot 0x17C, its
+// count slot 0x10).
+struct OccupantTables {
+    void* list = nullptr;
+    const std::uint32_t* ids = nullptr;
+    const std::uint8_t* bytes = nullptr;
+    std::uint32_t byteCount = 0;
+};
+
+bool ReadOccupantTables(void* part, std::uint32_t a, std::uint32_t b, OccupantTables& t)
+{
+    void* const properties = Virtual<void*>(part, 0x18);
+    void* const first = Virtual<void*>(properties, 0x24, a);
+    void* const second = Virtual<void*>(properties, 0x24, b);
+    if (!first)
+        return false;
+    t.list = Virtual<void*>(first, 0x14);
+    t.ids = Virtual<const std::uint32_t*>(t.list, 0x19C);
+    if (second) {
+        void* const data = Virtual<void*>(second, 0x14);
+        t.bytes = Virtual<const std::uint8_t*>(data, 0x17C);
+        t.byteCount = Virtual<std::uint32_t>(data, 0x10);
+    }
+    return true;
+}
+
+// 0x0055B480, the vehicle manager's slot 53 (occupant), ret 4: a record
+// (slot 70) per ID of the occupant's property 0xE9AEE3DA while there is
+// room, the byte of 0xE9AEE3DB its count (1 without); unless it filled up
+// after making some, by a draw up to the tuning's 0x00B21CC4, one record
+// 0x4206 for an occupant of kind 1. Then the base's slot 53 (the jump
+// 0x0054D250 to the common base's 0x0050C6A0), whose answer it gives.
+std::uint32_t __fastcall VehicleOccupantAdded(char* self, void*, void* occupant)
+{
+    static bool logged;
+    FirstCall("vehicle OccupantAdded", logged);
+    bool made = false;
+    void* const part = Virtual<void*>(occupant, 0x0C);
+    OccupantTables t;
+    bool full = false;
+    if (ReadOccupantTables(part, 0xE9AEE3DAu, 0xE9AEE3DBu, t)) {
+        std::uint32_t i = 0;
+        if (Virtual<std::uint32_t>(t.list, 0x10) != 0) {
+            do {
+                if (At<std::uint32_t>(self, field::kCount) >= At<std::uint32_t>(self, field::kMaxCount)) {
+                    full = true;
+                    break;
+                }
+                const std::uint32_t count = (t.bytes && i < t.byteCount) ? t.bytes[i] : 1u;
+                made = true;
+                void* const owner = Virtual<void*>(occupant, 0x0C);
+                Virtual<std::uint32_t>(self, v3::kAddRecord, t.ids[i], owner, count, 1u, 5u, 2u);
+                ++i;
+            } while (i < Virtual<std::uint32_t>(t.list, 0x10));
+            if (!full)
+                return CallThis<std::uint32_t>(addr::cSC4VehPedManagerBase_Slot53, self, occupant);
+        }
+    }
+    if (!(full && made)) {
+        if (*Virtual<const std::int32_t*>(occupant, 0x2C) == 1 &&
+            At<std::uint32_t>(self, field::kCount) < At<std::uint32_t>(self, field::kMaxCount)) {
+            const double draw = Unit(self);
+            if (static_cast<double>(Global<float>(kRecordSpawn)) >= draw)
+                Virtual<std::uint32_t>(self, v3::kAddRecord, 0x4206u, part, 1u, 0u, 8u, 2u);
+        }
+    }
+    return CallThis<std::uint32_t>(addr::cSC4VehPedManagerBase_Slot53, self, occupant);
+}
+
+// 0x00544300, the pedestrian manager's slot 53 (occupant), ret 4: a record
+// per ID of the occupant's property 0xE9AEE3DC while there is room, the
+// byte of 0xE9AEE3DD its count; the base's slot 53 is not called. AL 1.
+std::uint32_t __fastcall PedestrianOccupantAdded(char* self, void*, void* occupant)
+{
+    static bool logged;
+    FirstCall("pedestrian OccupantAdded", logged);
+    OccupantTables t;
+    if (ReadOccupantTables(Virtual<void*>(occupant, 0x0C), 0xE9AEE3DCu, 0xE9AEE3DDu, t)) {
+        std::uint32_t i = 0;
+        if (Virtual<std::uint32_t>(t.list, 0x10) != 0)
+            do {
+                if (At<std::uint32_t>(self, field::kCount) >= At<std::uint32_t>(self, field::kMaxCount))
+                    break;
+                const std::uint32_t count = (t.bytes && i < t.byteCount) ? t.bytes[i] : 1u;
+                void* const owner = Virtual<void*>(occupant, 0x0C);
+                Virtual<std::uint32_t>(self, v3::kAddRecord, t.ids[i], owner, count, 0u, 2u, 2u);
+                ++i;
+            } while (i < Virtual<std::uint32_t>(t.list, 0x10));
+    }
+    return 1;
+}
+
+// 0x0054DB50 (first, last, to, tag, 0), cdecl: copies the 0x1C-byte records
+// [first, last) to to, front to back; the end of the copy.
+char* __cdecl CopyRecords(const char* first, const char* last, char* to)
+{
+    static bool logged;
+    FirstCall("CopyRecords", logged);
+    std::int32_t n = static_cast<std::int32_t>(last - first) / 0x1C;
+    if (n <= 0)
+        return to;
+    for (; n; --n, first += 0x1C, to += 0x1C)
+        for (int i = 0; i < 7; ++i)
+            reinterpret_cast<std::uint32_t*>(to)[i] = reinterpret_cast<const std::uint32_t*>(first)[i];
+    return to;
+}
+
+// 0x005516C0, slot 55 (object), ret 4: the +0xAA8 vector's records of the
+// object released and erased, then the common base's slot 55 (0x0050C7E0),
+// whose answer it gives.
+std::uint32_t __fastcall RemoveRecordsOf(char* self, void*, void* object)
+{
+    static bool logged;
+    FirstCall("RemoveRecordsOf", logged);
+    if (object) {
+        char* record = At<char*>(self, field::kRecordsBegin);
+        while (record != At<char*>(self, field::kRecordsEnd)) {
+            if (At<void*>(record, 4) != object) {
+                record += 0x1C;
+                continue;
+            }
+            Release(object);
+            char* const end = At<char*>(self, field::kRecordsEnd);
+            if (record + 0x1C != end) {
+                std::uint32_t tag = 0;
+                CallCdecl<char*>(addr::cSC4VehPedManagerBase_CopyRecords, static_cast<const char*>(record + 0x1C),
+                                 static_cast<const char*>(end), record, static_cast<void*>(&tag), 0u);
+            }
+            At<char*>(self, field::kRecordsEnd) -= 0x1C;
+        }
+    }
+    return CallThis<std::uint32_t>(addr::cSC4AutomataManager_Slot55, self, object);
+}
+
+// 0x0054F7B0, slot 56: the common base's (0x0050F2C0), then when +0x10 is
+// set, per automaton its occupant's slot 0xC4 part at +0x1F0 (its slot 0xC
+// with +0x1F4 to +0x1F8) and, when its slot 0x258 answers, its slot 0x250
+// at +0xB0.
+void __fastcall RefreshOccupants(char* self, void*)
+{
+    static bool logged;
+    FirstCall("RefreshOccupants", logged);
+    CallThis<std::uint32_t>(addr::cSC4AutomataManager_Slot56, self);
+    if (!At<std::uint8_t>(self, 0x10))
+        return;
+    char* const head = At<char*>(self, field::kAutomata);
+    for (char* node = At<char*>(head, 0); node != At<char*>(self, field::kAutomata); node = At<char*>(node, 0)) {
+        char* const automaton = At<char*>(node, 8);
+        if (void* const occupant = At<void*>(automaton, 0x1EC)) {
+            SetReferenced(automaton, 0x1F0, Virtual<void*>(occupant, 0xC4));
+            if (void* const lanes = At<void*>(automaton, 0x1F0))
+                At<std::uint32_t>(automaton, 0x1F8) =
+                    Virtual<std::uint32_t>(lanes, 0xC, At<std::uint32_t>(automaton, 0x1F4), 0u);
+        }
+        if (Virtual<std::uint8_t>(automaton, 0x258))
+            SetReferenced(automaton, 0xB0, Virtual<void*>(automaton, 0x250));
+    }
+}
+
+// 0x00552BD0, this = the record list field (+0xAB8): at most every 500 ms
+// (the stopwatch +0xAC0 in ms, +0xAD8 the next time, +0xADC the last), each
+// record's time (+0x3C) less the time since; a record past it is given back
+// (the controller manager's slot 0x38 when held), released and freed, the
+// others follow their object's cell (its slot 0x20, the city's slot 0x17C;
+// 0x0054EC60 their rectangles).
+void __fastcall UpdateRecordList(char* field, void*)
+{
+    static bool logged;
+    FirstCall("UpdateRecordList", logged);
+    // determinism.sim_timers takes this stopwatch over by its reader's
+    // address (this function's range); ours reads it from core.dll.
+    sim_timers::Claim(field + 8);
+    const std::uint32_t now = CallThis<std::uint32_t>(addr::GZStopwatch_ElapsedMilliseconds, field + 8);
+    if (now < At<std::uint32_t>(field, 0x20))
+        return;
+    At<std::uint32_t>(field, 0x20) = now + 500;
+    const std::uint32_t since = now - At<std::uint32_t>(field, 0x24);
+    char* const head = At<char*>(field, 0);
+    char* next = At<char*>(head, 0);
+    if (next != head)
+        do {
+            char* const node = next;
+            next = At<char*>(node, 0);
+            char* const r = node + 8;
+            if (At<std::uint32_t>(node, record::kD) < since) {
+                if (At<std::uint8_t>(node, record::kHeld) && At<void*>(node, record::kObject)) {
+                    void* const controllers = Virtual<void*>(City(), 0xBC);
+                    Virtual<std::uint32_t>(controllers, 0x38, At<void*>(node, record::kObject));
+                    At<std::uint8_t>(node, record::kHeld) = 0;
+                }
+                if (void* const object = At<void*>(node, record::kObject)) {
+                    At<void*>(node, record::kObject) = nullptr;
+                    Release(object);
+                }
+                At<std::uint32_t>(node, record::kD) = 0;
+                char* const before = At<char*>(node, 4);
+                char* const after = At<char*>(node, 0);
+                At<char*>(before, 0) = after;
+                At<char*>(after, 4) = before;
+                if (void* const object = At<void*>(node, record::kObject))
+                    Release(object);
+                Free(node);
+            } else {
+                At<std::uint32_t>(node, record::kD) -= since;
+                if (void* const object = At<void*>(node, record::kObject)) {
+                    float position[3];
+                    Virtual<std::uint32_t>(object, 0x20, position);
+                    std::int32_t a, b;
+                    Virtual<std::uint32_t>(City(), 0x17C, FloatBits(position[0]), FloatBits(position[2]), &a, &b);
+                    if (At<std::int32_t>(r, 0) != a || At<std::int32_t>(r, 4) != b) {
+                        At<std::int32_t>(r, 4) = b;
+                        At<std::int32_t>(r, 0) = a;
+                        CallThis<std::uint32_t>(addr::cSC4VehPedManagerBase_RecordRect, field, r);
+                    }
+                }
+            }
+        } while (next != At<char*>(field, 0));
+    At<std::uint32_t>(field, 0x24) = now;
+}
+
+// 0x00553300, slot 63 (a, time), ret 8: the record list's update, then
+// while the manager may have automata the kind sweep (slot 76, with +0x4C)
+// and the records' update (slot 84, with records); then the common base's
+// slot 63 (0x0050A7B0), whose answer it gives.
+std::uint32_t __fastcall Update(char* self, void*, std::uint32_t a, std::uint32_t time)
+{
+    static bool logged;
+    FirstCall("Update", logged);
+    CallThis<void>(addr::cSC4VehPedManagerBase_UpdateRecordList, self + field::kRecordList);
+    if (At<std::int32_t>(self, field::kMaxCount) > 0 && !At<std::uint8_t>(self, 0x4D) && !Global<std::uint8_t>(kPaused)) {
+        if (At<std::uint8_t>(self, 0x4C))
+            Virtual<std::uint32_t>(self, v3::kKindSweep, time);
+        if (At<char*>(self, field::kRecordsBegin) != At<char*>(self, field::kRecordsEnd))
+            Virtual<std::uint32_t>(self, v3::kUpdateRecords, time);
+    }
+    return CallThis<std::uint32_t>(addr::cSC4AutomataManager_Slot63, self, a, time);
+}
+
+// 0x0055B600, the vehicle manager's slot 63 (a, time), ret 8: the base's,
+// then slot 64 (time), whose answer it gives.
+std::uint32_t __fastcall VehicleUpdate(char* self, void*, std::uint32_t a, std::uint32_t time)
+{
+    static bool logged;
+    FirstCall("vehicle Update", logged);
+    CallThis<std::uint32_t>(addr::cSC4VehPedManagerBase_Update, self, a, time);
+    return Virtual<std::uint32_t>(self, v3::kSlot64, time);
+}
+
+// 0x0054FBC0, slot 69 (automaton), ret 4: the automata whose +0xB0 is it
+// take their slot 0x250 there. EAX the list head (empty list) or the
+// manager (RemoveAutomaton keeps its upper bytes).
+std::uint32_t __fastcall ForgetAutomaton(char* self, void*, void* automaton)
+{
+    static bool logged;
+    FirstCall("ForgetAutomaton", logged);
+    char* const head = At<char*>(self, field::kAutomata);
+    char* node = At<char*>(head, 0);
+    if (node == head)
+        return static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(head));
+    do {
+        char* const other = At<char*>(node, 8);
+        if (At<void*>(other, 0xB0) == automaton)
+            SetReferenced(other, 0xB0, Virtual<void*>(other, 0x250));
+        node = At<char*>(node, 0);
+    } while (node != At<char*>(self, field::kAutomata));
+    return static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(self));
+}
+
+// A stopwatch on the stack, as the game's (0x18 bytes, mode 4: ms).
+struct alignas(8) LocalStopwatch {
+    char bytes[0x18];
+};
+
+// 0x00552000, slot 76 (time), ret 4: the kind sweep (top of this part).
+void __fastcall KindSweep(char* self, void*, std::uint32_t time)
+{
+    static bool logged;
+    FirstCall("KindSweep", logged);
+    std::uint8_t done = 0;
+    void* const cellsObject = At<void*>(self, field::kCells);
+    const std::int32_t* const area = Virtual<const std::int32_t*>(cellsObject, 0x44);
+    char* const head = At<char*>(self, field::kKinds);
+    if (At<char*>(head, 0) == head || !Global<std::uint32_t>(kKindMask))
+        return;
+    for (char* node = At<char*>(At<char*>(self, field::kKinds), 0); node != At<char*>(self, field::kKinds);
+         node = At<char*>(node, 0))
+        At<float>(node, 0xC) =
+            static_cast<float>(static_cast<double>(BitsFloat(time)) + static_cast<double>(At<float>(node, 0xC)));
+    std::int32_t& x = At<std::int32_t>(self, field::kA9C);
+    std::int32_t& z = At<std::int32_t>(self, field::kAA0);
+    std::uint32_t kind;
+    if (x >= 0 && z >= 0) {
+        kind = At<std::uint32_t>(At<char*>(self, field::kFirstKind), 8);
+        if (x < area[0])
+            x = area[0];
+        if (z < area[1])
+            z = area[1];
+    } else {
+        x = area[0];
+        z = area[1];
+        for (;;) {
+            At<char*>(self, field::kFirstKind) = At<char*>(At<char*>(self, field::kFirstKind), 0);
+            if (At<char*>(self, field::kFirstKind) == At<char*>(self, field::kKinds))
+                At<char*>(self, field::kFirstKind) = At<char*>(At<char*>(self, field::kKinds), 0);
+            kind = At<std::uint32_t>(At<char*>(self, field::kFirstKind), 8);
+            char* const kinds = At<char*>(self, field::kKinds);
+            if (At<char*>(kinds, 0) != kinds) {
+                std::uint32_t count = 0;
+                for (char* n = At<char*>(kinds, 0); n != kinds; n = At<char*>(n, 0))
+                    ++count;
+                if (count == 1)
+                    break;
+            }
+            if ((1u << (kind & 31)) & Global<std::uint32_t>(kKindMask))
+                break;
+        }
+    }
+    const std::uint32_t light = Virtual<std::uint32_t>(Global<void*>(kDayNight), 0x58);
+    if (kind >= 1 && kind <= 10 && light == (kind == 6 ? 2u : 1u)) {
+        const double value = Virtual<double>(self, v3::kSlot42, kind);
+        const float stored = static_cast<float>(value);
+        if (!(std::fabs(value) < static_cast<double>(Global<float>(kThousandth)))) {
+            if (kind == 8) {
+                // The lot sweep: kept on when it ran out of time.
+                if ((Virtual<std::uint32_t>(self, v3::kLotSweep, FloatBits(stored)) & 0xFF) == 0)
+                    return;
+            } else {
+                const bool balance = kind <= 3 || kind == 7;
+                LocalStopwatch watch;
+                CallThis<void*>(addr::SC4Stopwatch_Construct, watch.bytes, 4u);
+                CallThis<std::uint32_t>(addr::SC4Stopwatch_Start, watch.bytes);
+                const double rate = balance ? 0.0 : Virtual<double>(self, slot::kKindRate, kind);
+                const float budget = Global<float>(kBudget);
+                if (z <= area[3])
+                    while (!done) {
+                        if (x <= area[2])
+                            while (!done) {
+                                for (char* cell = Virtual<char*>(cellsObject, 0x34, x, z); cell;
+                                     cell = At<char*>(cell, 0x54)) {
+                                    if (balance)
+                                        Virtual<std::uint32_t>(
+                                            self, v3::kCellBalance, At<void*>(cell, 0), cell, x, z,
+                                            At<std::uint32_t>(At<char*>(At<char*>(self, field::kKinds), 0), 0xC));
+                                    else
+                                        Virtual<std::uint32_t>(self, v3::kCellSpawn, At<void*>(cell, 0), cell, kind, x,
+                                                               z, FloatBits(stored), rate);
+                                }
+                                float elapsed = 0.0f;
+                                CallThis<void>(addr::SC4Stopwatch_GetElapsed, watch.bytes, &elapsed);
+                                if (!(elapsed < budget || elapsed != elapsed))
+                                    done = 1;
+                                ++x;
+                                if (x > area[2])
+                                    break;
+                            }
+                        if (x > area[2])
+                            x = area[0];
+                        ++z;
+                        if (z > area[3])
+                            break;
+                    }
+                if (!balance)
+                    CallThis<void>(addr::SC4Stopwatch_Stop, watch.bytes);
+                CallThis<void>(addr::SC4Stopwatch_Destruct, watch.bytes);
+                if (done)
+                    return;
+            }
+        }
+    }
+    x = -1;
+    z = -1;
+    At<std::uint32_t>(At<char*>(self, field::kFirstKind), 0xC) = 0;
+}
+
+// 0x00555350, this = the tuning map 0x00B21D60 (a pair: the key and 0x20
+// bytes, four floats and an SC4Curve), ret 4: grown for one more (0x004F0940),
+// a new 0x28-byte node at the head of the key's bucket; the pair in it.
+char* __fastcall MapInsert(char* map, void*, const std::uint32_t* pair)
+{
+    static bool logged;
+    FirstCall("MapInsert", logged);
+    CallThis<void>(addr::SC4Uint32HashSet_Resize, map, At<std::uint32_t>(map, 0x10) + 1);
+    const std::uint32_t buckets =
+        static_cast<std::uint32_t>(static_cast<std::int32_t>(At<char*>(map, 8) - At<char*>(map, 4)) >> 2);
+    const std::uint32_t bucket = pair[0] % buckets;
+    char* const head = At<char**>(map, 4)[bucket];
+    char* const node = static_cast<char*>(Allocate(0x28));
+    At<char*>(node, 0) = nullptr;
+    char* const value = node + 4;
+    if (reinterpret_cast<std::uintptr_t>(value) != 0) {
+        std::memcpy(value, pair, 0x14);
+        CallThis<void*>(addr::SC4Curve_Copy, value + 0x14, static_cast<const void*>(pair + 5));
+    }
+    At<char*>(node, 0) = head;
+    At<char**>(map, 4)[bucket] = node;
+    ++At<std::uint32_t>(map, 0x10);
+    return value;
+}
+
+// 0x00555400, this = the tuning map, ret 4: the record of the key (its four
+// floats, then its curve), a new one when the key is not there.
+char* __fastcall MapAt(char* map, void*, const std::uint32_t* key)
+{
+    static bool logged;
+    FirstCall("MapAt", logged);
+    const std::uint32_t buckets =
+        static_cast<std::uint32_t>(static_cast<std::int32_t>(At<char*>(map, 8) - At<char*>(map, 4)) >> 2);
+    for (char* node = At<char**>(map, 4)[*key % buckets]; node; node = At<char*>(node, 0))
+        if (At<std::uint32_t>(node, 4) == *key)
+            return node + 8;
+    static bool added;
+    FirstCall("MapAt with a new key (its four floats are stack leftovers in the game; ours 0)", added);
+    std::uint32_t curve[4];
+    CallThis<void*>(addr::SC4Curve_Init, static_cast<void*>(curve));
+    std::uint32_t pair[9] = {*key, 0, 0, 0, 0};
+    CallThis<void*>(addr::SC4Curve_Copy, static_cast<void*>(pair + 5), static_cast<const void*>(curve));
+    char* const value = CallThis<char*>(addr::cSC4VehPedManagerBase_MapInsert, map, static_cast<const std::uint32_t*>(pair));
+    if (pair[5])
+        Free(reinterpret_cast<void*>(static_cast<std::uintptr_t>(pair[5])));
+    if (curve[0])
+        Free(reinterpret_cast<void*>(static_cast<std::uintptr_t>(curve[0])));
+    return value + 4;
+}
+
+// A kind's record of the cell balance: the kind, its 4x4 (slot 72) and the
+// sum, 0x48 bytes as the game keeps them on the stack.
+struct KindRecord {
+    std::uint32_t kind;
+    float table[16];
+    float sum;
+};
+
+// 0x005554E0, slot 77 (occupant, cell, x, z, time), ret 0x14: per class 1
+// and 2 (0x00A9C330) the cell's density follows its target; the cell cull
+// (slot 81) above it, a spawn (slot 80) at a drawn place below it.
+void __fastcall CellBalance(char* self, void*, void* occupant, void* cell, std::int32_t x, std::int32_t z,
+                            std::uint32_t time)
+{
+    static bool logged;
+    FirstCall("CellBalance", logged);
+    const std::uint32_t hits = CallThis<std::uint32_t>(addr::cSC4VehPedManagerBase_RecordListHits,
+                                                       self + field::kRecordList, x, z);
+    if (hits == 3)
+        return;
+    const float weight =
+        static_cast<float>(static_cast<double>(BitsFloat(time)) * static_cast<double>(Global<float>(kThousandth)));
+    void* const cellsObject = At<void*>(self, field::kCells);
+    KindRecord records[12]; // the game's frame holds twelve; at most nine kinds come here
+    for (std::uint32_t c = 1; c < 3; ++c) {
+        const std::int32_t target = Global<std::int32_t>(kClassTable + 4 * c);
+        if (target == -1)
+            continue;
+        const std::int32_t key = Virtual<std::int32_t>(self, v3::kKey, occupant, c);
+        if (key == -1)
+            continue;
+        float* const density = Virtual<float*>(cellsObject, 0x50, occupant, c);
+        const std::uint16_t now = *Virtual<const std::uint16_t*>(cellsObject, 0x58, occupant, c);
+        *density = static_cast<float>(
+            (static_cast<double>(now) * static_cast<double>(weight) + static_cast<double>(*density)) /
+            (static_cast<double>(weight) + static_cast<double>(Global<float>(kOne))));
+        std::int32_t n = 0;
+        float sum = 0.0f;
+        char* const head = At<char*>(self, field::kKinds);
+        for (char* node = At<char*>(head, 0); node != head; node = At<char*>(node, 0)) {
+            const std::uint32_t kind = At<std::uint32_t>(node, 8);
+            if (kind == 8 || Virtual<std::uint32_t>(self, slot::kKindClass, kind) != c)
+                continue;
+            KindRecord& r = records[n++];
+            r.kind = kind;
+            float value = static_cast<float>(Virtual<double>(self, v3::kSlot42, kind));
+            if (r.kind == 2)
+                value = static_cast<float>(static_cast<double>(Global<float>(kKind2Factor)) * static_cast<double>(value));
+            Virtual<std::uint32_t>(self, v3::kKindMatrix, occupant, cell, kind, FloatBits(value), r.table);
+            r.sum = 0.0f;
+            for (int row = 0; row < 4; ++row) {
+                double total = static_cast<double>(r.table[4 * row]) + static_cast<double>(r.sum);
+                total += static_cast<double>(r.table[4 * row + 1]);
+                total += static_cast<double>(r.table[4 * row + 2]);
+                total += static_cast<double>(r.table[4 * row + 3]);
+                r.sum = static_cast<float>(total);
+            }
+            sum = static_cast<float>(static_cast<double>(sum) + static_cast<double>(r.sum));
+            if (n == 12)
+                break;
+        }
+        if (n <= 0 && !Virtual<std::uint8_t>(self, v3::kSlot13))
+            continue;
+        const float wanted =
+            static_cast<float>(Virtual<double>(Global<void*>(kDensities), 0x5C, static_cast<std::uint32_t>(target), x, z));
+        if (wanted == 0.0f)
+            continue;
+        std::uint32_t mapKey = static_cast<std::uint32_t>(key);
+        char* const tuning = CallThis<char*>(addr::cSC4VehPedManagerBase_MapAt, reinterpret_cast<void*>(kTuningMap),
+                                             static_cast<const std::uint32_t*>(&mapKey));
+        float goal = static_cast<float>(CallThis<double>(
+            addr::SC4Curve_Evaluate, tuning + 0x10, static_cast<float>(static_cast<double>(sum) / static_cast<double>(wanted))));
+        if (Virtual<std::uint8_t>(self, v3::kSlot13))
+            goal = Global<float>(kQuietTarget);
+        const float current = *density;
+        const double ratio = static_cast<double>(current) / static_cast<double>(goal);
+        if (current > goal && !(hits & 2)) {
+            // Too dense: the cull, past the record's margin, by its draw.
+            if (!(goal == 0.0f) &&
+                !(static_cast<double>(At<float>(tuning, 0xC)) + static_cast<double>(Global<float>(kOne)) < ratio))
+                continue;
+            if (!(static_cast<double>(At<float>(tuning, 8)) > Unit(self)))
+                continue;
+            Virtual<std::uint32_t>(self, v3::kCellCull, cell, c);
+            continue;
+        }
+        if (!(goal > 0.0f) || !(sum > Global<float>(kHundredth)) || (hits & 1) ||
+            !(ratio < static_cast<double>(At<float>(tuning, 4))))
+            continue;
+        if (Virtual<std::uint8_t>(cellsObject, 0x88, occupant))
+            continue;
+        if (!(static_cast<double>(At<float>(tuning, 0)) > Unit(self)))
+            continue;
+        if (n > 0) {
+            // A kind by its sum, then a place of its 4x4 by its weight.
+            float left = static_cast<float>(CallThis<double>(addr::cRZRandom_Range, self + 0x50,
+                                                             Global<double>(kHundredthDouble), static_cast<double>(sum)));
+            for (std::int32_t i = 0;; ++i) {
+                if (i == n) {
+                    static bool past;
+                    FirstCall("CellBalance past the last record (stack leftovers in the game)", past);
+                    break;
+                }
+                const KindRecord& r = records[i];
+                const double rest = static_cast<double>(left) - static_cast<double>(r.sum);
+                left = static_cast<float>(rest);
+                if (rest < 0.0 || rest == 0.0) {
+                    double place = CallThis<double>(addr::cRZRandom_Range, self + 0x50, Global<double>(kZeroDouble),
+                                                    static_cast<double>(r.sum));
+                    bool found = false;
+                    for (std::uint32_t row = 0; row < 4 && !found; ++row)
+                        for (std::uint32_t column = 0; column < 4; ++column) {
+                            place -= static_cast<double>(r.table[4 * row + column]);
+                            if (place < 0.0 || place == 0.0) {
+                                Virtual<std::uint32_t>(self, v3::kSpawnNear, occupant, cell, r.kind, row, column,
+                                                       FloatBits(r.table[4 * row + column]));
+                                found = true;
+                                break;
+                            }
+                        }
+                    break;
+                }
+                if (!(left > 0.0f))
+                    break;
+            }
+        } else if (Virtual<std::uint8_t>(self, v3::kSlot13)) {
+            bool spawned = false;
+            for (std::uint32_t row = 0; row < 4 && !spawned; ++row)
+                for (std::uint32_t column = 0; column < 4; ++column)
+                    if (Virtual<std::uint8_t>(occupant, 0xD4, c, row, column)) {
+                        Virtual<std::uint32_t>(self, v3::kSpawnNear, occupant, cell, 1u, row, column, 0u);
+                        spawned = true;
+                        break;
+                    }
+        }
+    }
+}
+
+// 0x00551A50, slot 78 (occupant, cell, kind, x, z, value, double rate), ret
+// 0x20: the cell's 4x4 of the kind (the cells object's slots 0x54 and 0x60)
+// follows its count by the kind's clock; a spawn (slot 79) on each place of
+// the kind's matrix (slot 72) above 0 where the occupant has no side or the
+// neighbour cell is open (slot 82).
+void __fastcall CellSpawn(char* self, void*, void* occupant, void* cell, std::uint32_t kind, std::int32_t x,
+                          std::int32_t z, std::uint32_t value, double rate)
+{
+    static bool logged;
+    FirstCall("CellSpawn", logged);
+    if (CallThis<std::uint32_t>(addr::cSC4VehPedManagerBase_RecordListHits, self + field::kRecordList, x, z) & 1)
+        return;
+    const float most = static_cast<float>(Virtual<double>(self, slot::kGetKindValue, kind));
+    const std::uint32_t classId = Virtual<std::uint32_t>(self, slot::kKindClass, kind);
+    const float clock = static_cast<float>(static_cast<double>(At<float>(At<char*>(self, field::kFirstKind), 0xC)) *
+                                           static_cast<double>(Global<float>(kThousandth)));
+    float table[16];
+    Virtual<std::uint32_t>(self, v3::kKindMatrix, occupant, cell, kind, value, table);
+    const float divisor = static_cast<float>(static_cast<double>(clock) + static_cast<double>(Global<float>(kOne)));
+    void* const cellsObject = At<void*>(self, field::kCells);
+    for (std::uint32_t i = 0; i < 4; ++i) {
+        const std::uint8_t open = Virtual<std::uint8_t>(self, slot::kTestNeighbourCell, cell, x, z, i);
+        for (std::uint32_t j = 0; j < 4; ++j) {
+            float* const level = Virtual<float*>(cellsObject, 0x54, occupant, kind, classId, i, j);
+            const std::uint16_t count = *Virtual<const std::uint16_t*>(cellsObject, 0x60, occupant, kind, classId, i, j);
+            *level = static_cast<float>((static_cast<double>(count) * static_cast<double>(clock) +
+                                         static_cast<double>(*level)) /
+                                        static_cast<double>(divisor));
+            const float place = table[4 * i + j];
+            if (!(place > 0.0f))
+                continue;
+            if (Virtual<std::uint8_t>(occupant, 0xD4, classId, i, j) && !open)
+                continue;
+            double limit = static_cast<double>(place) * rate;
+            if (limit > static_cast<double>(most))
+                limit = static_cast<double>(most);
+            Virtual<std::uint32_t>(self, v3::kSpawnAt, occupant, cell, kind,
+                                   At<std::uint32_t>(At<char*>(self, field::kFirstKind), 0xC), i, j, limit,
+                                   FloatBits(place));
+        }
+    }
+}
+
+// 0x005539A0, slot 81 (cell, class), ret 8: one of the cell's automata of
+// the class, with flag 2 and none of 0x200000, 0x80 and 0x2000000, faster
+// than 0.95 (slot 0x80), drawn and told to go (slot 0x34 with 0).
+void __fastcall CellCull(char* self, void*, char* cell, std::uint32_t classId)
+{
+    static bool logged;
+    FirstCall("CellCull", logged);
+    PointerVector picks;
+    char* const head = At<char*>(cell, 0x1C);
+    for (char* node = At<char*>(head, 0); node != head; node = At<char*>(node, 0)) {
+        void* automaton = At<void*>(node, 8);
+        if (((Virtual<std::uint32_t>(automaton, 0x220) >> 24) & 0xF) != classId)
+            continue;
+        if (!Virtual<std::uint8_t>(automaton, 0x7C, 2u) || Virtual<std::uint8_t>(automaton, 0x7C, 0x200000u) ||
+            Virtual<std::uint8_t>(automaton, 0x7C, 0x80u) || Virtual<std::uint8_t>(automaton, 0x7C, 0x2000000u))
+            continue;
+        if (!(Virtual<double>(automaton, 0x80) > static_cast<double>(Global<float>(kCullSpeed))))
+            continue;
+        CallThis<void>(addr::SC4PtrVector_PushBack, static_cast<void*>(&picks), static_cast<void*>(&automaton));
+    }
+    if (picks.begin != picks.end) {
+        void* const pick = picks.begin[Below(self, static_cast<std::uint32_t>(picks.end - picks.begin))];
+        Virtual<std::uint32_t>(pick, 0x34, 0u);
+    }
+    if (picks.begin)
+        Free(picks.begin);
+}
+
+// 0x00553370, slot 83 (value), ret 4: the lot sweep. For the records of
+// 0x00B43D70 (its slot 0x2C: 0x1C-byte records, cell x and z at +0 and +4,
+// +8 passed on, +0xC a byte) inside the cells object's rectangle, the
+// automata cell there or at one of eight neighbours (0x00A9BD10) gets slot
+// 89 (its occupant, the cell, the value, how many records share the cell,
+// +8); the service's slot 0x30 (index, 1) when it made one. At most 5 ms
+// (its own stopwatch); AL 1 when it went through, 0 when it ran out.
+std::uint32_t __fastcall LotSweep(char* self, void*, std::uint32_t value)
+{
+    static bool logged;
+    FirstCall("LotSweep", logged);
+    std::uint8_t ranOut = 0;
+    LocalStopwatch watch;
+    CallThis<void*>(addr::SC4Stopwatch_Construct, watch.bytes, 4u);
+    float elapsed = 0.0f;
+    if (void* const service = Global<void*>(kAutomataService)) {
+        void* const cellsObject = At<void*>(self, field::kCells);
+        const std::int32_t* const area = Virtual<const std::int32_t*>(cellsObject, 0x44);
+        struct {
+            char* begin = nullptr;
+            char* end = nullptr;
+            char* capacity = nullptr;
+        } records;
+        if (Virtual<std::uint8_t>(service, 0x2C, &records)) {
+            CallThis<std::uint32_t>(addr::SC4Stopwatch_Start, watch.bytes);
+            const std::uint32_t n = static_cast<std::uint32_t>(static_cast<std::int32_t>(records.end - records.begin) / 0x1C);
+            const std::int32_t* const offsets = reinterpret_cast<const std::int32_t*>(kNeighbours);
+            for (std::uint32_t i = 0; n;) {
+                const char* const r = records.begin + 0x1C * i;
+                const std::int32_t rx = At<std::int32_t>(const_cast<char*>(r), 0);
+                const std::int32_t rz = At<std::int32_t>(const_cast<char*>(r), 4);
+                if (!r[0xC] && rx >= area[0] && rz >= area[1] && rx <= area[2] && rz <= area[3]) {
+                    char* lotCell = Virtual<char*>(cellsObject, 0x38, rx, rz);
+                    for (std::uint32_t k = 0; !lotCell && k < 8; ++k)
+                        lotCell = Virtual<char*>(cellsObject, 0x38, offsets[2 * k] + rx, offsets[2 * k + 1] + rz);
+                    if (lotCell) {
+                        std::uint32_t same = 0;
+                        for (const char* o = records.begin; o != records.end; o += 0x1C)
+                            if (At<std::int32_t>(const_cast<char*>(o), 0) == rx &&
+                                At<std::int32_t>(const_cast<char*>(o), 4) == rz)
+                                ++same;
+                        if (Virtual<std::uint8_t>(self, v3::kSpawnFor, At<void*>(lotCell, 0), lotCell, value, same,
+                                                  At<std::uint32_t>(const_cast<char*>(r), 8)))
+                            Virtual<std::uint32_t>(service, 0x30, i, 1u);
+                    }
+                }
+                CallThis<void>(addr::SC4Stopwatch_GetElapsed, watch.bytes, &elapsed);
+                if (!(elapsed < Global<float>(kBudget) || elapsed != elapsed)) {
+                    ranOut = 1;
+                    break;
+                }
+                if (++i >= n)
+                    break;
+            }
+        }
+        if (records.begin)
+            Free(records.begin);
+    }
+    CallThis<void>(addr::SC4Stopwatch_Destruct, watch.bytes);
+    return ranOut ? 0u : 1u;
+}
+
+// 0x00552DE0, slot 84 (time), ret 4: the +0xAA8 vector's records (a, object,
+// count, two bytes, flags, a timer and tries; slot 70). A record whose timer
+// is spent takes the network points near its object (the cells object's
+// slot 0x68) and makes automata at drawn ones, slot 71 for the first byte
+// set, else Dispatch (slot 18) from the point's occupant to the object;
+// each point that took one is let go. The record goes when its count is
+// spent or after five tries, else waits 1000 again. AL 1.
+std::uint32_t __fastcall UpdateRecords(char* self, void*, std::uint32_t time)
+{
+    static bool logged;
+    FirstCall("UpdateRecords", logged);
+    char* rec = At<char*>(self, field::kRecordsBegin);
+    if (rec == At<char*>(self, field::kRecordsEnd))
+        return 1;
+    char* next = rec + 0x1C;
+    void* const cellsObject = At<void*>(self, field::kCells);
+    do {
+        const double left = static_cast<double>(At<float>(rec, 0x14)) - static_cast<double>(BitsFloat(time));
+        At<float>(rec, 0x14) = static_cast<float>(left);
+        if (!(left < 0.0 || left == 0.0)) {
+            rec = next;
+            next += 0x1C;
+            continue;
+        }
+        bool done = false;
+        std::uint32_t first, second;
+        if (At<std::uint8_t>(rec, 0xC)) {
+            second = 0;
+            first = 1;
+        } else {
+            second = At<std::uint8_t>(rec, 0xD);
+            first = second + 2;
+        }
+        PointerVector points;
+        bool keep = false;
+        if (Virtual<std::uint8_t>(At<void*>(self, field::kCells), 0x68, &points, At<void*>(rec, 4), first, second,
+                                  0xC49u)) {
+            const std::uint32_t count = At<std::uint32_t>(rec, 8);
+            for (std::uint32_t i = 0; i < count && points.begin != points.end; ++i) {
+                void* const pick = points.begin[Below(self, static_cast<std::uint32_t>(points.end - points.begin))];
+                void* made;
+                if (At<std::uint8_t>(rec, 0xC))
+                    made = Virtual<void*>(self, v3::kCreateFor, pick, static_cast<std::uint32_t>(At<std::uint8_t>(rec, 0xD)),
+                                          At<std::uint32_t>(rec, 0), At<std::uint32_t>(rec, 0x10), 0u, 0u);
+                else {
+                    std::uint32_t from[2] = {0, 0};
+                    from[1] = Virtual<std::uint32_t>(pick, 0xC0);
+                    std::uint32_t to[2] = {0, static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(At<void*>(rec, 4)))};
+                    float position[3] = {};
+                    made = Virtual<void*>(self, v3::kDispatchNew, At<std::uint32_t>(rec, 0), from, to,
+                                          At<std::uint32_t>(rec, 0x10), 3u, position, 0u);
+                }
+                if (!made)
+                    continue;
+                --At<std::uint32_t>(rec, 8);
+                if (!pick)
+                    continue;
+                void** p = points.begin;
+                while (p != points.end && *p != pick)
+                    ++p;
+                if (p == points.end)
+                    continue;
+                Release(pick);
+                if (p + 1 != points.end)
+                    std::memmove(p, p + 1, static_cast<std::size_t>(reinterpret_cast<char*>(points.end) -
+                                                                    reinterpret_cast<char*>(p + 1)));
+                --points.end;
+            }
+            if (At<std::uint32_t>(rec, 8) == 0)
+                done = true;
+            for (void** p = points.begin; p != points.end; ++p)
+                Release(*p);
+            points.end = points.begin;
+        }
+        (void)cellsObject;
+        if (!done && ++At<std::uint32_t>(rec, 0x18) <= 5)
+            keep = true;
+        if (keep) {
+            At<std::uint32_t>(rec, 0x14) = 0x447A0000u; // 1000.0f
+            rec = next;
+            next += 0x1C;
+        } else {
+            Release(At<void*>(rec, 4));
+            char* const end = At<char*>(self, field::kRecordsEnd);
+            if (next != end) {
+                std::int32_t n = static_cast<std::int32_t>(end - next) / 0x1C;
+                for (char* to = rec; n > 0; --n, to += 0x1C)
+                    for (int k = 0; k < 7; ++k)
+                        reinterpret_cast<std::uint32_t*>(to)[k] = reinterpret_cast<const std::uint32_t*>(to + 0x1C)[k];
+            }
+            At<char*>(self, field::kRecordsEnd) -= 0x1C;
+        }
+        if (points.begin)
+            Free(points.begin);
+    } while (rec != At<char*>(self, field::kRecordsEnd));
+    return 1;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -1641,6 +3306,41 @@ const Detour kAdd[] = {
     OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_RemoveAutomaton, RemoveAutomaton),
 };
 
+const Detour kCreate[] = {
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_GetRandomCreationPoint, GetRandomCreationPoint),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_DispatchAutomaton, DispatchAutomaton),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_DispatchNew, DispatchNew),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_AddRecord, AddRecord),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_CreateFor, CreateFor),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_OccupantPosition, OccupantPosition),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_KindMatrix, KindMatrix),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_SetAutomatonKind, SetAutomatonKind),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_SpawnAt, SpawnAt),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_SpawnNear, SpawnNear),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_SpawnFor, SpawnFor),
+};
+
+const Detour kFrame[] = {
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_OccupantRemoved, OccupantRemoved),
+    OPENSC4_DETOUR(addr::cSC4VehicleManager_OccupantAdded, VehicleOccupantAdded),
+    OPENSC4_DETOUR(addr::cSC4PedestrianManager_OccupantAdded, PedestrianOccupantAdded),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_RemoveRecordsOf, RemoveRecordsOf),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_CopyRecords, CopyRecords),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_RefreshOccupants, RefreshOccupants),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_Update, Update),
+    OPENSC4_DETOUR(addr::cSC4VehicleManager_Update, VehicleUpdate),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_UpdateRecordList, UpdateRecordList),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_ForgetAutomaton, ForgetAutomaton),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_KindSweep, KindSweep),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_CellBalance, CellBalance),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_MapInsert, MapInsert),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_MapAt, MapAt),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_CellSpawn, CellSpawn),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_CellCull, CellCull),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_LotSweep, LotSweep),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_UpdateRecords, UpdateRecords),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
@@ -1658,6 +3358,10 @@ bool InstallMessages(registry::Mode)
 bool InstallSerial(registry::Mode) { return InstallList(kSerial, sizeof kSerial / sizeof kSerial[0], "serial"); }
 
 bool InstallAdd(registry::Mode) { return InstallList(kAdd, sizeof kAdd / sizeof kAdd[0], "add"); }
+
+bool InstallCreate(registry::Mode) { return InstallList(kCreate, sizeof kCreate / sizeof kCreate[0], "create"); }
+
+bool InstallFrame(registry::Mode) { return InstallList(kFrame, sizeof kFrame / sizeof kFrame[0], "frame"); }
 
 const bool g_registered[] = {
     registry::Register({"simulators.automata.vehmgr", "simulators/automata", registry::Kind::Detour,
@@ -1693,6 +3397,22 @@ const bool g_registered[] = {
                         "Our vehicle and pedestrian managers' AddAutomaton (both) and RemoveAutomaton (3 detours; "
                         "part v2, src/core/automata_vehmgr.cpp)",
                         false, InstallAdd}),
+    registry::Register({"simulators.automata.vehmgr.create", "simulators/automata", registry::Kind::Detour,
+                        registry::Phase::PostAppInit, addr::cSC4VehPedManagerBase_DispatchNew,
+                        "Our vehicle and pedestrian managers' creation and dispatch: GetRandomCreationPoint, both "
+                        "Dispatch, the record add (slot 70), the occupant's automaton (71) and its position, the kind "
+                        "matrix (72), the automaton's kind set and the three spawns (79, 80, 89) (11 detours; part "
+                        "v3, src/core/automata_vehmgr.cpp)",
+                        false, InstallCreate}),
+    registry::Register({"simulators.automata.vehmgr.frame", "simulators/automata", registry::Kind::Detour,
+                        registry::Phase::PostAppInit, addr::cSC4VehPedManagerBase_Update,
+                        "Our vehicle and pedestrian managers' frames: the frame update (slot 63, base and vehicle) "
+                        "with the record list's update, the occupant's removal (52) and arrival (53, both), the "
+                        "records' removal (55) and copy, the occupants' refresh (56), the automaton's forgetting "
+                        "(69), the kind sweep (76), the cell balance (77) with the tuning map's insert and lookup, "
+                        "the cell spawn (78), the cell cull (81), the lot sweep (83) and the records' update (84) "
+                        "(18 detours; part v3, src/core/automata_vehmgr.cpp)",
+                        false, InstallFrame}),
 };
 
 } // namespace

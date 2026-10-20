@@ -30,9 +30,9 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Registration and factories (0x005145A0 to 0x00514C30) | 33 | 1,551 | 1 |
 | Controller manager | 76 | 15,809 | a1 (45, done), a2 (24, done) |
 | Attractor, generator and their base | 81 | 12,629 | 2 |
-| Script system | 116 | 31,620 | 3 |
+| Script system | 116 | 31,620 | s1 (34, done), s2, s3 (part s below counts 125) |
 | City situation manager | 167 | 44,037 | 4 |
-| Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 |
+| Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | 6 |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | 8 |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | 2 |
@@ -47,7 +47,7 @@ That is about 48 parts of 20 to 45 functions. What the parts after a1 will meet:
 
 - **Frames.** The managers, the automata themselves, the attractors' automaton lists and the path following run on frame time, like the traffic network map. The original does not repeat them run to run, so the usual 7-day comparison will not hold for those parts; they need the comparison inside one run ([traffic-map.md](traffic-map.md), "The original does not repeat this class") or deterministic frames in the harness.
 - **Drawing.** Model and animation calls inside the automata belong to the renderer and stay the game's.
-- **Mods.** No NAM site is in the range. The only code patch in it is the Lua `print` replacement at 0x0051C50B, inside the script system's init ([patch-census.md](patch-census.md)): that function stays the game's. The UI scaling mod SC4UIScale has three probe hooks (0x004FBFE0, 0x00505370, 0x00528580, off by default) and a message popup style patch (0x0052CCEE, 0x0052CD01) in the aircraft manager, the road vehicles and the city situation manager; those parts must check them the way foreign_sites.cpp checks NAM's.
+- **Mods.** No NAM site is in the range. The only code patch in it is the Lua `print` replacement at 0x0051C50B, inside the script system's loading of the scripts (0x0051C4C0, which Init reaches through 0x00523B10; [patch-census.md](patch-census.md)): that function stays the game's. The UI scaling mod SC4UIScale has three probe hooks (0x004FBFE0, 0x00505370, 0x00528580, off by default) and a message popup style patch (0x0052CCEE, 0x0052CD01) in the aircraft manager, the road vehicles and the city situation manager; those parts must check them the way foreign_sites.cpp checks NAM's.
 - **Out of scope here:** the automata controller prop (class 0x2A4017A0) is one of the derived props ([propkinds.md](propkinds.md)); MySim's agents are done ([mysim-agents.md](mysim-agents.md)).
 
 ## The controller manager
@@ -335,7 +335,7 @@ The group is found by the vtables of the two classes and the base, less the comm
   - The message targets: 0x00562620 (with 0x00561500, 1,039 bytes) and 0x00545450 (with 0x00544F30 and 0x005448D0).
   - Write 0x00553570 with 0x00552A80, and Read 0x00554410 with 0x00553E90.
   - AddAutomaton (0x00562C10, 0x00546990) and RemoveAutomaton 0x0054D690.
-- **v3 (29): creation, dispatch and frames.**
+- **v3 (29, done): creation, dispatch and frames.** Below.
   - GetRandomCreationPoint 0x00553080 and the Dispatch pair 0x00551730 and 0x0054DBF0.
   - Slots 52, 53 (0x0055B480, 0x00544300), 55, 56, 63 (0x00553300, 0x0055B600), 69 to 72, 76 to 81, 83, 84 and 89.
   - Their helpers 0x0054DD50, 0x0054E690, 0x0054DB50, 0x00552BD0, 0x00555350 and 0x00555400.
@@ -366,7 +366,7 @@ Mods: no NAM site is in the group, and neither is any of SC4UIScale's addresses.
   - Slot 82 (0x0054D260): the neighbour cell test.
   - The record list's hit test 0x00551630, the automaton test 0x0054D150 and the three group tests 0x0054D1A0, 0x0054D210 and 0x0054D230.
 
-Kept as the game's: the six adjustor thunks and the two plain jumps above; the common base's functions (constructor, destructor 0x00512780, QueryInterface 0x00505480, AddRef, Release), called at their addresses; and the 54 functions of v2 and v3 (v2 is now ours, below).
+Kept as the game's: the six adjustor thunks and the two plain jumps above; the common base's functions (constructor, destructor 0x00512780, QueryInterface 0x00505480, AddRef, Release), called at their addresses; and the 54 functions of v2 and v3 (both now ours, below).
 
 Oddities kept:
 
@@ -447,7 +447,7 @@ What they do:
 
 Part v1's +0xA98 is the current kind's node rather than the first kind's (v1's constructors set it to the first). The field keeps its v1 name.
 
-Kept as the game's: the common base's functions (Init, Shutdown, DoMessage and its +4 slot 3, Write, Read, AddAutomaton, RemoveAutomaton), the tuning load 0x00512CF0, the record copy 0x0054ED10 and the vehicle and pedestrian builders 0x005628F0 and 0x00545F20, all called at their addresses; and the 29 functions of v3. No NAM or SC4UIScale site is among the 25, and none needed keeping for stack leftovers or x87 values held across a call.
+Kept as the game's: the common base's functions (Init, Shutdown, DoMessage and its +4 slot 3, Write, Read, AddAutomaton, RemoveAutomaton), the tuning load 0x00512CF0, the record copy 0x0054ED10 and the vehicle and pedestrian builders 0x005628F0 and 0x00545F20, all called at their addresses; and the 29 functions of v3 (now ours, below). No NAM or SC4UIScale site is among the 25, and none needed keeping for stack leftovers or x87 values held across a call.
 
 Oddities kept:
 
@@ -503,3 +503,345 @@ Reached (our first-call log lines, trial Making Money d0000, 4 days): all 25.
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every B run carried the ` x` token. All 25 functions were reached in 12 of the 14 B runs. In Big City d0000 and d1095 the pedestrian manager has no pedestrian on the test day, so the gathering and the send (and part v1's slot 68) are not called there.
+
+
+## Part v3: creation, dispatch and frames
+
+### What is ours
+
+29 functions in two more groups, off by default, so the groups of parts v1 and v2 stay as they were ([automata_vehmgr.cpp](../src/core/automata_vehmgr.cpp), "Part v3"):
+
+- **`simulators.automata.vehmgr.create` (11):**
+  - GetRandomCreationPoint (slot 16) 0x00553080.
+  - The two Dispatch: slot 17 0x00551730 (a path for an automaton) and slot 18 0x0054DBF0 (a new automaton, then slot 17).
+  - The record add (slot 70) 0x005538D0.
+  - The occupant's automaton (slot 71) 0x0054F8A0, with the network position 0x0054DD50.
+  - The kind matrix (slot 72) 0x0054DDB0.
+  - The automaton's kind set 0x0054E690.
+  - The three spawns: slots 79, 80 and 89 (0x0054EF00, 0x0054F3C0, 0x0054FA10).
+- **`simulators.automata.vehmgr.frame` (18):**
+  - The frame update (slot 63): base 0x00553300, vehicle 0x0055B600, with the record list's update 0x00552BD0.
+  - The occupant's removal (slot 52) 0x0054ED90 and arrival (slot 53): vehicle 0x0055B480, pedestrian 0x00544300.
+  - The records' removal (slot 55) 0x005516C0 with the record copy 0x0054DB50.
+  - The occupants' refresh (slot 56) 0x0054F7B0 and the automaton's forgetting (slot 69) 0x0054FBC0.
+  - The kind sweep (slot 76) 0x00552000, the cell balance (slot 77) 0x005554E0 with the tuning map's insert 0x00555350 and lookup 0x00555400, the cell spawn (slot 78) 0x00551A50, the cell cull (slot 81) 0x005539A0, the lot sweep (slot 83) 0x00553370 and the records' update (slot 84) 0x00552DE0.
+
+What they do:
+
+- **Every frame** (slot 63, with the frame's time): the record list (+0xAB8) is aged at most every 500 ms of the stopwatch +0xAC0. A record past its time is given back (to the controller manager's slot 0x38 when held), released and freed; the others follow their object's cell. Then, while the manager may have automata (+0x3C above 0, +0x4D and 0x00B21B9C clear), the kind sweep (with +0x4C set) and the records' update (with records). Then the common base's slot 63; the vehicle manager adds slot 64.
+- **The kind sweep** adds the time to each kind's clock, picks the next kind of the tuning mask 0x00B21D5C and, when the day or night (0x00B43DC4's slot 0x58) suits the kind and its slot 42 value is not near 0, walks the cells object's rectangle from where it stopped (+0xA9C, +0xAA0) for 5 ms of its own stopwatch:
+  - kinds 1, 2, 3 and 7: the cell balance (77) on each cell's network occupant;
+  - kinds 4, 5, 6, 9 and 10: the cell spawn (78) with the kind's rate (slot 75);
+  - kind 8: the lot sweep (83).
+- **The cell balance** keeps each class's density. The kinds' 4x4 matrices (slot 72) are summed and set against the target of 0x00B43DA8's slot 0x5C through a tuning record per occupant key (slot 91; the map 0x00B21D60, filled with the tuning). Above it, the cell cull (81) by a draw; below it, a spawn (80) at a place drawn by weight.
+- **The cell spawn** ages the cell's 4x4 kind table (the cells object's slots 0x54 and 0x60) and spawns (79) on its open sides.
+- **The spawns** (79, 80, 89):
+  - build the automaton's key from the class, a drawn lane and the sides;
+  - check the cell's tables and keep away from busy cells, and from the camera's automaton (slot 80);
+  - create the automaton (slot 15, the game's) at the point slot 25 gives;
+  - give it its kind (0x0054E690) and its occupant (automaton slot 0x20C), or remove it again.
+- **The records** come from slot 53 (an occupant's building finished: the IDs of its property 0xE9AEE3DA / 0xE9AEE3DC, and for vehicles a drawn record 0x4206) through slot 70. The records' update (84) spends each record whose timer ran out. The network points near its object (the cells object's slot 0x68) get automata by slot 71 or by Dispatch (18), until the record's count is spent or five tries failed; between tries it waits 1000.
+- **GetRandomCreationPoint** draws a network point near a position (the cells object's slot 0x64 within a radius clamped to the city's size). With flags 0x22000 it is the common base's 0x00506DC0.
+
+Kept as the game's, called at their addresses or through the vtable:
+
+- The common base's CreateAutomaton (slot 15, 0x00505370, SC4UIScale's probe site).
+- The common base's slot 46 (0x00510690), slots 19, 20 and 25, its GetRandomCreationPoint and its slots 52, 55, 56 and 63.
+- The base's jump 0x0054D250 and the record rectangles 0x0054EC60.
+- The cells object, the path object and the automata.
+
+No NAM or SC4UIScale site is among the 29. None holds an x87 value across a call, apart from the C runtime's ftol (C++'s truncation).
+
+Oddities kept:
+
+- Slot 52 reads the occupant's rectangle only when there is an occupant (otherwise stack leftovers, below).
+- The pedestrian manager's slot 53 never calls the base's.
+- GetRandomCreationPoint passes 0 as the common base's seventh argument and leaks the network points when the cells object answers false; slot 84 does the same.
+- Slot 17 leaks the path object when the automaton is not an occupant's. It answers the automaton even when slot 19 fails.
+- Slot 89 leaves the automaton it made in the list when the automaton is not an occupant's.
+- The record list's update tests the object it has just cleared.
+- Slot 76 sends the first kind's clock to slot 77, whatever the kind.
+- Slot 72's sign flag keeps the upper bytes of its first argument.
+- Slots 79 and 80 ignore their second argument; slot 80 its sixth too.
+
+Stack leftovers the game would read, none logged in the runs (each has a first-call line of its own):
+
+- Slot 52's rectangle without an occupant. Ours is 0.
+- The four floats of a new tuning map record (0x00555400 with a key the tuning did not load). Ours are 0.
+- The cell balance's records past the last when the drawn weight is not spent. Ours stops.
+- The upper bytes of the byte counters slot 78 passes as dwords. Ours are 0.
+
+Floats as in parts v1 and v2. The cell of a position is the game's floor: the coordinate times 1/16, less 0.5, plus 1.5 x 2^23 rounded to a float, its bits less 0x4B400000, one more when that is the scaled value. FST keeps the unrounded value on the x87 stack; ours keeps the double the same way (slot 76's kind value, slot 77's row sums, slot 80's distance, slot 84's timer test).
+
+Return values. EAX's top bytes follow the game's where they come from a call or a pointer: slots 52, 53 (vehicle), 55, 63, 69 (which RemoveAutomaton reads), 71, the Dispatch pair, and 16 with flags 0x22000. The others answer AL alone. Slots 56, 72, 76 to 78, 80, 81, 0x00552BD0 and 0x0054E690 answer nothing their callers read.
+
+Reimplemented like the earlier parts: one writer, then an independent audit of all 29 against the disassembly, with every vtable call's argument count checked against the callee's `ret` (the managers' and the road automata's vtables; elsewhere against the stack offsets after the call). The audit found one defect: the vehicle manager's slot 53 asked the occupant for its slot 0xC once too often. That is fixed. It also had the cell balance's records capped at 11, where the game's frame holds 12; now 12 (at most nine kinds come there). The first batch then found a second one the audit had missed: slot 72's second factor is the absolute value of its fourth argument (the stack slot the game reads after the flag), not of the scale. With the test's sweep that changed which automata were made, and six of the twelve saves differed in the saved city (an automaton occupant in a cell), A and B each alike over two pairs. A bisect by `OPENSC4_AUTOMATA_SKIP` found it; it is fixed.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_VEHMGR=3` does everything `=2` does, plus the following on the test day, at the game's addresses (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)).
+
+Into the fingerprint as ` y<fixed>,<flags>` (vehicle) and ` <fixed>,<flags>` (pedestrian):
+
+- On a new manager of the class: three records by slot 70 (none without an object) with two building occupants of the controller table, slot 55 taking them out again in two steps (0x0054DB50 moves the rest down), hashed after each step with the occupants as indices.
+- Slots 69 and 52 on its empty list, slot 52 with a network occupant (the cells' occupants, the interface 0xA821EF94 the spawns and slots 52 and 72 take).
+- Slot 72's zero kinds and its slot 88 kinds.
+- Slot 53 on another new manager with a building's cISC4BuildingOccupant (0x87DDA3A9), what the game's completion message 0x2977AE2F carries: its records.
+- The record copy on records of the test's own.
+- For the vehicle manager, the tuning map's insert and lookup on a map of the test's own, and the lookup of every key of the game's map (read-only).
+
+To the log only, on the city's managers (which automata there are, the cells' contents and the manager's generator follow frames):
+
+- GetRandomCreationPoint at four places spread over the city, with the generator (+0x50) seeded for the calls and put back after.
+- 0x0054DD50 and slot 72 at two network occupants.
+- AddAutomaton with none while there is room, and the automaton it made removed again (slot 8 with 1). This is the branch part v2 never reached; it runs on both sides alike.
+- The frame work the harness's saves leave off:
+  - In these saves +0x4C (the manager's own generation) is clear, so slot 63 never sweeps, slot 46 makes no automaton for the spawns, and there are no records.
+  - With +0x4C set for the duration and the generator seeded, the test runs the kind sweep through each kind of the list.
+  - The harness's stopwatch counts its reads, so a call walks a few cells; the test calls again until the kind's walk is through, at most 40000 calls.
+  - Then records as slot 53 makes them are spent by slot 84; what is left is released and cleared, and +0x4C is put back.
+
+These add automata to the city and take some away. From that day on the run is not the one without the test (on both sides alike).
+
+Reached (our first-call log lines, trial Making Money d0000, 4 days): 26 of 29.
+
+- By the game alone: the frame update (both), the record list's update, slot 56, slot 69.
+- By the test: the rest. With the test the managers made automata (vehicles 107 to 116), and Dispatch 17, slot 18, slot 71 and the kind set ran.
+- Not reached: slot 79 (no cell spawn place had both a table value and an open side), slot 89 (no record of 0x00B43D70 at an automata cell) and, in Making Money, the pedestrian manager's slot 53 with a property (no building there has 0xE9AEE3DC; it is called with another building and answers without records).
+
+In the parity runs below, 28 of the 29 were reached in at least one B run (each run's first-call lines): all but slot 79. The pedestrian manager's slot 53 with records, slot 89 and the Dispatch pair ran in some saves and not others. No stack-leftover line was logged in any run.
+
+### Parity
+
+2026-10-20, B = `simulators.automata.vehmgr` and the six groups of parts v2 and v3 against the original (the switch list includes `determinism.dispatch_info=ours`; two jobs, `harness.multi_instance=ours` on both sides), env p4env-v3, snapshot v3-r4, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHMGR=3`. All the same:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run carried the ` y` token.
+
+
+## Part s: the script system
+
+### Survey
+
+cSC4AutomataScriptSystem (class ID 0x4A1B664E, factory 0x005148A0, constructor 0x005207A0, 0xB8 bytes, city slot 48, the city's GetAutomataScriptSystem at slot 0xC0) loads the automata Lua scripts and keeps what they define: the occupant groups, the controller templates, the drive commands and the track building groups. The layout is in [automata_scripts.h](../src/core/automata_scripts.h).
+
+Four parts, each with its own vtable:
+
+| Part | Vtable | What it is |
+| --- | --- | --- |
+| +0x00 | 0x00A96BA8 | cISC4AutomataScriptSystem, 19 slots. Each of the gzcom-dll header's overloaded pairs sits in the other order: slot 6 is GetAutomataGroup by ID, 7 by name, 11 GetOccupantGroup by ID, 12 by name. |
+| +0x04 | 0x00A96B98 | the adjustors and a shared stub; Init adds this part to the message server |
+| +0x08 | 0x00A96B88 | the adjustors and 0x0051C4B0, an ID test (0x87163754) |
+| +0x0C | 0x00A96B70 | serializable: Write and Read are shared stubs, GetGZCLSID 0x00520050 |
+
+The fields:
+
+- +0x10 initialized, +0x14 the reference count, +0x18 an object Shutdown shuts down and releases, +0x1C a 0x2C-byte record that starts with an SC4String.
+- Five hash maps: +0x4C name to occupant group, +0x60 name to automata group, +0x74 ID to occupant group, +0x8C name to controller template, +0xA4 key to drive command.
+- Two lists: +0x88 the groups without an ID (the special filter groups), +0xA0 the track building groups.
+
+The string maps hash with h * 5 + the signed char. The occupant group template (constructor 0x005206B0, 0x84 bytes, vtable 0x00A96C0C) derives from the occupant filter base (0x005EA080). It holds the parent group (+0xC), the ID (+0x10), an automaton class (+0x14) and a percentage (+0x2C, 1.0).
+
+The class is found by its vtables, the constructor, the destructor and the group template's code, plus the helpers only they call: 83 functions. With the rest of the range 0x0051C2D0 to 0x00523F20 and the templates part a3 left to it (0x0051AB80, 0x0051B1F0 to 0x0051B310), that makes 125 functions and 32,001 bytes. The survey's 116 and 31,620 placed a few shared helpers elsewhere. Of the 125:
+
+- **Stay the game's (21).**
+  - The nine `sub ecx,N; jmp` adjustor thunks: 0x005200C0 to 0x00520110, 0x00521670, 0x00521680, 0x00521690.
+  - Twelve shared helpers with callers outside the class, mostly STL hash map code: 0x004FC900, 0x0051C880, 0x0051C950, 0x0051C9B0, the string map's find 0x0051C9F0, 0x0051CA60, 0x0051CE70, 0x0051FC30, the insert 0x0051FDC0, 0x0051FE90, 0x0051FF00 and 0x00520970.
+- **s1 (34, done): the object, the life cycle, the queries and the occupant groups.** Below.
+- **s2 (43, 7,048 bytes, done): the controller templates, the Lua callbacks and the script data structures.** See "Part s2" below.
+  - The templates: 0x0051AB80, 0x0051B1F0, 0x0051B240, 0x0051B280, 0x0051B2A0, 0x0051B2F0, 0x0051B310, the template factory by class 0x0051BDF0 and CreateControllerTemplate (slot 16) 0x00520AC0.
+  - The seven Lua functions Init registers: create_automaton 0x0051D220, create_controller 0x0051D3C0, attach_controller 0x0051D510, attach_controller_group 0x0051D640, detach_controller 0x0051D750, detach_controller_group 0x0051D860 and get_source_building_count 0x0051C7D0.
+  - Helpers the managers and the U-Drive call: 0x0051CD90, 0x0051D040, 0x0051D0D0, 0x0051D120, 0x005204D0, 0x0051FD30.
+  - The behaviour records that the loading builds (the record, its vector and the std::sort over them): 0x00521350, 0x00521470, 0x00521550, 0x005215A0, 0x00521620, 0x00521B20, 0x00521B70, 0x00521BB0, 0x00522270, 0x00522350, 0x005223C0, 0x00522450, 0x00522540, 0x00522590, 0x005226C0, 0x00522720, 0x00522800, 0x005205D0, 0x00520940, 0x0051C8B0 and 0x0050BD40.
+- **s3 (27, 19,089 bytes): the loading of the scripts**, in two pieces. 0x0051C4C0 stays the game's: it holds the Lua print patch site 0x0051C50B. The Lua VM's own functions are called at their addresses, not reimplemented.
+  - **s3a (15, 9,964 bytes): the loader and the template readers.**
+    - LoadScripts 0x00523B10 and the readers it calls first: 0x0051DAA0, 0x0051EEE0, 0x0051F5C0 (1,158 bytes), 0x0051FA60.
+    - The attractor and generator templates: 0x00523500 (1,546) and 0x00522F30 (1,488), with their parts 0x0051C5D0, 0x0051CB40, 0x0051CBF0, 0x0051CD20, 0x0051F010, 0x0051EE10, 0x0051F2A0.
+    - The behaviours 0x00522860 (1,733).
+  - **s3b (11, 8,861 bytes): the groups and the vehicle kinds.**
+    - The groups: 0x005216A0, 0x00520DF0 (1,316), 0x00521C70 (1,527), 0x00521800 (795), 0x0051FB90, 0x00520520.
+    - The vehicle kinds' tuning: 0x0051DC20 (1,465), 0x0051E1E0, 0x0051E4A0, 0x0051E6B0 (1,520), 0x0051ECA0.
+
+Mods: no NAM site and no SC4UIScale address is in the class. The only patch site is 0x0051C50B in 0x0051C4C0 (s3, kept).
+
+### What is ours
+
+34 functions in four groups, off by default ([automata_scripts.cpp](../src/core/automata_scripts.cpp)):
+
+- **`simulators.automata.scripts.object` (7):** the factory 0x005148A0, the constructor 0x005207A0, the destructor body 0x0051FF70, QueryInterface 0x0051C2E0, Release 0x00521320, the serializable part's GetGZCLSID 0x00520050 and the +8 part's ID test 0x0051C4B0.
+- **`simulators.automata.scripts.life` (5):**
+  - Init 0x00523C80 with its default groups 0x0051D9B0.
+  - Shutdown 0x005208A0 with the release of the templates 0x00520120 and of the groups 0x005201D0.
+- **`simulators.automata.scripts.queries` (12):**
+  - The map getters, slots 5, 8, 9, 10, 15 and 18: 0x00520060, 0x00520080, 0x00520090, 0x005200A0, 0x00520070, 0x005200B0.
+  - The groups by ID and by name: slots 6, 7, 11 and 12 (0x0051C2D0, 0x0051CF60, 0x0051CFF0, 0x0051CFC0).
+  - The drive command, slot 14 (0x0051D1D0).
+  - The controller template by name, slot 17 (0x0051CF90).
+- **`simulators.automata.scripts.groups` (10):**
+  - CreateOccupantGroup, slot 13 (0x00520BD0).
+  - The group template's constructor 0x005206B0, destructor body 0x00520410, deleting destructor 0x00520780 and record map clear 0x0051FC80.
+  - Matches, its slot 3 (0x0051C3D0).
+  - The parent chain queries that the managers call: IsInGroup 0x0051C380, GetClass 0x0051C3B0 and Depth 0x0051C4A0.
+  - The name lookup 0x0051D970.
+
+What they do:
+
+- **Init**, once:
+  - It adds the +4 part to the message server and makes the two default automata groups, "vehicle" (0x4002, cSC4Vehicle) and "pedestrian" (0x4001, cSC4Pedestrian).
+  - It loads the scripts (0x00523B10, the game's) and registers the Lua table `automata` and its seven functions with the framework's script interface.
+- **Shutdown** undoes Init. It destroys the controller templates and releases the groups of the three group maps and of the special filter list.
+- **CreateOccupantGroup** puts a new group into the name map. A name already there is refused: the message is formatted and dropped, the group is destroyed and the answer is null. With the automata flag the group also goes into the automata group map. Then it goes into the ID map or, with ID 0, onto the special filter list. Each map or list holds one reference.
+- **Matches** tests whether an occupant's group list holds the group's ID. For a percentage below 1.0 it also draws from a cRZRandom that is seeded from the clock. Ours seeds under `fixed_seed::SiteOverride(0x0051C461)`, so the seed counts at the game's site.
+
+Kept as the game's, called at their addresses:
+
+- The adjustor thunks, which reach our QueryInterface and Release, and the shared AddRef 0x00695330.
+- The group base (0x005EA080, 0x005E95C0), the group's AddRef and Release (0x004BDF00, 0x007CB920) and its slots 4 and 5 (0x004FC900).
+- The hash map helpers and the allocators.
+- The scripts' loading, the Lua callbacks and the script registration functions (0x0068C180, 0x0058DE80, 0x0058DF10).
+
+Oddities kept:
+
+- QueryInterface's null branches write a null and still call AddRef through the object.
+- Release at a count of 1 (or 0) deletes without counting down.
+- CreateOccupantGroup writes the ID into the new group without a null test, and ignores the automata map's insert answer.
+- AddDefaultGroups writes the class into the group it gets back without a test.
+- Matches never destroys its cRZRandom.
+
+Floats: only Matches. The percentage is compared with 1.0 and with the draw (cRZRandom::NextFloat's ST0, taken as a double) as the asm does. A NaN percentage matches without a draw, and a NaN draw does not match.
+
+Reimplemented like the earlier parts: one writer, every call's argument count checked against the callee's `ret`, then an independent audit of all 34 against the disassembly. It found no defect; IsInGroup now reads its own ID before any test, as the asm does (ours had tested for null first), and some wording was fixed.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_SCRIPTS=1`, with `OPENSC4_TEST_AUTOMATA=2` or more, queries the city's script system on the test day at the game's addresses, so the same test runs on both sides (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). It goes into the fingerprint as ` S<identity>,<maps>,<groups>,<matches>,<fresh>`:
+
+- QueryInterface for six interfaces, on the object and through the three adjustors (each AddRef is given back), GetGZCLSID and the ID test.
+- The map getters; every name, ID, drive command and template through its lookup, plus keys that are not there; the two lists. These are summed, so the maps' order does not count.
+- Per group: its fields and the group queries (Depth, GetClass, IsInGroup, FindName).
+- Matches of up to 16 groups for up to 8 occupants of the controller table (no automata or props). For groups below 100 percent it seeds from the clock, the same on both sides.
+- A fresh script system from the factory, with one reference:
+  - three groups made by CreateOccupantGroup (with an ID and the automata flag, without an ID, and with an ID and the first as parent) and the first name again, which is refused;
+  - the lookups, the group queries, and Matches of a 50-percent group so that it draws;
+  - then ReleaseTemplates and ReleaseGroups, which run the groups' destructors, and its Release (Shutdown, not initialized, and the destructor body).
+
+The city's script system is not changed.
+
+### Parity
+
+2026-10-19, B = the four `simulators.automata.scripts` groups against the original (the switch list includes `determinism.dispatch_info=ours`; two jobs, `harness.multi_instance=ours` on both sides), env p4env-s1, snapshot s1-r1, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_SCRIPTS=1`. All the same, on the first pair:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+After the audit's change to IsInGroup (snapshot s1-r2) the batch was run again: Making Money 5 of 5, Rush Hour 8 of 8, and 11 of the 12 saves the same. In the twelfth, Rush Hour d0365, the B game ended at the end of its load: same seeds as r1 up to there, no further log line and no output. Three reruns of that save with the same build were the same, 8 of 8 days each.
+
+All 34 functions were reached in every one of the 14 B runs of r1 (our first-call log lines), and every B run carried the ` S` token:
+
+- By the game: the factory, the constructor, QueryInterface, Release, Init, the default groups, CreateOccupantGroup and the group constructor at the load; the queries and IsInGroup during the run.
+- By the test: the rest, including the destructors, Shutdown and the two releases on the fresh object.
+
+Not compared: Shutdown's initialized branch (the table unregistered, the +4 part taken off the message server, +0x18 released). The fresh object is never initialized, and the city's Shutdown, if it runs at the exit, comes after the last fingerprint; its first-call line is already taken by the test's Release.
+
+
+## Part s2: the templates, the Lua functions, the helpers and the behaviour records
+
+### What is ours
+
+All 43 functions of s2's list, in four more groups, off by default, so part s1's groups stay as they were ([automata_scripts_2.cpp](../src/core/automata_scripts_2.cpp)):
+
+- **`simulators.automata.scripts.templates` (9):**
+  - The constructors: the template base 0x0051AB80, the attractor template 0x0051B1F0 (0x98 bytes, vtable 0x00A96134, with an SC4Curve at +0x88) and the generator template 0x0051B240 (0xB4 bytes, vtable 0x00A96138).
+  - Their destructor bodies 0x0051B2A0 and 0x0051B310 and deleting destructors 0x0051B280 and 0x0051B2F0.
+  - The factory by class 0x0051BDF0 and CreateControllerTemplate (slot 16) 0x00520AC0.
+- **`simulators.automata.scripts.lua` (7):** the Lua functions create_automaton 0x0051D220, create_controller 0x0051D3C0, attach_controller 0x0051D510, attach_controller_group 0x0051D640, detach_controller 0x0051D750, detach_controller_group 0x0051D860 and get_source_building_count 0x0051C7D0.
+- **`simulators.automata.scripts.helpers` (6):**
+  - A group's cached ID list 0x0051CD90, which the managers call.
+  - Its record lookup 0x005204D0, with the three-string record's constructor 0x0051D040, destructor 0x0051D0D0 and assignment 0x0051FD30. The U-Drive calls them.
+  - The Lua value to ID 0x0051D120.
+- **`simulators.automata.scripts.records` (21):** the behaviour record (0x7C bytes) and the code the loading runs on its vector.
+  - The constructor 0x0050BD40, the copy 0x005205D0 and the assignment 0x00521470.
+  - The vector's insert into a full buffer 0x00521350, and the uninitialized copy 0x00520940.
+  - std::sort over the records: 0x00522800, the introsort loop 0x00522720, the median 0x0051C8B0 and the partition 0x00522270.
+  - The insertion sorts 0x005226C0, 0x00522540, 0x00521B70, 0x005223C0 and 0x00521550, with copy and copy_backward 0x00521B20 and 0x00521620.
+  - The heap fallback: partial_sort 0x00522590, make_heap 0x00522350, sort_heap 0x00522450, adjust_heap 0x00521BB0 and push_heap 0x005215A0.
+
+What they do:
+
+- **The templates.** CreateControllerTemplate asks the factory for a template of the class (attractor 0x6A1628BA or generator 0x4A1628C5) and puts it into the template map. A name already there is refused: the message is formatted and dropped and the template destroyed. The factory sets the class, the name and the template's curve, the points (0, 1) and (24, 1). Any other class gets the refusal message and null.
+- **The Lua functions** live in the advisors' script context as `sc4game.automata` (`automata` there is a different table). Each takes the script system from its binding, then reads its arguments:
+  - create_automaton makes an automaton of a class at a point (0x0050CDA0) and starts it.
+  - create_controller asks the controller manager (part a1) for a controller of a template at a point (its slot 5).
+  - attach_controller uses the same slot 5 with an occupant. attach_controller_group uses slot 10, detach_controller slot 8 and detach_controller_group slot 12.
+  - get_source_building_count asks four services in turn.
+  - The first three push the object they got back; get_source_building_count pushes a count.
+- **The behaviour records** are sorted by a comparator inlined at every compare site: a is before b when its float (+4) is below b's, or else when its uint32 (+0xC) is above b's. That is not a strict weak order in general; the game sorts with it as it is.
+- **By-value records.** The insertions, the partition and the heap functions take a record by value and destroy it before they return, as the MSVC ABI has the callee do. The game copy-constructs each one into the argument area. Ours copy-constructs it into a local and passes its bytes, so each record is still made once and destroyed once.
+
+Kept as the game's, called at their addresses:
+
+- The record's destructor 0x0050BDE0.
+- The vectors' copy and assignment: 0x0051FE90 and 0x00520970 (shared, now with address entries), 0x00462F00 and 0x00462C10.
+- The range destroy 0x00518B20 and the two InsertN functions.
+- SC4Curve::Init and SetPoints, the string helpers and strtoul.
+- 0x0050CDA0 and the controller manager's slots.
+
+Oddities kept:
+
+- The factory writes the class into a null template when the allocation fails.
+- create_automaton reads a ninth argument it never uses.
+- The four functions with an occupant (attach and detach) test and release an occupant slot they have just zeroed.
+- The record copy and assignment copy field by field, so the padding is left alone.
+- The three-string record's constructor leaves +0x3C alone, though its assignment copies it.
+- GroupCacheIds hands over the IDs only when the +0x18 part is still empty.
+
+Stack slots the game reuses as locals:
+
+- get_source_building_count reads its key into its binding argument's slot. So a key that does not read stays the binding's address, and ours starts its local from that address the same way.
+- 0x0051D120 reads a number into its own argument's slot, and a failed read answers 0.
+- create_automaton's ninth-argument bool and the attach and detach functions' occupant are argument slots that nothing reads afterwards; ours keep them in locals.
+
+Floats: the comparator's float compares only. An unordered pair is not "below", so the uint32 compare decides it.
+
+Reimplemented like the earlier parts: one writer, every call's argument count checked against the callee's `ret`, then an independent audit of all 43 against the disassembly.
+
+### Test
+
+Two tests reach part s2:
+
+- **`OPENSC4_TEST_AUTOMATA_SCRIPTS=2`** does everything `=1` does and adds ` T<templates>,<helpers>,<records>` after the ` S` token:
+  - the city's templates;
+  - on a fresh script system: CreateControllerTemplate for both classes, a taken name and a class with no template;
+  - the cached ID lists and the record lookups (every key byte) of the city's groups;
+  - std::sort of 40 records of the test's own, keyed so that the comparator is a strict weak order. Above 16 records it partitions;
+  - partial_sort of 40 with a middle of 20, which runs the heap functions;
+  - the full vector's insert in the middle and at the end.
+- **`OPENSC4_TEST_LUA_SCRIPT=<path>/tests/scripts/automata.lua`** calls the seven `sc4game.automata` functions with fixed arguments (see the script). It records only whether each call worked and whether it pushed nil, 0 or nonzero, since the pushed objects are pointers. Its result goes into the ` | lua` part's script hash. The occupant arguments are nil, so the attach and detach functions stop after reading their arguments. With these arguments create_controller and create_automaton get null back from the game's functions, on both sides.
+
+Reached in the trial (Making Money d0000, 4 days, both tests): all 43, with all 34 of s1 in the same run. By the game at the load: the templates, the Lua value to ID, get_source_building_count, the record constructor, copy, assignment, the vector insert and the insertion sorts. By the tests: the rest. Original and ours gave the same fingerprint on every day of the trial.
+
+Reimplementation notes from the audit: no defect. Sort (0x00522800) now forwards the word in its first argument's slot as the empty predicate, as the game does; its only caller pushes two arguments, and the callees ignore the predicate. Some wording was also fixed.
+
+### Parity
+
+2026-10-19, B = all eight `simulators.automata.scripts` groups (s1 and s2) against the original (the switch list includes `determinism.dispatch_info=ours`; two jobs, `harness.multi_instance=ours` on both sides), env p4env-s2. Both tests ran: `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_SCRIPTS=2` and the Lua chunk.
+
+| Batch | Making Money d0000, 4 days | Rush Hour t0000, 7 days | The 12-save batch, 7 days |
+| --- | --- | --- | --- |
+| r2 (snapshot s2-r2) | 5 of 5 | 8 of 8 | 11 of 12; Making Money d0000 partly the same |
+| r3 (s2-r3, the final build) | 5 of 5 | 8 of 8 | 11 of 12; Big City d1095 failed on the original's side |
+
+- **Making Money d0000 in r2.** The first B run had other `adv` and `advisors` values from the test day on, and the rest of the line was the same. The second B run had A's values, as did both A runs. This looks like the first-run advisor outcome in [parity.md](parity.md) ("The advisor system's generator"). In r3 the save was the same in the batch and in three more reruns, 8 of 8 days each.
+- **Big City d1095 in r3.** The original's game ended during its load, with no output. Two reruns were the same, 8 of 8 days each.
+
+All 77 functions of s1 and s2 were reached in every B run of r2 (14) and r3 (our first-call log lines).
+
+The Lua chunk ran in every run, and every B run carried the ` S` and ` T` tokens. A batch r1 had the chunk's path broken, so its functions were not called; it was otherwise the same (5 of 5, 8 of 8, 12 of 12).
