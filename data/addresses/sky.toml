@@ -2348,3 +2348,147 @@ convention = "thiscall"
 signature = "uint32_t (void* this)"
 expect = "56 8B F1 8B 46 04 48 89"
 source = "Name ours, not analysed in full. Slot 8 (0x20) of the decal's table 0x00A9EE78: --[this+4]; at zero the table put back, the object at +0x120 let go (slot 8), the texture at +0x11C let go (0x008090E0), the description at +0xC ended (0x00583130), the decal deleted (0x005E5620) and 0 answered. The game's; noted by the comparison of renderer.effects.hashes (as a held effect's let-go)."
+
+[[entry]]
+name = "SC4EffectHeightMap::QueryInterface"
+address = 0x00585AD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t id, void** out)"
+expect = "8B 44 24 04 3D 1A AA 5E"
+source = "Name ours. Ret 8. Slot 0 of the particles' height map (vtable 0x00A9F008, 0x88 bytes; the effects manager makes one at its +0xD98 and is built on one at its +0xC): for 0x0A5EAA1A the map, held (slot 1); any other id goes to the counted base at +4 (jumps to 0x009457C6). Answers AL. Ours in renderer.effects.heightmap (src/core/effects_heightmap.inc)."
+
+[[entry]]
+name = "SC4EffectHeightMap::Height"
+address = 0x00585B00
+kind = "function"
+convention = "thiscall"
+signature = "double (void* this, uint32_t layer, float x, float z)"
+expect = "51 D9 44 24 0C 53 55 56"
+source = "Name ours. Ret 0xC. Slot 6: the height at a place (x and z times the inverse cell size +0x34, floored by the 1.5 x 2^23 rounding), from the four vertices around it (slot 7); the weight along z is the fraction in x and the other way round, as the game has it. Answered on the x87 stack. Asked by a particle meeting the ground (0x005B8DC0). Ours in renderer.effects.heightmap (src/core/effects_heightmap.inc)."
+
+[[entry]]
+name = "SC4EffectHeightMap::CellHeight"
+address = 0x00586030
+kind = "function"
+convention = "thiscall"
+signature = "double (void* this, uint32_t layer, uint32_t x, uint32_t z)"
+expect = "53 8B 5C 24 0C 56 57 8B"
+source = "Name ours. Ret 0xC. Slot 7: a vertex's height, the terrain's (+0xC, its slot 0x38, as a float) plus the first layer's value there (the layer asked for is not looked at); under the sea level (+0x10) the higher of the terrain and the sea level plus the value less 50. Answered on the x87 stack. Ours in renderer.effects.heightmap (src/core/effects_heightmap.inc)."
+
+[[entry]]
+name = "SC4EffectHeightMap::Normal"
+address = 0x005860A0
+kind = "function"
+convention = "thiscall"
+signature = "float* (void* this, float* out, uint32_t layer, float x, float z)"
+expect = "83 EC 34 D9 44 24 40 53"
+source = "Name ours. Ret 0x10. Slot 8: the ground's normal at a place into out (three floats), answering out: slopes in z and x from sixteen vertex heights (slot 7) around the place, the indices kept on the grid (+0x20, +0x24), the normal (-dx k, 1, -dz k) with k half the inverse cell size, scaled by one over its length. Asked by a particle meeting the ground. Ours in renderer.effects.heightmap (src/core/effects_heightmap.inc)."
+
+[[entry]]
+name = "SC4EffectHeightMap::Raise"
+address = 0x005863D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t layer, const int32_t* rect, float amount, uint32_t count)"
+expect = "83 EC 10 8B 44 24 18 55"
+source = "Name ours. Ret 0x10. Slot 9: for layer (1 the first) amount / (count + 1) added to the values of count + 1 rings from the cell rectangle out, each cut to the grid (0x0048ED90 with +0x38) and one wider on every side; +0x48 set. Ours in renderer.effects.heightmap (src/core/effects_heightmap.inc)."
+
+[[entry]]
+name = "SC4EffectHeightMap::Lift"
+address = 0x005864F0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t layer, const int32_t* rect, float height, uint32_t count)"
+expect = "83 EC 14 8B 44 24 1C 56"
+source = "Name ours. Ret 0x10. Slot 10: the same rings, each value below height raised to it, the height times 1 - 1 / (count + 1) for each ring further out; +0x48 set. Ours in renderer.effects.heightmap (src/core/effects_heightmap.inc)."
+
+[[entry]]
+name = "SC4EffectHeightMap::Clear"
+address = 0x00586640
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t layer, const int32_t* rect)"
+expect = "83 EC 10 8B 44 24 18 53"
+source = "Name ours. Ret 8. Slot 11: the rectangle's values (cut to the grid) set to 0; +0x48 set. Ours in renderer.effects.heightmap (src/core/effects_heightmap.inc)."
+
+[[entry]]
+name = "SC4EffectHeightMap::Construct"
+address = 0x00586890
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "Name ours. The constructor: the counted base (0x0090DA1E), the tables 0x00A9F008 and 0x00A9EFF0, no terrain (+0xC), no layers (+0x14), +0x48 cleared, the line list at +0x4C made (0x008012F0). Answers this. Called by the manager's constructor (0x005912CF, at its +0xC) and 0x00594C6F (new 0x88, kept at the manager's +0xD98). Ours in renderer.effects.heightmap (src/core/effects_heightmap.inc)."
+
+[[entry]]
+name = "SC4EffectHeightMap::DeletingDestructorThunk"
+address = 0x005868F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* base, uint32_t flags)"
+expect = "83 E9 04 E9 48 00 00 00"
+source = "Name ours. Ret 4. Slot 3 of the counted base's table 0x00A9EFF0 (what its Release calls at zero): this - 4, jumps to 0x00586940. Ours in renderer.effects.heightmap (src/core/effects_heightmap.inc)."
+
+[[entry]]
+name = "SC4EffectHeightMap::DeletingDestructor"
+address = 0x00586940
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 57 8D 7E 04 8D"
+source = "Name ours. Ret 4. The tables put back, the line list ended (0x008011F0), the layers freed (0x004638B0), the terrain let go (slot 2; the pointer left), the base ended (0x0090D990), deleted (0x005E5620) with flag 1. Answers this. Ours in renderer.effects.heightmap (src/core/effects_heightmap.inc)."
+
+[[entry]]
+name = "SC4EffectHeightMap::Shutdown"
+address = 0x00586990
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8B 4E 0C 85 C9"
+source = "Name ours. The terrain let go and cleared, the layers erased (0x004643B0; the storage kept). Answers true. Called by the manager's shutdown (0x0059528B). Ours in renderer.effects.heightmap (src/core/effects_heightmap.inc)."
+
+[[entry]]
+name = "SC4EffectHeightMap::Init"
+address = 0x005869C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 10 53 56 8B F1 8B"
+source = "Name ours. With no layers: the terrain at 0x00B43CF8 held (the one before let go), its sea level (slot 0x74), cell counts (0x1C, 0x20, +0x20 and +0x24, one more of each at +0x28 and +0x2C) and cell size (0x18, truncated by 0x009EEF04, +0x30; its inverse +0x34), the bounds (0, 0, the counts) at +0x38, and one layer (0x00464340) of a zero for each vertex (0x00464130). Answers true. Called by the manager (0x00594CA7). Ours in renderer.effects.heightmap (src/core/effects_heightmap.inc)."
+
+[[entry]]
+name = "SC4FloatVectorVector::Resize"
+address = 0x00464340
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count, const void* fill)"
+expect = "53 8B 59 04 56 8B 74 24"
+source = "Name ours. Ret 8. resize() of a vector of 12-byte vectors: fewer erased (0x004643B0), more inserted as copies of fill. The game's; called by the particles' height map's init."
+
+[[entry]]
+name = "SC4FloatVectorVector::Erase"
+address = 0x004643B0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* first, void* last)"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Name ours. Ret 8. erase(first, last) of a vector of 12-byte vectors of floats: the ones after moved down (0x00464430), the tail's storage freed, the end set; answers first. The game's; called by the particles' height map's shutdown."
+
+[[entry]]
+name = "SC4HeightMapLines::Construct"
+address = 0x008012F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 33 DB 56 8B F1 89 1E"
+source = "Name ours, not analysed in full. The 0x3C-byte list of lines the particles' height map draws itself with (its +0x4C): +0 to +8 cleared, +0xC to +0x30 the word at 0x00B4E708, +0x38 cleared. The game's."
+
+[[entry]]
+name = "SC4HeightMapLines::Destroy"
+address = 0x008011F0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "E9 6B FF FF FF CC CC CC"
+source = "Name ours, not analysed in full. Its destructor (jumps to 0x00801160): what +8, +4 and +0 hold let go. The game's."
