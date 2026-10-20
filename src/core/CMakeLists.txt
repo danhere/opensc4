@@ -263,6 +263,7 @@ add_library(opensc4_core SHARED
   automata_awmgr.cpp
   automata_ctlquery.cpp
   automata_scripts.cpp
+  automata_scripts_2.cpp
   automata_autotest.cpp
   nettool_preview.cpp
   nettool_rul_1.cpp
@@ -607,7 +608,6 @@ add_library(opensc4_core SHARED
   ui_mysim_panel_2.cpp
   ui_mysim_panel_3.cpp
   ui_mysim_panel_4.cpp
-  multi_instance.cpp
-  background.cpp)
+  multi_instance.cpp)
 target_link_libraries(opensc4_core PRIVATE opensc4_core_support opensc4_dbpf opensc4_gzcom user32)
 set_target_properties(opensc4_core PROPERTIES OUTPUT_NAME core)
