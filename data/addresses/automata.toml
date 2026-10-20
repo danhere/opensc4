@@ -2145,7 +2145,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, void* occupant, uint32_t b, uint32_t kind, float sign, float* out)"
 expect = "83 EC 10 56 57 8B F9 8B"
-source = "Name ours. Slot 72, ret 0x14: kinds 7 and 8 slot 88; kinds 1 to 6, 9 and 10 the 16 words +0xA88's slot 0x30 gives at the occupant's corner for the kind's table (1 +0xA90, 2, 4, 3, 5, 6, 7, 8) and the sign flag, times slot 87's scale and its absolute value; other kinds zero. Ours in simulators.automata.vehmgr.create (src/core/automata_vehmgr.cpp, part v3)."
+source = "Name ours. Slot 72, ret 0x14: kinds 7 and 8 slot 88; kinds 1 to 6, 9 and 10 the 16 words +0xA88's slot 0x30 gives at the occupant's corner for the kind's table (1 +0xA90, 2, 4, 3, 5, 6, 7, 8) and the sign's flag, times slot 87's scale and the sign's absolute value; other kinds zero. Ours in simulators.automata.vehmgr.create (src/core/automata_vehmgr.cpp, part v3)."
 
 [[entry]]
 name = "cSC4VehPedManagerBase::SetAutomatonKind"
