@@ -22,6 +22,7 @@
 # parity jobs): every run gets harness.multi_instance=ours (unless
 # OPENSC4_REPLACE names it), and only a game still running in this same test
 # folder stops the run. OPENSC4_PARALLEL is no longer needed.
+# The game runs in the background (harness.background, below).
 # OPENSC4_LAUNCHER_ARGS adds launcher options, e.g. "--large-address".
 set -euo pipefail
 
@@ -55,6 +56,13 @@ fi
 case ",${OPENSC4_REPLACE:-}," in
 *,harness.multi_instance=*) ;;
 *) export OPENSC4_REPLACE="${OPENSC4_REPLACE:+$OPENSC4_REPLACE,}harness.multi_instance=ours" ;;
+esac
+# In the background: the window never takes the foreground and stays behind
+# the user's windows, at below-normal priority (src/core/background.cpp).
+# OPENSC4_REPLACE=harness.background=original shows it as usual.
+case ",${OPENSC4_REPLACE:-}," in
+*,harness.background=*) ;;
+*) export OPENSC4_REPLACE="$OPENSC4_REPLACE,harness.background=ours" ;;
 esac
 
 # Two games must not share a user folder. The folder's last log names the
