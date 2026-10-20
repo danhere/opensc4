@@ -1267,7 +1267,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, const void* from)"
 expect = "56 8B F1 57 8B 7C 24 0C"
-source = "Name ours, not analysed. Ret 4. A decal's description (0x64 bytes) given another's: words and bytes copied, the vectors at +0x10, +0x1C, +0x28 and +0x40 assigned (0x00464430) and the one at +0x34 (0x0050C540). Answers this. Called by SC4EffectDecal::SetDescription (0x00583493) and from seven more places. The game's; noted by the comparison of renderer.effects.decal_description."
+source = "Name ours, not analysed. Ret 4. A decal's description (0x64 bytes) given another's: words and bytes copied, the vectors at +0x10, +0x1C, +0x28 and +0x40 assigned (0x00464430) and the one at +0x34 (0x0050C540). Answers this. Called by SC4EffectDecal::SetDescription (0x00583493) and from seven more places. The game's; noted by the comparison of renderer.effects.decal_description. Ours in renderer.effects.decal_parts (src/core/effects_decal.inc)."
 
 [[entry]]
 name = "SC4DecalDescription::Construct"
@@ -1699,7 +1699,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "56 8B F1 8B 46 40 85 C0"
-source = "Name ours. A decal description's lists' storage freed: +0x40, +0x34, +0x28, +0x1C, +0x10. Called by SC4DecalDescriptions::Insert for its copy of the value, and from 0x005833D3, 0x0058BFB6, 0x0059DE63 and 0x0059F694. The game's; noted by the comparison of renderer.effects.vectors."
+source = "Name ours. A decal description's lists' storage freed: +0x40, +0x34, +0x28, +0x1C, +0x10. Called by SC4DecalDescriptions::Insert for its copy of the value, and from 0x005833D3, 0x0058BFB6, 0x0059DE63 and 0x0059F694. The game's; noted by the comparison of renderer.effects.vectors. Ours in renderer.effects.decal_parts (src/core/effects_decal.inc)."
 
 [[entry]]
 name = "SC4DecalDescription::CopyConstruct"
@@ -2347,7 +2347,7 @@ kind = "function"
 convention = "thiscall"
 signature = "uint32_t (void* this)"
 expect = "56 8B F1 8B 46 04 48 89"
-source = "Name ours, not analysed in full. Slot 8 (0x20) of the decal's table 0x00A9EE78: --[this+4]; at zero the table put back, the object at +0x120 let go (slot 8), the texture at +0x11C let go (0x008090E0), the description at +0xC ended (0x00583130), the decal deleted (0x005E5620) and 0 answered. The game's; noted by the comparison of renderer.effects.hashes (as a held effect's let-go)."
+source = "Name ours, not analysed in full. Slot 8 (0x20) of the decal's table 0x00A9EE78: --[this+4]; at zero the table put back, the object at +0x120 let go (slot 8), the texture at +0x11C let go (0x008090E0), the description at +0xC ended (0x00583130), the decal deleted (0x005E5620) and 0 answered. The game's; noted by the comparison of renderer.effects.hashes (as a held effect's let-go). Ours in renderer.effects.decal_parts (src/core/effects_decal.inc)."
 
 [[entry]]
 name = "SC4EffectHeightMap::QueryInterface"
@@ -2492,3 +2492,57 @@ convention = "thiscall"
 signature = "void (void* this)"
 expect = "E9 6B FF FF FF CC CC CC"
 source = "Name ours, not analysed in full. Its destructor (jumps to 0x00801160): what +8, +4 and +0 hold let go. The game's."
+
+[[entry]]
+name = "SC4EffectDecal::SetParameter"
+address = 0x00582F00
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t id, const void* value, uint32_t unused)"
+expect = "8B 44 24 04 83 EC 08 83"
+source = "Name ours. Ret 0xC. Slot 5 of the decal's table 0x00A9EE78: id 3 the word at value to +0x108, 0x102 the word at value + 4 to +0x10C, 0xC a rectangle (four floats) giving its middle times 8 (+0xE4, +0xE8), width times 16 (+0xEC), depth over width (+0x104), with the description's flag 8 the width (+0x100), +0xF0 cleared and +0x110 set. Answers AL, false for other ids. Ours in renderer.effects.decal_parts (src/core/effects_decal.inc)."
+
+[[entry]]
+name = "SC4EffectDecal::Update"
+address = 0x00582600
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* first, const void* second)"
+expect = "83 EC 44 56 8B F1 8A 86"
+source = "Name ours, not analysed in full (232 instructions). Ret 8. Slot 3 of the decal's table: unless +0x110 is set, the decal's place (+0xE4, +0xE8), scale (+0xEC, times +0xF8) and turn (+0xF0, the x87 arctangent over 2 pi) from two transforms (each with a byte at +1 saying it holds one); with the description's flag 0x40 and +0x70 not -1, values for the object at +0x120 (its slots 0x38 and 0x34) from the curves at +0x28 and +0x1C. Ours in renderer.effects.decal_parts (src/core/effects_decal_update.inc, generated)."
+
+[[entry]]
+name = "SC4Float3Vector::Assign"
+address = 0x0050C540
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. Ret 4. Assignment of a vector of 12-byte items: new storage (0x0053D5A0) when there is not room, the old freed; answers this. The game's; called by SC4DecalDescription::Assign for +0x34, noted by the comparison of renderer.effects.decal_parts."
+
+[[entry]]
+name = "SC4EffectsManager::FillHeld"
+address = 0x0058DF60
+kind = "function"
+convention = "cdecl"
+signature = "void** (void** place, uint32_t count, void* const* value)"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. count copies of the pointer at value from place on, each held (its slot 1); nothing written where the place is null. Answers the place after the last. Called from 0x00430B18. Ours in renderer.effects.decal_parts (src/core/effects_decal.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::AddRefThunk4"
+address = 0x0058FD60
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 E9 04 E9 D8 DA FF FF"
+source = "Name ours. The manager's AddRef (0x0058D840) for its interface at +4: this - 4. Ours in renderer.effects.decal_parts (src/core/effects_decal.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::AddRefThunk8"
+address = 0x0058FD80
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 E9 08 E9 B8 DA FF FF"
+source = "Name ours. The manager's AddRef (0x0058D840) for its interface at +8: this - 8. Ours in renderer.effects.decal_parts (src/core/effects_decal.inc)."
