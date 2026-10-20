@@ -145,6 +145,22 @@
 //   groups' last references, so their destructors run) and its Release
 //   (Shutdown, not initialized, the destructor body). The city's script
 //   system is not changed.
+// OPENSC4_TEST_AUTOMATA_SCRIPTS=2 (part s2): also, after the ` S` token,
+//   ` T<templates>,<helpers>,<records>`: the city's controller templates
+//   (kind, class, +0x20, +0x34, name), summed, and a fresh script system's
+//   CreateControllerTemplate (slot 16) for an attractor and a generator, the
+//   first name again and a class with no template (both refused), its
+//   template lookup and ReleaseTemplates; for the city's groups of the ID
+//   map the cached ID list 0x0051CD90 (it fills an empty cache, alike on
+//   both sides) and the record lookup 0x005204D0 for every key byte into a
+//   three-string record (0x0051D040, 0x0051D0D0); std::sort 0x00522800 of
+//   40 behaviour records of the test's own (keyed so that the comparator is
+//   a strict weak order; above 16 it partitions), partial_sort 0x00522590 of
+//   40 with a middle of 20 (the heap functions), and the full record
+//   vector's insert 0x00521350 of 3 copies in the middle and of one at the
+//   end. The template names go to the log. The Lua functions are reached
+//   with OPENSC4_TEST_LUA_SCRIPT=tests/scripts/automata.lua (an absolute
+//   path), which calls sc4game.automata.* (the ` | lua` part's script hash).
 // A remove and add round trip of one occupant's controllers is not done:
 // removing sends 0xEA298D50 to the automata, destroys the controllers and
 // can drop the occupant's automaton entry (its automata released), and the
@@ -1505,6 +1521,192 @@ void ScriptsDrive(cISC4City* city)
                static_cast<unsigned>(byId.size()), fresh.h, flags);
 }
 
+// Part s2's drive (OPENSC4_TEST_AUTOMATA_SCRIPTS=2), see the top of the file.
+
+// A template's own values: its kind by vtable, class (+0x18, +0x1C), +0x20,
+// +0x34 and name.
+uint32_t TemplateHash(char* t)
+{
+    Hash h;
+    if (!t) {
+        h.Mix(0);
+        return h.h;
+    }
+    const std::uintptr_t vtable = At<std::uintptr_t>(t, 0);
+    h.Mix(vtable == addr::cSC4AttractorTemplate_Vtable ? 1u : vtable == addr::cSC4GeneratorTemplate_Vtable ? 2u : 3u);
+    h.Mix(At<uint32_t>(t, 0x18));
+    h.Mix(At<uint32_t>(t, 0x1C));
+    h.Mix(At<uint32_t>(t, 0x20));
+    h.Mix(At<uint32_t>(t, 0x34));
+    h.Mix(NameHash(At<const char*>(t, 0x08), At<const char*>(t, 0x0C)));
+    return h.h;
+}
+
+constexpr std::size_t kRecord = 0x7C;
+
+// A test vector of behaviour records (0x0050BD40), keyed so that the
+// comparator is a strict weak order (the float +4 and the uint32 +0xC from
+// one rank, ties included), the index at +0x28.
+char* NewRecords(uint32_t count, uint32_t seed)
+{
+    using Allocate = void*(__cdecl*)(uint32_t);
+    using Construct = void*(__thiscall*)(void*);
+    char* const block =
+        static_cast<char*>(reinterpret_cast<Allocate>(addr::SC4_stl_allocate)(count * static_cast<uint32_t>(kRecord)));
+    for (uint32_t i = 0; i < count; ++i) {
+        char* const r = block + i * kRecord;
+        reinterpret_cast<Construct>(addr::SC4BehaviourRecord_Construct)(r);
+        const uint32_t rank = (i * 7919u + seed) % (count / 2 + 3);
+        At<float>(r, 4) = static_cast<float>(rank) * 0.5f;
+        At<uint32_t>(r, 0xC) = 1000u - rank;
+        At<uint32_t>(r, 0x28) = i;
+    }
+    return block;
+}
+
+uint32_t RecordsHash(const char* first, uint32_t count)
+{
+    Hash h;
+    for (uint32_t i = 0; i < count; ++i) {
+        char* const r = const_cast<char*>(first) + i * kRecord;
+        h.Mix(At<uint32_t>(r, 4));
+        h.Mix(At<uint32_t>(r, 0xC));
+        h.Mix(At<uint32_t>(r, 0x28));
+        h.Mix(At<uint32_t>(r, 0x40));
+    }
+    return h.h;
+}
+
+void FreeRecords(char* first, char* last)
+{
+    uint8_t tag = 0;
+    reinterpret_cast<void(__cdecl*)(char*, char*, void*)>(addr::cSC4AutomataControllerTemplate_DestroyRecords)(
+        first, last, &tag);
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(first);
+}
+
+void ScriptsDrive2(cISC4City* city)
+{
+    namespace ss = automata_scripts;
+    char* const scripts = Virtual<char*>(city, 0xC0);
+    if (!scripts) {
+        g_scriptText += " T-";
+        return;
+    }
+    Hash templates, helpers, records;
+    // The city's templates (static after the load), summed.
+    uint32_t count = 0, sum = 0;
+    std::vector<std::string> names;
+    ForEachScriptNode(scripts + ss::field::kTemplates, [&](char* node) {
+        sum += TemplateHash(At<char*>(node, 0x10));
+        ++count;
+        const char* const b = At<const char*>(node, 4);
+        const char* const e = At<const char*>(node, 8);
+        if (b && e > b && e - b < 128)
+            names.emplace_back(b, e);
+    });
+    templates.Mix(count);
+    templates.Mix(sum);
+    std::sort(names.begin(), names.end());
+    std::string listed;
+    for (std::size_t i = 0; i < names.size() && i < 6; ++i)
+        listed += (i ? ", " : "") + names[i];
+    log::Write("autotest: automata: scripts: templates %u, first names %s", count, listed.c_str());
+    // On a fresh script system: CreateControllerTemplate (slot 16) for an
+    // attractor and a generator, the first name again (refused), a class
+    // with no template (the factory's refusal); then the templates
+    // destroyed by ReleaseTemplates and the object released.
+    using Factory = char*(__cdecl*)();
+    char* const made = reinterpret_cast<Factory>(addr::cSC4AutomataScriptSystem_Create)();
+    if (made) {
+        Virtual<uint32_t>(made, 0x04);
+        TestString first("opensc4 test template 1"), second("opensc4 test template 2");
+        char* const a = Virtual<char*>(made, 0x40, static_cast<void*>(&first), 0x6A1628BAu);
+        char* const g = Virtual<char*>(made, 0x40, static_cast<void*>(&second), 0x4A1628C5u);
+        char* const again = Virtual<char*>(made, 0x40, static_cast<void*>(&first), 0x4A1628C5u);
+        TestString third("opensc4 test template 3");
+        char* const none = Virtual<char*>(made, 0x40, static_cast<void*>(&third), 0x12345678u);
+        templates.Mix(TemplateHash(a));
+        templates.Mix(TemplateHash(g));
+        templates.Mix((again ? 1u : 0u) | (none ? 2u : 0u));
+        templates.Mix(Virtual<char*>(made, 0x44, static_cast<void*>(&second)) == g ? 1u : 0u);
+        using Life = void(__thiscall*)(void*);
+        reinterpret_cast<Life>(addr::cSC4AutomataScriptSystem_ReleaseTemplates)(made);
+        templates.Mix(At<uint32_t>(made + ss::field::kTemplates, 0x10));
+        Virtual<uint32_t>(made, 0x08);
+    }
+    // The helpers on the city's groups (the ID map's, sorted by ID): the
+    // cached ID list (0x0051CD90; it fills an empty cache, alike on both
+    // sides) and the record lookup (0x005204D0) for every key byte into a
+    // three-string record (0x0051D040, 0x0051D0D0).
+    std::vector<std::pair<uint32_t, char*>> byId;
+    ForEachScriptNode(scripts + ss::field::kGroupsById,
+                      [&](char* node) { byId.emplace_back(At<uint32_t>(node, 4), At<char*>(node, 8)); });
+    std::sort(byId.begin(), byId.end());
+    using Cache = void*(__thiscall*)(void*);
+    using Find = uint8_t(__thiscall*)(void*, uint32_t, void*);
+    using Record3 = void*(__thiscall*)(void*);
+    uint32_t found = 0;
+    for (const auto& [id, g] : byId) {
+        void* const part = reinterpret_cast<Cache>(addr::cSC4OccupantGroupTemplate_CacheIds)(g);
+        helpers.Mix(static_cast<uint32_t>(static_cast<char*>(part) - g));
+        helpers.Mix(Virtual<uint32_t>(part, 0x10));
+        alignas(4) char record[0x40] = {};
+        reinterpret_cast<Record3>(addr::cSC4OccupantGroupTemplate_Record3Construct)(record);
+        for (uint32_t key = 0; key < 256; ++key) {
+            const uint8_t hit = reinterpret_cast<Find>(addr::cSC4OccupantGroupTemplate_FindRecord)(g, key, record);
+            if (!hit)
+                continue;
+            ++found;
+            helpers.Mix(key);
+            for (const std::size_t at : {std::size_t{0}, std::size_t{0x14}, std::size_t{0x28}})
+                helpers.Mix(NameHash(At<const char*>(record, at + 4), At<const char*>(record, at + 8)));
+            helpers.Mix(At<uint32_t>(record, 0x3C));
+        }
+        reinterpret_cast<Record3>(addr::cSC4OccupantGroupTemplate_Record3Destroy)(record);
+    }
+    helpers.Mix(found);
+    // The behaviour records: std::sort (0x00522800) of 40 records (the
+    // introsort's partition, median and unguarded insertion run above 16),
+    // partial_sort (0x00522590: the heap functions) of 40 with a middle of
+    // 20, and the full vector's insert (0x00521350) of 3 copies in the
+    // middle and of one at the end.
+    using Sort = void(__cdecl*)(char*, char*, uint32_t);
+    using PartialSort = void(__cdecl*)(char*, char*, char*, uint32_t, uint32_t);
+    char* const sorted = NewRecords(40, 11);
+    reinterpret_cast<Sort>(addr::SC4BehaviourRecord_Sort)(sorted, sorted + 40 * kRecord, 0u);
+    records.Mix(RecordsHash(sorted, 40));
+    FreeRecords(sorted, sorted + 40 * kRecord);
+    char* const partial = NewRecords(40, 5);
+    reinterpret_cast<PartialSort>(addr::SC4BehaviourRecord_PartialSort)(partial, partial + 20 * kRecord,
+                                                                       partial + 40 * kRecord, 0u, 0u);
+    records.Mix(RecordsHash(partial, 40));
+    FreeRecords(partial, partial + 40 * kRecord);
+    using Insert = void(__thiscall*)(void*, char*, const char*, uint32_t, uint32_t, uint32_t);
+    for (const uint32_t atEnd : {0u, 1u}) {
+        char* vector[3];
+        vector[0] = NewRecords(5, 3 + atEnd);
+        vector[1] = vector[0] + 5 * kRecord;
+        vector[2] = vector[1];
+        char* const value = NewRecords(1, 9);
+        At<uint32_t>(value, 0x40) = 0x1234u + atEnd;
+        char* const position = atEnd ? vector[1] : vector[0] + 2 * kRecord;
+        reinterpret_cast<Insert>(addr::SC4BehaviourRecord_VectorInsertOverflow)(vector, position, value, 0u,
+                                                                               atEnd ? 1u : 3u, atEnd);
+        const uint32_t size = static_cast<uint32_t>((vector[1] - vector[0]) / static_cast<std::ptrdiff_t>(kRecord));
+        records.Mix(size);
+        records.Mix(static_cast<uint32_t>((vector[2] - vector[0]) / static_cast<std::ptrdiff_t>(kRecord)));
+        records.Mix(RecordsHash(vector[0], size));
+        FreeRecords(vector[0], vector[1]);
+        FreeRecords(value, value + kRecord);
+    }
+    char text[96];
+    std::snprintf(text, sizeof text, " T%08X,%08X,%08X", templates.h, helpers.h, records.h);
+    g_scriptText += text;
+    log::Write("autotest: automata: scripts 2: templates %08X helpers %08X (%u groups, %u records found) records %08X",
+               templates.h, helpers.h, static_cast<unsigned>(byId.size()), found, records.h);
+}
+
 void Drive(const Day& day)
 {
     if (EnvInt("OPENSC4_TEST_AUTOMATA", 0) < 2 || !day.counted || g_written)
@@ -1516,8 +1718,11 @@ void Drive(const Day& day)
         if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 2)
             ManagerSaveDrive(day.city);
     }
-    if (EnvInt("OPENSC4_TEST_AUTOMATA_SCRIPTS", 0) >= 1 && day.city && game::IsBuild641() && g_scriptText.empty())
+    if (EnvInt("OPENSC4_TEST_AUTOMATA_SCRIPTS", 0) >= 1 && day.city && game::IsBuild641() && g_scriptText.empty()) {
         ScriptsDrive(day.city);
+        if (EnvInt("OPENSC4_TEST_AUTOMATA_SCRIPTS", 0) >= 2)
+            ScriptsDrive2(day.city);
+    }
     if (char* const manager = Manager(day.city)) {
         WriteDrive(manager);
         QueryDrive(manager);
