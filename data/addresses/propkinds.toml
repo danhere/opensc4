@@ -1,4 +1,4 @@
-# Five classes derived from the prop occupant: the terrain decal (cSC4PropOccupantTerrainDecal, class ID 0x2977AA48), the visual effect (cSC4PropOccupantVisualEffect, class ID 0x2977AA49), the automata controller prop (cSC4PropOccupantAutomataController, class ID 0x2A4017A0), the burnt building (cSC4PropOccupantBurntBuilding, class ID 0xC9EFB016) and the text decal (cSC4PropOccupantTextDecal, class ID 0x8B79C707); src/core/propkinds_decal.cpp, propkinds_effect.cpp, propkinds_automata.cpp, propkinds_burnt.cpp, propkinds_textdecal.cpp, the class maps in src/core/propkinds.h. The decal's constructor 0x005EE360 and allocator 0x005ED6E0 are in lot.toml, the effect's 0x005F0210 and 0x005ED9A0 in propmgr.toml, the burnt building's constructor 0x005EF810, allocator 0x005EDAE0 and SetOccupant 0x005EEB70 in lot.toml, the text decal's constructor 0x005F8300 and allocator 0x005F7D80 in propmgr.toml.
+# Six classes derived from the prop occupant: the terrain decal (cSC4PropOccupantTerrainDecal, class ID 0x2977AA48), the visual effect (cSC4PropOccupantVisualEffect, class ID 0x2977AA49), the automata controller prop (cSC4PropOccupantAutomataController, class ID 0x2A4017A0), the burnt building (cSC4PropOccupantBurntBuilding, class ID 0xC9EFB016), the text decal (cSC4PropOccupantTextDecal, class ID 0x8B79C707) and the sign (cSC4PropOccupantSign, class ID 0xAB72FBB3); src/core/propkinds_decal.cpp, propkinds_effect.cpp, propkinds_automata.cpp, propkinds_burnt.cpp, propkinds_textdecal.cpp, propkinds_sign.cpp, the class maps in src/core/propkinds.h. The decal's constructor 0x005EE360 and allocator 0x005ED6E0 are in lot.toml, the effect's 0x005F0210 and 0x005ED9A0 in propmgr.toml, the burnt building's constructor 0x005EF810, allocator 0x005EDAE0 and SetOccupant 0x005EEB70 in lot.toml, the text decal's constructor 0x005F8300 and allocator 0x005F7D80 in propmgr.toml, the sign's constructor 0x005F5510 and allocator 0x005F5050 in tools.toml.
 
 [[entry]]
 name = "cSC4PropOccupantTerrainDecal::QueryInterface"
@@ -938,3 +938,237 @@ address = 0x00AA54F0
 kind = "vtable"
 expect = "A0 84 5F 00 C0 D6 5E 00"
 source = "The exemplar holder part at +0x28, 5 slots."
+
+[[entry]]
+name = "cSC4PropOccupantSign::QueryInterface"
+address = 0x005F4930
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D E2 FB 44"
+source = "Name from the class. Slot 0 of the primary vtable 0x00AA5478, (iid, out), ret 8: 0x4B44FBE2 gives the object with the base's AddRef on the object + 0xC (through 0x006491C0 with the object + 4); everything else goes to the prop's QueryInterface with the object + 4. The class ID is not answered. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::CaretClock"
+address = 0x005F4960
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 91 B0 00"
+source = "Name ours. Not virtual, (elapsed), ret 4: the caret's clock (+0xB0) moves on; at 500 or more (unsigned) the caret byte (+0xAD) flips and the clock goes back to 0. Called by DoMessage with the frame message's time over 1000. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::SetAllFlags"
+address = 0x005F4A90
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 53 56 8B F1"
+source = "Occupant slot 30 (this = object + 0xC), (flags), ret 4: flag 2 not set while signs and labels are hidden; on a change of flag 2 the model (the virtual base) added to the renderer (slots 27, 28) or taken off (27, 29); then the base's SetAllFlags. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::SetHighlight"
+address = 0x005F4BA0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8D 8E 9C"
+source = "Name ours. Slot 6, (bool), ret 4: unless it equals bit 0 of the model part's flags (0x008018E0), that bit set or cleared through the virtual base's slots 13 and 14, the four corner colours at +0x4D4 from the table 0x00AA5204, a shown sign handed to the renderer's slot 31 with 5, and an edit stopped (slot 7 with 0) when the highlight goes. The sign removal tool and SetEditing call it. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::SetPosition"
+address = 0x005F4E90
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 24 8B 44 24 28 D9"
+source = "Occupant slot 9 (this = object + 0xC), (position), ret 4: the move from the position at +0xDC added to the boxes at +0x104, +0x11C and +0x134, the position kept, the transform's flag 1 and count (+0xB5, +0xB4), the prop's SetPosition 0x005EDE00; a shown sign handed to the renderer's slot 31 with 4. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::Write"
+address = 0x005F5080
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B 74 24 14"
+source = "Serializable slot 3 (this = object + 0x10), (stream), ret 4: version 2, the prop's record, the text and the position. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::Read"
+address = 0x005F50F0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B F1 57 8B"
+source = "Serializable slot 4, (stream), ret 4: the version, the prop's record, the text, in version 1 a dword dropped, the position (the transform's flag 1 and count). No version refused. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::GetText"
+address = 0x005F5920
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name ours. Slot 5, (string), ret 4 (by a tail jump): the argument's slot 13 with the text at +0x98. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::GetGZCLSID"
+address = 0x005F5940
+kind = "function"
+convention = "thiscall"
+expect = "B8 B3 FB 72 AB C3 CC CC"
+source = "Serializable slot 5: 0xAB72FBB3. Also called by the class registration at 0x00460844. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::Create"
+address = 0x005F5CE0
+kind = "function"
+convention = "cdecl"
+expect = "A1 70 A9 B0 00 8B 40 08"
+source = "Name ours. The factory the class registration keeps (0x0046083F): an item of the pool, constructed with 1; it hands out the object itself. Ghidra's symbol import calls it cSC4SignpostOccupant::Create. Ours in simulators.propkinds.sign_object."
+
+[[entry]]
+name = "cSC4PropOccupantSign::DeletingDestructor"
+address = 0x005F5D20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 58 00 00 00"
+source = "Name ours. Reached through the holder part's slot 22 (thunk 0x005F59A0) and the model part's slot 0 (thunk 0x005F59C0), (flags), ret 4: the body 0x005F5D80, and with flag 1 the object back to the pool 0x00B0A96C (64 KB pages, reopened at 0x40000022). Ours in simulators.propkinds.sign_object."
+
+[[entry]]
+name = "cSC4PropOccupantSign::Destroy"
+address = 0x005F5D80
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 8D 8E 74"
+source = "Name ours. The destructor body, called by the deleting destructor only: the glyphs (0x006C6E90 on +0x574), the eleven texture bindings +0x548 to +0x570, the buffer at +0x4BC, the text, the model part (0x00801810), then the occupant base (jump to 0x005E8C40). It does not store the vtables. Ours in simulators.propkinds.sign_object."
+
+[[entry]]
+name = "cSC4PropOccupantSign::Shutdown"
+address = 0x005F5E20
+kind = "function"
+convention = "thiscall"
+expect = "57 8B F9 8B 07 FF 50 14"
+source = "Occupant slot 4 (this = object + 0xC), ret: when initialized the messages 0xA6B79602 and 0x06CDB65B given up, the ten texture bindings at +0x54C released, the glyphs erased, the frame service given up while editing, the prop's Shutdown 0x005EE160. True. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::MakeGlyphs"
+address = 0x005F5EF0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 18 56 57 8B F9 8B"
+source = "Name ours. Not virtual, ret: the text's textures (the reference vector at +0x574) erased; with text, the service 0x00B43CE4's slot 4 (a style: an empty string and 0x2C1FD612; the text; the vector) fills it again. Called by Init and SetText. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::BuildGeometry"
+address = 0x005F5FB0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. Not virtual, ret: lays the board and the text out from the glyphs and the transform (the boxes, the vertices from +0x14C, the rotation), tells the occupant manager (slot 24) and a shown sign's renderer (slots 30, 31 with 3). Drawing: the game's (4,964 bytes)."
+
+[[entry]]
+name = "cSC4PropOccupantSign::SetEditing"
+address = 0x005F7320
+kind = "function"
+convention = "thiscall"
+expect = "8A 44 24 04 56 8B F1 38"
+source = "Name ours. Slot 7, (bool), ret 4: another value kept at +0xAC; on: SetHighlight 1, the frame service asked (0x80), the caret's clock 0 and the caret shown, the geometry built; off: the frame service given up, SetHighlight 0, the geometry built. The sign tool calls it. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::Init"
+address = 0x005F73A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 06"
+source = "Occupant slot 3 (this = object + 0xC), ret: unless initialized; not read from a save: two boxes and the prop's box set, the prop type 0xAB72FBB3 (prop slot 8), base flag 0x10; the base's Init (0x005EC940); the render state at +0x580; ten texture bindings 0x7AB50E44, 0x1ABE787D, 0x8B4A6560 to 0x8B4A6567 (the table 0x00AA5214) from the factory 0x00B43CD4; the messages 0xA6B79602 and 0x06CDB65B; MakeGlyphs and the geometry. True. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::DoMessage"
+address = 0x005F7510
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 8B 03 56"
+source = "Message target slot 3 (this = object + 8), ret 4: 0x06CDB65B the sign shown or hidden by the message's filter and whether signs and labels are shown; 0x86AD10EE the caret's clock with the time over 1000; 0xA6B79602 the geometry built; then the prop's DoMessage 0x005ECFB0, whose answer it gives. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::SetText"
+address = 0x005F7600
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 57 8B"
+source = "Name ours. Slot 4, (string), ret 4: unless equal (the string's slot 12 with 1) and not empty, the text at +0x98 assigned (slot 13), MakeGlyphs and the geometry built. The sign tool calls it. Ours in simulators.propkinds.sign."
+
+[[entry]]
+name = "cSC4PropOccupantSign::Pool"
+address = 0x00B0A96C
+kind = "data"
+source = "The pool of the signs (0x590 bytes each, 0x2E to a 64 KB page: 0x005F49A0; the current page at +4, its free list at +8 and used count at +0xC)."
+
+[[entry]]
+name = "cSC4PropOccupantSign::Zero"
+address = 0x00B43C18
+kind = "data"
+source = "Name ours. A float nothing writes (zero): the constructor's and Read's starting value."
+
+[[entry]]
+name = "cSC4PropOccupantSign::vbtable"
+address = 0x00AA5498
+kind = "data"
+source = "The virtual base table at +0x70: {-4, 0x51C} (the virtual base, the model interface, at +0x58C)."
+
+[[entry]]
+name = "cSC4PropOccupantSign::vftable"
+address = 0x00AA5478
+kind = "vtable"
+expect = "30 49 5F 00 F0 CA 5E 00"
+source = "The primary vtable (the sign interface 0x4B44FBE2), 8 slots: QueryInterface, AddRef, Release, AsOccupant 0x005F8400 (shared), SetText, GetText, SetHighlight, SetEditing. Copied by simulators.propkinds.sign_object."
+
+[[entry]]
+name = "cSC4PropOccupantSign::vftable_8"
+address = 0x00AA5408
+kind = "vtable"
+expect = "60 59 5F 00 F0 D5 5E 00"
+source = "The message target part at +8, 4 slots (3 DoMessage)."
+
+[[entry]]
+name = "cSC4PropOccupantSign::vftable_C"
+address = 0x00AA5380
+kind = "vtable"
+expect = "70 59 5F 00 20 D6 5E 00"
+source = "The occupant part at +0xC, 34 slots (the class's own: 3 Init, 4 Shutdown, 9 SetPosition, 30 SetAllFlags)."
+
+[[entry]]
+name = "cSC4PropOccupantSign::vftable_10"
+address = 0x00AA5364
+kind = "vtable"
+expect = "80 59 5F 00 50 D6 5E 00"
+source = "The serializable part at +0x10, 6 slots (3 Write, 4 Read, 5 GetGZCLSID)."
+
+[[entry]]
+name = "cSC4PropOccupantSign::vftable_14"
+address = 0x00AA5300
+kind = "vtable"
+expect = "90 59 5F 00 80 D6 5E 00"
+source = "The property holder part at +0x14, 25 slots (22 the deleting destructor's thunk 0x005F59A0, 23 and 24 thunks to Write and Read)."
+
+[[entry]]
+name = "cSC4PropOccupantSign::vftable_28"
+address = 0x00AA52E8
+kind = "vtable"
+expect = "B0 59 5F 00 C0 D6 5E 00"
+source = "The exemplar holder part at +0x28, 5 slots."
+
+[[entry]]
+name = "cSC4PropOccupantSign::vftable_6C"
+address = 0x00AA52E4
+kind = "vtable"
+expect = "C0 59 5F 00 B0 59 5F 00"
+source = "The model part at +0x6C, 1 slot (the deleting destructor's thunk 0x005F59C0)."
+
+[[entry]]
+name = "cSC4PropOccupantSign::vftable_58C"
+address = 0x00AA5298
+kind = "vtable"
+expect = "D0 59 5F 00 E0 59 5F 00"
+source = "The virtual base (the model interface) at +0x58C, 19 slots, thunks through the displacement at +0x588 (0x005F59D0 to 0x005F5CD0): the drawing, the game's."
+
+[[entry]]
+name = "SC4Model::GetModelFlags"
+address = 0x008018E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 E4 C3 CC CC CC CC"
+source = "Name ours. Of a model part (this = the part + 0x30), ret: its flags at this - 0x1C (the part's +0x14). The sign's SetHighlight calls it with the object + 0x9C. Left the game's."

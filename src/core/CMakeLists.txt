@@ -212,6 +212,7 @@ add_library(opensc4_core SHARED
   propkinds_decal.cpp
   propkinds_effect.cpp
   propkinds_textdecal.cpp
+  propkinds_sign.cpp
   floraocc_autotest.cpp
   floraocc_sim.cpp
   foundocc_autotest.cpp
@@ -260,6 +261,7 @@ add_library(opensc4_core SHARED
   automata_controller.cpp
   automata_vehmgr.cpp
   automata_ctlquery.cpp
+  automata_scripts.cpp
   automata_autotest.cpp
   nettool_preview.cpp
   nettool_rul_1.cpp
