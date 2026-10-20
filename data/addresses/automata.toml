@@ -2081,3 +2081,599 @@ convention = "thiscall"
 signature = "void* (void* block, void* manager, uint32_t a, uint32_t b, uint32_t c)"
 expect = "8B 54 24 0C 53 56 57 8B"
 source = "Name ours. Builds a pedestrian in a pool block for the pedestrian manager's AddAutomaton, ret 0x10. Called by address from src/core/automata_vehmgr.cpp (part v2)."
+
+# Part s1 of the automata script system: the object, the life cycle, the queries and the occupant groups (src/core/automata_scripts.cpp; docs/automata.md, "Part s").
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Create"
+address = 0x005148A0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 B8 00 00 00 E8 36 0D"
+source = "The factory (registered by 0x00514A00 for 0x4A1B664E): a 0xB8-byte block from operator_new, then a tail jump to the constructor 0x005207A0; null when the block is null. Ours in simulators.automata.scripts.object (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Construct"
+address = 0x005207A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 8B F1 C7 46 04 74"
+source = "The constructor: the base vtables 0x00A81174, 0x00A8298C, 0x00A80784, then the class's four (0x00A96BA8, 0x00A96B98, 0x00A96B88, 0x00A96B70); +0x10, +0x14, +0x18 zero; the record at +0x1C (0x005C0EB0); +0x48 zero; the hash maps +0x4C, +0x60, +0x74, +0x8C, +0xA4 (100 buckets each, 0x00829BC0) and the list heads +0x88 and +0xA0. Ours in simulators.automata.scripts.object (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Destroy"
+address = 0x0051FF70
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 57 8D BE A4 00"
+source = "Name ours. The destructor body (Release calls it): the vtables reset, the maps cleared and their bucket buffers freed and the two lists destroyed (from +0xA4 down to +0x4C), the record +0x1C destroyed (0x005C0F40), then a tail jump to +0x18's Release when it is set. Ours in simulators.automata.scripts.object (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::QueryInterface"
+address = 0x0051C2E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 3D 47 66 1B"
+source = "Slot 0, ret 8: 0x8A1B6647 the object (AddRef without a test); 0x452294AA +4; 0xE98B2F57 +8; 1 and 0xE4FDA3D4 +0xC (a null object writes null and still calls AddRef through it); else AL 0. The adjustor thunks 0x005200C0, 0x005200E0, 0x00520100 reach it. Ours in simulators.automata.scripts.object (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Release"
+address = 0x00521320
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 46 14 83 F8"
+source = "Slot 2: a count (+0x14) above 1 counted down and answered; else Shutdown (slot 4), the destructor body 0x0051FF70 and operator_delete, answer 0. The adjustor thunks 0x00521670, 0x00521680, 0x00521690 reach it. Ours in simulators.automata.scripts.object (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetGZCLSID"
+address = 0x00520050
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part)"
+expect = "B8 4E 66 1B 4A C3 CC CC"
+source = "Name ours. The serializable part's (+0xC) slot 5: 0x4A1B664E. Six bytes; the last two expected bytes are its CC padding. Ours in simulators.automata.scripts.object (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::TestId8"
+address = 0x0051C4B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, const uint32_t* id)"
+expect = "8B 44 24 04 81 38 54 37"
+source = "Name ours. The +8 part's slot 3 (this = object + 8), ret 4: whether *id is 0x87163754 (SETZ AL). Ours in simulators.automata.scripts.object (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Init"
+address = 0x00523C80
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "51 53 56 8B F1 8A 46 10"
+source = "Slot 3: once (+0x10), the +4 part added to the message server (0x00602600, slot 0x14 with 0xC0), the default groups 0x0051D9B0, +0x48 cleared, the scripts loaded (0x00523B10), the Lua table 'automata' (0x0068C180) and seven functions (0x0058DE80: create_automaton 0x0051D220, create_controller 0x0051D3C0, attach_controller 0x0051D510, attach_controller_group 0x0051D640, detach_controller 0x0051D750, detach_controller_group 0x0051D860, get_source_building_count 0x0051C7D0) registered with the framework's 0xEBE0E860 interface; AL 1. No patch site is in it (the Lua print patch 0x0051C50B is in 0x0051C4C0, which 0x00523B10 calls). Ours in simulators.automata.scripts.life (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::AddDefaultGroups"
+address = 0x0051D9B0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 2C 53 55 56 57 8B"
+source = "Name ours. Init's default groups: for the names at 0x00B09A64 ('vehicle') and 0x00B09A68 ('pedestrian'), CreateOccupantGroup (slot 13) with IDs 0x4002 and 0x4001 and the automata flag, the group's +0x14 set to 0x896E714A and 0x896E75AF (no null test). Ours in simulators.automata.scripts.life (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Shutdown"
+address = 0x005208A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "51 56 8B F1 8A 46 10 84"
+source = "Slot 4: when initialized, the table unregistered (0x0058DF10), the +4 part taken off the message server (slot 0x18), +0x18 shut down (slot 4) and released, the templates (0x00520120) and the groups (0x005201D0) released, +0x10 cleared; AL 1. Ours in simulators.automata.scripts.life (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReleaseTemplates"
+address = 0x00520120
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 08 53 56 57 8D 99"
+source = "Name ours. Shutdown's: each controller template of the +0x8C map destroyed (its slot 0 with 1), the map cleared (0x0041A920). Ours in simulators.automata.scripts.life (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReleaseGroups"
+address = 0x005201D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 0C 53 55 8B E9 56"
+source = "Name ours. Shutdown's: the groups of the name map +0x4C, the automata group map +0x60 and the ID map +0x74 released (slot 2) and each map cleared; those of the special filter list +0x88 released, its nodes freed and its head left empty. Ours in simulators.automata.scripts.life (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetAutomataGroupMap"
+address = 0x00520060
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8D 41 60 C3 CC CC"
+source = "Slot 5: this + 0x60. Four bytes; the last two expected bytes are its CC padding. Ours in simulators.automata.scripts.queries (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetAutomataGroupById"
+address = 0x0051C2D0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t id)"
+expect = "8B 01 FF 60 2C CC CC CC"
+source = "Slot 6 (the header's GetAutomataGroup(uint32_t); the pair sits in the other order): a jump to slot 11. Five bytes; the last three expected bytes are its CC padding. Ours in simulators.automata.scripts.queries (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetAutomataGroupByName"
+address = 0x0051CF60
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const SC4String* name)"
+expect = "8B 44 24 04 56 33 F6 85"
+source = "Slot 7, ret 4: the automata group map's (+0x60) value for the name (0x0051C9F0 on name + 4), or 0. Ours in simulators.automata.scripts.queries (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetOccupantGroupNameMap"
+address = 0x00520080
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8D 41 4C C3 CC CC"
+source = "Slot 8: this + 0x4C. Four bytes; the last two expected bytes are its CC padding. Ours in simulators.automata.scripts.queries (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetOccupantGroupIDMap"
+address = 0x00520090
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8D 41 74 C3 CC CC"
+source = "Slot 9: this + 0x74. Four bytes; the last two expected bytes are its CC padding. Ours in simulators.automata.scripts.queries (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetSpecialFilterOccupantGroups"
+address = 0x005200A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8D 81 88 00 00 00 C3 CC"
+source = "Slot 10: this + 0x88 (the list's field). Ours in simulators.automata.scripts.queries (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetOccupantGroupById"
+address = 0x0051CFF0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t id)"
+expect = "53 8B 59 7C 56 2B 59 78"
+source = "Slot 11, ret 4: the ID map's (+0x74; bucket id modulo the count, nodes next, key, value) value, or 0. Ours in simulators.automata.scripts.queries (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetOccupantGroupByName"
+address = 0x0051CFC0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const SC4String* name)"
+expect = "8B 44 24 04 56 33 F6 85"
+source = "Slot 12, ret 4: the name map's (+0x4C) value, or 0. Ours in simulators.automata.scripts.queries (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetDriveCommand"
+address = 0x0051D1D0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, uint32_t key)"
+expect = "53 8B 99 AC 00 00 00 56"
+source = "Slot 14, ret 4: the drive command map's (+0xA4) value, or 0xD. Ours in simulators.automata.scripts.queries (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetControllerTemplateMap"
+address = 0x00520070
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8D 81 8C 00 00 00 C3 CC"
+source = "Slot 15: this + 0x8C. Ours in simulators.automata.scripts.queries (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetControllerTemplate"
+address = 0x0051CF90
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const SC4String* name)"
+expect = "8B 44 24 04 85 C0 74 05"
+source = "Slot 17, ret 4: the controller template map's (+0x8C) value, or null. Ours in simulators.automata.scripts.queries (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetTrackBuildingGroups"
+address = 0x005200B0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8D 81 A0 00 00 00 C3 CC"
+source = "Slot 18: this + 0xA0 (the list's field). Ours in simulators.automata.scripts.queries (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::CreateOccupantGroup"
+address = 0x00520BD0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const SC4String* name, uint32_t id, bool automata)"
+expect = "83 EC 28 53 55 56 57 8B"
+source = "Slot 13, ret 0xC: a new group template (0x84 bytes, 0x005206B0) with the ID (+0x10, written before the null test) into the name map (+0x4C; refused when the name is there: the message 0x00A96C70 formatted and dropped, the group destroyed, null), with the flag also into the automata group map (+0x60; its answer not tested), then into the ID map (+0x74) or, with ID 0, onto the special filter list (+0x88); an AddRef for each. Ours in simulators.automata.scripts.groups (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::Construct"
+address = 0x005206B0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 57 8B F1 E8 C7 99 0C"
+source = "Name ours. The occupant group template's constructor: the base 0x005EA080, vtables 0x00A96C0C and 0x00A96BF4, the SC4ScriptNumber +0x18, the lists +0x30, +0x48, +0x50, +0x54, the hash maps +0x34 and +0x70 (100 buckets), +0x0C, +0x10, +0x14, +0x60..+0x6C zero, +0x4C and +0x4E -2, +0x2C 1.0. Ours in simulators.automata.scripts.groups (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::Destroy"
+address = 0x00520410
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 46 64 85 C0"
+source = "Name ours. The destructor body: +0x64 and +0x60 deleted (operator_delete) and cleared, the record map +0x70 cleared (0x0051FC80) and its buckets freed, the list +0x54 cleared (0x0043ABA0) and its head freed, the lists +0x50, +0x48 destroyed, the name map +0x34 cleared and its buckets freed, the list +0x30 destroyed, the number +0x18 destroyed, then a tail jump to the base's 0x005E95C0. Ours in simulators.automata.scripts.groups (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::DeletingDestructor"
+address = 0x00520780
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 88 FC FF FF"
+source = "Name ours. Slot 6, ret 4: the destructor body 0x00520410, operator_delete with flag 1. Ours in simulators.automata.scripts.groups (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::ClearRecords"
+address = 0x0051FC80
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map)"
+expect = "51 55 8B E9 8B 4D 08 57"
+source = "Name ours. this = the record map (+0x70): per bucket each node's three SC4Strings (+0x30, +0x1C, +0x08) given back their vtable and their buffers freed, the node freed, the bucket emptied; the count zeroed. Ours in simulators.automata.scripts.groups (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::Matches"
+address = 0x0051C3D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cISC4Occupant* occupant)"
+expect = "83 EC 1C 55 8B E9 8B 4C"
+source = "Name ours. Slot 3, ret 4: whether the occupant's slot 0x18 part's 0xAA1DD396 interface (slot 0x14, then 0x19C the IDs and 0x10 the count) holds the group ID (+0x10, which must be set); then, for a percentage (+0x2C) below 1.0 (0x00A81228), a draw from a cRZRandom on the stack (clock seed, 0x00913A5C; NextFloat 0x0091372E) not above it. Ours in simulators.automata.scripts.groups (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::IsInGroup"
+address = 0x0051C380
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t id)"
+expect = "8B 44 24 04 3B 41 10 74"
+source = "Name ours. Ret 4: whether the group or a parent (+0x0C chain) has the ID (+0x10). The automata managers call it (0x0050F9C0). Ours in simulators.automata.scripts.groups (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::GetClass"
+address = 0x0051C3B0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 14 85 C0 75 10 8B"
+source = "Name ours. The first class (+0x14) up the parent chain (the last group's when none is set). Called by 0x00510690. Ours in simulators.automata.scripts.groups (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::Depth"
+address = 0x0051C4A0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "33 C0 85 C9 74 08 8B 49"
+source = "Name ours. The groups on the parent chain, this one included (0 for null). Called by 0x0050CE60. Ours in simulators.automata.scripts.groups (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::FindName"
+address = 0x0051D970
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const SC4String* name, uint32_t* out)"
+expect = "8B 44 24 04 53 32 DB 85"
+source = "Name ours. Ret 8: the name map's (+0x34) value into *out, AL 1; AL 0 when it is not there. Called by 0x005058A0. Ours in simulators.automata.scripts.groups (src/core/automata_scripts.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::LoadScripts"
+address = 0x00523B10
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 34 53 56 8B F1 33"
+source = "Name ours. Init's loading of the automata scripts (a later part of docs/automata.md, 'Part s'; it calls 0x0051C4C0, which holds the Lua print patch site 0x0051C50B). Called by address from src/core/automata_scripts.cpp (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::LuaCreateAutomaton"
+address = 0x0051D220
+kind = "function"
+convention = "cdecl"
+signature = "int (void* lua)"
+expect = "8B 4C 24 04 83 EC 24 53"
+source = "Name ours. The Lua function create_automaton, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::LuaCreateController"
+address = 0x0051D3C0
+kind = "function"
+convention = "cdecl"
+signature = "int (void* lua)"
+expect = "8B 44 24 04 83 EC 20 53"
+source = "Name ours. The Lua function create_controller, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::LuaAttachController"
+address = 0x0051D510
+kind = "function"
+convention = "cdecl"
+signature = "int (void* lua)"
+expect = "8B 44 24 04 83 EC 14 53"
+source = "Name ours. The Lua function attach_controller, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::LuaAttachControllerGroup"
+address = 0x0051D640
+kind = "function"
+convention = "cdecl"
+signature = "int (void* lua)"
+expect = "8B 44 24 04 83 EC 14 53"
+source = "Name ours. The Lua function attach_controller_group, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::LuaDetachController"
+address = 0x0051D750
+kind = "function"
+convention = "cdecl"
+signature = "int (void* lua)"
+expect = "8B 44 24 04 83 EC 14 53"
+source = "Name ours. The Lua function detach_controller, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::LuaDetachControllerGroup"
+address = 0x0051D860
+kind = "function"
+convention = "cdecl"
+signature = "int (void* lua)"
+expect = "8B 44 24 04 83 EC 14 53"
+source = "Name ours. The Lua function detach_controller_group, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::LuaGetSourceBuildingCount"
+address = 0x0051C7D0
+kind = "function"
+convention = "cdecl"
+signature = "int (void* lua)"
+expect = "83 EC 14 8B 44 24 18 53"
+source = "Name ours. The Lua function get_source_building_count, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+
+[[entry]]
+name = "SC4StringHashMap::InsertUnique"
+address = 0x0051FDC0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* map, void* result, const void* pair)"
+expect = "83 EC 08 53 8B 5C 24 14"
+source = "Name ours. Ret 8: inserts a (string, value) pair if the key is not there; the result is (node, table, inserted). Shared (also 0x005FCCE0). Called by address from src/core/automata_scripts.cpp (part s1)."
+
+[[entry]]
+name = "SC4ScriptSource::Construct"
+address = 0x005C0EB0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 8B F1 33 DB 57 89"
+source = "Name ours. A 0x2C-byte record that starts with an SC4String (vtable 0x00A80810), +0x18 1, +0x28 a 0x20-byte block; the script system's +0x1C. Called by address from src/core/automata_scripts.cpp (part s1)."
+
+[[entry]]
+name = "SC4ScriptSource::Destroy"
+address = 0x005C0F40
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 57 8B F1 E8 77 FE FF"
+source = "Name ours. Its destructor. Called by address from src/core/automata_scripts.cpp (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::QueryInterface4"
+address = 0x005200C0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 18 C2 FF FF"
+source = "Name ours. Adjustor thunk: sub ecx,4; jmp 0x0051C2E0 (the +4 part's slot 0). Kept as the game's (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::AddRef4"
+address = 0x005200D0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 58 52 17 00"
+source = "Name ours. Adjustor thunk: sub ecx,4; jmp 0x00695330. Kept as the game's (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::QueryInterface8"
+address = 0x005200E0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 F8 C1 FF FF"
+source = "Name ours. Adjustor thunk: sub ecx,8; jmp 0x0051C2E0. Kept as the game's (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::AddRef8"
+address = 0x005200F0
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 38 52 17 00"
+source = "Name ours. Adjustor thunk: sub ecx,8; jmp 0x00695330. Kept as the game's (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::QueryInterfaceC"
+address = 0x00520100
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 D8 C1 FF FF"
+source = "Name ours. Adjustor thunk: sub ecx,0xC; jmp 0x0051C2E0 (the serializable part's slot 0). Kept as the game's (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::AddRefC"
+address = 0x00520110
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 18 52 17 00"
+source = "Name ours. Adjustor thunk: sub ecx,0xC; jmp 0x00695330. Kept as the game's (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Release4"
+address = 0x00521670
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 A8 FC FF FF"
+source = "Name ours. Adjustor thunk: sub ecx,4; jmp 0x00521320. Kept as the game's (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Release8"
+address = 0x00521680
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 08 E9 98 FC FF FF"
+source = "Name ours. Adjustor thunk: sub ecx,8; jmp 0x00521320. Kept as the game's (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReleaseC"
+address = 0x00521690
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 0C E9 88 FC FF FF"
+source = "Name ours. Adjustor thunk: sub ecx,0xC; jmp 0x00521320. Kept as the game's (part s1)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Vtable"
+address = 0x00A96BA8
+kind = "vtable"
+expect = "E0 C2 51 00 30 53 69 00"
+source = "The cISC4AutomataScriptSystem interface, 19 slots (slot 1 the shared AddRef 0x00695330); what follows at 0x00A96BF4 is the occupant group template's +4 vtable."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Vtable4"
+address = 0x00A96B98
+kind = "vtable"
+expect = "C0 00 52 00 D0 00 52 00"
+source = "The +4 part: the QueryInterface, AddRef and Release adjustors and the shared 0x006B8AA0."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Vtable8"
+address = 0x00A96B88
+kind = "vtable"
+expect = "E0 00 52 00 F0 00 52 00"
+source = "The +8 part: the adjustors and 0x0051C4B0."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::SerializableVtable"
+address = 0x00A96B70
+kind = "vtable"
+expect = "00 01 52 00 10 01 52 00"
+source = "The +0xC serializable part: the adjustors, Write 0x0042E440 and Read 0x006B8A70 (shared stubs), GetGZCLSID 0x00520050."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::Vtable"
+address = 0x00A96C0C
+kind = "vtable"
+expect = "D0 95 5E 00 00 DF 4B 00"
+source = "Name ours. The occupant group template's vtable: 0x005E95D0, AddRef 0x004BDF00, Release 0x007CB920, Matches 0x0051C3D0, 0x004FC900 twice (shared), the deleting destructor 0x00520780."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::Vtable4"
+address = 0x00A96BF4
+kind = "vtable"
+expect = "E0 4E 42 00 00 05 5C 00"
+source = "Name ours. Its +4 vtable (the occupant filter base's slots)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::TableName"
+address = 0x00A9633C
+kind = "data"
+expect = "61 75 74 6F 6D 61 74 61"
+source = "'automata', the Lua table Init registers."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::CreateAutomatonName"
+address = 0x00A97038
+kind = "data"
+expect = "63 72 65 61 74 65 5F 61"
+source = "'create_automaton'."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::CreateControllerName"
+address = 0x00A97024
+kind = "data"
+expect = "63 72 65 61 74 65 5F 63"
+source = "'create_controller'."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::AttachControllerName"
+address = 0x00A97010
+kind = "data"
+expect = "61 74 74 61 63 68 5F 63"
+source = "'attach_controller'."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::AttachControllerGroupName"
+address = 0x00A96FF8
+kind = "data"
+expect = "61 74 74 61 63 68 5F 63"
+source = "'attach_controller_group'."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::DetachControllerName"
+address = 0x00A96FE4
+kind = "data"
+expect = "64 65 74 61 63 68 5F 63"
+source = "'detach_controller'."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::DetachControllerGroupName"
+address = 0x00A96FCC
+kind = "data"
+expect = "64 65 74 61 63 68 5F 63"
+source = "'detach_controller_group'."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GetSourceBuildingCountName"
+address = 0x00A96FB0
+kind = "data"
+expect = "67 65 74 5F 73 6F 75 72"
+source = "'get_source_building_count'."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::GroupExistsFormat"
+address = 0x00A96C70
+kind = "data"
+expect = "43 6F 75 6C 64 6E 27 74"
+source = "CreateOccupantGroup's refusal message format."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::VehicleGroupName"
+address = 0x00B09A64
+kind = "data"
+source = "A pointer to 'vehicle' (0x00A961BC), the first default group's name (0x0051D9B0)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::PedestrianGroupName"
+address = 0x00B09A68
+kind = "data"
+source = "A pointer to 'pedestrian' (0x00A961B0), the second default group's name."
