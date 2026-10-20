@@ -95,4 +95,4 @@ The address database has 9,979 function entries. Matched against the classes abo
 | Same counter, Maxis code only | 5,839 | 27,473 | 21.3% |
 | Also counting the placeholder entries the docs call ours (about 2,260, from the 2026-10-20 survey, inferred) | about 8,100 | 27,473 | about 29% |
 
-Both changes are small and Python-only: `GAME_FUNCTIONS` becomes the Maxis count (or `progress.py` reads an exclusion list of the ranges above), and an entry counts as ours by its toggle group rather than by the wording of its `source`.
+`tools/progress.py` now divides by the Maxis count and leaves entries in the third-party and compiler-tail ranges out of its numerator (2026-10-20: 6,141 of 27,473, 22.4%). Still to do: count an entry as ours by its toggle group rather than by the wording of its `source`.

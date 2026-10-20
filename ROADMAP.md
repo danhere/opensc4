@@ -12,8 +12,8 @@ Roughly 25-30% of the way to a full rewrite: the simulation, terrain, region vie
 Measured 2026-10-19:
 
 - Roadmap (P0-P9): 86 of 118 items done, 14 in progress.
-- Address database: 9802 game functions recorded, 5693 of them reimplemented (16.5% of the game's 34,556; a lower bound, vtable swaps are not all recorded).
-- Replacement toggles: 567 simulators, 113 renderer, 100 ui, 36 region, 35 framework, 16 saves, 11 game, 10 audio, 8 resources.
+- Address database: 9910 Maxis functions recorded, 6141 of them reimplemented (22.4% of the game's 27,473 functions of Maxis code; a lower bound, vtable swaps are not all recorded).
+- Replacement toggles: 582 simulators, 117 renderer, 103 ui, 36 region, 35 framework, 16 saves, 11 game, 10 audio, 8 resources.
 
 | Phase | Done | In progress | Not started |
 |---|---|---|---|
