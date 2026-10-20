@@ -9,6 +9,7 @@
 # OPENSC4_GAME_ARGS adds game options; OPENSC4_GAME_WINDOW replaces the default -w
 # (e.g. "-f" for full screen).
 # OPENSC4_MUTE=1 starts the game with its sound off (the game's own -audio:off).
+# It changes the simulation: never compare muted runs with unmuted ones (docs/parity.md, "Limits").
 set -euo pipefail
 
 build="${1:?usage: run-game.sh <build dir> [VAR=value...]}"
