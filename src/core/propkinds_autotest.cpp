@@ -1,8 +1,9 @@
 // The derived prop classes' part of the autotest (src/core/autotest_hooks.h;
 // propkinds_decal.cpp, propkinds_effect.cpp, propkinds_automata.cpp,
 // propkinds_burnt.cpp, the class maps in propkinds.h): the terrain decal, the
-// visual effect prop, the automata controller prop, the burnt building and
-// the text decal (the label; propkinds_textdecal.cpp).
+// visual effect prop, the automata controller prop, the burnt building, the
+// text decal (the label; propkinds_textdecal.cpp) and the sign
+// (propkinds_sign.cpp).
 // Everything goes through the game's objects: their vtables, the prop
 // manager and the classes' allocators and constructors by address. Nothing
 // here calls our own functions, so a run with simulators.propkinds.* on and
@@ -10,13 +11,14 @@
 //
 //   OPENSC4_TEST_PROPKINDS=<day>   token "propkinds"; sub-results on the log
 //     lines "autotest: propkinds: ...". The city is left unchanged:
-//     1. the city's props of the five classes, found through the occupant
+//     1. the city's props of the six classes, found through the occupant
 //        manager's grid (occupant type 0xA823821E and the class ID from
 //        GetGZCLSID, confirmed with QueryInterface): the counts and the sum
 //        and exclusive or of a hash per object over its plain state;
 //     2. props the test makes and never inserts: one of each class from the
 //        allocator and the constructor (as the terrain code makes a decal
-//        and the lot developer a burnt building, the label tool a label),
+//        and the lot developer a burnt building, the label tool a label and
+//        the sign tool a sign),
 //        and up to two of each from the prop manager's CreateProp when its
 //        tables have types of the class. QueryInterface, GetGZCLSID and the setters that only write
 //        fields while there is no overlay, effect or controller, read back
@@ -39,12 +41,16 @@
 //     given a text with U+00E9, shown (with signs and labels switched on
 //     for it when they were off), given a size, colour, opacity and
 //     direction, dragged, sent the view's messages, hidden, shown, refused
-//     with signs and labels off, and removed. The counts of 1 are taken
-//     again and must be the same.
+//     with signs and labels off, and removed; then a sign is placed and
+//     added as the sign tool adds one, shown, given a text with U+00E9,
+//     highlighted, edited (the caret driven by frame messages the test
+//     makes), dragged, sent the view's messages, hidden, shown, refused with
+//     signs and labels off, and removed. The counts of 1 are taken again and
+//     must be the same.
 //   OPENSC4_TEST_PROPKINDS_EDIT=2  the same, and then a decal, an effect
-//     prop, a controller prop, a burnt building and two labels ("Label"
-//     and "Label" with U+00E9) are added and LEFT in the city, for a save
-//     that holds them.
+//     prop, a controller prop, a burnt building, two labels ("Label" and
+//     "Label" with U+00E9) and a sign ("Sign" with U+00E9) are added and
+//     LEFT in the city, for a save that holds them.
 //
 // Left out on purpose: Write and Read (a save does them), the deleting
 // destructors (Release reaches them), fade actions 1 and 2. Left out of the
@@ -83,6 +89,7 @@ namespace effect = propkinds::effect;
 namespace automata = propkinds::automata;
 namespace burnt = propkinds::burnt;
 namespace label = propkinds::textdecal;
+namespace sign = propkinds::sign;
 using propkinds::Cdecl;
 using propkinds::This;
 
@@ -95,10 +102,10 @@ constexpr uint32_t kBuildingType = 0x278128A0;
 // A controller template no script has.
 constexpr const char* kNoTemplate = "opensc4_propkinds_no_such_template";
 
-// The five classes, in the order of the counts and the logs.
-enum class Kind { Decal, Effect, Controller, Burnt, Text };
-constexpr Kind kKinds[] = {Kind::Decal, Kind::Effect, Kind::Controller, Kind::Burnt, Kind::Text};
-constexpr int kKindCount = 5;
+// The six classes, in the order of the counts and the logs.
+enum class Kind { Decal, Effect, Controller, Burnt, Text, Sign };
+constexpr Kind kKinds[] = {Kind::Decal, Kind::Effect, Kind::Controller, Kind::Burnt, Kind::Text, Kind::Sign};
+constexpr int kKindCount = 6;
 
 const char* NameOf(Kind kind)
 {
@@ -113,6 +120,8 @@ const char* NameOf(Kind kind)
         return "burnt";
     case Kind::Text:
         return "label";
+    case Kind::Sign:
+        return "sign";
     }
     return "?";
 }
@@ -130,6 +139,8 @@ uint32_t ClassOf(Kind kind)
         return burnt::kClassId;
     case Kind::Text:
         return label::kClassId;
+    case Kind::Sign:
+        return sign::kClassId;
     }
     return 0;
 }
@@ -326,9 +337,46 @@ uint32_t LabelPlain(char* self)
     return f.h;
 }
 
+// How many of a sign's ten texture bindings are there, and how many
+// textures its text has (the reference vector of MakeGlyphs).
+uint32_t SignBindings(char* self)
+{
+    uint32_t bound = 0;
+    for (uint32_t i = 0; i < sign::kBindingCount; ++i)
+        bound += At<void*>(self, sign::kBindings + 4 * i) != nullptr;
+    return bound;
+}
+
+uint32_t SignGlyphs(char* self)
+{
+    char* const begin = At<char*>(self, sign::kGlyphs);
+    char* const end = At<char*>(self, sign::kGlyphs + 4);
+    return begin && end >= begin ? static_cast<uint32_t>((end - begin) / 4) : 0;
+}
+
+// A sign's plain state: the text, the position, the editing byte, the
+// highlight bit, how many textures the text has and how many bindings are
+// there, and the box's size (the geometry builder makes it from the text's
+// textures). The caret and its clock follow the frames, the transform's
+// count the view's messages.
+uint32_t SignPlain(char* self)
+{
+    Fnv f;
+    AddText(f, Body(self, sign::kText));
+    f.Bytes(self + sign::kPosition, 12);
+    f.Add(At<uint8_t>(self, sign::kEditing));
+    f.Add(At<uint32_t>(self, sign::kModelFlags) & 1);
+    f.Add(SignGlyphs(self));
+    f.Add(SignBindings(self));
+    AddBoxSize(f, self);
+    return f.h;
+}
+
 uint32_t PlainOf(Kind kind, char* self)
 {
     switch (kind) {
+    case Kind::Sign:
+        return SignPlain(self);
     case Kind::Text:
         return LabelPlain(self);
     case Kind::Decal:
@@ -370,8 +418,11 @@ struct CityCount {
     // started.
     uint32_t withOverlay = 0, fading = 0, withEffect = 0, withController = 0, withTexture = 0, labelOverlays = 0;
     uint32_t shown = 0, started = 0, wrongQuery = 0;
-    // The labels' texts, sorted (for the log).
-    std::vector<std::string> texts;
+    // Signs being edited, highlighted, with textures for their text, with
+    // all ten bindings.
+    uint32_t signsEdited = 0, signsHighlighted = 0, signsWithGlyphs = 0, signsBound = 0;
+    // The labels' and the signs' texts, sorted (for the log).
+    std::vector<std::string> texts, signTexts;
     // The first building occupant of the grid (its box for a burnt building).
     char* building = nullptr;
     bool operator==(const CityCount& o) const
@@ -417,10 +468,13 @@ CityCount WalkCity(void* city)
     Virtual<void>(occupants + occmgr_sim::field::kLock, 0x8);
     // QueryInterface through the occupant part's thunk: the class ID (the
     // burnt building answers only the prop's interfaces: the prop's
-    // interface, which is the object; the label not its class ID but its
-    // interface, which is the object).
+    // interface, which is the object; the label and the sign not their class
+    // IDs but their interfaces, which are the object).
     const auto confirm = [&out](Kind kind, char* self) {
-        const uint32_t iid = kind == Kind::Burnt ? kIidProp : kind == Kind::Text ? label::kIid : ClassOf(kind);
+        const uint32_t iid = kind == Kind::Burnt  ? kIidProp
+                             : kind == Kind::Text ? label::kIid
+                             : kind == Kind::Sign ? sign::kIid
+                                                  : ClassOf(kind);
         void* answer = nullptr;
         if (Virtual<uint8_t>(self + OccupantPartOf(kind), 0x0, iid, &answer) && answer) {
             if (answer != self)
@@ -459,18 +513,36 @@ CityCount WalkCity(void* city)
                                      (At<uint32_t>(self, label::kOverlayId2) != 0xFFFFFFFF);
                 out.texts.push_back(Hex(Body(self, label::kText)));
                 break;
+            case Kind::Sign:
+                out.signsEdited += At<uint8_t>(self, sign::kEditing) != 0;
+                out.signsHighlighted += (At<uint32_t>(self, sign::kModelFlags) & 1) != 0;
+                out.signsWithGlyphs += SignGlyphs(self) != 0;
+                out.signsBound += SignBindings(self) == sign::kBindingCount;
+                {
+                    // The text, then the position and the box's size (bits).
+                    char where[80];
+                    std::snprintf(where, sizeof where, " at %08X %08X %08X size %08X %08X %08X", At<uint32_t>(self, sign::kPosition),
+                                  At<uint32_t>(self, sign::kPosition + 4), At<uint32_t>(self, sign::kPosition + 8),
+                                  Bits(At<float>(self, layout::kMax) - At<float>(self, layout::kMin)),
+                                  Bits(At<float>(self, layout::kMax + 4) - At<float>(self, layout::kMin + 4)),
+                                  Bits(At<float>(self, layout::kMax + 8) - At<float>(self, layout::kMin + 8)));
+                    out.signTexts.push_back(Hex(Body(self, sign::kText)) + where);
+                }
+                break;
             }
         }
     }
     std::sort(out.texts.begin(), out.texts.end());
+    std::sort(out.signTexts.begin(), out.signTexts.end());
     return out;
 }
 
 // --- 2. Made props -----------------------------------------------------------------------
 
 // A prop of the class from its allocator and constructor, as the terrain
-// code makes its decal and the lot developer its burnt building (the most
-// derived object: 1); one reference, the caller's.
+// code makes its decal and the lot developer its burnt building and the
+// sign tool its sign (the most derived object: 1); one reference, the
+// caller's.
 char* MakeDirect(Kind kind)
 {
     void* memory = nullptr;
@@ -495,6 +567,10 @@ char* MakeDirect(Kind kind)
     case Kind::Text:
         if ((memory = Cdecl<void*>(addr::cSC4PropOccupantTextDecal_Allocate, std::size_t{label::kObjectSize})))
             self = static_cast<char*>(This<void*>(addr::cSC4PropOccupantTextDecal_Construct, memory));
+        break;
+    case Kind::Sign:
+        if ((memory = Cdecl<void*>(addr::cSC4PropOccupantSign_Allocate, std::size_t{sign::kObjectSize})))
+            self = static_cast<char*>(This<void*, uint32_t>(addr::cSC4PropOccupantSign_Construct, memory, 1u));
         break;
     }
     if (self)
@@ -746,6 +822,141 @@ uint32_t DriveLabelFields(char* self)
     return f.h;
 }
 
+// The texts the tests give signs: ASCII, and one with U+00E9 (UTF-8).
+constexpr const char* kSignText = "Sign";
+constexpr const char* kSignAccent = "Sign \xC3\xA9";
+
+void SetSignText(char* self, const char* text)
+{
+    OwnString source(text);
+    Virtual<void>(self, sign::slot::kSetText, source.Pointer());
+}
+
+// A sign's text through its GetText (slot 5).
+std::string SignTextOf(char* self)
+{
+    OwnString out;
+    Virtual<void*>(self, sign::slot::kGetText, out.Pointer());
+    return Body(static_cast<char*>(out.Pointer()), 0);
+}
+
+// What a sign's transform and boxes hold: the transform's count and flags,
+// the rotation, the position, the scale, the four boxes, the displacement,
+// the model part's flags, the editing byte, how many textures and bindings.
+void AddSignState(Fnv& f, char* self)
+{
+    f.Add(At<uint8_t>(self, sign::kTransformCount));
+    f.Add(At<uint8_t>(self, sign::kTransformFlags));
+    f.Bytes(self + sign::kRotation, 0x34);
+    f.Bytes(self + sign::kBoxes, 0x60);
+    f.Add(At<int32_t>(self, sign::kVtordisp));
+    f.Add(At<uint32_t>(self, sign::kModelFlags));
+    f.Add(At<uint8_t>(self, sign::kEditing));
+    f.Add(SignGlyphs(self));
+    f.Add(SignBindings(self));
+}
+
+// The four corner colours SetHighlight writes.
+void AddHighlight(Fnv& f, char* self)
+{
+    for (std::size_t corner = 0; corner < 0x40; corner += 0x10)
+        f.Add(At<uint32_t>(self, sign::kHighlight + corner));
+}
+
+// A frame message as the frame service sends it: the time in data 2 (the
+// sign gives its caret's clock the time over 1000).
+void Frame(char* self, uint32_t time)
+{
+    Deliver(self + layout::kProp, kMessageFrame, nullptr, time, 0);
+}
+
+// A sign as the sign tool makes one, never inserted and never shown (base
+// flag 2 clear): the renderer is not told. The text makes textures and the
+// geometry is built (the game's builder); the highlight writes the corner
+// colours; editing listens to the frame service until it ends, and the
+// caret's clock is driven by frame messages the test makes. Shutdown of a
+// sign that is not initialized does nothing. The destructor lets the
+// textures go.
+uint32_t DriveSignFields(char* self)
+{
+    Fnv f;
+    AddQueries(f, self, {sign::kIid, sign::kClassId, kIidMessageTarget, kIidProp, kIidOccupant, 1u, 0x12345678u});
+    f.Add(static_cast<uint32_t>(Virtual<char*>(self, 0x0C) - self));
+    f.Add(SignPlain(self));
+    AddSignState(f, self);
+    const float position[3] = {1000.0f, 271.5f, 2000.25f};
+    Virtual<void>(self + layout::kOccupant, 0x24, static_cast<const float*>(position));
+    AddSignState(f, self);
+    f.Bytes(self + layout::kMin, 24);
+    const float moved[3] = {1003.75f, 270.125f, 1999.5f};
+    Virtual<void>(self + layout::kOccupant, 0x24, static_cast<const float*>(moved));
+    AddSignState(f, self);
+    // The text, ASCII, the same again (nothing), then not ASCII; and back
+    // through GetText.
+    SetSignText(self, kSignText);
+    const std::string ascii = SignTextOf(self);
+    AddText(f, ascii);
+    AddSignState(f, self);
+    const uint32_t glyphs = SignGlyphs(self);
+    const uint8_t count = At<uint8_t>(self, sign::kTransformCount);
+    SetSignText(self, kSignText);
+    f.Add(static_cast<uint8_t>(At<uint8_t>(self, sign::kTransformCount) - count));
+    SetSignText(self, kSignAccent);
+    const std::string accent = SignTextOf(self);
+    AddText(f, accent);
+    AddSignState(f, self);
+    f.Bytes(self + layout::kMin, 24);
+    // Highlighted, again (nothing), and not.
+    Virtual<void>(self, sign::slot::kSetHighlight, 1u);
+    f.Add(At<uint32_t>(self, sign::kModelFlags));
+    AddHighlight(f, self);
+    Virtual<void>(self, sign::slot::kSetHighlight, 1u);
+    f.Add(At<uint32_t>(self, sign::kModelFlags));
+    Virtual<void>(self, sign::slot::kSetHighlight, 0u);
+    f.Add(At<uint32_t>(self, sign::kModelFlags));
+    AddHighlight(f, self);
+    // Edited: the caret's clock by frames of 300, 300 (the caret flips),
+    // 499 and 1 (it flips back), then a message that is not a frame.
+    Virtual<void>(self, sign::slot::kSetEditing, 1u);
+    f.Add(At<uint8_t>(self, sign::kEditing));
+    f.Add(At<uint32_t>(self, sign::kModelFlags));
+    uint32_t caret[5][2] = {};
+    std::size_t step = 0;
+    for (const uint32_t time : {300000u, 300999u, 499000u, 1000u}) {
+        Frame(self, time);
+        caret[step][0] = At<uint8_t>(self, sign::kCaret);
+        caret[step][1] = At<uint32_t>(self, sign::kCaretTime);
+        ++step;
+    }
+    Deliver(self + layout::kProp, 0x12345678, nullptr, 600000u, 0);
+    caret[step][0] = At<uint8_t>(self, sign::kCaret);
+    caret[step][1] = At<uint32_t>(self, sign::kCaretTime);
+    f.Bytes(caret, sizeof caret);
+    // Highlight taken off while editing: the edit ends.
+    Virtual<void>(self, sign::slot::kSetHighlight, 0u);
+    f.Add(At<uint8_t>(self, sign::kEditing));
+    f.Add(At<uint32_t>(self, sign::kModelFlags));
+    Virtual<void>(self, sign::slot::kSetEditing, 1u);
+    Virtual<void>(self, sign::slot::kSetEditing, 0u);
+    f.Add(At<uint8_t>(self, sign::kEditing));
+    f.Add(At<uint32_t>(self, sign::kModelFlags));
+    // The camera moved: the geometry built again.
+    Deliver(self + layout::kProp, 0xA6B79602, nullptr, 0, 0);
+    AddSignState(f, self);
+    // A change of a flag other than 2 goes to the base alone; Shutdown of a
+    // sign that is not initialized does nothing.
+    const uint32_t flags = At<uint8_t>(self, layout::kFlags);
+    Virtual<uint32_t>(self + layout::kOccupant, 0x78, flags ^ 0x40u);
+    f.Add(static_cast<uint8_t>(At<uint8_t>(self, layout::kFlags) ^ flags));
+    Virtual<uint32_t>(self + layout::kOccupant, 0x78, flags);
+    f.Add(Virtual<uint8_t>(self + layout::kOccupant, 0x10));
+    f.Add(SignPlain(self));
+    log::Write("autotest: propkinds: sign fields: texts %s %s, glyphs %u then %u, caret %u/%u %u/%u %u/%u %u/%u %u/%u",
+               Hex(ascii).c_str(), Hex(accent).c_str(), glyphs, SignGlyphs(self), caret[0][0], caret[0][1], caret[1][0],
+               caret[1][1], caret[2][0], caret[2][1], caret[3][0], caret[3][1], caret[4][0], caret[4][1]);
+    return f.h;
+}
+
 // A vector of uint32 as the game's.
 struct Vec {
     uint32_t* begin = nullptr;
@@ -804,6 +1015,8 @@ uint32_t DriveFields(Kind kind, char* self, void* building)
         return DriveBurntFields(self, building);
     case Kind::Text:
         return DriveLabelFields(self);
+    case Kind::Sign:
+        return DriveSignFields(self);
     }
     return 0;
 }
@@ -855,6 +1068,34 @@ bool FindSpot(void* m, int32_t sizeX, int32_t sizeZ, int32_t* spotX, int32_t* sp
             if (Virtual<void*>(lots, 0x18, x, z, uint32_t{0}))
                 continue;
             if (!(Virtual<uint8_t>(occupants, 0x64, x / 4 + 64, z / 4 + 64) & 1))
+                continue;
+            *spotX = x;
+            *spotZ = z;
+            return true;
+        }
+    return false;
+}
+
+// The same for a sign, whose box is far wider than a cell (about 92 m by
+// 38 m with the test's text, the long side along x): anywhere but the
+// city's outer 64 m, a cell with no lot in the middle of its 64 m occupant
+// cell (the third of its four columns and rows) whose occupant cell and the
+// two beside it along x are empty. The box reaches into those two and stays
+// inside its own along z.
+bool FindSignSpot(void* m, int32_t sizeX, int32_t sizeZ, int32_t* spotX, int32_t* spotZ)
+{
+    void* const lots = At<void*>(m, manager::kLots);
+    void* const occupants = At<void*>(m, manager::kOccupants);
+    if (!lots || !occupants)
+        return false;
+    for (int32_t z = 6; z < sizeZ - 4; z += 4)
+        for (int32_t x = 6; x < sizeX - 4; x += 4) {
+            if (Virtual<void*>(lots, 0x18, x, z, uint32_t{0}))
+                continue;
+            bool empty = true;
+            for (int32_t dx = -1; dx <= 1 && empty; ++dx)
+                empty = (Virtual<uint8_t>(occupants, 0x64, x / 4 + 64 + dx, z / 4 + 64) & 1) != 0;
+            if (!empty)
                 continue;
             *spotX = x;
             *spotZ = z;
@@ -1376,10 +1617,143 @@ void EditLabel(Fnv& f, void* m, const Types& types, const float* position, const
     f.Add(mine.h);
 }
 
+// A sign as the sign tool puts one down, but placed before it is added (so
+// that it never stands at the origin): added to the city (Init: the boxes,
+// the prop type, flag 0x10, the ten bindings, the messages, the geometry).
+// With signs and labels shown (switched on for the test when they were off,
+// and back at the end) and the sign shown as the view shows it (its model
+// goes to the renderer): the text, the highlight, an edit (frames listened
+// to, the caret driven by frame messages the test makes), a drag, the
+// view's messages (the camera moved, a new visibility filter: the one the
+// city has), hidden and shown. Then with signs and labels off, showing it is
+// refused. It is hidden before it is removed, so the renderer holds nothing
+// of it after.
+void EditSign(Fnv& f, void* m, const Types& types, const float* position, const int32_t* cells)
+{
+    const char* how = "";
+    char* const self = MakeForEdit(m, types[Kind::Sign], Kind::Sign, &how);
+    if (!self) {
+        f.Add(uint8_t{0xEE});
+        log::Write("autotest: propkinds: edit sign: none made");
+        return;
+    }
+    char* const occupant = self + layout::kOccupant;
+    const bool signsBefore = SignsShown();
+    void* const renderer = Global<void*>(addr::SC4_View43DD0);
+    void* const model = self + sign::kVbptr + At<int32_t>(At<char*>(self, sign::kVbptr), 0x4);
+    const auto held = [renderer, model]() -> uint32_t { return renderer ? Virtual<uint8_t>(renderer, 0x6C, model) : 0xEE; };
+    Fnv mine;
+    Virtual<void>(occupant, 0x24, position);
+    const uint8_t added = Virtual<uint8_t>(m, manager::kAddCityProp, static_cast<void*>(occupant));
+    mine.Add(added);
+    mine.Add(SignPlain(self));
+    mine.Add(Virtual<uint8_t>(occupant, 0x14));
+    mine.Add(static_cast<uint8_t>(At<uint8_t>(self, layout::kFlags) & 0x11));
+    mine.Add(Virtual<uint32_t>(self + layout::kProp, 0x1C));
+    const bool shownByInit = (At<uint8_t>(self, layout::kFlags) & 2) != 0;
+    mine.Add(shownByInit);
+    AddSignState(mine, self);
+    const uint32_t afterAdd = mine.h;
+    if (!signsBefore)
+        ShowSigns(true);
+    if (!(At<uint8_t>(self, layout::kFlags) & 2))
+        Virtual<uint32_t>(occupant, 0x78, uint32_t{At<uint8_t>(self, layout::kFlags)} | 2u);
+    const bool shown = (At<uint8_t>(self, layout::kFlags) & 2) != 0;
+    uint32_t inRenderer[4] = {held(), 0, 0, 0};
+    mine.Add(shown);
+    mine.Add(inRenderer[0]);
+    // The text, as the sign tool gives it.
+    SetSignText(self, kSignAccent);
+    const std::string text = SignTextOf(self);
+    AddText(mine, text);
+    mine.Add(SignPlain(self));
+    AddSignState(mine, self);
+    log::Write("autotest: propkinds: edit sign: at %.2f %.2f %.2f, box %.2f %.2f %.2f to %.2f %.2f %.2f", position[0], position[1],
+               position[2], At<float>(self, layout::kMin), At<float>(self, layout::kMin + 4), At<float>(self, layout::kMin + 8),
+               At<float>(self, layout::kMax), At<float>(self, layout::kMax + 4), At<float>(self, layout::kMax + 8));
+    // Highlighted and not; edited, with two frames (the caret flips), then
+    // the edit ended by the highlight going.
+    Virtual<void>(self, sign::slot::kSetHighlight, 1u);
+    AddHighlight(mine, self);
+    Virtual<void>(self, sign::slot::kSetHighlight, 0u);
+    AddHighlight(mine, self);
+    Virtual<void>(self, sign::slot::kSetEditing, 1u);
+    Frame(self, 250000u);
+    Frame(self, 260000u);
+    const uint32_t caret = At<uint8_t>(self, sign::kCaret), caretTime = At<uint32_t>(self, sign::kCaretTime);
+    mine.Add(caret);
+    mine.Add(caretTime);
+    mine.Add(At<uint32_t>(self, sign::kModelFlags));
+    Virtual<void>(self, sign::slot::kSetHighlight, 0u);
+    const uint8_t editedAfter = At<uint8_t>(self, sign::kEditing);
+    mine.Add(editedAfter);
+    mine.Add(SignPlain(self));
+    const uint32_t afterEdit = mine.h;
+    // A drag: moved and back, shown all the while.
+    const float moved[3] = {position[0] + 2.0f, position[1], position[2] + 1.0f};
+    Virtual<void>(occupant, 0x24, static_cast<const float*>(moved));
+    mine.Add(SignPlain(self));
+    AddSignState(mine, self);
+    Virtual<void>(occupant, 0x24, position);
+    mine.Add(SignPlain(self));
+    const uint32_t afterDrag = mine.h;
+    // The view's messages.
+    Deliver(self + layout::kProp, 0xA6B79602, nullptr, 0, 0);
+    mine.Add(SignPlain(self));
+    void* filter = nullptr;
+    Virtual<void>(Global<void*>(addr::SC4_Service43DC4), 0x48, &filter);
+    if (filter) {
+        Deliver(self + layout::kProp, 0x06CDB65B, nullptr, static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&filter)), 0);
+        mine.Add(static_cast<uint8_t>(At<uint8_t>(self, layout::kFlags) & 2));
+        Virtual<uint32_t>(filter, 0x8);
+    }
+    // Hidden and shown again: the model taken off the renderer and added.
+    Virtual<uint32_t>(occupant, 0x78, uint32_t{At<uint8_t>(self, layout::kFlags)} & ~2u);
+    inRenderer[1] = held();
+    Virtual<uint32_t>(occupant, 0x78, uint32_t{At<uint8_t>(self, layout::kFlags)} | 2u);
+    inRenderer[2] = held();
+    mine.Add(inRenderer[1]);
+    mine.Add(inRenderer[2]);
+    const uint32_t afterMessages = mine.h;
+    // Signs and labels off: hidden, and showing it is refused.
+    ShowSigns(false);
+    if (At<uint8_t>(self, layout::kFlags) & 2)
+        Virtual<uint32_t>(occupant, 0x78, uint32_t{At<uint8_t>(self, layout::kFlags)} & ~2u);
+    Virtual<uint32_t>(occupant, 0x78, uint32_t{At<uint8_t>(self, layout::kFlags)} | 2u);
+    const bool refused = !(At<uint8_t>(self, layout::kFlags) & 2);
+    mine.Add(refused);
+    ShowSigns(signsBefore);
+    if (At<uint8_t>(self, layout::kFlags) & 2)
+        Virtual<uint32_t>(occupant, 0x78, uint32_t{At<uint8_t>(self, layout::kFlags)} & ~2u);
+    inRenderer[3] = held();
+    mine.Add(inRenderer[3]);
+    const uint8_t removed = Virtual<uint8_t>(m, manager::kRemoveCityPropsInArea, cells);
+    mine.Add(removed);
+    AddRemoved(mine, self, Kind::Sign);
+    mine.Add(SignPlain(self));
+    mine.Add(SignBindings(self));
+    mine.Add(SignGlyphs(self));
+    log::Write("autotest: propkinds: edit sign (%s): added %u %08X (shown by Init %d, signs shown before %d), shown %d, text %s, "
+               "caret %u/%u, edited after %u, edit %08X, drag %08X, messages %08X, in the renderer %u %u %u %u, refused %d; "
+               "removed %u, initialized %u, in manager %u, bindings %u, glyphs %u",
+               how, added, afterAdd, shownByInit ? 1 : 0, signsBefore ? 1 : 0, shown ? 1 : 0, Hex(text).c_str(), caret, caretTime,
+               editedAfter, afterEdit, afterDrag, afterMessages, inRenderer[0], inRenderer[1], inRenderer[2], inRenderer[3],
+               refused ? 1 : 0, removed, Virtual<uint8_t>(occupant, 0x14), At<uint8_t>(self, layout::kFlags) & 1,
+               SignBindings(self), SignGlyphs(self));
+    if (Virtual<uint8_t>(occupant, 0x14)) {
+        // Not removed: its Shutdown gives up the messages and the bindings
+        // before the reference goes.
+        log::Write("autotest: propkinds: edit sign: STILL INITIALIZED after the removal; shut down by the test");
+        Virtual<uint8_t>(occupant, 0x10);
+    }
+    Virtual<uint32_t>(self, 0x8);
+    f.Add(mine.h);
+}
+
 // OPENSC4_TEST_PROPKINDS_EDIT=2: after the round trip a decal (no fade), an
-// effect prop, a controller prop and a burnt building are added at the spot
-// and left there, so that the run's save holds them and a run started from
-// that save reads them back.
+// effect prop, a controller prop, a burnt building, two labels and a sign
+// are added at the spot and left there, so that the run's save holds them
+// and a run started from that save reads them back.
 void LeaveInCity(Fnv& f, void* m, const Types& types, const float* position, const std::string& known)
 {
     // Two labels: one with U+00E9 at the spot, one in ASCII 4 m off.
@@ -1421,6 +1795,11 @@ void LeaveInCity(Fnv& f, void* m, const Types& types, const float* position, con
             Virtual<void>(self, label::slot::kSetSize, second ? 0.64f : 0.8f);
             log::Write("autotest: propkinds: left in the city: label text %s", Hex(TextOf(self)).c_str());
         }
+        if (kind == Kind::Sign) {
+            // As the sign tool does it: added, then the text.
+            SetSignText(self, kSignAccent);
+            log::Write("autotest: propkinds: left in the city: sign text %s", Hex(SignTextOf(self)).c_str());
+        }
         const uint32_t plain = PlainOf(kind, self);
         mine.Add(plain);
         log::Write("autotest: propkinds: left in the city: %s (%s): added %u, plain %08X, initialized %u, in manager %u",
@@ -1436,12 +1815,16 @@ void LogCity(const char* when, const CityCount& c)
 {
     log::Write("autotest: propkinds: city %s: decals %u (%08X %08X; overlay %u, fading %u) effects %u (%08X %08X; "
                "effect %u, started %u) controllers %u (%08X %08X; controller %u) burnt %u (%08X %08X) labels %u (%08X %08X; "
-               "texture %u, overlays %u) shown %u, wrong QueryInterface %u",
+               "texture %u, overlays %u) signs %u (%08X %08X; edited %u, highlighted %u, with glyphs %u, bound %u) shown %u, "
+               "wrong QueryInterface %u",
                when, c.count[0], c.sum[0], c.xorred[0], c.withOverlay, c.fading, c.count[1], c.sum[1], c.xorred[1], c.withEffect,
                c.started, c.count[2], c.sum[2], c.xorred[2], c.withController, c.count[3], c.sum[3], c.xorred[3], c.count[4],
-               c.sum[4], c.xorred[4], c.withTexture, c.labelOverlays, c.shown, c.wrongQuery);
+               c.sum[4], c.xorred[4], c.withTexture, c.labelOverlays, c.count[5], c.sum[5], c.xorred[5], c.signsEdited,
+               c.signsHighlighted, c.signsWithGlyphs, c.signsBound, c.shown, c.wrongQuery);
     for (std::size_t i = 0; i < c.texts.size() && i < 8; ++i)
         log::Write("autotest: propkinds: city %s: label %u text %s", when, static_cast<unsigned>(i), c.texts[i].c_str());
+    for (std::size_t i = 0; i < c.signTexts.size() && i < 8; ++i)
+        log::Write("autotest: propkinds: city %s: sign %u text %s", when, static_cast<unsigned>(i), c.signTexts[i].c_str());
 }
 
 void AddCounts(Fnv& f, const CityCount& c)
@@ -1472,10 +1855,10 @@ void Drive(const Day& day)
     Types types;
     if (m)
         types = TypesOf(m);
-    log::Write("autotest: propkinds: types: %u decal, %u effect, %u controller, %u burnt, %u label",
+    log::Write("autotest: propkinds: types: %u decal, %u effect, %u controller, %u burnt, %u label, %u sign",
                static_cast<unsigned>(types[Kind::Decal].size()), static_cast<unsigned>(types[Kind::Effect].size()),
                static_cast<unsigned>(types[Kind::Controller].size()), static_cast<unsigned>(types[Kind::Burnt].size()),
-               static_cast<unsigned>(types[Kind::Text].size()));
+               static_cast<unsigned>(types[Kind::Text].size()), static_cast<unsigned>(types[Kind::Sign].size()));
     Fnv made;
     DriveMade(made, m, types, before.building);
     all.Add(made.h);
@@ -1502,6 +1885,19 @@ void Drive(const Day& day)
             EditController(edit, m, types, position, cells, known);
             EditBurnt(edit, m, types, position, cells);
             EditLabel(edit, m, types, position, cells);
+            int32_t signX = -1, signZ = -1;
+            if (FindSignSpot(m, sizeX, sizeZ, &signX, &signZ)) {
+                float signCorner[2] = {0, 0};
+                Virtual<void>(city, 0x180, signX, signZ, &signCorner[0], &signCorner[1]);
+                const float signAt[3] = {signCorner[0] + 8.0f, terrain ? Virtual<float>(terrain, 0x38, signX, signZ) : 0.0f,
+                                         signCorner[1] + 8.0f};
+                const int32_t signCells[4] = {signX, signZ, signX, signZ};
+                log::Write("autotest: propkinds: edit sign at cell %d,%d", signX, signZ);
+                EditSign(edit, m, types, signAt, signCells);
+            } else {
+                edit.Add(uint8_t{0xED});
+                log::Write("autotest: propkinds: edit sign skipped: no empty spot");
+            }
             if (editLevel >= 2) {
                 const CityCount between = WalkCity(city);
                 LogCity("after the round trip", between);

@@ -738,6 +738,12 @@ kind = "data"
 source = "Unnamed service, the application's slot 46 (0x00602349). Slot 5 (0xCC1FD62C, a string, &out) makes the texture of a text decal's text (src/core/propkinds_textdecal.cpp); the sign's geometry builder uses its slot 4."
 
 [[entry]]
+name = "SC4::TextureFactory43CD4"
+address = 0x00B43CD4
+kind = "data"
+source = "Name ours. The framework's texture binding factory (cIS3DTextureBindingFactory 0x1AC0E11A, 0xFAC0E219), kept by 0x006024EC. The sign's Init asks its slot 6 for ten texture bindings (src/core/propkinds_sign.cpp)."
+
+[[entry]]
 name = "SC4::Service43DC4"
 address = 0x00B43DC4
 kind = "data"
