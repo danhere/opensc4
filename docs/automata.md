@@ -653,17 +653,19 @@ The class is found by its vtables, the constructor, the destructor and the group
   - The nine `sub ecx,N; jmp` adjustor thunks: 0x005200C0 to 0x00520110, 0x00521670, 0x00521680, 0x00521690.
   - Twelve shared helpers with callers outside the class, mostly STL hash map code: 0x004FC900, 0x0051C880, 0x0051C950, 0x0051C9B0, the string map's find 0x0051C9F0, 0x0051CA60, 0x0051CE70, 0x0051FC30, the insert 0x0051FDC0, 0x0051FE90, 0x0051FF00 and 0x00520970.
 - **s1 (34, done): the object, the life cycle, the queries and the occupant groups.** Below.
-- **s2 (43, 7,048 bytes): the controller templates, the Lua callbacks and the script data structures.**
+- **s2 (43, 7,048 bytes, done): the controller templates, the Lua callbacks and the script data structures.** See "Part s2" below.
   - The templates: 0x0051AB80, 0x0051B1F0, 0x0051B240, 0x0051B280, 0x0051B2A0, 0x0051B2F0, 0x0051B310, the template factory by class 0x0051BDF0 and CreateControllerTemplate (slot 16) 0x00520AC0.
   - The seven Lua functions Init registers: create_automaton 0x0051D220, create_controller 0x0051D3C0, attach_controller 0x0051D510, attach_controller_group 0x0051D640, detach_controller 0x0051D750, detach_controller_group 0x0051D860 and get_source_building_count 0x0051C7D0.
   - Helpers the managers and the U-Drive call: 0x0051CD90, 0x0051D040, 0x0051D0D0, 0x0051D120, 0x005204D0, 0x0051FD30.
-  - The behaviour records that the loading builds (copies, vectors, trees): 0x00521350, 0x00521470, 0x00521550, 0x005215A0, 0x00521620, 0x00521B20, 0x00521B70, 0x00521BB0, 0x00522270, 0x00522350, 0x005223C0, 0x00522450, 0x00522540, 0x00522590, 0x005226C0, 0x00522720, 0x00522800, 0x005205D0, 0x00520940, 0x0051C8B0 and 0x0050BD40.
-- **s3 (27, 19,089 bytes): the loading of the scripts.**
-  - LoadScripts 0x00523B10 and what it reads: 0x0051DAA0, 0x0051EEE0, 0x0051F5C0, 0x0051FA60, 0x005216A0, 0x00521C70 (1,527 bytes), the generator and attractor templates 0x00522F30 (1,488) and 0x00523500 (1,546), the behaviours 0x00522860 (1,733), the groups 0x00520DF0 (1,316).
-  - The vehicle kinds' tuning 0x0051DC20 (1,465), 0x0051E1E0, 0x0051E4A0, 0x0051E6B0 (1,520).
-  - 0x0051ECA0, 0x0051EE10, 0x0051F010, 0x0051F2A0, 0x00521800, 0x0051C5D0, 0x0051CB40, 0x0051CBF0, 0x0051CD20, 0x0051FB90, 0x00520520.
-  - 0x0051C4C0 stays the game's: it holds the Lua print patch site 0x0051C50B.
-  - The part is large in bytes, so it may need two pieces. The Lua VM's own functions are called at their addresses, not reimplemented.
+  - The behaviour records that the loading builds (the record, its vector and the std::sort over them): 0x00521350, 0x00521470, 0x00521550, 0x005215A0, 0x00521620, 0x00521B20, 0x00521B70, 0x00521BB0, 0x00522270, 0x00522350, 0x005223C0, 0x00522450, 0x00522540, 0x00522590, 0x005226C0, 0x00522720, 0x00522800, 0x005205D0, 0x00520940, 0x0051C8B0 and 0x0050BD40.
+- **s3 (27, 19,089 bytes): the loading of the scripts**, in two pieces. 0x0051C4C0 stays the game's: it holds the Lua print patch site 0x0051C50B. The Lua VM's own functions are called at their addresses, not reimplemented.
+  - **s3a (15, 9,964 bytes): the loader and the template readers.**
+    - LoadScripts 0x00523B10 and the readers it calls first: 0x0051DAA0, 0x0051EEE0, 0x0051F5C0 (1,158 bytes), 0x0051FA60.
+    - The attractor and generator templates: 0x00523500 (1,546) and 0x00522F30 (1,488), with their parts 0x0051C5D0, 0x0051CB40, 0x0051CBF0, 0x0051CD20, 0x0051F010, 0x0051EE10, 0x0051F2A0.
+    - The behaviours 0x00522860 (1,733).
+  - **s3b (11, 8,861 bytes): the groups and the vehicle kinds.**
+    - The groups: 0x005216A0, 0x00520DF0 (1,316), 0x00521C70 (1,527), 0x00521800 (795), 0x0051FB90, 0x00520520.
+    - The vehicle kinds' tuning: 0x0051DC20 (1,465), 0x0051E1E0, 0x0051E4A0, 0x0051E6B0 (1,520), 0x0051ECA0.
 
 Mods: no NAM site and no SC4UIScale address is in the class. The only patch site is 0x0051C50B in 0x0051C4C0 (s3, kept).
 
@@ -748,3 +750,98 @@ All 34 functions were reached in every one of the 14 B runs of r1 (our first-cal
 - By the test: the rest, including the destructors, Shutdown and the two releases on the fresh object.
 
 Not compared: Shutdown's initialized branch (the table unregistered, the +4 part taken off the message server, +0x18 released). The fresh object is never initialized, and the city's Shutdown, if it runs at the exit, comes after the last fingerprint; its first-call line is already taken by the test's Release.
+
+
+## Part s2: the templates, the Lua functions, the helpers and the behaviour records
+
+### What is ours
+
+All 43 functions of s2's list, in four more groups, off by default, so part s1's groups stay as they were ([automata_scripts_2.cpp](../src/core/automata_scripts_2.cpp)):
+
+- **`simulators.automata.scripts.templates` (9):**
+  - The constructors: the template base 0x0051AB80, the attractor template 0x0051B1F0 (0x98 bytes, vtable 0x00A96134, with an SC4Curve at +0x88) and the generator template 0x0051B240 (0xB4 bytes, vtable 0x00A96138).
+  - Their destructor bodies 0x0051B2A0 and 0x0051B310 and deleting destructors 0x0051B280 and 0x0051B2F0.
+  - The factory by class 0x0051BDF0 and CreateControllerTemplate (slot 16) 0x00520AC0.
+- **`simulators.automata.scripts.lua` (7):** the Lua functions create_automaton 0x0051D220, create_controller 0x0051D3C0, attach_controller 0x0051D510, attach_controller_group 0x0051D640, detach_controller 0x0051D750, detach_controller_group 0x0051D860 and get_source_building_count 0x0051C7D0.
+- **`simulators.automata.scripts.helpers` (6):**
+  - A group's cached ID list 0x0051CD90, which the managers call.
+  - Its record lookup 0x005204D0, with the three-string record's constructor 0x0051D040, destructor 0x0051D0D0 and assignment 0x0051FD30. The U-Drive calls them.
+  - The Lua value to ID 0x0051D120.
+- **`simulators.automata.scripts.records` (21):** the behaviour record (0x7C bytes) and the code the loading runs on its vector.
+  - The constructor 0x0050BD40, the copy 0x005205D0 and the assignment 0x00521470.
+  - The vector's insert into a full buffer 0x00521350, and the uninitialized copy 0x00520940.
+  - std::sort over the records: 0x00522800, the introsort loop 0x00522720, the median 0x0051C8B0 and the partition 0x00522270.
+  - The insertion sorts 0x005226C0, 0x00522540, 0x00521B70, 0x005223C0 and 0x00521550, with copy and copy_backward 0x00521B20 and 0x00521620.
+  - The heap fallback: partial_sort 0x00522590, make_heap 0x00522350, sort_heap 0x00522450, adjust_heap 0x00521BB0 and push_heap 0x005215A0.
+
+What they do:
+
+- **The templates.** CreateControllerTemplate asks the factory for a template of the class (attractor 0x6A1628BA or generator 0x4A1628C5) and puts it into the template map. A name already there is refused: the message is formatted and dropped and the template destroyed. The factory sets the class, the name and the template's curve, the points (0, 1) and (24, 1). Any other class gets the refusal message and null.
+- **The Lua functions** live in the advisors' script context as `sc4game.automata` (`automata` there is a different table). Each takes the script system from its binding, then reads its arguments:
+  - create_automaton makes an automaton of a class at a point (0x0050CDA0) and starts it.
+  - create_controller asks the controller manager (part a1) for a controller of a template at a point (its slot 5).
+  - attach_controller uses the same slot 5 with an occupant. attach_controller_group uses slot 10, detach_controller slot 8 and detach_controller_group slot 12.
+  - get_source_building_count asks four services in turn.
+  - The first three push the object they got back; get_source_building_count pushes a count.
+- **The behaviour records** are sorted by a comparator inlined at every compare site: a is before b when its float (+4) is below b's, or else when its uint32 (+0xC) is above b's. That is not a strict weak order in general; the game sorts with it as it is.
+- **By-value records.** The insertions, the partition and the heap functions take a record by value and destroy it before they return, as the MSVC ABI has the callee do. The game copy-constructs each one into the argument area. Ours copy-constructs it into a local and passes its bytes, so each record is still made once and destroyed once.
+
+Kept as the game's, called at their addresses:
+
+- The record's destructor 0x0050BDE0.
+- The vectors' copy and assignment: 0x0051FE90 and 0x00520970 (shared, now with address entries), 0x00462F00 and 0x00462C10.
+- The range destroy 0x00518B20 and the two InsertN functions.
+- SC4Curve::Init and SetPoints, the string helpers and strtoul.
+- 0x0050CDA0 and the controller manager's slots.
+
+Oddities kept:
+
+- The factory writes the class into a null template when the allocation fails.
+- create_automaton reads a ninth argument it never uses.
+- The four functions with an occupant (attach and detach) test and release an occupant slot they have just zeroed.
+- The record copy and assignment copy field by field, so the padding is left alone.
+- The three-string record's constructor leaves +0x3C alone, though its assignment copies it.
+- GroupCacheIds hands over the IDs only when the +0x18 part is still empty.
+
+Stack slots the game reuses as locals:
+
+- get_source_building_count reads its key into its binding argument's slot. So a key that does not read stays the binding's address, and ours starts its local from that address the same way.
+- 0x0051D120 reads a number into its own argument's slot, and a failed read answers 0.
+- create_automaton's ninth-argument bool and the attach and detach functions' occupant are argument slots that nothing reads afterwards; ours keep them in locals.
+
+Floats: the comparator's float compares only. An unordered pair is not "below", so the uint32 compare decides it.
+
+Reimplemented like the earlier parts: one writer, every call's argument count checked against the callee's `ret`, then an independent audit of all 43 against the disassembly.
+
+### Test
+
+Two tests reach part s2:
+
+- **`OPENSC4_TEST_AUTOMATA_SCRIPTS=2`** does everything `=1` does and adds ` T<templates>,<helpers>,<records>` after the ` S` token:
+  - the city's templates;
+  - on a fresh script system: CreateControllerTemplate for both classes, a taken name and a class with no template;
+  - the cached ID lists and the record lookups (every key byte) of the city's groups;
+  - std::sort of 40 records of the test's own, keyed so that the comparator is a strict weak order. Above 16 records it partitions;
+  - partial_sort of 40 with a middle of 20, which runs the heap functions;
+  - the full vector's insert in the middle and at the end.
+- **`OPENSC4_TEST_LUA_SCRIPT=<path>/tests/scripts/automata.lua`** calls the seven `sc4game.automata` functions with fixed arguments (see the script). It records only whether each call worked and whether it pushed nil, 0 or nonzero, since the pushed objects are pointers. Its result goes into the ` | lua` part's script hash. The occupant arguments are nil, so the attach and detach functions stop after reading their arguments. With these arguments create_controller and create_automaton get null back from the game's functions, on both sides.
+
+Reached in the trial (Making Money d0000, 4 days, both tests): all 43, with all 34 of s1 in the same run. By the game at the load: the templates, the Lua value to ID, get_source_building_count, the record constructor, copy, assignment, the vector insert and the insertion sorts. By the tests: the rest. Original and ours gave the same fingerprint on every day of the trial.
+
+Reimplementation notes from the audit: no defect. Sort (0x00522800) now forwards the word in its first argument's slot as the empty predicate, as the game does; its only caller pushes two arguments, and the callees ignore the predicate. Some wording was also fixed.
+
+### Parity
+
+2026-10-19, B = all eight `simulators.automata.scripts` groups (s1 and s2) against the original (the switch list includes `determinism.dispatch_info=ours`; two jobs, `harness.multi_instance=ours` on both sides), env p4env-s2. Both tests ran: `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_SCRIPTS=2` and the Lua chunk.
+
+| Batch | Making Money d0000, 4 days | Rush Hour t0000, 7 days | The 12-save batch, 7 days |
+| --- | --- | --- | --- |
+| r2 (snapshot s2-r2) | 5 of 5 | 8 of 8 | 11 of 12; Making Money d0000 partly the same |
+| r3 (s2-r3, the final build) | 5 of 5 | 8 of 8 | 11 of 12; Big City d1095 failed on the original's side |
+
+- **Making Money d0000 in r2.** The first B run had other `adv` and `advisors` values from the test day on, and the rest of the line was the same. The second B run had A's values, as did both A runs. This looks like the first-run advisor outcome in [parity.md](parity.md) ("The advisor system's generator"). In r3 the save was the same in the batch and in three more reruns, 8 of 8 days each.
+- **Big City d1095 in r3.** The original's game ended during its load, with no output. Two reruns were the same, 8 of 8 days each.
+
+All 77 functions of s1 and s2 were reached in every B run of r2 (14) and r3 (our first-call log lines).
+
+The Lua chunk ran in every run, and every B run carried the ` S` and ` T` tokens. A batch r1 had the chunk's path broken, so its functions were not called; it was otherwise the same (5 of 5, 8 of 8, 12 of 12).
