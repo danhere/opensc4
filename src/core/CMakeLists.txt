@@ -262,6 +262,7 @@ add_library(opensc4_core SHARED
   automata_ctlmgr.cpp
   automata_controller.cpp
   automata_vehmgr.cpp
+  automata_awmgr.cpp
   automata_ctlquery.cpp
   automata_scripts.cpp
   automata_scripts_2.cpp
