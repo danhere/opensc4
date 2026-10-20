@@ -27,10 +27,12 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <type_traits>
 #include <functional>
 #include <initializer_list>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -15814,6 +15816,12 @@ uint32_t __fastcall AssignFloat3sNoted(char* self, void* edx, uint32_t from)
 }
 OPENSC4_THUNK(TAssignFloat3sNoted, AssignFloat3sNoted, 4)
 
+bool HookAssignFloat3s()
+{
+    return g_SC4Float3Vector_Assign ||
+           Detour(addr::SC4Float3Vector_Assign, &TAssignFloat3sNoted, &g_SC4Float3Vector_Assign);
+}
+
 uint32_t __fastcall TextureReleaseNoted(char* self, void*)
 {
     return StCallNoted(addr::SC4TextureBinding_Release, self, g_SC4TextureBinding_Release);
@@ -15881,8 +15889,7 @@ bool InstallDecalParts(registry::Mode mode)
         return false;
     if (mode == registry::Mode::Compare &&
         !(HookPoolAllocate() && HookFree() && HookDelete() && HookAssignFloats() &&
-          (g_SC4Float3Vector_Assign ||
-           Detour(addr::SC4Float3Vector_Assign, &TAssignFloat3sNoted, &g_SC4Float3Vector_Assign)) &&
+          HookAssignFloat3s() &&
           (g_SC4TextureBinding_Release ||
            Detour(addr::SC4TextureBinding_Release, &TTextureReleaseNoted, &g_SC4TextureBinding_Release))))
         return false;
@@ -15945,11 +15952,54 @@ struct VrKind {
 
 constexpr std::size_t kVrSlots = 64;
 
+// The copies of tables, one for each table and set of kinds, kept for good:
+// an object the game's run made by copying a proxied one's bytes keeps
+// its copy, which then only hands its calls on to the table it was made
+// from.
+struct VrClone {
+    uint32_t original;
+    std::array<uint32_t, kVrSlots + 1> table;
+};
+std::map<std::vector<uint32_t>, std::unique_ptr<VrClone>> g_vrClones;
+std::unordered_map<uint32_t, uint32_t> g_vrCloneOriginal;
+// Other threads reach the thunks too (the objects are the game's): the
+// proxies and copies are looked at and changed under this lock, never held
+// across a call.
+std::recursive_mutex g_vrLock;
+
+// The table behind a copy (or the table itself).
+uint32_t VrOriginalOf(uint32_t table)
+{
+    std::lock_guard<std::recursive_mutex> lock(g_vrLock);
+    const auto at = g_vrCloneOriginal.find(table);
+    return at == g_vrCloneOriginal.end() ? table : at->second;
+}
+
+uint32_t VrCloneOf(uint32_t original, const std::vector<const VrKind*>& kinds)
+{
+    std::lock_guard<std::recursive_mutex> lock(g_vrLock);
+    std::vector<uint32_t> key{original};
+    for (const VrKind* kind : kinds)
+        key.push_back(reinterpret_cast<uint32_t>(kind));
+    auto& clone = g_vrClones[key];
+    if (!clone) {
+        clone = std::make_unique<VrClone>();
+        clone->original = original;
+        std::memcpy(clone->table.data(), reinterpret_cast<const void*>(original - 4), clone->table.size() * 4);
+        for (const VrKind* kind : kinds) {
+            for (const VrSlot& slot : kind->slots)
+                clone->table[1 + slot.slot / 4] = slot.thunk;
+        }
+        g_vrCloneOriginal[reinterpret_cast<uint32_t>(clone->table.data() + 1)] = original;
+    }
+    return reinterpret_cast<uint32_t>(clone->table.data() + 1);
+}
+
 struct VrProxy {
     char* object;
     uint32_t original;
-    std::array<uint32_t, kVrSlots + 1> table;
-    std::vector<const VrSlot*> slots;
+    uint32_t clone;
+    std::vector<const VrKind*> kinds;
 };
 
 std::vector<std::unique_ptr<VrProxy>> g_vrProxies;
@@ -15957,6 +16007,7 @@ int g_vrScopes = 0;
 
 VrProxy* VrFind(char* object)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_vrLock);
     for (const auto& proxy : g_vrProxies) {
         if (proxy->object == object)
             return proxy.get();
@@ -15970,23 +16021,29 @@ void VrProxyObject(char* object, const VrKind& kind)
 {
     if (!object || !g_vrScopes)
         return;
+    std::lock_guard<std::recursive_mutex> lock(g_vrLock);
     VrProxy* proxy = VrFind(object);
     if (!proxy) {
         auto made = std::make_unique<VrProxy>();
         made->object = object;
-        made->original = At<uint32_t>(object, 0);
-        std::memcpy(made->table.data(), reinterpret_cast<const void*>(made->original - 4), made->table.size() * 4);
+        made->original = VrOriginalOf(At<uint32_t>(object, 0));
+        made->clone = At<uint32_t>(object, 0);
         proxy = made.get();
         g_vrProxies.push_back(std::move(made));
-        At<uint32_t>(object, 0) = reinterpret_cast<uint32_t>(proxy->table.data() + 1);
     }
-    for (const VrSlot& slot : kind.slots) {
-        proxy->table[1 + slot.slot / 4] = slot.thunk;
-        proxy->slots.push_back(&slot);
+    for (const VrKind* at : proxy->kinds) {
+        if (at == &kind)
+            return;
     }
+    proxy->kinds.push_back(&kind);
+    if (At<uint32_t>(object, 0) != proxy->clone)
+        return;
+    proxy->clone = VrCloneOf(proxy->original, proxy->kinds);
+    At<uint32_t>(object, 0) = proxy->clone;
 }
 
-// The proxies of one comparison, taken off at its end.
+// The proxies of one comparison, taken off at its end (an object freed or
+// remade in the game's run no longer holds its copy).
 struct VrScope {
     std::size_t first = g_vrProxies.size();
     VrScope()
@@ -15995,32 +16052,35 @@ struct VrScope {
     }
     ~VrScope()
     {
+        std::lock_guard<std::recursive_mutex> lock(g_vrLock);
         while (g_vrProxies.size() > first) {
-            At<uint32_t>(g_vrProxies.back()->object, 0) = g_vrProxies.back()->original;
+            VrProxy& proxy = *g_vrProxies.back();
+            if (At<uint32_t>(proxy.object, 0) == proxy.clone)
+                At<uint32_t>(proxy.object, 0) = proxy.original;
             g_vrProxies.pop_back();
         }
         --g_vrScopes;
     }
 };
 
-// A call the game's makes, or ours in the replay, with its out bytes (one
-// or two out pointers) noted or written back.
+// A call the game's makes, or ours in the replay, with the bytes it leaves
+// in some buffers (out pointers, or a double it answers) noted or written
+// back.
+using VrBuffers = std::vector<std::pair<char*, uint32_t>>;
+
 template <typename Call>
-uint32_t VrNoted(StNote note, const VrOut* outs, const uint32_t* args, Call&& call)
+uint32_t VrNotedInto(StNote note, const VrBuffers& outs, Call&& call)
 {
-    char* out[2] = {};
-    for (int i = 0; i < 2; ++i)
-        out[i] = outs[i].arg >= 0 ? Ptr(args[outs[i].arg]) : nullptr;
     if (g_stReplay && g_stDepth == 0 && GetCurrentThreadId() == g_stThread) {
         const std::size_t at = g_stOurs.size();
         const uint32_t result = StReplayed(std::move(note), nullptr);
         if (at < g_stGame.size() && g_stGame[at] == g_stOurs[at]) {
             const std::vector<char>& bytes = g_stGame[at].out;
             std::size_t from = 0;
-            for (int i = 0; i < 2; ++i) {
-                if (out[i] && from + outs[i].size <= bytes.size())
-                    std::memcpy(out[i], bytes.data() + from, outs[i].size);
-                from += out[i] ? outs[i].size : 0;
+            for (const auto& [place, size] : outs) {
+                if (place && from + size <= bytes.size())
+                    std::memcpy(place, bytes.data() + from, size);
+                from += place ? size : 0;
             }
         }
         return result;
@@ -16029,23 +16089,39 @@ uint32_t VrNoted(StNote note, const VrOut* outs, const uint32_t* args, Call&& ca
         return call();
     const uint32_t result = StNoted(std::move(note), nullptr, 0, call);
     std::vector<char>& bytes = g_stGame.back().out;
-    for (int i = 0; i < 2; ++i) {
-        if (out[i])
-            bytes.insert(bytes.end(), out[i], out[i] + outs[i].size);
+    for (const auto& [place, size] : outs) {
+        if (place)
+            bytes.insert(bytes.end(), place, place + size);
     }
     return result;
 }
 
-uint32_t VrDispatch(char* self, uint32_t slot, const uint32_t* args, const std::function<uint32_t(uint32_t)>& call)
+template <typename Call>
+uint32_t VrNoted(StNote note, const VrOut* outs, const uint32_t* args, Call&& call)
 {
-    VrProxy* const proxy = VrFind(self);
-    const uint32_t function =
-        At<uint32_t>(reinterpret_cast<char*>(proxy ? proxy->original : At<uint32_t>(self, 0)), slot);
+    VrBuffers buffers;
+    for (int i = 0; i < 2; ++i)
+        buffers.push_back({outs[i].arg >= 0 ? Ptr(args[outs[i].arg]) : nullptr, outs[i].size});
+    return VrNotedInto(std::move(note), buffers, call);
+}
+
+uint32_t VrDispatch(char* self, uint32_t slot, const uint32_t* args, const std::function<uint32_t(uint32_t)>& call,
+                    char* value = nullptr)
+{
+    uint32_t function = 0;
     const VrSlot* desc = nullptr;
-    if (proxy) {
-        for (const VrSlot* at : proxy->slots) {
-            if (at->slot == slot)
-                desc = at;
+    {
+        std::lock_guard<std::recursive_mutex> lock(g_vrLock);
+        VrProxy* const proxy = GetCurrentThreadId() == g_stThread ? VrFind(self) : nullptr;
+        function =
+            At<uint32_t>(reinterpret_cast<char*>(proxy ? proxy->original : VrOriginalOf(At<uint32_t>(self, 0))), slot);
+        if (proxy) {
+            for (const VrKind* kind : proxy->kinds) {
+                for (const VrSlot& at : kind->slots) {
+                    if (at.slot == slot)
+                        desc = &at;
+                }
+            }
         }
     }
     if (!desc)
@@ -16053,14 +16129,19 @@ uint32_t VrDispatch(char* self, uint32_t slot, const uint32_t* args, const std::
     uint32_t rest = desc->args > 2 ? StArg(Ptr(args[2])) : 0;
     for (int i = 3; i < desc->args; ++i)
         rest = (rest ^ StArg(Ptr(args[i]))) * 16777619u;
-    if (desc->in >= 0) {
+    if (desc->in >= 0 && args[desc->in]) {
         const auto* bytes = reinterpret_cast<const uint8_t*>(args[desc->in]);
         for (uint32_t i = 0; i < desc->inSize; ++i)
             rest = (rest ^ bytes[i]) * 16777619u;
     }
-    const uint32_t result = VrNoted(StMake(function, self, desc->args > 0 ? Ptr(args[0]) : nullptr,
-                                           desc->args > 1 ? Ptr(args[1]) : nullptr, rest),
-                                    desc->outs, args, [&] { return call(function); });
+    VrBuffers buffers;
+    if (value)
+        buffers.push_back({value, 8});
+    for (const VrOut& at : desc->outs)
+        buffers.push_back({at.arg >= 0 ? Ptr(args[at.arg]) : nullptr, at.size});
+    const uint32_t result = VrNotedInto(StMake(function, self, desc->args > 0 ? Ptr(args[0]) : nullptr,
+                                               desc->args > 1 ? Ptr(args[1]) : nullptr, rest),
+                                        buffers, [&] { return call(function); });
     if (desc->outKind && desc->outs[0].arg >= 0)
         VrProxyObject(At<char*>(Ptr(args[desc->outs[0].arg]), 0), *desc->outKind);
     if (desc->resultKind)
@@ -16073,6 +16154,22 @@ uint32_t __fastcall VrThunk0(char* self, void*)
 {
     const uint32_t args[1] = {};
     return VrDispatch(self, Slot, args, [&](uint32_t f) { return reinterpret_cast<Call0Fn>(f)(self, nullptr); });
+}
+
+// A slot answering on the x87 stack: the double kept in a buffer.
+template <uint32_t Slot>
+double __fastcall VrThunk0D(char* self, void*)
+{
+    double value = 0;
+    const uint32_t args[1] = {};
+    VrDispatch(
+        self, Slot, args,
+        [&](uint32_t f) {
+            value = reinterpret_cast<double(__fastcall*)(char*, void*)>(f)(self, nullptr);
+            return 0u;
+        },
+        reinterpret_cast<char*>(&value));
+    return value;
 }
 
 template <uint32_t Slot>
@@ -16088,6 +16185,14 @@ uint32_t __fastcall VrThunk2(char* self, void*, uint32_t a, uint32_t b)
     const uint32_t args[2] = {a, b};
     return VrDispatch(self, Slot, args,
                       [&](uint32_t f) { return reinterpret_cast<Call2Fn>(f)(self, nullptr, a, b); });
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall VrThunk3(char* self, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    const uint32_t args[3] = {a, b, c};
+    return VrDispatch(self, Slot, args,
+                      [&](uint32_t f) { return reinterpret_cast<Call3Fn>(f)(self, nullptr, a, b, c); });
 }
 
 template <uint32_t Slot>
@@ -16404,6 +16509,260 @@ const bool g_registeredTail = registry::Register({
     "\"Water effects, sky and clouds\")",
     true,
     InstallTail,
+});
+
+// --- The effects' time step and start actions -----------------------------------------------
+//
+// The manager's time step and an effect's start actions (effects_time.inc),
+// compared as the tail is: the objects they call through proxied (the
+// speed service's slot answering a double kept in the note), the direct
+// helpers noted by detours of this group's in compare mode (the city
+// view's ray, a held reference's let-go, a shake at a place and a flash),
+// the store's engine comparing the calls and what the function writes
+// (the time at +0x1B8 and +0x1BC; the effect's +0x144 and the manager's
+// shake at +0xD28 to +0xD4C).
+StepMode g_tmMode = StepMode::Original;
+Call1Fn g_SC4EffectsManager_StepTime = nullptr, g_SC4EffectsManager_StartActions = nullptr;
+using TmRayFn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t, uint32_t);
+TmRayFn g_SC4CameraView_ScreenRay = nullptr;
+Call0Fn g_SC4RefPtr_Release = nullptr;
+Call3Fn g_SC4EffectsManager_ShakeAt = nullptr;
+Call1Fn g_SC4EffectsManager_Flash = nullptr;
+
+const VrKind kVrSpeed{{{0x80, 0, {{-1, 0}, {-1, 0}}, nullptr, nullptr, -1, 0,
+                        reinterpret_cast<uint32_t>(&VrThunk0D<0x80>)}}};
+const VrKind kVrCursor{{{0x84, 2, {{0, 4}, {1, 4}}, nullptr, nullptr, -1, 0, VR_SLOT(2, 0x84)}}};
+const VrKind kVrFramework{{{0x14, 3, {{2, 4}, {-1, 0}}, &kVrCursor, nullptr, -1, 0, VR_SLOT(3, 0x14)}}};
+const VrKind kVrSounds{{{0xA8, 2, {{-1, 0}, {-1, 0}}, nullptr, nullptr, 1, 8, VR_SLOT(2, 0xA8)}}};
+
+// What ours calls besides the proxied tables: in the replay the note.
+double TmSlotDouble(char* object, uint32_t slot)
+{
+    return reinterpret_cast<double(__thiscall*)(void*)>(At<uint32_t>(At<char*>(object, 0), slot))(object);
+}
+
+void TmScreenRay(char* view, uint32_t x, uint32_t z, uint32_t* point, uint32_t* direction)
+{
+    VrNotedInto(StMake(addr::SC4CameraView_ScreenRay, view, Ptr(x), Ptr(z)),
+                {{reinterpret_cast<char*>(point), 0xC}, {reinterpret_cast<char*>(direction), 0xC}}, [&] {
+                    return CallThis<uint8_t>(addr::SC4CameraView_ScreenRay, view, x, z, point, direction);
+                });
+}
+
+void TmReleaseHolder(char** holder)
+{
+    VrNotedInto(StMake(addr::SC4RefPtr_Release, holder), {},
+                [&] { return CallThis<uint32_t>(addr::SC4RefPtr_Release, holder); });
+}
+
+void TmShakeAt(char* manager, char* shake, float* place, uint32_t value)
+{
+    VrNotedInto(StMake(addr::SC4EffectsManager_ShakeAt, manager, shake, Ptr(Word(place)), value), {},
+                [&] { return CallThis<uint32_t>(addr::SC4EffectsManager_ShakeAt, manager, shake, place, value); });
+}
+
+void TmFlash(char* manager, char* shake)
+{
+    VrNotedInto(StMake(addr::SC4EffectsManager_Flash, manager, shake), {},
+                [&] { return CallThis<uint32_t>(addr::SC4EffectsManager_Flash, manager, shake); });
+}
+
+#include "core/effects_time.inc"
+
+// The compound effects in use, in order (the step's comparison needs them
+// the same after the game's run).
+std::vector<char*> TmInUse(char* manager)
+{
+    std::vector<char*> effects;
+    for (uint32_t* at = At<uint32_t*>(manager, 0xBAC); at != At<uint32_t*>(manager, 0xBB0); ++at)
+        effects.push_back(At<char**>(manager, 0xB94)[*at]);
+    return effects;
+}
+
+// The compound effect's three functions the step calls through its tables
+// (its running flag 0x007D6680, a point 0x005BEA50 and its part's step
+// 0x005BEA10), noted in a noted run by detours in compare mode: a proxy
+// would follow the effects the step makes by copying others.
+Call0Fn g_SC4Effect_IsRunning = nullptr;
+Call3Fn g_SC4CompoundEffect_SetPoint = nullptr;
+Call1Fn g_SC4CompoundEffectPart_Step = nullptr;
+
+uint32_t __fastcall TmRunningNoted(char* self, void*)
+{
+    return VrNotedInto(StMake(addr::SC4Effect_IsRunning, self), {},
+                       [&] { return g_SC4Effect_IsRunning(self, nullptr); });
+}
+OPENSC4_THUNK(TTmRunningNoted, TmRunningNoted, 0)
+
+uint32_t __fastcall TmPointNoted(char* self, void*, uint32_t a, uint32_t point, uint32_t c)
+{
+    return VrNotedInto(StMake(addr::SC4CompoundEffect_SetPoint, self, Ptr(a), Ptr(point), StArg(Ptr(c))), {},
+                       [&] { return g_SC4CompoundEffect_SetPoint(self, nullptr, a, point, c); });
+}
+OPENSC4_THUNK(TTmPointNoted, TmPointNoted, 12)
+
+uint32_t __fastcall TmPartStepNoted(char* self, void*, uint32_t seconds)
+{
+    return VrNotedInto(StMake(addr::SC4CompoundEffectPart_Step, self, Ptr(seconds)), {},
+                       [&] { return g_SC4CompoundEffectPart_Step(self, nullptr, seconds); });
+}
+OPENSC4_THUNK(TTmPartStepNoted, TmPartStepNoted, 4)
+
+// The helpers' detours (compare mode): noted in a noted run.
+uint32_t __fastcall TmScreenRayNoted(char* view, void*, uint32_t x, uint32_t z, uint32_t point, uint32_t direction)
+{
+    return VrNotedInto(StMake(addr::SC4CameraView_ScreenRay, view, Ptr(x), Ptr(z)),
+                       {{Ptr(point), 0xC}, {Ptr(direction), 0xC}},
+                       [&] { return g_SC4CameraView_ScreenRay(view, nullptr, x, z, point, direction); });
+}
+OPENSC4_THUNK(TTmScreenRayNoted, TmScreenRayNoted, 16)
+
+uint32_t __fastcall TmReleaseNoted(char* holder, void*)
+{
+    return VrNotedInto(StMake(addr::SC4RefPtr_Release, holder), {},
+                       [&] { return g_SC4RefPtr_Release(holder, nullptr); });
+}
+OPENSC4_THUNK(TTmReleaseNoted, TmReleaseNoted, 0)
+
+uint32_t __fastcall TmShakeAtNoted(char* manager, void*, uint32_t shake, uint32_t place, uint32_t value)
+{
+    return VrNotedInto(StMake(addr::SC4EffectsManager_ShakeAt, manager, Ptr(shake), Ptr(place), value), {},
+                       [&] { return g_SC4EffectsManager_ShakeAt(manager, nullptr, shake, place, value); });
+}
+OPENSC4_THUNK(TTmShakeAtNoted, TmShakeAtNoted, 12)
+
+uint32_t __fastcall TmFlashNoted(char* manager, void*, uint32_t shake)
+{
+    return VrNotedInto(StMake(addr::SC4EffectsManager_Flash, manager, Ptr(shake)), {},
+                       [&] { return g_SC4EffectsManager_Flash(manager, nullptr, shake); });
+}
+OPENSC4_THUNK(TTmFlashNoted, TmFlashNoted, 4)
+
+// The store's comparison over more than one span of memory.
+// A comparison whose game's run may change what ours would then read: with
+// `same` false after the game's run ours is not replayed, only counted.
+std::map<std::string, uint64_t> g_stSkipped;
+
+template <typename Game, typename Ours>
+uint32_t StSpansCompared(const char* id, const std::vector<std::pair<char*, std::size_t>>& spans, bool result,
+                         Game&& game, Ours&& ours, const std::function<bool()>& same = {})
+{
+    StSaved saved;
+    g_stGame.clear();
+    g_stOurs.clear();
+    std::vector<std::vector<char>> before, after, own;
+    for (const auto& [at, size] : spans)
+        before.emplace_back(at, at + size);
+    g_stThread = GetCurrentThreadId();
+    g_stDepth = 0;
+    g_stReplay = false;
+    g_stNoting = true;
+    const uint32_t theirs = game();
+    g_stNoting = false;
+    for (std::size_t i = 0; i < spans.size(); ++i)
+        after.emplace_back(spans[i].first, spans[i].first + spans[i].second);
+    if (same && !same()) {
+        const uint64_t n = ++g_stSkipped[id];
+        if ((n & (n - 1)) == 0)
+            log::Write("water effects: %s: %llu not compared (the game's run changed what ours reads)", id,
+                       static_cast<unsigned long long>(n));
+        return theirs;
+    }
+    for (std::size_t i = 0; i < spans.size(); ++i)
+        std::memcpy(spans[i].first, before[i].data(), spans[i].second);
+    g_stReplay = true;
+    const uint32_t mine = ours();
+    g_stReplay = false;
+    for (std::size_t i = 0; i < spans.size(); ++i) {
+        own.emplace_back(spans[i].first, spans[i].first + spans[i].second);
+        std::memcpy(spans[i].first, after[i].data(), spans[i].second);
+    }
+    if (!(g_stGame == g_stOurs)) {
+        StRecord(id, false, StNotesText(g_stGame, g_stOurs), StNotesText(g_stOurs, g_stGame));
+        return theirs;
+    }
+    for (std::size_t i = 0; i < spans.size(); ++i) {
+        if (own[i] != after[i]) {
+            char text[24];
+            std::snprintf(text, sizeof text, "span %zu: ", i);
+            StRecord(id, false, text + Hex(after[i].data(), spans[i].second),
+                     text + Hex(own[i].data(), spans[i].second));
+            return theirs;
+        }
+    }
+    StRecord(id, !result || theirs == mine, Hex(&theirs, 4), Hex(&mine, 4));
+    return theirs;
+}
+
+uint32_t __fastcall TmStepByMode(char* manager, void*, uint32_t ms)
+{
+    const auto game = [&] { return g_SC4EffectsManager_StepTime(manager, nullptr, ms); };
+    const auto ours = [&] {
+        StepEffectsTime(manager, ms);
+        return 0u;
+    };
+    return StByModeOf(g_tmMode, StMake(addr::SC4EffectsManager_StepTime, manager, Ptr(ms)), nullptr, 0, game, ours,
+                      [&] {
+                          VrScope scope;
+                          VrProxyObject(M<char*>(0x00B43D5C), kVrSpeed);
+                          VrProxyObject(reinterpret_cast<char*(__cdecl*)()>(addr::RZGetFramework)(), kVrFramework);
+                          const std::vector<char*> before = TmInUse(manager);
+                          return StSpansCompared("effects.time.step", {{manager + 0x1B8, 8}}, false, game, ours,
+                                                 [&] { return TmInUse(manager) == before; });
+                      });
+}
+OPENSC4_THUNK(TTmStep, TmStepByMode, 4)
+
+uint32_t __fastcall TmStartByMode(char* manager, void*, uint32_t effect)
+{
+    const auto game = [&] { return g_SC4EffectsManager_StartActions(manager, nullptr, effect); };
+    const auto ours = [&] {
+        StartEffectActions(manager, Ptr(effect));
+        return 0u;
+    };
+    return StByModeOf(g_tmMode, StMake(addr::SC4EffectsManager_StartActions, manager, Ptr(effect)), nullptr, 0, game,
+                      ours, [&] {
+                          VrScope scope;
+                          VrProxyObject(M<char*>(0x00B43DD0), kVrSounds);
+                          return StSpansCompared("effects.time.start", {{Ptr(effect) + 0x144, 4}, {manager + 0xD28, 0x28}},
+                                                 false, game, ours);
+                      });
+}
+OPENSC4_THUNK(TTmStart, TmStartByMode, 4)
+
+bool InstallTime(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !Detour(addr::SC4EffectsManager_StepTime, &TTmStep, &g_SC4EffectsManager_StepTime) ||
+        !Detour(addr::SC4EffectsManager_StartActions, &TTmStart, &g_SC4EffectsManager_StartActions))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(HookAssignFloats() && HookAssignFloat3s() &&
+          Detour(addr::SC4CameraView_ScreenRay, &TTmScreenRayNoted, &g_SC4CameraView_ScreenRay) &&
+          Detour(addr::SC4RefPtr_Release, &TTmReleaseNoted, &g_SC4RefPtr_Release) &&
+          Detour(addr::SC4EffectsManager_ShakeAt, &TTmShakeAtNoted, &g_SC4EffectsManager_ShakeAt) &&
+          Detour(addr::SC4EffectsManager_Flash, &TTmFlashNoted, &g_SC4EffectsManager_Flash) &&
+          Detour(addr::SC4Effect_IsRunning, &TTmRunningNoted, &g_SC4Effect_IsRunning) &&
+          Detour(addr::SC4CompoundEffect_SetPoint, &TTmPointNoted, &g_SC4CompoundEffect_SetPoint) &&
+          Detour(addr::SC4CompoundEffectPart_Step, &TTmPartStepNoted, &g_SC4CompoundEffectPart_Step)))
+        return false;
+    g_tmMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the effects' time step and start actions %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredTime = registry::Register({
+    "renderer.effects.time",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectsManager_StepTime,
+    "The effects manager's time step (the speed, the cursor's ray, each running compound effect stepped) and an "
+    "effect's start actions (a sound, a shake); compare mode proxies the objects they call through, notes the direct "
+    "helpers and compares the store's way (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallTime,
 });
 
 bool InstallEffects(registry::Mode mode)
