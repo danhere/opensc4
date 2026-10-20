@@ -33,7 +33,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Script system | 116 | 31,620 | s1 (34, done), s2, s3 (part s below counts 125) |
 | City situation manager | 167 | 44,037 | 4 |
 | Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
-| Aircraft and watercraft managers and their base | 222 | 56,293 | 6 |
+| Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 to aw5 (part aw below counts 172) |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | 8 |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | 2 |
 | Trains | 79 | 18,124 | 2 |
@@ -622,6 +622,106 @@ In the parity runs below, 28 of the 29 were reached in at least one B run (each 
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every B run carried the ` y` token.
+
+
+## Part aw: the aircraft and watercraft managers and the common base
+
+### Survey
+
+cSC4AircraftManager (class ID 0xC98F9D4A, factory 0x00514600, constructor 0x004FBB40, 0xA9C bytes, city slot 45) and cSC4WatercraftManager (0xA98F9D28, factory 0x00514630, constructor 0x00574860, 0xAD4 bytes, city slot 46) keep the city's aircraft and boats. Both derive directly from the base all four automata managers share (constructor 0x005125E0, vtable 0x00A95880, GetGZCLSID 0x498F9CB5; "cSC4AutomataManager", the name is ours), which part v1's vehicle and pedestrian base derives from too. The layout is in [automata_awmgr.h](../src/core/automata_awmgr.h).
+
+Four parts, each with its own vtable:
+
+| Part | Aircraft | Watercraft | Common base | What it is |
+| --- | --- | --- | --- | --- |
+| +0x00 | 0x00A94850 | 0x00A9DF38 | 0x00A95880 | the manager, 68 slots |
+| +0x04 | 0x00A94840 | 0x00A9DF28 | 0x00A95870 | 4 slots; slot 3 is the common base's 0x0050DD30, the aircraft manager's 0x005DEB40 |
+| +0x08 | 0x00A94828 | 0x00A9DF10 | 0x00A95858 | serializable: Write 0x004FB5B0 / 0x0056FA70 / 0x0050CB80, Read 0x004FBE70 / 0x005749E0 / 0x005108E0, GetGZCLSID |
+| +0x0C | 0x00A94818 | 0x00A9DF00 | 0x00A95848 | message target: 0x004FC710, 0x00575500, 0x00506970 |
+
+The gzcom-dll cISC4AutomataManager header's slots line up from Init at slot 3 (each overloaded pair in the other order), so slot 6 is IsActive (+0x4C), 9 to 11 Pause, Resume and IsPaused (+0x4D), 13 IsDrivingMode, 14 GetMinZoom, 28 and 29 GetExemplarData and its map, 30 CanCreateGroup, 35 IsCameraFollowUpdating, 36 and 37 GetSourceBuildingCount and its group form. The aircraft manager overrides slots 0, 3, 4, 7, 17, 18, 24 and 38; the watercraft manager slots 0, 3, 4, 7, 8, 15, 16, 24, 38 and 63.
+
+The group is found by the three classes' vtables, less nothing shared outside the four managers, plus the helpers only they (or part v1's group) call: 172 functions, 46,000 bytes. The survey's 222 and 56,293 had neighbours placed with it (among them the class at vtable 0x00A95990, 0x00513E00 to 0x00514340). Two callees were left to their own parts: 0x00523F60 (an aircraft automaton's constructor, which the aircraft manager's AddAutomaton calls) and the script system's 0x0051C380, 0x0051C3B0 and 0x0051CD90. Of the 172:
+
+- **Stay the game's (19).**
+  - The fifteen `sub ecx,N; jmp` adjustor thunks: 0x004FBC60 to 0x004FBCE0 (nine, six of them shared by all four managers), 0x00512750, 0x00512760, 0x00512770, 0x00574920, 0x00574930, 0x00574940.
+  - The shared stubs 0x004FC900 (slots 51 and 52) and 0x005053E0 (slot 18, `xor eax,eax; ret 0x1C`).
+  - SC4UIScale's two probe sites in the group: the common base's CreateAutomaton 0x00505370 (slot 15) and the aircraft manager's message helper 0x004FBFE0. Its popup style patch (0x0052CCEE, 0x0052CD01) is in the city situation manager's 0x0052CC50, not here. No NAM site is in the group.
+- **aw1 (36, done): the object and its queries.** Below. With the two factories, which the survey counted with the registration.
+- **aw2 (25, about 9,000 bytes): the common base's life cycle, tuning, save and messages.**
+  - Init 0x005066B0, Shutdown 0x005110A0, Activate (slot 5) 0x0050A6B0, SetMaxCount (23) 0x0050AA60, ReleaseAutomatonSet (33) 0x0050CDE0.
+  - DoMessage 0x00506970 and the +4 slot 3 0x0050DD30 with 0x00542EE0 and 0x00542F50.
+  - Write 0x0050CB80, Read 0x005108E0 with 0x0050FEB0.
+  - The tuning load 0x00512CF0 (2,777 bytes) with 0x00512860, 0x00512940, 0x00510C80, 0x00510D20; slot 39 0x00513910; TrackAutomataGroupInstances (31) 0x00513C40 with 0x00510F10, 0x00510450, 0x00512030; slot 66 0x00514520 with 0x00512C80 and 0x005120E0.
+- **aw3 (36, about 12,200 bytes): the common base's automata, creation, dispatch and frames.** Maybe two pieces.
+  - AddAutomaton 0x0050F790, RemoveAutomaton 0x0050C990, GetRandomCreationPoint 0x00506DC0.
+  - TranslateDispatchLocation and ChaseAutomaton (19 to 22): 0x00507120, 0x00506F50, 0x00511260, 0x005072E0.
+  - The exemplar choices (25 to 27): 0x0050BE90, 0x0050C0D0, 0x0050C1D0. GetInstancesOfGroup (32) 0x00510040. SetCameraFollow (34) 0x0050A930.
+  - Slots 40 to 43, 45 to 50, 53 to 57, 59 to 65 and 67: 0x00506600, 0x00507AC0, 0x0050C8B0, 0x00507B80, 0x00511990, 0x00510690, 0x0050A740, 0x00506CD0, 0x00505350, 0x0050A5D0, 0x0050C6A0, 0x00506D50, 0x0050C7E0, 0x0050F2C0, 0x0050A670, 0x0050F690, 0x0050A520, 0x005073D0, 0x00507430, the frame update 0x0050A7B0 with 0x00507BF0, 0x00507470 (1,606 bytes), 0x0050F930, 0x0050F9C0 (1,245).
+- **aw4 (35, about 9,500 bytes): the aircraft manager's behaviour and the watercraft manager's life cycle, save and messages.**
+  - Aircraft (11): AddAutomaton 0x004FA6D0, Init 0x004FA9E0, HandleTuningParametersChanged 0x004FAA50, slots 17 and 18 (0x004FAAF0, 0x004FC440), Write 0x004FB5B0, Shutdown 0x004FB7D0, Read 0x004FBE70, DoMessage 0x004FC710 with 0x004FB8D0 and 0x004FB2B0.
+  - Watercraft (24): Init 0x00567B90, Shutdown 0x005744A0, the tuning 0x00567BF0, AddAutomaton 0x0056F7C0, RemoveAutomaton 0x0056F800, Write 0x0056FA70, Read 0x005749E0 (1,917 bytes), DoMessage 0x00575500 with 0x00574520 and 0x00575170, and their helpers 0x00574340, 0x00574230, 0x005732F0, 0x005734E0, 0x00573520, 0x00574830, 0x00574260, 0x0056C850, 0x00570D10, 0x00570D60, 0x0056D7F0, 0x0056D6E0, 0x0056C910, 0x0056F740.
+- **aw5 (23, about 11,000 bytes): the watercraft manager's creation, routes and frames.** CreateAutomaton (15) 0x00568F30, GetRandomCreationPoint (16) 0x0056C990 (1,321 bytes), the frame update (63) 0x005736A0 (2,941), and 0x00566DA0, 0x00566E60, 0x00567C90, 0x00567CE0, 0x005684C0, 0x00568CE0, 0x00568FD0, 0x0056C940, 0x0056D5F0, 0x0056F510, 0x0056F670, 0x0056FD60, 0x00570CC0, 0x00570DF0, 0x005710A0 (1,417), 0x00571630, 0x00572360, 0x005723D0, 0x00573230, 0x00573580.
+
+aw3 and aw5 run on frames, so the family's frame caveat applies (top of this page). The common base's functions are also the vehicle and pedestrian managers', so every aw part changes all four managers.
+
+### Part aw1: what is ours
+
+36 functions in one group, off by default: `simulators.automata.awmgr` ([automata_awmgr.cpp](../src/core/automata_awmgr.cpp)).
+
+- **The object (22):**
+  - The factories 0x00514600 and 0x00514630.
+  - The constructors 0x005125E0 (common base), 0x004FBB40 and 0x00574860.
+  - The destructor bodies 0x00512780 (common base) and 0x00574970 (watercraft), the deleting destructors (slot 38) 0x00512CD0, 0x004FBCF0 and 0x00574950, and the container clears they call: the aircraft map's 0x004FB780 with its erase 0x004FB270, the watercraft tables' 0x0056D670 and 0x005743D0.
+  - QueryInterface 0x00505480, 0x004FA740 and 0x00566E30; AddRef 0x00505510 and Release 0x00507B50 (all four managers'); GetGZCLSID 0x00512740, 0x004FBC50 and 0x00574910.
+- **The queries (14), slots of all four managers:** IsActive 0x004FBBE0, Pause 0x004FBBF0, Resume 0x004FBC00, IsPaused 0x004FBC10, IsDrivingMode 0x00506940 (the view service's view is the U-Drive's, 0x2B709676), GetMinZoom 0x004FBC20, the five-argument Dispatch stub 0x005053F0, GetExemplarData 0x004FBC30 and its map 0x004FBC40, CanCreateGroup 0x0050C300, IsCameraFollowUpdating 0x00505400 (the byte 0x00B21B94), GetSourceBuildingCount 0x0050BE30 (the +0xA64 table's count, or for 0x1402 and 0x1406 the object at 0x00B43D28), its group form 0x00505410 and the exemplar find of slot 44, 0x00507B00.
+
+IsActive and IsPaused are 4 bytes long; their address entries list the two bytes of `CC` padding after them, as part a3a's GetOccupant does, so the 5-byte entry hook stays inside the function.
+
+Kept as the game's: the adjustor thunks, the two stubs and the two SC4UIScale probe sites above; the containers' helpers (the exemplar map's erase 0x0050F1E0, the exemplar records' range 0x00510650, the hash table clears 0x008EBA60 and 0x00829D20, the watercraft records' range 0x0056F740, the group's class 0x00505330); SC4Random::ConstructSeeded, the hash set constructor, the map and hash table finds, SC4PairList::Destroy, SC4RefVector::Destroy and the allocators, all called at their addresses.
+
+Oddities kept:
+
+- QueryInterface's branches for 1, the serializable part and the message target write a null and still call AddRef through a null object; its cISC4AutomataManager branch never tests the object.
+- Release at a count of 1 (or 0) shuts down and deletes without counting down.
+- The common base's constructor writes the vtables of its own bases (0x00A8298C, 0x00A80784, 0x00A81174) before its own.
+- The destructors free the containers' storage but never destroy the generator at +0x50. The aircraft and watercraft managers' deleting destructors do not set the vtables back.
+- Slot 44 does not read the key of an empty vector.
+
+The generator at +0x50 is seeded from the clock by SC4Random::ConstructSeeded; ours seeds it under `fixed_seed::SiteOverride(0x00512666)`, so the clock seed counts at the game's call site, as part a3c's generator does.
+
+Return values. EAX's top bytes follow the game's where they come from a call or a value: QueryInterface (AddRef's answer, or what its compares leave of the IID), Release, IsDrivingMode (the view's ID), CanCreateGroup and GetMinZoom (zero), the source building counts and the destructor bodies (what their last call leaves). IsActive, IsPaused and IsCameraFollowUpdating answer AL; the game leaves its caller's EAX above it.
+
+No floats, no stack leftovers that are read.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_AWMGR=1`, with `OPENSC4_TEST_AUTOMATA=2` or more, queries the city's four managers on the test day at the game's addresses, so the same test runs on both sides (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). Into the fingerprint as ` A<aircraft>,<watercraft>,<vehicle>,<pedestrian>,<fresh>,<flags>`:
+
+- QueryInterface for the four class IDs and six interfaces, on the object and through the +4, +8 and +0xC parts (each AddRef given back), AddRef and Release, GetGZCLSID, and the queries above.
+- Every exemplar record found by its own key and a key not there; every key of the exemplar map through CanCreateGroup; every key of the source building table through slot 36, and slot 37 over groups 0x4000 to 0x4240.
+- A new aircraft and a new watercraft manager from the factories, with nodes of the test's own in their containers, released so that the destructors' clears walk them; a bare common base built and deleted by its slot 38 (which no class reaches otherwise).
+
+To the log only: the reference and automata counts, and the source building counts that come from the object at 0x00B43D28. The city's managers are not changed.
+
+Reached (our first-call log lines, trial Making Money d0000, 4 days, original and ours alike): all 36. The constructors, factories, QueryInterface, AddRef, Release, IsDrivingMode, IsActive, CanCreateGroup and GetSourceBuildingCount by the game at the load; the rest by the test.
+
+### Parity
+
+2026-10-20, B = `simulators.automata.awmgr` against the original (the switch list includes `determinism.dispatch_info=ours`; two jobs, `harness.multi_instance=ours` on both sides), env p4env-aw1, snapshot aw1-r1, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_AWMGR=1`. All the same:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+In the 12-save leg, three saves needed a second leg:
+
+- Rush Hour d0000's first B run had other `adv` and `advisors` values from the first day on. That is the first-run advisor outcome of [parity.md](parity.md); its three repeats were the same as A.
+- In Rush Hour d0090 and Making Money d0000, the B game ended during the load: no crash dump, no crash line, and other games were running on the machine.
+
+A second leg of those three saves was the same on the first pair. Every completed B run carried the ` A` token and reached all 36 functions (our first-call log lines).
 
 
 ## Part s: the script system
