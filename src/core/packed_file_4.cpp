@@ -273,7 +273,7 @@ uint32_t __fastcall SetKeyTracking(char* self, void*, uint32_t on)
             This<void>(addr::cGZDBSegmentPackedFile_KeyTableBegin, At<void*>(self, object::kIndex), &at);
             while (at.node) {
                 UpdateKeyCounts(self, nullptr, At<uint32_t>(at.node, 4), At<uint32_t>(at.node, 8), 1);
-                This<void*>(addr::cGZDBSegmentPackedFile_F96F5B7, &at);
+                This<void*>(addr::cGZDBSegmentPackedFile_HashIteratorNext, &at);
             }
         }
     }
@@ -336,8 +336,8 @@ uint8_t __fastcall CloseRecord(char* self, void*, void* record)
         char* const open = At<char*>(node, 0x1C);
         if ((open ? open + 4 : nullptr) == record) {
             if ((Virtual<uint32_t>(record, 0x10) & 2) != 0)
-                This<uint8_t>(addr::cGZDBSegmentPackedFile_F971617, self - 4, open, &key);
-            This<void>(addr::cGZDBSegmentPackedFile_F96E363, self - 4, open ? open + 4 : nullptr);
+                This<uint8_t>(addr::cGZDBSegmentPackedFile_FlushWriteRecord, self - 4, open, &key);
+            This<void>(addr::cGZDBSegmentPackedFile_RecordClosed, self - 4, open ? open + 4 : nullptr);
             Virtual<uint32_t>(open, 0x08);
             This<void>(addr::cGZDBSegmentPackedFile_RecordMapErase, map, node);
             return 1;
@@ -359,7 +359,7 @@ uint8_t __fastcall Close(char* self, void*)
         return 1;
     uint8_t ok = 1;
     if ((flags & 2) != 0) {
-        ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_F96FA6B, self - 4);
+        ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_CloseAllOpenRecords, self - 4);
         if (ok != 0)
             ok = Virtual<uint8_t>(self, slot::kFlush);
     }
@@ -371,7 +371,7 @@ uint8_t __fastcall Close(char* self, void*)
     char* const start = self - 4;
     This<void>(addr::SC4Uint32HashSet_Clear, start + object::kTypeCounts);
     This<void>(addr::SC4Uint32HashSet_Clear, start + object::kGroupCounts);
-    This<void>(addr::cGZDBSegmentPackedFile_F96ED93, start + object::kHoles);
+    This<void>(addr::cGZDBSegmentPackedFile_ClearHoleTree, start + object::kHoles);
     This<void>(addr::cGZDBSegmentPackedFile_KeyTableClear, start + object::kDirectory);
     Virtual<uint8_t>(self + iface::kFile, file::kClose);
     At<uint32_t>(self, iface::kFlags) = 0;
@@ -399,8 +399,8 @@ void* __fastcall Construct(char* self, void*)
     At<uint32_t>(self, 0xCC) = 0;
     At<uint32_t>(self, 0xD0) = 0;
     At<uint32_t>(self, 0xD4) = 0x200;
-    This<void*>(addr::cGZDBSegmentPackedFile_F96F57B, self + object::kRecords);
-    This<void*>(addr::cGZDBSegmentPackedFile_F96D8BC, self + object::kHeader);
+    This<void*>(addr::cGZDBSegmentPackedFile_OpenTreeConstruct, self + object::kRecords);
+    This<void*>(addr::cGZDBSegmentPackedFile_HeaderConstruct, self + object::kHeader);
     At<uint32_t>(self, 0x144) = 3;
     At<uint32_t>(self, 0x148) = 0x3E19999A; // 0.15f
     This<void*>(addr::cGZDBSegmentPackedFile_HolesMapConstruct, self + object::kHoles);
@@ -503,7 +503,7 @@ uint8_t __fastcall ReadIndex(char* self, void*)
     IndexEntry* const entries = Cdecl<IndexEntry*>(addr::SC4_operator_new, count * 0x14);
     if (entries) {
         using ArrayFn = void(__stdcall*)(void*, uint32_t, uint32_t, std::uintptr_t);
-        const std::uintptr_t nothing = addr::cGZDBSegmentPackedFile_F96D8B9;
+        const std::uintptr_t nothing = addr::cGZDBSegmentPackedFile_ConstructNothing;
         reinterpret_cast<ArrayFn>(addr::SC4UI_F41D490)(entries, uint32_t{0x14}, count, nothing);
     }
     if (Virtual<uint8_t>(stream, file::kRead, entries, At<uint32_t>(self, object::kIndexCount) * 0x14) != 0) {
@@ -518,10 +518,11 @@ uint8_t __fastcall ReadIndex(char* self, void*)
             entry.offset = from->offset;
             entry.size = from->size;
             uint32_t inserted[4];
-            This<void*>(addr::cGZDBSegmentPackedFile_F97005C, At<void*>(self, object::kIndex), &inserted[0], &entry);
+            This<void*>(addr::cGZDBSegmentPackedFile_InsertIntoIndex, At<void*>(self, object::kIndex), &inserted[0],
+                        &entry);
             UpdateKeyCounts(self, nullptr, from->key.type, from->key.group, 1);
         }
-        if (This<uint8_t>(addr::cGZDBSegmentPackedFile_F96FC95, self) != 0) {
+        if (This<uint8_t>(addr::cGZDBSegmentPackedFile_ValidateIndex, self) != 0) {
             At<uint8_t>(self, object::kIndexDirty) = 0;
             ok = 1;
         }
@@ -535,7 +536,7 @@ uint8_t __fastcall ReadIndex(char* self, void*)
 uint32_t CallScanSite(char* self)
 {
     const uint8_t* const site = reinterpret_cast<const uint8_t*>(kScanCallSite);
-    std::uintptr_t target = addr::cGZDBSegmentPackedFile_F9725FB;
+    std::uintptr_t target = addr::cGZDBSegmentPackedFile_ScanEmbedded;
     if (site[0] == 0xE8) {
         int32_t relative;
         std::memcpy(&relative, site + 1, sizeof(relative));
@@ -557,7 +558,7 @@ uint8_t __fastcall ReadHeader(char* self, void*)
         return 0;
     if (Virtual<uint8_t>(stream, file::kRead, self + object::kHeader, uint32_t{0x60}) == 0)
         return 0;
-    if (This<uint8_t>(addr::cGZDBSegmentPackedFile_F96E407, self) != 0)
+    if (This<uint8_t>(addr::cGZDBSegmentPackedFile_ValidateHeader, self) != 0)
         return 1;
     const uint32_t start = CallScanSite(self);
     At<uint32_t>(self, object::kBase) = start;
@@ -594,7 +595,7 @@ int32_t __cdecl ProbeFile(void* path, uint32_t scan)
                 char* const memory = Cdecl<char*>(addr::SC4_operator_new, uint32_t{0x1C8});
                 void* const made = memory ? Construct(memory, nullptr) : nullptr;
                 void* holder = nullptr;
-                This<void*>(addr::cGZDBSegmentPackedFile_F96E773, &holder, made);
+                This<void*>(addr::cGZDBSegmentPackedFile_CountedPointerConstruct, &holder, made);
                 char* const segment = static_cast<char*>(holder);
                 Virtual<uint8_t>(segment, 0x10);
                 Virtual<void>(segment, 0x24, path);
@@ -649,7 +650,7 @@ uint8_t __fastcall Open(char* self, void*, uint32_t read, uint32_t write)
     bool proceed = true;
     if (Virtual<uint32_t>(stream, file::kLength) == 0) {
         if ((At<uint8_t>(self, iface::kFlags) & 2) != 0)
-            ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_F96E99A, start);
+            ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_InitNewHeader, start);
         else
             ok = 0;
         proceed = ok != 0;
@@ -659,12 +660,12 @@ uint8_t __fastcall Open(char* self, void*, uint32_t read, uint32_t write)
         if (ok != 0) {
             ok = ReadIndex(start, nullptr);
             if (ok != 0) {
-                ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_F96FCE8, start);
+                ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_ReadHoles, start);
                 if (ok != 0)
                     ok = ReadDirectory(start, nullptr);
             }
         } else if ((At<uint8_t>(self, iface::kFlags) & 2) != 0) {
-            ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_F96E99A, start);
+            ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_InitNewHeader, start);
             if (ok != 0 && At<void*>(self, iface::kIndex) == nullptr)
                 At<void*>(self, iface::kIndex) = NewIndexTable();
         }
@@ -835,33 +836,33 @@ bool InstallPackedFile4(registry::Mode)
     static void* originals[32] = {};
     static const std::pair<std::uintptr_t, void*> hooks[] = {
         {addr::cGZDBSegmentPackedFile_Close, reinterpret_cast<void*>(&Close)},
-        {addr::cGZDBSegmentPackedFile_F97139C, reinterpret_cast<void*>(&UpdateKeyCounts)},
-        {addr::cGZDBSegmentPackedFile_F971481, reinterpret_cast<void*>(&SetKeyTracking)},
-        {addr::cGZDBSegmentPackedFile_F9718B9, reinterpret_cast<void*>(&ReadDirectory)},
-        {addr::cGZDBSegmentPackedFile_F971991, reinterpret_cast<void*>(&CloseRecord)},
+        {addr::cGZDBSegmentPackedFile_UpdateKeyCounts, reinterpret_cast<void*>(&UpdateKeyCounts)},
+        {addr::cGZDBSegmentPackedFile_SetKeyTracking, reinterpret_cast<void*>(&SetKeyTracking)},
+        {addr::cGZDBSegmentPackedFile_ReadDirectory, reinterpret_cast<void*>(&ReadDirectory)},
+        {addr::cGZDBSegmentPackedFile_CloseRecord, reinterpret_cast<void*>(&CloseRecord)},
         {addr::cGZDBSegmentPackedFile_Construct, reinterpret_cast<void*>(&Construct)},
-        {addr::cGZDBSegmentPackedFile_F9725FB, reinterpret_cast<void*>(&ScanEmbedded)},
-        {addr::cGZDBSegmentPackedFile_F972761, reinterpret_cast<void*>(&ReadIndex)},
-        {addr::cGZDBSegmentPackedFile_F9728D5, reinterpret_cast<void*>(&ProbeFile)},
-        {addr::cGZDBSegmentPackedFile_F972999, reinterpret_cast<void*>(&ReadHeader)},
+        {addr::cGZDBSegmentPackedFile_ScanEmbedded, reinterpret_cast<void*>(&ScanEmbedded)},
+        {addr::cGZDBSegmentPackedFile_ReadIndex, reinterpret_cast<void*>(&ReadIndex)},
+        {addr::cGZDBSegmentPackedFile_ProbeFile, reinterpret_cast<void*>(&ProbeFile)},
+        {addr::cGZDBSegmentPackedFile_ReadHeader, reinterpret_cast<void*>(&ReadHeader)},
         {addr::cGZDBSegmentPackedFile_Open, reinterpret_cast<void*>(&Open)},
-        {addr::cGZDBSegmentPackedFile_F9756AA, reinterpret_cast<void*>(&QueryInterface)},
-        {addr::cGZDBSegmentPackedFile_F9756F6, reinterpret_cast<void*>(&Release)},
-        {addr::cGZDBSegmentPackedFile_F97572E, reinterpret_cast<void*>(&DeleteSelf)},
-        {addr::cGZDBSegmentPackedFile_F97573A, reinterpret_cast<void*>(&TestForRecord)},
-        {addr::cGZDBSegmentPackedFile_F97576E, reinterpret_cast<void*>(&GetRecordSize)},
-        {addr::cGZDBSegmentPackedFile_F9757A0, reinterpret_cast<void*>(&OpenRecord)},
-        {addr::cGZDBSegmentPackedFile_F9757DA, reinterpret_cast<void*>(&CreateNewRecord)},
-        {addr::cGZDBSegmentPackedFile_F975811, reinterpret_cast<void*>(&CloseRecordLocked)},
-        {addr::cGZDBSegmentPackedFile_F975845, reinterpret_cast<void*>(&CloseRecordReference)},
-        {addr::cGZDBSegmentPackedFile_F975867, reinterpret_cast<void*>(&AbortRecordLocked)},
-        {addr::cGZDBSegmentPackedFile_F97589B, reinterpret_cast<void*>(&AbortRecordReference)},
-        {addr::cGZDBSegmentPackedFile_F9758BD, reinterpret_cast<void*>(&DeleteRecord)},
-        {addr::cGZDBSegmentPackedFile_F9758F1, reinterpret_cast<void*>(&ReadRecord)},
-        {addr::cGZDBSegmentPackedFile_F975929, reinterpret_cast<void*>(&WriteRecord)},
-        {addr::cGZDBSegmentPackedFile_F975963, reinterpret_cast<void*>(&HasRecords)},
-        {addr::cGZDBSegmentPackedFile_F975977, reinterpret_cast<void*>(&LockSegment)},
-        {addr::cGZDBSegmentPackedFile_F975982, reinterpret_cast<void*>(&UnlockSegment)},
+        {addr::cGZPersistDBSegment_QueryInterface, reinterpret_cast<void*>(&QueryInterface)},
+        {addr::cGZPersistDBSegment_Release, reinterpret_cast<void*>(&Release)},
+        {addr::cGZPersistDBSegment_DeleteSelf, reinterpret_cast<void*>(&DeleteSelf)},
+        {addr::cGZPersistDBSegment_TestForRecord, reinterpret_cast<void*>(&TestForRecord)},
+        {addr::cGZPersistDBSegment_GetRecordSize, reinterpret_cast<void*>(&GetRecordSize)},
+        {addr::cGZPersistDBSegment_OpenRecord, reinterpret_cast<void*>(&OpenRecord)},
+        {addr::cGZPersistDBSegment_CreateNewRecord, reinterpret_cast<void*>(&CreateNewRecord)},
+        {addr::cGZPersistDBSegment_CloseRecordLocked, reinterpret_cast<void*>(&CloseRecordLocked)},
+        {addr::cGZPersistDBSegment_CloseRecordReference, reinterpret_cast<void*>(&CloseRecordReference)},
+        {addr::cGZPersistDBSegment_AbortRecordLocked, reinterpret_cast<void*>(&AbortRecordLocked)},
+        {addr::cGZPersistDBSegment_AbortRecordReference, reinterpret_cast<void*>(&AbortRecordReference)},
+        {addr::cGZPersistDBSegment_DeleteRecord, reinterpret_cast<void*>(&DeleteRecord)},
+        {addr::cGZPersistDBSegment_ReadRecord, reinterpret_cast<void*>(&ReadRecord)},
+        {addr::cGZPersistDBSegment_WriteRecord, reinterpret_cast<void*>(&WriteRecord)},
+        {addr::cGZPersistDBSegment_HasRecords, reinterpret_cast<void*>(&HasRecords)},
+        {addr::cGZPersistDBSegment_Lock, reinterpret_cast<void*>(&LockSegment)},
+        {addr::cGZPersistDBSegment_Unlock, reinterpret_cast<void*>(&UnlockSegment)},
     };
     constexpr std::size_t count = sizeof(hooks) / sizeof(hooks[0]);
     static_assert(count <= sizeof(originals) / sizeof(originals[0]));

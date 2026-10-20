@@ -388,7 +388,7 @@ uint8_t __fastcall LibraryLoad(char* self, void*)
         uint32_t length =
             static_cast<uint32_t>(At<char*>(self, library::kPathEnd) - At<char*>(self, library::kPathBegin));
         WideBuffer wide;
-        This<void*>(addr::cGZCOM_F87B772, &wide, length + 1);
+        This<void*>(addr::cGZCOMLibrary_WideBufferConstruct, &wide, length + 1);
         uint16_t* const text = wide.begin;
         Cdecl<uint32_t>(addr::RZString_ConvertToBuffer, self + library::kPath, text, &length, kUtf16Encoding);
         text[length] = 0;
@@ -581,7 +581,7 @@ TreeNode* __fastcall LibraryFind(Tree* self, void*, char* key)
 LibraryNode* __fastcall LibraryNewNode(Tree*, void*, char* record)
 {
     auto* const node = Cdecl<LibraryNode*>(addr::SC4_stl_allocate, kLibraryNodeSize);
-    This<void*>(addr::cGZCOM_F87BEE4, node->record, record);
+    This<void*>(addr::cGZCOMLibrary_CopyConstruct, node->record, record);
     return node;
 }
 
@@ -770,7 +770,7 @@ uint8_t __fastcall ComLoadLibrary(char* self, void*, char* record)
     At<char*>(self, com::kLoading) = record;
     // The callback is the game's address, so a DLL sees the pointer it
     // always saw; with this group on that address runs RegisterClassObject.
-    Virtual<void>(dllDirector, director::kEnumClassObjects, reinterpret_cast<void*>(addr::cGZCOM_F87BD51), self);
+    Virtual<void>(dllDirector, director::kEnumClassObjects, reinterpret_cast<void*>(addr::cGZCOM_RegisterClassObject), self);
     Virtual<void>(lockObject, lock::kUnlock);
     return 1;
 }
@@ -834,34 +834,34 @@ bool InstallPluginDlls1(registry::Mode)
         return false;
     static void* originals[28] = {};
     static const std::pair<std::uintptr_t, void*> hooks[] = {
-        {addr::cGZCOM_F87B23D, reinterpret_cast<void*>(&GuardedLoadLibraryA)},
-        {addr::cGZCOM_F87B276, reinterpret_cast<void*>(&GuardedLoadLibraryW)},
-        {addr::cGZCOM_F87B2AF, reinterpret_cast<void*>(&GuardedFreeLibrary)},
-        {addr::cGZCOM_F87B2DB, reinterpret_cast<void*>(&GuardedGetProcAddress)},
-        {addr::cGZCOM_F87B319, reinterpret_cast<void*>(&LibraryQueryInterface)},
-        {addr::cGZCOM_F87B345, reinterpret_cast<void*>(&LibraryGetPath)},
-        {addr::cGZCOM_F87B38D, reinterpret_cast<void*>(&ComCanUnload)},
-        {addr::cGZCOM_F87B3B3, reinterpret_cast<void*>(&LibraryFree)},
-        {addr::cGZCOM_F87B626, reinterpret_cast<void*>(&ComFreeUnusedLibraries)},
-        {addr::cGZCOM_F87B67B, reinterpret_cast<void*>(&ComFreeAllLibraries)},
-        {addr::cGZCOM_F87B6C4, reinterpret_cast<void*>(&ComListLibraries)},
-        {addr::cGZCOM_F87B70F, reinterpret_cast<void*>(&ComEnumerateLibraries)},
-        {addr::cGZCOM_F87B7F9, reinterpret_cast<void*>(&ClassMapInsertAt)},
-        {addr::cGZCOM_F87B91D, reinterpret_cast<void*>(&ClassMapInsertUnique)},
-        {addr::cGZCOM_F87BA2E, reinterpret_cast<void*>(&LibraryDelete)},
-        {addr::cGZCOM_F87BA53, reinterpret_cast<void*>(&LibraryConstruct)},
-        {addr::cGZCOM_F87BA7E, reinterpret_cast<void*>(&LibraryLoad)},
-        {addr::cGZCOM_F87BC87, reinterpret_cast<void*>(&LibraryPathLess)},
-        {addr::cGZCOM_F87BD51, reinterpret_cast<void*>(&RegisterClassObject)},
-        {addr::cGZCOM_F87BDA6, reinterpret_cast<void*>(&ComGetClassObjectFrom)},
-        {addr::cGZCOM_F87BDDF, reinterpret_cast<void*>(&ComLoadLibrary)},
-        {addr::cGZCOM_F87BE2C, reinterpret_cast<void*>(&LibraryFind)},
-        {addr::cGZCOM_F87BE75, reinterpret_cast<void*>(&ComGetClassObject)},
-        {addr::cGZCOM_F87BF21, reinterpret_cast<void*>(&LibraryNewNode)},
-        {addr::cGZCOM_F87BF42, reinterpret_cast<void*>(&LibraryInsertAt)},
-        {addr::cGZCOM_F87BFD4, reinterpret_cast<void*>(&LibraryInsertUnique)},
-        {addr::cGZCOM_F87C05E, reinterpret_cast<void*>(&LibraryInsert)},
-        {addr::cGZCOM_F87C081, reinterpret_cast<void*>(&ComAddLibrary)},
+        {addr::cGZCOMLibrary_GuardedLoadLibraryA, reinterpret_cast<void*>(&GuardedLoadLibraryA)},
+        {addr::cGZCOMLibrary_GuardedLoadLibraryW, reinterpret_cast<void*>(&GuardedLoadLibraryW)},
+        {addr::cGZCOMLibrary_GuardedFreeLibrary, reinterpret_cast<void*>(&GuardedFreeLibrary)},
+        {addr::cGZCOMLibrary_GuardedGetProcAddress, reinterpret_cast<void*>(&GuardedGetProcAddress)},
+        {addr::cGZCOMLibrary_QueryInterface, reinterpret_cast<void*>(&LibraryQueryInterface)},
+        {addr::cGZCOMLibrary_GetPath, reinterpret_cast<void*>(&LibraryGetPath)},
+        {addr::cGZCOM_CanUnloadLibrary, reinterpret_cast<void*>(&ComCanUnload)},
+        {addr::cGZCOMLibrary_Free, reinterpret_cast<void*>(&LibraryFree)},
+        {addr::cGZCOM_FreeUnusedLibraries, reinterpret_cast<void*>(&ComFreeUnusedLibraries)},
+        {addr::cGZCOM_FreeAllLibraries, reinterpret_cast<void*>(&ComFreeAllLibraries)},
+        {addr::cGZCOM_EnumerateLibraries_List, reinterpret_cast<void*>(&ComListLibraries)},
+        {addr::cGZCOM_EnumerateLibraries_Callback, reinterpret_cast<void*>(&ComEnumerateLibraries)},
+        {addr::cGZCOM_ClassMapInsertAt, reinterpret_cast<void*>(&ClassMapInsertAt)},
+        {addr::cGZCOM_ClassMapInsertUnique, reinterpret_cast<void*>(&ClassMapInsertUnique)},
+        {addr::cGZCOMLibrary_DeletingDestructor, reinterpret_cast<void*>(&LibraryDelete)},
+        {addr::cGZCOMLibrary_cGZCOMLibrary, reinterpret_cast<void*>(&LibraryConstruct)},
+        {addr::cGZCOMLibrary_Load, reinterpret_cast<void*>(&LibraryLoad)},
+        {addr::cGZCOMLibrary_PathLess, reinterpret_cast<void*>(&LibraryPathLess)},
+        {addr::cGZCOM_RegisterClassObject, reinterpret_cast<void*>(&RegisterClassObject)},
+        {addr::cGZCOM_GetClassObjectFromLibrary, reinterpret_cast<void*>(&ComGetClassObjectFrom)},
+        {addr::cGZCOM_LoadLibraryAndRegister, reinterpret_cast<void*>(&ComLoadLibrary)},
+        {addr::cGZCOM_LibraryFind, reinterpret_cast<void*>(&LibraryFind)},
+        {addr::cGZCOM_GetClassObject, reinterpret_cast<void*>(&ComGetClassObject)},
+        {addr::cGZCOM_LibraryNewNode, reinterpret_cast<void*>(&LibraryNewNode)},
+        {addr::cGZCOM_LibraryInsertAt, reinterpret_cast<void*>(&LibraryInsertAt)},
+        {addr::cGZCOM_LibraryInsertUnique, reinterpret_cast<void*>(&LibraryInsertUnique)},
+        {addr::cGZCOM_LibraryInsert, reinterpret_cast<void*>(&LibraryInsert)},
+        {addr::cGZCOM_AddLibrary, reinterpret_cast<void*>(&ComAddLibrary)},
     };
     constexpr std::size_t count = sizeof(hooks) / sizeof(hooks[0]);
     static_assert(count <= sizeof(originals) / sizeof(originals[0]));
@@ -878,7 +878,7 @@ const bool g_pluginDlls1Registered = registry::Register({
     "resources",
     registry::Kind::Detour,
     registry::Phase::Attach,
-    addr::cGZCOM_F87C081,
+    addr::cGZCOM_AddLibrary,
     "Our GZCOM library code: loading plugin DLLs, their class registration and unloading (docs/plugin-dlls.md)",
     false,
     InstallPluginDlls1,
