@@ -449,3 +449,51 @@ The audit compared all 20 functions instruction by instruction with the disassem
 1. SetPosition reads the new position after it has moved the boxes; the game reads it before. This differs only for a position that lies inside the sign's own boxes, which no caller passes.
 2. The x87 arithmetic of SetPosition is computed in doubles, as for the decal and the label. This equals the game at 53-bit precision.
 3. The message server's and the text service's (0x00B43CE4) argument counts come from the caller's stack, not from the callee.
+
+### Piece 5
+
+All runs on 2026-10-20 with the release build's snapshot pd1 (main as of #325 merged in) and the game's sound off (`OPENSC4_MUTE=1`) on both sides of every comparison. Results are in `%LOCALAPPDATA%\opensc4nalysis\pd1-trial\`; an earlier unmuted round, with the same results where it finished, is in its `unmuted` folder.
+
+Acceptance (three saves): the same nine save and case pairs as pieces 1 to 4, 7 days, with `OPENSC4_TEST_FINGERPRINT=1`, each run four times:
+
+- the original, twice;
+- piece 4's B list ours, with the two new groups;
+- only the fourteen `simulators.propkinds.*` and the four `simulators.propocc.*` groups ours.
+
+36 of 36 runs finished. In every pair the four runs agree in every `autotest: propkinds` line and every fingerprint line. All twelve round trips log `restored yes`. With the token left out, every level 1 and round-trip run has the same fingerprints as the unchanged city on all eight days.
+
+| Save | Level 1 | With the round trip |
+| --- | --- | --- |
+| Making Money d0090 | token 5AA0D80B | token E064D7CE |
+| Big City d0000 | token D20CA0A8 | token 91575F8F |
+| Rush Hour d0090 | token 9D44953A | token AE1D2B76 |
+
+The save leg: Making Money d0090 with `_EDIT=2`, once on the original and once with the sixteen groups ours. Both runs logged the same lines. Each save was then loaded by both sides with level 1, and all four loads logged the same lines and fingerprints. They found the sign (7C9F4474 after the load, as in piece 4) and the burnt building (A8EDE9D0). The loads with the groups ours draw both props.
+
+Reached: all 16 functions in the runs with the groups ours. The matrix reaches 14; the two draws only when a prop is in view: the save leg's loads, the screenshots and the compare runs.
+
+Compare mode (both drawing groups `=compare`, with `renderer.d3d11=ours` for the draws), 0 divergences in every run:
+
+- the propkinds test with `_EDIT=2`: 15 sign and 3 burnt building builds, all slots;
+- the sign tool's test (`OPENSC4_TEST_TOOLS4=2`, typing, the caret, drags): 109 sign builds;
+- the screenshots below with the view on the props: 21 sign builds (every zoom and rotation), 100 sign draws, 94 burnt building draws.
+
+Screenshots: the save leg's city on the original side, `OPENSC4_TEST_SHOT_AT=584,520` (the spot; the view at the ground's height there), the interface hidden, the stock driver. The original's list against the sixteen groups ours: 20 of 20 within `--tolerance 32 --max-differing 1.2`, all 20 files byte for byte the same. In a first, unmuted round one run with the groups ours had every overlay texture black (the labels, the decal and the terrain grid as well as the sign); its rerun, the runs with only the logic groups or only the drawing groups, and the runs that followed were all right. It was not seen again.
+
+Parity (batches pd1-*, 7 days, one job, the B side as in the matrix, with `determinism.dispatch_info=ours` among the base, muted):
+
+| Batch | Result |
+| --- | --- |
+| plain | 12 of 12 saves the same |
+| `OPENSC4_TEST_PROPKINDS=2` | 12 of 12 |
+| `OPENSC4_TEST_PROPKINDS_EDIT=1` | 4 of 4 so far (the four Big City saves; stopped for the night) |
+| the plopped corpus with the edit | not run yet muted |
+
+Results are in `%LOCALAPPDATA%\opensc4\parity\pd1-*`.
+
+The audit compared all 16 functions instruction by instruction with the disassembly (every [esp+X] of the builder's frame worked out again, the operand order of every x87 subtraction checked against the bytes) and found no difference in behaviour; one comment had the arctangent's arguments the wrong way round and was fixed. Not measured:
+
+1. The builder zeroes the buffers the glyphs' slots 5 and 6 write into; the game's are stack leftovers. This matters only if a glyph leaves a field unwritten.
+2. Where the game passes floats through the x87 unchanged (MakeBox's low corner, the glyph vertices) it quiets signalling NaNs; ours keeps their bits.
+3. The double arithmetic equals the game's x87 at 53-bit precision, as for the other pieces.
+
