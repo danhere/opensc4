@@ -2546,3 +2546,75 @@ convention = "thiscall"
 signature = "uint32_t (void* this)"
 expect = "83 E9 08 E9 B8 DA FF FF"
 source = "Name ours. The manager's AddRef (0x0058D840) for its interface at +8: this - 8. Ours in renderer.effects.decal_parts (src/core/effects_decal.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::StartFollowUp"
+address = 0x0058E340
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* effect)"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name ours. Ret 4. The effect's +0x144 given to the renderer at 0x00B43DD0 (slot 0xB0) and cleared; when the effect's record in the store (0x38 bytes from +0xAC, by the effect's +0x20) has a follow-up name (+0x2C), the manager's slot 0x1C starts it and the new effect gets the effect's +0x6C (slot 0x20), +0x34 (slot 0x1C) and slot 0xC with 0, and is let go. Ours in renderer.effects.tail (src/core/effects_tail.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::PlaceCompounds"
+address = 0x0058E4A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 57 8B F9 8B B7 AC 0B"
+source = "Name ours. Each compound effect in use (indices at +0xBAC into the table at +0xB94) with flag 1 at +0x28 given its +0x6C through its slot 0x20. Ours in renderer.effects.tail (src/core/effects_tail.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::ReleaseThunk4"
+address = 0x0058FD70
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 E9 04 E9 D8 D6 33 00"
+source = "Name ours. The Release of the manager's interface at +4: this - 4, jumps to the shared stub 0x008CD450 (answers 1). Ours in renderer.effects.tail (src/core/effects_tail.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::ReleaseThunk8"
+address = 0x0058FD90
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 E9 08 E9 B8 D6 33 00"
+source = "Name ours. The Release of the manager's interface at +8: this - 8, jumps to 0x008CD450. Ours in renderer.effects.tail (src/core/effects_tail.inc)."
+
+[[entry]]
+name = "SC4::ReturnOne"
+address = 0x008CD450
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 01 00 00 00 C3 CC CC"
+source = "Name ours. A shared stub: answers 1 (slot 1 of the query tool's 4-byte object's table, the manager's Release thunks 0x0058FD70 and 0x0058FD90)."
+
+[[entry]]
+name = "SC4EffectsManager::OccupantLifts"
+address = 0x0058E260
+kind = "function"
+convention = "custom"
+signature = "bool (occupant in EDI)"
+expect = "8B 07 83 EC 08 56 8B CF"
+source = "Name ours. The occupant in EDI (an LTCG convention), AL: its type (slot 0x18) without 0x029244DB and with one of 0x27812820 to 0x27812824 (slot 0xC); then true for a building (interface 0x87DDA3A9 through 0x0048FF50), else the type's property 0x8A5E5DB8 (0x005FD390). Called by 0x0058E720 and 0x005903A7. Ours in renderer.effects.tail (src/core/effects_tail.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::LiftUnderOccupant"
+address = 0x0058E720
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant)"
+expect = "83 EC 28 56 8B F1 8B 86"
+source = "Name ours. Ret 4. With a height map at +0xD98 and +0x1AE clear, an occupant that lifts (0x0058E260) has the map's first layer raised to its height (box slot 0x28: high y less low y) over its cell rectangle (slot 0x2C) one wider to the high side, in two rings (the map's slot 0x28, SC4EffectHeightMap::Lift); +0xDA0 keeps the highest top. Ours in renderer.effects.tail (src/core/effects_tail.inc)."
+
+[[entry]]
+name = "SC4EffectsManager::LiftMessage"
+address = 0x0058F140
+kind = "function"
+convention = "cdecl"
+signature = "bool (void* occupant, void* manager)"
+expect = "8B 44 24 04 8B 4C 24 08"
+source = "Name ours. A handler the manager registers (0x005942D8): 0x0058E720 for the occupant, answering 1. Ours in renderer.effects.tail (src/core/effects_tail.inc)."

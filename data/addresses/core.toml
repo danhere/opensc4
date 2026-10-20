@@ -1199,7 +1199,7 @@ address = 0x0058DE80
 kind = "function"
 convention = "cdecl"
 expect = "56 8B 74 24 20 85 F6 75"
-source = "Name ours. Registers a script function (callback, name, ...) with service 0xEBE0E860 (docs/aura.md)."
+source = "Name ours. Registers a script function (callback, name, ...) with service 0xEBE0E860 (docs/aura.md). Ours in renderer.effects.tail (src/core/effects_tail.inc)."
 
 [[entry]]
 name = "SC4Script::UnregisterTable"
@@ -1207,7 +1207,7 @@ address = 0x0058DF10
 kind = "function"
 convention = "cdecl"
 expect = "56 8B 74 24 0C 85 F6 74"
-source = "Name ours. Shutdown's counterpart of RegisterTable (docs/aura.md)."
+source = "Name ours. Shutdown's counterpart of RegisterTable (docs/aura.md). Ours in renderer.effects.tail (src/core/effects_tail.inc)."
 
 [[entry]]
 name = "SC4::ReleaseRefHolder"
