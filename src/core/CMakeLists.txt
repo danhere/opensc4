@@ -209,10 +209,12 @@ add_library(opensc4_core SHARED
   propkinds_autotest.cpp
   propkinds_automata.cpp
   propkinds_burnt.cpp
+  propkinds_burnt_draw.cpp
   propkinds_decal.cpp
   propkinds_effect.cpp
   propkinds_textdecal.cpp
   propkinds_sign.cpp
+  propkinds_sign_draw.cpp
   floraocc_autotest.cpp
   floraocc_sim.cpp
   foundocc_autotest.cpp

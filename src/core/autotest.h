@@ -22,6 +22,8 @@
 //                         "zoom:rotation,..." (e.g. "2:0")
 //   OPENSC4_TEST_SHOT_CENTER "1": with OPENSC4_TEST_SHOTS, centre the view on
 //                         the middle of the city first
+//   OPENSC4_TEST_SHOT_AT  "<x>,<z>": with OPENSC4_TEST_SHOTS, centre the view on
+//                         that point (metres) first
 //   OPENSC4_TEST_SHOT_HIDE_UI "1": with OPENSC4_TEST_SHOTS, hide every window
 //                         but the city view
 //   OPENSC4_TEST_DAYS     game days to run instead of real seconds: once the

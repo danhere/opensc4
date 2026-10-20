@@ -5,12 +5,13 @@
 // render state for itself, and adds its model to the renderer while it is
 // shown. The prop underneath (cSC4PropOccupant) is called at its addresses.
 //
-// The drawing stays the game's: the quad builder 0x005EDC60 (called here at
-// its address), the model part's constructor and destructor (0x00801CF0,
-// 0x00801810) and every function of the model interface (the virtual base
-// at +0xD4: 0x005EF9D0 to 0x005EFB10 and what they jump to, 0x005EDC20,
-// 0x005EEC00, 0x005EEBD0). The texture bindings, the render state and the
-// renderer are told through their interfaces and helpers.
+// The drawing is in propkinds_burnt_draw.cpp, a group of its own: the quad
+// builder 0x005EDC60 (called here at its address, so ours or the game's as
+// that group says) and the functions behind the model interface (the
+// virtual base at +0xD4). The model part's constructor and destructor
+// (0x00801CF0, 0x00801810) stay the game's. The texture bindings, the
+// render state and the renderer are told through their interfaces and
+// helpers.
 //
 // Every virtual call below has its argument count from the callee's own
 // `ret N`:
@@ -258,7 +259,7 @@ const bool g_registered = registry::Register({
     registry::Phase::PostAppInit,
     addr::cSC4PropOccupantBurntBuilding_SetOccupant,
     "Our cSC4PropOccupantBurntBuilding's logic: QueryInterface, SetOccupant, Init, Shutdown, SetAllFlags, Write, Read "
-    "and GetGZCLSID (8 detours; the drawing stays the game's; src/core/propkinds.h)",
+    "and GetGZCLSID (8 detours; the drawing is simulators.propkinds.burnt_draw; src/core/propkinds.h)",
     false,
     InstallBurnt,
 });
