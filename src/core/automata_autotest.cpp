@@ -186,11 +186,40 @@
 //   groups' last references, so their destructors run) and its Release
 //   (Shutdown, not initialized, the destructor body). The city's script
 //   system is not changed.
+// OPENSC4_TEST_AUTOMATA_AWMGR=1 (part aw1, with OPENSC4_TEST_AUTOMATA=2 or
+//   more): on the same day, before the parts v1-v3 drives, the city's four
+//   automata managers (aircraft, watercraft, vehicle, pedestrian: city
+//   slots 45, 46, 43, 44) are queried at the game's addresses (ours when
+//   simulators.automata.awmgr is on), into the fingerprint as
+//   ` A<aircraft>,<watercraft>,<vehicle>,<pedestrian>,<fresh>,<flags>` from
+//   that day on: QueryInterface for the four class IDs and six interfaces on
+//   the object and through the +4, +8 and +0xC parts (AL and the answer's
+//   offset; each AddRef given back through the answer's Release), AddRef
+//   and Release (which must give the count back), GetGZCLSID through the
+//   serializable part and the common base's 0x00512740, IsActive, IsPaused,
+//   IsDrivingMode, GetMinZoom, IsCameraFollowUpdating, GetExemplarData and
+//   its map (as offsets), the five-argument Dispatch stub 0x005053F0; every
+//   exemplar record found by its own key (slot 44) and a key not there;
+//   every key of the exemplar map through CanCreateGroup (slot 30) and keys
+//   not there; every key of the source building table (+0xA64, sorted)
+//   through slot 36 and a key not there, and slot 37 over groups
+//   0x4000..0x4240. Slot 36 for 0x1402 and 0x1406 and slot 37 for groups
+//   whose class is one of those (they ask the object at 0x00B43D28), the
+//   reference counts and the automata counts go to the log only. Then a
+//   new aircraft and a new watercraft manager from their factories (held
+//   by one reference): the same queries, Pause and Resume, three map nodes
+//   of the test's own in the aircraft manager's +0xA88 and nodes in the
+//   watercraft manager's +0xAA0 and +0xA8C tables (nothing referenced), so
+//   that the release (Shutdown, not initialized, and the deleting
+//   destructor) walks them; and a bare common base (0xA88 bytes) built by
+//   0x005125E0 and deleted by its slot 38 0x00512CD0. The city's managers
+//   are not changed.
 // A remove and add round trip of one occupant's controllers is not done:
 // removing sends 0xEA298D50 to the automata, destroys the controllers and
 // can drop the occupant's automaton entry (its automata released), and the
 // add makes new controllers through the COM; the city would not be the
 // same afterwards.
+#include "core/automata_awmgr.h"
 #include "core/automata_ctlmgr.h"
 #include "core/automata_scripts.h"
 #include "core/automata_vehmgr.h"
@@ -1941,12 +1970,269 @@ void ScriptsDrive(cISC4City* city)
                static_cast<unsigned>(byId.size()), fresh.h, flags);
 }
 
+// ====================================================================================
+// Part aw1's drive (OPENSC4_TEST_AUTOMATA_AWMGR=1), see the top of the file.
+
+std::string g_awText;
+
+// The keys of a std::map's subtree (null children), in order.
+void TreeKeys(char* node, std::vector<uint32_t>& keys)
+{
+    namespace aw = automata_awmgr;
+    while (node && keys.size() < 4096) {
+        TreeKeys(At<char*>(node, aw::tree::kLeft), keys);
+        keys.push_back(At<uint32_t>(node, aw::tree::kKey));
+        node = At<char*>(node, aw::tree::kRight);
+    }
+}
+
+// The class slot 37 (GetSourceBuildingCountForAutomataGroup) passes on for
+// a group ID, as the game finds it; 0xFFFFFFFF for none.
+uint32_t GroupClassOf(char* manager, uint32_t id)
+{
+    namespace aw = automata_awmgr;
+    void* const scripts = At<void*>(manager, aw::field::kScripts);
+    if (!scripts)
+        return 0xFFFFFFFFu;
+    char* const group = Virtual<char*>(scripts, 0x18, id);
+    if (!group)
+        return 0xFFFFFFFFu;
+    if (const uint32_t c = At<uint32_t>(group, 0x6C))
+        return c;
+    if (char* const parent = At<char*>(group, 0xC))
+        return reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::cSC4AutomataManager_GroupClass)(parent);
+    return 0;
+}
+
+// One of the city's four managers; the identity and the queries into
+// `hash`, the frame- and source-dependent values into `logged`.
+void AwQuery(char* manager, Hash& hash, Hash& logged, uint32_t& flags)
+{
+    namespace aw = automata_awmgr;
+    const uint32_t classes[] = {aw::kAircraftClassId, aw::kWatercraftClassId, automata_vehmgr::kVehicleClassId,
+                                automata_vehmgr::kPedestrianClassId};
+    const uint32_t iids[] = {1u, aw::kManagerIid, aw::kSerializableIid, aw::kMessageIid, 0x12345678u, 0xF0000001u};
+    for (const std::size_t at : {aw::field::kVtable, aw::field::kVtable4, aw::field::kSerializable, aw::field::kMessage}) {
+        char* const part = manager + at;
+        auto ask = [&](uint32_t iid) {
+            void* out = nullptr;
+            const uint32_t answer = Virtual<uint32_t>(part, aw::slot::kQueryInterface, iid, &out) & 0xFF;
+            hash.Mix(answer);
+            hash.Mix(out ? static_cast<uint32_t>(static_cast<char*>(out) - manager) : 0xFFFFFFFFu);
+            if (answer && out)
+                Virtual<uint32_t>(out, aw::slot::kRelease);
+        };
+        for (const uint32_t iid : classes)
+            ask(iid);
+        for (const uint32_t iid : iids)
+            ask(iid);
+    }
+    // The count: AddRef and Release give it back.
+    const uint32_t count = At<uint32_t>(manager, aw::field::kRefCount);
+    const uint32_t up = Virtual<uint32_t>(manager, aw::slot::kAddRef);
+    const uint32_t down = Virtual<uint32_t>(manager, aw::slot::kRelease);
+    hash.Mix(up - count);
+    if (down != count)
+        flags |= 1;
+    logged.Mix(count);
+    hash.Mix(Virtual<uint32_t>(manager + aw::field::kSerializable, aw::slot::kGetGZCLSID));
+    using Get = uint32_t(__thiscall*)(void*);
+    hash.Mix(reinterpret_cast<Get>(addr::cSC4AutomataManager_GetGZCLSID)(manager + aw::field::kSerializable));
+    hash.Mix(Virtual<uint8_t>(manager, aw::slot::kIsActive));
+    hash.Mix(Virtual<uint8_t>(manager, aw::slot::kIsPaused));
+    hash.Mix(Virtual<uint8_t>(manager, aw::slot::kIsDrivingMode));
+    hash.Mix(Virtual<uint32_t>(manager, aw::slot::kGetMinZoom));
+    hash.Mix(Virtual<uint8_t>(manager, aw::slot::kIsCameraFollowUpdating));
+    hash.Mix(static_cast<uint32_t>(Virtual<char*>(manager, aw::slot::kGetExemplarData) - manager));
+    hash.Mix(static_cast<uint32_t>(Virtual<char*>(manager, aw::slot::kGetExemplarDataMap) - manager));
+    using Dispatch = uint32_t(__thiscall*)(void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    hash.Mix(reinterpret_cast<Dispatch>(addr::cSC4AutomataManager_Dispatch5)(manager, 0, 0, 0, 0, 0));
+    // The exemplar vector: each record found by its own key (slot 44) and a
+    // key not there.
+    char* const begin = At<char*>(manager, aw::field::kExemplarsBegin);
+    char* const end = At<char*>(manager, aw::field::kExemplarsEnd);
+    const uint32_t records = begin ? static_cast<uint32_t>((end - begin) / aw::exemplar::kSize) : 0;
+    hash.Mix(records);
+    for (uint32_t i = 0; i < records && i < 512; ++i) {
+        const uint32_t* const key = &At<uint32_t>(begin + i * aw::exemplar::kSize, aw::exemplar::kKey);
+        hash.MixBytes(key, 12);
+        char* const found = Virtual<char*>(manager, aw::slot::kFindExemplar, key);
+        hash.Mix(found ? static_cast<uint32_t>((found - begin) / aw::exemplar::kSize) : 0xFFFFFFFFu);
+    }
+    const uint32_t none[3] = {0x7A5A0001u, 0x7A5A0002u, 0x7A5A0003u};
+    hash.Mix(Virtual<char*>(manager, aw::slot::kFindExemplar, static_cast<const uint32_t*>(none)) ? 1u : 0u);
+    // The exemplar map: every key (slot 30) and keys not there.
+    std::vector<uint32_t> keys;
+    char* const header = At<char*>(manager, aw::field::kExemplarMap);
+    TreeKeys(At<char*>(header, aw::tree::kParent), keys);
+    hash.Mix(At<uint32_t>(manager, aw::field::kExemplarMapSize));
+    hash.Mix(static_cast<uint32_t>(keys.size()));
+    for (const uint32_t key : keys) {
+        hash.Mix(key);
+        hash.Mix(Virtual<uint32_t>(manager, aw::slot::kCanCreateGroup, key));
+        hash.Mix(Virtual<uint32_t>(manager, aw::slot::kCanCreateGroup, key ^ 0x7A5A0000u));
+    }
+    hash.Mix(Virtual<uint32_t>(manager, aw::slot::kCanCreateGroup, 0u));
+    hash.Mix(Virtual<uint32_t>(manager, aw::slot::kCanCreateGroup, 0xFFFFFFFFu));
+    // The source building counts: every key of the table (slot 36, sorted)
+    // and keys not there; slot 37 over groups 0x4000..0x4240. Counts that
+    // come from the object at 0x00B43D28 (0x1402 and 0x1406) go to the log.
+    std::vector<std::pair<uint32_t, uint32_t>> counts;
+    char* const t = manager + aw::field::kSourceCounts;
+    for (char** b = At<char**>(t, aw::table::kBegin); b && b != At<char**>(t, aw::table::kEnd); ++b)
+        for (char* node = *b; node && counts.size() < 4096; node = At<char*>(node, 0))
+            counts.emplace_back(At<uint32_t>(node, 4), At<uint32_t>(node, 8));
+    std::sort(counts.begin(), counts.end());
+    hash.Mix(static_cast<uint32_t>(counts.size()));
+    for (const auto& [key, value] : counts) {
+        hash.Mix(key);
+        hash.Mix(value);
+        if (key != 0x1402 && key != 0x1406)
+            hash.Mix(Virtual<uint32_t>(manager, aw::slot::kGetSourceBuildingCount, key));
+    }
+    hash.Mix(Virtual<uint32_t>(manager, aw::slot::kGetSourceBuildingCount, 0x7A5A0001u));
+    for (const uint32_t special : {0x1402u, 0x1406u})
+        logged.Mix(Virtual<uint32_t>(manager, aw::slot::kGetSourceBuildingCount, special));
+    for (uint32_t id = 0x4000; id <= 0x4240; ++id) {
+        const uint32_t c = GroupClassOf(manager, id);
+        const uint32_t answer = Virtual<uint32_t>(manager, aw::slot::kGetSourceBuildingCountForGroup, id);
+        if (c == 0x1402 || c == 0x1406) {
+            logged.Mix(id);
+            logged.Mix(answer);
+        } else if (answer || c != 0xFFFFFFFFu) {
+            hash.Mix(id);
+            hash.Mix(c);
+            hash.Mix(answer);
+        }
+    }
+    logged.Mix(At<uint32_t>(manager, aw::field::kCount));
+}
+
+void AwManagerDrive(cISC4City* city)
+{
+    namespace aw = automata_awmgr;
+    std::string text = " A";
+    Hash logged;
+    uint32_t flags = 0;
+    const std::size_t slots[] = {aw::kCitySlotAircraft, aw::kCitySlotWatercraft, automata_vehmgr::kCitySlotVehicles,
+                                 automata_vehmgr::kCitySlotPedestrians};
+    const char* const names[] = {"aircraft", "watercraft", "vehicle", "pedestrian"};
+    for (int m = 0; m < 4; ++m) {
+        char* const manager = Virtual<char*>(city, slots[m]);
+        char part[16];
+        if (!manager) {
+            text += m ? ",-" : "-";
+            continue;
+        }
+        Hash hash;
+        AwQuery(manager, hash, logged, flags);
+        std::snprintf(part, sizeof part, "%s%08X", m ? "," : "", hash.h);
+        text += part;
+        log::Write("autotest: automata: %s manager (aw1): %08X refs %u automata %u exemplars %u map %u counts %u",
+                   names[m], hash.h, At<uint32_t>(manager, aw::field::kRefCount), At<uint32_t>(manager, aw::field::kCount),
+                   static_cast<unsigned>((At<char*>(manager, aw::field::kExemplarsEnd) -
+                                          At<char*>(manager, aw::field::kExemplarsBegin)) /
+                                         aw::exemplar::kSize),
+                   At<uint32_t>(manager, aw::field::kExemplarMapSize),
+                   At<uint32_t>(manager + aw::field::kSourceCounts, aw::table::kCount));
+    }
+    // New managers from the two factories, held by one reference, with
+    // nodes of the test's own in their containers so that the destructors'
+    // clears walk them; then released (Shutdown, not initialized, and the
+    // deleting destructor). And a bare common base built and destroyed by
+    // its slot 38.
+    Hash fresh;
+    using Factory = void*(__cdecl*)();
+    using Alloc = void*(__cdecl*)(uint32_t);
+    const auto allocate = reinterpret_cast<Alloc>(addr::SC4_stl_allocate);
+    for (int m = 0; m < 2; ++m) {
+        void* const serial =
+            reinterpret_cast<Factory>(m ? addr::cSC4WatercraftManager_Create : addr::cSC4AircraftManager_Create)();
+        if (!serial) {
+            flags |= 2;
+            continue;
+        }
+        char* const made = static_cast<char*>(serial) - aw::field::kSerializable;
+        fresh.Mix(Virtual<uint32_t>(made, aw::slot::kAddRef));
+        Hash ignored;
+        AwQuery(made, fresh, ignored, flags);
+        fresh.Mix(At<uint32_t>(made, aw::field::kGroup));
+        fresh.Mix(At<uint32_t>(made, aw::field::kAutomatonClass));
+        fresh.Mix(At<uint32_t>(made, aw::field::kA40));
+        Virtual<void>(made, aw::slot::kPause);
+        fresh.Mix(Virtual<uint8_t>(made, aw::slot::kIsPaused));
+        Virtual<void>(made, aw::slot::kResume);
+        fresh.Mix(Virtual<uint8_t>(made, aw::slot::kIsPaused));
+        if (m == 0) {
+            // Three map nodes (a root with two children; nothing in them
+            // is referenced) for the map clear and its erase.
+            char* const header = At<char*>(made, aw::field::kAirMap);
+            char* nodes[3];
+            for (char*& n : nodes) {
+                n = static_cast<char*>(allocate(0x18));
+                std::memset(n, 0, 0x18);
+            }
+            At<char*>(nodes[0], aw::tree::kParent) = header;
+            At<char*>(nodes[0], aw::tree::kLeft) = nodes[1];
+            At<char*>(nodes[0], aw::tree::kRight) = nodes[2];
+            At<char*>(nodes[1], aw::tree::kParent) = nodes[0];
+            At<char*>(nodes[2], aw::tree::kParent) = nodes[0];
+            At<char*>(header, aw::tree::kParent) = nodes[0];
+            At<char*>(header, aw::tree::kLeft) = nodes[1];
+            At<char*>(header, aw::tree::kRight) = nodes[2];
+            At<uint32_t>(made, aw::field::kAirMapSize) = 3;
+        } else {
+            // Two nodes in the first bucket of +0xAA0 and one in +0xA8C,
+            // nothing referenced, for the two table clears.
+            for (const std::size_t at : {aw::field::kWaterTable2, aw::field::kWaterTable}) {
+                char* const tb = made + at;
+                char** const buckets = At<char**>(tb, aw::table::kBegin);
+                if (!buckets || buckets == At<char**>(tb, aw::table::kEnd)) {
+                    flags |= 4;
+                    continue;
+                }
+                const int n = at == aw::field::kWaterTable2 ? 2 : 1;
+                for (int i = 0; i < n; ++i) {
+                    const uint32_t size = at == aw::field::kWaterTable2 ? 0xC : 0x20;
+                    char* const node = static_cast<char*>(allocate(size));
+                    std::memset(node, 0, size);
+                    At<char*>(node, 0) = buckets[0];
+                    buckets[0] = node;
+                    ++At<uint32_t>(tb, aw::table::kCount);
+                }
+            }
+        }
+        fresh.Mix(Virtual<uint32_t>(made, aw::slot::kRelease));
+    }
+    {
+        using Op = void*(__cdecl*)(std::size_t);
+        char* const bare = static_cast<char*>(reinterpret_cast<Op>(addr::SC4_operator_new)(0xA88));
+        if (bare) {
+            using Ctor = char*(__thiscall*)(void*);
+            using Dtor = char*(__thiscall*)(void*, uint32_t);
+            char* const self = reinterpret_cast<Ctor>(addr::cSC4AutomataManager_Construct)(bare);
+            fresh.Mix(self == bare ? 1u : 0u);
+            fresh.Mix(static_cast<uint32_t>(*reinterpret_cast<std::uintptr_t*>(self) == addr::cSC4AutomataManager_Vtable));
+            fresh.Mix(Virtual<uint8_t>(self, aw::slot::kIsActive));
+            fresh.Mix(Virtual<uint32_t>(self + aw::field::kSerializable, aw::slot::kGetGZCLSID));
+            fresh.Mix(reinterpret_cast<Dtor>(addr::cSC4AutomataManager_DeletingDestructor)(self, 1) == bare ? 1u : 0u);
+        }
+    }
+    char part[48];
+    std::snprintf(part, sizeof part, ",%08X,%X", fresh.h, flags);
+    text += part;
+    g_awText = text;
+    log::Write("autotest: automata: aw1%s logged %08X", text.c_str(), logged.h);
+}
+
 void Drive(const Day& day)
 {
     if (EnvInt("OPENSC4_TEST_AUTOMATA", 0) < 2 || !day.counted || g_written)
         return;
     if (day.day != day.first + EnvInt("OPENSC4_TEST_AUTOMATA_DAY", 3))
         return;
+    if (EnvInt("OPENSC4_TEST_AUTOMATA_AWMGR", 0) >= 1 && day.city && game::IsBuild641() && g_awText.empty())
+        AwManagerDrive(day.city);
     if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 1 && day.city && game::IsBuild641() && g_managerText.empty()) {
         ManagerDrive(day.city);
         if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 2)
@@ -2019,6 +2305,7 @@ void Fingerprint(cISC4City* city, std::string& line)
         line += g_writeText + g_queryText + g_controllerText;
     line += g_managerText;
     line += g_scriptText;
+    line += g_awText;
     // The automaton table: frame-driven, the log only.
     uint32_t parked = 0, automata = 0, parkedSum = 0;
     ForEach<AutomatonNode>(Table(manager, field::kAutomata), [&](AutomatonNode* node) {
