@@ -4,7 +4,7 @@ The game's own sound code, rewritten piece by piece like the simulators ([parity
 
 "Ours" means rewritten here and hooked at the original's entry. "The game's" means left alone and called by address. Whatever is heard is the business of EA's sound library, which stays the game's (see the fence below): this page is about the code that decides what to ask of it.
 
-In total 575 functions are ours (573 under audio names, 2 under UI names: the options dialog's maker 0x004F2450 and its run function 0x004F25F0). The music player's first piece adds 42 (`audio.music.part1`, see "Music player"). The other functions of the range are listed under "What is fenced off" and "Not done".
+In total 575 functions are ours (573 under audio names, 2 under UI names: the options dialog's maker 0x004F2450 and its run function 0x004F25F0). The music player's first two pieces add 62 (`audio.music.part1` 42, `audio.music.part2` 20; see "Music player"). The other functions of the range are listed under "What is fenced off" and "Not done".
 
 ## The pieces
 
@@ -281,7 +281,8 @@ GZSound's music player, 0x008D2994 to 0x008D7FFF (144 functions, [uncharted-code
 | Class | What |
 | --- | --- |
 | The player service | 0x90 bytes, class 0x5CFBDBBF, system service ID 0x1D07B39F, priority 0x7A116. Made by the director's factory 0x004EB150 (part 4), which hands out its +0x1C part. Constructor 0x008D35AB, destructor 0x008D36EF, deleting destructor 0x008D38C9 |
-| The station class | 0x100 bytes, class 0x5CFBDBD5, constructor 0x008D376E, made by the factory 0x004EB180 and by the player's slot 16 (0x008D49F8); vtable 0x00ACC290 of 27 slots; destructor 0x008D3506. Its constructor shuffles its list (0x008D3442, `rand`). By the slots the player calls on them, its station vector holds these; whether the object at the player's +0x6C (called "the stream object" below) is one too is for part 2 to settle |
+| The station class | 0x100 bytes, class 0x5CFBDBD5, constructor 0x008D376E, made by the factory 0x004EB180 and by the player's slot 16 (0x008D49F8); vtable 0x00ACC290 of 27 slots; destructor 0x008D3506. Its constructor shuffles its list (0x008D3442, `rand`). The player's station vector holds these. Its folders, as slot 16 sets them: +0x70 its own, +0x84 `Music\`, +0xA0 `DJ\<language>\`, +0xBC the shared `Commercials\<language>\`, +0xD8 `Jingle\<language>\`. +0x24 is a byte DoMessage clears, and slot 9 writes its 4-character ID |
+| The stream object | At the player's +0x6C; not a station. Init makes it through the COM director (RZGetCOM, slot 3) with the class ID that service 0x1AF85BFB gives (its slot 9) and interface 0x206077D2: the framework's sound data source player. DoMessage drives it (its slots 6 to 8, 20 to 23 and 36) |
 
 The player has four vtables:
 
@@ -292,19 +293,19 @@ The player has four vtables:
 | +0x1C | 0x00ACC310 | the player interface 0xE0510260, 37 slots (0 to 4 thunks of QueryInterface, AddRef, Release, Init, Shutdown; 6, 15 and 30 framework functions shared with other classes) |
 | +0x20 | 0x00ACC2FC | a message target: three thunks and DoMessage 0x008D319B |
 
-The player does little by itself: its methods post a message to the message server at +0x68 (0x0AB1A61E the volume, 0x0AB186E5 stop, 0x6AB1A480 pause, 0x4AB186E9, 0xEAB1A483, 0xEAB186DF), and DoMessage, which gets them back, works on the stream object. Its fields: +0x24 started, +0x28 the reference count, +0x2C the eighth dword of the settings, +0x30 the vector of stations, +0x3C the volume (0 to 0x400), +0x40 a mute count, +0x44 on, +0x48 the current station, +0x4C/+0x4D/+0x4E three option bytes (by number 0, 1 and 3), +0x50 the folder (a string), +0x64 a pointer slot 13 sets, +0x68 the message server, +0x6C the stream object, +0x74 a file name (a string) with +0x88 saying it is set, +0x8C the volume kept for unmuting. The settings slots 35 and 36 move eight dwords at once: volume, on, station, options 0 and 1, an unused one, option 3, and +0x2C.
+The player does little by itself: its methods post a message to the message server at +0x68 (0x0AB1A61E the volume, 0x0AB186E5 stop, 0x6AB1A480 pause, 0x4AB186E9, 0xEAB1A483, 0xEAB186DF), and DoMessage, which gets them back, works on the stream object (see the classes above). Its fields: +0x24 started, +0x28 the reference count, +0x2C the eighth dword of the settings, +0x30 the vector of stations, +0x3C the volume (0 to 0x400), +0x40 a mute count, +0x44 on, +0x48 the current station, +0x4C/+0x4D/+0x4E three option bytes (by number 0, 1 and 3), +0x50 the folder (a string), +0x64 a pointer slot 13 sets, +0x68 the message server, +0x6C the stream object, +0x74 a file name (a string) with +0x88 saying it is set, +0x8C the volume kept for unmuting. The settings slots 35 and 36 move eight dwords at once: volume, on, station, options 0 and 1, an unused one, option 3, and +0x2C.
 
 ### The pieces
 
 | Piece | Functions | What |
 | --- | --- | --- |
 | `audio.music.part1` | 42 ours, 2 kept | the player service's life (constructor, destructor, deleting destructor), QueryInterface, AddRef, Release and their twelve this-adjustor thunks, Shutdown, OnTick, service slots 13, 15 and 19, the volume post 0x008D2C5F, and the interface's simple methods: slots 8, 9, 10, 12, 16, 17, 18, 20, 25 to 29, 31 to 33, 35, 36 |
-| part 2 (next) | 20 | the rest of the player: Init 0x008D4687, slot 16 0x008D49F8, DoMessage 0x008D319B and 0x008D3132, the interface's slots 5 (0x008D30D1, 0x008D2C7D), 7 (0x008D3DC6, 0x008D3BF8), 11 (0x008D484A), 13 (0x008D490B, 0x008D2BFF), 14 (0x008D3066), 19 (0x008D38E5), 21 (0x008D33FF with the find 0x008D335B, 0x008D2C96), 22 (0x008D3733), 23 (0x008D2F21), and the file filters 0x008D3D5D, 0x008D3D33 |
+| `audio.music.part2` | 20 ours | the rest of the player: Init 0x008D4687, slot 16 0x008D49F8, DoMessage 0x008D319B and 0x008D3132, the interface's slots 5 (0x008D30D1, 0x008D2C7D), 7 (0x008D3DC6, 0x008D3BF8), 11 (0x008D484A), 13 (0x008D490B, 0x008D2BFF), 14 (0x008D3066), 19 (0x008D38E5), 21 (0x008D33FF with the find 0x008D335B, 0x008D2C96), 22 (0x008D3733), 23 (0x008D2F21), and the file filters 0x008D3D5D, 0x008D3D33 |
 | part 3 | 29 | the station class: constructor 0x008D376E, destructor 0x008D3506 and 0x008D38AD, its vtable's slots (0x008D2994 to 0x008D5EC3), the shuffle 0x008D3442 and 0x008D3485 and its helpers |
 | part 4 | 48 | the playlist readers (0x008D5F5B to 0x008D6B22, `.m3u` and `.pls`) and the string and tree container code they use (0x008D3C38, 0x008D3C67, 0x008D3DEF, 0x008D50B2 to 0x008D5E50); container code shared with other code will stay the game's |
 | not the player's | 3 | 0x008D6CF0 (6,749 bytes, called from 0x008FF8AB, 0x0099EF11 and 0x009B6AE5, none of them the player), 0x008D3333 (a vector erase with ten callers elsewhere), 0x008D3376 (an allocation helper also called from 0x00875337) |
 
-Part 1 in `src/core/music_1.cpp`. The group goes in when core.dll is injected (phase Attach), as the framework's service base does, because the player is made while the application starts, before PostAppInit; its constructor and Shutdown therefore run as ours. The thunk of Init (0x008D51DB) is ours and calls the game's Init.
+Part 1 in `src/core/music_1.cpp`. The group goes in when core.dll is injected (phase Attach), as the framework's service base does, because the player is made while the application starts, before PostAppInit; its constructor and Shutdown therefore run as ours. The thunk of Init (0x008D51DB) is ours and calls Init by address (ours when part 2 is on).
 
 Kept as the game's in part 1: slots 24 (0x008D2B70, the byte +0x44) and 34 (0x008D3668, the byte +0x88). Each is 4 bytes (`MOV AL,[ECX+n]; RET`) with the next function right after it and no padding, too short for the entry hook. 0x008D2C20 and 0x008D2C39 are not functions: they are the bodies the adjustors of slots 31 (0x008D3122) and 8 (0x008D312A) jump to, and are written out in those two.
 
@@ -323,11 +324,42 @@ The failed run: three launches of the B run stopped right after core.dll's Attac
 
 Reached (our first-call log lines, in every B run that started): the constructor, destructor, deleting destructor, QueryInterface, AddRef, Release, Shutdown, OnTick, slots 13, 15 and 19 of the service, the volume post, and the interface's slots 10, 12, 16, 29, 31 and 33; of the thunks, QueryInterface and Release of the +0x1C part, AddRef and Release of the +0x20 part, and the +4 part's deleting destructor. 23 of 42. Not reached: the other seven thunks (the Init thunk among them: Init is called through the service part), and slots 8, 9, 17, 18, 20, 25 to 28, 32, 35 and 36, which only the options dialog's real use, a station change or code of part 2 would call.
 
+### Part 2
+
+`audio.music.part2`, `src/core/music_2.cpp`, phase Attach as part 1 (Init runs while the application starts). 20 functions, all ours: Init 0x008D4687, the station loader 0x008D49F8 (service slot 16), the file filters 0x008D3D5D and 0x008D3D33 (slots 17 and 18), DoMessage 0x008D319B and its file helper 0x008D3132, and the interface's slots 5 (0x008D30D1, with the post 0x008D2C7D), 7 (0x008D3DC6, with the send 0x008D3BF8), 11 (0x008D484A), 13 (0x008D490B, with the post 0x008D2BFF), 14 (0x008D3066), 19 (0x008D38E5), 21 (0x008D33FF, with the find 0x008D335B and its loop 0x008D2C96), 22 (0x008D3733) and 23 (0x008D2F21).
+
+Called by address and left the game's: 0x008D3333 (a vector's erase at one place, with ten callers elsewhere), 0x009A1ADD and 0x008FF785 (a vector's erase of a range and push_back, called from all over the game), the framework's string, folder (`cRZDirectory`) and file code, the reference holders of the services, and the station's constructor 0x008D376E (part 3).
+
+What the code does:
+
+- **Init** gets the sound service; without it, it fails. It gives the object the sound service (slot 14) and the language service 0x441E5070 (slot 13, kept at +0x64 without a reference). On its first call it makes the stream object (if there is a message server), sets the folder to the data folder (service 0x2073215D, its slot 7) plus `Res\Music\Radio\`, loads the stations (slot 16), marks itself started and turns the player on if it was on before. It joins the message server as a target and the framework's tick and idle lists.
+- **Slot 16** lists the folders under `<folder>Stations\` and makes a station for each folder that holds a `*.id` file. Each station gets the player's interface, a reference, the option bit +0x2C, and its five folders. For the three language folders it takes language 0. When there is more than one language and that folder has no music files (slot 17: `*.mp3,*.wav,*.xa,*.m3u,*.pls`), it takes language 1 if option 3 is set, otherwise no language folder. The current station is set back to 0 if it is past the end. It returns whether a station was made.
+- **DoMessage** takes the six messages the player posts to itself: stop (the stream's slot 8), the volume (kept at +0x3C, given to the stream unless the player is held, +0x89), a seek (0x4AB186E9: the stream's slot 22 with its position and the message's two numbers; sets +0x71), pause (0x6AB1A480), play a file (0xEAB186DF, through 0x008D3132) and the update (0xEAB1A483: the stream's "playing" and "held" into +0x88 and +0x89).
+- **Slot 5** (from OnTick) posts the update and, unless the player is quiet (+0x70) or held, runs the current station's slot 5. **Slot 23** turns the player on (loading stations if there are none, starting the current one, giving the stream the volume) or off. **Slots 14, 19, 21, 22** change the station list and the current station. **Slots 11 and 13** find a station by its 4-character ID.
+
+Kept quirks: Init's failure after the sound service (no data source class) returns 0 without joining the tick lists. DoMessage's stop does not test for a stream. Slot 19 calls slot 12 (the station at an index) for its effect when the first station is added while the player is on.
+
+#### Parity of part 2
+
+From 2026-10-20 the project runs parity muted (`OPENSC4_MUTE=1`, the game's `-audio:off`) on both sides ([parity.md](parity.md)). Batch `mus2`, 7 days, `audio.*=ours` on side B (parts 1 to 9 and music parts 1 and 2), the base list with `determinism.dispatch_info`, `OPENSC4_TEST_AUDIO=3` and `OPENSC4_TEST_AUDIO_DIALOG=4`, three jobs:
+
+| Leg | Saves | Result |
+| --- | --- | --- |
+| muted trial | 3 (Big City d0000, Making Money d0090, Rush Hour d0365) | 3 same on the first pair |
+| muted | 12 | 12 same on the first pair |
+| unmuted | the same 3 | 3 same: Making Money on the first pair, the other two after two pairs |
+
+**Muted, the music player does not exist.** No B run of either muted leg logged a single first call of parts 1 or 2: with the sound off the player is never made. The muted legs therefore show only that the hooks in place change nothing; they do not test the code. The unmuted leg does.
+
+The unmuted saves that needed a second pair: in both, the original's first run was the odd one out. Its sound test hash differs on day 4 (master level 0 instead of 0x400, another ambience sub-hash), the rare second outcome described under "The exception" above. The other three runs, both of ours among them, agree.
+
+Reached unmuted (first-call lines in all three B runs), part 2: Init, slot 16, slot 18, DoMessage, 0x008D3132, slots 5, 7, 11, 19, 22 and 23, the find and its loop, and the three posts' helpers 0x008D2C7D and 0x008D3BF8. That is 15 of 20. Not reached: slot 17 (a run has one language, so the fallback is never tested), slots 13, 14 and 21 and the post 0x008D2BFF. Nothing in the harness changes stations or seeks. Part 1: the same 23 of 42 as in batch `mus1`.
+
 ## Not done
 
 - The functions in the fence table above that are shared with other classes or are generic container code. They could become ours only together with their other users.
 - The sound library (AEMS) and its pointer table. They are EA's code; a replacement would be a new sound engine, not a rewrite.
-- The framework's sound service, and the music player's pieces 2 to 4 (see "Music player").
+- The framework's sound service, and the music player's pieces 3 and 4 (see "Music player").
 - Playback checks. Everything above is compared by state; nothing here shows that the rewritten code sounds the same.
 - The director's start-up code is ours but is not run in a normal test: the game's versions have already run by PostAppInit (see above).
 - Tracks and sounds that are not the game's. New sounds and soundtracks are on the [roadmap](../ROADMAP.md) as an idea only and are not started.

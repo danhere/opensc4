@@ -597,6 +597,7 @@ add_library(opensc4_core SHARED
   audio_8.cpp
   audio_9.cpp
   music_1.cpp
+  music_2.cpp
   audio_autotest.cpp
   ui_advice_text_2.cpp
   ui_mysim_tools_1.cpp
