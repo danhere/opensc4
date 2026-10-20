@@ -20,6 +20,7 @@
 #include <opensc4/addresses.h>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -29,6 +30,7 @@
 #include <functional>
 #include <initializer_list>
 #include <map>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -15902,6 +15904,506 @@ const bool g_registeredDecalParts = registry::Register({
     "clouds\")",
     true,
     InstallDecalParts,
+});
+
+// --- Calls through other objects' tables, and the manager's tail ------------------------------
+//
+// Most of what is left of the manager calls through the tables of other
+// objects (scripts, the renderer, the effects it starts), which no detour
+// can note. A comparison can: the objects the function will call are
+// proxied for its length, each given a copy of its table in which the
+// slots that function uses go to a thunk. In the game's noted run the
+// thunk notes the call (the function the slot held, the object, the words
+// passed, and the bytes the call left at an out pointer) and makes it; in
+// ours' replay it answers from the note and writes those bytes; else it
+// only makes the call. An object a noted call hands back through its out
+// pointer is proxied too, as the kind the slot says. The engine is the
+// store's (StCompared), so the calls and what the function writes are
+// compared as for the others. The copy keeps the word before the table
+// (the class's description) and 64 slots.
+struct VrKind;
+
+struct VrOut {
+    int arg;       // the word that is an out pointer, or -1
+    uint32_t size; // the bytes noted there
+};
+
+struct VrSlot {
+    uint32_t slot;
+    int args;
+    VrOut outs[2];
+    const VrKind* outKind;    // an object handed back at the first out pointer
+    const VrKind* resultKind; // an object answered in EAX
+    int in;                   // a word pointing at bytes passed in, or -1
+    uint32_t inSize;
+    uint32_t thunk;
+};
+
+struct VrKind {
+    std::vector<VrSlot> slots;
+};
+
+constexpr std::size_t kVrSlots = 64;
+
+struct VrProxy {
+    char* object;
+    uint32_t original;
+    std::array<uint32_t, kVrSlots + 1> table;
+    std::vector<const VrSlot*> slots;
+};
+
+std::vector<std::unique_ptr<VrProxy>> g_vrProxies;
+int g_vrScopes = 0;
+
+VrProxy* VrFind(char* object)
+{
+    for (const auto& proxy : g_vrProxies) {
+        if (proxy->object == object)
+            return proxy.get();
+    }
+    return nullptr;
+}
+
+// An object proxied as a kind (one proxied before gets the kind's slots
+// too); only inside a comparison's scope.
+void VrProxyObject(char* object, const VrKind& kind)
+{
+    if (!object || !g_vrScopes)
+        return;
+    VrProxy* proxy = VrFind(object);
+    if (!proxy) {
+        auto made = std::make_unique<VrProxy>();
+        made->object = object;
+        made->original = At<uint32_t>(object, 0);
+        std::memcpy(made->table.data(), reinterpret_cast<const void*>(made->original - 4), made->table.size() * 4);
+        proxy = made.get();
+        g_vrProxies.push_back(std::move(made));
+        At<uint32_t>(object, 0) = reinterpret_cast<uint32_t>(proxy->table.data() + 1);
+    }
+    for (const VrSlot& slot : kind.slots) {
+        proxy->table[1 + slot.slot / 4] = slot.thunk;
+        proxy->slots.push_back(&slot);
+    }
+}
+
+// The proxies of one comparison, taken off at its end.
+struct VrScope {
+    std::size_t first = g_vrProxies.size();
+    VrScope()
+    {
+        ++g_vrScopes;
+    }
+    ~VrScope()
+    {
+        while (g_vrProxies.size() > first) {
+            At<uint32_t>(g_vrProxies.back()->object, 0) = g_vrProxies.back()->original;
+            g_vrProxies.pop_back();
+        }
+        --g_vrScopes;
+    }
+};
+
+// A call the game's makes, or ours in the replay, with its out bytes (one
+// or two out pointers) noted or written back.
+template <typename Call>
+uint32_t VrNoted(StNote note, const VrOut* outs, const uint32_t* args, Call&& call)
+{
+    char* out[2] = {};
+    for (int i = 0; i < 2; ++i)
+        out[i] = outs[i].arg >= 0 ? Ptr(args[outs[i].arg]) : nullptr;
+    if (g_stReplay && g_stDepth == 0 && GetCurrentThreadId() == g_stThread) {
+        const std::size_t at = g_stOurs.size();
+        const uint32_t result = StReplayed(std::move(note), nullptr);
+        if (at < g_stGame.size() && g_stGame[at] == g_stOurs[at]) {
+            const std::vector<char>& bytes = g_stGame[at].out;
+            std::size_t from = 0;
+            for (int i = 0; i < 2; ++i) {
+                if (out[i] && from + outs[i].size <= bytes.size())
+                    std::memcpy(out[i], bytes.data() + from, outs[i].size);
+                from += out[i] ? outs[i].size : 0;
+            }
+        }
+        return result;
+    }
+    if (!StNoting())
+        return call();
+    const uint32_t result = StNoted(std::move(note), nullptr, 0, call);
+    std::vector<char>& bytes = g_stGame.back().out;
+    for (int i = 0; i < 2; ++i) {
+        if (out[i])
+            bytes.insert(bytes.end(), out[i], out[i] + outs[i].size);
+    }
+    return result;
+}
+
+uint32_t VrDispatch(char* self, uint32_t slot, const uint32_t* args, const std::function<uint32_t(uint32_t)>& call)
+{
+    VrProxy* const proxy = VrFind(self);
+    const uint32_t function =
+        At<uint32_t>(reinterpret_cast<char*>(proxy ? proxy->original : At<uint32_t>(self, 0)), slot);
+    const VrSlot* desc = nullptr;
+    if (proxy) {
+        for (const VrSlot* at : proxy->slots) {
+            if (at->slot == slot)
+                desc = at;
+        }
+    }
+    if (!desc)
+        return call(function);
+    uint32_t rest = desc->args > 2 ? StArg(Ptr(args[2])) : 0;
+    for (int i = 3; i < desc->args; ++i)
+        rest = (rest ^ StArg(Ptr(args[i]))) * 16777619u;
+    if (desc->in >= 0) {
+        const auto* bytes = reinterpret_cast<const uint8_t*>(args[desc->in]);
+        for (uint32_t i = 0; i < desc->inSize; ++i)
+            rest = (rest ^ bytes[i]) * 16777619u;
+    }
+    const uint32_t result = VrNoted(StMake(function, self, desc->args > 0 ? Ptr(args[0]) : nullptr,
+                                           desc->args > 1 ? Ptr(args[1]) : nullptr, rest),
+                                    desc->outs, args, [&] { return call(function); });
+    if (desc->outKind && desc->outs[0].arg >= 0)
+        VrProxyObject(At<char*>(Ptr(args[desc->outs[0].arg]), 0), *desc->outKind);
+    if (desc->resultKind)
+        VrProxyObject(Ptr(result), *desc->resultKind);
+    return result;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall VrThunk0(char* self, void*)
+{
+    const uint32_t args[1] = {};
+    return VrDispatch(self, Slot, args, [&](uint32_t f) { return reinterpret_cast<Call0Fn>(f)(self, nullptr); });
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall VrThunk1(char* self, void*, uint32_t a)
+{
+    const uint32_t args[1] = {a};
+    return VrDispatch(self, Slot, args, [&](uint32_t f) { return reinterpret_cast<Call1Fn>(f)(self, nullptr, a); });
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall VrThunk2(char* self, void*, uint32_t a, uint32_t b)
+{
+    const uint32_t args[2] = {a, b};
+    return VrDispatch(self, Slot, args,
+                      [&](uint32_t f) { return reinterpret_cast<Call2Fn>(f)(self, nullptr, a, b); });
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall VrThunk4(char* self, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d)
+{
+    const uint32_t args[4] = {a, b, c, d};
+    using Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t, uint32_t);
+    return VrDispatch(self, Slot, args, [&](uint32_t f) { return reinterpret_cast<Fn>(f)(self, nullptr, a, b, c, d); });
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall VrThunk6(char* self, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t g)
+{
+    const uint32_t args[6] = {a, b, c, d, e, g};
+    using Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    return VrDispatch(self, Slot, args,
+                      [&](uint32_t f) { return reinterpret_cast<Fn>(f)(self, nullptr, a, b, c, d, e, g); });
+}
+
+#define VR_SLOT(n, slot) reinterpret_cast<uint32_t>(&VrThunk##n<slot>)
+constexpr VrOut kVrNoOut[2] = {{-1, 0}, {-1, 0}};
+
+// A slot of a kind: its words, out pointers, kinds handed back, bytes in.
+VrSlot VrPlain(uint32_t slot, int args, uint32_t thunk)
+{
+    return {slot, args, {{-1, 0}, {-1, 0}}, nullptr, nullptr, -1, 0, thunk};
+}
+
+// The kinds the tail's comparisons proxy.
+const VrKind kVrUnknown{{VrPlain(8, 0, VR_SLOT(0, 8))}};
+const VrKind kVrQueried{{{0, 2, {{1, 4}, {-1, 0}}, &kVrUnknown, nullptr, -1, 0, VR_SLOT(2, 0)}}};
+const VrKind kVrScriptUnregister{{VrPlain(0x1C, 1, VR_SLOT(1, 0x1C))}};
+const VrKind kVrScriptRegister{
+    {VrPlain(0x54, 0, VR_SLOT(0, 0x54)), VrPlain(0x24, 1, VR_SLOT(1, 0x24)), VrPlain(0xC, 6, VR_SLOT(6, 0xC))}};
+const VrKind kVrCompound{{VrPlain(0x20, 1, VR_SLOT(1, 0x20))}};
+const VrKind kVrStarted{{VrPlain(0x20, 1, VR_SLOT(1, 0x20)), VrPlain(0x1C, 1, VR_SLOT(1, 0x1C)),
+                         VrPlain(0xC, 1, VR_SLOT(1, 0xC)), VrPlain(8, 0, VR_SLOT(0, 8))}};
+const VrKind kVrStarter{{{0x1C, 2, {{1, 4}, {-1, 0}}, &kVrStarted, nullptr, -1, 0, VR_SLOT(2, 0x1C)}}};
+const VrKind kVrRenderer{{VrPlain(0xB0, 1, VR_SLOT(1, 0xB0))}};
+const VrKind kVrOccupantType{{VrPlain(0xC, 1, VR_SLOT(1, 0xC))}};
+const VrKind kVrOccupant{{{0x18, 0, {{-1, 0}, {-1, 0}}, nullptr, &kVrOccupantType, -1, 0, VR_SLOT(0, 0x18)},
+                          {0x28, 2, {{0, 0xC}, {1, 0xC}}, nullptr, nullptr, -1, 0, VR_SLOT(2, 0x28)},
+                          {0x2C, 1, {{0, 0x10}, {-1, 0}}, nullptr, nullptr, -1, 0, VR_SLOT(1, 0x2C)}}};
+const VrKind kVrLiftedMap{{{0x28, 4, {{-1, 0}, {-1, 0}}, nullptr, nullptr, 1, 0x10, VR_SLOT(4, 0x28)}}};
+
+// What ours calls besides the proxied tables: in the replay the note.
+StepMode g_tlMode = StepMode::Original;
+using TlQueryHeldFn = char**(__cdecl*)(char**, char*, uint32_t, uint32_t);
+using TlPropertyFn = uint32_t(__cdecl*)(char*, uint32_t, uint8_t*);
+TlQueryHeldFn g_SC4_QueryHeld = nullptr;
+TlPropertyFn g_SC4_GetPropertyBool = nullptr;
+
+void TlQueryHeld(char** out, char* object, uint32_t iid, uint32_t unused)
+{
+    const uint32_t args[4] = {Word(out), Word(object), iid, unused};
+    const VrOut outs[2] = {{0, 4}, {-1, 0}};
+    VrNoted(StMake(addr::SC4_QueryHeld, out, object, Ptr(iid), unused), outs, args, [&] {
+        return Word(reinterpret_cast<TlQueryHeldFn>(addr::SC4_QueryHeld)(out, object, iid, unused));
+    });
+    VrProxyObject(*out, kVrUnknown);
+}
+
+uint32_t TlGetPropertyBool(char* object, uint32_t id, uint8_t* out)
+{
+    const uint32_t args[3] = {Word(object), id, Word(out)};
+    const VrOut outs[2] = {{2, 1}, {-1, 0}};
+    return VrNoted(StMake(addr::SC4_GetPropertyBool, object, Ptr(id), Ptr(Word(out))), outs, args, [&] {
+               return reinterpret_cast<TlPropertyFn>(addr::SC4_GetPropertyBool)(object, id, out);
+           }) & 0xFF;
+}
+
+uint32_t OccupantLifts(char* occupant);
+void LiftUnderOccupant(char* manager, char* occupant);
+
+uint32_t TlOccupantLifts(char* occupant)
+{
+    if (g_stReplay)
+        return StReplayed(StMake(addr::SC4EffectsManager_OccupantLifts, occupant), nullptr) & 0xFF;
+    return OccupantLifts(occupant);
+}
+
+void TlLiftUnderOccupant(char* manager, char* occupant)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4EffectsManager_LiftUnderOccupant, manager, occupant), nullptr);
+    else
+        CallThis<void>(addr::SC4EffectsManager_LiftUnderOccupant, manager, occupant);
+}
+
+#include "core/effects_tail.inc"
+
+using TlRegisterFn = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, char*, uint32_t, uint32_t, char*);
+using TlUnregisterFn = uint32_t(__cdecl*)(char*, char*);
+TlRegisterFn g_SC4Script_RegisterFunction = nullptr;
+TlUnregisterFn g_SC4Script_UnregisterTable = nullptr;
+Call1Fn g_SC4EffectsManager_StartFollowUp = nullptr;
+Call0Fn g_SC4EffectsManager_PlaceCompounds = nullptr, g_SC4EffectsManager_ReleaseThunk4 = nullptr,
+        g_SC4EffectsManager_ReleaseThunk8 = nullptr;
+
+// By the group's mode; the comparison with the objects proxied first.
+template <typename Game, typename Ours, typename Proxy>
+uint32_t TlByMode(const char* id, uint32_t target, char* region, std::size_t size, bool result, Game&& game,
+                  Ours&& ours, Proxy&& proxy)
+{
+    return StByModeOf(g_tlMode, StMake(target, region), nullptr, 0, game, ours, [&] {
+        VrScope scope;
+        proxy();
+        return StCompared(id, region, size, result, game, ours);
+    });
+}
+
+uint32_t __cdecl TlRegisterByMode(uint32_t a, uint32_t b, uint32_t c, char* object, uint32_t flags, uint32_t f,
+                                  char* script)
+{
+    const auto game = [&] { return g_SC4Script_RegisterFunction(a, b, c, object, flags, f, script); };
+    const auto ours = [&] { return RegisterScriptFunction(a, b, c, object, flags, f, script); };
+    return TlByMode("effects.tail.register", addr::SC4Script_RegisterFunction, nullptr, 0, true, game, ours, [&] {
+        VrProxyObject(script, kVrScriptRegister);
+        VrProxyObject(object, kVrQueried);
+    });
+}
+
+uint32_t __cdecl TlUnregisterByMode(char* object, char* script)
+{
+    const auto game = [&] { return g_SC4Script_UnregisterTable(object, script) & 0xFF; };
+    const auto ours = [&] { return UnregisterScriptTable(object, script); };
+    return TlByMode("effects.tail.unregister", addr::SC4Script_UnregisterTable, nullptr, 0, true, game, ours, [&] {
+        VrProxyObject(script, kVrScriptUnregister);
+        VrProxyObject(object, kVrQueried);
+    });
+}
+
+uint32_t __fastcall TlFollowUpByMode(char* manager, void*, uint32_t effect)
+{
+    const auto game = [&] { return g_SC4EffectsManager_StartFollowUp(manager, nullptr, effect); };
+    const auto ours = [&] {
+        StartFollowUp(manager, Ptr(effect));
+        return 0u;
+    };
+    return TlByMode("effects.tail.follow_up", addr::SC4EffectsManager_StartFollowUp, Ptr(effect) + 0x144, 4, false,
+                    game, ours, [&] {
+                        VrProxyObject(M<char*>(0x00B43DD0), kVrRenderer);
+                        VrProxyObject(manager, kVrStarter);
+                    });
+}
+OPENSC4_THUNK(TTlFollowUp, TlFollowUpByMode, 4)
+
+uint32_t __fastcall TlPlaceByMode(char* manager, void*)
+{
+    const auto game = [&] { return g_SC4EffectsManager_PlaceCompounds(manager, nullptr); };
+    const auto ours = [&] {
+        PlaceCompounds(manager);
+        return 0u;
+    };
+    return TlByMode("effects.tail.place", addr::SC4EffectsManager_PlaceCompounds, nullptr, 0, false, game, ours,
+                    [&] {
+                        for (uint32_t* at = At<uint32_t*>(manager, 0xBAC); at != At<uint32_t*>(manager, 0xBB0); ++at)
+                            VrProxyObject(At<char**>(manager, 0xB94)[*at], kVrCompound);
+                    });
+}
+OPENSC4_THUNK(TTlPlace, TlPlaceByMode, 0)
+
+// The two Release thunks only answer 1: the game's and ours run, the
+// answers compared.
+uint32_t TlReleaseByMode(const char* id, char* self, uint32_t offset, Call0Fn game)
+{
+    if (g_tlMode == StepMode::Ours)
+        return ReleaseManagerFrom(self, offset);
+    const uint32_t theirs = game(self, nullptr);
+    if (g_tlMode == StepMode::Original || g_stNoting || g_stReplay)
+        return theirs;
+    const uint32_t mine = ReleaseManagerFrom(self, offset);
+    StRecord(id, theirs == mine, Hex(&theirs, 4), Hex(&mine, 4));
+    return theirs;
+}
+
+uint32_t __fastcall TlRelease4ByMode(char* self, void*)
+{
+    return TlReleaseByMode("effects.tail.release4", self, 4, g_SC4EffectsManager_ReleaseThunk4);
+}
+OPENSC4_THUNK(TTlRelease4, TlRelease4ByMode, 0)
+
+uint32_t __fastcall TlRelease8ByMode(char* self, void*)
+{
+    return TlReleaseByMode("effects.tail.release8", self, 8, g_SC4EffectsManager_ReleaseThunk8);
+}
+OPENSC4_THUNK(TTlRelease8, TlRelease8ByMode, 0)
+
+// The game's helpers the occupant's check calls, noted in a noted run
+// (with the bytes they leave at their out pointer); the held unknown
+// proxied for its let-go.
+char** __cdecl TlQueryHeldNoted(char** out, char* object, uint32_t iid, uint32_t unused)
+{
+    const uint32_t args[4] = {Word(out), Word(object), iid, unused};
+    const VrOut outs[2] = {{0, 4}, {-1, 0}};
+    const uint32_t result = VrNoted(StMake(addr::SC4_QueryHeld, out, object, Ptr(iid), unused), outs, args,
+                                    [&] { return Word(g_SC4_QueryHeld(out, object, iid, unused)); });
+    if (GetCurrentThreadId() == g_stThread)
+        VrProxyObject(*out, kVrUnknown);
+    return reinterpret_cast<char**>(result);
+}
+
+uint32_t __cdecl TlGetPropertyBoolNoted(char* object, uint32_t id, uint8_t* out)
+{
+    const uint32_t args[3] = {Word(object), id, Word(out)};
+    const VrOut outs[2] = {{2, 1}, {-1, 0}};
+    return VrNoted(StMake(addr::SC4_GetPropertyBool, object, Ptr(id), Ptr(Word(out))), outs, args,
+                   [&] { return g_SC4_GetPropertyBool(object, id, out); });
+}
+
+// The occupant's check takes its occupant in EDI (an LTCG convention): a
+// naked thunk hands it on, and the game's is called with EDI set.
+using TlEdiFn = void (*)();
+TlEdiFn g_SC4EffectsManager_OccupantLifts = nullptr;
+
+__declspec(naked) uint32_t __cdecl TlCallWithEdi(uint32_t function, char* occupant)
+{
+    __asm {
+        push edi
+        mov edi, [esp + 12]
+        mov eax, [esp + 8]
+        call eax
+        pop edi
+        ret
+    }
+}
+
+uint32_t __cdecl TlOccupantByMode(char* occupant)
+{
+    const auto game = [&] {
+        return TlCallWithEdi(reinterpret_cast<uint32_t>(g_SC4EffectsManager_OccupantLifts), occupant) & 0xFF;
+    };
+    const auto ours = [&] { return OccupantLifts(occupant); };
+    return TlByMode("effects.tail.occupant", addr::SC4EffectsManager_OccupantLifts, occupant, 0, true, game, ours,
+                    [&] { VrProxyObject(occupant, kVrOccupant); });
+}
+
+__declspec(naked) void TTlOccupant()
+{
+    __asm {
+        push ecx
+        push edx
+        push edi
+        call TlOccupantByMode
+        add esp, 4
+        pop edx
+        pop ecx
+        ret
+    }
+}
+
+Call1Fn g_SC4EffectsManager_LiftUnderOccupant = nullptr;
+
+uint32_t __fastcall TlLiftByMode(char* manager, void*, uint32_t occupant)
+{
+    const auto game = [&] { return g_SC4EffectsManager_LiftUnderOccupant(manager, nullptr, occupant); };
+    const auto ours = [&] {
+        LiftUnderOccupant(manager, Ptr(occupant));
+        return 0u;
+    };
+    return StByModeOf(g_tlMode, StMake(addr::SC4EffectsManager_LiftUnderOccupant, manager, Ptr(occupant)), nullptr,
+                      0, game, ours, [&] {
+                          VrScope scope;
+                          VrProxyObject(Ptr(occupant), kVrOccupant);
+                          VrProxyObject(At<char*>(manager, 0xD98), kVrLiftedMap);
+                          return StCompared("effects.tail.lift", manager + 0xDA0, 4, false, game, ours);
+                      });
+}
+OPENSC4_THUNK(TTlLift, TlLiftByMode, 4)
+
+using TlMessageFn = uint32_t(__cdecl*)(char*, char*);
+TlMessageFn g_SC4EffectsManager_LiftMessage = nullptr;
+
+uint32_t __cdecl TlLiftMessageByMode(char* occupant, char* manager)
+{
+    const auto game = [&] { return g_SC4EffectsManager_LiftMessage(occupant, manager) & 0xFF; };
+    const auto ours = [&] { return LiftUnderOccupantMessage(occupant, manager); };
+    return TlByMode("effects.tail.lift_message", addr::SC4EffectsManager_LiftMessage, nullptr, 0, true, game, ours,
+                    [] {});
+}
+
+bool InstallTail(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !DetourCdecl(addr::SC4Script_RegisterFunction, &TlRegisterByMode, &g_SC4Script_RegisterFunction) ||
+        !DetourCdecl(addr::SC4Script_UnregisterTable, &TlUnregisterByMode, &g_SC4Script_UnregisterTable) ||
+        !Detour(addr::SC4EffectsManager_StartFollowUp, &TTlFollowUp, &g_SC4EffectsManager_StartFollowUp) ||
+        !Detour(addr::SC4EffectsManager_PlaceCompounds, &TTlPlace, &g_SC4EffectsManager_PlaceCompounds) ||
+        !Detour(addr::SC4EffectsManager_ReleaseThunk4, &TTlRelease4, &g_SC4EffectsManager_ReleaseThunk4) ||
+        !Detour(addr::SC4EffectsManager_ReleaseThunk8, &TTlRelease8, &g_SC4EffectsManager_ReleaseThunk8) ||
+        !Detour(addr::SC4EffectsManager_OccupantLifts, &TTlOccupant, &g_SC4EffectsManager_OccupantLifts) ||
+        !Detour(addr::SC4EffectsManager_LiftUnderOccupant, &TTlLift, &g_SC4EffectsManager_LiftUnderOccupant) ||
+        !DetourCdecl(addr::SC4EffectsManager_LiftMessage, &TlLiftMessageByMode, &g_SC4EffectsManager_LiftMessage))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(DetourCdecl(addr::SC4_QueryHeld, &TlQueryHeldNoted, &g_SC4_QueryHeld) &&
+          DetourCdecl(addr::SC4_GetPropertyBool, &TlGetPropertyBoolNoted, &g_SC4_GetPropertyBool)))
+        return false;
+    g_tlMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the manager's calls through other tables %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredTail = registry::Register({
+    "renderer.effects.tail",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectsManager_PlaceCompounds,
+    "The effects manager's script register and unregister, an effect's follow-up start, the place given to the "
+    "compound effects, two Release thunks and the lift of the particles' floor under an occupant; compare mode proxies the objects they call through (their tables' "
+    "slots noted in the game's run and answered in ours' replay) and compares the store's way (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallTail,
 });
 
 bool InstallEffects(registry::Mode mode)
