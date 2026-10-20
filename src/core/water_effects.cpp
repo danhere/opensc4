@@ -15150,6 +15150,453 @@ const bool g_registeredHashes = registry::Register({
     InstallHashes,
 });
 
+// --- The particles' height map -------------------------------------------------------------
+//
+// The height map a particle meeting the ground asks (effects_heightmap.inc):
+// its query, the height at a place, a vertex's height and the normal, the
+// three changes of a layer, the constructor, the init, the shutdown and the
+// deleting destructor with its thunk. The comparison runs both on what each
+// may change. The four questions only read: the game's, then ours, the
+// answers compared to the bit, the query's with the count at +8 it raised
+// (put back after ours). A
+// change of a layer: the layer and +0x48 put back after the game's, ours
+// run, the two compared and the game's left. The constructor: ours on a
+// copy of the memory, then the game's. The init, the shutdown and the
+// destructor: ours on a copy whose layers are its own and whose terrain is
+// held once more, then the game's; the bytes compared, the layers'
+// pointers by what they hold (null alike, the same used and room, and
+// after an init the same values). The destructor's game's run is made
+// without the delete flag and the delete made after it; ours' delete is
+// only noted. Inside another group's noted run only the game's runs.
+StepMode g_hmMode = StepMode::Original;
+using HmHeightFn = double(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t);
+using HmCall4Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t, uint32_t);
+Call0Fn g_SC4EffectHeightMap_Construct = nullptr, g_SC4EffectHeightMap_Shutdown = nullptr,
+        g_SC4EffectHeightMap_Init = nullptr;
+Call1Fn g_SC4EffectHeightMap_DeletingDestructor = nullptr, g_SC4EffectHeightMap_DeletingDestructorThunk = nullptr;
+Call2Fn g_SC4EffectHeightMap_QueryInterface = nullptr, g_SC4EffectHeightMap_Clear = nullptr;
+HmHeightFn g_SC4EffectHeightMap_Height = nullptr, g_SC4EffectHeightMap_CellHeight = nullptr;
+HmCall4Fn g_SC4EffectHeightMap_Normal = nullptr, g_SC4EffectHeightMap_Raise = nullptr,
+          g_SC4EffectHeightMap_Lift = nullptr;
+char* g_hmDeleted = nullptr;
+char* g_hmDestroyed = nullptr;
+uint32_t g_hmDestroyedFlags = 0;
+
+#include "core/effects_heightmap.inc"
+
+void HmDelete(void* object)
+{
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(object);
+}
+
+void HmNoteDelete(void* object)
+{
+    g_hmDeleted = static_cast<char*>(object);
+}
+
+bool HmGameOnly()
+{
+    return g_hmMode == StepMode::Original || g_stNoting || g_stReplay;
+}
+
+float HmFloat(uint32_t bits)
+{
+    float value = 0.0f;
+    std::memcpy(&value, &bits, 4);
+    return value;
+}
+
+void HmRecord(const char* id, const void* theirs, const void* mine, std::size_t size, bool same = true)
+{
+    same = same && std::memcmp(theirs, mine, size) == 0;
+    StRecord(id, same, Hex(theirs, size), Hex(mine, size));
+}
+
+// The layers' storage of a map one can copy: none, or room for each.
+bool HmCopyable(char* self)
+{
+    char* const begin = At<char*>(self, 0x14);
+    if (!begin)
+        return true;
+    if (At<char*>(self, 0x1C) == begin)
+        return false;
+    for (char* layer = begin; layer < At<char*>(self, 0x18); layer += 0xC) {
+        if (At<char*>(layer, 0) && At<char*>(layer, 8) == At<char*>(layer, 0))
+            return false;
+    }
+    return true;
+}
+
+// A copy of the map whose layers are its own (storage of the same room,
+// each layer's values in storage of its room), its terrain held once more.
+std::vector<char> HmDeepCopy(char* self)
+{
+    std::vector<char> copy(self, self + kHeightMapSize);
+    if (char* const begin = At<char*>(self, 0x14)) {
+        const std::size_t used = At<char*>(self, 0x18) - begin, room = At<char*>(self, 0x1C) - begin;
+        char* const layers = StlAllocate(room);
+        for (std::size_t at = 0; at < used; at += 0xC) {
+            char* const from = begin + at;
+            char* const to = layers + at;
+            std::memset(to, 0, 0xC);
+            if (char* const values = At<char*>(from, 0)) {
+                const std::size_t n = At<char*>(from, 4) - values, r = At<char*>(from, 8) - values;
+                char* const storage = StlAllocate(r);
+                std::memcpy(storage, values, n);
+                At<char*>(to, 0) = storage;
+                At<char*>(to, 4) = storage + n;
+                At<char*>(to, 8) = storage + r;
+            }
+        }
+        At<char*>(copy.data(), 0x14) = layers;
+        At<char*>(copy.data(), 0x18) = layers + used;
+        At<char*>(copy.data(), 0x1C) = layers + room;
+    }
+    if (char* const terrain = At<char*>(self, 0xC))
+        HmSlot<uint32_t>(terrain, 4);
+    return copy;
+}
+
+// A vector's three pointers by what they say: null alike, the same used and
+// room.
+bool HmSameShape(char* theirs, char* mine)
+{
+    char* const a = At<char*>(theirs, 0);
+    char* const b = At<char*>(mine, 0);
+    return (a == nullptr) == (b == nullptr) && At<char*>(theirs, 4) - a == At<char*>(mine, 4) - b &&
+           At<char*>(theirs, 8) - a == At<char*>(mine, 8) - b;
+}
+
+// The game's map and ours: the bytes but the layers' pointers, those by what
+// they say, and with `values` each layer's shape and values.
+bool HmSame(const char* id, char* theirs, char* mine, bool values)
+{
+    char text[40];
+    for (std::size_t at = 0; at < kHeightMapSize; at += 4) {
+        if (at >= 0x14 && at < 0x20)
+            continue;
+        if (std::memcmp(theirs + at, mine + at, 4) != 0) {
+            std::snprintf(text, sizeof text, "+%zX ", at);
+            StRecord(id, false, text + Hex(theirs + at, 4), text + Hex(mine + at, 4));
+            return false;
+        }
+    }
+    bool same = HmSameShape(theirs + 0x14, mine + 0x14);
+    std::snprintf(text, sizeof text, "layers ");
+    std::size_t layer = 0;
+    if (same && values && At<char*>(theirs, 0x14)) {
+        char* a = At<char*>(theirs, 0x14);
+        char* b = At<char*>(mine, 0x14);
+        for (; same && a < At<char*>(theirs, 0x18); a += 0xC, b += 0xC, ++layer) {
+            same = HmSameShape(a, b) && std::memcmp(At<char*>(a, 0), At<char*>(b, 0),
+                                                    At<char*>(a, 4) - At<char*>(a, 0)) == 0;
+            if (!same)
+                std::snprintf(text, sizeof text, "layer %zu ", layer);
+        }
+    }
+    StRecord(id, same, text + Hex(theirs + 0x14, 0xC), text + Hex(mine + 0x14, 0xC));
+    return same;
+}
+
+uint32_t __fastcall HmQueryByMode(char* self, void*, uint32_t id, uint32_t out)
+{
+    void** const place = reinterpret_cast<void**>(out);
+    if (g_hmMode == StepMode::Ours)
+        return QueryHeightMap(self, id, place);
+    if (HmGameOnly())
+        return g_SC4EffectHeightMap_QueryInterface(self, nullptr, id, out);
+    void* mine = *place;
+    const uint32_t count = At<uint32_t>(self, 8);
+    const uint32_t result = g_SC4EffectHeightMap_QueryInterface(self, nullptr, id, out);
+    const uint32_t held = At<uint32_t>(self, 8);
+    const uint8_t answer = static_cast<uint8_t>(QueryHeightMap(self, id, &mine));
+    const uint32_t heldAgain = At<uint32_t>(self, 8);
+    At<uint32_t>(self, 8) = held;
+    const uint32_t theirs[3] = {Word(*place), static_cast<uint8_t>(result), held - count};
+    const uint32_t own[3] = {Word(mine), answer, heldAgain - held};
+    HmRecord("effects.heightmap.query", theirs, own, 0xC);
+    return result;
+}
+OPENSC4_THUNK(THmQuery, HmQueryByMode, 8)
+
+double __fastcall HmHeightByMode(char* self, void*, uint32_t layer, uint32_t x, uint32_t z)
+{
+    if (g_hmMode == StepMode::Ours)
+        return HeightMapHeight(self, layer, HmFloat(x), HmFloat(z));
+    const double result = g_SC4EffectHeightMap_Height(self, nullptr, layer, x, z);
+    if (HmGameOnly())
+        return result;
+    const double mine = HeightMapHeight(self, layer, HmFloat(x), HmFloat(z));
+    HmRecord("effects.heightmap.height", &result, &mine, 8);
+    return result;
+}
+OPENSC4_THUNK(THmHeight, HmHeightByMode, 12)
+
+double __fastcall HmCellByMode(char* self, void*, uint32_t layer, uint32_t x, uint32_t z)
+{
+    if (g_hmMode == StepMode::Ours)
+        return HeightMapCell(self, layer, x, z);
+    const double result = g_SC4EffectHeightMap_CellHeight(self, nullptr, layer, x, z);
+    if (HmGameOnly())
+        return result;
+    const double mine = HeightMapCell(self, layer, x, z);
+    HmRecord("effects.heightmap.cell", &result, &mine, 8);
+    return result;
+}
+OPENSC4_THUNK(THmCell, HmCellByMode, 12)
+
+uint32_t __fastcall HmNormalByMode(char* self, void*, uint32_t out, uint32_t layer, uint32_t x, uint32_t z)
+{
+    if (g_hmMode == StepMode::Ours)
+        return Word(HeightMapNormal(self, reinterpret_cast<float*>(out), layer, HmFloat(x), HmFloat(z)));
+    const uint32_t result = g_SC4EffectHeightMap_Normal(self, nullptr, out, layer, x, z);
+    if (HmGameOnly())
+        return result;
+    float mine[3] = {};
+    const bool answered = Word(HeightMapNormal(self, mine, layer, HmFloat(x), HmFloat(z))) == Word(mine);
+    HmRecord("effects.heightmap.normal", Ptr(out), mine, 0xC, answered && result == out);
+    return result;
+}
+OPENSC4_THUNK(THmNormal, HmNormalByMode, 16)
+
+// A change of a layer: the layer's values and +0x48 put back after the
+// game's, ours run, the two compared; the game's left.
+template <typename Game, typename Ours>
+void HmChangeCompared(const char* id, char* self, uint32_t layer, Game&& game, Ours&& ours)
+{
+    const uint32_t index = layer - 1;
+    char* const values = index < HmLayers(self) ? reinterpret_cast<char*>(HmLayer(self, index)) : nullptr;
+    const std::size_t size = values ? At<char*>(At<char*>(self, 0x14) + index * 0xC, 4) - values : 0;
+    const std::vector<char> before(values, values + size);
+    const uint8_t flag = At<uint8_t>(self, 0x48);
+    game();
+    const std::vector<char> after(values, values + size);
+    const uint8_t changed = At<uint8_t>(self, 0x48);
+    if (size)
+        std::memcpy(values, before.data(), size);
+    At<uint8_t>(self, 0x48) = flag;
+    ours();
+    char text[40];
+    if (At<uint8_t>(self, 0x48) != changed) {
+        StRecord(id, false, "+48 " + Hex(&changed, 1), "+48 " + Hex(self + 0x48, 1));
+    } else if (size && std::memcmp(values, after.data(), size) != 0) {
+        std::size_t at = 0;
+        while (std::memcmp(values + at, after.data() + at, 4) == 0)
+            at += 4;
+        std::snprintf(text, sizeof text, "value %zu ", at / 4);
+        StRecord(id, false, text + Hex(after.data() + at, 4), text + Hex(values + at, 4));
+    } else {
+        StRecord(id, true, std::string(), std::string());
+    }
+    if (size)
+        std::memcpy(values, after.data(), size);
+    At<uint8_t>(self, 0x48) = changed;
+}
+
+uint32_t __fastcall HmRaiseByMode(char* self, void*, uint32_t layer, uint32_t rect, uint32_t amount, uint32_t count)
+{
+    const auto ours = [&] {
+        HeightMapRaise(self, layer, reinterpret_cast<const int32_t*>(rect), HmFloat(amount), count);
+    };
+    const auto game = [&] { return g_SC4EffectHeightMap_Raise(self, nullptr, layer, rect, amount, count); };
+    if (g_hmMode == StepMode::Ours) {
+        ours();
+        return 0;
+    }
+    if (HmGameOnly())
+        return game();
+    uint32_t result = 0;
+    HmChangeCompared("effects.heightmap.raise", self, layer, [&] { result = game(); }, ours);
+    return result;
+}
+OPENSC4_THUNK(THmRaise, HmRaiseByMode, 16)
+
+uint32_t __fastcall HmLiftByMode(char* self, void*, uint32_t layer, uint32_t rect, uint32_t height, uint32_t count)
+{
+    const auto ours = [&] {
+        HeightMapLift(self, layer, reinterpret_cast<const int32_t*>(rect), HmFloat(height), count);
+    };
+    const auto game = [&] { return g_SC4EffectHeightMap_Lift(self, nullptr, layer, rect, height, count); };
+    if (g_hmMode == StepMode::Ours) {
+        ours();
+        return 0;
+    }
+    if (HmGameOnly())
+        return game();
+    uint32_t result = 0;
+    HmChangeCompared("effects.heightmap.lift", self, layer, [&] { result = game(); }, ours);
+    return result;
+}
+OPENSC4_THUNK(THmLift, HmLiftByMode, 16)
+
+uint32_t __fastcall HmClearByMode(char* self, void*, uint32_t layer, uint32_t rect)
+{
+    const auto ours = [&] { HeightMapClear(self, layer, reinterpret_cast<const int32_t*>(rect)); };
+    const auto game = [&] { return g_SC4EffectHeightMap_Clear(self, nullptr, layer, rect); };
+    if (g_hmMode == StepMode::Ours) {
+        ours();
+        return 0;
+    }
+    if (HmGameOnly())
+        return game();
+    uint32_t result = 0;
+    HmChangeCompared("effects.heightmap.clear", self, layer, [&] { result = game(); }, ours);
+    return result;
+}
+OPENSC4_THUNK(THmClear, HmClearByMode, 8)
+
+uint32_t __fastcall HmConstructByMode(char* self, void*)
+{
+    if (g_hmMode == StepMode::Ours)
+        return Word(ConstructHeightMap(self));
+    if (HmGameOnly())
+        return g_SC4EffectHeightMap_Construct(self, nullptr);
+    std::vector<char> mine(self, self + kHeightMapSize);
+    const bool answered = ConstructHeightMap(mine.data()) == mine.data();
+    const uint32_t result = g_SC4EffectHeightMap_Construct(self, nullptr);
+    std::size_t at = 0;
+    while (at < kHeightMapSize && std::memcmp(self + at, mine.data() + at, 4) == 0)
+        at += 4;
+    const std::size_t shown = at < kHeightMapSize ? at : 0;
+    char text[24];
+    std::snprintf(text, sizeof text, "+%zX ", shown);
+    StRecord("effects.heightmap.construct", answered && result == Word(self) && at == kHeightMapSize,
+             text + Hex(self + shown, 4), text + Hex(mine.data() + shown, 4));
+    return result;
+}
+OPENSC4_THUNK(THmConstruct, HmConstructByMode, 0)
+
+uint32_t __fastcall HmInitByMode(char* self, void*)
+{
+    if (g_hmMode == StepMode::Ours)
+        return InitHeightMap(self);
+    if (HmGameOnly() || !HmCopyable(self))
+        return g_SC4EffectHeightMap_Init(self, nullptr);
+    std::vector<char> mine = HmDeepCopy(self);
+    const uint8_t answer = static_cast<uint8_t>(InitHeightMap(mine.data()));
+    const uint32_t result = g_SC4EffectHeightMap_Init(self, nullptr);
+    if (answer != static_cast<uint8_t>(result))
+        StRecord("effects.heightmap.init", false, Hex(&result, 1), Hex(&answer, 1));
+    else
+        HmSame("effects.heightmap.init", self, mine.data(), true);
+    // Ours' copy undone: its layers freed, its terrain let go.
+    CallThis<void>(addr::SC4ShortVectorVector_Destroy, mine.data() + 0x14);
+    if (char* const terrain = At<char*>(mine.data(), 0xC))
+        HmSlot<uint32_t>(terrain, 8);
+    return result;
+}
+OPENSC4_THUNK(THmInit, HmInitByMode, 0)
+
+uint32_t __fastcall HmShutdownByMode(char* self, void*)
+{
+    if (g_hmMode == StepMode::Ours)
+        return ShutdownHeightMap(self);
+    if (HmGameOnly() || !HmCopyable(self))
+        return g_SC4EffectHeightMap_Shutdown(self, nullptr);
+    std::vector<char> mine = HmDeepCopy(self);
+    const uint8_t answer = static_cast<uint8_t>(ShutdownHeightMap(mine.data()));
+    const uint32_t result = g_SC4EffectHeightMap_Shutdown(self, nullptr);
+    if (answer != static_cast<uint8_t>(result))
+        StRecord("effects.heightmap.shutdown", false, Hex(&result, 1), Hex(&answer, 1));
+    else
+        HmSame("effects.heightmap.shutdown", self, mine.data(), false);
+    if (char* const layers = At<char*>(mine.data(), 0x14))
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(layers);
+    return result;
+}
+OPENSC4_THUNK(THmShutdown, HmShutdownByMode, 0)
+
+uint32_t HmDestroyRun(char* self, uint32_t flags)
+{
+    g_hmDestroyed = self;
+    g_hmDestroyedFlags = flags;
+    if (g_hmMode == StepMode::Ours)
+        return Word(DestroyHeightMap(self, flags));
+    // The line list must hold nothing: ours' copy would let it go again.
+    if (HmGameOnly() || !HmCopyable(self) || At<uint32_t>(self, 0x4C) || At<uint32_t>(self, 0x50) ||
+        At<uint32_t>(self, 0x54))
+        return g_SC4EffectHeightMap_DeletingDestructor(self, nullptr, flags);
+    std::vector<char> mine = HmDeepCopy(self);
+    g_hmDeleted = nullptr;
+    g_hmDelete = HmNoteDelete;
+    const bool answered = DestroyHeightMap(mine.data(), flags) == mine.data();
+    g_hmDelete = HmDelete;
+    const bool deleted = g_hmDeleted == mine.data();
+    const uint32_t result = g_SC4EffectHeightMap_DeletingDestructor(self, nullptr, flags & ~1u);
+    if (!answered || result != Word(self) || deleted != ((flags & 1) != 0)) {
+        const uint32_t theirs[2] = {result == Word(self), flags & 1}, own[2] = {answered, deleted};
+        StRecord("effects.heightmap.destroy", false, Hex(theirs, 8), Hex(own, 8));
+    } else {
+        HmSame("effects.heightmap.destroy", self, mine.data(), false);
+    }
+    if (flags & 1)
+        HmDelete(self);
+    return result;
+}
+
+uint32_t __fastcall HmDestroyByMode(char* self, void*, uint32_t flags)
+{
+    return HmDestroyRun(self, flags);
+}
+OPENSC4_THUNK(THmDestroy, HmDestroyByMode, 4)
+
+// The counted base's slot 3: in compare mode the game's thunk, whose jump
+// goes to the destructor's detour; that it got the map and the flags is
+// compared.
+uint32_t __fastcall HmDestroyThunkByMode(char* base, void*, uint32_t flags)
+{
+    if (g_hmMode == StepMode::Ours)
+        return HmDestroyRun(base - 4, flags);
+    if (HmGameOnly())
+        return g_SC4EffectHeightMap_DeletingDestructorThunk(base, nullptr, flags);
+    g_hmDestroyed = nullptr;
+    const uint32_t result = g_SC4EffectHeightMap_DeletingDestructorThunk(base, nullptr, flags);
+    const uint32_t theirs[3] = {Word(g_hmDestroyed), g_hmDestroyedFlags, result};
+    const uint32_t mine[3] = {Word(base - 4), flags, Word(base - 4)};
+    HmRecord("effects.heightmap.destroy_thunk", theirs, mine, 0xC);
+    return result;
+}
+OPENSC4_THUNK(THmDestroyThunk, HmDestroyThunkByMode, 4)
+
+bool InstallHeightMap(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !Detour(addr::SC4EffectHeightMap_QueryInterface, &THmQuery, &g_SC4EffectHeightMap_QueryInterface) ||
+        !Detour(addr::SC4EffectHeightMap_Height, &THmHeight, &g_SC4EffectHeightMap_Height) ||
+        !Detour(addr::SC4EffectHeightMap_CellHeight, &THmCell, &g_SC4EffectHeightMap_CellHeight) ||
+        !Detour(addr::SC4EffectHeightMap_Normal, &THmNormal, &g_SC4EffectHeightMap_Normal) ||
+        !Detour(addr::SC4EffectHeightMap_Raise, &THmRaise, &g_SC4EffectHeightMap_Raise) ||
+        !Detour(addr::SC4EffectHeightMap_Lift, &THmLift, &g_SC4EffectHeightMap_Lift) ||
+        !Detour(addr::SC4EffectHeightMap_Clear, &THmClear, &g_SC4EffectHeightMap_Clear) ||
+        !Detour(addr::SC4EffectHeightMap_Construct, &THmConstruct, &g_SC4EffectHeightMap_Construct) ||
+        !Detour(addr::SC4EffectHeightMap_DeletingDestructorThunk, &THmDestroyThunk,
+                &g_SC4EffectHeightMap_DeletingDestructorThunk) ||
+        !Detour(addr::SC4EffectHeightMap_DeletingDestructor, &THmDestroy, &g_SC4EffectHeightMap_DeletingDestructor) ||
+        !Detour(addr::SC4EffectHeightMap_Shutdown, &THmShutdown, &g_SC4EffectHeightMap_Shutdown) ||
+        !Detour(addr::SC4EffectHeightMap_Init, &THmInit, &g_SC4EffectHeightMap_Init))
+        return false;
+    g_hmDelete = HmDelete;
+    g_hmMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the particles' height map %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredHeightMap = registry::Register({
+    "renderer.effects.heightmap",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectHeightMap_Height,
+    "The particles' height map: its query, the height at a place, a vertex's height and the ground's normal, the "
+    "three changes of a layer (raise, lift to at least, clear), the constructor, init, shutdown and deleting "
+    "destructor with its thunk; compare mode runs the game's and ours on what each may change (ours on a copy for "
+    "the constructor, init, shutdown and destructor) and compares (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallHeightMap,
+});
+
 bool InstallEffects(registry::Mode mode)
 {
     if (!game::IsBuild641())
