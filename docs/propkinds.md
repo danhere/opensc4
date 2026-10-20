@@ -452,7 +452,7 @@ The audit compared all 20 functions instruction by instruction with the disassem
 
 ### Piece 5
 
-All runs on 2026-10-20 with the release build's snapshot pd1 (main as of #325 merged in) and the game's sound off (`OPENSC4_MUTE=1`) on both sides of every comparison. Results are in `%LOCALAPPDATA%\opensc4\analysis\pd1-trial\`; an earlier unmuted round, with the same results where it finished, is in its `unmuted` folder.
+All runs on 2026-10-20 with the release build's snapshot pd1 (main as of #325 merged in; the last two parity batches as of #327) and the game's sound off (`OPENSC4_MUTE=1`) on both sides of every comparison. Results are in `%LOCALAPPDATA%\opensc4\analysis\pd1-trial\`; an earlier unmuted round, with the same results where it finished, is in its `unmuted` folder.
 
 Acceptance (three saves): the same nine save and case pairs as pieces 1 to 4, 7 days, with `OPENSC4_TEST_FINGERPRINT=1`, each run four times:
 
@@ -486,10 +486,10 @@ Parity (batches pd1-*, 7 days, one job, the B side as in the matrix, with `deter
 | --- | --- |
 | plain | 12 of 12 saves the same |
 | `OPENSC4_TEST_PROPKINDS=2` | 12 of 12 |
-| `OPENSC4_TEST_PROPKINDS_EDIT=1` | 4 of 4 so far (the four Big City saves; stopped for the night) |
-| the plopped corpus with the edit | not run yet muted |
+| `OPENSC4_TEST_PROPKINDS_EDIT=1` | 12 of 12 (Rush Hour d0365 on its second pair, below) |
+| the plopped corpus with the edit | 3 of 3 |
 
-Results are in `%LOCALAPPDATA%\opensc4\parity\pd1-*`.
+The edit and plop batches ran on 2026-10-20 with main as of #327 merged in. All 30 runs of the two edit batches logged `restored yes`, and none logged `STILL`. Rush Hour d0365 with the edit: in the first pair the original's run differed from ours from its first day, before the test ran (the fingerprint's token after `set`). The original's second run and both of ours share one outcome, so the original had two outcomes there and the save is the same on its second pair. Results are in `%LOCALAPPDATA%\opensc4\parity\pd1-*`.
 
 The audit compared all 16 functions instruction by instruction with the disassembly (every [esp+X] of the builder's frame worked out again, the operand order of every x87 subtraction checked against the bytes) and found no difference in behaviour; one comment had the arctangent's arguments the wrong way round and was fixed. Not measured:
 
