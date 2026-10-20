@@ -2,7 +2,7 @@
 // vtables and functions in data/addresses/automata.toml, the survey in
 // docs/automata.md, "Part s"): cSC4AutomataScriptSystem (0x4A1B664E,
 // factory 0x005148A0, constructor 0x005207A0, 0xB8 bytes, city slot 48,
-// GetAutomataScriptSystem at city slot 0xC0) and the occupant group
+// GetAutomataScriptSystem at the city vtable's byte offset 0xC0) and the occupant group
 // template it makes (cSC4OccupantGroupTemplate, constructor 0x005206B0,
 // 0x84 bytes).
 //

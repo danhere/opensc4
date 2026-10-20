@@ -114,12 +114,44 @@
 //   on a zeroed object (nothing). The answers' AL and whether the bytes came
 //   back the same are the flags. Nothing else of the city's managers
 //   changes.
+// OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
+//   more): on the same day the city's automata script system (city slot
+//   0xC0) is queried at the game's addresses (ours when the
+//   simulators.automata.scripts groups are on), into the fingerprint as
+//   ` S<identity>,<maps>,<groups>,<matches>,<fresh>` from that day on:
+//   QueryInterface for six interfaces on the object and through the +4, +8
+//   and +0xC adjustors (each AddRef given back through the answer's slot
+//   2, our Release), GetGZCLSID and the +8 part's ID test; the six map
+//   getters (as offsets); every name of the name map (+0x4C) through
+//   GetOccupantGroup and GetAutomataGroup by name (slots 12, 7), every ID
+//   of the ID map (+0x74) through slots 11 and 6 and three IDs not there,
+//   the special filter and track building lists, every drive command (slot
+//   14) and two keys not there, every controller template by name (slot
+//   17), all summed so that the maps' order does not count; per group its
+//   ID, class, percentage, words, parent's ID and the group queries
+//   (Depth 0x0051C4A0, GetClass 0x0051C3B0, IsInGroup 0x0051C380 for its
+//   own, its parent's and 0x4000, FindName 0x0051D970 on its own name map's
+//   names and one not there); Matches (the group's slot 3) of up to 16
+//   groups (the ID map's, sorted by ID) for up to 8 occupants of the
+//   controller table (neither automata nor props, sorted by their hash);
+//   it seeds a cRZRandom from the clock for groups below 100 percent (the
+//   same on both sides). Then a fresh script system from the factory
+//   (0x005148A0) with one reference: QueryInterface, three groups made by
+//   CreateOccupantGroup (an automata group with an ID, one without an ID,
+//   one with an ID whose parent is set to the first) and the first name
+//   once more (refused), the lookups and group queries on them (the first
+//   group's class and the third's percentage, 0.5, set for the test), then
+//   ReleaseTemplates 0x00520120 and ReleaseGroups 0x005201D0 on it (the
+//   groups' last references, so their destructors run) and its Release
+//   (Shutdown, not initialized, the destructor body). The city's script
+//   system is not changed.
 // A remove and add round trip of one occupant's controllers is not done:
 // removing sends 0xEA298D50 to the automata, destroys the controllers and
 // can drop the occupant's automaton entry (its automata released), and the
 // add makes new controllers through the COM; the city would not be the
 // same afterwards.
 #include "core/automata_ctlmgr.h"
+#include "core/automata_scripts.h"
 #include "core/automata_vehmgr.h"
 #include "core/autotest_hooks.h"
 #include "core/game.h"
@@ -1176,6 +1208,303 @@ void ManagerSaveDrive(cISC4City* city)
     g_managerText += text;
 }
 
+// ====================================================================================
+// Part s1's drive (OPENSC4_TEST_AUTOMATA_SCRIPTS=1), see the top of the file.
+
+std::string g_scriptText;
+
+// An SC4String of the test's own (vtable 0x00A80810, the text in a buffer
+// from the game's allocator, as the game makes them).
+struct TestString {
+    std::uintptr_t vtable = addr::SC4String_Vtable;
+    char* begin = nullptr;
+    char* end = nullptr;
+    char* capacity = nullptr;
+    uint32_t extra = 0;
+    explicit TestString(const char* text)
+    {
+        const std::size_t length = std::strlen(text);
+        using Allocate = void*(__cdecl*)(uint32_t);
+        begin = static_cast<char*>(
+            reinterpret_cast<Allocate>(addr::SC4_stl_allocate)(static_cast<uint32_t>(length + 1)));
+        std::memcpy(begin, text, length + 1);
+        end = begin + length;
+        capacity = begin + length + 1;
+    }
+    ~TestString() { reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(begin); }
+    TestString(const TestString&) = delete;
+    TestString& operator=(const TestString&) = delete;
+};
+
+uint32_t NameHash(const char* begin, const char* end)
+{
+    Hash h;
+    if (begin && end >= begin && end - begin < 512)
+        h.MixBytes(begin, static_cast<std::size_t>(end - begin));
+    return h.h;
+}
+
+// The nodes of a script system hash map (the field: +4 the buckets' begin,
+// +8 their end), in bucket order.
+template <typename Fn>
+void ForEachScriptNode(char* table, Fn&& fn)
+{
+    char** const begin = At<char**>(table, 4);
+    char** const end = At<char**>(table, 8);
+    for (char** b = begin; b < end; ++b)
+        for (char* node = *b; node; node = At<char*>(node, 0))
+            fn(node);
+}
+
+// A group's own values and its queries at the game's addresses.
+uint32_t GroupHash(char* g)
+{
+    namespace sg = automata_scripts::group;
+    Hash h;
+    if (!g) {
+        h.Mix(0);
+        return h.h;
+    }
+    using Get = uint32_t(__thiscall*)(void*);
+    using Test = uint8_t(__thiscall*)(void*, uint32_t);
+    using Find = uint8_t(__thiscall*)(void*, const void*, uint32_t*);
+    const auto isIn = reinterpret_cast<Test>(addr::cSC4OccupantGroupTemplate_IsInGroup);
+    char* const parent = At<char*>(g, sg::kParent);
+    h.Mix(At<uint32_t>(g, sg::kId));
+    h.Mix(At<uint32_t>(g, sg::kClass));
+    h.Mix(At<uint32_t>(g, sg::kPercentage));
+    h.Mix(At<uint16_t>(g, sg::kWord4C) | static_cast<uint32_t>(At<uint16_t>(g, sg::kWord4E)) << 16);
+    h.Mix(parent ? At<uint32_t>(parent, sg::kId) : 0xFFFFFFFFu);
+    h.Mix(reinterpret_cast<Get>(addr::cSC4OccupantGroupTemplate_Depth)(g));
+    h.Mix(reinterpret_cast<Get>(addr::cSC4OccupantGroupTemplate_GetClass)(g));
+    h.Mix(isIn(g, At<uint32_t>(g, sg::kId)) | isIn(g, parent ? At<uint32_t>(parent, sg::kId) : 0u) << 1 |
+          isIn(g, 0x4000u) << 2);
+    // FindName on the group's own name map, each name and one not there;
+    // the answers summed (the map's order does not count). A node stands
+    // for an SC4String: its key is at +4, where the lookups read a name's.
+    const auto find = reinterpret_cast<Find>(addr::cSC4OccupantGroupTemplate_FindName);
+    uint32_t names = 0, sum = 0;
+    ForEachScriptNode(g + sg::kNames, [&](char* node) {
+        uint32_t out = 0;
+        const uint8_t found = find(g, node, &out);
+        Hash e;
+        e.Mix(NameHash(At<const char*>(node, 4), At<const char*>(node, 8)));
+        e.Mix(found);
+        e.Mix(out == At<uint32_t>(node, 0x10) ? 1u : 0u);
+        sum += e.h;
+        ++names;
+    });
+    TestString missing("opensc4 no such name");
+    uint32_t out = 0;
+    h.Mix(names);
+    h.Mix(sum);
+    h.Mix(find(g, &missing, &out));
+    return h.h;
+}
+
+void ScriptsDrive(cISC4City* city)
+{
+    namespace ss = automata_scripts;
+    char* const scripts = Virtual<char*>(city, 0xC0); // GetAutomataScriptSystem
+    if (!scripts) {
+        g_scriptText = " S-";
+        return;
+    }
+    Hash identity, maps, groups, matches, fresh;
+    // QueryInterface on the object and through the adjustors of its +4, +8
+    // and +0xC parts; each AddRef given back through the answer's slot 2.
+    const uint32_t iids[] = {ss::kScriptSystemIid, 1u, 0x452294AAu, 0xE98B2F57u, 0xE4FDA3D4u, 0x12345678u};
+    for (const std::size_t at : {std::size_t{0}, ss::field::kVtable4, ss::field::kVtable8, ss::field::kSerializable})
+        for (const uint32_t iid : iids) {
+            void* out = nullptr;
+            const uint8_t answer = Virtual<uint8_t>(scripts + at, 0x00, iid, &out);
+            identity.Mix(answer);
+            identity.Mix(out ? static_cast<uint32_t>(static_cast<char*>(out) - scripts) : 0xFFFFFFFFu);
+            if (answer && out)
+                Virtual<uint32_t>(out, 0x08);
+        }
+    identity.Mix(Virtual<uint32_t>(scripts + ss::field::kSerializable, 0x14)); // GetGZCLSID
+    const uint32_t ids[] = {0x87163754u, 0u};
+    for (const uint32_t& id : ids)
+        identity.Mix(Virtual<uint8_t>(scripts + ss::field::kVtable8, 0x0C, &id));
+    identity.Mix(At<uint8_t>(scripts, ss::field::kInitialized));
+    // The map getters (slots 5, 8, 9, 10, 15, 18), as offsets.
+    for (const std::size_t s : {0x14u, 0x20u, 0x24u, 0x28u, 0x3Cu, 0x48u})
+        maps.Mix(static_cast<uint32_t>(Virtual<char*>(scripts, s) - scripts));
+    // The name map: each name by slot 12 and slot 7, each group's hash.
+    uint32_t named = 0, namedSum = 0;
+    ForEachScriptNode(scripts + ss::field::kGroupsByName, [&](char* node) {
+        char* const g = At<char*>(node, 0x10);
+        Hash e;
+        e.Mix(NameHash(At<const char*>(node, 4), At<const char*>(node, 8)));
+        e.Mix(Virtual<char*>(scripts, 0x30, static_cast<void*>(node)) == g ? 1u : 0u);
+        char* const automata = Virtual<char*>(scripts, 0x1C, static_cast<void*>(node));
+        e.Mix(automata == g ? 1u : automata ? 2u : 0u);
+        e.Mix(GroupHash(g));
+        namedSum += e.h;
+        ++named;
+    });
+    maps.Mix(named);
+    maps.Mix(namedSum);
+    uint32_t automataCount = 0;
+    ForEachScriptNode(scripts + ss::field::kAutomataGroups, [&](char*) { ++automataCount; });
+    maps.Mix(automataCount);
+    // The ID map: each ID by slots 11 and 6, three IDs not there; the groups
+    // kept for Matches, sorted by ID.
+    std::vector<std::pair<uint32_t, char*>> byId;
+    uint32_t idSum = 0;
+    ForEachScriptNode(scripts + ss::field::kGroupsById, [&](char* node) {
+        const uint32_t id = At<uint32_t>(node, 4);
+        char* const g = At<char*>(node, 8);
+        Hash e;
+        e.Mix(id);
+        e.Mix(Virtual<char*>(scripts, 0x2C, id) == g ? 1u : 0u);
+        e.Mix(Virtual<char*>(scripts, 0x18, id) == g ? 1u : 0u);
+        e.Mix(GroupHash(g));
+        idSum += e.h;
+        byId.emplace_back(id, g);
+    });
+    maps.Mix(static_cast<uint32_t>(byId.size()));
+    maps.Mix(idSum);
+    for (const uint32_t id : {0u, 0xFFFFFFFFu, 0x7A5A0000u})
+        maps.Mix(Virtual<uint32_t>(scripts, 0x2C, id) | Virtual<uint32_t>(scripts, 0x18, id));
+    // The special filter and track building lists (0xC-byte nodes, the
+    // value at +8), in order.
+    for (const std::size_t at : {ss::field::kSpecialGroups, ss::field::kTrackGroups}) {
+        char* const head = At<char*>(scripts, at);
+        uint32_t count = 0;
+        for (char* n = At<char*>(head, 0); n != head && count < 4096; n = At<char*>(n, 0)) {
+            ++count;
+            maps.Mix(at == ss::field::kSpecialGroups ? GroupHash(At<char*>(n, 8)) : At<uint32_t>(n, 8));
+        }
+        maps.Mix(count);
+    }
+    // The drive commands (slot 14): each key and two not there.
+    uint32_t drives = 0, driveSum = 0;
+    ForEachScriptNode(scripts + ss::field::kDriveCommands, [&](char* node) {
+        Hash e;
+        e.Mix(At<uint32_t>(node, 4));
+        e.Mix(At<uint32_t>(node, 8));
+        e.Mix(Virtual<uint32_t>(scripts, 0x38, At<uint32_t>(node, 4)));
+        driveSum += e.h;
+        ++drives;
+    });
+    maps.Mix(drives);
+    maps.Mix(driveSum);
+    maps.Mix(Virtual<uint32_t>(scripts, 0x38, 0x7A5A0000u));
+    maps.Mix(Virtual<uint32_t>(scripts, 0x38, 0xFFFFFFFFu));
+    // The controller templates by name (slot 17).
+    uint32_t templates = 0, templateSum = 0;
+    ForEachScriptNode(scripts + ss::field::kTemplates, [&](char* node) {
+        char* const t = At<char*>(node, 0x10);
+        Hash e;
+        e.Mix(NameHash(At<const char*>(node, 4), At<const char*>(node, 8)));
+        e.Mix(Virtual<char*>(scripts, 0x44, static_cast<void*>(node)) == t ? 1u : 0u);
+        e.Mix(t ? At<uint32_t>(t, tmpl::kClassId) : 0u);
+        templateSum += e.h;
+        ++templates;
+    });
+    maps.Mix(templates);
+    maps.Mix(templateSum);
+    TestString missing("opensc4 no such name");
+    maps.Mix(Virtual<uint32_t>(scripts, 0x44, static_cast<void*>(&missing)) |
+             Virtual<uint32_t>(scripts, 0x30, static_cast<void*>(&missing)) |
+             Virtual<uint32_t>(scripts, 0x1C, static_cast<void*>(&missing)));
+    groups.Mix(named);
+    groups.Mix(namedSum ^ idSum);
+    // Matches (slot 3) of up to 16 groups for up to 8 occupants.
+    std::sort(byId.begin(), byId.end());
+    if (byId.size() > 16)
+        byId.resize(16);
+    std::vector<std::pair<uint32_t, void*>> occupants;
+    if (char* const manager = Manager(city))
+        ForEach<ControllerNode>(Table(manager, field::kControllers), [&](ControllerNode* node) {
+            if (!node->occupant)
+                return;
+            const uint32_t type = Virtual<uint32_t>(node->occupant, kGetType);
+            if (type == kTypeAutomaton || type == kTypeAutomaton2 || type == kTypeProp)
+                return;
+            occupants.emplace_back(OccupantHash(node->occupant), node->occupant);
+        });
+    std::sort(occupants.begin(), occupants.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    if (occupants.size() > 8)
+        occupants.resize(8);
+    uint32_t matched = 0, matchedId = 0;
+    for (const auto& [hash, occupant] : occupants)
+        for (const auto& [id, g] : byId) {
+            const uint8_t m = Virtual<uint8_t>(g, ss::slot::kGroupMatches, occupant);
+            matches.Mix(m);
+            matched += m;
+            if (m && !matchedId)
+                matchedId = id;
+        }
+    matches.Mix(static_cast<uint32_t>(occupants.size()));
+    // A fresh script system from the factory, held by one reference.
+    using Factory = char*(__cdecl*)();
+    char* const made = reinterpret_cast<Factory>(addr::cSC4AutomataScriptSystem_Create)();
+    uint32_t flags = 0;
+    if (made) {
+        Virtual<uint32_t>(made, 0x04);
+        void* out = nullptr;
+        const uint8_t qi = Virtual<uint8_t>(made, 0x00, ss::kScriptSystemIid, &out);
+        if (qi && out)
+            Virtual<uint32_t>(out, 0x08);
+        TestString nameA("opensc4 test a"), nameB("opensc4 test b"), nameC("opensc4 test c");
+        char* const a =
+            Virtual<char*>(made, ss::slot::kCreateOccupantGroup, static_cast<void*>(&nameA), 0x7A5A0001u, 1u);
+        char* const b = Virtual<char*>(made, ss::slot::kCreateOccupantGroup, static_cast<void*>(&nameB), 0u, 0u);
+        char* const c =
+            Virtual<char*>(made, ss::slot::kCreateOccupantGroup, static_cast<void*>(&nameC), 0x7A5A0003u, 0u);
+        char* const again =
+            Virtual<char*>(made, ss::slot::kCreateOccupantGroup, static_cast<void*>(&nameA), 0x7A5A0009u, 1u);
+        flags = qi | (a ? 1u : 0u) << 1 | (b ? 1u : 0u) << 2 | (c ? 1u : 0u) << 3 | (again ? 1u : 0u) << 4;
+        if (a && b && c) {
+            At<char*>(c, ss::group::kParent) = a;
+            At<uint32_t>(a, ss::group::kClass) = 0x12345u;
+            At<float>(c, ss::group::kPercentage) = 0.5f;
+            fresh.Mix(Virtual<char*>(made, 0x30, static_cast<void*>(&nameA)) == a ? 1u : 0u);
+            fresh.Mix(Virtual<char*>(made, 0x30, static_cast<void*>(&nameB)) == b ? 1u : 0u);
+            fresh.Mix(Virtual<char*>(made, 0x1C, static_cast<void*>(&nameA)) == a ? 1u : 0u);
+            fresh.Mix(Virtual<char*>(made, 0x1C, static_cast<void*>(&nameC)) ? 1u : 0u);
+            fresh.Mix(Virtual<char*>(made, 0x2C, 0x7A5A0003u) == c ? 1u : 0u);
+            fresh.Mix(Virtual<char*>(made, 0x18, 0x7A5A0001u) == a ? 1u : 0u);
+            fresh.Mix(Virtual<uint32_t>(made, 0x2C, 0x7A5A0009u));
+            fresh.Mix(Virtual<uint32_t>(made, 0x38, 5u));
+            char* const head = At<char*>(made, ss::field::kSpecialGroups);
+            fresh.Mix(At<char*>(head, 0) != head && At<char*>(At<char*>(head, 0), 8) == b ? 1u : 0u);
+            fresh.Mix(GroupHash(a));
+            fresh.Mix(GroupHash(b));
+            fresh.Mix(GroupHash(c));
+            // Matches of the third group (50 percent) with the ID of a city
+            // group that matched above, so that it draws; its own ID back
+            // after.
+            if (matchedId) {
+                At<uint32_t>(c, ss::group::kId) = matchedId;
+                for (const auto& [hash, occupant] : occupants)
+                    fresh.Mix(Virtual<uint8_t>(c, ss::slot::kGroupMatches, occupant));
+                At<uint32_t>(c, ss::group::kId) = 0x7A5A0003u;
+            }
+        }
+        using Life = void(__thiscall*)(void*);
+        reinterpret_cast<Life>(addr::cSC4AutomataScriptSystem_ReleaseTemplates)(made);
+        reinterpret_cast<Life>(addr::cSC4AutomataScriptSystem_ReleaseGroups)(made);
+        char* const head = At<char*>(made, ss::field::kSpecialGroups);
+        fresh.Mix(At<char*>(head, 0) == head ? 1u : 0u);
+        fresh.Mix(At<uint32_t>(made + ss::field::kGroupsByName, 0x10) |
+                  At<uint32_t>(made + ss::field::kGroupsById, 0x10));
+        fresh.Mix(Virtual<uint32_t>(made, 0x08)); // Release: Shutdown (not initialized), the destructor body
+    }
+    fresh.Mix(flags);
+    char text[128];
+    std::snprintf(text, sizeof text, " S%08X,%08X,%08X,%08X,%08X", identity.h, maps.h, groups.h, matches.h, fresh.h);
+    g_scriptText = text;
+    log::Write("autotest: automata: scripts: identity %08X maps %08X (names %u automata %u ids %u drives %u "
+               "templates %u) groups %08X matches %08X (%u of %u x %u) fresh %08X flags %X",
+               identity.h, maps.h, named, automataCount, static_cast<unsigned>(byId.size()), drives, templates,
+               groups.h, matches.h, matched, static_cast<unsigned>(occupants.size()),
+               static_cast<unsigned>(byId.size()), fresh.h, flags);
+}
+
 void Drive(const Day& day)
 {
     if (EnvInt("OPENSC4_TEST_AUTOMATA", 0) < 2 || !day.counted || g_written)
@@ -1187,6 +1516,8 @@ void Drive(const Day& day)
         if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 2)
             ManagerSaveDrive(day.city);
     }
+    if (EnvInt("OPENSC4_TEST_AUTOMATA_SCRIPTS", 0) >= 1 && day.city && game::IsBuild641() && g_scriptText.empty())
+        ScriptsDrive(day.city);
     if (char* const manager = Manager(day.city)) {
         WriteDrive(manager);
         QueryDrive(manager);
@@ -1249,6 +1580,7 @@ void Fingerprint(cISC4City* city, std::string& line)
     if (g_written)
         line += g_writeText + g_queryText + g_controllerText;
     line += g_managerText;
+    line += g_scriptText;
     // The automaton table: frame-driven, the log only.
     uint32_t parked = 0, automata = 0, parkedSum = 0;
     ForEach<AutomatonNode>(Table(manager, field::kAutomata), [&](AutomatonNode* node) {
