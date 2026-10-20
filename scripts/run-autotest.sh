@@ -18,6 +18,7 @@
 # OPENSC4_TEST_CITY="Making Money Tutorial", OPENSC4_TEST_SECONDS=60.
 # OPENSC4_GAME_ARGS adds game command-line options, e.g. "-d:DirectX".
 # OPENSC4_GAME_WINDOW replaces the default -w, e.g. "-f -r1024x768x32" for full screen.
+# OPENSC4_MUTE=1 starts the game with its sound off (the game's own -audio:off).
 # Other copies of the game may be running (other threads' tests, parallel
 # parity jobs): every run gets harness.multi_instance=ours (unless
 # OPENSC4_REPLACE names it), and only a game still running in this same test
@@ -32,6 +33,8 @@ for assignment in "$@"; do
 done
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
+mute_arg=""
+[ "${OPENSC4_MUTE:-0}" = 1 ] && mute_arg="-audio:off"
 game="${SC4_GAME:-C:/Program Files (x86)/Steam/steamapps/common/SimCity 4 Deluxe/Apps/SimCity 4.exe}"
 user_sc4="$(cygpath "$USERPROFILE")/Documents/SimCity 4"
 testenv="${OPENSC4_TESTENV:-$(cygpath "$LOCALAPPDATA")/opensc4/testenv/userdir}"
@@ -90,7 +93,7 @@ userdir="$(cygpath -d "$testenv")\\"
 watchdog=$!
 status=0
 "$build/bin/opensc4.exe" --wait ${OPENSC4_LAUNCHER_ARGS:-} --core "$testenv/Plugins/OpenSC4.dll" --game "$game" \
-    -- ${OPENSC4_GAME_WINDOW:--w} -intro:off "-UserDir:$userdir" ${OPENSC4_GAME_ARGS:-} || status=$?
+    -- ${OPENSC4_GAME_WINDOW:--w} -intro:off ${mute_arg} "-UserDir:$userdir" ${OPENSC4_GAME_ARGS:-} || status=$?
 kill "$watchdog" 2>/dev/null || true
 wait "$watchdog" 2>/dev/null || true
 
