@@ -444,8 +444,8 @@ void PressSign(char* self, void* model, int32_t x, int32_t z)
 // empty. A failed allocation is not checked, as in the game.
 void MakeSign(char* self, float* point)
 {
-    void* const memory = Cdecl<void*>(addr::SC4TerrainSignProp_Allocate, std::size_t{0x590});
-    void* const sign = memory ? This<void*>(addr::SC4TerrainSignProp_Construct, memory, uint32_t{1}) : nullptr;
+    void* const memory = Cdecl<void*>(addr::cSC4PropOccupantSign_Allocate, std::size_t{0x590});
+    void* const sign = memory ? This<void*>(addr::cSC4PropOccupantSign_Construct, memory, uint32_t{1}) : nullptr;
     if (sign)
         AddRef(sign);
     void* const props = Global<void*>(addr::cSC4PropManager_Global);

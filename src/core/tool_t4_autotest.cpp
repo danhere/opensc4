@@ -1133,8 +1133,8 @@ uint32_t DriveRemove(char* view, void* city, const std::vector<Ground>& ground)
     const Ground& first = ground[ground.size() / 4];
     const Ground& second = ground[ground.size() * 3 / 4];
     void* const madeLabel = NewDecal(first.point);
-    void* const memory = Cdecl<void*>(addr::SC4TerrainSignProp_Allocate, std::size_t{0x590});
-    void* const madeSign = memory ? This<void*>(addr::SC4TerrainSignProp_Construct, memory, uint32_t{1}) : nullptr;
+    void* const memory = Cdecl<void*>(addr::cSC4PropOccupantSign_Allocate, std::size_t{0x590});
+    void* const madeSign = memory ? This<void*>(addr::cSC4PropOccupantSign_Construct, memory, uint32_t{1}) : nullptr;
     if (!madeLabel || !madeSign) {
         log::Write("autotest: tools4: remove: nothing made");
         return 0;

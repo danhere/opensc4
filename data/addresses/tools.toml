@@ -2125,20 +2125,20 @@ expect = "8B 44 24 08 83 F8 FE 74"
 source = "Name ours. (character, encoding), caller cleans up 8 bytes: how many bytes follow this first byte in its character (for encoding 8: 0 to 5 by the UTF-8 lead byte). Left the game's."
 
 [[entry]]
-name = "SC4TerrainSignProp::Allocate"
+name = "cSC4PropOccupantSign::Allocate"
 address = 0x005F5050
 kind = "function"
 convention = "cdecl"
 expect = "A1 70 A9 B0 00 8B 40 08"
-source = "Name ours. (size_t size, not read), caller cleans up 4 bytes: takes an item from the pool at 0x00B0A96C for the sign prop on the terrain (0x590 bytes, kind 0xAB72FBB3, interface 0x4B44FBE2). Left the game's."
+source = "Name ours (was SC4TerrainSignProp::Allocate). (size_t size, not read), caller cleans up 4 bytes: takes an item from the pool at 0x00B0A96C for the sign prop on the terrain (0x590 bytes, kind 0xAB72FBB3, interface 0x4B44FBE2). The sign tool (0x004D82C5) calls it. Ours in simulators.propkinds.sign_object (src/core/propkinds_sign.cpp)."
 
 [[entry]]
-name = "SC4TerrainSignProp::Construct"
+name = "cSC4PropOccupantSign::Construct"
 address = 0x005F5510
 kind = "function"
 convention = "thiscall"
 expect = "8B 44 24 04 53 33 DB 3B"
-source = "Name ours. (most derived flag), ret 4: the constructor of the sign prop on the terrain (primary vtable 0x00AA5478, cSC4PropOccupant part at +4, its text a game string at +0x98); returns this. The sign tool passes 1. Left the game's."
+source = "Name ours (was SC4TerrainSignProp::Construct). (most derived flag), ret 4: the constructor of the sign prop on the terrain (primary vtable 0x00AA5478, cSC4PropOccupant part at +4, its text a game string at +0x98); returns this. The sign tool (0x004D82D9) and the factory pass 1. Ours in simulators.propkinds.sign_object (src/core/propkinds_sign.cpp)."
 
 [[entry]]
 name = "SC4TerraformTool::Vtable"
