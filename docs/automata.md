@@ -32,7 +32,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Attractor, generator and their base | 81 | 12,629 | 2 |
 | Script system | 116 | 31,620 | 3 |
 | City situation manager | 167 | 44,037 | 4 |
-| Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2, v3 |
+| Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | 6 |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | 8 |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | 2 |
@@ -327,7 +327,7 @@ The derived constructors set the occupant group +0xA44 (0x4002, 0x4001), the aut
 The group is found by the vtables of the two classes and the base, less the common base's slots, plus the helpers only they call: 94 functions, 19,898 bytes. The survey's 96 and 20,337 had two neighbours placed with it. Six of the 94 are `sub ecx,N; jmp` adjustor thunks and two are plain jumps (0x0054D250, 0x0054D780); those stay the game's. The other 86 go in three parts:
 
 - **v1 (32, done): the object and its queries.** Below.
-- **v2 (25): life cycle, tuning, messages and the save.**
+- **v2 (25, done): life cycle, tuning, messages and the save.** Below.
   - Init (base 0x0054DBA0, vehicle 0x0055B7E0, pedestrian 0x00544820).
   - Shutdown (0x00552D00, 0x0055B880, 0x00544860), with 0x00552A20 and 0x00562D60.
   - HandleTuningParametersChanged (0x0055B410, 0x00544410) and the tuning set-up of slot 58 (0x0055C9D0, 0x005450A0).
@@ -366,7 +366,7 @@ Mods: no NAM site is in the group, and neither is any of SC4UIScale's addresses.
   - Slot 82 (0x0054D260): the neighbour cell test.
   - The record list's hit test 0x00551630, the automaton test 0x0054D150 and the three group tests 0x0054D1A0, 0x0054D210 and 0x0054D230.
 
-Kept as the game's: the six adjustor thunks and the two plain jumps above; the common base's functions (constructor, destructor 0x00512780, QueryInterface 0x00505480, AddRef, Release), called at their addresses; and the 54 functions of v2 and v3.
+Kept as the game's: the six adjustor thunks and the two plain jumps above; the common base's functions (constructor, destructor 0x00512780, QueryInterface 0x00505480, AddRef, Release), called at their addresses; and the 54 functions of v2 and v3 (v2 is now ours, below).
 
 Oddities kept:
 
@@ -412,3 +412,94 @@ Reached (our first-call log lines, trial Making Money d0000, 4 days): all 32. Th
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every B run of the three legs carried the ` v` token and reached all 32 functions (our first-call log lines).
+
+
+## Part v2: life cycle, tuning, messages, the save, adding and removing
+
+### What is ours
+
+25 functions in four more groups, off by default, so part v1's group stays as it was ([automata_vehmgr.cpp](../src/core/automata_vehmgr.cpp), "Part v2"):
+
+- **`simulators.automata.vehmgr.life` (13):**
+  - Init: base 0x0054DBA0, vehicle 0x0055B7E0, pedestrian 0x00544820.
+  - Shutdown: 0x00552D00, 0x0055B880, 0x00544860, with the record list's release 0x00552A20 and the overlay's stop 0x00562D60.
+  - HandleTuningParametersChanged (slot 24): 0x0055B410, 0x00544410.
+  - The tuning set-up (slot 58): 0x0055C9D0, 0x005450A0.
+  - The vehicle manager's +4 slot 3, 0x0055B3F0.
+- **`simulators.automata.vehmgr.messages` (5):** the message targets 0x00562620 and 0x00545450, the vehicle manager's controller update 0x00561500, the pedestrian manager's gathering 0x00544F30 and the pedestrian's send 0x005448D0.
+- **`simulators.automata.vehmgr.serial` (4):** Write 0x00553570 with the record list's 0x00552A80, Read 0x00554410 with 0x00553E90.
+- **`simulators.automata.vehmgr.add` (3):** AddAutomaton 0x00562C10 and 0x00546990, RemoveAutomaton 0x0054D690.
+
+What they do:
+
+- **Init**, once (+0x34): the common base's Init (0x005066B0), +0xA9C and +0xAA0 back to -1, city slot 0x114's object kept at +0xA88, the stopwatch started. The derived Inits add the message target (+0xC) to the message server, the vehicle manager for seven types (0xC53D10AA, 0xA6B79601, 0xA6B79611, 0xC9DA96E8, 0xC9DA96E9, 0x44778234, 0x0772FAD4), the pedestrian manager for 0xA9E3B6E2, then run slots 24 and 58.
+- **Shutdown** undoes it: +0xA88 released, the +0xAA8 vector's objects released and the vector emptied, the record list's objects given back (to the controller manager's slot 0x38 first when the node's +0x38 is set) and the list cleared, then the common base's Shutdown 0x005110A0. The vehicle manager first takes a static route line (0x00B22970) off the view, unprepares and releases it, and stops and releases its +0xAE0 object.
+- **Slot 24** sets the most automata (slot 23) from the tuning's word (0x00B21BC8, 0x00B21BDC) and +0xA3C from its byte. **Slot 58** sets the most automata again: that word times a float of the app object 0x00B43CC4, rounded the game's way (plus 1.5 x 2^23, the float's bits less 0x4B400000). +0xA3C then comes from a byte of the app object less one, and slot 49 gets the camera view's zoom and -1.
+- **The vehicle manager's messages:**
+  - 0xA6B79601 and 0xA6B79611 stop the camera follow (slot 34) when the followed automaton answers 0 and the follow is not locked.
+  - 0x0772FAD4 runs the controller update: for the occupants of city slot 0x110's two lists, a flag from a property of their slot 0x18 part in city slot 0xD0's tables (set, and above 0x00B22974) goes to SetActive of the occupant's controllers, one by template and four by name.
+  - 0x44778234, 0xC9DA96E8 and 0xC9DA96E9 tell every automaton (slot 0x2C0) a pair of flags, the first by the clock 0x00B43DBC.
+  - 0xC53D10AA with 0xA998D30B reloads the tuning (0x00512CF0) and runs slot 24 of all four automata managers, the city situation manager's slot 0x7C and the cells object's slot 0x14.
+  - Every message then goes to the common base's DoMessage 0x00506970, whose answer is the answer.
+- **The pedestrian manager's 0xA9E3B6E2:** for the message's occupant, each pedestrian closer than a distance (the message's slot 0x38) and not in group 0x4000 is sent there (0x005448D0), and a sound message 0xA9E3B6E3 with the count goes out. 0x230E27AC is answered 0.
+- **The save.** Write puts version 3, the common base's Write (0x0050CB80), +0xA8C, the current kind (+0xA98's node; 0 at the head) and the record list (version 1, the count, per node +8, +0xC, +0x10, the two rectangles, the object as a reference, +0x38 as a bool, +0x3C). Read takes versions 2 and 3, the common base's Read (0x005108E0), drops the saved +0xA8C, finds the saved kind's node (the first node for 0, the head when not found), and with version 3 appends the record list's nodes (copied by 0x0054ED10).
+- **AddAutomaton** with none makes one while the count (+0x48) is below the most (+0x3C): a block from the class's pool (0x00B0A0F8, 0x00B0A018), built by 0x005628F0 or 0x00545F20, then the common base's AddAutomaton 0x0050F790. **RemoveAutomaton** is the common base's 0x0050C990, then slot 69.
+
+Part v1's +0xA98 is the current kind's node rather than the first kind's (v1's constructors set it to the first). The field keeps its v1 name.
+
+Kept as the game's: the common base's functions (Init, Shutdown, DoMessage and its +4 slot 3, Write, Read, AddAutomaton, RemoveAutomaton), the tuning load 0x00512CF0, the record copy 0x0054ED10 and the vehicle and pedestrian builders 0x005628F0 and 0x00545F20, all called at their addresses; and the 29 functions of v3. No NAM or SC4UIScale site is among the 25, and none needed keeping for stack leftovers or x87 values held across a call.
+
+Oddities kept:
+
+- Read drops the +0xA8C it reads, and turns a saved kind of 0 (what Write saves for the head) into the first kind's node.
+- The record list's read zeroes a record's object and then tests it for a release.
+- The base Shutdown erases the vector's records from begin to end, which moves the none after the end down.
+- The common base's Shutdown runs even when +0x34 is clear.
+- The controller update asks each occupant for its property part twice and fetches the node allocator for every list.
+- The pedestrian message tests its occupant, still null, for a release before asking for it, and asks the message's type twice.
+- The versions are read into the stack slot of the stream argument, as in part a3c; ours starts that slot from the stream's address the same way.
+
+Return values. EAX's top bytes follow the game's wherever they come from a call: RemoveAutomaton, the full AddAutomaton, Read's version tests, the pedestrian messages, 0x005448D0 and the +4 slot. The Inits, Shutdowns, tuning functions, the controller update and the gathering answer 1 where the game leaves call leftovers above AL; their callers read AL.
+
+Stack leftovers the game would read, none in the runs:
+
+- Read's saved kind and the record list's count, when the stream fails before them. Ours start at 0.
+- The top three bytes of the controller update's flag, which goes to SetActive as a dword. Both SetActive functions, and what they pass it to (SetFlag 0x00517E70, 0x00515770), read its low byte. Ours sends 0 or 1.
+
+Floats as in part v1. The tuning's word goes to a double unsigned; the product and the sum with 1.5 x 2^23 are rounded to doubles, then the sum to a float. The pedestrian distance is the square root of the squared differences summed in z, y, x order, compared with the distance as a float; a NaN is not closer.
+
+One mistake the first trial caught: the occupant's slot 0x18 takes no argument (it answers its +8 part). The property ID the game pushes before that call is the tables' second argument. The first version passed it to slot 0x18, which unbalanced the stack and ended the game at the first controller update. Every other vtable call's argument count was then checked against the callee's `ret`.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_VEHMGR=2` does everything `=1` does, plus the following on the test day, at the game's addresses (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). Per manager:
+
+- Write into the test's own stream. Into the fingerprint as ` x<fixed>,<flags>` (vehicle) and ` <fixed>,<flags>` (pedestrian): the versions, the most automata, the two bools, +0xA8C, the kind and the record list. The automata count and the common base's table follow frames and go to the log.
+- A round trip into a new manager from the class's factory, held by one reference. It reads the bytes (the automata count zeroed in its copy, since the references read back as nothing) and writes them again. The bytes must come back with its own +0xA8C. The pedestrian manager's do; the vehicle manager's differ inside the common base's table, whose order follows the hash table. Both sides alike.
+- On that new manager:
+  - reads of version 0, of version 2 (no record list) and of a record list of version 9;
+  - AddAutomaton with none while full (its count set to the most for the call);
+  - RemoveAutomaton with none, flags 0 and 1;
+  - a message of a type nobody handles, the vehicle manager's 0xC9DA96E8, and the vehicle manager's +4 slot 3;
+  - then the release (Shutdown, not initialized, and the deleting destructor).
+- The pedestrian manager's gathering on the city's manager around its first pedestrian with distance 0, and the pedestrian's send on that pedestrian to its own position. The send changes the pedestrian's mode, frame-driven state, alike on both sides. The vehicle manager's overlay stop on a zeroed object.
+
+The answers' AL and the round trip's result are the flags.
+
+Reached (our first-call log lines, trial Making Money d0000, 4 days): all 25.
+
+- By the game: the Inits, the tuning functions, Read and the record list's read at the load; the Shutdowns and the record list's release at the exit; both message targets, the controller update, the +4 slot, AddAutomaton and RemoveAutomaton during the run.
+- By the test: Write and the record list's write, the gathering, the send and the overlay stop. The overlay stop takes only its early return; the vehicle manager's +0xAE0 stays empty in every run.
+- Not reached: AddAutomaton's branch that makes an automaton (it has a first-call line of its own; no run logs it).
+
+### Parity
+
+2026-10-19, B = `simulators.automata.vehmgr` and the four part v2 groups against the original (the switch list includes `determinism.dispatch_info=ours`; two jobs, `harness.multi_instance=ours` on both sides), env p4env-v2, snapshot v2-r1, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHMGR=2`. All the same, on the first pair:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run carried the ` x` token. All 25 functions were reached in 12 of the 14 B runs. In Big City d0000 and d1095 the pedestrian manager has no pedestrian on the test day, so the gathering and the send (and part v1's slot 68) are not called there.

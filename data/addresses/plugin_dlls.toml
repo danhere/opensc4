@@ -1,77 +1,88 @@
 # How the game loads GZCOM plugin DLLs (docs/plugin-dlls.md): the COM object and library record code at
-# 0x0087B23D to 0x0087C114 and the application scan of the Plugins folders. Placeholder names until read.
+# 0x0087B23D to 0x0087C114 and the application scan of the Plugins folders. Named from our translation
+# (src/core/plugin_dlls_1.cpp) and docs/framework.md; the 24 cGZCOM::F<address> entries left are not read yet
+# (this-adjusting thunks 0x0087B8BC-0x0087B8E4, tree and buffer helpers).
 
 [[entry]]
-name = "cGZCOM::F87B23D"
+name = "cGZCOMLibrary::GuardedLoadLibraryA"
 address = 0x0087B23D
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "6A 08 68 A8 32 AC 00 E8"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 57 bytes."
+signature = "uint8_t (HMODULE* handle, const char* path)"
+source = "Name ours. LoadLibraryA into *handle inside an exception frame; false, *handle untouched, when the call raised (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87B276"
+name = "cGZCOMLibrary::GuardedLoadLibraryW"
 address = 0x0087B276
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "6A 08 68 B8 32 AC 00 E8"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 57 bytes."
+signature = "uint8_t (HMODULE* handle, const wchar_t* path)"
+source = "Name ours. LoadLibraryW into *handle inside an exception frame; false, *handle untouched, when the call raised (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87B2AF"
+name = "cGZCOMLibrary::GuardedFreeLibrary"
 address = 0x0087B2AF
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "6A 08 68 C8 32 AC 00 E8"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 44 bytes."
+signature = "BOOL (HMODULE handle)"
+source = "Name ours. FreeLibrary inside an exception frame, exceptions swallowed; its call at 0x0087B3D1 is the one sc4fix NOPs (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87B2DB"
+name = "cGZCOMLibrary::GuardedGetProcAddress"
 address = 0x0087B2DB
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "6A 08 68 D8 32 AC 00 E8"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 62 bytes."
+signature = "uint8_t (FARPROC* entry, const HMODULE* handle, const char* name)"
+source = "Name ours. GetProcAddress into *entry inside an exception frame; false, *entry untouched, when the call raised (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87B319"
+name = "cGZCOMLibrary::QueryInterface"
 address = 0x0087B319
 kind = "function"
 convention = "thiscall"
 expect = "81 7C 24 04 2E 92 D4 07"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 37 bytes."
+signature = "uint8_t (cGZCOMLibrary* this, uint32_t iid, void** out)"
+source = "cGZCOMLibrary vtable 0x00AC33A0 slot 0; answers IID 0x07D4922E and 1 (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87B33E"
+name = "cGZCOMLibrary::Release"
 address = 0x0087B33E
 kind = "function"
 convention = "thiscall"
 expect = "FF 49 08 8B 41 08 C3 8B"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 7 bytes."
+signature = "uint32_t (cGZCOMLibrary* this)"
+source = "cIGZUnknown Release by its bytes: decrements the reference count at +0x08 and answers it, no delete (docs/plugin-dlls.md)."
 
 [[entry]]
-name = "cGZCOM::F87B345"
+name = "cGZCOMLibrary::GetPath"
 address = 0x0087B345
 kind = "function"
 convention = "thiscall"
 expect = "8B C1 8B 4C 24 04 8B 11"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 18 bytes."
+signature = "uint32_t (cGZCOMLibrary* this, cIGZString* out)"
+source = "cGZCOMLibrary vtable 0x00AC33A0 slot 3: copies the path into the caller's string (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87B357"
+name = "cGZCOMLibrary::IsLoaded"
 address = 0x0087B357
 kind = "function"
 convention = "thiscall"
 expect = "8A 41 04 C3 81 7C 24 04"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 4 bytes."
+signature = "uint8_t (cGZCOMLibrary* this)"
+source = "cGZCOMLibrary vtable 0x00AC33A0 slot 6: answers the loaded byte at +0x04 (docs/plugin-dlls.md)."
 
 [[entry]]
-name = "cGZCOM::F87B35B"
+name = "cGZCOM::QueryInterface"
 address = 0x0087B35B
 kind = "function"
 convention = "thiscall"
 expect = "81 7C 24 04 0D 33 41 42"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 34 bytes."
+signature = "uint8_t (cGZCOM* this, uint32_t iid, void** out)"
+source = "By its bytes: compares the IID argument like 0x0087B319, and both this-adjusting thunks of cGZCOM's other bases (0x0087B8BC, 0x0087B8D4) jump to it, so it is the COM object's slot 0 (docs/plugin-dlls.md)."
 
 [[entry]]
 name = "cGZCOM::F87B37D"
@@ -90,20 +101,22 @@ expect = "83 C1 04 E9 04 2A 0A 00"
 source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 8 bytes."
 
 [[entry]]
-name = "cGZCOM::F87B38D"
+name = "cGZCOM::CanUnloadLibrary"
 address = 0x0087B38D
 kind = "function"
 convention = "thiscall"
 expect = "56 8B 74 24 08 8B 06 8B"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 38 bytes."
+signature = "uint8_t (cGZCOM* this, cGZCOMLibrary* record)"
+source = "Name ours. Whether a library may be freed: not loaded, or its director's CanUnloadNow says yes (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87B3B3"
+name = "cGZCOMLibrary::Free"
 address = 0x0087B3B3
 kind = "function"
 convention = "thiscall"
 expect = "53 56 8B F1 33 DB 38 5E"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 47 bytes."
+signature = "uint8_t (cGZCOMLibrary* this)"
+source = "Forgets the director, frees the module through 0x0087B2AF (the call at 0x0087B3D1), clears the handle and the loaded byte (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
 name = "cGZCOM::F87B3E2"
@@ -178,36 +191,40 @@ expect = "56 8B F1 83 26 00 6A 1C"
 source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 22 bytes."
 
 [[entry]]
-name = "cGZCOM::F87B626"
+name = "cGZCOM::FreeUnusedLibraries"
 address = 0x0087B626
 kind = "function"
 convention = "thiscall"
 expect = "53 56 8B F1 8D 5E 24 8B"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 85 bytes."
+signature = "uint32_t (cGZCOM* this)"
+source = "cIGZCOM slot 6 (docs/framework.md): frees every loaded library whose director agrees, under the lock (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87B67B"
+name = "cGZCOM::FreeAllLibraries"
 address = 0x0087B67B
 kind = "function"
 convention = "thiscall"
 expect = "53 56 57 8B F9 8D 5F 24"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 73 bytes."
+signature = "uint32_t (cGZCOM* this)"
+source = "Name ours. Called by RealShutdown 0x0087B8EC: frees every loaded library in path order, under the lock (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87B6C4"
+name = "cGZCOM::EnumerateLibraries_List"
 address = 0x0087B6C4
 kind = "function"
 convention = "thiscall"
 expect = "8B 41 44 53 56 8B 74 24"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 75 bytes."
+signature = "uint32_t (cGZCOM* this, cGZCOMLibrary** list, uint32_t* count)"
+source = "cIGZCOM slot 13 (docs/framework.md): the library records with a reference added into the caller's array, or the count (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87B70F"
+name = "cGZCOM::EnumerateLibraries_Callback"
 address = 0x0087B70F
 kind = "function"
 convention = "thiscall"
 expect = "83 7C 24 04 00 74 2B 56"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 53 bytes."
+signature = "void (cGZCOM* this, uint8_t (*callback)(cGZCOMLibrary*, void*), void* context)"
+source = "cIGZCOM slot 12 (docs/framework.md): calls the callback for each library until it answers false (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
 name = "cGZCOM::F87B744"
@@ -226,12 +243,13 @@ expect = "56 8B F1 E8 84 FE FF FF"
 source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 23 bytes."
 
 [[entry]]
-name = "cGZCOM::F87B772"
+name = "cGZCOMLibrary::WideBufferConstruct"
 address = 0x0087B772
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 56 8D 45 0B"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 51 bytes."
+signature = "void* (vector<uint16_t>* this, uint32_t length)"
+source = "Name ours. Builds the UTF-16 buffer Load passes to LoadLibraryW (docs/plugin-dlls.md; called from 0x0087BA7E)."
 
 [[entry]]
 name = "cGZCOM::F87B7A5"
@@ -250,12 +268,13 @@ expect = "56 FF 74 24 0C 8B F1 E8"
 source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 42 bytes."
 
 [[entry]]
-name = "cGZCOM::F87B7F9"
+name = "cGZCOM::ClassMapInsertAt"
 address = 0x0087B7F9
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 8B 45 14 53 8B"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 136 bytes."
+signature = "insert_result* (map* this, insert_result* result, node* x, node* parent, const entry* entry)"
+source = "Name ours. Links a new class map node under a parent and rebalances (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
 name = "cGZCOM::F87B881"
@@ -314,12 +333,13 @@ expect = "83 E9 08 E9 26 01 00 00"
 source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 8 bytes."
 
 [[entry]]
-name = "cGZCOM::F87B8EC"
+name = "cGZCOM::RealShutdown"
 address = 0x0087B8EC
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 80 7E 2C 00 74"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 24 bytes."
+signature = "uint8_t (cGZCOM* this)"
+source = "cIGZCOM slot 10 (docs/framework.md); calls 0x0087B67B to free the libraries (docs/plugin-dlls.md)."
 
 [[entry]]
 name = "cGZCOM::F87B904"
@@ -330,20 +350,22 @@ expect = "55 8B EC 51 56 8D 45 FF"
 source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 25 bytes."
 
 [[entry]]
-name = "cGZCOM::F87B91D"
+name = "cGZCOM::ClassMapInsertUnique"
 address = 0x0087B91D
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 53 8B D9 8B 0B"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 132 bytes."
+signature = "insert_result* (map* this, insert_result* result, const entry* entry)"
+source = "Name ours. Inserts a class map entry unless its class ID is there (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87B9A1"
+name = "cGZCOM::cGZCOM"
 address = 0x0087B9A1
 kind = "function"
 convention = "thiscall"
 expect = "53 56 8B F1 8D 4E 24 C7"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 113 bytes."
+signature = "cGZCOM* (cGZCOM* this)"
+source = "The COM object's constructor (docs/framework.md, 'The COM object')."
 
 [[entry]]
 name = "cGZCOM::F87BA12"
@@ -354,132 +376,148 @@ expect = "56 8B F1 E8 67 FE FF FF"
 source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 28 bytes."
 
 [[entry]]
-name = "cGZCOM::F87BA2E"
+name = "cGZCOMLibrary::DeletingDestructor"
 address = 0x0087BA2E
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8D 4E 10 C7 06"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 37 bytes."
+signature = "cGZCOMLibrary* (cGZCOMLibrary* this, uint32_t flags)"
+source = "cGZCOMLibrary vtable 0x00AC33A0 slot 7 (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87BA53"
+name = "cGZCOMLibrary::cGZCOMLibrary"
 address = 0x0087BA53
 kind = "function"
 convention = "thiscall"
 expect = "56 FF 74 24 08 8B F1 83"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 43 bytes."
+signature = "cGZCOMLibrary* (cGZCOMLibrary* this, const cIGZString* path)"
+source = "The library record's constructor from a path (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87BA7E"
+name = "cGZCOMLibrary::Load"
 address = 0x0087BA7E
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 30 53 56"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 521 bytes."
+signature = "uint8_t (cGZCOMLibrary* this)"
+source = "LoadLibraryW, GZDllGetGZCOMDirector, the director's InitializeCOM; true when loaded (docs/plugin-dlls.md; translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87BC87"
+name = "cGZCOMLibrary::PathLess"
 address = 0x0087BC87
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 14 53 56"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 86 bytes."
+signature = "uint8_t (const cGZCOMLibrary* this, const cGZCOMLibrary* other)"
+source = "Name ours. The library tree's order: this path before the other's, bytes unsigned (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87BCDD"
+name = "cGZCOM::RealInit"
 address = 0x0087BCDD
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 14 56 8B"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 116 bytes."
+signature = "uint8_t (cGZCOM* this)"
+source = "cIGZCOM slot 9 (docs/framework.md)."
 
 [[entry]]
-name = "cGZCOM::F87BD51"
+name = "cGZCOM::RegisterClassObject"
 address = 0x0087BD51
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
 expect = "55 8B EC 83 EC 14 53 56"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 85 bytes."
+signature = "void (uint32_t classId, uint32_t version, cGZCOM* context)"
+source = "Name ours. The callback a director's EnumClassObjects gets: higher version wins, equal keeps the first (docs/plugin-dlls.md; translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87BDA6"
+name = "cGZCOM::GetClassObjectFromLibrary"
 address = 0x0087BDA6
 kind = "function"
 convention = "thiscall"
 expect = "56 8B 74 24 08 8B 06 8B"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 57 bytes."
+signature = "uint8_t (cGZCOM* this, cGZCOMLibrary* record, uint32_t classId, uint32_t iid, void** out)"
+source = "Name ours. A class object from a library's director, loading the library first when needed (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87BDDF"
+name = "cGZCOM::LoadLibraryAndRegister"
 address = 0x0087BDDF
 kind = "function"
 convention = "thiscall"
 expect = "53 8B 5C 24 08 57 8B F9"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 77 bytes."
+signature = "uint8_t (cGZCOM* this, cGZCOMLibrary* record)"
+source = "Name ours. Loads a library and lets its director register its classes under the lock (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87BE2C"
+name = "cGZCOM::LibraryFind"
 address = 0x0087BE2C
 kind = "function"
 convention = "thiscall"
 expect = "53 56 8B D9 57 8B 3B 8B"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 73 bytes."
+signature = "node* (tree* this, const cGZCOMLibrary* key)"
+source = "Name ours. The library tree node with an equal path, or the header (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87BE75"
+name = "cGZCOM::GetClassObject"
 address = 0x0087BE75
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 53 56 57 8B F9"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 111 bytes."
+signature = "uint8_t (cGZCOM* this, uint32_t classId, uint32_t iid, void** out)"
+source = "cIGZCOM slot 3 (docs/framework.md; translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87BEE4"
+name = "cGZCOMLibrary::CopyConstruct"
 address = 0x0087BEE4
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 57 8B 7C 24 0C"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 61 bytes."
+signature = "cGZCOMLibrary* (cGZCOMLibrary* this, const cGZCOMLibrary* other)"
+source = "The library record's copy constructor (docs/plugin-dlls.md; called from 0x0087BF21)."
 
 [[entry]]
-name = "cGZCOM::F87BF21"
+name = "cGZCOM::LibraryNewNode"
 address = 0x0087BF21
 kind = "function"
 convention = "thiscall"
 expect = "56 6A 38 E8 2B 10 09 00"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 33 bytes."
+signature = "node* (tree* this, const cGZCOMLibrary* record)"
+source = "Name ours. A new library tree node of 0x38 bytes holding a copy of the record (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87BF42"
+name = "cGZCOM::LibraryInsertAt"
 address = 0x0087BF42
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 53 8B 5D 10 56"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 146 bytes."
+signature = "insert_result* (tree* this, insert_result* result, node* x, node* parent, const cGZCOMLibrary* record)"
+source = "Name ours. Links a new library tree node under a parent and rebalances (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87BFD4"
+name = "cGZCOM::LibraryInsertUnique"
 address = 0x0087BFD4
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 53 56 8B D9"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 138 bytes."
+signature = "insert_result* (tree* this, insert_result* result, const cGZCOMLibrary* record)"
+source = "Name ours. Inserts a copy of the record unless its path is there (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87C05E"
+name = "cGZCOM::LibraryInsert"
 address = 0x0087C05E
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 51 FF 75 0C"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 35 bytes."
+signature = "insert_result* (tree* this, insert_result* result, const cGZCOMLibrary* record)"
+source = "Name ours. The unique insert through a temporary result (translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
-name = "cGZCOM::F87C081"
+name = "cGZCOM::AddLibrary"
 address = 0x0087C081
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 30 53 56"
-source = "Placeholder name (docs/plugin-dlls.md): a function of the GZCOM library code, 147 bytes."
+signature = "uint8_t (cGZCOM* this, const cIGZString* path)"
+source = "cIGZCOM slot 5 (docs/framework.md; translated in src/core/plugin_dlls_1.cpp)."
 
 [[entry]]
 name = "cSC4App::ScanPluginDlls"

@@ -262,18 +262,18 @@ bool IsOpenRecord(char* file, const Key* key)
 
 IndexNode* IndexFind(void* index, const Key* key)
 {
-    return This<IndexNode*>(addr::cGZDBSegmentPackedFile_F96EEA9, index, key);
+    return This<IndexNode*>(addr::cGZDBSegmentPackedFile_IndexFind, index, key);
 }
 
 void IndexInsert(char* file, IndexEntry* entry)
 {
     Found inserted;
-    This<void*>(addr::cGZDBSegmentPackedFile_F97005C, At<void*>(file, packed::kIndex), &inserted, entry);
+    This<void*>(addr::cGZDBSegmentPackedFile_InsertIntoIndex, At<void*>(file, packed::kIndex), &inserted, entry);
 }
 
 void UpdateUsedCounts(char* file, const Key* key, uint32_t add)
 {
-    This<void>(addr::cGZDBSegmentPackedFile_F97139C, file, key->type, key->group, add);
+    This<void>(addr::cGZDBSegmentPackedFile_UpdateKeyCounts, file, key->type, key->group, add);
 }
 
 // What every writer does to a key that is in the index already: the counts
@@ -311,7 +311,7 @@ void EnterOpenRecord(char* file, const Key* key, char* made)
     entry.record = made;
     Virtual<uint32_t>(made, record::kAddRef);
     Found inserted;
-    This<void*>(addr::cGZDBSegmentPackedFile_F96F5CD, file + packed::kOpenRecords, &inserted, &entry);
+    This<void*>(addr::cGZDBSegmentPackedFile_OpenInsert, file + packed::kOpenRecords, &inserted, &entry);
 }
 
 // The game's 0x0096E2A7 (slot 46). Writes `size` bytes at `position` of the
@@ -492,7 +492,7 @@ uint8_t __fastcall FreeSpace(char* self, void*, uint32_t position, uint32_t size
     if (position != 0 && size != 0) {
         Hole hole = {position, size};
         Found inserted;
-        This<void*>(addr::cGZDBSegmentPackedFile_F96F594, self + packed::kHoles, &inserted, &hole);
+        This<void*>(addr::cGZDBSegmentPackedFile_HoleInsert, self + packed::kHoles, &inserted, &hole);
         At<uint8_t>(self, packed::kHolesDirty) = 1;
     }
     return 1;
@@ -534,20 +534,20 @@ uint8_t __fastcall OpenRecordForWrite(char* self, void*, Key* key, void** opened
     if (!entry)
         return Virtual<uint8_t>(self + 4, segment::kCreateNewRecordUnlocked, key, opened);
     Found compressed;
-    This<void*>(addr::cGZDBSegmentPackedFile_F96F290, self + packed::kCompressed, &compressed, key);
+    This<void*>(addr::cGZDBSegmentPackedFile_HashFind, self + packed::kCompressed, &compressed, key);
     char* made;
     if (compressed.node != nullptr) {
         void* data = nullptr;
         uint32_t dataSize = 0;
-        if (!This<uint8_t>(addr::cGZDBSegmentPackedFile_F96E6F4, self, entry->entry.offset, entry->entry.size,
+        if (!This<uint8_t>(addr::cGZDBSegmentPackedFile_ReadCompressedAt, self, entry->entry.offset, entry->entry.size,
                 &data, &dataSize))
             return 0;
-        made = NewWriteRecord(addr::cGZDBSegmentPackedFile_F970E67, data, dataSize, key, self);
+        made = NewWriteRecord(addr::cGZDBWriteRecord_ConstructFromMemory, data, dataSize, key, self);
         Virtual<uint32_t>(made, record::kAddRef);
         *opened = made + 4;
         Delete(data);
     } else {
-        made = NewWriteRecord(addr::cGZDBSegmentPackedFile_F970C4D, entry->entry.offset, entry->entry.size, key, self);
+        made = NewWriteRecord(addr::cGZDBWriteRecord_Construct, entry->entry.offset, entry->entry.size, key, self);
         Virtual<uint32_t>(made, record::kAddRef);
         *opened = made + 4;
     }
@@ -567,7 +567,7 @@ uint8_t __fastcall CreateNewRecordUnlocked(char* self, void*, Key* key, void** o
         return 0;
     if (IsOpenRecord(owner, key))
         return 0;
-    char* const made = NewWriteRecord(addr::cGZDBSegmentPackedFile_F970C4D, uint32_t{0}, uint32_t{0}, key, owner);
+    char* const made = NewWriteRecord(addr::cGZDBWriteRecord_Construct, uint32_t{0}, uint32_t{0}, key, owner);
     Virtual<uint32_t>(made, record::kAddRef);
     *opened = made + 4;
     EnterOpenRecord(owner, key, made);
@@ -610,7 +610,7 @@ uint32_t __fastcall SetRecordCompressed(char* self, void*, Key* key, uint8_t on,
     Enter(guard, self + packed::kLock);
     char* const map = self + packed::kCompressed;
     Found found;
-    This<void*>(addr::cGZDBSegmentPackedFile_F96F290, map, &found, key);
+    This<void*>(addr::cGZDBSegmentPackedFile_HashFind, map, &found, key);
     CompressedNode* const node = static_cast<CompressedNode*>(found.node);
     if (on) {
         if (node) {
@@ -836,26 +836,26 @@ bool InstallSaveFile2(registry::Mode)
         return false;
     static void* originals[19] = {};
     static const std::pair<std::uintptr_t, void*> hooks[] = {
-        {addr::cGZDBSegmentPackedFile_F96E2A7, reinterpret_cast<void*>(&WriteAt)},
-        {addr::cGZDBSegmentPackedFile_F96E337,
+        {addr::cGZDBSegmentPackedFile_WriteAt, reinterpret_cast<void*>(&WriteAt)},
+        {addr::cGZDBSegmentPackedFile_EnableCompressionForAllRecords,
             reinterpret_cast<void*>(&EnableCompressionForAll)},
-        {addr::cGZDBSegmentPackedFile_F96E4DC, reinterpret_cast<void*>(&Compress)},
-        {addr::cGZDBSegmentPackedFile_F96EA47, reinterpret_cast<void*>(&CompressIfWorthIt)},
-        {addr::cGZDBSegmentPackedFile_F96F4CE, reinterpret_cast<void*>(&AllocateSpace)},
-        {addr::cGZDBSegmentPackedFile_F96FDE2, reinterpret_cast<void*>(&FreeSpace)},
-        {addr::cGZDBSegmentPackedFile_F96FF01, reinterpret_cast<void*>(&ShouldCompress)},
-        {addr::cGZDBSegmentPackedFile_F971178, reinterpret_cast<void*>(&OpenRecordForWrite)},
-        {addr::cGZDBSegmentPackedFile_F9712D7, reinterpret_cast<void*>(&CreateNewRecordUnlocked)},
-        {addr::cGZDBSegmentPackedFile_F9714FF, reinterpret_cast<void*>(&EnableCompressionByType)},
-        {addr::cGZDBSegmentPackedFile_F971543, reinterpret_cast<void*>(&EnableCompressionByGroup)},
-        {addr::cGZDBSegmentPackedFile_F971587, reinterpret_cast<void*>(&SetRecordCompressed)},
-        {addr::cGZDBSegmentPackedFile_F971617, reinterpret_cast<void*>(&FlushWriteRecord)},
+        {addr::cGZDBSegmentPackedFile_Compress, reinterpret_cast<void*>(&Compress)},
+        {addr::cGZDBSegmentPackedFile_CompressIfWorthIt, reinterpret_cast<void*>(&CompressIfWorthIt)},
+        {addr::cGZDBSegmentPackedFile_AllocateSpace, reinterpret_cast<void*>(&AllocateSpace)},
+        {addr::cGZDBSegmentPackedFile_FreeSpace, reinterpret_cast<void*>(&FreeSpace)},
+        {addr::cGZDBSegmentPackedFile_ShouldCompress, reinterpret_cast<void*>(&ShouldCompress)},
+        {addr::cGZDBSegmentPackedFile_OpenRecordForWrite, reinterpret_cast<void*>(&OpenRecordForWrite)},
+        {addr::cGZDBSegmentPackedFile_CreateNewRecordUnlocked, reinterpret_cast<void*>(&CreateNewRecordUnlocked)},
+        {addr::cGZDBSegmentPackedFile_EnableCompressionByType, reinterpret_cast<void*>(&EnableCompressionByType)},
+        {addr::cGZDBSegmentPackedFile_EnableCompressionByGroup, reinterpret_cast<void*>(&EnableCompressionByGroup)},
+        {addr::cGZDBSegmentPackedFile_SetRecordCompressed, reinterpret_cast<void*>(&SetRecordCompressed)},
+        {addr::cGZDBSegmentPackedFile_FlushWriteRecord, reinterpret_cast<void*>(&FlushWriteRecord)},
         {addr::cGZDBSegmentPackedFile_DeleteRecord, reinterpret_cast<void*>(&DeleteRecordUnlocked)},
-        {addr::cGZDBSegmentPackedFile_F971B1D, reinterpret_cast<void*>(&WriteRecordUnlocked)},
-        {addr::cGZDBSegmentPackedFile_F971FE2, reinterpret_cast<void*>(&WriteRecordRaw)},
-        {addr::cGZDBSegmentPackedFile_F9757DA, reinterpret_cast<void*>(&CreateNewRecord)},
-        {addr::cGZDBSegmentPackedFile_F9758BD, reinterpret_cast<void*>(&DeleteRecord)},
-        {addr::cGZDBSegmentPackedFile_F975929, reinterpret_cast<void*>(&WriteRecord)},
+        {addr::cGZDBSegmentPackedFile_WriteRecordUnlocked, reinterpret_cast<void*>(&WriteRecordUnlocked)},
+        {addr::cGZDBSegmentPackedFile_WriteRecordRaw, reinterpret_cast<void*>(&WriteRecordRaw)},
+        {addr::cGZPersistDBSegment_CreateNewRecord, reinterpret_cast<void*>(&CreateNewRecord)},
+        {addr::cGZPersistDBSegment_DeleteRecord, reinterpret_cast<void*>(&DeleteRecord)},
+        {addr::cGZPersistDBSegment_WriteRecord, reinterpret_cast<void*>(&WriteRecord)},
     };
     constexpr std::size_t count = sizeof(hooks) / sizeof(hooks[0]);
     static_assert(count <= sizeof(originals) / sizeof(originals[0]));
@@ -873,8 +873,9 @@ bool InstallSaveFile2(registry::Mode)
         // The packed file's reading half (resources.packed_file.part4) has
         // the segment's three record calls too: with that group on (or a jump
         // already in place), theirs are the ones that run.
-        if ((hooks[i].first == addr::cGZDBSegmentPackedFile_F9757DA || hooks[i].first == addr::cGZDBSegmentPackedFile_F9758BD
-                || hooks[i].first == addr::cGZDBSegmentPackedFile_F975929)
+        if ((hooks[i].first == addr::cGZPersistDBSegment_CreateNewRecord
+                || hooks[i].first == addr::cGZPersistDBSegment_DeleteRecord
+                || hooks[i].first == addr::cGZPersistDBSegment_WriteRecord)
             && (registry::ModeOf("resources.packed_file.part4") != registry::Mode::Original
                 || *reinterpret_cast<const uint8_t*>(hooks[i].first) == 0xE9)) {
             log::Write("saves: 0x%08X left to resources.packed_file.part4", static_cast<unsigned>(hooks[i].first));
@@ -892,7 +893,7 @@ const bool g_saveFile2Registered = registry::Register({
     "saves",
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
-    addr::cGZDBSegmentPackedFile_F971617,
+    addr::cGZDBSegmentPackedFile_FlushWriteRecord,
     "Our packed file write path, part 2: records in the segment, compression's wrapper, space and holes",
     false,
     InstallSaveFile2,
