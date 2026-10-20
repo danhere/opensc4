@@ -336,7 +336,7 @@ uint8_t __fastcall CloseRecord(char* self, void*, void* record)
         char* const open = At<char*>(node, 0x1C);
         if ((open ? open + 4 : nullptr) == record) {
             if ((Virtual<uint32_t>(record, 0x10) & 2) != 0)
-                This<uint8_t>(addr::cGZDBSegmentPackedFile_F971617, self - 4, open, &key);
+                This<uint8_t>(addr::cGZDBSegmentPackedFile_FlushWriteRecord, self - 4, open, &key);
             This<void>(addr::cGZDBSegmentPackedFile_RecordClosed, self - 4, open ? open + 4 : nullptr);
             Virtual<uint32_t>(open, 0x08);
             This<void>(addr::cGZDBSegmentPackedFile_RecordMapErase, map, node);
@@ -359,7 +359,7 @@ uint8_t __fastcall Close(char* self, void*)
         return 1;
     uint8_t ok = 1;
     if ((flags & 2) != 0) {
-        ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_F96FA6B, self - 4);
+        ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_CloseAllOpenRecords, self - 4);
         if (ok != 0)
             ok = Virtual<uint8_t>(self, slot::kFlush);
     }
@@ -650,7 +650,7 @@ uint8_t __fastcall Open(char* self, void*, uint32_t read, uint32_t write)
     bool proceed = true;
     if (Virtual<uint32_t>(stream, file::kLength) == 0) {
         if ((At<uint8_t>(self, iface::kFlags) & 2) != 0)
-            ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_F96E99A, start);
+            ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_InitNewHeader, start);
         else
             ok = 0;
         proceed = ok != 0;
@@ -665,7 +665,7 @@ uint8_t __fastcall Open(char* self, void*, uint32_t read, uint32_t write)
                     ok = ReadDirectory(start, nullptr);
             }
         } else if ((At<uint8_t>(self, iface::kFlags) & 2) != 0) {
-            ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_F96E99A, start);
+            ok = This<uint8_t>(addr::cGZDBSegmentPackedFile_InitNewHeader, start);
             if (ok != 0 && At<void*>(self, iface::kIndex) == nullptr)
                 At<void*>(self, iface::kIndex) = NewIndexTable();
         }

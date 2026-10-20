@@ -482,7 +482,7 @@ uint8_t __fastcall CloseAllOpenRecords(char* self, void*)
     if (At<uint32_t>(self, packed::kOpenCount) != 0) {
         uint8_t allocator;
         ListNode* list = nullptr;
-        This<void*>(addr::cGZDBSegmentPackedFile_F93F7EB, &list, &allocator);
+        This<void*>(addr::cGZDBSegmentPackedFile_ListConstruct, &list, &allocator);
 
         char* const header = At<char*>(self, packed::kOpenMap);
         for (char* node = At<char*>(header, 0x8); node != header; node = TreeNext(node)) {
@@ -490,7 +490,7 @@ uint8_t __fastcall CloseAllOpenRecords(char* self, void*)
             void* part = record ? record + 4 : nullptr;
             Virtual<uint32_t>(part, 0x4);
             ListNode* inserted;
-            This<void*>(addr::cGZDBSegmentPackedFile_F897C8D, &list, &inserted, list, &part);
+            This<void*>(addr::cGZDBSegmentPackedFile_ListInsertBefore, &list, &inserted, list, &part);
         }
 
         ListNode* const head = list;
@@ -793,7 +793,7 @@ uint32_t __fastcall CopyDatabaseRecords(char* self, void*, void* other, void* fi
     while (it.current != last) {
         if (CopyOneRecord(self, nullptr, other, it.current, fromOther, keepOriginal))
             ++copied;
-        This<void>(addr::cGZDBSegmentPackedFile_F667A60, &it);
+        This<void>(addr::cGZDBSegmentPackedFile_KeyDequeIteratorNext, &it);
     }
 
     Virtual<uint32_t>(list, 0x8);
@@ -841,14 +841,14 @@ uint8_t __fastcall ImportRecordFromFile(char* self, void*, Key* key, void* path)
                 const uint32_t size = This<uint32_t>(addr::cRZFile_Length, &source[0]);
                 if (size != 0) {
                     bool plain = true;
-                    if (This<uint8_t>(addr::cGZDBSegmentPackedFile_F96FF01, self, key, size)) {
+                    if (This<uint8_t>(addr::cGZDBSegmentPackedFile_ShouldCompress, self, key, size)) {
                         char* const buffer = static_cast<char*>(New(size + 2));
                         void* compressed = nullptr;
                         buffer[size + 1] = 0;
                         buffer[size] = 0;
                         uint32_t compressedSize = 0;
                         if (This<uint8_t>(addr::cRZFile_Read, &source[0], static_cast<void*>(buffer), size)) {
-                            if (This<uint8_t>(addr::cGZDBSegmentPackedFile_F96EA47, self,
+                            if (This<uint8_t>(addr::cGZDBSegmentPackedFile_CompressIfWorthIt, self,
                                     static_cast<void*>(buffer), size, &compressed, &compressedSize)) {
                                 uint32_t position = 0;
                                 if (Virtual<uint8_t>(self, pslot::kAllocateSpace, &position, compressedSize)) {
@@ -1102,22 +1102,22 @@ bool InstallSaveFile3(registry::Mode)
     static void* originals[16] = {};
     static const std::pair<std::uintptr_t, void*> hooks[] = {
         {addr::cGZDBSegmentPackedFile_SetUserVersion, reinterpret_cast<void*>(&SetNextUserVersion)},
-        {addr::cGZDBSegmentPackedFile_F96E15F, reinterpret_cast<void*>(&SetHoleUseFlags)},
-        {addr::cGZDBSegmentPackedFile_F96E18B,
+        {addr::cGZDBSegmentPackedFile_SetHoleUseFlags, reinterpret_cast<void*>(&SetHoleUseFlags)},
+        {addr::cGZDBSegmentPackedFile_SetHoleCompactionMinimumRatio,
             reinterpret_cast<void*>(&SetHoleCompactionMinimumRatio)},
-        {addr::cGZDBSegmentPackedFile_F96E37B, reinterpret_cast<void*>(&WriteHeader)},
-        {addr::cGZDBSegmentPackedFile_F96E99A, reinterpret_cast<void*>(&InitNewHeader)},
-        {addr::cGZDBSegmentPackedFile_F96EF02, reinterpret_cast<void*>(&ShouldCompact)},
-        {addr::cGZDBSegmentPackedFile_F96EF83, reinterpret_cast<void*>(&WriteHoleTable)},
-        {addr::cGZDBSegmentPackedFile_F96FA6B, reinterpret_cast<void*>(&CloseAllOpenRecords)},
-        {addr::cGZDBSegmentPackedFile_F96FB0F, reinterpret_cast<void*>(&WriteIndex)},
-        {addr::cGZDBSegmentPackedFile_F96FE20, reinterpret_cast<void*>(&WriteCompressedDirectory)},
-        {addr::cGZDBSegmentPackedFile_F970193, reinterpret_cast<void*>(&Flush)},
-        {addr::cGZDBSegmentPackedFile_F9708BE, reinterpret_cast<void*>(&CopyOneRecord)},
-        {addr::cGZDBSegmentPackedFile_F970B4F, reinterpret_cast<void*>(&CopyDatabaseRecords)},
-        {addr::cGZDBSegmentPackedFile_F971CC7, reinterpret_cast<void*>(&ImportRecordFromFile)},
-        {addr::cGZDBSegmentPackedFile_F972233, reinterpret_cast<void*>(&CompactDatabase)},
-        {addr::cGZDBSegmentPackedFile_F972542, reinterpret_cast<void*>(&CopyDatabaseRecordsToPath)},
+        {addr::cGZDBSegmentPackedFile_WriteHeader, reinterpret_cast<void*>(&WriteHeader)},
+        {addr::cGZDBSegmentPackedFile_InitNewHeader, reinterpret_cast<void*>(&InitNewHeader)},
+        {addr::cGZDBSegmentPackedFile_ShouldCompact, reinterpret_cast<void*>(&ShouldCompact)},
+        {addr::cGZDBSegmentPackedFile_WriteHoleTable, reinterpret_cast<void*>(&WriteHoleTable)},
+        {addr::cGZDBSegmentPackedFile_CloseAllOpenRecords, reinterpret_cast<void*>(&CloseAllOpenRecords)},
+        {addr::cGZDBSegmentPackedFile_WriteIndex, reinterpret_cast<void*>(&WriteIndex)},
+        {addr::cGZDBSegmentPackedFile_WriteCompressedDirectory, reinterpret_cast<void*>(&WriteCompressedDirectory)},
+        {addr::cGZDBSegmentPackedFile_Flush, reinterpret_cast<void*>(&Flush)},
+        {addr::cGZDBSegmentPackedFile_CopyOneRecord, reinterpret_cast<void*>(&CopyOneRecord)},
+        {addr::cGZDBSegmentPackedFile_CopyDatabaseRecords, reinterpret_cast<void*>(&CopyDatabaseRecords)},
+        {addr::cGZDBSegmentPackedFile_ImportRecordFromFile, reinterpret_cast<void*>(&ImportRecordFromFile)},
+        {addr::cGZDBSegmentPackedFile_CompactDatabase, reinterpret_cast<void*>(&CompactDatabase)},
+        {addr::cGZDBSegmentPackedFile_CopyDatabaseRecordsToPath, reinterpret_cast<void*>(&CopyDatabaseRecordsToPath)},
     };
     constexpr std::size_t count = sizeof(hooks) / sizeof(hooks[0]);
     static_assert(count <= sizeof(originals) / sizeof(originals[0]));
@@ -1143,7 +1143,7 @@ const bool g_saveFile3Registered = registry::Register({
     "saves",
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
-    addr::cGZDBSegmentPackedFile_F970193,
+    addr::cGZDBSegmentPackedFile_Flush,
     "Our packed file write path, part 3: the header, Flush, the index, hole and directory tables, compaction, copy "
     "and import",
     false,
