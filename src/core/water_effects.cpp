@@ -11248,7 +11248,6 @@ uint32_t __fastcall DecalDescriptionAssignNoted(char* to, void*, uint32_t descri
     g_dsGame.push_back({addr::SC4DecalDescription_Assign, 0xC});
     return result;
 }
-OPENSC4_THUNK(TSC4DecalDescription_Assign, DecalDescriptionAssignNoted, 4)
 
 std::string DsNotesText(const std::vector<DsNote>& notes)
 {
@@ -11336,12 +11335,14 @@ uint32_t DecalDescriptionRun(char* decal, uint32_t description)
     return DecalDescriptionCompared(decal, description);
 }
 
+// One detour, shared with renderer.effects.decal_parts.
+bool HookDecalDescriptionAssign();
+
 bool InstallDecalDescription(registry::Mode mode)
 {
     if (!game::IsBuild641() || !HookDecalDescription())
         return false;
-    if (mode == registry::Mode::Compare &&
-        !Detour(addr::SC4DecalDescription_Assign, &TSC4DecalDescription_Assign, &g_SC4DecalDescription_Assign))
+    if (mode == registry::Mode::Compare && !HookDecalDescriptionAssign())
         return false;
     g_dsMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: the decal's taking of its description %s",
@@ -13911,11 +13912,9 @@ uint32_t __fastcall CopyRecord28Noted(char* self, void* edx, uint32_t from)
 }
 OPENSC4_THUNK(TCopyRecord28Noted, CopyRecord28Noted, 4)
 
-uint32_t __fastcall DestroyDecalNoted(char* self, void*)
-{
-    return StCallNoted(addr::SC4DecalDescription_Destroy, self, g_SC4DecalDescription_Destroy);
-}
-OPENSC4_THUNK(TDestroyDecalNoted, DestroyDecalNoted, 0)
+// The decal description's end has one detour, shared with
+// renderer.effects.decal_parts (noted here whatever its mode).
+bool HookDecalDescriptionDestroy();
 
 uint32_t __fastcall DestroyTexts14Noted(char* self, void*)
 {
@@ -14029,7 +14028,7 @@ bool InstallVectors(registry::Mode mode)
           Detour(addr::SC4Float3Vector_CopyConstruct, &TCopyFloat3sNoted, &g_SC4Float3Vector_CopyConstruct) &&
           HookAssignFloats() && HookAssignText() &&
           Detour(addr::SC4EffectRecord28_CopyConstruct, &TCopyRecord28Noted, &g_SC4EffectRecord28_CopyConstruct) &&
-          Detour(addr::SC4DecalDescription_Destroy, &TDestroyDecalNoted, &g_SC4DecalDescription_Destroy) &&
+          HookDecalDescriptionDestroy() &&
           HookDestroyTexts14() && HookClearTable() &&
           DetourCdecl(kLsRange3[0], &LsRange3Noted<0>, &g_lsRange3[0]) &&
           DetourCdecl(kLsRange3[1], &LsRange3Noted<1>, &g_lsRange3[1]) &&
@@ -15092,11 +15091,16 @@ uint32_t __fastcall DecalHoldNoted(char* self, void*)
 }
 OPENSC4_THUNK(TDecalHoldNoted, DecalHoldNoted, 0)
 
-uint32_t __fastcall DecalLetGoNoted(char* self, void*)
+// The decal's Release has one detour, shared with
+// renderer.effects.decal_parts (noted here whatever its mode).
+bool HookDecalRelease();
+
+// The delete has one detour, which this group's and renderer.effects.decal_parts'
+// comparisons share.
+bool HookDelete()
 {
-    return StCallNoted(addr::SC4EffectAt4_ReleaseThunk, self, g_SC4EffectDecal_Release);
+    return g_SC4_operator_delete || DetourCdecl(addr::SC4_operator_delete, &DeleteNoted, &g_SC4_operator_delete);
 }
-OPENSC4_THUNK(TDecalLetGoNoted, DecalLetGoNoted, 0)
 
 bool InstallHashes(registry::Mode mode)
 {
@@ -15121,11 +15125,11 @@ bool InstallHashes(registry::Mode mode)
         return false;
     if (mode == registry::Mode::Compare &&
         !(HookPoolAllocate() && HookFree() &&
-          DetourCdecl(addr::SC4_operator_delete, &DeleteNoted, &g_SC4_operator_delete) &&
+          HookDelete() &&
           Detour(addr::SC4EffectAt4_AddRefThunk, &TEffectHoldNoted, &g_SC4EffectAt4_AddRefThunk) &&
           Detour(addr::SC4EffectAt4_ReleaseThunk, &TEffectLetGoNoted, &g_SC4EffectAt4_ReleaseThunk) &&
           Detour(addr::SC4Counted4_AddRef, &TDecalHoldNoted, &g_SC4Counted4_AddRef) &&
-          Detour(addr::SC4EffectDecal_Release, &TDecalLetGoNoted, &g_SC4EffectDecal_Release)))
+          HookDecalRelease()))
         return false;
     g_hsThread = GetCurrentThreadId();
     g_hsMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
@@ -15595,6 +15599,309 @@ const bool g_registeredHeightMap = registry::Register({
     "clouds\")",
     true,
     InstallHeightMap,
+});
+
+// --- A decal's small functions ---------------------------------------------------------------
+//
+// A decal's parameter setter, update and Release, its description's end
+// and assignment (effects_decal.inc, effects_decal_update.inc), and two of
+// the manager's: its fill of held pointers and the AddRef thunks of two of
+// its interfaces. The setter and the update only write the decal: the
+// game's, the decal put back, ours, the two compared and the game's left
+// (an update that would call the object at +0x120 runs the game's only).
+// The assignment, the end and Release are the store's kind, sharing its
+// engine: the assignment's game's run noted (its list assignments noted
+// with the bytes they leave) and ours replayed on the description put
+// back; the end and Release ours first, then the game's noted, their
+// frees and deletes kept (a Release at zero with an object at +0x120,
+// whose let-go has no detour, runs the game's only). The three keep one
+// detour each with the groups that note them (the decal's description,
+// the vectors, the hash tables): by this group's mode, and noted in a
+// noted run whatever its mode. The fill runs the game's, then ours on
+// storage of its own: the pointers compared, ours' holds given back (slot
+// 2). A thunk: the game's, the count at the manager's +0x1B0 put back,
+// ours; the answers and the counts compared.
+StepMode g_dcMode = StepMode::Original;
+Call3Fn g_SC4EffectDecal_SetParameter = nullptr;
+Call2Fn g_SC4EffectDecal_Update = nullptr;
+Call1Fn g_SC4Float3Vector_Assign = nullptr;
+Call0Fn g_SC4TextureBinding_Release = nullptr, g_SC4EffectsManager_AddRefThunk4 = nullptr,
+        g_SC4EffectsManager_AddRefThunk8 = nullptr;
+using DcFillFn = char*(__cdecl*)(char*, uint32_t, char* const*);
+DcFillFn g_SC4EffectsManager_FillHeld = nullptr;
+
+// What ours calls: in the replay the note, else the call.
+void DcAssignFloat3s(char* to, char* from)
+{
+    LsThis(addr::SC4Float3Vector_Assign, to, from, to);
+}
+
+void DcLetGo(char* object)
+{
+    const uint32_t letGo = At<uint32_t>(At<char*>(object, 0), 8);
+    if (g_stReplay)
+        StReplayed(StMake(letGo, object), nullptr);
+    else
+        CallThis<uint32_t>(letGo, object);
+}
+
+void DcReleaseTexture(char* texture)
+{
+    if (g_stReplay)
+        StReplayed(StMake(addr::SC4TextureBinding_Release, texture), nullptr);
+    else
+        CallThis<void>(addr::SC4TextureBinding_Release, texture);
+}
+
+void DcDelete(char* object)
+{
+    HsDelete(object);
+}
+
+#include "core/effects_decal.inc"
+
+// The update (effects_decal_update.inc), on the machine of the manager's
+// draw.
+uint32_t UpdateDecal(char* self, uint32_t first, uint32_t second)
+{
+    uint32_t stackmem[64] = {};
+    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
+    uint32_t ecx = reinterpret_cast<uint32_t>(self);
+    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[40]);
+    M<uint32_t>(esp + 4) = first;
+    M<uint32_t>(esp + 8) = second;
+    double st[8] = {};
+    int top = -1;
+    [[maybe_unused]] uint32_t status = 0;
+#define ST(i) st[top - (i)]
+#define PUSH(value)                                                                                                      \
+    do {                                                                                                                 \
+        const double pushed = (value);                                                                                   \
+        st[++top] = pushed;                                                                                              \
+    } while (0)
+#define POP() --top
+#define FCOM(value) status = CompareStatus(ST(0), (value))
+#include "core/effects_decal_update.inc"
+#undef ST
+#undef PUSH
+#undef POP
+#undef FCOM
+}
+
+bool DcGameOnly()
+{
+    return g_dcMode == StepMode::Original || g_stNoting || g_stReplay;
+}
+
+// The setter and the update: the decal's bytes after the game's and after
+// ours (and with `result` AL).
+template <typename Game, typename Ours>
+uint32_t DcDecalCompared(const char* id, char* decal, bool result, Game&& game, Ours&& ours)
+{
+    char before[kDecalSize], after[kDecalSize];
+    std::memcpy(before, decal, kDecalSize);
+    const uint32_t theirs = game();
+    std::memcpy(after, decal, kDecalSize);
+    std::memcpy(decal, before, kDecalSize);
+    const uint32_t mine = ours();
+    std::size_t at = 0;
+    while (at < kDecalSize && std::memcmp(decal + at, after + at, 4) == 0)
+        at += 4;
+    char text[24];
+    if (at < kDecalSize) {
+        std::snprintf(text, sizeof text, "+%zX ", at);
+        StRecord(id, false, text + Hex(after + at, 4), text + Hex(decal + at, 4));
+    } else {
+        const uint8_t a = static_cast<uint8_t>(theirs), b = static_cast<uint8_t>(mine);
+        StRecord(id, !result || a == b, "AL " + Hex(&a, 1), "AL " + Hex(&b, 1));
+    }
+    std::memcpy(decal, after, kDecalSize);
+    return theirs;
+}
+
+uint32_t __fastcall DcSetByMode(char* decal, void*, uint32_t id, uint32_t value, uint32_t unused)
+{
+    const auto ours = [&] { return SetDecalParameter(decal, id, Ptr(value)); };
+    const auto game = [&] { return g_SC4EffectDecal_SetParameter(decal, nullptr, id, value, unused); };
+    if (g_dcMode == StepMode::Ours)
+        return ours();
+    if (DcGameOnly())
+        return game();
+    return DcDecalCompared("effects.decal_parts.parameter", decal, true, game, ours);
+}
+OPENSC4_THUNK(TDcSet, DcSetByMode, 12)
+
+uint32_t __fastcall DcUpdateByMode(char* decal, void*, uint32_t first, uint32_t second)
+{
+    const auto ours = [&] { return UpdateDecal(decal, first, second); };
+    const auto game = [&] { return g_SC4EffectDecal_Update(decal, nullptr, first, second); };
+    if (g_dcMode == StepMode::Ours)
+        return ours();
+    const bool calls = !At<uint8_t>(decal, 0x110) && (At<uint32_t>(decal, 0xC) >> 6 & 1) &&
+                       At<int32_t>(decal, 0x70) != -1;
+    if (DcGameOnly() || calls)
+        return game();
+    return DcDecalCompared("effects.decal_parts.update", decal, false, game, ours);
+}
+OPENSC4_THUNK(TDcUpdate, DcUpdateByMode, 8)
+
+// The three shared with other groups' noting.
+uint32_t __fastcall DcAssignByMode(char* to, void*, uint32_t from)
+{
+    if (g_dsNoting && GetCurrentThreadId() == g_dsThread && to == g_dsDecal + 0xC)
+        return DecalDescriptionAssignNoted(to, nullptr, from);
+    const auto game = [&] { return g_SC4DecalDescription_Assign(to, nullptr, from); };
+    const auto ours = [&] { return Word(AssignDecalDescription(to, Ptr(from))); };
+    return StByModeOf(g_dcMode, StMake(addr::SC4DecalDescription_Assign, to, Ptr(from)), to, 0x64, game, ours,
+                      [&] { return StCompared("effects.decal_parts.assign", to, 0x64, true, game, ours); });
+}
+OPENSC4_THUNK(TDcAssign, DcAssignByMode, 4)
+
+uint32_t __fastcall DcDestroyByMode(char* description, void*)
+{
+    const auto game = [&] { return g_SC4DecalDescription_Destroy(description, nullptr); };
+    const auto ours = [&] {
+        DestroyDecalDescription(description);
+        return 0u;
+    };
+    const StNote note = StMake(addr::SC4DecalDescription_Destroy, description);
+    if (g_dcMode == StepMode::Original)
+        return StHelper(note, nullptr, 0, game);
+    return StByModeOf(g_dcMode, note, nullptr, 0, game, ours,
+                      [&] { return StEndCompared("effects.decal_parts.destroy_description", game, ours); });
+}
+OPENSC4_THUNK(TDcDestroy, DcDestroyByMode, 0)
+
+// Noted as the held effects' let-go (renderer.effects.hashes).
+uint32_t __fastcall DcReleaseByMode(char* decal, void*)
+{
+    const auto game = [&] { return g_SC4EffectDecal_Release(decal, nullptr); };
+    const auto ours = [&] { return ReleaseDecal(decal); };
+    const StNote note = StMake(addr::SC4EffectAt4_ReleaseThunk, decal);
+    if (g_dcMode == StepMode::Original)
+        return StHelper(note, nullptr, 0, game);
+    return StByModeOf(g_dcMode, note, nullptr, 0, game, ours, [&] {
+        if (At<uint32_t>(decal, 4) == 1 && At<char*>(decal, 0x120))
+            return game();
+        return HsEndCompared("effects.decal_parts.release", {{decal, kDecalSize, false}}, true, game, ours);
+    });
+}
+OPENSC4_THUNK(TDcRelease, DcReleaseByMode, 0)
+
+bool HookDecalDescriptionAssign()
+{
+    return g_SC4DecalDescription_Assign ||
+           Detour(addr::SC4DecalDescription_Assign, &TDcAssign, &g_SC4DecalDescription_Assign);
+}
+
+bool HookDecalDescriptionDestroy()
+{
+    return g_SC4DecalDescription_Destroy ||
+           Detour(addr::SC4DecalDescription_Destroy, &TDcDestroy, &g_SC4DecalDescription_Destroy);
+}
+
+bool HookDecalRelease()
+{
+    return g_SC4EffectDecal_Release || Detour(addr::SC4EffectDecal_Release, &TDcRelease, &g_SC4EffectDecal_Release);
+}
+
+// The game's helpers, noted in a noted run.
+uint32_t __fastcall AssignFloat3sNoted(char* self, void* edx, uint32_t from)
+{
+    return LsCopyNoted<&g_SC4Float3Vector_Assign, addr::SC4Float3Vector_Assign, 0xC>(self, edx, from);
+}
+OPENSC4_THUNK(TAssignFloat3sNoted, AssignFloat3sNoted, 4)
+
+uint32_t __fastcall TextureReleaseNoted(char* self, void*)
+{
+    return StCallNoted(addr::SC4TextureBinding_Release, self, g_SC4TextureBinding_Release);
+}
+OPENSC4_THUNK(TTextureReleaseNoted, TextureReleaseNoted, 0)
+
+char* __cdecl DcFillByMode(char* place, uint32_t count, char* const* value)
+{
+    if (g_dcMode == StepMode::Ours)
+        return FillHeldPointers(place, count, value);
+    char* const result = g_SC4EffectsManager_FillHeld(place, count, value);
+    if (DcGameOnly() || !place || !count)
+        return result;
+    std::vector<char> mine(count * std::size_t{4});
+    char* const end = FillHeldPointers(mine.data(), count, value);
+    const bool same = end - mine.data() == result - place && std::memcmp(place, mine.data(), mine.size()) == 0;
+    for (uint32_t i = 0; i < count; ++i) {
+        if (char* const object = At<char*>(mine.data(), i * 4))
+            CallThis<uint32_t>(At<uint32_t>(At<char*>(object, 0), 8), object);
+    }
+    StRecord("effects.decal_parts.fill", same, Hex(place, 4), Hex(mine.data(), 4));
+    return result;
+}
+
+uint32_t DcAddRefByMode(const char* id, char* self, uint32_t offset, Call0Fn game)
+{
+    if (g_dcMode == StepMode::Ours)
+        return AddRefManagerFrom(self, offset);
+    if (DcGameOnly())
+        return game(self, nullptr);
+    char* const manager = self - offset;
+    const uint32_t before = At<uint32_t>(manager, 0x1B0);
+    const uint32_t theirs = game(self, nullptr);
+    const uint32_t after = At<uint32_t>(manager, 0x1B0);
+    At<uint32_t>(manager, 0x1B0) = before;
+    const uint32_t mine = AddRefManagerFrom(self, offset);
+    const uint32_t own = At<uint32_t>(manager, 0x1B0);
+    At<uint32_t>(manager, 0x1B0) = after;
+    const uint32_t a[2] = {theirs, after}, b[2] = {mine, own};
+    HmRecord(id, a, b, 8);
+    return theirs;
+}
+
+uint32_t __fastcall DcAddRef4ByMode(char* self, void*)
+{
+    return DcAddRefByMode("effects.decal_parts.addref4", self, 4, g_SC4EffectsManager_AddRefThunk4);
+}
+OPENSC4_THUNK(TDcAddRef4, DcAddRef4ByMode, 0)
+
+uint32_t __fastcall DcAddRef8ByMode(char* self, void*)
+{
+    return DcAddRefByMode("effects.decal_parts.addref8", self, 8, g_SC4EffectsManager_AddRefThunk8);
+}
+OPENSC4_THUNK(TDcAddRef8, DcAddRef8ByMode, 0)
+
+bool InstallDecalParts(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !Detour(addr::SC4EffectDecal_SetParameter, &TDcSet, &g_SC4EffectDecal_SetParameter) ||
+        !Detour(addr::SC4EffectDecal_Update, &TDcUpdate, &g_SC4EffectDecal_Update) || !HookDecalDescriptionAssign() ||
+        !HookDecalDescriptionDestroy() || !HookDecalRelease() ||
+        !DetourCdecl(addr::SC4EffectsManager_FillHeld, &DcFillByMode, &g_SC4EffectsManager_FillHeld) ||
+        !Detour(addr::SC4EffectsManager_AddRefThunk4, &TDcAddRef4, &g_SC4EffectsManager_AddRefThunk4) ||
+        !Detour(addr::SC4EffectsManager_AddRefThunk8, &TDcAddRef8, &g_SC4EffectsManager_AddRefThunk8))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(HookPoolAllocate() && HookFree() && HookDelete() && HookAssignFloats() &&
+          (g_SC4Float3Vector_Assign ||
+           Detour(addr::SC4Float3Vector_Assign, &TAssignFloat3sNoted, &g_SC4Float3Vector_Assign)) &&
+          (g_SC4TextureBinding_Release ||
+           Detour(addr::SC4TextureBinding_Release, &TTextureReleaseNoted, &g_SC4TextureBinding_Release))))
+        return false;
+    g_dcMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: a decal's small functions %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDecalParts = registry::Register({
+    "renderer.effects.decal_parts",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDecal_Update,
+    "A decal's parameter setter, update and Release, its description's end and assignment, and the manager's fill of "
+    "held pointers and two AddRef thunks; compare mode runs the game's and ours on what each may change, the "
+    "assignment, end and Release the store's way, noted and replayed (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallDecalParts,
 });
 
 bool InstallEffects(registry::Mode mode)
