@@ -1,6 +1,6 @@
-# The derived prop classes: the terrain decal, the visual effect, the automata controller, the burnt building and the text decal
+# The derived prop classes: the terrain decal, the visual effect, the automata controller, the burnt building, the text decal and the sign
 
-Two of the six classes that derive from the prop occupant ([propocc.md](propocc.md)). A terrain decal is a picture laid flat on the ground, with an opacity that can fade away. A visual effect is a prop that is an effect of the effects manager (smoke, a fountain, a flare) at the prop's place. Both are made by the prop manager when a prop type's class says so ([propmgr.md](propmgr.md)); the terrain code makes decals itself (0x0075EDC0, 0x006CC250), and two functions not yet identified make effect props (0x005CBC10, 0x005CEC20). Reimplemented like the other classes: one writer with every virtual call's argument count checked against the callee's own code (91 virtual calls), then an independent audit of all 39 functions against the disassembly, then the parity harness ([parity.md](parity.md)). Build 641 addresses throughout (data/addresses/propkinds.toml). This page covers pieces 1 to 3 of 4 of the prop family: piece 1 the decal and the effect, piece 2 the automata controller prop (cSC4PropOccupantAutomataController) and the burnt building's logic (cSC4PropOccupantBurntBuilding), done the same way (55 virtual calls checked, all 28 functions audited), piece 3 the text decal (cSC4PropOccupantTextDecal, the label; every virtual call checked, all 26 functions audited). The survey below says what is left.
+The six classes that derive from the prop occupant ([propocc.md](propocc.md)). A terrain decal is a picture laid flat on the ground, with an opacity that can fade away. A visual effect is a prop that is an effect of the effects manager (smoke, a fountain, a flare) at the prop's place. Both are made by the prop manager when a prop type's class says so ([propmgr.md](propmgr.md)); the terrain code makes decals itself (0x0075EDC0, 0x006CC250), and two functions not yet identified make effect props (0x005CBC10, 0x005CEC20). Reimplemented like the other classes: one writer with every virtual call's argument count checked against the callee's own code (91 virtual calls), then an independent audit of all 39 functions against the disassembly, then the parity harness ([parity.md](parity.md)). Build 641 addresses throughout (data/addresses/propkinds.toml). This page covers all four pieces of the prop family: piece 1 the decal and the effect, piece 2 the automata controller prop (cSC4PropOccupantAutomataController) and the burnt building's logic (cSC4PropOccupantBurntBuilding), done the same way (55 virtual calls checked, all 28 functions audited), piece 3 the text decal (cSC4PropOccupantTextDecal, the label; every virtual call checked, all 26 functions audited), piece 4 the sign's logic (cSC4PropOccupantSign; every virtual call checked, all 20 functions audited). The survey below says what is left: the drawing.
 
 ## The family
 
@@ -15,7 +15,7 @@ Six classes derive from the prop. Logic only, without drawing:
 | Sign | 0xAB72FBB3 | 0x005F5510 | 20 functions, 2,985 bytes | 14 functions, 6,280 bytes (the geometry builder 0x005F5FB0 alone is 4,964) |
 | Text decal (the label) | 0x8B79C707 | 0x005F8300 | 28 functions, 3,596 bytes (26 the class's, 2 its pool's) | none |
 
-The logic is 113 functions and about 14.8 KB in all. 82 more are eight-byte adjustor thunks, which stay: they jump into the detours. Piece 1 took the first two rows (39 functions: 13 + 5 for the decal, 16 + 5 for the effect). Piece 2 took the next two: the controller's 15 (10 + 5 for the object) and the burnt building's 13. That is 3 more than the table's 10: its QueryInterface (a single jump), the allocator and SetOccupant were counted outside it. Piece 3 took the text decal: 26 functions (21 + 5 for the object). The survey's 28 counted the pool's two page functions, 0x005F7680 (makes a page of 0x57 items) and 0x005F82A0 (frees an item), which are reached only from the pool's vtables 0x00AA54A8 and 0x00AA54E4 and stay the game's like the other pools' page code. Still the game's after piece 3: the sign's logic (20) and all drawing (the burnt building's quad builder and model interface among it).
+The logic is 113 functions and about 14.8 KB in all. 82 more are eight-byte adjustor thunks, which stay: they jump into the detours. Piece 1 took the first two rows (39 functions: 13 + 5 for the decal, 16 + 5 for the effect). Piece 2 took the next two: the controller's 15 (10 + 5 for the object) and the burnt building's 13. That is 3 more than the table's 10: its QueryInterface (a single jump), the allocator and SetOccupant were counted outside it. Piece 3 took the text decal: 26 functions (21 + 5 for the object). The survey's 28 counted the pool's two page functions, 0x005F7680 (makes a page of 0x57 items) and 0x005F82A0 (frees an item), which are reached only from the pool's vtables 0x00AA54A8 and 0x00AA54E4 and stay the game's like the other pools' page code. Piece 4 took the sign's logic: the survey's 20 functions and 2,985 bytes exactly (15 + 5 for the object; the survey counted the constructor as the 9 bytes before Ghidra's split at 0x005F5519). The sign's pool page functions (0x005F49A0 and 0x005F5380, in the pool's vtables 0x00AA5258 and 0x00AA5288) were not in the survey's 20 and stay the game's. Still the game's after piece 4: all drawing, the burnt building's quad builder and model interface and the sign's geometry builder with its helpers and model interface.
 
 cSC4PylonOccupant (class 0x49B6D69B, constructor 0x005F1730, code 0x005F0820 to 0x005F2A8D) lies in the same range but derives from the occupant base, not from the prop. It is not part of this family.
 
@@ -107,6 +107,29 @@ A label draws nothing itself. The service at 0x00B43CE4 (the application's slot 
 
 A label is shown (base flag 2) only while the city shows signs and labels (the service 0x00B43DB8's slot 10): SetAllFlags drops flag 2 otherwise. Init (for a label not read from a save), the city's message 0x26D31EC1 and a new visibility filter (message 0x06CDB65B, its data 2 pointing at the filter) show it when the filter (the service 0x00B43DC4's slot 18) takes it and labels are shown; the filter message also hides it. Shown, it makes its overlays (and a texture, when it has text and none); hidden, it takes them off.
 
+### Sign
+
+Class ID 0xAB72FBB3, interface 0x4B44FBE2 (the sign interface; QueryInterface answers it, not the class ID). Init gives the prop the prop type 0xAB72FBB3, the same value: the "kind" the sign removal tool's filter and the prop developer's list go by ([tools.md](tools.md), [prop.md](prop.md)). The exe has no name string for the class; Ghidra's symbol import calls the factory `cSC4SignpostOccupant::Create`, and the survey's name was cSC4SignpostOccupant. Ours is cSC4PropOccupantSign, after the family; the two entries tools.toml had as `SC4TerrainSignProp::Allocate` and `::Construct` are renamed. 0x590 bytes from a pool (0x00B0A96C, 64 KB pages of 0x2E items; allocator 0x005F5050, factory 0x005F5CE0). Constructor 0x005F5510 (an argument: not 0 for the most derived object; the sign tool and the factory pass 1), destructor body 0x005F5D80, deleting destructor 0x005F5D20. The sign tool makes them with the allocator and the constructor (0x004D82C5 / 0x004D82D9, [tools.md](tools.md)); a save's signs come through the factory.
+
+Like the burnt building it has a model part, at +0x6C (vbptr at +0x70, table 0x00AA5498: -4, 0x51C), whose virtual base, the model interface, is at +0x58C (19 thunks through the displacement at +0x588). The model part's functions take the part + 0x30, the object + 0x9C, as `this`.
+
+| Part | Vtable | The class's own |
+| --- | --- | --- |
+| +0x0 | 0x00AA5478, 8 slots | QueryInterface 0x005F4930, SetText 0x005F7600, GetText 0x005F5920, SetHighlight 0x005F4BA0, SetEditing 0x005F7320. Slot 3 is the shared AsOccupant stub, the game's |
+| +0x8 | 0x00AA5408 | DoMessage 0x005F7510 |
+| +0xC | 0x00AA5380 | Init 0x005F73A0, Shutdown 0x005F5E20, SetPosition 0x005F4E90, SetAllFlags 0x005F4A90 |
+| +0x10 | 0x00AA5364 | Write 0x005F5080, Read 0x005F50F0, GetGZCLSID 0x005F5940 |
+| +0x6C | 0x00AA52E4, 1 slot | the deleting destructor's thunk 0x005F59C0 |
+| +0x58C | 0x00AA5298, 19 slots | the model interface: the drawing, the game's |
+
+Not virtual: the caret's clock 0x005F4960 and MakeGlyphs 0x005F5EF0, both ours; the geometry builder 0x005F5FB0 and its helpers 0x005F4D10, 0x005F4DF0, 0x005F5200 and 0x005F53C0 (drawing, the game's).
+
+Fields: +0x80 the model part's flags (bit 0: highlighted); +0x98 the text (a game string, 0x14 bytes); +0xAC the editing byte; +0xAD the caret (shown or not) and +0xB0 its clock, neither set by the constructor; +0xB4 the transform's change count and +0xB5 its flags (bit 0 set by a move); +0xB8 a rotation (nine floats, the identity); +0xDC the position (three floats); +0xE8 a scale (1); +0xEC four boxes of six floats; +0x14C on the vertices the geometry builder makes, among them the board's four corner colours (+0x4D4, 0x10 apart); +0x4BC a buffer the destructor frees; +0x548 a texture binding only the destructor releases and +0x54C ten more (Init); +0x574 the text's textures (a vector of references); +0x580 the render state.
+
+A sign is drawn by its own model. The text service at 0x00B43CE4 makes the text's textures (MakeGlyphs: its slot 4 with a style, an empty name and 0x2C1FD612, the text and the vector to fill), and Init asks the framework's texture binding factory (0x00B43CD4) for ten bindings of the texture 0x7AB50E44, 0x1ABE787D with instances 0x8B4A6560 to 0x8B4A6567 (the table at 0x00AA5214; 0x8B4A6564 and 0x8B4A6565 twice). The geometry builder lays the board and the text out from those textures and the transform, sets the boxes and the prop's box, tells the occupant manager when the sign is in it and hands a shown sign's model to the renderer. Init (it also sets two boxes and the prop's box for a sign not read from a save, the prop type and base flag 0x10), SetText, SetEditing and the view's message 0xA6B79602 build it again. SetPosition moves the last three boxes by the move and tells the renderer about a shown sign (its slot 31 with 4).
+
+A sign is shown (base flag 2) only while the city shows signs and labels: SetAllFlags drops flag 2 otherwise, and on a change of flag 2 adds the model to the renderer or takes it off, as the burnt building's does. Unlike the label's, its Init does not show it: the visibility filter's message 0x06CDB65B shows it when the filter takes it and labels are shown, and hides it otherwise. SetHighlight (the sign removal tool's mark, and the edit) sets bit 0 of the model part's flags through the model interface, gives the four corners a colour (the table at 0x00AA5204: 0xFFBEAC90 plain, 0xCCFFFFFF highlighted) and hands a shown sign to the renderer (slot 31 with 5); losing the highlight ends an edit. SetEditing (the sign tool) highlights the sign and listens to the frame service (0x80); the frame message 0x86AD10EE's time over 1000 goes to the caret's clock, which flips the caret every 500.
+
 ### What follows frames and the view, not game days
 
 - Base flag 2 of both (the occupant's flags at object + 0x3B). SetAllFlags (occupant slot 30) acts on every change of it. What changes it through that slot in play was not traced (the prop's own SetPlaceableFlag writes the byte directly); AddCityProp alone does not set it, and in the test cities nearly every effect prop has it set. With it come the decal's overlay (+0x9C) and ID (+0x6C), made when it is first set, and the effect's fresh byte.
@@ -114,12 +137,13 @@ A label is shown (base flag 2) only while the city shows signs and labels (the s
 
 - The burnt building's model in the renderer (SetAllFlags with base flag 2).
 - The text decal's base flag 2 (whether the city shows signs and labels, the visibility filter), its texture, overlay managers and IDs, and with them its width and box (the texture's size, the ground's height) and the turn it gives the overlays (the camera).
+- The sign's base flag 2 and its model in the renderer, the caret and its clock (frames while it is edited), the transform's change count (the view's message 0xA6B79602 builds the geometry again).
 
-The rest is plain state: the decal's texture, size, centre and fade settings; the effect's name, ID, property counts and started byte; the controller prop's template name and enabled byte, and whether the manager gave it a controller; the burnt building's box, texture bindings, render state and quad.
+The rest is plain state: the decal's texture, size, centre and fade settings; the effect's name, ID, property counts and started byte; the controller prop's template name and enabled byte, and whether the manager gave it a controller; the burnt building's box, texture bindings, render state and quad; the sign's text, position, editing byte and highlight, and the textures and bindings it holds.
 
 ## What is ours
 
-All ten groups are off by default. They call the prop's functions at their addresses.
+All twelve groups are off by default. They call the prop's functions at their addresses.
 
 | Replacement | What is ours |
 | --- | --- |
@@ -133,6 +157,8 @@ All ten groups are off by default. They call the prop's functions at their addre
 | `simulators.propkinds.textdecal` | 21 detours: QueryInterface, SetText, GetText, SetSize, SetMoving, SetColour, SetDirection, SetOpacity, RemoveOverlays, MakeOverlays, MoveOverlays, PickOverlayManagers, MakeText, DoMessage, Init, Shutdown, SetPosition, SetAllFlags, Write, Read, GetGZCLSID |
 | `simulators.propkinds.textdecal_object` | the same five for the text decal (copies of its seven vtables); its factory hands out the object itself |
 | `simulators.propkinds.burnt_object` | the same five for the burnt building, with copies of its eight vtables (the virtual base's included; the vbptr's table stays the game's) |
+| `simulators.propkinds.sign` | 15 detours: QueryInterface, SetText, GetText, SetHighlight, SetEditing, the caret's clock, MakeGlyphs, DoMessage, Init, Shutdown, SetPosition, SetAllFlags, Write, Read, GetGZCLSID |
+| `simulators.propkinds.sign_object` | the same five for the sign, with copies of its nine vtables (the model part's and the virtual base's included; the vbptr's table stays the game's); its factory hands out the object itself |
 
 Two address entries were renamed: 0x005EE360 and 0x005ED6E0 were SC4CraterProp::Construct and ::Allocate, and are now cSC4PropOccupantTerrainDecal::Construct and ::Allocate. In piece 2, three more: 0x005EF810, 0x005EDAE0 and 0x005EEB70 were SC4ExplosionEffect::Construct, ::Allocate and ::SetOccupant, and are now cSC4PropOccupantBurntBuilding's.
 
@@ -141,6 +167,8 @@ Still the game's: the eight-byte adjustor thunks (they jump into our detours), t
 Callers outside the class: the class registration (0x0046078B to 0x004607A2 calls each GetGZCLSID and keeps each factory's address, before any replacement is installed), and four places that call an allocator and then the constructor: the prop manager (0x004A256A / 0x004A2578 and 0x004A30B7 / 0x004A30C5 for the effect, 0x004A258B / 0x004A2599 and 0x004A30D8 / 0x004A30E6 for the decal), the terrain code (0x0075EE44 / 0x0075EE52 and 0x006CC3B1 / 0x006CC3C3, decals) and 0x005CBC1E / 0x005CBC2C and 0x005CECC5 / 0x005CECD3 (effects). Each reads only EAX after either call, so the detours are plain functions. No wrapper of the `game.*` kind touches any of the 39 addresses. The same holds for piece 2: the registration (0x004607AF to 0x004607C6), 0x00529628 / 0x00529636 (the controller prop) and ExplodeLot's 0x006CC310 / 0x006CC320 / 0x006CC33C (the burnt building).
 
 Piece 3: the registration (0x00460851 / 0x00460856), the prop manager's TextDecal command (0x004A363F / 0x004A364D) and the label tool (0x004BD971 / 0x004BD97F). Each reads only EAX after either call. Ours of the command (src/core/propmgr_2.cpp) and of the tool (src/core/tool_decal.cpp) call the same two addresses, so they work with `simulators.propkinds.textdecal_object` off and on. MakeOverlays, RemoveOverlays, MoveOverlays, PickOverlayManagers and MakeText have no caller outside the class. No jump or call in the exe lands inside the first five bytes of any of the 26.
+
+Piece 4: the registration (0x0046083F / 0x00460844) and the sign tool (0x004D82C5 / 0x004D82D9). Each reads only EAX after either call. Ours of the tool (src/core/tool_signtext.cpp) and the tools' test (src/core/tool_t4_autotest.cpp) call the same two addresses, so they work with `simulators.propkinds.sign_object` off and on. The caret's clock is called by DoMessage only, MakeGlyphs by Init and SetText only, the destructor body by the deleting destructor only. No jump or call in the exe lands inside the first five bytes of any of the 20.
 
 ## Kept as the game does it
 
@@ -165,11 +193,12 @@ Copied on purpose and commented in the code:
 - The text decal: QueryInterface answers its interface only, not its class ID; the factory hands out the object, not the object + 4. SetSize takes only sizes above 0 and below 8 and does not compare with the size kept. SetColour does nothing when each part is within 0.0001 of the one kept; SetOpacity when the value is the same (not a number always counts as new). While moving, colour and opacity go to the overlays there are; otherwise every setter lays the text down again. The overlay managers are not tested for null where an ID is there, nor the terrain view, the camera, the texture service or the filter of the filter message. MakeOverlays reads the camera's rotation and a table of turns without a bounds test. SetPosition asks the city for the cell and does not use the answer. The texture is read again before each call that takes it, and MakeText lets it go twice over (the second finds null), as the game does. Shutdown calls the prop's own Shutdown (it frees the date range). The destructor does not store the vtables first and releases the managers and the texture without taking the overlays off.
 - The text decal's SetAllFlags: where flag 2 changes, the game returns whatever the last call left in EAX; ours returns the base's flags byte there too. No caller is known to read it.
 - The text decal's Read refuses no version: before version 3 a dword after the text is dropped, and in version 1 the size is an unsigned integer. Its version is read into a stack slot the game never set; ours starts it at 0, which matters only when the read itself fails. The direction is saved as a byte and read back into the argument's stack slot, then zero-extended.
+- The sign: QueryInterface answers its interface only, not its class ID; the factory hands out the object. Init does not show it. The caret and its clock are not set by the constructor. SetText does nothing only when the text is the same and not empty. SetHighlight compares the argument's byte with the highlight bit and hands the renderer a shown sign without a null test; SetEditing does not test the frame service for null. Shutdown leaves the editing byte as it is and does not take the model off the renderer; it releases ten bindings, the destructor eleven (+0x548, which nothing sets, among them) and neither stores the vtables first. SetPosition rounds the move along x to a float and keeps the other two on the FPU, and moves three of the four boxes. Read refuses no version (version 1 has a dword more after the text, which is dropped; the game reads it into a stack slot it never set, ours into 0) and reads the version into the argument's stack slot. The game's constructor ends with a test of the transform's flags it has just cleared; the test and its body are left out.
 - Where the game leaves stack leftovers (the overlay manager's 0x24-byte info block, past its first three dwords; two bytes of the effect's 0x38-byte transform block) ours zeroes them.
 
 Version 3 is also the controller prop's record (the prop's, the enabled byte, the name) and the burnt building's (the prop's, the burnt box). For the decal and the effect, version 3 is: the prop's record, then the class's fields in order. The decal saves the overlay ID as it is, the key, the size, the centre, the opacity, the fade's three values, the action and two bytes. The effect saves the started and fresh bytes, then the name and ID as they are when no property gave them, else an empty string and ID 0. Read refuses any other version. When the prop's Read fails the decal's Read answers false; the effect's reads nothing more and answers whether the stream is free of errors. The property counts are not saved: Init counts them again.
 
-The text decal's version 3 is: the prop's record, the text, the place, the size, the width, the place again, the colour, the opacity and the direction's byte.
+The text decal's version 3 is: the prop's record, the text, the place, the size, the width, the place again, the colour, the opacity and the direction's byte. The sign's version 2 is: the prop's record, the text and the position.
 
 ## Tests
 
@@ -192,6 +221,13 @@ Piece 3 extends it again to the text decal (the label; `city` gives its count, h
 - Made label: from the allocator and the constructor as the label tool makes one, never inserted or shown. The setters (refused sizes 0, 8 and -1, a colour within 0.0001, the same opacity and direction), SetPosition, the moving byte (managers 2 and 3 picked and given back), SetText with "Label" and then "Label é" (UTF-8 C3 A9) read back through GetText, a flag other than 2.
 - With `_EDIT=1` one more round trip. A label is made small (size 0.1, so that its box, about 6 m wide with this text, stays inside the spot's empty 64 m occupant cell; at size 1 it is 64 m wide and the flammability simulator's map then differs from the unchanged city's), placed and added as the label tool does it (Init gives it the prop type and its managers and shows it when the city shows signs and labels), given "Label é", shown, set a size (0.15), colour, opacity and direction (each lays the text down again), dragged (the moving byte, a move, a colour and an opacity while moving), sent the view's messages 0xA6B79602, 0x26D31EC1 and 0x06CDB65B with the city's filter, hidden and shown. Then signs and labels are switched off: showing it is refused. The switch is put back, and the label is removed. When signs and labels were off before, the test switches them on for the round trip and back after.
 - `_EDIT=2` leaves two labels, "Label é" at the spot and "Label" 4 m off, each with a colour and a size of its own, so the save holds both texts.
+
+Piece 4 extends it to the sign (`city` gives its count, hashes, how many are edited, highlighted, have textures for their text and all ten bindings, and one line per sign with its text in hex, sorted; the token changes with it).
+
+- The walk confirms a sign through its interface 0x4B44FBE2. Its plain state: the text, the position, the editing byte, the highlight bit, how many textures and bindings it holds and the box's size (the caret, its clock and the transform's count follow frames and the view).
+- Made sign: from the allocator and the constructor with 1 as the sign tool makes one, never inserted or shown. The constructor's transform and boxes, two moves, SetText with "Sign", the same again (nothing) and "Sign é" read back through GetText, the highlight on, on again and off (the corner colours), an edit with four frame messages the test makes (times 300000, 300999, 499000 and 1000: the caret flips at the second and the fourth) and one that is not a frame, the edit ended by the highlight going, the view's message 0xA6B79602, a flag other than 2, Shutdown of a sign that is not initialized.
+- With `_EDIT=1` one more round trip, at a spot of its own: a sign's box is about 92 m by 38 m with the test's text (146 m high), far wider than the 64 m occupant cell, and where it reached into an occupied cell the flammability simulator's map differed from the unchanged city's on Making Money and Big City (in the original's runs and ours alike, as with piece 3's first label). The spot is the middle of a 64 m cell whose own and two neighbours along x are empty, anywhere but the city's outer 64 m. A sign is placed there and added (unlike the sign tool, which adds it at the origin and then moves it; Init gives it the prop type, flag 0x10, its bindings and its geometry), shown (its model goes to the renderer; signs and labels switched on for the test when they were off), given "Sign é", highlighted and not, edited for two frames of the test's, dragged and put back, sent the view's messages 0xA6B79602 and 0x06CDB65B with the city's filter, hidden and shown (the renderer gives the model up and takes it again), refused with signs and labels off, hidden and removed.
+- `_EDIT=2` also leaves a sign, "Sign é", at the spot.
 
 The test never calls Write, Read or a destructor: the save at the end of every run and the load of a save reach the first two, Release the others. Not tested at all: fade actions 1 and 2.
 
@@ -331,3 +367,50 @@ The first two were changed to match. Not measured:
 
 1. Whether any caller of occupant slot 30 (SetAllFlags) reads more than AL. Where flag 2 changes, the game's EAX is whatever the last call left.
 2. The x87 arithmetic of MakeOverlays (the width) and SetColour (the comparison) is computed in doubles. This equals the game at 53-bit precision, as for the decal.
+
+### Piece 4
+
+Acceptance (three saves): runs on 2026-10-19 with the debug build's snapshot pp4 (main as of #307), 7 days, results in `%LOCALAPPDATA%\opensc4\analysis\pp4-trial\`. The same nine save and case pairs as pieces 1 to 3, with `OPENSC4_TEST_FINGERPRINT=1`, each run four times:
+
+- the original, twice;
+- piece 3's B list ours, with the two new groups;
+- only the twelve `simulators.propkinds.*` and the four `simulators.propocc.*` groups ours.
+
+36 of 36 runs finished. In every pair the four runs agree in every `autotest: propkinds` line and every fingerprint line. All twelve round trips log `restored yes`. With the token left out, every level 1 and round-trip run has the same fingerprints as the unchanged city on all eight days.
+
+| Save | Level 1 | With the round trip |
+| --- | --- | --- |
+| Making Money d0090 | token 2C735CDF | token 50F3C89F |
+| Big City d0000 | token 5EE76A14 | token 3C4AD24E |
+| Rush Hour d0090 | token 1A62AC65 | token 7C356D14 |
+
+A first matrix put the round trip's sign at the spot the other classes use. Its box is about 92 m wide (with "Sign é"), so it reached past the spot's empty 64 m occupant cell, and on Making Money and Big City the flammability simulator's map hash (`flam`) differed from the unchanged city's from the day after the test, in the original's runs and ours alike. The sign now has a spot of its own (Tests above).
+
+The save leg: Making Money d0090 with `_EDIT=2`, once on the original and once with the sixteen groups ours. Both runs logged the same lines and saved. Each save was then loaded by both sides with level 1, and all four loads logged the same lines. They found the sign with its text, `Sign é` (5369676E20C3A9), with its ten bindings and the textures of its text, and the other classes as in piece 3. The sign's plain hash after the load (7C9F4474) is not the one it was left with (F0D813B7): its height is 3.87 m higher. The original does the same, in both its runs and on both saves. That is the prop developer lifting signs to the terrain when a city is loaded ([prop.md](prop.md), 0x006F5104), not this piece. In the two saves the sign's record (0xAB72FBB3, 113 bytes) is byte for byte the same but for the record header's CRC and ID, which differ the same way in the decal's and the labels' records.
+
+The sign tool's test (`OPENSC4_TEST_TOOLS4=2 OPENSC4_TEST_TOOLS4_COMMIT=1 OPENSC4_TEST_TOOLS4_PARTS=10 OPENSC4_TEST_TOOLS4_REMOVE=1`, Making Money d0090, 3 days) makes, types into, drags, keeps, deletes and removes signs through the sign tool and the sign removal tool. The original twice and the sixteen groups ours twice log the same `autotest: tools4` lines and fingerprints. It reaches 16 of the 20 functions (not the caret's clock, DoMessage, Create or Read).
+
+Reached: all 20 functions in the runs with the groups ours. The matrix reaches 17 of them; the factory, Write and Read only the save leg. Not reached inside them:
+
+- Read of version 1;
+- a sign shown or hidden by the filter message (in the round trip it is shown already and the filter takes it);
+- Shutdown of a sign that is being edited.
+
+No test city and no corpus save holds a sign, and the prop tables have no type of the class.
+
+Parity (batches pp4-*, 7 days, 2026-10-19, one job, the B side as in the matrix, with `determinism.dispatch_info=ours` among the base):
+
+| Batch | Result |
+| --- | --- |
+| plain | 12 of 12 saves the same |
+| `OPENSC4_TEST_PROPKINDS=2` | 12 of 12 |
+| `OPENSC4_TEST_PROPKINDS_EDIT=1` | 12 of 12 |
+| the plopped corpus with the edit | 3 of 3 |
+
+Every save was the same on its first pair. All 30 runs of the two edit batches logged `restored yes`, and none logged `STILL`. Results are in `%LOCALAPPDATA%\opensc4\parity\pp4-*`. Main's `tools/re/paritygroups.py` now skips the CRC and ID fields (the fix piece 3 was waiting for) and needed no change here.
+
+The audit compared all 20 functions instruction by instruction with the disassembly, with every callee's `ret N`, the tables at 0x00AA5204 and 0x00AA5214 and the vtables. It found no difference in behaviour. Not measured:
+
+1. SetPosition reads the new position after it has moved the boxes; the game reads it before. This differs only for a position that lies inside the sign's own boxes, which no caller passes.
+2. The x87 arithmetic of SetPosition is computed in doubles, as for the decal and the label. This equals the game at 53-bit precision.
+3. The message server's and the text service's (0x00B43CE4) argument counts come from the caller's stack, not from the callee.
