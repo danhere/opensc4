@@ -5356,7 +5356,7 @@ address = 0x008D35AB
 kind = "function"
 convention = "thiscall"
 expect = "53 56 68 16 A1 07 00 68"
-source = "Name ours; framework sound code, the game's. Constructor of the 0x90-byte class 0x5CFBDBBF (a system service; the class registry gets its part at +0x1C)."
+source = "Name ours. Constructor of the music player (docs/audio.md, \"Music player\"): the 0x90-byte class 0x5CFBDBBF, a system service (ID 0x1D07B39F) whose part at +0x1C is the player interface 0xE0510260. Ours in audio.music.part1 (src/core/music_1.cpp)."
 
 [[entry]]
 name = "GZSound::Construct8D376E"

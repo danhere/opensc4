@@ -1,0 +1,395 @@
+# GZSound's music player, first piece (docs/audio.md, "Music player"): the player service's life, COM, Shutdown and its simple methods. The constructor 0x008D35AB is in audio.toml (GZSound::ConstructService).
+
+[[entry]]
+name = "GZMusicPlayer::Destruct"
+address = 0x008D36EF
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 74 C7 06"
+source = "Name ours (docs/audio.md, \"Music player\"); the player service's destructor (vtables back, the two strings, the station vector's storage, then the base 0x0091DD53)."
+
+[[entry]]
+name = "GZMusicPlayer::DeletingDestruct"
+address = 0x008D38C9
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 1E FE FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); deleting destructor, ret 4; slot 3 of the +4 vtable through 0x008D3693."
+
+[[entry]]
+name = "GZMusicPlayer::QueryInterface"
+address = 0x008D2A6E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 7D 08 01 74"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 0 of the service vtable 0x00ACC3C0: 1 and 0xE0510260 give the +0x1C part, 0x287FB697 the object."
+
+[[entry]]
+name = "GZMusicPlayer::AddRef"
+address = 0x008D2AAF
+kind = "function"
+convention = "thiscall"
+expect = "FF 41 28 8B 41 28 C3"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 1; the count at +0x28."
+
+[[entry]]
+name = "GZMusicPlayer::Release"
+address = 0x008D2AB6
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 28 83 F8 01 76 05"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 2; at the last reference calls slot 19 (0x008D2ACB)."
+
+[[entry]]
+name = "GZMusicPlayer::QueryInterface4"
+address = 0x008D367B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 EB F3 FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); this-adjustor thunk of the +0x4 part: ECX - 0x4, then QueryInterface."
+
+[[entry]]
+name = "GZMusicPlayer::AddRef4"
+address = 0x008D3683
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 24 F4 FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); this-adjustor thunk of the +0x4 part: ECX - 0x4, then AddRef."
+
+[[entry]]
+name = "GZMusicPlayer::Release4"
+address = 0x008D368B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 23 F4 FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); this-adjustor thunk of the +0x4 part: ECX - 0x4, then Release."
+
+[[entry]]
+name = "GZMusicPlayer::DeletingDestruct4"
+address = 0x008D3693
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 04 E9 2E 02 00 00"
+source = "Name ours (docs/audio.md, \"Music player\"); this-adjustor thunk of the +0x4 part: ECX - 0x4, then the deleting destructor."
+
+[[entry]]
+name = "GZMusicPlayer::QueryInterface1C"
+address = 0x008D369B
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 CB F3 FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); this-adjustor thunk of the +0x1C part: ECX - 0x1C, then QueryInterface."
+
+[[entry]]
+name = "GZMusicPlayer::AddRef1C"
+address = 0x008D36A3
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 04 F4 FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); this-adjustor thunk of the +0x1C part: ECX - 0x1C, then AddRef."
+
+[[entry]]
+name = "GZMusicPlayer::Release1C"
+address = 0x008D36AB
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 03 F4 FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); this-adjustor thunk of the +0x1C part: ECX - 0x1C, then Release."
+
+[[entry]]
+name = "GZMusicPlayer::Init1C"
+address = 0x008D51DB
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 A4 F4 FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); this-adjustor thunk of the +0x1C part: ECX - 0x1C, then Init (0x008D4687)."
+
+[[entry]]
+name = "GZMusicPlayer::Shutdown1C"
+address = 0x008D36B3
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 1C E9 4E F3 FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); this-adjustor thunk of the +0x1C part: ECX - 0x1C, then Shutdown."
+
+[[entry]]
+name = "GZMusicPlayer::QueryInterface20"
+address = 0x008D36BB
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 20 E9 AB F3 FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); this-adjustor thunk of the +0x20 part: ECX - 0x20, then QueryInterface."
+
+[[entry]]
+name = "GZMusicPlayer::AddRef20"
+address = 0x008D36C3
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 20 E9 E4 F3 FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); this-adjustor thunk of the +0x20 part: ECX - 0x20, then AddRef."
+
+[[entry]]
+name = "GZMusicPlayer::Release20"
+address = 0x008D36CB
+kind = "function"
+convention = "thiscall"
+expect = "83 E9 20 E9 E3 F3 FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); this-adjustor thunk of the +0x20 part: ECX - 0x20, then Release."
+
+[[entry]]
+name = "GZMusicPlayer::Init"
+address = 0x008D4687
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 5C 53 56"
+source = "Name ours (docs/audio.md, \"Music player\"); service slot 8, Init: the game's (a later piece); called by address from the thunk 0x008D51DB."
+
+[[entry]]
+name = "GZMusicPlayer::Shutdown"
+address = 0x008D2A09
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 80 7E 24 00 74"
+source = "Name ours (docs/audio.md, \"Music player\"); service slot 9."
+
+[[entry]]
+name = "GZMusicPlayer::OnTick"
+address = 0x008D365B
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 1C 8B 01 FF 50 14"
+source = "Name ours (docs/audio.md, \"Music player\"); service slot 10, ret 4: calls the player interface's slot 5."
+
+[[entry]]
+name = "GZMusicPlayer::SetHelper"
+address = 0x008D3651
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 41 64 C2"
+source = "Name ours (docs/audio.md, \"Music player\"); service slot 13, ret 4: the pointer at +0x64."
+
+[[entry]]
+name = "GZMusicPlayer::Flag89"
+address = 0x008D366C
+kind = "function"
+convention = "thiscall"
+expect = "8A 81 89 00 00 00 C3"
+source = "Name ours (docs/audio.md, \"Music player\"); service slot 15: the byte at +0x89."
+
+[[entry]]
+name = "GZMusicPlayer::Destroy"
+address = 0x008D2ACB
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 24"
+source = "Name ours (docs/audio.md, \"Music player\"); service slot 19: Shutdown, then the deleting destructor of the +4 part."
+
+[[entry]]
+name = "GZMusicPlayer::PostVolume"
+address = 0x008D2C5F
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 39 41 68 74 14 8B"
+source = "Name ours (docs/audio.md, \"Music player\"); posts message 0x0AB1A61E (the volume) to the message server at +0x68; ret 4."
+
+[[entry]]
+name = "GZMusicPlayer::Pause"
+address = 0x008D312A
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 E4 E9 07 FB FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 8: ret 4; ECX - 0x1C, then posts 0x6AB1A480 with the switch (body at 0x008D2C39)."
+
+[[entry]]
+name = "GZMusicPlayer::StationCall24"
+address = 0x008D3025
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 14 3B 41 18 74 16"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 9: ret 4; slot 9 (+0x24) of the current station, if any."
+
+[[entry]]
+name = "GZMusicPlayer::GetStationIndex"
+address = 0x008D300B
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 14 3B 41 18 74 0D"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 10: ret 4; the index at +0x48."
+
+[[entry]]
+name = "GZMusicPlayer::StationAt"
+address = 0x008D3048
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 18 2B 51 14 8B 44"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 12: ret 4; the station at an index, or 0."
+
+[[entry]]
+name = "GZMusicPlayer::SetVolume"
+address = 0x008D2FDC
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 BA 00 04 00"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 16: ret 4; the volume (at most 0x400) at +0x3C and +0x8C, posted unless muted."
+
+[[entry]]
+name = "GZMusicPlayer::StationCount"
+address = 0x008D30C7
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 18 2B 41 14 C1 F8"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 17: the number of stations."
+
+[[entry]]
+name = "GZMusicPlayer::HasStation"
+address = 0x008D2BED
+kind = "function"
+convention = "thiscall"
+expect = "FF 74 24 04 8B 01 FF 50"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 18: ret 4; whether slot 11 finds one."
+
+[[entry]]
+name = "GZMusicPlayer::RemoveStationBy"
+address = 0x008D2BC9
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 08 8B F1 8B"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 20: ret 8; slot 11, then slot 21 with what it found."
+
+[[entry]]
+name = "GZMusicPlayer::Mute"
+address = 0x008D2F97
+kind = "function"
+convention = "thiscall"
+expect = "33 D2 38 54 24 04 74 16"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 25: ret 4; the mute count at +0x40, the volume posted at its first and last."
+
+[[entry]]
+name = "GZMusicPlayer::GetOption"
+address = 0x008D2BA3
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 75 05"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 26: ret 4; the bytes +0x4C, +0x4D, +0x4E by number 0, 1, 3."
+
+[[entry]]
+name = "GZMusicPlayer::SetOption"
+address = 0x008D2B74
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 7D 0C 00 75"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 27: ret 8; the same bytes set."
+
+[[entry]]
+name = "GZMusicPlayer::GetFolder"
+address = 0x008D36D3
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 28: ret 4; the folder string at +0x50 copied to a cIGZString."
+
+[[entry]]
+name = "GZMusicPlayer::SetFolder"
+address = 0x008D3673
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 34 8B 01 FF 60 34"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 29: the folder string's slot 13 (assignment) by a jump; 8 bytes."
+
+[[entry]]
+name = "GZMusicPlayer::Stop"
+address = 0x008D3122
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 E4 E9 F6 FA FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 31: ECX - 0x1C, then posts 0x0AB186E5 (body at 0x008D2C20)."
+
+[[entry]]
+name = "GZMusicPlayer::GetTrackName"
+address = 0x008D5092
+kind = "function"
+convention = "thiscall"
+expect = "80 79 6C 00 74 0D 83 C1"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 32: ret 4; the string at +0x74 copied out when +0x88 is set."
+
+[[entry]]
+name = "GZMusicPlayer::SetTrackName"
+address = 0x008D50AA
+kind = "function"
+convention = "thiscall"
+expect = "83 C1 58 E9 CE F2 B4 FF"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 33: ret 4; the string at +0x74 assigned by a jump to 0x00424380."
+
+[[entry]]
+name = "GZMusicPlayer::SetSettings"
+address = 0x008D2ADF
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 8B 45 08 33 D2"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 35: ret 4; eight dwords: volume, on, station, three options, a value at +0x2C."
+
+[[entry]]
+name = "GZMusicPlayer::GetSettings"
+address = 0x008D2B3C
+kind = "function"
+convention = "thiscall"
+expect = "8B 51 20 8B 44 24 04 89"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 36: ret 4; the same eight dwords written (the sixth is left alone)."
+
+[[entry]]
+name = "GZMusicPlayer::IsOn"
+address = 0x008D2B70
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 28 C3"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 24: the byte at +0x44. The game's: 4 bytes with the next function right after, too short for the entry hook."
+
+[[entry]]
+name = "GZMusicPlayer::Flag88"
+address = 0x008D3668
+kind = "function"
+convention = "thiscall"
+expect = "8A 41 6C C3"
+source = "Name ours (docs/audio.md, \"Music player\"); player interface 0xE0510260 (vtable 0x00ACC310, this = the object + 0x1C), slot 34: the byte at +0x88. The game's: 4 bytes with the next function right after, too short for the entry hook."
+
+[[entry]]
+name = "GZMusicPlayer::ServiceVtable"
+address = 0x00ACC3C0
+kind = "vtable"
+expect = "6E 2A 8D 00 AF 2A 8D 00"
+source = "Name ours (docs/audio.md, \"Music player\"); the system service part at +0 (20 slots)."
+
+[[entry]]
+name = "GZMusicPlayer::UnknownVtable"
+address = 0x00ACC3A4
+kind = "vtable"
+expect = "7B 36 8D 00 83 36 8D 00"
+source = "Name ours (docs/audio.md, \"Music player\"); the base's unknown part at +4."
+
+[[entry]]
+name = "GZMusicPlayer::PlayerVtable"
+address = 0x00ACC310
+kind = "vtable"
+expect = "9B 36 8D 00 A3 36 8D 00"
+source = "Name ours (docs/audio.md, \"Music player\"); the player interface 0xE0510260 at +0x1C (37 slots)."
+
+[[entry]]
+name = "GZMusicPlayer::TargetVtable"
+address = 0x00ACC2FC
+kind = "vtable"
+expect = "BB 36 8D 00 C3 36 8D 00"
+source = "Name ours (docs/audio.md, \"Music player\"); the message target at +0x20 (DoMessage 0x008D319B is slot 3)."
+
+[[entry]]
+name = "GZMusicPlayer::PlayerBaseVtable"
+address = 0x00ACC1F8
+kind = "vtable"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours (docs/audio.md, \"Music player\"); written to +0x1C by the constructor before the final one."
+
+[[entry]]
+name = "GZMusicPlayer::TargetBaseVtable"
+address = 0x00A931C4
+kind = "vtable"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours (docs/audio.md, \"Music player\"); written to +0x20 by the constructor before the final one."
