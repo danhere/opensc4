@@ -81,6 +81,7 @@ Things OpenSC4 adds to the game. Classic behaviour stays: an addition that chang
 | [docs/pollution.md](docs/pollution.md) | P5: the pollution simulator's structure and our reimplementation of it |
 | [docs/experiments/pollution-proxy.md](docs/experiments/pollution-proxy.md) | Experiment: a plugin-registered pass-through pollution simulator running a city |
 | [docs/city-size.md](docs/city-size.md) | What limits city tile size and the plan for bigger tiles |
+| [docs/uncharted-code.md](docs/uncharted-code.md) | What the exe's unmapped address ranges hold, and how many of its functions are Maxis code to translate |
 | [docs/research.md](docs/research.md) | Feasibility research, existing projects, legal context, community etiquette |
 | [docs/dev-environment.md](docs/dev-environment.md) | Windows / CachyOS / macOS roles and toolchain |
 
