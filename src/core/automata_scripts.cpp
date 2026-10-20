@@ -38,9 +38,8 @@
 //
 // Oddities kept: QueryInterface's null branches write a null and then call
 // AddRef through the object (the address is held in a volatile local, as
-// in parts a1 and a3a); Release at a count of 1 deletes without counting
-// down; CreateOccupantGroup writes the group ID before testing the new
-// group for null, ignores the automata map's insert answer, and formats
+// in parts a1 and a3a); Release at a count of 1 (or 0) deletes without counting
+// down; CreateOccupantGroup writes the group ID without a null test, ignores the automata map's insert answer, and formats
 // its refusal into a string it frees; AddDefaultGroups writes the class
 // into the group it gets without a test; Matches seeds a cRZRandom on its
 // stack for one draw and never destroys it, and draws only for a
@@ -895,10 +894,14 @@ std::uint8_t __fastcall GroupIsInGroup(char* self, void*, std::uint32_t id)
 {
     static bool logged;
     FirstCall("GroupIsInGroup", logged);
-    for (char* g = self; g; g = At<char*>(g, group::kParent))
+    // The first compare reads this without a test, as the asm does.
+    for (char* g = self;;) {
         if (At<std::uint32_t>(g, group::kId) == id)
             return 1;
-    return 0;
+        g = At<char*>(g, group::kParent);
+        if (!g)
+            return 0;
+    }
 }
 
 // 0x0051C3B0: the first class (+0x14) up the parent chain, the last
