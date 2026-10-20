@@ -239,6 +239,35 @@
 //   destructor) walks them; and a bare common base (0xA88 bytes) built by
 //   0x005125E0 and deleted by its slot 38 0x00512CD0. The city's managers
 //   are not changed.
+// OPENSC4_TEST_AUTOMATA_AWMGR=2 (part aw2): also, on the same day, at the
+//   game's addresses (ours when the simulators.automata.awmgr groups are on),
+//   into the fingerprint as ` B<aircraft>,<watercraft>,<vehicle>,<pedestrian>,
+//   <fresh>,<cheats>,<flags>` from that day on: per city manager the common
+//   base's Write 0x0050CB80 into a stream of the test's own (the version,
+//   the most, the two bools and the source building table; the automata
+//   count, which follows frames, to the log), and TrackAutomataGroupInstances
+//   (slot 31) for the first two groups of the exemplar map that are not
+//   tracked, tracked and untracked again (the AL answers and whether the
+//   entry is gone; the set's size, frame-driven, to the log), and for a
+//   group the map does not hold. Then a new aircraft manager from its
+//   factory, held by one reference: Read 0x005108E0 of the first manager's
+//   bytes (the count zeroed) and Write again, which must give the same bytes;
+//   reads of versions 7 (refused), 4 and 5; SetMaxCount with -5, 30, 30 and
+//   9000; Activate off and on; ReleaseAutomatonSet on an empty set of the
+//   test's own; DoMessage with thirteen messages of the test's own (the
+//   scale switch, the camera hold and its release, the camera moves, slots
+//   48, 50, 57, 58, the null-object branches of 0x89D3E9F3 and 0xEBFF18A3, a
+//   type no one handles); then the release. The group instance table's
+//   insert 0x00512030 and erase 0x00510F10 on a table of the test's own (two
+//   keys in one bucket, the second in the chain erased first, through
+//   0x00510450), and the exemplar record copy 0x00512C80 / 0x005120E0 on two
+//   records of the test's own. Then the cheat target 0x0050DD30
+//   on the city's aircraft manager: another message, another cheat,
+//   0xCC478B79 without a word, with the word at 0x00A82B94 and with another
+//   (the flag 0x00B09968 put back after), and, when there is no route line
+//   yet, 0xE97FCBC8 with the count 7 (the route line made, prepared and
+//   shown) and 0xE97FCBC9 (taken away). The route line's place and the new
+//   manager's camera point go to the log only.
 // A remove and add round trip of one occupant's controllers is not done:
 // removing sends 0xEA298D50 to the automata, destroys the controllers and
 // can drop the occupant's automaton entry (its automata released), and the
@@ -2620,6 +2649,296 @@ void AwManagerDrive(cISC4City* city)
     log::Write("autotest: automata: aw1%s logged %08X", text.c_str(), logged.h);
 }
 
+// ====================================================================================
+// Part aw2's drive (OPENSC4_TEST_AUTOMATA_AWMGR=2), see the top of the file.
+
+std::string g_aw2Text;
+
+// A message object of the test's own: slot 0x10 the type, slot 0x24 a
+// value, every other slot (up to 0x84) 0.
+struct FakeMessage {
+    void** vtable;
+    uint32_t type;
+    uint32_t value;
+};
+uint32_t __fastcall FakeZero(void*, void*) { return 0; }
+uint32_t __fastcall FakeType(FakeMessage* m, void*) { return m->type; }
+uint32_t __fastcall FakeValue(FakeMessage* m, void*) { return m->value; }
+void** FakeMessageVtable()
+{
+    static void* table[34];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&FakeZero);
+        table[0x10 / 4] = reinterpret_cast<void*>(&FakeType);
+        table[0x24 / 4] = reinterpret_cast<void*>(&FakeValue);
+    }
+    return table;
+}
+
+// A cIGZString of the test's own: slot 5 (ToChar) the text.
+struct FakeString {
+    void** vtable;
+    const char* text;
+};
+const char* __fastcall FakeToChar(FakeString* s, void*) { return s->text; }
+void** FakeStringVtable()
+{
+    static void* table[8];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&FakeZero);
+        table[5] = reinterpret_cast<void*>(&FakeToChar);
+    }
+    return table;
+}
+
+void AwLifeDrive(cISC4City* city)
+{
+    namespace aw = automata_awmgr;
+    std::string text = " B";
+    Hash logged, fresh, cheats;
+    uint32_t flags = 0;
+    using Io = uint32_t(__thiscall*)(void*, void*);
+    const auto write = reinterpret_cast<Io>(addr::cSC4AutomataManager_Write);
+    const auto read = reinterpret_cast<Io>(addr::cSC4AutomataManager_Read);
+    const std::size_t slots[] = {aw::kCitySlotAircraft, aw::kCitySlotWatercraft, automata_vehmgr::kCitySlotVehicles,
+                                 automata_vehmgr::kCitySlotPedestrians};
+    std::vector<uint8_t> sample;
+    for (int m = 0; m < 4; ++m) {
+        char* const manager = Virtual<char*>(city, slots[m]);
+        char part[16];
+        if (!manager) {
+            text += m ? ",-" : "-";
+            continue;
+        }
+        // The common base's Write: the version, the most, the two bools and
+        // the table go into the token; the count (bytes 8..11) follows frames.
+        ByteOStream out;
+        Hash hash;
+        hash.Mix(write(manager + aw::field::kSerializable, &out) & 0xFF);
+        hash.Mix(static_cast<uint32_t>(out.bytes.size()));
+        if (out.bytes.size() >= 12) {
+            hash.MixBytes(out.bytes.data(), 8);
+            hash.MixBytes(out.bytes.data() + 12, out.bytes.size() - 12);
+            logged.Mix(U32(out.bytes, 8));
+        }
+        if (m == 0)
+            sample = out.bytes;
+        // TrackAutomataGroupInstances for the first two groups of the
+        // exemplar map that are not tracked: AL into the token, the set's
+        // size to the log, then untracked again (the references given back).
+        std::vector<uint32_t> keys;
+        TreeKeys(At<char*>(At<char*>(manager, aw::field::kExemplarMap), aw::tree::kParent), keys);
+        int tried = 0;
+        for (const uint32_t key : keys) {
+            if (tried == 2)
+                break;
+            struct {
+                char* node;
+                void* table;
+            } it = {};
+            uint32_t k = key;
+            using Find = void(__thiscall*)(void*, void*, const uint32_t*);
+            reinterpret_cast<Find>(addr::SC4Uint32HashTable_Find)(manager + aw::field::kGroupInstances, &it, &k);
+            if (it.node)
+                continue;
+            ++tried;
+            hash.Mix(key);
+            hash.Mix(Virtual<uint8_t>(manager, 0x7C, key, 1u));
+            reinterpret_cast<Find>(addr::SC4Uint32HashTable_Find)(manager + aw::field::kGroupInstances, &it, &k);
+            logged.Mix(it.node ? At<uint32_t>(it.node + 8, aw::table::kCount) : 0xFFFFFFFFu);
+            hash.Mix(Virtual<uint8_t>(manager, 0x7C, key, 0u));
+            reinterpret_cast<Find>(addr::SC4Uint32HashTable_Find)(manager + aw::field::kGroupInstances, &it, &k);
+            hash.Mix(it.node ? 1u : 0u);
+        }
+        hash.Mix(Virtual<uint8_t>(manager, 0x7C, 0x7A5A0001u, 1u)); // a group the map does not hold
+        std::snprintf(part, sizeof part, "%s%08X", m ? "," : "", hash.h);
+        text += part;
+    }
+    // A new aircraft manager, held by one reference: the round trip of the
+    // first city manager's bytes (its count zeroed: the references read
+    // back as nothing), reads of versions 7, 4 and 5, SetMaxCount, Activate,
+    // ReleaseAutomatonSet on a set of the test's own, messages, then the
+    // release.
+    using Factory = void*(__cdecl*)();
+    if (void* const serial = reinterpret_cast<Factory>(addr::cSC4AircraftManager_Create)()) {
+        char* const made = static_cast<char*>(serial) - aw::field::kSerializable;
+        Virtual<uint32_t>(made, aw::slot::kAddRef);
+        if (sample.size() >= 12) {
+            std::vector<uint8_t> copy = sample;
+            Put32(copy, 8, 0);
+            ByteIStream in(copy);
+            fresh.Mix(read(serial, &in) & 0xFF);
+            ByteOStream again;
+            write(serial, &again);
+            if (again.bytes != copy)
+                flags |= 1;
+            fresh.Mix(At<uint8_t>(made, 0xA78));
+            fresh.Mix(At<uint8_t>(made, 0x10));
+            for (const uint16_t version : {uint16_t{7}, uint16_t{4}, uint16_t{5}}) {
+                std::vector<uint8_t> v = copy;
+                Put16(v, 0, version);
+                if (version == 5)
+                    v.resize(12 + 4), Put32(v, 12, 0); // no table records
+                ByteIStream vin(v);
+                fresh.Mix(read(serial, &vin) & 0xFF);
+                fresh.Mix(At<uint8_t>(made, 0xA78));
+                fresh.Mix(At<uint32_t>(made + aw::field::kSourceCounts, aw::table::kCount));
+            }
+        } else {
+            flags |= 2;
+        }
+        for (const int32_t most : {-5, 30, 30, 9000}) {
+            Virtual<void>(made, 0x5C, most);
+            fresh.Mix(At<uint32_t>(made, aw::field::kMaxCount));
+            fresh.Mix(At<uint32_t>(made, aw::field::kShare));
+        }
+        for (const uint32_t on : {0u, 1u})
+            fresh.Mix(Virtual<uint8_t>(made, 0x14, on));
+        {
+            alignas(4) char set[aw::table::kSize] = {};
+            using Ctor = void*(__thiscall*)(void*, uint32_t);
+            reinterpret_cast<Ctor>(addr::SC4Uint32HashSet_Construct)(set, 0x64);
+            Virtual<void>(made, 0x84, static_cast<void*>(set));
+            fresh.Mix(At<uint32_t>(set, aw::table::kCount));
+            using Free = void(__cdecl*)(void*);
+            if (void* const buckets = At<void*>(set, aw::table::kBegin))
+                reinterpret_cast<Free>(addr::SC4_Free)(buckets);
+        }
+        // Messages to the message target (+0xC).
+        FakeMessage message{FakeMessageVtable(), 0, 0};
+        auto send = [&](uint32_t type, uint32_t value) {
+            message.type = type;
+            message.value = value;
+            fresh.Mix(Virtual<uint8_t>(made + aw::field::kMessage, 0x0C, static_cast<void*>(&message)));
+            fresh.Mix(At<uint8_t>(made, aw::field::kA3D));
+            fresh.Mix(At<uint8_t>(made, 0xA4C));
+        };
+        send(0x4A7FB807, 1);
+        send(0x4A7FB807, 0);
+        send(0xCAD61E00, 0);
+        send(0xA6B79612, 0); // held: nothing
+        send(0xEAD61E16, 0);
+        send(0xA6B79602, 0);
+        send(0xA6B79612, 0);
+        send(0xC9F775BB, 0);
+        send(0x06CDB65A, 0);
+        send(0x89D3E9F3, 1); // no object: nothing
+        send(0xEA298D50, 0);
+        send(0xEBFF18A3, 0); // no object: nothing
+        send(0x12345678, 0);
+        logged.MixBytes(made + 0xA30, 12);
+        fresh.Mix(Virtual<uint32_t>(made, aw::slot::kRelease));
+    } else {
+        flags |= 4;
+    }
+    // The group instance table's insert and erase on a table of the test's
+    // own: two keys in one bucket, the older (second in the chain) erased
+    // first, which goes through 0x00510450. And the exemplar record copy
+    // 0x00512C80 / 0x005120E0 on two records of the test's own (no string).
+    {
+        using Ctor = void*(__thiscall*)(void*, uint32_t);
+        using Insert = void(__thiscall*)(void*, void*, const void*);
+        using Erase = void(__thiscall*)(void*, void*);
+        using Clear = void(__thiscall*)(void*);
+        using Free = void(__cdecl*)(void*);
+        alignas(4) char table[aw::table::kSize] = {};
+        reinterpret_cast<Ctor>(addr::SC4Uint32HashSet_Construct)(table, 0x64);
+        const uint32_t buckets = static_cast<uint32_t>(At<char**>(table, aw::table::kEnd) -
+                                                       At<char**>(table, aw::table::kBegin));
+        void* nodes[2] = {};
+        for (int i = 0; i < 2 && buckets; ++i) {
+            alignas(4) char pair[4 + aw::table::kSize] = {};
+            At<uint32_t>(pair, 0) = 7 + static_cast<uint32_t>(i) * buckets;
+            reinterpret_cast<Ctor>(addr::SC4Uint32HashSet_Construct)(pair + 4, 0x64);
+            alignas(4) char result[12] = {};
+            reinterpret_cast<Insert>(addr::cSC4AutomataManager_InsertInstances)(table, result, pair);
+            nodes[i] = At<void*>(result, 0);
+            fresh.Mix(At<uint8_t>(result, 8));
+            reinterpret_cast<Clear>(addr::SC4Uint32HashSet_Clear)(pair + 4);
+            if (void* const b = At<void*>(pair + 4, aw::table::kBegin))
+                reinterpret_cast<Free>(addr::SC4_Free)(b);
+        }
+        fresh.Mix(At<uint32_t>(table, aw::table::kCount));
+        for (int i = 0; i < 2; ++i) {
+            void* iterator[2] = {nodes[i], table};
+            reinterpret_cast<Erase>(addr::cSC4AutomataManager_EraseInstances)(table, iterator);
+            fresh.Mix(At<uint32_t>(table, aw::table::kCount));
+        }
+        if (void* const b = At<void*>(table, aw::table::kBegin))
+            reinterpret_cast<Free>(addr::SC4_Free)(b);
+        alignas(4) char records[2][aw::exemplar::kSize] = {};
+        for (std::size_t at = 0; at < aw::exemplar::kSize; at += 4)
+            if (at < 0x1C || at >= 0x30)
+                At<uint32_t>(records[0], at) = 0x01010101u * static_cast<uint32_t>(at);
+        // Their strings (+0x1C: a cIGZString, the buffer at +0x20) made by
+        // SC4String::FromText, as the game's records have them.
+        using FromText = void*(__thiscall*)(void*, const char*);
+        reinterpret_cast<FromText>(addr::SC4String_FromText)(records[0] + 0x1C, "copied");
+        reinterpret_cast<FromText>(addr::SC4String_FromText)(records[1] + 0x1C, "");
+        using Copy = char*(__cdecl*)(char*, char*, char*, void*, uint32_t);
+        char tag = 0;
+        char* const end = reinterpret_cast<Copy>(addr::cSC4AutomataManager_CopyExemplars)(
+            records[0], records[0] + aw::exemplar::kSize, records[1], &tag, 0);
+        fresh.Mix(end == records[1] + aw::exemplar::kSize ? 1u : 0u);
+        fresh.MixBytes(records[1], 0x1C);
+        fresh.MixBytes(records[1] + 0x30, aw::exemplar::kSize - 0x30);
+        const char* const copied = At<const char*>(records[1], 0x20);
+        const char* const copiedEnd = At<const char*>(records[1], 0x24);
+        if (copied && copiedEnd > copied && copiedEnd - copied < 64)
+            fresh.MixBytes(copied, static_cast<std::size_t>(copiedEnd - copied));
+        for (auto& record : records)
+            if (void* const b = At<void*>(record, 0x20))
+                reinterpret_cast<Free>(addr::SC4_Free)(b);
+    }
+    // The cheat target (the city's aircraft manager's +4 part; its this is
+    // not read): another message, another cheat, 0xCC478B79 with and without
+    // the word it compares (0x00B09968 put back after), and the route line's
+    // 0xE97FCBC8 (shown, count 7) and 0xE97FCBC9 (taken away).
+    if (char* const manager = Virtual<char*>(city, aw::kCitySlotAircraft)) {
+        using Cheat = uint32_t(__thiscall*)(void*, uint32_t*);
+        const auto cheat = reinterpret_cast<Cheat>(addr::cSC4AutomataManager_DoMessage4);
+        void* const target = manager + aw::field::kVtable4;
+        static std::string line;
+        FakeString string{FakeStringVtable(), ""};
+        uint32_t message[3] = {0x12345678u, 0xCC478B79u, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&string))};
+        cheats.Mix(cheat(target, message) & 0xFF);
+        message[0] = 0x230E27ACu;
+        message[1] = 0x7A5A0001u;
+        cheats.Mix(cheat(target, message) & 0xFF);
+        const uint8_t parked = *reinterpret_cast<uint8_t*>(0x00B09968);
+        message[1] = 0xCC478B79u;
+        for (int i = 0; i < 3; ++i) {
+            line = i == 0 ? "cheat" : i == 1 ? std::string("cheat ") + reinterpret_cast<const char*>(0x00A82B94)
+                                              : "cheat other";
+            string.text = line.c_str();
+            cheats.Mix(cheat(target, message) & 0xFF);
+            cheats.Mix(*reinterpret_cast<uint8_t*>(0x00B09968));
+        }
+        *reinterpret_cast<uint8_t*>(0x00B09968) = parked;
+        void*& route = *reinterpret_cast<void**>(0x00B21BA0);
+        if (!route) {
+            line = "route 7";
+            string.text = line.c_str();
+            message[1] = 0xE97FCBC8u;
+            cheats.Mix(cheat(target, message) & 0xFF);
+            cheats.Mix(route ? At<uint32_t>(route, 0x18) : 0xFFFFFFFEu);
+            cheats.Mix(route ? At<uint8_t>(route, 0xC) : 0xFFu);
+            message[1] = 0xE97FCBC9u;
+            cheats.Mix(cheat(target, message) & 0xFF);
+            cheats.Mix(route ? 1u : 0u);
+        } else {
+            flags |= 8;
+        }
+    }
+    char part[64];
+    std::snprintf(part, sizeof part, ",%08X,%08X,%X", fresh.h, cheats.h, flags);
+    text += part;
+    g_aw2Text = text;
+    log::Write("autotest: automata: aw2%s logged %08X", text.c_str(), logged.h);
+}
+
 void Drive(const Day& day)
 {
     if (EnvInt("OPENSC4_TEST_AUTOMATA", 0) < 2 || !day.counted || g_written)
@@ -2628,6 +2947,8 @@ void Drive(const Day& day)
         return;
     if (EnvInt("OPENSC4_TEST_AUTOMATA_AWMGR", 0) >= 1 && day.city && game::IsBuild641() && g_awText.empty())
         AwManagerDrive(day.city);
+    if (EnvInt("OPENSC4_TEST_AUTOMATA_AWMGR", 0) >= 2 && day.city && game::IsBuild641() && g_aw2Text.empty())
+        AwLifeDrive(day.city);
     if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 1 && day.city && game::IsBuild641() && g_managerText.empty()) {
         ManagerDrive(day.city);
         if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 2)
@@ -2706,6 +3027,7 @@ void Fingerprint(cISC4City* city, std::string& line)
     line += g_managerText;
     line += g_scriptText;
     line += g_awText;
+    line += g_aw2Text;
     // The automaton table: frame-driven, the log only.
     uint32_t parked = 0, automata = 0, parkedSum = 0;
     ForEach<AutomatonNode>(Table(manager, field::kAutomata), [&](AutomatonNode* node) {
