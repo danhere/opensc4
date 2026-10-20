@@ -2730,63 +2730,63 @@ name = "cSC4AutomataScriptSystem::LuaCreateAutomaton"
 address = 0x0051D220
 kind = "function"
 convention = "cdecl"
-signature = "int (void* lua)"
+signature = "bool (void* a1, void* arguments, void* results, void* binding)"
 expect = "8B 4C 24 04 83 EC 24 53"
-source = "Name ours. The Lua function create_automaton, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+source = "Name ours. The Lua function create_automaton (class, x, y, z, [flags, [three IDs, [a bool]]]): 0x0050CDA0 and the automaton's slot 0x110; the automaton pushed as a script number. Ours in simulators.automata.scripts.lua (src/core/automata_scripts_2.cpp)."
 
 [[entry]]
 name = "cSC4AutomataScriptSystem::LuaCreateController"
 address = 0x0051D3C0
 kind = "function"
 convention = "cdecl"
-signature = "int (void* lua)"
+signature = "bool (void* a1, void* arguments, void* results, void* binding)"
 expect = "8B 44 24 04 83 EC 20 53"
-source = "Name ours. The Lua function create_controller, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+source = "Name ours. The Lua function create_controller (template, x, y, z): the controller manager's slot 5 with (null, name, point); the controller pushed. Ours in simulators.automata.scripts.lua (src/core/automata_scripts_2.cpp)."
 
 [[entry]]
 name = "cSC4AutomataScriptSystem::LuaAttachController"
 address = 0x0051D510
 kind = "function"
 convention = "cdecl"
-signature = "int (void* lua)"
+signature = "bool (void* a1, void* arguments, void* results, void* binding)"
 expect = "8B 44 24 04 83 EC 14 53"
-source = "Name ours. The Lua function attach_controller, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+source = "Name ours. The Lua function attach_controller (template, occupant): slot 5 with (occupant, name, null); the controller pushed. Ours in simulators.automata.scripts.lua (src/core/automata_scripts_2.cpp)."
 
 [[entry]]
 name = "cSC4AutomataScriptSystem::LuaAttachControllerGroup"
 address = 0x0051D640
 kind = "function"
 convention = "cdecl"
-signature = "int (void* lua)"
+signature = "bool (void* a1, void* arguments, void* results, void* binding)"
 expect = "8B 44 24 04 83 EC 14 53"
-source = "Name ours. The Lua function attach_controller_group, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+source = "Name ours. The Lua function attach_controller_group (group, occupant): slot 10 with (name, occupant, 0); nothing pushed. Ours in simulators.automata.scripts.lua (src/core/automata_scripts_2.cpp)."
 
 [[entry]]
 name = "cSC4AutomataScriptSystem::LuaDetachController"
 address = 0x0051D750
 kind = "function"
 convention = "cdecl"
-signature = "int (void* lua)"
+signature = "bool (void* a1, void* arguments, void* results, void* binding)"
 expect = "8B 44 24 04 83 EC 14 53"
-source = "Name ours. The Lua function detach_controller, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+source = "Name ours. The Lua function detach_controller (template, occupant): slot 8 with (occupant, name); nothing pushed. Ours in simulators.automata.scripts.lua (src/core/automata_scripts_2.cpp)."
 
 [[entry]]
 name = "cSC4AutomataScriptSystem::LuaDetachControllerGroup"
 address = 0x0051D860
 kind = "function"
 convention = "cdecl"
-signature = "int (void* lua)"
+signature = "bool (void* a1, void* arguments, void* results, void* binding)"
 expect = "8B 44 24 04 83 EC 14 53"
-source = "Name ours. The Lua function detach_controller_group, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+source = "Name ours. The Lua function detach_controller_group (group, occupant): slot 12 with (name, occupant); nothing pushed. Ours in simulators.automata.scripts.lua (src/core/automata_scripts_2.cpp)."
 
 [[entry]]
 name = "cSC4AutomataScriptSystem::LuaGetSourceBuildingCount"
 address = 0x0051C7D0
 kind = "function"
 convention = "cdecl"
-signature = "int (void* lua)"
+signature = "bool (void* a1, void* arguments, void* results, void* binding)"
 expect = "83 EC 14 8B 44 24 18 53"
-source = "Name ours. The Lua function get_source_building_count, registered by Init (part s2). Called by address from src/core/automata_scripts.cpp (part s1)."
+source = "Name ours. The Lua function get_source_building_count (key): the services at 0x00B43D44.. in turn (slot 0x90), the first nonzero answer pushed. Ours in simulators.automata.scripts.lua (src/core/automata_scripts_2.cpp)."
 
 [[entry]]
 name = "SC4StringHashMap::InsertUnique"
@@ -3003,6 +3003,402 @@ name = "cSC4AutomataScriptSystem::PedestrianGroupName"
 address = 0x00B09A68
 kind = "data"
 source = "A pointer to 'pedestrian' (0x00A961B0), the second default group's name."
+
+# Part s2 of the automata script system: the controller templates, the Lua functions, the helpers and the behaviour records (src/core/automata_scripts_2.cpp; docs/automata.md, "Part s").
+
+[[entry]]
+name = "cSC4AutomataControllerTemplate::Construct"
+address = 0x0051AB80
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 8B F1 C7 06 BC 60"
+source = "Name ours. The controller template base's constructor: vtable 0x00A960BC, the SC4String name at +4 (8-byte buffer), +0x14 zero, the SC4Curve +0x24 (0x007D0410), +0x38..+0x40 zero, the list heads +0x44 and +0x48, +0x60..+0x74 zero. Ours in simulators.automata.scripts.templates (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4AttractorTemplate::Construct"
+address = 0x0051B1F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 E8 88 F9 FF FF"
+source = "Name ours. The attractor template's constructor (0x98 bytes): the base 0x0051AB80, vtable 0x00A96134, the vector +0x78..+0x80, the list +0x84 (0x1C-byte nodes), the SC4Curve +0x88. Ours in simulators.automata.scripts.templates (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4GeneratorTemplate::Construct"
+address = 0x0051B240
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 E8 38 F9 FF FF"
+source = "Name ours. The generator template's constructor (0xB4 bytes): the base, vtable 0x00A96138, the vector +0x78..+0x80, the list +0x84. Ours in simulators.automata.scripts.templates (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4AttractorTemplate::DeletingDestructor"
+address = 0x0051B280
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. Slot 0, ret 4: 0x0051B2A0, operator_delete with flag 1. Ours in simulators.automata.scripts.templates (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4AttractorTemplate::Destroy"
+address = 0x0051B2A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 86 88 00 00"
+source = "Name ours. The destructor body: the curve's buffer +0x88 freed (not destroyed), the list +0x84 cleared (0x0043ABA0) and its head freed, the vector's buffer +0x78 freed, then a tail jump to the base's 0x0051A9A0. Ours in simulators.automata.scripts.templates (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4GeneratorTemplate::DeletingDestructor"
+address = 0x0051B2F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. Slot 0, ret 4: 0x0051B310, operator_delete with flag 1. Ours in simulators.automata.scripts.templates (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4GeneratorTemplate::Destroy"
+address = 0x0051B310
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 57 8B F9 8D B7 84 00"
+source = "Name ours. The destructor body: the list +0x84 and the vector +0x78, then the base's 0x0051A9A0. Ours in simulators.automata.scripts.templates (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::TemplateFactory"
+address = 0x0051BDF0
+kind = "function"
+convention = "cdecl"
+signature = "void* (const SC4String* name, uint32_t classId)"
+expect = "83 EC 1C 53 55 8B 6C 24"
+source = "Name ours. CreateControllerTemplate's factory: a generator (0x4A1628C5) or attractor (0x6A1628BA) template, its +0x1C the class (written without a null test); another class formats the message 0x00A9613C, drops it and answers null. Then the name copied to +8, +0x18 the class, +0x20 0, +0x34 -1, the curve +0x24 set to the points (0, 1) and (24, 1). Ours in simulators.automata.scripts.templates (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::CreateControllerTemplate"
+address = 0x00520AC0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const SC4String* name, uint32_t classId)"
+expect = "8B 44 24 08 83 EC 20 53"
+source = "Slot 16, ret 8: a template from 0x0051BDF0 into the template map (+0x8C); a name already there formats the message 0x00A96C28, destroys the template (its slot 0 with 1) and answers null. Ours in simulators.automata.scripts.templates (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::CacheIds"
+address = 0x0051CD90
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "83 EC 18 55 56 8B F1 8B"
+source = "Name ours. Unless the group's +0x18 part has IDs (slot 0x10), the nonzero IDs (+0x10) up the parent chain gathered in a vector (0x0051CA60 when full), copied to an operator_new block and given to the part's slot 0x198 (block, count), the block freed (operator_delete) and the vector's buffer freed; answers the part. Called by 0x00510690. Ours in simulators.automata.scripts.helpers (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::Record3Construct"
+address = 0x0051D040
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 8B F1 33 DB 89 5E"
+source = "Name ours. A 0x40-byte record of three SC4Strings (+0, +0x14, +0x28; +0x3C left alone), as the group's record map (+0x70) holds them. Called by 0x00521800 and the U-Drive 0x00566A70. Ours in simulators.automata.scripts.helpers (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::Record3Destroy"
+address = 0x0051D0D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 C7 46 28 10 08"
+source = "Name ours. Its destructor: the three buffers freed, the last string first. Called by the U-Drive 0x00566A70. Ours in simulators.automata.scripts.helpers (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::LuaToId"
+address = 0x0051D120
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (void* value)"
+expect = "83 EC 14 56 8B 74 24 1C"
+source = "Name ours. A Lua value as an ID: a string (type 0x800E, slot 0xDC) through strtoul base 16; else its slot 0x64 into the argument's slot, 0 when it does not read. Called by create_automaton and the managers (0x00509B10, 0x0050D910). Ours in simulators.automata.scripts.helpers (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::FindRecord"
+address = 0x005204D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint8_t key, void* out)"
+expect = "53 8B 59 74 56 8B 71 78"
+source = "Name ours. Ret 8: the record of the key byte in the record map (+0x70) assigned to *out (0x0051FD30), AL 1; AL 0 when it is not there. Called by the U-Drive 0x00566A70. Ours in simulators.automata.scripts.helpers (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::Record3Assign"
+address = 0x0051FD30
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. Ret 4: the three strings assigned (0x00408A70) unless the same, +0x3C copied. Ours in simulators.automata.scripts.helpers (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::VectorInsertOverflow"
+address = 0x00521350
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, void* position, const void* value, uint32_t unused, uint32_t count, bool atEnd)"
+expect = "51 53 8B D9 8B 13 8B 4B"
+source = "Name ours. Ret 0x14: the insert into a full vector of a behaviour record (0x7C bytes): a buffer for the count plus the larger of it and the inserted count, the records before the position copied (0x005205D0), the value count times, the rest (unless at the end, 0x00520940), the old range destroyed (0x00518B20) and freed. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::Assign"
+address = 0x00521470
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. Ret 4: the assignment of a behaviour record (0x7C bytes): +0..+0xC, the vectors +0x10 (0x00520970) and +0x1C (0x00462C10), then the fields one by one (padding left alone). Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::UnguardedLinearInsert"
+address = 0x00521550
+kind = "function"
+convention = "cdecl"
+signature = "void (void* last, Record value, uint32_t extra)"
+expect = "8B 4C 24 04 56 57 8B 7C"
+source = "Name ours. The sort's unguarded linear insert by the comparator (float +4 below, else uint32 +0xC above); the by-value record is destroyed (tail jump to 0x0050BDE0). Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::PushHeap"
+address = 0x005215A0
+kind = "function"
+convention = "cdecl"
+signature = "void (void* base, int32_t hole, int32_t top, Record value, uint32_t extra)"
+expect = "8B 4C 24 08 8D 41 FF 53"
+source = "Name ours. push_heap by the comparator (float +4 below, else uint32 +0xC above); the by-value record destroyed. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::CopyBackward"
+address = 0x00521620
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to)"
+expect = "53 8B 5C 24 08 56 8B 74"
+source = "Name ours. copy_backward through 0x00521470; answers the new start. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::CopyForward"
+address = 0x00521B20
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to)"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. copy through 0x00521470; answers the end. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::UnguardedInsertionSort"
+address = 0x00521B70
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, uint32_t unused, uint32_t extra)"
+expect = "53 56 8B 74 24 0C 57 8B"
+source = "Name ours. Each record's copy through 0x00521550. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::AdjustHeap"
+address = 0x00521BB0
+kind = "function"
+convention = "cdecl"
+signature = "void (void* base, int32_t hole, int32_t length, Record value, uint32_t extra)"
+expect = "53 8B 5C 24 08 55 8B 6C"
+source = "Name ours. adjust_heap to a leaf, then 0x005215A0 with a copy; the by-value record destroyed. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::Partition"
+address = 0x00522270
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, Record pivot, uint32_t extra)"
+expect = "83 EC 7C 53 8B 9C 24 84"
+source = "Name ours. The unguarded partition; the swap through a copy destroyed inline; the pivot destroyed; answers the cut. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::MakeHeap"
+address = 0x00522350
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, uint32_t extra, uint32_t, uint32_t)"
+expect = "8B 4C 24 08 53 55 8B 6C"
+source = "Name ours. make_heap through 0x00521BB0. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::LinearInsert"
+address = 0x005223C0
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, Record value, uint32_t extra)"
+expect = "D9 44 24 10 56 8B 74 24"
+source = "Name ours. The linear insert: a value before the first moves the range up (0x00521620) and goes first, else 0x00521550 with a copy; the by-value record destroyed. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::SortHeap"
+address = 0x00522450
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, uint32_t extra)"
+expect = "83 EC 7C 53 8B 9C 24 84"
+source = "Name ours. sort_heap through 0x00521BB0, the held copy destroyed inline. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::InsertionSort"
+address = 0x00522540
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, uint32_t extra)"
+expect = "53 8B 5C 24 0C 55 56 57"
+source = "Name ours. The insertion sort through 0x005223C0. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::PartialSort"
+address = 0x00522590
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* middle, void* last, uint32_t unused, uint32_t extra)"
+expect = "8B 44 24 14 83 EC 7C 53"
+source = "Name ours. partial_sort: 0x00522350, each later record before the top swapped in (0x00521BB0), 0x00522450. The introsort's fallback at depth 0. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::FinalInsertionSort"
+address = 0x005226C0
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, uint32_t extra)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. Above 16 records 0x00522540 on the first 16 and 0x00521B70 on the rest, else 0x00522540. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::IntrosortLoop"
+address = 0x00522720
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, uint32_t unused, int32_t depth, uint32_t extra)"
+expect = "53 8B 5C 24 08 55 56 57"
+source = "Name ours. While above 16 records: at depth 0 0x00522590; else the median 0x0051C8B0, the partition 0x00522270 around a copy, itself on the right part. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::Sort"
+address = 0x00522800
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last, uint32_t predicate)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. std::sort: 0x00522720 with depth twice floor(log2 n), then 0x005226C0; its caller pushes two arguments, the predicate slot gets the first argument's word. Called by the behaviour loading 0x00522860. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::Copy"
+address = 0x005205D0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. Ret 4: the copy constructor of a behaviour record (0x7C bytes) (the vectors through 0x0051FE90 and 0x00462F00). Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::UninitializedCopy"
+address = 0x00520940
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. Copy-constructs each record (skipping a null destination); answers the end. Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::Median"
+address = 0x0051C8B0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* a, void* b, void* c, uint32_t extra)"
+expect = "8B 4C 24 08 55 56 8B 74"
+source = "Name ours. The median of three by the comparator (float +4 below, else uint32 +0xC above). Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::Construct"
+address = 0x0050BD40
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B C1 33 C9 BA 00 00 80"
+source = "Name ours. The constructor of a behaviour record (0x7C bytes): keys +4 0, +0xC 1, +8 1.0, the vectors zero, the defaults (+0x30, +0x34 1.0, +0x38, +0x3C -1, +0x40 0.5, +0x50 10, +0x54 15, +0x58 0.1, +0x5C 0.2, +0x60, +0x64 1.0, +0x70 5, +0x74 10, +0x78 0.5). Ours in simulators.automata.scripts.records (src/core/automata_scripts_2.cpp)."
+
+[[entry]]
+name = "SC4BehaviourRecord::Destroy"
+address = 0x0050BDE0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 8B D9 8B 43 1C 85 C0"
+source = "Name ours. The behaviour record's destructor: +0x1C's buffer freed, +0x10's 0x14-byte objects' slot 0x70 with 0 and its buffer freed. Called by address from src/core/automata_scripts_2.cpp (part s2)."
+
+[[entry]]
+name = "SC4ObjectVector14::Copy"
+address = 0x0051FE90
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "53 8B 5C 24 08 8B 03 56"
+source = "Name ours. Ret 4: copy constructor of a vector of 0x14-byte objects. Shared (also 0x00678460). Called by address from src/core/automata_scripts_2.cpp (part s2)."
+
+[[entry]]
+name = "SC4ObjectVector14::Assign"
+address = 0x00520970
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. Ret 4: its assignment. Shared (also 0x0087AEA8). Called by address from src/core/automata_scripts_2.cpp (part s2)."
+
+[[entry]]
+name = "cSC4AutomataManager::CreateByClass"
+address = 0x0050CDA0
+kind = "function"
+convention = "cdecl"
+signature = "void* (uint32_t automatonClass, const float* position, uint32_t flags, const uint32_t* ids, uint32_t, uint32_t)"
+expect = "56 8B 74 24 08 57 56 33"
+source = "Name ours. Makes an automaton of a class at a point through its manager (create_automaton). Called by address from src/core/automata_scripts_2.cpp (part s2)."
+
+[[entry]]
+name = "cSC4AttractorTemplate::Vtable"
+address = 0x00A96134
+kind = "vtable"
+expect = "80 B2 51 00 F0 B2 51 00"
+source = "Name ours. The attractor template's one slot: the deleting destructor 0x0051B280."
+
+[[entry]]
+name = "cSC4GeneratorTemplate::Vtable"
+address = 0x00A96138
+kind = "vtable"
+expect = "F0 B2 51 00 43 6F 75 6C"
+source = "Name ours. The generator template's one slot: 0x0051B2F0."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::TemplateClassFormat"
+address = 0x00A9613C
+kind = "data"
+expect = "43 6F 75 6C 64 6E 27 74"
+source = "The template factory's refusal message format (a class)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::TemplateExistsFormat"
+address = 0x00A96C28
+kind = "data"
+expect = "43 6F 75 6C 64 6E 27 74"
+source = "CreateControllerTemplate's refusal message format (a name)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::LuaFloatDefault"
+address = 0x00B227D0
+kind = "data"
+source = "The float the Lua functions start their positions from."
 
 # Part aw1 of the aircraft and watercraft managers and the common automata manager base: the object and its queries (src/core/automata_awmgr.cpp; docs/automata.md, "Part aw").
 
