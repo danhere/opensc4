@@ -3538,24 +3538,6 @@ expect = "8B 41 18 85 C0 56 8D 71"
 source = "Name ours. Kept as the game's: it holds the Lua print patch site 0x0051C50B. Makes the loader's Lua state at +0x18 (COM 0xEA10C4A2) unless there is one, and sets its paths and functions. AL 1. Called by address from src/core/automata_scripts_3.cpp (part s3a)."
 
 [[entry]]
-name = "cSC4AutomataScriptSystem::ReadGroups"
-address = 0x00521C70
-kind = "function"
-convention = "thiscall"
-signature = "bool (void* this)"
-expect = "A1 38 9A B0 00 81 EC 4C"
-source = "Name ours. LoadScripts' group reader (part s3b). Called by address from src/core/automata_scripts_3.cpp (part s3a)."
-
-[[entry]]
-name = "cSC4AutomataScriptSystem::ReadVehicleKinds"
-address = 0x005216A0
-kind = "function"
-convention = "thiscall"
-signature = "bool (void* this)"
-expect = "83 EC 58 A1 34 9A B0 00"
-source = "Name ours. LoadScripts' reader of the vehicle kinds (part s3b). Called by address from src/core/automata_scripts_3.cpp (part s3a)."
-
-[[entry]]
 name = "SC4ScriptTableWalk::ConstructGlobal"
 address = 0x005FCA70
 kind = "function"
@@ -4451,3 +4433,970 @@ name = "SC4AutomataManager::CameraFollowUpdating"
 address = 0x00B21B94
 kind = "data"
 source = "Name ours. A byte the automata managers' slot 35 (IsCameraFollowUpdating) answers."
+
+# Part s3b of the automata script system: the group and drive parameter readers (src/core/automata_scripts_4.cpp; docs/automata.md, "Part s").
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadGroup"
+address = 0x00520DF0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* name, int32_t index)"
+expect = "83 EC 54 53 55 0F BF 6C"
+source = "Name ours. Ret 8: a group from the table at the index (its low word): group_id (a number truncated, else hex), the group of the name (+0x4C) or a new one (slot 0x34 with the name and ID; null answered when there is none); percentage (+0x2C, 1.0 when absent), controllers (templates by name, slot 0x44, into the list +0x30, else emptied), models (0x0051ECA0 into +0x48, else emptied), anims (+0x34 name -> number or hex, else emptied), _parent (a reference into +0x4E), class_id (+0x14, else 0); the table's '__group_handle' set to the group and its reference into +0x4C. Answers the group. Ours in simulators.automata.scripts.groupreaders (src/core/automata_scripts_4.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadModels"
+address = 0x0051ECA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index, void* list)"
+expect = "83 EC 30 53 55 56 8B 74"
+source = "Name ours. Ret 8: the list (0x14-byte nodes) emptied, then per entry of the table at the index (its low word) three strings read as hex IDs. AL 1. Ours in simulators.automata.scripts.groupreaders (src/core/automata_scripts_4.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadOccupantGroups"
+address = 0x005216A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 58 A1 34 9A B0 00"
+source = "Name ours. LoadScripts' reader of the global table 'occupant_group' (0x00B09A34): a group per entry (0x00520DF0). AL 1. Ours in simulators.automata.scripts.groupreaders (src/core/automata_scripts_4.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadAutomataGroups"
+address = 0x00521C70
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "A1 38 9A B0 00 81 EC 4C"
+source = "Name ours. LoadScripts' reader of the global table 'automata_group' (0x00B09A38): per entry the group (0x00520DF0) into the automata group map (+0x60, a reference when it went in), trailers (+0x54), kph (+0x58, +0x5C), the drive parameters (+0x60, 0xA0 bytes: airplane 0x0051E1E0, helicopter 0x0051E4A0 or WatercraftDriveParams 0x0051E6B0), playerdrive (+0x64, 0x94 bytes, 0x0051DC20), csi_image (+0x68) and source_building (+0x6C) as hex, key_effects (0x00521800). AL 1. Ours in simulators.automata.scripts.groupreaders (src/core/automata_scripts_4.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadKeyEffects"
+address = 0x00521800
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index, void* group)"
+expect = "8B 44 24 04 81 EC D8 00"
+source = "Name ours. Ret 8: per table entry of the table at the index a three-string record (fx +0, bone +0x14, controller +0x28; flags +0x3C: hold 1, one_shot 2, hard_transition 4, override 8, fx 0x10, controller 0x20) inserted under the byte 'cmd' into the group's record map (+0x70) when its fx is not empty. AL 1. Ours in simulators.automata.scripts.groupreaders (src/core/automata_scripts_4.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::Record3Copy"
+address = 0x0051FB90
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. Ret 4: the three-string record's copy constructor (SC4String::CopyBuffer of each string, +0x3C copied). Answers this. Ours in simulators.automata.scripts.groupreaders (src/core/automata_scripts_4.cpp)."
+
+[[entry]]
+name = "cSC4OccupantGroupTemplate::RecordMapInsert"
+address = 0x00520520
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* map, void* result, const void* pair)"
+expect = "51 8B 44 24 0C 53 8A 18"
+source = "Name ours. Ret 8: the record map's insert of a (byte key, record) pair unless the key is there: a 0x48-byte node at the head of its bucket (key % buckets), the count (+0x10) up; the result (node, map, inserted). Answers the result. Ours in simulators.automata.scripts.groupreaders (src/core/automata_scripts_4.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadDriving"
+address = 0x0051DC20
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index, void* block)"
+expect = "8B 44 24 04 83 EC 2C 57"
+source = "Name ours. (index, block), ret 8: the player's driving: MinZoom and StartingZoom (ints), 33 floats, then OffRoadTurnAngleRange (+0x24, +0x28). AL 1. Ours in simulators.automata.scripts.driveparams (src/core/automata_scripts_4.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadAirplane"
+address = 0x0051E1E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index, void* block)"
+expect = "8B 44 24 04 8B 49 18 83"
+source = "Name ours. (index, block), ret 8: the airplane's drive parameters, 18 floats (+0..+0x44). AL 1. Ours in simulators.automata.scripts.driveparams (src/core/automata_scripts_4.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadHelicopter"
+address = 0x0051E4A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index, void* block)"
+expect = "8B 44 24 04 8B 49 18 83"
+source = "Name ours. (index, block), ret 8: the helicopter's, 13 floats (+0..+0x30). AL 1. Ours in simulators.automata.scripts.driveparams (src/core/automata_scripts_4.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::ReadWatercraft"
+address = 0x0051E6B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index, void* block)"
+expect = "8B 44 24 04 8B 49 18 83"
+source = "Name ours. (index, block), ret 8: the watercraft's, 40 floats (+0..+0x9C). AL 1. Ours in simulators.automata.scripts.driveparams (src/core/automata_scripts_4.cpp)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_group_id"
+address = 0x00A96CCC
+kind = "data"
+expect = "67 72 6F 75 70 5F 69 64"
+source = "The script key 'group_id' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_controllers"
+address = 0x00A96CB4
+kind = "data"
+expect = "63 6F 6E 74 72 6F 6C 6C"
+source = "The script key 'controllers' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_models"
+address = 0x00A96CAC
+kind = "data"
+expect = "6D 6F 64 65 6C 73 00"
+source = "The script key 'models' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key__parent"
+address = 0x00A96C9C
+kind = "data"
+expect = "5F 70 61 72 65 6E 74 00"
+source = "The script key '_parent' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_class_id"
+address = 0x00A809B0
+kind = "data"
+expect = "63 6C 61 73 73 5F 69 64"
+source = "The script key 'class_id' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_trailers"
+address = 0x00A96D8C
+kind = "data"
+expect = "74 72 61 69 6C 65 72 73"
+source = "The script key 'trailers' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_airplane"
+address = 0x00A96D7C
+kind = "data"
+expect = "61 69 72 70 6C 61 6E 65"
+source = "The script key 'airplane' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_helicopter"
+address = 0x00A96D70
+kind = "data"
+expect = "68 65 6C 69 63 6F 70 74"
+source = "The script key 'helicopter' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_WatercraftDriveParams"
+address = 0x00A96D58
+kind = "data"
+expect = "57 61 74 65 72 63 72 61"
+source = "The script key 'WatercraftDriveParams' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_playerdrive"
+address = 0x00A96D4C
+kind = "data"
+expect = "70 6C 61 79 65 72 64 72"
+source = "The script key 'playerdrive' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_csi_image"
+address = 0x00A96D40
+kind = "data"
+expect = "63 73 69 5F 69 6D 61 67"
+source = "The script key 'csi_image' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_source_building"
+address = 0x00A96D30
+kind = "data"
+expect = "73 6F 75 72 63 65 5F 62"
+source = "The script key 'source_building' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_key_effects"
+address = 0x00A96D24
+kind = "data"
+expect = "6B 65 79 5F 65 66 66 65"
+source = "The script key 'key_effects' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_cmd"
+address = 0x00A96D20
+kind = "data"
+expect = "63 6D 64 00"
+source = "The script key 'cmd' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_fx"
+address = 0x00A96D1C
+kind = "data"
+expect = "66 78 00"
+source = "The script key 'fx' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_bone"
+address = 0x00A96D14
+kind = "data"
+expect = "62 6F 6E 65 00"
+source = "The script key 'bone' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_controller"
+address = 0x00A96D08
+kind = "data"
+expect = "63 6F 6E 74 72 6F 6C 6C"
+source = "The script key 'controller' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_hold"
+address = 0x00A96D00
+kind = "data"
+expect = "68 6F 6C 64 00"
+source = "The script key 'hold' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_one_shot"
+address = 0x00A96CF4
+kind = "data"
+expect = "6F 6E 65 5F 73 68 6F 74"
+source = "The script key 'one_shot' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_hard_transition"
+address = 0x00A96CE4
+kind = "data"
+expect = "68 61 72 64 5F 74 72 61"
+source = "The script key 'hard_transition' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_override"
+address = 0x00A96CD8
+kind = "data"
+expect = "6F 76 65 72 72 69 64 65"
+source = "The script key 'override' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_OffRoadTurnAngleRange"
+address = 0x00A96368
+kind = "data"
+expect = "4F 66 66 52 6F 61 64 54"
+source = "The script key 'OffRoadTurnAngleRange' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_Mass"
+address = 0x00A966C0
+kind = "data"
+expect = "4D 61 73 73 00"
+source = "The script key 'Mass' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_WingArea"
+address = 0x00A966B4
+kind = "data"
+expect = "57 69 6E 67 41 72 65 61"
+source = "The script key 'WingArea' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_TakeOffSpeed"
+address = 0x00A966A4
+kind = "data"
+expect = "54 61 6B 65 4F 66 66 53"
+source = "The script key 'TakeOffSpeed' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_MaxSpeed"
+address = 0x00A96598
+kind = "data"
+expect = "4D 61 78 53 70 65 65 64"
+source = "The script key 'MaxSpeed' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ElevatorMax"
+address = 0x00A96698
+kind = "data"
+expect = "45 6C 65 76 61 74 6F 72"
+source = "The script key 'ElevatorMax' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ElevatorChangeRate"
+address = 0x00A96684
+kind = "data"
+expect = "45 6C 65 76 61 74 6F 72"
+source = "The script key 'ElevatorChangeRate' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_AileronMax"
+address = 0x00A96678
+kind = "data"
+expect = "41 69 6C 65 72 6F 6E 4D"
+source = "The script key 'AileronMax' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_AileronChangeRate"
+address = 0x00A96664
+kind = "data"
+expect = "41 69 6C 65 72 6F 6E 43"
+source = "The script key 'AileronChangeRate' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_RudderMax"
+address = 0x00A96658
+kind = "data"
+expect = "52 75 64 64 65 72 4D 61"
+source = "The script key 'RudderMax' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_RudderChangeRate"
+address = 0x00A96644
+kind = "data"
+expect = "52 75 64 64 65 72 43 68"
+source = "The script key 'RudderChangeRate' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ThrottleMax"
+address = 0x00A96638
+kind = "data"
+expect = "54 68 72 6F 74 74 6C 65"
+source = "The script key 'ThrottleMax' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ThrottleChangeRate"
+address = 0x00A96624
+kind = "data"
+expect = "54 68 72 6F 74 74 6C 65"
+source = "The script key 'ThrottleChangeRate' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_FlapsMax"
+address = 0x00A96618
+kind = "data"
+expect = "46 6C 61 70 73 4D 61 78"
+source = "The script key 'FlapsMax' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_FlapsChangeRate"
+address = 0x00A96608
+kind = "data"
+expect = "46 6C 61 70 73 43 68 61"
+source = "The script key 'FlapsChangeRate' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_StallAngle"
+address = 0x00A965FC
+kind = "data"
+expect = "53 74 61 6C 6C 41 6E 67"
+source = "The script key 'StallAngle' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_LiftFactorLevelFlight"
+address = 0x00A965E4
+kind = "data"
+expect = "4C 69 66 74 46 61 63 74"
+source = "The script key 'LiftFactorLevelFlight' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_LiftFactorMaxClimb"
+address = 0x00A965D0
+kind = "data"
+expect = "4C 69 66 74 46 61 63 74"
+source = "The script key 'LiftFactorMaxClimb' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_LiftFactorFullStall"
+address = 0x00A965BC
+kind = "data"
+expect = "4C 69 66 74 46 61 63 74"
+source = "The script key 'LiftFactorFullStall' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_Power"
+address = 0x00A9675C
+kind = "data"
+expect = "50 6F 77 65 72 00"
+source = "The script key 'Power' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_SpeedMultiplier"
+address = 0x00A9674C
+kind = "data"
+expect = "53 70 65 65 64 4D 75 6C"
+source = "The script key 'SpeedMultiplier' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_DragFactor"
+address = 0x00A96740
+kind = "data"
+expect = "44 72 61 67 46 61 63 74"
+source = "The script key 'DragFactor' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_RotationalDragFactor"
+address = 0x00A96728
+kind = "data"
+expect = "52 6F 74 61 74 69 6F 6E"
+source = "The script key 'RotationalDragFactor' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_BankMax"
+address = 0x00A96720
+kind = "data"
+expect = "42 61 6E 6B 4D 61 78 00"
+source = "The script key 'BankMax' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_BankChangeRate"
+address = 0x00A96710
+kind = "data"
+expect = "42 61 6E 6B 43 68 61 6E"
+source = "The script key 'BankChangeRate' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_PitchMax"
+address = 0x00A96704
+kind = "data"
+expect = "50 69 74 63 68 4D 61 78"
+source = "The script key 'PitchMax' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_PitchChangeRate"
+address = 0x00A966F4
+kind = "data"
+expect = "50 69 74 63 68 43 68 61"
+source = "The script key 'PitchChangeRate' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_YawRateMax"
+address = 0x00A966E8
+kind = "data"
+expect = "59 61 77 52 61 74 65 4D"
+source = "The script key 'YawRateMax' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_BankMultiplier"
+address = 0x00A966D8
+kind = "data"
+expect = "42 61 6E 6B 4D 75 6C 74"
+source = "The script key 'BankMultiplier' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_PitchMultiplier"
+address = 0x00A966C8
+kind = "data"
+expect = "50 69 74 63 68 4D 75 6C"
+source = "The script key 'PitchMultiplier' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_DecelPerSecond"
+address = 0x00A9656C
+kind = "data"
+expect = "44 65 63 65 6C 50 65 72"
+source = "The script key 'DecelPerSecond' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_TurnsPerSecond"
+address = 0x00A96B30
+kind = "data"
+expect = "54 75 72 6E 73 50 65 72"
+source = "The script key 'TurnsPerSecond' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_RestoreTurnsPerSecond"
+address = 0x00A96B18
+kind = "data"
+expect = "52 65 73 74 6F 72 65 54"
+source = "The script key 'RestoreTurnsPerSecond' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_DecaySpeedPerSecond"
+address = 0x00A96B04
+kind = "data"
+expect = "44 65 63 61 79 53 70 65"
+source = "The script key 'DecaySpeedPerSecond' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_SpeedModifier"
+address = 0x00A96AF4
+kind = "data"
+expect = "53 70 65 65 64 4D 6F 64"
+source = "The script key 'SpeedModifier' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_SwitchTurnDirectionsModifier"
+address = 0x00A96AD4
+kind = "data"
+expect = "53 77 69 74 63 68 54 75"
+source = "The script key 'SwitchTurnDirectionsModifier' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_MinSpeed"
+address = 0x00A9658C
+kind = "data"
+expect = "4D 69 6E 53 70 65 65 64"
+source = "The script key 'MinSpeed' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_MinTurn"
+address = 0x00A96ACC
+kind = "data"
+expect = "4D 69 6E 54 75 72 6E 00"
+source = "The script key 'MinTurn' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_MaxTurn"
+address = 0x00A96AC4
+kind = "data"
+expect = "4D 61 78 54 75 72 6E 00"
+source = "The script key 'MaxTurn' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_MaxSpeedChangePerMillisecond"
+address = 0x00A96AA4
+kind = "data"
+expect = "4D 61 78 53 70 65 65 64"
+source = "The script key 'MaxSpeedChangePerMillisecond' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_BaseForwardTurnRadius"
+address = 0x00A96A8C
+kind = "data"
+expect = "42 61 73 65 46 6F 72 77"
+source = "The script key 'BaseForwardTurnRadius' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_BaseBackwardTurnRadius"
+address = 0x00A96A74
+kind = "data"
+expect = "42 61 73 65 42 61 63 6B"
+source = "The script key 'BaseBackwardTurnRadius' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_AIMaxSpeedChangePerMillisecond"
+address = 0x00A96A54
+kind = "data"
+expect = "41 49 4D 61 78 53 70 65"
+source = "The script key 'AIMaxSpeedChangePerMillisecond' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_AIMaxTurnChangePerMillisecond"
+address = 0x00A96A34
+kind = "data"
+expect = "41 49 4D 61 78 54 75 72"
+source = "The script key 'AIMaxTurnChangePerMillisecond' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_AICrashSpeedAnimateCollisionThreshold"
+address = 0x00A96A0C
+kind = "data"
+expect = "41 49 43 72 61 73 68 53"
+source = "The script key 'AICrashSpeedAnimateCollisionThreshold' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_AICrashSpeedInanimateCollisionThreshold"
+address = 0x00A969E4
+kind = "data"
+expect = "41 49 43 72 61 73 68 53"
+source = "The script key 'AICrashSpeedInanimateCollisionThreshold' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ForwardMotionPitchModifier"
+address = 0x00A969C8
+kind = "data"
+expect = "46 6F 72 77 61 72 64 4D"
+source = "The script key 'ForwardMotionPitchModifier' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ForwardMotionPitchMaxAngle"
+address = 0x00A969AC
+kind = "data"
+expect = "46 6F 72 77 61 72 64 4D"
+source = "The script key 'ForwardMotionPitchMaxAngle' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_SideMotionPitchModifier"
+address = 0x00A96994
+kind = "data"
+expect = "53 69 64 65 4D 6F 74 69"
+source = "The script key 'SideMotionPitchModifier' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_SideMotionPitchMaxAngle"
+address = 0x00A9697C
+kind = "data"
+expect = "53 69 64 65 4D 6F 74 69"
+source = "The script key 'SideMotionPitchMaxAngle' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_CrashSequenceMillisecondMax"
+address = 0x00A96960
+kind = "data"
+expect = "43 72 61 73 68 53 65 71"
+source = "The script key 'CrashSequenceMillisecondMax' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_CrashPitchTotal"
+address = 0x00A96950
+kind = "data"
+expect = "43 72 61 73 68 50 69 74"
+source = "The script key 'CrashPitchTotal' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_CrashRunAgroundSpeedReductionModifier"
+address = 0x00A96928
+kind = "data"
+expect = "43 72 61 73 68 52 75 6E"
+source = "The script key 'CrashRunAgroundSpeedReductionModifier' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_CrashRunAgroundRollTotal"
+address = 0x00A9690C
+kind = "data"
+expect = "43 72 61 73 68 52 75 6E"
+source = "The script key 'CrashRunAgroundRollTotal' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_CrashClimableTerrainAngleThreshold"
+address = 0x00A968E8
+kind = "data"
+expect = "43 72 61 73 68 43 6C 69"
+source = "The script key 'CrashClimableTerrainAngleThreshold' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_CrashMaxAltitudeIncrease"
+address = 0x00A968CC
+kind = "data"
+expect = "43 72 61 73 68 4D 61 78"
+source = "The script key 'CrashMaxAltitudeIncrease' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_CrashSpeedAnimateCollisionThreshold"
+address = 0x00A968A8
+kind = "data"
+expect = "43 72 61 73 68 53 70 65"
+source = "The script key 'CrashSpeedAnimateCollisionThreshold' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_CrashSpeedInanimateCollisionThreshold"
+address = 0x00A96880
+kind = "data"
+expect = "43 72 61 73 68 53 70 65"
+source = "The script key 'CrashSpeedInanimateCollisionThreshold' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_CrashAnimateCollisionSpeedScalingFactor"
+address = 0x00A96858
+kind = "data"
+expect = "43 72 61 73 68 41 6E 69"
+source = "The script key 'CrashAnimateCollisionSpeedScalingFactor' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_MinAcceleration"
+address = 0x00A96848
+kind = "data"
+expect = "4D 69 6E 41 63 63 65 6C"
+source = "The script key 'MinAcceleration' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_MaxAcceleration"
+address = 0x00A96838
+kind = "data"
+expect = "4D 61 78 41 63 63 65 6C"
+source = "The script key 'MaxAcceleration' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ReverseInertialTime"
+address = 0x00A96824
+kind = "data"
+expect = "52 65 76 65 72 73 65 49"
+source = "The script key 'ReverseInertialTime' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ForwardInertialTime"
+address = 0x00A96810
+kind = "data"
+expect = "46 6F 72 77 61 72 64 49"
+source = "The script key 'ForwardInertialTime' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_TurnInPlacePerSec"
+address = 0x00A967FC
+kind = "data"
+expect = "54 75 72 6E 49 6E 50 6C"
+source = "The script key 'TurnInPlacePerSec' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_MaxMillisecondDelta"
+address = 0x00A967E8
+kind = "data"
+expect = "4D 61 78 4D 69 6C 6C 69"
+source = "The script key 'MaxMillisecondDelta' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_FerryQueueDistance"
+address = 0x00A967D4
+kind = "data"
+expect = "46 65 72 72 79 51 75 65"
+source = "The script key 'FerryQueueDistance' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_FerryDockDistance"
+address = 0x00A967C0
+kind = "data"
+expect = "46 65 72 72 79 44 6F 63"
+source = "The script key 'FerryDockDistance' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_FerryMaxDockingOrientationChangePerMillisecond"
+address = 0x00A96790
+kind = "data"
+expect = "46 65 72 72 79 4D 61 78"
+source = "The script key 'FerryMaxDockingOrientationChangePerMillisecond' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_FerryMaxDockingPositionChangePerMillisecond"
+address = 0x00A96764
+kind = "data"
+expect = "46 65 72 72 79 4D 61 78"
+source = "The script key 'FerryMaxDockingPositionChangePerMillisecond' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_MinZoom"
+address = 0x00A965B4
+kind = "data"
+expect = "4D 69 6E 5A 6F 6F 6D 00"
+source = "The script key 'MinZoom' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_StartingZoom"
+address = 0x00A965A4
+kind = "data"
+expect = "53 74 61 72 74 69 6E 67"
+source = "The script key 'StartingZoom' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_AccelPerSecond"
+address = 0x00A9657C
+kind = "data"
+expect = "41 63 63 65 6C 50 65 72"
+source = "The script key 'AccelPerSecond' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_DecaySpeedPerSec"
+address = 0x00A96558
+kind = "data"
+expect = "44 65 63 61 79 53 70 65"
+source = "The script key 'DecaySpeedPerSec' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_MaxTurnAngle"
+address = 0x00A96548
+kind = "data"
+expect = "4D 61 78 54 75 72 6E 41"
+source = "The script key 'MaxTurnAngle' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_TurnPerSec"
+address = 0x00A9653C
+kind = "data"
+expect = "54 75 72 6E 50 65 72 53"
+source = "The script key 'TurnPerSec' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_RestoreTurnPerSec"
+address = 0x00A96528
+kind = "data"
+expect = "52 65 73 74 6F 72 65 54"
+source = "The script key 'RestoreTurnPerSec' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_TurnAngleThreshhold"
+address = 0x00A96514
+kind = "data"
+expect = "54 75 72 6E 41 6E 67 6C"
+source = "The script key 'TurnAngleThreshhold' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_GripPercentage"
+address = 0x00A96504
+kind = "data"
+expect = "47 72 69 70 50 65 72 63"
+source = "The script key 'GripPercentage' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_GuardrailDotTolerance"
+address = 0x00A964EC
+kind = "data"
+expect = "47 75 61 72 64 72 61 69"
+source = "The script key 'GuardrailDotTolerance' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_GuardrailDistance"
+address = 0x00A964D8
+kind = "data"
+expect = "47 75 61 72 64 72 61 69"
+source = "The script key 'GuardrailDistance' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_GuardrailPercentage"
+address = 0x00A964C4
+kind = "data"
+expect = "47 75 61 72 64 72 61 69"
+source = "The script key 'GuardrailPercentage' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_OffRoadSpeedModifier"
+address = 0x00A964AC
+kind = "data"
+expect = "4F 66 66 52 6F 61 64 53"
+source = "The script key 'OffRoadSpeedModifier' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_RelativeDensity"
+address = 0x00A9649C
+kind = "data"
+expect = "52 65 6C 61 74 69 76 65"
+source = "The script key 'RelativeDensity' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_TrainDerailmentThrottleDuration"
+address = 0x00A9647C
+kind = "data"
+expect = "54 72 61 69 6E 44 65 72"
+source = "The script key 'TrainDerailmentThrottleDuration' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_TrainFullThrottlePitchMax"
+address = 0x00A96460
+kind = "data"
+expect = "54 72 61 69 6E 46 75 6C"
+source = "The script key 'TrainFullThrottlePitchMax' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_MaxTapDuration"
+address = 0x00A96450
+kind = "data"
+expect = "4D 61 78 54 61 70 44 75"
+source = "The script key 'MaxTapDuration' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_TankTurnInPlace"
+address = 0x00A96440
+kind = "data"
+expect = "54 61 6E 6B 54 75 72 6E"
+source = "The script key 'TankTurnInPlace' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_HitPoints"
+address = 0x00A96434
+kind = "data"
+expect = "48 69 74 50 6F 69 6E 74"
+source = "The script key 'HitPoints' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_AccelRate"
+address = 0x00A96428
+kind = "data"
+expect = "41 63 63 65 6C 52 61 74"
+source = "The script key 'AccelRate' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_BankRate"
+address = 0x00A9641C
+kind = "data"
+expect = "42 61 6E 6B 52 61 74 65"
+source = "The script key 'BankRate' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ClimbRate"
+address = 0x00A96410
+kind = "data"
+expect = "43 6C 69 6D 62 52 61 74"
+source = "The script key 'ClimbRate' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_DiveRate"
+address = 0x00A96404
+kind = "data"
+expect = "44 69 76 65 52 61 74 65"
+source = "The script key 'DiveRate' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_RudderRate"
+address = 0x00A963F8
+kind = "data"
+expect = "52 75 64 64 65 72 52 61"
+source = "The script key 'RudderRate' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_ReturnToCenterFactor"
+address = 0x00A963E0
+kind = "data"
+expect = "52 65 74 75 72 6E 54 6F"
+source = "The script key 'ReturnToCenterFactor' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_MinThrottle"
+address = 0x00A963D4
+kind = "data"
+expect = "4D 69 6E 54 68 72 6F 74"
+source = "The script key 'MinThrottle' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_FlapRateClimb"
+address = 0x00A963C4
+kind = "data"
+expect = "46 6C 61 70 52 61 74 65"
+source = "The script key 'FlapRateClimb' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_FlapRateDive"
+address = 0x00A963B4
+kind = "data"
+expect = "46 6C 61 70 52 61 74 65"
+source = "The script key 'FlapRateDive' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_LandingThrottle"
+address = 0x00A963A4
+kind = "data"
+expect = "4C 61 6E 64 69 6E 67 54"
+source = "The script key 'LandingThrottle' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_LandingElevator"
+address = 0x00A96394
+kind = "data"
+expect = "4C 61 6E 64 69 6E 67 45"
+source = "The script key 'LandingElevator' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_TrimRate"
+address = 0x00A96388
+kind = "data"
+expect = "54 72 69 6D 52 61 74 65"
+source = "The script key 'TrimRate' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::Key_MaxTrim"
+address = 0x00A96380
+kind = "data"
+expect = "4D 61 78 54 72 69 6D 00"
+source = "The script key 'MaxTrim' the readers ask for. Called by address from src/core/automata_scripts_4.cpp (part s3b)."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::OccupantGroupTableName"
+address = 0x00B09A34
+kind = "data"
+source = "A pointer to 'occupant_group', the occupant groups' global table."
+
+[[entry]]
+name = "cSC4AutomataScriptSystem::AutomataGroupTableName"
+address = 0x00B09A38
+kind = "data"
+source = "A pointer to 'automata_group'."
