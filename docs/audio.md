@@ -4,7 +4,7 @@ The game's own sound code, rewritten piece by piece like the simulators ([parity
 
 "Ours" means rewritten here and hooked at the original's entry. "The game's" means left alone and called by address. Whatever is heard is the business of EA's sound library, which stays the game's (see the fence below): this page is about the code that decides what to ask of it.
 
-In total 575 functions are ours (573 under audio names, 2 under UI names: the options dialog's maker 0x004F2450 and its run function 0x004F25F0). The other functions of the range are listed under "What is fenced off" and "Not done".
+In total 575 functions are ours (573 under audio names, 2 under UI names: the options dialog's maker 0x004F2450 and its run function 0x004F25F0). The music player's first piece adds 42 (`audio.music.part1`, see "Music player"). The other functions of the range are listed under "What is fenced off" and "Not done".
 
 ## The pieces
 
@@ -36,7 +36,7 @@ Function counts per group, counted from each file's hook table: part1 117, part2
 ## What is fenced off
 
 - **EA's sound library (AEMS)**, 0x00864D10 to 0x00867A00, and its pointer table of eight functions at 0x00B107D8 to 0x00B107F4. Never rewritten. The event system calls it as the original does.
-- **The framework's sound service** (service 0x23CECBA0, interface 0x106077D2, vtable 0x00AD7180) and **the music player** (service 0x1D07B39F, interface 0xE0510260, vtable 0x00ACC310). Only called. The ambience layers, the scape manager and the sound manager talk to the sound service by messages: 0xEA451903 starts a sound, 0xCA45190F places it (whole numbers), 0x6A451908 stops it, 0x4A451915 sets its level.
+- **The framework's sound service** (service 0x23CECBA0, interface 0x106077D2, vtable 0x00AD7180). Only called. **The music player** (service 0x1D07B39F, interface 0xE0510260, vtable 0x00ACC310) is being rewritten in pieces of its own (see "Music player" below); the audio code only calls it. The ambience layers, the scape manager and the sound manager talk to the sound service by messages: 0xEA451903 starts a sound, 0xCA45190F places it (whole numbers), 0x6A451908 stops it, 0x4A451915 sets its level.
 - **The camera's code**, which belongs to the renderer work. The camera-to-view helper 0x007F78E0 and the view's getter of zoom and rotation 0x007F66A0 are called by address.
 - **Code folded with other classes, and generic container code.** The files name these and give the reason:
 
@@ -272,11 +272,62 @@ Nothing in the sound code was changed. The fix is a switch for test runs, `deter
 
 Parity (batch aud9, 7 days, the full list of groups with `audio.part5` and `audio.part6` in it, the switch on both sides): with the dispatch tool's test and its commits (`OPENSC4_TEST_TOOLS3=2 OPENSC4_TEST_TOOLS3_COMMIT=1 OPENSC4_TEST_TUTORIAL_OFF=1`) 12 of 12 saves identical and 3 of 3 on the plopped corpus, where the batch before had 0 of 12; plain 12 of 12; all on the first pair. Single runs on Making Money d0090, Big City d0000 and Rush Hour d0090: the original with and without the switch, and `audio.part5`, `audio.part6` and both with it, have one fingerprint per save; `audio.part5` without the switch has another.
 
+## Music player
+
+GZSound's music player, 0x008D2994 to 0x008D7FFF (144 functions, [uncharted-code.md](uncharted-code.md)): the radio stations, the playlists (`.m3u`, `.pls`), `Res\Music\Radio\` and `Welcome.wav`. It is framework code linked into the exe (its functions are not aligned to 16 bytes like the game's), and the audio code holds it: the event handler at +0x10, the music lists post to it (part 7). It is rewritten in four pieces of its own, `audio.music.part1` to `part4`, in `src/core/music_<n>.cpp`, addresses in `data/addresses/music.toml` (its constructor 0x008D35AB stays in `audio.toml`, where part 4's factory names it). Each group is off by default.
+
+### The classes
+
+| Class | What |
+| --- | --- |
+| The player service | 0x90 bytes, class 0x5CFBDBBF, system service ID 0x1D07B39F, priority 0x7A116. Made by the director's factory 0x004EB150 (part 4), which hands out its +0x1C part. Constructor 0x008D35AB, destructor 0x008D36EF, deleting destructor 0x008D38C9 |
+| The station class | 0x100 bytes, class 0x5CFBDBD5, constructor 0x008D376E, made by the factory 0x004EB180 and by the player's slot 16 (0x008D49F8); vtable 0x00ACC290 of 27 slots; destructor 0x008D3506. Its constructor shuffles its list (0x008D3442, `rand`). By the slots the player calls on them, its station vector holds these; whether the object at the player's +0x6C (called "the stream object" below) is one too is for part 2 to settle |
+
+The player has four vtables:
+
+| Offset | Vtable | What |
+| --- | --- | --- |
+| +0x00 | 0x00ACC3C0 | the system service, 20 slots: 0 QueryInterface 0x008D2A6E, 1 AddRef 0x008D2AAF, 2 Release 0x008D2AB6, 8 Init 0x008D4687, 9 Shutdown 0x008D2A09, 10 OnTick 0x008D365B, 13 0x008D3651 (sets +0x64), 15 0x008D366C (+0x89), 16 0x008D49F8, 17 0x008D3D5D and 18 0x008D3D33 (the file filters: the extensions mp3, wav, xa, m3u and pls), 19 0x008D2ACB (Shutdown and delete, what the last Release calls); 3 to 7, 11, 12 and 14 are the base's |
+| +0x04 | 0x00ACC3A4 | the base's unknown part: thunks of QueryInterface, AddRef, Release and the deleting destructor |
+| +0x1C | 0x00ACC310 | the player interface 0xE0510260, 37 slots (0 to 4 thunks of QueryInterface, AddRef, Release, Init, Shutdown; 6, 15 and 30 framework functions shared with other classes) |
+| +0x20 | 0x00ACC2FC | a message target: three thunks and DoMessage 0x008D319B |
+
+The player does little by itself: its methods post a message to the message server at +0x68 (0x0AB1A61E the volume, 0x0AB186E5 stop, 0x6AB1A480 pause, 0x4AB186E9, 0xEAB1A483, 0xEAB186DF), and DoMessage, which gets them back, works on the stream object. Its fields: +0x24 started, +0x28 the reference count, +0x2C the eighth dword of the settings, +0x30 the vector of stations, +0x3C the volume (0 to 0x400), +0x40 a mute count, +0x44 on, +0x48 the current station, +0x4C/+0x4D/+0x4E three option bytes (by number 0, 1 and 3), +0x50 the folder (a string), +0x64 a pointer slot 13 sets, +0x68 the message server, +0x6C the stream object, +0x74 a file name (a string) with +0x88 saying it is set, +0x8C the volume kept for unmuting. The settings slots 35 and 36 move eight dwords at once: volume, on, station, options 0 and 1, an unused one, option 3, and +0x2C.
+
+### The pieces
+
+| Piece | Functions | What |
+| --- | --- | --- |
+| `audio.music.part1` | 42 ours, 2 kept | the player service's life (constructor, destructor, deleting destructor), QueryInterface, AddRef, Release and their twelve this-adjustor thunks, Shutdown, OnTick, service slots 13, 15 and 19, the volume post 0x008D2C5F, and the interface's simple methods: slots 8, 9, 10, 12, 16, 17, 18, 20, 25 to 29, 31 to 33, 35, 36 |
+| part 2 (next) | 20 | the rest of the player: Init 0x008D4687, slot 16 0x008D49F8, DoMessage 0x008D319B and 0x008D3132, the interface's slots 5 (0x008D30D1, 0x008D2C7D), 7 (0x008D3DC6, 0x008D3BF8), 11 (0x008D484A), 13 (0x008D490B, 0x008D2BFF), 14 (0x008D3066), 19 (0x008D38E5), 21 (0x008D33FF with the find 0x008D335B, 0x008D2C96), 22 (0x008D3733), 23 (0x008D2F21), and the file filters 0x008D3D5D, 0x008D3D33 |
+| part 3 | 29 | the station class: constructor 0x008D376E, destructor 0x008D3506 and 0x008D38AD, its vtable's slots (0x008D2994 to 0x008D5EC3), the shuffle 0x008D3442 and 0x008D3485 and its helpers |
+| part 4 | 48 | the playlist readers (0x008D5F5B to 0x008D6B22, `.m3u` and `.pls`) and the string and tree container code they use (0x008D3C38, 0x008D3C67, 0x008D3DEF, 0x008D50B2 to 0x008D5E50); container code shared with other code will stay the game's |
+| not the player's | 3 | 0x008D6CF0 (6,749 bytes, called from 0x008FF8AB, 0x0099EF11 and 0x009B6AE5, none of them the player), 0x008D3333 (a vector erase with ten callers elsewhere), 0x008D3376 (an allocation helper also called from 0x00875337) |
+
+Part 1 in `src/core/music_1.cpp`. The group goes in when core.dll is injected (phase Attach), as the framework's service base does, because the player is made while the application starts, before PostAppInit; its constructor and Shutdown therefore run as ours. The thunk of Init (0x008D51DB) is ours and calls the game's Init.
+
+Kept as the game's in part 1: slots 24 (0x008D2B70, the byte +0x44) and 34 (0x008D3668, the byte +0x88). Each is 4 bytes (`MOV AL,[ECX+n]; RET`) with the next function right after it and no padding, too short for the entry hook. 0x008D2C20 and 0x008D2C39 are not functions: they are the bodies the adjustors of slots 31 (0x008D3122) and 8 (0x008D312A) jump to, and are written out in those two.
+
+Two quirks, kept: Shutdown releases the stream object without clearing its pointer at +0x6C, and the last Release does not count the reference down before slot 19 deletes the object.
+
+#### Parity
+
+Batch `mus1` (2026-10-19), 7 days per save, `audio.*=ours` on side B (parts 1 to 9 and `audio.music.part1`), the base list of `scripts/run-parity.sh` on both sides (with `determinism.dispatch_info`), `OPENSC4_TEST_AUDIO=3` and `OPENSC4_TEST_AUDIO_DIALOG=4`, three jobs at a time:
+
+| Leg | Saves | Result |
+| --- | --- | --- |
+| trial | 3 (Big City d0000, Making Money d0090, Rush Hour d0365) | 3 same on the first pair |
+| main | 12 | 11 same on the first pair; Big City d1095's B run did not start (below), same when rerun alone |
+
+The failed run: three launches of the B run stopped right after core.dll's Attach phase (the last log line is the registry's, before the game's own start-up logs anything; a working run logs the player's constructor about ten seconds later), and the harness reported "the game did not start (Steam relaunch?)", the third time after its 600-second timeout. No crash, no exception report. Other games were being started on the machine at the same time, and Steam refused several launches with a "Steam Error" window. The same build launched in the other 14 B runs. Rerun alone (one job, the same switches, 2026-10-20): both runs started and the save was the same on the first pair (8 of 8 days), with 23 first-call lines on side B. So 12 of 12.
+
+Reached (our first-call log lines, in every B run that started): the constructor, destructor, deleting destructor, QueryInterface, AddRef, Release, Shutdown, OnTick, slots 13, 15 and 19 of the service, the volume post, and the interface's slots 10, 12, 16, 29, 31 and 33; of the thunks, QueryInterface and Release of the +0x1C part, AddRef and Release of the +0x20 part, and the +4 part's deleting destructor. 23 of 42. Not reached: the other seven thunks (the Init thunk among them: Init is called through the service part), and slots 8, 9, 17, 18, 20, 25 to 28, 32, 35 and 36, which only the options dialog's real use, a station change or code of part 2 would call.
+
 ## Not done
 
 - The functions in the fence table above that are shared with other classes or are generic container code. They could become ours only together with their other users.
 - The sound library (AEMS) and its pointer table. They are EA's code; a replacement would be a new sound engine, not a rewrite.
-- The framework's sound service and the music player.
+- The framework's sound service, and the music player's pieces 2 to 4 (see "Music player").
 - Playback checks. Everything above is compared by state; nothing here shows that the rewritten code sounds the same.
 - The director's start-up code is ours but is not run in a normal test: the game's versions have already run by PostAppInit (see above).
 - Tracks and sounds that are not the game's. New sounds and soundtracks are on the [roadmap](../ROADMAP.md) as an idea only and are not started.
