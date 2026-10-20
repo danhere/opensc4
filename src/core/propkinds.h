@@ -1,15 +1,17 @@
-// Five classes derived from the prop occupant (build 641): the terrain decal
+// Six classes derived from the prop occupant (build 641): the terrain decal
 // (cSC4PropOccupantTerrainDecal: a picture laid flat on the ground, with an
 // opacity that can fade), the visual effect (cSC4PropOccupantVisualEffect:
 // an effect of the effects manager at the prop's place), the automata
 // controller prop (cSC4PropOccupantAutomataController: a prop that has the
 // automata controller manager run a controller of a named template), the
 // burnt building (cSC4PropOccupantBurntBuilding: the ruin a fire leaves,
-// drawn by the class itself) and the text decal (cSC4PropOccupantTextDecal:
-// the label, a line of text on the ground). The class maps, every vtable
-// part and the objects' fields; the code is in propkinds_decal.cpp,
-// propkinds_effect.cpp, propkinds_automata.cpp, propkinds_burnt.cpp and
-// propkinds_textdecal.cpp.
+// drawn by the class itself), the text decal (cSC4PropOccupantTextDecal:
+// the label, a line of text on the ground) and the sign
+// (cSC4PropOccupantSign: a sign standing on the terrain with a line of
+// text, drawn by the class itself). The class maps, every vtable part and
+// the objects' fields; the code is in propkinds_decal.cpp,
+// propkinds_effect.cpp, propkinds_automata.cpp, propkinds_burnt.cpp,
+// propkinds_textdecal.cpp and propkinds_sign.cpp.
 //
 // Both objects start with an interface of their own at +0 and hold the
 // whole prop (cSC4PropOccupant, 0x68 bytes, src/core/propocc_sim.h) at +4,
@@ -169,6 +171,44 @@
 //   Not virtual: RemoveOverlays 0x005F77C0, MakeOverlays 0x005F7810,
 //   MoveOverlays 0x005F7A50, PickOverlayManagers 0x005F7C80 and MakeText
 //   0x005F8190.
+//
+// cSC4PropOccupantSign (the sign on the terrain; see namespace sign; the
+// prop at +4, then a model part with a virtual base like the burnt
+// building's)
+//   class ID 0xAB72FBB3 (GetGZCLSID 0x005F5940; Init gives the prop the
+//   same value as its prop type), interface 0x4B44FBE2
+//   0x590 bytes from the pool at 0x00B0A96C (64 KB pages at address &
+//   0xFFFF0000, 0x2E items; allocator 0x005F5050 and, inline, the factory
+//   0x005F5CE0; the pool's own page functions 0x005F49A0 and 0x005F5380, in
+//   its vtables 0x00AA5258 and 0x00AA5288, stay the game's)
+//   constructor 0x005F5510 (ret 4: 1 for the most derived object; the
+//   factory; the sign tool at 0x004D82D9), destructor body 0x005F5D80,
+//   deleting destructor 0x005F5D20 (thunks 0x005F59A0 and 0x005F59C0)
+//   +0x00 vtable 0x00AA5478, 8 slots:
+//      0 2 QueryInterface 0x005F4930
+//      1, 2 AddRef 0x005ECAF0, Release 0x005ECB00
+//      3 0 AsOccupant 0x005F8400 (shared, the game's)
+//      4 1 SetText 0x005F7600 (a string)
+//      5 1 GetText 0x005F5920 (a string to copy into)
+//      6 1 SetHighlight 0x005F4BA0 (bool)
+//      7 1 SetEditing 0x005F7320 (bool)
+//   +0x04 the prop interface, vtable 0x00AA5418, 24 slots: all the prop's
+//   +0x08 the message target, vtable 0x00AA5408: 3 DoMessage 0x005F7510
+//   +0x0C the occupant, vtable 0x00AA5380, 34 slots; the class's own: 3 Init
+//      0x005F73A0, 4 Shutdown 0x005F5E20, 9 SetPosition 0x005F4E90, 30
+//      SetAllFlags 0x005F4A90
+//   +0x10 cIGZSerializable, vtable 0x00AA5364: 3 Write 0x005F5080, 4 Read
+//      0x005F50F0, 5 GetGZCLSID 0x005F5940
+//   +0x14 the property holder, vtable 0x00AA5300, 25 slots: 22 the deleting
+//      destructor's thunk 0x005F59A0, 23 and 24 thunks to Write and Read
+//   +0x28 the exemplar holder, vtable 0x00AA52E8, 5 slots
+//   +0x6C the model part, vtable 0x00AA52E4: 0 the deleting destructor's
+//      thunk 0x005F59C0; vbptr at +0x70 (0x00AA5498)
+//   +0x58C the virtual base, the model interface, vtable 0x00AA5298 (19
+//      slots, the drawing: the game's)
+//   Not virtual: the caret's clock 0x005F4960 (DoMessage) and MakeGlyphs
+//   0x005F5EF0 (the text's textures); the geometry builder 0x005F5FB0 and
+//   its helpers (drawing, the game's).
 //
 // What follows frames and the view, not game days:
 //   - base flag 2 of both (the occupant's flags at the object + 0x3B):
@@ -380,6 +420,56 @@ constexpr std::size_t kSetDirection = 0x24, kSetOpacity = 0x28;
 } // namespace slot
 } // namespace textdecal
 
+// The sign holds the prop at +4 like the first three; after it come a
+// model part and a virtual base like the burnt building's.
+namespace sign {
+constexpr uint32_t kClassId = 0xAB72FBB3; // also the prop type Init gives it
+constexpr uint32_t kIid = 0x4B44FBE2;
+constexpr std::size_t kObjectSize = 0x590;
+
+// Fields (evidence: the constructor 0x005F5510, Init 0x005F73A0, Write
+// 0x005F5080, SetPosition 0x005F4E90 and the geometry builder 0x005F5FB0).
+constexpr std::size_t kModelPart = 0x6C;  // the model part (SC4Model::ConstructModelPart 0x00801CF0), vtable 0x00AA52E4
+constexpr std::size_t kVbptr = 0x70;      // its virtual base table, 0x00AA5498 {-4, 0x51C}
+constexpr std::size_t kModelFlags = 0x80; // uint32, the model part's +0x14 (2 from its constructor): bit 0 highlighted
+constexpr std::size_t kModelThis = 0x9C;  // what the model part's functions take as `this` (0x008018E0 reads this - 0x1C)
+// +0x98 the text: a game string, 0x14 bytes (vtable, begin, end, capacity, a
+// zero); saved.
+constexpr std::size_t kText = 0x98;
+constexpr std::size_t kTextBegin = 0x9C;
+constexpr std::size_t kTextEnd = 0xA0;
+constexpr std::size_t kTextCapacity = 0xA4;
+constexpr std::size_t kTextZero = 0xA8;
+constexpr std::size_t kEditing = 0xAC;        // uint8: the text is being edited (the caret drawn, frames listened to)
+constexpr std::size_t kCaret = 0xAD;          // uint8: the caret is shown; flips every 500 (not set by the constructor)
+constexpr std::size_t kCaretTime = 0xB0;      // uint32: frame time since the caret last flipped (not set by the constructor)
+constexpr std::size_t kTransformCount = 0xB4; // uint8: the transform's change count
+constexpr std::size_t kTransformFlags = 0xB5; // uint8: the transform's flags (bit 0 set by a move)
+constexpr std::size_t kRotation = 0xB8;       // float[9], the identity from the constructor (the geometry builder's)
+constexpr std::size_t kPosition = 0xDC;       // float[3]: where the sign stands (SetPosition); saved
+constexpr std::size_t kScale = 0xE8;          // float, 1
+// Four boxes of six floats (low corner, high corner), (1,1,1)-(0,0,0) from
+// the constructor; SetPosition moves the last three (+0x104, +0x11C,
+// +0x134), the geometry builder makes them.
+constexpr std::size_t kBoxes = 0xEC;
+constexpr std::size_t kBuffer = 0x4BC;      // a vector (begin, end, capacity) the destructor frees
+constexpr std::size_t kHighlight = 0x4D4;   // four vertex colours 0x10 apart (B, G, R, A), written by SetHighlight
+constexpr std::size_t kBinding = 0x548;     // a texture binding only the destructor releases (null from the constructor)
+constexpr std::size_t kBindings = 0x54C;    // 10 texture bindings (Init), released by Shutdown and the destructor
+constexpr std::size_t kGlyphs = 0x574;      // a vector of references: the text's textures (MakeGlyphs; begin, end, capacity)
+constexpr std::size_t kRenderState = 0x580; // the render state (SC4RenderState::Init 0x007D2B50), 8 bytes
+constexpr std::size_t kVtordisp = 0x588;    // int32: 0 (the virtual base's displacement)
+constexpr std::size_t kVirtualBase = 0x58C; // the model interface, vtable 0x00AA5298 (19 slots; 0x00AA1F38 before)
+
+constexpr uint32_t kBindingCount = 10;
+
+// Byte offsets of the class's own slots in its primary vtable (the sign
+// tool's and the sign removal tool's calls).
+namespace slot {
+constexpr std::size_t kSetText = 0x10, kGetText = 0x14, kSetHighlight = 0x18, kSetEditing = 0x1C;
+} // namespace slot
+} // namespace sign
+
 template <typename R, typename... Args>
 inline R This(std::uintptr_t function, void* self, Args... args)
 {
@@ -444,12 +534,13 @@ inline void* PoolAllocate(std::uintptr_t poolAddress)
 
 // An object back to its pool (the tail of the deleting destructors
 // 0x005EF1C0 and 0x005F05A0): the page header is at the address with its
-// low 14 bits clear; a page left empty goes back to the pool, and a page
+// low 14 bits clear (16 KB pages; the sign's pool has 64 KB pages, page mask
+// 0xFFFF0000); a page left empty goes back to the pool, and a page
 // whose count comes down to `reopenAt` (0x4000004C for the decal's pool,
 // 0x40000052 for the effect's: a full page less one) is opened again.
-inline void PoolFree(std::uintptr_t poolAddress, char* self, uint32_t reopenAt)
+inline void PoolFree(std::uintptr_t poolAddress, char* self, uint32_t reopenAt, uint32_t pageMask = 0xFFFFC000u)
 {
-    char* const page = reinterpret_cast<char*>(reinterpret_cast<std::uintptr_t>(self) & 0xFFFFC000u);
+    char* const page = reinterpret_cast<char*>(reinterpret_cast<std::uintptr_t>(self) & pageMask);
     At<void*>(self, 0x0) = At<void*>(page, 0x8);
     const uint32_t used = At<uint32_t>(page, 0xC) - 1;
     At<void*>(page, 0x8) = self;
