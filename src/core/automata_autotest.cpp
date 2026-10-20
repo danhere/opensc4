@@ -2285,6 +2285,58 @@ uint32_t LoadedGroupHash(char* g)
     MixIdList(h, At<char*>(g, sg::kList50));
     h.Mix(At<uint32_t>(g + sg::kNames, 0x10));
     h.Mix(At<uint32_t>(g + sg::kRecords, 0x10));
+    // Part s3b's fields: the controller templates (+0x30, in order), the
+    // models (+0x48, three IDs a node), the trailers (+0x54, SC4Strings at
+    // +8 of 0x1C-byte nodes), the anims (+0x34, name -> value) and the key
+    // effects (+0x70, byte key -> three strings and flags) summed, the
+    // speeds, the drive parameter and driving blocks (raw; the allocations
+    // are zeroed under determinism.zero_alloc), the image and the source
+    // building.
+    uint32_t count = 0;
+    char* head = At<char*>(g, sg::kList30);
+    for (char* n = At<char*>(head, 0); n != head && count < 4096; n = At<char*>(n, 0), ++count)
+        h.Mix(At<char*>(n, 8) ? TemplateHash(At<char*>(n, 8)) : 0u);
+    h.Mix(count);
+    count = 0;
+    head = At<char*>(g, sg::kList48);
+    for (char* n = At<char*>(head, 0); n != head && count < 4096; n = At<char*>(n, 0), ++count)
+        for (const std::size_t at : {0x8u, 0xCu, 0x10u})
+            h.Mix(At<uint32_t>(n, at));
+    h.Mix(count);
+    count = 0;
+    head = At<char*>(g, sg::kList54);
+    for (char* n = At<char*>(head, 0); n != head && count < 4096; n = At<char*>(n, 0), ++count)
+        h.Mix(NameHash(At<const char*>(n, 0xC), At<const char*>(n, 0x10)));
+    h.Mix(count);
+    uint32_t sum = 0;
+    ForEachScriptNode(g + sg::kNames, [&](char* node) {
+        Hash e;
+        e.Mix(NameHash(At<const char*>(node, 4), At<const char*>(node, 8)));
+        e.Mix(At<uint32_t>(node, 0x10));
+        sum += e.h;
+    });
+    h.Mix(sum);
+    sum = 0;
+    ForEachScriptNode(g + sg::kRecords, [&](char* node) {
+        Hash e;
+        e.Mix(At<uint8_t>(node, 4));
+        for (const std::size_t at : {0x8u, 0x1Cu, 0x30u})
+            e.Mix(NameHash(At<const char*>(node, at + 4), At<const char*>(node, at + 8)));
+        e.Mix(At<uint32_t>(node, 0x44));
+        sum += e.h;
+    });
+    h.Mix(sum);
+    for (const std::size_t at : {0x58u, 0x5Cu, 0x68u, 0x6Cu})
+        h.Mix(At<uint32_t>(g, at));
+    struct Block {
+        std::size_t at, size;
+    };
+    for (const Block b : {Block{0x60, 0xA0}, Block{0x64, 0x94}}) {
+        const uint32_t* const block = At<const uint32_t*>(g, b.at);
+        h.Mix(block ? 1u : 0u);
+        for (std::size_t i = 0; block && i < b.size / 4; ++i)
+            h.Mix(block[i]);
+    }
     return h.h;
 }
 

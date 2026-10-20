@@ -9,8 +9,8 @@
 // behaviours 0x00522860), the templates' automata groups by name
 // (0x0051DAA0), the groups' parents and member names (0x0051F5C0), the
 // drive commands (0x0051FA60) and the track buildings (0x0051EEE0); the
-// groups and the vehicle kinds (0x00521C70, 0x005216A0, part s3b) are the
-// game's, called at their addresses. Then the Lua state is shut down and
+// automata and occupant groups (0x00521C70, 0x005216A0, part s3b) are
+// called at their addresses. Then the Lua state is shut down and
 // released. The layout is in src/core/automata_scripts.h and the survey in
 // docs/automata.md, "Part s". Calls between functions of the part go to
 // the game's addresses, so each detour stands alone and
@@ -1272,7 +1272,7 @@ std::uint8_t __fastcall LoadScripts(char* self, void*)
             using Reader = std::uint8_t(__thiscall*)(void*);
             const std::uintptr_t readers[] = {
                 addr::cSC4AutomataScriptSystem_ReadAttractors, addr::cSC4AutomataScriptSystem_ReadGenerators,
-                addr::cSC4AutomataScriptSystem_ReadGroups,     addr::cSC4AutomataScriptSystem_ReadVehicleKinds,
+                addr::cSC4AutomataScriptSystem_ReadAutomataGroups, addr::cSC4AutomataScriptSystem_ReadOccupantGroups,
                 addr::cSC4AutomataScriptSystem_ResolveTemplateGroups, addr::cSC4AutomataScriptSystem_ResolveGroups,
             };
             result = 1;
