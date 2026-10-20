@@ -2081,3 +2081,329 @@ convention = "thiscall"
 signature = "void* (void* block, void* manager, uint32_t a, uint32_t b, uint32_t c)"
 expect = "8B 54 24 0C 53 56 57 8B"
 source = "Name ours. Builds a pedestrian in a pool block for the pedestrian manager's AddAutomaton, ret 0x10. Called by address from src/core/automata_vehmgr.cpp (part v2)."
+
+# Part v3 of the vehicle and pedestrian managers: creation, dispatch and frames (src/core/automata_vehmgr.cpp; docs/automata.md, "Part v3").
+
+[[entry]]
+name = "cSC4VehPedManagerBase::GetRandomCreationPoint"
+address = 0x00553080
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t group, const float* position, float least, float most, float* out, uint32_t flags, uint32_t g)"
+expect = "8B 44 24 18 83 EC 20 A9"
+source = "Name ours. Slot 16, ret 0x1C: with flags 0x22000 the common base's 0x00506DC0 (its seventh argument 0); else, when slot 30 allows the group, the network points the cells object's slot 0x64 finds in the lot's rectangle (or the cell) of the position within the least and the most distance (the most clamped to the city's size, both times 1/16 and truncated), one drawn (0x00913A06 on +0x50), its cell (slot 0xEC) to a position (city slot 0x184) and its height (slot 0xE0) into out; the points released. Ours in simulators.automata.vehmgr.create (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::DispatchAutomaton"
+address = 0x00551730
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, cISC4Automaton* automaton, const void* from, const void* to, uint32_t b, uint8_t least)"
+expect = "83 EC 34 53 55 56 8B 74"
+source = "Name ours. Slot 17, ret 0x14: the ends (slot 20; the automaton's own cell when from has none, inside the city), +0xA88's path object (slot 0x18), the path set (slots 0x4C, 0x34, 0x48, 0x14, 0x24, 0x20, 0x50) and run (0x5C); with a path of at least least cells and slot 0x238, the automaton's flags and slot 0x280, then slot 19 and its slot 0x140. The automaton, or 0. Ours in simulators.automata.vehmgr.create (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::DispatchNew"
+address = 0x0054DBF0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t classId, const void* from, const void* to, uint32_t b, uint32_t c, const float* position, uint32_t d)"
+expect = "83 EC 1C 8B 44 24 34 8B"
+source = "Name ours. Slot 18, ret 0x1C: a position from slot 25 at from's end when the given one has z 0; a new automaton by slot 46, added (slot 7), dispatched (slot 17) and released; removed (slot 8) when the dispatch fails; slot 0x24 (0) of the answer unless +0x4C or flag 0x80. Ours in simulators.automata.vehmgr.create (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::AddRecord"
+address = 0x005538D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t a, void* object, uint32_t count, uint8_t b1, uint8_t b2, uint32_t flags)"
+expect = "83 EC 1C 53 55 8B 6C 24"
+source = "Name ours. Slot 70, ret 0x18: a 0x1C-byte record on the +0xAA8 vector (a, the object referenced, count, the two bytes, flags | 0x2000000, timer 0, tries 0); AL 0 without the object. Ours in simulators.automata.vehmgr.create (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::CreateFor"
+address = 0x0054F8A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* occupant, uint8_t byte, uint32_t group, uint32_t b, uint8_t nearby, uint32_t kind)"
+expect = "83 EC 1C 53 8B 5C 24 24"
+source = "Name ours. Slot 71, ret 0x18: a lane of the occupant's slot 0xC4 part (slots 0x24 and 0xC), the position 0x0054DD50 gives, slot 15, the kind 7 (0x0054E690) and the occupant (automaton slot 0x20C; +0x1E8 the byte); removed when it fails. The automaton, or 0. Ours in simulators.automata.vehmgr.create (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::OccupantPosition"
+address = 0x0054DD50
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t group, void* occupant, uint32_t b, float* out)"
+expect = "83 EC 10 56 8B F1 8B 4C"
+source = "Name ours. Ret 0x10: slot 25 (0x0050BE90) at the occupant's rectangle's corner, the answer's position (+0x10) into out; the answer. Ours in simulators.automata.vehmgr.create (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::KindMatrix"
+address = 0x0054DDB0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant, uint32_t b, uint32_t kind, float sign, float* out)"
+expect = "83 EC 10 56 57 8B F9 8B"
+source = "Name ours. Slot 72, ret 0x14: kinds 7 and 8 slot 88; kinds 1 to 6, 9 and 10 the 16 words +0xA88's slot 0x30 gives at the occupant's corner for the kind's table (1 +0xA90, 2, 4, 3, 5, 6, 7, 8) and the sign flag, times slot 87's scale and its absolute value; other kinds zero. Ours in simulators.automata.vehmgr.create (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::SetAutomatonKind"
+address = 0x0054E690
+kind = "function"
+convention = "thiscall"
+signature = "void (cISC4Automaton* automaton, uint32_t kind)"
+expect = "53 56 8B F1 57 8B BE EC"
+source = "Name ours. this = an automaton, ret 4: slot 0x210 with no occupant, +0x1E4 the kind, slot 0x210 with the occupant (+0x1EC) again. Ours in simulators.automata.vehmgr.create (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::SpawnAt"
+address = 0x0054EF00
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* occupant, uint32_t unused, uint32_t kind, float add, uint8_t d, uint8_t side, double limit, float rate)"
+expect = "83 EC 38 55 57 8B 7C 24"
+source = "Name ours. Slot 79, ret 0x24: the side and lane (slots 0xD4, 0xC, 0x30, a draw), the cells object's level (slot 0x4C) raised by add and its gate (slot 0x5C); at or past the limit's share, away from busy cells (kinds 4, 5, 6, 9, 10), slot 15 at the lane's position and slot 25's point, the kind, the occupant, the speeds (slot 0x84), the lane byte (kinds 7 and 8) and, for service groups, slot 0x30C with the rate's count. Ours in simulators.automata.vehmgr.create (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::SpawnNear"
+address = 0x0054F3C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant, uint32_t unused, uint32_t kind, uint8_t d, uint8_t side, uint32_t unused2)"
+expect = "83 EC 34 55 57 8B 7C 24"
+source = "Name ours. Slot 80, ret 0x18: as slot 79 without the level, and not closer to the camera's automaton (0x00B21B8C) than twice its slot 0x44. Ours in simulators.automata.vehmgr.create (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::SpawnFor"
+address = 0x0054FA10
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* occupant, void* cell, float rate, uint32_t count, uint32_t kind)"
+expect = "83 EC 1C 53 55 8B 6C 24"
+source = "Name ours. Slot 89, ret 0x14: the cell's automata of kind 8 past count x +0xAA4 x 0x00B21D00 x rate told to go (slot 0x34); below it one of group 0x4102 (slot 15) at the lane's position, slot 27's fit, the kind 8 and the occupant (slot 0x210). Ours in simulators.automata.vehmgr.create (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::OccupantRemoved"
+address = 0x0054ED90
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* occupant)"
+expect = "83 EC 24 53 8B 5C 24 2C"
+source = "Name ours. Slot 52, ret 4: the common base's stub 0x004FC900, then the automata of the occupant let go (slots 0x210, 0x21C) and those of flag 0x2000 (not 0x20000) in its rectangle removed (slot 0x21C). Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehicleManager::OccupantAdded"
+address = 0x0055B480
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* occupant)"
+expect = "83 EC 18 53 8B 5C 24 20"
+source = "Name ours. Slot 53, ret 4: a record (slot 70) per ID of the occupant's property 0xE9AEE3DA while there is room (counts from 0xE9AEE3DB); unless it filled up after some, a record 0x4206 for an occupant of kind 1 by a draw up to 0x00B21CC4; then 0x0054D250. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4PedestrianManager::OccupantAdded"
+address = 0x00544300
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* occupant)"
+expect = "83 EC 10 53 8B 5C 24 18"
+source = "Name ours. Slot 53, ret 4: a record per ID of the occupant's property 0xE9AEE3DC while there is room (counts from 0xE9AEE3DD); AL 1. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::RemoveRecordsOf"
+address = 0x005516C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* object)"
+expect = "53 8B 5C 24 08 85 DB 57"
+source = "Name ours. Slot 55, ret 4: the +0xAA8 records of the object released and erased (0x0054DB50), then the common base's 0x0050C7E0. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::CopyRecords"
+address = 0x0054DB50
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to, void* tag, uint32_t zero)"
+expect = "8B 4C 24 08 53 8B 5C 24"
+source = "Name ours. Cdecl: copies the 0x1C-byte records [first, last) to to front to back; the end of the copy. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::RefreshOccupants"
+address = 0x0054F7B0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "51 56 8B F1 89 74 24 04"
+source = "Name ours. Slot 56: the common base's 0x0050F2C0; with +0x10, per automaton its occupant's slot 0xC4 at +0x1F0 (+0x1F8 its slot 0xC of +0x1F4) and its slot 0x250 at +0xB0 when slot 0x258 answers. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::Update"
+address = 0x00553300
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t a, float time)"
+expect = "56 8B F1 57 8D 8E B8 0A"
+source = "Name ours. Slot 63, ret 8: the record list's update 0x00552BD0; with +0x3C above 0 and +0x4D and 0x00B21B9C clear, slot 76 (with +0x4C) and slot 84 (with records); then the common base's 0x0050A7B0. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehicleManager::Update"
+address = 0x0055B600
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t a, float time)"
+expect = "8B 44 24 04 56 57 8B 7C"
+source = "Name ours. Slot 63, ret 8: the base's 0x00553300, then slot 64. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::UpdateRecordList"
+address = 0x00552BD0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* field)"
+expect = "83 EC 1C 56 8B F1 8D 4E"
+source = "Name ours. this = the record list field (+0xAB8): every 500 ms of the stopwatch +0xAC0, the records past their time given back, released and freed, the others following their object's cell (0x0054EC60). Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::ForgetAutomaton"
+address = 0x0054FBC0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, cISC4Automaton* automaton)"
+expect = "51 8B 41 44 55 8B 28 3B"
+source = "Name ours. Slot 69, ret 4: the automata whose +0xB0 is it take their slot 0x250 there. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::KindSweep"
+address = 0x00552000
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float time)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Slot 76, ret 4: the kinds' clocks, the next kind of the mask 0x00B21D5C, and for its day or night the cells walked from +0xA9C/+0xAA0 for 5 ms: slot 77 (kinds 1, 2, 3, 7), slot 78 with slot 75 (4, 5, 6, 9, 10), slot 83 (8). Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::CellBalance"
+address = 0x005554E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant, void* cell, int32_t x, int32_t z, float time)"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. Slot 77, ret 0x14: per class 1 and 2 the cell's density (the cells object's slots 0x50, 0x58) against its target (0x00B43DA8 slot 0x5C, the tuning map's curve and margins by slot 91's key): slot 81 above, slot 80 at a weighted place of the kinds' matrices (slot 72) below. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::MapInsert"
+address = 0x00555350
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* map, const void* pair)"
+expect = "51 53 55 56 8B F1 8B 46"
+source = "Name ours. this = the tuning map 0x00B21D60, ret 4: grown (0x004F0940), a 0x28-byte node at the head of the key's bucket (0x14 bytes copied, the curve by 0x005F4430); the pair in it. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::MapAt"
+address = 0x00555400
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* map, const uint32_t* key)"
+expect = "83 EC 48 53 55 56 8B F1"
+source = "Name ours. this = the tuning map, ret 4: the key's record, a new one (four floats left from the stack, an empty curve) when not there. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::CellSpawn"
+address = 0x00551A50
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant, void* cell, uint32_t kind, int32_t x, int32_t z, float value, double rate)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Slot 78, ret 0x20: unless the record list hits the cell, its 4x4 (the cells object's slots 0x54, 0x60) follows its counts by the kind's clock, and slot 79 on each place of the kind's matrix (slot 72) above 0 where the occupant has no side or slot 82 is open. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::CellCull"
+address = 0x005539A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* cell, uint32_t classId)"
+expect = "83 EC 10 8B 44 24 14 53"
+source = "Name ours. Slot 81, ret 8: one of the cell's automata of the class (flag 2, none of 0x200000, 0x80, 0x2000000, slot 0x80 above 0.95) drawn and told to go (slot 0x34). Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::LotSweep"
+address = 0x00553370
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float value)"
+expect = "83 EC 40 53 56 57 8B F9"
+source = "Name ours. Slot 83, ret 4: the records of 0x00B43D70 (slot 0x2C) in the cells object's rectangle, slot 89 at their automata cell (or a neighbour's, 0x00A9BD10), 0x00B43D70's slot 0x30 for those made; 5 ms at most; AL 1 when it went through. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::UpdateRecords"
+address = 0x00552DE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float time)"
+expect = "83 EC 50 53 8B D9 8B 83"
+source = "Name ours. Slot 84, ret 4: each +0xAA8 record whose timer is spent makes automata at drawn network points near its object (the cells object's slot 0x68) by slot 71 or slot 18; it goes when its count is spent or after five tries, else waits 1000. AL 1. Ours in simulators.automata.vehmgr.frame (src/core/automata_vehmgr.cpp, part v3)."
+
+[[entry]]
+name = "cSC4AutomataManager::GetRandomCreationPoint"
+address = 0x00506DC0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t group, const float* position, float least, float most, float* out, uint32_t flags, uint32_t g)"
+expect = "83 EC 0C 56 8B F1 8B 4C"
+source = "Name ours: the common base's slot 16, ret 0x1C. Called by address from src/core/automata_vehmgr.cpp (part v3)."
+
+[[entry]]
+name = "cSC4AutomataManager::Slot52"
+address = 0x004FC900
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* object)"
+expect = "B0 01 C2 04 00"
+source = "Name ours: the common base's slot 52, a stub shared by many classes (mov al, 1; ret 4). Called by address from src/core/automata_vehmgr.cpp (part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::Slot53"
+address = 0x0054D250
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* occupant)"
+expect = "E9 4B F4 FB FF"
+source = "Name ours: the base's slot 53, a plain jump to the common base's 0x0050C6A0 (ret 4). Kept as the game's. Called by address from src/core/automata_vehmgr.cpp (part v3)."
+
+[[entry]]
+name = "cSC4AutomataManager::Slot55"
+address = 0x0050C7E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* object)"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours: the common base's slot 55, ret 4. Called by address from src/core/automata_vehmgr.cpp (part v3)."
+
+[[entry]]
+name = "cSC4AutomataManager::Slot56"
+address = 0x0050F2C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 40 53 55 8B E9 8A"
+source = "Name ours: the common base's slot 56. Called by address from src/core/automata_vehmgr.cpp (part v3)."
+
+[[entry]]
+name = "cSC4AutomataManager::Slot63"
+address = 0x0050A7B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t a, float time)"
+expect = "51 57 8B F9 E8 37 D4 FF"
+source = "Name ours: the common base's slot 63 (its frame update), ret 8. Called by address from src/core/automata_vehmgr.cpp (part v3)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::RecordRect"
+address = 0x0054EC60
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* field, void* record)"
+expect = "8B 44 24 04 8B 50 08 53"
+source = "Name ours. Ret 4 (this unused): a record list record's two rectangles from its cell (+0, +4) and margin (+8). Called by address from src/core/automata_vehmgr.cpp (part v3)."
