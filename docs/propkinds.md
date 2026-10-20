@@ -452,7 +452,7 @@ The audit compared all 20 functions instruction by instruction with the disassem
 
 ### Piece 5
 
-All runs on 2026-10-20 with the release build's snapshot pd1 (main as of #325 merged in) and the game's sound off (`OPENSC4_MUTE=1`) on both sides of every comparison. Results are in `%LOCALAPPDATA%\opensc4nalysis\pd1-trial\`; an earlier unmuted round, with the same results where it finished, is in its `unmuted` folder.
+All runs on 2026-10-20 with the release build's snapshot pd1 (main as of #325 merged in) and the game's sound off (`OPENSC4_MUTE=1`) on both sides of every comparison. Results are in `%LOCALAPPDATA%\opensc4\analysis\pd1-trial\`; an earlier unmuted round, with the same results where it finished, is in its `unmuted` folder.
 
 Acceptance (three saves): the same nine save and case pairs as pieces 1 to 4, 7 days, with `OPENSC4_TEST_FINGERPRINT=1`, each run four times:
 
