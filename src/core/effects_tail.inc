@@ -7,9 +7,39 @@
 // under an occupant (0x0058E260, 0x0058E720, 0x0058F140). Included by
 // water_effects.cpp, which has the Tl calls (noted in a replay).
 
+template <typename T>
+uint32_t VrWord(T value)
+{
+    if constexpr (std::is_pointer_v<T>)
+        return Word(value);
+    else
+        return static_cast<uint32_t>(value);
+}
+
+// A call through an object's table. In ours' replay one on an object not
+// holding its proxy's copy is never made: it is noted and answered as the
+// game's was there (a proxied one's thunk does that itself).
 template <typename R, typename... Args>
 R VrCallSlot(char* object, uint32_t slot, Args... args)
 {
+    if (g_stReplay && g_stDepth == 0 && GetCurrentThreadId() == g_stThread) {
+        VrProxy* const proxy = VrFind(object);
+        if (!proxy || At<uint32_t>(object, 0) != proxy->clone) {
+            const uint32_t words[] = {VrWord(args)..., 0u, 0u, 0u};
+            uint32_t rest = sizeof...(Args) > 2 ? StArg(Ptr(words[2])) : 0;
+            for (std::size_t i = 3; i < sizeof...(Args); ++i)
+                rest = (rest ^ StArg(Ptr(words[i]))) * 16777619u;
+            const uint32_t function = At<uint32_t>(Ptr(VrOriginalOf(At<uint32_t>(object, 0))), slot);
+            const uint32_t result =
+                StReplayed(StMake(function, object, sizeof...(Args) > 0 ? Ptr(words[0]) : nullptr,
+                                  sizeof...(Args) > 1 ? Ptr(words[1]) : nullptr, rest),
+                           nullptr);
+            if constexpr (std::is_pointer_v<R>)
+                return reinterpret_cast<R>(result);
+            else
+                return static_cast<R>(result);
+        }
+    }
     return CallThis<R>(At<uint32_t>(At<char*>(object, 0), slot), object, args...);
 }
 
