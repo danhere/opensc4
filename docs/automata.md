@@ -998,3 +998,18 @@ Reimplemented like the earlier parts: one writer (a frame annotator, net-tools\s
 The fresh system's templates and groups are then released, and the object too. The two hashes are equal when the fresh load reads what the city's load read. In the trial they were equal on both sides: 219 templates, 222 groups, 25 drive commands.
 
 Reached in the trial (Making Money d0000, 3 days): all 15, with all 77 of s1 and s2 in the same run, so 92 first-call lines.
+
+### Parity
+
+2026-10-19, env p4env-s3, both tests on: `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_SCRIPTS=3` and the Lua chunk.
+
+B = all ten `simulators.automata.scripts` groups (s1, s2, s3a) against the original. The switch list includes `determinism.dispatch_info=ours`. Two jobs ran, with `harness.multi_instance=ours` on both sides.
+
+| Batch | Making Money d0000, 4 days | Rush Hour t0000, 7 days | The 12-save batch, 7 days |
+| --- | --- | --- | --- |
+| r1 (snapshot s3-r1, before the audit's fix) | 5 of 5 | 8 of 8 | 12 of 12 |
+| r2 (s3-r2, the final build, with main merged; `OPENSC4_MUTE=1` on both sides) | 5 of 5 | 8 of 8 | 11 of 12; Big City d0000 partly the same |
+
+In r2, Big City d0000's first B run had other `adv` and `advisors` values from the first day on, and the rest of the line was the same. The second B run had A's values. This is the first-run advisor outcome of [parity.md](parity.md) ("The advisor system's generator"). Two reruns of that save, muted, were the same, 8 of 8 days each.
+
+All 92 functions of s1, s2 and s3a were reached in every one of the 14 B runs of both batches. Every run's ` L` token had the same city and fresh hash, 25C2EAB1.
