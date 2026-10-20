@@ -11,7 +11,9 @@
 // text, drawn by the class itself). The class maps, every vtable part and
 // the objects' fields; the code is in propkinds_decal.cpp,
 // propkinds_effect.cpp, propkinds_automata.cpp, propkinds_burnt.cpp,
-// propkinds_textdecal.cpp and propkinds_sign.cpp.
+// propkinds_textdecal.cpp and propkinds_sign.cpp, the drawing of the burnt
+// building and the sign in propkinds_burnt_draw.cpp and
+// propkinds_sign_draw.cpp.
 //
 // Both objects start with an interface of their own at +0 and hold the
 // whole prop (cSC4PropOccupant, 0x68 bytes, src/core/propocc_sim.h) at +4,
@@ -132,9 +134,10 @@
 //   +0x68 the model part, vtable 0x00AA49FC: 0 the deleting destructor's
 //      thunk 0x005EF9C0; vbptr at +0x6C (0x00AA4B90)
 //   +0xD4 the virtual base, the model interface, vtable 0x00AA49B0 (19
-//      thunks, the drawing: the game's)
+//      thunks; the class's own behind them: 3 GetOccupant 0x005EFA10, 8
+//      GetBox 0x005EDC20, 12 Draw 0x005EEC00, 17 GetTexture 0x005EEBD0)
 //   Not virtual: SetOccupant 0x005EEB70 (ExplodeLot: the building's box)
-//   and the quad builder 0x005EDC60 (drawing, the game's).
+//   and the quad builder 0x005EDC60 (propkinds_burnt_draw.cpp).
 //
 // cSC4PropOccupantTextDecal (the label; see namespace textdecal)
 //   class ID 0x8B79C707 (GetGZCLSID 0x005F8430), interface 0x2B3B7D86; Init
@@ -205,10 +208,14 @@
 //   +0x6C the model part, vtable 0x00AA52E4: 0 the deleting destructor's
 //      thunk 0x005F59C0; vbptr at +0x70 (0x00AA5498)
 //   +0x58C the virtual base, the model interface, vtable 0x00AA5298 (19
-//      slots, the drawing: the game's)
+//      thunks; the class's own behind them: 3 GetOccupant 0x005F5A10, 7
+//      GetLocalBox 0x005F5AF0, 8 GetWorldBox 0x005F5B40, 9 GetTransform
+//      0x005F5B90, 10 SetTransform 0x005F5C30, 11 HitTest 0x005F4DF0, 12
+//      Draw 0x005F5200, 17 GetTexture 0x005F5AA0)
 //   Not virtual: the caret's clock 0x005F4960 (DoMessage) and MakeGlyphs
 //   0x005F5EF0 (the text's textures); the geometry builder 0x005F5FB0 and
-//   its helpers (drawing, the game's).
+//   its helpers MakeBox 0x005F4D10 and InsertVertices 0x005F53C0
+//   (propkinds_sign_draw.cpp).
 //
 // What follows frames and the view, not game days:
 //   - base flag 2 of both (the occupant's flags at the object + 0x3B):
@@ -370,6 +377,7 @@ constexpr std::size_t kMax = 0x48;       // float[3]
 // 0x005F0600, Shutdown 0x005EFD20 and the quad builder 0x005EDC60).
 constexpr std::size_t kModelPart = 0x68;   // the model part (SC4Model::ConstructModelPart 0x00801CF0), vtable 0x00AA49FC
 constexpr std::size_t kVbptr = 0x6C;       // its virtual base table, 0x00AA4B90 {-4, 0x68}
+constexpr std::size_t kModelColour = 0x84; // float[3], the model part's +0x1C: the colour the draw lights the quad with
 constexpr std::size_t kVtordisp = 0xD0;    // int32: 0 (the virtual base's displacement)
 constexpr std::size_t kVirtualBase = 0xD4; // the model interface, vtable 0x00AA49B0 (19 slots; 0x00AA1F38 before)
 constexpr std::size_t kTextures = 0x94;    // a vector of five texture bindings (begin, end, capacity)
@@ -377,6 +385,11 @@ constexpr std::size_t kBox = 0xA0;         // float[6]: the burnt occupant's box
 constexpr std::size_t kQuad = 0xB8;        // the quad (0x50 bytes) the quad builder makes, or null
 constexpr std::size_t kRenderState = 0xBC; // the render state (SC4RenderState::Init 0x007D2B50), 8 bytes
 constexpr std::size_t kScaled = 0xC4;      // float[3]: the box's low corner, scaled (the quad builder)
+
+// The quad: four vertices of five floats (x, y, z and two texture
+// coordinates the builder leaves as the allocation had them).
+constexpr std::size_t kQuadSize = 0x50;
+constexpr std::size_t kVertexSize = 0x14;
 
 constexpr uint32_t kTextureCount = 5;
 // The texture every binding is asked for (Init).
@@ -432,6 +445,7 @@ constexpr std::size_t kObjectSize = 0x590;
 constexpr std::size_t kModelPart = 0x6C;  // the model part (SC4Model::ConstructModelPart 0x00801CF0), vtable 0x00AA52E4
 constexpr std::size_t kVbptr = 0x70;      // its virtual base table, 0x00AA5498 {-4, 0x51C}
 constexpr std::size_t kModelFlags = 0x80; // uint32, the model part's +0x14 (2 from its constructor): bit 0 highlighted
+constexpr std::size_t kModelColour = 0x88; // float[3], the model part's +0x1C (not read by the sign's draw)
 constexpr std::size_t kModelThis = 0x9C;  // what the model part's functions take as `this` (0x008018E0 reads this - 0x1C)
 // +0x98 the text: a game string, 0x14 bytes (vtable, begin, end, capacity, a
 // zero); saved.
@@ -450,10 +464,25 @@ constexpr std::size_t kPosition = 0xDC;       // float[3]: where the sign stands
 constexpr std::size_t kScale = 0xE8;          // float, 1
 // Four boxes of six floats (low corner, high corner), (1,1,1)-(0,0,0) from
 // the constructor; SetPosition moves the last three (+0x104, +0x11C,
-// +0x134), the geometry builder makes them.
+// +0x134), the geometry builder makes them: the sign in its own frame, the
+// sign in the world (also the prop's box), the board in the world, the post
+// in the world.
 constexpr std::size_t kBoxes = 0xEC;
-constexpr std::size_t kBuffer = 0x4BC;      // a vector (begin, end, capacity) the destructor frees
+constexpr std::size_t kLocalBox = 0xEC;
+constexpr std::size_t kWorldBox = 0x104;
+constexpr std::size_t kBoardBox = 0x11C;
+constexpr std::size_t kPostBox = 0x134;
+// Eleven quads of four vertices of five floats (x, y, z, two texture
+// coordinates) in the sign's frame: the text's area (not drawn), then the
+// ten pieces of the frame and the post drawn with the ten bindings.
+constexpr std::size_t kQuads = 0x14C;
+constexpr std::size_t kQuadCount = 11;
+constexpr std::size_t kQuadSize = 0x50;
+constexpr std::size_t kVertexSize = 0x14;
+constexpr std::size_t kGlyphVertices = 0x4BC; // a vector (begin, end, capacity) of the text's vertices, four per glyph
+constexpr std::size_t kBoard = 0x4C8;       // four vertices of the board (x, y, z, a colour), 0x10 apart
 constexpr std::size_t kHighlight = 0x4D4;   // four vertex colours 0x10 apart (B, G, R, A), written by SetHighlight
+constexpr std::size_t kCaretQuad = 0x508;   // four vertices of the caret (x, y, z, a colour), 0x10 apart
 constexpr std::size_t kBinding = 0x548;     // a texture binding only the destructor releases (null from the constructor)
 constexpr std::size_t kBindings = 0x54C;    // 10 texture bindings (Init), released by Shutdown and the destructor
 constexpr std::size_t kGlyphs = 0x574;      // a vector of references: the text's textures (MakeGlyphs; begin, end, capacity)
