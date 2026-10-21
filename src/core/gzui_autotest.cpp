@@ -1,7 +1,7 @@
 // The GZ framework UI layer's part of the autotest (src/core/autotest_hooks.h,
 // docs/gzui.md): the property set test (OPENSC4_TEST_PROPSETS, part u1) and
-// the readers, writers and factory test (OPENSC4_TEST_PROPIO, parts u2 and
-// u2b).
+// the readers, writers and factory test (OPENSC4_TEST_PROPIO, parts u2,
+// u2b and u3).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -1328,6 +1328,660 @@ void DriveScriptHandler()
         MixByte(CallThis<uint32_t>(addr::cGZUIScriptHandler_SetText, &handler, text, uint32_t{0x55}));
 }
 
+// ====================================================================================
+// Part u3
+
+// A game string on the stack, destroyed by the game's destructor.
+struct LocalString {
+    alignas(4) char bytes[0x14];
+    LocalString() { CallThis<void*>(addr::SC4String_SC4String, bytes); }
+    explicit LocalString(const char* text) { CallThis<void*>(addr::SC4String_FromText, bytes, text); }
+    ~LocalString() { CallThis<void>(addr::SC4String_Destroy, bytes); }
+    LocalString(const LocalString&) = delete;
+    LocalString& operator=(const LocalString&) = delete;
+};
+
+// A property set as the XML writer uses it (GetFirst, GetNext), over values
+// of any type: a value object here is its vtable, its data at +4 and the
+// type its slot 4 answers.
+struct FakeValue {
+    void* const* vtable;
+    uint32_t data;
+    uint32_t type;
+};
+uint32_t __fastcall FakeValueType(FakeValue* self, void*)
+{
+    Mix(0x5410);
+    return self->type;
+}
+struct FakeValueVtable {
+    void* slots[5];
+    FakeValueVtable()
+    {
+        for (void*& slot : slots)
+            slot = reinterpret_cast<void*>(&StreamTrap);
+        slots[4] = reinterpret_cast<void*>(&FakeValueType);
+    }
+};
+const FakeValueVtable& ValueVtable()
+{
+    static const FakeValueVtable vtable;
+    return vtable;
+}
+FakeValue Fake(uint32_t type, uint32_t data) { return {ValueVtable().slots, data, type}; }
+
+struct FakeSet {
+    void* const* vtable;
+    std::vector<std::pair<uint32_t, void*>> items;
+    std::size_t at = 0;
+};
+uint32_t __fastcall FakeSetFirst(FakeSet* self, void*, uint32_t* key, void** value)
+{
+    Mix(0x5318);
+    self->at = 0;
+    if (self->items.empty())
+        return 0x00ABCD00u;
+    *key = self->items[0].first;
+    *value = self->items[0].second;
+    return 1;
+}
+uint32_t __fastcall FakeSetNext(FakeSet* self, void*, uint32_t* key, void** value)
+{
+    Mix(0x531C);
+    if (++self->at >= self->items.size())
+        return 0x00ABCE00u;
+    *key = self->items[self->at].first;
+    *value = self->items[self->at].second;
+    return 1;
+}
+struct FakeSetVtable {
+    void* slots[8];
+    FakeSetVtable()
+    {
+        for (void*& slot : slots)
+            slot = reinterpret_cast<void*>(&StreamTrap);
+        slots[6] = reinterpret_cast<void*>(&FakeSetFirst);
+        slots[7] = reinterpret_cast<void*>(&FakeSetNext);
+    }
+};
+FakeSet NewFakeSet()
+{
+    static const FakeSetVtable vtable;
+    return FakeSet{vtable.slots, {}, 0};
+}
+
+uint32_t FloatBits(float f)
+{
+    uint32_t bits = 0;
+    std::memcpy(&bits, &f, 4);
+    return bits;
+}
+
+// The XML writer through the object's slot 4 and by address (every write
+// failing in turn, an empty set, a type it does not know), its root name,
+// and the handler's StartElement before and after the root.
+void DriveXmlText()
+{
+    alignas(4) char xml[0x54];
+    CallThis<void*>(addr::cGZPropSetXmlIO_Construct, xml);
+    StringValue hello("hello");
+    StringValue empty("");
+    StringValue marks("a<b>&\"c\" 'd'");
+    FakeValue values[] = {
+        Fake(0xEB61E4F7u, 0),           Fake(0xEB61E4F7u, 0xFFFFFFFFu),         Fake(0xEB61E4F7u, 7),
+        Fake(0x0C264712u, 0xFFFFCFC7u), Fake(0xABC78708u, FloatBits(2.5f)),     Fake(0xABC78708u, 0x80000000u),
+        Fake(0xABC78708u, 0x7149F2CAu), Fake(0xABC78708u, 0x7F7FFFFFu),         Fake(0xABC78708u, 0x7FC00000u),
+        Fake(0xABC78708u, 0x00000001u), Fake(0xABC78708u, FloatBits(-1.0f)),    Fake(0xCBA908E1u, 1),
+        Fake(0xCBA908E1u, 0xABCDEF00u), Fake(0xCBA908E1u, 0x00000002u),
+    };
+    FakeSet set = NewFakeSet();
+    uint32_t key = 0x10;
+    for (FakeValue& value : values)
+        set.items.push_back({key++, &value});
+    set.items.push_back({0x80000000u, &hello.value});
+    set.items.push_back({0xFFFFFFFFu, &empty.value});
+    set.items.push_back({0x00000000u, &marks.value});
+    FakeStream w = Writer();
+    MixByte(Virtual<uint32_t>(xml, 0x10, &w, &set, uint32_t{0x99}));
+    MixBytes(w.bytes);
+    const int ops = w.ops;
+    Mix(static_cast<uint32_t>(ops));
+    for (int k = 1; k <= ops + 1; ++k) {
+        FakeStream f = Writer();
+        f.failAt = k;
+        MixByte(CallThis<uint32_t>(addr::cGZPropSetXmlIO_Write, xml, &f, &set, uint32_t{0}));
+        MixBytes(f.bytes);
+    }
+    // A type the writer does not know, last and in the middle.
+    FakeValue odd = Fake(0x12345678u, 5);
+    FakeSet tail = NewFakeSet();
+    tail.items = {{1, &values[2]}, {2, &odd}};
+    FakeStream t = Writer();
+    MixByte(Virtual<uint32_t>(xml, 0x10, &t, &tail, uint32_t{0}));
+    MixBytes(t.bytes);
+    tail.items = {{1, &odd}, {2, &values[2]}};
+    FakeStream m = Writer();
+    MixByte(Virtual<uint32_t>(xml, 0x10, &m, &tail, uint32_t{0}));
+    MixBytes(m.bytes);
+    // An empty set: GetFirst's EAX.
+    FakeSet none = NewFakeSet();
+    FakeStream e = Writer();
+    Mix(Virtual<uint32_t>(xml, 0x10, &e, &none, uint32_t{0}));
+    MixBytes(e.bytes);
+    // A real set by address.
+    {
+        void* const real = NewSet();
+        FillSet(real, "Real & <set>");
+        FakeStream r = Writer();
+        MixByte(CallThis<uint32_t>(addr::cGZPropSetXmlIO_Write, xml, &r, real, uint32_t{0}));
+        MixBytes(r.bytes);
+        ReleaseSet(real);
+    }
+    // The root name into a string that has text.
+    {
+        LocalString out("previous text");
+        uint32_t unused = 0;
+        CallThis<uint32_t>(addr::cGZPropSetXmlIO_RootName, xml, out.bytes, &unused);
+        MixString(out.bytes);
+    }
+    // StartElement: not the root, the root, then attributes.
+    char* const handler = xml + 0x4;
+    const auto start = [&](const char* name, const char* const* attributes) {
+        Virtual<uint32_t>(xml + 0x3C, 0xC, "old text", uint32_t{8});
+        MixByte(Virtual<uint32_t>(handler, 0xC, name, attributes, uint32_t{0}, uint32_t{0}));
+        Mix(At<uint8_t>(xml, 0x10));
+        Mix(At<uint32_t>(xml, 0xC));
+        MixString(xml + 0x14);
+        MixString(xml + 0x28);
+        MixString(xml + 0x3C);
+    };
+    const char* const keyType[] = {"key", "0x10", "type", "0xEB61E4F7", nullptr};
+    const char* const cased[] = {"KEY", "A", "Type", "B", "other", "C", nullptr};
+    const char* const reversed[] = {"type", "T2", "key", "K2", "key", "K3", nullptr};
+    const char* const nothing[] = {nullptr};
+    start("AnyUint32", keyType);
+    start("cGZPropertySetUint3", keyType);
+    start("cGZPropertySetUint32 ", nothing);
+    start("cGZPropertySetUint32", keyType);
+    start("cGZPropertySetUint32", keyType);
+    start("AnyUint32", nullptr);
+    start("AnyUint32", cased);
+    start("AnyString", reversed);
+    start("AnyString", nothing);
+    At<uint8_t>(xml, 0x10) = 0;
+    start("cgzpropertysetuint32", keyType);
+    CallThis<void>(addr::cGZPropSetXmlIO_Destruct, xml);
+}
+
+// The UI script property handler: elements with attributes, the text, each
+// property type, the refusals, through its interface's slots 3 to 5.
+void DriveScriptProperties()
+{
+    char* const handler = static_cast<char*>(CallThis<void*>(addr::cGZUIScriptHandler_Construct, New(0x30)));
+    void* const set = NewSet();
+    At<void*>(handler, 0xC) = set;
+    Virtual<uint32_t>(handler, 0x4);
+    const auto start = [&](const char* const* attributes, uint32_t count) {
+        MixByte(Virtual<uint32_t>(handler, 0xC, "Property", attributes, count, uint32_t{0}));
+        MixString(handler + 0x1C);
+    };
+    const auto end = [&](const char* element) {
+        MixByte(Virtual<uint32_t>(handler, 0x10, element));
+        MixSet(set);
+    };
+    const char* const speed[] = {"Name", "Speed", "Value", "123"};
+    const char* const ratio[] = {"Name", "Ratio", "Value", "2.5"};
+    const char* const title[] = {"Name", "Title", "Value", "Hello, world"};
+    const char* const named[] = {"Name", "Text"};
+    const char* const bad[] = {"Name", "Bad", "Value", "x12"};
+    const char* const blank[] = {"Name", "Blank", "Value", ""};
+    const char* const minus[] = {"Name", "Minus", "Value", "-5"};
+    const char* const space[] = {"Name", "Space", "Value", " 7"};
+    const char* const others[] = {"Foo", "Bar", "Name", "Other", "Value", "0x1F", "Name", "Second"};
+    const char* const hex[] = {"Value", "0xFFFFFFFF", "Name", "Hex"};
+    const char* const tiny[] = {"Name", "Tiny", "Value", "1e-3"};
+    start(speed, 4);
+    end("PropertyUint32Uint32");
+    start(ratio, 4);
+    end("PropertyUint32Float32");
+    start(title, 4);
+    end("PropertyUint32String");
+    start(named, 2);
+    MixByte(Virtual<uint32_t>(handler, 0x14, "from the text", uint32_t{13}));
+    end("PropertyUint32String");
+    start(named, 2);
+    MixByte(Virtual<uint32_t>(handler, 0x14, "42", uint32_t{2}));
+    end("PropertyUint32Uint32");
+    start(bad, 4);
+    end("PropertyUint32Uint32");
+    end("PropertyUint32String"); // the map kept by the refusal
+    start(blank, 4);
+    end("PropertyUint32Float32");
+    end("PropertyStringString");
+    start(minus, 4);
+    end("PropertyUint32Uint32");
+    start(space, 4);
+    end("PropertyUint32Float32");
+    end("Unknown");
+    start(nullptr, 0);
+    end("PropertyUint32String");
+    start(others, 8);
+    end("PropertyUint32Uint32");
+    start(hex, 4);
+    end("PropertyUint32Uint32");
+    start(tiny, 4);
+    end("PropertyUint32Float32");
+    start(title, 4);
+    end("PropertyStringString");
+    end("PropertyUint32String");
+    Mix(Virtual<uint32_t>(handler, 0x8));
+}
+
+// The factory's Create for every class, an interface the object has not got,
+// a type it does not know; by its slot and by address.
+void DriveCreate(char* factory)
+{
+    const struct {
+        uint32_t type;
+        uint32_t iid;
+    } cases[] = {
+        {0x0B8D821Au, 0xEBB10CDDu}, {0x0B9EB87Eu, 0xEBB10CDDu}, {0xEBFEE345u, 0xEBB10CDDu}, {0xEBFEE349u, 0x3B93C5E7u},
+        {0x7B1ACFCDu, 0xDB1ACFB2u}, {0xA3CD96CFu, 0x3B93C5E7u}, {0x0B8D821Au, 0x77777777u}, {0x7B1ACFCDu, 0x77777777u},
+        {0xA3CD96CFu, 0x77777777u}, {0xEBFEE345u, 0x77777777u}, {0x12345678u, 0xEBB10CDDu}, {0u, 1u},
+    };
+    for (const auto& c : cases) {
+        for (int byAddress = 0; byAddress < 2; ++byAddress) {
+            void* out = nullptr;
+            const uint32_t answer =
+                byAddress ? CallThis<uint32_t>(addr::cGZPropSetFactory_Create, factory, c.type, c.iid, &out,
+                                               uint32_t{0x11}, uint32_t{0x22})
+                          : Virtual<uint32_t>(factory, 0x10, c.type, c.iid, &out, uint32_t{0}, uint32_t{0});
+            MixByte(answer);
+            if (!out) {
+                if (c.type == 0x12345678u || c.type == 0u)
+                    Mix(answer);
+                continue;
+            }
+            if (c.iid == 0xEBB10CDDu)
+                MixSet(out);
+            else if (c.iid == 0x3B93C5E7u) {
+                uint32_t k[3] = {};
+                Virtual<uint32_t*>(out, 0xC, k);
+                Mix(k[0]);
+                Mix(k[1]);
+                Mix(k[2]);
+            } else
+                Mix(Virtual<uint32_t>(out, 0x24));
+            uint32_t n = 0;
+            while (Virtual<uint32_t>(out, 0x8) != 0)
+                ++n;
+            Mix(n);
+        }
+    }
+}
+
+// A window 0xA3CD96CF's plain members (the ones the destructor leaves
+// alone; the reference count at +0x50 among them), its string and its key.
+void MixWindow(char* window)
+{
+    for (std::size_t offset = 0x38; offset <= 0x74; offset += 4)
+        if (offset != 0x58 && offset != 0x60)
+            Mix(At<uint32_t>(window, offset));
+    for (const std::size_t offset : {0x58u, 0x60u, 0x9Cu, 0x9Du, 0x9Eu, 0xC4u, 0x100u})
+        Mix(At<uint8_t>(window, offset));
+    MixString(window + 0x20);
+    for (std::size_t offset = 0x108; offset <= 0x110; offset += 4)
+        Mix(At<uint32_t>(window, offset));
+}
+
+void ReleaseWindow(char* window)
+{
+    uint32_t n = 0;
+    while (Virtual<uint32_t>(window, 0x8) != 0)
+        ++n;
+    Mix(n);
+}
+
+// The window's Clone through its key interface's slot 14, CopyAssign and
+// the script window's Assign by address (into another window and into
+// itself), the part's Assign.
+void DriveWinCopy()
+{
+    const uint32_t key[3] = {0xA3CD96CFu, 0x0000ABCDu, 0x00001234u};
+    char* const window = static_cast<char*>(CallThis<void*>(addr::cGZKeyedWin_Construct, New(0x114), key));
+    Virtual<uint32_t>(window, 0x4);
+    // Not the reference count at +0x50 (which Assign copies too).
+    for (std::size_t offset = 0x38; offset <= 0x74; offset += 4)
+        if (offset != 0x50 && offset != 0x58 && offset != 0x60)
+            At<uint32_t>(window, offset) = static_cast<uint32_t>(offset * 3 + 1);
+    for (const std::size_t offset : {0x58u, 0x60u, 0x9Cu, 0x9Du, 0x9Eu, 0xC4u, 0x100u})
+        At<uint8_t>(window, offset) = static_cast<uint8_t>(offset + 1);
+    Virtual<uint32_t>(window + 0x20, 0xC, "Caption", uint32_t{7});
+    MixWindow(window);
+    char* const keyPart = window + 0x104;
+    for (const uint32_t iid : {0x3B93C5E7u, 1u, 0x456B8F1Du}) {
+        void* out = nullptr;
+        MixByte(Virtual<uint32_t>(keyPart, 0x38, iid, &out));
+        char* const clone = static_cast<char*>(out) - (iid == 1u ? 0 : 0x104);
+        MixWindow(clone);
+        ReleaseWindow(clone);
+    }
+    const uint32_t other[3] = {0xA3CD96CFu, 7, 8};
+    char* const second = static_cast<char*>(CallThis<void*>(addr::cGZKeyedWin_Construct, New(0x114), other));
+    Virtual<uint32_t>(second, 0x4);
+    MixWindow(second);
+    Mix(CallThis<char*>(addr::cGZKeyedWin_CopyAssign, second, window) == second ? 1 : 0);
+    MixWindow(second);
+    Mix(CallThis<char*>(addr::cGZKeyedWin_CopyAssign, second, second) == second ? 1 : 0);
+    MixWindow(second);
+    At<uint32_t>(window, 0x40) = 0x5555;
+    Virtual<uint32_t>(window + 0x20, 0xC, "Other", uint32_t{5});
+    Mix(CallThis<char*>(addr::cGZScriptWin_Assign, second, window) == second ? 1 : 0);
+    MixWindow(second);
+    Mix(CallThis<char*>(addr::cGZScriptWin_Assign, window, window) == window ? 1 : 0);
+    MixWindow(window);
+    Mix(CallThis<char*>(addr::cGZScriptWinPart_Assign, second + 0xC8, window + 0xC8) == second + 0xC8 ? 1 : 0);
+    Mix(At<uint32_t>(second, 0xE0));
+    Mix(At<uint32_t>(second, 0xE4));
+    Mix(At<uint8_t>(second, 0xE8));
+    ReleaseWindow(second);
+    ReleaseWindow(window);
+}
+
+// The bag's entries as Get finds them, in order.
+void MixEntries(void* bag)
+{
+    const uint32_t count = Virtual<uint32_t>(bag, 0x24);
+    Mix(count);
+    for (uint32_t i = 0; i < count; ++i) {
+        uint32_t value = 0;
+        MixByte(Virtual<uint32_t>(bag, 0x2C, i, &value));
+        Mix(value);
+    }
+}
+
+// Only what does not depend on the random draws: the count, the sum and the
+// XOR of the entries.
+void MixContents(void* bag)
+{
+    const uint32_t count = Virtual<uint32_t>(bag, 0x24);
+    uint32_t sum = 0;
+    uint32_t bits = 0;
+    for (uint32_t i = 0; i < count; ++i) {
+        uint32_t value = 0;
+        Virtual<uint32_t>(bag, 0x2C, i, &value);
+        sum += value;
+        bits ^= value;
+    }
+    Mix(count);
+    Mix(sum);
+    Mix(bits);
+}
+
+uint32_t ListSize(void* list)
+{
+    char* const head = *static_cast<char**>(list);
+    uint32_t n = 0;
+    for (char* node = *reinterpret_cast<char**>(head); node != head; node = *reinterpret_cast<char**>(node))
+        ++n;
+    return n;
+}
+
+void MixLists(char* bag)
+{
+    Mix(ListSize(bag + 0x8));
+    Mix(ListSize(bag + 0xC));
+    Mix(At<uint32_t>(bag, 0x10));
+    Mix(At<uint8_t>(bag, 0x14));
+}
+
+char* NewBag()
+{
+    char* const bag = static_cast<char*>(CallThis<void*>(addr::cGZShuffleBag_Construct, New(0x18)));
+    Virtual<uint32_t>(bag, 0x4);
+    return bag;
+}
+
+void ReleaseBag(char* bag)
+{
+    uint32_t n = 0;
+    while (Virtual<uint32_t>(bag, 0x8) != 0)
+        ++n;
+    Mix(n);
+}
+
+std::vector<uint8_t> Words(std::initializer_list<uint32_t> words)
+{
+    std::vector<uint8_t> bytes(words.size() * 4);
+    std::memcpy(bytes.data(), words.begin(), bytes.size());
+    return bytes;
+}
+
+std::vector<uint8_t> TextForm(const std::string& text, int32_t lengthDelta = 0)
+{
+    std::vector<uint8_t> bytes = Words({static_cast<uint32_t>(text.size()) + static_cast<uint32_t>(lengthDelta)});
+    bytes.insert(bytes.end(), text.begin(), text.end());
+    return bytes;
+}
+
+// The shuffle bag through its slots and by address: entries added, found,
+// replaced, erased and removed; draws (only what does not depend on the
+// random numbers goes into the hash); its three read forms and the bad
+// ones; the write; the interfaces; the destructors.
+void DriveShuffleBag()
+{
+    const uint32_t live = At<uint32_t>(reinterpret_cast<void*>(addr::cGZShuffleBag_LiveCount), 0);
+    char* const bag = NewBag();
+    Mix(At<uint32_t>(reinterpret_cast<void*>(addr::cGZShuffleBag_LiveCount), 0) - live);
+    MixLists(bag);
+    for (uint32_t v = 1; v <= 9; ++v) {
+        MixByte(Virtual<uint32_t>(bag, 0x10, v * 11));
+        MixLists(bag);
+    }
+    MixByte(Virtual<uint32_t>(bag, 0x10, uint32_t{33}));
+    MixEntries(bag);
+    for (const uint32_t index : {0u, 3u, 9u, 10u, 11u, 0xFFFFFFFFu}) {
+        uint32_t value = 0xEEEEEEEEu;
+        const uint32_t answer = Virtual<uint32_t>(bag, 0x2C, index, &value);
+        MixByte(answer);
+        if (!(answer & 0xFF))
+            Mix(answer);
+        Mix(value);
+    }
+    for (const uint32_t index : {2u, 9u, 10u, 50u}) {
+        const uint32_t answer = Virtual<uint32_t>(bag, 0x38, index, index + 1000);
+        MixByte(answer);
+        if (!(answer & 0xFF))
+            Mix(answer);
+    }
+    MixEntries(bag);
+    for (const uint32_t index : {0u, 4u, 8u, 8u, 20u}) {
+        const uint32_t answer = Virtual<uint32_t>(bag, 0x40, index);
+        MixByte(answer);
+        if (!(answer & 0xFF))
+            Mix(answer);
+        MixEntries(bag);
+        MixLists(bag);
+    }
+    for (const uint32_t value : {33u, 44u, 12345u}) {
+        MixByte(Virtual<uint32_t>(bag, 0x14, value));
+        MixEntries(bag);
+        MixLists(bag);
+    }
+    // Written and read back before any draw.
+    FakeStream w = Writer();
+    MixByte(Virtual<uint32_t>(bag, 0x50, &w, uint32_t{0}, uint32_t{0}));
+    MixBytes(w.bytes);
+    MixEntries(bag);
+    // Draws: a threshold not fixed, then fixed low and high, the first
+    // list run empty.
+    for (int i = 0; i < 12; ++i) {
+        const uint32_t drawn = Virtual<uint32_t>(bag, 0x20);
+        Mix(drawn == 0 ? 0 : 1);
+        MixLists(bag);
+        MixContents(bag);
+    }
+    MixByte(Virtual<uint32_t>(bag, 0x1C, uint32_t{1}));
+    for (int i = 0; i < 6; ++i) {
+        Virtual<uint32_t>(bag, 0x20);
+        MixLists(bag);
+    }
+    // A high threshold: the first list drawn empty, then whole rounds of
+    // the second (each round sums to the total).
+    MixByte(Virtual<uint32_t>(bag, 0x1C, uint32_t{100}));
+    for (uint32_t pending = ListSize(bag + 0x8); pending != 0; --pending) {
+        Virtual<uint32_t>(bag, 0x20);
+        MixLists(bag);
+    }
+    const uint32_t count = Virtual<uint32_t>(bag, 0x24);
+    uint32_t sum = 0;
+    for (uint32_t i = 0; i < 3 * count; ++i) {
+        sum += Virtual<uint32_t>(bag, 0x20);
+        MixLists(bag);
+    }
+    Mix(sum);
+    MixContents(bag);
+    MixByte(Virtual<uint32_t>(bag, 0x14, uint32_t{55}));
+    MixLists(bag);
+    MixContents(bag);
+    MixByte(Virtual<uint32_t>(bag, 0x18));
+    MixLists(bag);
+    MixEntries(bag);
+    // Random on its own, by address: one entry, and a range.
+    Mix(CallThis<uint32_t>(addr::cGZShuffleBag_Random, bag, uint32_t{1}));
+    for (int i = 0; i < 8; ++i)
+        Mix(CallThis<uint32_t>(addr::cGZShuffleBag_Random, nullptr, uint32_t{7}) < 7 ? 1 : 0);
+    // The interfaces and the count.
+    for (const uint32_t iid : {1u, 0xDB1ACFB2u, 0x3B93C5E7u, 0u}) {
+        void* out = nullptr;
+        MixByte(Virtual<uint32_t>(bag, 0x0, iid, &out));
+        Mix(out == bag ? 1 : (out ? 2 : 0));
+    }
+    Mix(At<uint32_t>(bag, 0x4));
+    // Read: the three forms, the bad sizes, the text forms.
+    const std::vector<uint8_t> reads[] = {
+        w.bytes,
+        Words({1, 3, 7, 8, 9}),
+        Words({3, 7, 8, 9}),
+        Words({1, 1, 5}),
+        Words({0}),
+        Words({1, 0}),
+        Words({2, 7, 8, 9}),
+        Words({1, 3, 7, 8}),
+        TextForm("1,2,3"),
+        TextForm("5-9"),
+        TextForm("10-12,20,30-30,3-1,0x10,abc"),
+        TextForm("7,"),
+        TextForm(",7"),
+        TextForm("1,,2"),
+        TextForm(""),
+        TextForm("-4,8-,-,99999999999"),
+        TextForm("4", 1),
+        TextForm("1,2", -1),
+    };
+    for (const std::vector<uint8_t>& bytes : reads) {
+        char* const into = NewBag();
+        Virtual<uint32_t>(into, 0x10, uint32_t{0xAAAA});
+        FakeStream r = Reader(bytes);
+        MixByte(Virtual<uint32_t>(into, 0x4C, &r, uint32_t{0}, uint32_t{0}));
+        Mix(r.refs);
+        MixEntries(into);
+        MixLists(into);
+        ReleaseBag(into);
+    }
+    // The destructors on a bag of the stack: the deleting one with flag 0,
+    // the plain one by address.
+    {
+        alignas(4) char local[0x18];
+        CallThis<void*>(addr::cGZShuffleBag_Construct, local);
+        Virtual<uint32_t>(local, 0x10, uint32_t{1});
+        Mix(Virtual<char*>(local, 0x44, uint32_t{0}) == local ? 1 : 0);
+        Mix(At<uint32_t>(reinterpret_cast<void*>(addr::cGZShuffleBag_LiveCount), 0) - live);
+        CallThis<void*>(addr::cGZShuffleBag_Construct, local);
+        CallThis<void>(addr::cGZShuffleBag_Destruct, local);
+        Mix(At<uint32_t>(reinterpret_cast<void*>(addr::cGZShuffleBag_LiveCount), 0) - live);
+    }
+    ReleaseBag(bag);
+    Mix(At<uint32_t>(reinterpret_cast<void*>(addr::cGZShuffleBag_LiveCount), 0) - live);
+}
+
+// A sound's value set (slot 3 Set(number, value, flag), slot 4 Get(number)):
+// every call goes into the hash.
+struct FakeValues {
+    void* const* vtable;
+    uint32_t values[0x48];
+    uint32_t priority;
+};
+uint32_t __fastcall ValuesSet(FakeValues* self, void*, uint32_t number, uint32_t value, uint32_t flag)
+{
+    Mix(0x5503);
+    Mix(number);
+    Mix(value);
+    Mix(flag);
+    if (number < 0x48)
+        self->values[number] = value;
+    return 0x00AB0000u | (number & 0xFF);
+}
+uint32_t __fastcall ValuesGet(FakeValues* self, void*, uint32_t number)
+{
+    Mix(0x5504);
+    Mix(number);
+    return number < 0x48 ? self->values[number] : number == 0xFFAE9DDBu ? self->priority : 0xDDDDDDDDu;
+}
+struct FakeValuesVtable {
+    void* slots[5];
+    FakeValuesVtable()
+    {
+        for (void*& slot : slots)
+            slot = reinterpret_cast<void*>(&StreamTrap);
+        slots[3] = reinterpret_cast<void*>(&ValuesSet);
+        slots[4] = reinterpret_cast<void*>(&ValuesGet);
+    }
+};
+FakeValues NewValues(uint32_t seed, uint32_t priority)
+{
+    static const FakeValuesVtable vtable;
+    FakeValues values{vtable.slots, {}, priority};
+    for (uint32_t i = 0; i < 0x48; ++i)
+        values.values[i] = seed * (i + 1);
+    return values;
+}
+
+// The framework's own 2D and 3D sound kinds' slots 5 and 6, by address.
+void DriveKinds()
+{
+    void* const registry = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_SoundKindRegistry)();
+    const uint32_t limit = Virtual<uint32_t>(registry, 0x7C, 0xFFAE9DDBu);
+    Mix(limit);
+    uint32_t unused = 0;
+    const struct {
+        uint32_t v14;
+        uint32_t v15;
+        uint32_t v1f;
+        uint32_t v38;
+        uint32_t priority;
+    } cases[] = {
+        {1024, 512, 1, 0, 0},     {300, 7, 0, 0, 0x7FFFFFFFu}, {0xFFFFFC00u, 3, 0, 9, 0x80000000u},
+        {0x7FFFFFFFu, 2, 5, 9, limit - 1}, {0x40000, 0x40000, 0, 0xFFFFFFFFu, limit},
+    };
+    for (const auto& c : cases) {
+        FakeValues source = NewValues(3, c.priority);
+        source.values[0x14] = c.v14;
+        source.values[0x15] = c.v15;
+        source.values[0x1F] = c.v1f;
+        source.values[0x38] = c.v38;
+        FakeValues voice = NewValues(0, 0);
+        MixByte(CallThis<uint32_t>(addr::cGZSoundKind2D_SetUpVoice, &unused, &source, &voice));
+        Mix(CallThis<uint32_t>(addr::cGZSoundKind3D_SetUpVoice, &unused, &source, &voice));
+        MixByte(CallThis<uint32_t>(addr::cGZSoundKind2D_CopyValues, &unused, &source, &voice));
+        MixByte(CallThis<uint32_t>(addr::cGZSoundKind3D_CopyValues, &unused, &source, &voice));
+        for (const uint32_t v : voice.values)
+            Mix(v);
+    }
+    FakeValues same = NewValues(5, 0);
+    MixByte(CallThis<uint32_t>(addr::cGZSoundKind3D_SetUpVoice, &unused, &same, &same));
+}
+
 // OPENSC4_TEST_PROPIO=<day>: part u2's functions called with fake streams
 // and resources, through their slots and addresses: the binary and XML
 // forms written and read back (truncated, refused, failing part way), the
@@ -1360,6 +2014,18 @@ void DrivePropio(const Day& day)
     DriveBag();
     PioStage("bag");
     DriveScriptHandler();
+    DriveXmlText();
+    PioStage("xmltext");
+    DriveScriptProperties();
+    PioStage("script");
+    DriveCreate(factory);
+    PioStage("create");
+    DriveWinCopy();
+    PioStage("wincopy");
+    DriveShuffleBag();
+    PioStage("shufflebag");
+    DriveKinds();
+    PioStage("kinds");
     g_into = saved;
     log::Write("autotest: propio driven (hash %08X)", g_pioHash);
 }
