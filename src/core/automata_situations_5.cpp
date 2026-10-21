@@ -1,13 +1,14 @@
-// WIP (not in src/core/CMakeLists.txt yet, never built): our city situation
+// WIP (untested): our city situation
 // manager, part c5 (build 641): the running situation. The class map is in
 // src/core/automata_situations.h and the survey in docs/automata.md, "Part
 // c". Calls between functions of the part, and to the other parts, go to the
 // game's addresses, so each detour stands alone and OPENSC4_AUTOMATA_SKIP
 // bisects them.
 //
-// Status 2026-10-21: written from the disassembly (c1's all.asm), not built,
-// not audited, no address entries yet (the addr:: names marked NEW below
-// need "Part c5" entries in data/addresses/automata.toml), no test. See
+// Status 2026-10-21: written from the disassembly (c1's all.asm); builds; the
+// "Part c5" address entries (the names marked NEW) are in
+// data/addresses/automata.toml. Audit: 10 of 11 checked against the
+// disassembly, no behavioural difference; 0x0052B450 not audited. No test. See
 // %LOCALAPPDATA%\opensc4\net-tools\c5\RESTART.md.
 //
 // Group (planned), off by default:
