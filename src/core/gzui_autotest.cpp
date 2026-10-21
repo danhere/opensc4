@@ -1,6 +1,7 @@
 // The GZ framework UI layer's part of the autotest (src/core/autotest_hooks.h,
 // docs/gzui.md): the property set test (OPENSC4_TEST_PROPSETS, part u1) and
-// the readers, writers and factory test (OPENSC4_TEST_PROPIO, part u2).
+// the readers, writers and factory test (OPENSC4_TEST_PROPIO, parts u2 and
+// u2b).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -10,6 +11,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -411,7 +413,8 @@ void MixOffset(const void* pointer, const void* base)
 // A stream as the readers and writers use it, in memory: slot 0x14 a byte,
 // 0x1C a word, 0x24 a dword, 0x30 a float, 0x3C a game string (a dword
 // length and the text), 0x44 bytes; its seekable interface (0xC56B8F08, the
-// same object) 0x6C bytes, 0xD0 the size and 0xDC the position. Every call
+// same object) 0x34 a dword, 0x6C bytes, 0xD0 the size and 0xDC the
+// position. Every call
 // goes into the hash. `failAt` makes the n-th read or write fail.
 struct FakeStream {
     void* const* vtable;
@@ -432,7 +435,7 @@ struct FakeStream {
     }
     bool Take(void* out, std::size_t size)
     {
-        if (cursor + size > bytes.size())
+        if (size > bytes.size() - cursor)
             return false;
         std::memcpy(out, bytes.data() + cursor, size);
         cursor += size;
@@ -490,6 +493,10 @@ uint32_t __fastcall ReadU16(FakeStream* self, void*, uint16_t* out)
 uint32_t __fastcall ReadU32(FakeStream* self, void*, uint32_t* out)
 {
     return self->Op(0x24) && self->Take(out, 4) ? (Mix(*out), 1u) : 0u;
+}
+uint32_t __fastcall ReadU32Seekable(FakeStream* self, void*, uint32_t* out)
+{
+    return self->Op(0x34) && self->Take(out, 4) ? (Mix(*out), 1u) : 0u;
 }
 uint32_t __fastcall ReadF32(FakeStream* self, void*, uint32_t* out)
 {
@@ -577,6 +584,7 @@ struct StreamVtables {
         read[0x1C / 4] = reinterpret_cast<void*>(&ReadU16);
         read[0x24 / 4] = reinterpret_cast<void*>(&ReadU32);
         read[0x30 / 4] = reinterpret_cast<void*>(&ReadF32);
+        read[0x34 / 4] = reinterpret_cast<void*>(&ReadU32Seekable);
         read[0x3C / 4] = reinterpret_cast<void*>(&ReadStr);
         read[0x44 / 4] = reinterpret_cast<void*>(&ReadBytes);
         read[0x6C / 4] = reinterpret_cast<void*>(&ReadBytes2);
@@ -964,6 +972,183 @@ void DriveTrack(char* factory, const std::vector<uint8_t>& binary)
     }
 }
 
+// The Track objects' TKDT text form (part u2b): the writer through a Track
+// object's slot 13 and by address, the reader through slot 12 and the key
+// interface's slot 12, with every truncation and malformed text.
+constexpr uint32_t kTkdtType = 0x0B8D821Au;
+constexpr uint32_t kTkdtInstance = 0x00001234u;
+
+constexpr uint32_t kTkdtKeys[] = {
+    0xFFAEC905u, 0xFF5F15E1u, 0xFF4DCD0Du, 0xFF050A94u, 0xFFB0333Du, 0xFF706616u, 0xFFCC156Fu,
+    0xFFCC3B29u, 0xFF891EAAu, 0xFFAE9DDBu, 0xFFF7B8DFu, 0xFF90AAC8u, 0xFF3C2160u, 0xFFD7EE4Du,
+    0xFF59FDD8u, 0xFF2D7CD1u, 0xFF0246FEu, 0xFFFF4E79u, 0xFF595FFDu, 0xFF8DCFD8u, 0xFF69510Bu,
+    0xFF099DB2u, 0xFF53DBF3u, 0xFF3EC880u, 0xFF47F685u, 0xFFCAA344u, 0xFF303B1Bu,
+};
+
+// A Track object of the text type with the given instance.
+void* NewTrackText(char* factory, uint32_t instance)
+{
+    void* set = nullptr;
+    Virtual<uint32_t>(factory, 0x10, kTkdtType, 0xEBB10CDDu, &set, uint32_t{0}, uint32_t{0});
+    void* key = nullptr;
+    Virtual<uint32_t>(set, 0x0, 0x3B93C5E7u, &key);
+    Virtual<uint32_t>(key, 0x28, instance);
+    Virtual<uint32_t>(key, 0x8);
+    return set;
+}
+
+// A dword (not part of the text) and the text.
+std::vector<uint8_t> TkdtBytes(uint32_t first, const std::string& text)
+{
+    std::vector<uint8_t> bytes(4);
+    std::memcpy(bytes.data(), &first, 4);
+    bytes.insert(bytes.end(), text.begin(), text.end());
+    return bytes;
+}
+
+void ReadTkdt(char* factory, FakeStream& stream)
+{
+    void* const set = NewTrackText(factory, kTkdtInstance);
+    MixByte(Virtual<uint32_t>(set, 0x30, &stream, uint32_t{0}, uint32_t{0}));
+    MixSet(set);
+    ReleaseSet(set);
+}
+
+void ReadTkdt(char* factory, const std::vector<uint8_t>& bytes)
+{
+    FakeStream stream = Reader(bytes);
+    ReadTkdt(factory, stream);
+}
+
+// The text with `count` numbered fields after the header.
+std::string TkdtFields(const char* header, int count, const char* end)
+{
+    std::string text = header;
+    char number[16];
+    for (int i = 0; i < count; ++i) {
+        std::snprintf(number, sizeof number, "%d,", 100 + i);
+        text += number;
+    }
+    return text + end;
+}
+
+void DriveTkdt(char* factory)
+{
+    // Written: a new object (no values), then one with every value (some of
+    // another type, one missing), failing, and a plain set by address.
+    {
+        void* const set = NewTrackText(factory, kTkdtInstance);
+        MixSet(set);
+        FakeStream w = Writer();
+        MixByte(Virtual<uint32_t>(set, 0x34, &w, uint32_t{0}, uint32_t{0}));
+        MixBytes(w.bytes);
+        ReleaseSet(set);
+    }
+    std::string written;
+    {
+        void* const set = NewTrackText(factory, kTkdtInstance);
+        const uint32_t data[] = {0x00000042u, 0xABCDEF01u, 0u,          1u,          0xFFFFFFFFu, 0x80000000u, 7u,
+                                 0x7FFFFFFFu, 0u,          123456u,     0x10u,       0x20u,       0xDEADBEEFu, 5u,
+                                 0x0BADF00Du, 1u,          4000000000u, 9u,          10u,         11u,         12u,
+                                 13u,         14u,         15u,         16u,         17u,         18u};
+        for (std::size_t i = 0; i < std::size(kTkdtKeys); ++i)
+            if (i != 12)
+                SetUint32(set, kTkdtKeys[i], data[i]);
+        Value f = Float32(3.5f);
+        uint32_t key = kTkdtKeys[3];
+        Virtual<uint32_t>(set, 0xC, &key, &f);
+        Value b = Bool(1, 0x00ABCD00u);
+        key = kTkdtKeys[10];
+        Virtual<uint32_t>(set, 0xC, &key, &b);
+        StringValue s("17");
+        key = kTkdtKeys[17];
+        Virtual<uint32_t>(set, 0xC, &key, &s.value);
+        Value s32 = Sint32(-77);
+        key = kTkdtKeys[19];
+        Virtual<uint32_t>(set, 0xC, &key, &s32);
+        FakeStream w = Writer();
+        MixByte(Virtual<uint32_t>(set, 0x34, &w, uint32_t{0}, uint32_t{0}));
+        MixBytes(w.bytes);
+        written.assign(w.bytes.begin(), w.bytes.end());
+        FakeStream f1 = Writer();
+        f1.failAt = 1;
+        MixByte(Virtual<uint32_t>(set, 0x34, &f1, uint32_t{0}, uint32_t{0}));
+        MixBytes(f1.bytes);
+        ReleaseSet(set);
+        void* const plain = NewSet();
+        SetUint32(plain, kTkdtKeys[0], 0x99u);
+        SetUint32(plain, kTkdtKeys[26], 0x98u);
+        FakeStream w2 = Writer();
+        MixByte(CallThis<uint32_t>(addr::cGZPropSetTrack_WriteText, plain, &w2, uint32_t{0}, uint32_t{0}));
+        MixBytes(w2.bytes);
+        ReleaseSet(plain);
+    }
+    // Read back, with a leading length dword (and its reads failing in
+    // turn) and as `TKD2`; every truncation; no seekable interface; through
+    // the key interface's slot 12.
+    const std::vector<uint8_t> bytes = TkdtBytes(0x0BADBEEFu, written);
+    ReadTkdt(factory, bytes);
+    {
+        std::vector<uint8_t> prefixed = TkdtBytes(static_cast<uint32_t>(written.size() + 4), "");
+        const uint32_t second = 0x00005555u;
+        const auto* const p = reinterpret_cast<const uint8_t*>(&second);
+        prefixed.insert(prefixed.end(), p, p + 4);
+        prefixed.insert(prefixed.end(), written.begin(), written.end());
+        ReadTkdt(factory, prefixed);
+        for (int k = 1; k <= 3; ++k) {
+            FakeStream f = Reader(prefixed);
+            f.failAt = k;
+            ReadTkdt(factory, f);
+        }
+        ReadTkdt(factory, TkdtBytes(0x544B4432u, "12345678" + written));
+    }
+    for (std::size_t n = 0; n < bytes.size(); n += (n < 48 ? 1 : 5))
+        ReadTkdt(factory, std::vector<uint8_t>(bytes.begin(), bytes.begin() + n));
+    {
+        FakeStream q = Reader(bytes);
+        q.refuseSeekable = true;
+        ReadTkdt(factory, q);
+        void* const set = NewTrackText(factory, kTkdtInstance);
+        void* key = nullptr;
+        Virtual<uint32_t>(set, 0x0, 0x3B93C5E7u, &key);
+        FakeStream r = Reader(bytes);
+        MixByte(Virtual<uint32_t>(key, 0x30, &r, uint32_t{0}, uint32_t{0}));
+        MixSet(set);
+        Virtual<uint32_t>(key, 0x8);
+        ReleaseSet(set);
+    }
+    // The versions; the first value equal to the object's instance; the
+    // 0xFF891EAA default each way; malformed text.
+    const std::string texts[] = {
+        TkdtFields("TKDT,0,name,", 30, "ETKD"),
+        TkdtFields("TKDT,1,name,", 30, "ETKD"),
+        TkdtFields("TKDT,2,name,", 30, "ETKD"),
+        TkdtFields("TKDT,3,name,", 26, ""),
+        "TKDT,2,n,4660,1,2,3,4,5,6,7,8,9,ETKD",
+        "TKDT,2,n,0x1234,1,2,ETKD",
+        "TKDT,2,n,,,,,,,0,,,1,ETKD",
+        "TKDT,2,n,,,,,,,9,,0,1,ETKD",
+        "TKDT,2,n,,,,,,,9,,,1,ETKD",
+        "TKDT,2,n,,,,,,,,,abc,1,ETKD",
+        "TKDT,2,n,-5, 7,0x,0xZZ,99999999999,,abc,-0x10,+3,0X1F,1e3,,,,,,,,,,,,,,,,,,,,,,,,,ETKD",
+        "garbage",
+        "",
+        ",,,,,,,,,,",
+        "TKDT",
+        "TKDT,",
+        "TKDT,2",
+        "TKDT,2,",
+        "TKDT,2,name",
+        "TKDT,2,name,",
+        "TKDT,2,name,7",
+        "TKDT;2;name;7;8;",
+        "TKDT,two,name,1,2,3,4,5,6,7,8,9,10,11,12,ETKD",
+    };
+    for (const std::string& text : texts)
+        ReadTkdt(factory, TkdtBytes(0, text));
+    ReadTkdt(factory, std::vector<uint8_t>{0x01, 0x02, 0x03});
+}
+
 // A bag's bytes as its write lays them out: version 1, the count, the
 // entries.
 std::vector<uint8_t> BagBytes()
@@ -1148,7 +1333,7 @@ void DriveScriptHandler()
 // forms written and read back (truncated, refused, failing part way), the
 // factory making and writing each class, the Track objects, the window
 // 0xA3CD96CF's nine interfaces, the keyed shuffle bag and its clone, the
-// UI script handler's SetText. Every result goes into the fingerprint's
+// UI script handler's SetText; and part u2b's TKDT text writer and reader. Every result goes into the fingerprint's
 // `pio` part; addresses never do.
 void DrivePropio(const Day& day)
 {
@@ -1168,6 +1353,8 @@ void DrivePropio(const Day& day)
     PioStage("track");
     DriveFactory(factory, binary, xml);
     PioStage("factory");
+    DriveTkdt(factory);
+    PioStage("tkdt");
     DriveWindow(factory);
     PioStage("window");
     DriveBag();
