@@ -648,3 +648,337 @@ address = 0x00ACC418
 kind = "data"
 expect = "52 65 73 5C 4D 75 73 69"
 source = "Name ours (docs/audio.md, \"Music player\"); the text Res, Music, Radio (with backslashes) added to the data folder by Init."
+
+# Part 3 (docs/audio.md, "Music player"): the radio station class. Its constructor 0x008D376E is in audio.toml (GZSound::Construct8D376E).
+
+[[entry]]
+name = "GZRadioStation::Destruct"
+address = 0x008D3506
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 8E F4 00 00"
+source = "Name ours (docs/audio.md, \"Music player\"); the station's destructor: its vtable back, the five lists and five strings, then the play order 0x008D34EC (a jump)."
+
+[[entry]]
+name = "GZRadioStation::DeletingDestruct"
+address = 0x008D38AD
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 51 FC FF FF"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 15 of the vtable 0x00ACC290, ret 4: the destructor, then operator delete when bit 0 is set."
+
+[[entry]]
+name = "GZRadioStation::Shuffle"
+address = 0x008D3442
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 08 3B 5C 24"
+source = "Name ours (docs/audio.md, \"Music player\"); cdecl (first, last): a shuffle of dwords with rand() (the play order of the four kinds); the constructor and 0x008D3485 call it."
+
+[[entry]]
+name = "GZRadioStation::Reshuffle"
+address = 0x008D3485
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 10 8B 4E"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 19: the play order shuffled again (0x008D3442); when the new first kind is the old last and that is not music (0), first and last are swapped."
+
+[[entry]]
+name = "GZRadioStation::ConstructOrder"
+address = 0x008D34D1
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 33 C0 89 06 89"
+source = "Name ours (docs/audio.md, \"Music player\"); thiscall on the station's +0x10: the play order's vector emptied and the stopwatch at its +0x18 constructed (0x0088FEDF, 4)."
+
+[[entry]]
+name = "GZRadioStation::DestructOrder"
+address = 0x008D34EC
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 18 E8 40"
+source = "Name ours (docs/audio.md, \"Music player\"); thiscall on the station's +0x10: the stopwatch's destructor (a bare ret) and the vector's storage freed."
+
+[[entry]]
+name = "GZRadioStation::MusicFileExists"
+address = 0x008D3EE0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 34 53 56"
+source = "Name ours (docs/audio.md, \"Music player\"); ret 4: whether a music file exists as named or under the station's Music folder (+0x84). Called by slot 26."
+
+[[entry]]
+name = "GZRadioStation::CopyString"
+address = 0x008D3BE2
+kind = "function"
+convention = "thiscall"
+expect = "56 6A FF 6A 00 FF 74 24"
+source = "Name ours (docs/audio.md, \"Music player\"); ret 4: a string copy-constructed (SC4String::Substring, 0, -1). Called by slot 18 for the by-value argument of 0x008D5E50."
+
+[[entry]]
+name = "GZRadioStation::QueryInterface"
+address = 0x008D2994
+kind = "function"
+convention = "thiscall"
+expect = "83 7C 24 04 01 74 0A 81"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 0, ret 8: interfaces 1 and 0x4056574B give the object, with a reference."
+
+[[entry]]
+name = "GZRadioStation::Release"
+address = 0x008D29B9
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 04 83 F8 01 76 05"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 2: the count at +4; at the last reference slot 15 with 1, without counting down. Shared with three other vtables (0x00A82A28, 0x00AD16D0, 0x00AD4720), so the game's."
+
+[[entry]]
+name = "GZRadioStation::Update"
+address = 0x008D2CFD
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 57 FF 50"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 5, what the player's slot 5 jumps to: after a four-second pause, the next kind of the play order (music, DJ, commercial, jingle) with rand() odds, played through slot 23."
+
+[[entry]]
+name = "GZRadioStation::SetPlayer"
+address = 0x008D3593
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 89"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 6, ret 4: the player interface kept at +0x40 (not held), its slot 6 at +0x44."
+
+[[entry]]
+name = "GZRadioStation::Start"
+address = 0x008D29D0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 06 FF 50 58"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 7: slots 22, 16 and 17 (with +0xFC), then slot 24 (the welcome) by a jump unless +9 is set."
+
+[[entry]]
+name = "GZRadioStation::GetId"
+address = 0x008D2E5F
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 4C 8A 10 8B 44 24"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 9, ret 4: the four characters of the ID (+0x48) copied out."
+
+[[entry]]
+name = "GZRadioStation::GetName"
+address = 0x008D2E88
+kind = "function"
+convention = "thiscall"
+expect = "8B 41 60 3B 41 64 56 8B"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 10, ret 4: the name (+0x5C, or the ID when empty) given to a cIGZString (its slot 4)."
+
+[[entry]]
+name = "GZRadioStation::SetShuffleOption"
+address = 0x008D29FC
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 89 81 FC 00"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 13, ret 4: +0xFC, the argument of slot 17."
+
+[[entry]]
+name = "GZRadioStation::SetFilter"
+address = 0x008D5409
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 53 8D"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 14, ret 4: the music filter list (+0xF4) made a copy of a string list."
+
+[[entry]]
+name = "GZRadioStation::ScanFolders"
+address = 0x008D3960
+kind = "function"
+convention = "thiscall"
+expect = "55 8D 6C 24 88 81 EC A0"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 16: the four lists filled with the files of the four folders that match the music patterns, then each list's playlists expanded (slot 25)."
+
+[[entry]]
+name = "GZRadioStation::ShuffleLists"
+address = 0x008D4317
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 28 53 56"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 17, ret 4: each list ordered (slot 18) with the last one not first again, and its place set to the first."
+
+[[entry]]
+name = "GZRadioStation::OrderList"
+address = 0x008D5EC3
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 18, ret 0xC (folder, list, how): a list copied into a vector, ordered by 0x008D5E50 (1) or shuffled by 0x008D546F (otherwise), copied back."
+
+[[entry]]
+name = "GZRadioStation::HasItems"
+address = 0x008D2EB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 56 8B"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 20, ret 4: whether a kind's list is non-empty; DJ, commercials and jingles only with the player's options 0, 1 and 2."
+
+[[entry]]
+name = "GZRadioStation::Advance"
+address = 0x008D338F
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 75 14"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 21, ret 4: a kind's place moved on one, past the list's end to its first."
+
+[[entry]]
+name = "GZRadioStation::LoadInfo"
+address = 0x008D4579
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 60 53 56"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 22: the ID from the *.id file's name and the name from the *.txt file's in the station's folder; whether there is an ID."
+
+[[entry]]
+name = "GZRadioStation::PlayNext"
+address = 0x008D4127
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 34 56 8B"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 23, ret 4: the next file of a kind played through the player (its slot 7); music with a filter goes to slot 26."
+
+[[entry]]
+name = "GZRadioStation::PlayWelcome"
+address = 0x008D3E7E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 56 8B"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 24: the station's Welcome.wav played when it exists, and +9 set."
+
+[[entry]]
+name = "GZRadioStation::ExpandPlaylists"
+address = 0x008D5827
+kind = "function"
+convention = "thiscall"
+expect = "55 8D 6C 24 90 81 EC 7C"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 25, ret 8 (folder, list): each .m3u or .pls entry replaced by the files the playlist names (the readers of part 4)."
+
+[[entry]]
+name = "GZRadioStation::PlayNextFiltered"
+address = 0x008D3F8E
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 44 53 56"
+source = "Name ours (docs/audio.md, \"Music player\"); slot 26: the next music file in (mode other than 1) or not in (mode 1) the filter list that exists, played; after a full round with none, slot 17."
+
+[[entry]]
+name = "SC4StringList::EraseRange"
+address = 0x007B6F80
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 57 8B 7C"
+source = "Name ours; a list's erase of a range (out iterator, first, last; ret 0xC). The game's; called by the music player's stations."
+
+[[entry]]
+name = "SC4StringList::FindFrom"
+address = 0x004974F0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 10 8B 54 24 0C"
+source = "Name ours; std::find over a string list (out iterator, first, last, value), through 0x00497360. The game's; called by the music player's stations."
+
+[[entry]]
+name = "SC4StringList::Erase"
+address = 0x00456AB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 0C 8B 46 04"
+source = "Name ours; a string list's erase at one node (out iterator, node; ret 8). The game's; called by the music player's stations."
+
+[[entry]]
+name = "SC4StringList::PushBack"
+address = 0x004580E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 11 50 51"
+source = "Name ours; a string list's push_back (a pointer to the string; ret 4). The game's; called by the music player's stations."
+
+[[entry]]
+name = "GZPlaylistReader::Construct"
+address = 0x008D569F
+kind = "function"
+convention = "thiscall"
+expect = "33 C0 56 8B F1 89 06 89"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); a playlist reader, 0x48 bytes. The game's."
+
+[[entry]]
+name = "GZPlaylistReader::Destruct"
+address = 0x008D56C8
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 34 E8 7D"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the reader's three strings and its entries. The game's."
+
+[[entry]]
+name = "GZPlaylistReader::Read"
+address = 0x008D6B22
+kind = "function"
+convention = "thiscall"
+expect = "55 8D 6C 24 8C 81 EC C0"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); a .m3u or .pls file read (path; ret 4). The game's."
+
+[[entry]]
+name = "GZPlaylistEntries::AssignFrom"
+address = 0x008D56EB
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 56 57 8B 7D"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); a vector of 0x2C-byte entries (the file name at +0x14) copied from a reader (ret 4). The game's."
+
+[[entry]]
+name = "GZPlaylistEntries::Destruct"
+address = 0x008D51FC
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 FF 76 04 FF 36"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the vector of entries freed. The game's."
+
+[[entry]]
+name = "GZRadioStation::SortByFolder"
+address = 0x008D5E50
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 56 8B 75 08 57"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); cdecl (first, last, a folder string by value, which it destroys): slot 18's order 1. The game's."
+
+[[entry]]
+name = "GZRadioStation::ShuffleNames"
+address = 0x008D546F
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 8B 45 08 3B 45"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); cdecl (first, last): a shuffle of strings with rand(), slot 18's other order. The game's."
+
+[[entry]]
+name = "GZRadioStation::Vtable"
+address = 0x00ACC290
+kind = "vtable"
+expect = "94 29 8D 00 60 8B 96 00"
+source = "Name ours (docs/audio.md, \"Music player\"); the station's vtable, 27 slots; slots 1, 3, 4, 8, 11 and 12 are framework functions shared with other classes."
+
+[[entry]]
+name = "GZRadioStation::WelcomeText"
+address = 0x00B16040
+kind = "data"
+expect = "E4 C1 AC 00"
+source = "Name ours (docs/audio.md, \"Music player\"); a pointer to Welcome.wav (0x00ACC1E4)."
+
+[[entry]]
+name = "GZRadioStation::TextPatternText"
+address = 0x00B1605C
+kind = "data"
+expect = "EC 98 AB 00"
+source = "Name ours (docs/audio.md, \"Music player\"); a pointer to *.txt (0x00AB98EC)."
+
+[[entry]]
+name = "GZRadioStation::PlaylistPatterns"
+address = 0x00B16060
+kind = "data"
+expect = "A0 C1 AC 00"
+source = "Name ours (docs/audio.md, \"Music player\"); a pointer to *.m3u,*.pls (0x00ACC1A0)."
