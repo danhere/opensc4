@@ -310,8 +310,9 @@
 //   simulators.automata.awmgr.air and .water groups are on), into the
 //   fingerprint as ` E<aircraft>,<watercraft>,<flags>` from that day on,
 //   with fake automata and occupants of the test's own (part aw3's, with
-//   slots 10 and 67 and a property holder of their own that can answer a
-//   type and the byte property 0x8BFB1072). A new aircraft manager from its
+//   slots 10 and 67 in a vtable of their own, part aw3's fakes keeping
+//   their traps there, and a property holder that can answer a type and
+//   the byte property 0x8BFB1072). A new aircraft manager from its
 //   factory, held by one reference: Init twice (the filter, the generator
 //   global 0x00B21AF4, the tuning's most and least zoom) and slot 24; Write,
 //   Read of those bytes with two list records (Write must give them back),
