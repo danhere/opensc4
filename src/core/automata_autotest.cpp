@@ -432,7 +432,7 @@
 //   with the flag 0x8000000) and the time up (0x00524CF0); the overlay's
 //   intensity 0x00524660 over ten distances; cell sets and a cell map of the
 //   test's own (0x005278E0, 0x005260C0, 0x00525A50, 0x00526510, 0x005271D0,
-//   0x00526180, 0x00525AA0 walking them, 0x00526250, 0x005278A0); the
+//   0x00526180, 0x00525AA0 walking them, 0x00526250, 0x005278A0 on a referenced set); the
 //   manager's cells (+0xAA8): 0x00526960 and 0x00529560 (the target a fake,
 //   at cells of the city's middle); 0x0052BBC0 (never with a next target)
 //   and 0x0052C0E0 (no script by the kinds 1 to 4, a script with targets
@@ -7654,14 +7654,20 @@ void Situations4Drive(cISC4City*)
         c4::MakeTable(a, 3);
         This<void>(addr::cSC4CitySituationManager_CellSetAssign, b.p(), static_cast<void*>(a.p()));
         mix(sets, c4::Walk(b.p()));
-        // The uint32 set's insert.
+        // The referenced set's insert (its keys referenced), cleared by
+        // SC4RefHashSet::Clear (which releases them).
         c4::MakeTable(u, 10);
-        for (const uint32_t key : {5u, 0x7A5A0001u, 5u, 0xFFFFFFFFu}) {
+        for (void* const key : {static_cast<void*>(mapped[0]), static_cast<void*>(mapped[1]),
+                                static_cast<void*>(mapped[0])}) {
             Result r{};
             This<Result*>(addr::cSC4CitySituationManager_Uint32SetInsert, u.p(), static_cast<void*>(&r),
                           static_cast<const void*>(&key));
+            sets.Mix(mapped[0]->refs);
             mix(sets, r.inserted | At<uint32_t>(u.p(), 0x10) << 8);
         }
+        This<void>(addr::SC4RefHashSet_Clear, u.p());
+        sets.Mix(mapped[0]->refs);
+        sets.Mix(mapped[1]->refs);
         // The cell -> object map: objects referenced, a duplicate, null.
         c4::MakeTable(map, 10);
         const uint32_t mn = c4::BucketCount(map.p());
