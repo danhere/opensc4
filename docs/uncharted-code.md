@@ -28,7 +28,7 @@ Two signals did most of the grouping. Strings, imports and Function ID names say
 | **Block 1** 0x00830000 to 0x00863FFF | 783 | 10 | Span routines of a 16-bit software rasterizer (below) |
 | **Block 2** 0x008C0000 to 0x008D01EF | 361 | 202 | Lua 5.0 runtime, the end of it (lstrlib, ldblib, lmathlib, liolib, lbaselib, lgc, ltable, lparser, lcode). Third-party; [lua.md](lua.md) already keeps it |
 | 0x008D01F0 to 0x008D2993 | 27 | 8 | Pixel and picture conversion helpers without calls of their own, called by `UIPictureTextures::Upload`, the drivers and game code (purpose inferred from callers) |
-| 0x008D2994 to 0x008D7FFF | 144 | 39 | GZSound's music player: radio stations, playlists (`.m3u`, `.pls`), `Res\Music\Radio\`, `Welcome.wav`. 15 are this-adjustor thunks |
+| 0x008D2994 to 0x008D7FFF | 144 | 39 | GZSound's music player: radio stations, playlists (`.m3u`, `.pls`), `Res\Music\Radio\`, `Welcome.wav`. 15 are this-adjustor thunks. 138 are ours (`audio.music.part1` to `part4`, [audio.md](audio.md), "Music player") |
 | 0x008D8000 to 0x008DA8BF | 19 | 3 | `GZBuffer` 2D blits (`TileBlit` 0x008D8BC0, [renderer.md](renderer.md)) |
 | 0x008DA8C0 to 0x008F47FF | 359 | 5 | The stock **Software** graphics driver (vtable 0x00ACC4D8; `GDriverClass--Software`, `Maxis 3D GDriver Software 1.0`), its vertex pipeline (one 10.8 KB dispatcher at 0x008EFFF0 over ~100 variants) and its DirectDraw/DrawDib presentation. A few hash-table helpers folded in by the linker sit at 0x008EB800 to 0x008EC5FF (0x008EBA60 has 198 callers) |
 | 0x008F4800 to 0x008F67FF | 99 | 0 | Unidentified: no strings, no imports, never ran |
