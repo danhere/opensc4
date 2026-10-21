@@ -713,7 +713,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* set, void* stream, uint32_t a2, uint32_t a3)"
 expect = "55 8B EC 81 EC 88 00 00"
-source = "Name ours. Slot 12 of the Track class 0x00AD2920: the `TKDT`/`ETKD` text form (3,186 bytes). Part u2b. Stays the game's; called by ours."
+source = "Name ours. Slot 12 of the Track class 0x00AD2920 (and called by ReadResource for type 0x0B8D821A); `ret 0xC`; 3,186 bytes. The stream's bytes whole through its seekable interface (0xC56B8F08: the size 0xD0, a dword 0x34, the bytes 0x6C into a game string sized by Truncate): the first dword is not part of the text, and when it equals the size less 4 a second one is read and the size taken as 4 less. Text after a `TKD2` dword starts 8 bytes on. Split at commas (SplitOff 0x0090E98C): the first field skipped, the second the version, the third kept (Substring, QueryInterface for 0x089B7DC8) and unused; then the writer's 27 values each put in the set as a uint32 (TextToUint32) when its field is not empty, the sixth only from version 1 and the last six only from version 2. The first equal to the set's own instance (+0x24) stops it with false. 0xFF891EAA is always set: its field when not 0, else 0x7DCDED2D (0x7DCDED3D when 0xFFCC156F was given and not 0). The writer's empty third field is this name, so its text reads back. Ours in framework.propio.tkdt (docs/gzui.md, part u2b)."
 
 [[entry]]
 name = "cGZPropSetTrack::WriteText"
@@ -722,7 +722,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* set, void* stream, uint32_t a2, uint32_t a3)"
 expect = "55 8B EC 83 EC 48 56 57"
-source = "Name ours. Slot 13 of the Track class 0x00AD2920: the text form's writer (2,010 bytes). Part u2b. Stays the game's; called by ours."
+source = "Name ours. Slot 13 of the Track class 0x00AD2920; `ret 0xC`; 2,010 bytes. `TKDT,2,`, an empty field, then the 27 values (GetProperty, slot 0x20, into a uint32 value) each as `0x%08lx,` or `%ld,` (cRZBaseString::Sprintf), or `,` alone where the set has none, then `ETKD`; written whole through the stream's slot 0x44 (text, length). The `ETKD` and `,` strings are statics made on first use (0x00B633E0, 0x00B633CC; guard bits at 0x00B633F4) and destroyed at exit. The write's result is not looked at: true. Ours in framework.propio.tkdt (docs/gzui.md, part u2b)."
 
 [[entry]]
 name = "cGZResourceKey::GetKey"
@@ -757,6 +757,80 @@ address = 0x00AD2620
 kind = "vtable"
 expect = "10 4A 5D 00 10 4A 5D 00"
 source = "Name ours. The key interface's base, stored by the constructors before the class's own key vtable."
+
+[[entry]]
+name = "cGZPropSetTrack::TextHeader"
+address = 0x00AD44A8
+kind = "data"
+expect = "54 4B 44 54 2C 32 2C 00"
+source = "Name ours. The text `TKDT,2,` the TKDT writer starts with."
+
+[[entry]]
+name = "cGZPropSetTrack::EndText"
+address = 0x00AD44A0
+kind = "data"
+expect = "45 54 4B 44 00 00 00 00"
+source = "Name ours. The text `ETKD`, which the TKDT writer's static string at 0x00B633E0 is made from."
+
+[[entry]]
+name = "cGZPropSetTrack::HexFormat"
+address = 0x00AD4494
+kind = "data"
+expect = "30 78 25 30 38 6C 78 2C"
+source = "Name ours. The format `0x%08lx,` the TKDT writer prints keys and IDs with."
+
+[[entry]]
+name = "cGZPropSetTrack::DecFormat"
+address = 0x00AD448C
+kind = "data"
+expect = "25 6C 64 2C 00 00 00 00"
+source = "Name ours. The format `%ld,` the TKDT writer prints its other values with."
+
+[[entry]]
+name = "SC4::CommaText"
+address = 0x00A99F14
+kind = "data"
+expect = "2C 00 00 00 01 04 20 80"
+source = "Name ours. The text `,`: the TKDT reader's separator and the writer's static string at 0x00B633CC."
+
+[[entry]]
+name = "cGZPropSetTrack::TextEnd"
+address = 0x00B633E0
+kind = "data"
+expect = "69 F0 E3 27 02 C0 7A 72"
+source = "Name ours. A static game string `ETKD` the TKDT writer makes on first use (guard bit 1 of 0x00B633F4)."
+
+[[entry]]
+name = "cGZPropSetTrack::TextComma"
+address = 0x00B633CC
+kind = "data"
+expect = "F3 BF 8D 30 2A A9 87 99"
+source = "Name ours. A static game string `,` the TKDT writer makes on first use (guard bit 2 of 0x00B633F4) and writes for a value the set has not got."
+
+[[entry]]
+name = "cGZPropSetTrack::TextStaticsGuard"
+address = 0x00B633F4
+kind = "data"
+expect = "19 1B E4 94 F7 2A 61 3B"
+source = "Name ours. The TKDT writer's static-initialisation bits: 1 for 0x00B633E0, 2 for 0x00B633CC."
+
+[[entry]]
+name = "cGZPropSetTrack::DestroyTextEnd"
+address = 0x00A7F5E5
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "A1 E4 33 B6 00 85 C0 C7"
+source = "Name ours. The atexit destructor of the static string 0x00B633E0, given to atexit by the TKDT writer. Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZPropSetTrack::DestroyTextComma"
+address = 0x00A7F5CA
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "A1 D0 33 B6 00 85 C0 C7"
+source = "Name ours. The atexit destructor of the static string 0x00B633CC, given to atexit by the TKDT writer. Stays the game's; called by ours."
 
 [[entry]]
 name = "cGZKeyedWin::Construct"
