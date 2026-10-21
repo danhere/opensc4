@@ -688,7 +688,11 @@ std::uint8_t __fastcall InitiateSituationByAutomataGroup(char* self, void*, std:
         void* const entry = At<void*>(node, 8);
         if (!entry || !Virtual<std::uint8_t>(entry, 0xD8, static_cast<void*>(&groups)))
             continue;
-        void* const situation = Virtual<void*>(At<void*>(node, 8), 0x0C);
+        // Read again: null now, the game goes on to the joyride.
+        void* const owner = At<void*>(node, 8);
+        if (!owner)
+            break;
+        void* const situation = Virtual<void*>(owner, 0x0C);
         const std::uint32_t guid = Virtual<std::uint32_t>(situation, 0x28);
         result = Virtual<std::uint8_t>(self, slot::kInitiateSituationByGuid, guid, forOccupant, group);
         if (groups.begin)
