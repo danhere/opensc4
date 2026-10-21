@@ -3291,7 +3291,6 @@ void** FakeAutomatonVtable()
         OPENSC4_FAKE(table, 0, 0x14, Fake0);
         OPENSC4_FAKEP(table, 0, 0x1C, Fake1, 1u);
         OPENSC4_FAKE(table, 0, 0x24, Fake1);
-        OPENSC4_FAKEP(table, 0, 0x28, Fake1, 1u);
         OPENSC4_FAKE(table, 0, 0x34, Fake1);
         OPENSC4_FAKEP(table, 0, 0x3C, Fake1, 1u);
         OPENSC4_FAKE(table, 0, 0x78, Fake2);
@@ -3304,7 +3303,6 @@ void** FakeAutomatonVtable()
         OPENSC4_FAKE(table, 0, 0xE4, Fake1);
         OPENSC4_FAKE(table, 0, 0xFC, Fake0);
         OPENSC4_FAKE(table, 0, 0x100, Fake1);
-        OPENSC4_FAKE(table, 0, 0x10C, Fake0);
         OPENSC4_FAKE(table, 0, 0x118, Fake1);
         OPENSC4_FAKE(table, 0, 0x11C, Fake1);
         OPENSC4_FAKE(table, 0, 0x120, Fake2);
@@ -3315,6 +3313,19 @@ void** FakeAutomatonVtable()
         OPENSC4_FAKEP(table, 0, 0x17C, Fake1, 1u);
         OPENSC4_FAKE(table, 0, 0x194, Fake0);
         OPENSC4_FAKE(table, 0, 0x198, Fake2);
+    }
+    return table;
+}
+
+// Part aw4's fakes: the same with slots 10 (the point it is sent to) and 67
+// (the kind block). Part aw3's keep their traps there.
+void** FakeAutomatonVtable4()
+{
+    static void* table[0x1A0 / 4];
+    if (!table[0]) {
+        std::memcpy(table, FakeAutomatonVtable(), sizeof table);
+        OPENSC4_FAKEP(table, 0, 0x28, Fake1, 1u);
+        OPENSC4_FAKE(table, 0, 0x10C, Fake0);
     }
     return table;
 }
@@ -3989,7 +4000,7 @@ void AwAirDrive(void* building, Hash& air, Hash& logged, uint32_t& flags)
     void* const savedGenerator = generator;
     static Fake fakes[8];
     for (uint32_t i = 0; i < 8; ++i)
-        fakes[i].Init(0x21 + i, air);
+        fakes[i].Init(0x21 + i, air), At<void**>(fakes[i].block, 0) = FakeAutomatonVtable4();
     g_known.push_back({made, 0x60});
     if (building)
         g_known.push_back({building, 0x61});
@@ -4281,7 +4292,7 @@ void AwWaterDrive(cISC4City* city, Hash& water, Hash& logged, uint32_t& flags)
     void* const savedGenerator = generator;
     static Fake fakes[12];
     for (uint32_t i = 0; i < 12; ++i)
-        fakes[i].Init(0x31 + i, water);
+        fakes[i].Init(0x31 + i, water), At<void**>(fakes[i].block, 0) = FakeAutomatonVtable4();
     g_known.push_back({made, 0x70});
     char* f[12];
     for (int i = 0; i < 12; ++i)
