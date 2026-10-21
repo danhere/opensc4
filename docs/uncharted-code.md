@@ -34,7 +34,7 @@ Two signals did most of the grouping. Strings, imports and Function ID names say
 | 0x008F4800 to 0x008F67FF | 99 | 0 | Unidentified: no strings, no imports, never ran |
 | 0x008F6800 to 0x008FFFFF | 354 | 117 | Start of the HTML viewer: HTTP cache and cookies (`CookieData.ini`, `Maxis Network Cache\`), the `HTML Window`, then the parser. The viewer continues to about 0x0090BFFF (734 functions in all, 283 ran: the parser and layout run, the cache and cookies do not) |
 | **Block 3** 0x00940000 to 0x00941FFF | 96 | 23 | Framework helpers (text encoding 0x00940DA8, `TKDT` serialisation); 33 are thunks |
-| 0x00942000 to 0x00947FFF | 215 | 106 | `cGZPropertySet` and its property values (string and uint32 variants, the XML writer), a text tokenizer, the base `QueryInterface` at 0x009457C6 |
+| 0x00942000 to 0x00947FFF | 215 | 106 | The property set's XML reader and writer, a shuffle bag, an XML parser with its text tokenizer, the base `QueryInterface` at 0x009457C6. The property set itself and most of its values' code are below the block, from 0x00939040 ([gzui.md](gzui.md)) |
 | 0x00948000 to 0x0094BFFF | 205 | 71 | Containers and the UI script tree (`_children`, `_define`, `_null`; list node 0x0094B33A); 29 are thunks |
 | 0x0094C000 to 0x0095FFFF | 243 | 84 | The framework window (AddRef 0x0094C47C) and the stock widgets with the readers and writers of their UI-script properties: TextTicker, TextEdit, ListBox, Combo, Btn, BMP, Slider, Scrollbar, LineInput, Spinner, Outline, Gen, FileBrowser, OptGrp, TreeView, Grid. Continues past 0x00960000 |
 
