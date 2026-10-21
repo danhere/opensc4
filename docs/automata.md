@@ -653,7 +653,7 @@ The group is found by the three classes' vtables, less nothing shared outside th
   - DoMessage 0x00506970 and the +4 slot 3 0x0050DD30 with 0x00542EE0 and 0x00542F50.
   - Write 0x0050CB80, Read 0x005108E0 with 0x0050FEB0.
   - The tuning load 0x00512CF0 (2,777 bytes) with 0x00512860, 0x00512940, 0x00510C80, 0x00510D20; slot 39 0x00513910; TrackAutomataGroupInstances (31) 0x00513C40 with 0x00510F10, 0x00510450, 0x00512030; slot 66 0x00514520 with 0x00512C80 and 0x005120E0.
-- **aw3 (36, about 12,200 bytes): the common base's automata, creation, dispatch and frames.** Maybe two pieces.
+- **aw3 (36, about 12,200 bytes, done): the common base's automata, creation, dispatch and frames.** Below ("Part aw3").
   - AddAutomaton 0x0050F790, RemoveAutomaton 0x0050C990, GetRandomCreationPoint 0x00506DC0.
   - TranslateDispatchLocation and ChaseAutomaton (19 to 22): 0x00507120, 0x00506F50, 0x00511260, 0x005072E0.
   - The exemplar choices (25 to 27): 0x0050BE90, 0x0050C0D0, 0x0050C1D0. GetInstancesOfGroup (32) 0x00510040. SetCameraFollow (34) 0x0050A930.
@@ -811,6 +811,85 @@ Reached (our first-call log lines, trial Making Money d0000, 4 days): all 25. In
 
 Big City d0090 and Rush Hour d0090 needed more pairs: the original itself had two outcomes there, and B had the same two. Every B run carried the ` B` token and reached all 25 functions.
 
+
+## Part aw3: the common base's automata, creation, dispatch and frames
+
+### What is ours
+
+36 functions in three more groups, off by default ([automata_awmgr_auto.cpp](../src/core/automata_awmgr_auto.cpp)). The vehicle and pedestrian managers keep most of these slots in their vtables, and parts v2 and v3 call AddAutomaton, RemoveAutomaton, GetRandomCreationPoint and slots 55, 56 and 63 at their game addresses, so all four managers reach these detours when the groups are on.
+
+- **`simulators.automata.awmgr.create` (14):**
+  - AddAutomaton (slot 7) 0x0050F790 and RemoveAutomaton (8) 0x0050C990.
+  - GetRandomCreationPoint (16) 0x00506DC0.
+  - The exemplar choices: slot 25 0x0050BE90 (by group, bit and cell), 26 0x0050C0D0 (by masks), 27 0x0050C1D0 (by bit and value).
+  - GetInstancesOfGroup (32) 0x00510040.
+  - Slot 40 0x00506600 (slot 39's undoing), 43 0x00507B80 (a message posted), 45 0x00511990 (every automaton removed), 46 0x00510690 (an automaton made), 47 0x0050A740 (room by priority), 65 0x0050F930 (the source building table filled) and 67 0x0050F9C0 (an exemplar record read).
+- **`simulators.automata.awmgr.dispatch` (12):** TranslateDispatchLocation's two forms (19 0x00507120, a point; 20 0x00506F50, cells), ChaseAutomaton (21) 0x00511260 and its pair form (22) 0x005072E0, slot 41 0x00507AC0 (in view), 42 0x0050C8B0 (the kind rate), 53 0x0050C6A0, 54 0x00506D50 and 55 0x0050C7E0 (occupants' source buildings), 59 0x0050F690 (an automaton tracked), 61 0x005073D0 and 62 0x00507430 (shown and hidden).
+- **`simulators.automata.awmgr.frame` (10):** SetCameraFollow (34) 0x0050A930, slots 48 0x00506CD0 (the view rectangle), 49 0x00505350, 50 0x0050A5D0 (zoom and filter), 56 0x0050F2C0 (after a load), 57 0x0050A670, 60 0x0050A520 (active by zoom), the frame update (63) 0x0050A7B0 with its rate 0x00507BF0, and the camera follow's update (64) 0x00507470.
+
+What they do:
+
+- **The list.** AddAutomaton references the automaton, runs its slot 3, appends it and puts it in the set of every tracked group (+0xA50) its occupant is in; then slot 61 and its activity by the automata filter of 0x00B43DC4 or +0x4C. RemoveAutomaton with its byte takes it out of the sets and the list, ends the camera follow for the followed one and releases it; without the byte it only marks it (its slots 102, 89, 33 and its +0x18C part).
+- **Creation.** Slot 46 refuses at priority 0 while inactive, and above the most (+0x3C) unless slot 47 made room, the flags have 0x80 or the priority is 0xFF; the priority becomes 0xFE when the city's slot 0xC4 object holds the group and is below its most. The record (slot 44 of the start, else slot 25), its automata group and the group's class (else +0xA48) are made by the COM, then given the record's model, groups (property 0xAA1DD396) and flags. GetRandomCreationPoint draws a distance between the least and the most (at least the least, at most the city's span) and a direction made a unit; the height is the terrain's without flag 0x40000.
+- **The exemplar choices** draw from the manager's generator (+0x50) among the group's records of the exemplar map whose masks fit; slot 25 also by the cells object's masks at a cell, slot 27 by the record's +0x38.
+- **The chase.** Slot 21 gathers the group's automata (slot 32) and lets the nearest within the radius, or all of them, chase the target through slot 22, which puts the target into the chaser's controller (+0x28) and gives the target the chaser's message target.
+- **The source building table** (+0xA64, part aw2's save) gets its classes from the script system (slot 65) and the exemplar records (slot 67); slots 53 and 54 count a building's groups up, slot 55 counts an occupant's down, slot 56 recounts them after an old save.
+- **Frames.** The rate 0x00507BF0 sets 0x00B09964 by the simulation speed (or the U-Drive), 0 while paused. The frame update removes automata by their state (at once or not), runs their slot 72 and removes those out of view. Slots 48, 50 and 60 follow the view: its rectangle, the zoom against +0xA3C and the activity.
+- **The camera follow.** SetCameraFollow keeps the automaton (0x00B21B8C), centres the camera on it and runs slot 64, which moves the camera's centre and centre offset after it each frame, pushed by the screen edges it is near.
+
+Kept as the game's: the SC4UIScale probe site CreateAutomaton (slot 15, 0x00505370); the hash set, map, tree, vector and list helpers, the random draws, the camera's helpers (0x007F7E50, 0x007F66C0, 0x007F79B0 and the camera control's), the property getters, the script number, the group templates' queries, the automaton's 0x00510360 and the allocators, all called at their addresses. Slot 46 and GetRandomCreationPoint, which part v3 left to the game for the vehicle managers, are ours here. No NAM or SC4UIScale site is among the 36.
+
+Oddities kept:
+
+- AddAutomaton tests the node's +8 for null, never the node.
+- GetRandomCreationPoint's distance is ((r x most) - least) + least. The direction's x is used unrounded, y and z after their rounding to floats. y is 0 without flag 0x40000, else an unscaled draw in [0, 1).
+- Slot 25 tests its cell for -1 and up (signed) and, without a cell filter or a bit, draws straight from the map's vector. Slot 27's value 0 takes every record.
+- Slot 21 with all within the radius answers 1 when any chased, not slot 22's answers. Its distances must be strictly below the radius's square (rounded to a float); of equal nearest ones the first wins. Slot 22 answers 1 once the controller is there, whether the message target's query worked or not.
+- Slot 46 passes the caller's whole word of its priority byte to the new automaton's slot 64.
+- Slot 47 answers 0 when the count is not below the share (+0x40).
+- Slot 56 keeps one set of IDs for all the occupants it recounts, so each occupant's groups are counted again for every occupant after it.
+- The frame update takes the automata filter and never uses it.
+- Slot 67's first three masks become all ones at a zero byte; the fourth shifts by the byte itself (the others by the byte less one).
+- The camera update reads its zoom share from a table of six on the stack by the zoom. A zoom outside 0..5 would read other stack slots in the game; ours logs a first-call line and takes 0. None was logged.
+- Slots 59 and 65 answer nothing; slot 56 answers slot 48's answer.
+
+Floats: 53-bit doubles, floats stored where the game stores them, FST's unrounded value kept as a double. The cell of a point (slot 20) and the camera's zoom level are the game's floor ((a - 0.5) + 1.5 x 2^23 as a float, its bits less 0x4B400000, plus one when that is a); the camera's pixel counts round to nearest the same way. The kind rate reads the clock's two words unsigned (FILD plus 2^32). Compares keep the asm's handling of equal and unordered values. Return values: AL for the bools; slot 32 0 or 1 in EAX; pointers and calls' answers in full.
+
+Reimplemented like the earlier parts: one writer, then an independent audit of all 36 against the disassembly. The audit found no defect. Two of its notes were taken for exactness although neither can be seen: slot 54's compare is now the asm's own (it differed only for a NaN threshold), and slot 56's occupant loop ends at the list head as read after the occupant manager's call. Before the audit, the writer's own review caught one misreading: `test ah,5 / jp` jumps for equal values too, so those compares (GetRandomCreationPoint, the chase, the camera's blend) are strict.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_AWMGR=3` does everything `=2` does, plus the following, into the fingerprint as ` D<calls>,<choices>,<points>,<sources>,<camera>,<flags>` (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)):
+
+- **On a bare common base** (0x005125E0, the base's vtable), lent the city's vehicle manager's cells object and script system, with fake automata of the test's own. Every slot the base calls on a fake goes into the hash with its value arguments; a pointer argument counts as the fake it is. The fakes' occupants give a property holder without properties, which the automata filter of 0x00B43DC4 asks for.
+  - Two tracked groups; AddAutomaton with none and with three; slot 59.
+  - GetInstancesOfGroup for a tracked group, a list group and with a fake flagged 1, each set released by slot 33.
+  - The chase: slot 22's six refusals, then slot 21 for the nearest and for all.
+  - Slots 61 and 62 in each state; slot 47 under two most counts; slots 57, 50, 60, 48 and 49.
+  - Slots 19 and 20 for each kind of location.
+  - Slot 65 and the source building counts of slots 53, 54 and 55 with a building occupant of the city.
+  - Slots 39 and 40 (the counter stays above 0); slot 43 with a message nobody takes; slot 46 refusing twice.
+  - The frame update through its branches, and paused.
+  - SetCameraFollow and three camera updates as the fake moves (the camera's centre and the follow's globals into the token; the camera put back after), then the follow ended.
+  - Slot 56 after a load and for an old save; slot 45; the base deleted.
+- **On the city's four managers**, the generator seeded for the calls and put back: the exemplar choices for every group of the exemplar map, the default and a group not there (as record indexes), and GetRandomCreationPoint at four places. To the log only: the kind rates (they read the clock) and slot 41.
+- **Slot 46 making one** on the city's vehicle manager (priority 0xFF): its class into the token, then the automaton shut down and released.
+
+The flags: 1 the automata filter is there (always, in the harness), 0x20 no network occupant in the controller table (so slot 55's network branch does not run), others for a missing view or building, a cheat object or a followed automaton (which skip parts), or a fake called at a slot it does not know (none).
+
+Reached (our first-call log lines, trial Making Money d0000, 4 days): all 36. By the game alone, 17, several of them only with empty lists: GetInstancesOfGroup, slots 40, 45, 48, 49, 50, 54, 56, 57, 60, 62, 65, 67, SetCameraFollow, the rate, the frame update and the camera update. The rest by the test.
+
+### Parity
+
+2026-10-20, B = `simulators.automata.awmgr`, the four part aw2 groups and the three part aw3 groups against the original (the switch list includes `determinism.dispatch_info=ours`; `OPENSC4_MUTE=1` on both sides; two jobs, `harness.multi_instance=ours`), env p4env-aw3, snapshot aw3-r1, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_AWMGR=3`. All the same:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Rush Hour t0000, Big City d1095 and Rush Hour d0090 needed more pairs: the original itself had two outcomes there, and each of B's outcomes was one of them. Every B run (18) carried the aw3 token (then ` C`; renamed ` D` when part c1 took ` C`) and reached all 36 functions. In two saves the controller table had a network occupant (flags 1), so slot 55's network branch ran there too.
 
 ## Part s: the script system
 
