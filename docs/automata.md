@@ -1266,7 +1266,7 @@ The class is found by its vtables, the constructor and the helpers only they cal
   - Five shared helpers with callers outside the class: SC4Script::RegisterVariable 0x00524970, 0x00525E80, 0x00525FB0, the referenced hash set's clear 0x00526050 and SC4RefVector::Erase 0x00527180.
   - The two functions with SC4UIScale sites, as in parts aw1 and aw2: 0x00528580 (a probe hook, off by default) and 0x0052CC50 (the message popup's style IDs at 0x0052CCEE and 0x0052CD01). The helpers only 0x0052CC50 calls, 0x0054A5F0 and 0x0054A700, stay with it.
 - **c1 (41, 5,461 bytes, done): the object, the life cycle, the queries and the save.** See "Part c1" below.
-- **c2 (33, 7,557 bytes): the Lua functions and the starts.**
+- **c2 (33, 7,557 bytes, done): the Lua functions and the starts.** See "Part c2" below.
   - The eight Lua callbacks Init registers: 0x00524560, 0x00524760, 0x005247E0, 0x00524830, 0x00524880, 0x00524910, 0x00525550 and 0x0052DB50.
   - Slots 19 to 25, 35, 37 and 39: 0x00525CB0, 0x00525BC0, 0x0052A8B0, 0x00525DC0, 0x0052AB00, 0x00524E20, 0x0052A7A0, 0x005252D0, 0x005276A0 and 0x00529ED0.
   - Their helpers: 0x005245F0, 0x00525640, 0x005292F0, 0x00528360, 0x00526380, 0x00526610, 0x005291C0, 0x00524A50, 0x00528ED0, 0x005245A0, 0x00524A00, 0x00526EF0, 0x00526A20 (1,083 bytes), 0x005256E0 and 0x00524D80.
@@ -1370,3 +1370,84 @@ What reached them:
 - **The test:** the rest, among them Write, the destructors and Shutdown.
 
 Not compared: Shutdown's initialized branch. The fresh manager is never initialized, and the city's Shutdown runs at the exit if at all; its helpers are called directly by the test. Init's tutorial loop is not compared either: the harness's preferences hold no done tutorial, and the test calls 0x00527110 directly.
+
+## Part c2: the Lua callbacks and the starts
+
+### What is ours
+
+33 functions in two groups, off by default ([automata_situations_2.cpp](../src/core/automata_situations_2.cpp)):
+
+- **`simulators.automata.situations.lua` (8):** the callbacks of the Lua table `sitmgr`: get_success_count 0x00524760, get_current_target 0x005247E0, get_active_auto 0x00524830, show_CSI 0x00524880, num_targets_remaining 0x00524910, activate_situation 0x00525550, get_target_name 0x0052DB50 and the accessor of the variables num_targets and cur_target_index 0x00524560.
+- **`simulators.automata.situations.starts` (25):**
+  - Slots 19 to 25: IsSituationAvailable by ID 0x00525CB0 and for an occupant 0x00525BC0, InitiateSituationByGuid 0x0052A8B0, InitiateSituationForOccupant 0x00525DC0, InitiateSituationByAutomataGroup 0x0052AB00, StartJoyride 0x00524E20, TreatAutomatonAsGroup 0x0052A7A0.
+  - Slots 35, 37 and 39: the U-Drive switch 0x005252D0, the drive of a started situation 0x005276A0 and the stop 0x00529ED0.
+  - Their helpers: the candidate filter 0x005245F0, the gathering by the services 0x00525640, the automaton the services make 0x005292F0, its site 0x00528360 with the site filter's constructor 0x00526610 and the random pick 0x00526380, the CSI of an automaton on a list entry 0x005291C0 with the priority compare 0x00524A50 and the icon 0x00528ED0, the inherited template 0x005245A0, a holder 0x00524A00, the time limit 0x00526EF0, the distance to the target 0x00526A20, the driver's position 0x005256E0 and a message of the situation 0x00524D80.
+
+What they do:
+
+- **The callbacks** (cdecl: a1, the arguments, the results, the binding) get the manager through the binding (its slot 8 with a1, then slot 18) and push one number (SC4ScriptNumber):
+  - get_success_count: slot 5 for argument 0 as an ID, as a word;
+  - get_current_target and get_active_auto: slots 9 and 8, with no null test of the manager;
+  - show_CSI: answers slot 30, then sets slot 29 from argument 0;
+  - num_targets_remaining: slot 12, or 1 without a manager;
+  - activate_situation: posts the message 0xAC1045EF (the ID, argument 1 as a bool, 0) and answers true, with a manager and an ID not 0;
+  - get_target_name: slot 16's text.
+- **IsSituationAvailable** walks the advisor service's situation advices (0x00B43D34's slot 7 with 0x1D, a std::map, through the interface 0x6BEB1E8A):
+  - by ID, whether an advice's automata groups (its slot 12) hold the ID;
+  - for an occupant, whether an advice's slot 53 answers true for the occupant's 0xA9B40F05 interface.
+- **InitiateSituationByGuid** takes the advice by GUID. Its candidates are the occupants of its automata groups (or of the one group given) that the four services (+0x9F8) know, filtered by 0x005245F0 (flag 2, none of 1, 0x8000000, 0x10000000, the type neither 0x34 nor 0x14). The first that starts wins: slot 36 then slot 37, or slot 22 when asked. Else an automaton the services make near a random occupant of the group's class (0x005292F0, 0x00528360) is tried, else slot 36 runs with no occupant.
+- **InitiateSituationForOccupant** starts slot 36 with the advice, or with the first list entry (+0xA04, walked backwards) that holds the occupant or answers true for it.
+- **InitiateSituationByAutomataGroup:** a list entry that answers true for the group (slot 54) starts its own situation by its GUID (slot 21). Else, when asked, a joyride (slot 24) starts for a candidate or a made automaton.
+- **StartJoyride** and slot 35 with 1 set +0xA98, send 0xABBBCA64 (StartJoyride only) and start the U-Drive (0x00506850, which does nothing while 0x00B21D74 is set). Slot 35 with 0 leaves the U-Drive's view.
+- **Slot 37**, after a start:
+  - the status 3 and the situation's script (0x00525430);
+  - with the situation's flag 2, the car service's groups handed to the automaton's controller;
+  - the time limit from 0x00526EF0, the situation's script given the distance (0x00526A20) and the automaton's speed;
+  - the message 0xABBBCA64 with the situation, and slot 35 with 1.
+- **Slot 39** drops the driver (+0xA9C) and +0xAA0 and zeroes the time limit. It takes the active automaton's CSI off the situation's list entry, then calls slot 38, and shows or hides the CSI layer.
+- **0x005291C0** (slot 25's) shows the automaton's CSI on the first free list entry that answers true for it, below the most CSIs. A tracked automaton takes the entry of a lower-priority one instead.
+
+The list entries (+0xA04): +0 next, +4 previous, +8 the entry (its slots 53 and 54 the relevance tests, slot 3 its advice), +0xC the automaton shown, +0x10 its overlay ID.
+
+Oddities kept:
+
+- show_CSI and activate_situation read their bool into their binding argument's slot. show_CSI writes the byte 1 there first, and hands the whole word to slot 29.
+- get_success_count reads argument 0 with the arguments' slot 6; the others use slot 5.
+- The accessor answers slot 26's EAX with AL 1, and on reading passes slot 25's EAX on.
+- 0x005292F0 never frees the vector its services' slot 15 may fill. It keeps looking at later groups after a find, and a null answer then drops the find. It answers its pick after releasing it, as 0x00528360 does.
+- 0x00526A20 answers its distances unrounded (a double in ST0) and its fallback (FLT_MAX) rounded. For the type 2 the x edge is rounded to a float and the z edge is not.
+- 0x005256E0 copies the first float of the driver's position through the x87, so a signalling NaN comes out quiet.
+- The +0x28 random of a new manager is seeded with -1, which means from the clock: its picks differ from run to run.
+
+Reimplemented like the earlier parts: one writer, every call's argument count checked against the callee's `ret`, then an independent audit of all 33 against the disassembly. The audit found one difference, which is fixed: after slot 54 answers true, 0x0052AB00 reads the entry again and goes on to the joyride when it is null. Its other notes are cosmetic: locals the game leaves uninitialized are zeroed, argument slots the game reuses are locals, and the high bytes of EAX differ where callers read only AL.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_SITUATIONS=2` adds ` D<lua>,<available>,<starts>,<helpers>,<flags>` to the fingerprint (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). It runs on the same day as part c1's test, on a fresh manager whose vtable is a copy with slots 24, 36 and 38 the test's. No situation starts and no message is sent; the game's globals are read and never written. The functions get only objects of the test's own, as arguments or in the fresh manager's fields, and each object hashes its calls. The fresh manager's random is reseeded with a fixed seed.
+
+- The eight callbacks, with and without a manager. activate_situation only runs with an ID of 0 or no manager, so it posts nothing.
+- Slots 19 and 20 for every automata group and GUID of the real advices (up to 8 and 4), 0, an unknown ID, two buildings and null.
+- Slots 21 to 23 with two services of the test's own: the real advices by GUID and an unknown one, candidates that start or not, slot 22's path, made automata, the list entries.
+- The helpers directly: the candidate filter over its flags, the gathering, the made automaton and its site (also by +0xAF8), the random pick, the priority compare, the holder, the inherited template, the icon (never with a template, so no icon is added), slot 25 with 0x005291C0 (the automaton tracked, so no icon either), the driver's position, the distance (the city's edge, a cell, straight, five lot rectangles), the time limit with a script context of the test's own, slot 39, slot 37 without a situation and slot 35 off.
+
+StartJoyride (0x00524E20) and 0x00524D80 are not called: they send 0xABBBCA64 to the city view, which can open the mission popup or pause the game, and the joyride starts the U-Drive. A real start would need slot 36 (part c5); it is left for the parts that make it ours.
+
+Flags: 1 ran, 2 GUIDs found, 4 groups found, 0x10 a field left set (an error). `OPENSC4_TEST_C2_TRACE=1` logs the helpers' hash step by step.
+
+### Parity
+
+2026-10-20, env p4env-c2, `OPENSC4_MUTE=1` on both sides, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_SITUATIONS=2`. B is the six `simulators.automata.situations` groups (parts c1 and c2) against the original. The switch list includes `determinism.dispatch_info=ours`. Two jobs ran, with `harness.multi_instance=ours` on both sides. Snapshot c2-r2, the final build (with the audit's fix). All the same, on the first pair:
+
+| Making Money d0000, 4 days | Rush Hour t0000, 7 days | The 12-save batch, 7 days |
+| --- | --- | --- |
+| 5 of 5 | 8 of 8 | 12 of 12 |
+
+In every one of the 14 B runs, 31 of the 33 functions were reached (our first-call log lines). Each run's ` D` token was the same on both sides. The tokens differ between cities only in the real advices found: Making Money d0000 and d1095, Big City d0365 and d1095 and Making Money d0090 and d0365 find advices (flags 7), the Rush Hour saves and the early Big City saves none (flags 1).
+
+Not reached: StartJoyride 0x00524E20 and 0x00524D80 (see "Test"). Not compared:
+
+- The bodies of slots 24 and 37 with a situation, and slot 35 with 1.
+- activate_situation's message.
+- 0x00528ED0's Add and Remove of an icon.
+
+Slot 36 (the start) and slot 38 (the end) were the test's own, so the real start of a situation was not run; it belongs to part c5.
