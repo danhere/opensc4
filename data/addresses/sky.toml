@@ -2681,3 +2681,21 @@ convention = "thiscall"
 signature = "void (void* this, float seconds)"
 expect = "56 57 8B F9 8B B7 10 01"
 source = "Name ours, not analysed. Ret 4. Slot 4 (0x10) of the compound effect's table at +4 (0x00AA1148): the time step's step in seconds. The game's; noted by the comparison of renderer.effects.time."
+
+[[entry]]
+name = "SC4EffectsManager::HasDescriptionNamed"
+address = 0x005916C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const char* name)"
+expect = "57 8B F9 8B 4C 24 08 85"
+source = "Name ours. Ret 4. Slot 5 of the manager's table 0x00A9F264: false for no name or an empty one; else the name copied into the string at +0x1A0 (0x0044D3A0), lowered in place (0x00586AC0 with CRT::tolower 0x009F0543) and looked up in the hash of names at +0x98 (0x0051C9F0). Ours in renderer.effects.tail (src/core/effects_tail.inc)."
+
+[[entry]]
+name = "SC4EffectTables::StopListening"
+address = 0x0058F690
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 8B 1D CC 3C B4 00 85"
+source = "Name ours. Slot 3 of the table 0x00A9F198 (the manager's interface at +0x94): with the message server at 0x00B43CCC, each message at +0xFC (16 bytes each) taken off for the manager + 8 (slot 0x18); the dword hashes at +0xC6C and +0xC80 cleared (0x008EBA60); then jumps to the texts' clear 0x0058BEF0. Ours in renderer.effects.tail (src/core/effects_tail.inc)."

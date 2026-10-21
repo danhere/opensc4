@@ -271,7 +271,7 @@
 // OPENSC4_TEST_AUTOMATA_AWMGR=3 (part aw3): also, on the same day, at the
 //   game's addresses or through the common base's vtable (ours when the
 //   simulators.automata.awmgr groups are on), into the fingerprint as
-//   ` C<calls>,<choices>,<points>,<sources>,<camera>,<flags>` from that day
+//   ` D<calls>,<choices>,<points>,<sources>,<camera>,<flags>` from that day
 //   on. On a bare common base (0x005125E0, its vtable the base's), lent the
 //   city's vehicle manager's cells object and script system (no reference),
 //   with fake automata of the test's own (every slot the base calls on them
@@ -305,6 +305,34 @@
 //   called at a slot it does not know. A fake's unknown slot answers 0; the
 //   fakes' occupants give a property holder without properties (the
 //   automata filter asks for it).
+// OPENSC4_TEST_AUTOMATA_SITUATIONS=1 (part c1, with OPENSC4_TEST_AUTOMATA=2 or
+//   more): on the same day the city's situation manager (the city's slot
+//   0xC4) is called at the game's addresses (ours when the
+//   simulators.automata.situations groups are on), into the fingerprint as
+//   ` C<identity>,<queries>,<save>,<fresh>,<flags>` from that day on:
+//   QueryInterface for six interfaces on the object and through the +4, +8,
+//   +0xC and +0x10 adjustors (each AddRef given back), AddRef and Release
+//   (the difference), GetGZCLSID; slots 5 (every ID of the success map and
+//   one not there; AX), 7, 10 to 16 (the name's text), 17, 18, 27, 30 and
+//   32, the pointers of 6, 8 and 9 as null or not (slot 28's count, the
+//   pointers and the reference count go to the log only); Write (the
+//   serializable part's slot 3) into a stream of the test's own, its answer
+//   and bytes. Then a fresh manager from the factory (0x005148C0) with one
+//   reference: Read of those bytes and Write again (the same bytes), Read of
+//   versions 3 and 1 and of a cut stream; the success map's operator[]
+//   0x00527110 (a new key, inserted by 0x005264A0, and an old one) and
+//   insert 0x00525F10 (an old key and a new one), slot 5 on them; the
+//   getters with the target set to a building of the controller table
+//   (slot 16 asks it for its name) and to null again, slots 17 and 18 with
+//   a situation of the test's own (statuses 2 and 4), the time and
+//   countdown slots over fields set by the test, slots 26 to 31 (the most
+//   CSIs put back after); the tracked automata set (+0xA08), the object map
+//   (+0xAC4) and the list (+0xA04) filled with objects of the test's own and
+//   emptied by 0x00526E60, 0x00527800, 0x005263D0 and 0x00525EC0 (their
+//   AddRef, Release and stop counts); ResetTutorials (slot 33) when the
+//   preferences' done tutorials are all zero (it saves the preferences);
+//   then its Release (Shutdown, not initialized, the deleting destructor and
+//   the destructor body). The city's manager is not changed.
 // A remove and add round trip of one occupant's controllers is not done:
 // removing sends 0xEA298D50 to the automata, destroys the controllers and
 // can drop the occupant's automaton entry (its automata released), and the
@@ -313,6 +341,7 @@
 #include "core/automata_awmgr.h"
 #include "core/automata_ctlmgr.h"
 #include "core/automata_scripts.h"
+#include "core/automata_situations.h"
 #include "core/automata_vehmgr.h"
 #include "core/autotest_hooks.h"
 #include "core/game.h"
@@ -3341,7 +3370,7 @@ void MixList(Hash& hash, char* manager)
 void AwAutoDrive(cISC4City* city)
 {
     namespace aw = automata_awmgr;
-    std::string text = " C";
+    std::string text = " D";
     Hash calls, choices, points, sources, camera, logged;
     uint32_t flags = 0;
     using Factory = void*(__cdecl*)();
@@ -3357,7 +3386,7 @@ void AwAutoDrive(cISC4City* city)
     const auto free_ = reinterpret_cast<FreeFn>(addr::SC4_Free);
     char* const vehicles = Virtual<char*>(city, automata_vehmgr::kCitySlotVehicles);
     if (!vehicles) {
-        g_aw3Text = " C-";
+        g_aw3Text = " D-";
         return;
     }
     g_known.clear();
@@ -3811,6 +3840,419 @@ void AwAutoDrive(cISC4City* city)
     log::Write("autotest: automata: aw3%s logged %08X", text.c_str(), logged.h);
 }
 
+// Part c1's drive (OPENSC4_TEST_AUTOMATA_SITUATIONS=1), see the top of the file.
+
+std::string g_situationText;
+
+// An object of the test's own with a vtable of 64 slots, of which the
+// manager calls AddRef (1), Release (2), slot 4 (one argument; the object
+// map's stop) and, for a situation, slots 46, 48, 49 and 51.
+struct FakeObject {
+    void** vtable;
+    uint32_t refs;
+    uint32_t stops;
+    uint32_t calls;
+};
+
+uint32_t __fastcall FakeAddRef(FakeObject* f, void*) { return ++f->refs; }
+uint32_t __fastcall FakeRelease(FakeObject* f, void*) { return --f->refs; }
+void __fastcall FakeStop(FakeObject* f, void*, uint32_t value) { f->stops += value; }
+void __fastcall FakeAura46(FakeObject* f, void*, float* a, float* b)
+{
+    *a = 1.5f;
+    *b = -2.25f;
+    f->calls += 1;
+}
+void __fastcall FakeMoney48(FakeObject* f, void*, int64_t* money)
+{
+    *money = 123456789012LL;
+    f->calls += 0x10;
+}
+void __fastcall FakeAura49(FakeObject* f, void*, float* a, float* b)
+{
+    *a = 3.0f;
+    *b = 4.5f;
+    f->calls += 0x100;
+}
+void __fastcall FakeMoney51(FakeObject* f, void*, int64_t* money)
+{
+    *money = -77;
+    f->calls += 0x1000;
+}
+
+void** FakeObjectVtable()
+{
+    static void* table[64] = {};
+    table[1] = reinterpret_cast<void*>(&FakeAddRef);
+    table[2] = reinterpret_cast<void*>(&FakeRelease);
+    table[4] = reinterpret_cast<void*>(&FakeStop);
+    table[46] = reinterpret_cast<void*>(&FakeAura46);
+    table[48] = reinterpret_cast<void*>(&FakeMoney48);
+    table[49] = reinterpret_cast<void*>(&FakeAura49);
+    table[51] = reinterpret_cast<void*>(&FakeMoney51);
+    return table;
+}
+
+uint32_t FakeState(const FakeObject& f) { return f.refs | f.stops << 8 | f.calls << 16; }
+
+// A node pushed at the head of its bucket in one of the manager's hash
+// sets or maps (+4 the key, +8 the value for a map), the count up.
+void PushNode(char* table, uint32_t key, void* value, uint32_t size)
+{
+    using Allocate = void*(__cdecl*)(uint32_t);
+    char* const node = static_cast<char*>(reinterpret_cast<Allocate>(addr::SC4_stl_allocate)(size));
+    std::memset(node, 0, size);
+    char** const begin = At<char**>(table, 4);
+    const uint32_t buckets = static_cast<uint32_t>(At<char**>(table, 8) - begin);
+    At<uint32_t>(node, 4) = key;
+    if (size >= 0xC)
+        At<void*>(node, 8) = value;
+    At<char*>(node, 0) = begin[key % buckets];
+    begin[key % buckets] = node;
+    ++At<uint32_t>(table, 0x10);
+}
+
+// A node of 0x14 bytes at the end of the manager's list (+0xA04).
+void PushListNode(char* manager, void* a, void* b, uint32_t id)
+{
+    namespace sf = automata_situations::field;
+    using Allocate = void*(__cdecl*)(uint32_t);
+    char* const node = static_cast<char*>(reinterpret_cast<Allocate>(addr::SC4_stl_allocate)(0x14));
+    char* const head = At<char*>(manager, sf::kList);
+    At<void*>(node, 8) = a;
+    At<void*>(node, 0xC) = b;
+    At<uint32_t>(node, 0x10) = id;
+    At<char*>(node, 0) = head;
+    At<char*>(node, 4) = At<char*>(head, 4);
+    At<char*>(At<char*>(head, 4), 0) = node;
+    At<char*>(head, 4) = node;
+}
+
+// The getters a manager answers the same on both sides (slots 7, 10 to 15
+// and 27, 30 and 32), the pointers of 6, 8 and 9 as null or not.
+void MixGetters(Hash& h, char* m)
+{
+    namespace sl = automata_situations::slot;
+    h.Mix(Virtual<void*>(m, sl::kGetActiveSituation) ? 1u : 0u);
+    h.Mix(Virtual<uint32_t>(m, sl::kGetCurrentStatus));
+    h.Mix(Virtual<void*>(m, sl::kGetActiveAuto) ? 1u : 0u);
+    h.Mix(Virtual<void*>(m, sl::kGetCurrentTarget) ? 1u : 0u);
+    h.Mix(Virtual<uint32_t>(m, sl::kGetCurrentTargetIndex));
+    h.Mix(Virtual<uint32_t>(m, sl::kGetNumTargets));
+    h.Mix(Virtual<uint32_t>(m, sl::kGetNumTargetsRemaining));
+    h.Mix(Bits(Virtual<float>(m, sl::kGetCurrentTimeLimitSeconds)));
+    h.Mix(Bits(Virtual<float>(m, sl::kGetCurrentSituationTime)));
+    h.Mix(Bits64(Virtual<double>(m, sl::kGetCurrentTimeRemainingSeconds)));
+    h.Mix(Virtual<uint8_t>(m, sl::kGetMaxCsi));
+    h.Mix(Virtual<uint8_t>(m, sl::kGetCsiVisible));
+    h.Mix(Virtual<uint32_t>(m, sl::kCountdownIsInProgress));
+}
+
+// Slot 16's string, hashed, its buffer freed as the game's SC4String
+// destructor would.
+uint32_t TargetNameHash(char* m)
+{
+    struct {
+        std::uintptr_t vtable;
+        char* begin;
+        char* end;
+        char* capacity;
+        uint32_t extra;
+    } name{};
+    Virtual<void*>(m, automata_situations::slot::kGetCurrentTargetName, static_cast<void*>(&name));
+    Hash h;
+    h.Mix(name.vtable == addr::SC4String_Vtable ? 1u : 0u);
+    h.Mix(NameHash(name.begin, name.end));
+    h.Mix(name.extra);
+    if (name.begin)
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(name.begin);
+    return h.h;
+}
+
+// Slots 17 and 18: the AL answers and what they wrote.
+void MixAuraMoney(Hash& h, char* m)
+{
+    namespace sl = automata_situations::slot;
+    float a = -1.0f, b = -1.0f;
+    int64_t money = -1;
+    h.Mix(Virtual<uint8_t>(m, sl::kGetSituationAura, &a, &b));
+    h.Mix(Bits(a));
+    h.Mix(Bits(b));
+    h.Mix(Virtual<uint8_t>(m, sl::kGetSituationMoney, &money));
+    h.MixBytes(&money, sizeof money);
+}
+
+// The success map's (+0xA34) entries summed, with slot 5 on each key: its
+// AX and whether its high half is the bucket vector's.
+uint32_t SuccessHash(char* m, uint32_t& entries)
+{
+    namespace sf = automata_situations::field;
+    char* const table = m + sf::kSuccesses;
+    const uint32_t high = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(At<char*>(table, 4))) >> 16;
+    uint32_t sum = 0;
+    entries = 0;
+    ForEachScriptNode(table, [&](char* node) {
+        const uint32_t key = At<uint32_t>(node, 4);
+        const uint32_t answer = Virtual<uint32_t>(m, automata_situations::slot::kGetMissionSuccessCount, key);
+        Hash e;
+        e.Mix(key);
+        e.Mix(At<uint16_t>(node, 8));
+        e.Mix(answer & 0xFFFF);
+        e.Mix(answer >> 16 == high ? 1u : 0u);
+        sum += e.h;
+        ++entries;
+    });
+    Hash h;
+    h.Mix(entries);
+    h.Mix(sum);
+    const uint32_t missing = Virtual<uint32_t>(m, automata_situations::slot::kGetMissionSuccessCount, 0x7A5A0000u);
+    h.Mix(missing & 0xFFFF);
+    h.Mix(missing >> 16 == high ? 1u : 0u);
+    return h.h;
+}
+
+void SituationsDrive(cISC4City* city)
+{
+    namespace sf = automata_situations::field;
+    namespace sl = automata_situations::slot;
+    char* const m = Virtual<char*>(city, 0xC4); // GetCitySituationManager
+    if (!m) {
+        g_situationText = " C-";
+        return;
+    }
+    Hash identity, queries, save, fresh;
+    uint32_t flags = 0;
+    // QueryInterface on the object and through the adjustors of its parts;
+    // each AddRef given back through the answer's slot 2.
+    const uint32_t iids[] = {automata_situations::kManagerIid, 1u, 0x452294AAu, 0xE98B2F57u, 0xE4FDA3D4u, 0x12345678u};
+    for (const std::size_t at : {std::size_t{0}, sf::kVtable4, sf::kVtable8, sf::kSerializable, sf::kVtable10})
+        for (const uint32_t iid : iids) {
+            void* out = nullptr;
+            const uint8_t answer = Virtual<uint8_t>(m + at, sl::kQueryInterface, iid, &out);
+            identity.Mix(answer);
+            identity.Mix(out ? static_cast<uint32_t>(static_cast<char*>(out) - m) : 0xFFFFFFFFu);
+            if (answer && out)
+                Virtual<uint32_t>(out, sl::kRelease);
+        }
+    const uint32_t up = Virtual<uint32_t>(m, sl::kAddRef);
+    const uint32_t down = Virtual<uint32_t>(m, sl::kRelease);
+    identity.Mix(up - down);
+    identity.Mix(Virtual<uint32_t>(m + sf::kSerializable, 0x14)); // GetGZCLSID
+    identity.Mix(At<uint8_t>(m, sf::kInitialized));
+    // The queries.
+    uint32_t successes = 0;
+    queries.Mix(SuccessHash(m, successes));
+    MixGetters(queries, m);
+    queries.Mix(TargetNameHash(m));
+    MixAuraMoney(queries, m);
+    const uint32_t tracked = Virtual<uint32_t>(m, sl::kGetTrackedAutomataCount);
+    // Write into a stream of the test's own.
+    using Serial = uint32_t(__thiscall*)(void* part, void* stream);
+    ByteOStream written;
+    const uint32_t wrote = reinterpret_cast<Serial>(addr::cSC4CitySituationManager_Write)(
+        m + sf::kSerializable, static_cast<cIGZOStream*>(&written));
+    save.Mix(wrote);
+    save.Mix(static_cast<uint32_t>(written.bytes.size()));
+    save.MixBytes(written.bytes.data(), written.bytes.size());
+    // A fresh manager from the factory, held by one reference.
+    using Factory = char*(__cdecl*)();
+    char* const made = reinterpret_cast<Factory>(addr::cSC4CitySituationManager_Create)();
+    FakeObject fakes[6] = {};
+    for (FakeObject& f : fakes)
+        f.vtable = FakeObjectVtable();
+    if (made) {
+        flags |= 1;
+        Virtual<uint32_t>(made, sl::kAddRef);
+        void* out = nullptr;
+        const uint8_t qi = Virtual<uint8_t>(made, sl::kQueryInterface, automata_situations::kManagerIid, &out);
+        fresh.Mix(qi);
+        if (qi && out)
+            Virtual<uint32_t>(out, sl::kRelease);
+        fresh.Mix(At<uint32_t>(made, sf::kStatus));
+        fresh.Mix(At<uint8_t>(made, sf::kCsiVisible));
+        // Read the city's bytes and write them again.
+        {
+            ByteIStream in(written.bytes);
+            fresh.Mix(reinterpret_cast<Serial>(addr::cSC4CitySituationManager_Read)(made + sf::kSerializable,
+                                                                                    static_cast<cIGZIStream*>(&in)));
+            fresh.Mix(At<uint8_t>(made, sf::kRead));
+            ByteOStream again;
+            reinterpret_cast<Serial>(addr::cSC4CitySituationManager_Write)(made + sf::kSerializable,
+                                                                          static_cast<cIGZOStream*>(&again));
+            if (again.bytes == written.bytes)
+                flags |= 2;
+        }
+        // Version 3 (refused), version 1 (no visibility) and a cut stream.
+        {
+            std::vector<uint8_t> v3 = {3, 0};
+            ByteIStream in3(v3);
+            fresh.Mix(reinterpret_cast<Serial>(addr::cSC4CitySituationManager_Read)(made + sf::kSerializable,
+                                                                                    static_cast<cIGZIStream*>(&in3)) &
+                      0xFF);
+            std::vector<uint8_t> v1 = {1, 0, 2, 0, 0, 0, 0x01, 0, 0x5A, 0x7A, 7, 0, 0x02, 0, 0x5A, 0x7A, 9, 0};
+            ByteIStream in1(v1);
+            At<uint8_t>(made, sf::kCsiVisible) = 0x55;
+            fresh.Mix(reinterpret_cast<Serial>(addr::cSC4CitySituationManager_Read)(made + sf::kSerializable,
+                                                                                    static_cast<cIGZIStream*>(&in1)));
+            fresh.Mix(At<uint8_t>(made, sf::kCsiVisible));
+            uint32_t entries = 0;
+            fresh.Mix(SuccessHash(made, entries));
+            std::vector<uint8_t> cut = {2, 0, 3, 0, 0, 0, 0x01, 0, 0x5A, 0x7A, 7, 0, 0x02, 0};
+            ByteIStream inCut(cut);
+            fresh.Mix(reinterpret_cast<Serial>(addr::cSC4CitySituationManager_Read)(made + sf::kSerializable,
+                                                                                    static_cast<cIGZIStream*>(&inCut)));
+            fresh.Mix(SuccessHash(made, entries));
+            At<uint8_t>(made, sf::kCsiVisible) = 1;
+        }
+        // The success map's operator[] and insert.
+        {
+            char* const table = made + sf::kSuccesses;
+            using At16 = uint16_t*(__thiscall*)(void*, const uint32_t*);
+            const auto at = reinterpret_cast<At16>(addr::cSC4CitySituationManager_SuccessAt);
+            const uint32_t newKey = 0x7A5A0100u, oldKey = 0x7A5A0001u;
+            uint16_t* const p = at(table, &newKey);
+            fresh.Mix(p ? *p : 0xFFFFu);
+            if (p)
+                *p = 41;
+            uint16_t* const q = at(table, &newKey);
+            fresh.Mix(p == q ? 1u : 0u);
+            fresh.Mix(q ? *q : 0xFFFFu);
+            fresh.Mix(Virtual<uint32_t>(made, sl::kGetMissionSuccessCount, newKey) & 0xFFFF);
+            struct {
+                uint32_t key;
+                uint16_t value;
+                uint16_t pad;
+            } pair{oldKey, 99, 0};
+            struct {
+                char* node;
+                char* table;
+                uint8_t inserted;
+                uint8_t pad[3];
+            } result{};
+            using Insert = void*(__thiscall*)(void*, void*, const void*);
+            const auto insert = reinterpret_cast<Insert>(addr::cSC4CitySituationManager_SuccessInsertUnique);
+            fresh.Mix(insert(table, &result, &pair) == &result ? 1u : 0u);
+            fresh.Mix(result.inserted | (result.table == table ? 2u : 0u) |
+                      (result.node && At<uint32_t>(result.node, 4) == oldKey ? 4u : 0u));
+            pair.key = 0x7A5A0200u;
+            reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::SC4Uint32HashSet_Resize)(
+                table, At<uint32_t>(table, 0x10) + 1);
+            insert(table, &result, &pair);
+            fresh.Mix(result.inserted | (result.node && At<uint16_t>(result.node, 8) == 99 ? 2u : 0u));
+            uint32_t entries = 0;
+            fresh.Mix(SuccessHash(made, entries));
+            fresh.Mix(entries);
+        }
+        // The getters over fields set by the test, the target a building.
+        void* building = nullptr;
+        if (char* const ctl = Manager(city)) {
+            uint32_t best = 0;
+            ForEach<ControllerNode>(Table(ctl, field::kControllers), [&](ControllerNode* node) {
+                if (!node->occupant)
+                    return;
+                const uint32_t type = Virtual<uint32_t>(node->occupant, kGetType);
+                if (type == kTypeAutomaton || type == kTypeAutomaton2 || type == kTypeProp)
+                    return;
+                const uint32_t h = OccupantHash(node->occupant);
+                if (!building || h < best) {
+                    building = node->occupant;
+                    best = h;
+                }
+            });
+        }
+        At<uint32_t>(made, sf::kNumTargets) = 5;
+        At<uint32_t>(made, sf::kTargetIndex) = 2;
+        At<float>(made, sf::kTimeLimit) = 90.25f;
+        At<float>(made, sf::kSituationTime) = 12.1f;
+        At<float>(made, sf::kCountdown) = 3.0f;
+        At<void*>(made, sf::kTarget) = building;
+        MixGetters(fresh, made);
+        fresh.Mix(TargetNameHash(made));
+        At<void*>(made, sf::kTarget) = nullptr;
+        fresh.Mix(TargetNameHash(made));
+        At<float>(made, sf::kCountdown) = 0.0f;
+        fresh.Mix(Virtual<uint32_t>(made, sl::kCountdownIsInProgress));
+        At<uint32_t>(made, sf::kCountdown) = 0x7FC00000u; // a NaN
+        fresh.Mix(Virtual<uint32_t>(made, sl::kCountdownIsInProgress));
+        At<float>(made, sf::kCountdown) = 0.0f;
+        At<uint32_t>(made, sf::kNumTargets) = 0;
+        At<uint32_t>(made, sf::kTargetIndex) = 0;
+        // Slots 17 and 18: no situation, then one of the test's own with the
+        // statuses 2 and 4.
+        MixAuraMoney(fresh, made);
+        At<void*>(made, sf::kSituation) = &fakes[0];
+        At<uint32_t>(made, sf::kStatus) = 2;
+        MixAuraMoney(fresh, made);
+        At<uint32_t>(made, sf::kStatus) = 4;
+        MixAuraMoney(fresh, made);
+        At<void*>(made, sf::kSituation) = nullptr;
+        fresh.Mix(fakes[0].calls);
+        // Slots 26 to 31 (the most CSIs is a global: put back after).
+        const uint8_t most = Virtual<uint8_t>(made, sl::kGetMaxCsi);
+        Virtual<void>(made, sl::kSetMaxCsi, 7u);
+        fresh.Mix(Virtual<uint8_t>(made, sl::kGetMaxCsi));
+        fresh.Mix(Virtual<uint8_t>(made, sl::kHandleTuningParametersChanged));
+        fresh.Mix(Virtual<uint8_t>(made, sl::kGetMaxCsi));
+        Virtual<void>(made, sl::kSetMaxCsi, static_cast<uint32_t>(most));
+        fresh.Mix(Virtual<uint8_t>(made, sl::kGetMaxCsi) == most ? 1u : 0u);
+        Virtual<void>(made, sl::kSetCsiVisible, 0x100u);
+        fresh.Mix(Virtual<uint8_t>(made, sl::kGetCsiVisible));
+        Virtual<void>(made, sl::kSetCsiVisible, 1u);
+        fresh.Mix(Virtual<uint8_t>(made, sl::kGetCsiVisible));
+        // The tracked automata (+0xA08), the object map (+0xAC4) and the list
+        // (+0xA04) with objects of the test's own.
+        using Life = void(__thiscall*)(void*);
+        PushNode(made + sf::kTracked, reinterpret_cast<std::uintptr_t>(&fakes[1]), nullptr, 8);
+        PushNode(made + sf::kTracked, reinterpret_cast<std::uintptr_t>(&fakes[2]), nullptr, 8);
+        fakes[1].refs = fakes[2].refs = 1;
+        fresh.Mix(Virtual<uint32_t>(made, sl::kGetTrackedAutomataCount));
+        reinterpret_cast<Life>(addr::cSC4CitySituationManager_ReleaseTracked)(made);
+        fresh.Mix(Virtual<uint32_t>(made, sl::kGetTrackedAutomataCount));
+        PushNode(made + sf::kObjects, 3u, &fakes[3], 0xC);
+        PushNode(made + sf::kObjects, 104u, &fakes[4], 0xC);
+        fakes[3].refs = fakes[4].refs = 1;
+        reinterpret_cast<Life>(addr::cSC4CitySituationManager_ReleaseObjects)(made);
+        fresh.Mix(At<uint32_t>(made + sf::kObjects, 0x10));
+        PushListNode(made, &fakes[5], &fakes[0], 0x1234u);
+        PushListNode(made, nullptr, &fakes[5], 0u);
+        fakes[5].refs = 2;
+        fakes[0].refs = 1;
+        reinterpret_cast<Life>(addr::cSC4CitySituationManager_ReleaseList)(made);
+        char* const head = At<char*>(made, sf::kList);
+        fresh.Mix(At<char*>(head, 0) == head && At<char*>(head, 4) == head ? 1u : 0u);
+        PushListNode(made, &fakes[1], &fakes[2], 7u);
+        fakes[1].refs = fakes[2].refs = 1;
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::cSC4CitySituationManager_ClearList)(made + sf::kList);
+        fresh.Mix(At<char*>(head, 0) == head ? 1u : 0u);
+        for (const FakeObject& f : fakes)
+            fresh.Mix(FakeState(f));
+        // ResetTutorials, when the preferences' done tutorials are all zero.
+        bool reset = false;
+        if (void* const app = Global<void*>(addr::SC4_Service43C94))
+            if (char* const preferences = Virtual<char*>(app, 0x98)) {
+                uint8_t zero[0x100] = {};
+                if (std::memcmp(preferences + 0x1334, zero, sizeof zero) == 0) {
+                    Virtual<void>(made, sl::kResetTutorials);
+                    reset = true;
+                }
+            }
+        if (reset) {
+            flags |= 4;
+            uint32_t entries = 0;
+            fresh.Mix(SuccessHash(made, entries));
+        }
+        // The release: Shutdown (not initialized), the deleting destructor.
+        fresh.Mix(Virtual<uint32_t>(made, sl::kRelease));
+    }
+    char text[96];
+    std::snprintf(text, sizeof text, " C%08X,%08X,%08X,%08X,%X", identity.h, queries.h, save.h, fresh.h, flags);
+    g_situationText = text;
+    log::Write("autotest: automata: situations: identity %08X (references %u) queries %08X (successes %u, tracked %u, "
+               "status %u) save %08X (%u bytes, answer %u) fresh %08X flags %X",
+               identity.h, up, queries.h, successes, tracked, At<uint32_t>(m, sf::kStatus), save.h,
+               static_cast<unsigned>(written.bytes.size()), wrote, fresh.h, flags);
+}
+
 void Drive(const Day& day)
 {
     if (EnvInt("OPENSC4_TEST_AUTOMATA", 0) < 2 || !day.counted || g_written)
@@ -3837,6 +4279,9 @@ void Drive(const Day& day)
         if (EnvInt("OPENSC4_TEST_AUTOMATA_SCRIPTS", 0) >= 3)
             ScriptsDrive3(day.city);
     }
+    if (EnvInt("OPENSC4_TEST_AUTOMATA_SITUATIONS", 0) >= 1 && day.city && game::IsBuild641() &&
+        g_situationText.empty())
+        SituationsDrive(day.city);
     if (char* const manager = Manager(day.city)) {
         WriteDrive(manager);
         QueryDrive(manager);
@@ -3903,6 +4348,7 @@ void Fingerprint(cISC4City* city, std::string& line)
     line += g_awText;
     line += g_aw2Text;
     line += g_aw3Text;
+    line += g_situationText;
     // The automaton table: frame-driven, the log only.
     uint32_t parked = 0, automata = 0, parkedSum = 0;
     ForEach<AutomatonNode>(Table(manager, field::kAutomata), [&](AutomatonNode* node) {
