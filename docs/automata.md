@@ -31,7 +31,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Controller manager | 76 | 15,809 | a1 (45, done), a2 (24, done) |
 | Attractor, generator and their base | 81 | 12,629 | 2 |
 | Script system | 116 | 31,620 | s1 (34, done), s2, s3 (part s below counts 125) |
-| City situation manager | 167 | 44,037 | 4 |
+| City situation manager | 167 | 44,037 | c1 (41, done), c2 to c5 (part c below counts 164) |
 | Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | 8 |
@@ -1153,3 +1153,141 @@ Of the class's 125 functions, 103 are ours (s1 34, s2 43, s3a 15, s3b 11) and 22
 - 0x0051C4C0, the loader's Lua state, for the Lua print patch site 0x0051C50B.
 
 The Lua VM and the script field readers (`SC4Script*`) are outside the class and stay the game's, called at their addresses.
+
+
+## Part c: the city situation manager
+
+### Survey
+
+cSC4CitySituationManager (class ID 0x0BB14381, factory 0x005148C0, constructor 0x00529FD0, 0xB00 bytes, city slot 49, the city's GetCitySituationManager at slot 0xC4) runs the Rush Hour missions: the city situation advices of the advisors' scripts ([lua.md](lua.md)), their targets and automata, the CSI (the situation's on-screen icons, through the overlay manager), the countdown, the joyrides of the U-Drive, and the success counts of the missions, which it saves. The layout is in [automata_situations.h](../src/core/automata_situations.h).
+
+Five parts, each with its own vtable:
+
+| Part | Vtable | What it is |
+| --- | --- | --- |
+| +0x00 | 0x00A97E58 | cISC4CitySituationManager, 40 slots. The gzcom-dll header has 34; its two IsSituationAvailable sit in the other order (slot 19 takes an ID, 0x00525CB0; slot 20 an occupant, 0x00525BC0). Slot 34 is the deleting destructor, 35 to 39 are 0x005252D0 (the joyride's start and stop), 0x0052E750 (start a situation), 0x005276A0, 0x005294C0 (end the situation) and 0x00529ED0. |
+| +0x04 | 0x00A97E44 | the message target: DoMessage 0x0052EB80 |
+| +0x08 | 0x00A97E34 | the adjustors and the shared 0x005DEB40 |
+| +0x0C | 0x00A97E1C | serializable: Write 0x00527040, Read 0x00529010, GetGZCLSID 0x005274E0 |
+| +0x10 | 0x00A97E08 | a window procedure, 0x0052CAB0: the answers of the situation's message popups |
+
+The fields that matter for part c1:
+
+- +0x14 initialized, +0x18 the reference count.
+- +0x9F0 the CSI's visibility, +0x9F4 the active situation, +0xA48 the status (4 when none runs).
+- +0xA4C the active automaton, +0xA50 the current target, +0xA5C and +0xA60 the target count and index.
+- +0xA8C, +0xA90, +0xA94 the situation's time, the countdown and the time limit.
+- +0xA34 the success map: mission ID to a uint16 count. It is the only state the save holds, with the CSI's visibility.
+- +0xA2C the overlay manager, +0xA08 the tracked automata, +0xAC4 a map of objects the situation controls, +0xA04 a list of icons.
+
+The class is found by its vtables, the constructor and the helpers only they call. In the range 0x00524560 to 0x0052F130, with the factory and three helpers outside it that only the class calls (0x0054A5F0, 0x0054A700, 0x00554EA0), that makes 164 functions and 43,815 bytes. The survey's 167 and 44,037 counted a few neighbours; Ghidra's list also holds a padding byte at 0x0052542F, which is no function. Of the 164:
+
+- **Stay the game's (21).**
+  - The twelve `sub ecx,N; jmp` adjustor thunks: 0x005275A0 to 0x00527610 and 0x00527650 to 0x00527680.
+  - Five shared helpers with callers outside the class: SC4Script::RegisterVariable 0x00524970, 0x00525E80, 0x00525FB0, the referenced hash set's clear 0x00526050 and SC4RefVector::Erase 0x00527180.
+  - The two functions with SC4UIScale sites, as in parts aw1 and aw2: 0x00528580 (a probe hook, off by default) and 0x0052CC50 (the message popup's style IDs at 0x0052CCEE and 0x0052CD01). The helpers only 0x0052CC50 calls, 0x0054A5F0 and 0x0054A700, stay with it.
+- **c1 (41, 5,461 bytes, done): the object, the life cycle, the queries and the save.** See "Part c1" below.
+- **c2 (33, 7,557 bytes): the Lua functions and the starts.**
+  - The eight Lua callbacks Init registers: 0x00524560, 0x00524760, 0x005247E0, 0x00524830, 0x00524880, 0x00524910, 0x00525550 and 0x0052DB50.
+  - Slots 19 to 25, 35, 37 and 39: 0x00525CB0, 0x00525BC0, 0x0052A8B0, 0x00525DC0, 0x0052AB00, 0x00524E20, 0x0052A7A0, 0x005252D0, 0x005276A0 and 0x00529ED0.
+  - Their helpers: 0x005245F0, 0x00525640, 0x005292F0, 0x00528360, 0x00526380, 0x00526610, 0x005291C0, 0x00524A50, 0x00528ED0, 0x005245A0, 0x00524A00, 0x00526EF0, 0x00526A20 (1,083 bytes), 0x005256E0 and 0x00524D80.
+- **c3 (28, 8,796 bytes): the messages and the popups' answers.** DoMessage 0x0052EB80 and its handlers 0x0052E300, 0x0052E670, 0x0052E710, 0x0052E910, 0x0052C020, 0x0052A7D0, 0x0052A380, 0x0052A650, 0x0052A830, 0x0052A1E0, 0x00527920, 0x00525AF0, 0x00527300, 0x00526440, 0x00524DF0, 0x00524CC0, 0x00525330, 0x00524580, 0x0052C190, 0x00526720, 0x00525430, 0x00525130, 0x00525100 and 0x00524D10; the window procedure 0x0052CAB0 with 0x0052BF00 and 0x0052BFB0.
+- **c4 (30, 6,760 bytes): the targets and the situation's smaller steps.**
+  - The targets: 0x0052C8F0, 0x00528C70, 0x00529B80, 0x0052BC50, 0x0052BD30, 0x00524C40, 0x00524CF0, 0x00524660, 0x00526180, 0x00529560, 0x00526960, 0x00525A50, 0x00525AA0, 0x0052C0E0 and 0x0052BBC0.
+  - The steps: 0x00525800, 0x005254D0, 0x00525070, 0x005278E0, 0x005260C0, 0x00526510, 0x00526250, 0x005271D0, 0x00524E90, 0x00524F00, 0x00529AF0, 0x005278A0, the end of a situation (slot 38) 0x005294C0, and the slot 4 of the two occupant filters of the class, 0x00524AB0 (vtable 0x00A97D90) and 0x00526650 (vtable 0x00A97DE0).
+- **c5 (11, 8,915 bytes): the running situation.** The start (slot 36) 0x0052E750, 0x0052C4E0, 0x0052B450 (1,883 bytes), 0x0052B200, 0x0052AD00 (1,252), 0x00529680, 0x005299C0, 0x00528140, 0x00527D30, 0x00527EA0 and 0x00554EA0 (1,083).
+
+The calls cross these lines (for example 0x0052AD00 calls 0x00528580, and slot 38 calls 0x00527800 of c1), so each part calls the others at their addresses, as the script system's parts do.
+
+Mods: no NAM site is in the class. SC4UIScale's probe 0x00528580 and its popup style patch in 0x0052CC50 are its only sites; both functions stay the game's.
+
+## Part c1: the object, the life cycle, the queries and the save
+
+### What is ours
+
+41 functions in four groups, off by default ([automata_situations.cpp](../src/core/automata_situations.cpp)):
+
+- **`simulators.automata.situations.object` (8):** the factory 0x005148C0, the constructor 0x00529FD0, the destructor body 0x00527320, the deleting destructor (slot 34) 0x00527AA0, QueryInterface 0x005246B0, AddRef 0x00524750, Release 0x00525520 and the serializable part's GetGZCLSID 0x005274E0.
+- **`simulators.automata.situations.life` (8):**
+  - Init 0x0052DC40, with the success map's operator[] 0x00527110 and insert 0x005264A0.
+  - Shutdown 0x00527AC0, with the release of the controlled objects 0x00527800, of the tracked automata 0x00526E60 and of the list 0x005263D0, and the list's clear 0x00525EC0.
+- **`simulators.automata.situations.queries` (22):** slots 5 to 18 (0x00526320, 0x00527620, 0x005274F0, 0x00527630, 0x00527640, 0x00527510, 0x00527520, 0x00527530, 0x00527550, 0x00527560, 0x00527570, 0x005290F0, 0x00524B70, 0x00524BB0) and 26 to 33 (0x00524BF0, 0x005245C0, 0x00527690, 0x00524C20, 0x00527500, 0x005245D0, 0x00527580, 0x005266E0).
+- **`simulators.automata.situations.save` (3):** Write 0x00527040, Read 0x00529010 and the success map's insert 0x00525F10.
+
+What they do:
+
+- **Init**, once:
+  - With the app's cheats switch on (its slot 0x54) it asks the cheat codes for notifications and registers the cheat `csitrigger`.
+  - It registers its message target for ten messages and with the service 0x86AD10EC.
+  - It keeps the overlay manager (the dispatch service's slot 22), four services, the lot manager, the city's slot 71 and the script context.
+  - It registers the Lua table `sitmgr`: get_success_count, activate_situation, get_current_target, get_active_auto, get_target_name, show_CSI, num_targets_remaining, and the variables num_targets and cur_target_index (the callbacks are part c2).
+  - It runs HandleTuningParametersChanged, shows or hides the CSI, and gives each tutorial that the preferences hold as done (+0x1334, ended by a zero) a success count of 1.
+- **Shutdown** undoes Init. It drops the references, tells the controlled objects to stop (their slot 4 with 1) and releases them, empties the services' vector, takes back the registrations, ends the active situation (slot 38) and releases the tracked automata and the list.
+- **The queries** read the fields above. GetCurrentTimeRemainingSeconds is the time limit less the situation's time. GetCurrentTargetName asks the target for its name through the interface 0x87DDA3A9. GetSituationAura and GetSituationMoney ask the situation (slots 49 and 51 when the status is 2, else 46 and 48). SetMaxCSI writes the global byte 0x00B21D34 and the overlay manager's layer 4. ResetTutorials clears the success map, zeroes the preferences' done tutorials and saves the preferences.
+- **The save** is the version 2 (a word), the success map (the count, then per entry the ID and the count) and the CSI's visibility. Read takes versions up to 2; the visibility is read from version 2 on.
+
+Kept as the game's, called at their addresses:
+
+- The adjustor thunks.
+- The hash map helpers: SC4Uint32HashSet's construct, clear and resize, SC4HashTable::Begin, the clears 0x00526050 and 0x007D1B40.
+- The vector helpers: SC4RefPtrVector::InsertN, SC4RefVector::Erase and Destroy.
+- The script registrations, the overlay manager's functions, and the rest of the class.
+
+Oddities kept:
+
+- QueryInterface's null branches write a null and call AddRef through the object; an unknown ID leaves the answer alone.
+- Release at a count of 1 (or 0) deletes without counting down.
+- Init calls the app's slot 0x54 without a null test at its start, but tests the app at its end.
+- Read reads the version into its stream argument's slot. A failed read in its loop keeps the previous entry's ID or count.
+- Write pushes each count with the high half of the part's address above it; the stream reads the word.
+- GetMissionSuccessCount answers in AX, with the high half of the bucket vector's address above it.
+- The destructor body leaves the cRZDate (+0x1C) and the SC4Random (+0x28) alone; the list clear does not zero what it releases.
+
+Floats: GetCurrentTimeRemainingSeconds subtracts on the x87 stack. Ours answers a double in ST0, so the difference is not rounded to a float. CountdownIsInProgress is true for a countdown above 0.0; a NaN is not above it.
+
+Reimplemented like the earlier parts: one writer, every call's argument count checked against the callee's `ret`, then an independent audit of all 41 against the disassembly.
+
+The audit found no behavioural difference. Its notes, all cosmetic or on failure paths:
+
+- Read zeroes its count, ID and count locals before the first read, where the game's are uninitialized. A failed read of the count or of the first entry therefore differs only in what garbage the game would use.
+- Some padding and scratch bytes are zeroed where the game leaves stack leftovers: the pairs, the insert's result and InsertN's allocator byte. The callees do not read them.
+- The destructor body and ResetTutorials end in tail calls whose EAX ours does not pass on. Read's refusal of a version above 2 returns 0 in all of EAX, not only in AL.
+- GetCurrentTimeRemainingSeconds is the same bit for bit under the game's 53-bit precision control.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_SITUATIONS=1`, with `OPENSC4_TEST_AUTOMATA=2` or more, calls the city's situation manager on the test day at the game's addresses, so the same test runs on both sides (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). It goes into the fingerprint as ` C<identity>,<queries>,<save>,<fresh>,<flags>`:
+
+- QueryInterface for six interfaces on the object and through the four adjustors, AddRef and Release, GetGZCLSID.
+- The getters, the target's name, the aura and money, slot 5 for every mission ID. The pointers count only as null or not. The tracked automata count and the reference count go to the log only.
+- Write into a stream of the test's own.
+- A fresh manager from the factory, with one reference:
+  - Read of the city's bytes and Write again, which must give the same bytes; reads of version 3, of version 1 and of a cut stream.
+  - The success map's operator[] and insert, directly.
+  - The getters over fields the test sets, with the target a building of the controller table (so slot 16 asks it for its name); the aura and money with a situation of the test's own, at the statuses 2 and 4.
+  - Slots 26 to 31; the most CSIs is a global, put back after.
+  - The tracked automata, the object map and the list, filled with objects of the test's own and emptied by 0x00526E60, 0x00527800, 0x005263D0 and 0x00525EC0.
+  - ResetTutorials, when the preferences hold no done tutorial (the harness's never do). It saves the preferences into the run's user folder.
+  - Its Release: Shutdown (not initialized), the deleting destructor and the destructor body.
+
+The city's manager is not changed.
+
+### Parity
+
+2026-10-20, env p4env-c1, `OPENSC4_MUTE=1` on both sides, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_SITUATIONS=1`. B is the four `simulators.automata.situations` groups against the original. The switch list includes `determinism.dispatch_info=ours`. Two jobs ran, with `harness.multi_instance=ours` on both sides. Snapshot c1-r1, the final build (the audit changed nothing). All the same, on the first pair:
+
+| Making Money d0000, 4 days | Rush Hour t0000, 7 days | The 12-save batch, 7 days |
+| --- | --- | --- |
+| 5 of 5 | 8 of 8 | 12 of 12 |
+
+All 41 functions were reached in every one of the 14 B runs (our first-call log lines). Every run carried the same ` C` token per city:
+
+- C783025EC,8FC3B85A,2A3F2853,64BE6A38,7 for Making Money;
+- C783025EC,892F3FB0,DF5AAD0B,64BE6A38,7 for Big City and Rush Hour.
+
+What reached them:
+
+- **The game:** the factory, the constructor, QueryInterface, AddRef, Read, the insert and Release at the load; Init, HandleTuningParametersChanged and SetMaxCSI; during the run slot 5, the CSI's visibility, the active situation and the list clear.
+- **The test:** the rest, among them Write, the destructors and Shutdown.
+
+Not compared: Shutdown's initialized branch. The fresh manager is never initialized, and the city's Shutdown runs at the exit if at all; its helpers are called directly by the test. Init's tutorial loop is not compared either: the harness's preferences hold no done tutorial, and the test calls 0x00527110 directly.
