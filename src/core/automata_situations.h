@@ -1,4 +1,4 @@
-// The layout of the city situation manager, part c1 (build 641; class ID,
+// The layout of the city situation manager, parts c1 and c2 (build 641; class ID,
 // vtables and functions in data/addresses/automata.toml, the survey in
 // docs/automata.md, "Part c"): cSC4CitySituationManager (0x0BB14381,
 // factory 0x005148C0, constructor 0x00529FD0, 0xB00 bytes, city slot 49,
@@ -94,6 +94,17 @@ inline constexpr std::size_t kSetMaxCsi = 0x68, kGetMaxCsi = 0x6C, kGetTrackedAu
 inline constexpr std::size_t kSetCsiVisible = 0x74, kGetCsiVisible = 0x78, kHandleTuningParametersChanged = 0x7C;
 inline constexpr std::size_t kCountdownIsInProgress = 0x80, kResetTutorials = 0x84, kDeletingDestructor = 0x88;
 inline constexpr std::size_t kEndSituation = 0x98;
+// Part c2 (src/core/automata_situations_2.cpp): slots 19 to 25, 35 to 39.
+inline constexpr std::size_t kIsSituationAvailableById = 0x4C, kIsSituationAvailable = 0x50;
+inline constexpr std::size_t kInitiateSituationByGuid = 0x54, kInitiateSituationForOccupant = 0x58;
+inline constexpr std::size_t kInitiateSituationByAutomataGroup = 0x5C, kStartJoyride = 0x60;
+inline constexpr std::size_t kTreatAutomatonAsGroup = 0x64, kSetUDrive = 0x8C, kStartSituation = 0x90;
+inline constexpr std::size_t kBeginDrive = 0x94, kStopSituation = 0x9C;
 } // namespace slot
+
+// Part c2's fields (the rest of the layout above).
+namespace field {
+inline constexpr std::size_t kDriveTime = 0xA88, kSetAA8Count = 0xAB8, kRefAF0 = 0xAF0, kTableRef = 0xAF4;
+} // namespace field
 
 } // namespace opensc4::automata_situations
