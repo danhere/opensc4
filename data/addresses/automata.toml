@@ -5844,7 +5844,7 @@ kind = "function"
 convention = "thiscall"
 signature = "uint32_t (void* set, const uint32_t* key)"
 expect = "8B 44 24 04 53 8B 59 08"
-source = "Name ours. The nodes of a key in its bucket of an STLport hash set; ret 4. Generic; left the game's. Called by address from src/core/automata_awmgr_auto.cpp (part aw3)."
+source = "Name ours. The nodes of a key in its bucket of an STLport hash set; ret 4. Generic; left the game's. Called by address from src/core/automata_awmgr_auto.cpp (part aw3) and src/core/automata_situations_2.cpp (part c2)."
 
 [[entry]]
 name = "SC4AutomataCheat::Forget"
@@ -6818,15 +6818,6 @@ convention = "thiscall"
 signature = "void* (void* number, uint16_t value)"
 expect = "66 8B 54 24 04 8B C1 33"
 source = "Name ours. A 0x14-byte script value (type 4) from a word. Called by address from src/core/automata_situations_2.cpp (part c2)."
-
-[[entry]]
-name = "SC4Uint32HashSet::Count"
-address = 0x00525E80
-kind = "function"
-convention = "thiscall"
-signature = "uint32_t (void* set, const uint32_t* key)"
-expect = "8B 44 24 04 53 8B 59 08"
-source = "Name ours. Ret 4: the count of the key's nodes in its bucket. Shared (kept as the game's, part c1). Called by address from src/core/automata_situations_2.cpp (part c2)."
 
 [[entry]]
 name = "cSC4CitySituationManager::RunScript"
