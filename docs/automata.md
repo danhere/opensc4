@@ -985,7 +985,7 @@ Reimplemented with two writers (the aircraft and the watercraft halves) and an i
 
 ### Test
 
-`OPENSC4_TEST_AUTOMATA_AWMGR=4` does everything `=3` does, plus the following, into the fingerprint as ` E<aircraft>,<watercraft>,<flags>` (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). It uses part aw3's fake automata, with two more slots (10, the point it is sent to; 67, a kind block) and a property holder that can answer a type and the byte property 0x8BFB1072.
+`OPENSC4_TEST_AUTOMATA_AWMGR=4` does everything `=3` does, plus the following, into the fingerprint as ` E<aircraft>,<watercraft>,<flags>` (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). It uses part aw3's fake automata, with two more slots in a vtable of its own (10, the point it is sent to; 67, a kind block) and a property holder that can answer a type and the byte property 0x8BFB1072.
 
 - **A new aircraft manager from its factory:**
   - Init twice and slot 24.
@@ -1024,13 +1024,33 @@ Three things the first trials found, which the test now avoids:
 - The watercraft manager's RemoveAutomaton reads its slot 67's block on a new boat that does not have one.
 - A version 5 stream that ends after the automata count gives the original two outcomes. The common base's body reads the source building table's count from the failed stream into a slot that holds the stream's address. It then adds a record whose value is a stack leftover (part aw2's oddity), which is sometimes 1. The test's stream now carries a count of 0.
 
-Making the fakes answer slot 10 changed part aw3's ` D` token: the base calls that slot on a fake, which until now landed in a trap. The value is the same on both sides.
+Part aw4's fakes have a copy of the fakes' vtable with slots 10 and 67 filled. Part aw3's keep their traps there, so its ` D` token is not changed: the base calls slot 10 on its fakes.
 
 Reached (our first-call log lines, trial Making Money d0000, 4 days): all 35.
 
 ### Parity
 
-PENDING
+2026-10-21, on the branch with main merged in. B was these groups, all on, against the original:
+
+- `simulators.automata.awmgr`;
+- the four part aw2 groups and the three part aw3 groups;
+- the four part aw4 groups.
+
+The switch list includes `determinism.dispatch_info=ours`, with `OPENSC4_MUTE=1` on both sides and two jobs (`harness.multi_instance=ours`). Env p4env-aw4, snapshot aw4-r3, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_AWMGR=4`.
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | same (5 of 5 days; the original had two outcomes) |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 10 same; 2 partly, each difference one the original shows too |
+
+Every one of the 13 saves gave a single ` E` value in all its A and B runs, with flags 0, and all 24 B runs reached all 35 functions. Every other difference was one of three kinds:
+
+- **Part aw3's ` D` token.** Its first field (the fakes' calls) takes one of two values per city on both sides, as part aw3's own runs showed: Making Money 4848E1FD or E75BEE79, Big City 5C81BE01 or 503D8DAD. These account for Making Money d0000 (the 4-day leg), Big City d0000, Making Money d0090 and Making Money d1095, which were the same after two pairs.
+- **Big City d0090 (partly).** Besides the ` D` values, the vehicle manager's field of part aw1's ` A` token took two values, C59EB66B and 8B190717. Both came from the original.
+- **Big City d0365 (partly).** Besides the ` D` values, one B run had other `advisors` values from the first day. That is the first-run advisor outcome of [parity.md](parity.md), which shows before the test day.
+
+An earlier run (r1, stopped) showed the original giving two values of ` E` on Making Money d0000 and Rush Hour t0000. That was the test's version 5 stream (above), not our code; after the fix (r2), Making Money and Rush Hour were the same on the first pair.
 
 ## Part s: the script system
 
