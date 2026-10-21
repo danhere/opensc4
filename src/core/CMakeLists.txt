@@ -265,6 +265,8 @@ add_library(opensc4_core SHARED
   automata_awmgr.cpp
   automata_awmgr_life.cpp
   automata_awmgr_auto.cpp
+  automata_awmgr_air.cpp
+  automata_awmgr_water.cpp
   automata_ctlquery.cpp
   automata_scripts.cpp
   automata_scripts_2.cpp
@@ -272,6 +274,7 @@ add_library(opensc4_core SHARED
   automata_scripts_4.cpp
   automata_situations.cpp
   automata_situations_2.cpp
+  automata_situations_3.cpp
   automata_autotest.cpp
   nettool_preview.cpp
   nettool_rul_1.cpp
