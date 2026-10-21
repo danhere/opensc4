@@ -980,8 +980,9 @@ InsertResult* __fastcall CellSetInsert(char* set, void*, InsertResult* out, cons
     return out;
 }
 
-// 0x005278A0 (ret 8): the uint32 set's insert: room for one more
-// (SC4Uint32HashSet::Resize), then 0x00525FB0, into out; EAX out.
+// 0x005278A0 (ret 8): the referenced set's insert: room for one more
+// (SC4Uint32HashSet::Resize), then 0x00525FB0 (which references a new
+// key), into out; EAX out.
 InsertResult* __fastcall Uint32SetInsert(char* set, void*, InsertResult* out, const std::uint32_t* key)
 {
     static bool logged;
