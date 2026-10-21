@@ -4333,7 +4333,7 @@ kind = "function"
 convention = "cdecl"
 signature = "void (void* first, void* last, void* tag)"
 expect = "53 8B 5C 24 0C 57 8B 7C"
-source = "Name ours: the 0x3C-byte records [first, last): each one's buffers at +0x2C and +0x20 freed and its references at +8, +4 and +0 released. The third argument is never read. Called by address from src/core/automata_awmgr.cpp (part aw1)."
+source = "Name ours: the 0x3C-byte records [first, last): each one's buffers at +0x2C and +0x20 freed and its references at +8, +4 and +0 released. The third argument is never read. Ours in simulators.automata.awmgr.water.serial (src/core/automata_awmgr_water.cpp, part aw4). Also called by address from src/core/automata_awmgr.cpp (part aw1)."
 
 [[entry]]
 name = "cSC4AutomataManager::GroupClass"
@@ -6900,3 +6900,385 @@ name = "SC4::UDriveMode"
 address = 0x00B21D74
 kind = "data"
 source = "Name ours. The U-Drive's view object; while it is set 0x00506850 does nothing. The part c2 test sets it for its calls and puts it back."
+
+# Part aw4 of the aircraft and watercraft managers: the aircraft manager's behaviour (src/core/automata_awmgr_air.cpp) and the game functions it calls by address that had no entry; docs/automata.md, "Part aw4".
+
+[[entry]]
+name = "cSC4AircraftManager::AddAutomaton"
+address = 0x004FA6D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cISC4Automaton* automaton)"
+expect = "8B 44 24 04 53 32 DB 85"
+source = "Name ours (gzcom-dll's AddAutomaton): the aircraft manager's slot 7, ret 4: without an automaton one is made, by a draw of the generator (+0x50, cRZRandomSuper::Next) below 0x7FFFFFFF a helicopter (0x278 bytes, 0x0053C6E0), else the 0x200-byte aircraft of 0x00523F60; EAX 0 when the allocation or the constructor gives none. Then the common base's AddAutomaton 0x0050F790, its EAX. Ours in simulators.automata.awmgr.air (src/core/automata_awmgr_air.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4AircraftManager::Init"
+address = 0x004FA9E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8A 46 34 84 C0"
+source = "The aircraft manager's slot 3: once (+0x34), the common base's Init 0x005066B0, the occupant filter (0xC bytes, SC4::OccupantFilterBase, vtables 0x00A944BC and 0x00A944A4) kept at +0xA98 and referenced (no null test), the generator's address (+0x50) into 0x00B21AF4, slot 24; +0x34 set. AL 1. Ours in simulators.automata.awmgr.air (src/core/automata_awmgr_air.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4AircraftManager::Shutdown"
+address = 0x004FB7D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "53 8B D9 8A 43 34 84 C0"
+source = "The aircraft manager's slot 4: with +0x34, both objects of every node of the map (+0xA88) released (no null tests), the map emptied (0x004FB270), the list's (+0xA94) nodes freed, the filter (+0xA98) released (no null test) and cleared, the common base's Shutdown 0x005110A0, 0x00B21AF4 zero. AL 1. Ours in simulators.automata.awmgr.air (src/core/automata_awmgr_air.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4AircraftManager::HandleTuningParametersChanged"
+address = 0x004FAA50
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 10 56 8B F1 8B 0D"
+source = "Name ours (gzcom-dll's): the aircraft manager's slot 24: slot 23 (SetMaxCount) with the word at 0x00B21BC8; with the automata tuning exemplar (0x6534284A, 0xA998D30B, 1) +0xA3C the byte property 0x4998C91A (1 without it) less one; the resource released. AL 1. Ours in simulators.automata.awmgr.air (src/core/automata_awmgr_air.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4AircraftManager::Slot17"
+address = 0x004FAAF0
+kind = "function"
+convention = "thiscall"
+signature = "cISC4Automaton* (void* this, cISC4Automaton* automaton, const void* from, const void* to, uint32_t a, uint32_t b)"
+expect = "83 EC 0C 56 8B 74 24 14"
+source = "Name ours: the aircraft manager's slot 17 (gzcom-dll's five-argument Dispatch), ret 0x14: the destination (slot 19) put on the terrain plus 200 (its slot 13, or slot 29 off the map) and given to the automaton (slot 10); +0x1E4 the float at 0x00B098DC, or for an object source the police simulator's (slots 22, 25) when the automaton's occupant is in group 0x4301, else the service 0x00B43D78's (slots 7, 10); the automaton's slot 52 with 0x35 (10000) and 0x33 (-1) in group 0x4301, else 0x39 (-1). The automaton, or 0 (none, or slot 19 failed). Ours in simulators.automata.awmgr.air (src/core/automata_awmgr_air.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4AircraftManager::Slot18"
+address = 0x004FC440
+kind = "function"
+convention = "thiscall"
+signature = "cISC4Automaton* (void* this, uint32_t unused, const void* from, const void* to, uint32_t a, uint32_t b, uint32_t c, uint32_t d)"
+expect = "83 EC 1C A1 DC 98 B0 00"
+source = "Name ours: the aircraft manager's slot 18 (gzcom-dll's seven-argument Dispatch), ret 0x1C: for an object source, the first aircraft of the map (+0xA88) whose occupant is on the source's lot (lot manager slot 14, the lot's slot 49 list) sent as slot 17 does: the destination on the terrain plus 200, +0x1E4 the police simulator's float (or the service 0x00B43D78's, or 0x00B098DC's), the automaton's slot 52 by whether the police simulator took the source. The automaton, or 0. Ours in simulators.automata.awmgr.air (src/core/automata_awmgr_air.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4AircraftManager::Write"
+address = 0x004FB5B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZOStream* stream)"
+expect = "55 57 8B 7C 24 0C 8B 07"
+source = "The aircraft manager's serializable part (+8) slot 3, ret 4: version 5, the common base's Write 0x0050CB80; when that worked the map's size and per node its two references (key and value), the list's count and per node its point (0x005DA580) and byte. EAX 1 when the stream has no error (slot 18), else 0. Ours in simulators.automata.awmgr.air (src/core/automata_awmgr_air.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4AircraftManager::Read"
+address = 0x004FBE70
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZIStream* stream)"
+expect = "83 EC 20 53 55 56 8B 74"
+source = "The aircraft manager's serializable part (+8) slot 4, ret 4: a version below 5 goes to the common base's Read body 0x0050FEB0 (its EAX); above 5 AL 0; 5: the common base's Read 0x005108E0, then when it worked the map's records (references 0x26BB767E and 0xA9B40F05 into the map, 0x00497A00) and the list's (a point and a byte per 0x18-byte node, appended). EAX 1 when the stream has no error, else 0. Ours in simulators.automata.awmgr.air (src/core/automata_awmgr_air.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4AircraftManager::DoMessage"
+address = 0x004FC710
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZMessage2* message)"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "The aircraft manager's message target (+0xC) slot 3, ret 4: 0x99EF1142 (an occupant inserted) gives an occupant whose type is not 0x029244DB to 0x004FBFE0 and answers 1; 0x99EF1143 (removed) to 0x004FB8D0. Then the common base's DoMessage 0x00506970: AL 1 when it or the inserted case answers, else its EAX. Ours in simulators.automata.awmgr.air (src/core/automata_awmgr_air.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4AircraftManager::OccupantRemoved"
+address = 0x004FB8D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, cISC4Occupant* occupant)"
+expect = "83 EC 14 53 55 56 57 8B"
+source = "Name ours. (occupant), ret 4: the occupant's map node (+0xA88) erased, its aircraft told slot 13 (0) and released, the occupant released; then with the occupant's byte property 0x8BFB1072 not 0, the list's (+0xA94) record of its position (slot 8) and that byte (0x004FB2B0) unlinked and freed. Ours in simulators.automata.awmgr.air (src/core/automata_awmgr_air.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4AircraftManager::FindRecord"
+address = 0x004FB2B0
+kind = "function"
+convention = "cdecl"
+signature = "void** (void** result, void* first, void* last, const void* record)"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. (result, first, last, record): std::find_if over the list's nodes: the first whose byte (+0x14) is the record's (+0xC) and whose point (+8) is within 0.0001 (0x00A944A0, strictly, each axis) of the record's (+0); last for none. Answers result. Ours in simulators.automata.awmgr.air (src/core/automata_awmgr_air.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4AircraftManager::OccupantInserted"
+address = 0x004FBFE0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, cISC4Occupant* occupant)"
+expect = "83 EC 74 53 55 56 8B B4"
+source = "Name ours, not analysed: the aircraft manager's handler of an occupant inserted (DoMessage's 0x99EF1142), ret 4. SC4UIScale's probe site. Left the game's. Called by address from src/core/automata_awmgr_air.cpp (part aw4)."
+
+[[entry]]
+name = "cSC4Helicopter::Construct"
+address = 0x0053C6E0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 8B F1 E8 77 E5 FB"
+source = "Name ours: cSC4Helicopter's (0x8BA98EDA, 0x278 bytes; its factory 0x005147E0) constructor on the cSC4Aircraft base 0x004FAC60, vtable 0x00A991E0. Left the game's. Called by address from src/core/automata_awmgr_air.cpp (part aw4)."
+
+[[entry]]
+name = "cSC4AircraftB::Construct"
+address = 0x00523F60
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 E8 F8 6C FD FF"
+source = "Name and class ours: the constructor of a 0x200-byte aircraft on the cSC4Aircraft base 0x004FAC60 (vtable 0x00A97188 with the base's QueryInterface, so no class ID of its own; +0x1EC the word at 0x00B09A94), which the aircraft manager's AddAutomaton makes. Left the game's. Called by address from src/core/automata_awmgr_air.cpp (part aw4)."
+
+# Part aw4, the watercraft manager's life cycle, save and messages (src/core/automata_awmgr_water.cpp), and the game functions it calls by address that had no entry.
+
+[[entry]]
+name = "cSC4WatercraftManager::Init"
+address = 0x00567B90
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8A 46 34 84 C0"
+source = "Name ours: the watercraft manager's slot 3: once (+0x34), the common base's Init, the message server's 0x2C06BA82 for the message target (+0xC), 0x00B22A78 the generator (+0x50), slot 45 when +0x10 is set, slot 23 with 500, slot 24; +0x34 set. AL 1. Ours in simulators.automata.awmgr.water.life (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::Shutdown"
+address = 0x005744A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8A 46 34 84 C0"
+source = "Name ours: slot 4: with +0x34, the message server's 0x2C06BA82 let go, the tables cleared (0x005743D0 on +0xA8C, 0x0056D670 on +0xAB4 and +0xAA0), the reference vector +0xAC8 erased (SC4RefVector::Erase), the common base's Shutdown, 0x00B22A78 null. AL 1. Ours in simulators.automata.awmgr.water.life (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::HandleTuningParametersChanged"
+address = 0x00567BF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 10 56 8B F1 8B 0D"
+source = "Name ours: slot 24: slot 23 with 0x00B21BF0; the tuning exemplar (0x6534284A, 0xA998D30B, 1; interface 0xA52160F5) from the resource manager: +0xA3C 1, property 0x4998C91B's byte, less one; the resource released. AL 1. Ours in simulators.automata.awmgr.water.life (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::AddAutomaton"
+address = 0x0056F7C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cISC4Automaton* automaton)"
+expect = "8B 44 24 04 85 C0 56 8B"
+source = "Name ours (gzcom-dll's AddAutomaton): slot 7, ret 4: without one a new boat (0xDC8 bytes, 0x0056D9A0, null when the allocation fails), then the common base's AddAutomaton; EAX its answer. Ours in simulators.automata.awmgr.water.life (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::RemoveAutomaton"
+address = 0x0056F800
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cISC4Automaton* automaton, uint32_t b)"
+expect = "83 EC 08 53 55 56 57 8B"
+source = "Name ours (gzcom-dll's RemoveAutomaton): slot 8, ret 8: for the kinds 0x4400 and 0x4402 (slot 67's +0x10) the first route record (+0xA8C) holding it, else for the occupant groups 0x4416, 0x4411, 0x440F, 0x440A the first +0xAB4 node whose +8 it is, else for 0x4418 its place in the vector +0xAC8: nulled and released (the vector's place erased, its last element released); then the common base's RemoveAutomaton, EAX its answer. Ours in simulators.automata.awmgr.water.life (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::Write"
+address = 0x0056FA70
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZOStream* stream)"
+expect = "83 EC 0C 55 56 8B 74 24"
+source = "Name ours: the serializable part's slot 3 (this = object + 8), ret 4: version 6 (word), the common base's Write; when it answers, the +0xAA0 table (count, two references a node), the +0xAB4 table (count, the keys), the routes +0xA8C (count; key, +0x1C, the record count, per record its ferry route: two references, +0xC as 0/1/-1, four words, a bool, two words, two byte vectors). EAX 1 when the stream's slot 18 answers 0, else 0. Ours in simulators.automata.awmgr.water.serial (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::Read"
+address = 0x005749E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZIStream* stream)"
+expect = "81 EC E0 00 00 00 53 8B"
+source = "Name ours: the serializable part's slot 4 (this = object + 8), ret 4: the version (word); above 6 AL 0, below 6 the common base's body 0x0050FEB0 (EAX its answer); at 6 the common base's Read, then the vector +0xAC8 erased and the three tables cleared and read as Write writes them (references 0xE818FCED and 0x26BB767E). EAX 1 when the stream's slot 18 answers 0, else 0. Ours in simulators.automata.awmgr.water.serial (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::InsertPair"
+address = 0x0056C850
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* table, void** result, void* const* pair)"
+expect = "51 8B 44 24 0C 53 56 8B"
+source = "Name ours: a pair table's (+0xAA0, +0xAB4) insert_unique (result, {key, object}), ret 8: a 0xC-byte node, both referenced, at the head of the key's bucket; result {node, table, inserted}; EAX the result. Ours in simulators.automata.awmgr.water.serial (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::InsertRouteNode"
+address = 0x00574260
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* table, void** result, void* pair)"
+expect = "51 53 8B 5C 24 10 55 56"
+source = "Name ours: the route table's (+0xA8C) insert_unique without a resize (result, pair {key, value}), ret 8: a 0x20-byte node (the key and the value's references referenced, its record vector copied by 0x00572360); result {node, table, inserted}; EAX the result. Ours in simulators.automata.awmgr.water.serial (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::ConstructRecords"
+address = 0x00570D10
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* dest, void* tag)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours: uninitialized_copy of 0x3C-byte route records into dest (the automaton referenced, the ferry route by 0x0056D770, the byte +0x38; nothing at a null dest); the end. Ours in simulators.automata.awmgr.water.serial (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::CopyRecords"
+address = 0x00570D60
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* dest, void* tag, uint32_t zero)"
+expect = "8B 4C 24 08 53 8B 5C 24"
+source = "Name ours: std::copy of 0x3C-byte route records onto dest (the automaton's reference assigned, the ferry route by 0x0056D7F0, the byte +0x38); the end (dest for none). Ours in simulators.automata.awmgr.water.serial (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::AssignFerryRoute"
+address = 0x0056D7F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "53 55 56 57 8B 7C 24 14"
+source = "Name ours: a ferry route in use's (0x34 bytes) assignment, ret 4: the references +0 and +4, the word +8, the words +0xC..+0x12, the byte +0x14, the words +0x16 and +0x18, the byte vectors +0x1C and +0x28 (SC4ByteVector::Assign); EAX this. Ours in simulators.automata.awmgr.water.serial (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::DoMessage"
+address = 0x00575500
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, cIGZMessage2* message)"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Name ours: the message target's slot 3 (this = object + 0xC), ret 4: 0x2C06BA82 sets +0xA88; 0x99EF1142 (an occupant, not null) and 0x99EF1143 (not tested) not of type 0x029244DB go to 0x00575170 and 0x00574520; then the common base's DoMessage. EAX 1 for those types or the base's answer, else 0. Ours in simulators.automata.awmgr.water.messages (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::OccupantRemoved"
+address = 0x00574520
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours, ret 4: the route whose +0x1C is the occupant has its records' automata stopped (slot 0xD0), its records cleared and is erased (0x00574340); else for ten terminal types its +0xAB4 node's +8 stopped and the node erased (0x0056D6E0), then for type 0x8C392D39 the first +0xAA0 node whose +8 it is erased. Ours in simulators.automata.awmgr.water.messages (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::OccupantAdded"
+address = 0x00575170
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant)"
+expect = "83 EC 4C 55 56 8B 74 24"
+source = "Name ours, ret 4: for type 0xEC39DD14 a route {lot (0x00567C90), {0, 0, no records, the occupant}} when none for the lot and the dock search 0x00568CE0 answers (0x00574830); for ten terminal types {occupant, 0} into +0xAB4 when not there; for 0x8C392D39 the dock search, then {lot, occupant} into +0xAA0. Ours in simulators.automata.awmgr.water.messages (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::EraseRoute"
+address = 0x00574340
+kind = "function"
+convention = "thiscall"
+signature = "void (void* table, void** iterator)"
+expect = "8B 44 24 04 57 8B F9 8B"
+source = "Name ours: the route table's erase (iterator), ret 4: unlinked; the bucket's first freed here (value 0x005732F0, key released), another by 0x00574230; the count down. Ours in simulators.automata.awmgr.water.messages (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::FreeRouteNode"
+address = 0x00574230
+kind = "function"
+convention = "thiscall"
+signature = "void (void* table, void* node)"
+expect = "56 8B 74 24 08 8D 4E 08"
+source = "Name ours: a route node's release, ret 4 (this not read): its value destroyed (0x005732F0), its key released, the node freed. Ours in simulators.automata.awmgr.water.messages (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::DestroyRoute"
+address = 0x005732F0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* value)"
+expect = "51 56 8B F1 8B 4E 14 85"
+source = "Name ours: a route value's destructor: +0x14 released, the records destroyed (0x0056F740) and freed, +4 and +0 released. Ours in simulators.automata.awmgr.water.messages (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::ClearRecords"
+address = 0x005734E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector)"
+expect = "51 56 57 6A 00 8B F1 8B"
+source = "Name ours: a route record vector's clear: copied onto its own end (0x00570D60), the rest destroyed (0x0056F740), the end set. Ours in simulators.automata.awmgr.water.messages (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::MakeRoutePair"
+address = 0x00573520
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* const* key, const void* value)"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours: a route pair's constructor, ret 8: the key and the value's +0, +4 and +0x14 referenced, its record vector copied (0x00572360); EAX this. Ours in simulators.automata.awmgr.water.messages (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::InsertRoute"
+address = 0x00574830
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* table, void** result, void* pair)"
+expect = "56 8B F1 8B 46 10 57 40"
+source = "Name ours: the route table's insert_unique (result, pair), ret 8: SC4Uint32HashSet::Resize for one more, then 0x00574260; EAX the result. Ours in simulators.automata.awmgr.water.messages (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::ErasePair"
+address = 0x0056D6E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* table, void** iterator)"
+expect = "8B 44 24 04 57 8B F9 8B"
+source = "Name ours: a pair table's erase (iterator), ret 4: unlinked; the bucket's first freed here (+8 and +4 released), another by 0x0056C910; the count down. Ours in simulators.automata.awmgr.water.messages (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::FreePairNode"
+address = 0x0056C910
+kind = "function"
+convention = "thiscall"
+signature = "void (void* table, void* node)"
+expect = "56 8B 74 24 08 8B 4E 08"
+source = "Name ours: a pair node's release, ret 4 (this not read): +8 and +4 released, the node freed. Ours in simulators.automata.awmgr.water.messages (src/core/automata_awmgr_water.cpp, part aw4)."
+
+[[entry]]
+name = "cSC4Watercraft::Construct"
+address = 0x0056D9A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "51 53 56 57 83 EC 0C 8B"
+source = "Name ours, not analysed: the boat's constructor (0xDC8 bytes), as the watercraft manager's AddAutomaton uses it. Left the game's. Called by address from src/core/automata_awmgr_water.cpp (part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::LotAtOccupant"
+address = 0x00567C90
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* occupant)"
+expect = "8B 4C 24 04 83 EC 0C 85"
+source = "Name ours (part aw5's): ret 4 (this not read): null without one; else the occupant's point (its slot 8, the three floats starting as 0x00B22A80) and the city's (0x00B43CEC) slot 0x84 object's slot 5 at it. Left the game's. Called by address from src/core/automata_awmgr_water.cpp (part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::DockPoints"
+address = 0x00568CE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* occupant, float* point, float* direction, uint32_t zero)"
+expect = "83 EC 64 57 8B 7C 24 6C"
+source = "Name ours, not analysed (part aw5's): ret 0x10: AL 0 without an occupant; else its point and a direction from its model (interface 0xE9793A65). Left the game's. Called by address from src/core/automata_awmgr_water.cpp (part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::CopyRecordVector"
+address = 0x00572360
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "53 8B 5C 24 08 8B 13 56"
+source = "Name ours (part aw5's): the route record vector's copy constructor, ret 4: storage for the count, the records copied by 0x00570D10; EAX this. Left the game's. Called by address from src/core/automata_awmgr_water.cpp (part aw4)."
+
+[[entry]]
+name = "cSC4WatercraftManager::InsertRecordOverflow"
+address = 0x00573580
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, void* position, const void* record, void* tag, uint32_t count, uint32_t atEnd)"
+expect = "51 53 55 56 8B F1 8B 16"
+source = "Name ours, not analysed (part aw5's): the route record vector's growing insert, ret 0x14. Left the game's. Called by address from src/core/automata_awmgr_water.cpp (part aw4)."

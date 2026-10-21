@@ -305,6 +305,55 @@
 //   called at a slot it does not know. A fake's unknown slot answers 0; the
 //   fakes' occupants give a property holder without properties (the
 //   automata filter asks for it).
+// OPENSC4_TEST_AUTOMATA_AWMGR=4 (part aw4): also, on the same day, at the
+//   game's addresses or through the managers' vtables (ours when the
+//   simulators.automata.awmgr.air and .water groups are on), into the
+//   fingerprint as ` E<aircraft>,<watercraft>,<flags>` from that day on,
+//   with fake automata and occupants of the test's own (part aw3's, with
+//   slots 10 and 67 in a vtable of their own, part aw3's fakes keeping
+//   their traps there, and a property holder that can answer a type and
+//   the byte property 0x8BFB1072). A new aircraft manager from its
+//   factory, held by one reference: Init twice (the filter, the generator
+//   global 0x00B21AF4, the tuning's most and least zoom) and slot 24; Write,
+//   Read of those bytes with two list records (Write must give them back),
+//   of version 6 (refused), 4 (the common base's body) and of a stream cut
+//   in a record; four map entries of the test's own (fakes and the first
+//   building occupant of the controller table by its hash); DoMessage with
+//   an occupant inserted and removed of the type 0x029244DB, inserted of
+//   another (SC4UIScale's 0x004FBFE0, which finds no property), removed
+//   twice (0x004FB8D0: the entry and the list record of the property byte),
+//   a type no one handles; slot 17 (no automaton, a refused location, a
+//   point, no object, the building with the automaton's occupant in the
+//   group 0x4301 and not) and slot 18 (a point, no object, the building with
+//   a refused and a good location, then without its entry), the answers and
+//   the automaton's +0x1E4; the list find 0x004FB2B0 on nodes of the test's
+//   own (another byte, an axis 0.001 off, a NaN, one 0.00005 off: found, an
+//   empty range); AddAutomaton with a fake and with none, the generator
+//   seeded until a helicopter and the other aircraft were made, each removed
+//   again (slot 8); Shutdown twice and the release. The city's watercraft
+//   manager's Write (the answer and its tables' sizes; the bytes to the
+//   log), then a new watercraft manager: Init twice and slot 24; a route of
+//   the test's own (three records, ferry route words 0, 1 and 2) by the
+//   route insert 0x00574830 (twice), a second pair table node and the
+//   reference vector; Write, Read of those bytes (the references come back
+//   as nothing) and Write again, reads of versions 7 (refused) and 5; the
+//   route, node and vector again; RemoveAutomaton of the kinds 0x4400 (in a
+//   record) and 0x4402 (not), of the groups 0x4411 (the node) and 0x4418
+//   (the vector's middle, then its end), of none of them and none; the
+//   occupant handlers without one (at their addresses: the common base's
+//   DoMessage does not test it); DoMessage with 0x2C06BA82, occupants added
+//   (of the type 0x029244DB, of a terminal type twice, the dock type, the
+//   pair type) and removed (the
+//   route's, the terminal and pair ones, 0x029244DB), a type no one handles;
+//   AddAutomaton with a fake and with none (a boat, left to Shutdown: the
+//   game's RemoveAutomaton reads a block a new boat has not); on tables of
+//   the test's own with one bucket the pair and route erases of a node
+//   behind another and of the first, and the route pair's constructor and
+//   the records' clear on a value of the test's own; Shutdown
+//   twice and the release. The tables' sizes after each step. The flags: no
+//   building occupant, a manager or bytes missing, a byte round trip that
+//   did not come back, a fake called at a slot it does not know. The
+//   generator globals are put back; the city's managers are not changed.
 // OPENSC4_TEST_AUTOMATA_SITUATIONS=1 (part c1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's situation manager (the city's slot
 //   0xC4) is called at the game's addresses (ours when the
@@ -380,6 +429,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -3106,6 +3156,8 @@ struct FakeState {
     double value32 = 0.0;           // slot 32 (ST0)
     char* controller = nullptr;     // slot 56
     char* messageTarget = nullptr;  // QI 0x452294AA
+    void* holder = nullptr;         // the occupant's slot 6 (null: FakeHolder; part aw4)
+    uint32_t kind[8] = {};          // slot 67's block (+0x10 the kind; part aw4)
     uint32_t unexpected = 0;
 };
 
@@ -3160,6 +3212,10 @@ uint32_t Answer(char* base, std::size_t part, std::size_t slot, const uint32_t* 
         case 0x08: return --s->refs;
         case 0x14: return reinterpret_cast<uint32_t>(base + 4);
         case 0x1C: write3(args[0], s->position); return 1;
+        case 0x28: // part aw4: the point it is sent to, kept as its position
+            if (args[0])
+                std::memcpy(s->position, reinterpret_cast<const void*>(args[0]), 12);
+            return 1;
         case 0x3C: write3(args[0], s->heading); return 1;
         case 0x78:
             if (args[1] & 0xFF)
@@ -3172,6 +3228,7 @@ uint32_t Answer(char* base, std::size_t part, std::size_t slot, const uint32_t* 
         case 0xE0: return reinterpret_cast<uint32_t>(s->controller);
         case 0xE4: return args[0] == 0x10 ? s->answer57a : s->answer57b;
         case 0xFC: return s->priority;
+        case 0x10C: return reinterpret_cast<uint32_t>(s->kind);
         case 0x118: return s->answer70;
         case 0x120: return s->answer72;
         case 0x154: return s->answer85;
@@ -3186,7 +3243,7 @@ uint32_t Answer(char* base, std::size_t part, std::size_t slot, const uint32_t* 
         case 0x14: return s->answerOccupant5;
         case 0x1C: return s->type;
         case 0x20: write3(args[0], s->position); return 1;
-        case 0x18: return reinterpret_cast<uint32_t>(FakeHolder());
+        case 0x18: return reinterpret_cast<uint32_t>(s->holder ? s->holder : FakeHolder());
         case 0x58: return (args[0] && (args[0] == s->groups[0] || args[0] == s->groups[1])) ? 1u : 0u;
         case 0x84: return s->occupantFlags;
         default: return 0;
@@ -3278,6 +3335,19 @@ void** FakeAutomatonVtable()
         OPENSC4_FAKEP(table, 0, 0x17C, Fake1, 1u);
         OPENSC4_FAKE(table, 0, 0x194, Fake0);
         OPENSC4_FAKE(table, 0, 0x198, Fake2);
+    }
+    return table;
+}
+
+// Part aw4's fakes: the same with slots 10 (the point it is sent to) and 67
+// (the kind block). Part aw3's keep their traps there.
+void** FakeAutomatonVtable4()
+{
+    static void* table[0x1A0 / 4];
+    if (!table[0]) {
+        std::memcpy(table, FakeAutomatonVtable(), sizeof table);
+        OPENSC4_FAKEP(table, 0, 0x28, Fake1, 1u);
+        OPENSC4_FAKE(table, 0, 0x10C, Fake0);
     }
     return table;
 }
@@ -3861,6 +3931,745 @@ void AwAutoDrive(cISC4City* city)
     log::Write("autotest: automata: aw3%s logged %08X", text.c_str(), logged.h);
 }
 
+// ====================================================================================
+// Part aw4's drive (OPENSC4_TEST_AUTOMATA_AWMGR=4), see the top of the file.
+
+std::string g_aw4Text;
+
+// A message of the test's own with an object: slot 0x10 the type, slot 0x24
+// a value, slot 0x28 the object, every other slot (up to 0x84) 0. The first
+// fields are FakeMessage's.
+struct FakeObjectMessage {
+    void** vtable;
+    uint32_t type;
+    uint32_t value;
+    void* object;
+};
+void* __fastcall FakeObjectOf(FakeObjectMessage* m, void*) { return m->object; }
+void** FakeObjectMessageVtable()
+{
+    static void* table[34];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&FakeZero);
+        table[0x10 / 4] = reinterpret_cast<void*>(&FakeType);
+        table[0x24 / 4] = reinterpret_cast<void*>(&FakeValue);
+        table[0x28 / 4] = reinterpret_cast<void*>(&FakeObjectOf);
+    }
+    return table;
+}
+
+// A fake occupant's property holder of the test's own (FakeState::holder),
+// which is its own property and variant: slot 3 answers whether it is of
+// the type 0x029244DB (`isType`) or of `type`, slot 9 for 0x8BFB1072 itself
+// when `byte` is not 0, slot 5 (the variant) itself, slot 13 (the byte
+// read) `byte`. Other slots take one argument and answer 0.
+struct FakeProps {
+    void** vtable;
+    uint8_t isType;
+    uint8_t byte;
+    uint32_t type;
+};
+uint32_t __fastcall PropsIsType(FakeProps* p, void*, uint32_t type)
+{
+    return (p->isType && type == 0x029244DBu) || (p->type && type == p->type);
+}
+void* __fastcall PropsGet(FakeProps* p, void*, uint32_t id) { return id == 0x8BFB1072u && p->byte ? p : nullptr; }
+void* __fastcall PropsVariant(FakeProps* p, void*) { return p; }
+uint32_t __fastcall PropsByte(FakeProps* p, void*, uint8_t* out)
+{
+    if (out)
+        *out = p->byte;
+    return 1;
+}
+void** FakePropsVtable()
+{
+    static void* table[16];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&HolderNone);
+        table[3] = reinterpret_cast<void*>(&PropsIsType);
+        table[5] = reinterpret_cast<void*>(&PropsVariant);
+        table[9] = reinterpret_cast<void*>(&PropsGet);
+        table[13] = reinterpret_cast<void*>(&PropsByte);
+    }
+    return table;
+}
+
+// The nodes of a circular list (the next pointer at +0), the head left out.
+uint32_t RingCount(char* head)
+{
+    uint32_t n = 0;
+    for (char* node = At<char*>(head, 0); node != head && n < 4096; node = At<char*>(node, 0))
+        ++n;
+    return n;
+}
+
+// The aircraft manager's part: on a new manager from its factory, held by
+// one reference.
+void AwAirDrive(void* building, Hash& air, Hash& logged, uint32_t& flags)
+{
+    namespace aw = automata_awmgr;
+    using Factory = void*(__cdecl*)();
+    void* const serial = reinterpret_cast<Factory>(addr::cSC4AircraftManager_Create)();
+    if (!serial) {
+        flags |= 0x100;
+        return;
+    }
+    char* const made = static_cast<char*>(serial) - aw::field::kSerializable;
+    Virtual<uint32_t>(made, aw::slot::kAddRef);
+    void*& generator = *reinterpret_cast<void**>(0x00B21AF4);
+    void* const savedGenerator = generator;
+    static Fake fakes[8];
+    for (uint32_t i = 0; i < 8; ++i)
+        fakes[i].Init(0x21 + i, air), At<void**>(fakes[i].block, 0) = FakeAutomatonVtable4();
+    g_known.push_back({made, 0x60});
+    if (building)
+        g_known.push_back({building, 0x61});
+    static FakeProps typed, plain, marked;
+    typed = {FakePropsVtable(), 1, 0, 0};
+    plain = {FakePropsVtable(), 0, 0, 0};
+    marked = {FakePropsVtable(), 0, 3, 0};
+    char* const f[8] = {fakes[0].Base(), fakes[1].Base(), fakes[2].Base(), fakes[3].Base(),
+                        fakes[4].Base(), fakes[5].Base(), fakes[6].Base(), fakes[7].Base()};
+    fakes[0].state.holder = &typed;
+    fakes[1].state.holder = &marked;
+    const float spot1[3] = {72.0f, 2.0f, 88.0f};
+    std::memcpy(fakes[1].state.position, spot1, 12);
+
+    // Init twice (the second does nothing), slot 24 again.
+    air.Mix(Virtual<uint32_t>(made, 0x0C) & 0xFF);
+    air.Mix(At<char*>(made, aw::field::kAirFilter) ? At<uint32_t>(At<char*>(made, aw::field::kAirFilter), 0) : 0u);
+    air.Mix(generator == made + aw::field::kRandom ? 1u : 0u);
+    air.Mix(At<uint32_t>(made, aw::field::kMaxCount));
+    air.Mix(At<uint8_t>(made, aw::field::kMinZoom));
+    air.Mix(Virtual<uint32_t>(made, 0x0C) & 0xFF);
+    air.Mix(Virtual<uint32_t>(made, 0x60) & 0xFF);
+    air.Mix(At<uint8_t>(made, aw::field::kMinZoom));
+
+    // The save: Write of the new manager, then Read of it with two list
+    // records (the first at fake 2's occupant's position with the byte 3),
+    // which Write must give back; a read of version 6 (refused), of version 4
+    // (the common base's body), and of a stream cut in the second record.
+    auto write = [&](ByteOStream& out) { return Virtual<uint32_t>(serial, 0x0C, static_cast<void*>(&out)) & 0xFF; };
+    auto read = [&](const std::vector<uint8_t>& bytes) {
+        ByteIStream in(bytes);
+        return Virtual<uint32_t>(serial, 0x10, static_cast<void*>(&in)) & 0xFF;
+    };
+    ByteOStream empty;
+    air.Mix(write(empty));
+    air.Mix(static_cast<uint32_t>(empty.bytes.size()));
+    if (empty.bytes.size() >= 16) {
+        air.MixBytes(empty.bytes.data(), 2);
+        std::vector<uint8_t> two(empty.bytes.begin(), empty.bytes.end() - 4);
+        const auto put = [&](uint32_t v) {
+            for (int i = 0; i < 4; ++i)
+                two.push_back(static_cast<uint8_t>(v >> (8 * i)));
+        };
+        put(2);
+        for (const float v : spot1) {
+            uint32_t w;
+            std::memcpy(&w, &v, 4);
+            put(w);
+        }
+        two.push_back(3);
+        put(0x42000000u); // (32, 33, 34)
+        put(0x42040000u);
+        put(0x42080000u);
+        two.push_back(1);
+        air.Mix(read(two));
+        air.Mix(RingCount(At<char*>(made, aw::field::kAirList)));
+        ByteOStream again;
+        air.Mix(write(again));
+        if (again.bytes != two)
+            flags |= 0x200;
+        air.Mix(read(std::vector<uint8_t>{6, 0}));
+        std::vector<uint8_t> v4 = {4, 0};
+        v4.insert(v4.end(), empty.bytes.begin() + 4, empty.bytes.begin() + 4 + 4 + 2 + 4);
+        Put32(v4, 2, 17); // the most
+        Put32(v4, 8, 0);  // no automata
+        air.Mix(read(v4));
+        air.Mix(At<uint32_t>(made, aw::field::kMaxCount));
+        air.Mix(At<uint8_t>(made, aw::field::kA78));
+        std::vector<uint8_t> cut(two.begin(), two.end() - 7);
+        air.Mix(read(cut));
+        air.Mix(RingCount(At<char*>(made, aw::field::kAirList)));
+        logged.MixBytes(empty.bytes.data(), empty.bytes.size());
+    } else {
+        flags |= 0x400;
+    }
+
+    // Map entries of the test's own (each holding a reference to its key
+    // and its value, as Read's are): fake 2's occupant to fake 3, the
+    // building to fake 4, fake 7's occupant to fake 8 and fake 8's to fake 7.
+    using MapAt = uint32_t*(__thiscall*)(void*, const uint32_t*);
+    char* const map = made + aw::field::kAirMap;
+    auto enter = [&](void* key, char* value) {
+        const uint32_t k = reinterpret_cast<uint32_t>(key);
+        *reinterpret_cast<MapAt>(addr::SC4Uint32Map_At)(map, &k) = reinterpret_cast<uint32_t>(value);
+        Virtual<uint32_t>(key, 0x04);
+        Virtual<uint32_t>(value, 0x04);
+    };
+    enter(f[1] + 4, f[2]);
+    if (building)
+        enter(building, f[3]);
+    enter(f[6] + 4, f[7]);
+    enter(f[7] + 4, f[6]);
+    air.Mix(At<uint32_t>(made, aw::field::kAirMapSize));
+
+    // Messages to the message target: inserted and removed of an occupant
+    // of the type 0x029244DB (nothing but the answer), inserted of fake 2's
+    // (SC4UIScale's 0x004FBFE0, which finds no property and ends), removed
+    // of fake 2's twice (0x004FB8D0: its entry erased and its list record of
+    // the property byte 3 unlinked; then neither is there), a type no one
+    // handles.
+    FakeObjectMessage message{FakeObjectMessageVtable(), 0, 0, nullptr};
+    auto send = [&](uint32_t type, void* object) {
+        message.type = type;
+        message.object = object;
+        air.Mix(Virtual<uint32_t>(made + aw::field::kMessage, 0x0C, static_cast<void*>(&message)) & 0xFF);
+        air.Mix(At<uint32_t>(made, aw::field::kAirMapSize));
+        air.Mix(RingCount(At<char*>(made, aw::field::kAirList)));
+    };
+    send(0x99EF1142, f[0] + 4);
+    send(0x99EF1143, f[0] + 4);
+    fakes[1].state.holder = &plain;
+    send(0x99EF1142, f[1] + 4);
+    fakes[1].state.holder = &marked;
+    send(0x99EF1143, f[1] + 4);
+    send(0x99EF1143, f[1] + 4);
+    send(0x12345678, nullptr);
+    air.Mix(fakes[1].state.refs);
+    air.Mix(fakes[2].state.refs);
+
+    // The dispatch slots. Locations: a point (kind 1), the building (kind
+    // 0), no object (kind 0, null) and a kind slot 19 refuses (9).
+    const uint32_t kOff = 0x7A5A0F0Fu;
+    const uint32_t toPoint[4] = {1, 0x42C00000u, 0, 0x42D00000u}; // (96, 0, 104)
+    const uint32_t toBad[4] = {9, 0, 0, 0};
+    const uint32_t fromPoint[4] = {1, 0x42800000u, 0, 0x42800000u};
+    const uint32_t fromBuilding[4] = {0, reinterpret_cast<uint32_t>(building), 0, 0};
+    const uint32_t fromNone[4] = {0, 0, 0, 0};
+    using Slot17 = void*(__thiscall*)(void*, void*, const void*, const void*, uint32_t, uint32_t);
+    using Slot18 = void*(__thiscall*)(void*, uint32_t, const void*, const void*, uint32_t, uint32_t, uint32_t,
+                                      uint32_t);
+    void** const vtable = *reinterpret_cast<void***>(made);
+    auto slot17 = [&](void* automaton, const void* from, const void* to) {
+        At<uint32_t>(f[4], 0x1E4) = kOff;
+        void* const answer = reinterpret_cast<Slot17>(vtable[17])(made, automaton, from, to, 0, 0);
+        air.Mix(Canon(reinterpret_cast<uint32_t>(answer)));
+        air.Mix(At<uint32_t>(f[4], 0x1E4));
+        air.MixBytes(fakes[4].state.position, 12);
+    };
+    slot17(nullptr, fromPoint, toPoint);
+    slot17(f[4], fromPoint, toBad);
+    slot17(f[4], fromPoint, toPoint);
+    slot17(f[4], fromNone, toPoint);
+    for (const uint32_t group : {0x4301u, 0u}) {
+        fakes[4].state.groups[0] = group;
+        if (building)
+            slot17(f[4], fromBuilding, toPoint);
+    }
+    auto slot18 = [&](const void* from, const void* to) {
+        At<uint32_t>(f[3], 0x1E4) = kOff;
+        void* const answer = reinterpret_cast<Slot18>(vtable[18])(made, kOff, from, to, 0, 0, 0, 0);
+        air.Mix(Canon(reinterpret_cast<uint32_t>(answer)));
+        air.Mix(At<uint32_t>(f[3], 0x1E4));
+        air.MixBytes(fakes[3].state.position, 12);
+    };
+    slot18(fromPoint, toPoint);
+    slot18(fromNone, toPoint);
+    if (building) {
+        slot18(fromBuilding, toBad);
+        slot18(fromBuilding, toPoint);
+        // The building's entry taken out (0x004FB8D0 at its address; it gives
+        // back the entry's references), then slot 18 finds nothing.
+        using Removed = void(__thiscall*)(void*, void*);
+        reinterpret_cast<Removed>(addr::cSC4AircraftManager_OccupantRemoved)(made, building);
+        air.Mix(At<uint32_t>(made, aw::field::kAirMapSize));
+        slot18(fromBuilding, toPoint);
+    } else {
+        flags |= 0x10;
+    }
+
+    // The list find 0x004FB2B0 on nodes of the test's own: a record at (1, 2,
+    // 3) with the byte 7; nodes with another byte, x 0.001 off, y NaN, z
+    // 0.00005 off (found), one more, and the end.
+    {
+        alignas(4) static char nodes[6][0x18];
+        std::memset(nodes, 0, sizeof nodes);
+        const float base3[3] = {1.0f, 2.0f, 3.0f};
+        for (int i = 0; i < 6; ++i) {
+            At<char*>(nodes[i], 0) = nodes[i + 1 < 6 ? i + 1 : 5];
+            std::memcpy(nodes[i] + 8, base3, 12);
+            At<uint8_t>(nodes[i], 0x14) = 7;
+        }
+        At<uint8_t>(nodes[0], 0x14) = 8;
+        At<float>(nodes[1], 8) = 1.001f;
+        At<float>(nodes[2], 0xC) = std::numeric_limits<float>::quiet_NaN();
+        At<float>(nodes[3], 0x10) = 3.00005f;
+        alignas(4) char record[0x10] = {};
+        std::memcpy(record, base3, 12);
+        At<uint8_t>(record, 0xC) = 7;
+        using Find = char**(__cdecl*)(char**, char*, char*, const char*);
+        const auto find = reinterpret_cast<Find>(addr::cSC4AircraftManager_FindRecord);
+        auto index = [&](char* n) {
+            for (uint32_t i = 0; i < 6; ++i)
+                if (n == nodes[i])
+                    return i;
+            return 0xFFu;
+        };
+        char* out = nullptr;
+        air.Mix(index(*find(&out, nodes[0], nodes[5], record)));
+        air.Mix(index(*find(&out, nodes[4], nodes[5], record)));
+        air.Mix(index(*find(&out, nodes[5], nodes[5], record)));
+        At<uint8_t>(record, 0xC) = 8;
+        air.Mix(index(*find(&out, nodes[0], nodes[5], record)));
+    }
+
+    // AddAutomaton: a fake (the common base's AddAutomaton puts it in the
+    // list), then none with the generator seeded until both kinds were made
+    // (a helicopter for a draw below 0x7FFFFFFF, else the 0x200-byte
+    // aircraft), each taken out again (slot 8 with 1).
+    air.Mix(Virtual<uint32_t>(made, 0x1C, static_cast<void*>(f[5])) & 0xFF);
+    air.Mix(RingCount(At<char*>(made, aw::field::kAutomata)));
+    {
+        using Seed = void(__thiscall*)(void*, uint32_t);
+        uint32_t kinds = 0;
+        for (uint32_t seed = 1; seed <= 8 && kinds != 3; ++seed) {
+            reinterpret_cast<Seed>(addr::cRZRandomSuper_Seed)(made + aw::field::kRandom, seed);
+            air.Mix(Virtual<uint32_t>(made, 0x1C, static_cast<void*>(nullptr)) & 0xFF);
+            char* const head = At<char*>(made, aw::field::kAutomata);
+            char* const last = At<char*>(head, 4);
+            void* const automaton = last != head ? At<void*>(last, 8) : nullptr;
+            if (!automaton || automaton == f[5]) {
+                flags |= 0x800;
+                break;
+            }
+            const uint32_t kind = At<uint32_t>(automaton, 0) == 0x00A991E0u   ? 1u
+                                  : At<uint32_t>(automaton, 0) == 0x00A97188u ? 2u
+                                                                              : 4u;
+            kinds |= kind;
+            air.Mix(seed);
+            air.Mix(kind);
+            air.Mix(Virtual<uint32_t>(made, 0x20, automaton, 1u) & 0xFF);
+            air.Mix(RingCount(At<char*>(made, aw::field::kAutomata)));
+        }
+        air.Mix(kinds);
+    }
+
+    // Shutdown (the map's two fake entries released and erased, the list
+    // freed, the fake automaton removed by slot 45), again (nothing), then
+    // the release; the generator global put back.
+    air.Mix(Virtual<uint32_t>(made, 0x10) & 0xFF);
+    air.Mix(generator ? 1u : 0u);
+    air.Mix(At<uint32_t>(made, aw::field::kAirMapSize));
+    air.Mix(RingCount(At<char*>(made, aw::field::kAirList)));
+    air.Mix(Virtual<uint32_t>(made, 0x10) & 0xFF);
+    for (const Fake& fake : fakes) {
+        air.Mix(fake.state.refs);
+        if (fake.state.unexpected)
+            flags |= 0x1000;
+    }
+    generator = savedGenerator;
+    air.Mix(Virtual<uint32_t>(made, aw::slot::kRelease));
+}
+
+// The watercraft manager's part: the city's manager's Write (its tables'
+// sizes into the token, the bytes to the log), then a new manager from its
+// factory, held by one reference.
+void AwWaterDrive(cISC4City* city, Hash& water, Hash& logged, uint32_t& flags)
+{
+    namespace aw = automata_awmgr;
+    auto write = [&](void* serial, ByteOStream& out) {
+        return Virtual<uint32_t>(serial, 0x0C, static_cast<void*>(&out)) & 0xFF;
+    };
+    auto read = [&](void* serial, const std::vector<uint8_t>& bytes) {
+        ByteIStream in(bytes);
+        return Virtual<uint32_t>(serial, 0x10, static_cast<void*>(&in)) & 0xFF;
+    };
+    if (char* const manager = Virtual<char*>(city, aw::kCitySlotWatercraft)) {
+        ByteOStream out;
+        water.Mix(write(manager + aw::field::kSerializable, out));
+        for (const std::size_t at : {aw::field::kWaterTable, aw::field::kWaterTable2, aw::field::kWaterTable3})
+            water.Mix(At<uint32_t>(manager + at, aw::table::kCount));
+        water.Mix(static_cast<uint32_t>(At<char*>(manager, aw::field::kWaterRefs + 4) -
+                                        At<char*>(manager, aw::field::kWaterRefs)));
+        water.Mix(At<uint8_t>(manager, aw::field::kWaterByte));
+        logged.Mix(static_cast<uint32_t>(out.bytes.size()));
+        logged.MixBytes(out.bytes.data(), out.bytes.size());
+    } else {
+        flags |= 0x10000;
+    }
+
+    using Factory = void*(__cdecl*)();
+    void* const serial = reinterpret_cast<Factory>(addr::cSC4WatercraftManager_Create)();
+    if (!serial) {
+        flags |= 0x20000;
+        return;
+    }
+    char* const made = static_cast<char*>(serial) - aw::field::kSerializable;
+    Virtual<uint32_t>(made, aw::slot::kAddRef);
+    void*& generator = *reinterpret_cast<void**>(0x00B22A78);
+    void* const savedGenerator = generator;
+    static Fake fakes[12];
+    for (uint32_t i = 0; i < 12; ++i)
+        fakes[i].Init(0x31 + i, water), At<void**>(fakes[i].block, 0) = FakeAutomatonVtable4();
+    g_known.push_back({made, 0x70});
+    char* f[12];
+    for (int i = 0; i < 12; ++i)
+        f[i] = fakes[i].Base();
+    constexpr uint32_t kTerminal = 0x4C18336Du, kDock = 0xEC39DD14u, kPair = 0x8C392D39u;
+    static FakeProps typed, plain, terminal, dock, pairType;
+    typed = {FakePropsVtable(), 1, 0, 0};
+    plain = {FakePropsVtable(), 0, 0, 0};
+    terminal = {FakePropsVtable(), 0, 0, kTerminal};
+    dock = {FakePropsVtable(), 0, 0, kDock};
+    pairType = {FakePropsVtable(), 0, 0, kPair};
+    fakes[0].state.holder = &typed;
+    fakes[1].state.holder = &terminal;
+    fakes[2].state.holder = &dock;
+    fakes[3].state.holder = &pairType;
+    fakes[7].state.holder = &plain;
+    const float spots[4][3] = {{40.0f, 3.0f, 40.0f}, {64.0f, 5.0f, 72.0f}, {20.0f, 1.0f, 24.0f}, {48.0f, 4.0f, 44.0f}};
+    for (int i = 0; i < 4; ++i)
+        std::memcpy(fakes[i].state.position, spots[i], 12);
+
+    // Init twice (the second does nothing): the generator global, the most
+    // (500, then the tuning's), the least zoom; slot 24 again.
+    water.Mix(Virtual<uint32_t>(made, 0x0C) & 0xFF);
+    water.Mix(generator == made + aw::field::kRandom ? 1u : 0u);
+    water.Mix(At<uint32_t>(made, aw::field::kMaxCount));
+    water.Mix(At<uint8_t>(made, aw::field::kMinZoom));
+    water.Mix(Virtual<uint32_t>(made, 0x0C) & 0xFF);
+    water.Mix(Virtual<uint32_t>(made, 0x60) & 0xFF);
+    water.Mix(At<uint8_t>(made, aw::field::kMinZoom));
+
+    auto counts = [&]() {
+        for (const std::size_t at : {aw::field::kWaterTable, aw::field::kWaterTable2, aw::field::kWaterTable3})
+            water.Mix(At<uint32_t>(made + at, aw::table::kCount));
+        water.Mix(static_cast<uint32_t>(At<char*>(made, aw::field::kWaterRefs + 4) -
+                                        At<char*>(made, aw::field::kWaterRefs)));
+    };
+
+    // A route of the test's own put in by the route insert 0x00574830: its
+    // key fake 7, its +0x1C fake 8's occupant, three records (the automata
+    // fakes 1, 2 and 3; ferry route words 0, 1 and 2 and their fields).
+    {
+        alignas(4) static char records[3][0x3C];
+        std::memset(records, 0, sizeof records);
+        for (uint32_t i = 0; i < 3; ++i) {
+            char* const r = records[i];
+            At<void*>(r, 0) = f[i];
+            char* const fr = r + 4;
+            At<uint32_t>(fr, 8) = i;
+            for (std::size_t at = 0xC; at <= 0x12; at += 2)
+                At<uint16_t>(fr, at) = static_cast<uint16_t>(0x100 * (i + 1) + at);
+            At<uint8_t>(fr, 0x14) = static_cast<uint8_t>(i & 1);
+            At<uint16_t>(fr, 0x16) = static_cast<uint16_t>(0x7000 + i);
+            At<uint16_t>(fr, 0x18) = static_cast<uint16_t>(0x8000 + i);
+            At<uint8_t>(r, 0x38) = 1;
+        }
+        alignas(4) char pair[0x1C] = {};
+        At<void*>(pair, 0) = f[6];
+        At<char*>(pair, 0xC) = records[0];
+        At<char*>(pair, 0x10) = records[0] + 3 * 0x3C;
+        At<char*>(pair, 0x14) = records[0] + 3 * 0x3C;
+        At<void*>(pair, 0x18) = f[7] + 4;
+        alignas(4) char result[12] = {};
+        using InsertFn = void*(__thiscall*)(void*, void*, const void*);
+        reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertRoute)(made + aw::field::kWaterTable, result,
+                                                                            pair);
+        water.Mix(At<uint8_t>(result, 8));
+        reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertRoute)(made + aw::field::kWaterTable, result,
+                                                                            pair);
+        water.Mix(At<uint8_t>(result, 8));
+        // A second pair table node whose +8 is fake 5 (its occupant's key),
+        // and the reference vector of fakes 6, 7 and 8 (one reference each).
+        void* p3[2] = {f[4] + 4, f[4]};
+        using Resize = void(__thiscall*)(void*, uint32_t);
+        char* const pairs3 = made + aw::field::kWaterTable3;
+        reinterpret_cast<Resize>(addr::SC4Uint32HashSet_Resize)(pairs3, At<uint32_t>(pairs3, aw::table::kCount) + 1);
+        reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertPair)(pairs3, result, p3);
+        water.Mix(At<uint8_t>(result, 8));
+        using Alloc = void*(__cdecl*)(uint32_t);
+        void** const refs = static_cast<void**>(reinterpret_cast<Alloc>(addr::SC4_stl_allocate)(12));
+        for (int i = 0; i < 3; ++i) {
+            refs[i] = f[5 + i];
+            Virtual<uint32_t>(f[5 + i], 0x04);
+        }
+        At<void**>(made, aw::field::kWaterRefs) = refs;
+        At<void**>(made, aw::field::kWaterRefs + 4) = refs + 3;
+        At<void**>(made, aw::field::kWaterRefs + 8) = refs + 3;
+        counts();
+    }
+
+    // The save: Write with the route, Read of those bytes (the references
+    // come back as nothing; the record word 2, written as -1, comes back as
+    // the one before it), Write again; reads of version 7 (refused) and 5
+    // (the common base's body).
+    ByteOStream first;
+    water.Mix(write(serial, first));
+    water.Mix(static_cast<uint32_t>(first.bytes.size()));
+    water.MixBytes(first.bytes.data(), first.bytes.size());
+    if (first.bytes.size() >= 16) {
+        water.Mix(read(serial, first.bytes));
+        counts();
+        ByteOStream again;
+        water.Mix(write(serial, again));
+        water.Mix(static_cast<uint32_t>(again.bytes.size()));
+        water.MixBytes(again.bytes.data(), again.bytes.size());
+        if (again.bytes.size() != first.bytes.size())
+            flags |= 0x40000;
+        water.Mix(read(serial, std::vector<uint8_t>{7, 0}));
+        std::vector<uint8_t> v5 = {5, 0};
+        v5.insert(v5.end(), first.bytes.begin() + 4, first.bytes.begin() + 4 + 4 + 2 + 4);
+        Put32(v5, 2, 23); // the most
+        Put32(v5, 8, 0);  // no automata
+        // No source building records. Without the count the common base's
+        // body would read it from a failed stream into a slot holding the
+        // stream's address and add records of a stack leftover (part aw2).
+        v5.insert(v5.end(), 4, uint8_t{0});
+        water.Mix(read(serial, v5));
+        water.Mix(At<uint32_t>(made, aw::field::kMaxCount));
+        water.Mix(At<uint8_t>(made, aw::field::kA78));
+    } else {
+        flags |= 0x80000;
+    }
+    counts();
+
+    // The route again (the round trip left one with a null key and no
+    // records' automata), the second pair table's node and the vector.
+    {
+        alignas(4) static char records2[2][0x3C];
+        std::memset(records2, 0, sizeof records2);
+        At<void*>(records2[0], 0) = f[0];
+        At<void*>(records2[1], 0) = f[1];
+        alignas(4) char pair[0x1C] = {};
+        At<void*>(pair, 0) = f[6];
+        At<char*>(pair, 0xC) = records2[0];
+        At<char*>(pair, 0x10) = records2[0] + 2 * 0x3C;
+        At<char*>(pair, 0x14) = records2[0] + 2 * 0x3C;
+        At<void*>(pair, 0x18) = f[7] + 4;
+        alignas(4) char result[12] = {};
+        using InsertFn = void*(__thiscall*)(void*, void*, const void*);
+        reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertRoute)(made + aw::field::kWaterTable, result,
+                                                                            pair);
+        void* p3[2] = {f[4] + 4, f[4]};
+        using Resize = void(__thiscall*)(void*, uint32_t);
+        char* const pairs3 = made + aw::field::kWaterTable3;
+        reinterpret_cast<Resize>(addr::SC4Uint32HashSet_Resize)(pairs3, At<uint32_t>(pairs3, aw::table::kCount) + 1);
+        reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertPair)(pairs3, result, p3);
+        using Alloc = void*(__cdecl*)(uint32_t);
+        void** const refs = static_cast<void**>(reinterpret_cast<Alloc>(addr::SC4_stl_allocate)(12));
+        for (int i = 0; i < 3; ++i) {
+            refs[i] = f[5 + i];
+            Virtual<uint32_t>(f[5 + i], 0x04);
+        }
+        // Read erased the vector's references; its storage is the game's to
+        // free, and is given back here before ours goes in.
+        using FreeFn = void(__cdecl*)(void*);
+        if (void* const old = At<void*>(made, aw::field::kWaterRefs))
+            reinterpret_cast<FreeFn>(addr::SC4_Free)(old);
+        At<void**>(made, aw::field::kWaterRefs) = refs;
+        At<void**>(made, aw::field::kWaterRefs + 4) = refs + 3;
+        At<void**>(made, aw::field::kWaterRefs + 8) = refs + 3;
+        counts();
+    }
+
+    // RemoveAutomaton (slot 8, with 1): fake 1 of the kind 0x4400 (in the
+    // route's records), fake 3 of the kind 0x4402 (not there), fake 5 in the
+    // group 0x4411 (the second pair table's node), fake 7 and then fake 8 in
+    // the group 0x4418 (the vector's middle, then its end), fake 10 in none,
+    // and none.
+    auto remove = [&](char* automaton) {
+        water.Mix(Virtual<uint32_t>(made, 0x20, static_cast<void*>(automaton), 1u) & 0xFF);
+        counts();
+    };
+    fakes[0].state.kind[4] = 0x4400;
+    fakes[2].state.kind[4] = 0x4402;
+    fakes[4].state.groups[0] = 0x4411;
+    fakes[6].state.groups[0] = 0x4418;
+    fakes[7].state.groups[0] = 0x4418;
+    remove(f[0]);
+    remove(f[2]);
+    remove(f[4]);
+    remove(f[6]);
+    remove(f[7]);
+    remove(f[9]);
+    remove(nullptr);
+
+    // Messages to the message target: 0x2C06BA82 (+0xA88), an occupant
+    // added without one, of the type 0x029244DB, of a terminal type (twice:
+    // put in, then found), of the dock type (no route: the dock search finds
+    // no lot interface on a fake), of the pair type; removed: the route's
+    // +0x1C (its records' automata stopped, the route erased), the terminal
+    // and pair ones; a type no one handles. Without an occupant the
+    // handlers are called at their addresses.
+    FakeObjectMessage message{FakeObjectMessageVtable(), 0, 0, nullptr};
+    auto send = [&](uint32_t type, void* object) {
+        message.type = type;
+        message.object = object;
+        water.Mix(Virtual<uint32_t>(made + aw::field::kMessage, 0x0C, static_cast<void*>(&message)) & 0xFF);
+        counts();
+    };
+    send(0x2C06BA82, nullptr);
+    water.Mix(At<uint8_t>(made, aw::field::kWaterByte));
+    {
+        // Without an occupant, at the handlers' addresses: the common base's
+        // DoMessage does not test it.
+        using Handler = void(__thiscall*)(void*, void*);
+        reinterpret_cast<Handler>(addr::cSC4WatercraftManager_OccupantAdded)(made, nullptr);
+        reinterpret_cast<Handler>(addr::cSC4WatercraftManager_OccupantRemoved)(made, nullptr);
+        counts();
+    }
+    send(0x99EF1142, f[0] + 4);
+    send(0x99EF1142, f[1] + 4);
+    send(0x99EF1142, f[1] + 4);
+    send(0x99EF1142, f[2] + 4);
+    send(0x99EF1142, f[3] + 4);
+    send(0x99EF1143, f[7] + 4);
+    send(0x99EF1143, f[1] + 4);
+    send(0x99EF1143, f[3] + 4);
+    send(0x99EF1143, f[0] + 4);
+    send(0x12345678, nullptr);
+
+    // AddAutomaton: a fake (in the list), then none (a new boat). The boat
+    // stays in the list for Shutdown's slot 45: the watercraft manager's
+    // RemoveAutomaton reads its slot 67's block, which a new boat has not.
+    water.Mix(Virtual<uint32_t>(made, 0x1C, static_cast<void*>(f[10])) & 0xFF);
+    water.Mix(Virtual<uint32_t>(made, 0x1C, static_cast<void*>(nullptr)) & 0xFF);
+    {
+        char* const head = At<char*>(made, aw::field::kAutomata);
+        char* const last = At<char*>(head, 4);
+        void* const boat = last != head ? At<void*>(last, 8) : nullptr;
+        if (boat && boat != f[10]) {
+            water.Mix(At<uint32_t>(boat, 0) == 0 ? 0u : 1u);
+        } else {
+            flags |= 0x100000;
+        }
+        water.Mix(RingCount(At<char*>(made, aw::field::kAutomata)));
+    }
+
+    // On tables of the test's own with one bucket (so that the second key
+    // goes in front of the first): the pair table's and the route table's
+    // erase of the older node (its release, 0x0056C910 and 0x00574230) and
+    // then of the first; and the route pair's constructor and the records'
+    // clear on a route value of the test's own, as the dock branch of the
+    // occupant's addition makes them.
+    {
+        using Ctor = void*(__thiscall*)(void*, uint32_t);
+        using InsertFn = void*(__thiscall*)(void*, void*, const void*);
+        using EraseFn = void(__thiscall*)(void*, void*);
+        using Alloc = void*(__cdecl*)(uint32_t);
+        using FreeFn = void(__cdecl*)(void*);
+        const auto oneBucket = [&](char* t) {
+            reinterpret_cast<Ctor>(addr::SC4Uint32HashSet_Construct)(t, 0x64);
+            if (void* const old = At<void*>(t, aw::table::kBegin))
+                reinterpret_cast<FreeFn>(addr::SC4_Free)(old);
+            char** const bucket = static_cast<char**>(reinterpret_cast<Alloc>(addr::SC4_stl_allocate)(4));
+            bucket[0] = nullptr;
+            At<char**>(t, aw::table::kBegin) = bucket;
+            At<char**>(t, aw::table::kEnd) = bucket + 1;
+            At<char**>(t, aw::table::kCapacity) = bucket + 1;
+        };
+        const auto erase = [&](uintptr_t fn, char* t, char* node) {
+            void* iterator[2] = {node, t};
+            reinterpret_cast<EraseFn>(fn)(t, iterator);
+            water.Mix(At<uint32_t>(t, aw::table::kCount));
+            water.Mix(At<char**>(t, aw::table::kBegin)[0] ? 1u : 0u);
+        };
+        alignas(4) char pairs[aw::table::kSize] = {};
+        oneBucket(pairs);
+        char* nodes[2] = {};
+        for (int i = 0; i < 2; ++i) {
+            void* pair[2] = {f[8 + i] + 4, f[8 + i]};
+            alignas(4) char result[12] = {};
+            reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertPair)(pairs, result, pair);
+            nodes[i] = At<char*>(result, 0);
+        }
+        erase(addr::cSC4WatercraftManager_ErasePair, pairs, nodes[0]);
+        erase(addr::cSC4WatercraftManager_ErasePair, pairs, nodes[1]);
+        reinterpret_cast<FreeFn>(addr::SC4_Free)(At<void*>(pairs, aw::table::kBegin));
+        alignas(4) char routes[aw::table::kSize] = {};
+        oneBucket(routes);
+        for (int i = 0; i < 2; ++i) {
+            alignas(4) char pair[0x1C] = {};
+            At<void*>(pair, 0) = f[8 + i];
+            At<void*>(pair, 0x18) = f[8 + i] + 4;
+            alignas(4) char result[12] = {};
+            reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertRouteNode)(routes, result, pair);
+            nodes[i] = At<char*>(result, 0);
+        }
+        erase(addr::cSC4WatercraftManager_EraseRoute, routes, nodes[0]);
+        erase(addr::cSC4WatercraftManager_EraseRoute, routes, nodes[1]);
+        reinterpret_cast<FreeFn>(addr::SC4_Free)(At<void*>(routes, aw::table::kBegin));
+        alignas(4) char value[0x18] = {};
+        using Clear = void(__thiscall*)(void*);
+        reinterpret_cast<Clear>(addr::cSC4WatercraftManager_ClearRecords)(value + 8);
+        At<void*>(value, 0x14) = f[9] + 4;
+        void* key = f[8];
+        alignas(4) char pair[0x1C] = {};
+        using MakeFn = char*(__thiscall*)(void*, void* const*, const void*);
+        char* const madePair = reinterpret_cast<MakeFn>(addr::cSC4WatercraftManager_MakeRoutePair)(pair, &key, value);
+        water.Mix(madePair == pair ? 1u : 0u);
+        for (std::size_t at = 0; at < 0x1C; at += 4)
+            water.Mix(Canon(At<uint32_t>(pair, at)));
+        reinterpret_cast<Clear>(addr::cSC4WatercraftManager_DestroyRoute)(pair + 4);
+        if (void* const k = At<void*>(pair, 0))
+            Virtual<uint32_t>(k, 0x08);
+        At<void*>(value, 0x14) = nullptr;
+        reinterpret_cast<Clear>(addr::cSC4WatercraftManager_DestroyRoute)(value);
+    }
+
+    // Shutdown (the tables cleared, the vector erased, the fake automaton
+    // removed by slot 45), again (nothing), then the release; the generator
+    // global put back.
+    water.Mix(Virtual<uint32_t>(made, 0x10) & 0xFF);
+    water.Mix(generator ? 1u : 0u);
+    counts();
+    water.Mix(Virtual<uint32_t>(made, 0x10) & 0xFF);
+    for (const Fake& fake : fakes) {
+        water.Mix(fake.state.refs);
+        if (fake.state.unexpected)
+            flags |= 0x200000;
+    }
+    generator = savedGenerator;
+    water.Mix(Virtual<uint32_t>(made, aw::slot::kRelease));
+}
+
+void AwBehaviourDrive(cISC4City* city)
+{
+    std::string text = " E";
+    Hash air, water, logged;
+    uint32_t flags = 0;
+    g_known.clear();
+    // The first building occupant of the controller table by its hash (the
+    // aircraft dispatch slots' source and map key).
+    void* building = nullptr;
+    uint32_t best = 0xFFFFFFFFu;
+    if (char* const manager = Manager(city))
+        ForEach<ControllerNode>(Table(manager, field::kControllers), [&](ControllerNode* node) {
+            void* const occupant = node->occupant;
+            if (!occupant || Virtual<uint32_t>(occupant, kGetType) != 0x278128A0u)
+                return;
+            const uint32_t h = OccupantHash(occupant);
+            if (h < best) {
+                best = h;
+                building = occupant;
+            }
+        });
+    AwAirDrive(building, air, logged, flags);
+    AwWaterDrive(city, water, logged, flags);
+    g_known.clear();
+    char part[64];
+    std::snprintf(part, sizeof part, "%08X,%08X,%X", air.h, water.h, flags);
+    text += part;
+    g_aw4Text = text;
+    log::Write("autotest: automata: aw4%s logged %08X", text.c_str(), logged.h);
+}
+
+// ====================================================================================
 // Part c1's drive (OPENSC4_TEST_AUTOMATA_SITUATIONS=1), see the top of the file.
 
 std::string g_situationText;
@@ -5338,6 +6147,8 @@ void Drive(const Day& day)
         AwLifeDrive(day.city);
     if (EnvInt("OPENSC4_TEST_AUTOMATA_AWMGR", 0) >= 3 && day.city && game::IsBuild641() && g_aw3Text.empty())
         AwAutoDrive(day.city);
+    if (EnvInt("OPENSC4_TEST_AUTOMATA_AWMGR", 0) >= 4 && day.city && game::IsBuild641() && g_aw4Text.empty())
+        AwBehaviourDrive(day.city);
     if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 1 && day.city && game::IsBuild641() && g_managerText.empty()) {
         ManagerDrive(day.city);
         if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 2)
@@ -5424,6 +6235,7 @@ void Fingerprint(cISC4City* city, std::string& line)
     line += g_awText;
     line += g_aw2Text;
     line += g_aw3Text;
+    line += g_aw4Text;
     line += g_situationText;
     line += g_situation2Text;
     // The automaton table: frame-driven, the log only.
