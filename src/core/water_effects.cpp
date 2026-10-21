@@ -11077,7 +11077,11 @@ uint32_t FindRun(char* self, uint32_t name)
     return result;
 }
 
-uint32_t __fastcall EqualRangeByMode(char* map, void*, uint32_t out, uint32_t key)
+// The equal range has one detour, shared with renderer.effects.tail
+// (defined with the tail: it notes in a noted run whatever the mode).
+bool HookNameEqualRange();
+
+uint32_t EqualRangeRun(char* map, uint32_t out, uint32_t key)
 {
     if (g_lookupMode == StepMode::Ours)
         return reinterpret_cast<uint32_t>(
@@ -11093,7 +11097,6 @@ uint32_t __fastcall EqualRangeByMode(char* map, void*, uint32_t out, uint32_t ke
                     same ? std::string() : Hex(mine, 0x10));
     return result;
 }
-OPENSC4_THUNK(TSC4NameMap_EqualRange, EqualRangeByMode, 8)
 
 uint32_t CompoundDescriptionRun(char* compound, uint32_t description)
 {
@@ -11128,7 +11131,7 @@ bool InstallIdLookup();
 bool InstallLookup(registry::Mode mode)
 {
     if (!game::IsBuild641() || !HookFindDescriptionByName() ||
-        !Detour(addr::SC4NameMap_EqualRange, &TSC4NameMap_EqualRange, &g_SC4NameMap_EqualRange) ||
+        !HookNameEqualRange() ||
         !InstallIdLookup())
         return false;
     g_lookupMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
@@ -14874,6 +14877,9 @@ uint32_t HsEndCompared(const char* id, const TbSpans& spans, bool result, Game&&
 template <typename Game, typename Ours, typename Compared>
 uint32_t HsByMode(StNote note, const char* out, std::size_t size, Game&& game, Ours&& ours, Compared&& compared)
 {
+    // Some detours are shared with renderer.effects.tail: noted whatever the mode.
+    if (g_hsMode == StepMode::Original)
+        return StHelper(std::move(note), out, size, game);
     if (g_hsMode == StepMode::Compare && GetCurrentThreadId() != g_hsThread)
         return game();
     return StByModeOf(g_hsMode, std::move(note), out, size, game, ours, compared);
@@ -14907,6 +14913,16 @@ uint32_t __fastcall HsFindByMode(char* table, void*, uint32_t key)
 }
 OPENSC4_THUNK(THsFind, HsFindByMode, 4)
 
+// The pair an insert is given, folded into its note (the pointer alone is
+// a place on the stack).
+uint32_t PairBytesOf(uint32_t value)
+{
+    uint32_t hash = 2166136261u;
+    for (uint32_t i = 0; i < 0xC; ++i)
+        hash = (hash ^ reinterpret_cast<const uint8_t*>(value)[i]) * 16777619u;
+    return hash;
+}
+
 uint32_t __fastcall HsInsertPairByMode(char* table, void*, uint32_t out, uint32_t value)
 {
     const auto game = [&] { return g_SC4PairHash_InsertUnique(table, nullptr, out, value); };
@@ -14914,7 +14930,8 @@ uint32_t __fastcall HsInsertPairByMode(char* table, void*, uint32_t out, uint32_
         return Word(InsertPairUnique(table, Ptr(out), reinterpret_cast<const uint32_t*>(value)));
     };
     const auto kept = [&] { return HsTable(table); };
-    return HsByMode(StMake(addr::SC4PairHash_InsertUnique, table, Ptr(out), Ptr(value)), Ptr(out), 0xC, game, ours,
+    return HsByMode(StMake(addr::SC4PairHash_InsertUnique, table, Ptr(out), Ptr(value), PairBytesOf(value)),
+                    Ptr(out), 0xC, game, ours,
                     [&] {
                         return TbCompared("effects.hashes.insert_pair", Ptr(out), 0xC, true, game, ours, kept,
                                           TbMade);
@@ -15118,6 +15135,17 @@ bool HookDelete()
     return g_SC4_operator_delete || DetourCdecl(addr::SC4_operator_delete, &DeleteNoted, &g_SC4_operator_delete);
 }
 
+bool HookPairHashInsert()
+{
+    return g_SC4PairHash_InsertUnique ||
+           Detour(addr::SC4PairHash_InsertUnique, &THsInsertPair, &g_SC4PairHash_InsertUnique);
+}
+
+bool HookPairHashGrow()
+{
+    return g_SC4PairHash_Grow || Detour(addr::SC4PairHash_Grow, &THsGrowPairs, &g_SC4PairHash_Grow);
+}
+
 bool HookTransformChars()
 {
     return g_SC4_TransformChars || DetourCdecl(addr::SC4_TransformChars, &HsTransformByMode, &g_SC4_TransformChars);
@@ -15128,8 +15156,7 @@ bool InstallHashes(registry::Mode mode)
     constexpr int effect = static_cast<int>(Held::Effect);
     if (!game::IsBuild641() ||
         !Detour(addr::SC4Uint32HashSet_Find, &THsFind, &g_SC4Uint32HashSet_Find) ||
-        !Detour(addr::SC4PairHash_InsertUnique, &THsInsertPair, &g_SC4PairHash_InsertUnique) ||
-        !Detour(addr::SC4PairHash_Grow, &THsGrowPairs, &g_SC4PairHash_Grow) ||
+        !HookPairHashInsert() || !HookPairHashGrow() ||
         !Detour(addr::SC4StringHash_Grow, &THsGrowNames, &g_SC4StringHash_Grow) ||
         !Detour(addr::SC4Uint32Hash_Destroy, &THsDestroyHash, &g_SC4Uint32Hash_Destroy) ||
         !Detour(addr::SC4PtrVectorHashMap_Clear, &THsClearLists, &g_SC4PtrVectorHashMap_Clear) ||
@@ -15986,6 +16013,21 @@ uint32_t StSpansCompared(const char* id, const std::vector<std::pair<char*, std:
     return theirs;
 }
 
+// One detour, shared with renderer.effects.tail: noted in a noted run
+// whatever the mode (the 16 bytes of the range).
+uint32_t __fastcall EqualRangeByMode(char* map, void*, uint32_t out, uint32_t key)
+{
+    return StHelper(StMake(addr::SC4NameMap_EqualRange, map, reinterpret_cast<char*>(out), reinterpret_cast<char*>(key)),
+                    reinterpret_cast<char*>(out), 0x10, [&] { return EqualRangeRun(map, out, key); });
+}
+OPENSC4_THUNK(TSC4NameMap_EqualRange, EqualRangeByMode, 8)
+
+bool HookNameEqualRange()
+{
+    return g_SC4NameMap_EqualRange ||
+           Detour(addr::SC4NameMap_EqualRange, &TSC4NameMap_EqualRange, &g_SC4NameMap_EqualRange);
+}
+
 // --- Calls through other objects' tables, and the manager's tail ------------------------------
 //
 // Most of what is left of the manager calls through the tables of other
@@ -16017,6 +16059,10 @@ struct VrSlot {
     int in;                   // a word pointing at bytes passed in, or -1
     uint32_t inSize;
     uint32_t thunk;
+    int in2 = -1;             // a second such word
+    uint32_t in2Size = 0;
+    bool outThrough = false;  // the first out is behind the pointer the word points at
+    void (*after)(const uint32_t* args) = nullptr; // after the call, noted or replayed
 };
 
 struct VrKind {
@@ -16202,16 +16248,22 @@ uint32_t VrDispatch(char* self, uint32_t slot, const uint32_t* args, const std::
     uint32_t rest = desc->args > 2 ? StArg(Ptr(args[2])) : 0;
     for (int i = 3; i < desc->args; ++i)
         rest = (rest ^ StArg(Ptr(args[i]))) * 16777619u;
-    if (desc->in >= 0 && args[desc->in]) {
-        const auto* bytes = reinterpret_cast<const uint8_t*>(args[desc->in]);
-        for (uint32_t i = 0; i < desc->inSize; ++i)
-            rest = (rest ^ bytes[i]) * 16777619u;
+    for (const auto& [word, size] : {std::pair<int, uint32_t>{desc->in, desc->inSize}, {desc->in2, desc->in2Size}}) {
+        if (word >= 0 && args[word]) {
+            const auto* bytes = reinterpret_cast<const uint8_t*>(args[word]);
+            for (uint32_t i = 0; i < size; ++i)
+                rest = (rest ^ bytes[i]) * 16777619u;
+        }
     }
     VrBuffers buffers;
     if (value)
         buffers.push_back({value, 8});
-    for (const VrOut& at : desc->outs)
-        buffers.push_back({at.arg >= 0 ? Ptr(args[at.arg]) : nullptr, at.size});
+    for (const VrOut& at : desc->outs) {
+        char* place = at.arg >= 0 ? Ptr(args[at.arg]) : nullptr;
+        if (place && desc->outThrough && &at == &desc->outs[0])
+            place = At<char*>(place, 0);
+        buffers.push_back({place, at.size});
+    }
     const uint32_t result = VrNotedInto(StMake(function, self, desc->args > 0 ? Ptr(args[0]) : nullptr,
                                                desc->args > 1 ? Ptr(args[1]) : nullptr, rest),
                                         buffers, [&] { return call(function); });
@@ -16219,6 +16271,8 @@ uint32_t VrDispatch(char* self, uint32_t slot, const uint32_t* args, const std::
         VrProxyObject(At<char*>(Ptr(args[desc->outs[0].arg]), 0), *desc->outKind);
     if (desc->resultKind)
         VrProxyObject(Ptr(result), *desc->resultKind);
+    if (desc->after)
+        desc->after(args);
     return result;
 }
 
@@ -16277,6 +16331,15 @@ uint32_t __fastcall VrThunk4(char* self, void*, uint32_t a, uint32_t b, uint32_t
 }
 
 template <uint32_t Slot>
+uint32_t __fastcall VrThunk5(char* self, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e)
+{
+    const uint32_t args[5] = {a, b, c, d, e};
+    using Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    return VrDispatch(self, Slot, args,
+                      [&](uint32_t f) { return reinterpret_cast<Fn>(f)(self, nullptr, a, b, c, d, e); });
+}
+
+template <uint32_t Slot>
 uint32_t __fastcall VrThunk6(char* self, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t g)
 {
     const uint32_t args[6] = {a, b, c, d, e, g};
@@ -16310,6 +16373,20 @@ const VrKind kVrOccupant{{{0x18, 0, {{-1, 0}, {-1, 0}}, nullptr, &kVrOccupantTyp
                           {0x28, 2, {{0, 0xC}, {1, 0xC}}, nullptr, nullptr, -1, 0, VR_SLOT(2, 0x28)},
                           {0x2C, 1, {{0, 0x10}, {-1, 0}}, nullptr, nullptr, -1, 0, VR_SLOT(1, 0x2C)}}};
 const VrKind kVrMessageServer{{VrPlain(0x18, 2, VR_SLOT(2, 0x18))}};
+const VrKind kVrMessageListen{{VrPlain(0x14, 2, VR_SLOT(2, 0x14))}};
+// The occupants a query put in its list (nodes of next, previous, object),
+// proxied for their let-go.
+void VrProxyListed(const uint32_t* args)
+{
+    char* const holder = At<char*>(Ptr(args[0]), 0);
+    for (char* node = holder ? At<char*>(holder, 0) : nullptr; node && node != holder; node = At<char*>(node, 0))
+        VrProxyObject(At<char*>(node, 8), kVrUnknown);
+}
+
+const VrKind kVrClearedMap{{{0x2C, 2, {{-1, 0}, {-1, 0}}, nullptr, nullptr, 1, 0x10, VR_SLOT(2, 0x2C)}}};
+const VrKind kVrNodeAllocator{{VrPlain(0xC, 1, VR_SLOT(1, 0xC))}};
+const VrKind kVrOccupantQuery{{{0xA4, 5, {{0, 8}, {-1, 0}}, nullptr, nullptr, 1, 8, VR_SLOT(5, 0xA4), 2, 8, true,
+                                VrProxyListed}}};
 const VrKind kVrLiftedMap{{{0x28, 4, {{-1, 0}, {-1, 0}}, nullptr, nullptr, 1, 0x10, VR_SLOT(4, 0x28)}}};
 
 // What ours calls besides the proxied tables: in the replay the note.
@@ -16373,6 +16450,54 @@ void TlClearHash(char* hash)
 {
     VrNotedInto(StMake(addr::SC4Uint32HashSet_Clear, hash), {{hash, 0x14}},
                 [&] { return CallThis<uint32_t>(addr::SC4Uint32HashSet_Clear, hash); });
+}
+
+Call1Fn g_SC4Uint32HashMap_Lookup = nullptr;
+
+void TlEqualRange(char* map, char* out, char* key)
+{
+    VrNotedInto(StMake(addr::SC4NameMap_EqualRange, map, out, key), {{out, 0x10}},
+                [&] { return CallThis<uint32_t>(addr::SC4NameMap_EqualRange, map, out, key); });
+}
+
+void TlGrowPairs(char* table, uint32_t count)
+{
+    VrNotedInto(StMake(addr::SC4PairHash_Grow, table, Ptr(count)), {{table, 0x14}},
+                [&] { return CallThis<uint32_t>(addr::SC4PairHash_Grow, table, count); });
+}
+
+// The insert's note keeps only its out bytes; in a replay the count it
+// raises when it puts the pair in (out + 8) is raised here.
+void TlInsertPair(char* table, char* out, uint32_t* pair)
+{
+    VrNotedInto(StMake(addr::SC4PairHash_InsertUnique, table, out, Ptr(Word(pair)), PairBytesOf(Word(pair))),
+                {{out, 0xC}},
+                [&] { return CallThis<uint32_t>(addr::SC4PairHash_InsertUnique, table, out, pair); });
+    if (g_stReplay && g_stDepth == 0 && GetCurrentThreadId() == g_stThread && At<uint8_t>(out, 8))
+        ++At<uint32_t>(table, 0x10);
+}
+
+uint32_t* TlLookup(char* map, char* key)
+{
+    return reinterpret_cast<uint32_t*>(VrNotedInto(StMake(addr::SC4Uint32HashMap_Lookup, map, key), {{map, 0x14}},
+                                                   [&] { return CallThis<uint32_t>(addr::SC4Uint32HashMap_Lookup, map, key); }));
+}
+
+void TlReleaseRef(char** holder)
+{
+    CallThis<uint32_t>(addr::SC4_ReleaseRef, holder);
+}
+
+// The list's end: in the game's noted run of the occupant's going away
+// it is noted and kept until the comparison is done (ours reads the list
+// again), then made on a copy of the holder.
+std::vector<char*>* g_tlKeptLists = nullptr;
+Call0Fn g_SC4List_Destroy2 = nullptr;
+
+void TlDestroyList(char** holder)
+{
+    VrNotedInto(StMake(addr::SC4List_Destroy2, holder), {},
+                [&] { return CallThis<uint32_t>(addr::SC4List_Destroy2, holder); });
 }
 
 uint32_t TlClearTexts(char* tables)
@@ -16610,6 +16735,74 @@ uint32_t __fastcall TlClearHashNoted(char* hash, void*)
 }
 OPENSC4_THUNK(TTlClearHashNoted, TlClearHashNoted, 0)
 
+uint32_t __fastcall TlLookupNoted(char* map, void*, uint32_t key)
+{
+    return VrNotedInto(StMake(addr::SC4Uint32HashMap_Lookup, map, Ptr(key)), {{map, 0x14}},
+                       [&] { return g_SC4Uint32HashMap_Lookup(map, nullptr, key); });
+}
+OPENSC4_THUNK(TTlLookupNoted, TlLookupNoted, 4)
+
+uint32_t __fastcall TlDestroyListNoted(char* holder, void*)
+{
+    if (g_tlKeptLists && StNoting()) {
+        g_stGame.push_back(StMake(addr::SC4List_Destroy2, holder));
+        g_tlKeptLists->push_back(At<char*>(holder, 0));
+        return 0;
+    }
+    return g_SC4List_Destroy2(holder, nullptr);
+}
+OPENSC4_THUNK(TTlDestroyListNoted, TlDestroyListNoted, 0)
+
+Call1Fn g_SC4EffectsManager_RelieveUnderOccupant = nullptr;
+
+// A comparison with no allocator yet runs the game's only (its making is
+// not compared).
+uint32_t __fastcall TlRelieveByMode(char* manager, void*, uint32_t occupant)
+{
+    const auto game = [&] { return g_SC4EffectsManager_RelieveUnderOccupant(manager, nullptr, occupant); };
+    const auto ours = [&] {
+        RelieveUnderOccupant(manager, Ptr(occupant));
+        return 0u;
+    };
+    return StByModeOf(g_tlMode, StMake(addr::SC4EffectsManager_RelieveUnderOccupant, manager, Ptr(occupant)), nullptr,
+                      0, game, ours, [&] {
+                          if (!M<char*>(0x00B207E4))
+                              return game();
+                          std::vector<char*> kept;
+                          auto* const outer = g_tlKeptLists;
+                          g_tlKeptLists = &kept;
+                          uint32_t result = 0;
+                          {
+                              VrScope scope;
+                              VrProxyObject(Ptr(occupant), kVrOccupant);
+                              VrProxyObject(At<char*>(manager, 0xD98), kVrClearedMap);
+                              VrProxyObject(M<char*>(0x00B207E4), kVrNodeAllocator);
+                              VrProxyObject(M<char*>(0x00B43D0C), kVrOccupantQuery);
+                              result = StSpansCompared("effects.tail.relieve", {}, false, game, ours);
+                          }
+                          g_tlKeptLists = outer;
+                          for (char* list : kept)
+                              g_SC4List_Destroy2(reinterpret_cast<char*>(&list), nullptr);
+                          return result;
+                      });
+}
+OPENSC4_THUNK(TTlRelieve, TlRelieveByMode, 4)
+
+Call0Fn g_SC4EffectTables_StartListening = nullptr;
+
+uint32_t __fastcall TlStartByMode(char* tables, void*)
+{
+    const auto game = [&] { return g_SC4EffectTables_StartListening(tables, nullptr); };
+    const auto ours = [&] { return StartListening(tables); };
+    return StByModeOf(g_tlMode, StMake(addr::SC4EffectTables_StartListening, tables), nullptr, 0, game, ours, [&] {
+        VrScope scope;
+        VrProxyObject(M<char*>(0x00B43CCC), kVrMessageListen);
+        return StSpansCompared("effects.tail.start", {{tables + 0xC20, 0x20}, {tables + 0xC6C, 0x28}}, false, game,
+                               ours);
+    });
+}
+OPENSC4_THUNK(TTlStart, TlStartByMode, 0)
+
 Call1Fn g_SC4EffectsManager_HasDescriptionNamed = nullptr;
 Call0Fn g_SC4EffectTables_StopListening = nullptr;
 
@@ -16648,7 +16841,9 @@ bool InstallTail(registry::Mode mode)
         !Detour(addr::SC4EffectsManager_LiftUnderOccupant, &TTlLift, &g_SC4EffectsManager_LiftUnderOccupant) ||
         !DetourCdecl(addr::SC4EffectsManager_LiftMessage, &TlLiftMessageByMode, &g_SC4EffectsManager_LiftMessage) ||
         !Detour(addr::SC4EffectsManager_HasDescriptionNamed, &TTlNamed, &g_SC4EffectsManager_HasDescriptionNamed) ||
-        !Detour(addr::SC4EffectTables_StopListening, &TTlStop, &g_SC4EffectTables_StopListening))
+        !Detour(addr::SC4EffectTables_StopListening, &TTlStop, &g_SC4EffectTables_StopListening) ||
+        !Detour(addr::SC4EffectTables_StartListening, &TTlStart, &g_SC4EffectTables_StartListening) ||
+        !Detour(addr::SC4EffectsManager_RelieveUnderOccupant, &TTlRelieve, &g_SC4EffectsManager_RelieveUnderOccupant))
         return false;
     if (mode == registry::Mode::Compare &&
         !(DetourCdecl(addr::SC4_QueryHeld, &TlQueryHeldNoted, &g_SC4_QueryHeld) &&
@@ -16656,7 +16851,10 @@ bool InstallTail(registry::Mode mode)
           Detour(addr::SC4StringBody_AssignChars, &TTlAssignCharsNoted, &g_SC4StringBody_AssignChars) &&
           Detour(addr::SC4StringHashSet_Find, &TTlFindNameNoted, &g_SC4StringHashSet_Find) &&
           Detour(addr::SC4Uint32HashSet_Clear, &TTlClearHashNoted, &g_SC4Uint32HashSet_Clear) &&
-          HookTransformChars() && HookClearManagerTexts()))
+          HookTransformChars() && HookClearManagerTexts() && HookAssignFloats() && HookPairHashInsert() &&
+          HookPairHashGrow() && HookNameEqualRange() &&
+          Detour(addr::SC4Uint32HashMap_Lookup, &TTlLookupNoted, &g_SC4Uint32HashMap_Lookup) &&
+          Detour(addr::SC4List_Destroy2, &TTlDestroyListNoted, &g_SC4List_Destroy2)))
         return false;
     g_tlMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: the manager's calls through other tables %s",
